@@ -58,6 +58,7 @@ export function SessionEditWorkspace({
 	legacyPreparation = null,
 }: Props) {
 	const [activeTab, setActiveTab] = useState<WorkspaceTab>("transcript");
+	const [focusedPane, setFocusedPane] = useState<"transcript" | "editorial">("transcript");
 	const editorialSurface = activeTab === "summary" ? "summary" : "session";
 	const mobileTabs = editorial ? TABS : TABS.filter((tab) => tab.id !== "summary");
 
@@ -81,7 +82,10 @@ export function SessionEditWorkspace({
 							className={active ? styles.tabActive : styles.tab}
 							id={`session-workspace-tab-${tab.id}`}
 							key={tab.id}
-							onClick={() => setActiveTab(tab.id)}
+							onClick={() => {
+								setActiveTab(tab.id);
+								setFocusedPane(tab.id === "transcript" ? "transcript" : "editorial");
+							}}
 							role="tab"
 							type="button"
 						>
@@ -96,8 +100,10 @@ export function SessionEditWorkspace({
 				className={`${styles.panel} ${styles.transcriptPanel}`}
 				data-mobile-active={activeTab === "transcript" ? "true" : "false"}
 				id="session-workspace-transcript"
+				onFocusCapture={() => setFocusedPane("transcript")}
+				onPointerDown={() => setFocusedPane("transcript")}
 			>
-				<TranscriptReader {...transcript} active={activeTab === "transcript"} />
+				<TranscriptReader {...transcript} active={focusedPane === "transcript"} />
 			</section>
 
 			<section
@@ -105,6 +111,8 @@ export function SessionEditWorkspace({
 				className={`${styles.panel} ${styles.editorialPanel}`}
 				data-mobile-active={activeTab === "transcript" ? "false" : "true"}
 				id="session-workspace-editorial"
+				onFocusCapture={() => setFocusedPane("editorial")}
+				onPointerDown={() => setFocusedPane("editorial")}
 			>
 				{editorial ? (
 					<div
@@ -120,7 +128,10 @@ export function SessionEditWorkspace({
 									aria-selected={active}
 									className={active ? styles.tabActive : styles.tab}
 									key={tab.id}
-									onClick={() => setActiveTab(tab.id)}
+									onClick={() => {
+										setActiveTab(tab.id);
+										setFocusedPane("editorial");
+									}}
 									role="tab"
 									type="button"
 								>
@@ -135,8 +146,11 @@ export function SessionEditWorkspace({
 					{editorial ? (
 						<SessionEditorialDraftEditor
 							{...editorial}
-							active={activeTab !== "transcript"}
-							onPreview={() => setActiveTab("summary")}
+							active={focusedPane === "editorial"}
+							onPreview={() => {
+								setActiveTab("summary");
+								setFocusedPane("editorial");
+							}}
 							surface={editorialSurface}
 						/>
 					) : legacyPreparation ? (
