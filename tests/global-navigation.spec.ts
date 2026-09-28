@@ -198,7 +198,7 @@ test("anonymous account menu keeps login explicit and preserves the current retu
 		panel.getByRole("button", { name: "Entrar com Discord" }),
 	).toBeVisible();
 	await expect(panel.getByText("Aparência", { exact: true })).toBeVisible();
-	await expect(page.locator(".site-header > .theme-toggle")).toHaveCount(0);
+	await expect(page.locator(".header-actions > .theme-toggle")).toHaveCount(0);
 });
 
 test("authenticated account menu renders sanitized identity, account link and POST logout", async ({
@@ -324,4 +324,43 @@ test("account panel stays horizontally contained at 320px", async ({ page }) => 
 	if (!box) return;
 	expect(box.x).toBeGreaterThanOrEqual(0);
 	expect(box.x + box.width).toBeLessThanOrEqual(320);
+});
+
+
+test("outside interaction dismisses the account panel", async ({ page }) => {
+	await mockAccountProjection(page, { state: "anonymous" });
+	await page.goto("/");
+	const panel = await openAccountMenu(page);
+	await expect(panel).toBeVisible();
+
+	await page.getByRole("heading", { level: 1 }).click();
+	await expect(panel).toHaveCount(0);
+});
+
+test("launcher and account menu share one auth projection request", async ({ page }) => {
+	let requests = 0;
+	await page.route("**/api/auth/me", async (route) => {
+		requests += 1;
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({
+				state: "authenticated_linked",
+				scope: { type: "campaign", id: "yuhara-main" },
+				identity: { displayName: "Renan Silva", avatarUrl: null },
+				capabilities: ["campaign.transcript.read"],
+			}),
+		});
+	});
+	await page.goto("/");
+	await expect(page.getByRole("button", { name: "Abrir navegação" })).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Abrir menu da conta" }),
+	).toBeVisible();
+	await expect.poll(() => requests).toBe(1);
+
+	await openLauncher(page);
+	await page.keyboard.press("Escape");
+	await openAccountMenu(page);
+	expect(requests).toBe(1);
 });
