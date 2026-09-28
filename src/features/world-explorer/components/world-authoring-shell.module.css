@@ -76,7 +76,7 @@
 
 .active[data-world-inspector-mode="overlay"] .inspector {
 	position: fixed;
-	top: 72px;
+	top: var(--site-chrome-panel-top, 66px);
 	right: 12px;
 	bottom: 12px;
 	left: auto;
