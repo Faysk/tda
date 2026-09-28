@@ -44,6 +44,12 @@ from .publication_target import PublicationTargetError, bind_publication_target,
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
 from .session_participants import observed_session_tracks, resolve_session_participants
+from .session_assemblies import (
+    SessionAssemblyError,
+    build_session_assembly,
+    list_session_assemblies,
+    load_session_assembly,
+)
 from .store import Conflict, Store
 from .session_timeline import (
     automatic_placements,
@@ -76,7 +82,11 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/(?:parts(?:/(?:detach|reorder|timing))?|timeline/derive|participants))?$"
+    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/derive|participants))?$"
+)
+_BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
+    r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/"
+    r"assemblies(?:/[0-9a-f]{64})?$"
 )
 
 
@@ -102,6 +112,8 @@ def _browser_route_allowed(method: str, path: str) -> bool:
             })
         )
     if _BROWSER_SESSION_WORKSPACE_PATH.fullmatch(path) is not None:
+        return method in {"GET", "POST"}
+    if _BROWSER_SESSION_ASSEMBLY_PATH.fullmatch(path) is not None:
         return method in {"GET", "POST"}
     match = _BROWSER_JOB_PATH.fullmatch(path)
     if match is None:
@@ -212,6 +224,18 @@ class SessionParticipantMappingRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     expected_revision: int = Field(ge=0)
     assignments: list[SessionParticipantAssignmentRequest] = Field(max_length=16384)
+
+
+class SessionWorkspaceSelectRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    part_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    run_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,196}$")
+    expected_revision: int = Field(ge=0)
+
+
+class SessionAssemblyBuildRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    expected_revision: int = Field(ge=0)
 
 
 class ProfilePreparationRequest(BaseModel):
@@ -1453,6 +1477,8 @@ def create_app(
             "transcription.session-workspace",
             "transcription.session-timeline",
             "transcription.session-participants",
+            "transcription.session-assembly",
+            "transcription.session-assembly.review",
         ]
         catalog = profile_catalog(
             resolved_state_root,
@@ -1865,6 +1891,92 @@ def create_app(
         )
         _, _, projection = session_participant_projection(campaign_id, session_id)
         return projection
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/parts/run")
+    def select_session_workspace_part_run(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceSelectRunRequest,
+    ):
+        with source_gate:
+            current = store.session_workspace(campaign_id, session_id)
+            target = next(
+                (part for part in current["parts"] if part["part_id"] == body.part_id),
+                None,
+            )
+            if target is None:
+                raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            try:
+                package_root, _package = staged_package_under_source_gate(target["source_id"])
+                manifest = load_run(package_root, body.run_id, verify_content=True)
+            except (CraigPackageError, TranscriptionRunError) as exc:
+                raise Conflict("SESSION_ASSEMBLY_RUN_INVALID") from exc
+            if (
+                manifest.get("source_id") != target["source_id"]
+                or manifest.get("source_sha256") != target["source_id"].removeprefix("craig-")
+            ):
+                raise Conflict("SESSION_ASSEMBLY_SOURCE_HASH_MISMATCH")
+            if not transcription_run_visible(package_root, manifest):
+                raise Conflict("SESSION_ASSEMBLY_RUN_NOT_VISIBLE")
+            updated = store.select_session_part_run(
+                campaign_id,
+                session_id,
+                body.part_id,
+                body.run_id,
+                body.expected_revision,
+            )
+        return session_workspace_response(updated)
+
+    @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}/assemblies")
+    def session_assemblies(campaign_id: str, session_id: str):
+        return list_session_assemblies(data_root, campaign_id, session_id)
+
+    @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}/assemblies/{assembly_id}")
+    def session_assembly(campaign_id: str, session_id: str, assembly_id: str):
+        try:
+            return load_session_assembly(
+                data_root,
+                campaign_id,
+                session_id,
+                assembly_id,
+                verify_transcript=True,
+            )
+        except SessionAssemblyError as exc:
+            code = str(exc)
+            return error(code, 404 if code == "SESSION_ASSEMBLY_NOT_FOUND" else 409)
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/assemblies")
+    def create_session_assembly(
+        campaign_id: str,
+        session_id: str,
+        body: SessionAssemblyBuildRequest,
+    ):
+        with source_gate:
+            current = store.session_workspace(campaign_id, session_id)
+            if current["revision"] != body.expected_revision:
+                raise Conflict("SESSION_WORKSPACE_REVISION_CONFLICT")
+            workspace, packages, participant_mapping = session_participant_projection(
+                campaign_id, session_id
+            )
+            if workspace["revision"] != body.expected_revision:
+                raise Conflict("SESSION_WORKSPACE_REVISION_CONFLICT")
+            package_roots: dict[str, Path] = {}
+            for part in workspace["parts"]:
+                try:
+                    package_root, _package = staged_package_under_source_gate(part["source_id"])
+                except (CraigPackageError, ValueError) as exc:
+                    raise Conflict("SESSION_ASSEMBLY_SOURCE_UNAVAILABLE") from exc
+                package_roots[part["source_id"]] = package_root
+            try:
+                return build_session_assembly(
+                    data_root,
+                    workspace,
+                    participant_mapping,
+                    package_roots,
+                    run_visible=transcription_run_visible,
+                )
+            except SessionAssemblyError as exc:
+                raise Conflict(str(exc)) from exc
 
     @app.get("/api/v1/jobs")
     def jobs(

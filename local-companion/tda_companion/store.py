@@ -407,6 +407,43 @@ class Store:
             )
             return self._session_workspace_dto(db, bumped)
 
+    def select_session_part_run(
+        self, campaign_id, session_id, part_id, run_id, expected_revision
+    ):
+        part_id = self._workspace_part_id(part_id)
+        if not isinstance(run_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,196}", run_id):
+            raise Conflict("SESSION_WORKSPACE_RUN_INVALID")
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            target = db.execute(
+                """
+                SELECT selected_run_id FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=? AND part_id=?
+                """,
+                (row["campaign_id"], row["session_id"], part_id),
+            ).fetchone()
+            if target is None:
+                raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            if target["selected_run_id"] == run_id:
+                return self._session_workspace_dto(db, row)
+            now = utc_now()
+            changed = db.execute(
+                """
+                UPDATE session_recording_parts
+                SET selected_run_id=?,updated=?
+                WHERE campaign_id=? AND session_id=? AND part_id=?
+                """,
+                (run_id, now, row["campaign_id"], row["session_id"], part_id),
+            ).rowcount
+            if changed != 1:
+                raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
     def detach_session_part(self, campaign_id, session_id, part_id, expected_revision):
         part_id = self._workspace_part_id(part_id)
         with self.tx() as db:

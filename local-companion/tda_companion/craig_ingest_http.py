@@ -18,6 +18,12 @@ from .browser_session import BrowserSessionManager
 from .craig_runtime import load_craig_package
 from .local_review import LocalReviewError, open_base_review, open_review, review_summary, save_review
 from .publication_target import publication_target_state
+from .session_assemblies import SessionAssemblyError, assembly_dependency_for_run
+from .session_assembly_review import (
+    SessionAssemblyReviewError,
+    open_assembly_review,
+    save_assembly_review,
+)
 from .system_log import SystemLog
 from .transcription_runs import (
     TranscriptionRunError,
@@ -41,6 +47,16 @@ CRAIG_REVIEW_PATH = re.compile(
 CRAIG_RUN_DELETE_PATH = re.compile(
     r"^/api/v1/sources/(?P<source_id>[A-Za-z0-9_-]{1,128})/runs/"
     r"(?P<run_id>[A-Za-z0-9_-]{1,196})/delete$"
+)
+SESSION_ASSEMBLY_REVIEW_BASE_PATH = re.compile(
+    r"^/api/v1/session-workspaces/(?P<campaign_id>[A-Za-z0-9_-]{1,128})/"
+    r"(?P<session_id>[A-Za-z0-9_-]{1,128})/assemblies/"
+    r"(?P<assembly_id>[0-9a-f]{64})/review/base$"
+)
+SESSION_ASSEMBLY_REVIEW_PATH = re.compile(
+    r"^/api/v1/session-workspaces/(?P<campaign_id>[A-Za-z0-9_-]{1,128})/"
+    r"(?P<session_id>[A-Za-z0-9_-]{1,128})/assemblies/"
+    r"(?P<assembly_id>[0-9a-f]{64})/review$"
 )
 _ALLOWED_PREFLIGHT_HEADERS = frozenset({"authorization", "content-type"})
 _LOCAL_REVIEW_BODY_MAX_BYTES = 32 * 1024 * 1024
@@ -571,6 +587,127 @@ class CraigIngestBoundary:
             response = _error(str(exc), 404 if str(exc) == "CRAIG_MANIFEST_NOT_FOUND" else 409, True)
         await self._send_response(response, scope, receive, send, origin)
 
+    def _assembly_review_value(
+        self,
+        campaign_id: str,
+        session_id: str,
+        assembly_id: str,
+        payload: dict[str, object] | None = None,
+        *,
+        base_only: bool = False,
+    ) -> dict[str, object]:
+        gate = self.source_gate if self.source_gate is not None else nullcontext()
+        with gate:
+            if base_only:
+                if payload is not None:
+                    raise SessionAssemblyReviewError("SESSION_ASSEMBLY_REVIEW_REQUEST_INVALID")
+                return open_assembly_review(
+                    self.data_root,
+                    campaign_id,
+                    session_id,
+                    assembly_id,
+                    base_only=True,
+                )
+            if payload is None:
+                return open_assembly_review(
+                    self.data_root,
+                    campaign_id,
+                    session_id,
+                    assembly_id,
+                    base_only=False,
+                )
+            return save_assembly_review(
+                self.data_root,
+                campaign_id,
+                session_id,
+                assembly_id,
+                payload,
+            )
+
+    async def _assembly_review(
+        self,
+        request: Request,
+        campaign_id: str,
+        session_id: str,
+        assembly_id: str,
+        scope,
+        receive,
+        send,
+        *,
+        base_only: bool = False,
+    ) -> None:
+        origin, allowed = await self._common_guard(request, scope, receive, send)
+        if not allowed:
+            return
+        if request.method == "OPTIONS":
+            if not origin:
+                await self._send_response(_error("ORIGIN_REQUIRED", 403), scope, receive, send, None)
+                return
+            requested_headers = {
+                value.strip().lower()
+                for value in request.headers.get("access-control-request-headers", "").split(",")
+                if value.strip()
+            }
+            requested_method = request.headers.get("access-control-request-method")
+            allowed_methods = {"GET"} if base_only else {"GET", "POST"}
+            if requested_method not in allowed_methods or not requested_headers <= _ALLOWED_PREFLIGHT_HEADERS:
+                await self._send_response(_error("PREFLIGHT_REJECTED", 403), scope, receive, send, origin)
+                return
+            await self._send_response(
+                JSONResponse({}, headers={
+                    "Access-Control-Allow-Methods": "GET" if base_only else "GET, POST",
+                    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+                    "Access-Control-Allow-Private-Network": "true",
+                    "Access-Control-Max-Age": "60",
+                }),
+                scope, receive, send, origin,
+            )
+            return
+        if request.method not in ({"GET"} if base_only else {"GET", "POST"}):
+            await self._send_response(_error("METHOD_NOT_ALLOWED", 405), scope, receive, send, origin)
+            return
+        if not self._authorized(request, origin):
+            await self._send_response(_error("UNAUTHORIZED", 401), scope, receive, send, origin)
+            return
+        if request.method == "POST":
+            if not origin:
+                await self._send_response(_error("ORIGIN_REQUIRED", 403), scope, receive, send, None)
+                return
+            if request.headers.get("content-type", "").split(";")[0].strip() != "application/json":
+                await self._send_response(_error("JSON_REQUIRED", 415), scope, receive, send, origin)
+                return
+        try:
+            payload = await self._read_review_body(request) if request.method == "POST" else None
+            value = await asyncio.to_thread(
+                self._assembly_review_value,
+                campaign_id,
+                session_id,
+                assembly_id,
+                payload,
+                base_only=base_only,
+            )
+            response = JSONResponse(value)
+        except SessionAssemblyReviewError as exc:
+            code = str(exc)
+            if code == "SESSION_ASSEMBLY_NOT_FOUND":
+                response = _error(code, 404)
+            elif code in {
+                "SESSION_ASSEMBLY_REVIEW_REQUEST_INVALID",
+                "SESSION_ASSEMBLY_REVIEW_SNAPSHOT_CONTRACT_REQUIRED",
+                "SESSION_ASSEMBLY_REVIEW_EXPECTED_SNAPSHOT_INVALID",
+                "SESSION_ASSEMBLY_REVIEW_SEGMENTS_INVALID",
+                "SESSION_ASSEMBLY_REVIEW_SEGMENT_INVALID",
+                "SESSION_ASSEMBLY_REVIEW_SEGMENT_IDENTITY_MISMATCH",
+                "SESSION_ASSEMBLY_REVIEW_SEGMENT_PROVENANCE_IMMUTABLE",
+                "SESSION_ASSEMBLY_REVIEW_SEGMENT_TEXT_INVALID",
+                "SESSION_ASSEMBLY_REVIEW_SEGMENT_SPEAKER_INVALID",
+                "SESSION_ASSEMBLY_REVIEW_SEGMENT_REVIEWED_INVALID",
+            }:
+                response = _error(code, 422)
+            else:
+                response = _error(code, 409, code == "SESSION_ASSEMBLY_REVIEW_DRAFT_CONFLICT")
+        await self._send_response(response, scope, receive, send, origin)
+
     def _delete_run_value(
         self,
         source_id: str,
@@ -588,6 +725,9 @@ class CraigIngestBoundary:
             if self.source_running is not None and self.source_running(source_id):
                 raise TranscriptionRunError("TRANSCRIPTION_RUN_DELETE_SOURCE_BUSY")
             load_craig_package(package_root, verify_tracks=False)
+            dependency = assembly_dependency_for_run(self.data_root, source_id, run_id)
+            if dependency is not None:
+                raise SessionAssemblyError("TRANSCRIPTION_RUN_ASSEMBLY_DEPENDENCY")
             receipt = delete_completed_run(
                 package_root,
                 source_id=source_id,
@@ -681,6 +821,8 @@ class CraigIngestBoundary:
             response = _error(str(exc), 409)
         except CraigPackageError as exc:
             response = _error(str(exc), 404 if str(exc) == "CRAIG_MANIFEST_NOT_FOUND" else 409, True)
+        except SessionAssemblyError as exc:
+            response = _error(str(exc), 409)
         except TranscriptionRunError as exc:
             code = str(exc)
             response = _error(
@@ -748,6 +890,33 @@ class CraigIngestBoundary:
         if path == CRAIG_SOURCES_PATH:
             request = Request(scope, receive=receive)
             await self._sources(request, scope, receive, send)
+            return
+        assembly_review_base_match = SESSION_ASSEMBLY_REVIEW_BASE_PATH.fullmatch(path)
+        if assembly_review_base_match is not None:
+            request = Request(scope, receive=receive)
+            await self._assembly_review(
+                request,
+                assembly_review_base_match.group("campaign_id"),
+                assembly_review_base_match.group("session_id"),
+                assembly_review_base_match.group("assembly_id"),
+                scope,
+                receive,
+                send,
+                base_only=True,
+            )
+            return
+        assembly_review_match = SESSION_ASSEMBLY_REVIEW_PATH.fullmatch(path)
+        if assembly_review_match is not None:
+            request = Request(scope, receive=receive)
+            await self._assembly_review(
+                request,
+                assembly_review_match.group("campaign_id"),
+                assembly_review_match.group("session_id"),
+                assembly_review_match.group("assembly_id"),
+                scope,
+                receive,
+                send,
+            )
             return
         delete_match = CRAIG_RUN_DELETE_PATH.fullmatch(path)
         if delete_match is not None:
