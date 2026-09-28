@@ -9,7 +9,10 @@ import {
 	useState,
 } from "react";
 import { Button } from "@/components/ui";
-import { saveTranscriptRevisionEditAction } from "./revision-edit-actions";
+import {
+	saveTranscriptRevisionEditAction,
+	type SaveTranscriptRevisionEditActionInput,
+} from "./revision-edit-actions";
 import {
 	findTranscriptJumpIndex,
 	formatTranscriptTimestamp,
@@ -131,6 +134,7 @@ export function TranscriptReader({
 	revisionId,
 	revisionNumber,
 	editable = false,
+	saveRevision = saveTranscriptRevisionEditAction,
 }: Readonly<{
 	segments: readonly TranscriptReaderSegment[];
 	sourceLabel: string;
@@ -139,6 +143,9 @@ export function TranscriptReader({
 	revisionId?: string | null;
 	revisionNumber?: number | null;
 	editable?: boolean;
+	saveRevision?: (
+		input: SaveTranscriptRevisionEditActionInput,
+	) => ReturnType<typeof saveTranscriptRevisionEditAction>;
 }>) {
 	const router = useRouter();
 	const [query, setQuery] = useState("");
@@ -270,7 +277,7 @@ export function TranscriptReader({
 			setSavePhase("saving");
 			setSaveMessage(null);
 			try {
-				const result = await saveTranscriptRevisionEditAction({
+				const result = await saveRevision({
 					sessionId,
 					expectedCurrentTranscriptRevisionId: currentRevisionId,
 					operationId: crypto.randomUUID(),
@@ -315,7 +322,7 @@ export function TranscriptReader({
 				);
 			}
 		},
-		[canEdit, currentRevisionId, router, savePhase, sessionId],
+		[canEdit, currentRevisionId, router, savePhase, saveRevision, sessionId],
 	);
 
 	function applyDraft(segment: TranscriptReaderSegment, draft: WorkingChange) {
