@@ -400,3 +400,35 @@ Boundary proposto:
 - não cria publication receipt/event e não altera nenhum campo público/editorial da sessão.
 
 O payload do browser não contém transcript: somente IDs e o hash do snapshot. Texto e speaker são lidos server-side do legado e entram apenas na revision privada. O audit registra hashes/contagens/IDs, nunca conteúdo das falas.
+
+
+## Console governada de permissões (#986)
+
+### `manage_campaign_role_assignments(text,uuid,uuid,bigint,jsonb,uuid,text,boolean,boolean)`
+
+Boundary server-only para grant/revoke de roles existentes no scope da campaign.
+
+Contrato:
+
+- actor e target são profile IDs resolvidos/validados server-side;
+- exige `campaign.permissions.manage` efetivo na campaign ou herdado de `project/tda`;
+- aceita batch pequeno de mudanças para **um target** com `expectedRevision` e `operationId`;
+- cria somente assignments `scope_type='campaign'`;
+- não cria/revoga authority `project.*`;
+- roles com capabilities sensíveis só são delegáveis se o actor possuir a mesma capability e enviar confirmação explícita;
+- self-revoke exige confirmação;
+- último `campaign.permissions.manage` efetivo não pode ser removido;
+- mutation da campaign é serializada e a revisão do target usa CAS;
+- grant/revoke e `audit_log` pertencem à mesma transação;
+- replay da mesma operação/actor/target retorna receipt lógico sem duplicar assignment/audit;
+- erros de regra de negócio retornam antes do primeiro write.
+
+Segurança planejada/aplicável no rollout:
+
+- `SECURITY INVOKER`;
+- `search_path = ''`;
+- `PUBLIC`, `anon` e `authenticated`: sem `EXECUTE`;
+- `service_role`: único caller SQL;
+- browser acessa somente a rota Next server-side após identidade e capability verificadas.
+
+A presence da migration em Git não prova rollout remoto. Após Production CD, confirmar assinatura, grants, RLS da revision table e migration history no projeto canônico `dmrqnbdvbkfqzctcerbx`.

@@ -29,7 +29,7 @@ export default defineConfig({
 	projects: [
 		{
 			name: "permissions-desktop",
-			use: { viewport: { width: 1440, height: 1000 } },
+			use: { viewport: { width: 1920, height: 1080 } },
 		},
 		{
 			name: "permissions-mobile",

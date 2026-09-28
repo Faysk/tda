@@ -1584,3 +1584,50 @@ Rollback lógico:
 - antes de aplicação remota, retirar/revisar a migration não toca Production;
 - depois de eventual rollout, desabilitar primeiro o consumidor Web; revisões já preparadas permanecem histórico válido;
 - não apagar revisões ou restaurar `transcript_segments` como current por mutation compensatória silenciosa.
+
+
+## 2026-09-28 — administração governada de permissões (#986)
+
+### `20260928214800_governed_permissions_management`
+
+**Estado:** migration deployable da PR #1024; aplicação remota somente pelo Production CD governado.
+
+Objetivo:
+
+- adicionar `campaign_permission_revisions` para CAS por target na console de permissões;
+- adicionar a RPC server-only `manage_campaign_role_assignments(...)`;
+- permitir grant/revoke apenas de assignments diretos no scope `campaign`;
+- preservar assignments herdados de `project/tda` como read-only;
+- gravar mutation e `audit_log` no mesmo statement/transação;
+- serializar mutations da mesma campaign para proteger a invariável de último administrador;
+- suportar replay por `operationId` sem blind retry.
+
+Segurança:
+
+- `campaign_permission_revisions` nasce com RLS habilitado;
+- `PUBLIC`, `anon` e `authenticated` não recebem acesso à tabela nova;
+- somente `service_role` recebe `SELECT/INSERT/UPDATE`;
+- RPC é `SECURITY INVOKER`, com `search_path = ''`;
+- `PUBLIC`, `anon` e `authenticated` não recebem `EXECUTE`; somente `service_role`;
+- a função revalida `campaign.permissions.manage`, target, scope, role e delegation ceiling antes do primeiro write;
+- roles com `project.*` não podem ser delegadas pelo boundary de campaign;
+- capabilities sensíveis exigem authority equivalente e confirmação explícita;
+- self-revoke exige confirmação e o último admin efetivo não pode ser removido.
+
+Concorrência e recuperação:
+
+- a revisão do target é bloqueada e comparada com `expectedRevision`;
+- stale CAS retorna `conflict` e não rebaseia/reexecuta intenção automaticamente;
+- um advisory transaction lock por campaign impede races entre dois targets para a invariável de last-admin;
+- todos os retornos de regra de negócio acontecem antes dos writes;
+- replay reconhecido retorna a revisão corrente da mesma operação/actor/target.
+
+Validação antes do rollout:
+
+- migration safety/governance;
+- unit/type/lint/build;
+- `permissions-e2e` com fixtures sintéticas;
+- grant/revoke, stale CAS, replay, project-role denied, confirmação sensível, last-admin e fail-closed após revoke;
+- Production CD deve aplicar a migration antes da promoção e verificar migration history/health no staged deployment.
+
+Rollback é forward-only: desabilitar primeiro a mutation Web e corrigir função/grants por migration posterior; não apagar audit, assignments históricos nem revisions de concorrência.
