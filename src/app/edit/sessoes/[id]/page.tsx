@@ -11,10 +11,9 @@ import { SessionEditorialDraftEditor } from "@/features/edit/sessions/editorial-
 import draftStyles from "@/features/edit/sessions/editorial-draft.module.css";
 import { readSessionEditorialDraft } from "@/features/edit/sessions/editorial-draft-repository";
 import { readSessionPublicationContext } from "@/features/edit/sessions/session-publication-repository";
-import { findUnsafeEditSessionBySourceId } from "@/features/edit/sessions/repository";
+import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import { TranscriptReader } from "@/features/edit/transcript/reader";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
-import { isUnsafeEditEnabled } from "@/features/edit/unsafe-access";
 import styles from "@/features/edit/workbench.module.css";
 import { CAMPAIGN_SLUG, formatSessionDate } from "@/features/sessions/model";
 
@@ -26,18 +25,6 @@ export const metadata: Metadata = {
 type PageProps = Readonly<{
 	params: Promise<{ id: string }>;
 }>;
-
-function DisabledEdit() {
-	return (
-		<section className={styles.locked}>
-			<div className={styles.muted}>TDA / EDIT</div>
-			<h1>Edit desativado</h1>
-			<p className={styles.muted}>
-				Este espaço ainda está sendo preparado para acesso com sua conta.
-			</p>
-		</section>
-	);
-}
 
 function UnavailableTranscript() {
 	return (
@@ -64,7 +51,6 @@ export default async function EditSessionPage({ params }: PageProps) {
 		EDIT_CAPABILITIES.transcriptRead,
 		`/edit/sessoes/${encodeURIComponent(sourceSessionId)}`,
 	);
-	if (!isUnsafeEditEnabled()) return <DisabledEdit />;
 	const canEdit = authorizeCampaignCapability(
 		accessContext,
 		EDIT_CAPABILITIES.contentEdit,
@@ -76,9 +62,12 @@ export default async function EditSessionPage({ params }: PageProps) {
 		CAMPAIGN_SLUG,
 	).ok;
 
-	let session: Awaited<ReturnType<typeof findUnsafeEditSessionBySourceId>>;
+	let session: Awaited<ReturnType<typeof findEditSessionBySourceId>>;
 	try {
-		session = await findUnsafeEditSessionBySourceId(sourceSessionId);
+		session = await findEditSessionBySourceId(
+			CAMPAIGN_SLUG,
+			sourceSessionId,
+		);
 	} catch {
 		return <UnavailableTranscript />;
 	}
