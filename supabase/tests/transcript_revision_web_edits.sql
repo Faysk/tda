@@ -107,13 +107,13 @@ update public.sessions
 set current_transcript_revision_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 where id='22222222-2222-4222-8222-222222222222';
 
--- Selective rollback probe: revision 3 must disappear together with the pointer
--- change if metadata-only audit persistence fails.
+-- Selective rollback probe: the dedicated rollback operation must disappear
+-- together with the pointer change if metadata-only audit persistence fails.
 create function public.fail_transcript_web_edit_audit_probe() returns trigger
 language plpgsql as $probe$
 begin
   if new.action = 'transcript_revision.web_edit'
-     and new.new_value->>'revisionNumber' = '3' then
+     and new.new_value->>'operationId' = 'a2000000-0000-4000-8000-000000000006' then
     raise exception 'synthetic transcript web edit audit failure';
   end if;
   return new;
@@ -131,6 +131,8 @@ declare
   v_number bigint;
   v_current uuid;
   v_before_count bigint;
+  v_after_update_count bigint;
+  v_expected_number bigint;
   v_failed boolean := false;
 begin
   -- Authorization is evaluated before target existence.
@@ -153,6 +155,16 @@ begin
 
   -- Browser payload can address only stable identity + speaker/text. Timing stays
   -- server-owned in the parent revision.
+  select coalesce(max(revision_number), 0) + 1
+  into v_expected_number
+  from public.transcript_revisions
+  where session_id='22222222-2222-4222-8222-222222222222';
+
+  select count(*)
+  into v_before_count
+  from public.transcript_revisions
+  where session_id='22222222-2222-4222-8222-222222222222';
+
   select e.status, e.revision_id, e.revision_number
   into v_status, v_revision, v_number
   from public.save_transcript_revision_edit_atomic(
@@ -165,7 +177,7 @@ begin
     '[{"trackNumber":1,"segmentId":"1-0","speaker":"Álya","text":"Texto corrigido 🌲"}]'::jsonb
   ) e;
 
-  if v_status <> 'updated' or v_revision is null or v_number <> 2 then
+  if v_status <> 'updated' or v_revision is null or v_number <> v_expected_number then
     raise exception 'TRANSCRIPT_WEB_EDIT_UPDATE_INVALID:% % %',
       v_status, v_revision, v_number;
   end if;
@@ -174,8 +186,13 @@ begin
   from public.sessions
   where id='22222222-2222-4222-8222-222222222222';
 
+  select count(*)
+  into v_after_update_count
+  from public.transcript_revisions
+  where session_id='22222222-2222-4222-8222-222222222222';
+
   if v_current <> v_revision
-     or (select count(*) from public.transcript_revisions) <> 2
+     or v_after_update_count <> v_before_count + 1
      or (select source_system from public.transcript_revisions where id=v_revision) <> 'web_edit'
      or (select parent_revision_id from public.transcript_revisions where id=v_revision)
         <> 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -211,8 +228,9 @@ begin
     'a2000000-0000-4000-8000-000000000002',
     '[{"trackNumber":1,"segmentId":"1-0","speaker":"Álya","text":"Texto corrigido 🌲"}]'::jsonb
   ) e;
-  if v_status <> 'replay' or v_current <> v_revision or v_number <> 2
-     or (select count(*) from public.transcript_revisions) <> 2 then
+  if v_status <> 'replay' or v_current <> v_revision or v_number <> v_expected_number
+     or (select count(*) from public.transcript_revisions
+         where session_id='22222222-2222-4222-8222-222222222222') <> v_after_update_count then
     raise exception 'TRANSCRIPT_WEB_EDIT_REPLAY_INVALID';
   end if;
 
@@ -228,7 +246,7 @@ begin
     'a2000000-0000-4000-8000-000000000003',
     '[{"trackNumber":2,"segmentId":"2-0","speaker":"Bob","text":"Stale"}]'::jsonb
   ) e;
-  if v_status <> 'stale_current' or v_current <> v_revision or v_number <> 2 then
+  if v_status <> 'stale_current' or v_current <> v_revision or v_number <> v_expected_number then
     raise exception 'TRANSCRIPT_WEB_EDIT_STALE_ACCEPTED:% % %',
       v_status, v_current, v_number;
   end if;
@@ -311,7 +329,8 @@ begin
   end;
 
   if not v_failed
-     or (select count(*) from public.transcript_revisions) <> 2
+     or (select count(*) from public.transcript_revisions
+         where session_id='22222222-2222-4222-8222-222222222222') <> v_after_update_count
      or (select current_transcript_revision_id from public.sessions
          where id='22222222-2222-4222-8222-222222222222') <> v_revision then
     raise exception 'TRANSCRIPT_WEB_EDIT_ROLLBACK_INVALID';
