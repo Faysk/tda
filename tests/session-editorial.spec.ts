@@ -136,7 +136,7 @@ test("draft CAS conflict preserves the local working copy until explicit reconci
 	await title.fill("Minha working copy local");
 	await page.getByRole("button", { name: "Simular save concorrente" }).click();
 	await expect(page.getByTestId("remote-draft-revision")).toHaveText("2");
-	await page.getByRole("button", { name: "Salvar sessão" }).click();
+	await page.getByRole("button", { name: "Salvar draft" }).click();
 
 	await expect(page.getByRole("alert").filter({ hasText: "Conflito de edição" })).toBeVisible();
 	await expect(title).toHaveValue("Minha working copy local");
@@ -311,6 +311,7 @@ test("session workbench floating-shell receipts cover desktop, mobile and zoom",
 }, testInfo) => {
 	for (const receipt of [
 		{ name: "workbench-1920", viewport: { width: 1920, height: 1080 } },
+		{ name: "workbench-1440", viewport: { width: 1440, height: 900 } },
 		{ name: "workbench-1366", viewport: { width: 1366, height: 768 } },
 		{ name: "workbench-mobile-390", viewport: { width: 390, height: 844 } },
 		{ name: "workbench-mobile-320", viewport: { width: 320, height: 800 } },
