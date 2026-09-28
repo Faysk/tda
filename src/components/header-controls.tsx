@@ -117,7 +117,7 @@ function AccountFallbackIcon() {
 function AccountMenu({ auth }: Readonly<{ auth: HeaderAuth }>) {
 	const pathname = usePathname();
 	const [open, setOpen] = useState(false);
-	const [imageFailed, setImageFailed] = useState(false);
+	const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const authenticated = isAuthenticated(auth.state);
@@ -125,10 +125,6 @@ function AccountMenu({ auth }: Readonly<{ auth: HeaderAuth }>) {
 	const avatarUrl = authenticated ? auth.identity?.avatarUrl ?? null : null;
 	const initials = initialsFor(displayName);
 	const loginHref = `/entrar?next=${encodeURIComponent(pathname)}`;
-
-	useEffect(() => {
-		setImageFailed(false);
-	}, [avatarUrl]);
 
 	useEffect(() => {
 		if (!open) return;
@@ -171,12 +167,12 @@ function AccountMenu({ auth }: Readonly<{ auth: HeaderAuth }>) {
 				onClick={() => setOpen((value) => !value)}
 			>
 				<span className="account-avatar" aria-hidden="true">
-					{avatarUrl && !imageFailed ? (
+					{avatarUrl && failedAvatarUrl !== avatarUrl ? (
 						<img
 							className="account-avatar-image"
 							src={avatarUrl}
 							alt=""
-							onError={() => setImageFailed(true)}
+							onError={() => setFailedAvatarUrl(avatarUrl)}
 						/>
 					) : initials ? (
 						<span className="account-avatar-initials">{initials}</span>
