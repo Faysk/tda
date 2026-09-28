@@ -28,15 +28,90 @@
 	container-type: inline-size;
 }
 
+.processingHeader {
+	display: flex;
+	min-width: 0;
+	min-height: 42px;
+	align-items: stretch;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
 .processingTabs {
 	display: flex;
 	min-width: 0;
 	min-height: 42px;
+	flex: 1 1 auto;
 	align-items: flex-end;
 	gap: clamp(14px, 2vw, 28px);
-	border-bottom: 1px solid var(--ds-border-subtle);
 	overflow-x: auto;
 	scrollbar-width: thin;
+}
+
+.processingDownloadAction {
+	position: relative;
+	display: grid;
+	min-width: 42px;
+	flex: 0 0 42px;
+	place-items: center;
+	font-family: var(--ds-font-ui);
+}
+
+.processingDownloadAction > a,
+.processingDownloadAction > [aria-disabled="true"] {
+	display: grid;
+	width: 34px;
+	height: 34px;
+	place-items: center;
+	border: 0;
+	border-radius: var(--ds-radius-sm);
+	background: transparent;
+	color: var(--ds-foreground-muted);
+	text-decoration: none;
+}
+
+.processingDownloadAction > a {
+	cursor: pointer;
+}
+
+.processingDownloadAction > a:hover {
+	background: var(--ds-surface-hover);
+	color: var(--ds-foreground);
+}
+
+.processingDownloadAction > [aria-disabled="true"] {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+
+.processingDownloadAction > a:focus-visible,
+.processingDownloadAction > [aria-disabled="true"]:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 1px;
+	color: var(--ds-foreground);
+}
+
+.processingDownloadAction svg {
+	width: 18px;
+	height: 18px;
+}
+
+.processingDownloadAction [role="tooltip"] {
+	position: absolute;
+	top: calc(100% + 6px);
+	right: 0;
+	z-index: 30;
+	width: max-content;
+	max-width: min(320px, calc(100vw - 24px));
+	padding: 6px 8px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-raised);
+	color: var(--ds-foreground-soft);
+	font-size: 0.6875rem;
+	font-weight: 650;
+	line-height: 1.35;
+	pointer-events: none;
+	white-space: normal;
 }
 
 .processingTabs button {
