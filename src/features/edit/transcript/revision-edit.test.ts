@@ -28,6 +28,37 @@ describe("prepareTranscriptRevisionEditChanges", () => {
 		});
 	});
 
+
+	it("accepts a 7,500-segment delta batch without coercing content", () => {
+		const input = Array.from({ length: 7_500 }, (_, index) => ({
+			segmentKey: `r-1-seg-${index}`,
+			speaker: index % 2 ? "Sense" : "Álya",
+			text: `Linha ${index} · ação 🦉`,
+		}));
+		const result = prepareTranscriptRevisionEditChanges(input);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.changes).toHaveLength(7_500);
+		expect(result.value.changes[7_499]).toEqual({
+			segmentKey: "r-1-seg-7499",
+			speaker: "Sense",
+			text: "Linha 7499 · ação 🦉",
+		});
+	});
+
+	it("rejects timing or other unsupported fields in this slice", () => {
+		expect(
+			prepareTranscriptRevisionEditChanges([
+				{
+					segmentKey: "r-1-a",
+					speaker: "Alya",
+					text: "Texto",
+					startMs: 1234,
+				},
+			]),
+		).toEqual({ ok: false, issues: ["unsupported_field"] });
+	});
+
 	it("rejects empty, duplicate and oversized edits before persistence", () => {
 		const duplicate = prepareTranscriptRevisionEditChanges([
 			{ segmentKey: "r-1-a", speaker: "", text: "ok" },
