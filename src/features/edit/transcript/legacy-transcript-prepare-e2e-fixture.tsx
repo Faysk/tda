@@ -15,6 +15,7 @@ export function LegacyTranscriptPrepareE2EFixture() {
 	const [mode, setMode] = useState<"success" | "stale">("success");
 	const [failNext, setFailNext] = useState(false);
 	const [attemptIds, setAttemptIds] = useState<string[]>([]);
+	const [preparedRevision, setPreparedRevision] = useState<number | null>(null);
 
 	async function action(
 		request: LegacyTranscriptPrepareRequest,
@@ -33,6 +34,7 @@ export function LegacyTranscriptPrepareE2EFixture() {
 				segmentCount: 2,
 			};
 		}
+		setPreparedRevision(1);
 		return {
 			ok: true,
 			status: "prepared",
@@ -41,6 +43,21 @@ export function LegacyTranscriptPrepareE2EFixture() {
 			snapshotSha256: SNAPSHOT,
 			segmentCount: 2,
 		};
+	}
+
+	if (preparedRevision !== null) {
+		return (
+			<main>
+				<div data-testid="legacy-attempt-ids">{attemptIds.join("|")}</div>
+				<section aria-label="Editor moderno disponível">
+					<h1>Editor moderno disponível</h1>
+					<p>
+						Revisão privada r{preparedRevision} pronta; a sessão pública permanece
+						inalterada.
+					</p>
+				</section>
+			</main>
+		);
 	}
 
 	return (
