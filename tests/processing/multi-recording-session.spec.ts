@@ -281,24 +281,38 @@ async function installMultiRecordingRoutes(page: Page) {
 			});
 		}
 		if (path === "/jobs" && request.method() === "GET") {
+			const jobs = [...completed].map((sourceId, index) => ({
+				id: `multi-job-${index + 1}`,
+				kind: "transcription.craig",
+				status: "succeeded",
+				stage: "complete",
+				progress: { completed: 1, total: 1, unit: "tracks" },
+				error: null,
+				result_available: true,
+				updated_at: NOW,
+				attempt: 1,
+				context: {
+					campaign_id: CAMPAIGN,
+					session_id: SESSION,
+					source_id: sourceId,
+					profile_id: "whisper-detailed",
+				},
+			}));
 			return json(route, {
-				jobs: [...completed].map((sourceId, index) => ({
-					id: `multi-job-${index + 1}`,
-					kind: "transcription.craig",
-					status: "succeeded",
-					stage: "complete",
-					progress: { completed: 1, total: 1, unit: "tracks" },
-					error: null,
-					result_available: true,
-					updated_at: NOW,
-					attempt: 1,
-					context: {
-						campaign_id: CAMPAIGN,
-						session_id: SESSION,
-						source_id: sourceId,
-						profile_id: "whisper-detailed",
-					},
-				})),
+				schema_version: "tda_job_page_v1",
+				scope: url.searchParams.get("scope") ?? "all",
+				jobs,
+				has_more: false,
+				next_cursor: null,
+				total_matching: jobs.length,
+				counts: {
+					queued: 0,
+					running: 0,
+					succeeded: jobs.length,
+					failed: 0,
+					cancelled: 0,
+					interrupted: 0,
+				},
 			});
 		}
 		if (path === "/sources" && request.method() === "GET") {
