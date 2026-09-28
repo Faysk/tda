@@ -192,8 +192,11 @@ test("two tabs enforce current-revision CAS and preserve the losing working copy
 	await other
 		.getByRole("button", { name: "Salvar alterações da transcrição" })
 		.click();
-	await expect(other.getByRole("alert")).toContainText("working copy foi preservada");
-	await expect(other.getByRole("alert")).toContainText("Remoto: r2");
+	const otherReaderAlert = other
+		.getByRole("region", { name: "Leitor e editor de transcrição" })
+		.getByRole("alert");
+	await expect(otherReaderAlert).toContainText("working copy foi preservada");
+	await expect(otherReaderAlert).toContainText("Remoto: r2");
 	await expect(
 		other.getByText("Correção concorrente da aba B", { exact: true }),
 	).toBeVisible();
