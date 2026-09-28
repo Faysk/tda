@@ -53,6 +53,18 @@ Merge em `main` também não prova publicação por si só; produção continua 
 
 O trigger é um botão próprio, separado do avatar, com alvo mínimo de 44×44 e nome acessível claro. O painel usa links normais dentro de um `nav`; não usar `role="menu"`/`menuitem`, porque a interação é navegação de site e não menu de aplicação.
 
+Contrato visual do refinamento #926:
+
+- composição icon-first: glyph centralizado acima do rótulo;
+- frame óptico comum de aproximadamente 42 px para normalizar SVGs locais;
+- glyph visual de aproximadamente 34 px no desktop/tablet e nunca menor que 30 px nos gates;
+- célula vertical com alvo efetivo muito acima do mínimo de 44 px;
+- painel desktop compacto, limitado a aproximadamente 500 px em vez de crescer com a viewport;
+- três colunas como padrão e também no alvo móvel de 390 px; 320 px cai para duas colunas;
+- rótulos permanecem visíveis e centralizados, com espaço para até duas linhas;
+- scroll é interno ao painel em viewports baixas e não desloca o header;
+- capability filtering, current route, foco, Escape, outside-dismiss e reduced motion permanecem invariantes funcionais, não detalhes visuais.
+
 ### Avatar
 
 É o ponto único para identidade, autenticação, estado de acesso e aparência.
@@ -256,6 +268,7 @@ Screenshots/receipts de teste usam identidades e avatares sintéticos, nunca dad
 - #883 / PR #908 — retirada dos hubs;
 - #884 — gates de QA;
 - #885 — contrato documental;
+- #926 — refinamento icon-first/compacto do launcher global;
 - #115 — pesquisa histórica que levantou avatar Discord no header, papel de `/conta` e organização do Edit;
 - PR #269 — implementação histórica relevante para a evolução do shell/navegação;
 - PR #579 — implementação histórica relevante para a evolução do shell/navegação;
