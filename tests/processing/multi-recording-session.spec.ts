@@ -521,7 +521,9 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	await expect(composer.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
 	await expect(composer).toContainText("Composer da sessão recarregado.");
 
-	await page.getByRole("button", { name: "Processar pendentes (2)" }).click();
+	const processPending = page.getByRole("button", { name: "Processar pendentes (2)" });
+	await processPending.focus();
+	await page.keyboard.press("Enter");
 	await expect.poll(() => multi.postedSources).toEqual(SOURCE_IDS.slice(0, 2));
 
 	await page.reload();
@@ -529,8 +531,12 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 
 	const selectors = page.getByLabel("Run desta gravação");
 	await expect(selectors).toHaveCount(2);
-	await selectors.nth(0).selectOption("run-1");
-	await selectors.nth(1).selectOption("run-2");
+	await selectors.nth(0).focus();
+	await page.keyboard.press("ArrowDown");
+	await expect(selectors.nth(0)).toHaveValue("run-1");
+	await selectors.nth(1).focus();
+	await page.keyboard.press("ArrowDown");
+	await expect(selectors.nth(1)).toHaveValue("run-2");
 
 	const build = page.getByRole("button", { name: "Montar transcrição da sessão" });
 	await expect(build).toBeEnabled();
@@ -538,7 +544,9 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 	await page.keyboard.press("Enter");
 
 	await expect(page.getByText("Assemblies da sessão", { exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "Abrir revisão" }).click();
+	const openReview = page.getByRole("button", { name: "Abrir revisão" });
+	await openReview.focus();
+	await page.keyboard.press("Enter");
 	await expect(
 		page.getByText(/Base da revisão carregada da assembly/u),
 	).toBeVisible();
