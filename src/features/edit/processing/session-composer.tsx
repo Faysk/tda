@@ -276,6 +276,20 @@ export function SessionRecordingComposer({
 	}
 
 	useEffect(() => {
+		if (!supported || !currentSource) return;
+		const controller = new AbortController();
+		void bridge
+			.localSources(controller.signal)
+			.then((sources) => {
+				if (!controller.signal.aborted) setLocalSources(sources);
+			})
+			.catch(() => {
+				// Variant detection is advisory; attach still relies on Agent invariants.
+			});
+		return () => controller.abort();
+	}, [bridge, currentSource, supported]);
+
+	useEffect(() => {
 		if (!supported || restored.current) return;
 		restored.current = true;
 		let saved: string | null = null;
