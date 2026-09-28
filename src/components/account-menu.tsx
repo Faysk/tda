@@ -2,8 +2,13 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PublicLink as Link } from "./public-link";
+import { NavigationList } from "./public-nav";
+import {
+	PUBLIC_NAV_ITEMS,
+	visibleToolNavigationItems,
+} from "./public-navigation-model";
 import { ThemeToggle } from "./theme-toggle";
 import {
 	isAuthenticatedNavigationState,
@@ -12,7 +17,7 @@ import {
 	type NavigationAuthProjection,
 } from "./navigation-auth";
 
-const PANEL_ID = "global-account-menu";
+const PANEL_ID = "global-profile-menu";
 
 function AccountFallback({
 	initials,
@@ -47,6 +52,10 @@ export function AccountMenu() {
 	const [returnPath, setReturnPath] = useState(pathname || "/");
 	const rootRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
+	const tools = useMemo(
+		() => visibleToolNavigationItems(projection?.capabilities ?? []),
+		[projection],
+	);
 
 	useEffect(() => {
 		let active = true;
@@ -100,6 +109,7 @@ export function AccountMenu() {
 	const avatarUrl = authenticated ? projection.identity?.avatarUrl ?? null : null;
 	const initials = navigationInitials(displayName);
 	const showAvatar = Boolean(avatarUrl) && !avatarFailed;
+	const close = () => setOpen(false);
 
 	return (
 		<div className="account-menu" ref={rootRef}>
@@ -107,7 +117,7 @@ export function AccountMenu() {
 				ref={triggerRef}
 				type="button"
 				className="account-menu-trigger"
-				aria-label="Abrir menu da conta"
+				aria-label="Abrir menu global"
 				aria-expanded={open}
 				aria-controls={PANEL_ID}
 				onClick={() => setOpen((value) => !value)}
@@ -133,62 +143,89 @@ export function AccountMenu() {
 				<section
 					className="account-menu-panel"
 					id={PANEL_ID}
-					aria-label="Conta e aparência"
+					aria-label="Navegação, conta e aparência"
 				>
-					{projection === null ? (
-						<p className="account-menu-status" role="status">
-							Carregando conta…
-						</p>
-					) : projection.state === "unavailable" ? (
-						<div className="account-menu-status" role="status">
-							<strong>Conta temporariamente indisponível</strong>
-							<span>
-								Não foi possível verificar sua sessão agora. A navegação pública
-								continua disponível.
-							</span>
-							<button
-								type="button"
+					<div className="account-menu-account-block">
+						{projection === null ? (
+							<p className="account-menu-status" role="status">
+								Carregando conta…
+							</p>
+						) : projection.state === "unavailable" ? (
+							<div className="account-menu-status" role="status">
+								<strong>Conta temporariamente indisponível</strong>
+								<span>
+									Não foi possível verificar sua sessão agora. A navegação pública
+									continua disponível.
+								</span>
+								<button
+									type="button"
+									className="account-menu-action"
+									onClick={() => window.location.reload()}
+								>
+									Tentar novamente
+								</button>
+							</div>
+						) : authenticated ? (
+							<div className="account-menu-identity">
+								<strong>{displayName ?? "Conta do Discord"}</strong>
+								<span>Discord</span>
+							</div>
+						) : (
+							<p className="account-menu-status">
+								Entre com o Discord para acessar os espaços liberados para você.
+							</p>
+						)}
+
+						{authenticated ? (
+							<Link
+								href="/conta"
 								className="account-menu-action"
-								onClick={() => window.location.reload()}
+								onClick={close}
 							>
-								Tentar novamente
-							</button>
-						</div>
-					) : authenticated ? (
-						<div className="account-menu-identity">
-							<strong>{displayName ?? "Conta do Discord"}</strong>
-							<span>Discord</span>
-						</div>
-					) : (
-						<p className="account-menu-status">
-							Entre com o Discord para acessar os espaços liberados para você.
-						</p>
-					)}
+								Conta e acesso
+							</Link>
+						) : projection?.state === "anonymous" ? (
+							<form action="/auth/discord" method="post">
+								<input type="hidden" name="next" value={returnPath} />
+								<button
+									type="submit"
+									className="account-menu-action account-menu-action--primary"
+								>
+									Entrar com Discord
+								</button>
+							</form>
+						) : null}
 
-					{authenticated ? (
-						<Link
-							href="/conta"
-							className="account-menu-action"
-							onClick={() => setOpen(false)}
-						>
-							Conta e acesso
-						</Link>
-					) : projection?.state === "anonymous" ? (
-						<form action="/auth/discord" method="post">
-							<input type="hidden" name="next" value={returnPath} />
-							<button
-								type="submit"
-								className="account-menu-action account-menu-action--primary"
-							>
-								Entrar com Discord
-							</button>
-						</form>
-					) : null}
-
-					<div className="account-menu-appearance">
-						<span>Aparência</span>
-						<ThemeToggle />
+						<div className="account-menu-appearance">
+							<span>Aparência</span>
+							<ThemeToggle />
+						</div>
 					</div>
+
+					<nav className="account-menu-navigation" aria-label="Navegação principal">
+						<section aria-labelledby="global-menu-public-title">
+							<h2 id="global-menu-public-title">Explorar</h2>
+							<NavigationList
+								items={PUBLIC_NAV_ITEMS}
+								pathname={pathname}
+								onNavigate={close}
+							/>
+						</section>
+
+						{tools.length > 0 ? (
+							<section
+								className="product-launcher-tools"
+								aria-labelledby="global-menu-tools-title"
+							>
+								<h2 id="global-menu-tools-title">Ferramentas</h2>
+								<NavigationList
+									items={tools}
+									pathname={pathname}
+									onNavigate={close}
+								/>
+							</section>
+						) : null}
+					</nav>
 
 					{authenticated ? (
 						<form action="/auth/logout" method="post">

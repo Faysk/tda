@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 async function openAppearance(page: import("@playwright/test").Page) {
-	const trigger = page.getByRole("button", { name: "Abrir menu da conta" });
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
 	await trigger.click();
 	const toggle = page.getByRole("switch", { name: "Modo escuro" });
 	await expect(toggle).toBeVisible();
@@ -13,7 +13,7 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
 		/A próxima memória começa aqui\.|Não conseguimos abrir a última memória agora\./,
 	);
-	await page.getByRole("button", { name: "Abrir navegação" }).click();
+	await page.getByRole("button", { name: "Abrir menu global" }).click();
 	await page
 		.getByRole("navigation", { name: "Navegação principal" })
 		.getByRole("link", { name: "Sessões", exact: true })
@@ -95,9 +95,9 @@ test("public shell stays usable at 320px", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 800 });
 	await page.goto("/");
 
-	const launcher = page.getByRole("button", { name: "Abrir navegação" });
+	const launcher = page.getByRole("button", { name: "Abrir menu global" });
 	await expect(launcher).toBeVisible();
-	const account = page.getByRole("button", { name: "Abrir menu da conta" });
+	const account = page.getByRole("button", { name: "Abrir menu global" });
 	await expect(account).toBeVisible();
 	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveCount(0);
 	await expect(page.getByText("Aparência", { exact: true })).toHaveCount(0);
@@ -298,7 +298,7 @@ test("theme transition has a visible midpoint and coordinated final-candidate ti
 test("reduced motion removes decorative transitions", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await page.goto("/");
-	await page.getByRole("button", { name: "Abrir navegação" }).click();
+	await page.getByRole("button", { name: "Abrir menu global" }).click();
 	const action = page
 		.getByRole("navigation", { name: "Navegação principal" })
 		.getByRole("link", { name: "Sessões", exact: true });

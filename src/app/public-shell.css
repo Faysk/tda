@@ -261,13 +261,50 @@ footer {
 	right: 0;
 	z-index: 910;
 	display: grid;
-	width: min(320px, calc(100vw - 24px));
-	gap: 10px;
+	width: min(500px, calc(100vw - 24px));
+	max-height: min(76vh, 720px);
+	gap: 12px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
 	padding: 14px;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface-elevated);
 	box-shadow: var(--ds-shadow);
+}
+
+.account-menu-account-block {
+	display: grid;
+	gap: 10px;
+}
+
+.account-menu-navigation {
+	display: grid;
+	gap: 12px;
+	padding-top: 12px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.account-menu-navigation h2 {
+	margin: 0 0 8px;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.6875rem;
+	font-weight: 700;
+	letter-spacing: 0.14em;
+	line-height: 1.2;
+	text-transform: uppercase;
+}
+
+.account-menu-panel .product-launcher-grid {
+	gap: 7px;
+}
+
+.account-menu-panel .product-launcher-link {
+	min-height: 80px;
+	grid-template-rows: 36px minmax(2.4em, auto);
+	gap: 4px;
+	padding: 7px 6px;
 }
 
 .account-menu-panel form {
@@ -475,7 +512,8 @@ footer {
 		position: fixed;
 		top: 72px;
 		right: 12px;
-		width: min(320px, calc(100vw - 24px));
+		left: 12px;
+		width: auto;
 		max-height: calc(100dvh - 84px);
 		overflow-y: auto;
 	}
@@ -485,7 +523,7 @@ footer {
 	}
 
 	.product-launcher-link {
-		min-height: 92px;
+		min-height: 80px;
 	}
 
 	.page-section {
@@ -526,7 +564,8 @@ footer {
 	.account-menu-panel {
 		top: 68px;
 		right: 8px;
-		width: calc(100vw - 16px);
+		left: 8px;
+		width: auto;
 		max-height: calc(100dvh - 76px);
 	}
 
@@ -536,7 +575,7 @@ footer {
 	}
 
 	.product-launcher-link {
-		min-height: 88px;
+		min-height: 78px;
 		gap: 5px;
 		padding-inline: 7px;
 		font-size: 0.78rem;
