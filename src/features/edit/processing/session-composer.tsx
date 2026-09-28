@@ -31,7 +31,8 @@ import type {
 } from "./protocol";
 import styles from "./session-composer.module.css";
 
-const RECOVERY_KEY = "tda.processing.session-composer.v1";
+export const SESSION_COMPOSER_SESSION_COMPOSER_RECOVERY_KEY = "tda.processing.session-composer.v1";
+export const SESSION_COMPOSER_CHANGE_EVENT = "tda-session-composer-change";
 
 type Props = Readonly<{
 	bridge: LocalBridge;
@@ -197,10 +198,11 @@ export function SessionRecordingComposer({
 		setWorkspace(next);
 		onActiveChange?.(next.parts.length > 0);
 		try {
-			window.localStorage.setItem(RECOVERY_KEY, next.sessionId);
+			window.localStorage.setItem(SESSION_COMPOSER_RECOVERY_KEY, next.sessionId);
 		} catch {
 			// Recovery is best-effort; the Agent workspace remains authoritative.
 		}
+		window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
 		await loadRelated(next, signal);
 	}
 
@@ -238,7 +240,7 @@ export function SessionRecordingComposer({
 		restored.current = true;
 		let saved: string | null = null;
 		try {
-			saved = window.localStorage.getItem(RECOVERY_KEY);
+			saved = window.localStorage.getItem(SESSION_COMPOSER_RECOVERY_KEY);
 		} catch {
 			saved = null;
 		}
@@ -249,7 +251,7 @@ export function SessionRecordingComposer({
 		if (!supported || !validSessionId(sessionId)) return;
 		let saved: string | null = null;
 		try {
-			saved = window.localStorage.getItem(RECOVERY_KEY);
+			saved = window.localStorage.getItem(SESSION_COMPOSER_RECOVERY_KEY);
 		} catch {
 			saved = null;
 		}
@@ -605,6 +607,7 @@ export function SessionRecordingComposer({
 				controller.signal,
 			);
 			setAssemblies(listing.assemblies);
+			window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
 			announce(
 				"Transcrição da sessão montada · " +
 					built.segmentCount +
@@ -645,7 +648,7 @@ export function SessionRecordingComposer({
 
 	function forgetComposer() {
 		try {
-			window.localStorage.removeItem(RECOVERY_KEY);
+			window.localStorage.removeItem(SESSION_COMPOSER_RECOVERY_KEY);
 		} catch {
 			// Only the browser recovery pointer is cleared.
 		}
