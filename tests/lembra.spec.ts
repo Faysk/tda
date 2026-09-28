@@ -32,7 +32,7 @@ async function addReference(
 test("Lembra stays dense, searchable and usable from keyboard", async ({ page }) => {
 	await page.goto("/lembra");
 
-	await page.getByRole("button", { name: "Abrir navegação" }).click();
+	await page.getByRole("button", { name: "Abrir menu global" }).click();
 	const navigation = page.getByRole("navigation", { name: "Navegação principal" });
 	const topLembra = navigation.getByRole("link", { name: "Lembra", exact: true });
 	await expect(topLembra).toHaveAttribute("href", "/lembra");
