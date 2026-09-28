@@ -294,8 +294,10 @@ begin
   from jsonb_array_elements(v_segments);
 
   -- Keep the database metadata on the same count_words_v1 separator contract
-  -- used by the Agent and Web. U+001C..001F and U+FEFF are deliberately not
-  -- separators; no editorial text is normalized.
+  -- used by the Agent and Web. Translate only the versioned Unicode White_Space
+  -- set to ASCII spaces, then count non-empty tokens. U+001C..001F and U+FEFF
+  -- remain ordinary word characters by contract; no editorial text is persisted
+  -- in normalized form.
   select count(*)::integer
   into v_word_count
   from jsonb_array_elements(v_segments) segment(value)
