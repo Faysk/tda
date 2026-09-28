@@ -113,6 +113,24 @@ test("makes published cinematic lores discoverable without crowding mobile navig
 	).toHaveAttribute("href", "/lore/pipipi");
 });
 
+test("Pipipi hero starts at the real viewport top without the retired header offset", async ({ page }) => {
+	for (const viewport of [
+		{ width: 390, height: 844 },
+		{ width: 1366, height: 768 },
+		{ width: 1920, height: 1080 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/lore/pipipi");
+		const hero = page.locator("#topo");
+		await expect(hero).toBeVisible();
+		const box = await hero.boundingBox();
+		expect(box).not.toBeNull();
+		if (!box) continue;
+		expect(box.y).toBeLessThanOrEqual(1);
+		expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+	}
+});
+
 test("keeps the three chapter links inside the mobile viewport", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name !== "mobile", "chapter compaction is a mobile contract");
 	await page.goto("/lore/pipipi");
