@@ -218,7 +218,7 @@ describe("multi-recording composer model", () => {
 		expect(moveSessionPart(value.parts, partA, -1)).toEqual([partA, partB]);
 	});
 
-	it("processes only sources without completed runs", () => {
+	it("processes only sources without completed runs or active jobs", () => {
 		const value = workspace(false);
 		const run = { sourceId: sourceA } as LocalRunSummary;
 		const runs = new Map<string, readonly LocalRunSummary[]>([
@@ -226,6 +226,14 @@ describe("multi-recording composer model", () => {
 			[sourceB, []],
 		]);
 		expect(pendingSourceIds(value, runs)).toEqual([sourceB]);
+		expect(
+			pendingSourceIds(value, runs, [
+				{
+					status: "running",
+					context: { campaignId: "yuhara-main", sessionId: "session-42", sourceId: sourceB },
+				} as never,
+			]),
+		).toEqual([]);
 	});
 
 	it("keeps assembly fail-closed until chronology, runs and participants are ready", () => {
