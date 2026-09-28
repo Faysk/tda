@@ -25,7 +25,7 @@
     "docs:generate": "node tools/documentation-catalog.mjs --write",
     "db:docs:check": "node tools/check-database-governance.mjs",
     "test:e2e": "playwright test && playwright test --config playwright.statistics.config.ts && playwright test --config playwright.permissions.config.ts",
-    "test:navigation": "playwright test tests/global-navigation.spec.ts tests/foundation.spec.ts tests/auth.spec.ts --project=desktop-1080p",
+    "test:navigation": "playwright test tests/global-navigation.spec.ts tests/auth.spec.ts tests/navigation-origin.spec.ts --project=desktop-1080p",
     "test:processing": "playwright test --config playwright.processing.config.ts",
     "test:processing:ux": "playwright test --config playwright.processing-ux.config.ts",
     "test:processing:integration": "playwright test --config playwright.processing-integration.config.ts",
