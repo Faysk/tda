@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { StoryMarkdown } from "@/components/story-markdown";
@@ -11,10 +10,6 @@ import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
 import { publishSessionEditorialDraftAction } from "./session-publication-actions";
 import type { SessionPublicationState } from "./session-publication-model";
 import { SessionCoverEditor } from "./session-cover-editor";
-import {
-	isExistingPublishedSessionCoverReference,
-	sessionCoverPreviewUrl,
-} from "./session-cover-media";
 import {
 	SESSION_DRAFT_LIMITS,
 	isCanonicalSessionDate,
@@ -37,6 +32,8 @@ type Props = Readonly<{
 	editable: boolean;
 	publishable: boolean;
 	publicationAvailable: boolean;
+	surface?: "session" | "summary";
+	active?: boolean;
 	transport?: SessionEditorialDraftEditorTransport;
 }>;
 
@@ -80,11 +77,6 @@ function sameFields(left: Fields, right: Fields) {
 	);
 }
 
-function previewableCoverUrl(value: string): string | null {
-	const raw = value.trim();
-	return isExistingPublishedSessionCoverReference(raw) ? raw : null;
-}
-
 function fieldCount(value: string): number {
 	return sessionDraftScalarLength(value) ?? Number.POSITIVE_INFINITY;
 }
@@ -96,6 +88,8 @@ export function SessionEditorialDraftEditor({
 	editable,
 	publishable,
 	publicationAvailable,
+	surface = "session",
+	active = true,
 	transport,
 }: Props) {
 	const router = useRouter();
@@ -112,7 +106,6 @@ export function SessionEditorialDraftEditor({
 	const [currentTranscriptRevisionId, setCurrentTranscriptRevisionId] = useState(
 		initial.currentTranscriptRevisionId,
 	);
-	const [mode, setMode] = useState<"edit" | "preview">("edit");
 	const [phase, setPhase] = useState<
 		"idle" | "saving" | "saved" | "error" | "conflict"
 	>("idle");
@@ -227,6 +220,7 @@ export function SessionEditorialDraftEditor({
 	useEffect(() => {
 		const shortcut = (event: KeyboardEvent) => {
 			if (
+				active &&
 				(event.ctrlKey || event.metaKey) &&
 				event.key.toLocaleLowerCase() === "s"
 			) {
@@ -376,21 +370,16 @@ export function SessionEditorialDraftEditor({
 		router.refresh();
 	}
 
-	const privateCoverPreviewUrl = sessionCoverPreviewUrl(
-		sessionId,
-		fields.coverAssetId,
-	);
-	const coverPreviewUrl =
-		privateCoverPreviewUrl ?? previewableCoverUrl(fields.coverAssetId);
-
 	return (
-		<section className={draftStyles.editorialPanel} aria-label="Publicação da sessão">
+		<section className={draftStyles.editorialPanel} aria-label="Edição da sessão">
 			<header className={draftStyles.editorialHeader}>
 				<div>
-					<span className={styles.muted}>PUBLICAÇÃO DA SESSÃO</span>
-					<h2>Draft editorial</h2>
+					<span className={styles.muted}>
+						{surface === "summary" ? "RESUMO COMPLETO" : "DADOS DA SESSÃO"}
+					</span>
+					<h2>{surface === "summary" ? "Resumo detalhado" : "Sessão"}</h2>
 				</div>
-				<span className={styles.muted}>r{revision}</span>
+				<span className={styles.muted}>Draft r{revision}</span>
 			</header>
 
 			{initial.seededFromPublished && revision === 0 ? (
@@ -401,40 +390,13 @@ export function SessionEditorialDraftEditor({
 			) : null}
 			{transcriptChanged ? (
 				<p className={draftStyles.editorialWarning} role="status">
-					A transcrição foi atualizada desde a base deste draft. O texto foi
-					preservado; revise a diferença antes de publicar.
+					A transcrição foi atualizada desde a base deste draft. O conteúdo
+					editorial foi preservado; revise a diferença antes de publicar.
 				</p>
 			) : null}
 
-			<div className={draftStyles.editorialTabs} role="tablist" aria-label="Modo do draft">
-				<button
-					aria-selected={mode === "edit"}
-					className={
-						mode === "edit" ? draftStyles.editorialTabActive : draftStyles.editorialTab
-					}
-					onClick={() => setMode("edit")}
-					role="tab"
-					type="button"
-				>
-					Editar
-				</button>
-				<button
-					aria-selected={mode === "preview"}
-					className={
-						mode === "preview"
-							? draftStyles.editorialTabActive
-							: draftStyles.editorialTab
-					}
-					onClick={() => setMode("preview")}
-					role="tab"
-					type="button"
-				>
-					Preview
-				</button>
-			</div>
-
-			{mode === "edit" ? (
-				<div className={draftStyles.editorialFields}>
+			{surface === "session" ? (
+				<div className={draftStyles.sessionEditor}>
 					<div className={draftStyles.coverField}>
 						<span className={styles.fieldLabel}>Capa</span>
 						<CoverEditor
@@ -447,86 +409,100 @@ export function SessionEditorialDraftEditor({
 						/>
 					</div>
 
-					<label className={styles.fieldLabel}>
-						Arco
-						<input
-							className={styles.control}
-							disabled={!editable}
-							onChange={(event) =>
-								setFields((current) => ({
-									...current,
-									arc: event.target.value,
-								}))
-							}
-							value={fields.arc}
-						/>
-						<small>
-							{fieldCount(fields.arc)} / {SESSION_DRAFT_LIMITS.arc}
-						</small>
-					</label>
+					<div className={draftStyles.sessionMetadataFields}>
+						<label className={styles.fieldLabel}>
+							Título
+							<input
+								className={styles.control}
+								disabled={!editable}
+								onChange={(event) =>
+									setFields((current) => ({
+										...current,
+										title: event.target.value,
+									}))
+								}
+								value={fields.title}
+							/>
+							<small>
+								{fieldCount(fields.title)} / {SESSION_DRAFT_LIMITS.title}
+							</small>
+						</label>
 
-					<label className={styles.fieldLabel}>
-						Título
-						<input
-							className={styles.control}
-							disabled={!editable}
-							onChange={(event) =>
-								setFields((current) => ({
-									...current,
-									title: event.target.value,
-								}))
-							}
-							value={fields.title}
-						/>
-						<small>
-							{fieldCount(fields.title)} / {SESSION_DRAFT_LIMITS.title}
-						</small>
-					</label>
+						<label className={styles.fieldLabel}>
+							Arco
+							<input
+								className={styles.control}
+								disabled={!editable}
+								onChange={(event) =>
+									setFields((current) => ({
+										...current,
+										arc: event.target.value,
+									}))
+								}
+								value={fields.arc}
+							/>
+							<small>
+								{fieldCount(fields.arc)} / {SESSION_DRAFT_LIMITS.arc}
+							</small>
+						</label>
 
-					<label className={styles.fieldLabel}>
-						Data da sessão
-						<input
-							className={styles.control}
-							disabled={!editable}
-							type="date"
-							onChange={(event) =>
-								setFields((current) => ({
-									...current,
-									sessionDate: event.target.value,
-								}))
-							}
-							value={fields.sessionDate}
-						/>
-						{fields.sessionDate && !isCanonicalSessionDate(fields.sessionDate) ? (
-							<small role="alert">Use uma data válida no formato AAAA-MM-DD.</small>
-						) : (
-							<small>Data canônica sem horário ou timezone.</small>
-						)}
-					</label>
+						<label className={styles.fieldLabel}>
+							Data
+							<input
+								className={styles.control}
+								disabled={!editable}
+								type="date"
+								onChange={(event) =>
+									setFields((current) => ({
+										...current,
+										sessionDate: event.target.value,
+									}))
+								}
+								value={fields.sessionDate}
+							/>
+							{fields.sessionDate && !isCanonicalSessionDate(fields.sessionDate) ? (
+								<small role="alert">Use uma data válida no formato AAAA-MM-DD.</small>
+							) : (
+								<small>Data canônica sem horário ou timezone.</small>
+							)}
+						</label>
 
-					<label className={styles.fieldLabel}>
-						Descrição curta · conteúdo público
+						<label className={styles.fieldLabel}>
+							Descrição
+							<textarea
+								className={styles.textarea}
+								disabled={!editable}
+								onChange={(event) =>
+									setFields((current) => ({
+										...current,
+										shortDescription: event.target.value,
+									}))
+								}
+								rows={7}
+								value={fields.shortDescription}
+							/>
+							<small>
+								{fieldCount(fields.shortDescription)} /{" "}
+								{SESSION_DRAFT_LIMITS.shortDescription}
+							</small>
+						</label>
+					</div>
+				</div>
+			) : (
+				<div className={draftStyles.summaryWorkspace}>
+					<section className={draftStyles.summaryPane} aria-label="Markdown bruto">
+						<header className={draftStyles.summaryPaneHeader}>
+							<div>
+								<strong>Markdown RAW</strong>
+								<span>Edite o resumo completo detalhado.</span>
+							</div>
+							<small>
+								{fieldCount(fields.fullSummary).toLocaleString("pt-BR")} /{" "}
+								{SESSION_DRAFT_LIMITS.fullSummary.toLocaleString("pt-BR")}
+							</small>
+						</header>
 						<textarea
-							className={styles.textarea}
-							disabled={!editable}
-							onChange={(event) =>
-								setFields((current) => ({
-									...current,
-									shortDescription: event.target.value,
-								}))
-							}
-							rows={5}
-							value={fields.shortDescription}
-						/>
-						<small>
-							{fieldCount(fields.shortDescription)} /{" "}
-							{SESSION_DRAFT_LIMITS.shortDescription}
-						</small>
-					</label>
-
-					<label className={styles.fieldLabel}>
-						Resumo completo · Markdown
-						<textarea
+							aria-label="Resumo completo em Markdown"
 							className={[styles.textarea, draftStyles.summaryEditor].join(" ")}
 							disabled={!editable}
 							onChange={(event) =>
@@ -535,69 +511,53 @@ export function SessionEditorialDraftEditor({
 									fullSummary: event.target.value,
 								}))
 							}
+							spellCheck
 							value={fields.fullSummary}
 						/>
-						<small>
-							{fieldCount(fields.fullSummary).toLocaleString("pt-BR")} /{" "}
-							{SESSION_DRAFT_LIMITS.fullSummary.toLocaleString("pt-BR")}
-						</small>
-					</label>
-				</div>
-			) : (
-				<div className={draftStyles.editorialPreview}>
-					<div className={draftStyles.previewCard}>
-						<span>{fields.arc.trim() || "Memória da campanha"}</span>
-						<strong>{fields.title.trim() || "Título ainda não definido"}</strong>
-						<small>{formatSessionDate(fields.sessionDate) || "Data ainda não definida"}</small>
-						<p>
-							{fields.shortDescription.trim() ||
-								"Descrição curta ainda não definida."}
-						</p>
-					</div>
-					<article className={draftStyles.previewStory}>
-						<div className={draftStyles.coverPreview}>
-							{coverPreviewUrl ? (
-								<Image
-									src={coverPreviewUrl}
-									alt=""
-									fill
-									sizes="(max-width: 1180px) 100vw, 40vw"
-									unoptimized={Boolean(privateCoverPreviewUrl)}
+					</section>
+
+					<section className={draftStyles.summaryPane} aria-label="Preview do Markdown">
+						<header className={draftStyles.summaryPaneHeader}>
+							<div>
+								<strong>Preview</strong>
+								<span>Renderização igual à superfície pública.</span>
+							</div>
+						</header>
+						<article className={draftStyles.summaryPreview}>
+							{fields.fullSummary.trim() ? (
+								<StoryMarkdown
+									source={fields.fullSummary}
+									title={fields.title.trim() || "Sessão"}
 								/>
 							) : (
-								<span>Preview sem capa finalizada</span>
+								<p className={styles.muted}>
+									O preview aparece aqui assim que você começar a escrever o resumo.
+								</p>
 							)}
-						</div>
-						<h3>{fields.title.trim() || "Título ainda não definido"}</h3>
-						<p className={styles.muted}>{formatSessionDate(fields.sessionDate) || "Data ainda não definida"}</p>
-						<StoryMarkdown
-							source={fields.fullSummary}
-							title={fields.title.trim() || "Sessão"}
-						/>
-					</article>
+						</article>
+					</section>
 				</div>
 			)}
 
-			<div className={draftStyles.readinessPanel}>
-				<strong>
-					{missing.length
-						? "Draft incompleto"
-						: "Campos editoriais preenchidos"}
-				</strong>
-				<span className={styles.muted}>
-					{missing.length
-						? "Faltando: " + missing.join(", ") + "."
-						: "A publicação ainda fará validação autoritativa e da capa finalizada."}
-				</span>
-			</div>
+			{surface === "session" ? (
+				<div className={draftStyles.readinessPanel}>
+					<strong>
+						{missing.length ? "Sessão ainda incompleta" : "Campos editoriais preenchidos"}
+					</strong>
+					<span className={styles.muted}>
+						{missing.length
+							? "Faltando: " + missing.join(", ") + "."
+							: "A publicação ainda fará validação autoritativa e da capa finalizada."}
+					</span>
+				</div>
+			) : null}
 
 			{phase === "conflict" && remote ? (
 				<div className={styles.conflictPanel} role="alert">
 					<strong>Conflito de edição</strong>
 					<p>{message}</p>
 					<p className={styles.muted}>
-						Remoto r{remote.revision}:{" "}
-						{remote.title.trim() || "sem título"}.
+						Remoto r{remote.revision}: {remote.title.trim() || "sem título"}.
 					</p>
 					<div className={styles.conflictActions}>
 						<button
@@ -618,7 +578,7 @@ export function SessionEditorialDraftEditor({
 				</div>
 			) : null}
 
-			{publishIntent ? (
+			{surface === "session" && publishIntent ? (
 				<div
 					className={draftStyles.publicationConfirm}
 					role="dialog"
@@ -644,11 +604,21 @@ export function SessionEditorialDraftEditor({
 						</div>
 						<div>
 							<dt>Descrição</dt>
-							<dd>{fieldCount(publishIntent.fields.shortDescription).toLocaleString("pt-BR")} caracteres</dd>
+							<dd>
+								{fieldCount(
+									publishIntent.fields.shortDescription,
+								).toLocaleString("pt-BR")}{" "}
+								caracteres
+							</dd>
 						</div>
 						<div>
 							<dt>Resumo completo</dt>
-							<dd>{fieldCount(publishIntent.fields.fullSummary).toLocaleString("pt-BR")} caracteres · Markdown</dd>
+							<dd>
+								{fieldCount(publishIntent.fields.fullSummary).toLocaleString(
+									"pt-BR",
+								)}{" "}
+								caracteres · Markdown
+							</dd>
 						</div>
 						<div>
 							<dt>Versão pública atual</dt>
@@ -704,9 +674,7 @@ export function SessionEditorialDraftEditor({
 				<div>
 					<span
 						className={styles.saveState}
-						data-state={
-							phase === "saved" ? "saved" : dirty ? "dirty" : phase
-						}
+						data-state={phase === "saved" ? "saved" : dirty ? "dirty" : phase}
 						aria-live="polite"
 					>
 						{phase === "saving"
@@ -721,7 +689,8 @@ export function SessionEditorialDraftEditor({
 						· Ctrl/⌘+S salva; nenhum atalho publica.
 					</small>
 				</div>
-				{publishMessage ? (
+
+				{surface === "session" && publishMessage ? (
 					<span
 						className={styles.saveState}
 						data-state={publishPhase === "published" ? "saved" : publishPhase}
@@ -730,6 +699,7 @@ export function SessionEditorialDraftEditor({
 						{publishMessage}
 					</span>
 				) : null}
+
 				<div className={draftStyles.editorialActions}>
 					<button
 						className={draftStyles.primaryButton}
@@ -742,31 +712,33 @@ export function SessionEditorialDraftEditor({
 						onClick={() => void save()}
 						type="button"
 					>
-						Salvar draft
+						{surface === "summary" ? "Salvar resumo" : "Salvar sessão"}
 					</button>
-					<button
-						className={draftStyles.controlButton}
-						disabled={!publishReady}
-						title={
-							!publicationAvailable
-								? "Autoridade de publicação indisponível."
-								: !publishable
-									? "Sua conta não tem a capability de publicação."
-									: dirty
-										? "Salve o draft antes de publicar."
-										: transcriptChanged
-											? "Revise a transcrição atual antes de publicar."
-											: missing.length
-												? "Complete os campos editoriais obrigatórios."
-												: "Publicação pública explícita."
-						}
-						onClick={openPublicationConfirmation}
-						type="button"
-					>
-						{currentPublicationId || initial.sessionStatus === "published"
-							? "Publicar nova versão"
-							: "Publicar no site"}
-					</button>
+					{surface === "session" ? (
+						<button
+							className={draftStyles.controlButton}
+							disabled={!publishReady}
+							title={
+								!publicationAvailable
+									? "Autoridade de publicação indisponível."
+									: !publishable
+										? "Sua conta não tem a capability de publicação."
+										: dirty
+											? "Salve o draft antes de publicar."
+											: transcriptChanged
+												? "Revise a transcrição atual antes de publicar."
+												: missing.length
+													? "Complete os campos editoriais obrigatórios."
+													: "Publicação pública explícita."
+							}
+							onClick={openPublicationConfirmation}
+							type="button"
+						>
+							{currentPublicationId || initial.sessionStatus === "published"
+								? "Publicar nova versão"
+								: "Publicar no site"}
+						</button>
+					) : null}
 				</div>
 			</footer>
 		</section>
