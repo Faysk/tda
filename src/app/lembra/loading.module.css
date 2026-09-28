@@ -1,6 +1,6 @@
 .shell {
 	width: min(100%, var(--ds-layout-max));
-	min-height: calc(100vh - 82px);
+	min-height: 100dvh;
 	margin-inline: auto;
 	display: grid;
 	grid-template-columns: minmax(178px, 214px) minmax(0, 1fr);
