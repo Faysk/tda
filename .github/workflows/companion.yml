@@ -1,5 +1,5 @@
 name: Companion
-# #628 release refresh: emit one fresh exact-source Windows artifact after RC retry selection hardening.
+# #628 release refresh: emit one fresh exact-source Windows artifact from current main after concurrent main advance.
 on:
   workflow_call:
     inputs:
