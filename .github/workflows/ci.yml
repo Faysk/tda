@@ -414,6 +414,19 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - name: Browser editorial journey
         run: pnpm exec playwright test --config playwright.session-editorial.config.ts
+      - name: Upload sanitized editorial layout receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: session-editorial-layout-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/workbench-1920.png
+            test-results/**/workbench-1366.png
+            test-results/**/workbench-mobile-390.png
+            test-results/**/workbench-mobile-320.png
+            test-results/**/workbench-zoom-200.png
+          if-no-files-found: error
+          retention-days: 30
       - name: Isolated PostgreSQL publication contracts
         run: |
           sudo apt-get update
