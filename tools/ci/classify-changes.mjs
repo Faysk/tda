@@ -8,6 +8,11 @@ const CLASSIFIER_CONTRACT = new Set([
 ]);
 
 const EXACT = {
+	transcript_edit: new Set([
+		".github/workflows/ci.yml",
+		"playwright.config.ts",
+		"tests/transcript-revision-editor.spec.ts",
+	]),
 	navigation: new Set([
 		".github/workflows/ci.yml",
 		"package.json",
@@ -61,6 +66,12 @@ const EXACT = {
 };
 
 const PREFIX = {
+	transcript_edit: [
+		"src/features/edit/transcript/",
+		"src/app/edit/sessoes/",
+		"src/app/e2e-fixtures/transcript-revision-editor/",
+		"src/features/edit/sessions/editorial-draft-",
+	],
 	navigation: ["src/features/theme/"],
 	db: ["supabase/", "src/features/transcript-sync/"],
 	companion: ["local-companion/"],
@@ -98,6 +109,7 @@ export function classifyPaths(inputPaths) {
 	const files = [...new Set(inputPaths.map(normalized).filter(Boolean))].sort();
 	const classes = {
 		web: files.length > 0,
+		transcript_edit: files.some((path) => matches(path, "transcript_edit")),
 		navigation: files.some((path) => matches(path, "navigation")),
 		db: files.some((path) => matches(path, "db")),
 		companion: files.some((path) => matches(path, "companion")),
@@ -121,7 +133,7 @@ export function changedFilesForRange(range) {
 
 function writeGithubOutputs(result) {
 	if (!process.env.GITHUB_OUTPUT) return;
-	for (const key of ["web", "navigation", "db", "companion", "processing", "lembra", "media"])
+	for (const key of ["web", "transcript_edit", "navigation", "db", "companion", "processing", "lembra", "media"])
 		appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${result[key]}\n`);
 	appendFileSync(
 		process.env.GITHUB_OUTPUT,
@@ -137,6 +149,7 @@ function writeSummary(range, result) {
 			"## Change relevance",
 			`- Range: \`${range}\``,
 			`- web: \`${result.web}\``,
+			`- transcript_edit: \`${result.transcript_edit}\``,
 			`- navigation: \`${result.navigation}\``,
 			`- db: \`${result.db}\``,
 			`- companion: \`${result.companion}\``,
