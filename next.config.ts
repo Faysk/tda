@@ -30,6 +30,20 @@ const config: NextConfig = {
 		remotePatterns: [
 			{
 				protocol: "https",
+				hostname: "cdn.discordapp.com",
+				port: "",
+				pathname: "/avatars/**",
+				search: "",
+			},
+			{
+				protocol: "https",
+				hostname: "cdn.discordapp.com",
+				port: "",
+				pathname: "/embed/avatars/**",
+				search: "",
+			},
+			{
+				protocol: "https",
 				hostname: "media.dnd.faysk.dev",
 				port: "",
 				pathname: "/campaigns/yuhara-main/sessions/**",
