@@ -34,7 +34,10 @@ def test_rc_workflow_auto_publishes_only_validated_main_artifacts_and_never_rebu
     assert "AUTO_RC_TRIGGER_NOT_MAIN_PUSH" in value
     assert "TDACompanion-windows-x64" in value
     assert "No Companion artifact" in value
-    assert "gh run download" in value
+    assert "run_started_at" in value
+    assert "COMPANION_ARTIFACT_ATTEMPT_AMBIGUOUS" in value
+    assert "artifact_id=$ARTIFACT_ID" in value
+    assert "actions/artifacts/${{ steps.artifact.outputs.artifact_id }}/zip" in value
     assert "candidate-manifest" in value
     assert "--source-tree-sha" in value
     assert "--payload-manifest" in value
