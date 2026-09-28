@@ -323,20 +323,15 @@ test("legacy session hashes map to reboot paths", async ({ page }) => {
 });
 
 test("not-found state uses the public navigation contract", async ({ page }) => {
-	await page.goto("/sessoes/nonexistent");
+	const response = await page.goto("/sessoes/nonexistent");
+	expect(response?.status()).toBe(404);
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
 		"Esta história não foi encontrada.",
 	);
 	await expect(page.getByRole("link", { name: "Voltar às sessões" })).toBeVisible();
 });
 
-test("private API stays hidden while missing sessions render a safe not-found state", async ({
-	page,
-	request,
-}) => {
+test("unknown and private routes are not exposed", async ({ request }) => {
 	expect((await request.get("/api/transcripts")).status()).toBe(404);
-	await page.goto("/sessoes/nonexistent");
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-		"Esta história não foi encontrada.",
-	);
+	expect((await request.get("/sessoes/nonexistent")).status()).toBe(404);
 });
