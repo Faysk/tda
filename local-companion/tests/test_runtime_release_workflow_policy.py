@@ -165,3 +165,16 @@ def test_issue_628_production_validation_bridges_are_version_locked_and_retire_o
     assert "exact_rc_bytes_reused" in companion
     assert 'gh release edit "$RC_TAG"' in companion
     assert "COMPANION_PRODUCTION_VALIDATION_STABLE_READY" in companion
+
+
+def test_companion_rc_keeps_manual_exact_source_artifact_recovery_path():
+    value = _workflow("companion-rc.yml")
+
+    # A completed CI rerun does not reliably emit a fresh workflow_run child.
+    # Keep the explicit exact-source recovery path so an already validated
+    # Companion artifact can still be promoted without rebuilding or guessing.
+    assert "workflow_dispatch:" in value
+    assert "source_sha:" in value
+    assert "--workflow companion.yml --commit \"$SOURCE_SHA\" --status success" in value
+    assert "NO_SUCCESSFUL_COMPANION_RUN_FOR_SOURCE" in value
+    assert "--name TDACompanion-windows-x64" in value
