@@ -1437,6 +1437,7 @@
 	}
 
 	.toolbar {
+		top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 		padding-right: 0;
 	}
 
