@@ -29,12 +29,12 @@ Baseline revalidada desta revisão: `main@c2c27a23017045882b67bbfa1a27439d02645f
 | --- | --- | --- |
 | projeção privada de identidade + capabilities | integrada à `main` | #881 / PR #886 |
 | launcher global | integrada à `main` | #880 / PR #890 |
-| avatar/painel de conta | pendente de integração; depende do launcher | #882 |
+| avatar/painel de conta | integrada à `main` | #882 / PR #902 |
 | retirada dos hubs `/edit` e `/conta` | pendente de integração | #883 |
 | gate responsivo/teclado/visual completo | pendente | #884 |
 | contrato documental | este documento | #885 |
 
-O launcher de #880 já está integrado na `main`. Enquanto #882/#883 não estiverem integradas, o runtime continua com `ThemeToggle` separado e os hubs `/edit`/`/conta` atuais. Isso é **estado transitório de implementação**, não o contrato final do produto.
+O launcher de #880 e o avatar/painel de conta de #882 já estão integrados na `main`. O `ThemeToggle` deixou de ser um controle isolado do header e passou a viver dentro do painel de conta. Enquanto #883 não estiver integrada, os hubs `/edit`/`/conta` atuais permanecem como estado transitório de implementação; isso **não** redefine o contrato final do produto.
 
 Merge em `main` também não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
@@ -163,9 +163,9 @@ Copy de links deve usar **Conta e acesso** quando o objetivo for explicar víncu
 
 ## Aparência
 
-Após #882:
+Com #882 integrada pela PR #902:
 
-- o `ThemeToggle` deixa de ocupar espaço isolado no header;
+- o `ThemeToggle` não ocupa mais espaço isolado no header;
 - o controle de aparência vive dentro do painel de conta;
 - a regra existente permanece binária: preferência do sistema apenas antes de existir escolha salva; depois persistir `light` ou `dark`;
 - não introduzir opção `Sistema` sem nova decisão de produto.
@@ -252,7 +252,7 @@ Screenshots/receipts de teste usam identidades e avatares sintéticos, nunca dad
 - #879 — epic da navegação global;
 - #880 — launcher;
 - #881 / PR #886 — projeção sanitizada de Auth;
-- #882 — avatar/painel de conta;
+- #882 / PR #902 — avatar/painel de conta;
 - #883 — retirada dos hubs;
 - #884 — gates de QA;
 - #885 — contrato documental;
