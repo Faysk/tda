@@ -1,6 +1,6 @@
 # Sessões compostas por múltiplas gravações Craig
 
-> Status: implementação funcional concluída; gate E2E/recovery em fechamento
+> Status: implementação funcional e gate E2E/recovery concluídos
 > Owner: sessions / processing / transcripts
 > Última revisão: 2026-09-28
 > Fonte de verdade: este documento, ADR-0019 proposto e epic #843
