@@ -122,6 +122,25 @@ test("lost save response replays the same operation without duplicating the revi
 	await expect(page.getByText(/Revisão privada atual · r2/)).toBeVisible();
 });
 
+test("working fields freeze while a revision save is in flight", async ({ page }) => {
+	await page.goto(`${FIXTURE}?slow=1`);
+	const { text } = await openFirstSegment(page);
+	await text.fill("Snapshot enviado sem perder tecla tardia");
+
+	const save = page.getByRole("button", { name: "Salvar alterações da transcrição" });
+	await save.click();
+	await expect(save).toHaveText("Salvando…");
+	await expect(text).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Reverter fala" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Fechar fala" })).toBeDisabled();
+
+	await expect(page.getByText(/Revisão privada r2 salva/)).toBeVisible();
+	await page.reload();
+	await expect(
+		page.getByText("Snapshot enviado sem perder tecla tardia", { exact: true }),
+	).toBeVisible();
+});
+
 test("two tabs conflict without losing the stale working copy", async ({ page }) => {
 	await page.goto(FIXTURE);
 	const stalePage = await page.context().newPage();
