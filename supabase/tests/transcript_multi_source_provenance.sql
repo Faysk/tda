@@ -190,6 +190,13 @@ begin
 end;
 $security$;
 
+insert into public.role_permissions(role_id, permission_action)
+values (
+  '66666666-6666-4666-8666-666666666666',
+  'campaign.content.edit'
+)
+on conflict do nothing;
+
 insert into public.role_assignments(
   id,
   profile_id,
@@ -220,6 +227,9 @@ declare
   v_revision_1 uuid;
   v_revision_2 uuid;
   v_revision_3 uuid;
+  v_edit_revision uuid;
+  v_edit_status text;
+  v_edit_segment_id text;
   v_current uuid;
   v_restore jsonb;
   v_unpublish jsonb;
@@ -462,6 +472,71 @@ begin
     raise exception 'ASSEMBLY_RESTORE_FAILED:%', v_restore;
   end if;
 
+  -- A private Web edit derived from an assembly-backed revision inherits the
+  -- immutable assembly identity and copies the ordered parts instead of
+  -- degrading back to a fake single source/run.
+  select segments->0->>'segment_id'
+  into v_edit_segment_id
+  from public.transcript_revisions
+  where id = v_revision_1;
+
+  select e.status, e.revision_id
+  into v_edit_status, v_edit_revision
+  from public.save_transcript_revision_edit_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    '22222222-2222-4222-8222-222222222222',
+    v_revision_1,
+    '85100000-0000-4000-8000-000000000020',
+    jsonb_build_array(
+      jsonb_build_object(
+        'trackNumber', 1,
+        'segmentId', v_edit_segment_id,
+        'speaker', 'Speaker 1',
+        'text', 'parte editada'
+      )
+    )
+  ) e;
+
+  if v_edit_status <> 'updated'
+     or v_edit_revision is null
+     or (
+       select publication_kind
+       from public.transcript_revisions
+       where id = v_edit_revision
+     ) <> 'session_assembly'
+     or (
+       select assembly_id
+       from public.transcript_revisions
+       where id = v_edit_revision
+     ) is distinct from (
+       select assembly_id
+       from public.transcript_revisions
+       where id = v_revision_1
+     )
+     or (
+       select parent_revision_id
+       from public.transcript_revisions
+       where id = v_edit_revision
+     ) is distinct from v_revision_1
+     or (
+       select count(*)
+       from public.transcript_revision_parts
+       where revision_id = v_edit_revision
+     ) <> 1
+     or (
+       select p.source_id || ':' || p.run_id
+       from public.transcript_revision_parts p
+       where p.revision_id = v_edit_revision
+     ) is distinct from (
+       select p.source_id || ':' || p.run_id
+       from public.transcript_revision_parts p
+       where p.revision_id = v_revision_1
+     ) then
+    raise exception 'ASSEMBLY_WEB_EDIT_LOST_PROVENANCE:%:%', v_edit_status, v_edit_revision;
+  end if;
+
   select public.set_current_transcript_revision_atomic(
     '44444444-4444-4444-8444-444444444444',
     '33333333-3333-4333-8333-333333333333',
@@ -469,11 +544,11 @@ begin
     '22222222-2222-4222-8222-222222222222',
     '85100000-0000-4000-8000-000000000019',
     null,
-    v_revision_1
+    v_edit_revision
   ) into v_unpublish;
 
   if v_unpublish->>'ok' <> 'true'
-     or (select count(*) from public.transcript_revision_parts) <> 23 then
+     or (select count(*) from public.transcript_revision_parts) <> 24 then
     raise exception 'ASSEMBLY_UNPUBLISH_DESTROYED_PROVENANCE:%', v_unpublish;
   end if;
 
@@ -553,3 +628,7 @@ where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
 
 delete from public.role_assignments
 where id = '85100000-0000-4000-8000-000000000001'::uuid;
+
+delete from public.role_permissions
+where role_id = '66666666-6666-4666-8666-666666666666'::uuid
+  and permission_action = 'campaign.content.edit';
