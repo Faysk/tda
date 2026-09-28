@@ -488,12 +488,32 @@ export function TranscriptReader({
 								<Button
 									size="sm"
 									variant="tertiary"
+									disabled={
+										dirtyCount === 0 || editingId !== null || savePhase === "saving"
+									}
+									onClick={() => {
+										if (
+											!window.confirm(
+												"Descartar todas as alterações não salvas desta working copy?",
+											)
+										)
+											return;
+										setWorking({});
+										setSavePhase("idle");
+										setSaveMessage(null);
+									}}
+								>
+									Descartar alterações
+								</Button>
+								<Button
+									size="sm"
+									variant="tertiary"
 									disabled={savePhase === "saving"}
 									onClick={() => {
 										if (
 											hasUnsavedWork &&
 											!window.confirm(
-												"Descartar as alterações não salvas desta working copy?",
+												"Sair e descartar as alterações não salvas desta working copy?",
 											)
 										)
 											return;
@@ -613,21 +633,24 @@ export function TranscriptReader({
 											Editar fala
 										</Button>
 										{changed ? (
-											<Button
-												size="sm"
-												variant="tertiary"
-												onClick={() => {
-													setWorking((current) => {
-														const next = { ...current };
-														delete next[baseSegment.id];
-														return next;
-													});
-													setSavePhase("idle");
-													setSaveMessage(null);
-												}}
-											>
-												Reverter
-											</Button>
+											<>
+												<span className={styles.editedBadge}>Editada</span>
+												<Button
+													size="sm"
+													variant="tertiary"
+													onClick={() => {
+														setWorking((current) => {
+															const next = { ...current };
+															delete next[baseSegment.id];
+															return next;
+														});
+														setSavePhase("idle");
+														setSaveMessage(null);
+													}}
+												>
+													Reverter fala
+												</Button>
+											</>
 										) : null}
 									</div>
 								) : null}
