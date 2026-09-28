@@ -7,6 +7,7 @@ const canonicalSupabaseOrigin = "https://dmrqnbdvbkfqzctcerbx.supabase.co";
 const canonicalSupabaseWebsocketOrigin =
 	"wss://dmrqnbdvbkfqzctcerbx.supabase.co";
 const canonicalMediaOrigin = "https://media.dnd.faysk.dev";
+const discordAvatarOrigin = "https://cdn.discordapp.com";
 
 const contentSecurityPolicyReportOnly = [
 	"default-src 'self'",
@@ -16,7 +17,7 @@ const contentSecurityPolicyReportOnly = [
 	"form-action 'self'",
 	"script-src 'self' 'unsafe-inline'",
 	"style-src 'self' 'unsafe-inline'",
-	`img-src 'self' data: blob: ${canonicalMediaOrigin} ${canonicalSupabaseOrigin}`,
+	`img-src 'self' data: blob: ${canonicalMediaOrigin} ${canonicalSupabaseOrigin} ${discordAvatarOrigin}`,
 	"font-src 'self' data:",
 	`connect-src 'self' ${canonicalSupabaseOrigin} ${canonicalSupabaseWebsocketOrigin} ${canonicalMediaOrigin}`,
 	`media-src 'self' blob: ${canonicalMediaOrigin}`,
