@@ -11,6 +11,7 @@ export type PreparedTranscriptRevisionEdit = Readonly<{
 export type TranscriptRevisionEditIssue =
 	| "changes_required"
 	| "too_many_changes"
+	| "unsupported_field"
 	| "segment_key_invalid"
 	| "duplicate_segment"
 	| "speaker_required"
@@ -49,6 +50,13 @@ export function prepareTranscriptRevisionEditChanges(
 			continue;
 		}
 		const candidate = raw as Record<string, unknown>;
+		if (
+			Object.keys(candidate).some(
+				(key) => !["segmentKey", "speaker", "text"].includes(key),
+			)
+		) {
+			issues.push("unsupported_field");
+		}
 		const segmentKey =
 			typeof candidate.segmentKey === "string" ? candidate.segmentKey : "";
 		const speaker =
