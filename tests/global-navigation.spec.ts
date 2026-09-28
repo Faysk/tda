@@ -515,3 +515,116 @@ test("desktop and mobile light/dark navigation receipts are captured from synthe
 		});
 	}
 });
+
+test("account overview keeps synthetic identity and access usable across the layout matrix", async ({
+	page,
+	context,
+}, testInfo) => {
+	await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+
+	for (const state of [
+		{
+			query: "anonymous",
+			status: "Não autenticada",
+			body: "Entre com o Discord para consultar seu perfil TDA.",
+		},
+		{
+			query: "unavailable",
+			status: "Acesso indisponível",
+			body: "Não foi possível consultar seu perfil TDA agora.",
+		},
+		{
+			query: "unlinked",
+			status: "Não vinculada",
+			body: "Ainda sem perfil TDA vinculado.",
+		},
+		{
+			query: "no-grants",
+			status: "Sem permissões nesta campanha",
+			body: "Nenhuma permissão efetiva nesta campanha.",
+		},
+	]) {
+		await page.goto(`/e2e-fixtures/account-overview?state=${state.query}`);
+		await expect(page.getByText(state.status, { exact: true })).toBeVisible();
+		await expect(page.getByText(state.body, { exact: false })).toBeVisible();
+		await expect(page.locator("body")).not.toContainText(
+			"auth-synthetic-never-rendered",
+		);
+	}
+
+	for (const viewport of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+		{ width: 768, height: 1024 },
+		{ width: 1366, height: 768 },
+		{ width: 1920, height: 1080 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/e2e-fixtures/account-overview");
+		await expect(
+			page.getByRole("heading", { name: "Conta e acesso", exact: true }),
+		).toBeVisible();
+		await expect(page.getByText("Pessoa Sintética", { exact: true })).toBeVisible();
+		await expect(page.getByText("profile-tda-synthetic-927", { exact: true })).toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "Permissões nesta campanha", exact: true }),
+		).toBeVisible();
+		await expect(page.getByText("Gerenciar permissões", { exact: true })).toBeVisible();
+		await expect(page.getByText("campaign/yuhara-main", { exact: true })).toHaveCount(0);
+		await expect(page.getByRole("link", { name: "Ver histórias públicas" })).toHaveCount(0);
+		await expect(page.locator('form[action="/auth/logout"]')).toHaveAttribute("method", "post");
+		await expectNoHorizontalOverflow(page);
+	}
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/e2e-fixtures/account-overview");
+	const copyId = page.getByRole("button", { name: "Copiar ID" });
+	await copyId.focus();
+	await expect(copyId).toBeFocused();
+	await copyId.press("Enter");
+	await expect(page.getByText("ID copiado.", { exact: true })).toBeVisible();
+	await copyId.click();
+	await expect(page.getByText("ID copiado.", { exact: true })).toBeVisible();
+
+	await page.setViewportSize({ width: 768, height: 1024 });
+	await page.goto("/e2e-fixtures/account-overview");
+	await page.evaluate(() => {
+		document.documentElement.style.zoom = "2";
+	});
+	await expectNoHorizontalOverflow(page);
+	await page.evaluate(() => {
+		document.documentElement.style.zoom = "";
+	});
+
+	for (const receipt of [
+		{
+			name: "navigation-desktop-dark",
+			viewport: { width: 1920, height: 1080 },
+			colorScheme: "dark" as const,
+		},
+		{
+			name: "navigation-desktop-light",
+			viewport: { width: 1920, height: 1080 },
+			colorScheme: "light" as const,
+		},
+		{
+			name: "navigation-mobile-dark",
+			viewport: { width: 390, height: 844 },
+			colorScheme: "dark" as const,
+		},
+		{
+			name: "navigation-mobile-light",
+			viewport: { width: 390, height: 844 },
+			colorScheme: "light" as const,
+		},
+	]) {
+		await page.setViewportSize(receipt.viewport);
+		await page.emulateMedia({ colorScheme: receipt.colorScheme });
+		await page.goto("/e2e-fixtures/account-overview");
+		await page.screenshot({
+			path: testInfo.outputPath(`${receipt.name}.png`),
+			fullPage: false,
+		});
+	}
+});
+
