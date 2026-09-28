@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { saveTranscriptRevisionEditsAction } from "./edit-actions";
@@ -264,6 +265,7 @@ export function TranscriptReader({
 						: `Revisão privada r${result.revisionNumber} salva.`,
 				);
 				setRemoteRevisionNumber(null);
+				router.refresh();
 				pendingOperation.current = null;
 				return;
 			}
