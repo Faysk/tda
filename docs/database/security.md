@@ -442,3 +442,24 @@ Contrato candidato:
 - service role e credenciais R2 nunca são enviados ao browser.
 
 Esse modelo mantém a UX sem burocracia de permissão sem transformar o storage/banco em acesso público.
+
+## `SECURITY INVOKER` server-only de edição de transcript revision — candidata #898
+
+A migration `20260928023000_transcript_revision_web_edits` adiciona o boundary
+`save_transcript_revision_edit_atomic(uuid,text,uuid,uuid,uuid,jsonb)` para a edição privada no workspace da sessão.
+
+Decisões de segurança:
+
+- a função é `SECURITY INVOKER` com `search_path = pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated` não recebem `EXECUTE`; somente `service_role`;
+- a Server Action revalida identidade e `campaign.content.edit` antes de chamar a RPC;
+- sessão e campaign são vinculadas no lookup bloqueado; a revisão-base precisa pertencer à mesma sessão/campanha;
+- o browser envia somente deltas `track_number + segment_id + speaker + text`; campos adicionais, inclusive timing, são rejeitados;
+- o SQL reconstrói a revisão completa a partir do parent imutável, preservando identidade/timestamps;
+- `expected_current_revision_id` protege concorrência; conflito não cria revisão parcial nem faz last-write-wins;
+- `operation_id` protege resposta perdida/replay sem duplicar a revisão;
+- o audit persiste ids, contagens e hash, nunca o conteúdo privado das falas.
+
+Este boundary não concede publicação. Alterar a transcript revision current no Edit
+não promove resumo, capa, sessão pública ou canon e não amplia capabilities de browser.
+
