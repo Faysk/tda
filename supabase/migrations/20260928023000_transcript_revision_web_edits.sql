@@ -135,8 +135,8 @@ begin
        or (e.value->>'speaker') ~ U&'[\\0001-\\001F\\007F]'
        or (e.value->>'text') ~ U&'[\\0001-\\0008\\000B\\000C\\000E-\\001F\\007F]'
        -- count_words_v1 requires at least one non-White_Space token.
-       or (e.value->>'speaker') !~ U&'[^\\0009-\\000D\\0020\\0085\\00A0\\1680\\2000-\\200A\\2028\\2029\\202F\\205F\\3000]'
-       or (e.value->>'text') !~ U&'[^\\0009-\\000D\\0020\\0085\\00A0\\1680\\2000-\\200A\\2028\\2029\\202F\\205F\\3000]'
+       or translate(e.value->>'speaker', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', '') = ''
+       or translate(e.value->>'text', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', '') = ''
   ) then
     return query select 'invalid_payload'::text, null::uuid, null::bigint;
     return;
@@ -273,8 +273,8 @@ begin
   into v_word_count
   from jsonb_array_elements(v_segments) segment(value)
   cross join lateral regexp_matches(
-    segment.value->>'text',
-    U&'[^\0009-\000D\0020\0085\00A0\1680\2000-\200A\2028\2029\202F\205F\3000]+',
+    translate(segment.value->>'text', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', repeat(' ', 25)),
+    '[^ ]+',
     'g'
   );
 
