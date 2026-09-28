@@ -133,9 +133,9 @@ test("governed console shows people, human access, filters and technical details
 	await expect(page.getByRole("row", { name: /Pessoa reader/u })).toHaveCount(0);
 	await search.fill("");
 
-	await page.getByLabel("Acesso", { exact: true }).selectOption("without");
+	await page.getByRole("combobox", { name: "Filtrar por acesso" }).selectOption("without");
 	await expect(page.getByRole("row", { name: /Pessoa member/u })).toBeVisible();
-	await page.getByLabel("Acesso", { exact: true }).selectOption("all");
+	await page.getByRole("combobox", { name: "Filtrar por acesso" }).selectOption("all");
 
 	const technical = page
 		.getByRole("row", { name: /Pessoa technical/u })
