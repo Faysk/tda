@@ -1443,3 +1443,36 @@ Rollback lógico:
 - não apagar snapshots, receipts nem objetos públicos imutáveis já verificados;
 - corrigir schema, grants ou função por migration forward-only posterior;
 - não restaurar publicação sem CAS/idempotência nem reescrever histórico existente.
+
+
+## 2026-09-28 — data editorial versionada da sessão
+
+### `20260928011000_session_editorial_date`
+
+**Estado:** migration candidata da #899; rollout remoto condicionado aos gates da PR e ao Production CD governado.
+
+Objetivo:
+
+- adicionar `session_date date` ao snapshot privado `session_editorial_drafts`;
+- distinguir drafts legados de drafts novos com `session_date_captured`, permitindo salvar explicitamente um draft novo com data vazia sem confundir isso com ausência histórica do campo;
+- adicionar `session_date date` ao snapshot imutável `session_publications`, mantendo publications anteriores legíveis sem backfill;
+- introduzir wrappers server-only compatíveis para save/publication, sem remover as RPCs anteriores durante o rollout staged.
+
+Contrato:
+
+- o valor canônico aceito pela Web é `YYYY-MM-DD`, sem horário ou timezone;
+- o draft pode persistir data vazia;
+- publicação nova exige data capturada e válida;
+- salvar draft nunca altera `sessions.session_date`;
+- publicar promove `sessions.session_date` somente quando aquela publication é a autoridade atual;
+- o payload SHA-256 de publications novas usa `tda_session_publication_v2` e inclui a data canônica;
+- replay de uma publication antiga/inativa não restaura a data pública antiga;
+- não existe backfill automático nem reescrita de histórico.
+
+Segurança e rollout:
+
+- wrappers permanecem `SECURITY INVOKER`, com `search_path` fixado;
+- `public`, `anon` e `authenticated` não recebem EXECUTE; somente `service_role`;
+- colunas novas não alteram RLS/grants das tabelas;
+- Web nova chama os wrappers date-aware; Web anterior continua compatível durante o staged rollout;
+- após Production CD, validar migration history, colunas, grants/RLS, assinaturas das RPCs e read-back de `/api/version`.
