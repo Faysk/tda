@@ -45,9 +45,7 @@ export async function mutatePermissionsForEdit(
 			{ ...request, authUserId: identity.authUserId },
 			{
 				resolveAccessContext: async (authUserId) => {
-					resolvedContext = await (
-						await import("../access/repository")
-					).loadEditAccessContext(authUserId);
+					resolvedContext = await loadEditAccessContext(authUserId);
 					return resolvedContext;
 				},
 				persist: persistPermissionMutation,
