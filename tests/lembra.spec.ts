@@ -32,9 +32,13 @@ async function addReference(
 test("Lembra stays dense, searchable and usable from keyboard", async ({ page }) => {
 	await page.goto("/lembra");
 
-	const topLembra = page.getByRole("link", { name: "Lembra", exact: true });
+	await page.getByRole("button", { name: "Abrir navegação" }).click();
+	const topLembra = page
+		.getByRole("navigation", { name: "Navegação principal" })
+		.getByRole("link", { name: "Lembra", exact: true });
 	await expect(topLembra).toHaveAttribute("href", "/lembra");
 	await expect(topLembra).toHaveAttribute("aria-current", "page");
+	await page.keyboard.press("Escape");
 	await expect(
 		page.getByPlaceholder("Buscar título, descrição, autor ou data..."),
 	).toBeVisible();
