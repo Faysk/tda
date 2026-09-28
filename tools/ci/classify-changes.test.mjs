@@ -14,6 +14,7 @@ const fastOnly = {
 	companion: false,
 	processing: false,
 	lembra: false,
+	navigation: false,
 	media: false,
 };
 
@@ -81,10 +82,36 @@ test("Lembra paths activate only the targeted Lembra E2E contract", () => {
 	assert.equal(flags(["tests/lembra.spec.ts"]).lembra, true);
 });
 
+test("navigation paths activate the targeted Navigation E2E contract", () => {
+	for (const path of [
+		"src/components/public-nav.tsx",
+		"src/components/account-menu.tsx",
+		"src/components/navigation-auth.ts",
+		"src/components/public-navigation-model.ts",
+		"src/components/theme-toggle.tsx",
+		"src/app/layout.tsx",
+		"src/app/public-shell.css",
+		"src/app/api/auth/me/route.ts",
+		"src/app/edit/page.tsx",
+		"src/app/conta/page.tsx",
+		"src/features/theme/preference.ts",
+		"tests/global-navigation.spec.ts",
+		"tests/navigation-origin.spec.ts",
+		"playwright.config.ts",
+	]) {
+		assert.equal(flags([path]).navigation, true, path);
+	}
+	assert.equal(
+		flags(["src/components/session-share-actions.tsx"]).navigation,
+		false,
+	);
+});
+
 test("Companion source activates Companion and Processing E2E", () => {
 	const result = flags(["local-companion/tda_companion/app.py"]);
 	assert.equal(result.companion, true);
 	assert.equal(result.processing, true);
+	assert.equal(result.navigation, false);
 	assert.equal(flags([".github/workflows/companion.yml"]).companion, true);
 	assert.equal(
 		flags(["tools/check-companion-model-freshness.py"]).companion,
@@ -100,6 +127,7 @@ test("specialized runtime workflows do not build generic MSI or Processing E2E b
 	]) {
 		assert.equal(flags([path]).companion, false);
 		assert.equal(flags([path]).processing, false);
+		assert.equal(flags([path]).navigation, false);
 	}
 });
 
@@ -108,6 +136,7 @@ test("CI workflow changes exercise the browser gates they define", () => {
 	assert.equal(result.navigation, true);
 	assert.equal(result.processing, true);
 	assert.equal(result.lembra, true);
+	assert.equal(result.navigation, true);
 });
 
 test("Supabase and transcript-sync changes activate PostgreSQL integration", () => {
@@ -140,6 +169,7 @@ test("classifier contract changes fail safe into every heavy domain", () => {
 		companion: true,
 		processing: true,
 		lembra: true,
+		navigation: true,
 		media: true,
 	};
 	assert.deepEqual(flags(["tools/ci/classify-changes.mjs"]), expected);
@@ -150,6 +180,7 @@ test("mixed changes activate each relevant domain", () => {
 	assert.deepEqual(
 		flags([
 			"src/features/edit/processing/panel.tsx",
+			"src/components/public-nav.tsx",
 			"supabase/migrations/202609140002_example.sql",
 			"local-companion/tda_companion/app.py",
 			"media/yllith/manifest.json",
@@ -161,6 +192,7 @@ test("mixed changes activate each relevant domain", () => {
 			companion: true,
 			processing: true,
 			lembra: false,
+			navigation: true,
 			media: true,
 		},
 	);
@@ -176,4 +208,5 @@ test("normalizes duplicate and Windows-style paths", () => {
 	]);
 	assert.equal(result.companion, true);
 	assert.equal(result.processing, true);
+	assert.equal(result.navigation, false);
 });
