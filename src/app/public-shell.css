@@ -547,3 +547,107 @@ footer {
 		height: 32px;
 	}
 }
+
+
+/* Unified profile navigation — #963/#964 */
+:root {
+	--nav-profile-panel-motion: 2000ms;
+}
+
+.header-actions {
+	gap: 0;
+}
+
+.global-profile-panel.account-menu-panel {
+	width: min(500px, calc(100vw - 24px));
+	max-height: min(78vh, 720px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	gap: 12px;
+	padding: 14px;
+	transform-origin: top right;
+	transition:
+		opacity var(--nav-profile-panel-motion) var(--ds-ease-soft),
+		transform var(--nav-profile-panel-motion) var(--ds-ease-soft),
+		clip-path var(--nav-profile-panel-motion) var(--ds-ease-soft);
+	will-change: opacity, transform, clip-path;
+}
+
+.global-profile-panel[data-state="opening"],
+.global-profile-panel[data-state="closing"] {
+	opacity: 0;
+	transform: translateY(-10px);
+	clip-path: inset(0 0 100% 0 round var(--ds-radius-md));
+}
+
+.global-profile-panel[data-state="open"] {
+	opacity: 1;
+	transform: translateY(0);
+	clip-path: inset(0 0 0 0 round var(--ds-radius-md));
+}
+
+.global-profile-panel[data-state="closing"] {
+	pointer-events: none;
+}
+
+.global-profile-panel nav,
+.global-profile-panel nav > section {
+	display: block;
+}
+
+.global-profile-panel h2 {
+	margin: 0 0 8px;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.6875rem;
+	font-weight: 700;
+	letter-spacing: 0.14em;
+	line-height: 1.2;
+	text-transform: uppercase;
+}
+
+.global-profile-account {
+	display: grid;
+	gap: 8px;
+}
+
+.global-profile-panel .account-menu-appearance {
+	min-height: 46px;
+	margin-top: 0;
+	padding-top: 7px;
+}
+
+.global-profile-panel .product-launcher-grid {
+	gap: 7px;
+}
+
+.global-profile-panel .product-launcher-link {
+	min-height: 80px;
+	grid-template-rows: 36px minmax(2.4em, auto);
+	gap: 4px;
+	padding: 7px 6px;
+}
+
+.global-profile-panel .product-launcher-tools {
+	margin-top: 12px;
+	padding-top: 12px;
+}
+
+.global-profile-session {
+	padding-top: 2px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+@media (max-width: 360px) {
+	.global-profile-panel .product-launcher-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.global-profile-panel.account-menu-panel {
+		transition-duration: 0s !important;
+		transform: none !important;
+		clip-path: none !important;
+	}
+}
