@@ -41,6 +41,7 @@ try:
         repo/'supabase/migrations/20260928023000_transcript_revision_web_edits.sql',
         repo/'supabase/migrations/20260928024500_transcript_multi_source_provenance.sql',
         repo/'supabase/tests/transcript_publication_revisions.sql',
+        repo/'supabase/tests/transcript_multi_source_provenance.sql',
         repo/'supabase/tests/transcript_revision_web_edits.sql',
     ]
     for path in paths:
