@@ -2,7 +2,7 @@
 
 > Status: ASR local implementado; arquitetura de runs/revisão/publicação aprovada; sync cloud ainda desativado
 > Owner: Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro
-> Última revisão: 2026-09-27
+> Última revisão: 2026-09-28
 > Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento`, `local-companion/tda_companion`, [spec de revisão/publicação](transcript-review-publication.md) e testes associados
 
 `/edit/processamento` é a superfície operacional para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
@@ -193,6 +193,23 @@ Os perfis executáveis vêm de `capabilities`:
 
 Qwen prepara runtime/modelos e executa o gate necessário antes do job. Para aceitação física, uma faixa Craig suficientemente longa pode gerar uma janela temporária de 180 s escolhida por energia; essa amostra é local e removida após o gate. O receipt do gate não deve carregar transcript integral.
 
+
+## Intenção única de processamento
+
+Na submissão simples, o CTA principal representa a intenção final do operador:
+**começar a transcrição**. Depois desse clique, as etapas determinísticas seguem
+automaticamente no mesmo fluxo: validação/staging do ZIP Craig, revalidação de
+capabilities, preparação ou reaproveitamento de runtime/modelo/gate quando
+necessária e enqueue idempotente do job. A interface continua expondo cada stage
+e suas falhas factuais, mas não exige um botão de “continuar” entre etapas que
+não carregam uma nova decisão humana.
+
+A análise isolada do ZIP permanece disponível como ação secundária somente para
+o caso em que o operador quer montar uma sessão com várias gravações antes de
+processá-las. Estimativas podem aparecer assim que a source staged existe, mas
+não viram uma confirmação obrigatória no caminho simples. Estados bloqueados,
+incluindo incompatibilidade de runtime, continuam fail-closed antes de upload,
+preparação ou criação de job quando o contrato de segurança assim exigir.
 
 ## Estimativa local calibrada de processamento
 

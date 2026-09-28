@@ -84,13 +84,10 @@ export function profileReadinessCopy(
 }
 
 export function submissionCtaLabel(
-	profile: TranscriptionProfileState | null,
 	pending: null | "validating" | "preparing" | "submitting",
 ): string {
 	if (pending === "validating") return "Validando ZIP…";
 	if (pending === "preparing") return "Preparando profile…";
 	if (pending === "submitting") return "Enviando ao Companion…";
-	if (profile && !profile.ready && profile.preparationRequired)
-		return "Preparar profile";
-	return "Adicionar à fila local";
+	return "Começar transcrição";
 }

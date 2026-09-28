@@ -528,7 +528,7 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 		mimeType: "application/zip",
 		buffer: Buffer.from("PK-fixture-a"),
 	});
-	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
+	await page.getByRole("button", { name: "Analisar para sessão composta" }).click();
 	const firstAttach = page.getByRole("button", { name: "Usar composer da sessão" });
 	await expect(firstAttach).toBeEnabled();
 	await firstAttach.focus();
@@ -540,7 +540,7 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 		mimeType: "application/zip",
 		buffer: Buffer.from("PK-fixture-b"),
 	});
-	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
+	await page.getByRole("button", { name: "Analisar para sessão composta" }).click();
 	const secondAttach = page.getByRole("button", { name: /Adicionar gravação/u });
 	await expect(secondAttach).toBeEnabled();
 	await secondAttach.focus();
@@ -567,7 +567,7 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 		mimeType: "application/zip",
 		buffer: Buffer.from("PK-fixture-b-duplicate"),
 	});
-	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
+	await page.getByRole("button", { name: "Analisar para sessão composta" }).click();
 	await expect(page.getByText("Esta gravação já faz parte da sessão.")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Já adicionada" })).toBeDisabled();
 	await expect(page.getByRole("heading", { name: /sessao-42 · 2 gravações$/u })).toBeVisible();
@@ -663,7 +663,7 @@ test("multi-recording composer survives reload, reconnects, processes selectivel
 		mimeType: "application/zip",
 		buffer: Buffer.from("PK-fixture-c"),
 	});
-	await page.getByRole("button", { name: "Analisar ZIP localmente" }).click();
+	await page.getByRole("button", { name: "Analisar para sessão composta" }).click();
 	await expect(
 		page.getByText("Mesma gravação lógica detectada com bytes diferentes.", {
 			exact: true,

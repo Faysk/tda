@@ -102,7 +102,10 @@ test("local file validation blocks bad input before Companion upload", async ({ 
 	await expect(composer.getByRole("alert")).toContainText("arquivo .zip exportado pelo Craig");
 	expect(state.uploadCount).toBe(0);
 	await expect(
-		composer.getByRole("button", { name: "Analisar ZIP localmente", exact: true }),
+		composer.getByRole("button", { name: "Começar transcrição", exact: true }),
+	).toBeDisabled();
+	await expect(
+		composer.getByRole("button", { name: "Analisar para sessão composta", exact: true }),
 	).toBeDisabled();
 });
 
@@ -137,7 +140,7 @@ test("mobile keeps file, session, profile, estimate, CTA and advanced controls i
 		composer.locator("[data-craig-dropzone='true']"),
 		composer.getByLabel("ID da sessão"),
 		composer.getByLabel("Perfil"),
-		composer.getByRole("button", { name: "Analisar ZIP localmente", exact: true }),
+		composer.getByRole("button", { name: "Começar transcrição", exact: true }),
 		composer.getByText("Sem calibração compatível nesta máquina.", { exact: true }),
 		composer.getByText("Opções avançadas", { exact: true }),
 	];
