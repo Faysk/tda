@@ -1134,7 +1134,9 @@ Ações de revisão antiga:
 Primeiro corte aprovado:
 
 - uma revision tem um transcript completo coerente;
-- edição humana altera a revision derivada;
+- edição humana altera uma revision derivada completa, nunca a revision base;
+- no workspace Web, o primeiro slice edita somente speaker/text e mantém ID/track/timing imutáveis;
+- cada save efetivo cria uma nova revision privada e avança o current com CAS; conflito preserva a working copy para reconciliação explícita;
 - publish troca a revision completa.
 
 Não implementar inicialmente publicação parcial por trecho ou uma sessão com alguns segmentos apontando para Qwen e outros para Whisper em tabelas independentes. Isso aumenta muito a complexidade de lineage e rollback.
@@ -1258,8 +1260,10 @@ Os pipelines de evidence/canon continuam separados.
 
 ### Slice 5 — pós-publicação
 
-- editar publicado criando draft;
-- substituir;
+- editar a current revision privada em modo read-first, com working copy esparsa e somente uma fala ativa como controle;
+- salvar speaker/text cria revision imutável derivada, metadata-only audit e atualiza current por optimistic concurrency;
+- conflito nunca usa last-write-wins: comparar/rebase explícito ou adotar a versão mais recente;
+- draft editorial de sessão baseado na revision anterior fica stale e não é apagado;
 - histórico;
 - restore;
 - unpublish.
