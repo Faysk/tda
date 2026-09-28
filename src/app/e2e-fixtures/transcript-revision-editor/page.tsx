@@ -24,6 +24,7 @@ export default async function TranscriptRevisionEditorE2EPage({
 	const readOnly = query.readonly === "1";
 	const forceConflict = query.conflict === "1";
 	const loseFirstResponse = query.lost === "1";
+	const slowResponse = query.slow === "1";
 	const store = await cookies();
 	const state = parseTranscriptRevisionFixtureState(
 		store.get(TRANSCRIPT_REVISION_FIXTURE_COOKIE)?.value,
@@ -36,6 +37,7 @@ export default async function TranscriptRevisionEditorE2EPage({
 		null,
 		forceConflict,
 		loseFirstResponse,
+		slowResponse,
 	);
 
 	return (
