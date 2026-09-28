@@ -10,12 +10,6 @@ export const metadata: Metadata = {
 	robots: { index: false, follow: false },
 };
 
-const AUTHENTICATED_STATES = new Set([
-	"authenticated_unlinked",
-	"authenticated_linked",
-	"authenticated_linked_no_grants",
-] as const);
-
 export default async function AccountPage({
 	searchParams,
 }: {
@@ -23,12 +17,10 @@ export default async function AccountPage({
 }) {
 	const query = await searchParams;
 	const access = await currentAccess();
-	const authenticated = AUTHENTICATED_STATES.has(
-		access.state as
-			| "authenticated_unlinked"
-			| "authenticated_linked"
-			| "authenticated_linked_no_grants",
-	);
+	const authenticated =
+		access.state === "authenticated_unlinked" ||
+		access.state === "authenticated_linked" ||
+		access.state === "authenticated_linked_no_grants";
 	const displayName = authenticated ? access.identity?.displayName ?? null : null;
 
 	const descriptions = {
