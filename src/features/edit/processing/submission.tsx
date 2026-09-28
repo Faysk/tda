@@ -51,6 +51,7 @@ import {
 	qwenRuntimeReleaseMessage,
 	type QwenRuntimeReleaseAvailability,
 } from "./qwen-runtime-release-availability";
+import { SessionRecordingComposer } from "./session-composer";
 import {
 	chooseSubmissionProfile,
 	formatSubmissionBytes,
@@ -213,6 +214,7 @@ export function ProcessingSubmission({
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string | null>(null);
 	const [source, setSource] = useState<CraigSource | null>(null);
+	const [composerActive, setComposerActive] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [pendingStage, setPendingStage] = useState<PendingStage | null>(null);
 	const [dragActive, setDragActive] = useState(false);
@@ -727,7 +729,7 @@ export function ProcessingSubmission({
 			);
 			setFile(null);
 			setSource(null);
-			setSessionId("");
+			if (!composerActive) setSessionId("");
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
 			if (cause instanceof BridgeError) {
@@ -1119,6 +1121,26 @@ export function ProcessingSubmission({
 					) : null}
 				</form>
 			)}
+
+			{capabilities ? (
+				<SessionRecordingComposer
+					bridge={bridge}
+					capabilities={capabilities.capabilities}
+					sessionId={sessionId}
+					currentSource={source}
+					profile={profile}
+					context={context}
+					glossary={glossary}
+					profileReady={selectedProfileState?.ready === true}
+					disabled={busy || requestTooLarge}
+					onActiveChange={setComposerActive}
+					onRestoreSessionId={(value) =>
+						setSessionId((current) => current || value)
+					}
+					onStatus={setStatus}
+					onError={setError}
+				/>
+			) : null}
 
 			{preparation?.state === "interrupted" ? (
 				<div className={styles.notice} role="status">
