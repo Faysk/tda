@@ -130,6 +130,9 @@ export function PublicNav() {
 		};
 	}, []);
 
+	useEffect(() => {
+		setOpen(false);
+	}, [pathname]);
 
 	useEffect(() => {
 		if (!open) return;
