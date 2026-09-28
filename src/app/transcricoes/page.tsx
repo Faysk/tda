@@ -34,8 +34,8 @@ export default async function TranscriptsPage({
 				? {
 						message:
 							"Não foi possível consultar as transcrições agora. Tente novamente em instantes.",
-						href: "/conta",
-						label: "Minha conta",
+						href: "/conta?acesso=indisponivel",
+						label: "Conta e acesso",
 					}
 				: result.reason === "unauthenticated"
 					? {
@@ -143,7 +143,7 @@ export default async function TranscriptsPage({
 			) : (
 				<p>Nenhuma sessão disponível nesta campanha.</p>
 			)}
-			<Link href="/conta">Minha conta</Link>
+			<Link href="/conta">Conta e acesso</Link>
 		</section>
 	);
 }
