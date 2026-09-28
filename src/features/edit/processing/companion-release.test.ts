@@ -217,7 +217,7 @@ describe("latest Companion Web download release", () => {
 	it("selects the only valid Stable or RC release", () => {
 		expect(
 			selectLatestCompanionDownloadRelease([release("companion-v0.3.15")]),
-		)?.toMatchObject({
+		).toMatchObject({
 			channel: "stable",
 			version: "0.3.15",
 		});
@@ -225,7 +225,7 @@ describe("latest Companion Web download release", () => {
 			selectLatestCompanionDownloadRelease([
 				release("companion-rc-v0.3.16-abcdef123456", { prerelease: true }),
 			]),
-		)?.toMatchObject({
+		).toMatchObject({
 			channel: "rc",
 			version: "0.3.16",
 		});
@@ -237,7 +237,7 @@ describe("latest Companion Web download release", () => {
 				release("companion-v0.3.15"),
 				release("companion-rc-v0.3.16-abcdef123456", { prerelease: true }),
 			]),
-		)?.toMatchObject({
+		).toMatchObject({
 			channel: "rc",
 			tag: "companion-rc-v0.3.16-abcdef123456",
 		});
@@ -246,7 +246,7 @@ describe("latest Companion Web download release", () => {
 				release("companion-v0.3.17"),
 				release("companion-rc-v0.3.16-abcdef123456", { prerelease: true }),
 			]),
-		)?.toMatchObject({
+		).toMatchObject({
 			channel: "stable",
 			tag: "companion-v0.3.17",
 		});
@@ -258,7 +258,7 @@ describe("latest Companion Web download release", () => {
 				release("companion-rc-v0.3.16-abcdef123456", { prerelease: true }),
 				release("companion-v0.3.16"),
 			]),
-		)?.toMatchObject({
+		).toMatchObject({
 			channel: "stable",
 			tag: "companion-v0.3.16",
 		});
@@ -273,7 +273,7 @@ describe("latest Companion Web download release", () => {
 				}),
 				release("companion-v0.3.15"),
 			]),
-		)?.toMatchObject({ tag: "companion-v0.3.15" });
+		).toMatchObject({ tag: "companion-v0.3.15" });
 
 		expect(
 			selectLatestCompanionDownloadRelease([
