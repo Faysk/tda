@@ -35,7 +35,7 @@ export default async function TranscriptsPage({
 						message:
 							"Não foi possível consultar as transcrições agora. Tente novamente em instantes.",
 						href: "/conta",
-						label: "Minha conta",
+						label: "Conta e acesso",
 					}
 				: result.reason === "unauthenticated"
 					? {
@@ -55,13 +55,13 @@ export default async function TranscriptsPage({
 									message:
 										"Sua conta está autenticada, mas ainda não está vinculada a um perfil com acesso a esta campanha.",
 									href: "/conta",
-									label: "Consultar meu acesso",
+									label: "Conta e acesso",
 								}
 							: {
 									message:
 										"Sua conta não tem permissão de leitura das transcrições desta campanha.",
 									href: "/conta",
-									label: "Consultar meu acesso",
+									label: "Conta e acesso",
 								};
 		return (
 			<section className={styles.shell}>
@@ -143,7 +143,7 @@ export default async function TranscriptsPage({
 			) : (
 				<p>Nenhuma sessão disponível nesta campanha.</p>
 			)}
-			<Link href="/conta">Minha conta</Link>
+			<Link href="/conta">Conta e acesso</Link>
 		</section>
 	);
 }
