@@ -754,7 +754,11 @@ test("terminal failure keeps the warning factual without terminal-success noise"
 	const queue = page.getByRole("tabpanel", { name: "Fila" });
 	await queue.getByRole("button", { name: "Atenção", exact: true }).click();
 	await expect(queue.getByText("Falhou", { exact: true })).toBeVisible();
-	await expect(queue.getByText(/O alinhamento obrigatório falhou/u)).toBeVisible();
+	await expect(
+		queue
+			.locator('td[data-label="Estado"]')
+			.getByText(/O alinhamento obrigatório falhou/u),
+	).toBeVisible();
 	await expect(queue.getByText("100%", { exact: true })).toHaveCount(0);
 	await page.screenshot({
 		path: testInfo.outputPath("queue-terminal-warning.png"),
