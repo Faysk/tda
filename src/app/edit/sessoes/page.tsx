@@ -95,12 +95,15 @@ export default async function EditSessionsPage({
 			<header className={styles.pageHeader}>
 				<div>
 					<p className={styles.libraryEyebrow}>TDA / EDIT / SESSÕES</p>
-					<h1 className={styles.pageTitle}>Biblioteca editorial</h1>
-					<p className={styles.libraryIntro}>
-						Área privada para continuar o trabalho das sessões preparadas. O
-						estado <strong>Publicado</strong> se refere à sessão no site; a
-						transcrição continua privada no Edit.
-					</p>
+					<h1 className={[styles.pageTitle, styles.libraryTitle].join(" ")}>Biblioteca editorial</h1>
+					<details className={styles.libraryGuidance}>
+						<summary>Sobre esta biblioteca</summary>
+						<p>
+							Área privada para continuar o trabalho das sessões preparadas. O
+							estado <strong>Publicado</strong> se refere à sessão no site; a
+							transcrição continua privada no Edit.
+						</p>
+					</details>
 				</div>
 				<div className={styles.libraryCount} role="status" aria-live="polite">
 					<strong>{visible.length.toLocaleString("pt-BR")}</strong> de{" "}

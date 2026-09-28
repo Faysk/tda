@@ -1,28 +1,41 @@
 .workspace {
 	display: grid;
-	gap: 18px;
+	grid-template-columns: minmax(0, 1.7fr) minmax(360px, 1fr);
+	gap: 12px;
 	min-width: 0;
+	min-height: 0;
+	height: 100%;
 }
 
-.tabs {
+.mobileTabs {
+	display: none;
+}
+
+.desktopEditorialTabs {
+	position: sticky;
+	top: 0;
+	z-index: 7;
 	display: flex;
 	align-items: flex-end;
 	gap: 4px;
-	overflow-x: auto;
+	margin: -2px 0 10px;
+	padding: 2px 0 0;
 	border-bottom: 1px solid var(--ds-border);
-	scrollbar-width: thin;
+	background: color-mix(in srgb, var(--ds-canvas) 94%, transparent);
+	backdrop-filter: blur(12px);
 }
 
 .tab,
 .tabActive {
 	flex: 0 0 auto;
-	min-height: 44px;
-	padding: 0 16px;
+	min-height: 38px;
+	padding: 0 12px;
 	border: 0;
 	border-bottom: 2px solid transparent;
 	background: transparent;
 	color: var(--ds-foreground-muted);
 	font: inherit;
+	font-size: 0.82rem;
 	font-weight: 700;
 	cursor: pointer;
 }
@@ -44,16 +57,34 @@
 
 .panel {
 	min-width: 0;
+	min-height: 0;
 }
 
-.panel[hidden] {
-	display: none;
+.transcriptPanel,
+.editorialPanel {
+	overflow: auto;
+	scrollbar-gutter: stable;
+}
+
+.transcriptPanel {
+	--transcript-toolbar-sticky-top: 0px;
+	container-type: inline-size;
+	padding-right: 4px;
+}
+
+.editorialPanel {
+	padding-left: 12px;
+	border-left: 1px solid var(--ds-border);
+}
+
+.editorialBody {
+	min-width: 0;
 }
 
 .unavailable {
 	display: grid;
 	gap: 8px;
-	padding: 18px;
+	padding: 14px;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-canvas-subtle);
@@ -62,17 +93,60 @@
 .unavailable p {
 	margin: 0;
 	color: var(--ds-foreground-muted);
-	line-height: 1.55;
+	line-height: 1.5;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 1180px) {
 	.workspace {
-		gap: 14px;
+		grid-template-columns: minmax(0, 1.55fr) minmax(330px, 1fr);
+	}
+}
+
+@media (max-width: 980px) {
+	.workspace {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 12px;
+		height: auto;
+	}
+
+	.mobileTabs {
+		display: flex;
+		align-items: flex-end;
+		gap: 4px;
+		overflow-x: auto;
+		border-bottom: 1px solid var(--ds-border);
+		scrollbar-width: thin;
+	}
+
+	.desktopEditorialTabs {
+		display: none;
+	}
+
+	.panel[data-mobile-active="false"] {
+		display: none;
+	}
+
+	.transcriptPanel,
+	.editorialPanel {
+		overflow: visible;
+		scrollbar-gutter: auto;
+	}
+
+	.transcriptPanel {
+		--transcript-toolbar-sticky-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
+		padding-right: 0;
+	}
+
+	.editorialPanel {
+		padding-left: 0;
+		border-left: 0;
 	}
 
 	.tab,
 	.tabActive {
 		flex: 1 0 auto;
-		padding-inline: 13px;
+		min-height: 42px;
+		padding-inline: 12px;
 	}
 }
