@@ -35,6 +35,39 @@ begin
      ) then
     raise exception 'SESSION_EDITORIAL_DATE_FUNCTION_PRIVILEGES_INVALID';
   end if;
+
+  if not has_column_privilege(
+       'service_role',
+       'public.session_publications',
+       'session_date',
+       'UPDATE'
+     )
+     or not has_column_privilege(
+       'service_role',
+       'public.session_publications',
+       'payload_sha256',
+       'UPDATE'
+     )
+     or not has_column_privilege(
+       'service_role',
+       'public.session_publication_operations',
+       'payload_sha256',
+       'UPDATE'
+     )
+     or has_column_privilege(
+       'anon',
+       'public.session_publications',
+       'session_date',
+       'UPDATE'
+     )
+     or has_column_privilege(
+       'authenticated',
+       'public.session_publications',
+       'session_date',
+       'UPDATE'
+     ) then
+    raise exception 'SESSION_EDITORIAL_DATE_COLUMN_PRIVILEGES_INVALID';
+  end if;
 end;
 $security$;
 
