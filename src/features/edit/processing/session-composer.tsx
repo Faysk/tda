@@ -697,6 +697,10 @@ export function SessionRecordingComposer({
 					submission.key,
 					controller.signal,
 				);
+				setJobs((current) => [
+					job,
+					...current.filter((item) => item.id !== job.id),
+				]);
 				confirmSessionComposerPendingSubmission(window.localStorage, submission);
 				pendingSubmissions.current.delete(sourceId);
 				queued += 1;
