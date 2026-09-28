@@ -156,13 +156,17 @@
 
 @media (max-width: 700px) {
 	.shell {
-		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
+		padding-top: calc(var(--site-chrome-panel-top, 66px) + 36px);
 		padding-bottom: 40px;
 	}
 
 	.shell > header,
 	.shell > h1:first-child {
 		padding-inline: 0;
+	}
+
+	.eyebrow {
+		display: none;
 	}
 
 	.shell h1 {
