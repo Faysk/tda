@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
-import { BridgeError, LocalBridge } from "./bridge";
+import { LocalBridge } from "./bridge";
 import {
 	latestJobForSource,
 	moveSessionPart,
@@ -20,6 +20,7 @@ import type {
 	SessionAssemblyReviewSummary,
 } from "./session-composer-protocol";
 import type {
+	BridgeError,
 	CraigSource,
 	LocalJob,
 	LocalRunSummary,
