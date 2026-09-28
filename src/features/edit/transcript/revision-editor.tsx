@@ -304,15 +304,30 @@ export function TranscriptRevisionEditor({
 		setMode("read");
 	}
 
-	function discardAndExit() {
+	function discardChanges() {
+		if (!dirty) return;
+		if (!window.confirm("Descartar as alterações de transcrição ainda não salvas?")) {
+			return;
+		}
+		setPatches(new Map());
+		setActiveId(null);
+		saveAttemptRef.current = null;
+		setPhase("idle");
+		setMessage(null);
+	}
+
+	function exitEditMode() {
 		if (
 			dirty &&
-			!window.confirm("Descartar as correções de transcrição ainda não salvas?")
+			!window.confirm(
+				"Há alterações de transcrição ainda não salvas. Sair do modo de edição e descartá-las?",
+			)
 		) {
 			return;
 		}
 		setPatches(new Map());
 		setActiveId(null);
+		saveAttemptRef.current = null;
 		setMode("read");
 		setPhase("idle");
 		setMessage(null);
@@ -337,7 +352,7 @@ export function TranscriptRevisionEditor({
 							Revisão privada atual · r{currentRevisionNumber}
 						</strong>
 						<p>
-							Correções criam uma nova revisão privada. A versão pública e os
+							Edições criam uma nova revisão privada. A versão pública e os
 							timestamps não mudam.
 						</p>
 					</div>
@@ -365,7 +380,7 @@ export function TranscriptRevisionEditor({
 				<div className={styles.source}>
 					<span>Modo</span>
 					<strong>
-						Correção privada · r{currentRevisionNumber}
+						Modo de edição · r{currentRevisionNumber}
 						{dirty ? ` · ${patches.size} alterada(s)` : ""}
 					</strong>
 				</div>
@@ -425,15 +440,25 @@ export function TranscriptRevisionEditor({
 						size="sm"
 						variant="primary"
 					>
-						{phase === "saving" ? "Salvando…" : "Salvar nova revisão"}
+						{phase === "saving" ? "Salvando…" : "Salvar alterações da transcrição"}
 					</Button>
+					{dirty ? (
+						<Button
+							disabled={phase === "saving"}
+							onClick={discardChanges}
+							size="sm"
+							variant="tertiary"
+						>
+							Descartar alterações
+						</Button>
+					) : null}
 					<Button
 						disabled={phase === "saving"}
-						onClick={discardAndExit}
+						onClick={exitEditMode}
 						size="sm"
 						variant="tertiary"
 					>
-						Sair da edição
+						Sair do modo de edição
 					</Button>
 				</div>
 			</div>
