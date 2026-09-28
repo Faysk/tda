@@ -42,6 +42,21 @@ function clean(value: unknown): string {
 	return typeof value === "string" ? value.trim() : "";
 }
 
+export function retainTranscriptRevisionWorkingPatch(
+	segment: TranscriptReaderSegment,
+	patch: TranscriptRevisionEditPatch | undefined,
+): TranscriptRevisionEditPatch | null {
+	if (!patch) return null;
+	if (patch.speaker === segment.speaker && patch.text === segment.text) {
+		return null;
+	}
+	return {
+		id: segment.id,
+		speaker: patch.speaker,
+		text: patch.text,
+	};
+}
+
 export function prepareTranscriptRevisionEdits(
 	value: unknown,
 ): PreparedTranscriptRevisionEdits {
