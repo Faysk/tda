@@ -19,7 +19,7 @@ async function fillReadyDraft(page: Page, suffix = "") {
 
 async function saveDraft(page: Page, revision: number) {
 	await page
-		.getByRole("button", { name: /^Salvar (sessão|resumo)$/u })
+		.getByRole("button", { name: /^Salvar (draft|resumo)$/u })
 		.click();
 	await expect(page.getByText(`Draft r${revision} salvo.`, { exact: true })).toBeVisible();
 }
@@ -33,23 +33,19 @@ async function publish(page: Page, label = "Publicar no site") {
 	return dialog;
 }
 
-test("workspace separates transcript, session metadata and live Markdown preview without losing the working copy", async ({
+test("desktop workbench keeps transcript and editorial work visible together without losing the working copy", async ({
 	page,
 }) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.goto("/e2e-fixtures/session-editorial");
 
-	await expect(page.getByRole("tab", { name: "Transcrição" })).toHaveAttribute(
-		"aria-selected",
-		"true",
-	);
 	await expect(page.getByText(PRIVATE_MARKER, { exact: false })).toBeVisible();
-	await expect(page.getByLabel("Título")).toBeHidden();
+	await expect(page.getByLabel("Título")).toBeVisible();
+	await expect(page.getByRole("region", { name: "Transcrição da sessão" })).toBeVisible();
+	await expect(page.getByRole("region", { name: "Edição editorial da sessão" })).toBeVisible();
 
-	await page.getByRole("tab", { name: "Sessão" }).click();
-	await page.getByLabel("Título").fill("Working copy entre abas");
-	await expect(page.getByText(PRIVATE_MARKER, { exact: false })).toBeHidden();
-
-	await page.getByRole("tab", { name: "Resumo" }).click();
+	await page.getByLabel("Título").fill("Working copy entre painéis");
+	await page.getByRole("tab", { name: "Resumo / Preview", exact: true }).click();
 	await page
 		.getByLabel("Resumo completo em Markdown")
 		.fill("# Preview vivo\n\n**Markdown** renderizado sem publicar.");
@@ -58,12 +54,9 @@ test("workspace separates transcript, session metadata and live Markdown preview
 		"Markdown renderizado sem publicar.",
 	);
 
-	await page.getByRole("tab", { name: "Sessão" }).click();
-	await expect(page.getByLabel("Título")).toHaveValue("Working copy entre abas");
-	await page.getByRole("tab", { name: "Resumo" }).click();
-	await expect(page.getByLabel("Resumo completo em Markdown")).toHaveValue(
-		"# Preview vivo\n\n**Markdown** renderizado sem publicar.",
-	);
+	await page.getByRole("tab", { name: "Sessão", exact: true }).click();
+	await expect(page.getByLabel("Título")).toHaveValue("Working copy entre painéis");
+	await expect(page.getByText(PRIVATE_MARKER, { exact: false })).toBeVisible();
 });
 
 test("private transcript -> draft -> publish -> replace keeps transcript out of the public snapshot", async ({
@@ -280,38 +273,37 @@ test("editorial workbench header never collides with floating global chrome", as
 	}
 });
 
-test("desktop transcript toolbar stays clear of floating global chrome while sticky", async ({
+test("desktop transcript owns its scroll while the editorial action bar remains reachable", async ({
 	page,
 }) => {
-	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.goto("/e2e-fixtures/session-editorial");
 
-	const search = page.getByLabel("Buscar fala ou speaker");
-	const toolbar = search.locator("xpath=ancestor::div[1]");
-	await expect(search).toBeVisible();
-	expect(await toolbar.evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
+	const frame = page.getByTestId("session-editorial-workspace-frame");
+	await frame.evaluate((element) => {
+		(element as HTMLElement).style.height = "560px";
+	});
+	const transcript = page.getByRole("region", { name: "Transcrição da sessão" });
+	const editorial = page.getByRole("region", { name: "Edição editorial da sessão" });
+	await expect(transcript).toBeVisible();
+	await expect(editorial).toBeVisible();
 
-	await page.evaluate(() => {
+	await transcript.evaluate((element) => {
 		const spacer = document.createElement("div");
-		spacer.dataset.testid = "session-editorial-floating-shell-spacer";
-		spacer.style.height = "1400px";
-		document
-			.querySelector('section[aria-label="Leitor e editor de transcrição"]')
-			?.append(spacer);
-		window.scrollTo(0, 700);
+		spacer.style.height = "1200px";
+		element.append(spacer);
+		element.scrollTop = 420;
 	});
-	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+	expect(await transcript.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
+	expect(await page.evaluate(() => window.scrollY)).toBe(0);
+	expect(await transcript.evaluate((element) => getComputedStyle(element).overflowY)).toBe("auto");
+	expect(await editorial.evaluate((element) => getComputedStyle(element).overflowY)).toBe("auto");
 
-	const chromeBottom = await page.evaluate(() => {
-		const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
-		const trigger = document
-			.querySelector<HTMLElement>(".account-menu-trigger")
-			?.getBoundingClientRect();
-		return Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0);
-	});
-	const toolbarBox = await toolbar.boundingBox();
-	expect(toolbarBox).not.toBeNull();
-	if (toolbarBox) expect(toolbarBox.y).toBeGreaterThanOrEqual(chromeBottom + 4);
+	const actionBar = editorial.locator("footer");
+	await expect(actionBar).toBeVisible();
+	expect(await actionBar.evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
+	await expect(actionBar.getByRole("button", { name: "Preview", exact: true })).toBeVisible();
+	await expect(actionBar.getByRole("button", { name: "Publicar no site", exact: true })).toBeVisible();
 });
 
 test("session workbench floating-shell receipts cover desktop, mobile and zoom", async ({
@@ -339,6 +331,39 @@ test("session workbench floating-shell receipts cover desktop, mobile and zoom",
 			fullPage: false,
 		});
 	}
+});
+
+test("mobile workspace is segmented instead of squeezing the two desktop panes", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/e2e-fixtures/session-editorial");
+
+	await expect(page.getByRole("tab", { name: "Transcrição", exact: true })).toBeVisible();
+	await expect(page.getByText(PRIVATE_MARKER, { exact: false })).toBeVisible();
+	await expect(page.getByLabel("Título")).toBeHidden();
+
+	await page.getByRole("tab", { name: "Sessão", exact: true }).click();
+	await expect(page.getByLabel("Título")).toBeVisible();
+	await expect(page.getByText(PRIVATE_MARKER, { exact: false })).toBeHidden();
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+		),
+	).toBeTruthy();
+});
+
+test("large 7500-segment transcript stays searchable without mounting every row at once", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.goto("/e2e-fixtures/session-editorial?segments=7500");
+
+	const rows = page.locator('[data-testid="transcript-segment"]');
+	expect(await rows.count()).toBeLessThan(7500);
+	await page.getByLabel("Buscar fala ou speaker").fill("Segmento sintético 7500");
+	await expect(page.getByText("1 resultado(s)", { exact: true })).toBeVisible();
+	await expect(page.getByText("Segmento sintético 7500", { exact: false })).toBeVisible();
 });
 
 test("mobile workspace and publication dialog remain inside the viewport", async ({
