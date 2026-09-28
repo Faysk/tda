@@ -1,0 +1,233 @@
+name: Qwen 1.0.12 Stable One-shot Recovery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/qwen-1012-stable-once.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: qwen-1012-stable-once
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: promote exact Qwen 1.0.12 RC bytes once
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_RUNTIME_RC_RUN_ID: "36495481093"
+      EXPECTED_BUILD_RUN_ID: "36493646969"
+      SOURCE_SHA: "6dc4a7bdc0080f0410777ddfa531e36771d04034"
+      RC_TAG: "companion-qwen-runtime-rc-v1.0.12-6dc4a7bdc008"
+      STABLE_TAG: "companion-qwen-runtime-v1.0.12"
+      EXPECTED_VERSION: "1.0.12"
+    steps:
+      - name: Validate exact successful Runtime RC evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$EXPECTED_RUNTIME_RC_RUN_ID" > runtime-rc-run.json
+          python - <<'PY'
+          import json, os
+          value = json.load(open("runtime-rc-run.json", encoding="utf-8"))
+          if value.get("name") != "Runtime RC":
+              raise SystemExit("QWEN_1012_ONCE_TRIGGER_WORKFLOW_INVALID")
+          if value.get("status") != "completed" or value.get("conclusion") != "success":
+              raise SystemExit("QWEN_1012_ONCE_TRIGGER_NOT_SUCCESSFUL")
+          if value.get("head_branch") != "main":
+              raise SystemExit("QWEN_1012_ONCE_TRIGGER_NOT_MAIN")
+          PY
+          gh run view "$EXPECTED_RUNTIME_RC_RUN_ID" --repo "$GITHUB_REPOSITORY" --log > runtime-rc.log
+          python - <<'PY'
+          import os, re
+          from pathlib import Path
+          text = Path("runtime-rc.log").read_text(encoding="utf-8", errors="replace")
+          pattern = re.compile(
+              r"RUNTIME_RC_READY family=qwen "
+              r"tag=(companion-qwen-runtime-rc-v([0-9]+\.[0-9]+\.[0-9]+)-([a-f0-9]{12})) "
+              r"source=([a-f0-9]{40}) run=([0-9]+)"
+          )
+          matches = pattern.findall(text)
+          if len(matches) != 1:
+              raise SystemExit("QWEN_1012_ONCE_RUNTIME_MARKER_INVALID")
+          tag, version, short_sha, source_sha, build_run_id = matches[0]
+          if tag != os.environ["RC_TAG"]:
+              raise SystemExit("QWEN_1012_ONCE_RC_TAG_MISMATCH")
+          if version != os.environ["EXPECTED_VERSION"]:
+              raise SystemExit("QWEN_1012_ONCE_VERSION_MISMATCH")
+          if source_sha != os.environ["SOURCE_SHA"] or short_sha != source_sha[:12]:
+              raise SystemExit("QWEN_1012_ONCE_SOURCE_MISMATCH")
+          if build_run_id != os.environ["EXPECTED_BUILD_RUN_ID"]:
+              raise SystemExit("QWEN_1012_ONCE_BUILD_RUN_MISMATCH")
+          PY
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove runtime inputs did not drift after the RC source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main || {
+            echo "::error::QWEN_1012_ONCE_SOURCE_NOT_MAIN_ANCESTOR"
+            exit 1
+          }
+          RUNTIME_PATHS=(
+            ".github/workflows/qwen-runtime.yml"
+            ".github/workflows/qwen-runtime-package.yml"
+            "local-companion/runtime/qwen-windows-x64.json"
+            "local-companion/packaging/build_qwen_runtime.py"
+            "local-companion/packaging/build_qwen_runtime_plan.py"
+            "local-companion/packaging/runtime_bootstrap_smoke.py"
+            "local-companion/packaging/qwen_runtime_entry.py"
+            "local-companion/packaging/qwen_runtime_probe.py"
+            "local-companion/tda_companion/asr_qwen.py"
+            "local-companion/tda_companion/asr_qwen_strict.py"
+            "local-companion/tda_companion/qwen_checkpoint_compat.py"
+            "local-companion/tda_companion/qwen_prefix_checkpoint.py"
+            "local-companion/tda_companion/qwen_acceptance.py"
+            "local-companion/tda_companion/qwen_acceptance_window.py"
+            "local-companion/tda_companion/qwen_physical_gate.py"
+            "local-companion/tda_companion/qwen_runtime.py"
+            "local-companion/tda_companion/qwen_runtime_bundle.py"
+            "local-companion/tda_companion/asr_checkpoints.py"
+            "local-companion/tda_companion/asr_models.py"
+            "local-companion/tda_companion/asr_timeline.py"
+            "local-companion/tda_companion/runtime_artifact.py"
+            "local-companion/tda_companion/engine_metrics.py"
+            "local-companion/tda_companion/execution_device.py"
+            "local-companion/tda_companion/craig.py"
+            "local-companion/tda_companion/craig_runtime.py"
+            "local-companion/tda_companion/flac_metadata.py"
+            "local-companion/tda_companion/transcript.py"
+            "local-companion/tda_companion/transcription_runs.py"
+            "local-companion/tda_companion/atomic_storage.py"
+            "local-companion/tda_companion/attempt_fence.py"
+            "local-companion/tda_companion/asr_worker.py"
+            "local-companion/tda_companion/worker_protocol.py"
+            "local-companion/tda_companion/worker_supervisor.py"
+            "local-companion/tda_companion/worker_event_schema.py"
+          )
+          if ! git diff --quiet "$SOURCE_SHA" origin/main -- "${RUNTIME_PATHS[@]}"; then
+            echo "::error::QWEN_1012_ONCE_RUNTIME_INPUT_DRIFT"
+            git diff --name-only "$SOURCE_SHA" origin/main -- "${RUNTIME_PATHS[@]}"
+            exit 1
+          fi
+          echo "QWEN_1012_ONCE_RUNTIME_INPUTS_UNCHANGED source=$SOURCE_SHA"
+
+      - name: Verify immutable Runtime RC release and bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$RC_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,targetCommitish > rc.json
+          python - <<'PY'
+          import json, os
+          value = json.load(open("rc.json", encoding="utf-8"))
+          if value.get("tagName") != os.environ["RC_TAG"]:
+              raise SystemExit("QWEN_1012_ONCE_RC_RELEASE_TAG_INVALID")
+          if value.get("isDraft") is not False or value.get("isPrerelease") is not True:
+              raise SystemExit("QWEN_1012_ONCE_RC_RELEASE_STATE_INVALID")
+          if value.get("targetCommitish") != os.environ["SOURCE_SHA"]:
+              raise SystemExit("QWEN_1012_ONCE_RC_RELEASE_SOURCE_INVALID")
+          PY
+          rm -rf rc-assets && mkdir rc-assets
+          gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --dir rc-assets
+          PYTHONPATH=local-companion python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from tda_companion.runtime_release_evidence import verify_candidate_assets
+          root = Path("rc-assets")
+          candidate = json.loads((root / "TDARuntime-candidate.json").read_text(encoding="utf-8"))
+          if candidate.get("family") != "qwen":
+              raise SystemExit("QWEN_1012_ONCE_FAMILY_INVALID")
+          if candidate.get("version") != os.environ["EXPECTED_VERSION"]:
+              raise SystemExit("QWEN_1012_ONCE_CANDIDATE_VERSION_INVALID")
+          if candidate.get("source_sha") != os.environ["SOURCE_SHA"]:
+              raise SystemExit("QWEN_1012_ONCE_CANDIDATE_SOURCE_INVALID")
+          if candidate.get("candidate_tag") != os.environ["RC_TAG"]:
+              raise SystemExit("QWEN_1012_ONCE_CANDIDATE_TAG_INVALID")
+          verify_candidate_assets(candidate, root)
+          PY
+
+      - name: Attach production-validation override
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          value = {
+            "schema": "tda_production_validation_override_v1",
+            "component": "qwen-runtime",
+            "version": os.environ["EXPECTED_VERSION"],
+            "source_sha": os.environ["SOURCE_SHA"],
+            "candidate_tag": os.environ["RC_TAG"],
+            "stable_tag": os.environ["STABLE_TAG"],
+            "reason": "Owner explicitly authorized exact Qwen 1.0.12 RC bytes to use Production as the real long-Craig acceptance environment for issue #628; physical acceptance remains required before closing the issue.",
+            "physical_acceptance_before_promotion": False,
+            "exact_rc_bytes_reused": True,
+            "runtime_rc_run_id": int(os.environ["EXPECTED_RUNTIME_RC_RUN_ID"]),
+            "build_run_id": int(os.environ["EXPECTED_BUILD_RUN_ID"]),
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+          }
+          open("TDARuntime-production-validation-override.json", "w", encoding="utf-8").write(
+              json.dumps(value, indent=2, sort_keys=True) + "\n"
+          )
+          PY
+          gh release upload "$RC_TAG" --repo "$GITHUB_REPOSITORY" TDARuntime-production-validation-override.json --clobber
+
+      - name: Promote exact Runtime RC release object to Stable
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$STABLE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            TARGET="$(gh release view "$STABLE_TAG" --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq .targetCommitish)"
+            [[ "$TARGET" == "$SOURCE_SHA" ]] || {
+              echo "::error::QWEN_1012_ONCE_EXISTING_STABLE_SOURCE_MISMATCH:$TARGET"
+              exit 1
+            }
+            echo "QWEN_1012_ONCE_STABLE_ALREADY_PRESENT tag=$STABLE_TAG source=$SOURCE_SHA"
+            exit 0
+          fi
+          cat > stable-notes.md <<EOF
+          TDA Qwen Runtime v$EXPECTED_VERSION — production-validation release for #628.
+
+          Exact immutable Runtime RC bytes promoted with no rebuild.
+          Source SHA: $SOURCE_SHA
+          Runtime RC run: $EXPECTED_RUNTIME_RC_RUN_ID
+          Package build run: $EXPECTED_BUILD_RUN_ID
+          Physical long-Craig acceptance on RTX 4070 remains required before closing #628.
+          EOF
+          gh release edit "$RC_TAG" --repo "$GITHUB_REPOSITORY"             --tag "$STABLE_TAG"             --target "$SOURCE_SHA"             --title "TDA Qwen Runtime v$EXPECTED_VERSION"             --notes-file stable-notes.md             --prerelease=false
+
+      - name: Verify Stable release from fresh bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf stable-assets && mkdir stable-assets
+          gh release download "$STABLE_TAG" --repo "$GITHUB_REPOSITORY" --dir stable-assets
+          PYTHONPATH=local-companion python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from tda_companion.runtime_release_evidence import verify_candidate_assets
+          root = Path("stable-assets")
+          candidate = json.loads((root / "TDARuntime-candidate.json").read_text(encoding="utf-8"))
+          if candidate.get("version") != os.environ["EXPECTED_VERSION"]:
+              raise SystemExit("QWEN_1012_ONCE_STABLE_VERSION_INVALID")
+          if candidate.get("source_sha") != os.environ["SOURCE_SHA"]:
+              raise SystemExit("QWEN_1012_ONCE_STABLE_SOURCE_INVALID")
+          verify_candidate_assets(candidate, root)
+          if not (root / "TDARuntime-production-validation-override.json").is_file():
+              raise SystemExit("QWEN_1012_ONCE_OVERRIDE_MISSING")
+          PY
+          echo "QWEN_PRODUCTION_VALIDATION_STABLE_READY tag=$STABLE_TAG source=$SOURCE_SHA"
