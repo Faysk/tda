@@ -144,17 +144,24 @@ begin
     and r.operation_id = p_operation_id;
 
   if found then
-    if v_existing.lineage->'inline_edit'->>'request_sha256' = v_request_sha256 then
-      return query select
-        'replay'::text,
-        v_existing.id,
-        v_existing.revision_number,
-        v_current_revision_id;
-    else
+    if v_existing.lineage->'inline_edit'->>'request_sha256' <> v_request_sha256
+       or v_existing.lineage->'inline_edit'->>'request_sha256' is null then
       return query select
         'conflict'::text,
         null::uuid,
         null::bigint,
+        v_current_revision_id;
+    elsif v_current_revision_id is distinct from v_existing.id then
+      return query select
+        'stale_current'::text,
+        null::uuid,
+        null::bigint,
+        v_current_revision_id;
+    else
+      return query select
+        'replay'::text,
+        v_existing.id,
+        v_existing.revision_number,
         v_current_revision_id;
     end if;
     return;
