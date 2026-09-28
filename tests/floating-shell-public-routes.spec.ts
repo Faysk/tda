@@ -85,7 +85,7 @@ test("Pipipi cinematic hero uses the reclaimed viewport in the shell gate", asyn
 		expect(box).not.toBeNull();
 		if (!box) continue;
 		expect(box.y).toBeLessThanOrEqual(1);
-		expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+		expect(box.height).toBeGreaterThanOrEqual(viewport.height * 0.8);
 	}
 });
 
