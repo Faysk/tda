@@ -74,20 +74,6 @@ jobs:
           if value.get('event') != 'push' or value.get('head_branch') != 'main':
               raise SystemExit('AUTO_RC_TRIGGER_NOT_MAIN_PUSH')
           PY
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TRIGGER_RUN_ID/artifacts?per_page=100" > trigger-artifacts.json
-            COUNT="$(python - <<'PY'
-          import json
-          rows = json.load(open('trigger-artifacts.json', encoding='utf-8')).get('artifacts', [])
-          exact = [a for a in rows if a.get('name') == 'TDACompanion-windows-x64' and not a.get('expired', False)]
-          print(len(exact))
-          PY
-          )"
-            if [[ "$COUNT" == "0" ]]; then
-              echo "available=false" >> "$GITHUB_OUTPUT"
-              echo "No Companion artifact in CI run $TRIGGER_RUN_ID; nothing to publish." >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            [[ "$COUNT" == "1" ]] || { echo "::error::Expected one Companion artifact in CI run $TRIGGER_RUN_ID, found $COUNT"; exit 1; }
             RUN_ID="$TRIGGER_RUN_ID"
           else
             gh run list --repo "$GITHUB_REPOSITORY" --workflow companion.yml --commit "$SOURCE_SHA" --status success --limit 50 \
@@ -105,8 +91,49 @@ jobs:
           )"
             [[ "$RUN_ID" =~ ^[0-9]+$ ]] || exit 1
           fi
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > artifact-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" > trigger-artifacts.json
+          ARTIFACT_ID="$(python - <<'PY'
+          import json
+
+          run = json.load(open('artifact-run.json', encoding='utf-8'))
+          rows = json.load(open('trigger-artifacts.json', encoding='utf-8')).get('artifacts', [])
+          run_started_at = str(run.get('run_started_at') or '')
+          exact = [
+              a for a in rows
+              if a.get('name') == 'TDACompanion-windows-x64'
+              and not a.get('expired', False)
+          ]
+          current_attempt = [
+              a for a in exact
+              if str(a.get('created_at') or '') >= run_started_at
+          ]
+          if not exact:
+              print('NONE')
+              raise SystemExit(0)
+          if len(current_attempt) != 1:
+              raise SystemExit(
+                  'COMPANION_ARTIFACT_ATTEMPT_AMBIGUOUS:'
+                  f'run={run.get("id")}:attempt={run.get("run_attempt")}:'
+                  f'run_started_at={run_started_at}:'
+                  f'all={len(exact)}:current_attempt={len(current_attempt)}'
+              )
+          artifact_id = current_attempt[0].get('id')
+          if not isinstance(artifact_id, int):
+              raise SystemExit('COMPANION_ARTIFACT_ID_INVALID')
+          print(artifact_id)
+          PY
+          )"
+          if [[ "$ARTIFACT_ID" == "NONE" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No Companion artifact in workflow run $RUN_ID; nothing to publish." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          [[ "$ARTIFACT_ID" =~ ^[0-9]+$ ]] || { echo "::error::Resolved Companion artifact id is invalid"; exit 1; }
           echo "available=true" >> "$GITHUB_OUTPUT"
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "artifact_id=$ARTIFACT_ID" >> "$GITHUB_OUTPUT"
 
       - name: Download exact validated Windows artifact
         if: steps.artifact.outputs.available == 'true'
@@ -114,7 +141,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          gh run download "${{ steps.artifact.outputs.run_id }}" --repo "$GITHUB_REPOSITORY" --name TDACompanion-windows-x64 --dir dist
+          gh api -H "Accept: application/vnd.github+json" \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/${{ steps.artifact.outputs.artifact_id }}/zip" > companion-artifact.zip
+          unzip -q companion-artifact.zip -d dist
+          rm companion-artifact.zip
           test -f dist/TDACompanion-x64.msi
           test -f dist/TDACompanion-x64.msi.sha256
           test -f dist/TDACompanion-payload-manifest.json
