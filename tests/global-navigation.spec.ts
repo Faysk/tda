@@ -430,21 +430,24 @@ test("navigation stays contained across the required responsive matrix", async (
 	}
 });
 
-test("200 percent layout zoom preserves the header actions and panel containment", async ({
+test("200 percent desktop zoom equivalent keeps launcher and account contained", async ({
 	page,
 }) => {
+	const viewport = { width: 683, height: 384 };
+	await page.setViewportSize(viewport);
 	await mockAccess(page, { capabilities: allToolCapabilities });
-	await page.setViewportSize({ width: 768, height: 1024 });
 	await page.goto("/");
-	await page.evaluate(() => {
-		document.documentElement.style.zoom = "2";
-	});
+
 	const navigation = await openLauncher(page);
 	await expect(navigation).toBeVisible();
 	await expectNoHorizontalOverflow(page);
-	await page.evaluate(() => {
-		document.documentElement.style.zoom = "";
-	});
+	await expectPanelContained(page, ".product-launcher-panel");
+	await page.keyboard.press("Escape");
+
+	const account = await openAccount(page);
+	await expect(account).toBeVisible();
+	await expectNoHorizontalOverflow(page);
+	await expectPanelContained(page, ".account-menu-panel");
 });
 
 test("reduced motion removes navigation transitions", async ({ page }) => {
