@@ -208,33 +208,41 @@ test("root scroll clearance keeps focused anchors below the floating chrome", as
 	await mockAccess(page);
 	await page.setViewportSize({ width: 1366, height: 768 });
 	await page.goto("/");
-	await page.evaluate(() => {
+	const result = await page.evaluate(() => {
 		const fixture = document.createElement("section");
 		fixture.innerHTML = [
 			'<div style="height: 1000px"></div>',
 			'<button id="floating-shell-focus-probe" type="button">Focus probe</button>',
 			'<div style="height: 1000px"></div>',
 		].join("");
-		document.querySelector("main")?.append(fixture);
-		document
-			.getElementById("floating-shell-focus-probe")
-			?.scrollIntoView({ block: "start" });
-	});
-	const probe = page.locator("#floating-shell-focus-probe");
-	await probe.focus();
-	await expect(probe).toBeFocused();
+		const main = document.querySelector("main");
+		if (!main) return null;
+		main.append(fixture);
 
-	const chromeBottom = await page.evaluate(() => {
+		const probe = document.getElementById("floating-shell-focus-probe");
+		if (!(probe instanceof HTMLButtonElement)) {
+			fixture.remove();
+			return null;
+		}
+		probe.scrollIntoView({ block: "start" });
+		probe.focus({ preventScroll: true });
+
 		const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
 		const trigger = document
 			.querySelector<HTMLElement>(".account-menu-trigger")
 			?.getBoundingClientRect();
-		return Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0);
+		const value = {
+			focused: document.activeElement === probe,
+			chromeBottom: Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0),
+			probeTop: probe.getBoundingClientRect().top,
+		};
+		fixture.remove();
+		return value;
 	});
-	const box = await probe.boundingBox();
-	expect(box).not.toBeNull();
-	if (!box) return;
-	expect(box.y).toBeGreaterThanOrEqual(chromeBottom + 4);
+	expect(result).not.toBeNull();
+	if (!result) return;
+	expect(result.focused).toBeTruthy();
+	expect(result.probeTop).toBeGreaterThanOrEqual(result.chromeBottom + 4);
 });
 
 test("home hero occupies the real top viewport across responsive breakpoints", async ({ page }) => {
