@@ -1,17 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { LocalBridge } from "./bridge";
 import {
+	retainSessionAssemblyReview,
+	shouldApplySessionAssemblyResult,
+	type SessionAssemblyReviewSelection,
+} from "./session-assembly-results-model";
+import {
 	SESSION_COMPOSER_CHANGE_EVENT,
 	SESSION_COMPOSER_LAST_SESSION_KEY,
 } from "./session-composer-storage";
-import type {
-	SessionAssemblyListItem,
-	SessionAssemblyReviewSummary,
-} from "./session-composer-protocol";
+import type { SessionAssemblyListItem } from "./session-composer-protocol";
 import styles from "./session-assembly-results.module.css";
 
 type Props = Readonly<{
@@ -38,17 +40,27 @@ export function SessionAssemblyResults({ capabilities }: Props) {
 	const [bridge] = useState(() => new LocalBridge());
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [assemblies, setAssemblies] = useState<readonly SessionAssemblyListItem[]>([]);
-	const [review, setReview] = useState<SessionAssemblyReviewSummary | null>(null);
+	const [reviewSelection, setReviewSelection] =
+		useState<SessionAssemblyReviewSelection | null>(null);
+	const sessionIdRef = useRef<string | null>(null);
+	const refreshGeneration = useRef(0);
+	const reviewGeneration = useRef(0);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
 	const refresh = useCallback(async () => {
 		if (!enabled) return;
+		const generation = ++refreshGeneration.current;
 		const nextSession = readSessionId();
+		sessionIdRef.current = nextSession;
 		setSessionId(nextSession);
+		setReviewSelection((current) =>
+			retainSessionAssemblyReview(current, nextSession),
+		);
 		if (!nextSession) {
 			setAssemblies([]);
-			setReview(null);
+			setError(null);
+			setBusy(false);
 			return;
 		}
 		const controller = new AbortController();
@@ -60,11 +72,36 @@ export function SessionAssemblyResults({ capabilities }: Props) {
 				nextSession,
 				controller.signal,
 			);
+			if (
+				!shouldApplySessionAssemblyResult({
+					requestGeneration: generation,
+					currentGeneration: refreshGeneration.current,
+					requestSessionId: nextSession,
+					currentSessionId: sessionIdRef.current,
+				})
+			)
+				return;
 			setAssemblies(listing.assemblies);
 		} catch {
-			setError("Não foi possível atualizar as assemblies desta sessão.");
+			if (
+				shouldApplySessionAssemblyResult({
+					requestGeneration: generation,
+					currentGeneration: refreshGeneration.current,
+					requestSessionId: nextSession,
+					currentSessionId: sessionIdRef.current,
+				})
+			)
+				setError("Não foi possível atualizar as assemblies desta sessão.");
 		} finally {
-			setBusy(false);
+			if (
+				shouldApplySessionAssemblyResult({
+					requestGeneration: generation,
+					currentGeneration: refreshGeneration.current,
+					requestSessionId: nextSession,
+					currentSessionId: sessionIdRef.current,
+				})
+			)
+				setBusy(false);
 		}
 	}, [bridge, enabled]);
 
@@ -82,24 +119,54 @@ export function SessionAssemblyResults({ capabilities }: Props) {
 
 	if (!enabled || (!sessionId && assemblies.length === 0)) return null;
 
+	const review =
+		reviewSelection?.sessionId === sessionId ? reviewSelection.review : null;
+
 	async function openReview(assemblyId: string) {
 		if (!sessionId || busy) return;
+		const requestSessionId = sessionId;
+		const generation = ++reviewGeneration.current;
 		const controller = new AbortController();
+		setReviewSelection(null);
 		setBusy(true);
 		setError(null);
 		try {
-			setReview(
-				await bridge.sessionAssemblyReviewBase(
-					CAMPAIGN_SLUG,
-					sessionId,
-					assemblyId,
-					controller.signal,
-				),
+			const nextReview = await bridge.sessionAssemblyReviewBase(
+				CAMPAIGN_SLUG,
+				requestSessionId,
+				assemblyId,
+				controller.signal,
 			);
+			if (
+				!shouldApplySessionAssemblyResult({
+					requestGeneration: generation,
+					currentGeneration: reviewGeneration.current,
+					requestSessionId,
+					currentSessionId: sessionIdRef.current,
+				})
+			)
+				return;
+			setReviewSelection({ sessionId: requestSessionId, review: nextReview });
 		} catch {
-			setError("A base de revisão da assembly não pôde ser carregada.");
+			if (
+				shouldApplySessionAssemblyResult({
+					requestGeneration: generation,
+					currentGeneration: reviewGeneration.current,
+					requestSessionId,
+					currentSessionId: sessionIdRef.current,
+				})
+			)
+				setError("A base de revisão da assembly não pôde ser carregada.");
 		} finally {
-			setBusy(false);
+			if (
+				shouldApplySessionAssemblyResult({
+					requestGeneration: generation,
+					currentGeneration: reviewGeneration.current,
+					requestSessionId,
+					currentSessionId: sessionIdRef.current,
+				})
+			)
+				setBusy(false);
 		}
 	}
 
