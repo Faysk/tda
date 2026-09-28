@@ -326,11 +326,9 @@ test("skip link remains visible when focused from the keyboard", async ({ page }
 	const skipLink = page.getByRole("link", { name: "Pular para o conteúdo" });
 	await skipLink.focus();
 	await expect(skipLink).toBeFocused();
-	const box = await skipLink.boundingBox();
-	expect(box).not.toBeNull();
-	if (box) {
-		expect(box.y).toBeGreaterThanOrEqual(0);
-	}
+	await expect
+		.poll(async () => (await skipLink.boundingBox())?.y ?? Number.NEGATIVE_INFINITY)
+		.toBeGreaterThanOrEqual(0);
 });
 
 test("unified grid preserves large glyphs while making cells denser", async ({ page }) => {
