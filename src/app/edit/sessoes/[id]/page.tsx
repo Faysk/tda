@@ -12,14 +12,14 @@ import draftStyles from "@/features/edit/sessions/editorial-draft.module.css";
 import { readSessionEditorialDraft } from "@/features/edit/sessions/editorial-draft-repository";
 import { readSessionPublicationContext } from "@/features/edit/sessions/session-publication-repository";
 import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
-import { TranscriptReader } from "@/features/edit/transcript/reader";
+import { TranscriptRevisionEditor } from "@/features/edit/transcript/revision-editor";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
 import styles from "@/features/edit/workbench.module.css";
 import { CAMPAIGN_SLUG, formatSessionDate } from "@/features/sessions/model";
 
 export const metadata: Metadata = {
 	title: "Transcrição · Edit",
-	description: "Leitura privada da transcrição completa da sessão.",
+	description: "Leitura e correção privada da transcrição completa da sessão.",
 };
 
 type PageProps = Readonly<{
@@ -143,9 +143,13 @@ export default async function EditSessionPage({ params }: PageProps) {
 
 			<div className={draftStyles.sessionWorkspace}>
 				<div className={draftStyles.transcriptPane}>
-					<TranscriptReader
+					<TranscriptRevisionEditor
 						downloadHref={downloadHref}
+						editable={canEdit && snapshot.source === "current_revision"}
+						revisionId={snapshot.revisionId}
+						revisionNumber={snapshot.revisionNumber}
 						segments={snapshot.segments}
+						sessionId={session.id}
 						sourceLabel={sourceLabel}
 					/>
 				</div>
