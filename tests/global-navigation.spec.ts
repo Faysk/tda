@@ -183,6 +183,83 @@ test("keyboard, outside click and pathname changes dismiss the unified panel", a
 	await expect(trigger).toHaveAttribute("aria-expanded", "false");
 });
 
+test("unified panel motion is reversible, inert while closing and unmounts after transition", async ({ page }) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	await trigger.click();
+	const panel = page.locator(".account-menu-panel");
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
+	await expect(panel).toHaveAttribute("data-state", /opening|open/u);
+	const durations = await panel.evaluate((element) =>
+		getComputedStyle(element).transitionDuration,
+	);
+	expect(
+		durations
+			.split(",")
+			.some((value) => Number.parseFloat(value.trim()) >= 1.9),
+	).toBeTruthy();
+
+	await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect(panel).toHaveAttribute("data-state", "closing");
+	await expect(panel).toHaveAttribute("aria-hidden", "true");
+	expect(await panel.evaluate((element) => element.inert)).toBeTruthy();
+
+	await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
+	await expect(panel).toHaveCount(1);
+	await expect(panel).toHaveAttribute("data-state", /opening|open/u);
+
+	await page.getByRole("heading", { level: 1 }).click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect(panel).toHaveAttribute("data-state", "closing");
+	await expect(panel).toHaveCount(0, { timeout: 3_000 });
+});
+
+test("navigation action does not wait for the 2s opening animation", async ({ page }) => {
+	await mockAccess(page);
+	await page.goto("/sessoes");
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	await trigger.click();
+	const panel = page.getByRole("region", { name: "Navegação, conta e aparência" });
+	await panel.getByRole("link", { name: "Lores", exact: true }).click({ timeout: 1_000 });
+	await expect(page).toHaveURL(/\/lore$/u);
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+});
+
+test("rapid avatar toggles never create duplicate panels", async ({ page }) => {
+	await mockAccess(page);
+	await page.goto("/");
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	for (let index = 0; index < 5; index += 1) {
+		await trigger.click();
+	}
+	await expect(page.locator(".account-menu-panel")).toHaveCount(1);
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
+});
+
+test("reduced motion bypasses the long panel transition and unmounts immediately", async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await mockAccess(page);
+	await page.goto("/");
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	await trigger.click();
+	const panel = page.locator(".account-menu-panel");
+	await expect(panel).toHaveAttribute("data-state", "open");
+	const durations = await panel.evaluate((element) =>
+		getComputedStyle(element).transitionDuration,
+	);
+	expect(
+		durations
+			.split(",")
+			.every((value) => Number.parseFloat(value.trim()) === 0),
+	).toBeTruthy();
+	await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect(panel).toHaveCount(0);
+});
+
 test("unified panel keeps ordinary links, 44px trigger and no ARIA application menu roles", async ({ page }) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.goto("/");
