@@ -341,7 +341,7 @@ export function ProcessingQueueView({
 												</td>
 											) : null}
 											<td
-												data-label={completedView ? "Conclusão" : "Estado"}
+												data-label="Estado"
 												className={styles.statusCell}
 											>
 												<StatusPill tone={jobTone(job.status)}>
