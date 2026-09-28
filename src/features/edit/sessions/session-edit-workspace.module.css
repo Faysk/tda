@@ -18,8 +18,8 @@
 	display: flex;
 	align-items: flex-end;
 	gap: 4px;
-	margin: -2px -2px 10px;
-	padding: 2px 2px 0;
+	margin: -2px 0 10px;
+	padding: 2px 0 0;
 	border-bottom: 1px solid var(--ds-border);
 	background: color-mix(in srgb, var(--ds-canvas) 94%, transparent);
 	backdrop-filter: blur(12px);
