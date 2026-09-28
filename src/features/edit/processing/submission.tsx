@@ -1134,6 +1134,7 @@ export function ProcessingSubmission({
 					context={context}
 					glossary={glossary}
 					profileReady={selectedProfileState?.ready === true}
+					recoveryScope={recoveryScope}
 					disabled={busy || requestTooLarge}
 					onActiveChange={setComposerActive}
 					onRestoreSessionId={(value) =>
