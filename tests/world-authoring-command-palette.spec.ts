@@ -91,6 +91,15 @@ test("command palette remains usable at the frozen authoring viewports", async (
 		await page.setViewportSize(viewport);
 		await page.goto(FIXTURE_PATH);
 		const { dialog, combobox } = await openPalette(page);
+		const stacking = await page.evaluate(() => {
+			const shell = document.querySelector<HTMLElement>(".site-header");
+			const backdrop = document.querySelector<HTMLElement>("[data-world-command-palette-dialog]");
+			return {
+				shell: Number.parseInt(shell ? getComputedStyle(shell).zIndex : "0", 10),
+				backdrop: Number.parseInt(backdrop ? getComputedStyle(backdrop).zIndex : "0", 10),
+			};
+		});
+		expect(stacking.backdrop).toBeGreaterThan(stacking.shell);
 		await expect(dialog).toBeInViewport();
 		await expect(combobox).toBeVisible();
 		await expect(
