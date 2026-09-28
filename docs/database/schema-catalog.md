@@ -475,6 +475,30 @@ Define classe de retenção, manter original, codec/bitrate preferidos, expiraç
 
 ---
 
+# Edição e publicação de sessões
+
+## `session_editorial_drafts`
+
+**Propósito:** snapshots privados e imutáveis do conteúdo editorial preparado para uma sessão. O ponteiro mutável fica em `sessions.current_editorial_draft_id`; cada save cria uma nova revisão sob CAS.
+
+Campos editoriais incluem capa, arco, título, descrição curta, resumo completo e, a partir de `20260928011000_session_editorial_date`, `session_date date`. O flag `session_date_captured` distingue drafts legados, criados antes desse campo, de drafts novos que salvaram explicitamente uma data vazia.
+
+**Regra:** salvar draft nunca altera `sessions.session_date` nem qualquer outra projeção pública.
+
+## `session_publications`
+
+**Propósito:** snapshots públicos imutáveis e versionados promovidos de um draft salvo. `sessions.current_session_publication_id` aponta para a versão pública atual.
+
+Publications novas incluem `session_date date` no snapshot e no hash canônico v2; rows históricas podem manter esse campo nulo sem backfill. A promoção atualiza `sessions.session_date` somente na mesma transação que ativa a nova publication.
+
+## `session_publication_operations`
+
+**Propósito:** receipts duráveis/idempotentes por `operation_id` para publicação de sessão. O receipt preserva o hash canônico da publication e a expectativa de versão pública anterior.
+
+**Segurança:** drafts, publications e receipts permanecem com RLS habilitado e sem acesso de browser; as RPCs de escrita são server-only, `SECURITY INVOKER`, com `EXECUTE` restrito a `service_role`.
+
+---
+
 # RBAC e governança
 
 ## `permission_catalog`
