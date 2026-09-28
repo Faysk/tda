@@ -1,5 +1,6 @@
 import { AUTOMATIC_LOOPBACK_SESSION_MINIMUM_VERSION } from "@/features/edit/processing/compatibility";
 import { selectLatestCompanionRcRelease } from "@/features/edit/processing/companion-rc-release";
+import { selectLatestCompanionDownloadRelease } from "@/features/edit/processing/companion-release";
 import { selectLatestCompanionStableRelease } from "@/features/edit/processing/companion-stable-release";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ const NO_STORE_HEADERS = {
 	"X-Content-Type-Options": "nosniff",
 };
 
-type CompanionManifestChannel = "stable" | "rc";
+type CompanionManifestChannel = "latest" | "stable" | "rc";
 
 function requestedChannel(request: Request): CompanionManifestChannel | null {
 	const url = new URL(request.url);
@@ -32,7 +33,7 @@ function requestedChannel(request: Request): CompanionManifestChannel | null {
 	);
 	if (unexpected || channels.length > 1) return null;
 	const channel = channels[0] ?? "stable";
-	return channel === "stable" || channel === "rc" ? channel : null;
+	return channel === "latest" || channel === "stable" || channel === "rc"\n\t\t? channel\n\t\t: null;
 }
 
 async function fetchReleaseCatalog(): Promise<unknown[]> {
@@ -66,9 +67,11 @@ export async function GET(request: Request) {
 	try {
 		const releases = await fetchReleaseCatalog();
 		const asset =
-			channel === "rc"
-				? selectLatestCompanionRcRelease(releases)
-				: selectLatestCompanionStableRelease(releases);
+			channel === "latest"
+				? selectLatestCompanionDownloadRelease(releases)
+				: channel === "rc"
+					? selectLatestCompanionRcRelease(releases)
+					: selectLatestCompanionStableRelease(releases);
 		if (!asset) {
 			return Response.json(
 				{ error: "COMPANION_RELEASE_NOT_FOUND" },
@@ -78,7 +81,7 @@ export async function GET(request: Request) {
 
 		return Response.json(
 			{
-				channel,
+				channel: asset.channel,
 				version: asset.version,
 				tag: asset.tag,
 				minimum_api: "1",
