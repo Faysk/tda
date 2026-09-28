@@ -24,6 +24,10 @@ import {
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
 } from "./session-composer-storage";
+import {
+	confirmSessionComposerPendingSubmission,
+	resolveSessionComposerPendingSubmission,
+} from "./session-composer-storage";
 
 const signal = () => new AbortController().signal;
 const token = "synthetic_test_token_12345678901234567890";
@@ -33,6 +37,20 @@ const partA = "1".repeat(32);
 const partB = "2".repeat(32);
 const runA = "run-a";
 const runB = "run-b";
+
+function memoryStorage(): Storage {
+	const values = new Map<string, string>();
+	return {
+		get length() {
+			return values.size;
+		},
+		clear: () => values.clear(),
+		getItem: (key: string) => values.get(key) ?? null,
+		key: (index: number) => [...values.keys()][index] ?? null,
+		removeItem: (key: string) => values.delete(key),
+		setItem: (key: string, value: string) => values.set(key, value),
+	} as Storage;
+}
 
 class MemoryStorage implements Storage {
 	private values = new Map<string, string>();
@@ -354,6 +372,60 @@ describe("session composer recovery and recording provenance", () => {
 		const value = workspace(false);
 		expect(recordingVariantSourceIds(sourceB, value, sources)).toEqual([sourceA]);
 		expect(recordingVariantSourceIds(sourceA, value, sources)).toEqual([sourceB]);
+	});
+});
+
+describe("session composer enqueue recovery", () => {
+	it("reuses the same idempotency key after an ambiguous response and clears it only after confirmation", async () => {
+		const storage = memoryStorage();
+		const requestSignature = JSON.stringify([
+			"yuhara-main",
+			"session-42",
+			sourceA,
+			"qwen-quality",
+			"",
+			"",
+			false,
+		]);
+		const first = await resolveSessionComposerPendingSubmission({
+			storage,
+			recoveryScope: "profile-synthetic",
+			campaignId: "yuhara-main",
+			sessionId: "session-42",
+			sourceId: sourceA,
+			profileId: "qwen-quality",
+			requestSignature,
+			createKey: () => "composer-key-1",
+		});
+		expect(first.key).toBe("composer-key-1");
+		expect(first.recoveredFromStorage).toBe(false);
+
+		const recovered = await resolveSessionComposerPendingSubmission({
+			storage,
+			recoveryScope: "profile-synthetic",
+			campaignId: "yuhara-main",
+			sessionId: "session-42",
+			sourceId: sourceA,
+			profileId: "qwen-quality",
+			requestSignature,
+			createKey: () => "composer-key-should-not-be-used",
+		});
+		expect(recovered.key).toBe(first.key);
+		expect(recovered.recoveredFromStorage).toBe(true);
+
+		confirmSessionComposerPendingSubmission(storage, recovered);
+		const afterConfirmation = await resolveSessionComposerPendingSubmission({
+			storage,
+			recoveryScope: "profile-synthetic",
+			campaignId: "yuhara-main",
+			sessionId: "session-42",
+			sourceId: sourceA,
+			profileId: "qwen-quality",
+			requestSignature,
+			createKey: () => "composer-key-2",
+		});
+		expect(afterConfirmation.key).toBe("composer-key-2");
+		expect(afterConfirmation.recoveredFromStorage).toBe(false);
 	});
 });
 
