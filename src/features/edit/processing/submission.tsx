@@ -587,6 +587,13 @@ export function ProcessingSubmission({
 
 	async function analyzeSource() {
 		if (
+			capabilities?.capabilities.includes("transcription.session-workspace") &&
+			!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)
+		) {
+			setError("Defina um ID de sessão válido antes de adicionar a gravação.");
+			return;
+		}
+		if (
 			busy ||
 			!file ||
 			!profile ||
@@ -612,15 +619,18 @@ export function ProcessingSubmission({
 		try {
 			const staged = await bridge.craigSource(file, controller.signal);
 			setSource(staged);
+			const wasAttached = workspace?.parts.some((part) => part.sourceId === staged.sourceId) ?? false;
 			const attached = await attachSourceToWorkspace(staged, controller);
 			setStatus(
-				attached
-					? `Gravação adicionada à sessão · ${staged.trackCount} tracks · ${Math.round(
+				wasAttached
+					? "Esta gravação já faz parte da sessão. Nenhuma part duplicada foi criada."
+					: attached
+						? `Gravação adicionada à sessão · ${staged.trackCount} tracks · ${Math.round(
 							staged.audioWorkSeconds ?? 0,
 						)} s de áudio.`
-					: `ZIP analisado localmente · ${staged.trackCount} tracks · ${Math.round(
-							staged.audioWorkSeconds ?? 0,
-						)} s de trabalho de áudio.`,
+						: `ZIP analisado localmente · ${staged.trackCount} tracks · ${Math.round(
+								staged.audioWorkSeconds ?? 0,
+							)} s de trabalho de áudio.`,
 			);
 		} catch (cause) {
 			setSource(null);
@@ -1169,12 +1179,14 @@ export function ProcessingSubmission({
 								pattern="[A-Za-z0-9_-]{1,128}"
 								maxLength={128}
 								required
-								disabled={busy}
+								disabled={busy || Boolean(workspace?.parts.length)}
 								placeholder="sessao-42"
 								aria-describedby="session-id-help"
 							/>
 							<small id="session-id-help">
-								Sugestão vem do nome do ZIP quando o campo está vazio. Sempre editável.
+								{workspace?.parts.length
+									? "Sessão escolhida. Remova todas as gravações do composer para trocar o alvo."
+									: "Sugestão vem do nome do ZIP quando o campo está vazio."}
 							</small>
 						</label>
 						<label>
@@ -1358,6 +1370,22 @@ export function ProcessingSubmission({
 					) : null}
 				</form>
 			)}
+
+			<SessionRecordingComposer
+				bridge={bridge}
+				capabilities={capabilities}
+				workspace={workspace}
+				profileId={profile}
+				jobs={jobs}
+				runs={runs}
+				busy={busy}
+				onWorkspaceChange={rememberWorkspace}
+				onQueueSource={queueExistingSource}
+				onAssemblyBuilt={(activeSessionId, assemblyId) => {
+					onSessionContextChange?.(activeSessionId);
+					onAssemblyBuilt?.(activeSessionId, assemblyId);
+				}}
+			/>
 
 			{preparation?.state === "interrupted" ? (
 				<div className={styles.notice} role="status">
