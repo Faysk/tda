@@ -181,6 +181,198 @@ footer {
 	}
 }
 
+
+.account-menu {
+	position: relative;
+}
+
+.account-menu-trigger {
+	display: inline-grid;
+	width: 44px;
+	height: 44px;
+	place-items: center;
+	padding: 0;
+	border: 1px solid var(--ds-control-border);
+	border-radius: 999px;
+	background: var(--ds-surface);
+	color: var(--ds-foreground-soft);
+	cursor: pointer;
+	transition:
+		border-color var(--ds-motion-fast) var(--ds-ease-standard),
+		background var(--ds-motion-fast) var(--ds-ease-standard),
+		color var(--ds-motion-fast) var(--ds-ease-standard);
+}
+
+.account-menu-trigger[aria-expanded="true"] {
+	border-color: var(--ds-accent);
+	background: var(--ds-surface-elevated);
+	color: var(--ds-foreground);
+}
+
+.account-avatar {
+	display: grid;
+	width: 34px;
+	height: 34px;
+	place-items: center;
+	overflow: hidden;
+	border-radius: 50%;
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+}
+
+.account-avatar img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.account-avatar svg {
+	width: 21px;
+	height: 21px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.7;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.account-avatar-initials {
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	font-weight: 750;
+	letter-spacing: 0.04em;
+}
+
+.account-menu-panel {
+	position: absolute;
+	top: calc(100% + 10px);
+	right: 0;
+	z-index: 910;
+	width: min(340px, calc(100vw - 32px));
+	padding: 16px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-elevated);
+	box-shadow: var(--ds-shadow);
+}
+
+.account-menu-identity {
+	display: grid;
+	gap: 4px;
+	padding: 2px 2px 14px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.account-menu-identity strong {
+	overflow-wrap: anywhere;
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+	font-size: 0.92rem;
+	line-height: 1.3;
+}
+
+.account-menu-identity small,
+.account-menu-appearance small {
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	line-height: 1.4;
+}
+
+.account-menu-kicker {
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.65rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.account-menu-actions {
+	display: grid;
+	gap: 8px;
+	padding-top: 12px;
+}
+
+.account-menu-form {
+	display: contents;
+}
+
+.account-menu-link,
+.account-menu-primary,
+.account-menu-logout {
+	display: flex;
+	min-height: 44px;
+	align-items: center;
+	justify-content: flex-start;
+	width: 100%;
+	padding: 9px 11px;
+	border: 1px solid transparent;
+	border-radius: var(--ds-radius-sm);
+	background: transparent;
+	color: var(--ds-foreground-soft);
+	font-family: var(--ds-font-ui);
+	font-size: 0.84rem;
+	font-weight: 650;
+	line-height: 1.2;
+	text-align: left;
+	text-decoration: none;
+	cursor: pointer;
+	transition:
+		border-color var(--ds-motion-fast) var(--ds-ease-standard),
+		background var(--ds-motion-fast) var(--ds-ease-standard),
+		color var(--ds-motion-fast) var(--ds-ease-standard);
+}
+
+.account-menu-primary {
+	border-color: var(--ds-action-primary-border);
+	background: var(--ds-action-primary-bg);
+	color: var(--ds-action-primary-foreground);
+}
+
+.account-menu-logout {
+	color: var(--ds-foreground-muted);
+}
+
+.account-menu-appearance {
+	display: flex;
+	min-height: 56px;
+	align-items: center;
+	justify-content: space-between;
+	gap: 14px;
+	padding: 7px 2px 7px 11px;
+	border-top: 1px solid var(--ds-border-subtle);
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.account-menu-appearance > div {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
+.account-menu-appearance > div > span {
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+	font-size: 0.82rem;
+	font-weight: 650;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.account-menu-trigger:hover,
+	.account-menu-link:hover,
+	.account-menu-logout:hover {
+		border-color: var(--ds-accent);
+		background: var(--ds-surface);
+		color: var(--ds-foreground);
+	}
+
+	.account-menu-primary:hover {
+		border-color: var(--ds-action-primary-hover);
+		background: var(--ds-action-primary-hover);
+	}
+}
+
 .page-section {
 	width: min(100%, var(--ds-layout-max, 2160px));
 	margin-inline: auto;
