@@ -35,6 +35,7 @@ Set-StrictMode -Version Latest
 
 $PackSchema = "tda_qwen_recovery_physical_gate_v1"
 $RequiredCompanionVersion = "0.3.16"
+$RequiredQwenRuntimeVersion = "1.0.12"
 $StartedAt = [DateTimeOffset]::UtcNow
 $OriginalLocalAppData = [string]$env:LOCALAPPDATA
 $AgentProcess = $null
@@ -601,7 +602,7 @@ if ($ExactRcMode) {
         [string]$QwenCandidate.family -ne "qwen" -or
         [string]$QwenCandidate.runtime_id -ne "qwen3-transformers" -or
         [string]$QwenCandidate.platform -ne "windows-x64" -or
-        [string]$QwenCandidate.version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$' -or
+        [string]$QwenCandidate.version -ne $RequiredQwenRuntimeVersion -or
         [string]$QwenCandidate.candidate_tag -notmatch '^companion-qwen-runtime-rc-v' -or
         [string]$QwenCandidate.source_sha -notmatch '^[a-f0-9]{40}$' -or
         [string]$QwenCandidate.source_tree_sha -notmatch '^[a-f0-9]{40}$' -or
