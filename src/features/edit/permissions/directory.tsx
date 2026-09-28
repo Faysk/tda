@@ -327,6 +327,7 @@ export function PermissionsDirectoryView({
 				<label className={styles.filterField}>
 					<span>Acesso</span>
 					<select
+						aria-label="Filtrar por acesso"
 						value={accessFilter}
 						onChange={(event) => setAccessFilter(event.target.value)}
 					>
