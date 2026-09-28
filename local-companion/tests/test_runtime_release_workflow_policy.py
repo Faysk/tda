@@ -177,7 +177,9 @@ def test_companion_rc_keeps_manual_exact_source_artifact_recovery_path():
     assert "source_sha:" in value
     assert "--workflow companion.yml --commit \"$SOURCE_SHA\" --status success" in value
     assert "NO_SUCCESSFUL_COMPANION_RUN_FOR_SOURCE" in value
-    assert "--name TDACompanion-windows-x64" in value
+    assert "run_started_at" in value
+    assert "COMPANION_ARTIFACT_ATTEMPT_AMBIGUOUS" in value
+    assert "actions/artifacts/${{ steps.artifact.outputs.artifact_id }}/zip" in value
 
 
 def test_companion_synthetic_workflow_has_bounded_windows_headroom():
