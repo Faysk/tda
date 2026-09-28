@@ -104,6 +104,12 @@ function localOperationMessage(code: string | null): string {
 			"Espere o trabalho atual terminar antes de preparar outro perfil.",
 		TRANSCRIPTION_WORK_ALREADY_ACTIVE:
 			"Já existe uma transcrição equivalente na fila ou em execução.",
+		SESSION_WORKSPACE_SOURCE_ALREADY_ATTACHED:
+			"Esta gravação já faz parte da sessão.",
+		SESSION_WORKSPACE_REVISION_CONFLICT:
+			"A sessão mudou durante a operação. O workspace foi recarregado; tente novamente.",
+		SESSION_WORKSPACE_SOURCE_UNAVAILABLE:
+			"A gravação não está mais disponível no armazenamento local do Companion.",
 		CRAIG_STAGING_REPAIR_BLOCKED_BY_RUNNING_JOB:
 			"Essa fonte está em uso pelo processamento ou pela preparação local. Aguarde terminar antes de reimportar o ZIP.",
 		CRAIG_STAGING_REPAIR_FAILED:
@@ -509,6 +515,74 @@ export function ProcessingSubmission({
 		setDragActive(false);
 		if (busy) return;
 		applyFile(event.dataTransfer.files.item(0));
+	}
+
+	function rememberWorkspace(next: SessionWorkspace) {
+		setWorkspace(next);
+		onSessionContextChange?.(next.sessionId);
+		try {
+			window.localStorage.setItem(
+				SESSION_WORKSPACE_STORAGE_KEY,
+				JSON.stringify({
+					campaignId: next.campaignId,
+					sessionId: next.sessionId,
+				}),
+			);
+		} catch {
+			// The Agent workspace is authoritative; browser storage only restores navigation context.
+		}
+	}
+
+	async function attachSourceToWorkspace(
+		staged: CraigSource,
+		controller: AbortController,
+	): Promise<SessionWorkspace | null> {
+		if (!capabilities?.capabilities.includes("transcription.session-workspace"))
+			return null;
+		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
+			setError("Defina um ID de sessão válido antes de adicionar a gravação.");
+			return null;
+		}
+		let current =
+			workspace ??
+			(await bridge.ensureSessionWorkspace(
+				CAMPAIGN_SLUG,
+				sessionId,
+				controller.signal,
+			));
+		if (current.parts.some((part) => part.sourceId === staged.sourceId)) {
+			rememberWorkspace(current);
+			setStatus("Esta gravação já faz parte da sessão. Você pode reprocessá-la pelo composer.");
+			return current;
+		}
+		try {
+			const attached = await bridge.attachSessionSource(
+				CAMPAIGN_SLUG,
+				sessionId,
+				staged.sourceId,
+				current.revision,
+				controller.signal,
+			);
+			rememberWorkspace(attached);
+			return attached;
+		} catch (cause) {
+			if (
+				cause instanceof BridgeError &&
+				cause.serverCode === "SESSION_WORKSPACE_REVISION_CONFLICT"
+			) {
+				current = await bridge.sessionWorkspace(
+					CAMPAIGN_SLUG,
+					sessionId,
+					controller.signal,
+				);
+				if (current.parts.some((part) => part.sourceId === staged.sourceId)) {
+					rememberWorkspace(current);
+					setStatus("Esta gravação já faz parte da sessão.");
+					return current;
+				}
+			}
+			throw cause;
+		}
 	}
 
 	async function analyzeSource() {
