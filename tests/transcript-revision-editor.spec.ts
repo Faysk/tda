@@ -101,6 +101,27 @@ test("dirty navigation can be cancelled without losing the working copy", async 
 	await expect(text).toHaveValue("Rascunho que não pode sumir");
 });
 
+test("lost save response replays the same operation without duplicating the revision", async ({ page }) => {
+	await page.goto(`${FIXTURE}?lost=1`);
+	const { text } = await openFirstSegment(page);
+	await text.fill("Correção confirmada só no retry");
+
+	await page.getByRole("button", { name: "Salvar alterações da transcrição" }).click();
+	await expect(
+		page.getByText(/Não foi possível confirmar o save/i),
+	).toBeVisible();
+	await expect(text).toHaveValue("Correção confirmada só no retry");
+
+	await page.getByRole("button", { name: "Salvar alterações da transcrição" }).click();
+	await expect(page.getByText(/Revisão privada r2 salva/)).toBeVisible();
+
+	await page.reload();
+	await expect(
+		page.getByText("Correção confirmada só no retry", { exact: true }),
+	).toBeVisible();
+	await expect(page.getByText(/Revisão privada atual · r2/)).toBeVisible();
+});
+
 test("two tabs conflict without losing the stale working copy", async ({ page }) => {
 	await page.goto(FIXTURE);
 	const stalePage = await page.context().newPage();
