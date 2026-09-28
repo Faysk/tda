@@ -284,7 +284,7 @@ export function SessionEditorialE2EFixture({
 		<main className={workbenchStyles.shell} style={{ display: "grid", gap: "2rem" }}>
 			<header className={workbenchStyles.workbenchHeader}>
 				<div>
-					<h1 className={workbenchStyles.pageTitle}>Session Editorial E2E</h1>
+					<h1 className={workbenchStyles.workbenchTitle}>Session Editorial E2E</h1>
 					<p className={workbenchStyles.muted}>
 						Fixture sintética. Nenhum dado, credencial, mídia ou transcrição real é
 						carregado.
@@ -292,7 +292,7 @@ export function SessionEditorialE2EFixture({
 				</div>
 			</header>
 
-			<section aria-label="Controles sintéticos de falha">
+			<section aria-label="Controles sintéticos de falha" data-testid="session-editorial-failure-controls">
 				<label>
 					<input
 						checked={editable}
