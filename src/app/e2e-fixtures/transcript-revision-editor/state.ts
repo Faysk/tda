@@ -14,6 +14,43 @@ export type TranscriptRevisionFixtureState = Readonly<{
 	parentRevisionId?: string;
 }>;
 
+type FixtureGlobal = typeof globalThis & {
+	__tdaTranscriptRevisionFixtureStates?: Map<
+		string,
+		TranscriptRevisionFixtureState
+	>;
+};
+
+function fixtureStateStore() {
+	const target = globalThis as FixtureGlobal;
+	target.__tdaTranscriptRevisionFixtureStates ??= new Map();
+	return target.__tdaTranscriptRevisionFixtureStates;
+}
+
+function initialTranscriptRevisionFixtureState(): TranscriptRevisionFixtureState {
+	return {
+		revisionId: TRANSCRIPT_REVISION_FIXTURE_ID,
+		revisionNumber: 1,
+		patches: [],
+	};
+}
+
+export function readTranscriptRevisionFixtureState(
+	stateKey: string | undefined,
+): TranscriptRevisionFixtureState {
+	if (!stateKey) return initialTranscriptRevisionFixtureState();
+	return (
+		fixtureStateStore().get(stateKey) ?? initialTranscriptRevisionFixtureState()
+	);
+}
+
+export function writeTranscriptRevisionFixtureState(
+	stateKey: string,
+	state: TranscriptRevisionFixtureState,
+) {
+	fixtureStateStore().set(stateKey, state);
+}
+
 export function transcriptRevisionFixtureSegments(): TranscriptReaderSegment[] {
 	return Array.from({ length: 750 }, (_, index) => {
 		const ordinal = index + 1;
@@ -27,55 +64,4 @@ export function transcriptRevisionFixtureSegments(): TranscriptReaderSegment[] {
 			text: `Fala sintética número ${ordinal}`,
 		};
 	});
-}
-
-export function parseTranscriptRevisionFixtureState(
-	raw: string | undefined,
-): TranscriptRevisionFixtureState {
-	if (!raw) {
-		return {
-			revisionId: TRANSCRIPT_REVISION_FIXTURE_ID,
-			revisionNumber: 1,
-			patches: [],
-		};
-	}
-	try {
-		const value = JSON.parse(raw) as Record<string, unknown>;
-		if (
-			typeof value.revisionId !== "string" ||
-			typeof value.revisionNumber !== "number" ||
-			!Number.isSafeInteger(value.revisionNumber) ||
-			value.revisionNumber < 1 ||
-			!Array.isArray(value.patches)
-		) {
-			throw new Error("invalid");
-		}
-		const patches = value.patches.filter(
-			(patch): patch is TranscriptRevisionEditPatch =>
-				Boolean(
-					patch &&
-						typeof patch === "object" &&
-						typeof (patch as Record<string, unknown>).id === "string" &&
-						typeof (patch as Record<string, unknown>).speaker === "string" &&
-						typeof (patch as Record<string, unknown>).text === "string",
-				),
-		);
-		return {
-			revisionId: value.revisionId,
-			revisionNumber: value.revisionNumber,
-			patches,
-			operationId:
-				typeof value.operationId === "string" ? value.operationId : undefined,
-			parentRevisionId:
-				typeof value.parentRevisionId === "string"
-					? value.parentRevisionId
-					: undefined,
-		};
-	} catch {
-		return {
-			revisionId: TRANSCRIPT_REVISION_FIXTURE_ID,
-			revisionNumber: 1,
-			patches: [],
-		};
-	}
 }

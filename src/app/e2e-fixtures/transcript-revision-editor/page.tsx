@@ -4,7 +4,7 @@ import { TranscriptRevisionEditor } from "@/features/edit/transcript/revision-ed
 import { applyTranscriptRevisionEdits } from "@/features/edit/transcript/revision-edit-model";
 import { saveTranscriptRevisionFixtureAction } from "./actions";
 import {
-	parseTranscriptRevisionFixtureState,
+	readTranscriptRevisionFixtureState,
 	TRANSCRIPT_REVISION_FIXTURE_COOKIE,
 	transcriptRevisionFixtureSegments,
 } from "./state";
@@ -26,7 +26,7 @@ export default async function TranscriptRevisionEditorE2EPage({
 	const loseFirstResponse = query.lost === "1";
 	const slowResponse = query.slow === "1";
 	const store = await cookies();
-	const state = parseTranscriptRevisionFixtureState(
+	const state = readTranscriptRevisionFixtureState(
 		store.get(TRANSCRIPT_REVISION_FIXTURE_COOKIE)?.value,
 	);
 	const segments = applyTranscriptRevisionEdits(

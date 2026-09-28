@@ -7,8 +7,9 @@ import {
 	type TranscriptRevisionEditPatch,
 } from "@/features/edit/transcript/revision-edit-model";
 import {
-	parseTranscriptRevisionFixtureState,
+	readTranscriptRevisionFixtureState,
 	TRANSCRIPT_REVISION_FIXTURE_COOKIE,
+	writeTranscriptRevisionFixtureState,
 } from "./state";
 
 export async function saveTranscriptRevisionFixtureAction(
@@ -37,9 +38,8 @@ export async function saveTranscriptRevisionFixtureAction(
 	}
 
 	const store = await cookies();
-	const current = parseTranscriptRevisionFixtureState(
-		store.get(TRANSCRIPT_REVISION_FIXTURE_COOKIE)?.value,
-	);
+	let stateKey = store.get(TRANSCRIPT_REVISION_FIXTURE_COOKIE)?.value;
+	const current = readTranscriptRevisionFixtureState(stateKey);
 	if (
 		current.operationId === input.operationId &&
 		current.parentRevisionId === input.expectedCurrentRevisionId
@@ -63,21 +63,21 @@ export async function saveTranscriptRevisionFixtureAction(
 
 	const revisionId = crypto.randomUUID();
 	const revisionNumber = current.revisionNumber + 1;
-	store.set(
-		TRANSCRIPT_REVISION_FIXTURE_COOKIE,
-		JSON.stringify({
-			revisionId,
-			revisionNumber,
-			patches: [...byId.values()],
-			operationId: input.operationId,
-			parentRevisionId: input.expectedCurrentRevisionId,
-		}),
-		{
+	if (!stateKey) {
+		stateKey = crypto.randomUUID();
+		store.set(TRANSCRIPT_REVISION_FIXTURE_COOKIE, stateKey, {
 			httpOnly: true,
 			sameSite: "lax",
 			path: "/e2e-fixtures/transcript-revision-editor",
-		},
-	);
+		});
+	}
+	writeTranscriptRevisionFixtureState(stateKey, {
+		revisionId,
+		revisionNumber,
+		patches: [...byId.values()],
+		operationId: input.operationId,
+		parentRevisionId: input.expectedCurrentRevisionId,
+	});
 
 	if (loseFirstResponse && current.revisionNumber === 1) {
 		throw new Error("synthetic lost response after commit");

@@ -119,7 +119,9 @@ test("lost save response replays the same operation without duplicating the revi
 	await expect(
 		page.getByText("Correção confirmada só no retry", { exact: true }),
 	).toBeVisible();
-	await expect(page.getByText(/Revisão privada atual · r2/)).toBeVisible();
+	await expect(
+		page.locator("strong").filter({ hasText: "Revisão privada atual · r2" }),
+	).toBeVisible();
 });
 
 test("working fields freeze while a revision save is in flight", async ({ page }) => {
@@ -129,7 +131,7 @@ test("working fields freeze while a revision save is in flight", async ({ page }
 
 	const save = page.getByRole("button", { name: "Salvar alterações da transcrição" });
 	await save.click();
-	await expect(save).toHaveText("Salvando…");
+	await expect(page.getByRole("button", { name: "Salvando…" })).toBeDisabled();
 	await expect(text).toBeDisabled();
 	await expect(page.getByRole("button", { name: "Reverter fala" })).toBeDisabled();
 	await expect(page.getByRole("button", { name: "Fechar fala" })).toBeDisabled();
@@ -189,8 +191,11 @@ test("mobile keyboard editing stays contained and Escape closes only the active 
 	).toBeTruthy();
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("textbox", { name: "Texto desta fala" })).toHaveCount(0);
-	const reopen = page.getByRole("button", { name: "Editada · abrir" });
+	const reopen = page
+		.getByRole("button", { name: /Editar fala de Pessoa 1 em/ })
+		.first();
 	await expect(reopen).toBeVisible();
+	await expect(reopen).toHaveText("Editada · abrir");
 	await expect(reopen).toBeFocused();
 	await expect(page.getByText("1 alterada(s)", { exact: false })).toBeVisible();
 });
