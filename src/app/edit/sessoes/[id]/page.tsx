@@ -105,13 +105,13 @@ export default async function EditSessionPage({ params }: PageProps) {
 		`/api/edit/${encodeURIComponent(CAMPAIGN_SLUG)}/sessoes/${encodeURIComponent(session.sourceSessionId)}/transcript`;
 
 	return (
-		<section className={styles.shell}>
+		<section className={[styles.shell, styles.sessionShell].join(" ")}>
 			<header className={styles.workbenchHeader}>
 				<div>
 					<Link className={styles.muted} href="/edit/sessoes">
 						← Sessões do Edit
 					</Link>
-					<h1 className={styles.pageTitle}>{session.title}</h1>
+					<h1 className={styles.workbenchTitle}>{session.title}</h1>
 					<div className={styles.sessionMeta}>
 						{session.sessionDate ? (
 							<span>{formatSessionDate(session.sessionDate)}</span>
@@ -126,18 +126,15 @@ export default async function EditSessionPage({ params }: PageProps) {
 						</StatusPill>
 					</div>
 				</div>
-				<div className={styles.muted}>
+				<div className={styles.workbenchCount}>
 					<strong>{snapshot.segments.length.toLocaleString("pt-BR")}</strong>{" "}
-					falas · leitura privada
+					falas
 				</div>
 			</header>
 
 			<div className={draftStyles.privateNotice} role="status">
 				<strong>Privado no Edit</strong>
-				<span>
-					Transcrição e draft editorial permanecem privados. Salvar draft não
-					altera a versão pública da sessão.
-				</span>
+				<span>Salvar o draft ou trocar a capa não publica no site.</span>
 			</div>
 
 			<SessionEditWorkspace
