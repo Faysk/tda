@@ -29,7 +29,27 @@ create table public.sessions(
 create table public.transcript_revisions(
   id uuid primary key,
   campaign_id uuid not null references public.campaigns(id),
-  session_id uuid not null references public.sessions(id)
+  session_id uuid not null references public.sessions(id),
+  revision_number bigint not null,
+  operation_id uuid not null,
+  source_system text not null,
+  source_session_id text not null,
+  source_id text not null,
+  run_id text not null,
+  base_transcript_sha256 text not null,
+  draft_sha256 text not null,
+  payload_sha256 text not null,
+  segment_count integer not null,
+  word_count integer not null,
+  reviewed_segments integer not null,
+  warning_count integer not null,
+  lineage jsonb not null,
+  review_summary jsonb not null,
+  segments jsonb not null,
+  actor_profile_id uuid not null references public.profiles(id),
+  created_at timestamptz not null default clock_timestamp(),
+  unique(session_id, revision_number),
+  unique(session_id, operation_id)
 );
 alter table public.sessions
   add constraint sessions_current_transcript_revision_fk
@@ -109,6 +129,7 @@ alter table public.sessions enable row level security;
 alter table public.media_assets enable row level security;
 grant usage on schema public, extensions to service_role, anon, authenticated;
 grant select on public.campaigns, public.profiles, public.sessions, public.transcript_revisions, public.media_assets, public.audit_log, public.permission_catalog, public.role_definitions, public.role_permissions to service_role;
+grant insert on public.transcript_revisions to service_role;
 grant update on public.sessions, public.media_assets to service_role;
 grant insert on public.media_assets, public.audit_log to service_role;
 
@@ -132,11 +153,35 @@ insert into public.sessions(
   'synthetic-public-id',
   '{}'::jsonb
 );
-insert into public.transcript_revisions(id,campaign_id,session_id)
-values (
+insert into public.transcript_revisions(
+  id,campaign_id,session_id,revision_number,operation_id,source_system,
+  source_session_id,source_id,run_id,base_transcript_sha256,draft_sha256,
+  payload_sha256,segment_count,word_count,reviewed_segments,warning_count,
+  lineage,review_summary,segments,actor_profile_id
+) values (
   '44444444-4444-4444-8444-444444444444',
   '11111111-1111-4111-8111-111111111111',
-  '22222222-2222-4222-8222-222222222222'
+  '22222222-2222-4222-8222-222222222222',
+  1,
+  '80000000-0000-4000-8000-000000000001',
+  'local_companion',
+  'fixture-source',
+  'craig-' || repeat('a',64),
+  'run-seed',
+  repeat('b',64),
+  repeat('d',64),
+  repeat('e',64),
+  2,
+  6,
+  2,
+  0,
+  '{"profile_id":"whisper-detailed"}'::jsonb,
+  '{"status":"approved_local","draft_revision":1,"reviewed_segments":2,"total_segments":2,"warning_count":0,"word_count":6}'::jsonb,
+  '[
+    {"track_number":1,"segment_id":"1-0","start":0.0,"end":1.0,"text":"Texto original da Álya","speaker":"Álya","reviewed":true},
+    {"track_number":2,"segment_id":"2-0","start":1.0,"end":2.0,"text":"Resposta intacta.","speaker":"Sense","reviewed":true}
+  ]'::jsonb,
+  '33333333-3333-4333-8333-333333333333'
 );
 update public.sessions
 set current_transcript_revision_id='44444444-4444-4444-8444-444444444444'
