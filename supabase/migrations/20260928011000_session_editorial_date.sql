@@ -19,9 +19,10 @@ is 'Distinguishes legacy drafts that predate editable session dates from a new d
 comment on column public.session_publications.session_date
 is 'Date-only value included in the immutable public editorial snapshot. Legacy publications may be null.';
 
--- The date-aware publication wrapper reuses the already-audited publication RPC,
--- then binds only the new snapshot field and its v2 hash inside the same transaction.
--- Keep the mutation surface column-scoped rather than granting table-wide UPDATE.
+-- The date-aware wrappers reuse the already-audited draft/publication RPCs,
+-- then bind only the new fields inside the same transaction. Keep the mutation
+-- surface column-scoped rather than granting table-wide UPDATE.
+grant update(session_date, session_date_captured) on public.session_editorial_drafts to service_role;
 grant update(session_date, payload_sha256) on public.session_publications to service_role;
 grant update(payload_sha256) on public.session_publication_operations to service_role;
 
