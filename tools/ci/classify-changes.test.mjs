@@ -3,8 +3,8 @@ import test from "node:test";
 import { classifyPaths } from "./classify-changes.mjs";
 
 function flags(files) {
-	const { web, db, companion, processing, lembra, media } = classifyPaths(files);
-	return { web, db, companion, processing, lembra, media };
+	const { web, db, companion, processing, navigation, lembra, media } = classifyPaths(files);
+	return { web, db, companion, processing, navigation, lembra, media };
 }
 
 const fastOnly = {
@@ -12,6 +12,7 @@ const fastOnly = {
 	db: false,
 	companion: false,
 	processing: false,
+	navigation: false,
 	lembra: false,
 	media: false,
 };
@@ -86,7 +87,21 @@ test("specialized runtime workflows do not build generic MSI or Processing E2E b
 test("CI workflow changes exercise the browser gates they define", () => {
 	const result = flags([".github/workflows/ci.yml"]);
 	assert.equal(result.processing, true);
+	assert.equal(result.navigation, true);
 	assert.equal(result.lembra, true);
+});
+
+test("Navigation paths activate the targeted browser contract", () => {
+	for (const path of [
+		"src/components/public-nav.tsx",
+		"src/components/account-menu.tsx",
+		"src/app/api/auth/me/route.ts",
+		"src/features/auth/server.ts",
+		"tests/global-navigation.spec.ts",
+	]) {
+		assert.equal(flags([path]).navigation, true, path);
+	}
+	assert.equal(flags(["docs/features/global-navigation.md"]).navigation, false);
 });
 
 test("Supabase and transcript-sync changes activate PostgreSQL integration", () => {
@@ -117,6 +132,7 @@ test("classifier contract changes fail safe into every heavy domain", () => {
 		db: true,
 		companion: true,
 		processing: true,
+		navigation: true,
 		lembra: true,
 		media: true,
 	};
@@ -137,6 +153,7 @@ test("mixed changes activate each relevant domain", () => {
 			db: true,
 			companion: true,
 			processing: true,
+			navigation: false,
 			lembra: false,
 			media: true,
 		},
