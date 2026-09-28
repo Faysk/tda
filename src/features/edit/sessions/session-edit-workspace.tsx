@@ -9,7 +9,10 @@ import styles from "./session-edit-workspace.module.css";
 
 type WorkspaceTab = "transcript" | "session" | "summary";
 
-type TranscriptProps = ComponentProps<typeof TranscriptReader>;
+type TranscriptProps = Omit<
+	ComponentProps<typeof TranscriptReader>,
+	"active" | "saveAction"
+>;
 type EditorialProps = Omit<
 	ComponentProps<typeof SessionEditorialDraftEditor>,
 	"surface" | "active"
@@ -20,7 +23,13 @@ type EditorialUnavailable = Readonly<{
 	message: string;
 }>;
 
-type LegacyPreparationProps = ComponentProps<typeof LegacyTranscriptPrepare>;
+type LegacyPreparationProps = Readonly<{
+	sessionId: string;
+	sessionTitle: string;
+	segmentCount: number;
+	snapshotSha256: string;
+	editable: boolean;
+}>;
 
 type Props = Readonly<{
 	transcript: TranscriptProps;
