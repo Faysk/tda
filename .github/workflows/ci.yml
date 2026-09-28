@@ -100,7 +100,7 @@ jobs:
         env:
           TDA_SYNTHETIC_POSTGRES: "1"
       - name: Isolated transcript revision and import SQL contracts
-        run: python tools/transcript-sync-db.py </dev/null>
+        run: python tools/transcript-sync-db.py </dev/null
       - run: python tools/session-publication-db.py
       - run: python tools/world-layout-db.py
       - run: python tools/world-entity-media-db.py
