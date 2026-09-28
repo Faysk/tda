@@ -227,7 +227,7 @@ export function ProcessingLiveLog({
 		pacingCancel.current?.();
 		pacingCancel.current = null;
 
-		if (!live || reducedMotion || document.visibilityState === "hidden") {
+		if (!live || mode === "technical" || reducedMotion || document.visibilityState === "hidden") {
 			revealedSeqRef.current = latest;
 			setRevealedSeq(latest);
 			animationCutoffSeq.current = latest;
@@ -261,7 +261,7 @@ export function ProcessingLiveLog({
 			pacingCancel.current?.();
 			pacingCancel.current = null;
 		};
-	}, [events, expectedPollMs, live, paused, reducedMotion]);
+	}, [events, expectedPollMs, live, mode, paused, reducedMotion]);
 
 	useEffect(() => {
 		const onVisibilityChange = () => {
