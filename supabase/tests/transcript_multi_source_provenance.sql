@@ -192,8 +192,8 @@ $security$;
 
 insert into public.role_permissions(role_id, permission_action)
 values (
-  '66666666-6666-4666-8666-666666666666',
-  'campaign.content.edit'
+  '55555555-5555-4555-8555-555555555555',
+  'campaign.transcript.publish'
 )
 on conflict do nothing;
 
@@ -208,7 +208,7 @@ insert into public.role_assignments(
 ) values (
   '85100000-0000-4000-8000-000000000001',
   '33333333-3333-4333-8333-333333333333',
-  '66666666-6666-4666-8666-666666666666',
+  '55555555-5555-4555-8555-555555555555',
   'campaign',
   'synthetic-campaign',
   'active',
@@ -628,6 +628,10 @@ where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
 
 delete from public.role_assignments
 where id = '85100000-0000-4000-8000-000000000001'::uuid;
+
+delete from public.role_permissions
+where role_id = '55555555-5555-4555-8555-555555555555'::uuid
+  and permission_action = 'campaign.transcript.publish';
 
 delete from public.role_permissions
 where role_id = '66666666-6666-4666-8666-666666666666'::uuid
