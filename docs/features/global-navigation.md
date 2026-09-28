@@ -79,6 +79,8 @@ Contrato geométrico:
 
 Superfícies que possuam ações na primeira linha usam **corner clearance**: protegem apenas os cantos ocupados, sem reservar uma faixa horizontal inteira.
 
+A ordem de camadas é deliberada: conteúdo comum fica abaixo do chrome global; marca/avatar e o painel global ficam acima das superfícies ordinárias; dialogs, command palettes e outras top layers modais ficam acima do chrome. A implementação não deve resolver colisões com uma escalada arbitrária de `z-index`.
+
 ### Marca
 
 - ação de início;
