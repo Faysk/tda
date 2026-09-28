@@ -3,12 +3,14 @@ import test from "node:test";
 import { classifyPaths } from "./classify-changes.mjs";
 
 function flags(files) {
-	const { web, db, companion, processing, lembra, media } = classifyPaths(files);
-	return { web, db, companion, processing, lembra, media };
+	const { web, navigation, db, companion, processing, lembra, media } =
+		classifyPaths(files);
+	return { web, navigation, db, companion, processing, lembra, media };
 }
 
 const fastOnly = {
 	web: true,
+	navigation: false,
 	db: false,
 	companion: false,
 	processing: false,
@@ -32,6 +34,29 @@ test("ordinary web and lore files do not activate heavy domains", () => {
 		]),
 		fastOnly,
 	);
+});
+
+test("global navigation and auth-boundary paths activate the navigation E2E contract", () => {
+	for (const path of [
+		"src/components/public-nav.tsx",
+		"src/components/account-menu.tsx",
+		"src/components/theme-toggle.tsx",
+		"src/app/public-shell.css",
+		"src/app/api/auth/me/route.ts",
+		"src/features/auth/server.ts",
+		"src/features/edit/access/policy.ts",
+		"tests/global-navigation.spec.ts",
+		"tests/foundation.spec.ts",
+	]) {
+		const result = flags([path]);
+		assert.equal(result.navigation, true, path);
+		assert.equal(result.web, true, path);
+	}
+});
+
+test("unrelated web content does not pay the navigation browser gate", () => {
+	assert.equal(flags(["src/app/musicas/page.tsx"]).navigation, false);
+	assert.equal(flags(["src/features/lembra/components/card.tsx"]).navigation, false);
 });
 
 test("Processing Web paths activate the Processing E2E contract", () => {
@@ -83,8 +108,9 @@ test("specialized runtime workflows do not build generic MSI or Processing E2E b
 	}
 });
 
-test("CI workflow changes exercise the browser gates they define", () => {
+test("CI workflow changes exercise every browser gate they define", () => {
 	const result = flags([".github/workflows/ci.yml"]);
+	assert.equal(result.navigation, true);
 	assert.equal(result.processing, true);
 	assert.equal(result.lembra, true);
 });
@@ -114,6 +140,7 @@ test("media manifests and tooling activate media domain", () => {
 test("classifier contract changes fail safe into every heavy domain", () => {
 	const expected = {
 		web: true,
+		navigation: true,
 		db: true,
 		companion: true,
 		processing: true,
@@ -127,6 +154,7 @@ test("classifier contract changes fail safe into every heavy domain", () => {
 test("mixed changes activate each relevant domain", () => {
 	assert.deepEqual(
 		flags([
+			"src/components/public-nav.tsx",
 			"src/features/edit/processing/panel.tsx",
 			"supabase/migrations/202609140002_example.sql",
 			"local-companion/tda_companion/app.py",
@@ -134,6 +162,7 @@ test("mixed changes activate each relevant domain", () => {
 		]),
 		{
 			web: true,
+			navigation: true,
 			db: true,
 			companion: true,
 			processing: true,
@@ -148,9 +177,7 @@ test("normalizes duplicate and Windows-style paths", () => {
 		".\\local-companion\\tda_companion\\app.py",
 		"local-companion/tda_companion/app.py",
 	]);
-	assert.deepEqual(result.files, [
-		"local-companion/tda_companion/app.py",
-	]);
+	assert.deepEqual(result.files, ["local-companion/tda_companion/app.py"]);
 	assert.equal(result.companion, true);
 	assert.equal(result.processing, true);
 });
