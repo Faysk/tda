@@ -75,7 +75,10 @@ async function openGlobalMenu(page: import("@playwright/test").Page) {
 	const trigger = page.getByRole("button", { name: "Abrir menu global" });
 	await trigger.click();
 	await expect(trigger).toHaveAttribute("aria-expanded", "true");
-	return page.getByRole("region", { name: "Navegação, conta e aparência" });
+	await expect(trigger).toHaveAttribute("aria-controls", "global-profile-menu");
+	const panel = page.getByRole("region", { name: "Navegação, conta e aparência" });
+	await expect(panel).toHaveAttribute("id", "global-profile-menu");
+	return panel;
 }
 
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
@@ -99,6 +102,8 @@ test("avatar is the only global trigger and exposes the complete public IA", asy
 	await mockAccess(page);
 	await page.goto("/sessoes/nonexistent");
 	await expect(page.getByRole("button", { name: "Abrir navegação" })).toHaveCount(0);
+	await expect(page.locator(".product-launcher-trigger")).toHaveCount(0);
+	await expect(page.locator(".header-actions .account-menu-trigger")).toHaveCount(1);
 	const panel = await openGlobalMenu(page);
 	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
 	const labels = await navigation.locator(".product-launcher-link").allTextContents();
@@ -117,6 +122,44 @@ test("unified panel projects only authorized tools", async ({ page }) => {
 	}
 	await expect(navigation.getByRole("link", { name: "Editar mundo", exact: true })).toHaveCount(0);
 	await expect(navigation.getByRole("link", { name: "Revisão", exact: true })).toHaveCount(0);
+});
+
+test("authenticated avatar projection uses the sanitized image and keeps public IA", async ({ page }) => {
+	await mockAccess(page, {
+		identity: { displayName: "Pessoa Avatar", avatarUrl: "/brand/favicon.svg" },
+	});
+	await page.goto("/");
+	await expect(page.locator(".account-avatar-image")).toHaveCount(1);
+	const panel = await openGlobalMenu(page);
+	await expect(panel.getByText("Pessoa Avatar", { exact: true })).toBeVisible();
+	await expect(panel.getByText("Explorar", { exact: true })).toBeVisible();
+});
+
+test("capability-wide projection exposes the complete authorized tool IA", async ({ page }) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	for (const label of [
+		"Transcrições",
+		"Editar sessões",
+		"Processar",
+		"Editar mundo",
+		"Revisão",
+		"Permissões",
+	]) {
+		await expect(panel.getByRole("link", { name: label, exact: true })).toBeVisible();
+	}
+});
+
+test("unavailable auth keeps Explore usable and fails closed for private tools", async ({ page }) => {
+	await mockAccess(page, { state: "unavailable" });
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	await expect(panel.getByText("Conta temporariamente indisponível", { exact: true })).toBeVisible();
+	await expect(panel.getByRole("button", { name: "Tentar novamente" })).toBeVisible();
+	await expect(panel.getByText("Explorar", { exact: true })).toBeVisible();
+	await expect(panel.getByRole("link", { name: "Sessões", exact: true })).toBeVisible();
+	await expect(panel.getByText("Ferramentas", { exact: true })).toHaveCount(0);
 });
 
 test("anonymous unified panel keeps public navigation, safe return path and appearance", async ({ page }) => {
@@ -300,7 +343,10 @@ test("unified panel stays contained and scrolls internally across the responsive
 	await page.goto("/");
 	for (const viewport of [
 		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
 		{ width: 390, height: 500 },
+		{ width: 768, height: 1024 },
+		// Layout-equivalent gate for a 1366×768 desktop at 200% zoom.
 		{ width: 683, height: 384 },
 		{ width: 1366, height: 768 },
 		{ width: 1920, height: 1080 },
@@ -351,6 +397,23 @@ test("desktop and mobile unified navigation receipts are captured from synthetic
 		await page.goto("/");
 		await openGlobalMenu(page);
 		await page.screenshot({ path: testInfo.outputPath(`navigation-${receipt.name}.png`), fullPage: false });
+	}
+});
+
+test("anonymous and unavailable unified navigation receipts stay synthetic", async ({ page }, testInfo) => {
+	for (const state of ["anonymous", "unavailable"] as const) {
+		await page.unroute("**/api/auth/me");
+		await mockAccess(page, { state });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.emulateMedia({ colorScheme: "dark" });
+		await page.goto("/");
+		const panel = await openGlobalMenu(page);
+		await expect(panel.getByText("Explorar", { exact: true })).toBeVisible();
+		await expect(panel.getByText("Ferramentas", { exact: true })).toHaveCount(0);
+		await page.screenshot({
+			path: testInfo.outputPath(`navigation-${state}.png`),
+			fullPage: false,
+		});
 	}
 });
 
