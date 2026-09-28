@@ -4,7 +4,6 @@ import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
-import { CompanionDownload } from "@/features/edit/processing/companion-download";
 import { ProcessingPanel } from "@/features/edit/processing/panel";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import styles from "@/features/edit/processing/processing.module.css";
@@ -43,20 +42,6 @@ export default async function ProcessingPage() {
 				activityPackScope={`${access.profileId ?? "unresolved"}:${CAMPAIGN_SLUG}`}
 			/>
 
-			<details className={pageStyles.companionMaintenance}>
-				<summary>Instalação e canais do TDA Companion</summary>
-				<p>
-					Use a versão Stable no uso normal. O canal RC permanece disponível
-					apenas para validação deliberada de candidatos.
-				</p>
-				<div className={pageStyles.companionDownloadGroup}>
-					<CompanionDownload className={pageStyles.companionDownload} />
-					<CompanionDownload
-						className={`${pageStyles.companionDownload} ${pageStyles.companionDownloadRc}`}
-						channel="rc"
-					/>
-				</div>
-			</details>
 		</section>
 	);
 }
