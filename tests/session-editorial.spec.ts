@@ -319,7 +319,19 @@ test("session workbench floating-shell receipts cover desktop, mobile and zoom",
 	]) {
 		await page.setViewportSize(receipt.viewport);
 		await page.goto("/e2e-fixtures/session-editorial");
-		await expect(page.getByRole("region", { name: "Transcrição da sessão" })).toBeVisible();
+		await page.getByTestId("session-editorial-failure-controls").evaluate((element) => {
+			(element as HTMLElement).style.display = "none";
+		});
+		const frame = page.getByTestId("session-editorial-workspace-frame");
+		if (receipt.viewport.width > 980) {
+			await frame.evaluate((element, height) => {
+				(element as HTMLElement).style.height = `${height}px`;
+			}, Math.max(420, receipt.viewport.height - 230));
+		}
+
+		const transcript = page.getByRole("region", { name: "Transcrição da sessão" });
+		const editorial = page.getByRole("region", { name: "Edição editorial da sessão" });
+		await expect(transcript).toBeVisible();
 		await expect(page.locator(".brand")).toBeVisible();
 		await expect(page.locator(".account-menu-trigger")).toBeVisible();
 		expect(
@@ -327,6 +339,27 @@ test("session workbench floating-shell receipts cover desktop, mobile and zoom",
 				() => document.documentElement.scrollWidth <= window.innerWidth + 1,
 			),
 		).toBeTruthy();
+
+		if (receipt.viewport.width > 980) {
+			await expect(editorial).toBeVisible();
+			expect(
+				await transcript.evaluate(
+					(element) => element.scrollWidth <= element.clientWidth + 1,
+				),
+			).toBeTruthy();
+			expect(
+				await editorial.evaluate(
+					(element) => element.scrollWidth <= element.clientWidth + 1,
+				),
+			).toBeTruthy();
+			await expect(
+				editorial.locator("footer").getByRole("button", {
+					name: "Salvar draft",
+					exact: true,
+				}),
+			).toBeVisible();
+		}
+
 		await page.screenshot({
 			path: testInfo.outputPath(`${receipt.name}.png`),
 			fullPage: false,
