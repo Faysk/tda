@@ -38,11 +38,12 @@ export type {
 	PublicationTarget,
 } from "./canonical";
 
-export type PreparedPublication = Readonly<
-	Omit<CanonicalPreparedPublication, "payloadBytes"> & {
-		payloadSha256: string;
-	}
->;
+type PreparedWithSha<T> = T extends { payloadBytes: number }
+	? Readonly<Omit<T, "payloadBytes"> & { payloadSha256: string }>
+	: never;
+
+export type PreparedPublication =
+	PreparedWithSha<CanonicalPreparedPublication>;
 
 export type PreparePublicationResult =
 	| Readonly<{ ok: true; value: PreparedPublication }>
