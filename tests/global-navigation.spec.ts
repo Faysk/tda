@@ -14,19 +14,46 @@ const publicLabels = [
 	"Diários",
 ];
 
+type MockAuthState =
+	| "anonymous"
+	| "unavailable"
+	| "authenticated_unlinked"
+	| "authenticated_linked_no_grants"
+	| "authenticated_linked";
+
+type MockIdentity = Readonly<{
+	displayName: string | null;
+	avatarUrl: string | null;
+}>;
+
 async function mockAccess(
 	page: import("@playwright/test").Page,
 	capabilities: readonly string[] = [],
 	status = 200,
+	options: Readonly<{
+		state?: MockAuthState;
+		identity?: MockIdentity | null;
+	}> = {},
 ) {
+	const state =
+		options.state ?? (status === 503 ? "unavailable" : "authenticated_linked");
+	const authenticated = state.startsWith("authenticated_");
 	await page.route("**/api/auth/me", async (route) => {
 		await route.fulfill({
 			status,
 			contentType: "application/json",
 			body: JSON.stringify({
-				state: status === 503 ? "unavailable" : "authenticated_linked",
+				state,
 				scope: { type: "campaign", id: "yuhara-main" },
-				capabilities,
+				...(authenticated
+					? {
+							capabilities,
+							identity:
+								options.identity === undefined
+									? { displayName: "Renan Silva", avatarUrl: null }
+									: options.identity,
+						}
+					: {}),
 			}),
 		});
 	});
@@ -37,6 +64,15 @@ async function openLauncher(page: import("@playwright/test").Page) {
 	await trigger.click();
 	await expect(trigger).toHaveAttribute("aria-expanded", "true");
 	return page.getByRole("navigation", { name: "Navegação principal" });
+}
+
+async function openAccountMenu(page: import("@playwright/test").Page) {
+	const trigger = page.getByRole("button", { name: "Abrir menu da conta" });
+	await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
+	const panel = page.locator("#global-account-menu");
+	await expect(panel).toBeVisible();
+	return panel;
 }
 
 test("launcher exposes the complete public IA in stable order and marks subroutes", async ({
@@ -131,6 +167,121 @@ test("launcher stays horizontally contained at 320px", async ({ page }) => {
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
 	).toBeTruthy();
 	const panel = page.locator(".product-launcher-panel");
+	const box = await panel.boundingBox();
+	expect(box).not.toBeNull();
+	if (!box) return;
+	expect(box.x).toBeGreaterThanOrEqual(0);
+	expect(box.x + box.width).toBeLessThanOrEqual(320);
+});
+
+
+test("anonymous account menu preserves the current route and owns appearance", async ({
+	page,
+}) => {
+	await mockAccess(page, [], 200, { state: "anonymous" });
+	await page.goto("/mundo");
+
+	await expect(page.locator(".header-actions > .theme-toggle")).toHaveCount(0);
+	const panel = await openAccountMenu(page);
+
+	await expect(
+		panel.getByRole("link", { name: "Entrar com Discord", exact: true }),
+	).toHaveAttribute("href", "/entrar?next=%2Fmundo");
+	await expect(panel.getByText("Aparência", { exact: true })).toBeVisible();
+	await expect(panel.locator(".theme-toggle")).toHaveCount(1);
+	await expect(panel.getByRole("button", { name: "Sair", exact: true })).toHaveCount(0);
+});
+
+test("authenticated account menu uses sanitized identity fallback and keeps logout as POST", async ({
+	page,
+}) => {
+	let logoutMethod: string | null = null;
+	await mockAccess(page, ["campaign.transcript.read"], 200, {
+		state: "authenticated_linked",
+		identity: { displayName: "Renan Silva", avatarUrl: null },
+	});
+	await page.route("**/auth/logout", async (route) => {
+		logoutMethod = route.request().method();
+		await route.fulfill({ status: 204 });
+	});
+	await page.goto("/sessoes");
+
+	const trigger = page.getByRole("button", { name: "Abrir menu da conta" });
+	await expect(trigger.locator(".account-menu-avatar-fallback")).toHaveText("RS");
+	const panel = await openAccountMenu(page);
+	await expect(panel.getByText("Renan Silva", { exact: true })).toBeVisible();
+	await expect(
+		panel.getByRole("link", { name: "Conta e acesso", exact: true }),
+	).toHaveAttribute("href", "/conta");
+
+	await panel.getByRole("button", { name: "Sair", exact: true }).click();
+	await expect.poll(() => logoutMethod).toBe("POST");
+});
+
+test("broken Discord avatar falls back to initials without breaking account state", async ({
+	page,
+}) => {
+	await page.route("https://cdn.discordapp.com/**", async (route) => {
+		await route.abort("failed");
+	});
+	await mockAccess(page, [], 200, {
+		state: "authenticated_linked",
+		identity: {
+			displayName: "Renan Silva",
+			avatarUrl: "https://cdn.discordapp.com/avatars/123/hash.png",
+		},
+	});
+	await page.goto("/");
+
+	const trigger = page.getByRole("button", { name: "Abrir menu da conta" });
+	await expect(trigger.locator(".account-menu-avatar-fallback")).toHaveText("RS");
+});
+
+test("unavailable auth is recoverable and is not presented as logged out", async ({
+	page,
+}) => {
+	await mockAccess(page, [], 503, { state: "unavailable" });
+	await page.goto("/");
+
+	const panel = await openAccountMenu(page);
+	await expect(
+		panel.getByText(
+			"Não foi possível verificar sua conta agora. A navegação pública continua disponível.",
+			{ exact: true },
+		),
+	).toBeVisible();
+	await expect(
+		panel.getByRole("link", { name: "Conta e acesso", exact: true }),
+	).toHaveAttribute("href", "/conta?acesso=indisponivel");
+	await expect(
+		panel.getByRole("link", { name: "Entrar com Discord", exact: true }),
+	).toHaveCount(0);
+	await expect(panel.getByRole("button", { name: "Sair", exact: true })).toHaveCount(0);
+});
+
+test("Escape closes the account panel and returns focus to the avatar trigger", async ({
+	page,
+}) => {
+	await mockAccess(page);
+	await page.goto("/");
+	const panel = await openAccountMenu(page);
+
+	await page.keyboard.press("Escape");
+	await expect(panel).toHaveCount(0);
+	await expect(
+		page.getByRole("button", { name: "Abrir menu da conta" }),
+	).toBeFocused();
+});
+
+test("account panel stays horizontally contained at 320px", async ({ page }) => {
+	await page.setViewportSize({ width: 320, height: 800 });
+	await mockAccess(page);
+	await page.goto("/");
+	const panel = await openAccountMenu(page);
+
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+	).toBeTruthy();
 	const box = await panel.boundingBox();
 	expect(box).not.toBeNull();
 	if (!box) return;
