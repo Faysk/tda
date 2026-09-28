@@ -93,6 +93,7 @@ export function TranscriptReader({
 	);
 	const segmentRefs = useRef(new Map<number, HTMLElement>());
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const activeSpeakerRef = useRef<HTMLInputElement>(null);
 	const normalizedQuery = normalizeSearch(query);
 	const dirtyCount = Object.keys(working).length;
 	const dirty = dirtyCount > 0;
@@ -296,6 +297,11 @@ export function TranscriptReader({
 	}
 
 	useEffect(() => {
+		if (!activeEditId) return;
+		activeSpeakerRef.current?.focus();
+	}, [activeEditId]);
+
+	useEffect(() => {
 		const sentinel = sentinelRef.current;
 		if (!sentinel || visibleCount >= baseline.length) return;
 		const observer = new IntersectionObserver(
@@ -341,6 +347,8 @@ export function TranscriptReader({
 	return (
 		<div
 			className={styles.reader}
+			role="region"
+			aria-label="Leitor e editor de transcrição"
 			onKeyDown={(event) => {
 				if (
 					editMode &&
@@ -524,7 +532,7 @@ export function TranscriptReader({
 								<label className={styles.inlineField}>
 									<span>Speaker</span>
 									<input
-										autoFocus
+										ref={activeSpeakerRef}
 										disabled={savePhase === "saving"}
 										value={segment.speaker}
 										onChange={(event) =>
