@@ -290,6 +290,51 @@ begin
     raise exception 'TRANSCRIPT_WEB_EDIT_CONTROL_ACCEPTED:%', v_status;
   end if;
 
+  -- The privileged boundary mirrors count_words_v1 instead of relying on btrim.
+  select e.status
+  into v_status
+  from public.save_transcript_revision_edit_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    '22222222-2222-4222-8222-222222222222',
+    v_revision,
+    'a2000000-0000-4000-8000-00000000000a',
+    jsonb_build_array(
+      jsonb_build_object(
+        'trackNumber',2,
+        'segmentId','2-0',
+        'speaker','Bob',
+        'text',U&'\\00A0\\2007\\202F'
+      )
+    )
+  ) e;
+  if v_status <> 'invalid_payload' then
+    raise exception 'TRANSCRIPT_WEB_EDIT_UNICODE_WHITESPACE_ACCEPTED:%', v_status;
+  end if;
+
+  select e.status
+  into v_status
+  from public.save_transcript_revision_edit_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    '22222222-2222-4222-8222-222222222222',
+    v_revision,
+    'a2000000-0000-4000-8000-00000000000b',
+    jsonb_build_array(
+      jsonb_build_object(
+        'trackNumber',2,
+        'segmentId','2-0',
+        'speaker',E'Bob\\tInjetado',
+        'text','Texto válido'
+      )
+    )
+  ) e;
+  if v_status <> 'invalid_payload' then
+    raise exception 'TRANSCRIPT_WEB_EDIT_SPEAKER_CONTROL_ACCEPTED:%', v_status;
+  end if;
+
   -- No-op save does not manufacture a revision.
   select count(*) into v_before_count from public.transcript_revisions;
   select e.status
