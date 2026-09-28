@@ -489,7 +489,7 @@ test("duas gravações sobrevivem reload, processam seletivamente e abrem review
 	await expect(page.getByRole("heading", { name: "Assemblies · sessao-42" })).toBeVisible();
 	await page.getByRole("button", { name: "Revisar sessão" }).click();
 	await expect(page.getByRole("heading", { name: /Assembly c{12}/u })).toBeVisible();
-	await expect(page.getByDisplayValue("Teste")).toBeVisible();
+	await expect(page.getByRole("textbox", { name: "Texto" })).toHaveValue("Teste");
 	await expect(page.getByText("Runs-fonte continuam disponíveis abaixo.")).toBeVisible();
 
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
