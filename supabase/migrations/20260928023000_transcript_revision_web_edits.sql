@@ -137,8 +137,8 @@ begin
        or translate(e.value->>'text', E'\\t\\n\\r', '') ~ '[[:cntrl:]]'
        -- count_words_v1 requires at least one non-White_Space token.
        -- translate() with explicit code points keeps this independent of locale.
-       or translate(e.value->>'speaker', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', '') = ''
-       or translate(e.value->>'text', U&'\\0009\\000A\\000B\\000C\\000D\\0020\\0085\\00A0\\1680\\2000\\2001\\2002\\2003\\2004\\2005\\2006\\2007\\2008\\2009\\200A\\2028\\2029\\202F\\205F\\3000', '') = ''
+       or translate(e.value->>'speaker', U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000', '') = ''
+       or translate(e.value->>'text', U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000', '') = ''
   ) then
     return query select 'invalid_payload'::text, null::uuid, null::bigint;
     return;
