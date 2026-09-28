@@ -196,6 +196,7 @@ jobs:
             test-results/**/shell-home-desktop-light.png
             test-results/**/shell-home-mobile-dark.png
             test-results/**/shell-home-mobile-light.png
+            test-results/**/shell-home-4k-dark.png
           if-no-files-found: error
           retention-days: 30
       - name: Upload sanitized navigation failure artifacts
