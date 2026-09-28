@@ -6,9 +6,8 @@ import {
 } from "@/components/global-loading";
 import { LegacyRouteBridge } from "@/components/legacy-route-bridge";
 import { PublicLink as Link } from "@/components/public-link";
-import { PublicNav } from "@/components/public-nav";
+import { GlobalNavigationActions } from "@/components/global-navigation-actions";
 import { ThemeBootstrap } from "@/components/theme-bootstrap";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { SITE_NAME } from "@/config/public-metadata";
 import { CANONICAL_SITE_ORIGIN } from "@/config/site";
 import "@xyflow/react/dist/base.css";
@@ -66,8 +65,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 							</span>
 						</Link>
 						<div className="header-actions">
-							<PublicNav />
-							<ThemeToggle />
+							<GlobalNavigationActions />
 						</div>
 					</header>
 					<main id="conteudo">{children}</main>
