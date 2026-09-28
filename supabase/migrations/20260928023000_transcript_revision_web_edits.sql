@@ -128,8 +128,15 @@ begin
        or coalesce(e.value->>'trackNumber', '') !~ '^[0-9]{1,4}$'
        or (e.value->>'trackNumber')::integer < 1
        or char_length(e.value->>'segmentId') not between 1 and 256
-       or char_length(btrim(e.value->>'speaker')) not between 1 and 160
-       or char_length(btrim(e.value->>'text')) not between 1 and 100000
+       or char_length(e.value->>'speaker') not between 1 and 160
+       or char_length(e.value->>'text') not between 1 and 100000
+       -- Mirror isReviewStringV1 at the privileged database boundary.
+       -- Speaker rejects every C0 control; text permits TAB/LF/CR only.
+       or (e.value->>'speaker') ~ U&'[\\0001-\\001F\\007F]'
+       or (e.value->>'text') ~ U&'[\\0001-\\0008\\000B\\000C\\000E-\\001F\\007F]'
+       -- count_words_v1 requires at least one non-White_Space token.
+       or (e.value->>'speaker') !~ U&'[^\\0009-\\000D\\0020\\0085\\00A0\\1680\\2000-\\200A\\2028\\2029\\202F\\205F\\3000]'
+       or (e.value->>'text') !~ U&'[^\\0009-\\000D\\0020\\0085\\00A0\\1680\\2000-\\200A\\2028\\2029\\202F\\205F\\3000]'
   ) then
     return query select 'invalid_payload'::text, null::uuid, null::bigint;
     return;
