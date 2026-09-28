@@ -61,7 +61,7 @@ export function pendingSourceIds(
 	jobs: readonly LocalJob[] = [],
 ): string[] {
 	if (!workspace) return [];
-	const activeSources = new Set(
+	const settledOrActiveSources = new Set(
 		jobs
 			.filter(
 			(job) =>
