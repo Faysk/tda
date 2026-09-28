@@ -14,6 +14,7 @@ import {
 export async function saveTranscriptRevisionFixtureAction(
 	forceConflict: boolean,
 	loseFirstResponse: boolean,
+	slowResponse: boolean,
 	input: SaveTranscriptRevisionActionInput,
 ) {
 	if (process.env.TDA_E2E_FIXTURES !== "true") {
@@ -30,6 +31,9 @@ export async function saveTranscriptRevisionFixtureAction(
 	}
 	if (forceConflict) {
 		return { ok: false as const, reason: "conflict" as const };
+	}
+	if (slowResponse) {
+		await new Promise((resolve) => setTimeout(resolve, 350));
 	}
 
 	const store = await cookies();
