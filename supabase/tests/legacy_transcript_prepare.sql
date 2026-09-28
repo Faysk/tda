@@ -23,6 +23,12 @@ begin
 end;
 $privileges$;
 
+-- Keep this contract fully isolated from the shared scratch database used by
+-- the Vitest PostgreSQL suite. The assertions below exercise real writes, but
+-- every synthetic row must disappear before the long-lived scratch process is
+-- handed to later tests.
+begin;
+
 insert into public.permission_catalog(action, plane, description)
 values (
   'campaign.content.edit',
@@ -230,6 +236,10 @@ begin
 end;
 $contract$;
 
+-- SET LOCAL ROLE inside the contract is transaction-scoped; restore the
+-- scratch bootstrap role before creating the second synthetic fixture.
+reset role;
+
 insert into public.sessions(id,campaign_id,source_system,source_session_id)
 values (
   '22222222-2222-4222-8222-222222222224',
@@ -290,3 +300,6 @@ begin
   end if;
 end;
 $stale$;
+
+reset role;
+rollback;
