@@ -95,6 +95,21 @@ describe("transcript edit delta contract", () => {
 		).toEqual(expect.arrayContaining(["operation_id", "speaker"]));
 	});
 
+	it("rejects invisible editor controls while preserving normal whitespace", () => {
+		expect(
+			validateTranscriptEditRequest({
+				...base,
+				edits: [{ ...base.edits[0], text: "linha 1\nlinha 2\t ok" }],
+			}),
+		).toEqual([]);
+		expect(
+			validateTranscriptEditRequest({
+				...base,
+				edits: [{ ...base.edits[0], text: "controle\u0001invisível" }],
+			}),
+		).toContain("text");
+	});
+
 	it("requires at least one changed segment", () => {
 		expect(validateTranscriptEditRequest({ ...base, edits: [] })).toContain("edits");
 	});
