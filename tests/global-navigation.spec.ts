@@ -381,6 +381,36 @@ test("navigation semantics keep ordinary links, visible focus and 44px touch tar
 	await expect(navigation.locator('[role="menu"], [role="menuitem"]')).toHaveCount(0);
 });
 
+test("launcher keeps icon-first cells compact, centered and readable", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+
+	const panelBox = await page.locator(".product-launcher-panel").boundingBox();
+	expect(panelBox).not.toBeNull();
+	if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(502);
+
+	const link = navigation.getByRole("link", { name: "Editar sessões", exact: true });
+	const linkBox = await link.boundingBox();
+	const iconBox = await link.locator(".product-launcher-item-icon").boundingBox();
+	const labelBox = await link.locator("span").boundingBox();
+	expect(linkBox).not.toBeNull();
+	expect(iconBox).not.toBeNull();
+	expect(labelBox).not.toBeNull();
+	if (linkBox) expect(linkBox.height).toBeGreaterThanOrEqual(92);
+	if (iconBox) {
+		expect(iconBox.width).toBeGreaterThanOrEqual(32);
+		expect(iconBox.height).toBeGreaterThanOrEqual(32);
+	}
+	if (iconBox && labelBox) {
+		expect(labelBox.y).toBeGreaterThanOrEqual(iconBox.y + iconBox.height);
+	}
+	await expect(link).toHaveCSS("text-align", "center");
+});
+
 test("navigation stays contained across the required responsive matrix", async ({
 	page,
 }) => {
@@ -414,11 +444,11 @@ test("navigation stays contained across the required responsive matrix", async (
 			.evaluate((element) =>
 				getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
 			);
-		expect(columnCount).toBe(viewport.width <= 650 ? 2 : 3);
-		if (viewport.width >= 1920) {
+		expect(columnCount).toBe(viewport.width <= 360 ? 2 : 3);
+		if (viewport.width >= 768) {
 			const panelBox = await page.locator(".product-launcher-panel").boundingBox();
 			expect(panelBox).not.toBeNull();
-			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(722);
+			if (panelBox) expect(panelBox.width).toBeLessThanOrEqual(502);
 		}
 		await page.keyboard.press("Escape");
 
