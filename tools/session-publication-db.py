@@ -178,6 +178,8 @@ try:
 
     paths = [
         repo / "supabase/tests/session_publication_fixture.sql",
+        repo / "supabase/migrations/20260928020000_inline_transcript_revision_edit.sql",
+        repo / "supabase/tests/transcript_inline_edit_atomic.sql",
         repo / "supabase/migrations/20260927203500_session_editorial_drafts.sql",
         repo / "supabase/migrations/20260927205500_session_cover_media_scope.sql",
         repo / "supabase/migrations/20260928004000_session_publications.sql",
