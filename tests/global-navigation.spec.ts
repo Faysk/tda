@@ -671,6 +671,39 @@ test("floating shell closed-state receipts capture the reclaimed viewport", asyn
 	}
 });
 
+test("floating chrome contrast receipts exercise opposing backgrounds without a full-width band", async ({ page }, testInfo) => {
+	await mockAccess(page);
+	await page.setViewportSize({ width: 1920, height: 1080 });
+
+	for (const receipt of [
+		{
+			name: "shell-contrast-dark-theme",
+			colorScheme: "dark" as const,
+			background:
+				"linear-gradient(90deg, #f4f1e8 0%, #f4f1e8 34%, #777 50%, #090b0e 66%, #090b0e 100%)",
+		},
+		{
+			name: "shell-contrast-light-theme",
+			colorScheme: "light" as const,
+			background:
+				"linear-gradient(90deg, #090b0e 0%, #090b0e 34%, #777 50%, #f4f1e8 66%, #f4f1e8 100%)",
+		},
+	]) {
+		await page.emulateMedia({ colorScheme: receipt.colorScheme });
+		await page.goto("/");
+		await page.evaluate((background) => {
+			const hero = document.querySelector<HTMLElement>(
+				'main section[aria-labelledby="home-title"]',
+			);
+			if (hero) hero.style.background = background;
+		}, receipt.background);
+		await page.screenshot({
+			path: testInfo.outputPath(`${receipt.name}.png`),
+			fullPage: false,
+		});
+	}
+});
+
 test("desktop and mobile unified navigation receipts are captured from synthetic state", async ({ page }, testInfo) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	for (const receipt of [
