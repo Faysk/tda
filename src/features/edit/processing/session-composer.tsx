@@ -162,8 +162,8 @@ export function SessionRecordingComposer({
 		[workspace, mapping],
 	);
 	const pending = useMemo(
-		() => pendingSourceIds(workspace, runsBySource),
-		[workspace, runsBySource],
+		() => pendingSourceIds(workspace, runsBySource, jobs),
+		[workspace, runsBySource, jobs],
 	);
 
 	function announce(message: string) {
@@ -287,6 +287,58 @@ export function SessionRecordingComposer({
 		// This intentionally restores only the persisted workspace identity.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [bridge, sessionId, supported]);
+
+	useEffect(() => {
+		if (!workspace || !supported) return;
+		const controller = new AbortController();
+		let reading = false;
+		const refreshActivity = async () => {
+			if (reading || controller.signal.aborted) return;
+			reading = true;
+			try {
+				const page = await bridge.jobPage("all", controller.signal, { limit: 200 });
+				if (controller.signal.aborted) return;
+				setJobs(page.jobs);
+				const completedSources = workspace.parts
+					.filter(
+						(part) =>
+							(runsBySource.get(part.sourceId)?.length ?? 0) === 0 &&
+							page.jobs.some(
+								(job) =>
+									job.context?.sourceId === part.sourceId &&
+									job.status === "succeeded",
+							),
+					)
+					.map((part) => part.sourceId);
+				if (completedSources.length) {
+					const refreshed = await Promise.all(
+						completedSources.map(async (sourceId) => [
+							sourceId,
+							await bridge.localRuns(sourceId, controller.signal),
+						] as const),
+					);
+					if (!controller.signal.aborted) {
+						setRunsBySource((current) => {
+							const next = new Map(current);
+							for (const [sourceId, runs] of refreshed)
+								next.set(sourceId, runs);
+							return next;
+						});
+					}
+				}
+			} catch {
+				// Keep the last authoritative activity snapshot; explicit refresh remains available.
+			} finally {
+				reading = false;
+			}
+		};
+		void refreshActivity();
+		const timer = window.setInterval(refreshActivity, 3000);
+		return () => {
+			window.clearInterval(timer);
+			controller.abort();
+		};
+	}, [bridge, runsBySource, supported, workspace]);
 
 	if (!supported) return null;
 
