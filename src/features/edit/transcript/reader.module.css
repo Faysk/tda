@@ -154,3 +154,123 @@
 		white-space: normal;
 	}
 }
+
+
+.editorBar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 12px 14px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-lg);
+	background: var(--ds-surface-raised);
+}
+
+.editorBar > div:first-child {
+	display: grid;
+	gap: 3px;
+}
+
+.editorBar span {
+	color: var(--ds-text-muted);
+	font-size: .82rem;
+}
+
+.editorBarActions,
+.segmentActions,
+.inlineEditorActions,
+.conflictActions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.saveNotice {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 10px 12px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-raised);
+}
+
+.saveNotice[data-state="saved"] {
+	border-color: color-mix(in srgb, var(--ds-status-success) 45%, var(--ds-border-subtle));
+}
+
+.saveNotice[data-state="error"],
+.saveNotice[data-state="conflict"] {
+	border-color: color-mix(in srgb, var(--ds-status-danger) 45%, var(--ds-border-subtle));
+}
+
+.conflictActions code {
+	color: var(--ds-text-muted);
+	font-size: .75rem;
+}
+
+.segment[data-dirty="true"] {
+	background: color-mix(in srgb, var(--ds-accent) 7%, transparent);
+}
+
+.speakerCell {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+}
+
+.segmentActions {
+	align-items: flex-start;
+}
+
+.inlineEditor {
+	display: grid;
+	gap: 10px;
+	min-width: 0;
+}
+
+.inlineEditor label {
+	display: grid;
+	gap: 5px;
+	color: var(--ds-text-muted);
+	font-size: .78rem;
+}
+
+.inlineEditor input,
+.inlineEditor textarea {
+	width: 100%;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-base);
+	color: var(--ds-text-primary);
+	font: inherit;
+	padding: 9px 10px;
+}
+
+.inlineEditor textarea {
+	resize: vertical;
+	line-height: 1.55;
+}
+
+.inlineEditorActions span {
+	color: var(--ds-text-muted);
+	font-size: .75rem;
+}
+
+@media (max-width: 720px) {
+	.editorBar,
+	.saveNotice {
+		align-items: stretch;
+		flex-direction: column;
+	}
+	.editorBarActions,
+	.conflictActions {
+		width: 100%;
+	}
+	.inlineEditor {
+		grid-column: 1 / -1;
+	}
+}
