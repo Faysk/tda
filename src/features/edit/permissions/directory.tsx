@@ -9,13 +9,6 @@ import {
 } from "./model";
 import styles from "./permissions.module.css";
 
-const statuses: Record<string, string> = {
-	active: "Ativa",
-	eligible: "Elegível · sem acesso",
-	ended: "Encerrada",
-	revoked: "Revogada",
-};
-
 function dateLabel(value: string) {
 	return new Intl.DateTimeFormat("pt-BR", {
 		dateStyle: "medium",
@@ -470,13 +463,19 @@ export function PermissionsDirectoryView({
 			</footer>
 
 			{selected ? (
-				<div className={styles.drawerBackdrop} onMouseDown={closeManage}>
+				<div className={styles.drawerBackdrop}>
+					<button
+						type="button"
+						className={styles.drawerDismissLayer}
+						aria-label="Fechar gerenciamento de acesso"
+						tabIndex={-1}
+						onClick={closeManage}
+					/>
 					<aside
 						className={styles.drawer}
 						role="dialog"
 						aria-modal="true"
 						aria-labelledby="permission-drawer-title"
-						onMouseDown={(event) => event.stopPropagation()}
 					>
 						<header className={styles.drawerHeader}>
 							<div>
