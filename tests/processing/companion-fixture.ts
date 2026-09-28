@@ -51,6 +51,7 @@ export type CompanionFixtureOptions = {
 	benchmarkSubmitError?: string | null;
 	benchmarkPreparationFailureProfile?: string | null;
 	reviewEnabled?: boolean;
+	additionalCapabilities?: readonly string[];
 	qwenRuntimeVersion?: string;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
@@ -302,6 +303,7 @@ export async function installCompanionFixture(
 				return json(route, {
 					capabilities: [
 						...(options.reviewEnabled ? ["transcription.review"] : []),
+						...(options.additionalCapabilities ?? []),
 						"transcription.craig",
 						"transcription.prepare",
 						"transcription.prepare.cancel",
@@ -337,6 +339,7 @@ export async function installCompanionFixture(
 			return json(route, {
 				capabilities: [
 					...(options.reviewEnabled ? ["transcription.review"] : []),
+					...(options.additionalCapabilities ?? []),
 					"transcription.craig",
 					"transcription.prepare",
 					"transcription.prepare.cancel",
