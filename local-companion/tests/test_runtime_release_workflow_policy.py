@@ -141,3 +141,27 @@ def test_runtime_stable_promotion_requires_physical_receipt_and_reuses_release_o
     assert "STABLE_RELEASE_OBJECT_CHANGED" in promote
     assert "Stable runtime release already exists" in promote
     assert "assets não foram recompilados nem reenviados" in promote
+
+
+def test_issue_628_production_validation_bridges_are_version_locked_and_retire_old_one_shots():
+    qwen = _workflow("qwen-1012-production-validation-stable.yml")
+    companion = _workflow("companion-0316-production-validation-stable.yml")
+
+    assert not (WORKFLOWS / "qwen-1011-production-validation-stable.yml").exists()
+    assert not (WORKFLOWS / "companion-0315-production-validation-stable.yml").exists()
+
+    assert 'EXPECTED_VERSION: "1.0.12"' in qwen
+    assert "eligible=false" in qwen
+    assert "QWEN_PRODUCTION_VALIDATION_RUNTIME_INPUT_DRIFT" in qwen
+    assert "physical_acceptance_before_promotion" in qwen
+    assert "exact_rc_bytes_reused" in qwen
+    assert 'gh release edit "$RC_TAG"' in qwen
+    assert "QWEN_PRODUCTION_VALIDATION_STABLE_READY" in qwen
+
+    assert 'EXPECTED_VERSION: "0.3.16"' in companion
+    assert "eligible=false" in companion
+    assert "COMPANION_PRODUCTION_VALIDATION_PACKAGE_INPUT_DRIFT" in companion
+    assert "physical_acceptance_before_promotion" in companion
+    assert "exact_rc_bytes_reused" in companion
+    assert 'gh release edit "$RC_TAG"' in companion
+    assert "COMPANION_PRODUCTION_VALIDATION_STABLE_READY" in companion

@@ -204,10 +204,10 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-22 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
-| [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | candidato 0.3.14 em validação; Stable bloqueada até aceite físico real | 2026-09-21 |
+| [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | Stable 0.3.15; candidato 0.3.16 / Qwen 1.0.12 preparado para validação Production de #628 | 2026-09-28 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-20 |
-| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-09-20 |
+| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-09-28 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-22 |
 | [World Entity Media — smoke editorial de Production](../operations/world-entity-media-production-smoke.md) | integrations/media + world | vigente | 2026-09-28 |
 | [Do ZIP à produção — páginas e mídia com fidelidade](../operations/zip-to-production.md) | frontend / integrations/media / operations | procedimento vigente; execução por entrega, sem importador genérico automático | 2026-09-20 |

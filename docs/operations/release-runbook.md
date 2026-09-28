@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-28
 > Fonte de verdade: CI/CD, environments e providers atuais
 
 Este runbook é genérico. Checklists de uma feature específica pertencem ao documento da feature ou ao histórico da release, não aqui.
@@ -70,6 +70,29 @@ Acompanhar o lifecycle completo:
 10. receipt.
 
 Falha antes do promote não deve mover o domínio oficial.
+
+
+### Exceção versionada de validação em Production — #628
+
+Para a recuperação do Qwen em #628, o proprietário autorizou explicitamente usar
+Production como ambiente do teste físico final porque o caminho Qwen Stable vigente
+já falha no Craig longo observado. A exceção é limitada a **Companion 0.3.16** e
+**Qwen Runtime 1.0.12**.
+
+O fluxo continua fail-closed:
+
+1. CI/package do source SHA exato;
+2. RC imutável e verificação dos assets;
+3. promoção do **mesmo objeto/mesmos bytes**, sem rebuild;
+4. receipt machine-readable registrando que o aceite físico pré-promoção foi
+   deliberadamente substituído por validação em Production;
+5. rollback preservado em Companion 0.3.15 / Qwen 1.0.11;
+6. #628 permanece aberta até o Craig longo na RTX 4070 concluir com os bytes exatos.
+
+Os bridges são one-shot/version-locked e ignoram versões futuras. Se `main` avançar,
+a promoção só continua quando não houver drift nos inputs que alteram os bytes ou o
+contrato do componente. Esta exceção não muda a política normal RC → aceite físico →
+Stable das demais releases.
 
 ## 6. Secrets e providers
 

@@ -15,6 +15,9 @@ from .craig import CraigTrack
 _RUNTIME_VERSION = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
 _WORKER_SHA256 = re.compile(r"(?:^|;)worker_sha256=([0-9a-f]{64})(?:;|$)")
 # Exact worker accepted and promoted as companion-qwen-runtime-v1.0.10.
+# 1.0.11 -> 1.0.12 is deliberately absent: 1.0.11 was promoted under the
+# #628 Production-validation override without a versioned physical-acceptance
+# receipt binding its worker SHA. Cross-runtime reuse therefore remains fail-closed.
 # Receipt: docs/companion/runtime-acceptance/
 # companion-qwen-runtime-rc-v1.0.10-19d9b3b64238.json
 _ACCEPTED_SOURCE_WORKERS = {

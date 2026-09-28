@@ -1,12 +1,30 @@
 # Companion — operação, instalação e rollback
 
-> Status: candidato 0.3.14 em validação; Stable bloqueada até aceite físico real
+> Status: Stable 0.3.15; candidato 0.3.16 / Qwen 1.0.12 preparado para validação Production de #628
 > Owner: local-companion/processing
-> Última revisão: 2026-09-21
+> Última revisão: 2026-09-28
 
 Referências: [contrato de confiabilidade e aceite real](companion-reliability.md), [contrato API](../integrations/local-companion-v1.md), [especificação v0.3](../features/companion-desktop-asr-v0.3.md), [política de dependências](companion-dependency-policy.md) e [processamento no Edit](../features/local-processing.md).
 
 > **Estado físico observado em 2026-09-13:** a build 0.3.2 passou os gates técnicos existentes, mas a jornada instalada reprovou em lifecycle do Agent, rede/manutenção e boundaries de erro da UI. Portanto 0.3.2 não é baseline de confiabilidade operacional. O plano e os critérios que bloqueiam uma próxima stable estão em [companion-reliability.md](companion-reliability.md). CI sintética verde continua sendo evidência válida das peças que testa, mas não substitui o aceite do produto instalado.
+
+## Recuperação versionada de #628
+
+O defeito real de alignment observado no Craig longo foi reproduzido primeiro em
+Companion 0.3.15 / Qwen 1.0.11 e permaneceu fail-closed. O candidato seguinte usa
+Companion **0.3.16** e Qwen Runtime **1.0.12**, com `strict-overlap-v4` e uma única
+tentativa de forced alignment com contexto real à direita para
+`QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW`.
+
+Por autorização explícita do proprietário, estes dois candidatos podem usar o
+caminho excepcional de **Production validation** documentado no
+[runbook de release](release-runbook.md): RC exato → verificação de bytes → Stable
+sem rebuild → Craig longo físico na RTX 4070. A promoção não equivale ao aceite:
+#628 só fecha após a execução longa produzir evidência sanitizada dos bytes exatos.
+
+Não existe bridge de checkpoint 1.0.11 → 1.0.12 sem worker SHA fisicamente aceito e
+versionado. O reteste pode portanto retranscrever quando a compatibilidade não puder
+ser provada; o pipeline não adivinha lineage para economizar GPU.
 
 ## Modelo de processo Windows
 

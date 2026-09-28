@@ -1,4 +1,4 @@
-name: Companion 0.3.15 Production Validation Stable Bridge
+name: Companion 0.3.16 Production Validation Stable Bridge
 
 on:
   workflow_run:
@@ -11,12 +11,12 @@ permissions:
   actions: read
 
 concurrency:
-  group: companion-0315-production-validation-stable
+  group: companion-0316-production-validation-stable
   cancel-in-progress: false
 
 jobs:
   publish-stable:
-    name: promote exact 0.3.15 RC bytes for production validation
+    name: promote exact 0.3.16 RC bytes for production validation
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -24,7 +24,7 @@ jobs:
       SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
       TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
       GH_TOKEN: ${{ github.token }}
-      EXPECTED_VERSION: "0.3.15"
+      EXPECTED_VERSION: "0.3.16"
     steps:
       - name: Validate trusted successful main RC trigger
         shell: bash
@@ -53,14 +53,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
-          [[ "$MAIN_SHA" == "$SOURCE_SHA" ]] || { echo "::error::Refusing stale Companion promotion"; exit 1; }
           VERSION="$(PYTHONPATH=local-companion python -c 'import tda_companion; print(tda_companion.VERSION)')"
-          [[ "$VERSION" == "$EXPECTED_VERSION" ]] || { echo "::error::Bridge limited to Companion $EXPECTED_VERSION"; exit 1; }
+          if [[ "$VERSION" != "$EXPECTED_VERSION" ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping one-time Companion bridge for version $VERSION; expected $EXPECTED_VERSION."
+            exit 0
+          fi
+
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main || { echo "::error::COMPANION_PRODUCTION_VALIDATION_SOURCE_NOT_MAIN_ANCESTOR"; exit 1; }
+          COMPANION_PATHS=(
+            ".github/workflows/companion.yml"
+            ".github/workflows/companion-0316-production-validation-stable.yml"
+            "local-companion/pyproject.toml"
+            "local-companion/requirements-test.lock"
+            "local-companion/tda_companion/**"
+            "local-companion/packaging/**"
+          )
+          if ! git diff --quiet "$SOURCE_SHA" origin/main -- "${COMPANION_PATHS[@]}"; then
+            echo "::error::COMPANION_PRODUCTION_VALIDATION_PACKAGE_INPUT_DRIFT"
+            git diff --name-only "$SOURCE_SHA" origin/main -- "${COMPANION_PATHS[@]}"
+            exit 1
+          fi
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
           echo "rc_tag=companion-rc-v${VERSION}-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "stable_tag=companion-v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Verify immutable RC release and bytes
+        if: steps.release.outputs.eligible == 'true'
         shell: bash
         env:
           RC_TAG: ${{ steps.release.outputs.rc_tag }}
@@ -89,6 +110,7 @@ jobs:
           PY
 
       - name: Attach production-validation override
+        if: steps.release.outputs.eligible == 'true'
         shell: bash
         env:
           RC_TAG: ${{ steps.release.outputs.rc_tag }}
@@ -105,7 +127,7 @@ jobs:
             "source_sha": os.environ["SOURCE_SHA"],
             "candidate_tag": os.environ["RC_TAG"],
             "stable_tag": os.environ["STABLE_TAG"],
-            "reason": "Owner explicitly authorized Production as the real acceptance environment for issue #628 because the current Stable Qwen path is already non-functional.",
+            "reason": "Owner explicitly authorized the exact Companion 0.3.16 RC bytes to use Production as the real acceptance environment for issue #628 while Qwen 1.0.12 receives the long-Craig validation; rollback stays on 0.3.15.",
             "physical_acceptance_before_promotion": False,
             "exact_rc_bytes_reused": True,
             "recorded_at": datetime.now(timezone.utc).isoformat(),
@@ -115,6 +137,7 @@ jobs:
           gh release upload "$RC_TAG" --repo "$GITHUB_REPOSITORY" TDACompanion-production-validation-override.json --clobber
 
       - name: Promote exact RC release object to Stable
+        if: steps.release.outputs.eligible == 'true'
         shell: bash
         env:
           RC_TAG: ${{ steps.release.outputs.rc_tag }}
@@ -137,6 +160,7 @@ jobs:
           gh release edit "$RC_TAG" --repo "$GITHUB_REPOSITORY" --tag "$STABLE_TAG" --target "$SOURCE_SHA"             --title "TDA Companion v$EXPECTED_VERSION" --notes-file stable-notes.md --prerelease=false --latest
 
       - name: Verify Stable release from fresh bytes
+        if: steps.release.outputs.eligible == 'true'
         shell: bash
         env:
           STABLE_TAG: ${{ steps.release.outputs.stable_tag }}
