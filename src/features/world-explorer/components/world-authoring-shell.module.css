@@ -15,11 +15,7 @@
 	min-height: 0;
 	min-width: 0;
 	flex-direction: column;
-	padding:
-		clamp(8px, 0.7vw, 12px)
-		var(--site-chrome-profile-clearance, 60px)
-		clamp(8px, 0.7vw, 12px)
-		var(--site-chrome-brand-clearance, 168px);
+	padding: clamp(8px, 0.7vw, 12px);
 	overflow: hidden;
 }
 
@@ -34,6 +30,15 @@
 .active .publicChrome {
 	flex: 0 0 auto;
 	min-width: 0;
+	padding-inline:
+		var(--site-chrome-brand-clearance, 168px)
+		var(--site-chrome-profile-clearance, 60px);
+}
+
+.active .canvasColumn > :global([data-testid="world-conductor"]) {
+	margin-inline:
+		var(--site-chrome-brand-clearance, 168px)
+		var(--site-chrome-profile-clearance, 60px);
 }
 
 .active :global([data-testid="world-canvas"]) {
@@ -143,21 +148,11 @@
 
 @media (min-width: 1920px) {
 	.active .canvasColumn {
-		padding:
-			10px
-			var(--site-chrome-profile-clearance, 60px)
-			14px
-			var(--site-chrome-brand-clearance, 168px);
+		padding: 10px 14px 14px;
 	}
 }
 
 @media (min-width: 2560px) {
-	.active .canvasColumn {
-		padding-inline:
-			var(--site-chrome-brand-clearance, 168px)
-			var(--site-chrome-profile-clearance, 60px);
-	}
-
 	.active[data-world-inspector-mode="overlay"] .inspector {
 		right: 16px;
 		bottom: 16px;
@@ -196,6 +191,14 @@
 			calc(var(--site-chrome-panel-top, 66px) + 8px)
 			7px
 			7px;
+	}
+
+	.active .publicChrome {
+		padding-inline: 0;
+	}
+
+	.active .canvasColumn > :global([data-testid="world-conductor"]) {
+		margin-inline: 0;
 	}
 
 	.focusMode .canvasColumn {
