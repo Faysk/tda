@@ -1,5 +1,5 @@
 name: Qwen Runtime Package
-# #628 release refresh: emit a fresh main-push Qwen 1.0.12 package so Runtime RC receives a normal workflow_run trigger.
+# #628 release refresh: emit a fresh main-push Qwen 1.0.12 package and dispatch Runtime RC explicitly after the verified package succeeds.
 # #489 exact-source refresh: keep the physical-promotion runtime build bound to current main.
 # #557 Runtime RC drift fencing mirrors this workflow's runtime inputs; keep the policy coverage aligned.
 # #628 production-validation refresh: bind the next Qwen 1.0.12 package to the Windows gate repair source.
@@ -113,3 +113,26 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+  dispatch-runtime-rc:
+    name: dispatch exact Qwen package to Runtime RC
+    needs: package
+    if: ${{ needs.package.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Dispatch Runtime RC for exact main source
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]] || { echo "::error::QWEN_RUNTIME_RC_SOURCE_INVALID"; exit 1; }
+          gh workflow run runtime-rc.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f family=qwen \
+            -f source_sha="$GITHUB_SHA"
+          echo "QWEN_RUNTIME_RC_DISPATCHED source=$GITHUB_SHA"
