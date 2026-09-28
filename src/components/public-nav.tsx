@@ -20,7 +20,7 @@ import { PublicLink as Link } from "./public-link";
 
 const PANEL_ID = "global-product-navigation";
 
-function NavigationIconGlyph({
+export function NavigationIconGlyph({
 	name,
 	...props
 }: Readonly<{ name: NavigationIcon }> & SVGProps<SVGSVGElement>) {
@@ -75,7 +75,7 @@ function NavigationIconGlyph({
 	return <svg aria-hidden="true" {...common} {...props}>{glyph}</svg>;
 }
 
-function NavigationList({
+export function NavigationList({
 	items,
 	pathname,
 	onNavigate,
