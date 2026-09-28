@@ -178,3 +178,15 @@ def test_companion_rc_keeps_manual_exact_source_artifact_recovery_path():
     assert "--workflow companion.yml --commit \"$SOURCE_SHA\" --status success" in value
     assert "NO_SUCCESSFUL_COMPANION_RUN_FOR_SOURCE" in value
     assert "--name TDACompanion-windows-x64" in value
+
+
+def test_companion_synthetic_workflow_has_bounded_windows_headroom():
+    value = _workflow("companion.yml")
+    start = value.index("  synthetic:")
+    end = value.index("\n  windows-app:", start)
+    synthetic = value[start:end]
+
+    # The Windows matrix repeatedly reached the old 10-minute job cap during
+    # pytest on #628 even though the same exact suite passed on the PR head.
+    # Keep a bounded but realistic budget so CI fails on tests, not scheduler load.
+    assert "timeout-minutes: 20" in synthetic
