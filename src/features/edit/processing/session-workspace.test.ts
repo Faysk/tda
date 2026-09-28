@@ -63,6 +63,7 @@ function workspace(parts = [recordingPart()]) {
 			overlap_count: 0,
 			unresolved_overlap_count: 0,
 			unconfirmed_gap_count: 0,
+			order_conflict_count: 0,
 		},
 	};
 }
@@ -117,6 +118,40 @@ describe("session workspace protocol", () => {
 			recordingPart({ source_start_confidence: "probably_fine" }),
 		]);
 		expect(() => parseSessionWorkspace(badClock)).toThrow();
+	});
+
+	it("accepts explicit order conflicts and rejects unknown relations or malformed counts", () => {
+		const conflict = workspace([
+			recordingPart({ ordinal: 0 }),
+			recordingPart({
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				session_offset_seconds: 0,
+				effective_start_seconds: 0,
+				effective_end_seconds: 30,
+				relation_to_previous: "order_conflict",
+				relation_seconds: 30,
+			}),
+		]);
+		conflict.timeline.state = "order_conflict";
+		conflict.timeline.order_conflict_count = 1;
+
+		const parsed = parseSessionWorkspace(conflict);
+		expect(parsed.parts[1]?.relationToPrevious).toBe("order_conflict");
+		expect(parsed.timeline).toMatchObject({
+			state: "order_conflict",
+			orderConflictCount: 1,
+			overlapCount: 0,
+		});
+
+		const unknown = structuredClone(conflict);
+		unknown.parts[1].relation_to_previous = "timey_wimey";
+		expect(() => parseSessionWorkspace(unknown)).toThrow();
+
+		const malformedCount = structuredClone(conflict);
+		malformedCount.timeline.order_conflict_count = -1;
+		expect(() => parseSessionWorkspace(malformedCount)).toThrow();
 	});
 
 	it("parses participant reconciliation and rejects inferred profiles", () => {

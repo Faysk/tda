@@ -143,6 +143,7 @@ def enrich_workspace_timeline(
     overlap_count = 0
     unresolved_overlap_count = 0
     unconfirmed_gap_count = 0
+    order_conflict_count = 0
     source_invalid = False
     needs_timing = not bool(workspace.get("parts"))
     all_sources_trusted = bool(workspace.get("parts"))
@@ -187,33 +188,50 @@ def enrich_workspace_timeline(
         relation_seconds: float | None = 0.0 if previous is None else None
         overlap_resolution_valid = False
         if previous is not None:
+            previous_start = previous.get("effective_start_seconds")
             previous_end = previous.get("effective_end_seconds")
-            if effective_start is not None and previous_end is not None:
-                delta = effective_start - float(previous_end)
-                if delta > _EPSILON:
+            if (
+                effective_start is not None
+                and effective_end is not None
+                and previous_start is not None
+                and previous_end is not None
+            ):
+                current_start = float(effective_start)
+                current_end = float(effective_end)
+                prior_start = float(previous_start)
+                prior_end = float(previous_end)
+                if current_start > prior_end + _EPSILON:
                     relation = "gap"
-                    relation_seconds = delta
+                    relation_seconds = current_start - prior_end
                     gap_count += 1
                     if part.get("gap_confirmed") is not True:
                         unconfirmed_gap_count += 1
-                elif delta < -_EPSILON:
-                    relation = "overlap"
-                    relation_seconds = -delta
-                    overlap_count += 1
-                    policy = part.get("overlap_resolution")
-                    boundary = _number(part.get("overlap_boundary_seconds"))
-                    overlap_start = effective_start
-                    overlap_end = float(previous_end)
-                    overlap_resolution_valid = (
-                        policy in _OVERLAP_RESOLUTIONS
-                        and boundary is not None
-                        and overlap_start - _EPSILON <= boundary <= overlap_end + _EPSILON
-                    )
-                    if not overlap_resolution_valid:
-                        unresolved_overlap_count += 1
-                else:
+                elif abs(current_start - prior_end) <= _EPSILON:
                     relation = "contiguous"
                     relation_seconds = 0.0
+                else:
+                    overlap_start = max(current_start, prior_start)
+                    overlap_end = min(current_end, prior_end)
+                    overlap_seconds = overlap_end - overlap_start
+                    if overlap_seconds > _EPSILON:
+                        relation = "overlap"
+                        relation_seconds = overlap_seconds
+                        overlap_count += 1
+                        policy = part.get("overlap_resolution")
+                        boundary = _number(part.get("overlap_boundary_seconds"))
+                        overlap_resolution_valid = (
+                            policy in _OVERLAP_RESOLUTIONS
+                            and boundary is not None
+                            and overlap_start - _EPSILON
+                            <= boundary
+                            <= overlap_end + _EPSILON
+                        )
+                        if not overlap_resolution_valid:
+                            unresolved_overlap_count += 1
+                    else:
+                        relation = "order_conflict"
+                        relation_seconds = max(0.0, prior_start - current_end)
+                        order_conflict_count += 1
 
         enriched = {
             **part,
@@ -267,6 +285,8 @@ def enrich_workspace_timeline(
         state = "source_invalid"
     elif needs_timing:
         state = "needs_timing"
+    elif order_conflict_count:
+        state = "order_conflict"
     elif unresolved_overlap_count:
         state = "overlap_unresolved"
     elif unconfirmed_gap_count:
@@ -288,6 +308,7 @@ def enrich_workspace_timeline(
             "overlap_count": overlap_count,
             "unresolved_overlap_count": unresolved_overlap_count,
             "unconfirmed_gap_count": unconfirmed_gap_count,
+            "order_conflict_count": order_conflict_count,
         },
     }
 

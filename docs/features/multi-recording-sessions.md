@@ -283,6 +283,8 @@ Quando a evidência é insuficiente, o usuário define ordem/offset.
 
 A decisão entra na provenance/hash da assembly.
 
+Mesmo em ordem manual, a geometria temporal continua fail-closed. Se duas parts adjacentes estiverem em ordem inversa **e não houver interseção real entre seus intervalos**, a relação é `order_conflict`, não `overlap`. Esse estado bloqueia readiness até a ordem/offset ser corrigida; uma política de overlap nunca legitima intervals disjuntos.
+
 ## Gaps
 
 Exemplo:

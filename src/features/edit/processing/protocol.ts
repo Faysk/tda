@@ -77,7 +77,8 @@ export type SessionPartRelation =
 	| "unknown"
 	| "contiguous"
 	| "gap"
-	| "overlap";
+	| "overlap"
+	| "order_conflict";
 export type SessionWorkspacePart = {
 	partId: string;
 	sourceId: string;
@@ -112,6 +113,7 @@ export type SessionWorkspaceTimeline = {
 		| "needs_timing"
 		| "gap_unconfirmed"
 		| "overlap_unresolved"
+		| "order_conflict"
 		| "source_invalid";
 	allSourcesTrusted: boolean;
 	automaticOrderAvailable: boolean;
@@ -119,6 +121,7 @@ export type SessionWorkspaceTimeline = {
 	overlapCount: number;
 	unresolvedOverlapCount: number;
 	unconfirmedGapCount: number;
+	orderConflictCount: number;
 };
 export type SessionWorkspace = {
 	schemaVersion: "tda_session_workspace_v1";
@@ -851,7 +854,16 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			)
 		)
 			return invalid();
-		if (!["first", "unknown", "contiguous", "gap", "overlap"].includes(relation))
+		if (
+			![
+				"first",
+				"unknown",
+				"contiguous",
+				"gap",
+				"overlap",
+				"order_conflict",
+			].includes(relation)
+		)
 			return invalid();
 		if (
 			overlapResolution !== null &&
@@ -916,6 +928,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			"needs_timing",
 			"gap_unconfirmed",
 			"overlap_unresolved",
+			"order_conflict",
 			"source_invalid",
 		].includes(state)
 	)
@@ -943,6 +956,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 				timeline.unresolved_overlap_count,
 			),
 			unconfirmedGapCount: nonNegativeInteger(timeline.unconfirmed_gap_count),
+			orderConflictCount: nonNegativeInteger(timeline.order_conflict_count),
 		},
 	};
 }

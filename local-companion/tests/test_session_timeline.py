@@ -270,6 +270,154 @@ def test_overlap_boundary_outside_real_overlap_is_rejected():
         validate_overlap_boundary(enriched, workspace["parts"][1]["part_id"])
 
 
+def test_contained_overlap_uses_real_interval_and_rejects_boundary_past_current_end():
+    workspace = {
+        "schema_version": "tda_session_workspace_v1",
+        "campaign_id": "campaign-a",
+        "session_id": "session-a",
+        "revision": 2,
+        "ordering_mode": "manual",
+        "created_at": "2026-09-27T22:00:00Z",
+        "updated_at": "2026-09-27T22:00:00Z",
+        "parts": [
+            part(1, 0, offset=0.0),
+            part(
+                2,
+                1,
+                offset=100.0,
+                trim_end=50.0,
+                resolution="prefer_later_from",
+                boundary=149.0,
+            ),
+        ],
+    }
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:00:00Z", duration=600.0),
+            facts(2, start="2026-09-27T20:01:40Z", duration=50.0),
+        ]
+    )
+
+    enriched = enrich_workspace_timeline(workspace, source_facts)
+    current = enriched["parts"][1]
+    assert current["relation_to_previous"] == "overlap"
+    assert current["relation_seconds"] == 50.0
+    assert current["overlap_resolution_valid"] is True
+    validate_overlap_boundary(enriched, current["part_id"])
+
+    invalid_workspace = {
+        **workspace,
+        "parts": [
+            workspace["parts"][0],
+            {
+                **workspace["parts"][1],
+                "overlap_boundary_seconds": 151.0,
+            },
+        ],
+    }
+    invalid = enrich_workspace_timeline(invalid_workspace, source_facts)
+    assert invalid["parts"][1]["overlap_resolution_valid"] is False
+    with pytest.raises(
+        ValueError, match="SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID"
+    ):
+        validate_overlap_boundary(invalid, invalid["parts"][1]["part_id"])
+
+
+def test_reverse_disjoint_manual_order_is_an_order_conflict_not_an_overlap():
+    workspace = {
+        "schema_version": "tda_session_workspace_v1",
+        "campaign_id": "campaign-a",
+        "session_id": "session-a",
+        "revision": 2,
+        "ordering_mode": "manual",
+        "created_at": "2026-09-27T22:00:00Z",
+        "updated_at": "2026-09-27T22:00:00Z",
+        "parts": [
+            part(1, 0, offset=60.0),
+            part(
+                2,
+                1,
+                offset=0.0,
+                resolution="prefer_later_from",
+                boundary=30.0,
+            ),
+        ],
+    }
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:01:00Z", duration=30.0),
+            facts(2, start="2026-09-27T20:00:00Z", duration=30.0),
+        ]
+    )
+
+    enriched = enrich_workspace_timeline(workspace, source_facts)
+    current = enriched["parts"][1]
+    assert current["relation_to_previous"] == "order_conflict"
+    assert current["relation_seconds"] == 30.0
+    assert current["overlap_resolution_valid"] is False
+    assert enriched["timeline"]["state"] == "order_conflict"
+    assert enriched["timeline"]["order_conflict_count"] == 1
+    assert enriched["timeline"]["overlap_count"] == 0
+    assert enriched["timeline"]["unresolved_overlap_count"] == 0
+    with pytest.raises(
+        ValueError, match="SESSION_WORKSPACE_OVERLAP_RESOLUTION_INVALID"
+    ):
+        validate_overlap_boundary(enriched, current["part_id"])
+
+
+@pytest.mark.parametrize(
+    ("offset", "expected_relation", "expected_seconds"),
+    [
+        (60.0, "contiguous", 0.0),
+        (60.001, "gap", 0.001),
+        (59.999, "overlap", 0.001),
+    ],
+)
+def test_subsecond_gap_overlap_and_exact_touch_remain_distinguishable(
+    offset,
+    expected_relation,
+    expected_seconds,
+):
+    workspace = {
+        "schema_version": "tda_session_workspace_v1",
+        "campaign_id": "campaign-a",
+        "session_id": "session-a",
+        "revision": 2,
+        "ordering_mode": "manual",
+        "created_at": "2026-09-27T22:00:00Z",
+        "updated_at": "2026-09-27T22:00:00Z",
+        "parts": [
+            part(1, 0, offset=0.0),
+            part(
+                2,
+                1,
+                offset=offset,
+                gap_confirmed=expected_relation == "gap",
+                resolution=(
+                    "prefer_later_from"
+                    if expected_relation == "overlap"
+                    else None
+                ),
+                boundary=(
+                    59.9995 if expected_relation == "overlap" else None
+                ),
+            ),
+        ],
+    }
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:00:00Z", duration=60.0),
+            facts(2, start="2026-09-27T20:01:00Z", duration=30.0),
+        ]
+    )
+
+    enriched = enrich_workspace_timeline(workspace, source_facts)
+    current = enriched["parts"][1]
+    assert current["relation_to_previous"] == expected_relation
+    assert current["relation_seconds"] == pytest.approx(expected_seconds)
+    assert enriched["timeline"]["state"] == "ready"
+
+
 def test_gap_requires_explicit_confirmation_before_timeline_is_ready():
     workspace = {
         "schema_version": "tda_session_workspace_v1",
