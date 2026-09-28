@@ -1,3 +1,8 @@
+export type SessionLibraryThumbnail = Readonly<{
+	src: string;
+	kind: "private" | "public";
+}>;
+
 export type EditSessionLibraryItem = Readonly<{
 	id: string;
 	sourceSessionId: string;
@@ -6,6 +11,7 @@ export type EditSessionLibraryItem = Readonly<{
 	arc: string | null;
 	status: string;
 	transcriptPrepared: boolean;
+	thumbnail: SessionLibraryThumbnail | null;
 }>;
 
 export type SessionLibraryFilters = Readonly<{
