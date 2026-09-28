@@ -75,6 +75,10 @@ export function TranscriptRevisionEditor({
 	const [message, setMessage] = useState<string | null>(null);
 	const refs = useRef(new Map<number, HTMLElement>());
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const saveAttemptRef = useRef<{
+		key: string;
+		operationId: string;
+	} | null>(null);
 
 	const working = useMemo(
 		() => applyTranscriptRevisionEdits(baseline, [...patches.values()]),
@@ -198,6 +202,17 @@ export function TranscriptRevisionEditor({
 		setMessage(null);
 	}
 
+	function revertSegment(segment: TranscriptReaderSegment) {
+		setPatches((current) => {
+			if (!current.has(segment.id)) return current;
+			const next = new Map(current);
+			next.delete(segment.id);
+			return next;
+		});
+		setPhase("idle");
+		setMessage(null);
+	}
+
 	function reveal(index: number) {
 		if (index < 0) return;
 		setVisibleCount((count) => Math.max(count, Math.min(working.length, index + 20)));
@@ -240,10 +255,17 @@ export function TranscriptRevisionEditor({
 		setPhase("saving");
 		setMessage("Salvando uma nova revisão privada…");
 		const edits = [...patches.values()];
+		const saveKey = JSON.stringify([currentRevisionId, edits]);
+		const previousAttempt = saveAttemptRef.current;
+		const operationId =
+			previousAttempt?.key === saveKey
+				? previousAttempt.operationId
+				: crypto.randomUUID();
+		saveAttemptRef.current = { key: saveKey, operationId };
 		const result = await saveTranscriptRevisionAction({
 			sessionId,
 			expectedCurrentRevisionId: currentRevisionId,
-			operationId: crypto.randomUUID(),
+			operationId,
 			edits,
 		});
 		if (!result.ok) {
@@ -266,6 +288,7 @@ export function TranscriptRevisionEditor({
 		}
 
 		const nextBaseline = applyTranscriptRevisionEdits(baseline, result.edits);
+		saveAttemptRef.current = null;
 		setBaseline(nextBaseline);
 		setCurrentRevisionId(result.revisionId);
 		setCurrentRevisionNumber(result.revisionNumber);
@@ -502,6 +525,15 @@ export function TranscriptRevisionEditor({
 									</label>
 									<div className={styles.rowActions}>
 										{changed ? <span>Alteração não salva</span> : <span>Sem alteração</span>}
+										{changed ? (
+											<Button
+												onClick={() => revertSegment(original)}
+												size="sm"
+												variant="tertiary"
+											>
+												Reverter fala
+											</Button>
+										) : null}
 										<Button onClick={() => setActiveId(null)} size="sm">
 											Fechar fala
 										</Button>
@@ -518,7 +550,7 @@ export function TranscriptRevisionEditor({
 											size="sm"
 											variant={changed ? "primary" : "tertiary"}
 										>
-											{changed ? "Editar alteração" : "Editar fala"}
+											{changed ? "Editada · abrir" : "Editar fala"}
 										</Button>
 									</div>
 								</>
