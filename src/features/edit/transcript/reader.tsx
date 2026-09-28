@@ -25,6 +25,8 @@ type WorkingEdit = Readonly<{
 
 type SavePhase = "idle" | "saving" | "saved" | "conflict" | "error";
 
+export type TranscriptReaderSaveTransport = typeof saveTranscriptRevisionEditsAction;
+
 function normalizeSearch(value: string): string {
 	return value.trim().toLocaleLowerCase("pt-BR");
 }
@@ -58,6 +60,7 @@ export function TranscriptReader({
 	sessionId = null,
 	revisionId = null,
 	revisionNumber = null,
+	saveTransport = saveTranscriptRevisionEditsAction,
 }: Readonly<{
 	segments: readonly TranscriptReaderSegment[];
 	sourceLabel: string;
@@ -66,6 +69,7 @@ export function TranscriptReader({
 	sessionId?: string | null;
 	revisionId?: string | null;
 	revisionNumber?: number | null;
+	saveTransport?: TranscriptReaderSaveTransport;
 }>) {
 	const [baseline, setBaseline] = useState<readonly TranscriptReaderSegment[]>(() => [
 		...segments,
@@ -238,7 +242,7 @@ export function TranscriptReader({
 		setSavePhase("saving");
 		setSaveMessage("Salvando nova revisão privada…");
 		try {
-			const result = await saveTranscriptRevisionEditsAction(request);
+			const result = await saveTransport(request);
 			if (result.ok) {
 				setBaseline((current) =>
 					current.map((segment) =>
