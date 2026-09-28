@@ -1,8 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 async function openAppearance(page: import("@playwright/test").Page) {
-	const trigger = page.getByRole("button", { name: "Abrir menu da conta" });
-	await trigger.click();
+	const trigger = page.getByRole("button", {
+		name: "Abrir navegação e conta",
+		exact: true,
+	});
+	if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+		await trigger.click();
+	}
 	const toggle = page.getByRole("switch", { name: "Modo escuro" });
 	await expect(toggle).toBeVisible();
 	return toggle;
@@ -13,7 +18,9 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
 		/A próxima memória começa aqui\.|Não conseguimos abrir a última memória agora\./,
 	);
-	await page.getByRole("button", { name: "Abrir navegação" }).click();
+	await page
+		.getByRole("button", { name: "Abrir navegação e conta", exact: true })
+		.click();
 	await page
 		.getByRole("navigation", { name: "Navegação principal" })
 		.getByRole("link", { name: "Sessões", exact: true })
@@ -95,28 +102,28 @@ test("public shell stays usable at 320px", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 800 });
 	await page.goto("/");
 
-	const launcher = page.getByRole("button", { name: "Abrir navegação" });
-	await expect(launcher).toBeVisible();
-	const account = page.getByRole("button", { name: "Abrir menu da conta" });
-	await expect(account).toBeVisible();
+	const profileTrigger = page.getByRole("button", {
+		name: "Abrir navegação e conta",
+		exact: true,
+	});
+	await expect(profileTrigger).toBeVisible();
+	await expect(page.locator(".product-launcher-trigger")).toHaveCount(0);
 	await expect(page.getByRole("switch", { name: "Modo escuro" })).toHaveCount(0);
 	await expect(page.getByText("Aparência", { exact: true })).toHaveCount(0);
 
 	await page.keyboard.press("Tab");
 	await expect(page.getByRole("link", { name: "Pular para o conteúdo" })).toBeFocused();
 
-	await account.click();
+	await profileTrigger.click();
 	await expect(page.getByText("Aparência", { exact: true })).toBeVisible();
 	await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
-	await page.keyboard.press("Escape");
-
-	await launcher.click();
 	const navigation = page.getByRole("navigation", { name: "Navegação principal" });
 	await expect(navigation).toBeVisible();
 	await expect(
 		navigation.getByRole("link", { name: "Sessões", exact: true }),
 	).toBeVisible();
 	await expect(navigation.getByRole("link", { name: "Início" })).toHaveCount(0);
+	await page.keyboard.press("Escape");
 	expect(
 		await page.evaluate(
 			() => document.documentElement.scrollWidth <= innerWidth,
@@ -298,7 +305,9 @@ test("theme transition has a visible midpoint and coordinated final-candidate ti
 test("reduced motion removes decorative transitions", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await page.goto("/");
-	await page.getByRole("button", { name: "Abrir navegação" }).click();
+	await page
+		.getByRole("button", { name: "Abrir navegação e conta", exact: true })
+		.click();
 	const action = page
 		.getByRole("navigation", { name: "Navegação principal" })
 		.getByRole("link", { name: "Sessões", exact: true });
