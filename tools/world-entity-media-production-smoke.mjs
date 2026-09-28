@@ -81,7 +81,7 @@ async function selectEntity(page, entityId) {
 }
 
 async function waitForDraftSaved(page) {
-	const saved = page.getByText("Rascunho salvo", { exact: true }).first();
+	const saved = page.locator("[data-world-conductor-notice]").filter({ hasText: /^Rascunho salvo\./u });
 	await saved.waitFor({ state: "visible", timeout: 30_000 });
 }
 
