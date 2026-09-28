@@ -136,12 +136,9 @@ def test_runtime_rc_manual_path_accepts_only_trusted_exact_source_build_events()
     assert "'head_branch': 'main'" in value
 
 
-def test_production_deploy_explicitly_enables_bounded_statistics_read_model_v2():
+def test_production_deploy_has_no_retired_statistics_rollout_flag():
     value = _read("production-cd.yml")
-    assert 'TDA_STATS_READ_MODEL_V2_ENABLED: "true"' in value
-    assert "--env TDA_STATS_READ_MODEL_V2_ENABLED=true" in value
-    assert value.count("TDA_STATS_READ_MODEL_V2_ENABLED") == 2
-
+    assert "TDA_STATS_READ_MODEL_V2_ENABLED" not in value
 
 def test_physical_recovery_can_seal_both_runtime_receipts_from_same_gpu_run():
     physical = (REPO_ROOT / "local-companion" / "packaging" / "run-physical-acceptance.ps1").read_text(
