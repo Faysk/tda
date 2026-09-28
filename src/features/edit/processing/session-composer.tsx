@@ -819,7 +819,7 @@ export function SessionRecordingComposer({
 					<span>Composição da sessão</span>
 					<h3 id="session-composer-title">
 						{workspace?.parts.length
-							? workspace.sessionId + " · " + workspace.parts.length + " gravação" + (workspace.parts.length === 1 ? "" : "ões")
+							? workspace.sessionId + " · " + workspace.parts.length + (workspace.parts.length === 1 ? " gravação" : " gravações")
 							: "Uma sessão pode ter várias gravações"}
 					</h3>
 				</div>
@@ -1063,7 +1063,7 @@ export function SessionRecordingComposer({
 						<div>
 							<strong>
 								{pending.length
-									? pending.length + " gravação" + (pending.length === 1 ? "" : "ões") + " sem run concluído"
+									? pending.length + (pending.length === 1 ? " gravação" : " gravações") + " sem run concluído"
 									: "Todas as gravações possuem ao menos um run"}
 							</strong>
 							<span>
