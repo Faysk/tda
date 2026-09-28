@@ -23,7 +23,7 @@ A marca continua apontando para `/`. O launcher não repete uma entrada `Início
 
 Este documento separa **decisão aprovada** de **implementação/publicação**.
 
-Baseline revalidada desta revisão: `main@8855e5de513d5875221a785e8a5cd7b03011d644`.
+Baseline revalidada desta revisão: `main@5ddf57e4c55138cb7642a106957b0aa1b62c9260`.
 
 | Slice | Estado nesta baseline | Evidência |
 | --- | --- | --- |
@@ -31,10 +31,10 @@ Baseline revalidada desta revisão: `main@8855e5de513d5875221a785e8a5cd7b03011d6
 | launcher global | integrada à `main` | #880 / PR #890 |
 | avatar/painel de conta | integrada à `main` | #882 / PR #902 |
 | retirada dos hubs `/edit` e `/conta` | integrada à `main` | #883 / PR #908 |
-| gate responsivo/teclado/visual completo | pendente | #884 |
+| gate responsivo/teclado/visual completo | integrado à `main` | #884 / PR #915 / estabilizações #919 e #920 |
 | contrato documental | este documento | #885 |
 
-O launcher de #880, o avatar/painel de conta de #882 e a retirada dos hubs de #883 já estão integrados na `main`. O `ThemeToggle` vive dentro do painel de conta; `/edit` é entrypoint de compatibilidade e `/conta` é superfície de identidade/acesso. O gate completo de QA de #884 permanece pendente e não deve ser inferido apenas pela integração funcional.
+O launcher de #880, o avatar/painel de conta de #882 e a retirada dos hubs de #883 já estão integrados na `main`. O `ThemeToggle` vive dentro do painel de conta; `/edit` é entrypoint de compatibilidade e `/conta` é superfície de identidade/acesso. O gate de QA de #884 também está integrado e executa Playwright somente quando o classificador marca mudanças relevantes para navegação.
 
 Merge em `main` também não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
@@ -52,6 +52,8 @@ Merge em `main` também não prova publicação por si só; produção continua 
 É o ponto único para navegar pelo produto.
 
 O trigger é um botão próprio, separado do avatar, com alvo mínimo de 44×44 e nome acessível claro. O painel usa links normais dentro de um `nav`; não usar `role="menu"`/`menuitem`, porque a interação é navegação de site e não menu de aplicação.
+
+A composição visual do launcher é **icon-first**: cada destino usa ícone centralizado acima do rótulo, sem esconder labels em tooltip. O painel desktop permanece compacto, em torno de 500 px, com três colunas estáveis; ícones usam uma caixa óptica comum de aproximadamente 42 px e glyphs maiores, preservando pouco chrome por item. A célula neutra não deve parecer um card pesado.
 
 ### Avatar
 
@@ -203,14 +205,19 @@ Requisitos:
 - não depender de tooltip/hover para explicar destino;
 - foco visível com tokens do TDA;
 - ordem estável entre breakpoints;
+- desktop/tablet usam três colunas regulares e largura útil estável;
+- em aproximadamente 390 px, preservar três colunas quando os rótulos reais couberem;
+- em 320 px, usar duas colunas para manter leitura e alvo de toque confortáveis;
 - mobile pode reorganizar a composição e usar painel/sheet amplo; não é um popover desktop espremido;
-- painel com scroll interno quando necessário;
+- painel com scroll interno quando necessário, sem mover o header;
 - Escape, Enter, Space, Tab, toque e ponteiro preservam semântica previsível;
 - navegação pública não desaparece quando Auth está indisponível.
 
 ## Ícones e linguagem visual
 
 - preferir SVGs locais simples e consistentes;
+- normalizar a caixa óptica dos ícones para que glyphs de dimensões iguais também pareçam visualmente equivalentes;
+- manter o rótulo visível abaixo do ícone, inclusive para labels que ocupem duas linhas;
 - não adicionar pacote de ícones apenas para o launcher;
 - dourado é acento de foco/estado atual, não borda em todos os itens;
 - launcher é navegação compacta; não transformar cada destino em card pesado;
@@ -256,6 +263,7 @@ Screenshots/receipts de teste usam identidades e avatares sintéticos, nunca dad
 - #883 / PR #908 — retirada dos hubs;
 - #884 — gates de QA;
 - #885 — contrato documental;
+- #926 — refinamento icon-first e compactação visual do launcher;
 - #115 — pesquisa histórica que levantou avatar Discord no header, papel de `/conta` e organização do Edit;
 - PR #269 — implementação histórica relevante para a evolução do shell/navegação;
 - PR #579 — implementação histórica relevante para a evolução do shell/navegação;
