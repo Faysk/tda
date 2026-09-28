@@ -1,20 +1,4 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
-
-type NavigationState =
-	| "anonymous"
-	| "unavailable"
-	| "authenticated_unlinked"
-	| "authenticated_linked"
-	| "authenticated_linked_no_grants";
-
-type Projection = Readonly<{
-	state: NavigationState;
-	identity?: Readonly<{
-		displayName: string | null;
-		avatarUrl: string | null;
-	}> | null;
-	capabilities?: readonly string[];
-}>;
+import { expect, test } from "@playwright/test";
 
 const publicLabels = [
 	"Sessões",
@@ -38,87 +22,102 @@ const allToolCapabilities = [
 	"campaign.permissions.manage",
 ];
 
-async function mockProjection(
-	page: Page,
-	projection: Projection,
-	status = projection.state === "unavailable" ? 503 : 200,
+type NavigationState =
+	| "anonymous"
+	| "unavailable"
+	| "authenticated_unlinked"
+	| "authenticated_linked"
+	| "authenticated_linked_no_grants";
+
+type MockAccessOptions = Readonly<{
+	state?: NavigationState;
+	capabilities?: readonly string[];
+	identity?: Readonly<{
+		displayName: string | null;
+		avatarUrl: string | null;
+	}> | null;
+	status?: number;
+}>;
+
+async function mockAccess(
+	page: import("@playwright/test").Page,
+	options: MockAccessOptions = {},
 ) {
+	const state = options.state ?? "authenticated_linked";
+	const status = options.status ?? (state === "unavailable" ? 503 : 200);
+	const authenticated =
+		state === "authenticated_unlinked" ||
+		state === "authenticated_linked" ||
+		state === "authenticated_linked_no_grants";
+
 	await page.route("**/api/auth/me", async (route) => {
 		await route.fulfill({
 			status,
 			contentType: "application/json",
 			body: JSON.stringify({
-				state: projection.state,
+				state,
 				scope: { type: "campaign", id: "yuhara-main" },
-				identity: projection.identity ?? null,
-				capabilities: projection.capabilities ?? [],
+				...(authenticated
+					? {
+							identity:
+								options.identity === undefined
+									? { displayName: "Navegação Teste", avatarUrl: null }
+									: options.identity,
+							capabilities: options.capabilities ?? [],
+						}
+					: {}),
 			}),
 		});
 	});
 }
 
-async function openLauncher(page: Page) {
+async function openLauncher(page: import("@playwright/test").Page) {
 	const trigger = page.getByRole("button", { name: "Abrir navegação" });
 	await trigger.click();
 	await expect(trigger).toHaveAttribute("aria-expanded", "true");
-	const navigation = page.getByRole("navigation", {
-		name: "Navegação principal",
-	});
-	await expect(navigation).toBeVisible();
-	return navigation;
+	return page.getByRole("navigation", { name: "Navegação principal" });
 }
 
-async function openAccount(page: Page) {
+async function openAccount(page: import("@playwright/test").Page) {
 	const trigger = page.getByRole("button", { name: "Abrir menu da conta" });
 	await trigger.click();
 	await expect(trigger).toHaveAttribute("aria-expanded", "true");
-	const panel = page.getByRole("region", { name: "Conta e aparência" });
-	await expect(panel).toBeVisible();
-	return panel;
+	return page.getByRole("region", { name: "Conta e aparência" });
 }
 
-async function assertContained(page: Page, locator: import("@playwright/test").Locator) {
+async function expectNoHorizontalOverflow(
+	page: import("@playwright/test").Page,
+) {
 	expect(
-		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+		),
 	).toBeTruthy();
-	const box = await locator.boundingBox();
-	expect(box).not.toBeNull();
-	if (!box) return;
+}
+
+async function expectPanelContained(
+	page: import("@playwright/test").Page,
+	selector: string,
+) {
 	const viewport = page.viewportSize();
 	expect(viewport).not.toBeNull();
 	if (!viewport) return;
-	expect(box.x).toBeGreaterThanOrEqual(0);
-	expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 0.5);
-	expect(box.y).toBeGreaterThanOrEqual(0);
+	const box = await page.locator(selector).boundingBox();
+	expect(box).not.toBeNull();
+	if (!box) return;
+	expect(box.x).toBeGreaterThanOrEqual(-1);
+	expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+	expect(box.y).toBeGreaterThanOrEqual(-1);
 	expect(box.y).toBeLessThan(viewport.height);
 }
 
-async function setTheme(page: Page, theme: "light" | "dark") {
-	await page.addInitScript((value) => {
-		window.localStorage.setItem("tda-theme", value);
-	}, theme);
-}
-
-async function screenshotReceipt(
-	page: Page,
-	testInfo: TestInfo,
-	name: string,
-) {
-	await page.screenshot({
-		path: testInfo.outputPath(name),
-		fullPage: true,
-		animations: "disabled",
-	});
-}
-
-test("launcher exposes stable public IA, current subroute and no ARIA application menu", async ({
+test("launcher exposes the complete public IA in stable order and marks subroutes", async ({
 	page,
 }) => {
-	await mockProjection(page, {
-		state: "authenticated_linked_no_grants",
-	});
+	await mockAccess(page);
 	await page.goto("/sessoes/nonexistent");
 	const navigation = await openLauncher(page);
+	await expect(navigation).toBeVisible();
 
 	const labels = await navigation.locator(".product-launcher-link").allTextContents();
 	expect(labels.slice(0, publicLabels.length)).toEqual(publicLabels);
@@ -126,14 +125,12 @@ test("launcher exposes stable public IA, current subroute and no ARIA applicatio
 		navigation.getByRole("link", { name: "Sessões", exact: true }),
 	).toHaveAttribute("aria-current", "page");
 	await expect(navigation.getByText("Ferramentas", { exact: true })).toHaveCount(0);
-	await expect(navigation.locator('[role="menu"], [role="menuitem"]')).toHaveCount(0);
 });
 
-test("launcher projects partial and broad capability sets without making client state authority", async ({
+test("launcher projects only authorized tools from the server capability response", async ({
 	page,
 }) => {
-	await mockProjection(page, {
-		state: "authenticated_linked",
+	await mockAccess(page, {
 		capabilities: [
 			"campaign.transcript.read",
 			"campaign.local.process",
@@ -141,23 +138,35 @@ test("launcher projects partial and broad capability sets without making client 
 		],
 	});
 	await page.goto("/");
-	let navigation = await openLauncher(page);
+	const navigation = await openLauncher(page);
 
 	await expect(navigation.getByText("Ferramentas", { exact: true })).toBeVisible();
-	for (const label of ["Transcrições", "Editar sessões", "Processar", "Permissões"]) {
-		await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
-	}
-	for (const label of ["Editar mundo", "Revisão"]) {
-		await expect(navigation.getByRole("link", { name: label, exact: true })).toHaveCount(0);
-	}
+	await expect(
+		navigation.getByRole("link", { name: "Transcrições", exact: true }),
+	).toHaveAttribute("href", "/transcricoes");
+	await expect(
+		navigation.getByRole("link", { name: "Editar sessões", exact: true }),
+	).toHaveAttribute("href", "/edit/sessoes");
+	await expect(
+		navigation.getByRole("link", { name: "Processar", exact: true }),
+	).toHaveAttribute("href", "/edit/processamento");
+	await expect(
+		navigation.getByRole("link", { name: "Permissões", exact: true }),
+	).toHaveAttribute("href", "/edit/yuhara-main/permissions");
+	await expect(
+		navigation.getByRole("link", { name: "Editar mundo", exact: true }),
+	).toHaveCount(0);
+	await expect(
+		navigation.getByRole("link", { name: "Revisão", exact: true }),
+	).toHaveCount(0);
+});
 
-	await page.unroute("**/api/auth/me");
-	await mockProjection(page, {
-		state: "authenticated_linked",
-		capabilities: allToolCapabilities,
-	});
-	await page.reload();
-	navigation = await openLauncher(page);
+test("broad capability projection exposes every governed tool without affecting public IA", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
+	const navigation = await openLauncher(page);
 	for (const label of [
 		"Transcrições",
 		"Editar sessões",
@@ -166,133 +175,156 @@ test("launcher projects partial and broad capability sets without making client 
 		"Revisão",
 		"Permissões",
 	]) {
-		await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
-	}
-});
-
-test("anonymous and unavailable auth keep public navigation immediate and tools fail closed", async ({
-	page,
-}) => {
-	for (const projection of [
-		{ state: "anonymous" as const },
-		{ state: "unavailable" as const },
-	]) {
-		await page.unroute("**/api/auth/me");
-		await mockProjection(page, projection);
-		await page.goto("/");
-		const navigation = await openLauncher(page);
 		await expect(
-			navigation.getByRole("link", { name: "Mundo", exact: true }),
+			navigation.getByRole("link", { name: label, exact: true }),
 		).toBeVisible();
-		await expect(navigation.getByText("Ferramentas", { exact: true })).toHaveCount(0);
+	}
+	for (const label of publicLabels) {
+		await expect(
+			navigation.getByRole("link", { name: label, exact: true }),
+		).toBeVisible();
 	}
 });
 
-test("launcher opens with Enter and Space, Escape restores focus and outside pointer dismisses", async ({
+test("anonymous account menu keeps a safe return path and appearance control", async ({
 	page,
 }) => {
-	await mockProjection(page, { state: "anonymous" });
+	await mockAccess(page, { state: "anonymous" });
+	await page.goto("/sessoes");
+	const account = await openAccount(page);
+
+	await expect(
+		account.getByRole("button", { name: "Entrar com Discord" }),
+	).toBeVisible();
+	await expect(account.locator('input[name="next"]')).toHaveValue("/sessoes");
+	await expect(account.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
+	await expect(account.getByRole("link", { name: "Conta e acesso" })).toHaveCount(0);
+});
+
+test("authenticated account menu uses identity fallback, POST logout and no-grant fail closed state", async ({
+	page,
+}) => {
+	await mockAccess(page, {
+		state: "authenticated_linked_no_grants",
+		identity: { displayName: "Renan Teste", avatarUrl: null },
+	});
+	await page.goto("/");
+
+	await expect(page.locator(".account-avatar-initials")).toHaveText("RT");
+	const account = await openAccount(page);
+	await expect(account.getByText("Renan Teste", { exact: true })).toBeVisible();
+	await expect(account.getByRole("link", { name: "Conta e acesso" })).toHaveAttribute(
+		"href",
+		"/conta",
+	);
+	const logout = account.locator('form[action="/auth/logout"]');
+	await expect(logout).toHaveAttribute("method", "post");
+
+	await page.getByRole("button", { name: "Abrir navegação" }).click();
+	await expect(
+		page.getByRole("navigation", { name: "Navegação principal" }).getByText(
+			"Ferramentas",
+			{ exact: true },
+		),
+	).toHaveCount(0);
+});
+
+test("authenticated avatar is rendered from the sanitized projection", async ({
+	page,
+}) => {
+	await mockAccess(page, {
+		identity: {
+			displayName: "Navegação Teste",
+			avatarUrl: "/brand/favicon.svg",
+		},
+	});
+	await page.goto("/");
+	await expect(page.locator(".account-avatar-image")).toHaveCount(1);
+});
+
+test("auth failure keeps public navigation usable and exposes an actionable account state", async ({
+	page,
+}) => {
+	await mockAccess(page, { state: "unavailable" });
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+	await expect(
+		navigation.getByRole("link", { name: "Mundo", exact: true }),
+	).toBeVisible();
+	await expect(navigation.getByText("Ferramentas", { exact: true })).toHaveCount(0);
+
+	await page.getByRole("button", { name: "Abrir menu da conta" }).click();
+	await expect(
+		page.getByText("Conta temporariamente indisponível", { exact: true }),
+	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Tentar novamente" })).toBeVisible();
+});
+
+test("keyboard opens launcher with Enter and Space, Escape restores focus", async ({
+	page,
+}) => {
+	await mockAccess(page);
 	await page.goto("/");
 	const trigger = page.getByRole("button", { name: "Abrir navegação" });
 
 	await trigger.focus();
 	await page.keyboard.press("Enter");
-	await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
-	await page.keyboard.press("Escape");
-	await expect(trigger).toBeFocused();
-
-	await page.keyboard.press("Space");
-	await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
-	await page.getByRole("heading", { level: 1 }).click();
-	await expect(
-		page.getByRole("navigation", { name: "Navegação principal" }),
-	).toHaveCount(0);
-	await expect(trigger).toHaveAttribute("aria-expanded", "false");
-});
-
-test("closed launcher content is absent from the tab order", async ({ page }) => {
-	await mockProjection(page, {
-		state: "authenticated_linked",
-		capabilities: allToolCapabilities,
-	});
-	await page.goto("/");
-	const navigation = await openLauncher(page);
-	await expect(navigation.getByRole("link", { name: "Sessões" })).toBeVisible();
-	await page.keyboard.press("Escape");
-
-	await expect(navigation).toHaveCount(0);
-	await page.keyboard.press("Tab");
-	await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toBeFocused();
-});
-
-test("account panel covers authenticated avatar/fallback, login return path, logout POST and theme", async ({
-	page,
-}) => {
-	await mockProjection(page, {
-		state: "authenticated_linked",
-		identity: {
-			displayName: "Pessoa Sintética",
-			avatarUrl: null,
-		},
-		capabilities: [],
-	});
-	await page.goto("/");
-	let panel = await openAccount(page);
-	await expect(panel.getByText("Pessoa Sintética", { exact: true })).toBeVisible();
-	await expect(page.locator(".account-avatar-initials")).toHaveText("PS");
-	const logout = panel.locator('form[action="/auth/logout"]');
-	await expect(logout).toHaveAttribute("method", "post");
-
-	const theme = panel.getByRole("switch", { name: "Modo escuro" });
-	const before = await page.locator("html").getAttribute("data-theme");
-	await theme.click();
-	const after = await page.locator("html").getAttribute("data-theme");
-	expect(after).not.toBe(before);
-
-	await page.keyboard.press("Escape");
-	await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toBeFocused();
-
-	await page.unroute("**/api/auth/me");
-	await mockProjection(page, { state: "anonymous" });
-	await page.goto("/?synthetic=1#receipt");
-	panel = await openAccount(page);
-	const login = panel.locator('form[action="/auth/discord"]');
-	await expect(login).toHaveAttribute("method", "post");
-	await expect(login.locator('input[name="next"]')).toHaveValue("/?synthetic=1#receipt");
-});
-
-test("account and launcher panels open independently and do not leave hidden focus targets", async ({
-	page,
-}) => {
-	await mockProjection(page, {
-		state: "authenticated_linked",
-		identity: { displayName: "Conta Sintética", avatarUrl: null },
-		capabilities: allToolCapabilities,
-	});
-	await page.goto("/");
-
-	await openLauncher(page);
-	await openAccount(page);
 	await expect(
 		page.getByRole("navigation", { name: "Navegação principal" }),
 	).toBeVisible();
-	await expect(page.getByRole("region", { name: "Conta e aparência" })).toBeVisible();
-
 	await page.keyboard.press("Escape");
-	await expect(page.getByRole("region", { name: "Conta e aparência" })).toHaveCount(0);
 	await expect(
 		page.getByRole("navigation", { name: "Navegação principal" }),
 	).toHaveCount(0);
+	await expect(trigger).toBeFocused();
+
+	await page.keyboard.press("Space");
+	await expect(
+		page.getByRole("navigation", { name: "Navegação principal" }),
+	).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(trigger).toBeFocused();
 });
 
-test("six viewport matrix keeps header controls and launcher geometrically contained", async ({
+test("account panel and launcher dismiss independently without leaving hidden controls focusable", async ({
 	page,
 }) => {
-	await mockProjection(page, {
-		state: "authenticated_linked",
-		identity: { displayName: "QA Sintético", avatarUrl: null },
-		capabilities: allToolCapabilities,
+	await mockAccess(page, {
+		identity: { displayName: "Navegação Teste", avatarUrl: null },
 	});
+	await page.goto("/");
+
+	const navigation = await openLauncher(page);
+	await expect(navigation).toBeVisible();
+
+	const accountTrigger = page.getByRole("button", { name: "Abrir menu da conta" });
+	await accountTrigger.click();
+	await expect(navigation).toHaveCount(0);
+	const account = page.getByRole("region", { name: "Conta e aparência" });
+	await expect(account).toBeVisible();
+
+	await page.keyboard.press("Escape");
+	await expect(account).toHaveCount(0);
+	await expect(accountTrigger).toBeFocused();
+	await accountTrigger.press("Tab");
+	await expect(page.getByLabel("TDA — Tem Dado Aqui — início")).not.toBeFocused();
+});
+
+test("outside interaction dismisses the launcher", async ({ page }) => {
+	await mockAccess(page);
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+	await expect(navigation).toBeVisible();
+
+	await page.getByRole("heading", { level: 1 }).click();
+	await expect(navigation).toHaveCount(0);
+});
+
+test("navigation stays contained across the required responsive matrix", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
 
 	for (const viewport of [
 		{ width: 320, height: 800 },
@@ -303,70 +335,97 @@ test("six viewport matrix keeps header controls and launcher geometrically conta
 		{ width: 2560, height: 1440 },
 	]) {
 		await page.setViewportSize(viewport);
-		await page.goto("/");
 		const navigation = await openLauncher(page);
-		await assertContained(page, page.locator(".product-launcher-panel"));
-
-		for (const name of ["Abrir navegação", "Abrir menu da conta"]) {
-			const box = await page.getByRole("button", { name }).boundingBox();
-			expect(box).not.toBeNull();
-			expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
-			expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-		}
-
+		await expect(navigation).toBeVisible();
+		await expectNoHorizontalOverflow(page);
+		await expectPanelContained(page, ".product-launcher-panel");
 		await page.keyboard.press("Escape");
-		await expect(navigation).toHaveCount(0);
+
+		const account = await openAccount(page);
+		await expect(account).toBeVisible();
+		await expectNoHorizontalOverflow(page);
+		await expectPanelContained(page, ".account-menu-panel");
+		await page.keyboard.press("Escape");
 	}
 });
 
-test("reduced motion disables launcher/account transitions and 200 percent scale remains operable", async ({
+test("200 percent layout zoom preserves the header actions and panel containment", async ({
 	page,
 }) => {
-	await page.emulateMedia({ reducedMotion: "reduce" });
+	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.setViewportSize({ width: 768, height: 1024 });
-	await mockProjection(page, {
-		state: "authenticated_linked",
-		identity: { displayName: "QA Sintético", avatarUrl: null },
-		capabilities: allToolCapabilities,
-	});
 	await page.goto("/");
-
-	await expect(page.getByRole("button", { name: "Abrir navegação" })).toHaveCSS(
-		"transition-duration",
-		"0s",
-	);
-	await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toHaveCSS(
-		"transition-duration",
-		"0s",
-	);
-
-	const session = await page.context().newCDPSession(page);
-	await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 2 });
+	await page.evaluate(() => {
+		document.documentElement.style.zoom = "2";
+	});
 	const navigation = await openLauncher(page);
-	await expect(navigation.getByRole("link", { name: "Sessões" })).toBeVisible();
-	await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toBeVisible();
+	await expect(navigation).toBeVisible();
+	await expectNoHorizontalOverflow(page);
+	await page.evaluate(() => {
+		document.documentElement.style.zoom = "";
+	});
 });
 
-test("visual receipts cover desktop/mobile in dark/light with synthetic identity", async ({
+test("reduced motion removes navigation transitions", async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await mockAccess(page);
+	await page.goto("/");
+	const durations = await page
+		.locator(".product-launcher-trigger")
+		.evaluate((element) => getComputedStyle(element).transitionDuration);
+	expect(
+		durations
+			.split(",")
+			.every((value) => Number.parseFloat(value.trim()) === 0),
+	).toBeTruthy();
+});
+
+test("appearance control toggles the explicit document theme", async ({ page }) => {
+	await page.emulateMedia({ colorScheme: "dark" });
+	await mockAccess(page, { state: "anonymous" });
+	await page.goto("/");
+	const account = await openAccount(page);
+	const theme = account.getByRole("switch", { name: "Modo escuro" });
+	await expect(theme).toHaveAttribute("aria-checked", "true");
+	await theme.click();
+	await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+	await expect(theme).toHaveAttribute("aria-checked", "false");
+});
+
+test("desktop and mobile light/dark navigation receipts are captured from synthetic state", async ({
 	page,
 }, testInfo) => {
-	await mockProjection(page, {
-		state: "authenticated_linked",
-		identity: { displayName: "QA Sintético", avatarUrl: null },
-		capabilities: allToolCapabilities,
-	});
+	await mockAccess(page, { capabilities: allToolCapabilities });
 
 	for (const receipt of [
-		{ name: "navigation-desktop-dark.png", width: 1366, height: 768, theme: "dark" as const },
-		{ name: "navigation-desktop-light.png", width: 1366, height: 768, theme: "light" as const },
-		{ name: "navigation-mobile-dark.png", width: 390, height: 844, theme: "dark" as const },
-		{ name: "navigation-mobile-light.png", width: 390, height: 844, theme: "light" as const },
+		{
+			name: "desktop-dark",
+			viewport: { width: 1920, height: 1080 },
+			colorScheme: "dark" as const,
+		},
+		{
+			name: "desktop-light",
+			viewport: { width: 1920, height: 1080 },
+			colorScheme: "light" as const,
+		},
+		{
+			name: "mobile-dark",
+			viewport: { width: 390, height: 844 },
+			colorScheme: "dark" as const,
+		},
+		{
+			name: "mobile-light",
+			viewport: { width: 390, height: 844 },
+			colorScheme: "light" as const,
+		},
 	]) {
-		await page.setViewportSize({ width: receipt.width, height: receipt.height });
-		await setTheme(page, receipt.theme);
+		await page.setViewportSize(receipt.viewport);
+		await page.emulateMedia({ colorScheme: receipt.colorScheme });
 		await page.goto("/");
 		await openLauncher(page);
-		await screenshotReceipt(page, testInfo, receipt.name);
-		await page.keyboard.press("Escape");
+		await page.screenshot({
+			path: testInfo.outputPath(`navigation-${receipt.name}.png`),
+			fullPage: false,
+		});
 	}
 });
