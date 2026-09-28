@@ -37,6 +37,10 @@ createRoot(root).render(
 		>
 			Processamento
 		</h1>
-		{new URLSearchParams(location.search).has("review-contracts") ? <ReviewFixture /> : <ProcessingPanel />}
+		{new URLSearchParams(location.search).has("review-contracts") ? (
+			<ReviewFixture />
+		) : (
+			<ProcessingPanel activityPackScope="fixture-profile:yuhara-main" />
+		)}
 	</main>,
 );

@@ -326,6 +326,55 @@ test("ambiguous job response reuses the same idempotency key without re-uploadin
 	expect(state.idempotencyKeys[0]).toBe(state.idempotencyKeys[1]);
 });
 
+test("ambiguous job response reuses the persisted idempotency key after reload", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		ambiguousJobPostOnce: true,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await selectCraig(page);
+	await analyzeCraig(page);
+
+	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
+	await expect(page.getByRole("alert")).toContainText(
+		"Não foi possível alcançar o Companion local",
+	);
+	await expect(page.getByText(/tentativa ficou ambígua/i)).toBeVisible();
+	const firstKey = state.idempotencyKeys[0];
+	const pendingBeforeReload = await page.evaluate(() => {
+		const entries = Object.entries(localStorage).filter(([key]) =>
+			key.startsWith("tda.processing.pendingSubmission.v1:"),
+		);
+		return JSON.stringify(entries);
+	});
+	expect(pendingBeforeReload).toContain("tda_processing_pending_submission_v1");
+	expect(pendingBeforeReload).not.toContain("fixture-profile");
+
+	await page.reload();
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await selectCraig(page);
+	await analyzeCraig(page);
+	await page.getByRole("button", { name: "Adicionar à fila local" }).click();
+	await expect.poll(() => state.jobPostCount).toBe(2);
+
+	expect(firstKey).toBeTruthy();
+	expect(state.idempotencyKeys[1]).toBe(firstKey);
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() =>
+					Object.keys(localStorage).filter((key) =>
+						key.startsWith("tda.processing.pendingSubmission.v1:"),
+					).length,
+			),
+		)
+		.toBe(0);
+});
+
 test("UTF-8 envelope budget blocks an accepted character count before upload", async ({
 	page,
 }) => {
