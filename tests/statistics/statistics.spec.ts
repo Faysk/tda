@@ -90,9 +90,31 @@ test("read-only user sees a compact searchable and sortable session inventory", 
 	page.on("pageerror", (error) => errors.push(error.message));
 	const response = await page.goto("/transcricoes");
 
-	await expect(
-		page.getByRole("heading", { level: 1, name: /Transcrições/ }),
-	).toBeVisible();
+	const heading = page.getByRole("heading", {
+		level: 1,
+		name: /Transcrições/,
+	});
+	await expect(heading).toBeVisible();
+	const [headingBox, brandBox, triggerBox] = await Promise.all([
+		heading.boundingBox(),
+		page.locator(".brand").boundingBox(),
+		page.locator(".account-menu-trigger").boundingBox(),
+	]);
+	expect(headingBox).not.toBeNull();
+	expect(brandBox).not.toBeNull();
+	expect(triggerBox).not.toBeNull();
+	if (headingBox && brandBox && triggerBox) {
+		const overlaps = (
+			left: { x: number; y: number; width: number; height: number },
+			right: { x: number; y: number; width: number; height: number },
+		) =>
+			left.x < right.x + right.width &&
+			left.x + left.width > right.x &&
+			left.y < right.y + right.height &&
+			left.y + left.height > right.y;
+		expect(overlaps(headingBox, brandBox)).toBeFalsy();
+		expect(overlaps(headingBox, triggerBox)).toBeFalsy();
+	}
 	const summary = page.getByLabel("Resumo das transcrições");
 	await expect(summary).toContainText("410");
 	await expect(summary).toContainText("1 h 2 min");
@@ -167,6 +189,13 @@ test("read-only user sees a compact searchable and sortable session inventory", 
 	}
 
 	expect(errors).toEqual([]);
+	await page.evaluate(() => {
+		if (document.activeElement instanceof HTMLElement) {
+			document.activeElement.blur();
+		}
+		window.scrollTo(0, 0);
+	});
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 	await page.screenshot({
 		path: info.outputPath("statistics-" + info.project.name + ".png"),
 		fullPage: true,
