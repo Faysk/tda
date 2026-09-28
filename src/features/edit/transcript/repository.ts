@@ -177,8 +177,10 @@ const READER_BATCH_SIZE = 1000;
 
 function legacyTrackNumber(value: unknown): number {
 	if (typeof value !== "string") return 1;
-	const parsed = Number.parseInt(value, 10);
-	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+	const normalized = value.trim();
+	if (!/^[0-9]{1,9}$/u.test(normalized)) return 1;
+	const parsed = Number(normalized);
+	return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= 9999 ? parsed : 1;
 }
 
 function legacySegmentIdentity(row: Record<string, unknown>): string {
