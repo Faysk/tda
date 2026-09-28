@@ -326,7 +326,7 @@ export function SessionRecordingComposer({
 					},
 					new AbortController().signal,
 				),
-			"Posição manual preservada no activeWorkspace.",
+			"Posição manual preservada no workspace.",
 		);
 	}
 
@@ -482,28 +482,28 @@ export function SessionRecordingComposer({
 			className={styles.composer}
 			aria-labelledby="session-recording-composer"
 			data-session-recording-composer="true"
-			data-part-count={workspace.parts.length}
+			data-part-count={activeWorkspace.parts.length}
 		>
 			<header className={styles.header}>
 				<div>
 					<span className={styles.eyebrow}>Sessão persistida</span>
-					<h3 id="session-recording-composer">{workspace.sessionId}</h3>
+					<h3 id="session-recording-composer">{activeWorkspace.sessionId}</h3>
 				</div>
 				<div className={styles.headerMeta}>
-					<strong>{workspace.parts.length} gravação(ões)</strong>
-					<span>rev {workspace.revision}</span>
+					<strong>{activeWorkspace.parts.length} gravação(ões)</strong>
+					<span>rev {activeWorkspace.revision}</span>
 				</div>
 			</header>
 
-			{workspace.parts.length > 1 ? (
-				<div className={styles.timelineSummary} data-state={workspace.timeline.state}>
+			{activeWorkspace.parts.length > 1 ? (
+				<div className={styles.timelineSummary} data-state={activeWorkspace.timeline.state}>
 					<strong>{timelineCopy(workspace)}</strong>
 					<span>
-						{workspace.timeline.gapCount} gap(s) · {workspace.timeline.overlapCount} overlap(s)
+						{activeWorkspace.timeline.gapCount} gap(s) · {activeWorkspace.timeline.overlapCount} overlap(s)
 					</span>
 					{supportsTimeline &&
-					workspace.timeline.state === "needs_timing" &&
-					workspace.timeline.automaticOrderAvailable ? (
+					activeWorkspace.timeline.state === "needs_timing" &&
+					activeWorkspace.timeline.automaticOrderAvailable ? (
 						<Button
 							size="sm"
 							variant="secondary"
@@ -513,9 +513,9 @@ export function SessionRecordingComposer({
 									"derive",
 									() =>
 										bridge.deriveSessionTimeline(
-											workspace.campaignId,
-											workspace.sessionId,
-											workspace.revision,
+											activeWorkspace.campaignId,
+											activeWorkspace.sessionId,
+											activeWorkspace.revision,
 											new AbortController().signal,
 										),
 									"Cronologia derivada a partir dos timestamps confiáveis.",
@@ -529,10 +529,10 @@ export function SessionRecordingComposer({
 		) : null}
 
 		<ol className={styles.parts} aria-label="Gravações da sessão">
-			{workspace.parts.map((part) => {
+			{activeWorkspace.parts.map((part) => {
 				const sourceRuns = runsBySource.get(part.sourceId) ?? [];
 				const selectedRun = sourceRuns.find((run) => run.runId === part.selectedRunId);
-				const job = latestJobFor(jobs, workspace.sessionId, part.sourceId);
+				const job = latestJobFor(jobs, activeWorkspace.sessionId, part.sourceId);
 				const active = job?.status === "queued" || job?.status === "running";
 				return (
 					<li key={part.partId} className={styles.part} data-source-state={part.sourceState}>
@@ -565,7 +565,7 @@ export function SessionRecordingComposer({
 								variant="tertiary"
 								aria-label={`Mover gravação ${part.ordinal + 1} para baixo`}
 								disabled={
-									part.ordinal === workspace.parts.length - 1 ||
+									part.ordinal === activeWorkspace.parts.length - 1 ||
 									Boolean(working) ||
 									busy
 								}
@@ -596,10 +596,10 @@ export function SessionRecordingComposer({
 										`detach:${part.partId}`,
 										() =>
 											bridge.detachSessionPart(
-												workspace.campaignId,
-												workspace.sessionId,
+												activeWorkspace.campaignId,
+												activeWorkspace.sessionId,
 												part.partId,
-												workspace.revision,
+												activeWorkspace.revision,
 												new AbortController().signal,
 											),
 										"Gravação removida da sessão; source e runs foram preservados.",
@@ -611,9 +611,9 @@ export function SessionRecordingComposer({
 						</div>
 
 						{supportsTimeline &&
-						workspace.parts.length > 1 &&
+						activeWorkspace.parts.length > 1 &&
 						(part.timelineMode === "unresolved" ||
-							workspace.timeline.state === "needs_timing") ? (
+							activeWorkspace.timeline.state === "needs_timing") ? (
 							<div className={styles.inlineDecision}>
 								<label>
 									<span>Início na sessão (segundos)</span>
@@ -699,11 +699,11 @@ export function SessionRecordingComposer({
 											`run:${part.partId}`,
 											() =>
 												bridge.selectSessionPartRun(
-													workspace.campaignId,
-													workspace.sessionId,
+													activeWorkspace.campaignId,
+													activeWorkspace.sessionId,
 													part.partId,
 													runId,
-													workspace.revision,
+													activeWorkspace.revision,
 													new AbortController().signal,
 												),
 											"Resultado selecionado somente para esta gravação.",
@@ -803,7 +803,7 @@ export function SessionRecordingComposer({
 					{!allSelected
 						? "Escolha um run por gravação. "
 						: ""}
-					{workspace.timeline.state !== "ready"
+					{activeWorkspace.timeline.state !== "ready"
 						? "Resolva a cronologia. "
 						: ""}
 					{participants?.approvalBlocked ? "Resolva participantes. " : ""}
