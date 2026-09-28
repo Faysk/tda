@@ -1,9 +1,0 @@
-.shell {
-	min-width: 0;
-	background: var(--ds-canvas);
-	color: var(--ds-foreground);
-}
-
-.content {
-	min-width: 0;
-}
