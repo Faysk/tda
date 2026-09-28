@@ -44,6 +44,23 @@ const EXACT = {
 		".github/workflows/ci.yml",
 		"tests/lembra.spec.ts",
 	]),
+	navigation: new Set([
+		".github/workflows/ci.yml",
+		"package.json",
+		"playwright.config.ts",
+		"tests/global-navigation.spec.ts",
+		"tests/navigation-origin.spec.ts",
+		"src/app/layout.tsx",
+		"src/app/public-shell.css",
+		"src/app/api/auth/me/route.ts",
+		"src/app/edit/page.tsx",
+		"src/app/conta/page.tsx",
+		"src/components/public-nav.tsx",
+		"src/components/account-menu.tsx",
+		"src/components/navigation-auth.ts",
+		"src/components/public-navigation-model.ts",
+		"src/components/theme-toggle.tsx",
+	]),
 	media: new Set([
 		"tools/media-pipeline.py",
 		"tools/check-canonical-media-usage.py",
@@ -71,6 +88,7 @@ const PREFIX = {
 		"src/app/lembra/",
 		"src/app/api/lembra/",
 	],
+	navigation: ["src/features/theme/"],
 	media: ["media/", "tools/media/"],
 };
 
@@ -96,6 +114,7 @@ export function classifyPaths(inputPaths) {
 		companion: files.some((path) => matches(path, "companion")),
 		processing: files.some((path) => matches(path, "processing")),
 		lembra: files.some((path) => matches(path, "lembra")),
+		navigation: files.some((path) => matches(path, "navigation")),
 		media: files.some((path) => matches(path, "media")),
 	};
 	return { files, ...classes };
@@ -135,6 +154,7 @@ function writeSummary(range, result) {
 			`- companion: \`${result.companion}\``,
 			`- processing: \`${result.processing}\``,
 			`- lembra: \`${result.lembra}\``,
+			`- navigation: \`${result.navigation}\``,
 			`- media: \`${result.media}\``,
 			`- Files (${result.files.length}): ${result.files.map((file) => `\`${file}\``).join(", ") || "none"}`,
 			"",
