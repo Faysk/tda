@@ -19,7 +19,7 @@ import { CAMPAIGN_SLUG, formatSessionDate } from "@/features/sessions/model";
 
 export const metadata: Metadata = {
 	title: "Transcrição · Edit",
-	description: "Leitura privada da transcrição completa da sessão.",
+	description: "Leitura e correção privada da transcrição completa da sessão.",
 };
 
 type PageProps = Readonly<{
@@ -145,7 +145,12 @@ export default async function EditSessionPage({ params }: PageProps) {
 				<div className={draftStyles.transcriptPane}>
 					<TranscriptReader
 						downloadHref={downloadHref}
+						editable={canEdit && snapshot.source === "current_revision"}
+						key={snapshot.revisionId ?? "legacy-transcript"}
+						revisionId={snapshot.revisionId}
+						revisionNumber={snapshot.revisionNumber}
 						segments={snapshot.segments}
+						sessionId={session.id}
 						sourceLabel={sourceLabel}
 					/>
 				</div>
@@ -168,6 +173,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 					) : draft ? (
 						<SessionEditorialDraftEditor
 							editable={canEdit}
+							key={`draft-${snapshot.revisionId ?? "legacy"}`}
 							initial={draft}
 							initialPublication={{
 								currentPublicationId: publication?.currentPublicationId ?? null,
