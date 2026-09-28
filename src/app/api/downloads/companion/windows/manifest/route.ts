@@ -33,7 +33,9 @@ function requestedChannel(request: Request): CompanionManifestChannel | null {
 	);
 	if (unexpected || channels.length > 1) return null;
 	const channel = channels[0] ?? "stable";
-	return channel === "latest" || channel === "stable" || channel === "rc"\n\t\t? channel\n\t\t: null;
+	return channel === "latest" || channel === "stable" || channel === "rc"
+		? channel
+		: null;
 }
 
 async function fetchReleaseCatalog(): Promise<unknown[]> {
