@@ -109,13 +109,11 @@ footer {
 .account-menu-panel[data-state="opening"],
 .account-menu-panel[data-state="closing"] {
 	opacity: 0;
-	transform: translateY(-10px);
 	mask-size: 100% 0%;
 }
 
 .account-menu-panel[data-state="open"] {
 	opacity: 1;
-	transform: translateY(0);
 	mask-size: 100% 100%;
 }
 
@@ -298,9 +296,8 @@ footer {
 	mask-repeat: no-repeat;
 	transition:
 		opacity var(--nav-profile-panel-motion) var(--ds-ease-soft),
-		transform var(--nav-profile-panel-motion) var(--ds-ease-soft),
 		mask-size var(--nav-profile-panel-motion) var(--ds-ease-soft);
-	will-change: opacity, transform, mask-size;
+	will-change: opacity, mask-size;
 }
 
 .account-menu-account-block {
@@ -466,7 +463,6 @@ footer {
 }
 
 .skip-link:focus {
-	transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -485,7 +481,6 @@ footer {
 	}
 
 	.account-menu-panel[data-state] {
-		transform: none;
 		mask-image: none;
 	}
 }
