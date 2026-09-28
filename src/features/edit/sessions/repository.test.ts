@@ -13,7 +13,7 @@ vi.mock("../unsafe-access", () => ({
 	requireUnsafeEdit: mocks.requireUnsafeEdit,
 }));
 
-import { findEditSessionBySourceId } from "./repository";
+import { findEditSessionBySourceId, listEditSessionLibrary } from "./repository";
 
 type QueryCall = Readonly<{
 	method: string;
@@ -41,6 +41,38 @@ function setupSessions(result: {
 		},
 	});
 	return calls;
+}
+
+
+type TableResult = Readonly<{ data: unknown; error: unknown }>;
+
+function setupTableResults(results: Record<string, TableResult[]>) {
+	const calls: Array<QueryCall & { table: string }> = [];
+	const fromCounts = new Map<string, number>();
+	mocks.client.mockReturnValue({
+		from: (table: string) => {
+			fromCounts.set(table, (fromCounts.get(table) ?? 0) + 1);
+			const queue = results[table] ?? [];
+			const result = queue.shift() ?? { data: [], error: null };
+			const query: Record<string, unknown> = {};
+			for (const method of ["select", "eq", "order", "limit", "gt", "in"]) {
+				query[method] = (...args: unknown[]) => {
+					calls.push({ table, method, args });
+					return query;
+				};
+			}
+			query.then = (
+				onFulfilled: (value: TableResult) => unknown,
+				onRejected?: (reason: unknown) => unknown,
+			) => Promise.resolve(result).then(onFulfilled, onRejected);
+			return query;
+		},
+	});
+	return { calls, fromCounts };
+}
+
+function uuid(prefix: string, index: number): string {
+	return `${prefix}0000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
 }
 
 beforeEach(() => {
@@ -122,5 +154,171 @@ describe("supported Edit session lookup", () => {
 			findEditSessionBySourceId("yuhara-main", "x".repeat(221)),
 		).resolves.toBeNull();
 		expect(mocks.client).not.toHaveBeenCalled();
+	});
+});
+
+
+describe("supported Edit session library thumbnails", () => {
+	it("returns an empty library without related lookups", async () => {
+		const { fromCounts } = setupTableResults({
+			sessions: [{ data: [], error: null }],
+		});
+
+		await expect(listEditSessionLibrary("yuhara-main")).resolves.toEqual([]);
+		expect(fromCounts.get("sessions")).toBe(1);
+		expect(fromCounts.get("session_editorial_drafts") ?? 0).toBe(0);
+		expect(fromCounts.get("media_assets") ?? 0).toBe(0);
+	});
+
+	it("prefers a verified private draft cover and keeps the projection metadata-only", async () => {
+		const sessionId = "10000000-0000-4000-8000-000000000001";
+		const draftId = "20000000-0000-4000-8000-000000000001";
+		const coverId = "30000000-0000-4000-8000-000000000001";
+		const { calls } = setupTableResults({
+			sessions: [
+				{
+					data: [
+						{
+							id: sessionId,
+							source_session_id: "craig-session-1",
+							title: "Sessão sintética",
+							session_date: "2026-09-28",
+							arc: "Yuhara",
+							status: "published",
+							current_transcript_revision_id: "revision-1",
+							current_editorial_draft_id: draftId,
+							cover_image_url: "https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/public.webp",
+						},
+					],
+					error: null,
+				},
+			],
+			session_editorial_drafts: [
+				{
+					data: [{ id: draftId, session_id: sessionId, cover_asset_id: coverId }],
+					error: null,
+				},
+			],
+			media_assets: [
+				{
+					data: [
+						{
+							id: coverId,
+							status: "staged",
+							role_hint: "session_cover",
+							read_back_verified: true,
+						},
+					],
+					error: null,
+				},
+			],
+		});
+
+		const result = await listEditSessionLibrary("yuhara-main");
+		expect(result).toHaveLength(1);
+		expect(result[0]?.thumbnail).toEqual({
+			kind: "private",
+			src: `/api/edit/session-cover/${sessionId}/${coverId}`,
+		});
+		const sessionSelect = calls.find(
+			(call) => call.table === "sessions" && call.method === "select",
+		);
+		expect(String(sessionSelect?.args[0])).not.toContain("summary_full");
+		expect(String(sessionSelect?.args[0])).not.toContain("transcript_segments");
+	});
+
+	it("falls back to the verified public cover when a private draft asset is not readable", async () => {
+		const sessionId = "10000000-0000-4000-8000-000000000002";
+		const draftId = "20000000-0000-4000-8000-000000000002";
+		const coverId = "30000000-0000-4000-8000-000000000002";
+		setupTableResults({
+			sessions: [
+				{
+					data: [
+						{
+							id: sessionId,
+							source_session_id: "craig-session-2",
+							title: "Sessão publicada",
+							session_date: null,
+							arc: null,
+							status: "published",
+							current_transcript_revision_id: "revision-2",
+							current_editorial_draft_id: draftId,
+							cover_image_url: "/assets/sessions/fallback.webp",
+						},
+					],
+					error: null,
+				},
+			],
+			session_editorial_drafts: [
+				{
+					data: [{ id: draftId, session_id: sessionId, cover_asset_id: coverId }],
+					error: null,
+				},
+			],
+			media_assets: [
+				{
+					data: [
+						{
+							id: coverId,
+							status: "retired",
+							role_hint: "session_cover",
+							read_back_verified: true,
+						},
+					],
+					error: null,
+				},
+			],
+		});
+
+		await expect(listEditSessionLibrary("yuhara-main")).resolves.toMatchObject([
+			{ thumbnail: { kind: "public", src: "/assets/sessions/fallback.webp" } },
+		]);
+	});
+
+	it("batches related lookups for 250 sessions instead of issuing per-row queries", async () => {
+		const sessions = Array.from({ length: 250 }, (_, index) => ({
+			id: uuid("1", index),
+			source_session_id: `craig-${index}`,
+			title: `Sessão ${index}`,
+			session_date: "2026-09-28",
+			arc: "Yuhara",
+			status: "ready_for_review",
+			current_transcript_revision_id: `revision-${index}`,
+			current_editorial_draft_id: uuid("2", index),
+			cover_image_url: null,
+		}));
+		const drafts = sessions.map((session, index) => ({
+			id: session.current_editorial_draft_id,
+			session_id: session.id,
+			cover_asset_id: uuid("3", index),
+		}));
+		const assets = drafts.map((draft) => ({
+			id: draft.cover_asset_id,
+			status: "staged",
+			role_hint: "session_cover",
+			read_back_verified: true,
+		}));
+		const { fromCounts } = setupTableResults({
+			sessions: [
+				{ data: sessions.slice(0, 200), error: null },
+				{ data: sessions.slice(200), error: null },
+			],
+			session_editorial_drafts: [
+				{ data: drafts.slice(0, 200), error: null },
+				{ data: drafts.slice(200), error: null },
+			],
+			media_assets: [
+				{ data: assets.slice(0, 200), error: null },
+				{ data: assets.slice(200), error: null },
+			],
+		});
+
+		const result = await listEditSessionLibrary("yuhara-main");
+		expect(result).toHaveLength(250);
+		expect(result.every((session) => session.thumbnail?.kind === "private")).toBe(true);
+		expect(fromCounts.get("sessions")).toBe(2);
+		expect(fromCounts.get("session_editorial_drafts")).toBe(2);
+		expect(fromCounts.get("media_assets")).toBe(2);
 	});
 });
