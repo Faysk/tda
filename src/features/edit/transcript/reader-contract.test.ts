@@ -20,6 +20,34 @@ describe("transcript reader contract", () => {
 		expect(segments).toHaveLength(3);
 	});
 
+	it("reads Session Assembly revision segments through the canonical reader identity", () => {
+		const assemblySegmentId = "a".repeat(64);
+		const [segment] = normalizeRevisionSegments([
+			{
+				assembly_segment_id: assemblySegmentId,
+				segment_id: assemblySegmentId,
+				part_id: "b".repeat(32),
+				source_id: `craig-${"c".repeat(64)}`,
+				run_id: "run-assembly-a",
+				source_segment_id: "source-1",
+				track_number: 3,
+				start: 12.5,
+				end: 14,
+				text: "Trecho montado",
+				speaker: "Alya",
+				reviewed: true,
+			},
+		]);
+		expect(segment).toMatchObject({
+			id: `r-3-${assemblySegmentId}`,
+			sourceSegmentId: assemblySegmentId,
+			trackNumber: 3,
+			startMs: 12_500,
+			endMs: 14_000,
+			text: "Trecho montado",
+		});
+	});
+
 	it("supports timestamps beyond one hour with millisecond precision", () => {
 		expect(formatTranscriptTimestamp(5_530_842)).toBe("01:32:10.842");
 		expect(parseTranscriptTimestamp("01:32:10.842")).toBe(5_530_842);
