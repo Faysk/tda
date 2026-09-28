@@ -319,6 +319,8 @@ Primeiro corte:
 
 A UI pode sugerir boundary, mas unresolved overlap bloqueia `approved_local`/publish.
 
+O intervalo de overlap é sempre a interseção real `[max(starts), min(ends)]`. Um boundary fora dessa interseção é inválido. Se a ordem manual trouxer duas parts disjuntas em ordem temporal inversa, isso é `order_conflict`, não overlap artificial, e permanece fail-closed.
+
 A política de ownership no boundary precisa ser determinística e versionada, inclusive quando um segmento cruza o corte.
 
 Confirmações de gap e resoluções de overlap pertencem à relação entre adjacências, não à part isolada. Reorder/detach invalidam decisões relacionais persistidas; mudanças de offset/trim invalidam decisões antigas da geometria afetada para que uma confirmação não “teleporte” silenciosamente para outro par ou outro overlap.
