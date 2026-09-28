@@ -142,7 +142,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           gh api -H "Accept: application/vnd.github+json" \
-            "repos/$GITHUB_REPOSITORY/actions/artifacts/\${{ steps.artifact.outputs.artifact_id }}/zip" > companion-artifact.zip
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/${{ steps.artifact.outputs.artifact_id }}/zip" > companion-artifact.zip
           unzip -q companion-artifact.zip -d dist
           rm companion-artifact.zip
           test -f dist/TDACompanion-x64.msi
