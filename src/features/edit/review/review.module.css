@@ -10,11 +10,24 @@
 	flex-wrap: wrap;
 	gap: 14px;
 	margin-bottom: 24px;
+	padding-inline:
+		var(--site-chrome-brand-clearance, 0px)
+		var(--site-chrome-profile-clearance, 0px);
 	font-size: 0.88rem;
 }
 
 .navigation a {
 	color: var(--ds-foreground-muted);
+}
+
+@media (max-width: 700px) {
+	.shell {
+		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
+	}
+
+	.navigation {
+		padding-inline: 0;
+	}
 }
 
 .header {
