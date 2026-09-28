@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
+	useCallback,
 	useEffect,
 	useMemo,
 	useRef,
@@ -154,13 +155,13 @@ export function AccountMenu() {
 		return () => cancelAnimationFrame(frame);
 	}, [phase]);
 
-	const close = (restoreFocus = false) => {
+	const close = useCallback((restoreFocus = false) => {
 		setPhase((current) => {
 			if (current === "closed") return current;
 			return prefersReducedMotion() ? "closed" : "closing";
 		});
 		if (restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus());
-	};
+	}, []);
 
 	const toggle = () => {
 		setPhase((current) => {
@@ -187,7 +188,7 @@ export function AccountMenu() {
 			document.removeEventListener("pointerdown", onPointerDown);
 			document.removeEventListener("keydown", onKeyDown);
 		};
-	}, [mounted]);
+	}, [mounted, close]);
 
 	const authenticated = projection !== null && isAuthenticatedNavigationState(projection.state);
 	const capabilities = authenticated ? projection.capabilities : [];
