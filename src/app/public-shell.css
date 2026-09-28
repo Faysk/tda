@@ -181,6 +181,7 @@ footer {
 	min-height: 2.4em;
 	align-items: center;
 	justify-content: center;
+	overflow-wrap: anywhere;
 	text-wrap: balance;
 }
 
