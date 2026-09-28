@@ -132,9 +132,11 @@ jobs:
                   stripped = line.strip()
                   if stripped.startswith("- \'") or stripped.startswith('- "'):
                       paths.add(stripped[3:-1])
+          # Release-governance workflows are intentionally not runtime-byte inputs:
+          # the immutable RC candidate manifest and downloaded assets are verified
+          # independently below. This permits a handoff-only repair after the RC
+          # was already published without pretending that the runtime bytes changed.
           paths.update({
-              ".github/workflows/runtime-rc.yml",
-              ".github/workflows/qwen-1012-production-validation-stable.yml",
               "local-companion/tda_companion/qwen_prefix_checkpoint.py",
               "local-companion/tda_companion/worker_event_schema.py",
           })
