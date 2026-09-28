@@ -166,6 +166,12 @@ footer {
 	flex: 0 0 auto;
 }
 
+.product-launcher-link span {
+	display: block;
+	max-width: 100%;
+	overflow-wrap: anywhere;
+}
+
 .product-launcher-link[aria-current="page"] {
 	border-color: color-mix(in srgb, var(--ds-accent) 55%, transparent);
 	background: color-mix(in srgb, var(--ds-accent) 10%, transparent);
