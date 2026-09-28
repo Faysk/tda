@@ -16,6 +16,7 @@ create table public.sessions(
   id uuid primary key,
   campaign_id uuid not null references public.campaigns(id),
   title text not null,
+  session_date date,
   arc text,
   status text not null,
   summary_short text,
@@ -118,11 +119,12 @@ values ('33333333-3333-4333-8333-333333333333');
 insert into public.role_definitions(id,slug,plane)
 values ('66666666-6666-4666-8666-666666666666','site_editor','narrative');
 insert into public.sessions(
-  id,campaign_id,title,arc,status,summary_short,summary_full,source_session_id,metadata
+  id,campaign_id,title,session_date,arc,status,summary_short,summary_full,source_session_id,metadata
 ) values (
   '22222222-2222-4222-8222-222222222222',
   '11111111-1111-4111-8111-111111111111',
   'Legacy title',
+  '2026-09-01',
   'Legacy arc',
   'approved',
   'Legacy short',
