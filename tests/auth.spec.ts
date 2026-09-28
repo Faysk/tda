@@ -62,7 +62,7 @@ test("administrative pages disclose no data when access resolution is unavailabl
 		await page.goto(path);
 		await expect(page).toHaveURL(/\/conta\?acesso=indisponivel$/);
 		await expect(
-			page.getByRole("heading", { name: "Acesso à campanha" }),
+			page.getByRole("heading", { name: "Conta e acesso" }),
 		).toBeVisible();
 		await expect(page.locator("main").getByRole("alert")).toContainText(
 			"não conseguiu verificar seu acesso",
