@@ -898,6 +898,35 @@ describe("preparation wire validation", () => {
 		});
 	});
 
+	it("fences a stale catalog runtime even when an older response omits the gate snapshot", () => {
+		const capabilities = parseCapabilities({
+			capabilities: ["transcription.craig", "transcription.prepare"],
+			sync: false,
+			device: { id: "device-1", label: "TDA local" },
+			transcription: {
+				profiles: [],
+				catalog: [
+					{
+						id: "qwen-quality",
+						engine: "qwen3",
+						ready: false,
+						preparation_required: true,
+						reason: "QWEN_RUNTIME_REQUIRED",
+						runtime_version: "1.0.11",
+					},
+				],
+			},
+		});
+
+		expect(capabilities.transcription.catalog[0]).toMatchObject({
+			id: "qwen-quality",
+			runtimeVersion: "1.0.11",
+			ready: false,
+			preparationRequired: false,
+			reason: "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+		});
+	});
+
 	it("fences a stale catalog runtime when the physical gate fails before exposing runtime identity", () => {
 		const capabilities = parseCapabilities({
 			capabilities: ["transcription.craig", "transcription.prepare"],
