@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-22
+> Última revisão: 2026-09-29
 > Fonte de verdade: ADR-0018 + runbooks de CI/CD
 
 Este documento define os ambientes do TDA, seus limites de dados/secrets e o relacionamento com providers substituíveis.
@@ -88,9 +88,10 @@ runtime/deploy:
 database:
   PostgreSQL via Supabase dmrqnbdvbkfqzctcerbx
 
-Media Storage:
+Media Storage / Cloudflare R2:
   public  tda-media-public
   private tda-media-private
+  preview tda-media-preview
   origin  https://media.dnd.faysk.dev
 ```
 
@@ -133,7 +134,7 @@ O **World Entity Media** passa a usar o mesmo boundary privado para staging e pr
 A **publicação revisionada de transcrições** é habilitada pelo mesmo staged rollout com `TDA_TRANSCRIPT_PUBLICATION_ENABLED=true` somente depois de migration/grants/RPCs e hardening pós-rollout estarem aplicados e verificados. O endpoint público `/api/health` expõe apenas o booleano não sensível `features.transcriptPublication`; staged e canonical smoke exigem `true` antes de considerar o rollout ativo. Esse probe não publica conteúdo. O smoke editorial autenticado permanece separado porque exige uma sessão/revisão aprovada real e uma decisão humana explícita.
 
 
-Esses nomes são do provider atual. Uma futura troca de provider muda a configuração do adapter/lifecycle, não a regra de que o secret operacional pertence ao ambiente que executa a operação.
+**Todo blob/object storage do TDA usa Cloudflare R2.** `Media Storage` descreve o boundary lógico; não existe storage de blobs alternativo configurado em Vercel, Supabase, Azure Blob ou Amazon S3. Public/private/preview são buckets e credenciais R2 distintos, não providers distintos. Qualquer troca futura exige mudança arquitetural e operacional explícita; até lá, novos consumidores de blobs devem reutilizar estes boundaries R2.
 
 Runtime secrets continuam no runtime apenas quando a aplicação realmente precisa deles.
 

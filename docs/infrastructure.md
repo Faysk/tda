@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: infraestrutura/operação
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-29
 > Fonte de verdade: ADR-0018, runbooks operacionais, providers observados e evidências datadas
 
 Este documento resume **quem faz o quê** na infraestrutura atual. Ele não congela número de Production, deployment ID ou SHA corrente: esses valores mudam com frequência e devem ser verificados no ambiente/receipt correspondente.
@@ -14,10 +14,12 @@ Este documento resume **quem faz o quê** na infraestrutura atual. Ele não cong
 | control plane | Git + configuração declarativa + CI/CD | GitHub / GitHub Actions | canônico |
 | runtime/deploy web | runtime web substituível | Vercel Hobby | provider atual |
 | dados relacionais | PostgreSQL + migrations versionadas | Supabase Free | provider atual |
-| Media Storage | object/blob storage | Cloudflare R2 Standard | provider atual |
+| Media Storage | object/blob storage | Cloudflare R2 Standard | canônico para blobs |
 | processamento pesado | execução local recuperável | TDA Companion | local |
 
 A direção estrutural está em [ADR-0018](adr/0018-portable-core-github-control-plane.md): providers são substituíveis e a infraestrutura é free-first.
+
+**Regra vigente de storage:** todo blob/object storage do TDA usa Cloudflare R2. `Media Storage` é o nome do boundary arquitetural, não um segundo provider. Não existe Azure Blob Storage, Amazon S3, Supabase Storage ou outro backend de blobs configurado no TDA. Uma troca futura exige decisão arquitetural, implementação, migração e documentação explícitas; até lá, `blob storage` e `Media Storage` significam R2 operacionalmente.
 
 ## GitHub
 
@@ -69,7 +71,7 @@ Migration integrada no Git não prova aplicação remota. Estado de schema e apl
 
 ## Media Storage — Cloudflare R2
 
-Provider atual: Cloudflare R2.
+Provider canônico vigente para blob/object storage: Cloudflare R2.
 
 ```text
 public:  tda-media-public
@@ -80,7 +82,7 @@ origin:  https://media.dnd.faysk.dev
 
 Evidências históricas comprovam uso real do bucket público e entrega por `media.dnd.faysk.dev`. Private/preview permanecem boundaries restritos e não são fallback público.
 
-A regra permanente é **Media Storage**, não “R2 para sempre”. Ver [integração atual](integrations/r2.md) e [ADR-0018](adr/0018-portable-core-github-control-plane.md).
+O boundary arquitetural continua se chamando **Media Storage**, mas sua implementação vigente é única: **Cloudflare R2 para todo blob/object storage**. Não usar outro storage de blobs por feature, ambiente ou conveniência. Uma substituição futura do provider só existe depois de ADR/migração explícitas. Ver [integração R2](integrations/r2.md) e [ADR-0018](adr/0018-portable-core-github-control-plane.md).
 
 ### Controle operacional do publisher
 

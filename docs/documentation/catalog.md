@@ -13,7 +13,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
 | [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-28 |
-| [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-20 |
+| [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-29 |
 | [Publicação controlada](../releases.md) | operations / release | vigente | 2026-09-20 |
 | [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-15 |
 
@@ -38,7 +38,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0015 — Entrega simples orientada a recuperação](../adr/0015-recovery-oriented-delivery.md) | operations / architecture | accepted | 2026-09-14 |
 | [ADR-0016 — Runs locais imutáveis, revisão explícita e publicação versionada de transcrições](../adr/0016-transcript-runs-review-publication.md) | Edit / processamento local / transcript-sync | accepted | 2026-09-15 |
 | [ADR-0017 — Web como entrada única do processamento e sessão loopback automática](../adr/0017-web-single-entry-loopback-session.md) | local-companion / processing | accepted | Não declarado |
-| [ADR-0018 — Core portátil, GitHub como control plane e providers substituíveis](../adr/0018-portable-core-github-control-plane.md) | arquitetura / operations | accepted | 2026-09-20 |
+| [ADR-0018 — Core portátil, GitHub como control plane e providers substituíveis](../adr/0018-portable-core-github-control-plane.md) | arquitetura / operations | accepted | 2026-09-29 |
 | [ADR-0019 — Sessão pode compor múltiplas recording sources por uma assembly pós-ASR](../adr/0019-multi-recording-session-assembly.md) | Não declarado | accepted | Não declarado |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
@@ -157,8 +157,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Inventário de mídia — 2026-09-07](../integrations/media-inventory-2026-09-07.md) | integrations/media | auditoria observada | Não declarado |
 | [Reparo do site e entrega pública de imagens](../integrations/media-public-delivery-2026-09-07.md) | integrations/media | implementado parcialmente; promoção R2 pendente | 2026-09-07 |
 | [Recuperação de imagens — 2026-09-07](../integrations/media-recovery-2026-09-07.md) | integrations/media | auditoria observada | 2026-09-07 |
-| [Media Storage — governança (provider atual: R2)](../integrations/r2-governance.md) | integrations/media (Balde), em coordenação com infraestrutura/operação (Nuvem) | vigente | 2026-09-20 |
-| [Media Storage — provider atual Cloudflare R2](../integrations/r2.md) | integrations/media | vigente | 2026-09-21 |
+| [Media Storage — governança (provider atual: R2)](../integrations/r2-governance.md) | integrations/media (Balde), em coordenação com infraestrutura/operação (Nuvem) | vigente | 2026-09-29 |
+| [Media Storage — Cloudflare R2 canônico para blobs](../integrations/r2.md) | integrations/media | vigente | 2026-09-29 |
 | [Integração Supabase — provider atual de PostgreSQL e Auth](../integrations/supabase.md) | dados / identity-access | vigente; provider atual | 2026-09-20 |
 | [Craig, Discord e Roll20](../integrations/table-sources.md) | integrations/table-sources | legado funcional/parcialmente implementado | 2026-09-06 |
 | [Importação de transcrição local](../integrations/transcript-import.md) | transcript-publication + dados/Supabase | boundary revisionado de publicação implementado e fail-closed; migration/grants/rollout de Production ainda não ativados | 2026-09-21 |
@@ -168,7 +168,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Media Storage — documentação do provider atual R2](../integrations/r2/README.md) | integrations/media | vigente | 2026-09-20 |
+| [Media Storage — documentação do provider atual R2](../integrations/r2/README.md) | integrations/media | vigente | 2026-09-29 |
 | [R2 — identidade e object keys](../integrations/r2/identity-and-keys.md) | integrations/media | vigente | 2026-09-11 |
 | [R2 — lifecycle e estados](../integrations/r2/lifecycle.md) | integrations/media | vigente | 2026-09-11 |
 | [Mídia — autorização compartilhada de staging](../integrations/r2/media-access-contract.md) | integrations/media + operations | decisão aprovada | 2026-09-14 |
@@ -191,7 +191,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | --- | --- | --- | --- |
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-20 |
 | [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-09-27 |
-| [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-22 |
+| [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-29 |
 | [CI/CD — baseline da simplificação](../operations/cicd-simplification-baseline.md) | operations / architecture | auditoria | 2026-09-14 |
 | [CI/CD — plano de simplificação](../operations/cicd-simplification-plan.md) | operations / architecture | histórico — migração concluída em 2026-09-14 | 2026-09-14 |
 | [TDA Companion 0.3.3 — auditoria pesada de confiabilidade, segurança e release](../operations/companion-0.3.3-heavy-audit.md) | local-companion / processing / operations / security | auditoria concluída; 0.3.3 aposentada para certificação; remediação integrada na linha 0.3.4 | 2026-09-13 |
@@ -202,7 +202,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | 2026-09-20 |
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
-| [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-22 |
+| [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-29 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | Stable 0.3.15; candidato 0.3.16 / Qwen 1.0.12 preparado para validação Production de #628 | 2026-09-28 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
