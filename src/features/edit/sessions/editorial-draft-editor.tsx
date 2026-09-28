@@ -714,7 +714,7 @@ export function SessionEditorialDraftEditor({
 						onClick={() => void save()}
 						type="button"
 					>
-						{surface === "summary" ? "Salvar resumo" : "Salvar draft"}
+						"Salvar draft"
 					</button>
 					<button
 						className={draftStyles.controlButton}
