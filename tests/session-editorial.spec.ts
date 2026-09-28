@@ -277,6 +277,33 @@ test("desktop transcript toolbar stays clear of floating global chrome while sti
 	if (toolbarBox) expect(toolbarBox.y).toBeGreaterThanOrEqual(chromeBottom + 4);
 });
 
+test("session workbench floating-shell receipts cover desktop, mobile and zoom", async ({
+	page,
+}, testInfo) => {
+	for (const receipt of [
+		{ name: "workbench-1920", viewport: { width: 1920, height: 1080 } },
+		{ name: "workbench-1366", viewport: { width: 1366, height: 768 } },
+		{ name: "workbench-mobile-390", viewport: { width: 390, height: 844 } },
+		{ name: "workbench-mobile-320", viewport: { width: 320, height: 800 } },
+		{ name: "workbench-zoom-200", viewport: { width: 683, height: 384 } },
+	]) {
+		await page.setViewportSize(receipt.viewport);
+		await page.goto("/e2e-fixtures/session-editorial");
+		await expect(page.getByRole("tab", { name: "Transcrição" })).toBeVisible();
+		await expect(page.locator(".brand")).toBeVisible();
+		await expect(page.locator(".account-menu-trigger")).toBeVisible();
+		expect(
+			await page.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+			),
+		).toBeTruthy();
+		await page.screenshot({
+			path: testInfo.outputPath(`${receipt.name}.png`),
+			fullPage: false,
+		});
+	}
+});
+
 test("mobile workspace and publication dialog remain inside the viewport", async ({
 	page,
 }) => {
