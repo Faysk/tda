@@ -58,6 +58,10 @@ def test_qwen_recovery_physical_gate_static_contract():
     assert text.count("Qwen physical gate verdict:") == 1
     assert len(text.splitlines()) < 1200
     assert "qwen-runtime-install.json" in text
+    assert '$RequiredCompanionVersion = "0.3.16"' in text
+    assert '[string]$CompanionPayload.version -ne $RequiredCompanionVersion' in text
+    assert '$RequiredQwenRuntimeVersion = "1.0.12"' in text
+    assert '[string]$QwenCandidate.version -ne $RequiredQwenRuntimeVersion' in text
 
 
 def test_qwen_recovery_physical_gate_does_not_target_default_agent_port_for_gate():

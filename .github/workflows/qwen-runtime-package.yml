@@ -125,6 +125,52 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Restore Runtime RC only for the #628 Qwen 1.0.12 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKFLOW="runtime-rc.yml"
+          REPAIR_VERSION="1.0.12"
+          STABLE_TAG="companion-qwen-runtime-v$REPAIR_VERSION"
+
+          RUNTIME_VERSION="$(
+            gh api "repos/$GITHUB_REPOSITORY/contents/local-companion/runtime/qwen-windows-x64.json?ref=$GITHUB_SHA" --jq .content \
+              | base64 --decode \
+              | python -c 'import json,sys; print(json.load(sys.stdin)["version"])'
+          )"
+          [[ "$RUNTIME_VERSION" == "$REPAIR_VERSION" ]] || {
+            echo "::error::QWEN_RUNTIME_RC_REPAIR_VERSION_MISMATCH:$RUNTIME_VERSION"
+            exit 1
+          }
+
+          WORKFLOW_STATE="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW" --jq .state)"
+          if [[ "$WORKFLOW_STATE" == "active" ]]; then
+            echo "QWEN_RUNTIME_RC_WORKFLOW_ACTIVE"
+            exit 0
+          fi
+
+          if gh release view "$STABLE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::QWEN_RUNTIME_RC_DISABLED_AFTER_1012_STABLE"
+            exit 1
+          fi
+
+          case "$WORKFLOW_STATE" in
+            disabled_manually|disabled_inactivity)
+              ;;
+            *)
+              echo "::error::QWEN_RUNTIME_RC_WORKFLOW_STATE_UNSAFE:$WORKFLOW_STATE"
+              exit 1
+              ;;
+          esac
+
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW/enable"
+          RESTORED_STATE="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW" --jq .state)"
+          [[ "$RESTORED_STATE" == "active" ]] || {
+            echo "::error::QWEN_RUNTIME_RC_WORKFLOW_RESTORE_FAILED:$RESTORED_STATE"
+            exit 1
+          }
+          echo "QWEN_RUNTIME_RC_WORKFLOW_RESTORED issue=628 version=$REPAIR_VERSION previous_state=$WORKFLOW_STATE"
+
       - name: Dispatch Runtime RC for exact main source
         shell: bash
         run: |
