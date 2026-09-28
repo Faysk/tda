@@ -54,7 +54,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Fluxos ponta a ponta](architecture/data-flows.md)
 - [Princípios e invariantes](architecture/invariants.md)
 - [ADR-0018 — core portátil, GitHub como control plane e providers substituíveis](adr/0018-portable-core-github-control-plane.md)
-- [ADR-0019 — sessão composta por múltiplas recording sources via assembly pós-ASR](adr/0019-multi-recording-session-assembly.md) — proposta em revisão.
+- [ADR-0019 — sessão composta por múltiplas recording sources via assembly pós-ASR](adr/0019-multi-recording-session-assembly.md) — decisão accepted; implementação multi-recording integrada e gated.
 - [Edit Workbench — boundary administrativo](architecture/edit-workbench.md)
 
 ### Design System e marca
@@ -94,7 +94,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Navegação global do TDA](features/global-navigation.md) — marca = início, launcher = produto e avatar = conta/aparência; capabilities privadas continuam subordinadas aos guards server-side.
 - [Edit Workbench / administração](features/edit-workbench.md)
 - [Processamento local no Edit](features/local-processing.md) — UI/adapters, ensaio sintético e gates de integração.
-- [Sessões com múltiplas gravações Craig](features/multi-recording-sessions.md) — contrato proposto para Recording Parts, Session Assembly, gaps/overlaps, participants e provenance multi-source.
+- [Sessões com múltiplas gravações Craig](features/multi-recording-sessions.md) — contrato implementado para Recording Parts, Session Assembly, gaps/overlaps, participants e provenance multi-source.
 - [TDA Companion v0.3 — Desktop, Agent e ASR](features/companion-desktop-asr-v0.3.md) — Agent/Desktop, worker subprocess, ingest Craig e perfis ASR locais.
 - [Personagens e NPCs](features/characters-and-npcs.md)
 - [Perfis editoriais de entities](features/entity-profiles.md)
