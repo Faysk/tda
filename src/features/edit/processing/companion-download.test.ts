@@ -5,7 +5,10 @@ import {
 } from "./companion-download";
 
 describe("companionManifestUrl", () => {
-	it("keeps stable as the default surface and requires explicit RC opt-in", () => {
+	it("uses an explicit latest surface while preserving stable and RC contracts", () => {
+		expect(companionManifestUrl("latest")).toBe(
+			"/api/downloads/companion/windows/manifest?channel=latest",
+		);
 		expect(companionManifestUrl("stable")).toBe(
 			"/api/downloads/companion/windows/manifest",
 		);
