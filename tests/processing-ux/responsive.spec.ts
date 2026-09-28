@@ -682,57 +682,108 @@ test("queue overflow actions do not create horizontal overflow at 320px", async 
 	expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(312);
 });
 
-test("live-log grouping checkbox stays compact and keyboard operable", async ({
+test("diagnostics mode owns routine aggregation without a grouping preference", async ({
+	page,
+}, testInfo) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	const routineBefore = Array.from({ length: 50 }, (_, index) => ({
+		seq: index + 1,
+		at: `2026-09-28T12:00:${String(index).padStart(2, "0")}Z`,
+		code: "QWEN_WINDOW_TRANSCRIBED",
+		level: "info" as const,
+		attempt: 1,
+		data: { track: 1, speaker: "Synthetic", window: index + 1 },
+	}));
+	const warning = {
+		seq: 51,
+		at: "2026-09-28T12:00:51Z",
+		code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+		level: "warning" as const,
+		attempt: 1,
+		data: { track: 1, speaker: "Synthetic", window: 51 },
+	};
+	const routineAfter = Array.from({ length: 49 }, (_, index) => ({
+		seq: index + 52,
+		at: `2026-09-28T12:01:${String(index).padStart(2, "0")}Z`,
+		code: "QWEN_WINDOW_TRANSCRIBED",
+		level: "info" as const,
+		attempt: 1,
+		data: { track: 1, speaker: "Synthetic", window: index + 52 },
+	}));
+
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		jobEvents: [...routineBefore, warning, ...routineAfter],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Diagnóstico" }).click();
+
+	const log = page.getByRole("log");
+	await expect(
+		page.getByRole("checkbox", { name: "Agrupar repetitivos" }),
+	).toHaveCount(0);
+	await expect(page.getByText("Agrupar repetitivos", { exact: true })).toHaveCount(0);
+
+	// Humanizada owns presentation density: allowlisted routine success spam is
+	// aggregated automatically while warnings remain factual and independently visible.
+	await expect(
+		page.getByRole("button", { name: "Humanizada", exact: true }),
+	).toHaveAttribute("aria-pressed", "true");
+	await expect(log.locator("button[data-event-seq]")).toHaveCount(3);
+	await expect(log.locator('button[data-event-seq="51"]')).toHaveAttribute(
+		"data-level",
+		"warning",
+	);
+	await page.screenshot({
+		path: testInfo.outputPath("diagnostics-humanized-100-events.png"),
+		fullPage: false,
+	});
+
+	// Técnica is authoritative: every factual event remains individually available
+	// in sequence; presentation grouping cannot hide the original event count.
+	await page.getByRole("button", { name: "Técnica", exact: true }).click();
+	await expect(
+		page.getByRole("button", { name: "Técnica", exact: true }),
+	).toHaveAttribute("aria-pressed", "true");
+	await expect(log.locator("button[data-event-seq]")).toHaveCount(100);
+	await expect(log.locator('button[data-event-seq="1"]')).toBeAttached();
+	await expect(log.locator('button[data-event-seq="51"]')).toHaveAttribute(
+		"data-level",
+		"warning",
+	);
+	await expect(log.locator('button[data-event-seq="100"]')).toBeAttached();
+	await page.screenshot({
+		path: testInfo.outputPath("diagnostics-technical-100-events.png"),
+		fullPage: false,
+	});
+});
+
+test("retired grouping preference stays absent across responsive diagnostics", async ({
 	page,
 }) => {
 	for (const viewport of [
 		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 960, height: 540 },
+		{ width: 1366, height: 768 },
 		{ width: 1920, height: 1080 },
 		{ width: 2560, height: 1440 },
 	]) {
 		await openRunningWorkspace(page, viewport.width, viewport.height);
 		await page.getByRole("tab", { name: "Diagnóstico" }).click();
-
-		const checkbox = page.getByRole("checkbox", {
-			name: "Agrupar repetitivos",
-		});
-		await expect(checkbox).toBeVisible();
-		await expect(checkbox).toBeChecked();
-
-		const geometry = await checkbox.evaluate((element) => {
-			const style = getComputedStyle(element);
-			const rect = element.getBoundingClientRect();
-			return {
-				width: rect.width,
-				height: rect.height,
-				minWidth: style.minWidth,
-				paddingInlineStart: style.paddingInlineStart,
-				paddingInlineEnd: style.paddingInlineEnd,
-			};
-		});
-		expect(geometry.width).toBeLessThanOrEqual(20);
-		expect(geometry.height).toBeLessThanOrEqual(20);
-		expect(geometry.minWidth).not.toBe("260px");
-		expect(geometry.paddingInlineStart).toBe("0px");
-		expect(geometry.paddingInlineEnd).toBe("0px");
-
+		await expect(
+			page.getByRole("checkbox", { name: "Agrupar repetitivos" }),
+		).toHaveCount(0);
+		await expect(page.getByText("Agrupar repetitivos", { exact: true })).toHaveCount(0);
 		const horizontal = await page.evaluate(() => ({
 			scrollWidth: document.documentElement.scrollWidth,
 			clientWidth: document.documentElement.clientWidth,
 		}));
 		expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
 	}
-
-	await openRunningWorkspace(page, 1920, 1080);
-	await page.getByRole("tab", { name: "Diagnóstico" }).click();
-	const checkbox = page.getByRole("checkbox", { name: "Agrupar repetitivos" });
-
-	await page.getByText("Agrupar repetitivos", { exact: true }).click();
-	await expect(checkbox).not.toBeChecked();
-
-	await checkbox.focus();
-	await expect(checkbox).toBeFocused();
-	await page.keyboard.press("Space");
-	await expect(checkbox).toBeChecked();
 });
 

@@ -274,6 +274,8 @@ Exemplos:
 
 O Companion persiste fatos, não piadas. A interface nunca deve fingir que executou uma operação só para ficar engraçada.
 
+A alternância **Humanizada | Técnica** também é a política de densidade do log. Na Humanizada, spam rotineiro de sucesso explicitamente allowlisted é agregado automaticamente em uma linha operacional com contagem; warning, error, recovery, checkpoint e transições relevantes continuam factuais e não são escondidos por essa agregação. Na Técnica, a sequência estruturada é autoritativa e não recebe pacing cosmético: cada evento factual disponível continua acessível individualmente, preservando ordem, `seq`, contagem e filtros. Não existe preferência global **Agrupar repetitivos**. Se volumes técnicos futuros exigirem otimização visual, virtualização/row folding deve preservar contagem e acesso aos eventos originais em vez de mudar a semântica do log.
+
 A interpolação de placeholders da camada Humanizada acontece em **uma única passagem sobre o template original**. Valores factuais inseridos são texto terminal: se um speaker contiver `{gpu}`, `<script>` ou qualquer outra sequência parecida com template/markup, esse valor não é reinterpretado como outro placeholder, HTML ou uma segunda linguagem de apresentação.
 
 

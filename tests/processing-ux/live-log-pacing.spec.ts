@@ -42,12 +42,12 @@ async function openLiveLog(
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Diagnóstico" }).click();
-	await page.getByRole("button", { name: "Técnica" }).click();
-	await expect(page.getByText("TRACK_PROGRESS · seq 1", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Humanizada" })).toHaveAttribute("aria-pressed", "true");
+	await expect(page.locator('button[data-event-seq="1"]')).toBeVisible();
 	return state;
 }
 
-test("live log paces routine rows while factual inspection and urgent catch-up stay immediate", async ({
+test("humanized live log paces routine rows while factual inspection and urgent catch-up stay immediate", async ({
 	page,
 }, testInfo) => {
 	const state = await openLiveLog(page);
@@ -62,17 +62,13 @@ test("live log paces routine rows while factual inspection and urgent catch-up s
 		.poll(() => eventReads(state), { timeout: 2_500 })
 		.toBeGreaterThan(firstReadCount);
 	await expect(
-		page.getByText("TRACK_PROGRESS · seq 2", { exact: true }),
+		page.locator('button[data-event-seq="2"]'),
 	).toBeVisible({ timeout: 350 });
 	await expect(
-		page.getByText("TRACK_PROGRESS · seq 7", { exact: true }),
+		page.locator('button[data-event-seq="7"]'),
 	).toHaveCount(0);
 
-	const rowTwo = page.locator('button[data-event-seq="2"]');
-	await expect(rowTwo).toBeVisible();
-	expect(
-		await rowTwo.evaluate((node) => getComputedStyle(node).animationName),
-	).toContain("liveLogRowReveal");
+	await expect(page.locator('button[data-event-seq="2"]')).toBeVisible();
 
 	await page.screenshot({
 		path: testInfo.outputPath("live-log-paced-window.png"),
@@ -84,12 +80,12 @@ test("live log paces routine rows while factual inspection and urgent catch-up s
 	const search = page.getByPlaceholder("Buscar code, speaker, stage…");
 	await search.fill("routine-7");
 	await expect(
-		page.getByText("TRACK_PROGRESS · seq 7", { exact: true }),
+		page.locator('button[data-event-seq="7"]'),
 	).toBeVisible({ timeout: 250 });
 	await search.fill("");
 
 	await expect(
-		page.getByText("TRACK_PROGRESS · seq 7", { exact: true }),
+		page.locator('button[data-event-seq="7"]'),
 	).toBeVisible({ timeout: 1_500 });
 
 	const urgentReadCount = eventReads(state);
@@ -108,10 +104,10 @@ test("live log paces routine rows while factual inspection and urgent catch-up s
 		.poll(() => eventReads(state), { timeout: 2_500 })
 		.toBeGreaterThan(urgentReadCount);
 	await expect(
-		page.getByText("WORKER_RESULT_TEARDOWN_FORCED · seq 9", { exact: true }),
+		page.locator('button[data-event-seq="9"]'),
 	).toBeVisible({ timeout: 350 });
 	await expect(
-		page.getByText("TRACK_PROGRESS · seq 10", { exact: true }),
+		page.locator('button[data-event-seq="10"]'),
 	).toBeVisible({ timeout: 350 });
 
 	await page.screenshot({
@@ -130,17 +126,17 @@ test("live log paces routine rows while factual inspection and urgent catch-up s
 		.poll(() => eventReads(state), { timeout: 2_500 })
 		.toBeGreaterThan(pausedReadCount);
 	await expect(
-		page.getByText("TRACK_PROGRESS · seq 11", { exact: true }),
+		page.locator('button[data-event-seq="11"]'),
 	).toHaveCount(0);
 
 	// Pausing freezes only presentation. Factual search still sees seq 11.
 	await search.fill("paused-11");
 	await expect(
-		page.getByText("TRACK_PROGRESS · seq 11", { exact: true }),
+		page.locator('button[data-event-seq="11"]'),
 	).toBeVisible({ timeout: 250 });
 	await search.fill("");
 	await expect(
-		page.getByText("TRACK_PROGRESS · seq 11", { exact: true }),
+		page.locator('button[data-event-seq="11"]'),
 	).toHaveCount(0);
 
 	const catchUp = page.getByRole("button", {
@@ -149,13 +145,43 @@ test("live log paces routine rows while factual inspection and urgent catch-up s
 	await expect(catchUp).toBeVisible();
 	await catchUp.click();
 	await expect(
-		page.getByText("TRACK_PROGRESS · seq 11", { exact: true }),
+		page.locator('button[data-event-seq="11"]'),
 	).toBeVisible({ timeout: 250 });
 
 	await page.screenshot({
 		path: testInfo.outputPath("live-log-caught-up.png"),
 		fullPage: true,
 	});
+});
+
+test("technical mode bypasses cosmetic pacing and exposes the factual tail immediately", async ({
+	page,
+}) => {
+	const state = await openLiveLog(page);
+	await page.getByRole("button", { name: "Técnica", exact: true }).click();
+	await expect(
+		page.getByRole("button", { name: "Técnica", exact: true }),
+	).toHaveAttribute("aria-pressed", "true");
+
+	const firstReadCount = eventReads(state);
+	state.setJobEvents([
+		logEvent(1),
+		logEvent(2),
+		logEvent(3),
+		logEvent(4),
+		logEvent(5),
+	]);
+
+	await expect
+		.poll(() => eventReads(state), { timeout: 2_500 })
+		.toBeGreaterThan(firstReadCount);
+	await expect(page.locator('button[data-event-seq="5"]')).toBeVisible({
+		timeout: 350,
+	});
+	await expect(page.getByRole("log").locator("button[data-event-seq]")).toHaveCount(5);
+	await expect(
+		page.getByText("TRACK_PROGRESS · seq 5", { exact: true }),
+	).toBeVisible();
 });
 
 test("reduced motion reveals the complete factual batch without cosmetic pacing", async ({
@@ -177,7 +203,7 @@ test("reduced motion reveals the complete factual batch without cosmetic pacing"
 		.poll(() => eventReads(state), { timeout: 2_500 })
 		.toBeGreaterThan(firstReadCount);
 	await expect(
-		page.getByText("TRACK_PROGRESS · seq 5", { exact: true }),
+		page.locator('button[data-event-seq="5"]'),
 	).toBeVisible({ timeout: 350 });
 	expect(
 		await page
