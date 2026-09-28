@@ -77,7 +77,9 @@ function ActiveSegmentEditor({
 
 	return (
 		<div
+			aria-label="Editar fala da transcrição"
 			className={styles.inlineEditor}
+			role="group"
 			onKeyDown={(event) => {
 				if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase("en") === "s") {
 					event.preventDefault();
