@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 async function openAppearance(page: import("@playwright/test").Page) {
 	const trigger = page.getByRole("button", { name: "Abrir menu da conta" });
 	await trigger.click();
-	const toggle = await openAppearance(page);
+	const toggle = page.getByRole("switch", { name: "Modo escuro" });
 	await expect(toggle).toBeVisible();
 	return toggle;
 }
@@ -139,7 +139,7 @@ test("theme follows the system by default and persists explicit toggles", async 
 }) => {
 	await page.emulateMedia({ colorScheme: "dark" });
 	await page.goto("/");
-	const toggle = page.getByRole("switch", { name: "Modo escuro" });
+	const toggle = await openAppearance(page);
 	const sun = page.locator(".theme-toggle-glyph--sun");
 	const moon = page.locator(".theme-toggle-glyph--moon");
 
