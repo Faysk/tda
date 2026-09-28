@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release
-> Última revisão: 2026-09-22
+> Última revisão: 2026-09-29
 > Fonte de verdade: ADR-0018, GitHub Environments e os workflows versionados
 
 Este runbook cobre o estado administrativo desejado e verificável da esteira: GitHub Environments, secrets, branch protection e os providers atuais.
@@ -79,7 +79,7 @@ SUPABASE_ACCESS_TOKEN
 SUPABASE_DB_PASSWORD
 ```
 
-Quando há publicação pública de Media Storage pendente e o provider atual é R2:
+Quando há publicação pública de Media Storage/R2 pendente:
 
 ```text
 R2_ACCOUNT_ID
@@ -143,6 +143,8 @@ SUPABASE_ACCESS_TOKEN != SUPABASE_SERVICE_ROLE_KEY
 Supabase é o provider atual; PostgreSQL é o contrato relacional principal.
 
 ### Media Storage / Cloudflare R2
+
+**R2 é o único blob/object storage configurado no TDA.** `Media Storage` é o nome do boundary compartilhado usado pelas features; não designa um storage separado. Buckets público, privado e Preview são todos Cloudflare R2. Não provisionar Azure Blob, Amazon S3, Supabase Storage ou outro backend de blobs por feature sem uma decisão arquitetural explícita.
 
 Matriz administrativa atual:
 
