@@ -71,3 +71,33 @@ test("representative public surfaces remain clear at the 200% zoom-equivalent vi
 		await expectFirstCriticalContentClear(page, route);
 	}
 });
+
+test("Pipipi sticky chapter navigation clears the global chrome on mobile", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/lore/pipipi");
+
+	const nav = page.getByRole("navigation", { name: "Capítulos da história" });
+	await expect(nav).toBeVisible();
+	await nav.evaluate((element) => element.scrollIntoView({ block: "start" }));
+	await page.evaluate(() => window.scrollBy(0, 160));
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+
+	const [navBox, brandBox, triggerBox] = await Promise.all([
+		nav.boundingBox(),
+		page.locator(".brand").boundingBox(),
+		page.locator(".account-menu-trigger").boundingBox(),
+	]);
+	expect(navBox).not.toBeNull();
+	expect(brandBox).not.toBeNull();
+	expect(triggerBox).not.toBeNull();
+	if (!navBox || !brandBox || !triggerBox) return;
+
+	const chromeBottom = Math.max(
+		brandBox.y + brandBox.height,
+		triggerBox.y + triggerBox.height,
+	);
+	expect(navBox.y).toBeGreaterThanOrEqual(chromeBottom + 4);
+	expect(navBox.x).toBeGreaterThanOrEqual(-1);
+	expect(navBox.x + navBox.width).toBeLessThanOrEqual(391);
+});
+
