@@ -194,6 +194,7 @@ export function TranscriptRevisionEditor({
 		field: "speaker" | "text",
 		value: string,
 	) {
+		if (phase === "saving") return;
 		setPatches((current) => {
 			const next = new Map(current);
 			const existing = next.get(segment.id) ?? {
@@ -212,6 +213,7 @@ export function TranscriptRevisionEditor({
 	}
 
 	function revertSegment(segment: TranscriptReaderSegment) {
+		if (phase === "saving") return;
 		setPatches((current) => {
 			if (!current.has(segment.id)) return current;
 			const next = new Map(current);
@@ -551,6 +553,7 @@ export function TranscriptRevisionEditor({
 											aria-label="Pessoa desta fala"
 											ref={activeSpeakerRef}
 											className={styles.editInput}
+											disabled={phase === "saving"}
 											onChange={(event) =>
 												patchSegment(original, "speaker", event.target.value)
 											}
@@ -562,6 +565,7 @@ export function TranscriptRevisionEditor({
 										<textarea
 											aria-label="Texto desta fala"
 											className={styles.editTextarea}
+											disabled={phase === "saving"}
 											onChange={(event) =>
 												patchSegment(original, "text", event.target.value)
 											}
@@ -573,6 +577,7 @@ export function TranscriptRevisionEditor({
 										{changed ? <span>Alteração não salva</span> : <span>Sem alteração</span>}
 										{changed ? (
 											<Button
+												disabled={phase === "saving"}
 												onClick={() => revertSegment(original)}
 												size="sm"
 												variant="tertiary"
@@ -580,7 +585,11 @@ export function TranscriptRevisionEditor({
 												Reverter fala
 											</Button>
 										) : null}
-										<Button onClick={() => closeActiveSegment(segment.id)} size="sm">
+										<Button
+											disabled={phase === "saving"}
+											onClick={() => closeActiveSegment(segment.id)}
+											size="sm"
+										>
 											Fechar fala
 										</Button>
 									</div>
@@ -592,6 +601,7 @@ export function TranscriptRevisionEditor({
 										<p className={styles.text}>{segment.text}</p>
 										<Button
 											aria-label={`Editar fala de ${segment.speaker} em ${formatTranscriptTimestamp(segment.startMs, false)}`}
+											disabled={phase === "saving"}
 											onClick={() => setActiveId(segment.id)}
 											size="sm"
 											variant={changed ? "primary" : "tertiary"}
