@@ -173,17 +173,21 @@ export function TranscriptReader({
 		setMessage(null);
 	}
 
+	function resetWorkingCopy() {
+		operationIdRef.current = null;
+		setEdits(new Map());
+		setActiveId(null);
+		setPhase("idle");
+		setMessage(null);
+	}
+
 	function discardAll() {
 		if (
 			edits.size > 0 &&
 			!window.confirm("Descartar todas as alterações não salvas da transcrição?")
 		)
 			return;
-		operationIdRef.current = null;
-		setEdits(new Map());
-		setActiveId(null);
-		setPhase("idle");
-		setMessage(null);
+		resetWorkingCopy();
 	}
 
 	function leaveEditMode() {
@@ -192,7 +196,7 @@ export function TranscriptReader({
 			!window.confirm("Sair do modo de edição e descartar as alterações não salvas?")
 		)
 			return;
-		discardAll();
+		resetWorkingCopy();
 		setEditing(false);
 	}
 
