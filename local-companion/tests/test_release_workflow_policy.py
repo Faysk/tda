@@ -136,10 +136,39 @@ def test_runtime_builds_allow_explicit_main_exact_source_dispatch():
         assert "BUILD_SOURCE_SHA_MISMATCH" in value
 
 
+def test_qwen_package_dispatches_exact_main_source_to_runtime_rc_without_duplicate_workflow_run_trigger():
+    package = _read("qwen-runtime-package.yml")
+    runtime_rc = _read("runtime-rc.yml")
+
+    assert "dispatch-runtime-rc:" in package
+    assert "needs: package" in package
+    assert "needs.package.result == 'success'" in package
+    assert "github.event_name == 'push'" in package
+    assert "github.ref == 'refs/heads/main'" in package
+    assert "actions: write" in package
+    assert "gh workflow run runtime-rc.yml" in package
+    assert "-f family=qwen" in package
+    assert '-f source_sha="$GITHUB_SHA"' in package
+    assert '-f build_run_id="$GITHUB_RUN_ID"' in package
+    assert "QWEN_RUNTIME_RC_DISPATCHED" in package
+    assert "build_run_id:" in runtime_rc
+    assert "DISPATCH_RUN_ID:" in runtime_rc
+    assert "RUNTIME_EXPLICIT_BUILD_RUN_ONLY_QWEN" in runtime_rc
+    assert "RUNTIME_EXPLICIT_BUILD_RUN_INVALID" in runtime_rc
+    assert '[[ "$GITHUB_EVENT_NAME" == "workflow_run" || -n "$DISPATCH_RUN_ID" ]]' in runtime_rc
+    assert 'elif [[ -n "$DISPATCH_RUN_ID" ]]' in runtime_rc
+
+    workflow_run_section = runtime_rc.split("workflow_run:", 1)[1].split("permissions:", 1)[0]
+    assert "workflows: [Whisper Runtime]" in workflow_run_section
+    assert "Qwen Runtime Package" not in workflow_run_section
+
+
 def test_runtime_rc_manual_path_accepts_only_trusted_exact_source_build_events():
     value = _read("runtime-rc.yml")
     assert "workflow_dispatch:" in value
     assert "source_sha must equal current main" in value
+    assert "RUNTIME_EXPLICIT_BUILD_RUN_ONLY_QWEN" in value
+    assert "RUNTIME_EXPLICIT_BUILD_RUN_INVALID" in value
     assert "RUNTIME_MANUAL_BUILD_EVENT_INVALID" in value
     assert "event not in {'push', 'workflow_dispatch'}" in value
     assert "AUTO_RUNTIME_TRIGGER_IDENTITY_MISMATCH:event" in value
@@ -147,6 +176,19 @@ def test_runtime_rc_manual_path_accepts_only_trusted_exact_source_build_events()
     assert "--commit \"$SOURCE_SHA\"" in value
     assert "'head_sha': os.environ['SOURCE_SHA']" in value
     assert "'head_branch': 'main'" in value
+
+
+def test_qwen_1012_stable_bridge_uses_published_runtime_marker_source_not_dispatch_head():
+    value = _read("qwen-1012-production-validation-stable.yml")
+    assert "TRIGGER_HEAD_SHA:" in value
+    assert "SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}" not in value
+    assert "Resolve exact Qwen Runtime RC publication marker" in value
+    assert "RUNTIME_RC_READY family=qwen" in value
+    assert "QWEN_PRODUCTION_VALIDATION_RUNTIME_MARKER_AMBIGUOUS" in value
+    assert "QWEN_PRODUCTION_VALIDATION_RUNTIME_VERSION_MISMATCH" in value
+    assert "QWEN_PRODUCTION_VALIDATION_RUNTIME_TAG_SOURCE_MISMATCH" in value
+    assert "ref: ${{ steps.qwen.outputs.source_sha }}" in value
+    assert "QWEN_PRODUCTION_VALIDATION_RC_TAG_MISMATCH" in value
 
 
 def test_production_deploy_has_no_retired_statistics_rollout_flag():
