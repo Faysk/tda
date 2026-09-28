@@ -177,24 +177,15 @@ test("transparent floating shell does not steal pointer input from the free cent
 	await mockAccess(page);
 	await page.setViewportSize({ width: 1366, height: 768 });
 	await page.goto("/");
-	await page.evaluate(() => {
-		const button = document.createElement("button");
-		button.type = "button";
-		button.id = "floating-shell-pointer-probe";
-		button.textContent = "Pointer probe";
-		button.style.position = "absolute";
-		button.style.top = "18px";
-		button.style.left = "50%";
-		button.style.transform = "translateX(-50%)";
-		button.style.zIndex = "1";
-		button.addEventListener("click", () => {
-			button.dataset.clicked = "true";
-		});
-		document.querySelector("main")?.append(button);
+	const hit = await page.evaluate(() => {
+		const target = document.elementFromPoint(window.innerWidth / 2, 24);
+		return {
+			exists: target !== null,
+			insideHeader: Boolean(target?.closest(".site-header")),
+		};
 	});
-	const probe = page.locator("#floating-shell-pointer-probe");
-	await probe.click();
-	await expect(probe).toHaveAttribute("data-clicked", "true");
+	expect(hit.exists).toBeTruthy();
+	expect(hit.insideHeader).toBeFalsy();
 });
 
 test("root scroll clearance keeps focused anchors below the floating chrome", async ({ page }) => {
