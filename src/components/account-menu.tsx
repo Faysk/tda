@@ -137,7 +137,7 @@ export function AccountMenu() {
 			}
 		};
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") return;
+			if (event.key !== "Escape" || !expanded) return;
 			event.preventDefault();
 			close(true);
 		};
@@ -148,7 +148,7 @@ export function AccountMenu() {
 			document.removeEventListener("pointerdown", onPointerDown);
 			document.removeEventListener("keydown", onKeyDown);
 		};
-	}, [mounted, close]);
+	}, [mounted, expanded, close]);
 
 	const authenticated =
 		projection !== null && isAuthenticatedNavigationState(projection.state);
