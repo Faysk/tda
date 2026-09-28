@@ -130,6 +130,9 @@ begin
        or char_length(e.value->>'segmentId') not between 1 and 256
        or char_length(btrim(e.value->>'speaker')) not between 1 and 160
        or char_length(btrim(e.value->>'text')) not between 1 and 100000
+       or e.value->>'segmentId' ~ U&'[\0001-\0008\000B\000C\000E-\001F\007F]'
+       or e.value->>'speaker' ~ U&'[\0001-\0008\000B\000C\000E-\001F\007F]'
+       or e.value->>'text' ~ U&'[\0001-\0008\000B\000C\000E-\001F\007F]'
   ) then
     return query select 'invalid_payload'::text, null::uuid, null::bigint;
     return;
