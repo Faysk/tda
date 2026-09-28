@@ -233,7 +233,7 @@
 	}
 
 	.navigationToggle {
-		top: 10px;
+		top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 		left: 0;
 		width: auto;
 		min-height: 44px;
