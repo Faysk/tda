@@ -415,6 +415,7 @@ export function prepareMultiSourceCanonicalPublication(
 	let computedWords = 0;
 	const canonicalSegments: Array<{
 		assembly_segment_id: string;
+		segment_id: string;
 		part_id: string;
 		source_id: string;
 		run_id: string;
@@ -488,7 +489,10 @@ export function prepareMultiSourceCanonicalPublication(
 		computedWords += countWordsV1(segmentText);
 		canonicalSegments.push({
 			assembly_segment_id: assemblySegmentId,
-			part_id: partId,
+			// Keep the canonical revision reader/editor identity contract while
+			// retaining the stronger assembly provenance identity alongside it.
+			segment_id: assemblySegmentId,
+			part_id: partId;
 			source_id: sourceId,
 			run_id: runId,
 			source_segment_id: sourceSegmentId,
