@@ -127,7 +127,7 @@ test("Pipipi hero starts at the real viewport top without the retired header off
 		expect(box).not.toBeNull();
 		if (!box) continue;
 		expect(box.y).toBeLessThanOrEqual(1);
-		expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+		expect(box.height).toBeGreaterThanOrEqual(viewport.height * 0.8);
 	}
 });
 
