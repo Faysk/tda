@@ -246,6 +246,8 @@ export function SessionRecordingComposer({
 		);
 	});
 
+	const activeWorkspace = workspace;
+
 	async function mutate(
 		key: string,
 		operation: () => Promise<SessionWorkspace>,
@@ -267,8 +269,8 @@ export function SessionRecordingComposer({
 				try {
 					onWorkspaceChange(
 						await bridge.sessionWorkspace(
-							workspace.campaignId,
-							workspace.sessionId,
+							activeWorkspace.campaignId,
+							activeWorkspace.sessionId,
 							new AbortController().signal,
 						),
 					);
@@ -283,8 +285,8 @@ export function SessionRecordingComposer({
 
 	async function reorder(part: SessionWorkspacePart, delta: -1 | 1) {
 		const nextIndex = part.ordinal + delta;
-		if (nextIndex < 0 || nextIndex >= workspace.parts.length) return;
-		const ids = workspace.parts.map((item) => item.partId);
+		if (nextIndex < 0 || nextIndex >= activeWorkspace.parts.length) return;
+		const ids = activeWorkspace.parts.map((item) => item.partId);
 		const [moved] = ids.splice(part.ordinal, 1);
 		if (!moved) return;
 		ids.splice(nextIndex, 0, moved);
@@ -292,10 +294,10 @@ export function SessionRecordingComposer({
 			`reorder:${part.partId}`,
 			() =>
 				bridge.reorderSessionParts(
-					workspace.campaignId,
-					workspace.sessionId,
+					activeWorkspace.campaignId,
+					activeWorkspace.sessionId,
 					ids,
-					workspace.revision,
+					activeWorkspace.revision,
 					new AbortController().signal,
 				),
 			"Ordem da sessão atualizada.",
@@ -313,18 +315,18 @@ export function SessionRecordingComposer({
 			`timing:${part.partId}`,
 			() =>
 				bridge.updateSessionPartTiming(
-					workspace.campaignId,
-					workspace.sessionId,
+					activeWorkspace.campaignId,
+					activeWorkspace.sessionId,
 					{
 						partId: part.partId,
-						expectedRevision: workspace.revision,
+						expectedRevision: activeWorkspace.revision,
 						sessionOffsetSeconds: offset,
 						trimStartSeconds: part.trimStartSeconds,
 						trimEndSeconds: part.trimEndSeconds,
 					},
 					new AbortController().signal,
 				),
-			"Posição manual preservada no workspace.",
+			"Posição manual preservada no activeWorkspace.",
 		);
 	}
 
@@ -334,11 +336,11 @@ export function SessionRecordingComposer({
 			`gap:${part.partId}`,
 			() =>
 				bridge.updateSessionPartTiming(
-					workspace.campaignId,
-					workspace.sessionId,
+					activeWorkspace.campaignId,
+					activeWorkspace.sessionId,
 					{
 						partId: part.partId,
-						expectedRevision: workspace.revision,
+						expectedRevision: activeWorkspace.revision,
 						sessionOffsetSeconds: part.sessionOffsetSeconds as number,
 						trimStartSeconds: part.trimStartSeconds,
 						trimEndSeconds: part.trimEndSeconds,
@@ -356,7 +358,7 @@ export function SessionRecordingComposer({
 	) {
 		if (part.sessionOffsetSeconds === null || part.effectiveStartSeconds === null)
 			return;
-		const previous = workspace.parts[part.ordinal - 1];
+		const previous = activeWorkspace.parts[part.ordinal - 1];
 		if (!previous || previous.effectiveEndSeconds === null || part.effectiveEndSeconds === null)
 			return;
 		const boundary =
@@ -367,11 +369,11 @@ export function SessionRecordingComposer({
 			`overlap:${part.partId}`,
 			() =>
 				bridge.updateSessionPartTiming(
-					workspace.campaignId,
-					workspace.sessionId,
+					activeWorkspace.campaignId,
+					activeWorkspace.sessionId,
 					{
 						partId: part.partId,
-						expectedRevision: workspace.revision,
+						expectedRevision: activeWorkspace.revision,
 						sessionOffsetSeconds: part.sessionOffsetSeconds as number,
 						trimStartSeconds: part.trimStartSeconds,
 						trimEndSeconds: part.trimEndSeconds,
@@ -415,9 +417,9 @@ export function SessionRecordingComposer({
 		setError(null);
 		try {
 			const next = await bridge.updateSessionParticipants(
-				workspace.campaignId,
-				workspace.sessionId,
-				workspace.revision,
+				activeWorkspace.campaignId,
+				activeWorkspace.sessionId,
+				activeWorkspace.revision,
 				[...merged.entries()].map(([observationId, participantId]) => ({
 					observationId,
 					participantId,
@@ -459,15 +461,15 @@ export function SessionRecordingComposer({
 		setError(null);
 		try {
 			const assembly = await bridge.buildSessionAssembly(
-				workspace.campaignId,
-				workspace.sessionId,
-				workspace.revision,
+				activeWorkspace.campaignId,
+				activeWorkspace.sessionId,
+				activeWorkspace.revision,
 				new AbortController().signal,
 			);
 			setStatus(
 				`Transcrição da sessão montada · ${assembly.segmentCount} segmentos · ${assembly.assemblyId.slice(0, 10)}…`,
 			);
-			onAssemblyBuilt(workspace.sessionId, assembly.assemblyId);
+			onAssemblyBuilt(activeWorkspace.sessionId, assembly.assemblyId);
 		} catch (cause) {
 			setError(operationMessage(cause));
 		} finally {
