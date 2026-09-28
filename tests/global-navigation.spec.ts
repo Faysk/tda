@@ -173,16 +173,22 @@ test("floating shell removes the structural top band and stays viewport-bound", 
 	expect(Math.abs(triggerAfter.y - triggerBefore.y)).toBeLessThanOrEqual(1);
 });
 
-test("home hero occupies the real top viewport below floating chrome", async ({ page }) => {
+test("home hero occupies the real top viewport across responsive breakpoints", async ({ page }) => {
 	await mockAccess(page);
-	await page.setViewportSize({ width: 1366, height: 768 });
-	await page.goto("/");
-	const hero = page.locator('main section[aria-labelledby="home-title"]').first();
-	const box = await hero.boundingBox();
-	expect(box).not.toBeNull();
-	if (!box) return;
-	expect(box.y).toBeLessThanOrEqual(1);
-	expect(box.height).toBeGreaterThanOrEqual(767);
+	for (const viewport of [
+		{ width: 390, height: 844 },
+		{ width: 1366, height: 768 },
+		{ width: 2560, height: 1440 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/");
+		const hero = page.locator('main section[aria-labelledby="home-title"]').first();
+		const box = await hero.boundingBox();
+		expect(box).not.toBeNull();
+		if (!box) continue;
+		expect(box.y).toBeLessThanOrEqual(1);
+		expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+	}
 });
 
 test("profile panel stays anchored to the floating avatar after document scroll", async ({ page }) => {
