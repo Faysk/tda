@@ -33,8 +33,8 @@ test("floating chrome leaves first critical public content reachable on narrow v
 		expect(triggerBox).not.toBeNull();
 		if (box && brandBox && triggerBox) {
 			const overlaps = (
-				left: typeof box,
-				right: typeof box,
+				left: { x: number; y: number; width: number; height: number },
+				right: { x: number; y: number; width: number; height: number },
 			) =>
 				left.x < right.x + right.width &&
 				left.x + left.width > right.x &&
