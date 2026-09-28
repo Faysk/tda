@@ -1502,14 +1502,3 @@ Boundary:
 Validação sintética: `supabase/tests/transcript_revision_web_edits.sql` roda no scratch PostgreSQL de `tools/transcript-sync-db.py` e cobre grants, autorização, preservação da parent, timing read-only, replay, stale current, no-op, rollback e audit metadata-only.
 
 Aplicação remota deve seguir o Production CD/runbook. A presença do arquivo em `main` não substitui migration history pós-deploy nem verificação remota.
-
-
-### `20260928023000_transcript_revision_web_edits`
-
-Objetivo: correcoes privadas de speaker/texto na current transcript revision sem mutar a revisao anterior. A entrega reutiliza `transcript_revisions`, registra `parent_revision_id`, hashes do delta/conteudo e cria a nova revision sob CAS do `sessions.current_transcript_revision_id`.
-
-A RPC `save_transcript_revision_edit_atomic(...)` e server-only, revalida identidade/capability `campaign.content.edit`, aceita somente identidade da fala + speaker/texto e herda timing/provenance da parent revision. `stale_current` nao faz retry automatico; replay da mesma operation/delta e idempotente; falha de audit reverte revision e pointer.
-
-Validacao sintetica: `supabase/tests/transcript_revision_web_edits.sql` no scratch PostgreSQL de `tools/transcript-sync-db.py`.
-
-Aplicacao remota segue Production CD/runbook; arquivo integrado nao substitui migration history e verificacao pos-deploy.
