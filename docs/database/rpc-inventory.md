@@ -378,3 +378,25 @@ Segurança planejada para rollout:
 ## Candidata de concorrência de publicação (#636)
 
 `publish_transcript_revision_atomic(uuid,uuid,jsonb,boolean)` requer a expectativa explícita do current em JSON. `set_current_transcript_revision_atomic(uuid,uuid,uuid,uuid,uuid,uuid,uuid)` acrescenta o current esperado sem default; a assinatura anterior é retirada. Ambas são SECURITY INVOKER, EXECUTE somente service_role, com identidade/capability/escopo revalidados antes do lock e CAS. Endpoint `/api/transcript-publications/current` autentica e autoriza campanha antes de ler metadados da sessão. Estado candidato; não implica alteração em Production.
+
+
+## Candidato server-only — preparação de transcrição legada (#984)
+
+### `prepare_legacy_transcript_revision_atomic(uuid,uuid,text,uuid,uuid,text)`
+
+**Estado:** candidato na PR #997; ainda não comprovado/aplicado no Supabase canônico `dmrqnbdvbkfqzctcerbx`.
+
+Boundary proposto:
+
+- `SECURITY INVOKER`;
+- `search_path = pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated`: sem `EXECUTE`;
+- `service_role`: único caller SQL;
+- valida `auth_user_id -> profile_id` e capability `campaign.content.edit` antes de revelar a sessão;
+- bloqueia a row da sessão e exige que ainda não exista `current_transcript_revision_id` para criar a base legada;
+- recalcula o fingerprint SHA-256 autoritativo de `transcript_segments` e compara com o snapshot mostrado pelo Edit;
+- replay por `operation_id` e reconciliação `already_prepared` evitam duplicação;
+- grava revision + current pointer + audit metadata-only na mesma transação;
+- não cria publication receipt/event e não altera nenhum campo público/editorial da sessão.
+
+O payload do browser não contém transcript: somente IDs e o hash do snapshot. Texto e speaker são lidos server-side do legado e entram apenas na revision privada. O audit registra hashes/contagens/IDs, nunca conteúdo das falas.

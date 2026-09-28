@@ -442,3 +442,20 @@ Contrato candidato:
 - service role e credenciais R2 nunca são enviados ao browser.
 
 Esse modelo mantém a UX sem burocracia de permissão sem transformar o storage/banco em acesso público.
+
+
+## Preparação legada #984 — boundary candidato
+
+A PR #997 introduz um boundary candidato para preparar explicitamente sessões antigas no modelo de revisão moderno. **Nenhuma migration desta PR foi aplicada no projeto canônico `dmrqnbdvbkfqzctcerbx` até o gate de rollout.**
+
+Controles:
+
+- a página continua exigindo `campaign.transcript.read` para leitura e `campaign.content.edit` para preparar;
+- o server action resolve Auth/profile novamente; o SQL repete identity/capability/scope antes do lookup da sessão;
+- `prepare_legacy_transcript_revision_atomic` é `SECURITY INVOKER` e server-only;
+- execução direta é revogada de `PUBLIC`, `anon` e `authenticated`;
+- nenhuma fala é enviada como parâmetro RPC ou gravada no `audit_log`;
+- o snapshot exibido é ligado a um fingerprint SHA-256 determinístico; divergência retorna `stale_legacy` com zero mutation;
+- preparação não equivale a publish: não toca `sessions.status`, session publication, mídia pública, resumo público ou transcript-publication receipts.
+
+Ver também [inventário de RPCs](rpc-inventory.md) e [migrations](migrations.md).

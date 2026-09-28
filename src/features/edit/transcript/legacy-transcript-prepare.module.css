@@ -1,0 +1,116 @@
+.card {
+	display: grid;
+	gap: 18px;
+	max-width: 880px;
+	padding: 20px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+}
+
+.copy {
+	display: grid;
+	gap: 7px;
+}
+
+.copy h2,
+.copy p {
+	margin: 0;
+}
+
+.copy p {
+	max-width: 70ch;
+	color: var(--ds-foreground-muted);
+	line-height: 1.55;
+}
+
+.eyebrow {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	font-weight: 800;
+	letter-spacing: 0.1em;
+}
+
+.facts {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 1px;
+	margin: 0;
+	overflow: hidden;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-border);
+}
+
+.facts div {
+	display: grid;
+	gap: 4px;
+	min-width: 0;
+	padding: 12px;
+	background: var(--ds-canvas);
+}
+
+.facts dt {
+	color: var(--ds-foreground-muted);
+	font-size: 0.75rem;
+}
+
+.facts dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+	font-weight: 700;
+}
+
+.confirm {
+	display: grid;
+	gap: 8px;
+	padding: 14px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-sm);
+}
+
+.confirm p,
+.message {
+	margin: 0;
+	line-height: 1.5;
+}
+
+.actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.muted,
+.details {
+	color: var(--ds-foreground-muted);
+	font-size: 0.82rem;
+}
+
+.message[data-state="error"] {
+	color: var(--ds-danger-foreground, var(--ds-foreground));
+}
+
+.details code {
+	display: block;
+	margin-top: 8px;
+	overflow-wrap: anywhere;
+	font-size: 0.75rem;
+}
+
+@media (max-width: 720px) {
+	.card {
+		padding: 16px;
+	}
+
+	.facts {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+
+@media (max-width: 420px) {
+	.facts {
+		grid-template-columns: 1fr;
+	}
+}
