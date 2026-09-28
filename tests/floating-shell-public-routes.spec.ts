@@ -17,13 +17,10 @@ test("floating chrome leaves first critical public content reachable on narrow v
 	]) {
 		await page.goto(route);
 
-		const chromeBottom = await page.evaluate(() => {
-			const brand = document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect();
-			const trigger = document
-				.querySelector<HTMLElement>(".account-menu-trigger")
-				?.getBoundingClientRect();
-			return Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0);
-		});
+		const [brandBox, triggerBox] = await Promise.all([
+			page.locator(".brand").boundingBox(),
+			page.locator(".account-menu-trigger").boundingBox(),
+		]);
 
 		const target =
 			route === "/lembra"
@@ -32,7 +29,20 @@ test("floating chrome leaves first critical public content reachable on narrow v
 		await expect(target).toBeVisible();
 		const box = await target.boundingBox();
 		expect(box).not.toBeNull();
-		if (box) expect(box.y + box.height).toBeGreaterThan(chromeBottom + 4);
+		expect(brandBox).not.toBeNull();
+		expect(triggerBox).not.toBeNull();
+		if (box && brandBox && triggerBox) {
+			const overlaps = (
+				left: typeof box,
+				right: typeof box,
+			) =>
+				left.x < right.x + right.width &&
+				left.x + left.width > right.x &&
+				left.y < right.y + right.height &&
+				left.y + left.height > right.y;
+			expect(overlaps(box, brandBox)).toBeFalsy();
+			expect(overlaps(box, triggerBox)).toBeFalsy();
+		}
 
 		const overflow = await page.evaluate(() => ({
 			scrollWidth: document.documentElement.scrollWidth,
