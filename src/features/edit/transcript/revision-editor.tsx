@@ -67,6 +67,7 @@ export function TranscriptRevisionEditor({
 	const [message, setMessage] = useState<string | null>(null);
 	const refs = useRef(new Map<number, HTMLElement>());
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const activeSpeakerRef = useRef<HTMLInputElement>(null);
 	const saveAttemptRef = useRef<{
 		key: string;
 		operationId: string;
@@ -92,6 +93,11 @@ export function TranscriptRevisionEditor({
 		}
 		return result;
 	}, [normalizedQuery, working]);
+
+	useEffect(() => {
+		if (mode !== "edit" || !activeId) return;
+		activeSpeakerRef.current?.focus();
+	}, [activeId, mode]);
 
 	useEffect(() => {
 		if (mode !== "edit" || !dirty) return;
@@ -165,12 +171,23 @@ export function TranscriptRevisionEditor({
 			}
 			if (event.key === "Escape" && activeId) {
 				event.preventDefault();
-				setActiveId(null);
+				closeActiveSegment(activeId);
 			}
 		};
 		window.addEventListener("keydown", shortcut);
 		return () => window.removeEventListener("keydown", shortcut);
 	});
+
+	function closeActiveSegment(segmentId: string) {
+		const index = working.findIndex((segment) => segment.id === segmentId);
+		setActiveId(null);
+		requestAnimationFrame(() => {
+			const article = index >= 0 ? refs.current.get(index) : null;
+			article
+				?.querySelector<HTMLButtonElement>('button[aria-label^="Editar fala de "]')
+				?.focus();
+		});
+	}
 
 	function patchSegment(
 		segment: TranscriptReaderSegment,
@@ -521,6 +538,7 @@ export function TranscriptRevisionEditor({
 										<span>Pessoa</span>
 										<input
 											aria-label="Pessoa desta fala"
+											ref={activeSpeakerRef}
 											className={styles.editInput}
 											onChange={(event) =>
 												patchSegment(original, "speaker", event.target.value)
@@ -551,7 +569,7 @@ export function TranscriptRevisionEditor({
 												Reverter fala
 											</Button>
 										) : null}
-										<Button onClick={() => setActiveId(null)} size="sm">
+										<Button onClick={() => closeActiveSegment(segment.id)} size="sm">
 											Fechar fala
 										</Button>
 									</div>
