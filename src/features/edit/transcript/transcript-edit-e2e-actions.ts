@@ -1,6 +1,9 @@
 "use server";
 
-import type { TranscriptEditRequest } from "./edit-model";
+import type {
+	TranscriptEditRequest,
+	TranscriptEditSaveResult,
+} from "./edit-model";
 import {
 	loseNextTranscriptEditResponse,
 	saveTranscriptEditFixture,
@@ -12,7 +15,9 @@ function assertFixtureEnabled() {
 		throw new Error("Transcript edit E2E fixture is disabled");
 }
 
-export async function saveTranscriptEditFixtureAction(input: TranscriptEditRequest) {
+export async function saveTranscriptEditFixtureAction(
+	input: TranscriptEditRequest,
+): Promise<TranscriptEditSaveResult> {
 	assertFixtureEnabled();
 	const { result, loseResponse } = saveTranscriptEditFixture(input);
 	if (loseResponse) throw new Error("synthetic lost response after commit");
