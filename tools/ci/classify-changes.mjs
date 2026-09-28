@@ -52,6 +52,10 @@ const EXACT = {
 		".github/workflows/ci.yml",
 		"tests/lembra.spec.ts",
 	]),
+	sessions: new Set([
+		".github/workflows/ci.yml",
+		"tools/session-publication-db.py",
+	]),
 	media: new Set([
 		"tools/media-pipeline.py",
 		"tools/check-canonical-media-usage.py",
@@ -79,6 +83,15 @@ const PREFIX = {
 		"src/app/lembra/",
 		"src/app/api/lembra/",
 	],
+	sessions: [
+		"src/app/edit/sessoes/",
+		"src/app/api/edit/session-cover/",
+		"src/app/sessoes/",
+		"src/features/edit/sessions/",
+		"src/features/edit/transcript/",
+		"src/features/sessions/",
+		"supabase/tests/session_",
+	],
 	media: ["media/", "tools/media/"],
 };
 
@@ -104,6 +117,7 @@ export function classifyPaths(inputPaths) {
 		companion: files.some((path) => matches(path, "companion")),
 		processing: files.some((path) => matches(path, "processing")),
 		lembra: files.some((path) => matches(path, "lembra")),
+		sessions: files.some((path) => matches(path, "sessions")),
 		media: files.some((path) => matches(path, "media")),
 	};
 	return { files, ...classes };
@@ -122,7 +136,7 @@ export function changedFilesForRange(range) {
 
 function writeGithubOutputs(result) {
 	if (!process.env.GITHUB_OUTPUT) return;
-	for (const key of ["web", "navigation", "db", "companion", "processing", "lembra", "media"])
+	for (const key of ["web", "navigation", "db", "companion", "processing", "lembra", "sessions", "media"])
 		appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${result[key]}\n`);
 	appendFileSync(
 		process.env.GITHUB_OUTPUT,
