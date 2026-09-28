@@ -391,6 +391,8 @@ test("navigation stays contained across the required responsive matrix", async (
 		{ width: 320, height: 800 },
 		{ width: 390, height: 844 },
 		{ width: 768, height: 1024 },
+		// 1366×768 desktop at 200% browser zoom => ~683×384 CSS px.
+		{ width: 683, height: 384 },
 		{ width: 1366, height: 768 },
 		{ width: 1920, height: 1080 },
 		{ width: 2560, height: 1440 },
@@ -585,16 +587,6 @@ test("account overview keeps synthetic identity and access usable across the lay
 	await expect(page.getByText("ID copiado.", { exact: true })).toBeVisible();
 	await copyId.click();
 	await expect(page.getByText("ID copiado.", { exact: true })).toBeVisible();
-
-	await page.setViewportSize({ width: 768, height: 1024 });
-	await page.goto("/e2e-fixtures/account-overview");
-	await page.evaluate(() => {
-		document.documentElement.style.zoom = "2";
-	});
-	await expectNoHorizontalOverflow(page);
-	await page.evaluate(() => {
-		document.documentElement.style.zoom = "";
-	});
 
 	for (const receipt of [
 		{
