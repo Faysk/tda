@@ -1,4 +1,5 @@
 name: Qwen Runtime Package
+# #628 release refresh: emit a fresh main-push Qwen 1.0.12 package so Runtime RC receives a normal workflow_run trigger.
 # #489 exact-source refresh: keep the physical-promotion runtime build bound to current main.
 # #557 Runtime RC drift fencing mirrors this workflow's runtime inputs; keep the policy coverage aligned.
 # #628 production-validation refresh: bind the next Qwen 1.0.12 package to the Windows gate repair source.
