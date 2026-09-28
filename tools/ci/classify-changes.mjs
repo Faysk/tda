@@ -26,6 +26,27 @@ const EXACT = {
 		"playwright.processing-integration.config.ts",
 		"tools/processing-ui-fixture.mjs",
 	]),
+	navigation: new Set([
+		".github/workflows/ci.yml",
+		"playwright.config.ts",
+		"src/app/layout.tsx",
+		"src/app/public-shell.css",
+		"src/app/api/auth/me/route.ts",
+		"src/app/edit/page.tsx",
+		"src/app/conta/page.tsx",
+		"src/components/account-menu.tsx",
+		"src/components/navigation-auth.ts",
+		"src/components/navigation-auth.test.ts",
+		"src/components/public-nav.tsx",
+		"src/components/public-navigation-model.ts",
+		"src/components/public-navigation-model.test.ts",
+		"src/components/theme-toggle.tsx",
+		"src/features/edit/navigation-entry.ts",
+		"src/features/edit/navigation-entry.test.ts",
+		"tests/foundation.spec.ts",
+		"tests/global-navigation.spec.ts",
+		"tests/navigation-origin.spec.ts",
+	]),
 	lembra: new Set([
 		".github/workflows/ci.yml",
 		"tests/lembra.spec.ts",
@@ -51,6 +72,7 @@ const PREFIX = {
 		"tests/processing-fixture/",
 		"local-companion/",
 	],
+	navigation: ["src/features/auth/", "src/app/auth/", "src/app/entrar/"],
 	lembra: [
 		"src/features/lembra/",
 		"src/app/lembra/",
@@ -79,6 +101,7 @@ export function classifyPaths(inputPaths) {
 		db: files.some((path) => matches(path, "db")),
 		companion: files.some((path) => matches(path, "companion")),
 		processing: files.some((path) => matches(path, "processing")),
+		navigation: files.some((path) => matches(path, "navigation")),
 		lembra: files.some((path) => matches(path, "lembra")),
 		media: files.some((path) => matches(path, "media")),
 	};
@@ -98,7 +121,7 @@ export function changedFilesForRange(range) {
 
 function writeGithubOutputs(result) {
 	if (!process.env.GITHUB_OUTPUT) return;
-	for (const key of ["web", "db", "companion", "processing", "lembra", "media"])
+	for (const key of ["web", "db", "companion", "processing", "navigation", "lembra", "media"])
 		appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${result[key]}\n`);
 	appendFileSync(
 		process.env.GITHUB_OUTPUT,
@@ -117,6 +140,7 @@ function writeSummary(range, result) {
 			`- db: \`${result.db}\``,
 			`- companion: \`${result.companion}\``,
 			`- processing: \`${result.processing}\``,
+			`- navigation: \`${result.navigation}\``,
 			`- lembra: \`${result.lembra}\``,
 			`- media: \`${result.media}\``,
 			`- Files (${result.files.length}): ${result.files.map((file) => `\`${file}\``).join(", ") || "none"}`,
