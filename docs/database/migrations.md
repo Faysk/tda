@@ -1476,3 +1476,17 @@ Segurança e rollout:
 - colunas novas não alteram RLS/grants das tabelas;
 - Web nova chama os wrappers date-aware; Web anterior continua compatível durante o staged rollout;
 - após Production CD, validar migration history, colunas, grants/RLS, assinaturas das RPCs e read-back de `/api/version`.
+
+
+## Edição imutável de transcript revision — `20260928023000_transcript_revision_editorial_edits`
+
+Mudança aditiva do slice #898:
+
+- adiciona `transcript_revisions.derived_from_revision_id` com FK autorreferente e índice parcial;
+- adiciona o RPC server-only `save_transcript_revision_edit_atomic(...)`;
+- materializa deltas de speaker/texto sobre a revisão esperada sem alterar a base;
+- grava a nova revisão e troca `sessions.current_transcript_revision_id` atomicamente;
+- mantém publicação pública fora desse boundary;
+- usa CAS, replay por `operation_id`, audit metadata-only e grants fechados para browser roles.
+
+O teste descartável `tools/transcript-revision-edit-db.py` executa a migration em PostgreSQL 16 isolado e cobre concorrência real de duas conexões, stale writer, rollback e privacidade do audit. A aplicação remota continua subordinada ao pipeline de Production e à verificação pós-migration do runbook; a presença deste arquivo na branch/PR não é prova de aplicação no Supabase.
