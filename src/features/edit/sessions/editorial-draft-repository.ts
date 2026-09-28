@@ -26,6 +26,7 @@ type DraftRow = Readonly<{
 	title: unknown;
 	summary_short: unknown;
 	summary_full: unknown;
+	session_date: unknown;
 	created_at: unknown;
 }>;
 
@@ -83,7 +84,7 @@ export async function readSessionEditorialDraft(
 	const { data: draftRaw, error: draftError } = await client
 		.from("session_editorial_drafts")
 		.select(
-			"id,revision,base_transcript_revision_id,cover_asset_id,arc,title,summary_short,summary_full,created_at",
+			"id,revision,base_transcript_revision_id,cover_asset_id,arc,title,summary_short,summary_full,session_date,created_at",
 		)
 		.eq("id", draftId)
 		.eq("session_id", sessionId)
@@ -117,7 +118,7 @@ export async function readSessionEditorialDraft(
 		fullSummary: text(draft.summary_full),
 		updatedAt,
 		sessionStatus: text(session.status) || "unknown",
-		sessionDate: text(session.session_date) || null,
+		sessionDate: text(draft.session_date) || null,
 		seededFromPublished: false,
 	};
 }
@@ -140,6 +141,7 @@ export async function persistSessionEditorialDraft(
 		p_title: input.title,
 		p_summary_short: input.shortDescription,
 		p_summary_full: input.fullSummary,
+		p_session_date: input.sessionDate || null,
 	});
 	if (error || !Array.isArray(data) || data.length !== 1)
 		return { ok: false as const, reason: "dependency_unavailable" as const };
