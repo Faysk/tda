@@ -36,23 +36,34 @@ export function revisionSegmentId(
 }
 
 export function prepareTranscriptRevisionEdits(
-	input: readonly TranscriptRevisionEdit[],
+	input: unknown,
 ): PreparedTranscriptRevisionEdits {
+	if (!Array.isArray(input)) return { ok: false, reason: "invalid_edits" };
 	if (input.length > MAX_INLINE_TRANSCRIPT_EDITS)
 		return { ok: false, reason: "too_many_edits" };
 
 	const seen = new Set<string>();
 	const value: TranscriptRevisionEdit[] = [];
-	for (const edit of input) {
-		const speaker = edit.speaker.trim();
-		const text = edit.text.trim();
+	for (const raw of input) {
+		if (!raw || typeof raw !== "object" || Array.isArray(raw))
+			return { ok: false, reason: "invalid_edits" };
+		const edit = raw as Record<string, unknown>;
 		if (
+			typeof edit.trackNumber !== "number" ||
 			!Number.isSafeInteger(edit.trackNumber) ||
 			edit.trackNumber < 1 ||
 			edit.trackNumber > 9999 ||
 			typeof edit.segmentId !== "string" ||
 			!edit.segmentId ||
 			unicodeLength(edit.segmentId) > 256 ||
+			typeof edit.speaker !== "string" ||
+			typeof edit.text !== "string"
+		) {
+			return { ok: false, reason: "invalid_edits" };
+		}
+		const speaker = edit.speaker.trim();
+		const text = edit.text.trim();
+		if (
 			!speaker ||
 			unicodeLength(speaker) > MAX_INLINE_TRANSCRIPT_SPEAKER_CHARS ||
 			!text ||
