@@ -56,6 +56,7 @@ export type CraigSource = {
 	schemaVersion: "tda_craig_ingest_v1";
 	sourceId: string;
 	sourceSha256: string;
+	recordingId?: string | null;
 	sizeBytes: number;
 	trackCount: number;
 	audioWorkSeconds: number | null;
@@ -812,6 +813,7 @@ export function parseCraigSource(value: unknown): CraigSource {
 		schemaVersion: "tda_craig_ingest_v1",
 		sourceId,
 		sourceSha256,
+		recordingId: nullableText(row.recording_id, 256),
 		sizeBytes,
 		trackCount,
 		audioWorkSeconds: nullableNonNegativeNumber(row.audio_work_seconds),

@@ -1476,3 +1476,29 @@ Segurança e rollout:
 - colunas novas não alteram RLS/grants das tabelas;
 - Web nova chama os wrappers date-aware; Web anterior continua compatível durante o staged rollout;
 - após Production CD, validar migration history, colunas, grants/RLS, assinaturas das RPCs e read-back de `/api/version`.
+
+
+### `20260928023000_transcript_revision_web_edits`
+
+Objetivo:
+
+- permitir correções privadas de speaker/texto na current transcript revision sem mutar a revisão anterior;
+- reutilizar `transcript_revisions` e adicionar lineage explícita por `parent_revision_id`;
+- aceitar `source_system = web_edit` somente para a revisão derivada;
+- persistir hashes de delta/conteúdo sem colocar fala completa em audit;
+- materializar a nova revisão e trocar `sessions.current_transcript_revision_id` sob o mesmo lock/CAS.
+
+Boundary:
+
+- RPC `save_transcript_revision_edit_atomic(...)` é `SECURITY INVOKER`;
+- `PUBLIC`, `anon` e `authenticated` não possuem `EXECUTE`;
+- `service_role` é o caller server-side;
+- a função revalida vínculo auth user/profile e `campaign.content.edit` por scope antes de consultar a sessão;
+- o browser fornece somente identidade da fala + speaker/texto; start/end e provenance vêm da parent revision;
+- `stale_current` não faz rebase/retry automático;
+- replay com a mesma operation/delta é idempotente;
+- falha de audit reverte insert da revision e troca do current pointer.
+
+Validação sintética: `supabase/tests/transcript_revision_web_edits.sql` roda no scratch PostgreSQL de `tools/transcript-sync-db.py` e cobre grants, autorização, preservação da parent, timing read-only, replay, stale current, no-op, rollback e audit metadata-only.
+
+Aplicação remota deve seguir o Production CD/runbook. A presença do arquivo em `main` não substitui migration history pós-deploy nem verificação remota.

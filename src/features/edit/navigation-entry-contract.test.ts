@@ -9,6 +9,10 @@ const accountSource = readFileSync(
 	new URL("../../app/conta/page.tsx", import.meta.url),
 	"utf8",
 );
+const accountOverviewSource = readFileSync(
+	new URL("../auth/account-overview.tsx", import.meta.url),
+	"utf8",
+);
 
 describe("global navigation compatibility entrypoints", () => {
 	it("keeps /edit as a redirect-only compatibility route", () => {
@@ -25,10 +29,12 @@ describe("global navigation compatibility entrypoints", () => {
 		expect(accountSource).toContain("Conta e acesso");
 		expect(accountSource).toContain('query.acesso === "negado"');
 		expect(accountSource).toContain('query.acesso === "indisponivel"');
-		expect(accountSource).toContain('action="/auth/logout"');
+		expect(accountSource).toContain("<AccountOverview");
+		expect(accountOverviewSource).toContain('action="/auth/logout"');
 		expect(accountSource).not.toContain("taskGrid");
-		expect(accountSource).not.toContain("Abrir Edit");
-		expect(accountSource).not.toContain("Processamento local");
-		expect(accountSource).not.toContain("Consultar permissões");
+		expect(accountOverviewSource).not.toContain("taskGrid");
+		expect(accountOverviewSource).not.toContain("Abrir Edit");
+		expect(accountOverviewSource).not.toContain("Processamento local");
+		expect(accountOverviewSource).not.toContain("Consultar permissões");
 	});
 });

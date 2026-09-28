@@ -4,6 +4,7 @@ import type {
 	SessionParticipantMapping,
 	SessionWorkspace,
 	SessionWorkspacePart,
+	LocalSourceSummary,
 } from "./protocol";
 
 export type ComposerReadiness = {
@@ -60,9 +61,14 @@ export function pendingSourceIds(
 	jobs: readonly LocalJob[] = [],
 ): string[] {
 	if (!workspace) return [];
-	const activeSources = new Set(
+	const settledOrActiveSources = new Set(
 		jobs
-			.filter((job) => job.status === "queued" || job.status === "running")
+			.filter(
+			(job) =>
+				job.status === "queued" ||
+				job.status === "running" ||
+				job.status === "succeeded",
+		)
 			.map((job) => job.context?.sourceId)
 			.filter((sourceId): sourceId is string => Boolean(sourceId)),
 	);
@@ -71,7 +77,7 @@ export function pendingSourceIds(
 			(part) =>
 				part.sourceState === "ready" &&
 				runsForPart(runsBySource, part).length === 0 &&
-				!activeSources.has(part.sourceId),
+				!settledOrActiveSources.has(part.sourceId),
 		)
 		.map((part) => part.sourceId);
 }
@@ -121,4 +127,22 @@ export function partStatusLabel(
 	if (part.selectedRunId) return "Resultado selecionado";
 	if (runs.length > 0) return runs.length === 1 ? "Resultado disponível" : runs.length + " resultados disponíveis";
 	return "Ainda não processada";
+}
+
+
+export function recordingVariantSourceIds(
+	currentSourceId: string,
+	workspace: SessionWorkspace | null,
+	sourcesById: ReadonlyMap<string, LocalSourceSummary>,
+): string[] {
+	if (!workspace) return [];
+	const current = sourcesById.get(currentSourceId);
+	if (!current?.recordingId) return [];
+	return workspace.parts
+		.filter((part) => part.sourceId !== currentSourceId)
+		.filter(
+			(part) =>
+				sourcesById.get(part.sourceId)?.recordingId === current.recordingId,
+		)
+		.map((part) => part.sourceId);
 }

@@ -1,5 +1,7 @@
 export type TranscriptReaderSegment = Readonly<{
 	id: string;
+	/** Stable source identity used only for private revision deltas. */
+	sourceSegmentId?: string;
 	trackNumber: number;
 	startMs: number;
 	endMs: number;
@@ -49,6 +51,7 @@ export function normalizeRevisionSegments(raw: unknown): TranscriptReaderSegment
 		seen.add(identity);
 		return {
 			id: `r-${trackNumber}-${segmentId}`,
+			sourceSegmentId: segmentId,
 			trackNumber,
 			startMs: Math.round(start * 1000),
 			endMs: Math.round(end * 1000),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { LocalBridge } from "./bridge";
@@ -10,6 +10,7 @@ import {
 	partRelationLabel,
 	partStatusLabel,
 	pendingSourceIds,
+	recordingVariantSourceIds,
 	runsForPart,
 	sessionAssemblyReadiness,
 	supportsSessionComposer,
@@ -24,15 +25,19 @@ import type {
 	CraigSource,
 	LocalJob,
 	LocalRunSummary,
+	LocalSourceSummary,
 	SessionParticipantMapping,
 	SessionWorkspace,
 	SessionWorkspacePart,
 	TranscriptionProfileId,
 } from "./protocol";
 import {
+	confirmSessionComposerPendingSubmission,
+	resolveSessionComposerPendingSubmission,
 	SESSION_COMPOSER_CHANGE_EVENT,
 	SESSION_COMPOSER_LAST_SESSION_KEY,
 	SESSION_COMPOSER_RECOVERY_KEY,
+	type SessionComposerPendingSubmission,
 } from "./session-composer-storage";
 import styles from "./session-composer.module.css";
 
@@ -45,6 +50,7 @@ type Props = Readonly<{
 	context: string;
 	glossary: string;
 	profileReady: boolean;
+	recoveryScope: string | null;
 	disabled?: boolean;
 	onActiveChange?: (active: boolean) => void;
 	onRestoreSessionId?: (sessionId: string) => void;
@@ -67,6 +73,8 @@ function errorMessage(cause: unknown): string {
 			"Esta gravação já faz parte da sessão.",
 		SESSION_WORKSPACE_SOURCE_UNAVAILABLE:
 			"A gravação local não está disponível ou perdeu integridade.",
+		SESSION_WORKSPACE_SESSION_MISMATCH:
+			"O composer carregado pertence a outra sessão. Feche o composer antes de trocar o alvo.",
 		SESSION_WORKSPACE_TIMELINE_ORDER_AMBIGUOUS:
 			"Os horários não estabelecem uma ordem segura. Use os botões de ordem e informe o início manualmente.",
 		SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION:
@@ -128,6 +136,7 @@ export function SessionRecordingComposer({
 	context,
 	glossary,
 	profileReady,
+	recoveryScope,
 	disabled = false,
 	onActiveChange,
 	onRestoreSessionId,
@@ -141,6 +150,9 @@ export function SessionRecordingComposer({
 		ReadonlyMap<string, readonly LocalRunSummary[]>
 	>(new Map());
 	const [jobs, setJobs] = useState<readonly LocalJob[]>([]);
+	const [sourcesById, setSourcesById] = useState<ReadonlyMap<string, LocalSourceSummary>>(
+		new Map(),
+	);
 	const [assemblies, setAssemblies] = useState<readonly SessionAssemblyListItem[]>([]);
 	const [lastAssembly, setLastAssembly] = useState<SessionAssembly | null>(null);
 	const [review, setReview] = useState<SessionAssemblyReviewSummary | null>(null);
@@ -153,10 +165,15 @@ export function SessionRecordingComposer({
 	>({});
 	const [participantDrafts, setParticipantDrafts] = useState<Record<string, string>>({});
 	const restored = useRef(false);
+	const pendingSubmissions = useRef(new Map<string, SessionComposerPendingSubmission>());
 
 	const currentDuplicate =
 		Boolean(currentSource) &&
 		Boolean(workspace?.parts.some((part) => part.sourceId === currentSource?.sourceId));
+	const currentVariantSourceIds = currentSource
+		? recordingVariantSourceIds(currentSource.sourceId, workspace, sourcesById)
+		: [];
+	const currentVariant = !currentDuplicate && currentVariantSourceIds.length > 0;
 	const readiness = useMemo(
 		() => sessionAssemblyReadiness(workspace, mapping),
 		[workspace, mapping],
@@ -166,48 +183,62 @@ export function SessionRecordingComposer({
 		[workspace, runsBySource, jobs],
 	);
 
-	function announce(message: string) {
-		setLive(message);
-		onStatus?.(message);
-	}
+	const announce = useCallback(
+		(message: string) => {
+			setLive(message);
+			onStatus?.(message);
+		},
+		[onStatus],
+	);
 
-	function fail(cause: unknown) {
-		const message = errorMessage(cause);
-		setLocalError(message);
-		onError?.(message);
-	}
+	const fail = useCallback(
+		(cause: unknown) => {
+			const message = errorMessage(cause);
+			setLocalError(message);
+			onError?.(message);
+		},
+		[onError],
+	);
 
-	async function loadRelated(next: SessionWorkspace, signal: AbortSignal) {
-		const runPairs = await Promise.all(
-			next.parts.map(async (part) => [
-				part.sourceId,
-				await bridge.localRuns(part.sourceId, signal),
-			] as const),
-		);
-		const [nextMapping, assemblyList, jobPage] = await Promise.all([
-			bridge.sessionParticipants(next.campaignId, next.sessionId, signal),
-			bridge.sessionAssemblies(next.campaignId, next.sessionId, signal),
-			bridge.jobPage("all", signal, { limit: 200 }),
-		]);
-		if (signal.aborted) return;
-		setRunsBySource(new Map(runPairs));
-		setMapping(nextMapping);
-		setAssemblies(assemblyList.assemblies);
-		setJobs(jobPage.jobs);
-	}
+	const loadRelated = useCallback(
+		async (next: SessionWorkspace, signal: AbortSignal) => {
+			const runPairs = await Promise.all(
+				next.parts.map(async (part) => [
+					part.sourceId,
+					await bridge.localRuns(part.sourceId, signal),
+				] as const),
+			);
+			const [nextMapping, assemblyList, jobPage, sourceCatalog] = await Promise.all([
+				bridge.sessionParticipants(next.campaignId, next.sessionId, signal),
+				bridge.sessionAssemblies(next.campaignId, next.sessionId, signal),
+				bridge.jobPage("all", signal, { limit: 200 }),
+				bridge.localSources(signal),
+			]);
+			if (signal.aborted) return;
+			setRunsBySource(new Map(runPairs));
+			setSourcesById(new Map(sourceCatalog.map((source) => [source.sourceId, source])));
+			setMapping(nextMapping);
+			setAssemblies(assemblyList.assemblies);
+			setJobs(jobPage.jobs);
+		},
+		[bridge],
+	);
 
-	async function adopt(next: SessionWorkspace, signal: AbortSignal) {
-		setWorkspace(next);
-		onActiveChange?.(next.parts.length > 0);
-		try {
-			window.localStorage.setItem(SESSION_COMPOSER_RECOVERY_KEY, next.sessionId);
-			window.localStorage.setItem(SESSION_COMPOSER_LAST_SESSION_KEY, next.sessionId);
-		} catch {
-			// Recovery is best-effort; the Agent workspace remains authoritative.
-		}
-		window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
-		await loadRelated(next, signal);
-	}
+	const adopt = useCallback(
+		async (next: SessionWorkspace, signal: AbortSignal) => {
+			setWorkspace(next);
+			onActiveChange?.(next.parts.length > 0);
+			try {
+				window.localStorage.setItem(SESSION_COMPOSER_RECOVERY_KEY, next.sessionId);
+				window.localStorage.setItem(SESSION_COMPOSER_LAST_SESSION_KEY, next.sessionId);
+			} catch {
+				// Recovery is best-effort; the Agent workspace remains authoritative.
+			}
+			window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
+			await loadRelated(next, signal);
+		},
+		[loadRelated, onActiveChange],
+	);
 
 	async function reload(create = false) {
 		if (!supported || !validSessionId(sessionId) || busy) return;
@@ -228,6 +259,7 @@ export function SessionRecordingComposer({
 				setWorkspace(null);
 				setMapping(null);
 				setRunsBySource(new Map());
+				setSourcesById(new Map());
 				setAssemblies([]);
 				onActiveChange?.(false);
 			} else {
@@ -237,6 +269,21 @@ export function SessionRecordingComposer({
 			setBusy(false);
 		}
 	}
+
+	useEffect(() => {
+		if (!supported || !currentSource) return;
+		const controller = new AbortController();
+		void bridge
+			.localSources(controller.signal)
+			.then((sources) => {
+				if (!controller.signal.aborted)
+					setSourcesById(new Map(sources.map((source) => [source.sourceId, source])));
+			})
+			.catch(() => {
+				// Variant detection is advisory; attach still relies on Agent invariants.
+			});
+		return () => controller.abort();
+	}, [bridge, currentSource, supported]);
 
 	useEffect(() => {
 		if (!supported || restored.current) return;
@@ -285,8 +332,7 @@ export function SessionRecordingComposer({
 			controller.abort();
 		};
 		// This intentionally restores only the persisted workspace identity.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [bridge, sessionId, supported]);
+	}, [adopt, bridge, fail, sessionId, supported]);
 
 	useEffect(() => {
 		if (!workspace || !supported) return;
@@ -341,6 +387,7 @@ export function SessionRecordingComposer({
 	}, [bridge, runsBySource, supported, workspace]);
 
 	if (!supported) return null;
+	if (!workspace && !currentSource) return null;
 
 	async function attachCurrentSource() {
 		if (!currentSource || !validSessionId(sessionId) || busy || disabled) return;
@@ -349,6 +396,9 @@ export function SessionRecordingComposer({
 		setLocalError(null);
 		setReview(null);
 		try {
+			if (workspace && workspace.sessionId !== sessionId) {
+				throw new BridgeError("conflict", "SESSION_WORKSPACE_SESSION_MISMATCH");
+			}
 			let next =
 				workspace ??
 				(await bridge.ensureSessionWorkspace(
@@ -615,7 +665,27 @@ export function SessionRecordingComposer({
 		try {
 			let queued = 0;
 			for (const sourceId of pending) {
-				await bridge.transcription(
+				const signature = JSON.stringify([
+					workspace.campaignId,
+					workspace.sessionId,
+					sourceId,
+					profile,
+					glossary,
+					context,
+					false,
+				]);
+				const submission = await resolveSessionComposerPendingSubmission({
+					storage: window.localStorage,
+					recoveryScope,
+					campaignId: workspace.campaignId,
+					sessionId: workspace.sessionId,
+					sourceId,
+					profileId: profile,
+					requestSignature: signature,
+					existing: pendingSubmissions.current.get(sourceId) ?? null,
+				});
+				pendingSubmissions.current.set(sourceId, submission);
+				const job = await bridge.transcription(
 					{
 						campaignId: workspace.campaignId,
 						sessionId: workspace.sessionId,
@@ -624,10 +694,18 @@ export function SessionRecordingComposer({
 						glossary,
 						context,
 					},
-					crypto.randomUUID(),
+					submission.key,
 					controller.signal,
 				);
+				setJobs((current) => [
+					job,
+					...current.filter((item) => item.id !== job.id),
+				]);
+				confirmSessionComposerPendingSubmission(window.localStorage, submission);
+				pendingSubmissions.current.delete(sourceId);
 				queued += 1;
+				if (submission.recoveredFromStorage)
+					announce(`Trabalho ${job.id.slice(0, 8)}… reconciliado sem duplicar a gravação.`);
 			}
 			announce(
 				queued === 1
@@ -637,6 +715,18 @@ export function SessionRecordingComposer({
 			await loadRelated(workspace, controller.signal);
 		} catch (cause) {
 			fail(cause);
+			try {
+				await loadRelated(workspace, controller.signal);
+			} catch {
+				// Keep the last authoritative snapshot when the Agent is unreachable.
+			}
+			if (
+				cause instanceof BridgeError &&
+				(cause.code === "timeout" || cause.code === "unreachable")
+			)
+				announce(
+					"A tentativa ficou ambígua; repetir Processar pendentes reutiliza a mesma identidade e não cria job extra.",
+				);
 		} finally {
 			setBusy(false);
 		}
@@ -710,6 +800,7 @@ export function SessionRecordingComposer({
 		setWorkspace(null);
 		setMapping(null);
 		setRunsBySource(new Map());
+		setSourcesById(new Map());
 		setJobs([]);
 		setAssemblies([]);
 		setLastAssembly(null);
@@ -728,7 +819,7 @@ export function SessionRecordingComposer({
 					<span>Composição da sessão</span>
 					<h3 id="session-composer-title">
 						{workspace?.parts.length
-							? workspace.sessionId + " · " + workspace.parts.length + " gravação" + (workspace.parts.length === 1 ? "" : "ões")
+							? workspace.sessionId + " · " + workspace.parts.length + (workspace.parts.length === 1 ? " gravação" : " gravações")
 							: "Uma sessão pode ter várias gravações"}
 					</h3>
 				</div>
@@ -745,11 +836,26 @@ export function SessionRecordingComposer({
 			</div>
 
 			{currentSource && validSessionId(sessionId) ? (
-				<div className={styles.attachRow}>
+				<div
+					className={styles.attachRow}
+					role={currentVariant ? "alert" : undefined}
+					data-variant={currentVariant ? "true" : "false"}
+				>
 					<div>
-						<strong>{currentDuplicate ? "Esta gravação já faz parte da sessão." : "ZIP analisado e pronto para entrar nesta sessão."}</strong>
+						<strong>
+							{currentDuplicate
+								? "Esta gravação já faz parte da sessão."
+								: currentVariant
+									? "Mesma gravação lógica detectada com bytes diferentes."
+									: "ZIP analisado e pronto para entrar nesta sessão."}
+						</strong>
 						<span>
 							Fonte {short(currentSource.sourceId, 16)} · {currentSource.trackCount} tracks · {formatSeconds(currentSource.sessionDurationSeconds)}
+							{currentVariant
+								? " · recording_id coincide com " +
+									currentVariantSourceIds.map((sourceId) => short(sourceId, 12)).join(", ") +
+									"; trate como variante, não duplicata exata."
+								: ""}
 						</span>
 					</div>
 					<Button
@@ -759,7 +865,13 @@ export function SessionRecordingComposer({
 						disabled={busy || disabled || currentDuplicate}
 						onClick={() => void attachCurrentSource()}
 					>
-						{currentDuplicate ? "Já adicionada" : workspace ? "+ Adicionar gravação" : "Usar composer da sessão"}
+						{currentDuplicate
+							? "Já adicionada"
+							: currentVariant
+								? "Adicionar variante mesmo assim"
+								: workspace
+									? "+ Adicionar gravação"
+									: "Usar composer da sessão"}
 					</Button>
 				</div>
 			) : null}
@@ -806,14 +918,17 @@ export function SessionRecordingComposer({
 												{job ? " · job " + short(job.id, 8) + " " + job.status : ""}
 											</small>
 										</div>
-										<div className={styles.reorder} aria-label={"Ordenar gravação " + (index + 1)}>
+										<fieldset
+											className={styles.reorder}
+											aria-label={"Ordenar gravação " + (index + 1)}
+										>
 											<Button type="button" size="sm" variant="tertiary" disabled={busy || index === 0} onClick={() => void reorder(part, -1)} aria-label={"Mover gravação " + (index + 1) + " para cima"}>
 												↑
 											</Button>
 											<Button type="button" size="sm" variant="tertiary" disabled={busy || index === workspace.parts.length - 1} onClick={() => void reorder(part, 1)} aria-label={"Mover gravação " + (index + 1) + " para baixo"}>
 												↓
 											</Button>
-										</div>
+										</fieldset>
 									</div>
 
 									<div className={styles.partControls}>
@@ -908,8 +1023,10 @@ export function SessionRecordingComposer({
 							</summary>
 							{unresolvedConflicts.length ? (
 								<div className={styles.conflictList}>
-									{unresolvedConflicts.map((conflict, index) => (
-										<fieldset key={conflict.code + "-" + index}>
+									{unresolvedConflicts.map((conflict) => (
+										<fieldset
+											key={conflict.code + ":" + conflict.observationIds.join("|")}
+										>
 											<legend>{conflict.code.replaceAll("_", " ").toLocaleLowerCase("pt-BR")}</legend>
 											{conflict.observationIds.map((observationId) => {
 												const observation = mapping.observations.find((item) => item.observationId === observationId);
@@ -946,7 +1063,7 @@ export function SessionRecordingComposer({
 						<div>
 							<strong>
 								{pending.length
-									? pending.length + " gravação" + (pending.length === 1 ? "" : "ões") + " sem run concluído"
+									? pending.length + (pending.length === 1 ? " gravação" : " gravações") + " sem run concluído"
 									: "Todas as gravações possuem ao menos um run"}
 							</strong>
 							<span>

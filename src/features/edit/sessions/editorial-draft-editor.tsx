@@ -24,6 +24,12 @@ import {
 	validateSessionEditorialDraftInput,
 } from "./editorial-draft-model";
 
+export type SessionEditorialDraftEditorTransport = Readonly<{
+	saveDraft: typeof saveSessionEditorialDraftAction;
+	publishDraft: typeof publishSessionEditorialDraftAction;
+	CoverEditor: typeof SessionCoverEditor;
+}>;
+
 type Props = Readonly<{
 	sessionId: string;
 	initial: SessionEditorialDraft;
@@ -31,6 +37,7 @@ type Props = Readonly<{
 	editable: boolean;
 	publishable: boolean;
 	publicationAvailable: boolean;
+	transport?: SessionEditorialDraftEditorTransport;
 }>;
 
 type Fields = Readonly<{
@@ -89,8 +96,12 @@ export function SessionEditorialDraftEditor({
 	editable,
 	publishable,
 	publicationAvailable,
+	transport,
 }: Props) {
 	const router = useRouter();
+	const saveDraft = transport?.saveDraft ?? saveSessionEditorialDraftAction;
+	const publishDraft = transport?.publishDraft ?? publishSessionEditorialDraftAction;
+	const CoverEditor = transport?.CoverEditor ?? SessionCoverEditor;
 	const [fields, setFields] = useState<Fields>(() => fieldsFromDraft(initial));
 	const [baseline, setBaseline] = useState<Fields>(() => fieldsFromDraft(initial));
 	const [revision, setRevision] = useState(initial.revision);
@@ -145,6 +156,10 @@ export function SessionEditorialDraftEditor({
 		publishPhase !== "publishing";
 
 	useEffect(() => {
+		setCurrentTranscriptRevisionId(initial.currentTranscriptRevisionId);
+	}, [initial.currentTranscriptRevisionId]);
+
+	useEffect(() => {
 		setCurrentPublicationId(initialPublication.currentPublicationId);
 		setCurrentPublicationVersion(initialPublication.currentVersion);
 	}, [
@@ -178,7 +193,7 @@ export function SessionEditorialDraftEditor({
 			setMessage("Há um campo fora dos limites do contrato. Nada foi truncado nem salvo.");
 			return;
 		}
-		const result = await saveSessionEditorialDraftAction(input);
+		const result = await saveDraft(input);
 		if (!result.ok) {
 			if (result.reason === "conflict" && result.remote) {
 				setPhase("conflict");
@@ -299,7 +314,7 @@ export function SessionEditorialDraftEditor({
 
 		setPublishPhase("publishing");
 		setPublishMessage("Publicando versão confirmada…");
-		const result = await publishSessionEditorialDraftAction({
+		const result = await publishDraft({
 			sessionId,
 			draftId: intent.draftId,
 			expectedCurrentPublicationId: intent.expectedCurrentPublicationId,
@@ -422,7 +437,7 @@ export function SessionEditorialDraftEditor({
 				<div className={draftStyles.editorialFields}>
 					<div className={draftStyles.coverField}>
 						<span className={styles.fieldLabel}>Capa</span>
-						<SessionCoverEditor
+						<CoverEditor
 							disabled={!editable}
 							onChange={(coverAssetId) =>
 								setFields((current) => ({ ...current, coverAssetId }))

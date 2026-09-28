@@ -3,6 +3,7 @@ import { LocalBridge } from "./bridge";
 import {
 	moveSessionPart,
 	pendingSourceIds,
+	recordingVariantSourceIds,
 	sessionAssemblyReadiness,
 	supportsSessionComposer,
 } from "./session-composer-model";
@@ -13,11 +14,16 @@ import {
 } from "./session-composer-protocol";
 import type {
 	LocalRunSummary,
+	LocalSourceSummary,
 	SessionParticipantMapping,
 	SessionWorkspace,
 	SessionWorkspacePart,
 } from "./protocol";
 import { LOCAL_API } from "./protocol";
+import {
+	confirmSessionComposerPendingSubmission,
+	resolveSessionComposerPendingSubmission,
+} from "./session-composer-storage";
 
 const signal = () => new AbortController().signal;
 const token = "synthetic_test_token_12345678901234567890";
@@ -27,6 +33,43 @@ const partA = "1".repeat(32);
 const partB = "2".repeat(32);
 const runA = "run-a";
 const runB = "run-b";
+
+function memoryStorage(): Storage {
+	const values = new Map<string, string>();
+	return {
+		get length() {
+			return values.size;
+		},
+		clear: () => values.clear(),
+		getItem: (key: string) => values.get(key) ?? null,
+		key: (index: number) => [...values.keys()][index] ?? null,
+		removeItem: (key: string) => values.delete(key),
+		setItem: (key: string, value: string) => values.set(key, value),
+	} as Storage;
+}
+
+class MemoryStorage implements Storage {
+	private values = new Map<string, string>();
+
+	get length() {
+		return this.values.size;
+	}
+	clear() {
+		this.values.clear();
+	}
+	getItem(key: string) {
+		return this.values.get(key) ?? null;
+	}
+	key(index: number) {
+		return Array.from(this.values.keys())[index] ?? null;
+	}
+	removeItem(key: string) {
+		this.values.delete(key);
+	}
+	setItem(key: string, value: string) {
+		this.values.set(key, value);
+	}
+}
 
 function part(
 	partId: string,
@@ -234,6 +277,14 @@ describe("multi-recording composer model", () => {
 				} as never,
 			]),
 		).toEqual([]);
+		expect(
+			pendingSourceIds(value, runs, [
+				{
+					status: "succeeded",
+					context: { campaignId: "yuhara-main", sessionId: "session-42", sourceId: sourceB },
+				} as never,
+			]),
+		).toEqual([]);
 	});
 
 	it("keeps assembly fail-closed until chronology, runs and participants are ready", () => {
@@ -251,6 +302,134 @@ describe("multi-recording composer model", () => {
 		expect(ambiguous.reasons).toContain(
 			"Resolva os participantes ambíguos.",
 		);
+	});
+});
+
+
+describe("session composer recovery and recording provenance", () => {
+	it("reuses the persisted idempotency key after an ambiguous selective enqueue", async () => {
+		const storage = new MemoryStorage();
+		const input = {
+			storage,
+			recoveryScope: "private-profile:yuhara-main",
+			campaignId: "yuhara-main",
+			sessionId: "session-42",
+			sourceId: sourceB,
+			profileId: "qwen-quality",
+			requestSignature: JSON.stringify([
+				"yuhara-main",
+				"session-42",
+				sourceB,
+				"qwen-quality",
+				"",
+				"",
+				false,
+			]),
+		} as const;
+
+		const first = await resolveSessionComposerPendingSubmission({
+			...input,
+			createKey: () => "composer-key-1",
+		});
+		expect(first.key).toBe("composer-key-1");
+		expect(first.recoveredFromStorage).toBe(false);
+
+		const recovered = await resolveSessionComposerPendingSubmission({
+			...input,
+			existing: null,
+			createKey: () => "composer-key-2",
+		});
+		expect(recovered.key).toBe(first.key);
+		expect(recovered.recoveredFromStorage).toBe(true);
+
+		confirmSessionComposerPendingSubmission(storage, recovered);
+		const afterConfirmation = await resolveSessionComposerPendingSubmission({
+			...input,
+			existing: null,
+			createKey: () => "composer-key-3",
+		});
+		expect(afterConfirmation.key).toBe("composer-key-3");
+		expect(afterConfirmation.recoveredFromStorage).toBe(false);
+	});
+
+	it("distinguishes same recording_id with different source bytes from an exact duplicate", () => {
+		const sources = new Map<string, LocalSourceSummary>([
+			[
+				sourceA,
+				{
+					sourceId: sourceA,
+					sourceSha256: "a".repeat(64),
+					recordingId: "craig-recording-42",
+					trackCount: 1,
+				},
+			],
+			[
+				sourceB,
+				{
+					sourceId: sourceB,
+					sourceSha256: "b".repeat(64),
+					recordingId: "craig-recording-42",
+					trackCount: 1,
+				},
+			],
+		]);
+		const value = workspace(false);
+		expect(recordingVariantSourceIds(sourceB, value, sources)).toEqual([sourceA]);
+		expect(recordingVariantSourceIds(sourceA, value, sources)).toEqual([sourceB]);
+	});
+});
+
+describe("session composer enqueue recovery", () => {
+	it("reuses the same idempotency key after an ambiguous response and clears it only after confirmation", async () => {
+		const storage = memoryStorage();
+		const requestSignature = JSON.stringify([
+			"yuhara-main",
+			"session-42",
+			sourceA,
+			"qwen-quality",
+			"",
+			"",
+			false,
+		]);
+		const first = await resolveSessionComposerPendingSubmission({
+			storage,
+			recoveryScope: "profile-synthetic",
+			campaignId: "yuhara-main",
+			sessionId: "session-42",
+			sourceId: sourceA,
+			profileId: "qwen-quality",
+			requestSignature,
+			createKey: () => "composer-key-1",
+		});
+		expect(first.key).toBe("composer-key-1");
+		expect(first.recoveredFromStorage).toBe(false);
+
+		const recovered = await resolveSessionComposerPendingSubmission({
+			storage,
+			recoveryScope: "profile-synthetic",
+			campaignId: "yuhara-main",
+			sessionId: "session-42",
+			sourceId: sourceA,
+			profileId: "qwen-quality",
+			requestSignature,
+			createKey: () => "composer-key-should-not-be-used",
+		});
+		expect(recovered.key).toBe(first.key);
+		expect(recovered.recoveredFromStorage).toBe(true);
+
+		confirmSessionComposerPendingSubmission(storage, recovered);
+		const afterConfirmation = await resolveSessionComposerPendingSubmission({
+			storage,
+			recoveryScope: "profile-synthetic",
+			campaignId: "yuhara-main",
+			sessionId: "session-42",
+			sourceId: sourceA,
+			profileId: "qwen-quality",
+			requestSignature,
+			createKey: () => "composer-key-2",
+		});
+		expect(afterConfirmation.key).toBe("composer-key-2");
+		expect(afterConfirmation.recoveredFromStorage).toBe(false);
 	});
 });
 
