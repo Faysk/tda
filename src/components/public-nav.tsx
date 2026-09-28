@@ -15,22 +15,10 @@ import {
 	type NavigationItem,
 	visibleToolNavigationItems,
 } from "./public-navigation-model";
+import { loadNavigationAuthProjection } from "./navigation-auth";
 import { PublicLink as Link } from "./public-link";
 
 const PANEL_ID = "global-product-navigation";
-
-type AuthProjection = Readonly<{
-	capabilities?: unknown;
-}>;
-
-function parseCapabilities(payload: unknown): readonly string[] {
-	if (!payload || typeof payload !== "object") return [];
-	const capabilities = (payload as AuthProjection).capabilities;
-	if (!Array.isArray(capabilities)) return [];
-	return capabilities.filter(
-		(value): value is string => typeof value === "string" && value.length > 0,
-	);
-}
 
 function NavigationIconGlyph({
 	name,
@@ -133,24 +121,14 @@ export function PublicNav() {
 	);
 
 	useEffect(() => {
-		const controller = new AbortController();
-		void fetch("/api/auth/me", {
-			cache: "no-store",
-			signal: controller.signal,
-		})
-			.then(async (response) => {
-				if (!response.ok) return [];
-				return parseCapabilities(await response.json());
-			})
-			.then((nextCapabilities) => {
-				if (!controller.signal.aborted) setCapabilities(nextCapabilities);
-			})
-			.catch(() => {
-				if (!controller.signal.aborted) setCapabilities([]);
-			});
-		return () => controller.abort();
+		let active = true;
+		void loadNavigationAuthProjection().then((projection) => {
+			if (active) setCapabilities(projection.capabilities);
+		});
+		return () => {
+			active = false;
+		};
 	}, []);
-
 
 	useEffect(() => {
 		if (!open) return;
