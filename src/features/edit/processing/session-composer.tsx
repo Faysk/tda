@@ -24,15 +24,19 @@ import type {
 	CraigSource,
 	LocalJob,
 	LocalRunSummary,
+	LocalSourceSummary,
 	SessionParticipantMapping,
 	SessionWorkspace,
 	SessionWorkspacePart,
 	TranscriptionProfileId,
 } from "./protocol";
 import {
+	confirmSessionComposerPendingSubmission,
+	resolveSessionComposerPendingSubmission,
 	SESSION_COMPOSER_CHANGE_EVENT,
 	SESSION_COMPOSER_LAST_SESSION_KEY,
 	SESSION_COMPOSER_RECOVERY_KEY,
+	type SessionComposerPendingSubmission,
 } from "./session-composer-storage";
 import styles from "./session-composer.module.css";
 
@@ -45,6 +49,7 @@ type Props = Readonly<{
 	context: string;
 	glossary: string;
 	profileReady: boolean;
+	recoveryScope: string | null;
 	disabled?: boolean;
 	onActiveChange?: (active: boolean) => void;
 	onRestoreSessionId?: (sessionId: string) => void;
@@ -130,6 +135,7 @@ export function SessionRecordingComposer({
 	context,
 	glossary,
 	profileReady,
+	recoveryScope,
 	disabled = false,
 	onActiveChange,
 	onRestoreSessionId,
@@ -143,6 +149,7 @@ export function SessionRecordingComposer({
 		ReadonlyMap<string, readonly LocalRunSummary[]>
 	>(new Map());
 	const [jobs, setJobs] = useState<readonly LocalJob[]>([]);
+	const [localSources, setLocalSources] = useState<readonly LocalSourceSummary[]>([]);
 	const [assemblies, setAssemblies] = useState<readonly SessionAssemblyListItem[]>([]);
 	const [lastAssembly, setLastAssembly] = useState<SessionAssembly | null>(null);
 	const [review, setReview] = useState<SessionAssemblyReviewSummary | null>(null);
@@ -155,10 +162,24 @@ export function SessionRecordingComposer({
 	>({});
 	const [participantDrafts, setParticipantDrafts] = useState<Record<string, string>>({});
 	const restored = useRef(false);
+	const pendingSubmissions = useRef(new Map<string, SessionComposerPendingSubmission>());
 
 	const currentDuplicate =
 		Boolean(currentSource) &&
 		Boolean(workspace?.parts.some((part) => part.sourceId === currentSource?.sourceId));
+	const currentCatalogSource = currentSource
+		? localSources.find((item) => item.sourceId === currentSource.sourceId) ?? null
+		: null;
+	const recordingVariant =
+		currentCatalogSource?.recordingId && workspace
+			? workspace.parts
+					.map((part) => localSources.find((item) => item.sourceId === part.sourceId) ?? null)
+					.find(
+						(item) =>
+							item?.recordingId === currentCatalogSource.recordingId &&
+							item.sourceId !== currentCatalogSource.sourceId,
+					) ?? null
+			: null;
 	const readiness = useMemo(
 		() => sessionAssemblyReadiness(workspace, mapping),
 		[workspace, mapping],
@@ -193,16 +214,18 @@ export function SessionRecordingComposer({
 					await bridge.localRuns(part.sourceId, signal),
 				] as const),
 			);
-			const [nextMapping, assemblyList, jobPage] = await Promise.all([
+			const [nextMapping, assemblyList, jobPage, sourceCatalog] = await Promise.all([
 				bridge.sessionParticipants(next.campaignId, next.sessionId, signal),
 				bridge.sessionAssemblies(next.campaignId, next.sessionId, signal),
 				bridge.jobPage("all", signal, { limit: 200 }),
+				bridge.localSources(signal),
 			]);
 			if (signal.aborted) return;
 			setRunsBySource(new Map(runPairs));
 			setMapping(nextMapping);
 			setAssemblies(assemblyList.assemblies);
 			setJobs(jobPage.jobs);
+			setLocalSources(sourceCatalog);
 		},
 		[bridge],
 	);
@@ -632,6 +655,26 @@ export function SessionRecordingComposer({
 		try {
 			let queued = 0;
 			for (const sourceId of pending) {
+				const signature = JSON.stringify([
+					workspace.campaignId,
+					workspace.sessionId,
+					sourceId,
+					profile,
+					glossary,
+					context,
+					false,
+				]);
+				const submission = await resolveSessionComposerPendingSubmission({
+					storage: window.localStorage,
+					recoveryScope,
+					campaignId: workspace.campaignId,
+					sessionId: workspace.sessionId,
+					sourceId,
+					profileId: profile,
+					requestSignature: signature,
+					existing: pendingSubmissions.current.get(sourceId) ?? null,
+				});
+				pendingSubmissions.current.set(sourceId, submission);
 				await bridge.transcription(
 					{
 						campaignId: workspace.campaignId,
@@ -641,9 +684,11 @@ export function SessionRecordingComposer({
 						glossary,
 						context,
 					},
-					crypto.randomUUID(),
+					submission.key,
 					controller.signal,
 				);
+				confirmSessionComposerPendingSubmission(window.localStorage, submission);
+				pendingSubmissions.current.delete(sourceId);
 				queued += 1;
 			}
 			announce(
@@ -764,9 +809,18 @@ export function SessionRecordingComposer({
 			{currentSource && validSessionId(sessionId) ? (
 				<div className={styles.attachRow}>
 					<div>
-						<strong>{currentDuplicate ? "Esta gravação já faz parte da sessão." : "ZIP analisado e pronto para entrar nesta sessão."}</strong>
+						<strong>
+							{currentDuplicate
+								? "Esta gravação já faz parte da sessão."
+								: recordingVariant
+									? "Variante detectada: mesmo recording_id com bytes diferentes."
+									: "ZIP analisado e pronto para entrar nesta sessão."}
+						</strong>
 						<span>
 							Fonte {short(currentSource.sourceId, 16)} · {currentSource.trackCount} tracks · {formatSeconds(currentSource.sessionDurationSeconds)}
+							{recordingVariant
+								? " · já existe a fonte " + short(recordingVariant.sourceId, 16) + " para este recording_id"
+								: ""}
 						</span>
 					</div>
 					<Button
@@ -776,7 +830,13 @@ export function SessionRecordingComposer({
 						disabled={busy || disabled || currentDuplicate}
 						onClick={() => void attachCurrentSource()}
 					>
-						{currentDuplicate ? "Já adicionada" : workspace ? "+ Adicionar gravação" : "Usar composer da sessão"}
+						{currentDuplicate
+							? "Já adicionada"
+							: recordingVariant
+								? "Adicionar variante mesmo assim"
+								: workspace
+									? "+ Adicionar gravação"
+									: "Usar composer da sessão"}
 					</Button>
 				</div>
 			) : null}
