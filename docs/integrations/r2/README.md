@@ -2,11 +2,11 @@
 
 > Status: vigente
 > Owner: integrations/media
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-29
 
-Cloudflare R2 é o provider atual do **Media Storage** do TDA. O contrato permanente é provider-neutral e está em [ADR-0018](../../adr/0018-portable-core-github-control-plane.md).
+Cloudflare R2 é o **storage canônico vigente de todo blob/object storage do TDA**. O nome **Media Storage** identifica o boundary arquitetural compartilhado; não existe um segundo storage por trás desse nome. Hoje não há Azure Blob Storage, Amazon S3, Supabase Storage ou outro backend de blobs configurado.
 
-Estes documentos descrevem as garantias de mídia e, quando necessário, os detalhes específicos da implementação atual em R2. Uma futura troca de provider deve preservar as garantias e substituir apenas o edge de storage/configuração.
+O contrato continua isolando detalhes de provider conforme [ADR-0018](../../adr/0018-portable-core-github-control-plane.md), para que uma migração futura seja possível sem espalhar dependências pelo domínio. Isso é portabilidade, não coexistência: até uma decisão/migração explícita substituir o provider, todos os consumidores de blobs devem usar os buckets e contratos R2 documentados aqui.
 
 ## Ordem de leitura para qualquer trabalho de mídia
 
