@@ -62,12 +62,14 @@ test("administrative pages disclose no data when access resolution is unavailabl
 		await page.goto(path);
 		await expect(page).toHaveURL(/\/conta\?acesso=indisponivel$/);
 		await expect(
-			page.getByRole("heading", { name: "Acesso à campanha" }),
+			page.getByRole("heading", { name: "Conta e acesso" }),
 		).toBeVisible();
 		await expect(page.locator("main").getByRole("alert")).toContainText(
 			"não conseguiu verificar seu acesso",
 		);
 		await expect(page.locator("body")).not.toContainText("private-fixture");
+		await expect(page.getByRole("navigation", { name: "Espaços da campanha" })).toHaveCount(0);
+		await expect(page.getByRole("link", { name: "Abrir Edit" })).toHaveCount(0);
 	}
 
 	expect((await request.get("/auth/logout")).status()).toBe(405);
