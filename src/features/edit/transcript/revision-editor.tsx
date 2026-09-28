@@ -481,7 +481,6 @@ export function TranscriptRevisionEditor({
 										<span>Pessoa</span>
 										<input
 											aria-label="Pessoa desta fala"
-											autoFocus
 											className={styles.editInput}
 											onChange={(event) =>
 												patchSegment(original, "speaker", event.target.value)
