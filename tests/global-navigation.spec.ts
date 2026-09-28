@@ -253,9 +253,9 @@ test("auth failure keeps public navigation usable and fail-closed for tools", as
 test("public destinations render before the private auth projection resolves", async ({
 	page,
 }) => {
-	let release: (() => void) | null = null;
+	let releaseAuth = () => {};
 	const gate = new Promise<void>((resolve) => {
-		release = resolve;
+		releaseAuth = resolve;
 	});
 
 	await page.route("**/api/auth/me", async (route) => {
@@ -277,7 +277,7 @@ test("public destinations render before the private auth projection resolves", a
 	await expect(
 		navigation.getByRole("link", { name: "Mundo", exact: true }),
 	).toBeVisible();
-	release?.();
+	releaseAuth();
 });
 
 test("launcher supports click, Enter and Space and Escape restores trigger focus", async ({
