@@ -32,7 +32,11 @@ test("legacy preparation is explicit, cancellable and reuses the operation id af
 
 	await page.getByRole("button", { name: "Perder próxima resposta" }).click();
 	await openAndConfirmPreparation(page);
-	await expect(page.getByRole("alert")).toContainText(
+	const lostResponseAlert = page
+		.getByRole("alert")
+		.filter({ hasText: "A mesma tentativa será reutilizada no próximo retry" });
+	await expect(lostResponseAlert).toHaveCount(1);
+	await expect(lostResponseAlert).toContainText(
 		"A mesma tentativa será reutilizada no próximo retry",
 	);
 
@@ -58,10 +62,14 @@ test("stale legacy snapshot fails closed and never exposes the modern editor", a
 	await page.getByRole("button", { name: "Resposta stale" }).click();
 	await openAndConfirmPreparation(page);
 
-	await expect(page.getByRole("alert")).toContainText(
+	const staleAlert = page
+		.getByRole("alert")
+		.filter({ hasText: "A transcrição mudou desde que esta página foi aberta" });
+	await expect(staleAlert).toHaveCount(1);
+	await expect(staleAlert).toContainText(
 		"A transcrição mudou desde que esta página foi aberta",
 	);
-	await expect(page.getByRole("alert")).toContainText("nada foi gravado");
+	await expect(staleAlert).toContainText("nada foi gravado");
 	await expect(page.getByRole("region", { name: "Editor moderno disponível" })).toHaveCount(0);
 	expect((await page.getByTestId("legacy-attempt-ids").innerText()).split("|")).toHaveLength(1);
 });
