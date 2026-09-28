@@ -19,8 +19,8 @@ import type {
 	SessionAssemblyListItem,
 	SessionAssemblyReviewSummary,
 } from "./session-composer-protocol";
+import { BridgeError } from "./protocol";
 import type {
-	BridgeError,
 	CraigSource,
 	LocalJob,
 	LocalRunSummary,
@@ -31,7 +31,7 @@ import type {
 } from "./protocol";
 import styles from "./session-composer.module.css";
 
-export const SESSION_COMPOSER_SESSION_COMPOSER_RECOVERY_KEY = "tda.processing.session-composer.v1";
+export const SESSION_COMPOSER_RECOVERY_KEY = "tda.processing.session-composer.v1";
 export const SESSION_COMPOSER_CHANGE_EVENT = "tda-session-composer-change";
 
 type Props = Readonly<{
