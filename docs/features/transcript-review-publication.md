@@ -1477,3 +1477,16 @@ Após 30 dias, o registro expira para novos envios: readback continua permitido,
 Rollback: desativar publicação enquanto houver regressão e preservar journals; voltar a cliente sem journal não recupera pendências. Sem migration adicional; depende do CAS #636. Não ativa Production nem satisfaz sozinho o aceite editorial #430.
 
 Evidência local #638 em 2026-09-26: check completo (687 testes Web e 40 Node), build e 22 cenários Playwright desktop/mobile aprovados. O cenário de commit com resposta perdida e receipt indisponível recarrega a página, recupera a operation original e comprova exatamente um POST. Testes de escopo, troca de ator no servidor, mismatch, expiração e falha de armazenamento aprovados.
+
+
+## Edição privada da revisão cloud no Web — #898
+
+A superfície canônica `/edit/sessoes/[id]` pode corrigir **speaker** e **texto** quando a sessão já possui `current_transcript_revision_id` e o operador possui `campaign.content.edit`. O modo inicial continua leitura; timestamps permanecem somente leitura neste slice.
+
+A working copy existe somente na memória do browser. O save envia apenas deltas de speaker/texto, vinculados à revisão current esperada. O boundary server-side materializa a snapshot completa no PostgreSQL, valida campanha/sessão/capability, preserva IDs, ordem, tempos e flags de revisão, cria uma nova linha imutável em `transcript_revisions` e troca `sessions.current_transcript_revision_id` na mesma transação. A nova revisão registra `derived_from_revision_id`; a revisão anterior nunca é atualizada.
+
+Concorrência usa compare-and-swap pelo UUID current. Se outra aba trocar o current antes do commit, o save retorna `stale_current`, não faz retry cego e não descarta a working copy local. O operador pode manter a aba para comparação, abrir a versão atual separadamente ou recarregar de forma explícita.
+
+O audit de `transcript_revision.edit` contém somente metadata estrutural (IDs, número de revisão, quantidade de segmentos alterados e hash), nunca speaker/texto. Este save **não** cria publication receipt/event e não altera a projeção pública da sessão. Draft editorial existente continua preservado; como guarda seu `base_transcript_revision_id`, passa a ser detectado como stale quando o current muda.
+
+A migration dona é `20260928023000_transcript_revision_editorial_edits.sql`. O RPC é `SECURITY INVOKER`, executável apenas por `service_role`, e revalida internamente profile, capability/scope, campanha, sessão, base e CAS. O teste PostgreSQL sintético cobre no-op, autorização negativa, imutabilidade da base, Unicode, replay, conflito de operation id, stale writer, rollback integral em falha do audit e duas conexões concorrentes.
