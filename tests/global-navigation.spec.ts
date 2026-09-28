@@ -481,6 +481,68 @@ test("short mobile viewport keeps launcher scrolling inside the panel", async ({
 	}
 });
 
+test("390px launcher keeps critical labels readable in three columns", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/");
+	const navigation = await openLauncher(page);
+
+	const columnCount = await navigation
+		.locator(".product-launcher-grid")
+		.first()
+		.evaluate((element) =>
+			getComputedStyle(element).gridTemplateColumns.split(/\\s+/u).filter(Boolean).length,
+		);
+	expect(columnCount).toBe(3);
+
+	for (const labelText of ["Transcrições", "Editar sessões", "Permissões"]) {
+		const link = navigation.getByRole("link", { name: labelText, exact: true });
+		await expect(link).toBeVisible();
+		const label = link.locator("span");
+		expect(
+			await label.evaluate(
+				(element) =>
+					element.scrollWidth <= element.clientWidth + 1 &&
+					element.scrollHeight <= element.clientHeight + 1,
+			),
+		).toBeTruthy();
+	}
+});
+
+test("short mobile viewport keeps overflow inside the launcher panel", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 500 });
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
+
+	const trigger = page.getByRole("button", { name: "Abrir navegação" });
+	const triggerBefore = await trigger.boundingBox();
+	await openLauncher(page);
+	const panel = page.locator(".product-launcher-panel");
+	const scrollState = await panel.evaluate((element) => ({
+		clientHeight: element.clientHeight,
+		scrollHeight: element.scrollHeight,
+		overflowY: getComputedStyle(element).overflowY,
+	}));
+
+	expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+	expect(scrollState.overflowY).toBe("auto");
+	await panel.evaluate((element) => {
+		element.scrollTop = element.scrollHeight;
+	});
+	expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+	const triggerAfter = await trigger.boundingBox();
+	expect(triggerBefore).not.toBeNull();
+	expect(triggerAfter).not.toBeNull();
+	if (triggerBefore && triggerAfter) {
+		expect(Math.abs(triggerBefore.y - triggerAfter.y)).toBeLessThanOrEqual(1);
+	}
+});
+
 test("navigation stays contained across the required responsive matrix", async ({
 	page,
 }) => {
