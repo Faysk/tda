@@ -715,6 +715,11 @@ export function SessionRecordingComposer({
 			await loadRelated(workspace, controller.signal);
 		} catch (cause) {
 			fail(cause);
+			try {
+				await loadRelated(workspace, controller.signal);
+			} catch {
+				// Keep the last authoritative snapshot when the Agent is unreachable.
+			}
 			if (
 				cause instanceof BridgeError &&
 				(cause.code === "timeout" || cause.code === "unreachable")
