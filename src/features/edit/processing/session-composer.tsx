@@ -29,10 +29,12 @@ import type {
 	SessionWorkspacePart,
 	TranscriptionProfileId,
 } from "./protocol";
+import {
+	SESSION_COMPOSER_CHANGE_EVENT,
+	SESSION_COMPOSER_LAST_SESSION_KEY,
+	SESSION_COMPOSER_RECOVERY_KEY,
+} from "./session-composer-storage";
 import styles from "./session-composer.module.css";
-
-export const SESSION_COMPOSER_RECOVERY_KEY = "tda.processing.session-composer.v1";
-export const SESSION_COMPOSER_CHANGE_EVENT = "tda-session-composer-change";
 
 type Props = Readonly<{
 	bridge: LocalBridge;
@@ -199,6 +201,7 @@ export function SessionRecordingComposer({
 		onActiveChange?.(next.parts.length > 0);
 		try {
 			window.localStorage.setItem(SESSION_COMPOSER_RECOVERY_KEY, next.sessionId);
+			window.localStorage.setItem(SESSION_COMPOSER_LAST_SESSION_KEY, next.sessionId);
 		} catch {
 			// Recovery is best-effort; the Agent workspace remains authoritative.
 		}
