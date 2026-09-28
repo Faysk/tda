@@ -54,7 +54,11 @@ export type CanonicalMultiSourceProvenance = Readonly<{
 	campaign_id: string;
 	session_id: string;
 	transcript_sha256: string;
+	timing_policy_version: "tda_session_timeline_v1";
+	segment_boundary_policy: "segment_start_owner_v1";
 	timeline_fingerprint_sha256: string;
+	participant_mapping_schema_version: "tda_session_participant_mapping_v1";
+	participant_mapping_policy: "strong_discord_or_manual_v1";
 	participant_mapping_sha256: string;
 	parts: readonly CanonicalMultiSourcePart[];
 }>;
@@ -85,13 +89,17 @@ function record(value: unknown): Record<string, unknown> | null {
 		: null;
 }
 
-function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+function exactKeys(
+	value: Record<string, unknown>,
+	keys: readonly string[],
+): boolean {
 	const actual = Object.keys(value);
 	return actual.length === keys.length && actual.every((key) => keys.includes(key));
 }
 
 function text(value: unknown, max: number, pattern?: RegExp): string | null {
-	if (typeof value !== "string" || value.length < 1 || value.length > max) return null;
+	if (typeof value !== "string" || value.length < 1 || value.length > max)
+		return null;
 	if (pattern && !pattern.test(value)) return null;
 	return value;
 }
@@ -122,12 +130,14 @@ export function prepareMultiSourceCanonicalPublication(
 ): CanonicalMultiSourcePrepareResult {
 	if (utf8Bytes(raw) > MAX_REQUEST_BYTES)
 		return { ok: false, reason: "too_large" };
+
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(raw);
 	} catch {
 		return { ok: false, reason: "invalid_payload" };
 	}
+
 	const root = record(parsed);
 	if (
 		!root ||
@@ -176,7 +186,11 @@ export function prepareMultiSourceCanonicalPublication(
 			"campaignId",
 			"sessionId",
 			"transcriptSha256",
+			"timingPolicyVersion",
+			"segmentBoundaryPolicy",
 			"timelineFingerprintSha256",
+			"participantMappingSchemaVersion",
+			"participantMappingPolicy",
 			"participantMappingSha256",
 			"parts",
 		])
@@ -206,6 +220,11 @@ export function prepareMultiSourceCanonicalPublication(
 		!sourceSessionId ||
 		assembly.schemaVersion !== "tda_session_assembly_v1" ||
 		assembly.canonicalizationVersion !== "tda_session_assembly_canonical_v1" ||
+		assembly.timingPolicyVersion !== "tda_session_timeline_v1" ||
+		assembly.segmentBoundaryPolicy !== "segment_start_owner_v1" ||
+		assembly.participantMappingSchemaVersion !==
+			"tda_session_participant_mapping_v1" ||
+		assembly.participantMappingPolicy !== "strong_discord_or_manual_v1" ||
 		!assemblyId ||
 		!inputsSha256 ||
 		assemblyId !== inputsSha256 ||
@@ -223,6 +242,7 @@ export function prepareMultiSourceCanonicalPublication(
 		return { ok: false, reason: "invalid_payload" };
 
 	const seenPartIds = new Set<string>();
+	const seenSources = new Set<string>();
 	const canonicalParts: CanonicalMultiSourcePart[] = [];
 	for (let ordinal = 0; ordinal < rawParts.length; ordinal += 1) {
 		const part = record(rawParts[ordinal]);
@@ -243,6 +263,7 @@ export function prepareMultiSourceCanonicalPublication(
 			])
 		)
 			return { ok: false, reason: "invalid_payload" };
+
 		const partId = text(part.partId, 32, PART_ID);
 		const sourceId = text(part.sourceId, 70, SOURCE_ID);
 		const sourceSha256 = text(part.sourceSha256, 64, SHA256);
@@ -265,10 +286,12 @@ export function prepareMultiSourceCanonicalPublication(
 			part.overlapBoundarySeconds === null
 				? null
 				: finite(part.overlapBoundarySeconds, 0, 604800);
+
 		if (
 			!partId ||
 			seenPartIds.has(partId) ||
 			!sourceId ||
+			seenSources.has(sourceId) ||
 			!sourceSha256 ||
 			sourceId.slice("craig-".length) !== sourceSha256 ||
 			!runId ||
@@ -284,7 +307,9 @@ export function prepareMultiSourceCanonicalPublication(
 			((overlapResolution === null) !== (overlapBoundarySeconds === null))
 		)
 			return { ok: false, reason: "invalid_payload" };
+
 		seenPartIds.add(partId);
+		seenSources.add(sourceId);
 		canonicalParts.push({
 			part_id: partId,
 			source_id: sourceId,
@@ -315,9 +340,10 @@ export function prepareMultiSourceCanonicalPublication(
 		return { ok: false, reason: "invalid_payload" };
 	if (review.status !== "approved_local")
 		return { ok: false, reason: "approved_review_required" };
+
 	const baseTranscriptSha256 = text(review.baseTranscriptSha256, 64, SHA256);
 	const draftSha256 = text(review.draftSha256, 64, SHA256);
-	const draftRevision = integer(review.draftRevision, 0, 999_999_999_999);
+	const draftRevision = integer(review.draftRevision, 1, 999_999_999_999);
 	if (
 		!baseTranscriptSha256 ||
 		baseTranscriptSha256 !== assemblyTranscriptSha256 ||
@@ -345,6 +371,7 @@ export function prepareMultiSourceCanonicalPublication(
 		])
 	)
 		return { ok: false, reason: "invalid_payload" };
+
 	const reviewedSegments = integer(summary.reviewedSegments, 0, MAX_SEGMENTS);
 	const totalSegments = integer(summary.totalSegments, 1, MAX_SEGMENTS);
 	const wordCount = integer(summary.wordCount, 0, 999_999_999);
@@ -382,25 +409,35 @@ export function prepareMultiSourceCanonicalPublication(
 	)
 		return { ok: false, reason: "invalid_payload" };
 
+	const partsById = new Map(canonicalParts.map((part) => [part.part_id, part]));
 	const seenSegments = new Set<string>();
 	let computedReviewed = 0;
 	let computedWords = 0;
 	const canonicalSegments: Array<{
+		assembly_segment_id: string;
+		part_id: string;
+		source_id: string;
+		run_id: string;
+		source_segment_id: string;
 		track_number: number;
-		segment_id: string;
 		start: number;
 		end: number;
 		text: string;
 		speaker: string;
 		reviewed: boolean;
 	}> = [];
+
 	for (const rawSegment of segments) {
 		const segment = record(rawSegment);
 		if (
 			!segment ||
 			!exactKeys(segment, [
+				"assemblySegmentId",
+				"partId",
+				"sourceId",
+				"runId",
+				"sourceSegmentId",
 				"trackNumber",
-				"segmentId",
 				"start",
 				"end",
 				"text",
@@ -409,8 +446,13 @@ export function prepareMultiSourceCanonicalPublication(
 			])
 		)
 			return { ok: false, reason: "invalid_payload" };
+
+		const assemblySegmentId = text(segment.assemblySegmentId, 64, SHA256);
+		const partId = text(segment.partId, 32, PART_ID);
+		const sourceId = text(segment.sourceId, 70, SOURCE_ID);
+		const runId = text(segment.runId, 196, RUN_ID);
+		const sourceSegmentId = text(segment.sourceSegmentId, 256);
 		const trackNumber = integer(segment.trackNumber, 1, 9999);
-		const segmentId = text(segment.segmentId, 256);
 		const start = finite(segment.start, 0, 604800);
 		const end = finite(segment.end, 0, 604800);
 		const segmentText = isReviewStringV1(segment.text, "text")
@@ -419,9 +461,19 @@ export function prepareMultiSourceCanonicalPublication(
 		const speaker = isReviewStringV1(segment.speaker, "speaker")
 			? segment.speaker
 			: null;
+		const part = partId ? partsById.get(partId) : undefined;
+
 		if (
+			!assemblySegmentId ||
+			seenSegments.has(assemblySegmentId) ||
+			!partId ||
+			!part ||
+			!sourceId ||
+			sourceId !== part.source_id ||
+			!runId ||
+			runId !== part.run_id ||
+			!sourceSegmentId ||
 			trackNumber === null ||
-			!segmentId ||
 			start === null ||
 			end === null ||
 			end < start ||
@@ -430,15 +482,17 @@ export function prepareMultiSourceCanonicalPublication(
 			typeof segment.reviewed !== "boolean"
 		)
 			return { ok: false, reason: "invalid_payload" };
-		const identity = `${trackNumber}\u0000${segmentId}`;
-		if (seenSegments.has(identity))
-			return { ok: false, reason: "invalid_payload" };
-		seenSegments.add(identity);
+
+		seenSegments.add(assemblySegmentId);
 		if (segment.reviewed) computedReviewed += 1;
 		computedWords += countWordsV1(segmentText);
 		canonicalSegments.push({
+			assembly_segment_id: assemblySegmentId,
+			part_id: partId,
+			source_id: sourceId,
+			run_id: runId,
+			source_segment_id: sourceSegmentId,
 			track_number: trackNumber,
-			segment_id: segmentId,
 			start,
 			end,
 			text: segmentText,
@@ -446,15 +500,30 @@ export function prepareMultiSourceCanonicalPublication(
 			reviewed: segment.reviewed,
 		});
 	}
+
 	if (computedReviewed !== reviewedSegments || computedWords !== wordCount)
 		return { ok: false, reason: "invalid_payload" };
-	canonicalSegments.sort(
-		(a, b) =>
-			a.track_number - b.track_number ||
+
+	canonicalSegments.sort((a, b) => {
+		const partA = partsById.get(a.part_id);
+		const partB = partsById.get(b.part_id);
+		return (
 			a.start - b.start ||
 			a.end - b.end ||
-			(a.segment_id < b.segment_id ? -1 : a.segment_id > b.segment_id ? 1 : 0),
-	);
+			(partA?.ordinal ?? 0) - (partB?.ordinal ?? 0) ||
+			a.track_number - b.track_number ||
+			(a.source_segment_id < b.source_segment_id
+				? -1
+				: a.source_segment_id > b.source_segment_id
+					? 1
+					: 0) ||
+			(a.assembly_segment_id < b.assembly_segment_id
+				? -1
+				: a.assembly_segment_id > b.assembly_segment_id
+					? 1
+					: 0)
+		);
+	});
 
 	const provenance: CanonicalMultiSourceProvenance = {
 		schema_version: MULTI_SOURCE_PROVENANCE_VERSION,
@@ -465,10 +534,16 @@ export function prepareMultiSourceCanonicalPublication(
 		campaign_id: assemblyCampaignId,
 		session_id: assemblySessionId,
 		transcript_sha256: assemblyTranscriptSha256,
+		timing_policy_version: "tda_session_timeline_v1",
+		segment_boundary_policy: "segment_start_owner_v1",
 		timeline_fingerprint_sha256: timelineFingerprintSha256,
+		participant_mapping_schema_version:
+			"tda_session_participant_mapping_v1",
+		participant_mapping_policy: "strong_discord_or_manual_v1",
 		participant_mapping_sha256: participantMappingSha256,
 		parts: canonicalParts,
 	};
+
 	const payload = {
 		schema_version: MULTI_SOURCE_PUBLICATION_PAYLOAD_VERSION,
 		publication_kind: "session_assembly",
