@@ -10,6 +10,7 @@ import {
 	partRelationLabel,
 	partStatusLabel,
 	pendingSourceIds,
+	recordingVariantSourceIds,
 	runsForPart,
 	sessionAssemblyReadiness,
 	supportsSessionComposer,
@@ -49,6 +50,7 @@ type Props = Readonly<{
 	context: string;
 	glossary: string;
 	profileReady: boolean;
+	recoveryScope?: string | null;
 	recoveryScope: string | null;
 	disabled?: boolean;
 	onActiveChange?: (active: boolean) => void;
@@ -149,6 +151,9 @@ export function SessionRecordingComposer({
 		ReadonlyMap<string, readonly LocalRunSummary[]>
 	>(new Map());
 	const [jobs, setJobs] = useState<readonly LocalJob[]>([]);
+	const [sourcesById, setSourcesById] = useState<ReadonlyMap<string, LocalSourceSummary>>(
+		new Map(),
+	);
 	const [localSources, setLocalSources] = useState<readonly LocalSourceSummary[]>([]);
 	const [assemblies, setAssemblies] = useState<readonly SessionAssemblyListItem[]>([]);
 	const [lastAssembly, setLastAssembly] = useState<SessionAssembly | null>(null);
@@ -167,6 +172,10 @@ export function SessionRecordingComposer({
 	const currentDuplicate =
 		Boolean(currentSource) &&
 		Boolean(workspace?.parts.some((part) => part.sourceId === currentSource?.sourceId));
+	const currentVariantSourceIds = currentSource
+		? recordingVariantSourceIds(currentSource.sourceId, workspace, sourcesById)
+		: [];
+	const currentVariant = !currentDuplicate && currentVariantSourceIds.length > 0;
 	const currentCatalogSource = currentSource
 		? localSources.find((item) => item.sourceId === currentSource.sourceId) ?? null
 		: null;
@@ -222,6 +231,7 @@ export function SessionRecordingComposer({
 			]);
 			if (signal.aborted) return;
 			setRunsBySource(new Map(runPairs));
+			setSourcesById(new Map(sourceCatalog.map((source) => [source.sourceId, source])));
 			setMapping(nextMapping);
 			setAssemblies(assemblyList.assemblies);
 			setJobs(jobPage.jobs);
@@ -689,7 +699,7 @@ export function SessionRecordingComposer({
 					existing: pendingSubmissions.current.get(sourceId) ?? null,
 				});
 				pendingSubmissions.current.set(sourceId, submission);
-				await bridge.transcription(
+				const job = await bridge.transcription(
 					{
 						campaignId: workspace.campaignId,
 						sessionId: workspace.sessionId,
@@ -704,6 +714,8 @@ export function SessionRecordingComposer({
 				confirmSessionComposerPendingSubmission(window.localStorage, submission);
 				pendingSubmissions.current.delete(sourceId);
 				queued += 1;
+				if (submission.recoveredFromStorage)
+					announce(`Trabalho ${job.id.slice(0, 8)}… reconciliado sem duplicar a gravação.`);
 			}
 			announce(
 				queued === 1
@@ -713,6 +725,13 @@ export function SessionRecordingComposer({
 			await loadRelated(workspace, controller.signal);
 		} catch (cause) {
 			fail(cause);
+			if (
+				cause instanceof BridgeError &&
+				(cause.code === "timeout" || cause.code === "unreachable")
+			)
+				announce(
+					"A tentativa ficou ambígua; repetir Processar pendentes reutiliza a mesma identidade e não cria job extra.",
+				);
 		} finally {
 			setBusy(false);
 		}
@@ -821,19 +840,25 @@ export function SessionRecordingComposer({
 			</div>
 
 			{currentSource && validSessionId(sessionId) ? (
-				<div className={styles.attachRow}>
+				<div
+					className={styles.attachRow}
+					role={currentVariant ? "alert" : undefined}
+					data-variant={currentVariant ? "true" : "false"}
+				>
 					<div>
 						<strong>
 							{currentDuplicate
 								? "Esta gravação já faz parte da sessão."
-								: recordingVariant
-									? "Variante detectada: mesmo recording_id com bytes diferentes."
+								: currentVariant
+									? "Mesma gravação lógica detectada com bytes diferentes."
 									: "ZIP analisado e pronto para entrar nesta sessão."}
 						</strong>
 						<span>
 							Fonte {short(currentSource.sourceId, 16)} · {currentSource.trackCount} tracks · {formatSeconds(currentSource.sessionDurationSeconds)}
-							{recordingVariant
-								? " · já existe a fonte " + short(recordingVariant.sourceId, 16) + " para este recording_id"
+							{currentVariant
+								? " · recording_id coincide com " +
+									currentVariantSourceIds.map((sourceId) => short(sourceId, 12)).join(", ") +
+									"; trate como variante, não duplicata exata."
 								: ""}
 						</span>
 					</div>
@@ -846,7 +871,7 @@ export function SessionRecordingComposer({
 					>
 						{currentDuplicate
 							? "Já adicionada"
-							: recordingVariant
+							: currentVariant
 								? "Adicionar variante mesmo assim"
 								: workspace
 									? "+ Adicionar gravação"
