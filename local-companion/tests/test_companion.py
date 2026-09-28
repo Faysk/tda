@@ -295,7 +295,9 @@ def test_worker_activity_count_survives_agent_trace_throttle(monkeypatch, tmp_pa
             json={"action": "resume"},
         )
         assert wake.status_code == 200
-        assert emitted.wait(10.0)
+        # This asserts worker liveness, not a 10-second latency SLO. GitHub-hosted
+        # Windows runners can be heavily oversubscribed while the full suite is active.
+        assert emitted.wait(30.0)
         deadline = time.monotonic() + 5.0
         state = None
         while time.monotonic() < deadline:
