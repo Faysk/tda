@@ -117,7 +117,7 @@ describe("session assembly protocol", () => {
 					part_id: PART_ID,
 					source_id: SOURCE_ID,
 					run_id: RUN_ID,
-					source_segment_id: "seg-1",
+					source_segment_id: "s".repeat(256),
 					track_number: 1,
 					participant_id: PARTICIPANT_ID,
 					start: 1,
