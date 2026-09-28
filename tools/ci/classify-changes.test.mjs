@@ -3,13 +3,14 @@ import test from "node:test";
 import { classifyPaths } from "./classify-changes.mjs";
 
 function flags(files) {
-	const { web, navigation, db, companion, processing, lembra, media } =
+	const { web, transcript_edit, navigation, db, companion, processing, lembra, media } =
 		classifyPaths(files);
-	return { web, navigation, db, companion, processing, lembra, media };
+	return { web, transcript_edit, navigation, db, companion, processing, lembra, media };
 }
 
 const fastOnly = {
 	web: true,
+	transcript_edit: false,
 	navigation: false,
 	db: false,
 	companion: false,
@@ -68,6 +69,20 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 	);
 });
 
+test("Transcript edit paths activate the targeted browser contract", () => {
+	for (const path of [
+		"src/features/edit/transcript/revision-editor.tsx",
+		"src/app/edit/sessoes/[id]/page.tsx",
+		"src/app/e2e-fixtures/transcript-revision-editor/page.tsx",
+		"src/features/edit/sessions/editorial-draft-editor.tsx",
+		"tests/transcript-revision-editor.spec.ts",
+		"playwright.config.ts",
+	]) {
+		assert.equal(flags([path]).transcript_edit, true, path);
+	}
+	assert.equal(flags(["src/app/page.tsx"]).transcript_edit, false);
+});
+
 test("Processing Web paths activate the Processing E2E contract", () => {
 	assert.equal(
 		flags(["src/features/edit/processing/bridge.ts"]).processing,
@@ -122,6 +137,7 @@ test("specialized runtime workflows do not build generic MSI or browser gates by
 
 test("CI workflow changes exercise the browser gates they define", () => {
 	const result = flags([".github/workflows/ci.yml"]);
+	assert.equal(result.transcript_edit, true);
 	assert.equal(result.navigation, true);
 	assert.equal(result.processing, true);
 	assert.equal(result.lembra, true);
@@ -152,6 +168,7 @@ test("media manifests and tooling activate media domain", () => {
 test("classifier contract changes fail safe into every heavy domain", () => {
 	const expected = {
 		web: true,
+		transcript_edit: true,
 		navigation: true,
 		db: true,
 		companion: true,
@@ -174,6 +191,7 @@ test("mixed changes activate each relevant domain", () => {
 		]),
 		{
 			web: true,
+			transcript_edit: false,
 			navigation: true,
 			db: true,
 			companion: true,
