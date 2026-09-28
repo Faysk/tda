@@ -1,7 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
+import { saveTranscriptRevisionEditsAction } from "./edit-actions";
+import {
+	type TranscriptEditRequest,
+	validateTranscriptEditRequest,
+} from "./edit-model";
 import {
 	findTranscriptJumpIndex,
 	formatTranscriptTimestamp,
@@ -12,6 +18,15 @@ import styles from "./reader.module.css";
 
 const INITIAL_VISIBLE = 300;
 const VISIBLE_STEP = 300;
+
+type WorkingEdit = Readonly<{
+	speaker: string;
+	text: string;
+}>;
+
+type SavePhase = "idle" | "saving" | "saved" | "conflict" | "error";
+
+export type TranscriptReaderSaveAction = typeof saveTranscriptRevisionEditsAction;
 
 function normalizeSearch(value: string): string {
 	return value.trim().toLocaleLowerCase("pt-BR");
@@ -31,15 +46,47 @@ function highlighted(text: string, query: string) {
 	);
 }
 
+function applyWorkingEdit(
+	segment: TranscriptReaderSegment,
+	edit: WorkingEdit | undefined,
+): TranscriptReaderSegment {
+	return edit ? { ...segment, speaker: edit.speaker, text: edit.text } : segment;
+}
+
 export function TranscriptReader({
 	segments,
 	sourceLabel,
 	downloadHref,
+	editable = false,
+	sessionId = null,
+	revisionId = null,
+	revisionNumber = null,
+	saveAction = saveTranscriptRevisionEditsAction,
 }: Readonly<{
 	segments: readonly TranscriptReaderSegment[];
 	sourceLabel: string;
 	downloadHref: string;
+	editable?: boolean;
+	sessionId?: string | null;
+	revisionId?: string | null;
+	revisionNumber?: number | null;
+	saveAction?: TranscriptReaderSaveAction;
 }>) {
+	const router = useRouter();
+	const [baseline, setBaseline] = useState<readonly TranscriptReaderSegment[]>(() => [
+		...segments,
+	]);
+	const [working, setWorking] = useState<Record<string, WorkingEdit>>({});
+	const [editMode, setEditMode] = useState(false);
+	const [activeEditId, setActiveEditId] = useState<string | null>(null);
+	const [currentRevisionId, setCurrentRevisionId] = useState(revisionId);
+	const [currentRevisionNumber, setCurrentRevisionNumber] = useState(revisionNumber);
+	const [localSourceLabel, setLocalSourceLabel] = useState(sourceLabel);
+	const [savePhase, setSavePhase] = useState<SavePhase>("idle");
+	const [saveMessage, setSaveMessage] = useState("");
+	const [remoteRevisionNumber, setRemoteRevisionNumber] = useState<number | null>(null);
+	const pendingOperation = useRef<{ id: string; signature: string } | null>(null);
+
 	const [query, setQuery] = useState("");
 	const [matchCursor, setMatchCursor] = useState(-1);
 	const [jumpValue, setJumpValue] = useState("");
@@ -48,12 +95,21 @@ export function TranscriptReader({
 	);
 	const segmentRefs = useRef(new Map<number, HTMLElement>());
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const activeSpeakerRef = useRef<HTMLInputElement>(null);
 	const normalizedQuery = normalizeSearch(query);
+	const dirtyCount = Object.keys(working).length;
+	const dirty = dirtyCount > 0;
+	const canEdit =
+		editable &&
+		Boolean(sessionId) &&
+		Boolean(currentRevisionId) &&
+		baseline.every((segment) => Boolean(segment.sourceSegmentId));
+
 	const matches = useMemo(() => {
 		if (!normalizedQuery) return [] as number[];
 		const result: number[] = [];
-		for (let index = 0; index < segments.length; index += 1) {
-			const segment = segments[index];
+		for (let index = 0; index < baseline.length; index += 1) {
+			const segment = applyWorkingEdit(baseline[index], working[baseline[index].id]);
 			if (
 				segment.text.toLocaleLowerCase("pt-BR").includes(normalizedQuery) ||
 				segment.speaker.toLocaleLowerCase("pt-BR").includes(normalizedQuery)
@@ -61,11 +117,13 @@ export function TranscriptReader({
 				result.push(index);
 		}
 		return result;
-	}, [normalizedQuery, segments]);
+	}, [baseline, normalizedQuery, working]);
 
 	function revealAndScroll(index: number) {
 		if (index < 0) return;
-		setVisibleCount((current) => Math.max(current, Math.min(segments.length, index + 30)));
+		setVisibleCount((current) =>
+			Math.max(current, Math.min(baseline.length, index + 30)),
+		);
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
 				segmentRefs.current.get(index)?.scrollIntoView({
@@ -86,11 +144,11 @@ export function TranscriptReader({
 	function jump() {
 		const milliseconds = parseTranscriptTimestamp(jumpValue);
 		if (milliseconds === null) return;
-		revealAndScroll(findTranscriptJumpIndex(segments, milliseconds));
+		revealAndScroll(findTranscriptJumpIndex(baseline, milliseconds));
 	}
 
 	async function copyReference(index: number) {
-		const segment = segments[index];
+		const segment = baseline[index];
 		const reference = `${formatTranscriptTimestamp(segment.startMs)} · ${segment.speaker}`;
 		try {
 			await navigator.clipboard.writeText(reference);
@@ -99,30 +157,222 @@ export function TranscriptReader({
 		}
 	}
 
+	function updateWorking(
+		segment: TranscriptReaderSegment,
+		patch: Partial<WorkingEdit>,
+	) {
+		if (savePhase === "saving") return;
+		setWorking((current) => {
+			const previous = current[segment.id] ?? {
+				speaker: segment.speaker,
+				text: segment.text,
+			};
+			const next = { ...previous, ...patch };
+			const updated = { ...current };
+			if (next.speaker === segment.speaker && next.text === segment.text)
+				delete updated[segment.id];
+			else updated[segment.id] = next;
+			return updated;
+		});
+		setSavePhase("idle");
+		setSaveMessage("");
+	}
+
+	function revertSegment(segmentId: string) {
+		setWorking((current) => {
+			const updated = { ...current };
+			delete updated[segmentId];
+			return updated;
+		});
+		if (activeEditId === segmentId) setActiveEditId(null);
+		setSavePhase("idle");
+		setSaveMessage("");
+	}
+
+	function discardAll() {
+		if (dirty && !window.confirm("Descartar todas as alterações não salvas da transcrição?"))
+			return;
+		setWorking({});
+		setActiveEditId(null);
+		setSavePhase("idle");
+		setSaveMessage("");
+		pendingOperation.current = null;
+	}
+
+	function buildRequest(): TranscriptEditRequest | null {
+		if (!sessionId || !currentRevisionId) return null;
+		const edits = baseline.flatMap((segment) => {
+			const edit = working[segment.id];
+			if (!edit || !segment.sourceSegmentId) return [];
+			return [
+				{
+					trackNumber: segment.trackNumber,
+					segmentId: segment.sourceSegmentId,
+					speaker: edit.speaker,
+					text: edit.text,
+				},
+			];
+		});
+		if (!edits.length) return null;
+		const signature = JSON.stringify(edits);
+		if (!pendingOperation.current || pendingOperation.current.signature !== signature) {
+			pendingOperation.current = {
+				id: crypto.randomUUID(),
+				signature,
+			};
+		}
+		return {
+			sessionId,
+			expectedCurrentTranscriptRevisionId: currentRevisionId,
+			operationId: pendingOperation.current.id,
+			edits,
+		};
+	}
+
+	async function save() {
+		if (!canEdit || savePhase === "saving") return;
+		const request = buildRequest();
+		if (!request) return;
+		const issues = validateTranscriptEditRequest(request);
+		if (issues.length) {
+			setSavePhase("error");
+			setSaveMessage(
+				"Revise speaker e texto: campos vazios, muito longos ou inválidos não podem ser salvos.",
+			);
+			return;
+		}
+
+		setSavePhase("saving");
+		setSaveMessage("Salvando nova revisão privada…");
+		try {
+			const result = await saveAction(request);
+			if (result.ok) {
+				setBaseline((current) =>
+					current.map((segment) =>
+						applyWorkingEdit(segment, working[segment.id]),
+					),
+				);
+				setWorking({});
+				setActiveEditId(null);
+				setCurrentRevisionId(result.revisionId);
+				setCurrentRevisionNumber(result.revisionNumber);
+				setLocalSourceLabel(
+					`Revisão privada atual · r${result.revisionNumber}`,
+				);
+				setSavePhase("saved");
+				setSaveMessage(
+					result.status === "no_change"
+						? "Nenhuma mudança efetiva para criar nova revisão."
+						: `Revisão privada r${result.revisionNumber} salva.`,
+				);
+				setRemoteRevisionNumber(null);
+				router.refresh();
+				pendingOperation.current = null;
+				return;
+			}
+
+			if (result.reason === "stale_current") {
+				setSavePhase("conflict");
+				setRemoteRevisionNumber(result.currentRevisionNumber ?? null);
+				setSaveMessage(
+					"Outra edição avançou a transcrição. Sua working copy foi preservada nesta aba; não houve retry automático.",
+				);
+				pendingOperation.current = null;
+				return;
+			}
+
+			setSavePhase("error");
+			setSaveMessage(
+				result.reason === "forbidden" || result.reason === "profile_unresolved"
+					? "Sua permissão de edição não está mais válida. Nada foi salvo."
+					: result.reason === "invalid_edit_target"
+						? "A revisão mudou ou uma fala não pertence mais à base atual. Nada foi salvo."
+						: "Não foi possível salvar a transcrição. Sua working copy continua nesta aba.",
+			);
+			if (result.reason !== "dependency_unavailable")
+				pendingOperation.current = null;
+		} catch {
+			setSavePhase("error");
+			setSaveMessage(
+				"Não foi possível confirmar o save. A working copy e a identidade da tentativa foram preservadas para retry.",
+			);
+		}
+	}
+
+	useEffect(() => {
+		if (!activeEditId) return;
+		activeSpeakerRef.current?.focus();
+	}, [activeEditId]);
+
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
-		if (!sentinel || visibleCount >= segments.length) return;
+		if (!sentinel || visibleCount >= baseline.length) return;
 		const observer = new IntersectionObserver(
 			(entries) => {
 				if (!entries.some((entry) => entry.isIntersecting)) return;
 				setVisibleCount((count) =>
-					Math.min(segments.length, count + VISIBLE_STEP),
+					Math.min(baseline.length, count + VISIBLE_STEP),
 				);
 			},
 			{ rootMargin: "600px 0px" },
 		);
 		observer.observe(sentinel);
 		return () => observer.disconnect();
-	}, [segments.length, visibleCount]);
+	}, [baseline.length, visibleCount]);
 
-	const visible = segments.slice(0, visibleCount);
+	useEffect(() => {
+		const handleKeyboardShortcut = (event: KeyboardEvent) => {
+			if (
+				editMode &&
+				dirty &&
+				(event.ctrlKey || event.metaKey) &&
+				event.key.toLocaleLowerCase() === "s"
+			) {
+				event.preventDefault();
+				void save();
+			}
+			if (event.key === "Escape" && activeEditId) setActiveEditId(null);
+		};
+		document.addEventListener("keydown", handleKeyboardShortcut);
+		return () => document.removeEventListener("keydown", handleKeyboardShortcut);
+	});
+
+	useEffect(() => {
+		if (!dirty) return;
+		const beforeUnload = (event: BeforeUnloadEvent) => {
+			event.preventDefault();
+			event.returnValue = "";
+		};
+		const protectInternalNavigation = (event: MouseEvent) => {
+			const target = event.target;
+			if (!(target instanceof Element)) return;
+			const anchor = target.closest("a");
+			if (!anchor || anchor.dataset.transcriptSafeNavigation === "true") return;
+			if (anchor.target === "_blank" || anchor.href === window.location.href) return;
+			if (!window.confirm("Você tem alterações não salvas na transcrição. Sair mesmo assim?")) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		};
+		window.addEventListener("beforeunload", beforeUnload);
+		document.addEventListener("click", protectInternalNavigation, true);
+		return () => {
+			window.removeEventListener("beforeunload", beforeUnload);
+			document.removeEventListener("click", protectInternalNavigation, true);
+		};
+	}, [dirty]);
+
+	const visible = baseline.slice(0, visibleCount);
 
 	return (
-		<div className={styles.reader}>
+		<section
+			className={styles.reader}
+			aria-label="Leitor e editor de transcrição"
+		>
 			<div className={styles.toolbar}>
 				<div className={styles.source}>
 					<strong>Fonte da leitura</strong>
-					<span>{sourceLabel}</span>
+					<span>{localSourceLabel}</span>
 				</div>
 				<label className={styles.search}>
 					<span>Buscar fala ou speaker</span>
@@ -142,10 +392,20 @@ export function TranscriptReader({
 							? `${matches.length.toLocaleString("pt-BR")} resultado(s)`
 							: "Busca em toda a sessão"}
 					</span>
-					<Button size="sm" variant="tertiary" disabled={!matches.length} onClick={() => moveMatch(-1)}>
+					<Button
+						size="sm"
+						variant="tertiary"
+						disabled={!matches.length}
+						onClick={() => moveMatch(-1)}
+					>
 						Anterior
 					</Button>
-					<Button size="sm" variant="tertiary" disabled={!matches.length} onClick={() => moveMatch(1)}>
+					<Button
+						size="sm"
+						variant="tertiary"
+						disabled={!matches.length}
+						onClick={() => moveMatch(1)}
+					>
 						Próximo
 					</Button>
 				</div>
@@ -162,44 +422,220 @@ export function TranscriptReader({
 							inputMode="numeric"
 						/>
 					</label>
-					<Button size="sm" onClick={jump}>Ir</Button>
+					<Button size="sm" onClick={jump}>
+						Ir
+					</Button>
 				</div>
-				<a className={styles.download} href={downloadHref}>
+				<a
+					className={styles.download}
+					href={downloadHref}
+					data-transcript-safe-navigation="true"
+				>
 					Baixar transcrição (.md)
 				</a>
+
+				{canEdit ? (
+					<div className={styles.editControls}>
+						<Button
+							size="sm"
+							variant={editMode ? "secondary" : "tertiary"}
+							disabled={savePhase === "saving"}
+							onClick={() => {
+								setEditMode((current) => !current);
+								setActiveEditId(null);
+							}}
+						>
+							{editMode ? "Sair do modo de edição" : "Editar transcrição"}
+						</Button>
+						{editMode ? (
+							<>
+								<span className={styles.dirtyState} aria-live="polite">
+									{dirtyCount
+										? `${dirtyCount.toLocaleString("pt-BR")} alteração(ões) não salvas`
+										: "Nenhuma alteração"}
+								</span>
+								<Button
+									size="sm"
+									disabled={!dirty || savePhase === "saving"}
+									onClick={() => void save()}
+								>
+									{savePhase === "saving"
+										? "Salvando…"
+										: "Salvar alterações da transcrição"}
+								</Button>
+								<Button
+									size="sm"
+									variant="tertiary"
+									disabled={!dirty || savePhase === "saving"}
+									onClick={discardAll}
+								>
+									Descartar alterações
+								</Button>
+							</>
+						) : null}
+					</div>
+				) : null}
+
+				{saveMessage ? (
+					<div
+						className={styles.saveMessage}
+						data-state={savePhase}
+						role={savePhase === "error" || savePhase === "conflict" ? "alert" : "status"}
+					>
+						<span>{saveMessage}</span>
+						{savePhase === "conflict" ? (
+							<div className={styles.conflictActions}>
+								{remoteRevisionNumber ? (
+									<span>Remoto: r{remoteRevisionNumber}</span>
+								) : null}
+								<Button
+									size="sm"
+									variant="tertiary"
+									onClick={() => {
+										if (
+											!dirty ||
+											window.confirm(
+												"Recarregar a revisão mais recente e descartar esta working copy?",
+											)
+										)
+											window.location.reload();
+									}}
+								>
+									Recarregar versão mais recente
+								</Button>
+							</div>
+						) : null}
+					</div>
+				) : null}
 			</div>
 
 			<section className={styles.timeline} aria-label="Transcrição completa">
-				{visible.map((segment, index) => (
-					<article
-						id={`segment-${encodeURIComponent(segment.id)}`}
-						className={styles.segment}
-						key={segment.id}
-						ref={(node) => {
-							if (node) segmentRefs.current.set(index, node);
-							else segmentRefs.current.delete(index);
-						}}
-						data-transcript-segment
-					>
-						<button
-							type="button"
-							className={styles.timestamp}
-							title="Copiar referência deste timestamp"
-							onClick={() => void copyReference(index)}
+				{visible.map((baseSegment, index) => {
+					const edit = working[baseSegment.id];
+					const segment = applyWorkingEdit(baseSegment, edit);
+					const isActive = editMode && activeEditId === baseSegment.id;
+					return (
+						<article
+							id={`segment-${encodeURIComponent(baseSegment.id)}`}
+							className={styles.segment}
+							key={baseSegment.id}
+							ref={(node) => {
+								if (node) segmentRefs.current.set(index, node);
+								else segmentRefs.current.delete(index);
+							}}
+							data-transcript-segment
+							data-edited={edit ? "true" : undefined}
 						>
-							{formatTranscriptTimestamp(segment.startMs, false)}
-						</button>
-						<strong className={styles.speaker}>
-							{highlighted(segment.speaker, normalizedQuery)}
-						</strong>
-						<p className={styles.text}>{highlighted(segment.text, normalizedQuery)}</p>
-					</article>
-				))}
-				{visibleCount < segments.length ? (
+							<button
+								type="button"
+								className={styles.timestamp}
+								title="Copiar referência deste timestamp"
+								onClick={() => void copyReference(index)}
+							>
+								{formatTranscriptTimestamp(baseSegment.startMs, false)}
+							</button>
+
+							{isActive ? (
+								<label className={styles.inlineField}>
+									<span>Speaker</span>
+									<input
+										ref={activeSpeakerRef}
+										disabled={savePhase === "saving"}
+										value={segment.speaker}
+										onChange={(event) =>
+											updateWorking(baseSegment, {
+												speaker: event.currentTarget.value,
+											})
+										}
+									/>
+								</label>
+							) : (
+								<strong className={styles.speaker}>
+									{highlighted(segment.speaker, normalizedQuery)}
+								</strong>
+							)}
+
+							{isActive ? (
+								<div className={styles.inlineEditor}>
+									<label className={styles.inlineField}>
+										<span>Texto da fala</span>
+										<textarea
+											disabled={savePhase === "saving"}
+											rows={4}
+											value={segment.text}
+											onChange={(event) =>
+												updateWorking(baseSegment, {
+													text: event.currentTarget.value,
+												})
+											}
+										/>
+									</label>
+									<div className={styles.inlineActions}>
+										<Button
+											size="sm"
+											variant="tertiary"
+											disabled={savePhase === "saving"}
+											onClick={() => setActiveEditId(null)}
+										>
+											Concluir edição da fala
+										</Button>
+										{edit ? (
+											<Button
+												size="sm"
+												variant="tertiary"
+												disabled={savePhase === "saving"}
+												onClick={() => revertSegment(baseSegment.id)}
+											>
+												Reverter fala
+											</Button>
+										) : null}
+									</div>
+								</div>
+							) : (
+								<p className={styles.text}>
+									{highlighted(segment.text, normalizedQuery)}
+								</p>
+							)}
+
+							{editMode && !isActive ? (
+								<div className={styles.segmentActions}>
+									{edit ? <span className={styles.editedBadge}>Editada</span> : null}
+									<Button
+										size="sm"
+										variant="tertiary"
+										disabled={savePhase === "saving"}
+										onClick={() => setActiveEditId(baseSegment.id)}
+									>
+										Editar fala
+									</Button>
+									{edit ? (
+										<Button
+											size="sm"
+											variant="tertiary"
+											onClick={() => revertSegment(baseSegment.id)}
+										>
+											Reverter
+										</Button>
+									) : null}
+								</div>
+							) : null}
+						</article>
+					);
+				})}
+				{visibleCount < baseline.length ? (
 					<div ref={sentinelRef} className={styles.more} aria-hidden="true" />
 				) : null}
-				{!segments.length ? <p className={styles.empty}>Nenhuma fala disponível nesta sessão.</p> : null}
+				{!baseline.length ? (
+					<p className={styles.empty}>Nenhuma fala disponível nesta sessão.</p>
+				) : null}
 			</section>
-		</div>
+
+			{editMode && currentRevisionNumber ? (
+				<p className={styles.editHint}>
+					Modo de edição · base r{currentRevisionNumber}. Timestamps permanecem
+					somente leitura. Ctrl/⌘+S salva a working copy inteira.
+				</p>
+			) : null}
+		</section>
 	);
 }

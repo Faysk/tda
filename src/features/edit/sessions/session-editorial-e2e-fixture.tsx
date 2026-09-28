@@ -12,6 +12,7 @@ import type { SessionEditorialDraft } from "./editorial-draft-model";
 
 const SESSION_ID = "11111111-1111-4111-8111-111111111111";
 const TRANSCRIPT_REVISION_ID = "22222222-2222-4222-8222-222222222222";
+const TRANSCRIPT_REVISION_ID_2 = "22222222-2222-4222-8222-222222222223";
 const DRAFT_ID = "33333333-3333-4333-8333-333333333333";
 const COVER_REFERENCE = "/assets/sessions/synthetic-editorial-cover.webp";
 const PRIVATE_MARKER = "NEVER_PUBLIC_TRANSCRIPT_MARKER_9F3A";
@@ -100,6 +101,10 @@ function SyntheticCoverEditor({
 export function SessionEditorialE2EFixture() {
 	const initialDraft = useMemo(() => freshDraft(), []);
 	const draftRef = useRef<SessionEditorialDraft>(initialDraft);
+	const transcriptRevisionRef = useRef(TRANSCRIPT_REVISION_ID);
+	const [transcriptRevisionId, setTranscriptRevisionId] = useState(
+		TRANSCRIPT_REVISION_ID,
+	);
 	const publicRef = useRef<PublicSnapshot | null>(null);
 	const operationsRef = useRef(
 		new Map<
@@ -136,8 +141,9 @@ export function SessionEditorialE2EFixture() {
 				draftId: current.draftId ?? DRAFT_ID,
 				revision: current.revision + 1,
 				baseTranscriptRevisionId: input.baseTranscriptRevisionId,
-				currentTranscriptRevisionId: TRANSCRIPT_REVISION_ID,
-				transcriptChanged: input.baseTranscriptRevisionId !== TRANSCRIPT_REVISION_ID,
+				currentTranscriptRevisionId: transcriptRevisionRef.current,
+				transcriptChanged:
+					input.baseTranscriptRevisionId !== transcriptRevisionRef.current,
 				coverAssetId: input.coverAssetId,
 				arc: input.arc,
 				title: input.title,
@@ -236,6 +242,11 @@ export function SessionEditorialE2EFixture() {
 		};
 	}, []);
 
+	function simulateTranscriptRevision() {
+		transcriptRevisionRef.current = TRANSCRIPT_REVISION_ID_2;
+		setTranscriptRevisionId(TRANSCRIPT_REVISION_ID_2);
+	}
+
 	function simulateRemoteDraft() {
 		const current = draftRef.current;
 		const nextRevision = current.revision + 1;
@@ -276,6 +287,9 @@ export function SessionEditorialE2EFixture() {
 					/>
 					Permitir publicação
 				</label>
+				<button onClick={simulateTranscriptRevision} type="button">
+					Simular nova revisão de transcrição
+				</button>
 				<button onClick={simulateRemoteDraft} type="button">
 					Simular save concorrente
 				</button>
@@ -306,7 +320,12 @@ export function SessionEditorialE2EFixture() {
 				/>
 				<SessionEditorialDraftEditor
 					editable={editable}
-					initial={initialDraft}
+					initial={{
+						...initialDraft,
+						currentTranscriptRevisionId: transcriptRevisionId,
+						transcriptChanged:
+							initialDraft.baseTranscriptRevisionId !== transcriptRevisionId,
+					}}
 					initialPublication={{
 						currentPublicationId: null,
 						currentVersion: 0,

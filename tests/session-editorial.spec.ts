@@ -114,6 +114,31 @@ test("draft CAS conflict preserves the local working copy until explicit reconci
 	await saveDraft(page, 3);
 });
 
+test("transcript revision drift updates immediately without discarding editorial working copy", async ({
+	page,
+}) => {
+	await page.goto("/e2e-fixtures/session-editorial");
+	await fillReadyDraft(page);
+	await saveDraft(page, 1);
+
+	const title = page.getByLabel("Título");
+	await title.fill("Minha edição editorial ainda não salva");
+	await page
+		.getByRole("button", { name: "Simular nova revisão de transcrição" })
+		.click();
+
+	await expect(
+		page.getByText(
+			"A transcrição foi atualizada desde a base deste draft. O texto foi preservado; revise a diferença antes de publicar.",
+			{ exact: true },
+		),
+	).toBeVisible();
+	await expect(title).toHaveValue("Minha edição editorial ainda não salva");
+	await expect(
+		page.getByRole("button", { name: "Publicar no site", exact: true }),
+	).toBeDisabled();
+});
+
 test("lost publication response replays the same operation without creating another public version", async ({
 	page,
 }) => {
