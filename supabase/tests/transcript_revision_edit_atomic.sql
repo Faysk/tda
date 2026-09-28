@@ -197,6 +197,60 @@ begin
      or (select count(*) from public.audit_log where action='transcript_revision.edit') <> 1 then
     raise exception 'TRANSCRIPT_REVISION_EDIT_STALE_LEFT_EVIDENCE:%', v_status;
   end if;
+
+  -- A stale tab must not be told "no change" merely because its local delta
+  -- matches the old base. The baseline itself changed.
+  select e.status
+  into v_status
+  from public.save_transcript_revision_edit_atomic(
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    '22222222-2222-4222-8222-222222222222',
+    '44444444-4444-4444-8444-444444444444',
+    '71000000-0000-4000-8000-000000000005',
+    '[{"segmentKey":"r-1-seg-a","speaker":"Alya","text":"Primeira fala sintética"}]'::jsonb
+  ) e;
+  if v_status <> 'stale_current' then
+    raise exception 'TRANSCRIPT_REVISION_EDIT_STALE_NOOP_ACCEPTED:%', v_status;
+  end if;
+
+  -- Wrong campaign must fail closed without revealing whether the session exists.
+  select e.status
+  into v_status
+  from public.save_transcript_revision_edit_atomic(
+    '33333333-3333-4333-8333-333333333333',
+    'other-campaign',
+    '22222222-2222-4222-8222-222222222222',
+    v_revision_id,
+    '71000000-0000-4000-8000-000000000006',
+    '[{"segmentKey":"r-1-seg-a","speaker":"Alya","text":"Negado por campanha"}]'::jsonb
+  ) e;
+  if v_status <> 'forbidden' then
+    raise exception 'TRANSCRIPT_REVISION_EDIT_WRONG_CAMPAIGN_ACCEPTED:%', v_status;
+  end if;
+
+  -- Capability loss between page load and save is revalidated inside the RPC.
+  update public.role_assignments
+  set status='revoked'
+  where profile_id='33333333-3333-4333-8333-333333333333';
+
+  select e.status
+  into v_status
+  from public.save_transcript_revision_edit_atomic(
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    '22222222-2222-4222-8222-222222222222',
+    v_revision_id,
+    '71000000-0000-4000-8000-000000000007',
+    '[{"segmentKey":"r-1-seg-a","speaker":"Alya","text":"Negado após revoke"}]'::jsonb
+  ) e;
+  if v_status <> 'forbidden' then
+    raise exception 'TRANSCRIPT_REVISION_EDIT_REVOKED_CAPABILITY_ACCEPTED:%', v_status;
+  end if;
+
+  update public.role_assignments
+  set status='active'
+  where profile_id='33333333-3333-4333-8333-333333333333';
 end;
 $main$;
 
