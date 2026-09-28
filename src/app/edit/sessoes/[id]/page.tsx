@@ -12,7 +12,7 @@ import draftStyles from "@/features/edit/sessions/editorial-draft.module.css";
 import { readSessionEditorialDraft } from "@/features/edit/sessions/editorial-draft-repository";
 import { readSessionPublicationContext } from "@/features/edit/sessions/session-publication-repository";
 import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
-import { TranscriptReader } from "@/features/edit/transcript/reader";
+import { TranscriptRevisionWorkspace } from "@/features/edit/transcript/revision-editor";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
 import styles from "@/features/edit/workbench.module.css";
 import { CAMPAIGN_SLUG, formatSessionDate } from "@/features/sessions/model";
@@ -143,9 +143,12 @@ export default async function EditSessionPage({ params }: PageProps) {
 
 			<div className={draftStyles.sessionWorkspace}>
 				<div className={draftStyles.transcriptPane}>
-					<TranscriptReader
+					<TranscriptRevisionWorkspace
 						downloadHref={downloadHref}
+						editable={canEdit && snapshot.source === "current_revision"}
+						revisionId={snapshot.revisionId}
 						segments={snapshot.segments}
+						sessionId={session.id}
 						sourceLabel={sourceLabel}
 					/>
 				</div>
