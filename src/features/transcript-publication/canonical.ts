@@ -40,21 +40,33 @@ export type PublicationTarget = Readonly<{
 	sourceSessionId: string;
 }>;
 
-export type CanonicalPreparedPublication = Readonly<{
+type CanonicalPreparedPublicationCommon = Readonly<{
 	operationId: string;
 	expectedCurrentRevisionId: string | null;
 	expectedActorProfileId?: string;
 	target: PublicationTarget;
-	publicationKind: "single_source" | "session_assembly";
-	sourceId: string | null;
-	runId: string | null;
 	baseTranscriptSha256: string;
 	draftSha256: string;
-	provenance: CanonicalMultiSourceProvenance | null;
 	payloadJson: string;
 	payloadBytes: number;
 	segmentCount: number;
 }>;
+
+export type CanonicalPreparedPublication =
+	| (CanonicalPreparedPublicationCommon &
+		Readonly<{
+			publicationKind: "single_source";
+			sourceId: string;
+			runId: string;
+			provenance: null;
+		}>)
+	| (CanonicalPreparedPublicationCommon &
+		Readonly<{
+			publicationKind: "session_assembly";
+			sourceId: null;
+			runId: null;
+			provenance: CanonicalMultiSourceProvenance;
+		}>);
 
 type PublicationReceiptCommon = Readonly<{
 	status: "committed";
