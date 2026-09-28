@@ -320,6 +320,19 @@ test("unified panel keeps ordinary links, 44px trigger and no ARIA application m
 	await expect(panel.locator('[role="menu"], [role="menuitem"]')).toHaveCount(0);
 });
 
+test("skip link remains visible when focused from the keyboard", async ({ page }) => {
+	await mockAccess(page);
+	await page.goto("/");
+	const skipLink = page.getByRole("link", { name: "Pular para o conteúdo" });
+	await skipLink.focus();
+	await expect(skipLink).toBeFocused();
+	const box = await skipLink.boundingBox();
+	expect(box).not.toBeNull();
+	if (box) {
+		expect(box.y).toBeGreaterThanOrEqual(0);
+	}
+});
+
 test("unified grid preserves large glyphs while making cells denser", async ({ page }) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.setViewportSize({ width: 1366, height: 768 });
