@@ -59,6 +59,19 @@ def test_0316_production_validation_bridge_noops_when_successful_rc_run_publishe
     assert "if: steps.release.outputs.eligible == 'true'" in value
 
 
+def test_0316_production_validation_bridge_reuses_existing_equivalent_stable_release():
+    value = _read("companion-0316-production-validation-stable.yml")
+    assert "COMPANION_PACKAGE_PATHS=(" in value
+    assert 'git diff --quiet "$STABLE_SOURCE" "$SOURCE_SHA" -- "${COMPANION_PACKAGE_PATHS[@]}"' in value
+    assert "COMPANION_PRODUCTION_VALIDATION_STABLE_PACKAGE_INPUT_DRIFT" in value
+    assert "equivalent Companion package inputs" in value
+    assert 'echo "reuse_stable=true" >> "$GITHUB_OUTPUT"' in value
+    assert "steps.release.outputs.reuse_stable != 'true'" in value
+    assert "STABLE_SOURCE: ${{ steps.release.outputs.stable_source }}" in value
+    assert 'candidate["source_sha"] == os.environ["STABLE_SOURCE"]' in value
+    assert '"local-companion/tests/**"' not in value[value.index("COMPANION_PACKAGE_PATHS=("):value.index('if gh release view "$STABLE_TAG"')]
+
+
 def test_stable_promotion_is_manual_receipt_gated_content_equivalent_and_never_rebuilds():
     value = _read("companion-promote.yml")
     assert "workflow_dispatch:" in value
