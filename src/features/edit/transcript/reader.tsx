@@ -383,12 +383,21 @@ export function TranscriptReader({
 		setPhase("saving");
 		setMessage("Salvando nova revisão privada…");
 
-		const result = await saveTranscriptRevisionEditAction({
-			sessionId,
-			expectedCurrentTranscriptRevisionId: baseRevisionId,
-			operationId,
-			patches: candidate,
-		});
+		let result: Awaited<ReturnType<typeof saveTranscriptRevisionEditAction>>;
+		try {
+			result = await saveTranscriptRevisionEditAction({
+				sessionId,
+				expectedCurrentTranscriptRevisionId: baseRevisionId,
+				operationId,
+				patches: candidate,
+			});
+		} catch {
+			setPhase("error");
+			setMessage(
+				"Não foi possível confirmar o save. Repetir usa a mesma operação para evitar revisão duplicada.",
+			);
+			return;
+		}
 
 		if (result.ok) {
 			const nextBaseline = applyTranscriptRevisionPatches(baseline, candidate);
