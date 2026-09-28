@@ -31,7 +31,7 @@ Candidato em revisão: [World entity media foundation](world-entity-media-founda
 
 | Feature | Estado na `main` | Spec |
 | --- | --- | --- |
-| Navegação global / conta | arquitetura aprovada; projeção de Auth + launcher + avatar integrados; retirada dos hubs em rollout | [Navegação global](global-navigation.md) |
+| Navegação global / conta | arquitetura aprovada; projeção de Auth + launcher + avatar + retirada dos hubs integrados; gate completo de QA pendente | [Navegação global](global-navigation.md) |
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
 | Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
 | Edit / processamento local | ASR local real; sync cloud desativado | [Processamento local](local-processing.md) |
