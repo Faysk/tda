@@ -659,6 +659,70 @@ export class ProcessingController {
 		return deleted;
 	};
 
+	private async ensureLocalRunLoaded(
+		sourceId: string,
+		runId: string,
+		signal: AbortSignal,
+	): Promise<boolean> {
+		const key = `${sourceId}:${runId}`;
+		const matchesTarget = (run: LocalRunSummary) =>
+			run.sourceId === sourceId && run.runId === runId;
+		if (this.#state.localRuns.some(matchesTarget)) return true;
+
+		const byKey = new Map(
+			this.#state.localRuns.map((run) => [`${run.sourceId}:${run.runId}`, run]),
+		);
+
+		if (
+			this.#state.capabilities?.capabilities.includes(
+				"transcription.runs.catalog",
+			)
+		) {
+			let cursor = this.#state.localRunsNextCursor;
+			let hasMore = this.#state.localRunsHasMore;
+			let firstRead =
+				this.#state.localRuns.length === 0 ||
+				this.#state.libraryRefreshError !== null;
+			const seenCursors = new Set<string>();
+
+			while (!signal.aborted && (firstRead || (hasMore && cursor))) {
+				if (!firstRead) {
+					if (!cursor || seenCursors.has(cursor)) break;
+					seenCursors.add(cursor);
+				}
+				const page = await this.bridge.localRunCatalog(signal, {
+					...(firstRead ? {} : { cursor }),
+					limit: 100,
+				});
+				firstRead = false;
+				for (const run of page.runs)
+					byKey.set(`${run.sourceId}:${run.runId}`, run);
+				hasMore = page.hasMore;
+				cursor = page.nextCursor;
+				if (byKey.has(key)) break;
+			}
+
+			if (signal.aborted) return false;
+			this.update({
+				localRuns: [...byKey.values()],
+				localRunsHasMore: hasMore,
+				localRunsNextCursor: cursor,
+				libraryRefreshError: null,
+			});
+			return byKey.has(key);
+		}
+
+		const runs = await this.bridge.localRuns(sourceId, signal);
+		if (signal.aborted) return false;
+		for (const run of runs)
+			byKey.set(`${run.sourceId}:${run.runId}`, run);
+		this.update({
+			localRuns: [...byKey.values()],
+			libraryRefreshError: null,
+		});
+		return byKey.has(key);
+	}
+
 	loadMoreRuns = async () => {
 		if (
 			this.#state.connection !== "connected" ||
@@ -913,21 +977,37 @@ export class ProcessingController {
 		this.update({ localReview: null, localReviewError: null });
 	};
 
-	result = async (id: string) => {
-		if (
-			this.#state.connection !== "connected" ||
-			!this.#state.jobs.some(
-				(job) =>
-					job.id === id &&
-					job.result_available &&
-					job.status === "succeeded",
-			)
-		)
-			return;
+	result = async (id: string): Promise<ResultSummary | null> => {
+		if (this.#state.connection !== "connected") return null;
+		const job = this.#state.jobs.find(
+			(candidate) =>
+				candidate.id === id &&
+				candidate.result_available &&
+				candidate.status === "succeeded",
+		);
+		if (!job) return null;
 
+		let resolved: ResultSummary | null = null;
+		this.update({ result: null });
 		await this.runOperation({ kind: "result", targetId: id }, async (signal) => {
 			const result = await this.bridge.result(id, signal);
-			if (!signal.aborted) this.update({ result });
+			if (
+				signal.aborted ||
+				!result.runId ||
+				(job.context?.sourceId !== undefined &&
+					job.context.sourceId !== result.sourceId)
+			)
+				return;
+
+			const loaded = await this.ensureLocalRunLoaded(
+				result.sourceId,
+				result.runId,
+				signal,
+			);
+			if (signal.aborted || !loaded) return;
+			this.update({ result });
+			resolved = result;
 		});
+		return resolved;
 	};
 }
