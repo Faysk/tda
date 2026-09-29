@@ -504,14 +504,14 @@ export function ProcessingPanel({
 		if (next === "results") void controller.refresh("results");
 	}
 
-	async function openJobResult(job: LocalJob): Promise<boolean> {
+	async function openJobResult(job: LocalJob): Promise<string | null> {
 		setResultOpenError(null);
 		const result = await controller.result(job.id);
 		if (!result?.runId) {
-			setResultOpenError(
-				"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
-			);
-			return false;
+			const message =
+				"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.";
+			setResultOpenError(message);
+			return message;
 		}
 
 		const found = controller
@@ -524,10 +524,10 @@ export function ProcessingPanel({
 						run.transcriptSha256 === result.transcriptSha256),
 			);
 		if (!found) {
-			setResultOpenError(
-				"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
-			);
-			return false;
+			const message =
+				"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.";
+			setResultOpenError(message);
+			return message;
 		}
 
 		const key = serializeLocalRunKey({
@@ -541,7 +541,7 @@ export function ProcessingPanel({
 		// result() resolves the authoritative catalog entry before returning.
 		// Avoid a generic first-page refresh that could immediately hide it.
 		setView("results");
-		return true;
+		return null;
 	}
 
 	function openJobDiagnostics(job: LocalJob) {
@@ -1388,7 +1388,9 @@ export function ProcessingPanel({
 				}
 				onClose={() => closeJobDiagnostics(true)}
 				onOpenResult={async (job) => {
-					if (await openJobResult(job)) closeJobDiagnostics(false);
+					const error = await openJobResult(job);
+					if (!error) closeJobDiagnostics(false);
+					return error;
 				}}
 				onRetry={(job) =>
 					setConfirmation({ id: job.id, action: "retry" })
