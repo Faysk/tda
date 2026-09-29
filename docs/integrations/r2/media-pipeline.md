@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada
 > Owner: integrations/media + frontend + operations
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-29
 
 ## Escopo e fonte de verdade
 
@@ -53,6 +53,32 @@ Conteúdo novo recebe key nova; reexecução só reutiliza um objeto após confe
 O registro de mídia contém identidade/role, master de origem, bucket/key, URL pública quando houver, formato/MIME, bytes, largura/altura, hash, variantes, visibilidade, datas de verificação e evidência. Aproveitar o registro/manifesto existente do consumidor; esta especificação não exige nova tabela nem migração de banco. Informações privadas ficam fora do manifesto público.
 
 Consumidores usam o registro verificado; não montam URLs manualmente a partir do nome da personagem. Lores independentes usam stableId editorial sem inventar campanha ou entity UUID. Disponibilidade de asset não inclui a lore automaticamente no catálogo.
+
+## Modos de origem no manifest
+
+O manifest compartilhado distingue duas situações que não podem ser confundidas:
+
+### `repository`
+
+Usado na **primeira ingestão** de um asset. O item possui `source` sob `media/sources/` (binário ou Base64), e a validação local recalcula bytes e SHA-256 antes de qualquer publicação.
+
+Em schema v1 esse modo é implícito. Em schema v2 ele deve ser declarado como `sourceMode: "repository"`.
+
+### `canonical-r2`
+
+Usado somente para um objeto **já canonicalizado e previamente verificado no Cloudflare R2**. Requer schema v2 e não aceita `source` nem `encoding`.
+
+Além de `file`, `bytes`, `sha256` e `contentType`, exige:
+
+- `sourceMode: "canonical-r2"`;
+- `publicationReceipt`: referência de provenance/receipt da publicação anterior;
+- `canonicalVerifiedAt`: instante ISO da verificação canônica.
+
+`media:validate` valida esse contrato de forma determinística e **não acessa o R2 nem exige secrets**. Isso não é prova de existência remota.
+
+Quando uma operação autorizada executa o publisher sobre um item `canonical-r2`, o objeto derivado por namespace/hash/file precisa existir e passa obrigatoriamente por HEAD + GET/read-back. Tamanho, SHA-256 e MIME precisam coincidir. Se o objeto estiver ausente ou divergir, a operação falha; como não existe source local, o publisher **não pode recriar nem sobrescrever** esse objeto.
+
+Assim, remover o source do Git é consequência de uma canonicalização já comprovada, nunca um atalho para publicar mídia nova.
 
 ## Cache e acesso
 
