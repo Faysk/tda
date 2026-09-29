@@ -1245,6 +1245,72 @@ test("Queue Open result reports a result-read failure without fake navigation", 
 	);
 });
 
+
+test("Queue result stays pending and wins over a concurrent refresh", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		additionalCapabilities: ["transcription.runs.catalog"],
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+		jobReadDelayMs: 250,
+	});
+
+	await page.route(`${LOCAL_API}/runs*`, async (route) => {
+		const cursor =
+			new URL(route.request().url()).searchParams.get("cursor") ?? "";
+		const run = {
+			run_id: cursor === "page-2" ? "run-craig-job-1-a1" : "run-unrelated",
+			status: "completed",
+			source_id: CRAIG_SOURCE_ID,
+			profile_id: "qwen-quality",
+			engine: "qwen3",
+			model: "fixture-qwen",
+			model_revision: "rev",
+			device: "cuda",
+			completed_at: "2026-09-29T14:00:00.000Z",
+			transcript_sha256: (cursor === "page-2" ? "b" : "c").repeat(64),
+			transcript_size_bytes: 900,
+			stats: {},
+		};
+		if (cursor === "page-2") await new Promise((resolve) => setTimeout(resolve, 400));
+		return fulfillJson(route, {
+			schema_version: "tda_local_run_catalog_v1",
+			runs: [run],
+			has_more: cursor !== "page-2",
+			next_cursor: cursor === "page-2" ? null : "page-2",
+		});
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Atualizar estado", exact: true }).click();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(queue.getByRole("button", { name: "Abrindo…" })).toBeVisible();
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const selectedRun = page.locator(
+		"button[data-local-run-key][aria-current='true']",
+	);
+	await expect(selectedRun).toHaveAttribute(
+		"data-local-run-key",
+		/run-craig-job-1-a1/,
+	);
+	await page.waitForTimeout(350);
+	await expect(selectedRun).toHaveAttribute(
+		"data-local-run-key",
+		/run-craig-job-1-a1/,
+	);
+});
+
 test("Fila confirma visualmente quando o Job ID é copiado", async ({ page }) => {
 	await page.addInitScript(() => {
 		Object.defineProperty(navigator, "clipboard", {
