@@ -1415,6 +1415,8 @@ export function LocalReviewWorkspace({
 										type="button"
 										className={styles.runListItem}
 										data-active={active ? "true" : "false"}
+										data-source-id={run.sourceId}
+										data-run-id={run.runId}
 										aria-current={active ? "true" : undefined}
 										onClick={() => setSelectedRunKey(key)}
 									>
