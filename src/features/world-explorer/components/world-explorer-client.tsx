@@ -9,6 +9,7 @@ import {
 	type CSSProperties,
 } from "react";
 import { useEdgesState, useNodesState, type XYPosition } from "@xyflow/react";
+import { WorldEdgeTab } from "../../world-shell/world-edge-tab";
 import { useWorldWorkspaceControls } from "../../world-shell/world-workspace-context";
 import {
 	applyWorldFlowSelection,
@@ -55,7 +56,7 @@ import { WorldCommandPalette } from "./world-command-palette";
 import { WorldConductorBar } from "./world-conductor-bar";
 import { WorldContentEditor } from "./world-content-editor";
 import { WorldDirectCreateControls } from "./world-direct-create-controls";
-import { WorldFloatingChrome } from "./world-floating-chrome";
+import { WorldFilterRail, WorldFloatingChrome } from "./world-floating-chrome";
 import {
 	WorldAccessibleRelations,
 	WorldInspectorContent,
@@ -577,6 +578,26 @@ export function WorldExplorerClient({
 		authoringUi.setTool,
 	]);
 
+	const conductor = canEditLayout && projection.mode === "overview" ? (
+		<WorldConductorBar
+			context={commandContext}
+			canEditContent={canEditContent}
+			busy={edit.busy}
+			busyNotice={edit.busyNotice}
+			feedback={edit.feedback}
+			focusMode={authoringActive && authoringUi.focusMode}
+			inspectorOpen={!authoringUi.inspectorCollapsed}
+			onEnter={edit.start}
+			onPublish={edit.publish}
+			onFinish={edit.finish}
+			onDiscard={edit.discard}
+			onToggleFocusMode={authoringUi.toggleFocusMode}
+			onToggleInspector={() => authoringUi.toggleInspector("overlay")}
+			onOpenNavigation={workspace.openNavigation}
+			onOpenCommandPalette={() => authoringUi.setCommandPaletteOpen(true)}
+		/>
+	) : null;
+
 	return (
 		<div
 			className={`${styles.explorer} ${responsive.layout} ${authoringActive ? authoring.active : ""} ${authoringActive && authoringUi.focusMode ? authoring.focusMode : ""} ${authoringUi.inspectorCollapsed ? styles.explorerPanelCollapsed : ""}`}
@@ -615,32 +636,13 @@ export function WorldExplorerClient({
 					</div>
 				</header>
 
-				{canEditLayout && projection.mode === "overview" ? (
-					<WorldConductorBar
-						context={commandContext}
-						canEditContent={canEditContent}
-						busy={edit.busy}
-						busyNotice={edit.busyNotice}
-						feedback={edit.feedback}
-						focusMode={authoringActive && authoringUi.focusMode}
-						inspectorOpen={!authoringUi.inspectorCollapsed}
-						onEnter={edit.start}
-						onPublish={edit.publish}
-						onFinish={edit.finish}
-						onDiscard={edit.discard}
-						onToggleFocusMode={authoringUi.toggleFocusMode}
-						onToggleInspector={() => authoringUi.toggleInspector("overlay")}
-						onOpenNavigation={workspace.openNavigation}
-						onOpenCommandPalette={() => authoringUi.setCommandPaletteOpen(true)}
-					/>
-				) : null}
+				{authoringActive && authoringUi.focusMode ? conductor : null}
 
 				<div className={authoring.publicChrome}>
 					<WorldFloatingChrome
 						query={query}
 						onQueryChange={setQuery}
-						filter={filter}
-						onFilterChange={setFilter}
+						conductor={authoringActive && authoringUi.focusMode ? undefined : conductor}
 						relationFilter={relationFilter}
 						onRelationFilterChange={setRelationFilter}
 						view={view}
@@ -679,6 +681,7 @@ export function WorldExplorerClient({
 						cameraScopeKey={cameraScopeKey}
 						overlay={
 							<>
+								<WorldFilterRail filter={filter} onFilterChange={setFilter} />
 								<WorldDirectCreateControls
 									enabled={directCreateEnabled && !connectionActive}
 									placementType={createType}
@@ -708,8 +711,11 @@ export function WorldExplorerClient({
 			</section>
 
 			<aside
+				id="world-workspace-inspector"
 				className={`${styles.inspector} ${responsive.inspector} ${authoring.inspector}`}
 				aria-live="polite"
+				aria-hidden={authoringUi.inspectorCollapsed}
+				inert={authoringUi.inspectorCollapsed}
 			>
 				<hr
 					className={`${styles.panelResizer} ${responsive.resizer}`}
@@ -731,19 +737,6 @@ export function WorldExplorerClient({
 						}
 					}}
 				/>
-				<button
-					className={`${styles.panelToggle} ${responsive.panelToggle}`}
-					type="button"
-					onClick={() => authoringUi.toggleInspector(authoringActive ? "overlay" : "docked")}
-					aria-expanded={!authoringUi.inspectorCollapsed}
-					aria-label={
-						authoringUi.inspectorCollapsed
-							? "Abrir painel de detalhes"
-							: "Recolher painel de detalhes"
-					}
-				>
-					{authoringUi.inspectorCollapsed ? "‹" : "›"}
-				</button>
 				{!authoringUi.inspectorCollapsed ? (
 					authoringPanelVisible && edit.graphDraft ? (
 						<WorldContentEditor
@@ -792,6 +785,19 @@ export function WorldExplorerClient({
 					)
 				) : null}
 			</aside>
+
+			<WorldEdgeTab
+				edge="right"
+				expanded={!authoringUi.inspectorCollapsed}
+				controls="world-workspace-inspector"
+				label={
+					authoringUi.inspectorCollapsed
+						? "Abrir painel de detalhes"
+						: "Recolher painel de detalhes"
+				}
+				onToggle={() => authoringUi.toggleInspector(authoringActive ? "overlay" : "docked")}
+				icon={authoringUi.inspectorCollapsed ? "‹" : "›"}
+			/>
 
 			<WorldCommandPalette
 				open={authoringActive && authoringUi.state.commandPaletteOpen}
