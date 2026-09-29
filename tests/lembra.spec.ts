@@ -85,6 +85,36 @@ test("Lembra stays dense, searchable and usable from keyboard", async ({ page })
 	).toBe(true);
 });
 
+test("Lembra desktop gives the visual library the editorial width without a permanent sidebar", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.goto("/lembra");
+
+	await expect(page.getByRole("complementary", { name: "Filtros do Lembra" })).toHaveCount(0);
+	const filters = page.getByRole("navigation", { name: "Filtros do Lembra" });
+	await expect(filters.getByRole("button")).toHaveCount(3);
+
+	const content = page.locator('section[aria-labelledby="lembra-title"]');
+	const contentBox = await content.boundingBox();
+	expect(contentBox).not.toBeNull();
+	if (contentBox) expect(contentBox.width).toBeGreaterThan(1600);
+
+	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
+	const toolbarBox = await search.evaluate((input) =>
+		input.parentElement?.parentElement?.getBoundingClientRect() ?? null,
+	);
+	const chrome = await page.evaluate(() => ({
+		brand: document.querySelector<HTMLElement>(".brand")?.getBoundingClientRect() ?? null,
+		profile: document.querySelector<HTMLElement>(".account-menu-trigger")?.getBoundingClientRect() ?? null,
+	}));
+	expect(toolbarBox).not.toBeNull();
+	if (toolbarBox && chrome.brand && chrome.profile) {
+		expect(toolbarBox.left).toBeLessThanOrEqual(chrome.brand.right + 4);
+		expect(toolbarBox.right).toBeGreaterThanOrEqual(chrome.profile.left - 4);
+	}
+
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+});
+
 test("Lembra mobile sticky toolbar stays below floating global chrome", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/lembra");
