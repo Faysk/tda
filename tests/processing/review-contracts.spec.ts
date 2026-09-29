@@ -100,7 +100,7 @@ test("speaker limits count emoji as one scalar and reject excess ASCII before sa
 	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeEnabled();
 	await speaker.fill("a".repeat(161));
 	await expect(speaker).toHaveAttribute("aria-invalid", "true");
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Aprovar revisão" })).toBeDisabled();
 	await expect(page.getByRole("alert")).toContainText("Corrija os campos");
 });
 
@@ -258,7 +258,7 @@ test("publication freezes current and requires a fresh confirmation after stale_
  await page.locator("[data-publication-confirmation='true']").getByRole("button", { name: "Confirmar preparação" }).click();
  await expect(page.getByRole("alert")).toContainText("A revisão privada atual mudou");
  expect(sent).toHaveLength(1); expect(sent[0].expectedCurrentRevisionId).toBe(first); expect(reads).toBeGreaterThanOrEqual(2);
- await page.getByRole("button", { name: "Preparar sessão" }).click();
+ await page.getByRole("button", { name: "Atualizar e tentar novamente" }).click();
  await expect(page.locator("[data-publication-confirmation='true']")).toContainText(second);
  expect(sent).toHaveLength(1);
  await page.locator("[data-publication-confirmation='true']").getByRole("button", { name: "Confirmar preparação" }).click();
