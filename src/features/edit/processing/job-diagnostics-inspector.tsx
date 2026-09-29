@@ -82,10 +82,10 @@ function formatBytes(value: number | null): string {
 	return `${gib >= 10 ? gib.toFixed(0) : gib.toFixed(1)} GB`;
 }
 
-function jobTone(status: LocalJob["status"]): "neutral" | "info" | "success" | "warning" | "danger" {
+function jobTone(status: LocalJob["status"]): "neutral" | "accent" | "success" | "warning" | "danger" {
 	return {
 		queued: "neutral",
-		running: "info",
+		running: "accent",
 		succeeded: "success",
 		failed: "danger",
 		cancelled: "neutral",
