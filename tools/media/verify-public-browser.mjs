@@ -12,9 +12,6 @@ if (assets.length === 0) {
 	process.exit(0);
 }
 
-function hex(bytes) {
-	return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
 
 const browser = await chromium.launch({ headless: true });
 
