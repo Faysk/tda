@@ -238,6 +238,99 @@ test("exact runtime identity is confined to technical details", async ({ page },
 });
 
 
+test("guided workflow exposes one next editorial action instead of a lifecycle dropdown", async ({ page }, testInfo) => {
+	await page.goto("/?review-contracts&ephemeral");
+	await expect(page.getByLabel("Etapas da revisão")).toBeVisible();
+	await expect(page.getByLabel("Estado do draft")).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Criar revisão" })).toBeVisible();
+	await expect(page.locator("[aria-current='step']")).toContainText("Revisar");
+
+	await page.getByRole("button", { name: "Criar revisão" }).click();
+	await expect(page.getByRole("button", { name: "Aprovar revisão" })).toBeVisible();
+	await expect(page.locator("[aria-current='step']")).toContainText("Aprovar");
+
+	await page.getByRole("button", { name: /^Editar / }).first().click();
+	await page.getByRole("textbox", { name: /^Texto em / }).first().fill("Texto ajustado");
+	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Aprovar revisão" })).toHaveCount(0);
+	await expect(page.locator("[aria-current='step']")).toContainText("Salvar");
+	await page.screenshot({ path: testInfo.outputPath("guided-review-workflow.png"), fullPage: true });
+});
+
+test("deterministic invalid handoff explains the blocker without a fake save-reopen recovery", async ({ page }) => {
+	await page.goto("/?review-contracts&invalid-handoff");
+	const alert = page.getByRole("alert");
+	await expect(alert).toContainText("não é compatível com o contrato atual de handoff");
+	await expect(alert).toContainText("antes de qualquer envio mutável");
+	await expect(alert).not.toContainText("Salve/reabra");
+	await expect(page.getByRole("button", { name: "Preparar sessão" })).toHaveCount(0);
+	await alert.getByText("Detalhes técnicos").click();
+	await expect(alert.locator("code")).toContainText("invalid_payload");
+});
+
+test("private handoff confirmation is a focused inline decision and Escape cancels it", async ({ page }) => {
+	await page.route("**/api/transcript-publications/current", route =>
+		route.fulfill({
+			json: {
+				ok: true,
+				current: {
+					actorProfileId: "33333333-3333-4333-8333-333333333333",
+					revisionId: null,
+				},
+			},
+		}),
+	);
+	await page.goto("/?review-contracts&publication");
+	await page.getByRole("button", { name: "Preparar sessão" }).click();
+	const confirmation = page.locator("[data-publication-confirmation='true']");
+	await expect(confirmation).toBeVisible();
+	await expect(confirmation).toBeFocused();
+	await expect(confirmation).toContainText("Isso não publica capa, resumo ou transcript no site público.");
+	await page.keyboard.press("Escape");
+	await expect(confirmation).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Preparar sessão" })).toBeVisible();
+});
+
+test("cloud not-found is distinct from forbidden and offers a bounded recovery action", async ({ page }) => {
+	await page.route("**/api/transcript-publications/current", route =>
+		route.fulfill({
+			json: {
+				ok: true,
+				current: {
+					actorProfileId: "33333333-3333-4333-8333-333333333333",
+					revisionId: null,
+				},
+			},
+		}),
+	);
+	await page.route(/\/api\/transcript-publications$/, route =>
+		route.fulfill({ status: 404, json: { ok: false, reason: "not_found" } }),
+	);
+	await page.goto("/?review-contracts&publication");
+	await page.getByRole("button", { name: "Preparar sessão" }).click();
+	await page
+		.locator("[data-publication-confirmation='true']")
+		.getByRole("button", { name: "Confirmar preparação" })
+		.click();
+	const alert = page.getByRole("alert");
+	await expect(alert).toContainText("A sessão privada ainda não foi resolvida");
+	await expect(alert).not.toContainText("Sua conta não pode");
+	await expect(page.getByRole("button", { name: "Atualizar e tentar novamente" })).toBeVisible();
+});
+
+test("review workflow stays within a 390px mobile viewport", async ({ page }, testInfo) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/?review-contracts");
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+		),
+	).toBe(true);
+	await expect(page.getByLabel("Etapas da revisão")).toBeVisible();
+	await expect(page.getByLabel("Buscar na timeline")).toBeVisible();
+	await page.screenshot({ path: testInfo.outputPath("review-workflow-mobile.png"), fullPage: true });
+});
+
 test("publication freezes current and requires a fresh confirmation after stale_current", async ({ page }, testInfo) => {
  const first = "11111111-1111-4111-8111-111111111111";
  const second = "22222222-2222-4222-8222-222222222222";
