@@ -1,7 +1,6 @@
 "use client";
 
-import type { CSSProperties, Ref } from "react";
-import { Select } from "@/components/ui";
+import type { CSSProperties, ReactNode, Ref } from "react";
 import type {
 	WorldFilter,
 	WorldPublicationMeta,
@@ -23,7 +22,7 @@ const FILTER_OPTIONS: { value: WorldFilter; label: string }[] = [
 ];
 
 const RELATION_OPTIONS: { value: WorldRelationFilter; label: string }[] = [
-	{ value: "all", label: "Todas as relações" },
+	{ value: "all", label: "Todas" },
 	{ value: "affinity", label: "Afinidade" },
 	{ value: "conflict", label: "Conflito" },
 	{ value: "family", label: "Família" },
@@ -35,13 +34,23 @@ const RELATION_OPTIONS: { value: WorldRelationFilter; label: string }[] = [
 	{ value: "context", label: "Contexto" },
 ];
 
+const DEMO_RELATION_LEGEND = [
+	{ key: "affinity", label: "Afinidade", family: "affinity" },
+	{ key: "conflict", label: "Conflito", family: "conflict" },
+	{ key: "family", label: "Família", family: "family" },
+	{ key: "authority", label: "Autoridade", family: "authority" },
+	{ key: "faction", label: "Facção", family: "faction" },
+	{ key: "mystic", label: "Místico", family: "mystic" },
+	{ key: "creative", label: "Criativo", family: "creative" },
+	{ key: "origin", label: "Origem", family: "origin" },
+	{ key: "context", label: "Contexto", family: "context" },
+] as const;
+
 type WorldView = "canvas" | "list";
 
 type WorldFloatingChromeProps = Readonly<{
 	query: string;
 	onQueryChange: (query: string) => void;
-	filter: WorldFilter;
-	onFilterChange: (filter: WorldFilter) => void;
 	relationFilter: WorldRelationFilter;
 	onRelationFilterChange: (filter: WorldRelationFilter) => void;
 	view: WorldView;
@@ -53,6 +62,12 @@ type WorldFloatingChromeProps = Readonly<{
 	activeRelationTypes: WorldRelationTypeDTO[];
 	searchInputRef?: Ref<HTMLInputElement>;
 	publication?: WorldPublicationMeta;
+	conductor?: ReactNode;
+}>;
+
+type WorldFilterRailProps = Readonly<{
+	filter: WorldFilter;
+	onFilterChange: (filter: WorldFilter) => void;
 }>;
 
 function filterClass(active: boolean) {
@@ -65,11 +80,36 @@ function legendItemStyle(color?: string) {
 		: undefined;
 }
 
+export function WorldFilterRail({
+	filter,
+	onFilterChange,
+}: WorldFilterRailProps) {
+	return (
+		<div className={chrome.filterOverlay} data-world-filter-overlay>
+			<fieldset
+				className={`${styles.filters} ${chrome.filterRail}`}
+				aria-label="Filtrar o grafo"
+				data-testid="world-filter-rail"
+			>
+				{FILTER_OPTIONS.map((option) => (
+					<button
+						key={option.value}
+						type="button"
+						className={filterClass(filter === option.value)}
+						aria-pressed={filter === option.value}
+						onClick={() => onFilterChange(option.value)}
+					>
+						{option.label}
+					</button>
+				))}
+			</fieldset>
+		</div>
+	);
+}
+
 export function WorldFloatingChrome({
 	query,
 	onQueryChange,
-	filter,
-	onFilterChange,
 	relationFilter,
 	onRelationFilterChange,
 	view,
@@ -81,10 +121,26 @@ export function WorldFloatingChrome({
 	activeRelationTypes,
 	searchInputRef,
 	publication,
+	conductor,
 }: WorldFloatingChromeProps) {
+	const currentRelation =
+		RELATION_OPTIONS.find((option) => option.value === relationFilter)?.label ?? "Todas";
+	const relationLegend = demo
+		? DEMO_RELATION_LEGEND.map((item) => ({ ...item, color: undefined }))
+		: activeRelationTypes.map((type) => ({
+				key: type.slug,
+				label: type.label,
+				family: type.family,
+				color: type.style.color,
+			}));
+
 	return (
 		<div className={chrome.root} data-testid="world-floating-chrome">
-			<div className={`${styles.toolbar} ${chrome.primary}`} data-world-chrome-primary>
+			<div
+				className={`${styles.toolbar} ${chrome.primary}${conductor ? ` ${chrome.primaryWithConductor}` : ""}`}
+				data-world-chrome-primary
+				data-world-workspace-bar
+			>
 				<label className={`${styles.searchField} ${chrome.searchSurface}`} data-world-search>
 					<span className={styles.srOnly}>Buscar no mundo</span>
 					<span className={chrome.searchGlyph} aria-hidden="true">
@@ -99,16 +155,57 @@ export function WorldFloatingChrome({
 					/>
 				</label>
 
-				<div className={`${styles.relationSelect} ${chrome.relationSurface}`} data-world-relation-filter>
-					<span>Relação</span>
-					<Select
-						value={relationFilter}
-						options={RELATION_OPTIONS}
-						onChange={onRelationFilterChange}
-						ariaLabel="Filtrar por relação"
-						embedded
-					/>
-				</div>
+				{conductor ? (
+					<div className={chrome.conductorSlot} data-world-conductor-slot>
+						{conductor}
+					</div>
+				) : null}
+
+				<details className={chrome.relationMenu} data-world-relation-filter>
+					<summary aria-label="Filtrar por relação" title="Filtrar por relação">
+						<span>Relações</span>
+						<small>{currentRelation}</small>
+						<span className={chrome.disclosureGlyph} aria-hidden="true">⌄</span>
+					</summary>
+					<div className={chrome.relationPopover}>
+						<div className={chrome.relationOptions} role="group" aria-label="Filtros de relação">
+							{RELATION_OPTIONS.map((option) => (
+								<button
+									key={option.value}
+									type="button"
+									aria-pressed={relationFilter === option.value}
+									onClick={(event) => {
+										onRelationFilterChange(option.value);
+										event.currentTarget.closest("details")?.removeAttribute("open");
+									}}
+								>
+									{option.label}
+								</button>
+							))}
+						</div>
+
+						{relationLegend.length ? (
+							<div
+								className={chrome.relationLegendList}
+								role="list"
+								aria-label={demo ? "Legenda de relações" : "Legenda de tipos de ligação"}
+							>
+								{relationLegend.map((item) => (
+									<span
+										key={item.key}
+										className={chrome.legendItem}
+										data-family={item.family}
+										style={legendItemStyle(item.color)}
+										role="listitem"
+									>
+										<i aria-hidden="true" />
+										{item.label}
+									</span>
+								))}
+							</div>
+						) : null}
+					</div>
+				</details>
 
 				<button
 					className={`${styles.resetButton} ${chrome.resetSurface}`}
@@ -132,9 +229,7 @@ export function WorldFloatingChrome({
 						title="Canvas"
 						onClick={() => onViewChange("canvas")}
 					>
-						<span className={chrome.viewGlyph} aria-hidden="true">
-							⌘
-						</span>
+						<span className={chrome.viewGlyph} aria-hidden="true">⌘</span>
 						<span className={chrome.viewLabel}>Canvas</span>
 					</button>
 					<button
@@ -144,53 +239,10 @@ export function WorldFloatingChrome({
 						title="Lista"
 						onClick={() => onViewChange("list")}
 					>
-						<span className={chrome.viewGlyph} aria-hidden="true">
-							☷
-						</span>
+						<span className={chrome.viewGlyph} aria-hidden="true">☷</span>
 						<span className={chrome.viewLabel}>Lista</span>
 					</button>
 				</fieldset>
-			</div>
-
-			<div className={chrome.secondary} data-world-filter-overlay>
-				<fieldset className={`${styles.filters} ${chrome.filterRail}`} aria-label="Filtrar o grafo">
-					{FILTER_OPTIONS.map((option) => (
-						<button
-							key={option.value}
-							type="button"
-							className={filterClass(filter === option.value)}
-							aria-pressed={filter === option.value}
-							onClick={() => onFilterChange(option.value)}
-						>
-							{option.label}
-						</button>
-					))}
-				</fieldset>
-
-				{demo ? (
-					<fieldset className={`${styles.relationLegend} ${chrome.legendRail}`}>
-						<legend className={styles.srOnly}>Legenda de relações</legend>
-						<span className={chrome.legendItem} data-family="affinity">Afinidade</span>
-						<span className={chrome.legendItem} data-family="conflict">Conflito</span>
-						<span className={chrome.legendItem} data-family="family">Família</span>
-						<span className={chrome.legendItem} data-family="mystic">Místico</span>
-						<span className={chrome.legendItem} data-family="creative">Criativo</span>
-					</fieldset>
-				) : activeRelationTypes.length ? (
-					<fieldset className={`${styles.relationLegend} ${chrome.legendRail}`}>
-						<legend className={styles.srOnly}>Legenda de tipos de ligação</legend>
-						{activeRelationTypes.map((type) => (
-							<span
-								key={type.slug}
-								className={chrome.legendItem}
-								data-family={type.family}
-								style={legendItemStyle(type.style.color)}
-							>
-								{type.label}
-							</span>
-						))}
-					</fieldset>
-				) : null}
 			</div>
 
 			{publication ? (
