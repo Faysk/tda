@@ -1025,9 +1025,9 @@ export function ProcessingPanel({
 								<p>
 									{publicationEnabled ? (
 										<>
-											<strong>Publicação revisionada disponível.</strong>{" "}
-											Somente um draft salvo como Aprovado localmente e uma
-											confirmação explícita podem publicar.
+											<strong>Handoff privado disponível.</strong>{" "}
+											Uma revisão salva e aprovada, seguida de confirmação explícita,
+											prepara a sessão no Edit. Nada fica público nessa etapa.
 										</>
 									) : (
 										<>
