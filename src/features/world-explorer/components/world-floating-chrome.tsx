@@ -65,6 +65,18 @@ function legendItemStyle(color?: string) {
 		: undefined;
 }
 
+const DEMO_RELATION_TYPES: readonly Readonly<{
+	slug: string;
+	label: string;
+	family: string;
+}>[] = [
+	{ slug: "affinity", label: "Afinidade", family: "affinity" },
+	{ slug: "conflict", label: "Conflito", family: "conflict" },
+	{ slug: "family", label: "Família", family: "family" },
+	{ slug: "mystic", label: "Místico", family: "mystic" },
+	{ slug: "creative", label: "Criativo", family: "creative" },
+];
+
 export function WorldFloatingChrome({
 	query,
 	onQueryChange,
@@ -108,6 +120,26 @@ export function WorldFloatingChrome({
 						ariaLabel="Filtrar por relação"
 						embedded
 					/>
+					<details className={chrome.relationDetails}>
+						<summary aria-label="Legenda de relações" title="Legenda de relações">
+							<span aria-hidden="true">i</span>
+						</summary>
+						<div className={chrome.relationPopover}>
+							<strong>Relações visíveis</strong>
+							<div className={chrome.relationLegendList}>
+								{(demo ? DEMO_RELATION_TYPES : activeRelationTypes).map((type) => (
+									<span
+										key={type.slug}
+										className={chrome.legendItem}
+										data-family={type.family}
+										style={"style" in type ? legendItemStyle(type.style.color) : undefined}
+									>
+										{type.label}
+									</span>
+								))}
+							</div>
+						</div>
+					</details>
 				</div>
 
 				<button
@@ -166,31 +198,6 @@ export function WorldFloatingChrome({
 						</button>
 					))}
 				</fieldset>
-
-				{demo ? (
-					<fieldset className={`${styles.relationLegend} ${chrome.legendRail}`}>
-						<legend className={styles.srOnly}>Legenda de relações</legend>
-						<span className={chrome.legendItem} data-family="affinity">Afinidade</span>
-						<span className={chrome.legendItem} data-family="conflict">Conflito</span>
-						<span className={chrome.legendItem} data-family="family">Família</span>
-						<span className={chrome.legendItem} data-family="mystic">Místico</span>
-						<span className={chrome.legendItem} data-family="creative">Criativo</span>
-					</fieldset>
-				) : activeRelationTypes.length ? (
-					<fieldset className={`${styles.relationLegend} ${chrome.legendRail}`}>
-						<legend className={styles.srOnly}>Legenda de tipos de ligação</legend>
-						{activeRelationTypes.map((type) => (
-							<span
-								key={type.slug}
-								className={chrome.legendItem}
-								data-family={type.family}
-								style={legendItemStyle(type.style.color)}
-							>
-								{type.label}
-							</span>
-						))}
-					</fieldset>
-				) : null}
 			</div>
 
 			{publication ? (
