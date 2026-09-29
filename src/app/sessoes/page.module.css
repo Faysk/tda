@@ -213,13 +213,13 @@
 
 @media (max-width: 700px) {
 	.hero {
-		min-height: 610px;
+		min-height: clamp(500px, 61svh, 540px);
 	}
 
 	.heroInner {
-		gap: 34px;
-		padding-top: 56px;
-		padding-bottom: 108px;
+		gap: 26px;
+		padding-top: 52px;
+		padding-bottom: 84px;
 	}
 
 	.title {
@@ -234,7 +234,7 @@
 
 	.stats {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		row-gap: 20px;
+		row-gap: 14px;
 	}
 
 	.stat {
@@ -246,7 +246,7 @@
 	}
 
 	.stat:nth-child(n + 3) {
-		padding-top: 18px;
+		padding-top: 12px;
 		border-top: 1px solid rgba(255, 253, 248, 0.16);
 	}
 
@@ -261,12 +261,12 @@
 
 @media (max-width: 390px) {
 	.hero {
-		min-height: 650px;
+		min-height: 500px;
 	}
 
 	.heroInner {
-		padding-top: 48px;
-		padding-bottom: 102px;
+		padding-top: 46px;
+		padding-bottom: 78px;
 	}
 
 	.stat {
