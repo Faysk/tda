@@ -40,7 +40,7 @@ A evolução preserva:
 - o fechamento por mudança de pathname de #947;
 - guards server-side e capabilities como autoridade.
 
-A issue #964 adiciona ao painel único uma transição reversível deliberadamente longa (~2 s) sem alterar os tokens globais do Design System. Com `prefers-reduced-motion: reduce`, essa transição longa é removida.
+A issue #964 registrou historicamente uma transição reversível deliberadamente longa (~2 s). A consolidação #1080/#1082 supersede esse timing para navegação corrente: o painel usa resposta curta (~280 ms) e o drill-down interno é imediato. Com `prefers-reduced-motion: reduce`, a transição é removida.
 
 ## Estado de entrega
 
@@ -58,6 +58,7 @@ A issue #964 adiciona ao painel único uma transição reversível deliberadamen
 | âncora do painel + safe-area/scrims | implementado nesta mudança | #1000 / #1001 |
 | Home full-bleed no topo real | implementado nesta mudança | #1002 |
 | gates do floating chrome | este documento + #996 |
+| IA hierárquica / progressive disclosure | implementação candidata #1082 dentro da consolidação #1080 |
 
 Merge em `main` não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
@@ -110,29 +111,33 @@ O avatar **não concede autoridade**. Ele apenas abre uma superfície que projet
 
 ## Painel global único
 
-O painel aberto pelo avatar reúne, nessa hierarquia semântica:
+O painel aberto pelo avatar prioriza navegação do produto e usa progressive disclosure:
 
-1. identidade / estado de conta;
-2. `Conta e acesso`, quando aplicável;
-3. Aparência;
-4. **Explorar**;
-5. **Ferramentas**, apenas quando há capabilities efetivas;
-6. login ou logout.
+1. **Explorar** — Sessões, Mundo, Lores e Lembra;
+2. **Mundo** abre uma segunda camada com a taxonomia pública;
+3. **Ferramentas** abre uma segunda camada somente quando existem capabilities efetivas;
+4. identidade, `Conta e acesso`, Aparência e login/logout permanecem utilidades previsíveis abaixo da navegação.
 
-Links de navegação continuam links comuns dentro de `nav`. Não usar `role="menu"`/`menuitem`: trata-se de navegação de site, não de menu de aplicação.
+Links de destino continuam links comuns dentro de `nav`. Entradas que abrem uma camada interna são `button` e oferecem ação **Voltar** com heading de contexto. Não usar `role="menu"`/`menuitem`: trata-se de navegação de site, não de menu de aplicação.
 
 O painel permanece ancorado ao avatar flutuante, limitado à viewport e com scroll interno em altura curta. Em mobile, sua posição deriva do inset do chrome + tamanho real do trigger + gap; não existe dependência conceitual de “altura da navbar”.
 
 ## Destinos públicos
 
-A ordem canônica de **Explorar** é estável entre desktop e mobile:
+A primeira camada de **Explorar** é deliberadamente curta:
+
+| Rótulo | Rota / comportamento |
+| --- | --- |
+| Sessões | `/sessoes` |
+| Mundo | drill-down contextual |
+| Lores | `/lore` |
+| Lembra | `/lembra` |
+
+A camada **Mundo** preserva o macro destino e agrupa sua taxonomia:
 
 | Rótulo | Rota |
 | --- | --- |
-| Sessões | `/sessoes` |
-| Lembra | `/lembra` |
-| Lores | `/lore` |
-| Mundo | `/mundo` |
+| Explorar tudo | `/mundo` |
 | Personagens | `/personagens` |
 | NPCs | `/npcs` |
 | Lugares | `/lugares` |
@@ -141,9 +146,7 @@ A ordem canônica de **Explorar** é estável entre desktop e mobile:
 | Músicas | `/musicas` |
 | Diários | `/diario` |
 
-Uma rota inexistente ou apenas planejada não entra em Explorar. A lista muda somente quando a superfície correspondente existe e a decisão de produto é atualizada aqui.
-
-A navegação pública deve ficar utilizável **antes** de terminar a projeção privada de Auth e também quando Auth estiver temporariamente indisponível.
+Uma deep-link de qualquer item da camada Mundo marca **Mundo** como contexto atual na primeira camada. Uma rota inexistente ou apenas planejada não entra na navegação. A navegação pública deve ficar utilizável **antes** de terminar a projeção privada de Auth e também quando Auth estiver temporariamente indisponível.
 
 ## Ferramentas autorizadas
 
@@ -227,7 +230,7 @@ O `ThemeToggle` vive dentro do painel global.
 - rota atual usa `aria-current="page"`;
 - subrotas pertencem ao destino raiz correspondente;
 - existe uma única máquina de estado visual: `closed → opening → open → closing`;
-- abertura/fechamento normal usam o token local do painel (~2000 ms);
+- abertura/fechamento normal usam o token local do painel (~280 ms);
 - fechamento remove interação imediatamente (`aria-hidden`/`inert`/pointer disabled) e desmonta ao término;
 - abrir/fechar durante transição deve ser reversível sem painel duplicado;
 - navegação interna não espera a animação terminar;
@@ -237,18 +240,17 @@ O `ThemeToggle` vive dentro do painel global.
 
 ## Densidade e responsividade
 
-O painel preserva o glyph icon-first (~34 px desktop; ~32 px em largura estreita quando necessário) e ganha densidade reduzindo gap, padding e altura das células.
+O painel usa hierarquia tipográfica compacta em vez de um app-grid plano.
 
 Contrato visual:
 
-- ícone acima do label;
-- labels visíveis em até duas linhas;
-- células menores que a antiga baseline de 96 px;
+- glyph pequeno apoia o label; não é a unidade dominante;
+- primeira camada cabe normalmente em 1920×1080 sem scroll interno;
+- taxonomia de Mundo e Ferramentas aparece somente após drill-down;
 - `Editar sessões`, `Transcrições` e `Permissões` não podem truncar;
-- 390 px tenta 3 colunas;
-- <=360 px pode usar 2;
 - largura não cresce proporcionalmente em 2K/4K;
-- viewport curta usa scroll interno no painel, não overflow do body.
+- 320/390 permanecem utilizáveis em flow vertical;
+- viewport curta pode usar scroll interno no painel, nunca overflow do body.
 
 Matriz mínima:
 
