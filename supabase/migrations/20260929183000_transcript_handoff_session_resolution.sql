@@ -204,18 +204,16 @@ begin
 
   if coalesce((v_result->>'ok')::boolean, false) is not true then
     -- A newly provisioned session is part of the same handoff intent. A
-    -- deterministic rejection must not leave an empty shell in Edit. Guard all
-    -- authority pointers so future delegated behavior cannot make cleanup
-    -- silently destructive.
+    -- deterministic rejection must not leave an empty shell in Edit. The row
+    -- is still uncommitted inside this transaction, so no external editor can
+    -- attach other authority to it before this cleanup decision.
     if v_created then
       delete from public.sessions s
       where s.id = v_session_id
         and s.campaign_id = v_campaign_id
         and s.source_system = 'local_companion'
         and s.source_session_id = v_source_session_id
-        and s.current_transcript_revision_id is null
-        and s.current_editorial_draft_id is null
-        and s.current_session_publication_id is null;
+        and s.current_transcript_revision_id is null;
 
       if not found then
         raise exception 'failed first handoff left a session with unexpected authority';
