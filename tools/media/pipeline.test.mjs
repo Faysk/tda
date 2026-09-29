@@ -12,6 +12,7 @@ import {
 	sha256,
 	validateAll,
 	validateManifest,
+	verifyPublicDelivery,
 } from "./pipeline.mjs";
 
 async function fixture({ encoding = "binary", namespace = "lore/example" } = {}) {
@@ -134,4 +135,54 @@ test("public verification uses the exact immutable canonical asset URL", () => {
 	const verification = publicVerificationUrl(canonical, 1, 123456);
 	assert.equal(verification.href, canonical);
 	assert.equal(verification.search, "");
+});
+
+test("defers only an explicit Cloudflare challenge when staged fallback is enabled", async () => {
+	const originalFetch = globalThis.fetch;
+	const originalMode = process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE;
+	try {
+		process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE = "staged-next-image";
+		globalThis.fetch = async () =>
+			new Response("<html>challenge</html>", {
+				status: 403,
+				headers: {
+					"cf-mitigated": "challenge",
+					"content-type": "text/html; charset=UTF-8",
+				},
+			});
+		const result = await verifyPublicDelivery({
+			publicUrl: "https://media.dnd.faysk.dev/lore/example/abc/image.avif",
+			contentType: "image/avif",
+			bytes: 123,
+			sha256: "0".repeat(64),
+		}, 1);
+		assert.equal(result.challenged, true);
+		assert.equal(result.httpStatus, 403);
+	} finally {
+		globalThis.fetch = originalFetch;
+		if (originalMode === undefined) delete process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE;
+		else process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE = originalMode;
+	}
+});
+
+test("does not defer an ordinary 403 without the Cloudflare challenge marker", async () => {
+	const originalFetch = globalThis.fetch;
+	const originalMode = process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE;
+	try {
+		process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE = "staged-next-image";
+		globalThis.fetch = async () => new Response("forbidden", { status: 403 });
+		await assert.rejects(
+			() => verifyPublicDelivery({
+				publicUrl: "https://media.dnd.faysk.dev/lore/example/abc/image.avif",
+				contentType: "image/avif",
+				bytes: 123,
+				sha256: "0".repeat(64),
+			}, 1),
+			/HTTP 403/u,
+		);
+	} finally {
+		globalThis.fetch = originalFetch;
+		if (originalMode === undefined) delete process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE;
+		else process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE = originalMode;
+	}
 });
