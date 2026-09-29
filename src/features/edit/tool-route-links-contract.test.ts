@@ -5,6 +5,10 @@ const sessionsSource = readFileSync(
 	new URL("../../app/edit/sessoes/page.tsx", import.meta.url),
 	"utf8",
 );
+const sessionDetailSource = readFileSync(
+	new URL("../../app/edit/sessoes/[id]/page.tsx", import.meta.url),
+	"utf8",
+);
 const reviewSource = readFileSync(
 	new URL("../../app/edit/revisao/page.tsx", import.meta.url),
 	"utf8",
@@ -25,11 +29,15 @@ describe("canonical Edit tool links", () => {
 		}
 	});
 
-	it("keeps explicit destinations for review and permissions", () => {
-		expect(reviewSource).toContain('href="/edit/sessoes"');
-		expect(reviewSource).toContain("← Sessões do Edit");
-		expect(permissionsSource).toContain('href="/edit/sessoes"');
-		expect(permissionsSource).toContain("Conta e acesso");
+	it("keeps global destinations out of tool-local chrome", () => {
+		expect(reviewSource).not.toContain('aria-label="Navegação do Edit"');
+		expect(reviewSource).not.toContain('href="/mundo"');
+		expect(permissionsSource).not.toContain('aria-label="Navegação do Edit"');
+	});
+
+	it("keeps local back-context navigation in the session editor", () => {
+		expect(sessionDetailSource).toContain('href="/edit/sessoes"');
+		expect(sessionDetailSource).toContain("← Sessões do Edit");
 	});
 
 	it("keeps /edit itself as a redirect-only compatibility entrypoint", () => {
