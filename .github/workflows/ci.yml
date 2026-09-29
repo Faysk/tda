@@ -537,8 +537,6 @@ jobs:
             test-results/**/workbench-mobile-390.png
             test-results/**/workbench-mobile-320.png
             test-results/**/workbench-zoom-200.png
-            test-results/**/session-layout-*.png
-            test-results/**/session-layout-*.json
           if-no-files-found: error
           retention-days: 30
       - name: Isolated PostgreSQL publication contracts
