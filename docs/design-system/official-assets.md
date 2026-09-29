@@ -60,7 +60,7 @@ Assets oficiais canônicos no R2:
 
 `tools/check-design-system.mjs` valida esses hashes contra o manifest canônico R2 em toda execução de `pnpm check`, exige que o contrato runtime contenha as URLs content-addressed correspondentes, bloqueia URLs de marca duplicadas diretamente em outros sources e varre `src/` + `public/` contra referências aos paths web-static aposentados no cutover. Alterar silenciosamente um master, reintroduzir `public/brand/` ou deixar um consumer apontando para um path removido quebra CI.
 
-O header e o loader global usam o **mark oficial** pelo contrato compartilhado, com variante black/white real conforme tema onde aplicável. Não usam `filter: invert()` como substituto permanente de master.
+O header usa os masters black/white reais conforme o tema. O loader global consome o master white canônico pelo mesmo contrato e preserva o tratamento de tema já existente; em ambos os casos, o byte de origem continua sendo um asset oficial verificado no R2, sem fallback para `public/brand/`.
 
 ### Binários ainda não migrados para o boundary final
 
