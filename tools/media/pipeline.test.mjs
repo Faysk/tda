@@ -127,6 +127,30 @@ test("discovers a manifest and derives immutable content-addressed keys", async 
 	);
 });
 
+test("accepts repository-controlled SVG media with exact integrity metadata", async () => {
+	const { root, manifest } = await fixture();
+	const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n');
+	const source = "media/sources/example/icon.svg";
+	await writeFile(join(root, source), svg);
+	const parsed = validateManifest(
+		{
+			...manifest,
+			assets: [
+				{
+					file: "icon.svg",
+					source,
+					bytes: svg.length,
+					sha256: sha256(svg),
+					contentType: "image/svg+xml",
+				},
+			],
+		},
+		{ repoRoot: root },
+	);
+	assert.equal(parsed.assets[0].contentType, "image/svg+xml");
+	assert.equal((await readAssetBytes(parsed.assets[0])).length, svg.length);
+});
+
 test("validates binary and base64 transport sources by exact bytes and sha256", async () => {
 	for (const encoding of ["binary", "base64"]) {
 		const { root, bytes } = await fixture({ encoding });
