@@ -1631,3 +1631,42 @@ Validação antes do rollout:
 - Production CD deve aplicar a migration antes da promoção e verificar migration history/health no staged deployment.
 
 Rollback é forward-only: desabilitar primeiro a mutation Web e corrigir função/grants por migration posterior; não apagar audit, assignments históricos nem revisions de concorrência.
+
+## 2026-09-29 — primeiro handoff privado cria a sessão editorial (#1061)
+
+### `20260929154000_transcript_handoff_session_prepare`
+
+**Estado:** migration candidata; **não aplicada no Supabase canônico nesta etapa**.
+
+Objetivo:
+
+- remover a precondição circular em que **Preparar sessão** só funcionava quando a row privada de `sessions` já existia;
+- manter lookup/readback puros: `p_lookup_only=true` nunca cria sessão;
+- depois de identity + capability + campaign scope válidos, resolver a sessão `local_companion` existente ou criar exatamente uma shell privada `ready_for_review`;
+- delegar o commit da transcript revision aos RPCs maduros `publish_transcript_revision_atomic` / `publish_transcript_assembly_revision_atomic`, preservando CAS, receipts, replay, provenance e auditoria já existentes.
+
+Atomicidade e recuperação:
+
+- a unique identity `(campaign_id, source_system, source_session_id)` arbitra duas primeiras preparações concorrentes;
+- o wrapper resolve novamente a row exata depois de `INSERT ... ON CONFLICT`, então um loser converge para a mesma sessão;
+- falha determinística do RPC delegado remove a shell criada nessa operação antes de retornar erro;
+- exception aborta toda a transação;
+- lost response depois do commit é reconciliado pelo receipt normal, agora contra a sessão criada;
+- replay não cria segunda session nem segundo audit de preparação.
+
+Privacidade e segurança:
+
+- a nova row nasce `ready_for_review`, nunca `published`;
+- nenhum título/resumo/capa público é promovido; o título inicial é somente a identidade técnica `source_session_id` até edição editorial;
+- transcript/segmentos não entram no audit de criação;
+- wrapper é `SECURITY INVOKER`, `search_path=pg_catalog, public`, sem EXECUTE para browser e com service-role apenas;
+- autorização da campanha ocorre antes de consultar ou criar a sessão.
+
+Validação candidata:
+
+- unit/HTTP cobre target autorizado ainda sem UUID físico;
+- scratch PostgreSQL cobre deny-before-target, lookup sem side effect, criação, current pointer, receipt, replay, audit metadata-only e rollback da shell em payload inválido;
+- Production CD deve aplicar a migration antes de promover Web que possa chamar o wrapper.
+
+Rollback é forward-only: desabilitar o consumidor novo e preservar sessions/revisions já legitimamente criadas; não apagar sessões preparadas para simular rollback.
+
