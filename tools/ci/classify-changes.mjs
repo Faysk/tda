@@ -72,7 +72,12 @@ const EXACT = {
 };
 
 const PREFIX = {
-	navigation: ["src/features/theme/", "src/components/global-loading/", "public/lore/d/"],
+	navigation: [
+		"src/features/theme/",
+		"src/components/global-loading/",
+		"src/app/e2e-fixtures/global-loading/",
+		"public/lore/d/",
+	],
 	db: ["supabase/", "src/features/transcript-sync/"],
 	companion: ["local-companion/"],
 	processing: [
