@@ -570,7 +570,8 @@ export class ProcessingController {
 	) => {
 		if (
 			this.#state.connection !== "connected" ||
-			this.#state.refreshing
+			this.#state.refreshing ||
+			this.#state.mutation !== null
 		)
 			return;
 
@@ -999,6 +1000,9 @@ export class ProcessingController {
 		let resolved: ResultSummary | null = null;
 		await this.runOperation({ kind: "result", targetId: id }, async (signal) => {
 			const result = await this.bridge.result(id, signal);
+			if (signal.aborted) return;
+			if (result.runId)
+				await this.ensureLocalRun(result.sourceId, result.runId);
 			if (signal.aborted) return;
 			this.update({ result });
 			resolved = result;
