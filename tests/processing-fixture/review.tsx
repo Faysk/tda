@@ -24,8 +24,8 @@ export function ReviewFixture() {
 		persistence: ephemeral ? "ephemeral_base" : "persisted",
 		...(oldAgent ? {} : { snapshotContract: "tda_local_review_cas_v1" }),
 		status: bulk || publication ? "approved_local" : "draft",
-		approvalCurrent: false,
-		approvedAt: null,
+		approvalCurrent: bulk || publication,
+		approvedAt: bulk || publication ? "2026-09-26T12:00:01Z" : null,
 		createdAt: ephemeral ? null : "2026-09-26T12:00:00Z",
 		updatedAt: ephemeral ? null : "2026-09-26T12:00:00Z",
 		lineage: {
