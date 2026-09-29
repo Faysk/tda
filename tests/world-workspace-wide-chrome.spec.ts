@@ -39,6 +39,22 @@ test("wide World workspace uses one control row and floats filters over the canv
 		expect(Math.abs((conductorBox?.y ?? rowY) - rowY)).toBeLessThan(3);
 	}
 
+	const brand = page.locator(".brand");
+	const avatar = page.getByRole("button", { name: "Abrir menu global" });
+	const [brandBox, avatarBox, searchBox, viewBox] = await Promise.all([
+		brand.boundingBox(),
+		avatar.boundingBox(),
+		search.boundingBox(),
+		viewToggle.boundingBox(),
+	]);
+	for (const box of [brandBox, avatarBox, searchBox, viewBox]) expect(box).not.toBeNull();
+	if (brandBox && searchBox) {
+		expect(searchBox.x).toBeGreaterThanOrEqual(brandBox.x + brandBox.width + 2);
+	}
+	if (avatarBox && viewBox) {
+		expect(viewBox.x + viewBox.width).toBeLessThanOrEqual(avatarBox.x - 2);
+	}
+
 	const canvas = page.getByTestId("world-canvas");
 	const filters = page.getByRole("group", { name: "Filtrar o grafo" });
 	const canvasBox = await canvas.boundingBox();
@@ -55,6 +71,7 @@ test("wide World workspace uses one control row and floats filters over the canv
 	await characters.click();
 	await expect(characters).toHaveAttribute("aria-pressed", "true");
 	await expect(all).toHaveAttribute("aria-pressed", "false");
+	await expect(page.getByText("Relações visíveis", { exact: true })).not.toBeVisible();
 
 	expect(await page.evaluate(() => window.scrollY)).toBe(0);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
