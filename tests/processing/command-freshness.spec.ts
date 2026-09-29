@@ -106,6 +106,7 @@ test("switching contextual diagnostics never flashes events from the previous jo
 	);
 	await page.route(`${LOCAL_API}/jobs/*/events`, async (route) => {
 		const isA = route.request().url().includes("/failed-a/");
+		if (!isA) await new Promise((resolve) => setTimeout(resolve, 250));
 		await route.fulfill({
 			headers: { "Access-Control-Allow-Origin": UI_ORIGIN },
 			json: {
@@ -143,6 +144,8 @@ test("switching contextual diagnostics never flashes events from the previous jo
 	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
 	inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
 	await expect(inspector).toBeVisible();
+	await expect(inspector).toContainText("Carregando histórico deste processamento…");
+	await expect(inspector).not.toContainText("janela 11");
 	await expect(inspector.getByRole("log")).toContainText("janela 22");
 	await expect(inspector.getByRole("log")).not.toContainText("janela 11");
 	await expect(inspector).toContainText("failed-b");
