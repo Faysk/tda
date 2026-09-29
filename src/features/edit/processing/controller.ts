@@ -663,11 +663,12 @@ export class ProcessingController {
 		sourceId: string,
 		runId: string,
 		signal: AbortSignal,
-	): Promise<boolean> {
+	): Promise<LocalRunSummary | null> {
 		const key = `${sourceId}:${runId}`;
 		const matchesTarget = (run: LocalRunSummary) =>
 			run.sourceId === sourceId && run.runId === runId;
-		if (this.#state.localRuns.some(matchesTarget)) return true;
+		const existing = this.#state.localRuns.find(matchesTarget);
+		if (existing) return existing;
 
 		const byKey = new Map(
 			this.#state.localRuns.map((run) => [`${run.sourceId}:${run.runId}`, run]),
@@ -702,25 +703,25 @@ export class ProcessingController {
 				if (byKey.has(key)) break;
 			}
 
-			if (signal.aborted) return false;
+			if (signal.aborted) return null;
 			this.update({
 				localRuns: [...byKey.values()],
 				localRunsHasMore: hasMore,
 				localRunsNextCursor: cursor,
 				libraryRefreshError: null,
 			});
-			return byKey.has(key);
+			return byKey.get(key) ?? null;
 		}
 
 		const runs = await this.bridge.localRuns(sourceId, signal);
-		if (signal.aborted) return false;
+		if (signal.aborted) return null;
 		for (const run of runs)
 			byKey.set(`${run.sourceId}:${run.runId}`, run);
 		this.update({
 			localRuns: [...byKey.values()],
 			libraryRefreshError: null,
 		});
-		return byKey.has(key);
+		return byKey.get(key) ?? null;
 	}
 
 	loadMoreRuns = async () => {
@@ -999,12 +1000,18 @@ export class ProcessingController {
 			)
 				return;
 
-			const loaded = await this.ensureLocalRunLoaded(
+			const run = await this.ensureLocalRunLoaded(
 				result.sourceId,
 				result.runId,
 				signal,
 			);
-			if (signal.aborted || !loaded) return;
+			if (
+				signal.aborted ||
+				!run ||
+				(result.transcriptSha256 !== undefined &&
+					run.transcriptSha256 !== result.transcriptSha256)
+			)
+				return;
 			this.update({ result });
 			resolved = result;
 		});
