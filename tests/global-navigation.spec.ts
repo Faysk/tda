@@ -1,10 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-const publicLabels = [
-	"Sessões",
-	"Lembra",
-	"Lores",
-	"Mundo",
+const primaryLabels = ["Sessões", "Mundo", "Lores", "Lembra"];
+
+const worldLabels = [
+	"Explorar tudo",
 	"Personagens",
 	"NPCs",
 	"Lugares",
@@ -112,17 +111,57 @@ async function expectPanelContained(page: import("@playwright/test").Page) {
 	expect(box.y).toBeLessThan(viewport.height);
 }
 
-test("avatar is the only global trigger and exposes the complete public IA", async ({ page }) => {
+test("avatar is the only global trigger and exposes hierarchical public IA", async ({ page }) => {
 	await mockAccess(page);
-	await page.goto("/sessoes/nonexistent");
+	await page.goto("/personagens/nonexistent");
 	await expect(page.getByRole("button", { name: "Abrir navegação" })).toHaveCount(0);
 	await expect(page.locator(".product-launcher-trigger")).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "Abrir menu global" })).toHaveCount(1);
 	const panel = await openGlobalMenu(page);
 	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
-	const labels = await navigation.locator(".product-launcher-link").allTextContents();
-	expect(labels.slice(0, publicLabels.length)).toEqual(publicLabels);
-	await expect(navigation.getByRole("link", { name: "Sessões", exact: true })).toHaveAttribute("aria-current", "page");
+	const primary = navigation.locator(".account-menu-link-list").first();
+	await expect(primary.getByRole("link")).toHaveCount(3);
+	await expect(navigation.getByRole("button", { name: "Mundo", exact: true })).toHaveAttribute("aria-current", "page");
+	const visiblePrimaryLabels = await navigation
+		.locator(".account-menu-nav-link, .account-menu-group-entry")
+		.allTextContents();
+	expect(visiblePrimaryLabels.slice(0, primaryLabels.length)).toEqual(primaryLabels);
+
+	await navigation.getByRole("button", { name: "Mundo", exact: true }).click();
+	await expect(navigation.getByRole("heading", { name: "Mundo", exact: true })).toBeVisible();
+	const world = await navigation.locator(".account-menu-link-list").allTextContents();
+	expect(world).toEqual(worldLabels);
+	await expect(navigation.getByRole("link", { name: "Personagens", exact: true })).toHaveAttribute("aria-current", "page");
+
+	await navigation.getByRole("button", { name: "Voltar", exact: true }).click();
+	await expect(navigation.getByRole("heading", { name: "Explorar", exact: true })).toBeVisible();
+});
+
+test("tools stay capability-aware behind progressive disclosure", async ({ page }) => {
+	await mockAccess(page, { capabilities: ["campaign.local.process"] });
+	await page.goto("/edit/processamento");
+	const panel = await openGlobalMenu(page);
+	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
+	const tools = navigation.getByRole("button", { name: "Ferramentas", exact: true });
+	await expect(tools).toHaveAttribute("aria-current", "page");
+	await tools.click();
+	await expect(navigation.getByRole("heading", { name: "Ferramentas", exact: true })).toBeVisible();
+	await expect(navigation.getByRole("link", { name: "Processar", exact: true })).toHaveAttribute("aria-current", "page");
+	await expect(navigation.getByRole("link", { name: "Permissões", exact: true })).toHaveCount(0);
+});
+
+test("hierarchical menu keeps primary navigation reachable without internal scroll at Full HD", async ({ page }) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	await expect(panel.getByRole("heading", { name: "Explorar", exact: true })).toBeVisible();
+	const metrics = await panel.evaluate((element) => ({
+		scrollHeight: element.scrollHeight,
+		clientHeight: element.clientHeight,
+	}));
+	expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
+	await expectPanelContained(page);
 });
 
 test("floating shell removes the structural top band and stays viewport-bound", async ({ page }) => {
