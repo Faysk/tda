@@ -142,6 +142,37 @@ describe("transcript publication HTTP boundary", () => {
 		expect(publication.commit).toHaveBeenCalledTimes(1);
 	});
 
+	it("accepts a first handoff whose private session is resolved atomically by commit", async () => {
+		const { raw, publication: existing } = dependencies();
+		const publication: PublicationDependencies = {
+			...existing,
+			authorize: vi.fn(async (authUserId) => ({
+				ok: true as const,
+				actor: {
+					authUserId,
+					profileId: PROFILE,
+					campaignId: CAMPAIGN,
+					sessionId: null,
+				},
+			})),
+		};
+		const handler = createPublicationHandler({
+			origin: () => ORIGIN,
+			identity: async () => ({ ok: true, authUserId: AUTH_USER }),
+			publication,
+		});
+		const response = await handler(request(raw));
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			ok: true,
+			receipt: { campaignId: CAMPAIGN, sessionId: SESSION },
+		});
+		expect(publication.commit).toHaveBeenCalledWith(
+			expect.objectContaining({ campaignId: CAMPAIGN, sessionId: null }),
+			expect.anything(),
+		);
+	});
+
 	it("rejects foreign origin before identity or target work", async () => {
 		const { raw, publication } = dependencies();
 		const identity = vi.fn(async () => ({ ok: true as const, authUserId: AUTH_USER }));
