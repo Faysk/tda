@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from tda_companion.api import create_app
+from tda_companion.store import Conflict
 
 TOKEN = "s" * 43
 ORIGIN = "https://dnd.faysk.dev"
@@ -65,3 +66,12 @@ def test_authenticated_guard_error_keeps_security_headers_and_allowed_cors(tmp_p
     }
     _assert_error_headers(response)
     assert response.headers["access-control-allow-origin"] == ORIGIN
+
+
+def test_conflict_preserves_only_public_error_codes():
+    assert Conflict("SESSION_WORKSPACE_REVISION_CONFLICT").code == "SESSION_WORKSPACE_REVISION_CONFLICT"
+    assert str(Conflict("SESSION_WORKSPACE_REVISION_CONFLICT")) == "SESSION_WORKSPACE_REVISION_CONFLICT"
+
+    hidden = Conflict("sqlite failure at C:\\Users\\Private\\jobs.sqlite3")
+    assert hidden.code == "LOCAL_OPERATION_CONFLICT"
+    assert str(hidden) == "LOCAL_OPERATION_CONFLICT"
