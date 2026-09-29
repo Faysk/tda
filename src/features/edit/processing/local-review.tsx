@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { actionStyles, Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import {
