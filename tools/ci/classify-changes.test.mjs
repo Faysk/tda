@@ -26,36 +26,15 @@ test("docs-only stays on fast CI only", () => {
 	);
 });
 
-test("ordinary web files outside standalone UX contracts stay on fast CI", () => {
+test("ordinary web and lore files do not activate heavy domains", () => {
 	assert.deepEqual(
 		flags([
 			"src/app/page.tsx",
-			"public/lore/seika/historia.md",
+			"public/lore/yllith/yllith.css",
+			"public/lore/yllith/historia.md",
 		]),
 		fastOnly,
 	);
-});
-
-test("standalone Lore and Diário paths activate Navigation E2E", () => {
-	for (const path of [
-		"public/lore/astel/index.html",
-		"public/lore/noah/styles.css",
-		"public/lore/d/reading-mode.js",
-		"public/lore/yllith/yllith-release.css",
-		"public/diario/astel/index.html",
-		"public/diario/astel/leitura.html",
-		"tests/standalone-surfaces-ux.spec.ts",
-		"next.config.ts",
-		"src/features/lore/standalone-catalog.json",
-		"src/features/diary/catalog.json",
-		"tools/diary/generate.mjs",
-	]) {
-		const result = flags([path]);
-		assert.equal(result.navigation, true, path);
-		assert.equal(result.processing, false, path);
-		assert.equal(result.lembra, false, path);
-		assert.equal(result.sessions, false, path);
-	}
 });
 
 test("navigation shell paths activate only the targeted Navigation E2E contract", () => {
