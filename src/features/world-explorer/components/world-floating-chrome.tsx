@@ -161,13 +161,22 @@ export function WorldFloatingChrome({
 					</div>
 				) : null}
 
-				<details className={chrome.relationMenu} data-world-relation-filter>
+				<details
+					className={chrome.relationMenu}
+					data-world-relation-filter
+					onKeyDown={(event) => {
+						if (event.key !== "Escape" || !event.currentTarget.open) return;
+						event.preventDefault();
+						event.currentTarget.open = false;
+						event.currentTarget.querySelector<HTMLElement>("summary")?.focus();
+					}}
+				>
 					<summary aria-label="Filtrar por relação" title="Filtrar por relação">
 						<span>Relações</span>
 						<small>{currentRelation}</small>
 						<span className={chrome.disclosureGlyph} aria-hidden="true">⌄</span>
 					</summary>
-					<div className={chrome.relationPopover}>
+					<div className={chrome.relationPopover} data-testid="world-relation-popover">
 						<div className={chrome.relationOptions} role="group" aria-label="Filtros de relação">
 							{RELATION_OPTIONS.map((option) => (
 								<button
