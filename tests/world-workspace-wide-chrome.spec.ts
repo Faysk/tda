@@ -94,3 +94,53 @@ test("wide World workspace uses one safe control row and keeps contextual chrome
 	expect(await page.evaluate(() => window.scrollY)).toBe(0);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
 });
+
+
+test("World workspace gives 4K space to the canvas and keeps compact desktop to two structural rows", async ({ page }, testInfo) => {
+	test.skip(testInfo.project.name === "mobile", "Desktop geometry matrix.");
+
+	await page.setViewportSize({ width: 2560, height: 1440 });
+	await page.goto("/mundo");
+	const canvas4k = page.getByTestId("world-canvas");
+	const stage4k = page.getByTestId("world-workspace-stage");
+	const inspector4k = page.locator('#world-workspace-inspector');
+	const navigation4k = page.getByTestId("world-workspace-navigation");
+	const [canvas4kBox, stage4kBox, inspector4kBox, navigation4kBox] = await Promise.all([
+		canvas4k.boundingBox(),
+		stage4k.boundingBox(),
+		inspector4k.boundingBox(),
+		navigation4k.boundingBox(),
+	]);
+	expect(canvas4kBox).not.toBeNull();
+	expect(stage4kBox).not.toBeNull();
+	expect(inspector4kBox).not.toBeNull();
+	expect(navigation4kBox).not.toBeNull();
+	expect(canvas4kBox?.width ?? 0).toBeGreaterThan(2200);
+	expect(stage4kBox?.width ?? 0).toBeGreaterThan(2500);
+	expect(inspector4kBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(520);
+	expect(navigation4kBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(270);
+
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.reload();
+	const workspaceBar = page.locator("[data-world-workspace-bar]");
+	const filterRail = page.getByTestId("world-filter-rail");
+	const canvasCompact = page.getByTestId("world-canvas");
+	await expect(workspaceBar).toBeVisible();
+	await expect(filterRail).toBeVisible();
+	const [barBox, compactCanvasBox, filterBox] = await Promise.all([
+		workspaceBar.boundingBox(),
+		canvasCompact.boundingBox(),
+		filterRail.boundingBox(),
+	]);
+	expect(barBox).not.toBeNull();
+	expect(compactCanvasBox).not.toBeNull();
+	expect(filterBox).not.toBeNull();
+	expect(barBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(104);
+	expect(filterBox?.y ?? Number.NEGATIVE_INFINITY).toBeGreaterThanOrEqual(compactCanvasBox?.y ?? 0);
+	expect((filterBox?.y ?? 0) + (filterBox?.height ?? 0)).toBeLessThanOrEqual(
+		(compactCanvasBox?.y ?? 0) + 110,
+	);
+	expect(await filterRail.evaluate((element) => element.closest('[data-testid="world-canvas"]') !== null)).toBeTruthy();
+	expect(await page.evaluate(() => window.scrollY)).toBe(0);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+});
