@@ -1,6 +1,4 @@
 import type { ReactNode, Ref } from "react";
-import "./world-inspector-overlay-v3.module.css";
-import "./world-wide-chrome-v3.module.css";
 import styles from "./world-edge-tab.module.css";
 
 type WorldEdgeTabProps = Readonly<{
