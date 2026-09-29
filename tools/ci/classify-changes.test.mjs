@@ -45,6 +45,7 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		"src/components/public-navigation-model.ts",
 		"src/components/theme-toggle.tsx",
 		"src/components/global-loading/global-loading.tsx",
+		"src/app/e2e-fixtures/global-loading/page.tsx",
 		"src/config/brand-assets.ts",
 		"src/config/brand-assets.test.ts",
 		"public/lore/d/index.html",
