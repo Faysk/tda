@@ -64,13 +64,86 @@ test("explicit failure diagnostics survive polling while another job runs", asyn
 	await page.getByRole("button", { name: "Atenção", exact: true }).click();
 	await page.getByRole("button", { name: /Mais ações para/ }).click();
 	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
-	await expect(page.getByRole("log")).toContainText("faixa 2 · janela 89");
+	const inspector = page
+		.locator("dialog")
+		.filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(inspector.getByRole("log")).toContainText("faixa 2 · janela 89");
 	const inspectedReads = failureReads;
 	await expect.poll(() => failureReads).toBeGreaterThan(inspectedReads);
-	await expect(page.getByRole("log")).toContainText("faixa 2 · janela 89");
-	await expect(page.getByRole("log")).not.toContainText("Synthetic B");
+	await expect(inspector.getByRole("log")).toContainText("faixa 2 · janela 89");
+	await expect(inspector.getByRole("log")).not.toContainText("Synthetic B");
 	const priorRunningReads = runningReads;
+	await page.keyboard.press("Escape");
+	await expect(inspector).not.toBeVisible();
 	await page.getByRole("tab", { name: "Visão geral", exact: true }).click();
 	await expect.poll(() => runningReads).toBeGreaterThan(priorRunningReads);
 	await expect(page.getByRole("tabpanel", { name: "Visão geral" })).not.toContainText("janela 89");
+});
+
+
+test("switching contextual diagnostics never flashes events from the previous job", async ({ page }) => {
+	const jobs = [
+		fixtureJob("failed", {
+			id: "failed-a",
+			error: { code: "QWEN_ALIGNMENT_REQUIRED", recoverable: true },
+		}),
+		fixtureJob("failed", {
+			id: "failed-b",
+			error: { code: "QWEN_ALIGNMENT_REQUIRED", recoverable: true },
+		}),
+	];
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: jobs,
+	});
+	await page.route(`${LOCAL_API}/jobs`, (route) =>
+		route.fulfill({
+			headers: { "Access-Control-Allow-Origin": UI_ORIGIN },
+			json: { jobs },
+		}),
+	);
+	await page.route(`${LOCAL_API}/jobs/*/events`, async (route) => {
+		const isA = route.request().url().includes("/failed-a/");
+		await route.fulfill({
+			headers: { "Access-Control-Allow-Origin": UI_ORIGIN },
+			json: {
+				events: [
+					{
+						seq: 1,
+						attempt: 1,
+						at: "2026-09-29T18:00:00Z",
+						level: "error",
+						code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+						data: isA
+							? { track: 1, window: 11, failure_class: "JOB_A_ONLY" }
+							: { track: 2, window: 22, failure_class: "JOB_B_ONLY" },
+					},
+				],
+			},
+		});
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila", exact: true }).click();
+	await page.getByRole("button", { name: "Atenção", exact: true }).click();
+
+	const rowA = page.locator('tr[data-job-id="failed-a"]');
+	await rowA.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+	let inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector.getByRole("log")).toContainText("janela 11");
+	await page.keyboard.press("Escape");
+	await expect(inspector).not.toBeVisible();
+
+	const rowB = page.locator('tr[data-job-id="failed-b"]');
+	await rowB.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+	inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(inspector.getByRole("log")).toContainText("janela 22");
+	await expect(inspector.getByRole("log")).not.toContainText("janela 11");
+	await expect(inspector).toContainText("failed-b");
 });
