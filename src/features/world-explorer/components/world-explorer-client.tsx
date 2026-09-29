@@ -9,6 +9,7 @@ import {
 	type CSSProperties,
 } from "react";
 import { useEdgesState, useNodesState, type XYPosition } from "@xyflow/react";
+import { WorldEdgeTab } from "../../world-shell/world-edge-tab";
 import { useWorldWorkspaceControls } from "../../world-shell/world-workspace-context";
 import {
 	applyWorldFlowSelection,
@@ -708,6 +709,7 @@ export function WorldExplorerClient({
 			</section>
 
 			<aside
+				id="world-inspector"
 				className={`${styles.inspector} ${responsive.inspector} ${authoring.inspector}`}
 				aria-live="polite"
 			>
@@ -731,19 +733,21 @@ export function WorldExplorerClient({
 						}
 					}}
 				/>
-				<button
-					className={`${styles.panelToggle} ${responsive.panelToggle}`}
-					type="button"
-					onClick={() => authoringUi.toggleInspector(authoringActive ? "overlay" : "docked")}
-					aria-expanded={!authoringUi.inspectorCollapsed}
-					aria-label={
+				<WorldEdgeTab
+					edge="right"
+					expanded={!authoringUi.inspectorCollapsed}
+					controls="world-inspector"
+					label={
 						authoringUi.inspectorCollapsed
 							? "Abrir painel de detalhes"
 							: "Recolher painel de detalhes"
 					}
-				>
-					{authoringUi.inspectorCollapsed ? "‹" : "›"}
-				</button>
+					onToggle={() =>
+						authoringUi.toggleInspector(authoringActive ? "overlay" : "docked")
+					}
+					icon={authoringUi.inspectorCollapsed ? "‹" : "›"}
+					className={`${styles.panelToggle} ${responsive.panelToggle}`}
+				/>
 				{!authoringUi.inspectorCollapsed ? (
 					authoringPanelVisible && edit.graphDraft ? (
 						<WorldContentEditor
