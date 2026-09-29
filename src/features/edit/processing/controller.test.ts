@@ -953,6 +953,100 @@ describe("processing state", () => {
 		expect(controller.snapshot().connection).toBe("connected");
 	});
 
+	it("rejects a result when the immutable transcript hash disagrees with the local run", async () => {
+		const sourceSha = "7".repeat(64);
+		const sourceId = `craig-${sourceSha}`;
+		const runId = "run-hash-mismatch";
+		const completedJob = {
+			...job,
+			id: "job-hash-mismatch",
+			kind: "transcription.craig",
+			status: "succeeded",
+			stage: "complete",
+			progress: { completed: 1, total: 1, unit: "tracks" },
+			result_available: true,
+			context: {
+				campaign_id: "yuhara-main",
+				session_id: "sessao-hash-mismatch",
+				source_id: sourceId,
+				profile_id: "whisper-detailed",
+			},
+		};
+		const reviewCaps = {
+			...caps,
+			capabilities: [
+				"transcription.review",
+				"transcription.runs.catalog",
+			],
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(reviewCaps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [completedJob] });
+			if (value.endsWith("/sources"))
+				return Response.json({
+					schema_version: "tda_craig_sources_v1",
+					sources: [
+						{
+							source_id: sourceId,
+							source_sha256: sourceSha,
+							recording_id: null,
+							track_count: 1,
+						},
+					],
+				});
+			if (value.endsWith("/runs?limit=100"))
+				return Response.json({
+					schema_version: "tda_local_run_catalog_v1",
+					runs: [
+						{
+							run_id: runId,
+							status: "completed",
+							source_id: sourceId,
+							profile_id: "whisper-detailed",
+							engine: "faster-whisper",
+							model: "large-v3",
+							model_revision: "rev",
+							language: "pt",
+							completed_at: "2026-09-29T12:00:00Z",
+							transcript_sha256: "8".repeat(64),
+							transcript_size_bytes: 1200,
+							stats: { warning_count: 0 },
+						},
+					],
+					has_more: false,
+					next_cursor: null,
+				});
+			if (value.endsWith("/jobs/job-hash-mismatch/result"))
+				return Response.json({
+					schema_version: "tda_local_result_v1",
+					campaign_id: "yuhara-main",
+					session_id: "sessao-hash-mismatch",
+					source_id: sourceId,
+					job_id: "job-hash-mismatch",
+					transcription: {
+						schema_version: "tda_transcript_v1",
+						profile_id: "whisper-detailed",
+						artifact: "transcript.json",
+						run_id: runId,
+						sha256: "9".repeat(64),
+					},
+					sync: { status: "not_configured" },
+				});
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+		const result = await controller.result("job-hash-mismatch");
+
+		expect(result).toBeNull();
+		expect(controller.snapshot().result).toBeNull();
+		expect(controller.snapshot().localRuns).toHaveLength(1);
+		expect(controller.snapshot().connection).toBe("connected");
+	});
+
 	it("loads local result metadata from source catalog without opening transcript content", async () => {
 		const sourceSha = "a".repeat(64);
 		const sourceId = `craig-${sourceSha}`;
