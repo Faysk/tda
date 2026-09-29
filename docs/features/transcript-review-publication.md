@@ -1477,3 +1477,17 @@ Após 30 dias, o registro expira para novos envios: readback continua permitido,
 Rollback: desativar publicação enquanto houver regressão e preservar journals; voltar a cliente sem journal não recupera pendências. Sem migration adicional; depende do CAS #636. Não ativa Production nem satisfaz sozinho o aceite editorial #430.
 
 Evidência local #638 em 2026-09-26: check completo (687 testes Web e 40 Node), build e 22 cenários Playwright desktop/mobile aprovados. O cenário de commit com resposta perdida e receipt indisponível recarrega a página, recupera a operation original e comprova exatamente um POST. Testes de escopo, troca de ator no servidor, mismatch, expiração e falha de armazenamento aprovados.
+
+## Primeiro handoff prepara a sessão privada — candidato #1061
+
+O CTA **Preparar sessão** não exige mais, por contrato, que uma row `sessions` tenha sido criada por um caminho paralelo. Depois de autorização da campanha, o target pode estar em dois estados factuais:
+
+- sessão privada já existente → usar seu UUID e o fluxo de publication revision atual;
+- sessão ausente → current observado é `null`; a confirmação humana pode formar a mesma intention e o commit server-only cria/resuelve a sessão privada no boundary atômico.
+
+A sessão nova nasce `ready_for_review`, com `source_system=local_companion`, `source_session_id` exato e `created_by` do profile autorizado. Isso **não** é publicação pública: não preenche capa/resumo, não muda status para `published` e não expõe transcript fora do Edit.
+
+Lookup/receipt recovery nunca cria sessão. Se o delegated publish falha definitivamente, uma shell criada naquela tentativa é removida antes do retorno. Se o commit aconteceu e a resposta se perdeu, a operação durável existente encontra a mesma session/receipt no readback. Duas primeiras tentativas concorrentes convergem pela identidade única da source.
+
+O Web continua sem escolher UUID de sessão ausente. O server valida o receipt retornado contra campaign + `local_companion` + `source_session_id` exatos. Rollout depende da migration candidata #1061; nenhum DDL remoto é feito por esta documentação.
+
