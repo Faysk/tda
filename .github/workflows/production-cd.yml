@@ -274,12 +274,15 @@ jobs:
         if: ${{ steps.plan.outputs.migrations == 'true' }}
         run: bash tools/ci/apply-production-migrations.sh
 
+      - name: Install Playwright Chromium when canonical media changed
+        if: ${{ steps.plan.outputs.media_publish == 'true' }}
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Publish and read back changed canonical media
         id: media
         if: ${{ steps.plan.outputs.media_publish == 'true' }}
         env:
           MEDIA_RANGE: ${{ steps.baseline.outputs.range }}
-          DEPLOYMENT_URL: ${{ steps.stage.outputs.url }}
         run: bash tools/ci/publish-production-media.sh "$MEDIA_RANGE"
 
       - name: Smoke staged Production artifact
