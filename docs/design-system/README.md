@@ -182,6 +182,20 @@ A Home V2 promove dois papéis de layout para impedir que cada superfície volte
 
 Esses tokens não pertenciam ao snapshot v1.0 recebido; são extensões operacionais do reboot atual e devem ser protegidas por `design:check`.
 
+### Papéis geométricos transversais
+
+A consolidação de UX #1080/#1081 promove três papéis de largura. Eles compartilham o mesmo `--ds-page-gutter`, mas não obrigam páginas diferentes a usar o mesmo template:
+
+| Papel | Token | Baseline | Uso |
+| --- | --- | --- | --- |
+| Reading | `--ds-layout-reading-max` | `880px` | leitura longa e detalhe editorial |
+| Editorial | `--ds-layout-editorial-max` | `1540px` | arquivos, catálogos, galerias e listas |
+| Expansive | `--ds-layout-expansive-max` | `var(--ds-layout-max)` | Home, World e workbenches |
+
+As utilities `.ds-layout-reading`, `.ds-layout-editorial` e `.ds-layout-expansive` fornecem keylines reutilizáveis. Uma feature pode compor sua própria grid, mas deve justificar larguras locais que escapem desses papéis.
+
+O chrome global não cria uma navbar invisível. Marca e avatar ocupam somente **corner safe areas** na região superior; depois dessa região, o conteúdo volta ao gutter estrutural normal.
+
 ## Extensão semântica DS-5 — conteúdo sobre artwork
 
 Artwork deliberadamente escurecida por overlay precisa manter contraste independente da preferência light/dark do usuário.
