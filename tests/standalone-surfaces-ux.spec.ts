@@ -141,10 +141,14 @@ async function expectFragmentTargetsExist(page: Page, label: string) {
 		],
 	);
 	for (const fragment of fragments) {
+		const targetId = decodeURIComponent(fragment.slice(1));
 		expect(
-			await page.locator(fragment).count(),
+			await page.evaluate(
+				(id) => document.getElementById(id) !== null,
+				targetId,
+			),
 			`${label}: dead fragment ${fragment}`,
-		).toBeGreaterThan(0);
+		).toBe(true);
 	}
 }
 
