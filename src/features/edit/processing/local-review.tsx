@@ -770,7 +770,8 @@ function ReviewEditor({
 				</span>
 			</div>
 
-			<div className={styles.reviewMeta} role="group" aria-label="Resumo da revisão">
+			<fieldset className={styles.reviewMeta}>
+				<legend className={styles.reviewMetaLegend}>Resumo da revisão</legend>
 				<span><strong>{reviewed.toLocaleString("pt-BR")} / {segments.length.toLocaleString("pt-BR")}</strong> revisadas</span>
 				<span><strong>{words.toLocaleString("pt-BR")}</strong> palavras</span>
 				<span><strong>{participants}</strong> participantes</span>
@@ -805,7 +806,7 @@ function ReviewEditor({
 						) : null}
 					</div>
 				</details>
-			</div>
+			</fieldset>
 
 			{!canSave ? (
 				<div className={styles.handoffBlocker} role="status">
