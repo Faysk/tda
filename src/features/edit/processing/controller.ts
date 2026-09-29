@@ -156,11 +156,11 @@ export class ProcessingController {
 		});
 	};
 
-	private async runOperation(
+	private async runOperation<T>(
 		mutation: ProcessingMutation | null,
-		action: (signal: AbortSignal) => Promise<void>,
-	) {
-		if (mutation && this.#state.mutation) return;
+		action: (signal: AbortSignal) => Promise<T>,
+	): Promise<T | null> {
+		if (mutation && this.#state.mutation) return null;
 
 		const epoch = this.#epoch;
 		const signal = this.#request.signal;
@@ -175,7 +175,7 @@ export class ProcessingController {
 		});
 
 		try {
-			await action(signal);
+			return await action(signal);
 		} catch (error) {
 			if (epoch === this.#epoch) {
 				const code =
@@ -222,6 +222,7 @@ export class ProcessingController {
 			if (epoch === this.#epoch && mutation)
 				this.update({ mutation: null });
 		}
+		return null;
 	}
 
 	private async readJobScope(
@@ -659,6 +660,35 @@ export class ProcessingController {
 		return deleted;
 	};
 
+
+	ensureLocalRun = async (sourceId: string, runId: string): Promise<boolean> => {
+		const hasTarget = () =>
+			this.#state.localRuns.some(
+				(run) => run.sourceId === sourceId && run.runId === runId,
+			);
+		if (hasTarget()) return true;
+		if (this.#state.connection !== "connected") return false;
+
+		// Refresh the first catalog page before walking pagination so a run that
+		// just completed can be discovered without depending on stale UI state.
+		await this.refresh("results");
+		if (hasTarget()) return true;
+
+		const seenCursors = new Set<string>();
+		while (
+			this.#state.localRunsHasMore &&
+			this.#state.localRunsNextCursor &&
+			!hasTarget()
+		) {
+			const cursor = this.#state.localRunsNextCursor;
+			if (seenCursors.has(cursor)) break;
+			seenCursors.add(cursor);
+			await this.loadMoreRuns();
+			if (this.#state.libraryRefreshError) break;
+		}
+		return hasTarget();
+	};
+
 	loadMoreRuns = async () => {
 		if (
 			this.#state.connection !== "connected" ||
@@ -913,7 +943,7 @@ export class ProcessingController {
 		this.update({ localReview: null, localReviewError: null });
 	};
 
-	result = async (id: string) => {
+	result = async (id: string): Promise<ResultSummary | null> => {
 		if (
 			this.#state.connection !== "connected" ||
 			!this.#state.jobs.some(
@@ -923,11 +953,16 @@ export class ProcessingController {
 					job.status === "succeeded",
 			)
 		)
-			return;
+			return null;
 
-		await this.runOperation({ kind: "result", targetId: id }, async (signal) => {
-			const result = await this.bridge.result(id, signal);
-			if (!signal.aborted) this.update({ result });
-		});
+		return await this.runOperation(
+			{ kind: "result", targetId: id },
+			async (signal) => {
+				const result = await this.bridge.result(id, signal);
+				if (signal.aborted) return null;
+				this.update({ result });
+				return result;
+			},
+		);
 	};
 }
