@@ -102,7 +102,7 @@ test("older Agent remains readable and requires an update before editing", async
 	await expect(page.getByText(/Atualize o Companion para salvar/)).toBeVisible();
 	await expect(page.getByRole("button", { name: /^Editar / }).first()).toBeDisabled();
 	await expect(page.getByRole("checkbox", { name: /^Marcar como (não )?revisado/ }).first()).toBeDisabled();
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Concluir revisão" })).toBeDisabled();
 });
 
 test("speaker limits count emoji as one scalar and reject excess ASCII before save", async ({ page }) => {
@@ -165,7 +165,7 @@ test("target repair preserves edits and restores only the original destination",
     await expect(repair).toBeDisabled();
     await page.getByRole("button", { name: "Salvar alterações" }).click();
     await expect(repair).toBeEnabled();
-    await page.getByRole("button", { name: /^Concluir / }).first().click();
+    await page.getByRole("button", { name: /^Concluir edição / }).first().click();
     await page.screenshot({ path: testInfo.outputPath("publication-target-repair.png"), fullPage: true });
     await repair.click();
     await expect(repair).toHaveCount(0);
