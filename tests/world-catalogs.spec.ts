@@ -29,8 +29,8 @@ test("six public archives keep one technical base while exposing type context", 
 		const archive = page.locator(`[data-lore-index="${kind}"]`);
 		await expect(archive).toBeVisible();
 		await expect(archive).toHaveAttribute("data-visual-kind", visualKind);
-	\tawait expect(archive).toHaveAttribute("data-layout-family", "editorial");
-	\tawait expect(archive).toHaveAttribute("data-layout-role", "editorial");
+		await expect(archive).toHaveAttribute("data-layout-family", "editorial");
+		await expect(archive).toHaveAttribute("data-layout-role", "editorial");
 
 		const context = page.getByRole("navigation", {
 			name: "Contexto de exploração",
