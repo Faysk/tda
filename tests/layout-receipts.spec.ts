@@ -105,6 +105,15 @@ test("sanitized cross-surface receipts cover the consolidated TDA layout familie
 	await gotoSurface(page, "/sessoes");
 	await receipt(page, testInfo, "sessions-archive");
 
+	await gotoSurface(page, "/sessoes/layout-contract-synthetic");
+	await expect(
+		page.getByRole("heading", {
+			level: 1,
+			name: /Sessão Sintética de Layout/u,
+		}),
+	).toBeVisible();
+	await receipt(page, testInfo, "sessions-article");
+
 	await gotoSurface(
 		page,
 		"/e2e-fixtures/lore-catalog?kind=personagens&scenario=with-media",
@@ -116,7 +125,10 @@ test("sanitized cross-surface receipts cover the consolidated TDA layout familie
 	await expect(page.getByRole("heading", { name: "Visão geral" })).toBeVisible();
 	await receipt(page, testInfo, "world-profile");
 
-	await gotoSurface(page, "/edit/processamento");
-	await expect(page.locator('[data-processing-workspace="true"]')).toBeVisible();
-	await receipt(page, testInfo, "workbench-processing");
+	await gotoSurface(page, "/e2e-fixtures/session-editorial");
+	await expect(
+		page.getByRole("heading", { level: 1, name: "Session Editorial E2E" }),
+	).toBeVisible();
+	await expect(page.getByTestId("session-editorial-workspace-frame")).toBeVisible();
+	await receipt(page, testInfo, "workbench-operational");
 });
