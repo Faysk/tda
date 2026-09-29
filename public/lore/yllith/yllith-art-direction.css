@@ -95,7 +95,8 @@ body:not([data-lore-mode="reading"]) .hero-noise { opacity: .035; }
    --------------------------------------------------------- */
 body:not([data-lore-mode="reading"]) #infancia {
   min-height: 88svh;
-  overflow: visible;
+  overflow-x: clip;
+  overflow-y: visible;
   background:
     radial-gradient(circle at 72% 52%, rgba(152,67,36,.13), transparent 25vw),
     linear-gradient(180deg, #0d0908 0%, #100b09 48%, #090706 100%);
