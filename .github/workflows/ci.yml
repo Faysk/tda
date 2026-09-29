@@ -308,7 +308,11 @@ jobs:
         with:
           name: sessions-pre-patch-geometry-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-          if-no-files-found: ignore
+            test-results/**/session-baseline-archive-*.png
+            test-results/**/session-baseline-archive-*.json
+            test-results/**/session-baseline-reader-*.png
+            test-results/**/session-baseline-reader-*.json
+          if-no-files-found: error
           retention-days: 30
       - name: Upload sanitized navigation visual receipts
         if: ${{ success() }}
