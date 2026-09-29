@@ -34,11 +34,14 @@ export type ToolNavigationItem = NavigationItem &
 		capability: EditCapability;
 	}>;
 
-export const PUBLIC_NAV_ITEMS: readonly NavigationItem[] = [
+export const PRIMARY_PUBLIC_NAV_ITEMS: readonly NavigationItem[] = [
 	{ href: "/sessoes", label: "Sessões", icon: "sessions" },
-	{ href: "/lembra", label: "Lembra", icon: "memory" },
-	{ href: "/lore", label: "Lores", icon: "lore" },
 	{ href: "/mundo", label: "Mundo", icon: "world" },
+	{ href: "/lore", label: "Lores", icon: "lore" },
+	{ href: "/lembra", label: "Lembra", icon: "memory" },
+];
+
+export const WORLD_NAV_ITEMS: readonly NavigationItem[] = [
 	{ href: "/personagens", label: "Personagens", icon: "characters" },
 	{ href: "/npcs", label: "NPCs", icon: "npcs" },
 	{ href: "/lugares", label: "Lugares", icon: "places" },
@@ -46,6 +49,11 @@ export const PUBLIC_NAV_ITEMS: readonly NavigationItem[] = [
 	{ href: "/quests", label: "Quests", icon: "quests" },
 	{ href: "/musicas", label: "Músicas", icon: "music" },
 	{ href: "/diario", label: "Diários", icon: "diary" },
+];
+
+export const PUBLIC_NAV_ITEMS: readonly NavigationItem[] = [
+	...PRIMARY_PUBLIC_NAV_ITEMS,
+	...WORLD_NAV_ITEMS,
 ];
 
 export const TOOL_NAV_ITEMS: readonly ToolNavigationItem[] = [
