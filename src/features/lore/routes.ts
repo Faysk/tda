@@ -25,11 +25,17 @@ export function routeAcceptsLoreEntity(
 	return routeEntityTypes[routeKind].includes(entityType);
 }
 
+export function loreRouteKindForEntity(
+	entityType: LoreEntityType,
+): LoreRouteKind | null {
+	return entityRouteKinds[entityType] ?? null;
+}
+
 export function loreHrefFor(
 	entityType: LoreEntityType,
 	slug: string,
 ): string | null {
-	const routeKind = entityRouteKinds[entityType];
+	const routeKind = loreRouteKindForEntity(entityType);
 	if (!routeKind) return null;
 	return `/${routeKind}/${encodeURIComponent(slug)}`;
 }

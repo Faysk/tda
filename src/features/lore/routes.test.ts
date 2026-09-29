@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	loreEntityTypesForRoute,
 	loreHrefFor,
+	loreRouteKindForEntity,
 	routeAcceptsLoreEntity,
 } from "./routes";
 
@@ -18,6 +19,16 @@ describe("lore routes", () => {
 	it("keeps entity types without an approved public route unresolved", () => {
 		expect(loreHrefFor("item", "espada-antiga")).toBeNull();
 		expect(loreHrefFor("concept", "o-veu")).toBeNull();
+		expect(loreRouteKindForEntity("item")).toBeNull();
+	});
+
+	it("exposes the catalog context for supported public entity types", () => {
+		expect(loreRouteKindForEntity("pc")).toBe("personagens");
+		expect(loreRouteKindForEntity("npc")).toBe("npcs");
+		expect(loreRouteKindForEntity("location")).toBe("lugares");
+		expect(loreRouteKindForEntity("faction")).toBe("faccoes");
+		expect(loreRouteKindForEntity("quest")).toBe("quests");
+		expect(loreRouteKindForEntity("song")).toBe("musicas");
 	});
 
 	it("rejects mismatched route/entity combinations", () => {

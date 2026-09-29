@@ -80,6 +80,11 @@ async function withPublishedEntityPortrait(
 	return withPublishedLorePortraitFallback(profile, portraits.get(entityId));
 }
 
+function focalPercent(value: number): number {
+	if (!Number.isFinite(value)) return 50;
+	return Math.min(100, Math.max(0, value * 100));
+}
+
 /**
  * Public lore projection boundary.
  *
@@ -104,9 +109,36 @@ export async function listPublishedLoreIndex(
 		.limit(500);
 	if (error) throw new Error("Published lore index unavailable");
 
-	return (data ?? []).flatMap((row) => {
+	const rows = data ?? [];
+	const entityIds = rows.flatMap((row) =>
+		typeof row.id === "string" ? [row.id] : [],
+	);
+	const portraits = await loadWorldEntityPortraitPresentations(
+		client,
+		campaignId,
+		CAMPAIGN_SLUG,
+		entityIds,
+	);
+
+	return rows.flatMap((row) => {
 		const item = toPublicLoreIndexItem(row);
-		return item ? [item] : [];
+		if (!item) return [];
+		const entityId = typeof row.id === "string" ? row.id : null;
+		const portrait = entityId ? portraits.get(entityId) : undefined;
+		if (!portrait) return [item];
+		return [
+			{
+				...item,
+				visual: {
+					src: portrait.imageUrl,
+					alt: `Representação visual de ${item.name}`,
+					focalPoint: {
+						x: focalPercent(portrait.focalPoint.x),
+						y: focalPercent(portrait.focalPoint.y),
+					},
+				},
+			},
+		];
 	});
 }
 

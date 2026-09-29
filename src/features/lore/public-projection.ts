@@ -40,12 +40,19 @@ export type PublicLoreSessionRow = Readonly<{
 	campaigns?: unknown;
 }>;
 
+export type LoreIndexVisual = Readonly<{
+	src: string;
+	alt: string;
+	focalPoint: Readonly<{ x: number; y: number }>;
+}>;
+
 export type LoreIndexItem = Readonly<{
 	slug: string;
 	entityType: LoreEntityType;
 	name: string;
 	summary: string;
 	href: string;
+	visual?: LoreIndexVisual;
 }>;
 
 const ENTITY_TYPES = new Set<LoreEntityType>([

@@ -72,7 +72,15 @@ test("desktop inspector overlays without resizing the canvas", async ({ page }, 
 	const tab = await reopen.boundingBox();
 	expect(tab?.width ?? 0).toBeGreaterThanOrEqual(38);
 	expect(tab?.height ?? 0).toBeGreaterThanOrEqual(54);
-	expect(Math.abs((tab?.x ?? 0) + (tab?.width ?? 0) - (await page.evaluate(() => innerWidth)))).toBeLessThan(3);
+	await expect
+		.poll(async () => {
+			const settledTab = await reopen.boundingBox();
+			const viewportWidth = await page.evaluate(() => innerWidth);
+			return Math.abs(
+				(settledTab?.x ?? 0) + (settledTab?.width ?? 0) - viewportWidth,
+			);
+		})
+		.toBeLessThan(3);
 });
 
 test("mobile inspector still collapses to a bottom-sheet reopen control", async ({ page }, testInfo) => {

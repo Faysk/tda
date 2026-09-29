@@ -1,13 +1,15 @@
 import Image from "next/image";
 import { PublicLink } from "@/components/public-link";
+import { LORE_INDEX_COPY } from "../index-config";
 import type {
 	LoreBlockDTO,
 	LoreCardDTO,
 	LoreMediaDTO,
 	LoreProfileDTO,
 } from "../model";
-import { LoreExperience } from "./lore-experience";
+import { loreRouteKindForEntity } from "../routes";
 import { standaloneLoreForEntity } from "../standalone-catalog";
+import { LoreExperience } from "./lore-experience";
 import styles from "./lore-page.module.css";
 
 type LorePageProps = {
@@ -125,9 +127,25 @@ function LoreBlock({ block }: { block: LoreBlockDTO }) {
 }
 
 export function LorePage({ profile }: LorePageProps) {
-	const standaloneLore = standaloneLoreForEntity(profile.identity.entityType, profile.identity.slug);
+	const standaloneLore = standaloneLoreForEntity(
+		profile.identity.entityType,
+		profile.identity.slug,
+	);
+	const routeKind = loreRouteKindForEntity(profile.identity.entityType);
+	const catalogCopy = routeKind ? LORE_INDEX_COPY[routeKind] : null;
+
 	return (
 		<article className={styles.page}>
+			{routeKind && catalogCopy ? (
+				<nav className={styles.profileContext} aria-label="Contexto de exploração">
+					<PublicLink href="/mundo">Mundo</PublicLink>
+					<span aria-hidden="true">›</span>
+					<PublicLink href={`/${routeKind}`}>{catalogCopy.title}</PublicLink>
+					<span aria-hidden="true">›</span>
+					<span aria-current="page">{profile.identity.name}</span>
+				</nav>
+			) : null}
+
 			<LoreExperience
 				identity={profile.identity}
 				presentation={profile.presentation}
@@ -138,7 +156,9 @@ export function LorePage({ profile }: LorePageProps) {
 				{profile.sections.length || standaloneLore ? (
 					<nav className={styles.sectionNav} aria-label="Nesta história">
 						{standaloneLore ? (
-							<a href={`/lore/${standaloneLore.slug}`}>Ler a história: {standaloneLore.title}</a>
+							<a href={`/lore/${standaloneLore.slug}`}>
+								Ler a história: {standaloneLore.title}
+							</a>
 						) : null}
 						{profile.sections.map((section) => (
 							<a key={section.id} href={`#${section.id}`}>

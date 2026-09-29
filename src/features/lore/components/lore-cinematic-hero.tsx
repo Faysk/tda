@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import Image from "next/image";
+import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import type { LoreIdentityDTO, LorePresentation } from "../model";
 import {
@@ -26,6 +26,7 @@ export function LoreCinematicHero({
 	const motion = resolveLoreMotionDefinition(scene.motion);
 	const layers = scene.hero.layers;
 	const poster = scene.hero.poster;
+	const hasHeroMedia = Boolean(poster || layers.length > 0);
 	const artworkAlt = poster?.alt || `Ambientação visual de ${identity.name}`;
 
 	useEffect(() => {
@@ -92,13 +93,19 @@ export function LoreCinematicHero({
 			data-overlay={scene.hero.overlay}
 			data-motion={scene.motion.preset}
 			data-scene={activeSceneId ?? "base"}
+			data-has-media={hasHeroMedia ? "true" : "false"}
 			style={
 				presentation.accent
 					? ({ "--lore-accent": presentation.accent } as CSSProperties)
 					: undefined
 			}
 		>
-			<div className={styles.artwork} role="img" aria-label={artworkAlt}>
+			<div
+				className={styles.artwork}
+				{...(hasHeroMedia
+					? { role: "img", "aria-label": artworkAlt }
+					: { "aria-hidden": true })}
+			>
 				{poster && layers.length === 0 ? (
 					<div className={styles.poster}>
 						<Image
