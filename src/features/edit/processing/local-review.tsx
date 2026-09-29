@@ -29,6 +29,8 @@ type Props = Readonly<{
 	runs: readonly LocalRunSummary[];
 	hasMore?: boolean;
 	onLoadMore?: () => void | Promise<void>;
+	focusRunKey?: string | null;
+	focusRunRequestId?: number;
 	review: LocalReview | null;
 	busy: boolean;
 	error: string | null;
@@ -854,6 +856,8 @@ export function LocalReviewWorkspace({
 	runs,
 	hasMore = false,
 	onLoadMore,
+	focusRunKey = null,
+	focusRunRequestId = 0,
 	review,
 	busy,
 	error,
@@ -964,6 +968,29 @@ export function LocalReviewWorkspace({
 		const key = serializeLocalRunKey(localRunKey(selectedRun));
 		if (selectedRunKey !== key) setSelectedRunKey(key);
 	}, [selectedRun, selectedRunKey]);
+
+	useEffect(() => {
+		if (!focusRunKey) return;
+		const target = runs.find(
+			(run) => serializeLocalRunKey(localRunKey(run)) === focusRunKey,
+		);
+		if (!target) return;
+
+		// Queue -> Results navigation is identity-driven. Clear library filters
+		// that could hide the exact run, select it, then move keyboard focus to
+		// the corresponding master-list item without opening editorial review.
+		setLibraryQuery("");
+		setProfileFilter("all");
+		setReviewFilter("all");
+		setSelectedRunKey(focusRunKey);
+		requestAnimationFrame(() => {
+			const targetButton = [...document.querySelectorAll<HTMLButtonElement>(
+				"button[data-local-run-key]",
+			)].find((button) => button.dataset.localRunKey === focusRunKey);
+			targetButton?.focus({ preventScroll: true });
+			targetButton?.scrollIntoView({ block: "nearest", inline: "nearest" });
+		});
+	}, [focusRunKey, focusRunRequestId, runs]);
 
 	async function startComparison() {
 		if (!selectedRun || !comparisonTarget || comparisonBusy) return;
@@ -1116,6 +1143,7 @@ export function LocalReviewWorkspace({
 										type="button"
 										className={styles.runListItem}
 										data-active={active ? "true" : "false"}
+										data-local-run-key={key}
 										aria-current={active ? "true" : undefined}
 										onClick={() => setSelectedRunKey(key)}
 									>
