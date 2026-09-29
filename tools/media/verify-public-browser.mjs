@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { chromium } from "@playwright/test";
 
 const receiptPath = process.argv[2];
 if (!receiptPath) throw new Error("receipt path is required");
 
+const productionOrigin = process.env.PRODUCTION_ORIGIN?.trim() || "https://dnd.faysk.dev";
 const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
 const assets = receipt.assets.filter((asset) => asset.publicDeliveryChallenge === true);
 
@@ -12,70 +14,114 @@ if (assets.length === 0) {
 	process.exit(0);
 }
 
+function sha256(bytes) {
+	return createHash("sha256").update(bytes).digest("hex");
+}
+
+async function verifyAsProductImage(context, asset) {
+	let last = null;
+
+	for (let attempt = 1; attempt <= 3; attempt += 1) {
+		const page = await context.newPage();
+		try {
+			await page.goto(productionOrigin, {
+				waitUntil: "domcontentloaded",
+				timeout: 60_000,
+			});
+
+			const responsePromise = page.waitForResponse(
+				(response) => response.url() === asset.publicUrl,
+				{ timeout: 45_000 },
+			);
+
+			const imagePromise = page.evaluate((url) => {
+				return new Promise((resolve) => {
+					const image = new Image();
+					image.alt = "";
+					image.style.position = "fixed";
+					image.style.width = "1px";
+					image.style.height = "1px";
+					image.style.opacity = "0";
+					image.onload = () =>
+						resolve({
+							loaded: true,
+							naturalWidth: image.naturalWidth,
+							naturalHeight: image.naturalHeight,
+						});
+					image.onerror = () =>
+						resolve({
+							loaded: false,
+							naturalWidth: image.naturalWidth,
+							naturalHeight: image.naturalHeight,
+						});
+					document.body.append(image);
+					image.src = url;
+				});
+			}, asset.publicUrl);
+
+			const response = await responsePromise;
+			const image = await imagePromise;
+			const body = Buffer.from(await response.body());
+			const contentType =
+				response.headers()["content-type"]?.split(";")[0]?.trim() ?? null;
+
+			last = {
+				status: response.status(),
+				contentType,
+				bytes: body.length,
+				sha256: sha256(body),
+				loaded: image.loaded === true,
+				naturalWidth: image.naturalWidth,
+				naturalHeight: image.naturalHeight,
+			};
+
+			if (
+				last.status === 200 &&
+				last.contentType === asset.contentType &&
+				last.bytes === asset.bytes &&
+				last.sha256 === asset.sha256 &&
+				last.loaded &&
+				last.naturalWidth > 0 &&
+				last.naturalHeight > 0
+			) {
+				return last;
+			}
+		} catch {
+			last = null;
+		} finally {
+			await page.close();
+		}
+	}
+
+	return last;
+}
 
 const browser = await chromium.launch({ headless: true });
 
 try {
 	const context = await browser.newContext();
 	for (const asset of assets) {
-		const page = await context.newPage();
-		let last = null;
-		try {
-			await page.goto(asset.publicUrl, {
-				waitUntil: "domcontentloaded",
-				timeout: 60_000,
-			}).catch(() => undefined);
+		const result = await verifyAsProductImage(context, asset);
 
-			const deadline = Date.now() + 45_000;
-			while (Date.now() < deadline) {
-				try {
-					last = await page.evaluate(async (url) => {
-						const response = await fetch(url, {
-							cache: "no-store",
-							credentials: "include",
-						});
-						const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() ?? null;
-						const bytes = await response.arrayBuffer();
-						const digest = await crypto.subtle.digest("SHA-256", bytes);
-						return {
-							status: response.status,
-							contentType,
-							bytes: bytes.byteLength,
-							sha256: Array.from(new Uint8Array(digest), (byte) =>
-								byte.toString(16).padStart(2, "0"),
-							).join(""),
-						};
-					}, asset.publicUrl);
-				} catch {
-					last = null;
-				}
-
-				if (
-					last?.status === 200 &&
-					last.contentType === asset.contentType &&
-					last.bytes === asset.bytes &&
-					last.sha256 === asset.sha256
-				) {
-					asset.publicDeliveryVerified = true;
-					asset.publicDeliveryVerificationMode = "browser";
-					console.log(`MEDIA_BROWSER_VERIFIED ${asset.file}`);
-					break;
-				}
-
-				await page.waitForTimeout(1_000);
-			}
-
-			if (asset.publicDeliveryVerified !== true) {
-				throw new Error(
-					`browser public verification failed for ${asset.file}: ` +
-						`status=${last?.status ?? "unavailable"} ` +
-						`contentType=${last?.contentType ?? "unavailable"} ` +
-						`bytes=${last?.bytes ?? "unavailable"}`,
-				);
-			}
-		} finally {
-			await page.close();
+		if (
+			result?.status !== 200 ||
+			result.contentType !== asset.contentType ||
+			result.bytes !== asset.bytes ||
+			result.sha256 !== asset.sha256 ||
+			result.loaded !== true
+		) {
+			throw new Error(
+				`browser image verification failed for ${asset.file}: ` +
+					`status=${result?.status ?? "unavailable"} ` +
+					`contentType=${result?.contentType ?? "unavailable"} ` +
+					`bytes=${result?.bytes ?? "unavailable"} ` +
+					`loaded=${result?.loaded ?? "unavailable"}`,
+			);
 		}
+
+		asset.publicDeliveryVerified = true;
+		asset.publicDeliveryVerificationMode = "browser-image";
+		console.log(`MEDIA_BROWSER_VERIFIED ${asset.file}`);
 	}
 } finally {
 	await browser.close();
