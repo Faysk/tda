@@ -1,5 +1,13 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import dUiManifest from "../media/manifests/d-ui.json";
+
+const dUiManifest = JSON.parse(
+	readFileSync(new URL("../media/manifests/d-ui.json", import.meta.url), "utf8"),
+) as {
+	publicOrigin: string;
+	namespace: string;
+	assets: Array<{ file: string; sha256: string }>;
+};
 
 const dFaviconAsset = dUiManifest.assets.find((asset) => asset.file === "favicon.svg");
 if (!dFaviconAsset) throw new Error("D favicon manifest asset is missing");
