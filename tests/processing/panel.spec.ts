@@ -1130,38 +1130,44 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 	await expect(moreActions).toBeFocused();
 });
 
-test("per-job diagnostics becomes a bounded mobile sheet without leaving Queue", async ({ page }) => {
-	await page.setViewportSize({ width: 390, height: 844 });
-	await installCompanionFixture(page, {
-		profileReady: true,
-		advanceJobs: false,
-		initialJobs: [failedJob()],
+for (const viewport of [
+	{ width: 320, height: 568 },
+	{ width: 360, height: 800 },
+	{ width: 390, height: 844 },
+] as const) {
+	test(`per-job diagnostics stays bounded at ${viewport.width}x${viewport.height} without leaving Queue`, async ({ page }) => {
+		await page.setViewportSize(viewport);
+		await installCompanionFixture(page, {
+			profileReady: true,
+			advanceJobs: false,
+			initialJobs: [failedJob()],
+		});
+
+		await page.goto("/");
+		await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+		await page.getByRole("tab", { name: "Fila" }).click();
+		const queue = page.getByRole("tabpanel", { name: "Fila" });
+		await queue.getByRole("button", { name: "Atenção", exact: true }).click();
+		await queue.getByRole("button", { name: /Mais ações para/ }).click();
+		await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+
+		const inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
+		await expect(inspector).toBeVisible();
+		const box = await inspector.boundingBox();
+		expect(box).not.toBeNull();
+		expect(box?.x ?? -1).toBeGreaterThanOrEqual(-1);
+		expect(box?.width ?? 999).toBeLessThanOrEqual(viewport.width);
+		expect(
+			await inspector.evaluate(
+				(element) => element.scrollWidth <= element.clientWidth + 1,
+			),
+		).toBeTruthy();
+		await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
 	});
-
-	await page.goto("/");
-	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await page.getByRole("tab", { name: "Fila" }).click();
-	const queue = page.getByRole("tabpanel", { name: "Fila" });
-	await queue.getByRole("button", { name: "Atenção", exact: true }).click();
-	await queue.getByRole("button", { name: /Mais ações para/ }).click();
-	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
-
-	const inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
-	await expect(inspector).toBeVisible();
-	const box = await inspector.boundingBox();
-	expect(box).not.toBeNull();
-	expect(box?.x ?? -1).toBeGreaterThanOrEqual(-1);
-	expect(box?.width ?? 999).toBeLessThanOrEqual(390);
-	expect(
-		await inspector.evaluate(
-			(element) => element.scrollWidth <= element.clientWidth + 1,
-		),
-	).toBeTruthy();
-	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
-		"aria-selected",
-		"true",
-	);
-});
+}
 
 test("Fila confirma visualmente quando o Job ID é copiado", async ({ page }) => {
 	await page.addInitScript(() => {
