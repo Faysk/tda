@@ -1094,6 +1094,17 @@ test("Queue Open result navigates to the exact immutable run without opening rev
 });
 
 test("Queue per-job diagnostics opens contextually and preserves the Queue view", async ({ page }) => {
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: {
+				writeText: async (value: string) => {
+					(window as Window & { __copiedJobDiagnostic?: string }).__copiedJobDiagnostic =
+						value;
+				},
+			},
+		});
+	});
 	await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
@@ -1109,6 +1120,7 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 					stage: "alignment",
 					track: 1,
 					window: 89,
+					speaker: "Alice",
 					failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
 				},
 			},
@@ -1121,6 +1133,8 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 	const queueTab = page.getByRole("tab", { name: "Fila" });
 	const queue = page.getByRole("tabpanel", { name: "Fila" });
 	await queue.getByRole("button", { name: "Atenção", exact: true }).click();
+	const search = queue.getByLabel("Buscar");
+	await search.fill("sessao-42");
 	const moreActions = queue.getByRole("button", { name: /Mais ações para/ });
 	await moreActions.click();
 	await queue.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
@@ -1132,9 +1146,22 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 	await expect(inspector).toContainText("QWEN_ALIGNMENT_REQUIRED");
 	await expect(inspector.getByRole("log")).toContainText("Falha de alinhamento Qwen");
 
+	await inspector.getByRole("button", { name: "Copiar diagnóstico" }).click();
+	await expect(inspector.getByText("Diagnóstico copiado.", { exact: true })).toBeVisible();
+	const copiedDiagnostic = await page.evaluate(
+		() => (window as Window & { __copiedJobDiagnostic?: string }).__copiedJobDiagnostic,
+	);
+	expect(copiedDiagnostic).toContain('"schema": "tda_job_diagnostic_clipboard_v1"');
+	expect(copiedDiagnostic).toContain('"failure_class": "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"');
+	expect(copiedDiagnostic).not.toContain("Alice");
+	expect(copiedDiagnostic).not.toContain("context");
+	expect(copiedDiagnostic).not.toContain("glossary");
+	expect(copiedDiagnostic).not.toContain("token");
+
 	await page.keyboard.press("Escape");
 	await expect(inspector).not.toBeVisible();
 	await expect(queueTab).toHaveAttribute("aria-selected", "true");
+	await expect(search).toHaveValue("sessao-42");
 	await expect(moreActions).toBeFocused();
 });
 
