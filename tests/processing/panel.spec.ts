@@ -25,8 +25,22 @@ function fulfillJson(
 
 async function installCompletedRunCatalog(
 	page: import("@playwright/test").Page,
-	runCount = 1,
+	runCountOrOptions:
+		| number
+		| Readonly<{
+				runCount?: number;
+				runId?: string;
+				profileId?: "whisper-detailed" | "qwen-quality";
+				engine?: string;
+				model?: string;
+				transcriptSha256?: string;
+		  }> = 1,
 ) {
+	const options =
+		typeof runCountOrOptions === "number"
+			? { runCount: runCountOrOptions }
+			: runCountOrOptions;
+	const runCount = options.runCount ?? 1;
 	await page.route(`${LOCAL_API}/sources`, (route) =>
 		fulfillJson(route, {
 			schema_version: "tda_craig_sources_v1",
@@ -44,35 +58,61 @@ async function installCompletedRunCatalog(
 		fulfillJson(route, {
 			schema_version: "tda_transcription_runs_v1",
 			source_id: CRAIG_SOURCE_ID,
-			runs: Array.from({ length: runCount }, (_, index) => ({
-				run_id: `run-results-${String(index + 1).padStart(2, "0")}`,
-				status: "completed",
-				source_id: CRAIG_SOURCE_ID,
-				profile_id: index % 2 ? "whisper-turbo" : "whisper-detailed",
-				engine: "faster-whisper",
-				model: index % 2 ? "turbo" : "large-v3",
-				model_revision: "rev",
-				device: "cuda",
-				completed_at: new Date(Date.UTC(2026, 8, 27, 18, index)).toISOString(),
-				transcript_sha256: (index % 16).toString(16).repeat(64),
-				transcript_size_bytes: 900 + index,
-				stats: {
-					processing_seconds: 12 + index,
-					session_duration_seconds: 60 + index,
-					duration_semantics: "session_extent_v1",
-					rtf: 0.2,
-					word_count: 2 + index,
-					segment_count: 1 + index,
-					track_count: 1,
-					turn_count: 1 + index,
-					warning_count: 0,
-				},
-				execution_lineage: {
-					schema_version: "tda_execution_lineage_v1",
+			runs: Array.from({ length: runCount }, (_, index) => {
+				const profileId =
+					index === 0 && options.profileId
+						? options.profileId
+						: index % 2
+							? "whisper-turbo"
+							: "whisper-detailed";
+				return {
+					run_id:
+						index === 0 && options.runId
+							? options.runId
+							: `run-results-${String(index + 1).padStart(2, "0")}`,
+					status: "completed",
+					source_id: CRAIG_SOURCE_ID,
+					profile_id: profileId,
+					engine:
+						index === 0 && options.engine
+							? options.engine
+							: profileId === "qwen-quality"
+								? "qwen3"
+								: "faster-whisper",
+					model:
+						index === 0 && options.model
+							? options.model
+							: profileId === "qwen-quality"
+								? "fixture-qwen"
+								: index % 2
+									? "turbo"
+									: "large-v3",
+					model_revision: "rev",
 					device: "cuda",
-					gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
-				},
-			})),
+					completed_at: new Date(Date.UTC(2026, 8, 27, 18, index)).toISOString(),
+					transcript_sha256:
+						index === 0 && options.transcriptSha256
+							? options.transcriptSha256
+							: (index % 16).toString(16).repeat(64),
+					transcript_size_bytes: 900 + index,
+					stats: {
+						processing_seconds: 12 + index,
+						session_duration_seconds: 60 + index,
+						duration_semantics: "session_extent_v1",
+						rtf: 0.2,
+						word_count: 2 + index,
+						segment_count: 1 + index,
+						track_count: 1,
+						turn_count: 1 + index,
+						warning_count: 0,
+					},
+					execution_lineage: {
+						schema_version: "tda_execution_lineage_v1",
+						device: "cuda",
+						gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
+					},
+				};
+			}),
 		}),
 	);
 }
