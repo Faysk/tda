@@ -74,6 +74,7 @@ export function confirmedPublicationReceipt(
 		receipt.status === "committed" &&
 		UUID.test(receipt.receiptId) &&
 		receipt.campaignId === expected.campaignId &&
+		UUID.test(receipt.sessionId) &&
 		receipt.sessionId === expected.sessionId &&
 		UUID.test(receipt.revisionId) &&
 		Number.isSafeInteger(receipt.revisionNumber) &&
