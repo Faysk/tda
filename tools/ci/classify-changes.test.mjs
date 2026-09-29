@@ -48,6 +48,7 @@ test("standalone Lore and Diário paths activate Navigation E2E", () => {
 		"next.config.ts",
 		"src/features/lore/standalone-catalog.json",
 		"src/features/diary/catalog.json",
+		"tools/diary/generate.mjs",
 	]) {
 		const result = flags([path]);
 		assert.equal(result.navigation, true, path);
