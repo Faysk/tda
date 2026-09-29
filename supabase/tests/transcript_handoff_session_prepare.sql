@@ -164,13 +164,18 @@ begin
   v_session_id := (v_first->'receipt'->>'sessionId')::uuid;
   v_revision_id := (v_first->'receipt'->>'revisionId')::uuid;
 
-  select count(*), max(status), max(created_by)
-  into v_count, v_status, v_created_by
+  select count(*)
+  into v_count
   from public.sessions
   where id=v_session_id
     and campaign_id='11111111-1111-4111-8111-111111111111'
     and source_system='local_companion'
     and source_session_id='handoff-new-session';
+
+  select status, created_by
+  into v_status, v_created_by
+  from public.sessions
+  where id=v_session_id;
 
   if v_count <> 1
      or v_status <> 'ready_for_review'
