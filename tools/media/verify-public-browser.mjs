@@ -18,104 +18,98 @@ function sha256(bytes) {
 	return createHash("sha256").update(bytes).digest("hex");
 }
 
-async function verifyAsProductImage(context, asset) {
-	let last = null;
-
-	for (let attempt = 1; attempt <= 3; attempt += 1) {
-		const page = await context.newPage();
-		try {
-			await page.goto(productionOrigin, {
-				waitUntil: "domcontentloaded",
-				timeout: 60_000,
-			});
-
-			const responsePromise = page.waitForResponse(
-				(response) => response.url() === asset.publicUrl,
-				{ timeout: 45_000 },
-			);
-
-			const imagePromise = page.evaluate((url) => {
-				return new Promise((resolve) => {
-					const image = new Image();
-					image.alt = "";
-					image.style.position = "fixed";
-					image.style.width = "1px";
-					image.style.height = "1px";
-					image.style.opacity = "0";
-					image.onload = () =>
-						resolve({
-							loaded: true,
-							naturalWidth: image.naturalWidth,
-							naturalHeight: image.naturalHeight,
-						});
-					image.onerror = () =>
-						resolve({
-							loaded: false,
-							naturalWidth: image.naturalWidth,
-							naturalHeight: image.naturalHeight,
-						});
-					document.body.append(image);
-					image.src = url;
-				});
-			}, asset.publicUrl);
-
-			const response = await responsePromise;
-			const image = await imagePromise;
-			const body = Buffer.from(await response.body());
-			const contentType =
-				response.headers()["content-type"]?.split(";")[0]?.trim() ?? null;
-
-			last = {
-				status: response.status(),
-				contentType,
-				bytes: body.length,
-				sha256: sha256(body),
-				loaded: image.loaded === true,
-				naturalWidth: image.naturalWidth,
-				naturalHeight: image.naturalHeight,
-			};
-
-			if (
-				last.status === 200 &&
-				last.contentType === asset.contentType &&
-				last.bytes === asset.bytes &&
-				last.sha256 === asset.sha256 &&
-				last.loaded &&
-				last.naturalWidth > 0 &&
-				last.naturalHeight > 0
-			) {
-				return last;
-			}
-		} catch {
-			last = null;
-		} finally {
-			await page.close();
-		}
-	}
-
-	return last;
-}
-
 const browser = await chromium.launch({ headless: true });
 
 try {
 	const context = await browser.newContext();
-	for (const asset of assets) {
-		const result = await verifyAsProductImage(context, asset);
+	const page = await context.newPage();
+
+	await page.goto(productionOrigin, {
+		waitUntil: "domcontentloaded",
+		timeout: 60_000,
+	});
+
+	const responsePromises = assets.map((asset) =>
+		page
+			.waitForResponse((response) => response.url() === asset.publicUrl, {
+				timeout: 15_000,
+			})
+			.then(async (response) => {
+				const body = Buffer.from(await response.body());
+				return {
+					status: response.status(),
+					contentType:
+						response.headers()["content-type"]?.split(";")[0]?.trim() ?? null,
+					bytes: body.length,
+					sha256: sha256(body),
+				};
+			})
+			.catch(() => null),
+	);
+
+	const imageResultsPromise = page.evaluate((urls) => {
+		return Promise.all(
+			urls.map(
+				(url) =>
+					new Promise((resolve) => {
+						const image = new Image();
+						let settled = false;
+						const finish = (loaded) => {
+							if (settled) return;
+							settled = true;
+							resolve({
+								url,
+								loaded,
+								naturalWidth: image.naturalWidth,
+								naturalHeight: image.naturalHeight,
+							});
+						};
+						const timer = window.setTimeout(() => finish(false), 15_000);
+						image.alt = "";
+						image.style.position = "fixed";
+						image.style.width = "1px";
+						image.style.height = "1px";
+						image.style.opacity = "0";
+						image.onload = () => {
+							window.clearTimeout(timer);
+							finish(true);
+						};
+						image.onerror = () => {
+							window.clearTimeout(timer);
+							finish(false);
+						};
+						document.body.append(image);
+						image.src = url;
+					}),
+			),
+		);
+	}, assets.map((asset) => asset.publicUrl));
+
+	const [responses, imageResults] = await Promise.all([
+		Promise.all(responsePromises),
+		imageResultsPromise,
+	]);
+
+	for (let index = 0; index < assets.length; index += 1) {
+		const asset = assets[index];
+		const response = responses[index];
+		const image = imageResults[index];
 
 		if (
-			result?.status !== 200 ||
-			result.contentType !== asset.contentType ||
-			result.bytes !== asset.bytes ||
-			result.sha256 !== asset.sha256 ||
-			result.loaded !== true
+			response?.status !== 200 ||
+			response.contentType !== asset.contentType ||
+			response.bytes !== asset.bytes ||
+			response.sha256 !== asset.sha256 ||
+			image?.loaded !== true ||
+			image.naturalWidth <= 0 ||
+			image.naturalHeight <= 0
 		) {
 			throw new Error(
 				`browser image verification failed for ${asset.file}: ` +
-					`status=${result?.status ?? "unavailable"} ` +
-					`contentType=${result?.contentType ?? "unavailable"} ` +
-					`bytes=${result?.bytes ?? "unavailable"} ` +
-					`loaded=${result?.loaded ?? "unavailable"}`,
+					`status=${response?.status ?? "unavailable"} ` +
+					`contentType=${response?.contentType ?? "unavailable"} ` +
+					`bytes=${response?.bytes ?? "unavailable"} ` +
+					`loaded=${image?.loaded ?? "unavailable"}`,
 			);
 		}
 
