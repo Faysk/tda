@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 	metadataBase: new URL(CANONICAL_SITE_ORIGIN),
 	title: { default: SITE_NAME, template: "%s · TDA" },
 	icons: {
-		icon: "/brand/favicon.svg",
+		icon: "https://media.dnd.faysk.dev/brand/59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e/favicon.svg",
 	},
 };
 
@@ -46,14 +46,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 							<span className="brand-symbol" aria-hidden="true">
 								<Image
 									className="brand-symbol-image brand-symbol-image--dark"
-									src="/brand/tda-mark-white.svg"
+									src="https://media.dnd.faysk.dev/brand/8474cd455cb5b6ffc254ed5ca5c3c5aa1b25f64ec8e694ed85ce1eea8b2d83ff/tda-mark-white.svg"
 									width={50}
 									height={50}
 									alt=""
+									unoptimized
 								/>
 								<Image
 									className="brand-symbol-image brand-symbol-image--light"
-									src="/brand/tda-mark-black.svg"
+									src="https://media.dnd.faysk.dev/brand/66c5dbe83c07b08e6355230c255ee98fd27f4ef1ce93e4de2cce239e9217a5ec/tda-mark-black.svg"
 									width={50}
 									height={50}
 									alt=""
