@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import {
 	DEFAULT_MANIFEST_DIR,
 	discoverManifests,
+	publicVerificationHeaders,
 	publicVerificationUrl,
 	readAssetBytes,
 	sha256,
@@ -46,25 +47,16 @@ async function validatePublicResponse(asset, response) {
 async function verifyPublicDelivery(asset, { fetchImpl = fetch, attempts = 8 } = {}) {
 	let lastError;
 	for (let attempt = 1; attempt <= attempts; attempt += 1) {
-		const cacheBustedUrl = publicVerificationUrl(asset.publicUrl, attempt);
-		const candidates = [
-			{ url: cacheBustedUrl, mode: "cache-busted" },
-			{ url: asset.publicUrl, mode: "canonical" },
-		];
-
-		for (const candidate of candidates) {
-			try {
-				const response = await fetchImpl(candidate.url, {
-					cache: "no-store",
-					headers: { "cache-control": "no-cache" },
-				});
-				const delivery = await validatePublicResponse(asset, response);
-				return { ...delivery, verificationMode: candidate.mode };
-			} catch (error) {
-				lastError = error;
-			}
+		try {
+			const response = await fetchImpl(publicVerificationUrl(asset.publicUrl), {
+				cache: "no-store",
+				headers: publicVerificationHeaders(),
+			});
+			const delivery = await validatePublicResponse(asset, response);
+			return { ...delivery, verificationMode: "canonical" };
+		} catch (error) {
+			lastError = error;
 		}
-
 		if (attempt < attempts)
 			await new Promise((resolveDelay) =>
 				setTimeout(resolveDelay, attempt * 750),

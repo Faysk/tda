@@ -35,33 +35,32 @@ test("public verification succeeds without storage credentials", async () => {
 	});
 	assert.deepEqual(receipt.summary, { projects: 1, assets: 1, verified: 1 });
 	assert.equal(receipt.assets[0].sha256, digest);
-	assert.equal(receipt.assets[0].verificationMode, "cache-busted");
+	assert.equal(receipt.assets[0].verificationMode, "canonical");
 	const persisted = JSON.parse(await readFile(join(root, ".local/public.json"), "utf8"));
 	assert.equal(persisted.summary.verified, 1);
 });
 
-test("public verification falls back to the canonical URL when cache-busted delivery is forbidden", async () => {
+test("public verification requests only the immutable canonical URL with anonymous image headers", async () => {
 	const { root, bytes } = await fixture();
 	const calls = [];
 	const receipt = await verifyPublicAll({
 		repoRoot: root,
-		receiptPath: ".local/public-fallback.json",
+		receiptPath: ".local/public-canonical.json",
 		attempts: 1,
-		fetchImpl: async (input) => {
-			const url = new URL(String(input));
-			calls.push(url.href);
-			if (url.searchParams.has("tda_verify")) return new Response("forbidden", { status: 403 });
+		fetchImpl: async (input, options) => {
+			calls.push({ url: String(input), headers: options?.headers });
 			return new Response(bytes, { status: 200, headers: { "content-type": "image/webp" } });
 		},
 	});
-	assert.equal(calls.length, 2);
-	assert.match(calls[0], /[?&]tda_verify=/);
-	assert.equal(new URL(calls[1]).search, "");
+	assert.equal(calls.length, 1);
+	assert.equal(new URL(calls[0].url).search, "");
+	assert.match(calls[0].headers["user-agent"], /^Mozilla\/5\.0/u);
+	assert.equal(calls[0].headers.cookie, undefined);
+	assert.equal(calls[0].headers.authorization, undefined);
 	assert.equal(receipt.assets[0].verificationMode, "canonical");
-	assert.equal(receipt.summary.verified, 1);
 });
 
-test("public verification remains fail-closed when both delivery variants fail", async () => {
+test("public verification remains fail-closed when canonical delivery fails", async () => {
 	const { root } = await fixture();
 	await assert.rejects(
 		verifyPublicAll({
