@@ -425,6 +425,15 @@ function ReviewEditor({
 			dirty
 		)
 			return;
+		const hasPendingIntent = browserHasPendingPublicationForRun(
+			review.sourceId,
+			review.runId,
+		);
+		// A deterministic local preflight failure must not perform current/readback
+		// network work merely to rediscover the same invalid payload. The only
+		// exception is a durable unresolved operation, which still deserves
+		// reconciliation before the operator can safely move on.
+		if (publicationPreflight?.eligible !== true && !hasPendingIntent) return;
 		let cancelled = false;
 		const invalidate = () => {
 			setPublicationRecovery(null);
@@ -469,7 +478,7 @@ function ReviewEditor({
 			window.removeEventListener("storage", focus);
 			document.removeEventListener("visibilitychange", visibility);
 		};
-	}, [publicationEnabled, review, dirty]);
+	}, [publicationEnabled, review, dirty, publicationPreflight?.eligible]);
 
 	const visible = useMemo(() => {
 		const normalized = query.trim().toLocaleLowerCase("pt-BR");
@@ -609,7 +618,15 @@ function ReviewEditor({
 							"O bloqueio aconteceu localmente, antes de qualquer envio mutável. Salvar ou reabrir não é recomendado como tentativa genérica; consulte os detalhes técnicos ou atualize o cliente quando houver uma versão corrigida.",
 						technical: publicationPreflight.reason ?? "invalid_payload",
 					};
-		if (!review.publicationTarget && onRepairTarget)
+		if (currentApproval && !publicationEnabled)
+			return {
+				key: "handoff-disabled",
+				tone: "info",
+				title: "O handoff privado está desativado neste ambiente",
+				detail:
+					"A revisão continua aprovada localmente. Nenhum envio será tentado até o boundary de Sessões do Edit estar habilitado.",
+			};
+		if (!review.publicationTarget && (onRepairTarget || currentApproval))
 			return {
 				key: "target-unavailable",
 				tone: "warning",
@@ -617,8 +634,9 @@ function ReviewEditor({
 					review.publicationTargetState === "invalid"
 						? "O vínculo original precisa ser reparado"
 						: "O destino privado ainda não está vinculado",
-				detail:
-					"O Companion só pode preparar a sessão usando provenance verificada. Nenhum destino será inferido por nome ou contexto recente.",
+				detail: onRepairTarget
+					? "O Companion só pode preparar a sessão usando provenance verificada. Repare o vínculo original; nenhum destino será inferido por nome ou contexto recente."
+					: "A revisão está preservada, mas esta tela não possui prova suficiente para resolver o destino privado. Nenhum destino será inferido automaticamente.",
 				technical: review.publicationTargetState ?? "unbound",
 			};
 		return null;
