@@ -717,6 +717,7 @@ function ReviewEditor({
 				) : (
 					<span><strong>0</strong> avisos</span>
 				)}
+				{!review.warningSummary ? <span>total histórico não verificado</span> : null}
 				<details className={styles.technicalDetails}>
 					<summary>Detalhes técnicos</summary>
 					<div>
@@ -764,6 +765,11 @@ function ReviewEditor({
 						{handoffBlocker.action === "retry" ? (
 							<Button type="button" variant="secondary" disabled={publishing} onClick={() => void preparePublicationConfirmation()}>
 								Consultar novamente
+							</Button>
+						) : null}
+						{publicationRecovery?.pending && handoffBlocker.action !== "abandon" ? (
+							<Button type="button" variant="tertiary" disabled={publishing} onClick={() => void abandonPublication()}>
+								Abandonar handoff anterior
 							</Button>
 						) : null}
 						{handoffBlocker.action === "abandon" ? (
@@ -837,6 +843,21 @@ function ReviewEditor({
 						</Button>
 					</div>
 				</section>
+			) : null}
+
+			{!approvalCurrent && !review.publicationTarget && onRepairTarget ? (
+				<details className={styles.warnings}>
+					<summary>Destino do Edit precisa de atenção</summary>
+					<p>
+						{review.publicationTargetState === "invalid"
+							? "O vínculo original está danificado."
+							: "O destino privado ainda não está vinculado."}{" "}
+						O reparo usa somente a origem verificada e não publica nada.
+					</p>
+					<Button type="button" variant="secondary" disabled={busy || dirty || publishing} onClick={() => void onRepairTarget()}>
+						Reparar vínculo original
+					</Button>
+				</details>
 			) : null}
 
 			{review.lineage.executionLineage?.runtimeArtifact ? (
