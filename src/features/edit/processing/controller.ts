@@ -660,7 +660,7 @@ export class ProcessingController {
 		return deleted;
 	};
 
-	ensureLocalRun = async (sourceId: string, runId: string): Promise<boolean> => {
+	private ensureLocalRun = async (sourceId: string, runId: string): Promise<boolean> => {
 		const key = `${sourceId}:${runId}`;
 		const hasTarget = (runs: readonly LocalRunSummary[] = this.#state.localRuns) =>
 			runs.some((run) => run.sourceId === sourceId && run.runId === runId);
