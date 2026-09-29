@@ -2021,9 +2021,25 @@
 
 .jobDiagnosticsActions {
 	display: flex;
+	min-inline-size: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
 	align-items: center;
 	gap: 6px;
 	flex-wrap: wrap;
+}
+
+.jobDiagnosticsActionsLegend {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
 }
 
 .jobDiagnosticsActions > [role="status"],
