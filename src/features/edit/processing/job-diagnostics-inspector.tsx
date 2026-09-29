@@ -258,7 +258,7 @@ export function JobDiagnosticsInspector({
 					<div>
 						<span className={styles.overline}>Diagnóstico do processamento</span>
 						<h2 id="job-diagnostics-title">
-							{job?.context?.sessionId ?? "Trabalho local"}
+							Diagnóstico · {job?.context?.sessionId ?? "trabalho local"}
 						</h2>
 						{job ? (
 							<p>
@@ -292,11 +292,17 @@ export function JobDiagnosticsInspector({
 								<div><dt>Source</dt><dd className={styles.mono}>{job.context?.sourceId ?? "—"}</dd></div>
 								<div><dt>Atualizado</dt><dd>{formatDateTime(job.updated_at)}</dd></div>
 								<div><dt>Attempt</dt><dd>{job.attempt}</dd></div>
+								<div><dt>Attempt iniciado</dt><dd>{formatDateTime(job.timing.attemptStartedAt)}</dd></div>
+								<div><dt>Etapa iniciada</dt><dd>{formatDateTime(job.timing.stageStartedAt)}</dd></div>
 								<div><dt>Tempo do attempt</dt><dd>{formatSeconds(job.timing.attemptElapsedSeconds)}</dd></div>
 								<div><dt>Tempo da etapa</dt><dd>{formatSeconds(job.timing.stageElapsedSeconds)}</dd></div>
+								<div><dt>Resultado</dt><dd>{job.result_available ? "Disponível" : "Não disponível"}</dd></div>
+								<div><dt>Progresso</dt><dd>{job.progress ? `${job.progress.completed}/${job.progress.total} ${job.progress.unit}` : "—"}</dd></div>
 								<div><dt>Engine</dt><dd>{profile?.engine ?? "—"}</dd></div>
 								<div><dt>Modelo</dt><dd>{profile?.model ?? "—"}</dd></div>
+								<div><dt>Revisão do modelo</dt><dd>{profile?.modelRevision ?? "—"}</dd></div>
 								<div><dt>Runtime</dt><dd>{profile?.runtimeVersion ?? "—"}</dd></div>
+								<div><dt>Compute</dt><dd>{profile?.computeType ?? "—"}</dd></div>
 								<div><dt>Dispositivo</dt><dd>{job.executionDevice?.kind === "cuda" ? `CUDA ${job.executionDevice.logicalIndex ?? "?"}` : job.executionDevice?.kind ?? "—"}</dd></div>
 								{gpu ? (
 									<div className={styles.detailWide}>
