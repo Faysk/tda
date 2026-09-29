@@ -1,5 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
+type Box = NonNullable<Awaited<ReturnType<ReturnType<Page["locator"]>["boundingBox"]>>>;
+
+function overlapArea(a: Box, b: Box) {
+	const width = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
+	const height = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+	return width * height;
+}
+
 async function closeWorkspaceOverlays(page: Page) {
 	const navigationClose = page.getByRole("button", { name: "Recolher navegação do mundo" });
 	if (await navigationClose.isVisible().catch(() => false)) await navigationClose.click();
@@ -7,7 +15,7 @@ async function closeWorkspaceOverlays(page: Page) {
 	if (await inspectorClose.isVisible().catch(() => false)) await inspectorClose.click();
 }
 
-test("wide World workspace uses one control row and floats filters over the canvas", async ({ page }, testInfo) => {
+test("wide World workspace uses one safe control row and keeps contextual chrome inside the canvas", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name === "mobile", "Wide workspace contract.");
 	await page.goto("/mundo");
 	const viewport = page.viewportSize();
@@ -15,6 +23,7 @@ test("wide World workspace uses one control row and floats filters over the canv
 
 	const heading = page.getByRole("heading", { level: 1, name: "Ecos da Jornada" });
 	await expect(heading).toHaveCount(1);
+	await expect(page.locator("[data-world-workspace-bar]")).toHaveCount(1);
 
 	const search = page.locator("[data-world-search]");
 	const relation = page.locator("[data-world-relation-filter]");
@@ -39,14 +48,40 @@ test("wide World workspace uses one control row and floats filters over the canv
 		expect(Math.abs((conductorBox?.y ?? rowY) - rowY)).toBeLessThan(3);
 	}
 
+	const brand = page.locator(".brand");
+	const avatar = page.locator(".account-menu-trigger");
+	const [brandBox, searchBox, avatarBox, resetBox, viewBox] = await Promise.all([
+		brand.boundingBox(),
+		search.boundingBox(),
+		avatar.boundingBox(),
+		reset.boundingBox(),
+		viewToggle.boundingBox(),
+	]);
+	for (const box of [brandBox, searchBox, avatarBox, resetBox, viewBox]) expect(box).not.toBeNull();
+	if (brandBox && searchBox) expect(overlapArea(brandBox, searchBox)).toBe(0);
+	if (avatarBox && resetBox) expect(overlapArea(avatarBox, resetBox)).toBe(0);
+	if (avatarBox && viewBox) expect(overlapArea(avatarBox, viewBox)).toBe(0);
+
 	const canvas = page.getByTestId("world-canvas");
 	const filters = page.getByRole("group", { name: "Filtrar o grafo" });
-	const canvasBox = await canvas.boundingBox();
-	const filterBox = await filters.boundingBox();
+	const [canvasBox, filterBox] = await Promise.all([canvas.boundingBox(), filters.boundingBox()]);
 	expect(canvasBox).not.toBeNull();
 	expect(filterBox).not.toBeNull();
 	expect((filterBox?.y ?? 0) + (filterBox?.height ?? 0)).toBeGreaterThan(canvasBox?.y ?? 0);
 	expect(filterBox?.y ?? Number.POSITIVE_INFINITY).toBeLessThan((canvasBox?.y ?? 0) + 100);
+	expect(await filters.evaluate((element) => element.closest('[data-testid="world-canvas"]') !== null)).toBeTruthy();
+
+	const permanentLegend = page.getByRole("list", { name: "Legenda de relações" });
+	await expect(permanentLegend).toBeHidden();
+
+	const leftTab = page.getByRole("button", { name: "Recolher navegação do mundo" });
+	const rightTab = page.getByRole("button", { name: "Recolher painel de detalhes" });
+	const [leftBox, rightBox] = await Promise.all([leftTab.boundingBox(), rightTab.boundingBox()]);
+	expect(leftBox).not.toBeNull();
+	expect(rightBox).not.toBeNull();
+	expect(Math.abs((leftBox?.width ?? 0) - (rightBox?.width ?? 0))).toBeLessThan(1);
+	expect(Math.abs((leftBox?.height ?? 0) - (rightBox?.height ?? 0))).toBeLessThan(1);
+	expect(Math.abs((leftBox?.y ?? 0) - (rightBox?.y ?? 0))).toBeLessThan(2);
 
 	await closeWorkspaceOverlays(page);
 	const all = page.getByRole("button", { name: "Todos", exact: true });
