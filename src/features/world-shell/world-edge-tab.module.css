@@ -50,51 +50,7 @@
 	box-shadow: var(--ds-control-focus-ring);
 }
 
-/* Workspace v3: side chrome overlays the spatial stage instead of becoming a grid column. */
-:global([data-world-workspace-root][data-world-navigation]) {
-	display: block;
-	grid-template-columns: none;
-}
-
-:global([data-world-workspace-root] [data-testid="world-workspace-stage"]) {
-	width: 100%;
-	min-width: 0;
-}
-
-:global([data-world-workspace-root] [data-testid="world-workspace-navigation"]) {
-	position: fixed;
-	top: var(--world-workspace-top-offset, 0px);
-	bottom: 0;
-	left: 0;
-	z-index: 50;
-	width: var(--world-workspace-navigation-width);
-	height: auto;
-	box-shadow: 18px 0 52px color-mix(in srgb, var(--ds-canvas) 44%, transparent);
-	opacity: 0;
-	visibility: hidden;
-	pointer-events: none;
-	transform: translateX(-100%);
-	transition:
-		transform var(--ds-motion-base) var(--ds-ease-soft),
-		opacity var(--ds-motion-fast) var(--ds-ease-standard),
-		visibility 0s linear var(--ds-motion-base);
-}
-
-:global([data-world-workspace-root][data-world-navigation="open"] [data-testid="world-workspace-navigation"]) {
-	opacity: 1;
-	visibility: visible;
-	pointer-events: auto;
-	transform: translateX(0);
-	transition:
-		transform var(--ds-motion-base) var(--ds-ease-soft),
-		opacity var(--ds-motion-fast) var(--ds-ease-standard),
-		visibility 0s linear 0s;
-}
-
-:global([data-testid="world-workspace-navigation"] button[aria-label="Fechar navegação do mundo"]) {
-	display: none;
-}
-
+/* Edge tabs own only their affordance geometry; workspace overlays live in the shell. */
 :global([data-world-workspace-root] [data-world-edge-tab][data-edge="left"]) {
 	position: fixed;
 	top: 50%;
