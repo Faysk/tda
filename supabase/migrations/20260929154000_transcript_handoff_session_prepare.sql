@@ -37,6 +37,7 @@ begin
   end if;
 
   if p_campaign_id is null
+     or p_publication_kind is null
      or p_publication_kind not in ('single_source', 'session_assembly')
      or p_lookup_only is null
      or p_input is null
