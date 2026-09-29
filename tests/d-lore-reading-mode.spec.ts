@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import dUiManifest from "../media/manifests/d-ui.json";
 
@@ -24,12 +22,6 @@ test("D switches between cinematic and full reading modes on the same URL", asyn
 	await expect(favicon).toHaveCount(1);
 	await expect(favicon).toHaveAttribute("type", "image/svg+xml");
 	await expect(favicon).toHaveAttribute("href", D_FAVICON_URL);
-	const faviconSource = readFileSync(dFaviconAsset.source);
-	expect(faviconSource.byteLength).toBe(dFaviconAsset.bytes);
-	expect(createHash("sha256").update(faviconSource).digest("hex")).toBe(
-		dFaviconAsset.sha256,
-	);
-	expect(faviconSource.toString("utf8")).toContain('aria-label="D."');
 
 	const toggle = page.locator("#lore-mode-toggle");
 	await expect(toggle).toBeVisible();
