@@ -204,9 +204,7 @@ begin
         and s.campaign_id = v_campaign_id
         and s.source_system = 'local_companion'
         and s.source_session_id = v_source_session_id
-        and s.current_transcript_revision_id is null
-        and s.current_editorial_draft_id is null
-        and s.current_session_publication_id is null;
+        and s.current_transcript_revision_id is null;
     end if;
     return v_result;
   end if;
