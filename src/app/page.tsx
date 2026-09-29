@@ -106,7 +106,7 @@ export default async function Home() {
 	const latestDate = latest ? formatSessionDate(latest.date) : "";
 
 	return (
-		<div className={styles.home}>
+		<div className={styles.home} data-home-surface="cinematic">
 			<section className={styles.hero} aria-labelledby="home-title">
 				{latest ? (
 					<div className={styles.heroBackdrop} aria-hidden="true">
@@ -116,7 +116,7 @@ export default async function Home() {
 				) : null}
 
 				{latest ? (
-					<article className={styles.heroLatest}>
+					<article className={styles.heroLatest} data-home-editorial-anchor="latest">
 						<span className={styles.latestBadge}>Última sessão</span>
 						<div className={styles.latestMeta}>
 							<span>{latest.arc || "Memória da campanha"}</span>
@@ -143,7 +143,7 @@ export default async function Home() {
 						</Link>
 					</article>
 				) : (
-					<div className={styles.heroFallback}>
+					<div className={styles.heroFallback} data-home-editorial-anchor="fallback">
 						<ArchivePreview unavailable={sessions === undefined} />
 					</div>
 				)}

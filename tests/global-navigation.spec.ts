@@ -1,10 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const publicLabels = [
-	"Sessões",
-	"Lembra",
-	"Lores",
-	"Mundo",
+const worldLabels = [
 	"Personagens",
 	"NPCs",
 	"Lugares",
@@ -112,17 +108,38 @@ async function expectPanelContained(page: import("@playwright/test").Page) {
 	expect(box.y).toBeLessThan(viewport.height);
 }
 
-test("avatar is the only global trigger and exposes the complete public IA", async ({ page }) => {
+test("avatar is the only global trigger and exposes hierarchical public IA", async ({ page }) => {
 	await mockAccess(page);
-	await page.goto("/sessoes/nonexistent");
+	await page.goto("/personagens");
 	await expect(page.getByRole("button", { name: "Abrir navegação" })).toHaveCount(0);
 	await expect(page.locator(".product-launcher-trigger")).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "Abrir menu global" })).toHaveCount(1);
+
 	const panel = await openGlobalMenu(page);
 	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
-	const labels = await navigation.locator(".product-launcher-link").allTextContents();
-	expect(labels.slice(0, publicLabels.length)).toEqual(publicLabels);
-	await expect(navigation.getByRole("link", { name: "Sessões", exact: true })).toHaveAttribute("aria-current", "page");
+	for (const label of ["Sessões", "Lores", "Lembra"]) {
+		await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+	}
+	const world = navigation.getByRole("button", { name: "Mundo", exact: true });
+	await expect(world).toBeVisible();
+	await expect(world).toHaveAttribute("data-current", "true");
+	for (const label of worldLabels) {
+		await expect(navigation.getByRole("link", { name: label, exact: true })).toHaveCount(0);
+	}
+
+	await world.focus();
+	await world.press("Enter");
+	await expect(navigation.getByRole("heading", { name: "Mundo", exact: true })).toBeVisible();
+	const back = navigation.getByRole("button", { name: "Voltar para Explorar", exact: true });
+	await expect(back).toBeFocused();
+	await expect(navigation.getByRole("link", { name: "Explorar tudo", exact: true })).toHaveAttribute("href", "/mundo");
+	for (const label of worldLabels) {
+		await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+	}
+	await expect(navigation.getByRole("link", { name: "Personagens", exact: true })).toHaveAttribute("aria-current", "page");
+
+	await back.click();
+	await expect(world).toBeFocused();
 });
 
 test("floating shell removes the structural top band and stays viewport-bound", async ({ page }) => {
@@ -358,12 +375,15 @@ test("World keeps floating global navigation without the retired header reveal c
 	}
 });
 
-test("unified panel projects only authorized tools", async ({ page }) => {
+test("tools drill-down projects only authorized tools", async ({ page }) => {
 	await mockAccess(page, { capabilities: ["campaign.transcript.read", "campaign.local.process", "campaign.permissions.manage"] });
 	await page.goto("/");
 	const panel = await openGlobalMenu(page);
 	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
-	await expect(navigation.getByText("Ferramentas", { exact: true })).toBeVisible();
+	const toolsButton = navigation.getByRole("button", { name: "Ferramentas", exact: true });
+	await expect(toolsButton).toBeVisible();
+	await toolsButton.click();
+	await expect(navigation.getByRole("heading", { name: "Ferramentas", exact: true })).toBeVisible();
 	for (const label of ["Transcrições", "Editar sessões", "Processar", "Permissões"]) {
 		await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
 	}
@@ -371,11 +391,12 @@ test("unified panel projects only authorized tools", async ({ page }) => {
 	await expect(navigation.getByRole("link", { name: "Revisão", exact: true })).toHaveCount(0);
 });
 
-test("broad capability projection exposes the complete authorized tool set", async ({ page }) => {
+test("broad capability projection exposes the complete authorized tool set in its drill-down", async ({ page }) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.goto("/");
 	const panel = await openGlobalMenu(page);
 	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
+	await navigation.getByRole("button", { name: "Ferramentas", exact: true }).click();
 	for (const label of [
 		"Transcrições",
 		"Editar sessões",
@@ -388,14 +409,14 @@ test("broad capability projection exposes the complete authorized tool set", asy
 	}
 });
 
-test("anonymous unified panel keeps public navigation, safe return path and appearance", async ({ page }) => {
+test("anonymous unified panel keeps macro navigation, safe return path and appearance", async ({ page }) => {
 	await mockAccess(page, { state: "anonymous" });
 	await page.goto("/sessoes");
 	const panel = await openGlobalMenu(page);
 	await expect(panel.getByRole("button", { name: "Entrar com Discord" })).toBeVisible();
 	await expect(panel.locator('input[name="next"]')).toHaveValue("/sessoes");
 	await expect(panel.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
-	await expect(panel.getByRole("link", { name: "Mundo", exact: true })).toBeVisible();
+	await expect(panel.getByRole("button", { name: "Mundo", exact: true })).toBeVisible();
 	await expect(panel.getByText("Ferramentas", { exact: true })).toHaveCount(0);
 });
 
@@ -564,6 +585,22 @@ test("reduced motion bypasses the long panel transition and unmounts immediately
 	await expect(panel).toHaveCount(0);
 });
 
+test("reduced motion also removes hierarchical drill-down animation", async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	await panel.getByRole("button", { name: "Mundo", exact: true }).click();
+	const worldView = panel.locator('.global-nav-view[data-view="world"]');
+	await expect(worldView).toBeVisible();
+	const animation = await worldView.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return { name: style.animationName, duration: style.animationDuration };
+	});
+	expect(animation.name).toBe("none");
+	expect(animation.duration).toBe("0s");
+});
+
 test("unified panel keeps ordinary links, 44px trigger and no ARIA application menu roles", async ({ page }) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.goto("/");
@@ -595,22 +632,24 @@ test("skip link becomes visible on keyboard focus with and without reduced motio
 	}
 });
 
-test("unified grid preserves large glyphs while making cells denser", async ({ page }) => {
+test("hierarchical rows keep useful icon size without launcher-card density", async ({ page }) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.setViewportSize({ width: 1366, height: 768 });
 	await page.goto("/");
 	const panel = await openGlobalMenu(page);
-	const link = panel.getByRole("link", { name: "Editar sessões", exact: true });
-	const icon = link.locator(".product-launcher-item-icon");
-	const [linkBox, iconBox] = await Promise.all([link.boundingBox(), icon.boundingBox()]);
-	expect(linkBox).not.toBeNull();
+	const world = panel.getByRole("button", { name: "Mundo", exact: true });
+	const worldIcon = world.locator(".global-nav-row-icon");
+	const [rowBox, iconBox] = await Promise.all([world.boundingBox(), worldIcon.boundingBox()]);
+	expect(rowBox).not.toBeNull();
 	expect(iconBox).not.toBeNull();
-	if (linkBox && iconBox) {
-		expect(linkBox.height).toBeGreaterThanOrEqual(76);
-		expect(linkBox.height).toBeLessThan(96);
-		expect(iconBox.width).toBeGreaterThanOrEqual(30);
-		expect(iconBox.height).toBeGreaterThanOrEqual(30);
+	if (rowBox && iconBox) {
+		expect(rowBox.height).toBeGreaterThanOrEqual(44);
+		expect(rowBox.height).toBeLessThan(64);
+		expect(iconBox.width).toBeGreaterThanOrEqual(22);
+		expect(iconBox.height).toBeGreaterThanOrEqual(22);
 	}
+
+	await panel.getByRole("button", { name: "Ferramentas", exact: true }).click();
 	for (const label of ["Editar sessões", "Transcrições", "Permissões"]) {
 		const criticalLink = panel.getByRole("link", { name: label, exact: true });
 		await expect(criticalLink).toBeVisible();
@@ -620,7 +659,7 @@ test("unified grid preserves large glyphs while making cells denser", async ({ p
 	}
 });
 
-test("unified panel stays contained and scrolls internally across the responsive matrix", async ({ page }) => {
+test("hierarchical panel stays contained across the responsive matrix and keeps primary navigation above the fold on Full HD", async ({ page }) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.goto("/");
 	for (const viewport of [
@@ -628,7 +667,6 @@ test("unified panel stays contained and scrolls internally across the responsive
 		{ width: 390, height: 844 },
 		{ width: 390, height: 500 },
 		{ width: 768, height: 1024 },
-		// 1366×768 rendered at 200% browser zoom is approximately this CSS viewport.
 		{ width: 683, height: 384 },
 		{ width: 1366, height: 768 },
 		{ width: 1920, height: 1080 },
@@ -638,19 +676,31 @@ test("unified panel stays contained and scrolls internally across the responsive
 		const panel = await openGlobalMenu(page);
 		await expectNoHorizontalOverflow(page);
 		await expectPanelContained(page);
-		const columns = await panel.locator(".product-launcher-grid").first().evaluate((element) =>
-			getComputedStyle(element).gridTemplateColumns.split(/\s+/u).filter(Boolean).length,
-		);
-		expect(columns).toBe(viewport.width <= 360 ? 2 : 3);
-		if (viewport.height <= 500) {
-			const state = await page.locator(".account-menu-panel").evaluate((element) => ({
+
+		for (const label of ["Sessões", "Lores", "Lembra"]) {
+			await expect(panel.getByRole("link", { name: label, exact: true })).toBeVisible();
+		}
+		await expect(panel.getByRole("button", { name: "Mundo", exact: true })).toBeVisible();
+		await expect(panel.getByRole("button", { name: "Ferramentas", exact: true })).toBeVisible();
+
+		if (viewport.width === 1920 && viewport.height === 1080) {
+			const state = await panel.evaluate((element) => ({
 				clientHeight: element.clientHeight,
 				scrollHeight: element.scrollHeight,
-				overflowY: getComputedStyle(element).overflowY,
 			}));
-			expect(state.scrollHeight).toBeGreaterThan(state.clientHeight);
-			expect(state.overflowY).toBe("auto");
+			expect(state.scrollHeight).toBeLessThanOrEqual(state.clientHeight + 1);
 		}
+
+		await panel.getByRole("button", { name: "Mundo", exact: true }).click();
+		await expect(panel.getByRole("link", { name: "Personagens", exact: true })).toBeVisible();
+		await expectNoHorizontalOverflow(page);
+		await panel.getByRole("button", { name: "Voltar para Explorar", exact: true }).click();
+
+		await panel.getByRole("button", { name: "Ferramentas", exact: true }).click();
+		await expect(panel.getByRole("link", { name: "Editar sessões", exact: true })).toBeVisible();
+		await expectNoHorizontalOverflow(page);
+		await panel.getByRole("button", { name: "Voltar para Explorar", exact: true }).click();
+
 		await page.keyboard.press("Escape");
 	}
 });
@@ -767,21 +817,21 @@ test("account overview keeps synthetic identity and access usable across the lay
 		{
 			query: "anonymous",
 			status: "Não autenticada",
-			body: "Entre com o Discord para consultar seu perfil TDA.",
+			body: "Entre com o Discord para consultar seu vínculo TDA.",
 		},
 		{
 			query: "unavailable",
 			status: "Acesso indisponível",
-			body: "Não foi possível consultar seu perfil TDA agora.",
+			body: "Não foi possível consultar seu vínculo TDA agora.",
 		},
 		{
 			query: "unlinked",
 			status: "Não vinculada",
-			body: "Ainda sem perfil TDA vinculado.",
+			body: "Esta conta do Discord ainda não tem um perfil TDA vinculado.",
 		},
 		{
 			query: "no-grants",
-			status: "Sem permissões nesta campanha",
+			status: "Vinculada · sem permissões",
 			body: "Nenhuma permissão efetiva nesta campanha.",
 		},
 	]) {
@@ -806,19 +856,37 @@ test("account overview keeps synthetic identity and access usable across the lay
 			page.getByRole("heading", { name: "Conta e acesso", exact: true }),
 		).toBeVisible();
 		await expect(page.getByText("Pessoa Sintética", { exact: true })).toBeVisible();
-		await expect(page.getByText("profile-tda-synthetic-927", { exact: true })).toBeVisible();
+		const profileId = page.getByText("profile-tda-synthetic-927", { exact: true });
+		await expect(profileId).toBeHidden();
 		await expect(
-			page.getByRole("heading", { name: "Permissões nesta campanha", exact: true }),
+			page.getByRole("heading", { name: "Acesso nesta campanha", exact: true }),
 		).toBeVisible();
-		await expect(page.getByText("Gerenciar permissões", { exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Vínculo TDA", exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Aparência", exact: true })).toBeVisible();
+		await expect(page.getByText("Gerenciar permissões", { exact: true }).first()).toBeVisible();
+		const technicalCapability = page.getByText("campaign.permissions.manage", { exact: true });
+		await expect(technicalCapability).toBeHidden();
+		await page.getByText("Detalhes técnicos do acesso", { exact: true }).click();
+		await expect(technicalCapability).toBeVisible();
 		await expect(page.getByText("campaign/yuhara-main", { exact: true })).toHaveCount(0);
 		await expect(page.getByRole("link", { name: "Ver histórias públicas" })).toHaveCount(0);
+		await expect(page.locator('main a[href^="/edit"], main a[href="/transcricoes"]')).toHaveCount(0);
+		await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
 		await expect(page.locator('form[action="/auth/logout"]')).toHaveAttribute("method", "post");
 		await expectNoHorizontalOverflow(page);
 	}
 
+	await page.goto("/e2e-fixtures/account-overview?state=unavailable");
+	await expect(page.locator('form[action="/auth/logout"]')).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "Tentar novamente" })).toBeVisible();
+
+	await page.goto("/e2e-fixtures/account-overview?state=anonymous");
+	await expect(page.locator('form[action="/auth/logout"]')).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "Entrar com Discord" })).toBeVisible();
+
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/e2e-fixtures/account-overview");
+	await page.getByText("Identificador do perfil", { exact: true }).click();
 	const copyId = page.getByRole("button", { name: "Copiar ID" });
 	await copyId.focus();
 	await expect(copyId).toBeFocused();

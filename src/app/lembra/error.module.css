@@ -1,12 +1,16 @@
 .shell {
-	min-height: calc(100vh - 120px);
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	padding: 48px var(--ds-page-gutter);
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
+	min-height: min(62dvh, 680px);
+	margin-inline: auto;
+	padding:
+		max(96px, calc(var(--site-chrome-panel-top, 66px) + 24px))
+		var(--ds-page-gutter)
+		72px;
 	color: var(--ds-foreground-soft);
-	text-align: center;
+}
+
+.content {
+	width: min(100%, var(--ds-layout-reading, 900px));
 }
 
 .icon {
@@ -32,17 +36,27 @@
 }
 
 .shell h1 {
+	max-width: 24ch;
 	margin: 0;
 	color: var(--ds-foreground);
-	font-size: clamp(1.3rem, 2vw, 1.75rem);
+	font-size: clamp(1.7rem, 3vw, 2.4rem);
 	font-weight: 500;
+	line-height: 1.08;
 }
 
 .shell p {
-	max-width: 440px;
-	margin: 9px 0 20px;
+	max-width: 56ch;
+	margin: 12px 0 22px;
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-ui);
-	font-size: 0.88rem;
-	line-height: 1.55;
+	font-size: 0.9rem;
+	line-height: 1.6;
+}
+
+@media (max-width: 650px) {
+	.shell {
+		min-height: auto;
+		padding-top: max(92px, calc(var(--site-chrome-panel-top, 66px) + 20px));
+		padding-bottom: 64px;
+	}
 }

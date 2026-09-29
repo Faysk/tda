@@ -32,6 +32,8 @@ test("Discord entry is clear and has no alternate credentials", async ({
 		page.locator('input[type="password"], input[type="email"]'),
 	).toHaveCount(0);
 	await expect(page.locator('input[name="next"]')).toHaveValue("/conta");
+	await expect(page.locator("main")).toContainText("voltar com segurança ao destino solicitado");
+	await expect(page.locator("main").getByRole("link")).toHaveCount(0);
 	await expect(page.locator("body")).not.toContainText("Google");
 	expect(
 		await page.evaluate(
@@ -62,7 +64,7 @@ test("administrative pages disclose no data when access resolution is unavailabl
 		await page.goto(path);
 		await expect(page).toHaveURL(/\/conta\?acesso=indisponivel$/);
 		await expect(
-			page.getByRole("heading", { name: "Acesso à campanha" }),
+			page.getByRole("heading", { name: "Conta e acesso" }),
 		).toBeVisible();
 		await expect(page.locator("main").getByRole("alert")).toContainText(
 			"não conseguiu verificar seu acesso",

@@ -28,67 +28,167 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 	).toBeTruthy();
 });
 
-test("home uses a full-viewport cinematic hero without layout waste or overlap", async ({
+test("home cinematic baseline preserves viewport, keyline and readable copy widths", async ({
 	page,
 }) => {
-	await page.goto("/");
-	const viewport = page.viewportSize();
-	expect(viewport).not.toBeNull();
-	if (!viewport) return;
+	const viewports = [
+		{
+			width: 1920,
+			height: 1080,
+			heroMin: 640,
+			titleMax: 760,
+			metaMax: 760,
+			summaryMax: 720,
+			summaryLines: "3",
+			artworkPosition: "center 46%",
+		},
+		{
+			width: 2560,
+			height: 1440,
+			heroMin: 860,
+			titleMax: 900,
+			metaMax: 820,
+			summaryMax: 820,
+			summaryLines: "3",
+			artworkPosition: "center 44%",
+		},
+		{
+			width: 390,
+			height: 844,
+			heroMin: 620,
+			titleMax: 760,
+			metaMax: 760,
+			summaryMax: 720,
+			summaryLines: "4",
+			artworkPosition: "67% center",
+		},
+		{
+			width: 320,
+			height: 800,
+			heroMin: 620,
+			titleMax: 760,
+			metaMax: 760,
+			summaryMax: 720,
+			summaryLines: "4",
+			artworkPosition: "67% center",
+		},
+	] as const;
 
-	const geometry = await page.evaluate(() => {
-		const header = document.querySelector<HTMLElement>(".site-header");
-		const brand = document.querySelector<HTMLElement>(".brand");
-		const actions = document.querySelector<HTMLElement>(".header-actions");
-		const home = document.querySelector<HTMLElement>("main > div");
-		const hero = document.querySelector<HTMLElement>(
-			'section[aria-labelledby="home-title"]',
+	for (const viewport of viewports) {
+		await page.setViewportSize({ width: viewport.width, height: viewport.height });
+		await page.goto("/");
+
+		const geometry = await page.evaluate(() => {
+			const surface = document.querySelector<HTMLElement>(
+				'[data-home-surface="cinematic"]',
+			);
+			const header = document.querySelector<HTMLElement>(".site-header");
+			const brand = document.querySelector<HTMLElement>(".brand");
+			const actions = document.querySelector<HTMLElement>(".header-actions");
+			const hero = document.querySelector<HTMLElement>(
+				'section[aria-labelledby="home-title"]',
+			);
+			const editorial = document.querySelector<HTMLElement>(
+				"[data-home-editorial-anchor]",
+			);
+			const heading = document.getElementById("home-title");
+			const memories = document.querySelector<HTMLElement>(
+				'section[aria-labelledby="memories-title"]',
+			);
+			if (
+				!surface ||
+				!header ||
+				!brand ||
+				!actions ||
+				!hero ||
+				!editorial ||
+				!heading ||
+				!memories
+			) {
+				throw new Error("Home cinematic geometry contract is incomplete");
+			}
+
+			const surfaceStyle = getComputedStyle(surface);
+			const editorialStyle = getComputedStyle(editorial);
+			return {
+				overflow: document.documentElement.scrollWidth > innerWidth,
+				header: header.getBoundingClientRect().toJSON(),
+				brand: brand.getBoundingClientRect().toJSON(),
+				actions: actions.getBoundingClientRect().toJSON(),
+				surface: surface.getBoundingClientRect().toJSON(),
+				hero: hero.getBoundingClientRect().toJSON(),
+				editorial: editorial.getBoundingClientRect().toJSON(),
+				heading: heading.getBoundingClientRect().toJSON(),
+				memories: memories.getBoundingClientRect().toJSON(),
+				heroMin: Number.parseFloat(
+					surfaceStyle.getPropertyValue("--home-hero-min-block"),
+				),
+				titleMax: Number.parseFloat(
+					surfaceStyle.getPropertyValue("--home-editorial-title-max"),
+				),
+				metaMax: Number.parseFloat(
+					surfaceStyle.getPropertyValue("--home-editorial-meta-max"),
+				),
+				summaryMax: Number.parseFloat(
+					surfaceStyle.getPropertyValue("--home-editorial-summary-max"),
+				),
+				summaryLines: surfaceStyle
+					.getPropertyValue("--home-summary-lines")
+					.trim(),
+				artworkPosition: surfaceStyle
+					.getPropertyValue("--home-artwork-position")
+					.trim(),
+				paddingLeft: Number.parseFloat(editorialStyle.paddingLeft),
+				paddingRight: Number.parseFloat(editorialStyle.paddingRight),
+			};
+		});
+
+		expect(geometry.overflow).toBeFalsy();
+		expect(Math.abs(geometry.header.height)).toBeLessThanOrEqual(1);
+		expect(Math.abs(geometry.surface.top)).toBeLessThanOrEqual(1);
+		expect(Math.abs(geometry.hero.top)).toBeLessThanOrEqual(1);
+		expect(Math.abs(geometry.surface.width - viewport.width)).toBeLessThanOrEqual(2);
+		expect(Math.abs(geometry.hero.width - viewport.width)).toBeLessThanOrEqual(2);
+		const expectedEditorialWidth = Math.min(viewport.width, 2160);
+		const expectedEditorialLeft = (viewport.width - expectedEditorialWidth) / 2;
+		expect(
+			Math.abs(geometry.editorial.width - expectedEditorialWidth),
+		).toBeLessThanOrEqual(2);
+		expect(
+			Math.abs(geometry.editorial.left - expectedEditorialLeft),
+		).toBeLessThanOrEqual(2);
+		expect(geometry.hero.height).toBeGreaterThanOrEqual(
+			Math.max(viewport.height, viewport.heroMin) - 2,
 		);
-		const feature =
-			hero?.querySelector<HTMLElement>("article") ??
-			(hero?.firstElementChild as HTMLElement | null);
-		const heading = document.getElementById("home-title");
-		const memories = document.querySelector<HTMLElement>(
-			'section[aria-labelledby="memories-title"]',
-		);
-		if (!header || !brand || !actions || !home || !hero || !feature || !heading || !memories) {
-			throw new Error("Home geometry contract is incomplete");
-		}
-		return {
-			overflow: document.documentElement.scrollWidth > innerWidth,
-			header: header.getBoundingClientRect().toJSON(),
-			brand: brand.getBoundingClientRect().toJSON(),
-			actions: actions.getBoundingClientRect().toJSON(),
-			home: home.getBoundingClientRect().toJSON(),
-			hero: hero.getBoundingClientRect().toJSON(),
-			feature: feature.getBoundingClientRect().toJSON(),
-			heading: heading.getBoundingClientRect().toJSON(),
-			memories: memories.getBoundingClientRect().toJSON(),
-		};
-	});
+		expect(geometry.brand.right).toBeLessThan(geometry.actions.left);
+		expect(geometry.brand.left).toBeGreaterThanOrEqual(-1);
+		expect(geometry.actions.right).toBeLessThanOrEqual(viewport.width + 1);
+		expect(geometry.heading.top).toBeGreaterThanOrEqual(geometry.hero.top);
+		expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.hero.bottom);
+		expect(geometry.memories.top).toBeGreaterThanOrEqual(geometry.hero.bottom - 2);
 
-	expect(geometry.overflow).toBeFalsy();
-	const expectedShellWidth = Math.min(viewport.width, 2160);
-	const expectedShellLeft = (viewport.width - expectedShellWidth) / 2;
-	expect(Math.abs(geometry.header.width - expectedShellWidth)).toBeLessThanOrEqual(2);
-	expect(Math.abs(geometry.header.left - expectedShellLeft)).toBeLessThanOrEqual(2);
-	expect(Math.abs(geometry.home.width - viewport.width)).toBeLessThanOrEqual(2);
-	expect(Math.abs(geometry.hero.width - viewport.width)).toBeLessThanOrEqual(2);
-	expect(Math.abs(geometry.hero.left)).toBeLessThanOrEqual(2);
-	expect(geometry.brand.right).toBeLessThan(geometry.actions.left);
-	expect(Math.abs(geometry.brand.y - geometry.actions.y)).toBeLessThan(16);
+		const expectedGutter = Math.min(72, Math.max(20, viewport.width * 0.035));
+		expect(Math.abs(geometry.paddingLeft - expectedGutter)).toBeLessThanOrEqual(1.5);
+		expect(Math.abs(geometry.paddingRight - expectedGutter)).toBeLessThanOrEqual(1.5);
 
-	const expectedHeroHeight = viewport.height - geometry.header.height;
-	expect(geometry.hero.height).toBeGreaterThanOrEqual(expectedHeroHeight - 2);
-	expect(geometry.heading.top).toBeGreaterThanOrEqual(geometry.hero.top);
-	expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.hero.bottom);
-	expect(geometry.feature.left).toBeGreaterThanOrEqual(expectedShellLeft - 2);
-	expect(geometry.feature.right).toBeLessThanOrEqual(
-		expectedShellLeft + expectedShellWidth + 2,
-	);
-	expect(Math.abs(geometry.memories.width - expectedShellWidth)).toBeLessThanOrEqual(2);
-	expect(Math.abs(geometry.memories.left - expectedShellLeft)).toBeLessThanOrEqual(2);
-	expect(geometry.memories.top).toBeGreaterThanOrEqual(geometry.hero.bottom - 2);
+		expect(geometry.heroMin).toBe(viewport.heroMin);
+		expect(geometry.titleMax).toBe(viewport.titleMax);
+		expect(geometry.metaMax).toBe(viewport.metaMax);
+		expect(geometry.summaryMax).toBe(viewport.summaryMax);
+		expect(geometry.summaryLines).toBe(viewport.summaryLines);
+		expect(geometry.artworkPosition).toBe(viewport.artworkPosition);
+
+		const overlaps = (
+			a: { left: number; right: number; top: number; bottom: number },
+			b: { left: number; right: number; top: number; bottom: number },
+		) =>
+			a.left < b.right &&
+			a.right > b.left &&
+			a.top < b.bottom &&
+			a.bottom > b.top;
+		expect(overlaps(geometry.heading, geometry.brand)).toBeFalsy();
+		expect(overlaps(geometry.heading, geometry.actions)).toBeFalsy();
+	}
 });
 
 test("public shell stays usable at 320px", async ({ page }) => {
@@ -339,4 +439,27 @@ test("unavailable published session keeps the public recovery navigation contrac
 
 test("private API routes are not exposed", async ({ request }) => {
 	expect((await request.get("/api/transcripts")).status()).toBe(404);
+});
+
+
+test("Lore and Diário inherit the shared page gutter and layout ceiling", async ({
+	page,
+}) => {
+	for (const route of ["/lore", "/diario"] as const) {
+		await page.goto(route);
+		const geometryTokens = await page.evaluate(() => {
+			const styles = getComputedStyle(document.documentElement);
+			const layoutMax = Number.parseFloat(styles.getPropertyValue("--ds-layout-max"));
+			const probe = document.createElement("div");
+			probe.style.cssText =
+				"position:fixed;visibility:hidden;width:var(--ds-page-gutter);height:0";
+			document.body.append(probe);
+			const gutter = probe.getBoundingClientRect().width;
+			probe.remove();
+			return { gutter, layoutMax };
+		});
+		expect(geometryTokens.layoutMax).toBe(2160);
+		expect(geometryTokens.gutter).toBeGreaterThanOrEqual(20);
+		expect(geometryTokens.gutter).toBeLessThanOrEqual(72);
+	}
 });

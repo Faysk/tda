@@ -176,11 +176,19 @@ export function SessionAssemblyResults({ capabilities }: Props) {
 	}
 
 	return (
-		<section className={styles.section} aria-labelledby="session-assembly-results-title">
+		<section
+			className={styles.section}
+			aria-labelledby="session-assembly-results-title"
+			data-results-assembly="true"
+			data-empty={assemblies.length === 0 ? "true" : "false"}
+		>
 			<div className={styles.header}>
 				<div>
 					<span>Resultado de sessão</span>
 					<h2 id="session-assembly-results-title">Assemblies · {sessionId}</h2>
+					{assemblies.length === 0 ? (
+						<p className={styles.empty}>Nenhuma assembly concluída para a sessão ativa.</p>
+					) : null}
 				</div>
 				<Button type="button" size="sm" variant="tertiary" disabled={busy} onClick={() => void refresh()}>
 					Atualizar
@@ -208,9 +216,7 @@ export function SessionAssemblyResults({ capabilities }: Props) {
 						</article>
 					))}
 				</div>
-			) : (
-				<p className={styles.empty}>Nenhuma assembly concluída para a sessão ativa.</p>
-			)}
+			) : null}
 			{review ? (
 				<div className={styles.review} role="status">
 					<strong>Revisão baseada na assembly {short(review.assemblyId)}</strong>

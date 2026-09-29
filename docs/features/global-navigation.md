@@ -2,8 +2,8 @@
 
 > Status: painel global unificado integrado; contrato e QA automatizado ativos  
 > Owner: navigation / frontend / identity-access  
-> Última revisão: 2026-09-28  
-> Fonte de verdade: este documento, decisão #963, floating shell #995/#999 e guards/capabilities da `main`
+> Última revisão: 2026-09-29  
+> Fonte de verdade: este documento, decisões #963/#1082, floating shell #995/#999 e guards/capabilities da `main`
 
 ## Objetivo
 
@@ -110,29 +110,37 @@ O avatar **não concede autoridade**. Ele apenas abre uma superfície que projet
 
 ## Painel global único
 
-O painel aberto pelo avatar reúne, nessa hierarquia semântica:
+O painel aberto pelo avatar usa **progressive disclosure hierárquico**. O primeiro nível prioriza navegação macro:
 
-1. identidade / estado de conta;
-2. `Conta e acesso`, quando aplicável;
-3. Aparência;
-4. **Explorar**;
-5. **Ferramentas**, apenas quando há capabilities efetivas;
+1. **Explorar**: Sessões, Mundo, Lores e Lembra;
+2. **Ferramentas**, somente quando há capabilities efetivas;
+3. identidade / estado de conta;
+4. `Conta e acesso`, quando aplicável;
+5. Aparência;
 6. login ou logout.
 
-Links de navegação continuam links comuns dentro de `nav`. Não usar `role="menu"`/`menuitem`: trata-se de navegação de site, não de menu de aplicação.
+`Mundo` e `Ferramentas` são buttons de drill-down. Os destinos concretos continuam links comuns dentro de `nav`; não usar `role="menu"`/menuitem.
 
-O painel permanece ancorado ao avatar flutuante, limitado à viewport e com scroll interno em altura curta. Em mobile, sua posição deriva do inset do chrome + tamanho real do trigger + gap; não existe dependência conceitual de “altura da navbar”.
+Cada segunda camada possui contexto, heading e ação Voltar. Entrar numa camada move o foco para Voltar; retornar restaura o foco ao trigger que abriu a camada. Escape fecha o painel inteiro e devolve foco ao avatar.
+
+O painel permanece ancorado ao avatar flutuante, limitado à viewport e com scroll interno apenas quando a altura disponível exigir. Em 1920×1080, a navegação principal deve ser alcançável sem scroll. Em mobile, sua posição deriva do inset do chrome + tamanho real do trigger + gap.
 
 ## Destinos públicos
 
-A ordem canônica de **Explorar** é estável entre desktop e mobile:
+A primeira camada canônica de **Explorar** é estável entre desktop e mobile:
+
+| Rótulo | Destino |
+| --- | --- |
+| Sessões | `/sessoes` |
+| Mundo | drill-down |
+| Lores | `/lore` |
+| Lembra | `/lembra` |
+
+A camada **Mundo** agrupa a taxonomia:
 
 | Rótulo | Rota |
 | --- | --- |
-| Sessões | `/sessoes` |
-| Lembra | `/lembra` |
-| Lores | `/lore` |
-| Mundo | `/mundo` |
+| Explorar tudo | `/mundo` |
 | Personagens | `/personagens` |
 | NPCs | `/npcs` |
 | Lugares | `/lugares` |
@@ -141,13 +149,13 @@ A ordem canônica de **Explorar** é estável entre desktop e mobile:
 | Músicas | `/musicas` |
 | Diários | `/diario` |
 
-Uma rota inexistente ou apenas planejada não entra em Explorar. A lista muda somente quando a superfície correspondente existe e a decisão de produto é atualizada aqui.
+Quando a rota atual pertence à taxonomia acima, `Mundo` permanece visualmente marcado no primeiro nível e o link concreto recebe `aria-current="page"` na segunda camada.
 
-A navegação pública deve ficar utilizável **antes** de terminar a projeção privada de Auth e também quando Auth estiver temporariamente indisponível.
+Uma rota inexistente ou apenas planejada não entra em Explorar. A navegação pública deve continuar utilizável antes de terminar a projeção privada de Auth e também quando Auth estiver temporariamente indisponível.
 
 ## Ferramentas autorizadas
 
-Ferramentas aparecem em grupo separado e somente quando a projeção privada informa a capability necessária.
+Ferramentas aparecem como um drill-down separado e somente quando a projeção privada informa ao menos uma capability necessária. A segunda camada contém exclusivamente as ferramentas autorizadas.
 
 | Ferramenta | Destino | Capability principal para exibição |
 | --- | --- | --- |
@@ -224,31 +232,30 @@ O `ThemeToggle` vive dentro do painel global.
 
 ## Estado atual, foco e motion
 
-- rota atual usa `aria-current="page"`;
-- subrotas pertencem ao destino raiz correspondente;
-- existe uma única máquina de estado visual: `closed → opening → open → closing`;
-- abertura/fechamento normal usam o token local do painel (~2000 ms);
+- rota concreta usa `aria-current="page"`;
+- deep links de Personagens/NPCs/Lugares/Facções/Quests/Músicas/Diários mantêm `Mundo` marcado no primeiro nível;
+- existe uma única máquina de estado visual do painel: `closed → opening → open → closing`;
+- abertura/fechamento externo normal continuam usando o token local deliberado de ~2000 ms de #964;
+- drill-down interno usa transição curta (~180 ms), não bloqueia clique/teclado e é removido com reduced motion;
 - fechamento remove interação imediatamente (`aria-hidden`/`inert`/pointer disabled) e desmonta ao término;
-- abrir/fechar durante transição deve ser reversível sem painel duplicado;
-- navegação interna não espera a animação terminar;
+- abrir/fechar durante transição externa continua reversível sem painel duplicado;
 - Escape fecha e devolve foco ao avatar;
-- pathname change fecha sem bloquear navegação;
-- reduced motion elimina a transição longa.
+- pathname change e outside dismiss continuam fechando a superfície global.
 
 ## Densidade e responsividade
 
-O painel preserva o glyph icon-first (~34 px desktop; ~32 px em largura estreita quando necessário) e ganha densidade reduzindo gap, padding e altura das células.
+O primeiro nível usa lista tipográfica/hierárquica compacta. Ícones apoiam reconhecimento, mas não são a unidade dominante.
 
 Contrato visual:
 
-- ícone acima do label;
-- labels visíveis em até duas linhas;
-- células menores que a antiga baseline de 96 px;
-- `Editar sessões`, `Transcrições` e `Permissões` não podem truncar;
-- 390 px tenta 3 colunas;
-- <=360 px pode usar 2;
-- largura não cresce proporcionalmente em 2K/4K;
-- viewport curta usa scroll interno no painel, não overflow do body.
+- linhas com target confortável e pouca ornamentação;
+- sem card/borda individual para cada item neutro;
+- current/foco usam dourado apenas como acento;
+- labels longos não truncam nem criam overflow;
+- o painel não cresce proporcionalmente em 2K/4K;
+- 320/390 px permanecem sem overflow horizontal;
+- 1920×1080 alcança a navegação principal sem scroll;
+- viewport curta pode usar o scroll interno do painel.
 
 Matriz mínima:
 
@@ -260,10 +267,7 @@ Matriz mínima:
 - 2560×1440;
 - equivalente real de zoom 200% (viewport CSS reduzida);
 - dark/light;
-- reduced motion;
-- documento rolado com marca/avatar ainda viewport-fixed;
-- painel aberto após scroll;
-- Home com hero ocupando o topo real.
+- reduced motion.
 
 ## Acessibilidade
 
@@ -286,20 +290,20 @@ O gate `tests/global-navigation.spec.ts`, executado pelo job `navigation-e2e`, d
 
 - o trigger 3×3/`Abrir navegação` reaparecer;
 - existir mais de um trigger global de avatar;
-- o avatar deixar de abrir Explorar;
+- o primeiro nível voltar a listar a taxonomia completa como destinos equivalentes;
+- Mundo não abrir/voltar por teclado e pointer;
+- um deep link do Mundo perder indicação no primeiro nível ou `aria-current` no link concreto;
 - ferramenta sem capability aparecer;
+- Ferramentas desaparecer quando capabilities válidas existirem;
 - Explorar desaparecer enquanto Auth está pending/unavailable;
+- Conta/Aparência/login/logout deixarem de existir no primeiro nível;
 - dismiss/avatar toggle/Escape/pathname quebrarem;
 - closing continuar interativo/focável;
-- reduced motion mantiver a transição longa;
+- reduced motion mantiver a transição longa ou o motion interno;
 - 320/390/zoom 200% produzirem overflow;
-- labels críticos truncarem;
+- 1920×1080 exigir scroll apenas para alcançar a navegação principal;
 - o painel crescer sem limite em viewports grandes;
-- o shell voltar a reservar uma faixa full-width antes do conteúdo;
-- marca/avatar deixarem de acompanhar o viewport;
-- mobile voltar a ancorar o painel em offsets derivados da antiga navbar;
-- skip link ou foco ficarem totalmente obscurecidos pelo floating chrome;
-- a Home voltar a subtrair a altura antiga da barra do hero.
+- o shell voltar a reservar uma faixa full-width antes do conteúdo.
 
 Receipts sintéticos obrigatórios:
 
