@@ -265,7 +265,7 @@ test("Abrir resultado navega para o run exato mesmo fora da primeira página", a
 				context: context(
 					"sessao-open-target",
 					CRAIG_SOURCE_ID,
-					"whisper-detailed",
+					"qwen-quality",
 				),
 			}),
 		],
@@ -296,6 +296,7 @@ test("Abrir resultado navega para o run exato mesmo fora da primeira página", a
 						targetRunId,
 						targetSha,
 						"2026-09-28T12:00:00Z",
+						"qwen-quality",
 					),
 				],
 				has_more: false,
@@ -324,7 +325,7 @@ test("Abrir resultado navega para o run exato mesmo fora da primeira página", a
 			job_id: "job-open-target",
 			transcription: {
 				schema_version: "tda_transcript_v1",
-				profile_id: "whisper-detailed",
+				profile_id: "qwen-quality",
 				artifact: "transcript.json",
 				run_id: targetRunId,
 				sha256: targetSha,
@@ -347,8 +348,7 @@ test("Abrir resultado navega para o run exato mesmo fora da primeira página", a
 	const results = page.getByRole("tabpanel", { name: "Resultados" });
 	const selectedRun = results
 		.getByRole("button")
-		.filter({ hasText: "whisper-detailed" })
-		.filter({ hasText: "12s" });
+		.filter({ hasText: "qwen-quality" });
 	await expect(selectedRun).toHaveAttribute("aria-current", "true");
 	await expect(selectedRun).toBeFocused();
 	await expect(results.getByText(`Run ${targetRunId}`, { exact: true })).toBeVisible();
