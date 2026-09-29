@@ -1095,7 +1095,7 @@ describe("processing state", () => {
 		await controller.connect(token);
 		await expect(controller.result("test-job")).resolves.toBeNull();
 		expect(controller.snapshot()).toMatchObject({
-			connection: "connected",
+			connection: "error",
 			error: "invalid_response",
 			result: null,
 		});
