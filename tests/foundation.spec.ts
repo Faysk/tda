@@ -340,3 +340,26 @@ test("unavailable published session keeps the public recovery navigation contrac
 test("private API routes are not exposed", async ({ request }) => {
 	expect((await request.get("/api/transcripts")).status()).toBe(404);
 });
+
+
+test("Lore and Diário inherit the shared page gutter and layout ceiling", async ({
+	page,
+}) => {
+	for (const route of ["/lore", "/diario"] as const) {
+		await page.goto(route);
+		const geometryTokens = await page.evaluate(() => {
+			const styles = getComputedStyle(document.documentElement);
+			const layoutMax = Number.parseFloat(styles.getPropertyValue("--ds-layout-max"));
+			const probe = document.createElement("div");
+			probe.style.cssText =
+				"position:fixed;visibility:hidden;width:var(--ds-page-gutter);height:0";
+			document.body.append(probe);
+			const gutter = probe.getBoundingClientRect().width;
+			probe.remove();
+			return { gutter, layoutMax };
+		});
+		expect(geometryTokens.layoutMax).toBe(2160);
+		expect(geometryTokens.gutter).toBeGreaterThanOrEqual(20);
+		expect(geometryTokens.gutter).toBeLessThanOrEqual(72);
+	}
+});
