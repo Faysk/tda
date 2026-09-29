@@ -1215,7 +1215,7 @@ export function LocalReviewWorkspace({
 		pendingFocusRequest.current = null;
 		button.focus({ preventScroll: true });
 		button.scrollIntoView({ block: "nearest", inline: "nearest" });
-	}, [focusRun, focusRunKey, filteredRuns, selectedRunKey]);
+	}, [focusRun, focusRunKey, selectedRunKey]);
 	const selectedRun =
 		filteredRuns.find(
 			(run) => serializeLocalRunKey(localRunKey(run)) === selectedRunKey,
