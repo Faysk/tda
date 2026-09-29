@@ -21,6 +21,7 @@ const EXACT = {
 		"next.config.ts",
 		"src/features/lore/standalone-catalog.json",
 		"src/features/diary/catalog.json",
+		"tools/diary/generate.mjs",
 		"src/app/layout.tsx",
 		"src/app/public-shell.css",
 		"src/app/api/auth/me/route.ts",
