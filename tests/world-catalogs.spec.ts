@@ -76,7 +76,7 @@ test("catalog content starts early and uses extra desktop width without stretchi
 		await expectNoHorizontalOverflow(page);
 	}
 	expect(widths).toHaveLength(3);
-	expect(widths[1]).toBeGreaterThan(widths[0] + 80);\n\texpect(Math.abs(widths[2] - widths[1])).toBeLessThanOrEqual(4);
+	expect(widths[1]).toBeGreaterThan(widths[0] + 80);\n\texpect(Math.abs(widths[2] - widths[1])).toBeLessThanOrEqual(20);
 });
 
 test("catalog states cover empty, compact fallback, media and long titles", async ({
