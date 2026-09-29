@@ -26,11 +26,13 @@ async function structuralMeasurement(
 	target: Locator,
 ): Promise<StructuralMeasurement | null> {
 	return target.evaluate((element) => {
-		const rootStyle = getComputedStyle(document.documentElement);
-		const gutter = Number.parseFloat(
-			rootStyle.getPropertyValue("--ds-page-gutter"),
-		);
-		if (!Number.isFinite(gutter)) return null;
+		const probe = document.createElement("div");
+		probe.style.cssText =
+			"position:fixed;width:var(--ds-page-gutter);height:0;visibility:hidden;pointer-events:none";
+		document.body.append(probe);
+		const gutter = probe.getBoundingClientRect().width;
+		probe.remove();
+		if (!Number.isFinite(gutter) || gutter <= 0) return null;
 
 		let current: HTMLElement | null = element as HTMLElement;
 		while (current && current !== document.body) {
@@ -87,9 +89,12 @@ async function installReceiptOverlay(page: Page) {
 	await page.evaluate(() => {
 		document.querySelector("[data-layout-receipt-overlay]")?.remove();
 		const rootStyle = getComputedStyle(document.documentElement);
-		const gutter = Number.parseFloat(
-			rootStyle.getPropertyValue("--ds-page-gutter"),
-		);
+		const probe = document.createElement("div");
+		probe.style.cssText =
+			"position:fixed;width:var(--ds-page-gutter);height:0;visibility:hidden;pointer-events:none";
+		document.body.append(probe);
+		const gutter = probe.getBoundingClientRect().width;
+		probe.remove();
 		const layoutMax = Number.parseFloat(
 			rootStyle.getPropertyValue("--ds-layout-max"),
 		);
