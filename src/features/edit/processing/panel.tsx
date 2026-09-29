@@ -1160,14 +1160,7 @@ export function ProcessingPanel({
 							onRefresh={() => void controller.refresh("manual")}
 							onCancel={(jobId) => controller.jobAction(jobId, "cancel")}
 							onObserve={(jobId) => controller.observeJob(jobId)}
-							onOpenDiagnostics={(jobId) => {
-								const job = state.jobs.find((candidate) => candidate.id === jobId);
-								if (job) openJobDiagnostics(job);
-								else {
-									activateView("diagnostics");
-									void controller.observeJob(jobId);
-								}
-							}}
+							onOpenDiagnostics={openJobDiagnostics}
 						/>
 					</section>
 
