@@ -62,6 +62,34 @@ Navegador desktop 1440px e mobile 390px: total 5.000, projeção limitada, fallb
 histórico, contagem NEL, sem overflow horizontal ou erro de página. O estado aqui
 é de candidato; merge e release exigem evidências independentes.
 
+
+## Jornada Web de revisão — candidato #1062 / #1063 / #1064
+
+A Web projeta o lifecycle autoritativo como uma jornada, não como um campo livre de formulário:
+
+```text
+Revisar -> Salvar -> Aprovar -> Preparar no Edit
+```
+
+Regras da superfície:
+
+- `Draft / reviewed / approved_local` continuam existindo no contrato e em snapshots históricos, mas o operador não escolhe livremente esse enum em um select;
+- base ephemeral oferece **Criar revisão** como intenção explícita de materializar o primeiro draft, inclusive quando o texto bruto não precisa de correção;
+- working copy alterada oferece **Salvar revisão**; salvar conteúdo nunca herda approval anterior;
+- draft persistido e sem mudanças oferece **Aprovar revisão**, que usa o contrato de approval ligado ao `draft_revision + draft_sha256` exatos;
+- somente approval atual + preflight elegível oferece **Preparar sessão**;
+- operação ambígua preservada oferece **Reconciliar handoff**, nunca uma nova operation id silenciosa;
+- receipt confirmado encerra a jornada local com **Abrir sessão no Edit**;
+- publicação pública da sessão continua sendo uma operação posterior e separada em `/edit/sessoes/[id]`.
+
+A review mostra apenas o **primeiro blocker acionável** da cadeia. Erros de save/CAS, recovery pendente, `too_large`, `invalid_payload`, target ausente/danificado, `forbidden`, `not_found` e `stale_current` permanecem semanticamente distintos. Detalhes técnicos ficam sob disclosure e nunca substituem a ação humana recomendada.
+
+A confirmação de handoff é uma região inline focada, não um modal apenas nominal: ao abrir, o foco entra na decisão; `Escape` cancela; edição fica bloqueada até cancelar/confirmar. Isso evita anunciar `alertdialog` sem implementar focus trap/modalidade real.
+
+A composição visual mantém timeline e busca como trabalho dominante. Progresso, palavras, participantes, duração e warnings são metadata compacta; hardware, runtime, hashes e provenance técnica ficam sob **Detalhes técnicos**. O Participant Manager continua disponível por progressive disclosure.
+
+Nenhuma dessas regras automatiza approval, handoff ou publicação pública.
+
 ## Objetivo
 
 ### Preservação de legados e listagem — candidato #674
