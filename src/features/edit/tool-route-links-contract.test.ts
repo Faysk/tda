@@ -17,6 +17,10 @@ const editEntrySource = readFileSync(
 	new URL("../../app/edit/page.tsx", import.meta.url),
 	"utf8",
 );
+const editWorldEntrySource = readFileSync(
+	new URL("../../app/edit/mundo/page.tsx", import.meta.url),
+	"utf8",
+);
 
 describe("canonical Edit tool links", () => {
 	it("does not use the /edit compatibility entrypoint as normal tool navigation", () => {
@@ -25,16 +29,24 @@ describe("canonical Edit tool links", () => {
 		}
 	});
 
-	it("keeps explicit destinations for review and permissions", () => {
-		expect(reviewSource).toContain('href="/edit/sessoes"');
-		expect(reviewSource).toContain("← Sessões do Edit");
-		expect(permissionsSource).toContain('href="/edit/sessoes"');
-		expect(permissionsSource).toContain("Conta e acesso");
+	it("keeps global destinations out of review and permissions page-local chrome", () => {
+		for (const source of [reviewSource, permissionsSource]) {
+			expect(source).toContain("OperationalPageHeader");
+			expect(source).not.toContain('aria-label="Navegação do Edit"');
+			expect(source).not.toContain('href="/edit/sessoes"');
+		}
+		expect(reviewSource).not.toContain('href="/mundo"');
+		expect(permissionsSource).not.toContain('href="/conta"');
 	});
 
-	it("keeps /edit itself as a redirect-only compatibility entrypoint", () => {
+	it("keeps compatibility entrypoints redirect-only", () => {
 		expect(editEntrySource).toContain("firstAuthorizedEditDestination");
 		expect(editEntrySource).toContain('redirect("/entrar?next=%2Fedit")');
 		expect(editEntrySource).not.toContain("<nav");
+		expect(editWorldEntrySource).toContain(
+			'await requireCapability(EDIT_CAPABILITIES.worldLayoutEdit, "/edit/mundo")',
+		);
+		expect(editWorldEntrySource).toContain('redirect("/mundo")');
+		expect(editWorldEntrySource).not.toContain("<nav");
 	});
 });
