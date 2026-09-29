@@ -129,13 +129,9 @@ test("public verification uses an anonymous browser-image request without creden
 	assert.equal(headers.cookie, undefined);
 });
 
-test("public verification cache-busts readback without changing the canonical asset URL", () => {
+test("public verification uses the exact immutable canonical asset URL", () => {
 	const canonical = "https://media.dnd.faysk.dev/lore/yllith/abc/image.webp";
-	const first = publicVerificationUrl(canonical, 1, 123456);
-	const second = publicVerificationUrl(canonical, 2, 123456);
-	assert.equal(first.origin + first.pathname, canonical);
-	assert.equal(second.origin + second.pathname, canonical);
-	assert.equal(first.searchParams.get("tda_verify"), "123456-1");
-	assert.equal(second.searchParams.get("tda_verify"), "123456-2");
-	assert.notEqual(first.href, second.href);
+	const verification = publicVerificationUrl(canonical, 1, 123456);
+	assert.equal(verification.href, canonical);
+	assert.equal(verification.search, "");
 });
