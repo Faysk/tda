@@ -11,7 +11,8 @@ export type AuthorizedPublicationActor = Readonly<{
 	authUserId: string;
 	profileId: string;
 	campaignId: string;
-	sessionId: string;
+	/** Null only during the first authorized handoff, before the private session exists. */
+	sessionId: string | null;
 }>;
 
 export type PublicationDependencies = Readonly<{
@@ -39,11 +40,17 @@ export type PublicationDependencies = Readonly<{
 function expectedWithResolvedTarget(
 	actor: AuthorizedPublicationActor,
 	input: PreparedPublication,
+	receipt: PublicationReceipt,
 ) {
+	// A first handoff has no session UUID before the server-only atomic boundary
+	// creates/resolves it. The repository verifies that the returned UUID belongs
+	// to the exact authorized campaign + sourceSessionId before this receipt is
+	// exposed here.
+	const sessionId = actor.sessionId ?? receipt.sessionId;
 	return {
 		...input,
 		campaignId: actor.campaignId,
-		sessionId: actor.sessionId,
+		sessionId,
 	};
 }
 
@@ -64,7 +71,7 @@ export async function publishTranscriptRevision(
 		if (!result.ok) return result;
 		return confirmedPublicationReceipt(
 			result.receipt,
-			expectedWithResolvedTarget(access.actor, parsed.value),
+			expectedWithResolvedTarget(access.actor, parsed.value, result.receipt),
 		)
 			? result
 			: { ok: false, reason: "dependency_unavailable" };
