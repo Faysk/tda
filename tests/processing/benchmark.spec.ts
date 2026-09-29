@@ -172,8 +172,15 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await expect(panel.getByText("0 de 4 perfis concluídos")).toBeVisible();
 
 	await panel.getByRole("button", { name: "Ver log / Diagnóstico" }).click();
-	await expect(page.getByRole("tabpanel", { name: "Diagnóstico" })).toBeVisible();
-	await expect(page.getByText("benchmark-job-1", { exact: false })).toBeVisible();
+	await expect(page.getByRole("tab", { name: "Benchmark" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const inspector = page
+		.locator("dialog")
+		.filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(inspector).toContainText("benchmark-job-1");
 	expect(
 		state.requests.some((request) =>
 			request.path.startsWith("/jobs/benchmark-job-1/events"),
