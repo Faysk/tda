@@ -17,7 +17,7 @@ const MAX_ASSET_BYTES = 128 * 1024 * 1024;
 const ALLOWED_ENCODINGS = new Set(["binary", "base64"]);
 const ALLOWED_SOURCE_MODES = new Set(["repository", "canonical-r2"]);
 const ALLOWED_MEDIA_TYPE =
-	/^(?:image\/(?:avif|jpeg|png|webp)|audio\/[a-z0-9.+-]+|video\/[a-z0-9.+-]+|application\/pdf)$/;
+	/^(?:image\/(?:avif|jpeg|png|svg\+xml|webp)|audio\/[a-z0-9.+-]+|video\/[a-z0-9.+-]+|application\/pdf)$/;
 
 export function sha256(bytes) {
 	return createHash("sha256").update(bytes).digest("hex");
