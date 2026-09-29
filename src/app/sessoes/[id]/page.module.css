@@ -17,7 +17,7 @@
 }
 
 .heroWithArt {
-	min-height: clamp(600px, 72svh, 820px);
+	min-height: clamp(560px, 64svh, 760px);
 	border-bottom-color: rgba(255, 253, 248, 0.1);
 	background: #070a0d;
 }
@@ -162,7 +162,14 @@
 }
 
 .body {
-	width: min(100%, 1040px);
+	/* Keep the readable content at 880px while preserving the shared page gutter. */
+	width: min(
+		100%,
+		calc(
+			880px + var(--ds-page-gutter, clamp(20px, 3.5vw, 72px)) +
+				var(--ds-page-gutter, clamp(20px, 3.5vw, 72px))
+		)
+	);
 	margin-inline: auto;
 	padding:
 		clamp(48px, 6vw, 76px)
@@ -233,7 +240,7 @@
 	position: relative;
 	display: block;
 	overflow: hidden;
-	aspect-ratio: 16 / 6;
+	aspect-ratio: 16 / 5.25;
 	border-bottom: 1px solid var(--ds-border);
 	background:
 		radial-gradient(circle at 68% 36%, var(--ds-ambient-accent), transparent 36%),
@@ -267,7 +274,7 @@
 .linkCopy {
 	display: flex;
 	min-width: 0;
-	min-height: 138px;
+	min-height: 112px;
 	flex-direction: column;
 	justify-content: center;
 	padding: clamp(18px, 2vw, 26px);
