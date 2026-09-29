@@ -332,7 +332,6 @@ export function ProcessingPanel({
 	const [customActivityBarks, setCustomActivityBarks] = useState<readonly ActivityBark[]>([]);
 	const [resultFocus, setResultFocus] = useState<Readonly<{ key: string; requestId: number }> | null>(null);
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
-	const [resultOpeningJobId, setResultOpeningJobId] = useState<string | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -496,42 +495,40 @@ export function ProcessingPanel({
 	}
 
 	async function openJobResult(job: LocalJob) {
-		if (resultOpeningJobId !== null) return;
 		setResultOpenError(null);
-		setResultOpeningJobId(job.id);
-		try {
-			const result = await controller.result(job.id);
-			if (!result?.runId) {
-				setResultOpenError(
-					"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
-				);
-				return;
-			}
-
-			const found = await controller.ensureLocalRun(result.sourceId, result.runId);
-			if (!found) {
-				setView("results");
-				setResultOpenError(
-					"O resultado foi validado, mas o run correspondente não apareceu na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
-				);
-				return;
-			}
-
-			const key = serializeLocalRunKey({
-				sourceId: result.sourceId,
-				runId: result.runId,
-			});
-			setResultFocus((current) => ({
-				key,
-				requestId: (current?.requestId ?? 0) + 1,
-			}));
-			// Do not trigger the generic Results refresh here: ensureLocalRun already
-			// loaded the authoritative target and a concurrent first-page refresh
-			// could immediately hide an off-page run before focus is applied.
-			setView("results");
-		} finally {
-			setResultOpeningJobId(null);
+		const result = await controller.result(job.id);
+		if (!result?.runId) {
+			setResultOpenError(
+				"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
+			);
+			return;
 		}
+
+		const found = controller
+			.snapshot()
+			.localRuns.some(
+				(run) =>
+					run.sourceId === result.sourceId && run.runId === result.runId,
+			);
+		if (!found) {
+			setView("results");
+			setResultOpenError(
+				"O resultado foi validado, mas o run correspondente não apareceu na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
+			);
+			return;
+		}
+
+		const key = serializeLocalRunKey({
+			sourceId: result.sourceId,
+			runId: result.runId,
+		});
+		setResultFocus((current) => ({
+			key,
+			requestId: (current?.requestId ?? 0) + 1,
+		}));
+		// result() resolves the authoritative catalog entry before returning.
+		// Avoid a generic first-page refresh that could immediately hide it.
+		setView("results");
 	}
 
 	function openAttentionQueue() {
@@ -1009,12 +1006,7 @@ export function ProcessingPanel({
 							filter={queueFilter}
 							onFilterChange={setQueueFilter}
 							resetSearchKey={queueSearchReset}
-							mutation={
-								state.mutation ??
-								(resultOpeningJobId
-									? { kind: "result", targetId: resultOpeningJobId }
-									: null)
-							}
+							mutation={state.mutation}
 							canDelete={canDeleteJobs}
 							onCancel={(job) =>
 								setConfirmation({ id: job.id, action: "cancel" })
