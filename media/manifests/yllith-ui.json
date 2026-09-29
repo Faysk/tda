@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "project": "yllith-ui",
   "bucket": "tda-media-public",
   "namespace": "lore/yllith",
@@ -7,10 +7,12 @@
   "assets": [
     {
       "file": "favicon.svg",
-      "source": "media/sources/yllith-ui/favicon.svg",
       "bytes": 585,
       "sha256": "e1a0be3b542499177cb57526e0a0e58d1210a5aea99a3fd6d6f61a2b416d24c6",
-      "contentType": "image/svg+xml"
+      "contentType": "image/svg+xml",
+      "sourceMode": "canonical-r2",
+      "publicationReceipt": "prod-605c1f47186d",
+      "canonicalVerifiedAt": "2026-09-29T13:31:57Z"
     }
   ]
 }

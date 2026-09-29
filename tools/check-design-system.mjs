@@ -1,16 +1,8 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
 function fail(message) {
 	throw new Error(`Design system check failed: ${message}`);
-}
-
-function sha256(filePath) {
-	return crypto
-		.createHash("sha256")
-		.update(fs.readFileSync(filePath))
-		.digest("hex");
 }
 
 function sourceFiles(root) {
@@ -24,24 +16,36 @@ function sourceFiles(root) {
 }
 
 const officialAssets = {
-	"public/brand/tda-icon-duck-black.svg":
-		"10ccb252143ebb50e57de27d9704cf801d6811f4bd21e290a31d56ac4ae6f6f6",
-	"public/brand/tda-icon-duck-white.svg":
-		"8702b24c58d28fa5f217531edd6fd458333a88f26fd14662e6f8ca190882cdac",
-	"public/brand/tda-mark-black.svg":
-		"66c5dbe83c07b08e6355230c255ee98fd27f4ef1ce93e4de2cce239e9217a5ec",
-	"public/brand/tda-mark-white.svg":
-		"8474cd455cb5b6ffc254ed5ca5c3c5aa1b25f64ec8e694ed85ce1eea8b2d83ff",
-	"public/brand/favicon.svg":
+	"favicon.svg":
 		"59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e",
+	"tda-icon-duck-black.svg":
+		"10ccb252143ebb50e57de27d9704cf801d6811f4bd21e290a31d56ac4ae6f6f6",
+	"tda-icon-duck-white.svg":
+		"8702b24c58d28fa5f217531edd6fd458333a88f26fd14662e6f8ca190882cdac",
+	"tda-mark-black.svg":
+		"66c5dbe83c07b08e6355230c255ee98fd27f4ef1ce93e4de2cce239e9217a5ec",
+	"tda-mark-white.svg":
+		"8474cd455cb5b6ffc254ed5ca5c3c5aa1b25f64ec8e694ed85ce1eea8b2d83ff",
 };
 
-for (const [filePath, expected] of Object.entries(officialAssets)) {
-	if (!fs.existsSync(filePath)) fail(`missing official asset ${filePath}`);
-	const actual = sha256(filePath);
-	if (actual !== expected) {
-		fail(`${filePath} checksum mismatch: expected ${expected}, got ${actual}`);
+const brandManifest = JSON.parse(
+	fs.readFileSync("media/manifests/brand.json", "utf8"),
+);
+if (brandManifest.schemaVersion !== 2 || brandManifest.namespace !== "brand") {
+	fail("brand manifest must be canonical R2 schema v2 under namespace brand");
+}
+for (const [file, expected] of Object.entries(officialAssets)) {
+	const asset = brandManifest.assets.find((item) => item.file === file);
+	if (!asset) fail(`brand manifest missing official asset ${file}`);
+	if (asset.sha256 !== expected) {
+		fail(`brand manifest checksum mismatch for ${file}: expected ${expected}, got ${asset.sha256}`);
 	}
+	if (asset.sourceMode !== "canonical-r2") {
+		fail(`brand manifest asset ${file} is not pinned to canonical R2`);
+	}
+}
+if (fs.existsSync("public/brand")) {
+	fail("public/brand must not remain as runtime media storage after R2 cutover");
 }
 
 const tokenCss = fs.readFileSync("src/app/design-tokens.css", "utf8");
@@ -179,8 +183,15 @@ for (const requiredImport of [
 ]) {
 	if (!layout.includes(requiredImport)) fail(`layout missing ${requiredImport}`);
 }
-if (!layout.includes('icon: "/brand/favicon.svg"')) {
-	fail("layout does not use the official adaptive favicon");
+const canonicalBrandUrls = [
+	"https://media.dnd.faysk.dev/brand/59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e/favicon.svg",
+	"https://media.dnd.faysk.dev/brand/66c5dbe83c07b08e6355230c255ee98fd27f4ef1ce93e4de2cce239e9217a5ec/tda-mark-black.svg",
+	"https://media.dnd.faysk.dev/brand/8474cd455cb5b6ffc254ed5ca5c3c5aa1b25f64ec8e694ed85ce1eea8b2d83ff/tda-mark-white.svg",
+];
+for (const assetUrl of canonicalBrandUrls) {
+	if (!layout.includes(assetUrl)) {
+		fail(`layout missing canonical brand asset ${assetUrl}`);
+	}
 }
 
 console.log(

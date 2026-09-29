@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "project": "astel-diary-ui",
   "bucket": "tda-media-public",
   "namespace": "diario/astel",
@@ -7,10 +7,12 @@
   "assets": [
     {
       "file": "favicon.svg",
-      "source": "media/sources/astel-diary/favicon.svg",
       "bytes": 289,
       "sha256": "24f1e19ee56dab1730218babd67453419f21a3ee40e40eae5aad3d8bb39ecdbb",
-      "contentType": "image/svg+xml"
+      "contentType": "image/svg+xml",
+      "sourceMode": "canonical-r2",
+      "publicationReceipt": "prod-605c1f47186d",
+      "canonicalVerifiedAt": "2026-09-29T13:31:57Z"
     }
   ]
 }

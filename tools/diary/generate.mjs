@@ -102,7 +102,7 @@ for (const diary of diaries) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   ${metadata}
-  <link rel="icon" href="/diario/${slug}/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="${slug === "astel" ? "https://media.dnd.faysk.dev/diario/astel/24f1e19ee56dab1730218babd67453419f21a3ee40e40eae5aad3d8bb39ecdbb/favicon.svg" : `/diario/${slug}/favicon.svg`}" type="image/svg+xml">
   <link rel="stylesheet" href="/diario/${slug}/reading.css">
 </head>
 <body>
