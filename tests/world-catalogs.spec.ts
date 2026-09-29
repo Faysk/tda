@@ -28,7 +28,7 @@ test("six public archives keep one technical base while exposing type context", 
 		await page.goto(`/e2e-fixtures/lore-catalog?kind=${kind}&scenario=one`);
 		const archive = page.locator(`[data-lore-index="${kind}"]`);
 		await expect(archive).toBeVisible();
-		await expect(archive).toHaveAttribute("data-visual-kind", visualKind);
+		await expect(archive).toHaveAttribute("data-visual-kind", visualKind);\n\t\tawait expect(archive).toHaveAttribute("data-layout-family", "editorial");\n\t\tawait expect(archive).toHaveAttribute("data-layout-role", "editorial");
 
 		const context = page.getByRole("navigation", {
 			name: "Contexto de exploração",
@@ -76,7 +76,7 @@ test("catalog content starts early and uses extra desktop width without stretchi
 		await expectNoHorizontalOverflow(page);
 	}
 	expect(widths).toHaveLength(3);
-	expect(widths[2]).toBeGreaterThan(widths[0] + 400);
+	expect(widths[1]).toBeGreaterThan(widths[0] + 80);\n\texpect(Math.abs(widths[2] - widths[1])).toBeLessThanOrEqual(4);
 });
 
 test("catalog states cover empty, compact fallback, media and long titles", async ({

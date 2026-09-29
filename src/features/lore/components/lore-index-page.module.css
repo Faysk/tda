@@ -25,7 +25,7 @@
 
 .heroInner {
 	display: grid;
-	width: min(var(--ds-layout-max), 100%);
+	width: min(var(--ds-layout-editorial, 1540px), 100%);
 	margin-inline: auto;
 	gap: 18px;
 	padding:
@@ -112,7 +112,7 @@
 }
 
 .archive {
-	width: min(var(--ds-layout-max), 100%);
+	width: min(var(--ds-layout-editorial, 1540px), 100%);
 	margin-inline: auto;
 	padding:
 		clamp(26px, 3vw, 42px)

@@ -89,6 +89,8 @@ export function LoreIndexArchive({
 			className={styles.page}
 			data-lore-index={routeKind}
 			data-visual-kind={copy.visualKind}
+			data-layout-family="editorial"
+			data-layout-role="editorial"
 		>
 			<section className={styles.hero} aria-labelledby="lore-index-title">
 				<div className={styles.heroGlow} aria-hidden="true" />
