@@ -839,51 +839,6 @@ function ReviewEditor({
 				</section>
 			) : null}
 
-            {publicationRecovery?.pending ? <div className={styles.notice} role="status">
-                <p>{publicationRecovery.blocked === "mismatch" ? "Existe um handoff anterior de outra revisão ainda não reconciliado nesta campanha. Reabra a revisão original para consultar o recibo." : publicationRecovery.blocked === "expired" ? "Este handoff não resolvido ultrapassou 30 dias. O recibo ainda pode ser consultado; novos envios estão bloqueados." : "Handoff anterior ainda não confirmado. A consulta e a repetição preservam a mesma operação, inclusive após recarregar."}</p>
-                <Button variant="secondary" disabled={publishing} onClick={() => void abandonPublication()}>Abandonar handoff anterior</Button>
-            </div> : null}
-			{publicationErrorCode ? (
-				<p className={styles.error} role="alert">{publicationErrorMessage(publicationErrorCode!)}</p>
-			) : null}
-			{publicationReceipt && review.publicationTarget ? (
-				<div className={styles.published} role="status">
-					<span>
-						Sessão preparada no Edit · revisão cloud {publicationReceipt.revisionNumber} · receipt{" "}
-						{publicationReceipt.receiptId.slice(0, 12)}…
-					</span>
-					<a
-						className={actionStyles({ size: "sm", variant: "secondary" })}
-						href={`/edit/sessoes/${encodeURIComponent(review.publicationTarget.sourceSessionId)}`}
-					>
-						Abrir sessão no Edit
-					</a>
-				</div>
-			) : null}
-
-			<div className={styles.summaryGrid}>
-				<div><span>Revisão</span><strong>{reviewed} / {segments.length}</strong><small>{segments.length ? Math.round((reviewed / segments.length) * 100) : 100}%</small></div>
-				<div><span>Palavras</span><strong>{words}</strong><small>{review.review.editedSegments} segmentos alterados no último save</small></div>
-				<div><span>Participantes</span><strong>{participants}</strong><small>{review.stats.trackCount ?? "—"} tracks</small></div>
-				<div><span>Duração</span><strong>{formatSeconds(review.stats.sessionDurationSeconds)}</strong><small>Processamento {formatSeconds(review.stats.processingMetrics?.totalProcessingSeconds ?? review.stats.processingSeconds)}</small></div>
-				<div><span>Avisos</span><strong>{review.review.warningCount}</strong><small>{review.warningSummary ? "atalhos de atenção, não veredictos" : "total histórico não verificado"}</small></div>
-				<div>
-					<span>Hardware</span>
-					<strong>{review.lineage.executionLineage?.gpu?.model ?? review.lineage.device ?? "—"}</strong>
-					{review.lineage.executionLineage?.gpu && !review.lineage.executionLineage.executionDevice ? <small>Identidade física histórica não verificada</small> : null}
-					<small>
-						{[
-							review.lineage.executionLineage?.runtimeFamily,
-							review.lineage.executionLineage?.runtimeVersion,
-							review.lineage.computeType,
-							review.lineage.alignment,
-						]
-							.filter(Boolean)
-							.join(" · ") || "desconhecido"}
-					</small>
-				</div>
-			</div>
-
 			{review.lineage.executionLineage?.runtimeArtifact ? (
 				<details className={styles.warnings}>
 					<summary>Integridade do runtime usado</summary>
@@ -919,42 +874,17 @@ function ReviewEditor({
 				</details>
 			) : null}
 
-            <ParticipantManager segments={segments} disabled={editingBlocked || publishing || !canSave} onApply={(intent) => {
-                const next = applyParticipantRename(segments, intent);
-                if (next === segments) return;
-                setSegments([...next]);
-                if (status === "approved_local") setStatus("reviewed");
-                setDirty(true);
-                setPublishConfirmation(false);
-            }} />
-            <div className={styles.reviewToolbar}>
-				<label>
-					<span>Estado do draft</span>
-					<select
-						value={status}
-						disabled={editingBlocked || !canSave}
-						onChange={(event) => {
-							setStatus(event.target.value as LocalReviewStatus);
-							setDirty(true);
-						}}
-					>
-						<option value="draft">Draft</option>
-						<option value="reviewed">Revisado</option>
-						<option value="approved_local">Aprovado localmente</option>
-					</select>
-				</label>
-				<label className={styles.search}>
-					<span>Buscar na timeline</span>
-					<input
-						value={query}
-						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Texto, participante ou HH:MM:SS…"
-					/>
-				</label>
-				<span className={styles.timelineCount}>
-					{visible.length} de {segments.length} falas · timeline contínua
-				</span>
-			</div>
+			<ParticipantManager segments={segments} disabled={editingBlocked || publishing || !canSave} onApply={(intent) => {
+				const next = applyParticipantRename(segments, intent);
+				if (next === segments) return;
+				setSegments([...next]);
+				if (status === "approved_local") setStatus("reviewed");
+				setDirty(true);
+				setPublicationReceipt(null);
+				setPublicationRecovery(null);
+				setPublicationErrorCode(null);
+				setPublishConfirmation(false);
+			}} />
 
             {error === "LOCAL_REVIEW_DRAFT_CONFLICT" && onLoadLatest ? <Button type="button" disabled={editingBlocked || publishing} onClick={async () => {
                 rememberVisibleAnchor();
