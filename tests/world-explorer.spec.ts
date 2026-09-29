@@ -114,7 +114,7 @@ test("World Explorer exposes honest SSR metadata through the central public cont
 	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://dnd.faysk.dev/mundo");
 });
 
-test("World Explorer can switch to the textual view and filter relations with the DS select", async ({ page }) => {
+test("World Explorer can switch to the textual view and filter relations from the relation disclosure", async ({ page }) => {
 	await page.goto("/mundo");
 	await closeWorkspaceOverlays(page);
 	await page.getByRole("button", { name: "Lista" }).click();
@@ -124,7 +124,7 @@ test("World Explorer can switch to the textual view and filter relations with th
 
 	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
 	await relationTrigger.click();
-	await page.getByRole("option", { name: "Conflito" }).click();
+	await page.getByRole("group", { name: "Filtros de relação" }).getByRole("button", { name: "Conflito", exact: true }).click();
 	await expect(relationTrigger).toContainText("Conflito");
 	await expect(relations.getByText("Conflito", { exact: true })).toBeVisible();
 	await expect(relations.getByText("Rivalidade", { exact: true })).toBeVisible();
@@ -148,15 +148,18 @@ test("World Explorer explains an empty search and recovers when the query is cle
 	).not.toContain("Nenhum resultado visível");
 });
 
-test("World Explorer relation select follows the real theme toggle and never falls back to native chrome", async ({ page }) => {
+test("World Explorer relation disclosure follows the real theme toggle and keeps the legend contextual", async ({ page }) => {
 	await page.goto("/mundo");
 	await closeWorkspaceOverlays(page);
 	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
-	const listbox = page.getByRole("listbox", { name: "Filtrar por relação" });
+	const popover = page.getByTestId("world-relation-popover");
+	const legend = page.getByRole("list", { name: "Legenda de relações" });
 
+	await expect(legend).toBeHidden();
 	await relationTrigger.click();
-	await expect(listbox).toBeVisible();
-	const firstPaint = await listbox.evaluate((element) => {
+	await expect(popover).toBeVisible();
+	await expect(legend).toBeVisible();
+	const firstPaint = await popover.evaluate((element) => {
 		const style = getComputedStyle(element);
 		return {
 			background: style.backgroundColor,
@@ -168,7 +171,8 @@ test("World Explorer relation select follows the real theme toggle and never fal
 	expect(firstPaint.borderWidth).not.toBe("0px");
 	expect(firstPaint.borderRadius).not.toBe("0px");
 	await page.keyboard.press("Escape");
-	await expect(listbox).toBeHidden();
+	await expect(popover).toBeHidden();
+	await expect(relationTrigger).toBeFocused();
 
 	await page.getByRole("button", { name: "Mostrar menu principal" }).click();
 	const themeToggle = page.getByRole("switch", { name: "Modo escuro" });
@@ -181,8 +185,8 @@ test("World Explorer relation select follows the real theme toggle and never fal
 	await expect(page.locator(".site-header")).toBeHidden();
 
 	await relationTrigger.click();
-	await expect(listbox).toBeVisible();
-	await expect.poll(() => listbox.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(firstPaint.background);
+	await expect(popover).toBeVisible();
+	await expect.poll(() => popover.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(firstPaint.background);
 
 	const nativeRelationSelect = await page.locator("select").evaluateAll((selects) =>
 		selects.some((select) =>
