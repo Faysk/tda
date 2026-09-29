@@ -335,6 +335,21 @@ Uma galeria, grafo, tabela ou ferramenta operacional pode precisar de muito mais
 
 **O layout deve seguir o conteúdo, e não o contrário.**
 
+### Papéis geométricos compartilhados
+
+A família visual pode variar; as keylines não devem nascer do zero em cada página.
+
+- **Reading**: leitura longa e detalhe editorial, aproximadamente 760–900 px; baseline runtime `--ds-layout-reading-max: 880px`.
+- **Editorial**: arquivos, catálogos, galerias e listas, usando largura ampla sem esticar texto; baseline `--ds-layout-editorial-max: 1540px`.
+- **Expansive**: Home, World e workbenches, podendo usar todo `--ds-layout-max`.
+
+Todos compartilham `--ds-page-gutter`. Marca e avatar flutuantes criam apenas **corner clearance** na região em que realmente ocupam a viewport; não autoriza reservar uma faixa superior invisível nem somar sidebar + gutter + padding local indefinidamente.
+
+O topo também segue a função:
+- cinematic pode começar no topo real;
+- editorial começa cedo, protegendo os cantos quando necessário;
+- workspace pode usar o centro superior para toolbar/trabalho imediato.
+
 ---
 
 ## Responsividade não significa apenas empilhar
