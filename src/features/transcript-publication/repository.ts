@@ -66,15 +66,13 @@ export const databasePublicationDependencies: PublicationDependencies = {
 						ok: false as const,
 						reason: "dependency_unavailable" as const,
 					};
-				return session
-					? {
-							ok: true as const,
-							value: {
-								campaignId: campaign.id,
-								sessionId: session.id,
-							},
-						}
-					: { ok: false as const, reason: "not_found" as const };
+				return {
+					ok: true as const,
+					value: {
+						campaignId: campaign.id,
+						sessionId: session?.id ?? null,
+					},
+				};
 			},
 		});
 	},
@@ -103,27 +101,43 @@ async function invoke(
 		payloadJson: input.payloadJson,
 		segmentCount: input.segmentCount,
 	};
-	const { data, error } =
+	const publicationInput =
 		input.publicationKind === "single_source"
-			? await client.rpc("publish_transcript_revision_atomic", {
+			? {
+					...commonInput,
+					sourceId: input.sourceId,
+					runId: input.runId,
+				}
+			: {
+					...commonInput,
+					provenance: input.provenance,
+				};
+
+	// Existing targets keep using the mature publication RPCs directly. Only an
+	// authorized first handoff enters the additive session-creation wrapper.
+	const { data, error } =
+		actor.sessionId === null
+			? await client.rpc("prepare_transcript_handoff_atomic", {
 					p_auth_user_id: actor.authUserId,
 					p_actor_profile_id: actor.profileId,
-					p_input: {
-						...commonInput,
-						sourceId: input.sourceId,
-						runId: input.runId,
-					},
+					p_campaign_id: actor.campaignId,
+					p_publication_kind: input.publicationKind,
+					p_input: publicationInput,
 					p_lookup_only: lookupOnly,
 				})
-			: await client.rpc("publish_transcript_assembly_revision_atomic", {
-					p_auth_user_id: actor.authUserId,
-					p_actor_profile_id: actor.profileId,
-					p_input: {
-						...commonInput,
-						provenance: input.provenance,
-					},
-					p_lookup_only: lookupOnly,
-				});
+			: input.publicationKind === "single_source"
+				? await client.rpc("publish_transcript_revision_atomic", {
+						p_auth_user_id: actor.authUserId,
+						p_actor_profile_id: actor.profileId,
+						p_input: publicationInput,
+						p_lookup_only: lookupOnly,
+					})
+				: await client.rpc("publish_transcript_assembly_revision_atomic", {
+						p_auth_user_id: actor.authUserId,
+						p_actor_profile_id: actor.profileId,
+						p_input: publicationInput,
+						p_lookup_only: lookupOnly,
+					});
 	if (
 		error ||
 		!data ||
@@ -145,10 +159,34 @@ async function invoke(
 	)
 		return { ok: false, reason: "dependency_unavailable" };
 
-	return data as PublicationResult;
+	const result = data as PublicationResult;
+	if (actor.sessionId === null && result.ok) {
+		// Defense in depth for the first-handoff wrapper: prove the receipt UUID
+		// resolves back to the exact campaign + source identity authorized above.
+		const { data: resolvedSession, error: sessionError } = await client
+			.from("sessions")
+			.select("id")
+			.eq("id", result.receipt.sessionId)
+			.eq("campaign_id", actor.campaignId)
+			.eq("source_system", "local_companion")
+			.eq("source_session_id", input.target.sourceSessionId)
+			.maybeSingle();
+		if (sessionError || !resolvedSession)
+			return { ok: false, reason: "dependency_unavailable" };
+	}
+	return result;
 }
 
 export async function readCurrentPublication(actor: AuthorizedPublicationActor) {
+	if (actor.sessionId === null) {
+		return {
+			ok: true as const,
+			current: {
+				actorProfileId: actor.profileId,
+				revisionId: null,
+			},
+		};
+	}
 	const client = editDataClient();
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
 	const { data, error } = await client
@@ -172,6 +210,7 @@ export async function setCurrentPublication(
 	actor: AuthorizedPublicationActor,
 	input: CurrentMutationInput,
 ): Promise<CurrentMutationResult> {
+	if (actor.sessionId === null) return { ok: false, reason: "not_found" };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
 
