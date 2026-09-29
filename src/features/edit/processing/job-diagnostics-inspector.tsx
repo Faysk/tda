@@ -186,8 +186,26 @@ export function JobDiagnosticsInspector({
 				source_id: job.context?.sourceId ?? null,
 				session_id: job.context?.sessionId ?? null,
 				profile_id: job.context?.profileId ?? null,
-				execution_device: job.executionDevice ?? null,
-				timing: job.timing,
+				execution_device: job.executionDevice
+					? {
+							kind: job.executionDevice.kind,
+							logical_index: job.executionDevice.logicalIndex,
+						}
+					: null,
+				timing: {
+					attempt_started_at: job.timing.attemptStartedAt,
+					attempt_finished_at: job.timing.attemptFinishedAt,
+					attempt_elapsed_seconds: job.timing.attemptElapsedSeconds,
+					stage_started_at: job.timing.stageStartedAt,
+					stage_elapsed_seconds: job.timing.stageElapsedSeconds,
+					tracks: job.timing.tracks.map((track) => ({
+						track: track.track,
+						total_tracks: track.totalTracks,
+						started_at: track.startedAt,
+						finished_at: track.finishedAt,
+						processing_seconds: track.processingSeconds,
+					})),
+				},
 			},
 			profile: profile
 				? {
