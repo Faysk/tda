@@ -509,7 +509,10 @@ export function ProcessingPanel({
 			.snapshot()
 			.localRuns.some(
 				(run) =>
-					run.sourceId === result.sourceId && run.runId === result.runId,
+					run.sourceId === result.sourceId &&
+					run.runId === result.runId &&
+					(!result.transcriptSha256 ||
+						run.transcriptSha256 === result.transcriptSha256),
 			);
 		if (!found) {
 			setView("results");
