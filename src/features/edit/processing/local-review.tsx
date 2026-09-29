@@ -1194,7 +1194,7 @@ function ReviewEditor({
 						{review.warningSummary?.truncated
 							? ` dos primeiros ${review.warningSummary.displayedCount} avisos`
 							: ""}
-					{review.warningSummary ? "" : " · total histórico não verificado"}
+						{review.warningSummary ? "" : " · total histórico não verificado"}
 					</summary>
 					<ul>
 						{Array.from(new Set(review.warnings))
