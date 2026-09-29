@@ -1,9 +1,60 @@
 import { expect, test } from "@playwright/test";
 import {
+	CRAIG_SOURCE_ID,
 	failedJob,
 	fixtureJob,
 	installCompanionFixture,
+	LOCAL_API,
+	UI_ORIGIN,
 } from "./companion-fixture";
+
+function fulfillJson(
+	route: import("@playwright/test").Route,
+	value: unknown,
+	status = 200,
+) {
+	return route.fulfill({
+		status,
+		headers: {
+			"Access-Control-Allow-Origin": UI_ORIGIN,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(value),
+	});
+}
+
+function localRun(
+	sourceId: string,
+	runId: string,
+	sha: string,
+	completedAt: string,
+	profileId = "whisper-detailed",
+) {
+	return {
+		run_id: runId,
+		status: "completed",
+		source_id: sourceId,
+		profile_id: profileId,
+		engine: "faster-whisper",
+		model: "large-v3",
+		model_revision: "rev",
+		device: "cuda",
+		completed_at: completedAt,
+		transcript_sha256: sha,
+		transcript_size_bytes: 1200,
+		stats: {
+			processing_seconds: 12,
+			session_duration_seconds: 60,
+			duration_semantics: "session_extent_v1",
+			rtf: 0.2,
+			word_count: 10,
+			segment_count: 2,
+			track_count: 1,
+			turn_count: 2,
+			warning_count: 0,
+		},
+	};
+}
 
 function context(sessionId: string, sourceId: string, profileId: string) {
 	return {
@@ -196,6 +247,173 @@ test("atenção mostra erro em uma linha e move ações raras para overflow", as
 	await page.getByRole("button", { name: "Detalhes", exact: true }).click();
 	await expect(queue.getByText("QWEN_ALIGNMENT_REQUIRED", { exact: false })).toBeVisible();
 	await expect(queue.getByText("job-failed", { exact: false })).toBeVisible();
+});
+
+test("Abrir resultado navega para o run exato mesmo fora da primeira página", async ({
+	page,
+}) => {
+	const targetRunId = "run-target-page-2";
+	const targetSha = "d".repeat(64);
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		additionalCapabilities: ["transcription.runs.catalog"],
+		initialJobs: [
+			fixtureJob("succeeded", {
+				id: "job-open-target",
+				context: context(
+					"sessao-open-target",
+					CRAIG_SOURCE_ID,
+					"whisper-detailed",
+				),
+			}),
+		],
+	});
+
+	await page.route(`${LOCAL_API}/sources`, (route) =>
+		fulfillJson(route, {
+			schema_version: "tda_craig_sources_v1",
+			sources: [
+				{
+					source_id: CRAIG_SOURCE_ID,
+					source_sha256: "a".repeat(64),
+					recording_id: null,
+					track_count: 1,
+				},
+			],
+		}),
+	);
+	await page.route(`${LOCAL_API}/runs**`, (route) => {
+		const url = new URL(route.request().url());
+		const cursor = url.searchParams.get("cursor");
+		if (cursor === "page-2")
+			return fulfillJson(route, {
+				schema_version: "tda_local_run_catalog_v1",
+				runs: [
+					localRun(
+						CRAIG_SOURCE_ID,
+						targetRunId,
+						targetSha,
+						"2026-09-28T12:00:00Z",
+					),
+				],
+				has_more: false,
+				next_cursor: null,
+			});
+		return fulfillJson(route, {
+			schema_version: "tda_local_run_catalog_v1",
+			runs: [
+				localRun(
+					CRAIG_SOURCE_ID,
+					"run-newer-page-1",
+					"c".repeat(64),
+					"2026-09-29T12:00:00Z",
+				),
+			],
+			has_more: true,
+			next_cursor: "page-2",
+		});
+	});
+	await page.route(`${LOCAL_API}/jobs/job-open-target/result`, (route) =>
+		fulfillJson(route, {
+			schema_version: "tda_local_result_v1",
+			campaign_id: "yuhara-main",
+			session_id: "sessao-open-target",
+			source_id: CRAIG_SOURCE_ID,
+			job_id: "job-open-target",
+			transcription: {
+				schema_version: "tda_transcript_v1",
+				profile_id: "whisper-detailed",
+				artifact: "transcript.json",
+				run_id: targetRunId,
+				sha256: targetSha,
+			},
+			sync: { status: "not_configured" },
+		}),
+	);
+
+	const queue = await openQueue(page);
+	await queue.getByRole("button", { name: /Todos/ }).click();
+	const targetRow = queue
+		.getByRole("row")
+		.filter({ hasText: "sessao-open-target" });
+	await targetRow.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const results = page.getByRole("tabpanel", { name: "Resultados" });
+	const selectedRun = results
+		.getByRole("button")
+		.filter({ hasText: "whisper-detailed" })
+		.filter({ hasText: "12s" });
+	await expect(selectedRun).toHaveAttribute("aria-current", "true");
+	await expect(selectedRun).toBeFocused();
+	await expect(results.getByText(`Run ${targetRunId}`, { exact: true })).toBeVisible();
+	await expect(results.getByText("Revisão local derivada", { exact: true })).toHaveCount(0);
+});
+
+test("Abrir resultado mantém a Fila e mostra erro acionável quando o resultado não resolve", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		additionalCapabilities: ["transcription.runs.catalog"],
+		initialJobs: [
+			fixtureJob("succeeded", {
+				id: "job-missing-result",
+				context: context(
+					"sessao-missing-result",
+					CRAIG_SOURCE_ID,
+					"whisper-detailed",
+				),
+			}),
+		],
+	});
+	await page.route(`${LOCAL_API}/sources`, (route) =>
+		fulfillJson(route, {
+			schema_version: "tda_craig_sources_v1",
+			sources: [],
+		}),
+	);
+	await page.route(`${LOCAL_API}/runs**`, (route) =>
+		fulfillJson(route, {
+			schema_version: "tda_local_run_catalog_v1",
+			runs: [],
+			has_more: false,
+			next_cursor: null,
+		}),
+	);
+	await page.route(`${LOCAL_API}/jobs/job-missing-result/result`, (route) =>
+		fulfillJson(
+			route,
+			{ error: { code: "RESULT_NOT_FOUND", recoverable: false } },
+			404,
+		),
+	);
+
+	const queue = await openQueue(page);
+	await queue.getByRole("button", { name: /Todos/ }).click();
+	await queue
+		.getByRole("row")
+		.filter({ hasText: "sessao-missing-result" })
+		.getByRole("button", { name: "Abrir resultado" })
+		.click();
+
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(queue.getByRole("alert")).toContainText(
+		"Não foi possível localizar o resultado local exato",
+	);
+	await expect(
+		queue.getByRole("button", { name: "Abrir resultado" }),
+	).toHaveText("Abrir resultado");
 });
 
 test("mobile empilha rows e mantém busca, filtros e ações sem overflow horizontal", async ({
