@@ -297,6 +297,7 @@ jobs:
           pnpm exec playwright test
           tests/global-navigation.spec.ts
           tests/floating-shell-public-routes.spec.ts
+          tests/layout-geometry.spec.ts
           tests/foundation.spec.ts
           tests/navigation-origin.spec.ts
           --project=desktop-1080p
@@ -319,6 +320,10 @@ jobs:
             test-results/**/shell-contrast-light-theme.png
             test-results/**/shell-contrast-mobile-dark.png
             test-results/**/shell-contrast-mobile-light.png
+            test-results/**/layout-keylines-home.png
+            test-results/**/layout-keylines-sessoes.png
+            test-results/**/layout-keylines-lembra.png
+            test-results/**/layout-keylines-workbench.png
           if-no-files-found: error
           retention-days: 30
       - name: Upload sanitized navigation failure artifacts

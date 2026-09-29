@@ -98,7 +98,7 @@ export default async function NarrativeReviewPage({
 	const canDecide = canManage || canApprove;
 
 	return (
-		<section className={styles.shell}>
+		<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
 			<nav className={styles.navigation} aria-label="Navegação do Edit">
 				<Link href="/edit/sessoes">← Sessões do Edit</Link>
 				<Link href="/mundo">Mundo</Link>

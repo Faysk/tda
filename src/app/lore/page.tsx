@@ -17,7 +17,7 @@ const loreCardSizes =
 
 export default function LoreIndexRoute() {
 	return (
-		<div className={styles.page}>
+		<div className={styles.page} data-layout-family="editorial" data-layout-role="expansive">
 			<header className={styles.hero}>
 				<p className={styles.eyebrow}>Arquivo cinematográfico</p>
 				<h1>Histórias que ganharam outro palco.</h1>

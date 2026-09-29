@@ -56,7 +56,7 @@ export default async function Sessions() {
 	const summary = sessions?.length ? summarizeSessionArchive(sessions) : null;
 
 	return (
-		<div className={styles.page}>
+		<div className={styles.page} data-layout-family="editorial" data-layout-role="expansive">
 			<section className={styles.hero} aria-labelledby="archive-title">
 				{artwork ? (
 					<div className={styles.backdrop} aria-hidden="true">

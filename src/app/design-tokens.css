@@ -175,6 +175,9 @@
 	--ds-radius-lg: 18px;
 	--ds-radius-xl: 24px;
 	--ds-layout-max: 2160px;
+	--ds-layout-reading: 900px;
+	--ds-layout-editorial: 1540px;
+	--ds-layout-expansive: var(--ds-layout-max);
 	--ds-page-gutter: clamp(20px, 3.5vw, 72px);
 	--ds-font-display: Georgia, "Times New Roman", serif;
 	--ds-font-body: Georgia, "Times New Roman", serif;

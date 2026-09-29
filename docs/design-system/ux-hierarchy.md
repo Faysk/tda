@@ -2,7 +2,7 @@
 
 > Status: canônico
 > Owner: design-system / frontend
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-29
 > Fonte: diretriz geral fornecida pelo usuário e incorporada ao reboot em 2026-09-11
 
 Esta diretriz vale para **todo o projeto TDA — Tem Dado Aqui**: Home, Sessões, Mundo, Personagens, Lores, Cinematics, Grafo, autenticação, conta, Edit, processamento, ferramentas administrativas e futuras superfícies.
@@ -320,6 +320,60 @@ Diferenciar:
 Ações raras podem ser movidas para menus contextuais.
 
 Ações destrutivas nunca devem parecer a ação preferencial.
+
+---
+
+## Geometria canônica: famílias, keylines e papéis de largura
+
+A geometria do TDA possui **dois eixos independentes**. Não transformar todos os casos em um único template.
+
+### Família vertical
+
+- **Cinematic:** arte/narrativa podem começar no topo real da viewport. Home e heroes narrativos são o caso principal.
+- **Editorial:** título/contexto começam cedo e respeitam somente o corner clearance necessário. Não reservar uma banda superior vazia.
+- **Workspace:** controles, canvas ou toolbar podem usar o centro superior imediatamente; somente as regiões que realmente passam sob marca/avatar recebem clearance local.
+
+### Papel horizontal
+
+| Papel | Token | Uso |
+| --- | --- | --- |
+| **Reading** | `--ds-layout-reading` = `900px` | prosa longa, detalhe editorial, diário e subcolunas de leitura |
+| **Editorial** | `--ds-layout-editorial` = `1540px` | arquivos, catálogos, listas, conta e workbenches de densidade moderada |
+| **Expansive** | `--ds-layout-expansive` = `var(--ds-layout-max)` | Home, Sessões, Lembra, Mundo e workspaces/canvas que ganham valor com largura |
+
+`--ds-page-gutter` é a **keyline estrutural**. Em viewport menor que o teto do papel, a keyline nasce do gutter. Em viewport maior, o container centraliza e o gutter continua dentro dele. Ajustes ópticos da marca são permitidos, mas uma página não cria padding arbitrário apenas para “parecer alinhada”.
+
+### Corner clearance
+
+Marca e avatar ocupam cantos flutuantes. Eles **não possuem uma linha estrutural exclusiva**.
+
+- a primeira linha crítica pode usar `--site-chrome-brand-clearance` e/ou `--site-chrome-profile-clearance`;
+- o centro superior continua utilizável quando não há colisão;
+- depois que o conteúdo passa verticalmente pela zona do chrome, colunas vazias de clearance não continuam pela página;
+- sticky controls usam `--site-chrome-panel-top` somente quando realmente podem subir sob os controles globais;
+- foco e âncoras continuam protegidos pelo `scroll-padding-block-start` global;
+- é proibido simular a antiga navbar com `padding-top`, margin ou pseudo-elemento full-width invisível.
+
+### Matriz atual
+
+| Superfície | Família | Papel horizontal | Observação |
+| --- | --- | --- | --- |
+| Home `/` | Cinematic | Expansive | hero usa o topo real; conteúdo interno segue gutter |
+| Sessões `/sessoes` | Editorial/Cinematic | Expansive | hero e arquivo compartilham a mesma keyline estrutural |
+| detalhe de sessão | Cinematic + Editorial | Expansive + Reading | arte pode abrir; narrativa mantém medida de leitura |
+| Lembra `/lembra` | Editorial | Expansive | sidebar é composição interna, não segundo gutter global |
+| Lores `/lore` | Editorial | Expansive | catálogo cinematográfico usa o shell amplo; copy continua contida; lores individuais seguem independentes |
+| Personagens/NPCs/Lugares/Facções/Quests/Músicas | Editorial | Editorial | usam o mesmo `LoreIndexPage` e a mesma keyline |
+| Diário `/diario` | Editorial | Expansive + Editorial | shell segue a keyline ampla; heading/livros usam o rail editorial de 1540px |
+| Conta `/conta` | Editorial | Editorial | identidade e permissões podem usar duas colunas sem virar dashboard full-bleed |
+| Mundo `/mundo` | Workspace | Expansive | canvas/rail usam a viewport; chrome global continua acessível |
+| Processamento | Workspace | Expansive | toolbar protege somente os cantos ocupados |
+| Revisão / Transcrições / Permissões | Workspace | Editorial | densidade moderada; não precisam esticar texto/tabelas até 2160px |
+| edição de sessão | Workspace | Expansive | transcript + editorial aproveitam largura e recompõem no mobile |
+
+Em `1920×1080` e `2560×1440`, papéis Editorial/Expansive devem usar a largura disponível até seu teto em vez de aumentar apenas margens. Em `390×844` e no mínimo automatizado de `320×800`, a composição recompõe sem overflow horizontal. O viewport `683×384` é usado como aproximação automatizada de 200% de zoom para gates geométricos.
+
+Lores individuais são a exceção visual já documentada: não herdam esta matriz, mas continuam responsáveis por reflow, foco, contraste e conteúdo alcançável.
 
 ---
 

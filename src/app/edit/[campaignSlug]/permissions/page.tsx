@@ -17,7 +17,7 @@ export default async function PermissionsPage({
 	const result = await getPermissionsForEdit({ campaignSlug });
 	const message = result.ok ? null : PERMISSIONS_MESSAGES[result.reason];
 	return (
-		<section className={styles.shell}>
+		<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
 			<nav className={styles.navigation} aria-label="Navegação do Edit">
 				<Link href="/conta">Conta e acesso</Link>
 				<Link href="/edit/sessoes">Sessões no Edit</Link>

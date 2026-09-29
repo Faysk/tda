@@ -65,7 +65,7 @@ export default async function TranscriptsPage({
 									label: "Consultar meu acesso",
 								};
 		return (
-			<section className={styles.shell}>
+			<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
 				<h1>Transcrições</h1>
 				<p role="status">{state.message}</p>
 				<Link href={state.href}>{state.label}</Link>
@@ -79,7 +79,7 @@ export default async function TranscriptsPage({
 		totals.durationCoverage < totals.sessions;
 
 	return (
-		<section className={styles.shell}>
+		<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
 			<header className={styles.header}>
 				<p className={styles.eyebrow}>TDA · TRANSCRIÇÕES</p>
 				<h1>

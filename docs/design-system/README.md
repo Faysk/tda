@@ -2,7 +2,7 @@
 
 > Status: canônico; fundação runtime e superfícies públicas implementadas
 > Owner: design-system / frontend
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-29
 
 Este diretório registra a autoridade visual do **TDA — Tem Dado Aqui** no reboot `Faysk/tda`.
 
@@ -173,12 +173,21 @@ Separadores e contornos puramente decorativos continuam usando `--ds-border`/`--
 
 ## Extensão do reboot — layout fluido
 
-A Home V2 promove dois papéis de layout para impedir que cada superfície volte a inventar largura e gutter próprios:
+O reboot usa um gutter estrutural e três papéis canônicos de largura para impedir que cada superfície volte a inventar `max-width`, margem e eixo óptico próprios:
 
 | Token | Valor | Papel |
 | --- | --- | --- |
-| `--ds-layout-max` | `2160px` | teto do shell público amplo |
-| `--ds-page-gutter` | `clamp(20px, 3.5vw, 72px)` | respiro horizontal responsivo |
+| `--ds-layout-reading` | `900px` | leitura longa e detalhe editorial |
+| `--ds-layout-editorial` | `1540px` | arquivos, catálogos, listas e superfícies editoriais |
+| `--ds-layout-expansive` | `var(--ds-layout-max)` | Home, Mundo e workspaces que precisam explorar a viewport |
+| `--ds-layout-max` | `2160px` | teto físico do papel expansivo |
+| `--ds-page-gutter` | `clamp(20px, 3.5vw, 72px)` | keyline/gutter estrutural responsivo |
+
+Os papéis de largura são **ortogonais à família vertical da página**: uma superfície pode ser Cinematic, Editorial ou Workspace no tratamento do topo e, ao mesmo tempo, usar Reading, Editorial ou Expansive horizontalmente. Hero expansivo e corpo de leitura podem coexistir na mesma rota sem criar um quarto tipo de página.
+
+Marca e avatar são **safe areas de canto**, não uma faixa full-width. A primeira linha crítica pode aplicar `--site-chrome-brand-clearance` e `--site-chrome-profile-clearance`; depois da zona de colisão o conteúdo retorna à keyline normal. Nenhuma superfície deve recriar uma navbar invisível por `padding-top` global.
+
+A matriz canônica de famílias, papéis e exceções está em [Diretriz geral de UX, design e hierarquia](ux-hierarchy.md#geometria-canônica-famílias-keylines-e-papéis-de-largura).
 
 Esses tokens não pertenciam ao snapshot v1.0 recebido; são extensões operacionais do reboot atual e devem ser protegidas por `design:check`.
 

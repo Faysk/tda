@@ -26,7 +26,7 @@
 
 .heroInner {
 	display: flex;
-	width: min(100%, 1180px);
+	width: min(100%, var(--ds-layout-editorial, 1540px));
 	min-height: inherit;
 	margin-inline: auto;
 	flex-direction: column;
@@ -79,7 +79,7 @@
 }
 
 .archive {
-	width: min(100%, 1540px);
+	width: min(100%, var(--ds-layout-editorial, 1540px));
 	margin-inline: auto;
 	padding:
 		clamp(34px, 4.5vw, 66px)

@@ -197,6 +197,9 @@ for (const [token, value] of promotedExtensions) {
 
 const layoutExtensions = [
 	["--ds-layout-max", "2160px"],
+	["--ds-layout-reading", "900px"],
+	["--ds-layout-editorial", "1540px"],
+	["--ds-layout-expansive", "var(--ds-layout-max)"],
 	["--ds-page-gutter", "clamp(20px, 3.5vw, 72px)"],
 ];
 for (const [token, value] of layoutExtensions) {

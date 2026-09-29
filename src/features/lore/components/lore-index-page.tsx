@@ -23,7 +23,7 @@ export async function LoreIndexPage({ routeKind }: { routeKind: LoreRouteKind })
 	}
 
 	return (
-		<div className={styles.page}>
+		<div className={styles.page} data-layout-family="editorial" data-layout-role="editorial">
 			<section className={styles.hero} aria-labelledby="lore-index-title">
 				<div className={styles.heroGlow} aria-hidden="true" />
 				<div className={styles.heroInner}>

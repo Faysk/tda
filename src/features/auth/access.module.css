@@ -94,8 +94,8 @@
 
 
 .accountShell {
-	width: min(calc(100% - 2rem), 68rem);
-	max-width: 68rem;
+	width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
+	max-width: none;
 	margin-block:
 		max(clamp(2rem, 5vw, 4.5rem), calc(var(--site-chrome-panel-top, 66px) + 12px))
 		clamp(2rem, 5vw, 4.5rem);
@@ -380,7 +380,7 @@
 
 @media (max-width: 720px) {
 	.accountShell {
-		width: min(calc(100% - 2rem), 68rem);
+		width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 		margin: 2rem auto;
 		padding: 0;
 	}
@@ -402,7 +402,7 @@
 
 @media (max-width: 420px) {
 	.accountShell {
-		width: min(calc(100% - 1.25rem), 68rem);
+		width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 	}
 
 	.accountIdentityHeader {
