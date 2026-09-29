@@ -745,7 +745,7 @@
 .loadingRow {
 	display: grid;
 	min-height: 58px;
-	grid-template-columns: 23% 26% 28% 13% 10%;
+	grid-template-columns: 23fr 26fr 28fr 13fr 10fr;
 	align-items: center;
 	gap: 12px;
 	padding: 10px 14px;
