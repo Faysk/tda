@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { actionStyles, Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import {
@@ -994,7 +994,7 @@ export function LocalReviewWorkspace({
 		setSelectedRunKey(focusRunKey);
 	}, [focusRunKey, focusRunRequestId, runs]);
 
-	useLayoutEffect(() => {
+	useEffect(() => {
 		if (
 			!focusRunKey ||
 			selectedRunKey !== focusRunKey ||
