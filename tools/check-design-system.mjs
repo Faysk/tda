@@ -25,7 +25,7 @@ function runtimeAssetFiles(root) {
 			files.push(...runtimeAssetFiles(fullPath));
 			continue;
 		}
-		if (!/\.(css|scss|tsx?|jsx?|mjs|js|html)$/u.test(entry.name)) continue;
+		if (!/\.(css|scss|tsx?|jsx?|mjs|cjs|js|html|json|webmanifest|xml|svg)$/u.test(entry.name)) continue;
 		if (/\.(test|spec)\.[cm]?[jt]sx?$/u.test(entry.name)) continue;
 		files.push(fullPath);
 	}
@@ -85,12 +85,34 @@ const runtimeAssetConsumers = [
 	...runtimeAssetFiles("src"),
 	...runtimeAssetFiles("public"),
 ];
+const localBrandPathPattern = /(?:^|["'`(=:\\s])\\/brand\\//u;
+const relativeStandaloneFaviconPattern =
+	/(?:\\b(?:href|src)\\s*=\\s*["'](?:\\.\\/)?favicon\\.svg["']|favicon\\.href\\s*=\\s*["'](?:\\.\\/)?favicon\\.svg["']|url\\(\\s*["']?(?:\\.\\/)?favicon\\.svg["']?\\s*\\))/u;
+
 for (const filePath of runtimeAssetConsumers) {
 	const source = fs.readFileSync(filePath, "utf8");
+	const normalizedPath = repoPath(filePath);
+
+	if (localBrandPathPattern.test(source)) {
+		fail(
+			`local /brand/ runtime reference is forbidden after the R2 cutover: ${normalizedPath}`,
+		);
+	}
+
+	if (
+		(normalizedPath.startsWith("public/lore/d/") ||
+			normalizedPath.startsWith("public/lore/yllith/")) &&
+		relativeStandaloneFaviconPattern.test(source)
+	) {
+		fail(
+			`retired relative favicon.svg reference is still present in ${normalizedPath}`,
+		);
+	}
+
 	for (const retiredPath of retiredWebStaticPaths) {
 		if (source.includes(retiredPath)) {
 			fail(
-				`retired web-static asset ${retiredPath} is still referenced by ${repoPath(filePath)}`,
+				`retired web-static asset ${retiredPath} is still referenced by ${normalizedPath}`,
 			);
 		}
 	}
@@ -234,6 +256,15 @@ for (const requiredImport of [
 
 const brandAssetContractPath = "src/config/brand-assets.ts";
 const brandAssetContract = fs.readFileSync(brandAssetContractPath, "utf8");
+if (
+	!brandAssetContract.includes(
+		`TDA_BRAND_MEDIA_ORIGIN = "${brandManifest.publicOrigin}"`,
+	)
+) {
+	fail(
+		`${brandAssetContractPath} must pin the canonical media origin ${brandManifest.publicOrigin}`,
+	);
+}
 const canonicalBrandUrls = new Map();
 for (const [file, expected] of Object.entries(officialAssets)) {
 	const asset = brandManifest.assets.find((item) => item.file === file);
@@ -287,7 +318,7 @@ for (const consumer of brandConsumers) {
 }
 
 const canonicalBrandPrefix = `${brandManifest.publicOrigin}/${brandManifest.namespace}/`;
-for (const filePath of sourceFiles("src")) {
+for (const filePath of runtimeAssetFiles("src")) {
 	if (repoPath(filePath) === brandAssetContractPath) continue;
 	const source = fs.readFileSync(filePath, "utf8");
 	if (source.includes(canonicalBrandPrefix)) {
