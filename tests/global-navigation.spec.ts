@@ -813,7 +813,7 @@ test("account overview keeps synthetic identity and access usable across the lay
 		).toBeVisible();
 		await expect(page.getByRole("heading", { name: "Vínculo TDA", exact: true })).toBeVisible();
 		await expect(page.getByRole("heading", { name: "Aparência", exact: true })).toBeVisible();
-		await expect(page.getByText("Gerenciar permissões", { exact: true })).toBeVisible();
+		await expect(page.getByText("Gerenciar permissões", { exact: true }).first()).toBeVisible();
 		const technicalCapability = page.getByText("campaign.permissions.manage", { exact: true });
 		await expect(technicalCapability).toBeHidden();
 		await page.getByText("Detalhes técnicos do acesso", { exact: true }).click();
