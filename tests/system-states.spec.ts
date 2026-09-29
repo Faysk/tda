@@ -177,7 +177,8 @@ test("permissions route loading keeps the workbench shell instead of covering it
 		await expect(shell).toHaveAttribute("data-layout-family", "workspace");
 		await expect(shell).toHaveAttribute("data-layout-role", "editorial");
 		await expect(page.getByRole("heading", { name: "Permissões" })).toBeVisible();
-		await expect(page.getByRole("navigation", { name: "Navegação do Edit" })).toBeVisible();
+		await expect(page.locator('[data-operational-page-header="true"]')).toBeVisible();
+		await expect(page.getByRole("navigation", { name: "Navegação do Edit" })).toHaveCount(0);
 		const status = page.getByRole("status").filter({ hasText: "Carregando dados de permissões" });
 		await expect(status).toBeVisible();
 		await expect(page.locator('[data-global-loading="off"][aria-label="Carregando"]')).toHaveCount(0);
