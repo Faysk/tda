@@ -171,7 +171,8 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await expect(panel.getByText("Benchmark em andamento")).toBeVisible();
 	await expect(panel.getByText("0 de 4 perfis concluídos")).toBeVisible();
 
-	await panel.getByRole("button", { name: "Ver log / Diagnóstico" }).click();
+	const diagnosticsButton = panel.getByRole("button", { name: "Ver log / Diagnóstico" });
+	await diagnosticsButton.click();
 	await expect(page.getByRole("tab", { name: "Benchmark" })).toHaveAttribute(
 		"aria-selected",
 		"true",
@@ -186,6 +187,9 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 			request.path.startsWith("/jobs/benchmark-job-1/events"),
 		),
 	).toBe(true);
+	await inspector.getByRole("button", { name: "Fechar" }).click();
+	await expect(inspector).not.toBeVisible();
+	await expect(diagnosticsButton).toBeFocused();
 });
 
 test("short Craig sample is rejected during preflight before preparation or queueing", async ({
