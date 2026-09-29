@@ -11,7 +11,7 @@ async function openAppearance(page: import("@playwright/test").Page) {
 test("home and archive work without cloud secrets", async ({ page }) => {
 	await page.goto("/");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-		/A próxima memória começa aqui\.|Não conseguimos abrir a última memória agora\./,
+		"A memória mais recente do arquivo sintético",
 	);
 	await page.getByRole("button", { name: "Abrir menu global" }).click();
 	await page

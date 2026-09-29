@@ -378,8 +378,14 @@
 @media (min-width: 821px) {
 	.root {
 		margin-inline:
-			var(--site-chrome-brand-clearance, 168px)
-			var(--site-chrome-profile-clearance, 60px);
+			calc(
+				var(--site-chrome-inline-start, 0px) +
+				var(--site-chrome-brand-clearance, 168px)
+			)
+			calc(
+				var(--site-chrome-inline-end, 0px) +
+				var(--site-chrome-profile-clearance, 60px)
+			);
 	}
 }
 
