@@ -13,13 +13,14 @@ test("D switches between cinematic and full reading modes on the same URL", asyn
 
 	await page.goto("/lore/d");
 	const initialPath = new URL(page.url()).pathname;
-	const favicon = page.locator('link[rel~="icon"][href$="favicon.svg"]');
+	const favicon = page.locator('link[rel~="icon"]');
 	await expect(favicon).toHaveCount(1);
 	await expect(favicon).toHaveAttribute("type", "image/svg+xml");
-	expect(await favicon.evaluate((element: HTMLLinkElement) => new URL(element.href).pathname)).toBe("/lore/d/favicon.svg");
-	const faviconResponse = await request.get("/lore/d/favicon.svg");
+	await expect(favicon).toHaveAttribute("href", "https://media.dnd.faysk.dev/brand/59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e/favicon.svg");
+	const faviconResponse = await request.get("https://media.dnd.faysk.dev/brand/59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e/favicon.svg");
 	expect(faviconResponse.ok()).toBe(true);
-	expect(await faviconResponse.text()).toContain('aria-label="D."');
+	expect(faviconResponse.headers()["content-type"]).toContain("image/svg+xml");
+	expect(await faviconResponse.text()).toContain("<svg");
 
 	const toggle = page.locator("#lore-mode-toggle");
 	await expect(toggle).toBeVisible();
