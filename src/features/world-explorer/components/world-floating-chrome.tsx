@@ -177,7 +177,7 @@ export function WorldFloatingChrome({
 						<span className={chrome.disclosureGlyph} aria-hidden="true">⌄</span>
 					</summary>
 					<div className={chrome.relationPopover} data-testid="world-relation-popover">
-						<div className={chrome.relationOptions} role="group" aria-label="Filtros de relação">
+						<fieldset className={chrome.relationOptions} aria-label="Filtros de relação">
 							{RELATION_OPTIONS.map((option) => (
 								<button
 									key={option.value}
@@ -191,27 +191,25 @@ export function WorldFloatingChrome({
 									{option.label}
 								</button>
 							))}
-						</div>
+						</fieldset>
 
 						{relationLegend.length ? (
-							<div
+							<ul
 								className={chrome.relationLegendList}
-								role="list"
 								aria-label={demo ? "Legenda de relações" : "Legenda de tipos de ligação"}
 							>
 								{relationLegend.map((item) => (
-									<span
+									<li
 										key={item.key}
 										className={chrome.legendItem}
 										data-family={item.family}
 										style={legendItemStyle(item.color)}
-										role="listitem"
 									>
 										<i aria-hidden="true" />
 										{item.label}
-									</span>
+									</li>
 								))}
-							</div>
+							</ul>
 						) : null}
 					</div>
 				</details>
