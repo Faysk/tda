@@ -130,6 +130,13 @@ export function JobDiagnosticsInspector({
 	const [copyState, setCopyState] = useState<
 		Readonly<{ jobKey: string; status: "copied" | "failed" }> | null
 	>(null);
+	const [identifierCopyState, setIdentifierCopyState] = useState<
+		Readonly<{
+			jobKey: string;
+			kind: "job" | "source";
+			status: "copied" | "failed";
+		}> | null
+	>(null);
 	const job =
 		requestedJob && observedJob?.id === requestedJob.id ? observedJob : requestedJob;
 	const eventsReady = Boolean(
@@ -173,6 +180,15 @@ export function JobDiagnosticsInspector({
 		if (open && !dialog.open) dialog.showModal();
 		if (!open && dialog.open) dialog.close();
 	}, [open]);
+
+	async function copyIdentifier(kind: "job" | "source", value: string) {
+		try {
+			await navigator.clipboard.writeText(value);
+			setIdentifierCopyState({ jobKey, kind, status: "copied" });
+		} catch {
+			setIdentifierCopyState({ jobKey, kind, status: "failed" });
+		}
+	}
 
 	async function copyDiagnostic() {
 		if (!job) return;
@@ -348,9 +364,40 @@ export function JobDiagnosticsInspector({
 									{pendingAction === "cancel" ? "Cancelando…" : "Cancelar"}
 								</Button>
 							) : null}
+							<Button
+								size="sm"
+								variant="tertiary"
+								onClick={() => void copyIdentifier("job", job.id)}
+							>
+								Copiar Job ID
+							</Button>
+							{job.context?.sourceId ? (
+								<Button
+									size="sm"
+									variant="tertiary"
+									onClick={() =>
+										void copyIdentifier("source", job.context?.sourceId ?? "")
+									}
+								>
+									Copiar Source ID
+								</Button>
+							) : null}
 							<Button size="sm" variant="tertiary" onClick={() => void copyDiagnostic()}>
 								Copiar diagnóstico
 							</Button>
+							{identifierCopyState?.jobKey === jobKey &&
+							identifierCopyState.status === "copied" ? (
+								<span role="status">
+									{identifierCopyState.kind === "job" ? "Job ID" : "Source ID"} copiado.
+								</span>
+							) : null}
+							{identifierCopyState?.jobKey === jobKey &&
+							identifierCopyState.status === "failed" ? (
+								<span role="alert">
+									Não foi possível copiar{" "}
+									{identifierCopyState.kind === "job" ? "o Job ID" : "o Source ID"}.
+								</span>
+							) : null}
 							{copyState?.jobKey === jobKey && copyState.status === "copied" ? (
 								<span role="status">Diagnóstico copiado.</span>
 							) : null}
