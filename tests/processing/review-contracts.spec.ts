@@ -243,7 +243,18 @@ test("publication freezes current and requires a fresh confirmation after stale_
  const first = "11111111-1111-4111-8111-111111111111";
  const second = "22222222-2222-4222-8222-222222222222";
  let reads = 0; const sent: Array<{ operationId: string; expectedCurrentRevisionId: string }> = [];
- await page.route("**/api/transcript-publications/current", route => route.fulfill({ json: { ok: true, current: { actorProfileId: "33333333-3333-4333-8333-333333333333", revisionId: (++reads, sent.length === 0 ? first : second) } } }));
+ await page.route("**/api/transcript-publications/current", async route => {
+  reads += 1;
+  await route.fulfill({
+   json: {
+    ok: true,
+    current: {
+     actorProfileId: "33333333-3333-4333-8333-333333333333",
+     revisionId: sent.length === 0 ? first : second,
+    },
+   },
+  });
+ });
  await page.route(/\/api\/transcript-publications$/, async route => {
   sent.push(route.request().postDataJSON());
   await route.fulfill({ status: 409, json: { ok: false, reason: "stale_current" } });
