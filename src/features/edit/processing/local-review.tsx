@@ -609,7 +609,11 @@ function ReviewEditor({
 							"O bloqueio aconteceu localmente, antes de qualquer envio mutável. Salvar ou reabrir não é recomendado como tentativa genérica; consulte os detalhes técnicos ou atualize o cliente quando houver uma versão corrigida.",
 						technical: publicationPreflight.reason ?? "invalid_payload",
 					};
-		if (currentApproval && publicationEnabled && !review.publicationTarget)
+		if (
+			!review.publicationTarget &&
+			onRepairTarget &&
+			review.publicationTargetState === "invalid"
+		)
 			return {
 				key: "target-unavailable",
 				tone: "warning",
@@ -1175,6 +1179,7 @@ function ReviewEditor({
 						{review.warningSummary?.truncated
 							? ` dos primeiros ${review.warningSummary.displayedCount} avisos`
 							: ""}
+					{review.warningSummary ? "" : " · total histórico não verificado"}
 					</summary>
 					<ul>
 						{Array.from(new Set(review.warnings))
