@@ -778,7 +778,9 @@ function ReviewEditor({
 		publicationEnabled &&
 		Boolean(review.publicationTarget) &&
 		publicationPreflight?.eligible === true &&
+		!publicationRecovery?.pending &&
 		!publicationRecovery?.blocked &&
+		!publicationErrorCode &&
 		!publicationReceipt;
 
 	return (
