@@ -1485,14 +1485,15 @@ A review Web separa explicitamente **projeção de apresentação** de **snapsho
 O lifecycle visual deixa de ser um select livre. A superfície orienta uma próxima ação por vez:
 
 ```text
-revisar/salvar
+revisar a working copy
+  -> salvar/materializar a revisão
   -> concluir revisão
   -> aprovar o snapshot salvo exato
   -> preparar sessão privada no Edit
   -> abrir sessão editorial
 ```
 
-Salvar não aprova, aprovar não faz handoff e preparar no Edit não publica o site. Edição após approval remove a autoridade current na working copy e exige save + approval nova conforme #660.
+Salvar apenas materializa/persiste o draft; concluir revisão não aprova, aprovar não faz handoff e preparar no Edit não publica o site. Edição após approval remove a autoridade current na working copy e exige save + approval nova conforme #660.
 
 Diagnóstico segue precedência de gates. A interface apresenta um blocker dominante e uma ação realmente capaz de avançar: save/integridade local → approval → canonical preflight → target/provenance → current/recovery → receipt. `invalid_payload`, `too_large`, `forbidden`, `not_found`, `conflict`, `stale_current` e resposta ambígua não são condensados no mesmo “salve/reabra”. Recovery consulta primeiro a mesma operation identity.
 
