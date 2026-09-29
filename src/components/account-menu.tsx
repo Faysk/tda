@@ -4,10 +4,13 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PublicLink as Link } from "./public-link";
-import { NavigationList } from "./public-nav";
+import { NavigationIconGlyph } from "./public-nav";
 import {
-	PUBLIC_NAV_ITEMS,
+	isCurrentNavigationPath,
+	PRIMARY_PUBLIC_NAV_ITEMS,
+	type NavigationItem,
 	visibleToolNavigationItems,
+	WORLD_NAV_ITEMS,
 } from "./public-navigation-model";
 import { ThemeToggle } from "./theme-toggle";
 import {
@@ -18,8 +21,9 @@ import {
 } from "./navigation-auth";
 
 const PANEL_ID = "global-profile-menu";
-const PANEL_MOTION_SAFETY_MS = 2_250;
+const PANEL_MOTION_SAFETY_MS = 450;
 type PanelPhase = "closed" | "opening" | "open" | "closing";
+type NavigationView = "root" | "world" | "tools";
 
 function prefersReducedMotion() {
 	return (
@@ -51,9 +55,44 @@ function AccountFallback({
 	);
 }
 
+function NavigationLinks({
+	items,
+	pathname,
+	onNavigate,
+}: Readonly<{
+	items: readonly NavigationItem[];
+	pathname: string;
+	onNavigate: () => void;
+}>) {
+	return (
+		<ul className="account-menu-link-list">
+			{items.map((item) => {
+				const current = isCurrentNavigationPath(pathname, item.href);
+				return (
+					<li key={item.href}>
+						<Link
+							href={item.href}
+							className="account-menu-nav-link"
+							aria-current={current ? "page" : undefined}
+							onClick={onNavigate}
+						>
+							<NavigationIconGlyph
+								name={item.icon}
+								className="account-menu-nav-icon"
+							/>
+							<span>{item.label}</span>
+						</Link>
+					</li>
+				);
+			})}
+		</ul>
+	);
+}
+
 export function AccountMenu() {
 	const pathname = usePathname();
 	const [phase, setPhase] = useState<PanelPhase>("closed");
+	const [navigationView, setNavigationView] = useState<NavigationView>("root");
 	const [projection, setProjection] = useState<NavigationAuthProjection | null>(
 		null,
 	);
@@ -65,6 +104,7 @@ export function AccountMenu() {
 	const expanded = phase === "opening" || phase === "open";
 
 	const close = useCallback((restoreFocus = false) => {
+		setNavigationView("root");
 		setPhase((current) => {
 			if (current === "closed") return current;
 			return prefersReducedMotion() ? "closed" : "closing";
@@ -77,16 +117,23 @@ export function AccountMenu() {
 	const closeAfterNavigate = useCallback(() => close(false), [close]);
 
 	const toggle = useCallback(() => {
-		setPhase((current) => {
-			if (current === "closed" || current === "closing") {
-				return prefersReducedMotion() ? "open" : "opening";
-			}
-			return prefersReducedMotion() ? "closed" : "closing";
-		});
-	}, []);
+		if (phase === "closed" || phase === "closing") {
+			setNavigationView("root");
+			setPhase(prefersReducedMotion() ? "open" : "opening");
+			return;
+		}
+		setPhase(prefersReducedMotion() ? "closed" : "closing");
+	}, [phase]);
+
 	const tools = useMemo(
 		() => visibleToolNavigationItems(projection?.capabilities ?? []),
 		[projection],
+	);
+	const worldCurrent =
+		isCurrentNavigationPath(pathname, "/mundo") ||
+		WORLD_NAV_ITEMS.some((item) => isCurrentNavigationPath(pathname, item.href));
+	const toolsCurrent = tools.some((item) =>
+		isCurrentNavigationPath(pathname, item.href),
 	);
 
 	useEffect(() => {
@@ -152,10 +199,13 @@ export function AccountMenu() {
 
 	const authenticated =
 		projection !== null && isAuthenticatedNavigationState(projection.state);
-	const displayName = authenticated ? projection.identity?.displayName ?? null : null;
+	const displayName = authenticated
+		? projection.identity?.displayName ?? null
+		: null;
 	const avatarUrl = authenticated ? projection.identity?.avatarUrl ?? null : null;
 	const initials = navigationInitials(displayName);
 	const showAvatar = Boolean(avatarUrl) && !avatarFailed;
+
 	return (
 		<div className="account-menu" ref={rootRef}>
 			<button
@@ -189,6 +239,7 @@ export function AccountMenu() {
 					className="account-menu-panel"
 					id={PANEL_ID}
 					data-state={phase}
+					data-view={navigationView}
 					aria-label="Navegação, conta e aparência"
 					aria-hidden={phase === "closing" ? true : undefined}
 					inert={phase === "closing" ? true : undefined}
@@ -202,6 +253,117 @@ export function AccountMenu() {
 						}
 					}}
 				>
+					<nav className="account-menu-navigation" aria-label="Navegação principal">
+						{navigationView === "root" ? (
+							<section aria-labelledby="global-menu-public-title">
+								<h2 id="global-menu-public-title">Explorar</h2>
+								<ul className="account-menu-link-list">
+									{PRIMARY_PUBLIC_NAV_ITEMS.map((item) => {
+										if (item.href === "/mundo") {
+											return (
+												<li key={item.href}>
+													<button
+														type="button"
+														className="account-menu-group-entry"
+														aria-current={worldCurrent ? "page" : undefined}
+														onClick={() => setNavigationView("world")}
+													>
+														<NavigationIconGlyph
+															name={item.icon}
+															className="account-menu-nav-icon"
+														/>
+														<span>{item.label}</span>
+														<span className="account-menu-chevron" aria-hidden="true">→</span>
+													</button>
+												</li>
+											);
+										}
+										const current = isCurrentNavigationPath(pathname, item.href);
+										return (
+											<li key={item.href}>
+												<Link
+													href={item.href}
+													className="account-menu-nav-link"
+													aria-current={current ? "page" : undefined}
+													onClick={closeAfterNavigate}
+												>
+													<NavigationIconGlyph
+														name={item.icon}
+														className="account-menu-nav-icon"
+													/>
+													<span>{item.label}</span>
+												</Link>
+											</li>
+										);
+									})}
+								</ul>
+
+								{tools.length > 0 ? (
+									<button
+										type="button"
+										className="account-menu-group-entry account-menu-tools-entry"
+										aria-current={toolsCurrent ? "page" : undefined}
+										onClick={() => setNavigationView("tools")}
+									>
+										<NavigationIconGlyph
+											name="process"
+											className="account-menu-nav-icon"
+										/>
+										<span>Ferramentas</span>
+										<span className="account-menu-chevron" aria-hidden="true">→</span>
+									</button>
+								) : null}
+							</section>
+						) : (
+							<section
+								aria-labelledby={
+									navigationView === "world"
+										? "global-menu-world-title"
+										: "global-menu-tools-title"
+								}
+							>
+								<div className="account-menu-view-header">
+									<button
+										type="button"
+										className="account-menu-back"
+										onClick={() => setNavigationView("root")}
+									>
+										<span aria-hidden="true">←</span>
+										Voltar
+									</button>
+									<h2
+										id={
+											navigationView === "world"
+												? "global-menu-world-title"
+												: "global-menu-tools-title"
+										}
+									>
+										{navigationView === "world" ? "Mundo" : "Ferramentas"}
+									</h2>
+								</div>
+
+								{navigationView === "world" ? (
+									<>
+										<NavigationLinks
+											items={[
+												{ href: "/mundo", label: "Explorar tudo", icon: "world" },
+												...WORLD_NAV_ITEMS,
+											]}
+											pathname={pathname}
+											onNavigate={closeAfterNavigate}
+										/>
+									</>
+								) : (
+									<NavigationLinks
+										items={tools}
+										pathname={pathname}
+										onNavigate={closeAfterNavigate}
+									/>
+								)}
+							</section>
+						)}
+					</nav>
+
 					<div className="account-menu-account-block">
 						{projection === null ? (
 							<p className="account-menu-status" role="status">
@@ -258,31 +420,6 @@ export function AccountMenu() {
 							<ThemeToggle />
 						</div>
 					</div>
-
-					<nav className="account-menu-navigation" aria-label="Navegação principal">
-						<section aria-labelledby="global-menu-public-title">
-							<h2 id="global-menu-public-title">Explorar</h2>
-							<NavigationList
-								items={PUBLIC_NAV_ITEMS}
-								pathname={pathname}
-								onNavigate={closeAfterNavigate}
-							/>
-						</section>
-
-						{tools.length > 0 ? (
-							<section
-								className="product-launcher-tools"
-								aria-labelledby="global-menu-tools-title"
-							>
-								<h2 id="global-menu-tools-title">Ferramentas</h2>
-								<NavigationList
-									items={tools}
-									pathname={pathname}
-									onNavigate={closeAfterNavigate}
-								/>
-							</section>
-						) : null}
-					</nav>
 
 					{authenticated ? (
 						<form action="/auth/logout" method="post">
