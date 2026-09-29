@@ -505,8 +505,12 @@ export function ProcessingPanel({
 
 	function openJobDiagnostics(job: LocalJob) {
 		setResultOpenError(null);
-		diagnosticOpener.current =
+		const active =
 			document.activeElement instanceof HTMLElement ? document.activeElement : null;
+		const stableQueueTrigger = active
+			?.closest("tr[data-status]")
+			?.querySelector<HTMLElement>("summary[aria-label^='Mais ações']");
+		diagnosticOpener.current = stableQueueTrigger ?? active;
 		setDiagnosticInspectorJobId(job.id);
 		void controller.observeJob(job.id);
 	}
