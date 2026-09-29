@@ -957,9 +957,9 @@
 	}
 }
 @media (min-width: 2048px) {
+	.libraryToolbar,
 	.libraryWorkspace {
-		grid-template-columns: minmax(330px, .55fr) minmax(0, 1.75fr);
-		gap: 14px;
+		column-gap: 14px;
 	}
 
 	.runFacts {
