@@ -25,6 +25,7 @@ type Props = Readonly<{
 	observedJob: LocalJob | null;
 	observedJobId: string | null;
 	events: readonly JobEvent[];
+	eventsLoading: boolean;
 	eventsStale: boolean;
 	system: SystemSnapshot | null;
 	health: Health | null;
@@ -123,6 +124,7 @@ export function JobDiagnosticsInspector({
 	observedJob,
 	observedJobId,
 	events,
+	eventsLoading,
 	eventsStale,
 	system,
 	health,
@@ -149,7 +151,7 @@ export function JobDiagnosticsInspector({
 	const job =
 		requestedJob && observedJob?.id === requestedJob.id ? observedJob : requestedJob;
 	const eventsReady = Boolean(
-		job && observedJobId === job.id,
+		job && observedJobId === job.id && !eventsLoading,
 	);
 	const visibleEvents =
 		eventsReady && job ? jobDiagnosticEventsForAttempt(events, job.attempt) : [];
