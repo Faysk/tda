@@ -1109,6 +1109,22 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 	await expect(inspector).toContainText("QWEN_ALIGNMENT_REQUIRED");
 	await expect(inspector.getByRole("log")).toContainText("Falha de alinhamento Qwen");
 
+	await inspector.getByRole("button", { name: "Copiar Job ID" }).click();
+	await expect(inspector.getByText("Job ID copiado.", { exact: true })).toBeVisible();
+	expect(
+		await page.evaluate(
+			() => (window as Window & { __copiedJobDiagnostic?: string }).__copiedJobDiagnostic,
+		),
+	).toBe("craig-job-1");
+
+	await inspector.getByRole("button", { name: "Copiar Source ID" }).click();
+	await expect(inspector.getByText("Source ID copiado.", { exact: true })).toBeVisible();
+	expect(
+		await page.evaluate(
+			() => (window as Window & { __copiedJobDiagnostic?: string }).__copiedJobDiagnostic,
+		),
+	).toBe(CRAIG_SOURCE_ID);
+
 	await inspector.getByRole("button", { name: "Copiar diagnóstico" }).click();
 	await expect(inspector.getByText("Diagnóstico copiado.", { exact: true })).toBeVisible();
 	const copiedDiagnostic = await page.evaluate(
