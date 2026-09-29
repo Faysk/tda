@@ -302,6 +302,14 @@ jobs:
           --project=desktop-1080p
       - name: Capture pre-patch Sessions live geometry receipts
         run: pnpm exec playwright test --config playwright.session-public-live.config.ts
+      - name: Upload pre-patch Sessions geometry receipts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sessions-pre-patch-geometry-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Upload sanitized navigation visual receipts
         if: ${{ success() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
