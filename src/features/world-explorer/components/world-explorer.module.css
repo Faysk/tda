@@ -195,11 +195,7 @@
 }
 
 .toolbar {
-	display: grid;
-	grid-template-columns: minmax(260px, 1fr) minmax(180px, 260px) auto;
-	gap: 8px;
-	align-items: center;
-	margin-bottom: 7px;
+	min-width: 0;
 }
 
 .searchField,
@@ -578,15 +574,9 @@
 	}
 }
 
-@media (max-width: 1180px) {
-	.toolbar { grid-template-columns: minmax(220px, 1fr) minmax(170px, 220px) auto; }
-}
-
 @media (max-width: 980px) {
 	.explorerHeader { align-items: flex-start; flex-direction: column; gap: 8px; }
 	.headerActions { width: 100%; justify-content: flex-start; }
-	.toolbar { grid-template-columns: minmax(0, 1fr) minmax(170px, .7fr); }
-	.resetButton { grid-column: 1 / -1; }
 	.inspectorHero { display: none; }
 	.overviewInspector { padding-top: 0; }
 	.inspectorCopy { display: none; }
@@ -612,8 +602,7 @@
 	.editGroup { width: 100%; order: 5; }
 	.editToggle { flex: 1 1 auto; min-height: 44px; }
 	.discardEdit { min-height: 44px; }
-	.toolbar { grid-template-columns: 1fr; }
-	.resetButton { grid-column: auto; min-height: 44px; }
+	.resetButton { min-height: 44px; }
 	.searchField,
 	.relationSelect { min-height: 44px; }
 	.relationSelect { min-width: 0; }
