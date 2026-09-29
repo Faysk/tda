@@ -8,8 +8,9 @@ import { ReviewFixture } from "./review";
 import processingStyles from "../../src/features/edit/processing/processing.module.css";
 
 const originalFetch = window.fetch.bind(window);
+const fixtureParams = new URLSearchParams(location.search);
 // The integrated test selects a separate scratch service; real product endpoint stays fixed.
-if (new URLSearchParams(location.search).has("integrated")) {
+if (fixtureParams.has("integrated")) {
 	window.fetch = (input, init) =>
 		originalFetch(
 			typeof input === "string"
@@ -37,10 +38,13 @@ createRoot(root).render(
 		>
 			Processamento
 		</h1>
-		{new URLSearchParams(location.search).has("review-contracts") ? (
+		{fixtureParams.has("review-contracts") ? (
 			<ReviewFixture />
 		) : (
-			<ProcessingPanel activityPackScope="fixture-profile:yuhara-main" />
+			<ProcessingPanel
+				activityPackScope="fixture-profile:yuhara-main"
+				publicationEnabled={fixtureParams.has("publication")}
+			/>
 		)}
 	</main>,
 );
