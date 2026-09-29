@@ -23,7 +23,10 @@ function fulfillJson(
 	});
 }
 
-async function installCompletedRunCatalog(page: import("@playwright/test").Page) {
+async function installCompletedRunCatalog(
+	page: import("@playwright/test").Page,
+	runCount = 1,
+) {
 	await page.route(`${LOCAL_API}/sources`, (route) =>
 		fulfillJson(route, {
 			schema_version: "tda_craig_sources_v1",
@@ -41,37 +44,35 @@ async function installCompletedRunCatalog(page: import("@playwright/test").Page)
 		fulfillJson(route, {
 			schema_version: "tda_transcription_runs_v1",
 			source_id: CRAIG_SOURCE_ID,
-			runs: [
-				{
-					run_id: "run-delete-compat-1",
-					status: "completed",
-					source_id: CRAIG_SOURCE_ID,
-					profile_id: "whisper-detailed",
-					engine: "faster-whisper",
-					model: "large-v3",
-					model_revision: "rev",
-					device: "cuda",
-					completed_at: "2026-09-27T18:00:00.000Z",
-					transcript_sha256: "b".repeat(64),
-					transcript_size_bytes: 900,
-					stats: {
-						processing_seconds: 12,
-						session_duration_seconds: 60,
-						duration_semantics: "session_extent_v1",
-						rtf: 0.2,
-						word_count: 2,
-						segment_count: 1,
-						track_count: 1,
-						turn_count: 1,
-						warning_count: 0,
-					},
-					execution_lineage: {
-						schema_version: "tda_execution_lineage_v1",
-						device: "cuda",
-						gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
-					},
+			runs: Array.from({ length: runCount }, (_, index) => ({
+				run_id: `run-results-${String(index + 1).padStart(2, "0")}`,
+				status: "completed",
+				source_id: CRAIG_SOURCE_ID,
+				profile_id: index % 2 ? "whisper-turbo" : "whisper-detailed",
+				engine: "faster-whisper",
+				model: index % 2 ? "turbo" : "large-v3",
+				model_revision: "rev",
+				device: "cuda",
+				completed_at: new Date(Date.UTC(2026, 8, 27, 18, index)).toISOString(),
+				transcript_sha256: (index % 16).toString(16).repeat(64),
+				transcript_size_bytes: 900 + index,
+				stats: {
+					processing_seconds: 12 + index,
+					session_duration_seconds: 60 + index,
+					duration_semantics: "session_extent_v1",
+					rtf: 0.2,
+					word_count: 2 + index,
+					segment_count: 1 + index,
+					track_count: 1,
+					turn_count: 1 + index,
+					warning_count: 0,
 				},
-			],
+				execution_lineage: {
+					schema_version: "tda_execution_lineage_v1",
+					device: "cuda",
+					gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
+				},
+			})),
 		}),
 	);
 }
@@ -986,8 +987,45 @@ test("Results keeps selected-run detail in document flow on Full HD", async ({ p
 	await page.getByRole("tab", { name: "Resultados" }).click();
 	const runCard = page.locator("article").filter({ hasText: "Resultado local" }).first();
 	const reviewAction = page.getByRole("button", { name: "Revisar resultado" });
+	const resultsSearch = page.locator("[data-results-search='true']");
+	const resultsMaster = page.locator("[data-results-master='true']");
+	const resultsDetail = page.locator("[data-results-detail='true']");
+	const resultsFilterStart = page.locator("[data-results-filter-start='true']");
+	const resultsCount = page.getByText("1 resultado", { exact: true });
 	await expect(reviewAction).toBeVisible();
 	await expect(runCard.getByText("Integridade e IDs", { exact: true })).toBeVisible();
+	await expect(resultsSearch).toBeVisible();
+	await expect(resultsMaster).toBeVisible();
+	await expect(resultsDetail).toBeVisible();
+	await expect(resultsFilterStart).toBeVisible();
+	await expect(resultsCount).toBeVisible();
+
+	const alignedGeometry = await page.evaluate(() => {
+		const search = document.querySelector("[data-results-search='true']");
+		const master = document.querySelector("[data-results-master='true']");
+		const detail = document.querySelector("[data-results-detail='true']");
+		const filter = document.querySelector("[data-results-filter-start='true']");
+		if (!(search instanceof HTMLElement) || !(master instanceof HTMLElement) || !(detail instanceof HTMLElement) || !(filter instanceof HTMLElement)) {
+			throw new Error("Results alignment targets are missing");
+		}
+		const searchBox = search.getBoundingClientRect();
+		const masterBox = master.getBoundingClientRect();
+		const detailBox = detail.getBoundingClientRect();
+		const filterBox = filter.getBoundingClientRect();
+		return {
+			searchRight: searchBox.right,
+			masterRight: masterBox.right,
+			detailLeft: detailBox.left,
+			filterLeft: filterBox.left,
+		};
+	});
+	expect(Math.abs(alignedGeometry.searchRight - alignedGeometry.masterRight)).toBeLessThanOrEqual(2);
+	expect(Math.abs(alignedGeometry.detailLeft - alignedGeometry.filterLeft)).toBeLessThanOrEqual(2);
+	const [countBox, detailBox] = await Promise.all([resultsCount.boundingBox(), resultsDetail.boundingBox()]);
+	expect(countBox).not.toBeNull();
+	expect(detailBox).not.toBeNull();
+	if (countBox && detailBox) expect(countBox.x).toBeLessThan(detailBox.x);
+
 	const [actionBox, primaryFactsBox] = await Promise.all([
 		reviewAction.boundingBox(),
 		runCard.locator("[data-run-primary-facts='true']").boundingBox(),
@@ -1023,6 +1061,277 @@ test("Results keeps selected-run detail in document flow on Full HD", async ({ p
 	await expect(comparisonReason).toBeVisible();
 	await page.keyboard.press("Enter");
 	await expect(comparisonReason).toBeHidden();
+
+	for (const disclosureName of [
+		"Execução e métricas",
+		"Medição",
+		"Integridade e IDs",
+	] as const) {
+		const disclosure = runCard.getByText(disclosureName, { exact: true });
+		await disclosure.focus();
+		await page.keyboard.press("Enter");
+	}
+
+	for (const viewport of [
+		{ width: 3840, height: 2160 },
+		{ width: 2560, height: 1440 },
+		{ width: 2048, height: 1279 },
+		{ width: 1440, height: 900 },
+		{ width: 1366, height: 768 },
+		{ width: 960, height: 540 },
+		{ width: 390, height: 844 },
+	]) {
+		await page.setViewportSize(viewport);
+		const horizontal = await page.evaluate(() => ({
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		}));
+		expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+		if (viewport.width > 980) {
+			const geometry = await page.evaluate(() => {
+				const search = document.querySelector("[data-results-search='true']");
+				const master = document.querySelector("[data-results-master='true']");
+				const detail = document.querySelector("[data-results-detail='true']");
+				const filter = document.querySelector("[data-results-filter-start='true']");
+				if (!(search instanceof HTMLElement) || !(master instanceof HTMLElement) || !(detail instanceof HTMLElement) || !(filter instanceof HTMLElement)) {
+					throw new Error("Responsive Results alignment targets are missing");
+				}
+				return {
+					searchRight: search.getBoundingClientRect().right,
+					masterRight: master.getBoundingClientRect().right,
+					detailLeft: detail.getBoundingClientRect().left,
+					filterLeft: filter.getBoundingClientRect().left,
+				};
+			});
+			expect(Math.abs(geometry.searchRight - geometry.masterRight)).toBeLessThanOrEqual(2);
+			expect(Math.abs(geometry.detailLeft - geometry.filterLeft)).toBeLessThanOrEqual(2);
+		} else if (viewport.width <= 760) {
+			const [masterBox, detailBox] = await Promise.all([resultsMaster.boundingBox(), resultsDetail.boundingBox()]);
+			expect(masterBox).not.toBeNull();
+			expect(detailBox).not.toBeNull();
+			if (masterBox && detailBox) expect(detailBox.y).toBeGreaterThan(masterBox.y);
+		}
+	}
+});
+
+test("Results keeps empty Session Assembly and sync context compact", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.addInitScript(() => {
+		window.localStorage.setItem(
+			"tda.processing.session-composer.last-session.v1",
+			"sessao-42",
+		);
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+		additionalCapabilities: [
+			"transcription.session-assembly",
+			"transcription.session-assembly.review",
+		],
+	});
+	await installCompletedRunCatalog(page);
+	await page.route(
+		`${LOCAL_API}/session-workspaces/yuhara-main/sessao-42/assemblies`,
+		(route) =>
+			fulfillJson(route, {
+				schema_version: "tda_session_assemblies_v1",
+				campaign_id: "yuhara-main",
+				session_id: "sessao-42",
+				assemblies: [],
+			}),
+	);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+
+	const assembly = page.locator("[data-results-assembly='true']");
+	await expect(assembly).toBeVisible();
+	await expect(assembly).toHaveAttribute("data-empty", "true");
+	await expect(
+		assembly.getByText("Nenhuma assembly concluída para a sessão ativa.", {
+			exact: true,
+		}),
+	).toBeVisible();
+
+	const assemblyGeometry = await assembly.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			height: element.getBoundingClientRect().height,
+			borderTopWidth: style.borderTopWidth,
+			borderRadius: style.borderRadius,
+			backgroundColor: style.backgroundColor,
+		};
+	});
+	expect(assemblyGeometry.height).toBeLessThanOrEqual(72);
+	expect(assemblyGeometry.borderTopWidth).toBe("0px");
+	expect(assemblyGeometry.borderRadius).toBe("0px");
+	expect(assemblyGeometry.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+
+	const sync = page.locator("[data-results-sync='true']");
+	await expect(sync).toBeVisible();
+	await expect(sync).toHaveAttribute("data-state", "unconfigured");
+	await expect(sync.getByText("Sincronização não configurada.", { exact: true })).toBeVisible();
+	const syncStyle = await sync.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			borderRadius: style.borderRadius,
+			backgroundColor: style.backgroundColor,
+			borderTopWidth: style.borderTopWidth,
+		};
+	});
+	expect(syncStyle.borderRadius).toBe("0px");
+	expect(syncStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+	expect(syncStyle.borderTopWidth).toBe("1px");
+});
+
+test("Results keeps a 20-run master rail scrollable without page overflow", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+	});
+	await installCompletedRunCatalog(page, 20);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+
+	const master = page.locator("[data-results-master='true']");
+	await expect(page.getByText("20 resultados", { exact: true })).toBeVisible();
+	await expect(master.locator("button")).toHaveCount(20);
+	const scrollState = await master.evaluate((element) => ({
+		overflowY: getComputedStyle(element).overflowY,
+		scrollHeight: element.scrollHeight,
+		clientHeight: element.clientHeight,
+		pageScrollWidth: document.documentElement.scrollWidth,
+		pageClientWidth: document.documentElement.clientWidth,
+	}));
+	expect(["auto", "scroll"]).toContain(scrollState.overflowY);
+	expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+	expect(scrollState.pageScrollWidth).toBeLessThanOrEqual(scrollState.pageClientWidth + 1);
+});
+
+test("Results keeps a completed Session Assembly legible and actionable", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.addInitScript(() => {
+		window.localStorage.setItem(
+			"tda.processing.session-composer.last-session.v1",
+			"sessao-42",
+		);
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+		additionalCapabilities: [
+			"transcription.session-assembly",
+			"transcription.session-assembly.review",
+		],
+	});
+	await installCompletedRunCatalog(page);
+	await page.route(
+		`${LOCAL_API}/session-workspaces/yuhara-main/sessao-42/assemblies`,
+		(route) =>
+			fulfillJson(route, {
+				schema_version: "tda_session_assemblies_v1",
+				campaign_id: "yuhara-main",
+				session_id: "sessao-42",
+				assemblies: [
+					{
+						assembly_id: "c".repeat(64),
+						transcript_sha256: "d".repeat(64),
+						inputs_sha256: "c".repeat(64),
+						segment_count: 10,
+						part_count: 2,
+						participant_approval_blocked: false,
+						created_at: "2026-09-29T18:00:00.000Z",
+					},
+				],
+			}),
+	);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+
+	const assembly = page.locator("[data-results-assembly='true']");
+	await expect(assembly).toHaveAttribute("data-empty", "false");
+	await expect(assembly.getByText("2 gravações · 10 segmentos", { exact: true })).toBeVisible();
+	await expect(assembly.getByRole("button", { name: "Abrir revisão" })).toBeVisible();
+	const horizontal = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}));
+	expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+});
+
+test("Results keeps Session Assembly failure explicit without hiding the workspace", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.addInitScript(() => {
+		window.localStorage.setItem(
+			"tda.processing.session-composer.last-session.v1",
+			"sessao-42",
+		);
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+		additionalCapabilities: [
+			"transcription.session-assembly",
+			"transcription.session-assembly.review",
+		],
+	});
+	await installCompletedRunCatalog(page);
+	await page.route(
+		`${LOCAL_API}/session-workspaces/yuhara-main/sessao-42/assemblies`,
+		(route) => route.fulfill({ status: 503, body: "unavailable" }),
+	);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+
+	await expect(page.locator("[data-results-assembly='true']")).toBeVisible();
+	await expect(
+		page.getByRole("alert").filter({
+			hasText: "Não foi possível atualizar as assemblies desta sessão.",
+		}),
+	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Revisar resultado" })).toBeVisible();
+});
+
+test("Results distinguishes configured publication while keeping healthy sync contextual", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+	});
+	await installCompletedRunCatalog(page);
+	await page.goto("/?publication");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+
+	const sync = page.locator("[data-results-sync='true']");
+	await expect(sync).toHaveAttribute("data-state", "ready");
+	await expect(sync.getByText("Handoff privado para o Edit disponível.", { exact: true })).toBeVisible();
+	const style = await sync.evaluate((element) => {
+		const computed = getComputedStyle(element);
+		return {
+			borderRadius: computed.borderRadius,
+			backgroundColor: computed.backgroundColor,
+			borderTopWidth: computed.borderTopWidth,
+		};
+	});
+	expect(style.borderRadius).toBe("0px");
+	expect(style.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+	expect(style.borderTopWidth).toBe("1px");
 });
 
 test("Companion 0.3.16 exposes completed-run deletion without changing job-delete compatibility", async ({ page }) => {

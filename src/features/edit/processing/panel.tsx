@@ -981,7 +981,7 @@ export function ProcessingPanel({
 
 					<section
 						id="processing-view-results"
-						className={styles.viewPanel}
+						className={`${styles.viewPanel} ${styles.resultsView}`}
 						role="tabpanel"
 						aria-labelledby="processing-tab-results"
 						hidden={view !== "results"}
@@ -1019,7 +1019,12 @@ export function ProcessingPanel({
 							}
 						/>
 
-						<section className={styles.syncStrip} aria-labelledby="local-sync">
+						<section
+							className={`${styles.syncStrip} ${styles.resultsSync}`}
+							aria-labelledby="local-sync"
+							data-results-sync="true"
+							data-state={publicationEnabled ? "ready" : "unconfigured"}
+						>
 							<div>
 								<h2 id="local-sync">Sincronização com o Edit</h2>
 								<p>
