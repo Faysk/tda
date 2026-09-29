@@ -951,12 +951,15 @@ export function LembraExperience({
 				<div
 					className={styles.media}
 					data-gallery-media
+					data-media-state={brokenImageIds.has(item.id) ? "fallback" : "ready"}
 					style={
-						geometry
-							? { height: `${geometry.height}px` }
-							: item.width && item.height
-								? { aspectRatio: `${item.width} / ${item.height}` }
-								: undefined
+						brokenImageIds.has(item.id)
+							? { height: "clamp(150px, 16vw, 220px)" }
+							: geometry
+								? { height: `${geometry.height}px` }
+								: item.width && item.height
+									? { aspectRatio: `${item.width} / ${item.height}` }
+									: { minHeight: "150px" }
 					}
 				>
 					{brokenImageIds.has(item.id) ? (
@@ -1025,24 +1028,6 @@ export function LembraExperience({
 
 	return (
 		<div className={styles.shell}>
-			<aside className={styles.sidebar} aria-label="Filtros do Lembra">
-				<nav className={styles.sidebarNav}>
-					{navItems.map((item) => (
-						<button
-							key={item.id}
-							type="button"
-							className={view === item.id ? styles.navItemActive : styles.navItem}
-							onClick={() => setView(item.id)}
-							aria-pressed={view === item.id}
-						>
-							<span className={styles.navIcon}>{item.icon}</span>
-							<span>{item.label}</span>
-							<span className={styles.navCount}>{item.count}</span>
-						</button>
-					))}
-				</nav>
-			</aside>
-
 			<section className={styles.content} aria-labelledby="lembra-title">
 				<h1 className={styles.visuallyHidden} id="lembra-title">
 					Lembra
