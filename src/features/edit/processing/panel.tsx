@@ -327,6 +327,13 @@ export function ProcessingPanel({
 	const [view, setView] = useState<ProcessingView>("overview");
 	const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
+	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
+	const [resultFocus, setResultFocus] = useState<Readonly<{
+		sourceId: string;
+		runId: string;
+		requestId: number;
+	}> | null>(null);
+	const resultFocusSequence = useRef(0);
 	const [clockNow, setClockNow] = useState(() => Date.now());
 	const [customActivityBarks, setCustomActivityBarks] = useState<readonly ActivityBark[]>([]);
 	const dialog = useRef<HTMLDialogElement>(null);
@@ -489,6 +496,28 @@ export function ProcessingPanel({
 		setView(next);
 		if (leavingDiagnostics) void controller.observeJob(null);
 		if (next === "results") void controller.refresh("results");
+	}
+
+	async function openQueueResult(job: LocalJob) {
+		setResultOpenError(null);
+		const result = await controller.result(job.id);
+		if (!result?.runId) {
+			setResultOpenError(
+				"Não foi possível localizar o resultado local exato deste trabalho. Atualize a Fila e tente novamente.",
+			);
+			return;
+		}
+
+		const requestId = ++resultFocusSequence.current;
+		setResultFocus({
+			sourceId: result.sourceId,
+			runId: result.runId,
+			requestId,
+		});
+		// controller.result() already resolved and loaded the authoritative run.
+		// Avoid a second Results refresh here, which could replace a paged target
+		// before the selection request is consumed.
+		setView("results");
 	}
 
 	function openAttentionQueue() {
@@ -968,7 +997,8 @@ export function ProcessingPanel({
 							onRetry={(job) =>
 								setConfirmation({ id: job.id, action: "retry" })
 							}
-							onResult={(job) => void controller.result(job.id)}
+							resultError={resultOpenError}
+							onResult={(job) => void openQueueResult(job)}
 							onDelete={(job) =>
 								setConfirmation({ id: job.id, action: "delete" })
 							}
@@ -994,6 +1024,7 @@ export function ProcessingPanel({
 						) : null}
 						<LocalReviewWorkspace
 							runs={state.localRuns}
+							focusRun={resultFocus}
 							hasMore={state.localRunsHasMore}
 							onLoadMore={controller.loadMoreRuns}
 							review={state.localReview}
