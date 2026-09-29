@@ -135,7 +135,12 @@ export function JobDiagnosticsInspector({
 	const eventsReady = Boolean(
 		job && observedJobId === job.id,
 	);
-	const visibleEvents = eventsReady ? events : [];
+	const visibleEvents =
+		eventsReady && job
+			? events.filter(
+					(event) => event.attempt === null || event.attempt === job.attempt,
+				)
+			: [];
 	const jobKey = job ? `${job.id}:${job.attempt}` : "";
 	const profile = useMemo(
 		() =>
@@ -245,6 +250,7 @@ export function JobDiagnosticsInspector({
 			ref={dialogRef}
 			className={styles.jobDiagnosticsDialog}
 			aria-labelledby="job-diagnostics-title"
+			aria-describedby="job-diagnostics-description"
 			onCancel={(event) => {
 				event.preventDefault();
 				onClose();
@@ -261,10 +267,15 @@ export function JobDiagnosticsInspector({
 							Diagnóstico · {job?.context?.sessionId ?? "trabalho local"}
 						</h2>
 						{job ? (
-							<p>
-								{job.context?.profileId ?? job.kind} · attempt {job.attempt}
+							<p id="job-diagnostics-description">
+								{job.context?.profileId ?? job.kind} · attempt {job.attempt} · job{" "}
+								{job.id.slice(0, 12)}
 							</p>
-						) : null}
+						) : (
+							<p id="job-diagnostics-description">
+								Selecione um processamento para consultar seu diagnóstico.
+							</p>
+						)}
 					</div>
 					<Button autoFocus size="sm" variant="tertiary" onClick={onClose}>
 						Fechar
@@ -281,7 +292,7 @@ export function JobDiagnosticsInspector({
 									{presentJobError(job.error.code)}
 									{" · "}
 									<code>{job.error.code}</code>
-									{job.error.recoverable ? " · recuperável" : ""}
+									{job.error.recoverable ? " · recuperável" : " · não recuperável"}
 								</span>
 							) : null}
 						</div>
