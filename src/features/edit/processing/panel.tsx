@@ -517,7 +517,7 @@ export function ProcessingPanel({
 		if (!found) {
 			setView("results");
 			setResultOpenError(
-				"O resultado foi validado, mas o run correspondente não apareceu na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
+				"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
 			);
 			return;
 		}
