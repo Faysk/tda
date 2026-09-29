@@ -58,6 +58,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 									width={50}
 									height={50}
 									alt=""
+									unoptimized
 								/>
 							</span>
 							<span className="brand-copy">
