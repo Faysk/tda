@@ -51,6 +51,16 @@ insert into public.role_assignments(
   now()
 );
 
+-- A second valid identity intentionally receives no transcript-publish grant.
+-- This lets the service-role contract prove opaque denial without granting the
+-- test role permission to mutate role_assignments just to manufacture revoke.
+insert into public.profiles(id, auth_user_id)
+values (
+  '33333333-3333-4333-8333-333333333334',
+  '44444444-4444-4444-8444-444444444445'
+)
+on conflict do nothing;
+
 do $main$
 declare
   v_input jsonb;
@@ -280,11 +290,8 @@ begin
     raise exception 'HISTORICAL_SESSION_WAS_DUPLICATED_OR_REBOUND:%', v_conflict;
   end if;
 
-  -- Removing authority must not reveal whether an unresolved target exists and
-  -- must never provision one.
-  delete from public.role_assignments
-  where id = '10610000-0000-4000-8000-000000000001'::uuid;
-
+  -- An authenticated profile with no matching grant must not reveal whether
+  -- an unresolved target exists and must never provision one.
   v_input := jsonb_set(
     jsonb_set(
       public.synthetic_publication_input(
@@ -302,8 +309,8 @@ begin
   );
 
   select public.prepare_transcript_handoff_atomic(
-    '44444444-4444-4444-8444-444444444444',
-    '33333333-3333-4333-8333-333333333333',
+    '44444444-4444-4444-8444-444444444445',
+    '33333333-3333-4333-8333-333333333334',
     'single_source',
     v_input,
     false
@@ -357,3 +364,6 @@ where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
 
 delete from public.role_assignments
 where id = '10610000-0000-4000-8000-000000000001'::uuid;
+
+delete from public.profiles
+where id = '33333333-3333-4333-8333-333333333334'::uuid;
