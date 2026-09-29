@@ -93,7 +93,7 @@ function jobTone(status: LocalJob["status"]): "neutral" | "accent" | "success" |
 	} as const)[status];
 }
 
-function safeEvent(event: JobEvent) {
+export function sanitizeJobDiagnosticEvent(event: JobEvent) {
 	const data: Record<string, string | number | boolean | null> = {};
 	for (const [key, value] of Object.entries(event.data)) {
 		if (SAFE_EVENT_DATA_KEYS.has(key)) data[key] = value;
@@ -106,6 +106,15 @@ function safeEvent(event: JobEvent) {
 		level: event.level,
 		data,
 	};
+}
+
+export function jobDiagnosticEventsForAttempt(
+	events: readonly JobEvent[],
+	attempt: number,
+): readonly JobEvent[] {
+	return events.filter(
+		(event) => event.attempt === null || event.attempt === attempt,
+	);
 }
 
 export function JobDiagnosticsInspector({
@@ -143,11 +152,7 @@ export function JobDiagnosticsInspector({
 		job && observedJobId === job.id,
 	);
 	const visibleEvents =
-		eventsReady && job
-			? events.filter(
-					(event) => event.attempt === null || event.attempt === job.attempt,
-				)
-			: [];
+		eventsReady && job ? jobDiagnosticEventsForAttempt(events, job.attempt) : [];
 	const jobKey = job ? `${job.id}:${job.attempt}` : "";
 	const profile = useMemo(
 		() =>
@@ -251,7 +256,7 @@ export function JobDiagnosticsInspector({
 						memory_total_bytes: gpu.memoryTotalBytes,
 					}
 				: null,
-			events: visibleEvents.map(safeEvent),
+			events: visibleEvents.map(sanitizeJobDiagnosticEvent),
 		};
 		try {
 			await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
