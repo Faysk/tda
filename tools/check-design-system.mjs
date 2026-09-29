@@ -1,16 +1,8 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
 function fail(message) {
 	throw new Error(`Design system check failed: ${message}`);
-}
-
-function sha256(filePath) {
-	return crypto
-		.createHash("sha256")
-		.update(fs.readFileSync(filePath))
-		.digest("hex");
 }
 
 function sourceFiles(root) {
