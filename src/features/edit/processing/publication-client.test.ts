@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import type { LocalReview } from "./protocol";
+import { parseLocalReview, type LocalReview } from "./protocol";
+import { preparePublication } from "../../transcript-publication/contract";
 import {
 	PublicationClientError,
+	preflightApprovedLocalReview,
+	publicationRequestBody,
 	publishApprovedLocalReview,
 } from "./publication-client";
 
@@ -243,6 +246,128 @@ describe("publication client", () => {
 		expect(body).not.toHaveProperty("cover");
 		expect(JSON.stringify(body)).not.toContain("NVIDIA Test GPU");
         expect(JSON.stringify(body)).not.toContain("f".repeat(64));
+	});
+
+	it("strips timeline projection fields before canonical handoff without changing payload identity", () => {
+		const operationId = "55555555-5555-4555-8555-555555555555";
+		const withTimeline: LocalReview = {
+			...review,
+			segments: review.segments.map((segment) => ({
+				...segment,
+				timelineStart: segment.start + 120,
+				timelineEnd: segment.end + 120,
+			})),
+		};
+
+		const projectedBody = publicationRequestBody(withTimeline, operationId, null);
+		expect(projectedBody.review.segments[0]).not.toHaveProperty("timelineStart");
+		expect(projectedBody.review.segments[0]).not.toHaveProperty("timelineEnd");
+		expect(preflightApprovedLocalReview(withTimeline)).toMatchObject({
+			eligible: true,
+			reason: null,
+		});
+
+		const baseline = preparePublication(
+			JSON.stringify(publicationRequestBody(review, operationId, null)),
+		);
+		const projected = preparePublication(JSON.stringify(projectedBody));
+		expect(baseline.ok).toBe(true);
+		expect(projected.ok).toBe(true);
+		if (!baseline.ok || !projected.ok) throw new Error("expected canonical publication");
+		expect(projected.value.payloadSha256).toBe(baseline.value.payloadSha256);
+	});
+
+	it("accepts the real parsed review shape with absolute timeline but keeps unknown canonical keys fail-closed", () => {
+		const parsed = parseLocalReview(
+			{
+				schema_version: "tda_local_review_v1",
+				source_id: sourceId,
+				run_id: review.runId,
+				base_transcript_sha256: review.baseTranscriptSha256,
+				snapshot_contract: "tda_local_review_cas_v1",
+				persistence: "persisted",
+				draft_revision: review.draftRevision,
+				draft_sha256: review.draftSha256,
+				status: "approved_local",
+				approval_current: true,
+				approved_at: review.approvedAt,
+				created_at: review.createdAt,
+				updated_at: review.updatedAt,
+				lineage: {
+					profile_id: review.lineage.profileId,
+					engine: review.lineage.engine,
+					model: review.lineage.model,
+					model_revision: review.lineage.modelRevision,
+					device: review.lineage.device,
+					compute_type: review.lineage.computeType,
+					alignment: review.lineage.alignment,
+					execution_lineage: null,
+					completed_at: review.lineage.completedAt,
+				},
+				stats: {
+					audio_work_seconds: review.stats.audioWorkSeconds,
+					processing_seconds: review.stats.processingSeconds,
+					processing_metrics: null,
+					session_duration_seconds: review.stats.sessionDurationSeconds,
+					rtf: review.stats.rtf,
+					word_count: review.stats.wordCount,
+					segment_count: review.stats.segmentCount,
+					track_count: review.stats.trackCount,
+				},
+				warnings: [],
+				warning_summary: { total_count: 0, displayed_count: 0, truncated: false },
+				publication_target_state: "valid",
+				publication_target: {
+					schema_version: "tda_publication_target_v1",
+					campaign_slug: "yuhara-main",
+					source_session_id: "sessao-00001",
+					source_id: sourceId,
+					run_id: review.runId,
+					job_id: "job-a",
+					attempt: 1,
+					transcript_sha256: review.baseTranscriptSha256,
+				},
+				review: {
+					reviewed_segments: 1,
+					total_segments: 1,
+					review_percent: 100,
+					edited_segments: 1,
+					word_count: 2,
+					warning_count: 0,
+				},
+				segments: [
+					{
+						track_number: 1,
+						segment_id: "1-0",
+						start: 0,
+						end: 1,
+						timeline_start: 120,
+						timeline_end: 121,
+						text: "Olá mundo",
+						speaker: "Alice",
+						reviewed: true,
+					},
+				],
+				sync: { status: "not_configured" },
+			},
+			{ requireAbsoluteTimeline: true },
+		);
+		expect(parsed.segments[0]).toMatchObject({ timelineStart: 120, timelineEnd: 121 });
+		expect(preflightApprovedLocalReview(parsed)).toMatchObject({ eligible: true, reason: null });
+
+		const body = publicationRequestBody(
+			parsed,
+			"55555555-5555-4555-8555-555555555555",
+			null,
+		);
+		const malformed = structuredClone(body) as typeof body & {
+			review: typeof body.review & { segments: Array<Record<string, unknown>> };
+		};
+		malformed.review.segments[0].unexpected = true;
+		expect(preparePublication(JSON.stringify(malformed))).toEqual({
+			ok: false,
+			reason: "invalid_payload",
+		});
 	});
 
 	it("uses receipt readback after an ambiguous network failure", async () => {

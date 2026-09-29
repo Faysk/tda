@@ -92,7 +92,15 @@ export function publicationRequestBody(review: LocalReview, operationId: string,
 				? { warningSummary: review.warningSummary }
 				: {}),
 			review: review.review,
-			segments: review.segments,
+			segments: review.segments.map((segment) => ({
+				trackNumber: segment.trackNumber,
+				segmentId: segment.segmentId,
+				start: segment.start,
+				end: segment.end,
+				text: segment.text,
+				speaker: segment.speaker,
+				reviewed: segment.reviewed,
+			})),
 		},
 	};
 }

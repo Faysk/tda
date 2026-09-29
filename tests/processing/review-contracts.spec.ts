@@ -67,18 +67,34 @@ test("completed runs compare locally with source and time filters before an expl
 	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toHaveCount(0);
 });
 
-test("base remains unsaved until an explicit editorial action", async ({ page }) => {
+test("base advances through save, review, approval and handoff without a free status picker", async ({ page }) => {
 	await page.goto("/?review-contracts&ephemeral");
 	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByLabel("Estado do draft")).toHaveCount(0);
+	const journey = page.getByRole("navigation", { name: "Etapas da revisão" });
+	await expect(journey).toContainText("Salvar revisão");
+	await expect(journey).toContainText("Concluir revisão");
+	await expect(journey).toContainText("Aprovar");
+	await expect(journey).toContainText("Preparar no Edit");
+
 	const search = page.getByLabel("Buscar na timeline");
 	await search.fill("persistir-busca");
-	await page.getByLabel("Estado do draft").selectOption("approved_local");
+	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeEnabled();
 	await page.getByRole("button", { name: "Salvar revisão" }).click();
 	await expect(page.getByText("Draft salvo localmente.")).toBeVisible();
 	await expect(search).toHaveValue("persistir-busca");
 	await expect(page.getByText(/Run bruto imutável · draft r1/)).toBeVisible();
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByText("Draft", { exact: true })).toBeVisible();
+
+	await expect(page.getByRole("button", { name: "Concluir revisão" })).toBeEnabled();
+	await page.getByRole("button", { name: "Concluir revisão" }).click();
+	await expect(page.getByText("Revisado", { exact: true })).toBeVisible();
+
+	await expect(page.getByRole("button", { name: "Aprovar revisão" })).toBeEnabled();
+	await page.getByRole("button", { name: "Aprovar revisão" }).click();
+	await expect(page.getByText("Aprovado localmente", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Preparar sessão" })).toBeDisabled();
+	await expect(page.getByText("Handoff privado indisponível neste ambiente")).toBeVisible();
 });
 
 test("older Agent remains readable and requires an update before editing", async ({ page }) => {
@@ -86,7 +102,7 @@ test("older Agent remains readable and requires an update before editing", async
 	await expect(page.getByText(/Atualize o Companion para salvar/)).toBeVisible();
 	await expect(page.getByRole("button", { name: /^Editar / }).first()).toBeDisabled();
 	await expect(page.getByRole("checkbox", { name: /^Marcar como (não )?revisado/ }).first()).toBeDisabled();
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Concluir revisão" })).toBeDisabled();
 });
 
 test("speaker limits count emoji as one scalar and reject excess ASCII before save", async ({ page }) => {
@@ -96,10 +112,10 @@ test("speaker limits count emoji as one scalar and reject excess ASCII before sa
 	await speaker.fill("😀".repeat(160));
 	await expect(speaker).toHaveValue("😀".repeat(160));
 	await expect(speaker).toHaveAttribute("aria-invalid", "false");
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeEnabled();
+	await expect(page.getByRole("button", { name: "Salvar alterações" })).toBeEnabled();
 	await speaker.fill("a".repeat(161));
 	await expect(speaker).toHaveAttribute("aria-invalid", "true");
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Salvar alterações" })).toBeDisabled();
 	await expect(page.getByRole("alert")).toContainText("Corrija os campos");
 });
 
@@ -112,12 +128,8 @@ test("review shows factual warning totals with bounded details and Unicode word 
 	await expect(
 		page.getByRole("heading", { name: "whisper-detailed" }),
 	).toBeVisible();
-	await expect(
-		page.getByText("Avisos", { exact: true }).locator("..").locator("strong"),
-	).toHaveText("5000");
-	await expect(
-		page.getByText("Palavras", { exact: true }).locator("..").locator("strong"),
-	).toHaveText("2");
+	await expect(page.getByText("5.000 avisos", { exact: true })).toBeVisible();
+	await expect(page.getByText("2 palavras", { exact: true })).toBeVisible();
 	await page.locator("summary").filter({ hasText: "avisos do pipeline" }).click();
 	await expect(page.locator("summary").filter({ hasText: "avisos do pipeline" })).toHaveText(
 		"5000 avisos do pipeline · mostrando 50 tipos dos primeiros 1000 avisos",
@@ -147,18 +159,19 @@ test("historical review does not claim a verified total", async ({ page }) => {
 test("target repair preserves edits and restores only the original destination", async ({ page }, testInfo) => {
     await page.goto("/?review-contracts&repair");
     const repair = page.getByRole("button", { name: "Reparar vínculo original" });
-    await expect(page.getByText(/O vínculo do handoff privado está danificado/)).toBeVisible();
+    await expect(page.getByText(/O vínculo original está danificado/)).toBeVisible();
     await page.getByRole("button", { name: /^Editar / }).first().click();
     await page.getByRole("textbox", { name: /^Texto em / }).first().fill("Texto preservado");
     await expect(repair).toBeDisabled();
-    await page.getByRole("button", { name: "Salvar revisão" }).click();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
     await expect(repair).toBeEnabled();
-    await page.getByRole("button", { name: /^Concluir / }).first().click();
+    await page.getByRole("button", { name: /^Concluir edição / }).first().click();
     await page.screenshot({ path: testInfo.outputPath("publication-target-repair.png"), fullPage: true });
     await repair.click();
     await expect(repair).toHaveCount(0);
     await expect(page.locator("[data-review-segment] p").first()).toHaveText("Texto preservado");
-    await expect(page.getByText(/Destino: yuhara-main · sessão sessao-synthetic/)).toBeVisible();
+    await page.getByText("Detalhes técnicos", { exact: true }).click();
+    await expect(page.getByText(/Destino do Edit: yuhara-main · sessão sessao-synthetic/)).toBeVisible();
 });
 
 
@@ -175,13 +188,13 @@ test("bulk rename isolates a track, preserves exceptions and saves one snapshot"
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();
     await expect(page.getByLabel("Participante de origem")).toBeFocused();
-    await expect(page.getByLabel("Estado do draft")).toHaveValue("reviewed");
+    await expect(page.getByText("Alterações não salvas", { exact: true })).toBeVisible();
     await expect(page.getByTestId("save-count")).toHaveText("0");
     const speakers = page.locator("[data-review-segment] strong");
     await expect(speakers).toHaveCount(5);
     expect(await speakers.allTextContents()).toEqual(["Nome normalizado", "Nome normalizado", "Nome normalizado", "Convidado", "Alex"]);
     await page.screenshot({ path: testInfo.outputPath("participant-rename.png"), fullPage: true });
-    await page.getByRole("button", { name: "Salvar revisão" }).click();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
     await expect(page.getByTestId("save-count")).toHaveText("1");
     await expect(speakers.first()).toHaveText("Nome normalizado");
 });
@@ -193,7 +206,7 @@ test("bulk rename survives a save conflict", async ({ page }) => {
     await page.getByLabel("Novo nome").fill("Novo");
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();
-    await page.getByRole("button", { name: "Salvar revisão" }).click();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
     await expect(page.getByRole("alert")).toContainText("mudou em outra aba");
     await expect(page.locator("[data-review-segment] strong").first()).toHaveText("Novo");
     await expect(page.getByText("Alterações não salvas neste draft.")).toBeVisible();
@@ -208,10 +221,10 @@ test("concurrent bulk edits reconcile by field without closing or losing the wor
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();
     await page.getByLabel("Buscar na timeline").fill("Fala");
-    await page.getByRole("button", { name: "Salvar revisão" }).click();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
     await page.getByRole("button", { name: "Comparar com versão mais recente" }).click();
     await expect(page.getByText(/3 mudanças locais · 1 colisões/)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Salvar alterações" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Reconciliar no draft" })).toBeDisabled();
     await page.getByLabel("Manter minha alteração").check();
     await page.screenshot({ path: testInfo.outputPath("review-conflict.png"), fullPage: true });
@@ -220,8 +233,8 @@ test("concurrent bulk edits reconcile by field without closing or losing the wor
     await expect(page.getByText(/Reconciliado sobre a revisão 2/)).toBeVisible();
     await expect(page.locator("[data-review-segment] strong").first()).toHaveText("Novo");
     await expect(page.locator("[data-review-segment] p").nth(1)).toHaveText("Fala remota");
-    await expect(page.getByLabel("Estado do draft")).toHaveValue("reviewed");
-    await page.getByRole("button", { name: "Salvar revisão" }).click();
+    await expect(page.getByText("Alterações não salvas", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
     await expect(page.getByText(/Run bruto imutável · draft r3/)).toBeVisible();
     await expect(page.getByTestId("save-count")).toHaveText("2");
 });
@@ -241,27 +254,48 @@ test("publication freezes current and requires a fresh confirmation after stale_
  const first = "11111111-1111-4111-8111-111111111111";
  const second = "22222222-2222-4222-8222-222222222222";
  let reads = 0; const sent: Array<{ operationId: string; expectedCurrentRevisionId: string }> = [];
- await page.route("**/api/transcript-publications/current", route => route.fulfill({ json: { ok: true, current: { actorProfileId: "33333333-3333-4333-8333-333333333333", revisionId: (++reads, sent.length === 0 ? first : second) } } }));
+ await page.route("**/api/transcript-publications/current", async route => {
+  reads += 1;
+  await route.fulfill({
+   json: {
+    ok: true,
+    current: {
+     actorProfileId: "33333333-3333-4333-8333-333333333333",
+     revisionId: sent.length === 0 ? first : second,
+    },
+   },
+  });
+ });
  await page.route(/\/api\/transcript-publications$/, async route => {
   sent.push(route.request().postDataJSON());
   await route.fulfill({ status: 409, json: { ok: false, reason: "stale_current" } });
  });
  await page.goto("/?review-contracts&publication");
- await expect(page.getByText(/A transcrição será enviada para a área privada de Sessões do Edit/)).toBeVisible();
- await page.getByRole("button", { name: "Preparar sessão" }).click();
- await expect(page.getByRole("alertdialog")).toContainText("Preparar esta sessão no Edit?");
- await expect(page.getByRole("alertdialog")).toContainText("Isso não publica capa, resumo ou transcript no site público.");
- await expect(page.getByRole("alertdialog")).toContainText(first);
+ await expect(page.getByText(/Preparar no Edit é privado/)).toBeVisible();
+ await expect(page.getByText(/Revisão aprovada e compatível/)).toBeVisible();
+ await expect(page.getByText(/snapshot não passa no contrato atual de handoff/i)).toHaveCount(0);
+ const prepareTrigger = page.getByRole("button", { name: "Preparar sessão" });
+ await prepareTrigger.click();
+ const handoffDialog = page.getByRole("alertdialog");
+ await expect(handoffDialog).toContainText("Preparar esta sessão no Edit?");
+ await expect(handoffDialog).toContainText("Isso não publica capa, resumo ou transcript no site público.");
+ await expect(handoffDialog).toContainText(first);
+ await expect(handoffDialog.getByRole("button", { name: "Cancelar" })).toBeFocused();
+ await page.keyboard.press("Escape");
+ await expect(handoffDialog).not.toBeVisible();
+ await expect(prepareTrigger).toBeFocused();
+ await prepareTrigger.click();
+ await expect(handoffDialog.getByRole("button", { name: "Cancelar" })).toBeFocused();
  expect(sent).toHaveLength(0);
  await page.screenshot({ path: testInfo.outputPath("publication-current-confirmation.png"), fullPage: true });
  await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
- await expect(page.getByRole("alert")).toContainText("A revisão privada atual mudou");
+ await expect(page.getByText("A revisão privada mudou desde a sua confirmação", { exact: true })).toBeVisible();
  expect(sent).toHaveLength(1); expect(sent[0].expectedCurrentRevisionId).toBe(first); expect(reads).toBeGreaterThanOrEqual(2);
- await page.getByRole("button", { name: "Preparar sessão" }).click();
+ await page.getByRole("button", { name: "Consultar novamente" }).click();
  await expect(page.getByRole("alertdialog")).toContainText(second);
  expect(sent).toHaveLength(1);
  await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
- await expect(page.getByRole("alert")).toContainText("A revisão privada atual mudou");
+ await expect(page.getByText("A revisão privada mudou desde a sua confirmação", { exact: true })).toBeVisible();
  expect(sent).toHaveLength(2); expect(sent[1].expectedCurrentRevisionId).toBe(second); expect(sent[1].operationId).not.toBe(sent[0].operationId);
 });
 
@@ -281,13 +315,13 @@ test("lost publication recovers after reload without a second write or transcrip
  await page.goto("/?review-contracts&publication");
  await page.getByRole("button", { name: "Preparar sessão" }).click();
  await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
- await expect(page.getByRole("alert")).toContainText("A resposta foi perdida");
+ await expect(page.getByText("O handoff pode ter sido concluído", { exact: true })).toBeVisible();
  const stored = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("tda.publication.pending.v1:")));
  expect(stored).toHaveLength(1); expect(stored[0][1]).not.toContain("Olá"); expect(stored[0][1]).not.toContain("Participante sintético"); expect(JSON.parse(stored[0][1]).operationId).toBe((committed as Record<string, unknown> | null)?.operationId);
  await page.reload();
- // The recovery effect is opportunistic; exercise the explicit operator path so
- // the test does not depend on focus/visibility timing in headless Chromium.
- await page.getByRole("button", { name: "Preparar sessão" }).click();
+ // The recovery effect is opportunistic. The persisted operation must surface
+ // as recovery, never as a fresh enabled "Preparar sessão" action.
+ await expect(page.getByRole("button", { name: "Preparar sessão" })).toBeDisabled();
  await expect(page.getByRole("button", { name: "Abandonar handoff anterior" })).toBeVisible();
  let abandonmentMessage = "";
  page.once("dialog", async dialog => {
@@ -307,7 +341,7 @@ test("lost publication recovers after reload without a second write or transcrip
  await expect(editLink).toHaveAttribute("href", "/edit/sessoes/sessao-synthetic");
  await page.setViewportSize({ width: 390, height: 844 });
  await expect(editLink).toBeVisible();
- await expect(page.getByText(/Nada ficará público automaticamente/)).toBeVisible();
+ await expect(page.getByText(/Preparar no Edit é privado/)).toBeVisible();
  expect(posts).toBe(1);
  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(0);
  await page.screenshot({ path: testInfo.outputPath("publication-recovered.png"), fullPage: true });

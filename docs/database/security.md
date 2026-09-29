@@ -459,3 +459,20 @@ Controles:
 - preparação não equivale a publish: não toca `sessions.status`, session publication, mídia pública, resumo público ou transcript-publication receipts.
 
 Ver também [inventário de RPCs](rpc-inventory.md) e [migrations](migrations.md).
+
+## Handoff privado de transcript — resolução/criação de session (#1061)
+
+A PR #1078 adiciona `prepare_transcript_handoff_atomic(uuid,uuid,text,jsonb,boolean)` como boundary server-only para o caso em que a revisão local aprovada possui campaign/source-session válidos, mas a row privada de `sessions` ainda não existe.
+
+Regras de segurança:
+
+- authorization de `campaign.transcript.publish` acontece antes de consultar existência/conflito do target;
+- `lookup_only=true` nunca cria session;
+- session nova nasce `source_system='local_companion'` e `status='ready_for_review'`; isso **não** equivale a publicação pública;
+- target histórico/non-local de mesma identidade não é alterado ou duplicado silenciosamente;
+- o wrapper não relaxa canonical payload, CAS, receipt, replay ou provenance dos RPCs de publicação existentes;
+- rejeição conhecida não deixa shell vazia;
+- audit da criação é metadata-only e não carrega transcript;
+- browser roles não executam a função diretamente.
+
+O endpoint Web continua autenticado/same-origin. Um target ainda não materializado pode ser representado server-side como `sessionId=null`; somente a confirmação final, dentro do boundary SQL autorizado, pode materializá-lo.

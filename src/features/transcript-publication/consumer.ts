@@ -11,7 +11,7 @@ export type AuthorizedPublicationActor = Readonly<{
 	authUserId: string;
 	profileId: string;
 	campaignId: string;
-	sessionId: string;
+	sessionId: string | null;
 }>;
 
 export type PublicationDependencies = Readonly<{
@@ -39,11 +39,12 @@ export type PublicationDependencies = Readonly<{
 function expectedWithResolvedTarget(
 	actor: AuthorizedPublicationActor,
 	input: PreparedPublication,
+	resolvedSessionId: string,
 ) {
 	return {
 		...input,
 		campaignId: actor.campaignId,
-		sessionId: actor.sessionId,
+		sessionId: actor.sessionId ?? resolvedSessionId,
 	};
 }
 
@@ -64,7 +65,7 @@ export async function publishTranscriptRevision(
 		if (!result.ok) return result;
 		return confirmedPublicationReceipt(
 			result.receipt,
-			expectedWithResolvedTarget(access.actor, parsed.value),
+			expectedWithResolvedTarget(access.actor, parsed.value, result.receipt.sessionId),
 		)
 			? result
 			: { ok: false, reason: "dependency_unavailable" };
@@ -90,7 +91,7 @@ export async function readPublicationReceipt(
 		if (!result.ok) return result;
 		return confirmedPublicationReceipt(
 			result.receipt,
-			expectedWithResolvedTarget(access.actor, parsed.value),
+			expectedWithResolvedTarget(access.actor, parsed.value, result.receipt.sessionId),
 		)
 			? result
 			: { ok: false, reason: "dependency_unavailable" };

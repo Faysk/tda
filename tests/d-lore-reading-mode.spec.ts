@@ -1,4 +1,17 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+
+const dUiManifest = JSON.parse(
+	readFileSync(new URL("../media/manifests/d-ui.json", import.meta.url), "utf8"),
+) as {
+	publicOrigin: string;
+	namespace: string;
+	assets: Array<{ file: string; sha256: string }>;
+};
+
+const dFaviconAsset = dUiManifest.assets.find((asset) => asset.file === "favicon.svg");
+if (!dFaviconAsset) throw new Error("D favicon manifest asset is missing");
+const D_FAVICON_URL = `${dUiManifest.publicOrigin}/${dUiManifest.namespace}/${dFaviconAsset.sha256}/${dFaviconAsset.file}`;
 
 test("D switches between cinematic and full reading modes on the same URL", async ({ page, request, isMobile, viewport }) => {
 	test.setTimeout(120000);
@@ -13,13 +26,10 @@ test("D switches between cinematic and full reading modes on the same URL", asyn
 
 	await page.goto("/lore/d");
 	const initialPath = new URL(page.url()).pathname;
-	const favicon = page.locator('link[rel~="icon"][href$="favicon.svg"]');
+	const favicon = page.locator('link[rel~="icon"]');
 	await expect(favicon).toHaveCount(1);
 	await expect(favicon).toHaveAttribute("type", "image/svg+xml");
-	expect(await favicon.evaluate((element: HTMLLinkElement) => new URL(element.href).pathname)).toBe("/lore/d/favicon.svg");
-	const faviconResponse = await request.get("/lore/d/favicon.svg");
-	expect(faviconResponse.ok()).toBe(true);
-	expect(await faviconResponse.text()).toContain('aria-label="D."');
+	await expect(favicon).toHaveAttribute("href", D_FAVICON_URL);
 
 	const toggle = page.locator("#lore-mode-toggle");
 	await expect(toggle).toBeVisible();

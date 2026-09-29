@@ -51,6 +51,23 @@ describe("current publication metadata", () => {
 		});
 		expect(read).toHaveBeenCalledWith(actor);
 	});
+	it("maps an authorized target identity conflict to 409", async () => {
+		const read = vi.fn();
+		const handler = createCurrentPublicationHandler({
+			origin: () => "https://tda.test",
+			identity: async () => ({ ok: true, authUserId: "auth" }),
+			publication: {
+				...deniedPublicationDependencies,
+				authorize: async () => ({ ok: false as const, reason: "conflict" as const }),
+			},
+			read,
+		});
+		const response = await handler(request());
+		expect(response.status).toBe(409);
+		expect(await response.json()).toEqual({ ok: false, reason: "conflict" });
+		expect(read).not.toHaveBeenCalled();
+	});
+
 	it("rejects wrong origin, oversized metadata and malformed target before lookup", async () => {
 		const authorize = vi.fn();
 		const read = vi.fn();

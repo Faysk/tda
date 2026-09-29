@@ -109,6 +109,39 @@ describe("transcript publication authorization", () => {
 		expect(targetCalls).toBe(0);
 	});
 
+	it("keeps an authorized missing private session as an unresolved target", async () => {
+		const result = await authorizePublicationRequest(
+			context,
+			target,
+			queries({
+				target: async () => ({
+					ok: true,
+					value: { campaignId: "campaign", sessionId: null },
+				}),
+			}),
+		);
+		expect(result).toEqual({
+			ok: true,
+			actor: {
+				authUserId: "operator",
+				profileId: "profile",
+				campaignId: "campaign",
+				sessionId: null,
+			},
+		});
+	});
+
+	it("returns target identity conflict only after campaign scope authorization", async () => {
+		const result = await authorizePublicationRequest(
+			context,
+			target,
+			queries({
+				target: async () => ({ ok: false, reason: "conflict" }),
+			}),
+		);
+		expect(result).toEqual({ ok: false, reason: "conflict" });
+	});
+
 	it("returns not_found only after the exact scope is authorized", async () => {
 		const result = await authorizePublicationRequest(
 			context,
