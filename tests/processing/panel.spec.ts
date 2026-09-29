@@ -1100,6 +1100,77 @@ test("Results keeps selected-run detail in document flow on Full HD", async ({ p
 	}
 });
 
+test("Results keeps empty Session Assembly and sync context compact", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.addInitScript(() => {
+		window.localStorage.setItem(
+			"tda.processing.session-composer.last-session.v1",
+			"sessao-42",
+		);
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+		additionalCapabilities: [
+			"transcription.session-assembly",
+			"transcription.session-assembly.review",
+		],
+	});
+	await installCompletedRunCatalog(page);
+	await page.route(
+		`${LOCAL_API}/session-workspaces/yuhara-main/sessao-42/assemblies`,
+		(route) =>
+			fulfillJson(route, {
+				schema_version: "tda_session_assemblies_v1",
+				campaign_id: "yuhara-main",
+				session_id: "sessao-42",
+				assemblies: [],
+			}),
+	);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+
+	const assembly = page.locator("[data-results-assembly='true']");
+	await expect(assembly).toBeVisible();
+	await expect(assembly).toHaveAttribute("data-empty", "true");
+	await expect(
+		assembly.getByText("Nenhuma assembly concluída para a sessão ativa.", {
+			exact: true,
+		}),
+	).toBeVisible();
+
+	const assemblyGeometry = await assembly.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			height: element.getBoundingClientRect().height,
+			borderTopWidth: style.borderTopWidth,
+			borderRadius: style.borderRadius,
+			backgroundColor: style.backgroundColor,
+		};
+	});
+	expect(assemblyGeometry.height).toBeLessThanOrEqual(72);
+	expect(assemblyGeometry.borderTopWidth).toBe("0px");
+	expect(assemblyGeometry.borderRadius).toBe("0px");
+	expect(assemblyGeometry.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+
+	const sync = page.locator("[data-results-sync='true']");
+	await expect(sync).toBeVisible();
+	const syncStyle = await sync.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			borderRadius: style.borderRadius,
+			backgroundColor: style.backgroundColor,
+			borderTopWidth: style.borderTopWidth,
+		};
+	});
+	expect(syncStyle.borderRadius).toBe("0px");
+	expect(syncStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+	expect(syncStyle.borderTopWidth).toBe("1px");
+});
+
 test("Companion 0.3.16 exposes completed-run deletion without changing job-delete compatibility", async ({ page }) => {
 	await installCompanionFixture(page, {
 		profileReady: true,
