@@ -138,6 +138,7 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'not_found');
   else
     insert into public.sessions (
+      id,
       campaign_id,
       title,
       status,
@@ -145,6 +146,7 @@ begin
       source_system,
       source_session_id
     ) values (
+      gen_random_uuid(),
       v_campaign_id,
       v_source_session_id,
       'ready_for_review',
@@ -195,16 +197,29 @@ begin
     );
   end if;
 
+  if jsonb_typeof(v_result) is distinct from 'object'
+     or jsonb_typeof(v_result->'ok') is distinct from 'boolean' then
+    raise exception 'delegated transcript handoff returned an invalid result';
+  end if;
+
   if coalesce((v_result->>'ok')::boolean, false) is not true then
     -- A newly provisioned session is part of the same handoff intent. A
-    -- deterministic rejection must not leave an empty shell in Edit.
+    -- deterministic rejection must not leave an empty shell in Edit. Guard all
+    -- authority pointers so future delegated behavior cannot make cleanup
+    -- silently destructive.
     if v_created then
       delete from public.sessions s
       where s.id = v_session_id
         and s.campaign_id = v_campaign_id
         and s.source_system = 'local_companion'
         and s.source_session_id = v_source_session_id
-        and s.current_transcript_revision_id is null;
+        and s.current_transcript_revision_id is null
+        and s.current_editorial_draft_id is null
+        and s.current_session_publication_id is null;
+
+      if not found then
+        raise exception 'failed first handoff left a session with unexpected authority';
+      end if;
     end if;
     return v_result;
   end if;
