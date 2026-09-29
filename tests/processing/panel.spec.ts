@@ -1612,7 +1612,7 @@ test("Queue Open result surfaces a valid-but-missing run instead of silently sel
 	);
 	await expect(
 		page.getByText(
-			"O resultado foi validado, mas o run correspondente não apareceu na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
+			"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
 			{ exact: true },
 		),
 	).toBeVisible();
@@ -1651,7 +1651,7 @@ test("Queue Open result rejects a run with matching IDs but mismatched transcrip
 	);
 	await expect(
 		page.getByText(
-			"O resultado foi validado, mas o run correspondente não apareceu na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
+			"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
 			{ exact: true },
 		),
 	).toBeVisible();
