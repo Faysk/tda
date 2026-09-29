@@ -1049,25 +1049,31 @@ export function LocalReviewWorkspace({
 		<section
 			className={`${styles.library} ${runs.length ? "" : styles.libraryCompact}`}
 			aria-labelledby="local-results-title"
+			data-results-library="true"
 		>
 			<div className={styles.libraryHeader}>
 				<div>
 					<span className={styles.eyebrow}>Biblioteca local</span>
-					<h2 id="local-results-title">Resultados locais</h2>
+					<div className={styles.libraryTitleLine}>
+						<h2 id="local-results-title">Resultados locais</h2>
+						<span className={styles.libraryCount}>
+							{filteredRuns.length}
+							{filteredRuns.length !== runs.length ? ` de ${runs.length}` : ""}{" "}
+							{runs.length === 1 ? "resultado" : "resultados"}
+						</span>
+					</div>
 				</div>
-				<span>
-					{filteredRuns.length}
-					{filteredRuns.length !== runs.length ? ` de ${runs.length}` : ""}{" "}
-					{runs.length === 1 ? "resultado" : "resultados"}
-				</span>
+				{runs.length ? (
+					<details className={styles.libraryHelp}>
+						<summary>Como funciona</summary>
+						<p>Navegue pelos metadados primeiro. O transcript só é carregado quando você abre uma revisão.</p>
+					</details>
+				) : null}
 			</div>
 			{runs.length ? (
 				<>
-					<p className={styles.libraryIntro}>
-						Navegue pelos metadados primeiro. O transcript só é carregado quando você abre uma revisão.
-					</p>
 					<div className={styles.libraryToolbar}>
-						<label className={styles.librarySearch}>
+						<label className={styles.librarySearch} data-results-search="true">
 							<span>Buscar</span>
 							<input
 								value={libraryQuery}
@@ -1075,7 +1081,7 @@ export function LocalReviewWorkspace({
 								placeholder="Perfil, modelo, GPU, runtime ou ID…"
 							/>
 						</label>
-						<label>
+						<label data-results-filter-start="true">
 							<span>Perfil</span>
 							<select value={profileFilter} onChange={(event) => setProfileFilter(event.target.value)}>
 								<option value="all">Todos</option>
@@ -1104,7 +1110,7 @@ export function LocalReviewWorkspace({
 						</label>
 					</div>
 					<div className={styles.libraryWorkspace}>
-						<nav className={styles.runList} aria-label="Runs locais">
+						<nav className={styles.runList} aria-label="Runs locais" data-results-master="true">
 							{filteredRuns.map((run) => {
 								const key = serializeLocalRunKey(localRunKey(run));
 								const active = selectedRun
@@ -1154,7 +1160,7 @@ export function LocalReviewWorkspace({
 								</div>
 							) : null}
 						</nav>
-						<div className={styles.runDetail}>
+						<div className={styles.runDetail} data-results-detail="true">
 							{selectedRun ? (
 								<>
 									<RunCard
