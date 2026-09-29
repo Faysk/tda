@@ -12,6 +12,9 @@ export const metadata: Metadata = buildPublicMetadata({
 	pathname: "/lore",
 });
 
+const loreCardSizes =
+	"(max-width: 650px) calc(100vw - 40px), (max-width: 2160px) 93vw, 2016px";
+
 export default function LoreIndexRoute() {
 	return (
 		<div className={styles.page}>
@@ -33,7 +36,7 @@ export default function LoreIndexRoute() {
 							alt=""
 							fill
 							unoptimized
-							sizes="(max-width: 650px) 100vw, 1120px"
+							sizes={loreCardSizes}
 						/>
 						<div className={styles.cardShade} aria-hidden="true" />
 						<a className={styles.cardLink} href={`/lore/${lore.slug}`}>
@@ -54,7 +57,7 @@ export default function LoreIndexRoute() {
 						src="/lore/pipipi/stage-bg.avif"
 						alt=""
 						fill
-						sizes="(max-width: 650px) 100vw, 1120px"
+						sizes={loreCardSizes}
 						quality={88}
 					/>
 					<div className={styles.cardShade} aria-hidden="true" />
