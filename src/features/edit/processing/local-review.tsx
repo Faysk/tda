@@ -27,6 +27,7 @@ import { RunComparisonView } from "./run-comparison-view";
 
 type Props = Readonly<{
 	runs: readonly LocalRunSummary[];
+	focusRun?: Readonly<{ sourceId: string; runId: string; requestId: number }> | null;
 	hasMore?: boolean;
 	onLoadMore?: () => void | Promise<void>;
 	review: LocalReview | null;
@@ -1090,6 +1091,7 @@ function ReviewEditor({
 
 export function LocalReviewWorkspace({
 	runs,
+	focusRun = null,
 	hasMore = false,
 	onLoadMore,
 	review,
@@ -1111,6 +1113,9 @@ export function LocalReviewWorkspace({
 	const [reviewFilter, setReviewFilter] = useState("all");
 	const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "fastest">("newest");
 	const [selectedRunKey, setSelectedRunKey] = useState<string | null>(null);
+	const runButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+	const pendingFocusRequest = useRef<number | null>(null);
+	const handledFocusRequest = useRef<number | null>(null);
 	const [comparisonTargetKey, setComparisonTargetKey] = useState("");
 	const [comparisonBusy, setComparisonBusy] = useState(false);
 	const [comparisonError, setComparisonError] = useState<string | null>(null);
@@ -1165,6 +1170,50 @@ export function LocalReviewWorkspace({
 		() => [...new Set(runs.map((run) => run.profileId))].sort(),
 		[runs],
 	);
+	const focusRunKey = focusRun
+		? serializeLocalRunKey({
+				sourceId: focusRun.sourceId,
+				runId: focusRun.runId,
+			})
+		: null;
+
+	useEffect(() => {
+		if (
+			!focusRun ||
+			!focusRunKey ||
+			handledFocusRequest.current === focusRun.requestId
+		)
+			return;
+		if (
+			!runs.some(
+				(run) =>
+					run.sourceId === focusRun.sourceId && run.runId === focusRun.runId,
+			)
+		)
+			return;
+
+		handledFocusRequest.current = focusRun.requestId;
+		pendingFocusRequest.current = focusRun.requestId;
+		setLibraryQuery("");
+		setProfileFilter("all");
+		setReviewFilter("all");
+		setSelectedRunKey(focusRunKey);
+	}, [focusRun, focusRunKey, runs]);
+
+	useLayoutEffect(() => {
+		if (
+			!focusRun ||
+			!focusRunKey ||
+			pendingFocusRequest.current !== focusRun.requestId ||
+			selectedRunKey !== focusRunKey
+		)
+			return;
+		const button = runButtonRefs.current.get(focusRunKey);
+		if (!button) return;
+		pendingFocusRequest.current = null;
+		button.focus({ preventScroll: true });
+		button.scrollIntoView({ block: "nearest", inline: "nearest" });
+	}, [focusRun, focusRunKey, filteredRuns, selectedRunKey]);
 	const selectedRun =
 		filteredRuns.find(
 			(run) => serializeLocalRunKey(localRunKey(run)) === selectedRunKey,
@@ -1357,6 +1406,10 @@ export function LocalReviewWorkspace({
 								return (
 									<button
 										key={key}
+										ref={(node) => {
+											if (node) runButtonRefs.current.set(key, node);
+											else runButtonRefs.current.delete(key);
+										}}
 										type="button"
 										className={styles.runListItem}
 										data-active={active ? "true" : "false"}
