@@ -1832,10 +1832,10 @@ test("Overview opens running-job diagnostics contextually and exposes cancel wit
 
 	const overviewTab = page.getByRole("tab", { name: "Visão geral", exact: true });
 	await expect(overviewTab).toHaveAttribute("aria-selected", "true");
-	await page
+	const overviewDiagnosticsButton = page
 		.getByRole("tabpanel", { name: "Visão geral" })
-		.getByRole("button", { name: "Abrir diagnóstico", exact: true })
-		.click();
+		.getByRole("button", { name: "Abrir diagnóstico", exact: true });
+	await overviewDiagnosticsButton.click();
 
 	const inspector = page.locator("dialog[data-job-diagnostics='contextual']");
 	await expect(inspector).toBeVisible();
@@ -1846,6 +1846,7 @@ test("Overview opens running-job diagnostics contextually and exposes cancel wit
 	await inspector.getByRole("button", { name: "Fechar" }).click();
 	await expect(inspector).not.toBeVisible();
 	await expect(overviewTab).toHaveAttribute("aria-selected", "true");
+	await expect(overviewDiagnosticsButton).toBeFocused();
 });
 
 test("Queue per-job diagnostics opens contextually and preserves the Queue view", async ({ page }) => {
