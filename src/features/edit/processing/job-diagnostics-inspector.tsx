@@ -83,14 +83,14 @@ function formatBytes(value: number | null): string {
 }
 
 function jobTone(status: LocalJob["status"]): "neutral" | "accent" | "success" | "warning" | "danger" {
-	return {
+	return ({
 		queued: "neutral",
 		running: "accent",
 		succeeded: "success",
 		failed: "danger",
 		cancelled: "neutral",
 		interrupted: "warning",
-	}[status];
+	} as const)[status];
 }
 
 function safeEvent(event: JobEvent) {
