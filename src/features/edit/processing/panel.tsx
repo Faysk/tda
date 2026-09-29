@@ -489,6 +489,7 @@ export function ProcessingPanel({
 
 	function activateView(next: ProcessingView) {
 		const leavingDiagnostics = view === "diagnostics" && next !== "diagnostics";
+		setResultOpenError(null);
 		setView(next);
 		if (leavingDiagnostics) void controller.observeJob(null);
 		if (next === "results") void controller.refresh("results");
@@ -533,6 +534,7 @@ export function ProcessingPanel({
 
 	function openAttentionQueue() {
 		if (view === "diagnostics") void controller.observeJob(null);
+		setResultOpenError(null);
 		setQueueFilter("attention");
 		setQueueSearchReset((value) => value + 1);
 		setView("queue");
