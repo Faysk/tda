@@ -83,6 +83,7 @@ export function ReviewFixture() {
 				segmentId: "1-0",
 				start: 0,
 				end: 1,
+				...(publication ? { timelineStart: 120, timelineEnd: 121 } : {}),
 				text: "Olá\u0085mundo",
 				speaker: "Participante sintético",
 				reviewed: false,
