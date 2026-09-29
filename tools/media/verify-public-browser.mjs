@@ -152,7 +152,7 @@ async function acquireMediaClearance(page, asset) {
 	}
 }
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: false });
 
 try {
 	const context = await browser.newContext({ serviceWorkers: "block" });
@@ -247,7 +247,7 @@ try {
 		}
 
 		asset.publicDeliveryVerified = true;
-		asset.publicDeliveryVerificationMode = "browser-image-after-clearance";
+		asset.publicDeliveryVerificationMode = "headful-browser-image-after-clearance";
 		console.log(`MEDIA_BROWSER_VERIFIED ${asset.file}`);
 	}
 } finally {
