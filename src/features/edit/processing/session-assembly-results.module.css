@@ -1,19 +1,27 @@
 .section {
 	display: grid;
-	gap: 10px;
-	margin-bottom: 12px;
-	padding: 12px;
-	border: 1px solid var(--ds-border-subtle);
-	border-radius: var(--ds-radius-lg);
-	background: var(--ds-surface);
+	gap: 8px;
+	padding: 0 0 10px;
+	border: 0;
+	border-bottom: 1px solid var(--ds-border-subtle);
+	background: transparent;
 	color: var(--ds-foreground);
 	font-family: var(--ds-font-ui);
+}
+
+.section[data-empty="true"] {
+	gap: 4px;
+	padding-bottom: 8px;
 }
 .header, .item {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
+}
+
+.header > div {
+	min-width: 0;
 }
 .header > div, .item > div, .review {
 	display: grid;
