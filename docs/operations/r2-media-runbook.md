@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: integrations/media + operations
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-29
 
 Regra permanente: toda mídia persistida/publicada pertence ao Media Storage; Cloudflare R2 é o provider atual. Fluxo obrigatório: confirmar identidade/role/audience; validar provenance; escolher o master/fonte de maior fidelidade; calcular SHA-256, MIME, bytes e dimensões; decidir se o consumidor precisa do master, de variante dinâmica ou de derivado físico; validar qualidade/resolução; escolher bucket/key; verificar colisão; fazer upload somente quando autorizado; executar read-back; para mídia pública, validar URL HTTPS anônima e decode; registrar evidência; só então promover referência e validar frontend/social.
 
@@ -43,6 +43,23 @@ A existência administrativa dos secrets não é presumida: ausência de qualque
 O repositório também ainda contém binários/fontes de mídia de migrações anteriores, inclusive em `media/sources/`. Isso é dívida de migração reconhecida pela ADR-0018. Novas decisões não devem ampliar essa dependência; a retirada será feita de forma deliberada depois que o intake/storage canônico estiver implementado.
 
 O runtime do World/Edit é outro boundary: credenciais permanecem server-only; o browser recebe apenas presigned PUT curto para uma pending key quando autorizado. Staging usa `tda-media-preview` fora de Production e `tda-media-private` em Production antes da promoção pública. Os tokens GitHub provisionados acima não devem ser reaproveitados automaticamente pelo runtime; quando o runtime precisar de acesso, sua identidade/escopo deve ser decidida explicitamente.
+
+## Reuso de objeto canônico sem source no Git
+
+A Media Pipeline aceita schema v2 com `sourceMode: "canonical-r2"` somente para objetos cuja publicação anterior tenha provenance explícita.
+
+Operação:
+
+1. CI comum valida metadata/provenance do manifest sem usar credenciais R2;
+2. o publisher autorizado deriva a key imutável a partir de namespace + SHA-256 + filename;
+3. executa HEAD e GET/read-back no `tda-media-public`;
+4. compara bytes, SHA-256 e Content-Type;
+5. verifica a entrega HTTPS pública;
+6. registra `reused` no receipt.
+
+Se o objeto não existir ou qualquer integridade divergir, falhar fechado. **Nunca transformar um item source-less em upload novo**, nunca reconstruir bytes a partir de URL pública e nunca aceitar key/nome como prova de conteúdo.
+
+Esse modo permite retirar fontes históricas redundantes do Git depois de verificação real, preservando manifest, receipt e capacidade de recuperação pelo objeto canônico R2.
 
 ## Antes de executar
 
