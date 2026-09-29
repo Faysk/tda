@@ -11,7 +11,10 @@
 
 .section[data-empty="true"] {
 	gap: 4px;
-	padding-bottom: 8px;
+	padding-bottom: 6px;
+}
+.section[data-empty="true"] .header > div {
+	gap: 1px;
 }
 .header, .item {
 	display: flex;
