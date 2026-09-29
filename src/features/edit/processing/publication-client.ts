@@ -92,7 +92,18 @@ export function publicationRequestBody(review: LocalReview, operationId: string,
 				? { warningSummary: review.warningSummary }
 				: {}),
 			review: review.review,
-			segments: review.segments,
+			// LocalReviewSegment also carries presentation-only timelineStart/timelineEnd
+			// coordinates. Keep this boundary explicit so UI projections (and future
+			// display metadata) cannot leak into the strict cloud publication schema.
+			segments: review.segments.map((segment) => ({
+				trackNumber: segment.trackNumber,
+				segmentId: segment.segmentId,
+				start: segment.start,
+				end: segment.end,
+				text: segment.text,
+				speaker: segment.speaker,
+				reviewed: segment.reviewed,
+			})),
 		},
 	};
 }
