@@ -977,20 +977,22 @@ export function LocalReviewWorkspace({
 		if (!target) return;
 
 		// Queue -> Results navigation is identity-driven. Clear library filters
-		// that could hide the exact run, select it, then move keyboard focus to
-		// the corresponding master-list item without opening editorial review.
+		// that could hide the exact run, then select it without opening review.
 		setLibraryQuery("");
 		setProfileFilter("all");
 		setReviewFilter("all");
 		setSelectedRunKey(focusRunKey);
-		requestAnimationFrame(() => {
-			const targetButton = [...document.querySelectorAll<HTMLButtonElement>(
-				"button[data-local-run-key]",
-			)].find((button) => button.dataset.localRunKey === focusRunKey);
-			targetButton?.focus({ preventScroll: true });
-			targetButton?.scrollIntoView({ block: "nearest", inline: "nearest" });
-		});
 	}, [focusRunKey, focusRunRequestId, runs]);
+
+	useLayoutEffect(() => {
+		if (!focusRunKey || selectedRunKey !== focusRunKey) return;
+		const targetButton = [...document.querySelectorAll<HTMLButtonElement>(
+			"button[data-local-run-key]",
+		)].find((button) => button.dataset.localRunKey === focusRunKey);
+		if (!targetButton) return;
+		targetButton.focus({ preventScroll: true });
+		targetButton.scrollIntoView({ block: "nearest", inline: "nearest" });
+	}, [focusRunKey, focusRunRequestId, selectedRunKey]);
 
 	async function startComparison() {
 		if (!selectedRun || !comparisonTarget || comparisonBusy) return;
