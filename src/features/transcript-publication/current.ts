@@ -33,7 +33,9 @@ export function createCurrentPublicationHandler(deps: {
 								? 400
 								: result.reason === "not_found"
 									? 404
-									: 503,
+									: result.reason === "conflict" || result.reason === "stale_current"
+										? 409
+										: 503,
 				headers: {
 					"Cache-Control": "no-store",
 					"X-Content-Type-Options": "nosniff",

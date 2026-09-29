@@ -1631,3 +1631,43 @@ Validação antes do rollout:
 - Production CD deve aplicar a migration antes da promoção e verificar migration history/health no staged deployment.
 
 Rollback é forward-only: desabilitar primeiro a mutation Web e corrigir função/grants por migration posterior; não apagar audit, assignments históricos nem revisions de concorrência.
+
+## 2026-09-29 — first private transcript handoff session resolution (#1061)
+
+### `20260929183000_transcript_handoff_session_resolution`
+
+**Estado:** migration candidata da PR #1078; não aplicar manualmente no Supabase canônico.
+
+Objetivo:
+
+- permitir que o primeiro handoff de uma revisão `approved_local` crie a session privada mínima quando ainda não existe row `local_companion`;
+- manter lookup/readback puro: consultar receipt/current não cria session;
+- usar `ready_for_review` como lifecycle privado inicial, com `title=source_session_id` apenas como identidade técnica até o editor definir metadata editorial;
+- delegar revision/receipt/current pointer aos RPCs hardened já existentes, tanto single-source quanto Session Assembly;
+- não alterar `sessions.status` para `published` e não tocar capa, resumo, data ou publication pública.
+
+Atomicidade e recovery:
+
+- `prepare_transcript_handoff_atomic(...)` revalida identity/profile + `campaign.transcript.publish` antes de olhar o target;
+- first handoff sem session cria a row dentro da mesma transaction e injeta o UUID somente no payload server-side;
+- rejeição determinística do publish remove a shell criada naquela mesma intenção antes do retorno;
+- exception SQL continua abortando o statement inteiro;
+- replay da mesma operation encontra a session já criada e delega ao receipt/idempotency existente;
+- duas primeiras intenções são serializadas por advisory transaction lock e pelo unique index `(campaign_id, source_system, source_session_id)`;
+- uma session histórica/non-`local_companion` com a mesma identidade causa `conflict`: não há rebind ou duplicação silenciosa.
+
+Segurança:
+
+- função `SECURITY INVOKER`, `search_path=pg_catalog, public`;
+- `PUBLIC`, `anon` e `authenticated` sem EXECUTE;
+- somente `service_role` executa;
+- audit de criação contém somente IDs, source identity e status; nenhuma fala;
+- target inexistente permanece opaco para ator sem capability.
+
+Validação sintética:
+
+- `supabase/tests/transcript_handoff_session_resolution.sql` cobre first handoff, replay, lookup-only, rollback de shell, conflito histórico e autorização;
+- `supabase/tests/transcript_multi_source_provenance.sql` cobre o mesmo primeiro provisionamento para Session Assembly;
+- `tools/transcript-sync-db.py` aplica migration + contratos em PostgreSQL descartável.
+
+Rollback é forward-only: retirar primeiro o consumidor Web; sessions privadas/revisions já confirmadas continuam evidência válida. Não apagar receipt/revision/session real para simular rollback.
