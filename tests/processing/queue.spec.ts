@@ -346,12 +346,13 @@ test("Abrir resultado navega para o run exato mesmo fora da primeira página", a
 		"true",
 	);
 	const results = page.getByRole("tabpanel", { name: "Resultados" });
-	const selectedRun = results
-		.getByRole("button")
-		.filter({ hasText: "qwen-quality" });
+	const selectedRun = results.locator(
+		`[data-results-master="true"] [data-run-id="${targetRunId}"]`,
+	);
+	await expect(selectedRun).toHaveAttribute("data-source-id", CRAIG_SOURCE_ID);
 	await expect(selectedRun).toHaveAttribute("aria-current", "true");
+	await expect(selectedRun).toContainText("qwen-quality");
 	await expect(selectedRun).toBeFocused();
-	await expect(results.getByText(`Run ${targetRunId}`, { exact: true })).toBeVisible();
 	await expect(results.getByText("Revisão local derivada", { exact: true })).toHaveCount(0);
 });
 
