@@ -975,4 +975,128 @@ describe("processing state", () => {
         expect(reviewPosts).toBe(2);
 
 	});
+
+	it("resolves the authoritative result run beyond the first catalog page", async () => {
+		const sourceId = `craig-${"a".repeat(64)}`;
+		const targetRunId = "run-test-job-a1";
+		const terminalJob = {
+			...job,
+			status: "succeeded",
+			stage: "succeeded",
+			result_available: true,
+		};
+		const catalogCaps = {
+			...caps,
+			capabilities: ["transcription.review", "transcription.runs.catalog"],
+		};
+		const run = (runId: string, sha: string) => ({
+			run_id: runId,
+			status: "completed",
+			source_id: sourceId,
+			profile_id: "qwen-quality",
+			engine: "qwen3",
+			model: "fixture-qwen",
+			model_revision: "rev",
+			device: "cuda",
+			completed_at: "2026-09-29T14:00:00Z",
+			transcript_sha256: sha,
+			transcript_size_bytes: 900,
+			stats: {},
+		});
+		const catalogCursors: string[] = [];
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(catalogCaps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [terminalJob] });
+			if (value.endsWith("/sources"))
+				return Response.json({
+					schema_version: "tda_craig_sources_v1",
+					sources: [],
+				});
+			if (value.includes("/runs?")) {
+				const cursor = new URL(value).searchParams.get("cursor") ?? "";
+				catalogCursors.push(cursor);
+				if (cursor === "page-2")
+					return Response.json({
+						schema_version: "tda_local_run_catalog_v1",
+						runs: [run(targetRunId, "b".repeat(64))],
+						has_more: false,
+						next_cursor: null,
+					});
+				return Response.json({
+					schema_version: "tda_local_run_catalog_v1",
+					runs: [run("run-unrelated", "c".repeat(64))],
+					has_more: true,
+					next_cursor: "page-2",
+				});
+			}
+			if (value.endsWith("/jobs/test-job/result"))
+				return Response.json({
+					schema_version: "tda_local_result_v1",
+					campaign_id: "synthetic-campaign",
+					session_id: "synthetic-session",
+					source_id: sourceId,
+					job_id: "test-job",
+					transcription: {
+						schema_version: "tda_transcript_v1",
+						profile_id: "qwen-quality",
+						artifact: "transcript.json",
+						run_id: targetRunId,
+						sha256: "b".repeat(64),
+					},
+					sync: { status: "not_configured" },
+				});
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+		const result = await controller.result("test-job");
+		expect(result).toMatchObject({ sourceId, runId: targetRunId });
+		expect(controller.snapshot().localRuns).toContainEqual(
+			expect.objectContaining({ sourceId, runId: targetRunId }),
+		);
+		expect(catalogCursors).toContain("page-2");
+
+		const readsAfterResult = catalogCursors.length;
+		await expect(controller.ensureLocalRun(sourceId, targetRunId)).resolves.toBe(true);
+		expect(catalogCursors).toHaveLength(readsAfterResult);
+		expect(
+			request.mock.calls.some(([url]) => String(url).endsWith("/review")),
+		).toBe(false);
+	});
+
+	it("rejects an incompatible result response without inventing a run identity", async () => {
+		const terminalJob = {
+			...job,
+			status: "succeeded",
+			stage: "succeeded",
+			result_available: true,
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(caps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [terminalJob] });
+			if (value.endsWith("/jobs/test-job/result"))
+				return Response.json({
+					schema_version: "incompatible_result_contract",
+					job_id: "test-job",
+					source_id: "synthetic-source",
+					run_id: "guessed-run",
+				});
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+		await expect(controller.result("test-job")).resolves.toBeNull();
+		expect(controller.snapshot()).toMatchObject({
+			connection: "error",
+			error: "incompatible",
+			result: null,
+		});
+	});
+
 });
