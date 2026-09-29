@@ -1,8 +1,8 @@
 # Superfícies públicas — ownership visual e composição
 
-> Status: implementado; atualizado após Home V2 e shell responsiva
+> Status: implementado; baseline cinematográfica da Home formalizada
 > Owner: design-system / frontend público
-> Última revisão: 2026-09-28
+> Última revisão: 2026-09-29
 
 ## Objetivo
 
@@ -70,36 +70,108 @@ Consequências:
 - narrativa longa continua trabalhando em aproximadamente `880px` por decisão da superfície;
 - `/mundo` poderá ocupar sua própria viewport ampla e não deve herdar um limite global do `<main>`.
 
-## Home V2
+## Home cinematográfica — baseline geométrica
 
-A Home usa os primitives:
+A Home é a referência **cinematic + expansive** do shell público. A baseline formalizada por #1083 preserva a composição integrada em #1002/#1004: artwork full-bleed, chrome global flutuante e conteúdo editorial sobre a própria imagem. Ela não volta ao antigo layout de duas colunas e não reserva uma faixa superior invisível.
 
-- `Eyebrow`;
-- `DisplayTitle`;
-- `BodyCopy`;
-- `SectionTitle`;
-- `ActionLink`.
+### Topo real e shell
 
-A composição atual tem dois níveis de conteúdo.
+O hero começa no topo estrutural real da página. O shell global continua viewport-fixed e com altura estrutural zero; marca e avatar não participam do fluxo e, portanto, não reduzem o hero.
 
-### Primeira dobra
+O contrato runtime é:
 
-O hero deixou de ser uma imagem full-bleed com headline dominante e passou a ser uma composição editorial em duas colunas no desktop:
+```text
+hero min-block = max(--home-hero-min-block, 100svh)
+desktop comum   = 640px mínimo
+mobile          = 620px mínimo
+>2160px         = 860px mínimo
+```
 
-1. identidade/proposta do TDA (`Rolamos dados. Guardamos os dados.`);
-2. última sessão publicada como conteúdo real, com artwork, arco, data, título, resumo e CTA.
+Esses mínimos protegem composições muito baixas, mas a viewport continua sendo a referência dominante. Não reintroduzir cálculos do tipo `100svh - altura-do-header`, spacers ou `padding-top` globais equivalentes à navbar antiga.
 
-Abaixo de `980px` essa composição empilha em uma coluna. A intenção é preservar leitura e protagonismo da artwork sem transformar mobile em uma miniatura do desktop.
+### Keyline editorial
 
-Quando não há sessão disponível, o mesmo espaço recebe um estado de arquivo. Falha temporária de dados e arquivo ainda não configurado/vazio são mensagens diferentes; a interface não deve comunicar “próxima memória” quando o problema real é indisponibilidade.
+A Home possui uma única keyline de conteúdo, derivada do contrato global:
 
-### Memórias recentes
+```css
+--home-editorial-keyline: var(--ds-page-gutter);
+```
 
-A última sessão já ocupa o hero e, por isso, não é repetida na grade imediatamente abaixo.
+Metadata, título, resumo e CTA compartilham esse eixo. O fallback sem sessão usa a mesma referência.
 
-A Home possui teasers compactos próprios para as memórias recentes. Eles são uma **composição específica da Home**, não o card canônico do arquivo. A grade usa layout intrínseco (`auto-fit`/`minmax`) para aproveitar 1080p, 2K e mobile sem multiplicar breakpoints artificiais.
+Até `--ds-layout-max: 2160px`, a keyline visual coincide com o gutter do viewport. Acima disso, o conteúdo da Home centraliza a superfície de até 2160px e aplica o gutter dentro dela. A marca e o avatar, por outro lado, continuam presos aos cantos do viewport conforme o contrato do shell. Essa divergência em ultra-wide é deliberada: chrome global continua alcançável nos cantos enquanto o texto não se espalha indefinidamente.
 
-`SessionList` continua sendo o componente reutilizável do arquivo `/sessoes`; a Home não deve fazer o arquivo depender de sua composição promocional/compacta.
+Compensações ópticas do símbolo da marca pertencem ao shell. Elas **não** alteram o gutter/keyline do conteúdo da Home.
+
+### Largura de leitura do bloco
+
+O hero é expansivo; o texto não.
+
+Valores de referência:
+
+| Faixa | Título | Metadata | Resumo |
+| --- | ---: | ---: | ---: |
+| até 2160px | 760px | 760px | 720px |
+| acima de 2160px | 900px | 820px | 820px |
+
+São limites máximos, não larguras forçadas. O objetivo é preservar linhas confortáveis em 1920/2560 sem transformar o bloco editorial em coluna estreita artificial.
+
+### Artwork, shade e scrims
+
+A imagem da última sessão é **conteúdo**, não background decorativo genérico:
+
+- mantém `next/image`;
+- candidata a LCP usa `preload` e `sizes="100vw"`;
+- `object-fit: cover`;
+- posicionamento muda por breakpoint para preservar o assunto da imagem;
+- o shade narrativo da Home serve à leitura do conteúdo;
+- scrims de marca/avatar permanecem locais no shell;
+- o radial atrás do bloco editorial permanece local ao texto.
+
+Não adicionar overlay opaco full-screen, blur dinâmico, leitura de luminância em runtime ou biblioteca de motion apenas para “dar cara premium”.
+
+Posições atuais da artwork fazem parte da baseline perceptiva: `center 46%` no desktop comum, `center 44%` em ultra-wide, `58% center` abaixo de 980px, `64% center` abaixo de 700px e `67% center` abaixo de 460px.
+
+### Mobile
+
+Mobile é composição própria, não desktop reduzido.
+
+- `390×844` e `320×800` preservam hero de viewport inteira;
+- artwork é reposicionada para a direita nos breakpoints estreitos;
+- metadata pode quebrar e, abaixo de 460px, passa para coluna;
+- resumo usa até quatro linhas abaixo de 700px;
+- título continua limitado pelo gutter e pela largura disponível;
+- marca/avatar permanecem flutuantes e não podem interceptar o título/CTA;
+- não existe overflow horizontal de página.
+
+### Continuidade de scroll
+
+A ordem narrativa permanece:
+
+```text
+Hero / última sessão
+→ entrada de Lore quando aplicável
+→ Memórias recentes
+```
+
+A transição é fluxo normal de documento. Não há snapping obrigatório, spacer da navbar antiga ou margem negativa para “colar” seções. `Memórias recentes` deve começar somente depois do hero e das entradas narrativas intermediárias reais.
+
+### Fallback sem sessão
+
+Sem sessão publicada ou com repository indisponível, `ArchivePreview` ocupa o hero preservando:
+
+- topo real;
+- a mesma keyline;
+- clearance funcional do chrome;
+- diferença semântica entre arquivo vazio e indisponibilidade.
+
+O fallback não inventa artwork e não muda o contrato geométrico da superfície.
+
+### Movimento e performance
+
+A Home não adiciona timeline JavaScript para scroll. Microinterações usam CSS e `transform` quando necessário. Com `prefers-reduced-motion: reduce`, zoom/transições decorativas dos cards/artwork permanecem removidos.
+
+A baseline não adiciona novos assets, dependências de motion ou medições por frame. Preservar esse limite é parte do gate de LCP: qualquer evolução que inclua decoração/motion precisa demonstrar que não degrada a candidata de LCP nem causa layout thrashing.
 
 ## Conteúdo sobre artwork
 
@@ -236,11 +308,13 @@ As três telas primárias do TDA são testadas diretamente por Playwright:
 A auditoria geométrica automatizada verifica, entre outros:
 
 - ausência de overflow horizontal;
-- shell ocupando `min(viewport, 2160px)`;
+- shell flutuante com altura estrutural zero;
 - logo e ações do header sem sobreposição;
-- gutter dentro do contrato do Design System;
-- hero em duas colunas no desktop e empilhado no mobile;
-- início de `Memórias recentes` dentro da primeira viewport em 1080p/2K, evitando desperdício vertical excessivo.
+- Home começando no topo real e mantendo pelo menos a altura da viewport;
+- keyline editorial resolvida a partir de `--ds-page-gutter`;
+- limites de leitura da Home em 1920/2560;
+- `390×844` e `320×800` sem colisão entre chrome e conteúdo;
+- `Memórias recentes` começando depois do hero/entradas narrativas reais, sem offset fantasma da antiga navbar.
 
 ## Acessibilidade
 
