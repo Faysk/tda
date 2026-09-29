@@ -5,7 +5,8 @@ create function public.synthetic_assembly_publication_input(
   p_operation_id uuid,
   p_expected_current_revision_id uuid,
   p_part_count integer,
-  p_draft_char text default 'd'
+  p_draft_char text default 'd',
+  p_source_session_id text default 'fixture-source'
 )
 returns jsonb
 language plpgsql
@@ -49,7 +50,7 @@ begin
     'assembly_id', repeat('e', 64),
     'inputs_sha256', repeat('e', 64),
     'campaign_id', 'synthetic-campaign',
-    'session_id', 'fixture-source',
+    'session_id', p_source_session_id,
     'transcript_sha256', repeat('f', 64),
     'timing_policy_version', 'tda_session_timeline_v1',
     'segment_boundary_policy', 'segment_start_owner_v1',
@@ -114,7 +115,7 @@ begin
     'operationId', p_operation_id,
     'expectedCurrentRevisionId', p_expected_current_revision_id,
     'sourceSystem', 'local_companion',
-    'sourceSessionId', 'fixture-source',
+    'sourceSessionId', p_source_session_id,
     'provenance', v_provenance,
     'baseTranscriptSha256', repeat('f', 64),
     'draftSha256', repeat(p_draft_char, 64),
@@ -221,6 +222,74 @@ insert into public.role_assignments(
   'active',
   now()
 );
+
+do $handoff_session$
+declare
+  v_input jsonb;
+  v_first jsonb;
+  v_replay jsonb;
+  v_session_id uuid;
+begin
+  set local role service_role;
+
+  v_input := jsonb_set(
+    public.synthetic_assembly_publication_input(
+      '10610000-0000-4000-8000-000000000021',
+      null,
+      1,
+      'd',
+      'assembly-handoff-first'
+    ),
+    '{sessionId}',
+    'null'::jsonb,
+    true
+  );
+
+  select public.prepare_transcript_handoff_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'session_assembly',
+    v_input,
+    false
+  ) into v_first;
+
+  if v_first->>'ok' <> 'true'
+     or v_first->'receipt'->>'schemaVersion' <> 'tda_transcript_publication_receipt_v2' then
+    raise exception 'ASSEMBLY_FIRST_HANDOFF_INVALID:%', v_first;
+  end if;
+
+  v_session_id := (v_first->'receipt'->>'sessionId')::uuid;
+  if not exists (
+    select 1 from public.sessions s
+    where s.id = v_session_id
+      and s.source_system = 'local_companion'
+      and s.source_session_id = 'assembly-handoff-first'
+      and s.status = 'ready_for_review'
+  ) then
+    raise exception 'ASSEMBLY_FIRST_HANDOFF_SESSION_MISSING';
+  end if;
+
+  select public.prepare_transcript_handoff_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'session_assembly',
+    v_input,
+    false
+  ) into v_replay;
+
+  if v_replay->'receipt' is distinct from v_first->'receipt' then
+    raise exception 'ASSEMBLY_FIRST_HANDOFF_REPLAY_DIVERGED:%', v_replay;
+  end if;
+
+  delete from public.transcript_publication_events where session_id = v_session_id;
+  delete from public.transcript_assembly_publication_receipts where session_id = v_session_id;
+  delete from public.transcript_revision_parts
+    where revision_id in (select id from public.transcript_revisions where session_id = v_session_id);
+  delete from public.transcript_revisions where session_id = v_session_id;
+  delete from public.audit_log where session_id = v_session_id;
+  delete from public.sessions where id = v_session_id;
+end;
+$handoff_session$;
 
 do $main$
 declare
@@ -614,7 +683,7 @@ $main$;
 
 drop trigger fail_assembly_publication_event on public.transcript_publication_events;
 drop function public.fail_assembly_publication_event_on_probe();
-drop function public.synthetic_assembly_publication_input(uuid, uuid, integer, text);
+drop function public.synthetic_assembly_publication_input(uuid, uuid, integer, text, text);
 
 delete from public.transcript_publication_events
 where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
