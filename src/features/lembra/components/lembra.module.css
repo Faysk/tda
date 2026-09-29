@@ -1,9 +1,8 @@
 .shell {
-	width: min(100%, var(--ds-layout-max));
+	width: min(100%, var(--ds-layout-expansive-max, var(--ds-layout-max)));
 	min-height: 100dvh;
 	margin-inline: auto;
-	display: grid;
-	grid-template-columns: minmax(178px, 214px) minmax(0, 1fr);
+	display: block;
 	padding-inline: var(--ds-page-gutter);
 }
 
@@ -91,10 +90,23 @@
 
 .content {
 	min-width: 0;
-	padding: 20px 0 clamp(48px, 6vw, 88px) clamp(20px, 3vw, 46px);
+	padding: var(--site-chrome-top, 12px) 0 clamp(48px, 6vw, 88px);
 }
 
 .compactNav {
+	display: flex;
+	min-height: 44px;
+	align-items: center;
+	gap: 8px;
+	overflow-x: auto;
+	margin-bottom: 4px;
+	padding:
+		0 var(--site-chrome-profile-clearance, 60px)
+		0 var(--site-chrome-brand-clearance, 168px);
+	scrollbar-width: none;
+}
+
+.compactNav::-webkit-scrollbar {
 	display: none;
 }
 
@@ -106,8 +118,10 @@
 	grid-template-columns: minmax(260px, 1fr) auto auto auto;
 	align-items: center;
 	gap: 8px;
-	margin: -8px 0 6px;
-	padding: 8px var(--site-chrome-profile-clearance, 60px) 8px 0;
+	margin: 0 0 6px;
+	padding:
+		8px var(--site-chrome-profile-clearance, 60px)
+		8px var(--site-chrome-brand-clearance, 168px);
 	background: color-mix(in srgb, var(--ds-canvas) 92%, transparent);
 	backdrop-filter: blur(14px);
 }
@@ -424,6 +438,11 @@
 	flex: 0 0 auto;
 	overflow: hidden;
 	background: var(--ds-canvas-subtle);
+}
+
+.media[data-media-state="fallback"] {
+	min-height: 150px;
+	max-height: 220px;
 }
 
 .media img {
@@ -1428,38 +1447,19 @@
 }
 
 @media (max-width: 900px) {
-	.shell {
-		display: block;
-	}
-
 	.content {
 		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	}
 
+	.compactNav {
+		margin-bottom: 10px;
+		padding-inline: 0;
+		padding-bottom: 2px;
+	}
+
 	.toolbar {
 		top: calc(var(--site-chrome-panel-top, 66px) + 8px);
-		padding-right: 0;
-	}
-
-	.sidebar {
-		display: none;
-	}
-
-	.content {
-		padding-left: 0;
-	}
-
-	.compactNav {
-		display: flex;
-		overflow-x: auto;
-		gap: 8px;
-		margin-bottom: 10px;
-		padding-bottom: 2px;
-		scrollbar-width: none;
-	}
-
-	.compactNav::-webkit-scrollbar {
-		display: none;
+		padding-inline: 0;
 	}
 
 	.viewer {
@@ -1565,7 +1565,7 @@
 	}
 
 	.content {
-		padding-top: 14px;
+		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 		padding-bottom: 64px;
 	}
 
