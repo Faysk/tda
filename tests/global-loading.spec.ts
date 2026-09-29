@@ -55,6 +55,7 @@ test("global loader follows blocking busy state without flashing for instant wor
 		document.body.append(marker);
 	});
 	await expect(page.locator(overlay)).toBeVisible();
+	await expectLoaderLogoLoaded(page);
 
 	await page.evaluate(() => {
 		document.getElementById("global-loader-test-marker")?.remove();
@@ -130,7 +131,11 @@ test("global loader keeps the canonical decoded mark during same-origin navigati
 }) => {
 	await page.goto("/");
 	await page.route("**/sessoes*", async (route) => {
-		await new Promise((resolveDelay) => setTimeout(resolveDelay, 450));
+		if (!route.request().isNavigationRequest()) {
+			await route.continue();
+			return;
+		}
+		await new Promise((resolveDelay) => setTimeout(resolveDelay, 1200));
 		await route.continue();
 	});
 
@@ -145,11 +150,9 @@ test("global loader keeps the canonical decoded mark during same-origin navigati
 		submit.textContent = "Abrir arquivo de sessões";
 		form.append(submit);
 		document.body.append(form);
-	});
 
-	await page
-		.getByRole("button", { name: "Abrir arquivo de sessões" })
-		.dispatchEvent("click");
+		window.setTimeout(() => submit.click(), 0);
+	});
 
 	await expect(page.locator(overlay)).toBeVisible();
 	await expectLoaderLogoLoaded(page);
