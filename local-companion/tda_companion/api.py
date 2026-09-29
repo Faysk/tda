@@ -269,11 +269,16 @@ _ERROR_SECURITY_HEADERS = {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
 }
+_SAFE_ERROR_CODE_PATTERN = re.compile(r"^[A-Z0-9_]{1,64}$")
+_GENERIC_ERROR_CODE = "INTERNAL_ERROR"
 
 
 def error(code, status, recoverable=False):
+    safe_code = str(code)
+    if not _SAFE_ERROR_CODE_PATTERN.fullmatch(safe_code):
+        safe_code = _GENERIC_ERROR_CODE
     return JSONResponse(
-        {"error": {"code": code, "recoverable": recoverable}},
+        {"error": {"code": safe_code, "recoverable": recoverable}},
         status_code=status,
         headers=_ERROR_SECURITY_HEADERS,
     )
