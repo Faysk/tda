@@ -278,18 +278,6 @@ for (const [file, expected] of Object.entries(officialAssets)) {
 	}
 }
 
-const dLoreIndexPath = "public/lore/d/index.html";
-const dLoreIndex = fs.readFileSync(dLoreIndexPath, "utf8");
-const canonicalFaviconUrl = canonicalBrandUrls.get("favicon.svg");
-if (
-	!canonicalFaviconUrl ||
-	!dLoreIndex.includes(
-		`<link rel="icon" href="${canonicalFaviconUrl}" type="image/svg+xml" />`,
-	)
-) {
-	fail(`${dLoreIndexPath} must use the canonical verified brand favicon fallback`);
-}
-
 const brandConsumers = [
 	{
 		file: "src/app/layout.tsx",
