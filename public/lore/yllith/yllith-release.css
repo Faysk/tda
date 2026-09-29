@@ -18,8 +18,8 @@ button { font: inherit; }
 .tda-return {
   position: fixed;
   z-index: 280;
-  top: 22px;
-  left: max(18px, 2.4vw);
+  top: calc(22px + env(safe-area-inset-top, 0px));
+  left: max(18px, 2.4vw, calc(env(safe-area-inset-left, 0px) + 12px));
   min-height: 38px;
   display: inline-flex;
   align-items: center;
@@ -43,8 +43,8 @@ button { font: inherit; }
 .mode-dock {
   position: fixed;
   z-index: 280;
-  top: 22px;
-  right: max(18px, 2.4vw);
+  top: calc(22px + env(safe-area-inset-top, 0px));
+  right: max(18px, 2.4vw, calc(env(safe-area-inset-right, 0px) + 12px));
   left: auto;
   bottom: auto;
   display: flex;
@@ -116,8 +116,8 @@ body[data-lore-mode="reading"] .mode-icon-reading { color: #15110f; opacity: 1; 
 .mode-hint {
   position: fixed;
   z-index: 275;
-  right: max(18px, 2.4vw);
-  top: 70px;
+  right: max(18px, 2.4vw, calc(env(safe-area-inset-right, 0px) + 12px));
+  top: calc(70px + env(safe-area-inset-top, 0px));
   width: min(270px, calc(100vw - 40px));
   padding: 13px 15px;
   border: 1px solid rgba(226,199,160,.18);
