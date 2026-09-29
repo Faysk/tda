@@ -186,11 +186,18 @@ export function ReviewFixture() {
                 setSaveCount((count) => count + 1);
                 setSaveError(null);
                 if (new URLSearchParams(location.search).has("conflict") && baseline.draftRevision !== 2) { setSaveError("LOCAL_REVIEW_DRAFT_CONFLICT"); return; }
+                const approvalOnly =
+                    status === "approved_local" &&
+                    baseline.persistence === "persisted" &&
+                    JSON.stringify(segments) === JSON.stringify(baseline.segments);
                 setReview({ ...baseline, status, segments,
 				approvalCurrent: status === "approved_local",
 				approvedAt: status === "approved_local" ? "2026-09-26T12:00:01Z" : null,
-				persistence: "persisted", draftRevision: (baseline.draftRevision ?? 0) + 1,
-				draftSha256: "e".repeat(64), createdAt: "2026-09-26T12:00:00Z", updatedAt: "2026-09-26T12:00:00Z" }); }}
+				persistence: "persisted",
+                draftRevision: approvalOnly ? baseline.draftRevision : (baseline.draftRevision ?? 0) + 1,
+				draftSha256: approvalOnly ? baseline.draftSha256 : "e".repeat(64),
+                createdAt: baseline.createdAt ?? "2026-09-26T12:00:00Z",
+                updatedAt: approvalOnly ? baseline.updatedAt : "2026-09-26T12:00:00Z" }); }}
 			onLoadLatest={async () => ({ ...review, draftRevision: 2, draftSha256: "f".repeat(64), status: "approved_local",
                 segments: review.segments.map((segment, index) => index === 0 ? { ...segment, speaker: "Remoto" } : index === 1 ? { ...segment, text: "Fala remota" } : segment),
             })}
