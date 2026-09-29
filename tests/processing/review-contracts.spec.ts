@@ -87,7 +87,7 @@ test("older Agent remains readable and requires an update before editing", async
 	await expect(page.getByText(/Atualize o Companion para salvar/)).toBeVisible();
 	await expect(page.getByRole("button", { name: /^Editar / }).first()).toBeDisabled();
 	await expect(page.getByRole("checkbox", { name: /^Marcar como (não )?revisado/ }).first()).toBeDisabled();
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Aprovar revisão" })).toBeDisabled();
 });
 
 test("speaker limits count emoji as one scalar and reject excess ASCII before save", async ({ page }) => {
@@ -197,7 +197,7 @@ test("bulk rename survives a save conflict", async ({ page }) => {
     await page.getByRole("button", { name: "Salvar revisão" }).click();
     await expect(page.getByRole("alert")).toContainText("mudou em outra aba");
     await expect(page.locator("[data-review-segment] strong").first()).toHaveText("Novo");
-    await expect(page.getByText("Alterações não salvas neste draft.")).toBeVisible();
+    await expect(page.getByText("Esta revisão mudou em outro lugar")).toBeVisible();
 });
 
 
@@ -248,7 +248,7 @@ test("publication freezes current and requires a fresh confirmation after stale_
   await route.fulfill({ status: 409, json: { ok: false, reason: "stale_current" } });
  });
  await page.goto("/?review-contracts&publication");
- await expect(page.getByText(/A transcrição será enviada para a área privada de Sessões do Edit/)).toBeVisible();
+ await expect(page.getByText(/A transcrição vai para Sessões do Edit/)).toBeVisible();
  await page.getByRole("button", { name: "Preparar sessão" }).click();
  await expect(page.locator("[data-publication-confirmation='true']")).toContainText("Preparar esta sessão no Edit?");
  await expect(page.locator("[data-publication-confirmation='true']")).toContainText("Isso não publica capa, resumo ou transcript no site público.");
@@ -288,7 +288,7 @@ test("lost publication recovers after reload without a second write or transcrip
  await page.reload();
  // The recovery effect is opportunistic; exercise the explicit operator path so
  // the test does not depend on focus/visibility timing in headless Chromium.
- await page.getByRole("button", { name: "Preparar sessão" }).click();
+ await page.getByRole("button", { name: "Reconciliar handoff" }).click();
  await expect(page.getByRole("button", { name: "Abandonar handoff anterior" })).toBeVisible();
  let abandonmentMessage = "";
  page.once("dialog", async dialog => {
@@ -308,7 +308,7 @@ test("lost publication recovers after reload without a second write or transcrip
  await expect(editLink).toHaveAttribute("href", "/edit/sessoes/sessao-synthetic");
  await page.setViewportSize({ width: 390, height: 844 });
  await expect(editLink).toBeVisible();
- await expect(page.getByText(/Nada ficará público automaticamente/)).toBeVisible();
+ await expect(page.getByText(/nada fica público no site/)).toBeVisible();
  expect(posts).toBe(1);
  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(0);
  await page.screenshot({ path: testInfo.outputPath("publication-recovered.png"), fullPage: true });
