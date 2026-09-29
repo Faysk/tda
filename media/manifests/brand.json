@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "project": "tda-brand-runtime",
+  "bucket": "tda-media-public",
+  "namespace": "brand",
+  "publicOrigin": "https://media.dnd.faysk.dev",
+  "assets": [
+    {
+      "file": "favicon.svg",
+      "source": "media/sources/brand/favicon.svg",
+      "bytes": 1613,
+      "sha256": "59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e",
+      "contentType": "image/svg+xml"
+    },
+    {
+      "file": "tda-icon-duck-black.svg",
+      "source": "media/sources/brand/tda-icon-duck-black.svg",
+      "bytes": 1487,
+      "sha256": "10ccb252143ebb50e57de27d9704cf801d6811f4bd21e290a31d56ac4ae6f6f6",
+      "contentType": "image/svg+xml"
+    },
+    {
+      "file": "tda-icon-duck-white.svg",
+      "source": "media/sources/brand/tda-icon-duck-white.svg",
+      "bytes": 1487,
+      "sha256": "8702b24c58d28fa5f217531edd6fd458333a88f26fd14662e6f8ca190882cdac",
+      "contentType": "image/svg+xml"
+    },
+    {
+      "file": "tda-mark-black.svg",
+      "source": "media/sources/brand/tda-mark-black.svg",
+      "bytes": 3141,
+      "sha256": "66c5dbe83c07b08e6355230c255ee98fd27f4ef1ce93e4de2cce239e9217a5ec",
+      "contentType": "image/svg+xml"
+    },
+    {
+      "file": "tda-mark-white.svg",
+      "source": "media/sources/brand/tda-mark-white.svg",
+      "bytes": 3141,
+      "sha256": "8474cd455cb5b6ffc254ed5ca5c3c5aa1b25f64ec8e694ed85ce1eea8b2d83ff",
+      "contentType": "image/svg+xml"
+    }
+  ]
+}
