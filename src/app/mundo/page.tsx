@@ -89,6 +89,8 @@ export default async function MundoPage({ searchParams }: MundoPageProps) {
 
 	return (
 		<div
+			data-layout-family="workspace"
+			data-layout-role="expansive"
 			style={{
 				display: "grid",
 				minWidth: 0,
