@@ -85,9 +85,9 @@ const runtimeAssetConsumers = [
 	...runtimeAssetFiles("src"),
 	...runtimeAssetFiles("public"),
 ];
-const localBrandPathPattern = /(?:^|["\'`(=:\s])\/brand\//u;
+const localBrandPathPattern = /(?:^|["'`(=:\s])\/brand\//u;
 const relativeStandaloneFaviconPattern =
-	/(?:\b(?:href|src)\s*=\s*["\'](?:\.\/)?favicon\.svg["\']|favicon\.href\s*=\s*["\'](?:\.\/)?favicon\.svg["\']|url\(\s*["\']?(?:\.\/)?favicon\.svg["\']?\s*\))/u;
+	/(?:\b(?:href|src)\s*=\s*["'](?:\.\/)?favicon\.svg["']|favicon\.href\s*=\s*["'](?:\.\/)?favicon\.svg["']|url\(\s*["']?(?:\.\/)?favicon\.svg["']?\s*\))/u;
 
 for (const filePath of runtimeAssetConsumers) {
 	const source = fs.readFileSync(filePath, "utf8");
