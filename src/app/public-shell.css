@@ -21,7 +21,7 @@
 }
 
 footer {
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	margin-inline: auto;
 }
 
@@ -489,7 +489,7 @@ footer {
 }
 
 .page-section {
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	margin-inline: auto;
 	padding: 56px var(--ds-page-gutter, clamp(20px, 3.5vw, 72px)) 80px;
 }

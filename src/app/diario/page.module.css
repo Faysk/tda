@@ -1,5 +1,5 @@
 .archive {
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	min-height: 65svh;
 	margin-inline: auto;
 	padding:
@@ -10,7 +10,7 @@
 
 .heading,
 .books {
-	width: min(100%, 1540px);
+	width: min(100%, var(--ds-layout-editorial, 1540px));
 }
 
 .heading {

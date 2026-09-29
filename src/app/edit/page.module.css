@@ -1,5 +1,5 @@
 .shell {
-	width: min(1180px, calc(100% - 2 * var(--ds-page-gutter)));
+	width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 	margin: 0 auto;
 	padding: 32px 0 72px;
 	font-family: var(--ds-font-ui);
@@ -100,7 +100,7 @@
 
 @media (max-width: 720px) {
 	.shell {
-		width: min(100% - 24px, 1180px);
+		width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	}
 

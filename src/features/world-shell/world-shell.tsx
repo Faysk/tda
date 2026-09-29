@@ -27,7 +27,7 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 	};
 
 	return (
-		<div className={`${styles.shell}${railCollapsed ? ` ${styles.shellCollapsed}` : ""}`}>
+		<div className={`${styles.shell}${railCollapsed ? ` ${styles.shellCollapsed}` : ""}`} data-layout-family="workspace" data-layout-role="expansive">
 			<aside className={styles.sidebar}>
 				<div className={styles.sidebarInner}>
 					{railCollapsed ? null : <WorldNavigationIntro />}

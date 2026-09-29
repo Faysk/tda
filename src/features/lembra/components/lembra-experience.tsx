@@ -1016,7 +1016,7 @@ export function LembraExperience({
 	}
 
 	return (
-		<div className={styles.shell}>
+		<div className={styles.shell} data-layout-family="editorial" data-layout-role="expansive">
 			<section className={styles.content} aria-labelledby="lembra-title">
 				<h1 className={styles.visuallyHidden} id="lembra-title">
 					Lembra

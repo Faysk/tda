@@ -106,7 +106,7 @@ export default async function Home() {
 	const latestDate = latest ? formatSessionDate(latest.date) : "";
 
 	return (
-		<div className={styles.home} data-home-surface="cinematic">
+		<div className={styles.home} data-home-surface="cinematic" data-layout-family="cinematic" data-layout-role="expansive">
 			<section className={styles.hero} aria-labelledby="home-title">
 				{latest ? (
 					<div className={styles.heroBackdrop} aria-hidden="true">

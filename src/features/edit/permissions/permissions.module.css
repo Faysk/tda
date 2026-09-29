@@ -1,5 +1,5 @@
 .shell {
-	width: min(1480px, calc(100% - 2 * var(--ds-page-gutter)));
+	width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 	margin: 0 auto;
 	padding: 14px 0 56px;
 	font-family: var(--ds-font-ui);

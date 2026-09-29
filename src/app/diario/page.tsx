@@ -10,7 +10,7 @@ export const metadata = buildPublicMetadata({
 
 export default function DiaryIndex() {
 	return (
-		<section className={styles.archive}>
+		<section className={styles.archive} data-layout-family="editorial" data-layout-role="expansive" data-layout-content-role="editorial">
 			<header className={styles.heading}>
 				<p className={styles.eyebrow}>Entre páginas</p>
 				<h1>Diários</h1>

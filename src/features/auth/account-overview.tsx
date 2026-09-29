@@ -95,7 +95,7 @@ export function AccountOverview({
 					: "Nenhum perfil TDA está disponível para esta sessão.";
 
 	return (
-		<section className={`${styles.shell} ${styles.accountShell}`}>
+		<section className={`${styles.shell} ${styles.accountShell}`} data-layout-family="editorial" data-layout-role="editorial">
 			<div className={styles.eyebrow}>TDA · CONTA E ACESSO</div>
 			<h1 className={styles.title}>Conta e acesso</h1>
 

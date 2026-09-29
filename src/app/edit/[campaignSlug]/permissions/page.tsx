@@ -18,7 +18,7 @@ export default async function PermissionsPage({
 	const result = await getPermissionsForEdit({ campaignSlug });
 	const message = result.ok ? null : PERMISSIONS_MESSAGES[result.reason];
 	return (
-		<section className={styles.shell}>
+		<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
 			<OperationalPageHeader
 				eyebrow="Edit · Administração"
 				title="Permissões"

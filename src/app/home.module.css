@@ -71,7 +71,7 @@
 .heroLatest {
 	position: relative;
 	z-index: 2;
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	margin-inline: auto;
 	padding:
 		clamp(36px, 5svh, 76px)
@@ -217,7 +217,7 @@
 }
 
 .heroFallback {
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	margin-inline: auto;
 	padding:
 		max(clamp(48px, 6vw, 96px), calc(var(--site-chrome-panel-top) + 16px))
@@ -293,7 +293,7 @@
 .memories {
 	position: relative;
 	z-index: 1;
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	margin-inline: auto;
 	padding:
 		clamp(44px, 5vw, 82px)

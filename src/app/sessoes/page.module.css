@@ -70,7 +70,7 @@
 
 .heroInner {
 	display: grid;
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	grid-template-columns: minmax(0, 1fr) minmax(420px, 680px);
 	align-items: end;
 	gap: clamp(38px, 4vw, 84px);
@@ -172,7 +172,7 @@
 .archive {
 	position: relative;
 	z-index: 2;
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	margin: clamp(-30px, -2vw, -20px) auto 0;
 	padding:
 		0
