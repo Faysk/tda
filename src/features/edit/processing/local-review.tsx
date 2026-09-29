@@ -1177,7 +1177,7 @@ export function LocalReviewWorkspace({
 			})
 		: null;
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (
 			!focusRun ||
 			!focusRunKey ||
