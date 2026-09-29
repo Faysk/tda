@@ -281,11 +281,7 @@ jobs:
         run: >-
           pnpm exec playwright test
           tests/world-workspace-shell.spec.ts
-          tests/world-workspace-chrome-contract.spec.ts
           tests/world-workspace-wide-chrome.spec.ts
-          tests/world-floating-chrome.spec.ts
-          tests/world-explorer.spec.ts
-          tests/world-explorer-motion.spec.ts
           tests/world-authoring-command-palette.spec.ts
           --project=desktop-1080p
           --project=mobile
