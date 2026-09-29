@@ -100,7 +100,7 @@ test("speaker limits count emoji as one scalar and reject excess ASCII before sa
 	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeEnabled();
 	await speaker.fill("a".repeat(161));
 	await expect(speaker).toHaveAttribute("aria-invalid", "true");
-	await expect(page.getByRole("button", { name: "Aprovar revisão" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
 	await expect(page.getByRole("alert")).toContainText("Corrija os campos");
 });
 
@@ -223,7 +223,7 @@ test("concurrent bulk edits reconcile by field without closing or losing the wor
     await expect(page.locator("[data-review-segment] p").nth(1)).toHaveText("Fala remota");
     await expect(page.getByText(/Alterações não salvas/)).toBeVisible();
     await page.getByRole("button", { name: "Salvar revisão" }).click();
-    await expect(page.getByText(/Run bruto imutável · draft r3/)).toBeVisible();
+    await expect(page.getByText(/draft r3 · Snapshot salvo/)).toBeVisible();
     await expect(page.getByTestId("save-count")).toHaveText("2");
 });
 
