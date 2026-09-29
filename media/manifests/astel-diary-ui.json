@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "project": "astel-diary-ui",
+  "bucket": "tda-media-public",
+  "namespace": "diario/astel",
+  "publicOrigin": "https://media.dnd.faysk.dev",
+  "assets": [
+    {
+      "file": "favicon.svg",
+      "source": "media/sources/astel-diary/favicon.svg",
+      "bytes": 289,
+      "sha256": "24f1e19ee56dab1730218babd67453419f21a3ee40e40eae5aad3d8bb39ecdbb",
+      "contentType": "image/svg+xml"
+    }
+  ]
+}
