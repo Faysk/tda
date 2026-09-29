@@ -299,6 +299,7 @@ jobs:
           tests/floating-shell-public-routes.spec.ts
           tests/foundation.spec.ts
           tests/navigation-origin.spec.ts
+          tests/system-states.spec.ts
           --project=desktop-1080p
       - name: Upload sanitized navigation visual receipts
         if: ${{ success() }}
