@@ -1006,18 +1006,25 @@ export class ProcessingController {
 			)
 				return;
 
-			const run = await this.ensureLocalRunLoaded(
-				result.sourceId,
-				result.runId,
-				signal,
-			);
-			if (
-				signal.aborted ||
-				!run ||
-				(result.transcriptSha256 !== undefined &&
-					run.transcriptSha256 !== result.transcriptSha256)
-			)
-				return;
+			const supportsLocalRunLibrary =
+				this.#state.capabilities?.capabilities.includes(
+					"transcription.review",
+				) === true;
+			if (supportsLocalRunLibrary) {
+				const run = await this.ensureLocalRunLoaded(
+					result.sourceId,
+					result.runId,
+					signal,
+				);
+				if (
+					signal.aborted ||
+					!run ||
+					(result.transcriptSha256 !== undefined &&
+						run.transcriptSha256 !== result.transcriptSha256)
+				)
+					return;
+			}
+			if (signal.aborted) return;
 			this.update({ result });
 			resolved = result;
 		});
