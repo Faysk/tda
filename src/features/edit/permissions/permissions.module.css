@@ -1,29 +1,16 @@
 .shell {
 	width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 	margin: 0 auto;
-	padding: 28px 0 64px;
+	padding: 14px 0 64px;
 	font-family: var(--ds-font-ui);
 	color: var(--ds-foreground);
 	overflow-wrap: anywhere;
 }
 
-.navigation {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 16px;
-	padding-inline:
-		var(--site-chrome-brand-clearance, 0px)
-		var(--site-chrome-profile-clearance, 0px);
-}
-
-.navigation a {
-	padding: 8px 0;
-}
-
 .header {
 	display: grid;
 	gap: 5px;
-	margin: 22px 0 18px;
+	margin: 0 0 14px;
 	padding-inline:
 		var(--site-chrome-brand-clearance, 0px)
 		var(--site-chrome-profile-clearance, 0px);
@@ -32,7 +19,7 @@
 .header h1 {
 	margin: 0;
 	font-family: var(--ds-font-display);
-	font-size: clamp(2rem, 4vw, 3.4rem);
+	font-size: clamp(1.65rem, 2.5vw, 2.3rem);
 	font-weight: 500;
 	line-height: 1;
 }
@@ -579,12 +566,11 @@
 
 @media (max-width: 700px) {
 	.shell {
-		width: min(100% - 32px, 1480px);
+		width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	}
 
-	.header,
-	.navigation {
+	.header {
 		padding-inline: 0;
 	}
 
@@ -699,7 +685,7 @@
 
 @media (max-width: 390px) {
 	.shell {
-		width: min(100% - 24px, 1480px);
+		width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 	}
 
 	.peopleTable td {

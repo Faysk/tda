@@ -33,7 +33,14 @@ export default async function ProcessingPage() {
 		).ok;
 
 	return (
-		<section className={styles.page} data-processing-workspace="true" data-layout-family="workspace" data-layout-role="expansive">
+		<section
+			className={styles.page}
+			data-processing-workspace="true"
+			data-layout-family="workspace"
+			data-layout-role="expansive"
+			data-workbench-shell="processing"
+			data-scroll-owner="document-local-log"
+		>
 			<h1 className={pageStyles.visuallyHidden}>Processamento</h1>
 
 			<ProcessingPanel

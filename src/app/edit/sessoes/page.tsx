@@ -52,7 +52,13 @@ function parseFilters(params: Awaited<SearchParams>): SessionLibraryFilters {
 
 function ErrorState() {
 	return (
-		<section className={styles.locked}>
+		<section
+			className={styles.locked}
+			data-layout-family="workspace"
+			data-layout-role="expansive"
+			data-workbench-shell="sessions"
+			data-scroll-owner="document"
+		>
 			<div className={styles.muted}>TDA / EDIT / SESSÕES</div>
 			<h1>Sessões indisponíveis</h1>
 			<p className={styles.muted}>
@@ -91,7 +97,13 @@ export default async function EditSessionsPage({
 		filters.sort !== "date-desc";
 
 	return (
-		<section className={styles.shell}>
+		<section
+			className={styles.shell}
+			data-layout-family="workspace"
+			data-layout-role="expansive"
+			data-workbench-shell="sessions"
+			data-scroll-owner="document"
+		>
 			<header className={styles.pageHeader}>
 				<div>
 					<p className={styles.libraryEyebrow}>TDA / EDIT / SESSÕES</p>

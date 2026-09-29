@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { PublicLink as Link } from "@/components/public-link";
 import {
 	authorizeCampaignCapabilityServer,
 	requireCapability,
@@ -98,14 +97,14 @@ export default async function NarrativeReviewPage({
 	const canDecide = canManage || canApprove;
 
 	return (
-		<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
-			<nav className={styles.navigation} aria-label="Navegação do Edit">
-				<Link href="/edit/sessoes">← Sessões do Edit</Link>
-				<Link href="/mundo">Mundo</Link>
-			</nav>
-
+		<section
+			className={styles.shell}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+			data-workbench-shell="review"
+			data-scroll-owner="document"
+		>
 			<header className={styles.header}>
-				<p className={styles.eyebrow}>TDA / EDIT / REVISÃO</p>
 				<h1>Revisão narrativa</h1>
 				<p className={styles.lead}>
 					Compare cada claim com suas fontes antes de decidir. Só a opção de

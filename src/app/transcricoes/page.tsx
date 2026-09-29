@@ -65,7 +65,13 @@ export default async function TranscriptsPage({
 									label: "Consultar meu acesso",
 								};
 		return (
-			<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
+			<section
+				className={styles.shell}
+				data-layout-family="workspace"
+				data-layout-role="editorial"
+				data-workbench-shell="transcripts"
+				data-scroll-owner="document"
+			>
 				<h1>Transcrições</h1>
 				<p role="status">{state.message}</p>
 				<Link href={state.href}>{state.label}</Link>
@@ -79,9 +85,14 @@ export default async function TranscriptsPage({
 		totals.durationCoverage < totals.sessions;
 
 	return (
-		<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
+		<section
+				className={styles.shell}
+				data-layout-family="workspace"
+				data-layout-role="editorial"
+				data-workbench-shell="transcripts"
+				data-scroll-owner="document"
+			>
 			<header className={styles.header}>
-				<p className={styles.eyebrow}>TDA · TRANSCRIÇÕES</p>
 				<h1>
 					Transcrições <span>· {campaign}</span>
 				</h1>
@@ -135,9 +146,6 @@ export default async function TranscriptsPage({
 				</p>
 			)}
 
-			<p className={styles.accountLink}>
-				<Link href="/conta">Minha conta</Link>
-			</p>
 		</section>
 	);
 }

@@ -17,13 +17,14 @@ export default async function PermissionsPage({
 	const result = await getPermissionsForEdit({ campaignSlug });
 	const message = result.ok ? null : PERMISSIONS_MESSAGES[result.reason];
 	return (
-		<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
-			<nav className={styles.navigation} aria-label="Navegação do Edit">
-				<Link href="/conta">Conta e acesso</Link>
-				<Link href="/edit/sessoes">Sessões no Edit</Link>
-			</nav>
+		<section
+			className={styles.shell}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+			data-workbench-shell="permissions"
+			data-scroll-owner="document"
+		>
 			<header className={styles.header}>
-				<p>TDA / EDIT</p>
 				<h1>Permissões</h1>
 				{result.ok ? (
 					<p>{result.value.campaign.name}</p>

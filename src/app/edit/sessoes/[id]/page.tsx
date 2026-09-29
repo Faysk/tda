@@ -27,7 +27,13 @@ type PageProps = Readonly<{
 
 function UnavailableTranscript() {
 	return (
-		<section className={styles.locked}>
+		<section
+			className={styles.locked}
+			data-layout-family="workspace"
+			data-layout-role="expansive"
+			data-workbench-shell="session-editor"
+			data-scroll-owner="document"
+		>
 			<div className={styles.muted}>TDA / EDIT / TRANSCRIÇÃO</div>
 			<h1>Transcrição indisponível</h1>
 			<p className={styles.muted}>
@@ -105,7 +111,13 @@ export default async function EditSessionPage({ params }: PageProps) {
 		`/api/edit/${encodeURIComponent(CAMPAIGN_SLUG)}/sessoes/${encodeURIComponent(session.sourceSessionId)}/transcript`;
 
 	return (
-		<section className={[styles.shell, styles.sessionShell].join(" ")}>
+		<section
+			className={[styles.shell, styles.sessionShell].join(" ")}
+			data-layout-family="workspace"
+			data-layout-role="expansive"
+			data-workbench-shell="session-editor"
+			data-scroll-owner="pane-desktop-document-mobile"
+		>
 			<header className={styles.workbenchHeader}>
 				<div>
 					<Link className={styles.muted} href="/edit/sessoes">
