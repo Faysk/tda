@@ -24,8 +24,18 @@ _MAX_ACTIVITY_COUNT = 1_000_000_000
 _MAX_ACTIVITY_BYTES = (1 << 53) - 1
 
 
+_PUBLIC_CONFLICT_CODE = re.compile(r"^[A-Z][A-Z0-9_]{2,96}$")
+
+
 class Conflict(Exception):
-    pass
+    def __init__(self, code: str):
+        public_code = (
+            code
+            if isinstance(code, str) and _PUBLIC_CONFLICT_CODE.fullmatch(code) is not None
+            else "LOCAL_OPERATION_CONFLICT"
+        )
+        self.code = public_code
+        super().__init__(public_code)
 
 
 class Store:
