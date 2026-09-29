@@ -1194,6 +1194,8 @@ export function LocalReviewWorkspace({
 
 		handledFocusRequest.current = focusRun.requestId;
 		pendingFocusRequest.current = focusRun.requestId;
+		setComparisonPair(null);
+		setComparisonError(null);
 		setLibraryQuery("");
 		setProfileFilter("all");
 		setReviewFilter("all");
