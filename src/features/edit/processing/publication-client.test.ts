@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { LocalReview } from "./protocol";
 import {
 	PublicationClientError,
+	preflightApprovedLocalReview,
+	publicationRequestBody,
 	publishApprovedLocalReview,
 } from "./publication-client";
 
@@ -74,6 +76,8 @@ const review: LocalReview = {
 			segmentId: "1-0",
 			start: 0,
 			end: 1,
+			timelineStart: 120,
+			timelineEnd: 121,
 			text: "Olá mundo",
 			speaker: "Alice",
 			reviewed: true,
@@ -105,6 +109,54 @@ const receipt = {
 };
 
 describe("publication client", () => {
+	it("keeps presentation-only timeline coordinates out of the strict handoff schema", () => {
+		const body = publicationRequestBody(
+			review,
+			"55555555-5555-4555-8555-555555555555",
+			null,
+		);
+		const segment = body.review.segments[0];
+		expect(segment).toEqual({
+			trackNumber: 1,
+			segmentId: "1-0",
+			start: 0,
+			end: 1,
+			text: "Olá mundo",
+			speaker: "Alice",
+			reviewed: true,
+		});
+		expect(segment).not.toHaveProperty("timelineStart");
+		expect(segment).not.toHaveProperty("timelineEnd");
+		expect(preflightApprovedLocalReview(review)).toMatchObject({
+			eligible: true,
+			reason: null,
+		});
+	});
+
+	it("does not change the handoff identity when only timeline projections change", () => {
+		const shifted: LocalReview = {
+			...review,
+			segments: review.segments.map((segment) => ({
+				...segment,
+				timelineStart: (segment.timelineStart ?? segment.start) + 3600,
+				timelineEnd: (segment.timelineEnd ?? segment.end) + 3600,
+			})),
+		};
+		expect(
+			publicationRequestBody(
+				shifted,
+				"55555555-5555-4555-8555-555555555555",
+				null,
+			),
+		).toEqual(
+			publicationRequestBody(
+				review,
+				"55555555-5555-4555-8555-555555555555",
+				null,
+			),
+		);
+	});
+
 	it.each(["503", "invalid-json", "invalid-receipt"])(
 		"reconciles ambiguous %s with byte-identical lookup",
 		async (mode) => {
