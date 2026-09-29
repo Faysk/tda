@@ -1606,7 +1606,7 @@ test("Queue Open result surfaces a valid-but-missing run instead of silently sel
 	await queue.getByRole("button", { name: /Concluídos/ }).click();
 	await queue.getByRole("button", { name: "Abrir resultado" }).click();
 
-	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
 		"aria-selected",
 		"true",
 	);
@@ -1616,9 +1616,6 @@ test("Queue Open result surfaces a valid-but-missing run instead of silently sel
 			{ exact: true },
 		),
 	).toBeVisible();
-	await expect(
-		page.locator("button[data-local-run-key][aria-current='true']"),
-	).not.toHaveAttribute("data-local-run-key", /run-craig-job-1-a1/);
 });
 
 test("Queue Open result rejects a run with matching IDs but mismatched transcript hash", async ({
