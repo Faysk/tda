@@ -1778,6 +1778,35 @@ test("Queue result stays pending and wins over a concurrent refresh", async ({
 	);
 });
 
+test("Overview opens running-job diagnostics contextually and exposes cancel without leaving Overview", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const overviewTab = page.getByRole("tab", { name: "Visão geral", exact: true });
+	await expect(overviewTab).toHaveAttribute("aria-selected", "true");
+	await page
+		.getByRole("tabpanel", { name: "Visão geral" })
+		.getByRole("button", { name: "Abrir diagnóstico", exact: true })
+		.click();
+
+	const inspector = page.locator("dialog[data-job-diagnostics='contextual']");
+	await expect(inspector).toBeVisible();
+	await expect(overviewTab).toHaveAttribute("aria-selected", "true");
+	await expect(inspector).toHaveAttribute("data-job-id", "craig-job-1");
+	await expect(inspector.getByRole("button", { name: "Cancelar" })).toBeVisible();
+
+	await inspector.getByRole("button", { name: "Fechar" }).click();
+	await expect(inspector).not.toBeVisible();
+	await expect(overviewTab).toHaveAttribute("aria-selected", "true");
+});
+
 test("Queue per-job diagnostics opens contextually and preserves the Queue view", async ({ page }) => {
 	await page.addInitScript(() => {
 		Object.defineProperty(navigator, "clipboard", {
@@ -1874,12 +1903,25 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 	await expect(queueTab).toHaveAttribute("aria-selected", "true");
 	await expect(search).toHaveValue("sessao-42");
 	await expect(moreActions).toBeFocused();
+
+	await page.getByRole("tab", { name: "Diagnóstico", exact: true }).click();
+	await expect(page.getByRole("tab", { name: "Diagnóstico", exact: true })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByRole("tabpanel", { name: "Diagnóstico" }),
+	).toContainText("Detalhes do processamento");
 });
 
 for (const viewport of [
 	{ width: 320, height: 568 },
 	{ width: 360, height: 800 },
 	{ width: 390, height: 844 },
+	{ width: 683, height: 384 },
+	{ width: 1920, height: 1080 },
+	{ width: 2560, height: 1440 },
+	{ width: 3840, height: 2160 },
 ] as const) {
 	test(`per-job diagnostics stays bounded at ${viewport.width}x${viewport.height} without leaving Queue`, async ({ page }) => {
 		await page.setViewportSize(viewport);
@@ -1902,12 +1944,18 @@ for (const viewport of [
 		const box = await inspector.boundingBox();
 		expect(box).not.toBeNull();
 		expect(box?.x ?? -1).toBeGreaterThanOrEqual(-1);
+		expect(box?.y ?? -1).toBeGreaterThanOrEqual(-1);
 		expect(box?.width ?? 999).toBeLessThanOrEqual(viewport.width);
+		expect(box?.height ?? 9999).toBeLessThanOrEqual(viewport.height + 1);
 		expect(
 			await inspector.evaluate(
 				(element) => element.scrollWidth <= element.clientWidth + 1,
 			),
 		).toBeTruthy();
+		const log = inspector.getByLabel("Eventos deste processamento");
+		await expect(log).toBeVisible();
+		const logBox = await log.boundingBox();
+		expect(logBox?.height ?? 0).toBeGreaterThan(80);
 		await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
 			"aria-selected",
 			"true",
