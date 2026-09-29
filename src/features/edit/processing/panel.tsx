@@ -501,30 +501,30 @@ export function ProcessingPanel({
 		setResultOpeningJobId(job.id);
 		try {
 			const result = await controller.result(job.id);
-		if (!result?.runId) {
-			setResultOpenError(
-				"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
-			);
-			return;
-		}
+			if (!result?.runId) {
+				setResultOpenError(
+					"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
+				);
+				return;
+			}
 
-		const found = await controller.ensureLocalRun(result.sourceId, result.runId);
-		if (!found) {
-			setView("results");
-			setResultOpenError(
-				"O resultado foi validado, mas o run correspondente não apareceu na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
-			);
-			return;
-		}
+			const found = await controller.ensureLocalRun(result.sourceId, result.runId);
+			if (!found) {
+				setView("results");
+				setResultOpenError(
+					"O resultado foi validado, mas o run correspondente não apareceu na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
+				);
+				return;
+			}
 
-		const key = serializeLocalRunKey({
-			sourceId: result.sourceId,
-			runId: result.runId,
-		});
-		setResultFocus((current) => ({
-			key,
-			requestId: (current?.requestId ?? 0) + 1,
-		}));
+			const key = serializeLocalRunKey({
+				sourceId: result.sourceId,
+				runId: result.runId,
+			});
+			setResultFocus((current) => ({
+				key,
+				requestId: (current?.requestId ?? 0) + 1,
+			}));
 			// Do not trigger the generic Results refresh here: ensureLocalRun already
 			// loaded the authoritative target and a concurrent first-page refresh
 			// could immediately hide an off-page run before focus is applied.
