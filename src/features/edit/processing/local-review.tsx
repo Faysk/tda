@@ -441,6 +441,74 @@ function ReviewEditor({
 		0,
 	);
 	const participants = new Set(segments.map((segment) => segment.speaker)).size;
+	const approvalCurrent = review.status === "approved_local" && review.approvalCurrent && !dirty;
+	const reviewComplete = !ephemeral && !dirty && (review.status === "reviewed" || approvalCurrent);
+	const prepared = Boolean(publicationReceipt);
+	const currentWorkflowStep = prepared ? 3 : approvalCurrent ? 2 : reviewComplete ? 1 : 0;
+	const workflowSteps = [
+		{ label: "Revisar e salvar", complete: reviewComplete || approvalCurrent || prepared },
+		{ label: "Aprovar", complete: approvalCurrent || prepared },
+		{ label: "Preparar no Edit", complete: prepared },
+	] as const;
+
+	const handoffBlocker = (() => {
+		if (prepared || !approvalCurrent) return null;
+		if (!publicationEnabled) return {
+			title: "Handoff privado indisponível neste ambiente",
+			detail: "A revisão está aprovada, mas o envio para Sessões do Edit não está ativado aqui.",
+			action: null as "repair" | "retry" | "abandon" | null,
+		};
+		if (!review.publicationTarget) return {
+			title: review.publicationTargetState === "invalid"
+				? "O vínculo original precisa ser reparado"
+				: "O destino privado ainda não está vinculado",
+			detail: "O Companion só pode continuar usando a origem verificada. Nenhuma sessão será escolhida por aproximação.",
+			action: onRepairTarget ? "repair" as const : null,
+		};
+		if (publicationPreflight && !publicationPreflight.eligible) {
+			if (publicationPreflight.reason === "too_large") return {
+				title: "Esta revisão excede o limite do handoff",
+				detail: `Payload canônico ${publicationPreflight.payloadBytes?.toLocaleString("pt-BR") ?? "acima do limite"} bytes · limite ${publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes. Nada foi enviado.`,
+				action: null,
+			};
+			return {
+				title: "Esta revisão aprovada não é compatível com o contrato atual",
+				detail: `O preflight bloqueou o handoff antes de qualquer envio (${publicationPreflight.reason ?? "invalid_payload"}). Salvar ou reabrir por si só não é tratado como correção.`,
+				action: null,
+			};
+		}
+		if (publicationRecovery?.pending) return {
+			title: publicationRecovery.blocked === "expired"
+				? "Existe um handoff antigo ainda não reconciliado"
+				: publicationRecovery.blocked === "mismatch"
+					? "Outra revisão possui um handoff pendente nesta campanha"
+					: "O handoff anterior ainda precisa ser reconciliado",
+			detail: publicationRecovery.blocked === "expired"
+				? "O recibo ainda pode existir. Novos envios ficam bloqueados até você reconciliar ou abandonar explicitamente essa intenção."
+				: "Consultar novamente reutiliza a mesma operation id e não cria outra revisão privada.",
+			action: publicationRecovery.blocked ? "abandon" as const : "retry" as const,
+		};
+		if (!publicationErrorCode) return null;
+		const messages: Record<string, { title: string; detail: string; action: "retry" | null }> = {
+			unauthenticated: { title: "Sua sessão Web expirou", detail: "Entre novamente e retome esta revisão. Nenhum handoff foi confirmado.", action: null },
+			forbidden: { title: "Sua conta não pode preparar esta campanha", detail: "O bloqueio é de acesso; ele não significa que a sessão não exista.", action: null },
+			publish_capability_undefined: { title: "O handoff privado não está ativado", detail: "A revisão continua local e aprovada. Nada foi enviado.", action: null },
+			not_found: { title: "O destino privado não pôde ser resolvido", detail: "A campanha ou o vínculo esperado não foi localizado depois da autorização. Tente consultar novamente; se persistir, repare a origem em vez de criar um destino por palpite.", action: "retry" },
+			conflict: { title: "Existe um conflito de identidade no destino", detail: "O TDA bloqueou o handoff para não duplicar ou trocar silenciosamente a sessão vinculada.", action: "retry" },
+			stale_current: { title: "A revisão privada mudou desde a sua confirmação", detail: "Atualize o estado e confirme novamente sobre a revisão atual.", action: "retry" },
+			dependency_unavailable: { title: "O serviço de handoff está temporariamente indisponível", detail: "Nenhuma alteração foi confirmada. Consulte novamente antes de formar uma nova intenção.", action: "retry" },
+			unconfirmed: { title: "O handoff pode ter sido concluído", detail: "A resposta foi perdida. Consulte o recibo usando a mesma operação antes de tentar qualquer novo envio.", action: "retry" },
+			storage_unavailable: { title: "O navegador não conseguiu preservar a intenção", detail: "O envio foi bloqueado antes da rede para evitar uma operação sem recovery durável.", action: null },
+			pending_mismatch: { title: "Há outra revisão com recovery pendente", detail: "Reabra a revisão original ou abandone explicitamente a intenção anterior.", action: null },
+			pending_expired: { title: "O recovery pendente expirou", detail: "Consulte o recibo ou abandone explicitamente antes de criar nova intenção.", action: null },
+			profile_changed: { title: "O perfil autenticado mudou", detail: "Recarregue a autorização antes de continuar.", action: "retry" },
+		};
+		return messages[publicationErrorCode] ?? {
+			title: "O handoff foi bloqueado",
+			detail: publicationErrorMessage(publicationErrorCode),
+			action: "retry" as const,
+		};
+	})();
 
 	function rememberVisibleAnchor() {
 		const anchor = Array.from(
@@ -469,6 +537,16 @@ function ReviewEditor({
         setPublicationRecovery(null);
         setPublicationErrorCode(null);
         setPublishConfirmation(false);
+	}
+
+	function saveWorkingCopy() {
+		rememberVisibleAnchor();
+		void onSave(baseline, status, segments);
+	}
+
+	function transitionReview(next: "reviewed" | "approved_local") {
+		rememberVisibleAnchor();
+		void onSave(baseline, next, segments);
 	}
 
 	function attemptClose() {
@@ -503,7 +581,7 @@ function ReviewEditor({
             const receipt = await browserPublicationRecovery().execute(review, publicationRecovery, onPublish);
             setPublicationReceipt(receipt); setPublicationRecovery(null);
         } catch (cause) {
-            setPublicationRecovery(null); setPublicationError(recoveryError(cause));
+            setPublicationRecovery(null); setPublicationErrorCode(recoveryError(cause));
         } finally { setPublishConfirmation(false); setPublishing(false); }
     }
     async function abandonPublication() {
