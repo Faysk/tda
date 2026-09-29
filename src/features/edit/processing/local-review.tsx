@@ -989,7 +989,6 @@ function ReviewEditor({
 				<section
 					ref={confirmationRef}
 					className={styles.publishConfirmation}
-					role="region"
 					aria-live="polite"
 					tabIndex={-1}
 					data-publication-confirmation="true"
