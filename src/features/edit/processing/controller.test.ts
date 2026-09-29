@@ -1060,7 +1060,10 @@ describe("processing state", () => {
 		expect(catalogCursors).toContain("page-2");
 
 		const readsAfterResult = catalogCursors.length;
-		await expect(controller.ensureLocalRun(sourceId, targetRunId)).resolves.toBe(true);
+		await expect(controller.result("test-job")).resolves.toMatchObject({
+			sourceId,
+			runId: targetRunId,
+		});
 		expect(catalogCursors).toHaveLength(readsAfterResult);
 		expect(
 			request.mock.calls.some(([url]) => String(url).endsWith("/review")),
