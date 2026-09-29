@@ -662,31 +662,77 @@ export class ProcessingController {
 
 
 	ensureLocalRun = async (sourceId: string, runId: string): Promise<boolean> => {
-		const hasTarget = () =>
-			this.#state.localRuns.some(
-				(run) => run.sourceId === sourceId && run.runId === runId,
-			);
+		const key = `${sourceId}:${runId}`;
+		const hasTarget = (runs: readonly LocalRunSummary[] = this.#state.localRuns) =>
+			runs.some((run) => run.sourceId === sourceId && run.runId === runId);
 		if (hasTarget()) return true;
 		if (this.#state.connection !== "connected") return false;
 
-		// Refresh the first catalog page before walking pagination so a run that
-		// just completed can be discovered without depending on stale UI state.
-		await this.refresh("results");
-		if (hasTarget()) return true;
+		const epoch = this.#epoch;
+		const signal = this.#request.signal;
+		const byKey = new Map(
+			this.#state.localRuns.map((run) => [`${run.sourceId}:${run.runId}`, run]),
+		);
+		const commit = (
+			hasMore: boolean,
+			nextCursor: string | null,
+		) => {
+			const localRuns = [...byKey.values()].sort((left, right) => {
+				const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
+				const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
+				return rightTime - leftTime;
+			});
+			this.update({
+				localRuns,
+				localRunsHasMore: hasMore,
+				localRunsNextCursor: nextCursor,
+				libraryRefreshError: null,
+			});
+			return byKey.has(key);
+		};
 
-		const seenCursors = new Set<string>();
-		while (
-			this.#state.localRunsHasMore &&
-			this.#state.localRunsNextCursor &&
-			!hasTarget()
-		) {
-			const cursor = this.#state.localRunsNextCursor;
-			if (seenCursors.has(cursor)) break;
-			seenCursors.add(cursor);
-			await this.loadMoreRuns();
-			if (this.#state.libraryRefreshError) break;
+		try {
+			if (
+				this.#state.capabilities?.capabilities.includes(
+					"transcription.runs.catalog",
+				)
+			) {
+				let cursor: string | undefined;
+				const seenCursors = new Set<string>();
+				while (!signal.aborted) {
+					const page = await this.bridge.localRunCatalog(signal, {
+						...(cursor ? { cursor } : {}),
+						limit: 100,
+					});
+					if (epoch !== this.#epoch || signal.aborted) return false;
+					for (const run of page.runs)
+						byKey.set(`${run.sourceId}:${run.runId}`, run);
+					if (byKey.has(key) || !page.hasMore)
+						return commit(page.hasMore, page.nextCursor);
+					const next = page.nextCursor;
+					if (!next || seenCursors.has(next))
+						throw new BridgeError("invalid_response");
+					seenCursors.add(next);
+					cursor = next;
+				}
+				return false;
+			}
+
+			// Older compatible Companions expose per-source run listing instead of
+			// the global catalog. Query the authoritative source directly rather than
+			// waiting for a background refresh that may already be in flight.
+			const runs = await this.bridge.localRuns(sourceId, signal);
+			if (epoch !== this.#epoch || signal.aborted) return false;
+			for (const run of runs) byKey.set(`${run.sourceId}:${run.runId}`, run);
+			return commit(false, null);
+		} catch (error) {
+			if (epoch === this.#epoch && !signal.aborted)
+				this.update({
+					libraryRefreshError:
+						error instanceof BridgeError ? error.code : "service_error",
+				});
+			return false;
 		}
-		return hasTarget();
 	};
 
 	loadMoreRuns = async () => {
