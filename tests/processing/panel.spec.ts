@@ -1061,7 +1061,20 @@ test("Results keeps selected-run detail in document flow on Full HD", async ({ p
 	await page.keyboard.press("Enter");
 	await expect(comparisonReason).toBeHidden();
 
+	for (const disclosureName of [
+		"Execução e métricas",
+		"Medição",
+		"Integridade e IDs",
+	] as const) {
+		const disclosure = runCard.getByText(disclosureName, { exact: true });
+		await disclosure.focus();
+		await page.keyboard.press("Enter");
+	}
+
 	for (const viewport of [
+		{ width: 3840, height: 2160 },
+		{ width: 2560, height: 1440 },
+		{ width: 2048, height: 1279 },
 		{ width: 1440, height: 900 },
 		{ width: 1366, height: 768 },
 		{ width: 960, height: 540 },
