@@ -13,6 +13,9 @@ export default function ErrorPage({ reset }: { reset: () => void }) {
 		<section
 			className={styles.shell}
 			data-system-state="error"
+			data-layout-family="editorial"
+			data-layout-role="expansive"
+			data-layout-content-role="reading"
 			aria-labelledby="system-error-title"
 			aria-busy={retrying}
 		>

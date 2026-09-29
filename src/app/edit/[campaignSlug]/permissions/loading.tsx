@@ -9,6 +9,8 @@ export default function LoadingPermissions() {
 		<section
 			className={styles.shell}
 			data-permissions-loading="true"
+			data-layout-family="workspace"
+			data-layout-role="editorial"
 			data-global-loading="off"
 			aria-busy="true"
 		>

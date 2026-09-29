@@ -1,5 +1,5 @@
 .shell {
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	min-height: min(68dvh, 720px);
 	margin-inline: auto;
 	display: grid;
@@ -12,7 +12,7 @@
 
 .content {
 	display: grid;
-	width: min(100%, 840px);
+	width: min(100%, var(--ds-layout-reading, 900px));
 	justify-items: start;
 }
 

@@ -1,5 +1,5 @@
 .shell {
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	min-height: min(62dvh, 680px);
 	margin-inline: auto;
 	padding:
@@ -10,7 +10,7 @@
 }
 
 .content {
-	width: min(100%, 760px);
+	width: min(100%, var(--ds-layout-reading, 900px));
 }
 
 .icon {

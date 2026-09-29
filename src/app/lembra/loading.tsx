@@ -7,6 +7,8 @@ export default function LembraLoading() {
 		<div
 			className={styles.shell}
 			data-lembra-loading="true"
+			data-layout-family="editorial"
+			data-layout-role="expansive"
 			data-global-loading="off"
 			aria-busy="true"
 		>

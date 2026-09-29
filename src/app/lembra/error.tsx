@@ -12,6 +12,9 @@ export default function LembraError({
 	return (
 		<section
 			className={styles.shell}
+			data-layout-family="editorial"
+			data-layout-role="expansive"
+			data-layout-content-role="reading"
 			aria-labelledby="lembra-error-title"
 			aria-describedby="lembra-error-copy"
 		>

@@ -56,6 +56,8 @@ test("global 404 and error states follow the floating-shell reading geometry", a
 		await setTheme(page, theme);
 		const notFound = page.locator('[data-system-state="not-found"]');
 		await expect(notFound).toBeVisible();
+		await expect(notFound).toHaveAttribute("data-layout-family", "editorial");
+		await expect(notFound).toHaveAttribute("data-layout-content-role", "reading");
 		await expect(
 			page.getByRole("heading", { name: "Esta história não foi encontrada." }),
 		).toBeVisible();
@@ -172,6 +174,8 @@ test("permissions route loading keeps the workbench shell instead of covering it
 
 		const shell = page.locator('[data-permissions-loading="true"]');
 		await expect(shell).toBeVisible();
+		await expect(shell).toHaveAttribute("data-layout-family", "workspace");
+		await expect(shell).toHaveAttribute("data-layout-role", "editorial");
 		await expect(page.getByRole("heading", { name: "Permissões" })).toBeVisible();
 		await expect(page.getByRole("navigation", { name: "Navegação do Edit" })).toBeVisible();
 		const status = page.getByRole("status").filter({ hasText: "Carregando dados de permissões" });

@@ -6,6 +6,9 @@ export default function NotFound() {
 		<section
 			className={styles.shell}
 			data-system-state="not-found"
+			data-layout-family="editorial"
+			data-layout-role="expansive"
+			data-layout-content-role="reading"
 			aria-labelledby="system-not-found-title"
 		>
 			<div className={styles.content}>

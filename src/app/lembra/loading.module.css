@@ -1,5 +1,5 @@
 .shell {
-	width: min(100%, var(--ds-layout-max, 2160px));
+	width: min(100%, var(--ds-layout-expansive, var(--ds-layout-max, 2160px)));
 	min-height: 100dvh;
 	margin-inline: auto;
 	padding-inline: var(--ds-page-gutter);
