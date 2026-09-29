@@ -25,7 +25,7 @@ function runtimeAssetFiles(root) {
 			files.push(...runtimeAssetFiles(fullPath));
 			continue;
 		}
-		if (!/\.(css|scss|tsx?|jsx?|mjs|cjs|js|html|json|webmanifest|xml|svg)$/u.test(entry.name)) continue;
+		if (!/\.(css|scss|tsx?|jsx?|mjs|cjs|js|html|json|mdx?|webmanifest|xml|svg)$/u.test(entry.name)) continue;
 		if (/\.(test|spec)\.[cm]?[jt]sx?$/u.test(entry.name)) continue;
 		files.push(fullPath);
 	}
