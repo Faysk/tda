@@ -1413,7 +1413,7 @@ def create_app(
 
     @app.exception_handler(Conflict)
     async def conflict(_, exc):
-        code = str(exc)
+        code = exc.code
         return error(code, 409, conflict_recoverable(code))
 
     @app.exception_handler(KeyError)
