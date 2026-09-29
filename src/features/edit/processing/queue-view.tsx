@@ -128,6 +128,7 @@ type Props = Readonly<{
 	onFilterChange: (filter: QueueFilter) => void;
 	resetSearchKey: number;
 	mutation: Readonly<{ kind: string; targetId?: string }> | null;
+	resultError?: string | null;
 	canDelete: boolean;
 	onCancel: (job: LocalJob) => void;
 	onRetry: (job: LocalJob) => void;
@@ -142,6 +143,7 @@ export function ProcessingQueueView({
 	onFilterChange,
 	resetSearchKey,
 	mutation,
+	resultError = null,
 	canDelete,
 	onCancel,
 	onRetry,
@@ -269,6 +271,12 @@ export function ProcessingQueueView({
 						: `${rows.length} de ${jobs.length} jobs`}
 				</span>
 			</div>
+
+			{resultError ? (
+				<p className={styles.copyFeedback} data-tone="error" role="alert">
+					{resultError}
+				</p>
+			) : null}
 
 			{copyFeedback ? (
 				<p
