@@ -285,6 +285,13 @@ jobs:
           tests/world-authoring-command-palette.spec.ts
           --project=desktop-1080p
           --project=mobile
+      - name: Loader and standalone favicon contracts
+        run: >-
+          pnpm exec playwright test
+          tests/global-loading.spec.ts
+          tests/d-lore-reading-mode.spec.ts
+          --project=desktop-1080p
+          --project=mobile
       - name: Global navigation and shell contracts
         run: >-
           pnpm exec playwright test
@@ -293,13 +300,6 @@ jobs:
           tests/foundation.spec.ts
           tests/navigation-origin.spec.ts
           --project=desktop-1080p
-      - name: Loader and standalone favicon contracts
-        run: >-
-          pnpm exec playwright test
-          tests/global-loading.spec.ts
-          tests/d-lore-reading-mode.spec.ts
-          --project=desktop-1080p
-          --project=mobile
       - name: Upload sanitized navigation visual receipts
         if: ${{ success() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
