@@ -272,6 +272,66 @@ test("standalone catalogs keep published entries discoverable and private lores 
 	await expect(page.locator('a[href="/diario/astel/leitura.html"]')).toBeVisible();
 });
 
+test("Diário de Astel opens and paginates the reader across the viewport matrix", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== "desktop-1080p");
+	test.setTimeout(180000);
+
+	for (const viewport of viewportMatrix) {
+		await page.setViewportSize({
+			width: viewport.width,
+			height: viewport.height,
+		});
+		await page.goto("/diario/astel", { waitUntil: "domcontentloaded" });
+
+		const cover = page.locator("#cover-scene");
+		const reader = page.locator("#reader");
+		const book = page.locator("#book");
+		const pageStatus = page.locator("#page-status");
+
+		await expect(cover, `diario cover @ ${viewport.label}`).toBeVisible();
+		await expect(reader, `diario reader starts closed @ ${viewport.label}`).toBeHidden();
+
+		await page.locator("#open-book").click();
+
+		await expect(cover, `diario cover closes @ ${viewport.label}`).toBeHidden();
+		await expect(reader, `diario reader opens @ ${viewport.label}`).toBeVisible();
+		await expect(book, `diario reader receives focus @ ${viewport.label}`).toBeFocused();
+		await expect(pageStatus, `diario pagination status @ ${viewport.label}`).toContainText(
+			/Página/,
+		);
+		await expect(page.locator("#font-size")).toBeVisible();
+		await expect(page.locator("#next")).toBeEnabled();
+
+		const firstStatus = (await pageStatus.textContent()) ?? "";
+		await page.locator("#next").click();
+		await expect(pageStatus).not.toHaveText(firstStatus);
+		await expect(page.locator("#previous")).toBeEnabled();
+
+		await page.locator("#contents").click();
+		await expect(page.locator("#contents-dialog")).toBeVisible();
+		await page.locator("#close-contents").click();
+		await expect(page.locator("#contents-dialog")).toBeHidden();
+
+		await expectNoHorizontalOverflow(
+			page,
+			`diario reader @ ${viewport.label}`,
+		);
+		await expectFixedChromeInsideViewport(
+			page,
+			`diario reader @ ${viewport.label}`,
+		);
+
+		await page.screenshot({
+			path: testInfo.outputPath(
+				`standalone-diario-astel-reader-${viewport.label}.png`,
+			),
+			fullPage: false,
+		});
+	}
+});
+
 test("D and Yllith preserve Cinemático/Leitura and keep the TDA escape available", async ({
 	page,
 }, testInfo) => {
