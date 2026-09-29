@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
+// #1081 is the canonical browser gate for shared keylines and corner clearance.
+
 type LayoutFamily = "cinematic" | "editorial" | "workspace";
 type LayoutRole = "reading" | "editorial" | "expansive";
 
