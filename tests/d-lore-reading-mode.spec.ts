@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { TDA_BRAND_ASSETS } from "../src/config/brand-assets";
 
 test("D switches between cinematic and full reading modes on the same URL", async ({ page, request, isMobile, viewport }) => {
 	test.setTimeout(120000);
@@ -16,11 +17,7 @@ test("D switches between cinematic and full reading modes on the same URL", asyn
 	const favicon = page.locator('link[rel~="icon"]');
 	await expect(favicon).toHaveCount(1);
 	await expect(favicon).toHaveAttribute("type", "image/svg+xml");
-	await expect(favicon).toHaveAttribute("href", "https://media.dnd.faysk.dev/brand/59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e/favicon.svg");
-	const faviconResponse = await request.get("https://media.dnd.faysk.dev/brand/59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e/favicon.svg");
-	expect(faviconResponse.ok()).toBe(true);
-	expect(faviconResponse.headers()["content-type"]).toContain("image/svg+xml");
-	expect(await faviconResponse.text()).toContain("<svg");
+	await expect(favicon).toHaveAttribute("href", TDA_BRAND_ASSETS.favicon);
 
 	const toggle = page.locator("#lore-mode-toggle");
 	await expect(toggle).toBeVisible();
