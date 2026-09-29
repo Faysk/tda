@@ -56,8 +56,13 @@ async function expectFirstCriticalContentClear(
 async function sharedKeyline(page: import("@playwright/test").Page) {
 	return page.evaluate(() => {
 		const styles = getComputedStyle(document.documentElement);
-		const gutter = Number.parseFloat(styles.getPropertyValue("--ds-page-gutter"));
 		const layoutMax = Number.parseFloat(styles.getPropertyValue("--ds-layout-max"));
+		const probe = document.createElement("div");
+		probe.style.cssText =
+			"position:fixed;visibility:hidden;width:var(--ds-page-gutter);height:0";
+		document.body.append(probe);
+		const gutter = probe.getBoundingClientRect().width;
+		probe.remove();
 		const layoutWidth = Math.min(innerWidth, layoutMax);
 		return {
 			gutter,
@@ -152,7 +157,16 @@ test("Lore archive keeps visible focus and disables artwork motion when requeste
 	const firstLore = page
 		.locator('section[aria-label="Lores publicadas"] article a')
 		.first();
-	await firstLore.focus();
+	const firstLoreHref = await firstLore.getAttribute("href");
+	for (let index = 0; index < 8; index += 1) {
+		await page.keyboard.press("Tab");
+		if (
+			(await page.evaluate(() => document.activeElement?.getAttribute("href"))) ===
+			firstLoreHref
+		) {
+			break;
+		}
+	}
 	await expect(firstLore).toBeFocused();
 	const focusOutline = await firstLore.evaluate((element) => {
 		const styles = getComputedStyle(element);
