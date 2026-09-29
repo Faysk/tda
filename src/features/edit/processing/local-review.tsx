@@ -324,6 +324,8 @@ function ReviewEditor({
 	const restoreAnchor = useRef(false);
 	const lastServerReview = useRef(review);
 	const confirmationRef = useRef<HTMLElement | null>(null);
+	const confirmationReturnFocusRef = useRef<HTMLElement | null>(null);
+	const handoffSuccessRef = useRef<HTMLDivElement | null>(null);
 	const [baseline, setBaseline] = useState(review);
 	const [comparison, setComparison] = useState<ReviewRebase | null>(null);
 	const [comparing, setComparing] = useState(false);
@@ -670,6 +672,13 @@ function ReviewEditor({
 		setPublishConfirmation(false);
 	}
 
+	function cancelPublicationConfirmation() {
+		const target = confirmationReturnFocusRef.current;
+		setPublishConfirmation(false);
+		confirmationReturnFocusRef.current = null;
+		window.requestAnimationFrame(() => target?.focus());
+	}
+
 	function attemptClose() {
 		if (
 			dirty &&
@@ -705,6 +714,10 @@ function ReviewEditor({
 	}
 
 	async function preparePublicationConfirmation() {
+		confirmationReturnFocusRef.current =
+			document.activeElement instanceof HTMLElement
+				? document.activeElement
+				: null;
 		setPublishing(true);
 		setPublicationErrorCode(null);
 		setPublicationRecovery(null);
@@ -746,6 +759,9 @@ function ReviewEditor({
 			);
 			setPublicationReceipt(receipt);
 			setPublicationRecovery(null);
+			setPublishConfirmation(false);
+			confirmationReturnFocusRef.current = null;
+			window.requestAnimationFrame(() => handoffSuccessRef.current?.focus());
 		} catch (cause) {
 			setPublicationRecovery(null);
 			setPublicationErrorCode(
@@ -754,8 +770,8 @@ function ReviewEditor({
 					? cause.code
 					: "dependency_unavailable",
 			);
+			cancelPublicationConfirmation();
 		} finally {
-			setPublishConfirmation(false);
 			setPublishing(false);
 		}
 	}
@@ -821,7 +837,7 @@ function ReviewEditor({
 					<Button
 						size="sm"
 						variant="tertiary"
-						disabled={busy || publishing}
+						disabled={busy || publishing || publishConfirmation}
 						onClick={attemptClose}
 					>
 						Voltar aos resultados
@@ -1011,7 +1027,7 @@ function ReviewEditor({
 					onKeyDown={(event) => {
 						if (event.key === "Escape" && !publishing) {
 							event.preventDefault();
-							setPublishConfirmation(false);
+							cancelPublicationConfirmation();
 						}
 					}}
 				>
@@ -1043,7 +1059,7 @@ function ReviewEditor({
 							size="sm"
 							variant="tertiary"
 							disabled={publishing}
-							onClick={() => setPublishConfirmation(false)}
+							onClick={cancelPublicationConfirmation}
 						>
 							Cancelar
 						</Button>
@@ -1060,7 +1076,12 @@ function ReviewEditor({
 			) : null}
 
 			{publicationReceipt && review.publicationTarget ? (
-				<div className={styles.published} role="status">
+				<div
+					ref={handoffSuccessRef}
+					className={styles.published}
+					role="status"
+					tabIndex={-1}
+				>
 					<span>
 						<strong>Sessão preparada no Edit</strong> · revisão cloud{" "}
 						{publicationReceipt.revisionNumber} · receipt{" "}
@@ -1113,6 +1134,7 @@ function ReviewEditor({
 					<span>Buscar na timeline</span>
 					<input
 						value={query}
+						disabled={publishConfirmation}
 						onChange={(event) => setQuery(event.target.value)}
 						placeholder="Texto, participante ou HH:MM:SS…"
 					/>
