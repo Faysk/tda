@@ -28,6 +28,10 @@ export default defineConfig({
 	],
 	projects: [
 		{
+			name: "desktop-2k",
+			use: { viewport: { width: 2560, height: 1440 } },
+		},
+		{
 			name: "desktop-1080p",
 			use: { viewport: { width: 1920, height: 1080 } },
 		},
@@ -36,6 +40,7 @@ export default defineConfig({
 			use: { viewport: { width: 1366, height: 768 } },
 		},
 		{ name: "mobile", use: { viewport: { width: 390, height: 844 } } },
+		{ name: "mobile-320", use: { viewport: { width: 320, height: 800 } } },
 		{
 			name: "zoom-200",
 			use: { viewport: { width: 683, height: 384 } },

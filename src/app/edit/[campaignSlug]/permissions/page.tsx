@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { PermissionsDirectoryView } from "@/features/edit/permissions/directory";
 import { PERMISSIONS_MESSAGES } from "@/features/edit/permissions/model";
@@ -18,17 +19,11 @@ export default async function PermissionsPage({
 	const message = result.ok ? null : PERMISSIONS_MESSAGES[result.reason];
 	return (
 		<section className={styles.shell}>
-			<nav className={styles.navigation} aria-label="Navegação do Edit">
-				<Link href="/conta">Conta e acesso</Link>
-				<Link href="/edit/sessoes">Sessões no Edit</Link>
-			</nav>
-			<header className={styles.header}>
-				<p>TDA / EDIT</p>
-				<h1>Permissões</h1>
-				{result.ok ? (
-					<p>{result.value.campaign.name}</p>
-				) : null}
-			</header>
+			<OperationalPageHeader
+				eyebrow="Edit · Administração"
+				title="Permissões"
+				meta={result.ok ? result.value.campaign.name : null}
+			/>
 			{result.ok ? (
 				<PermissionsDirectoryView directory={result.value} />
 			) : message ? (
