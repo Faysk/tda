@@ -750,6 +750,209 @@ describe("processing state", () => {
 		expect(controller.snapshot().uncertainSubmission).toBe(false);
 	});
 
+	it("resolves a Queue result to its exact paginated local run before returning", async () => {
+		const sourceSha = "1".repeat(64);
+		const sourceId = `craig-${sourceSha}`;
+		const targetRunId = "run-target-page-2";
+		const completedJob = {
+			...job,
+			id: "job-target",
+			kind: "transcription.craig",
+			status: "succeeded",
+			stage: "complete",
+			progress: { completed: 2, total: 2, unit: "tracks" },
+			result_available: true,
+			context: {
+				campaign_id: "yuhara-main",
+				session_id: "sessao-target",
+				source_id: sourceId,
+				profile_id: "whisper-detailed",
+			},
+		};
+		const reviewCaps = {
+			...caps,
+			capabilities: [
+				"transcription.review",
+				"transcription.runs.catalog",
+			],
+		};
+		const rawRun = (
+			runId: string,
+			sha: string,
+			completedAt: string,
+		) => ({
+			run_id: runId,
+			status: "completed",
+			source_id: sourceId,
+			profile_id: "whisper-detailed",
+			engine: "faster-whisper",
+			model: "large-v3",
+			model_revision: "rev",
+			language: "pt",
+			completed_at: completedAt,
+			transcript_sha256: sha,
+			transcript_size_bytes: 1200,
+			stats: { warning_count: 0 },
+		});
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(reviewCaps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [completedJob] });
+			if (value.endsWith("/sources"))
+				return Response.json({
+					schema_version: "tda_craig_sources_v1",
+					sources: [
+						{
+							source_id: sourceId,
+							source_sha256: sourceSha,
+							recording_id: null,
+							track_count: 2,
+						},
+					],
+				});
+			if (value.endsWith("/runs?limit=100"))
+				return Response.json({
+					schema_version: "tda_local_run_catalog_v1",
+					runs: [
+						rawRun(
+							"run-newest-page-1",
+							"2".repeat(64),
+							"2026-09-29T12:00:00Z",
+						),
+					],
+					has_more: true,
+					next_cursor: "cursor-page-2",
+				});
+			if (value.endsWith("/runs?cursor=cursor-page-2&limit=100"))
+				return Response.json({
+					schema_version: "tda_local_run_catalog_v1",
+					runs: [
+						rawRun(
+							targetRunId,
+							"3".repeat(64),
+							"2026-09-28T12:00:00Z",
+						),
+					],
+					has_more: false,
+					next_cursor: null,
+				});
+			if (value.endsWith("/jobs/job-target/result"))
+				return Response.json({
+					schema_version: "tda_local_result_v1",
+					campaign_id: "yuhara-main",
+					session_id: "sessao-target",
+					source_id: sourceId,
+					job_id: "job-target",
+					transcription: {
+						schema_version: "tda_transcript_v1",
+						profile_id: "whisper-detailed",
+						artifact: "transcript.json",
+						run_id: targetRunId,
+						sha256: "3".repeat(64),
+					},
+					sync: { status: "not_configured" },
+				});
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+		expect(controller.snapshot().localRuns.map((run) => run.runId)).toEqual([
+			"run-newest-page-1",
+		]);
+
+		const result = await controller.result("job-target");
+
+		expect(result).toMatchObject({ sourceId, runId: targetRunId });
+		expect(controller.snapshot().result).toMatchObject({
+			sourceId,
+			runId: targetRunId,
+		});
+		expect(controller.snapshot().localRuns.map((run) => run.runId)).toEqual([
+			"run-newest-page-1",
+			targetRunId,
+		]);
+		expect(
+			request.mock.calls.some(([url]) =>
+				String(url).endsWith("/runs?cursor=cursor-page-2&limit=100"),
+			),
+		).toBe(true);
+		expect(
+			request.mock.calls.some(([url]) => String(url).includes("/review")),
+		).toBe(false);
+	});
+
+	it("rejects a result whose authoritative source does not match the clicked job", async () => {
+		const sourceSha = "4".repeat(64);
+		const sourceId = `craig-${sourceSha}`;
+		const completedJob = {
+			...job,
+			id: "job-mismatch",
+			kind: "transcription.craig",
+			status: "succeeded",
+			stage: "complete",
+			progress: { completed: 1, total: 1, unit: "tracks" },
+			result_available: true,
+			context: {
+				campaign_id: "yuhara-main",
+				session_id: "sessao-mismatch",
+				source_id: sourceId,
+				profile_id: "whisper-detailed",
+			},
+		};
+		const reviewCaps = {
+			...caps,
+			capabilities: [
+				"transcription.review",
+				"transcription.runs.catalog",
+			],
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(reviewCaps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [completedJob] });
+			if (value.endsWith("/sources"))
+				return Response.json({
+					schema_version: "tda_craig_sources_v1",
+					sources: [],
+				});
+			if (value.endsWith("/runs?limit=100"))
+				return Response.json({
+					schema_version: "tda_local_run_catalog_v1",
+					runs: [],
+					has_more: false,
+					next_cursor: null,
+				});
+			if (value.endsWith("/jobs/job-mismatch/result"))
+				return Response.json({
+					schema_version: "tda_local_result_v1",
+					campaign_id: "yuhara-main",
+					session_id: "sessao-mismatch",
+					source_id: `craig-${"5".repeat(64)}`,
+					job_id: "job-mismatch",
+					transcription: {
+						schema_version: "tda_transcript_v1",
+						profile_id: "whisper-detailed",
+						artifact: "transcript.json",
+						run_id: "run-wrong-source",
+						sha256: "6".repeat(64),
+					},
+					sync: { status: "not_configured" },
+				});
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+		const result = await controller.result("job-mismatch");
+
+		expect(result).toBeNull();
+		expect(controller.snapshot().result).toBeNull();
+		expect(controller.snapshot().connection).toBe("connected");
+	});
+
 	it("loads local result metadata from source catalog without opening transcript content", async () => {
 		const sourceSha = "a".repeat(64);
 		const sourceId = `craig-${sourceSha}`;
