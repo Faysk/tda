@@ -332,6 +332,7 @@ export function ProcessingPanel({
 	const [customActivityBarks, setCustomActivityBarks] = useState<readonly ActivityBark[]>([]);
 	const [resultFocus, setResultFocus] = useState<Readonly<{ key: string; requestId: number }> | null>(null);
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
+	const [resultOpeningJobId, setResultOpeningJobId] = useState<string | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -495,8 +496,11 @@ export function ProcessingPanel({
 	}
 
 	async function openJobResult(job: LocalJob) {
+		if (resultOpeningJobId !== null) return;
 		setResultOpenError(null);
-		const result = await controller.result(job.id);
+		setResultOpeningJobId(job.id);
+		try {
+			const result = await controller.result(job.id);
 		if (!result?.runId) {
 			setResultOpenError(
 				"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
@@ -521,10 +525,13 @@ export function ProcessingPanel({
 			key,
 			requestId: (current?.requestId ?? 0) + 1,
 		}));
-		// Do not trigger the generic Results refresh here: ensureLocalRun already
-		// loaded the authoritative target and a concurrent first-page refresh
-		// could immediately hide an off-page run before focus is applied.
-		setView("results");
+			// Do not trigger the generic Results refresh here: ensureLocalRun already
+			// loaded the authoritative target and a concurrent first-page refresh
+			// could immediately hide an off-page run before focus is applied.
+			setView("results");
+		} finally {
+			setResultOpeningJobId(null);
+		}
 	}
 
 	function openAttentionQueue() {
@@ -1002,7 +1009,12 @@ export function ProcessingPanel({
 							filter={queueFilter}
 							onFilterChange={setQueueFilter}
 							resetSearchKey={queueSearchReset}
-							mutation={state.mutation}
+							mutation={
+								state.mutation ??
+								(resultOpeningJobId
+									? { kind: "result", targetId: resultOpeningJobId }
+									: null)
+							}
 							canDelete={canDeleteJobs}
 							onCancel={(job) =>
 								setConfirmation({ id: job.id, action: "cancel" })
