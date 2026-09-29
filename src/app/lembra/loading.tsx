@@ -25,7 +25,11 @@ export default function LembraLoading() {
 					<div className={styles.navPill} />
 				</div>
 
-				<div className={styles.toolbar} aria-hidden="true">
+				<div
+					className={styles.toolbar}
+					data-lembra-loading-toolbar="true"
+					aria-hidden="true"
+				>
 					<div className={styles.search} />
 					<div className={styles.control} />
 					<div className={styles.controlWide} />

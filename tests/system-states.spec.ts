@@ -12,6 +12,7 @@ async function setTheme(page: Page, theme: "light" | "dark") {
 		document.documentElement.setAttribute("data-theme", value);
 		localStorage.setItem("tda-theme", value);
 	}, theme);
+	await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -73,20 +74,20 @@ test("global 404 and error states follow the floating-shell reading geometry", a
 		await expect(retry).toBeVisible();
 		await retry.focus();
 		await expect(retry).toBeFocused();
+		await expect(page.locator('[data-retry-count="global"]')).toHaveText("0");
+		await retry.click();
+		await expect(page.locator('[data-retry-count="global"]')).toHaveText("1");
+		await expect(page.getByRole("button", { name: "Tentar novamente" })).toBeVisible();
 		await expectClearOfFloatingChrome(page, '[data-system-state="error"] h1');
 		await expectNoHorizontalOverflow(page);
 	}
 });
 
-test("Lembra loading is sidebar-free and gives the gallery the page width", async ({ page }) => {
-	for (const viewport of [
-		{ width: 320, height: 800 },
-		{ width: 390, height: 844 },
-		{ width: 1366, height: 768 },
-		{ width: 1920, height: 1080 },
-	]) {
+test("Lembra loading is sidebar-free and follows the incoming #1084 gallery geometry", async ({ page }) => {
+	for (const { viewport, theme } of CASES) {
 		await page.setViewportSize(viewport);
 		await page.goto("/e2e-fixtures/system-states/lembra-loading");
+		await setTheme(page, theme);
 
 		const shell = page.locator('[data-lembra-loading="true"]');
 		await expect(shell).toBeVisible();
@@ -95,25 +96,79 @@ test("Lembra loading is sidebar-free and gives the gallery the page width", asyn
 		await expect(shell.getByRole("status")).toHaveCount(1);
 		await expectNoHorizontalOverflow(page);
 
+		const gallery = shell.locator('[data-lembra-loading-gallery="true"]');
 		if (viewport.width === 1366) {
-			const gallery = await shell
-				.locator('[data-lembra-loading-gallery="true"]')
-				.boundingBox();
-			expect(gallery).not.toBeNull();
-			expect((gallery?.width ?? 0) / viewport.width).toBeGreaterThan(0.8);
+			const box = await gallery.boundingBox();
+			expect(box).not.toBeNull();
+			expect((box?.width ?? 0) / viewport.width).toBeGreaterThan(0.8);
+		}
+		if (viewport.width === 1920) {
+			const box = await gallery.boundingBox();
+			expect(box).not.toBeNull();
+			expect(box?.width ?? 0).toBeGreaterThan(1700);
+		}
+
+		if (viewport.width >= 1280) {
+			const [brand, account, firstNavItem, lastToolbarItem] = await Promise.all([
+				page.locator(".brand").boundingBox(),
+				page.locator(".account-menu-trigger").boundingBox(),
+				shell
+					.locator('[data-lembra-loading-nav="true"] > div')
+					.first()
+					.boundingBox(),
+				shell
+					.locator('[data-lembra-loading-toolbar="true"] > div')
+					.last()
+					.boundingBox(),
+			]);
+			expect(brand).not.toBeNull();
+			expect(account).not.toBeNull();
+			expect(firstNavItem).not.toBeNull();
+			expect(lastToolbarItem).not.toBeNull();
+			if (brand && account && firstNavItem && lastToolbarItem) {
+				expect(firstNavItem.x).toBeGreaterThanOrEqual(brand.x + brand.width + 4);
+				expect(lastToolbarItem.x + lastToolbarItem.width).toBeLessThanOrEqual(account.x - 6);
+			}
+		}
+	}
+});
+
+test("Lembra error shares the gallery keyline and retry remains keyboard-operable", async ({ page }) => {
+	for (const { viewport, theme } of CASES) {
+		await page.setViewportSize(viewport);
+		await page.goto("/e2e-fixtures/system-states/lembra-error");
+		await setTheme(page, theme);
+
+		const heading = page.getByRole("heading", { name: "O Lembra não carregou." });
+		await expect(heading).toBeVisible();
+		const retry = page.getByRole("button", { name: "Tentar de novo" });
+		await retry.focus();
+		await expect(retry).toBeFocused();
+		await expect(page.locator('[data-retry-count="lembra"]')).toHaveText("0");
+		await retry.click();
+		await expect(page.locator('[data-retry-count="lembra"]')).toHaveText("1");
+		await expectClearOfFloatingChrome(page, "#lembra-error-title");
+		await expectNoHorizontalOverflow(page);
+
+		const errorHeadingBox = await heading.boundingBox();
+		await page.goto("/e2e-fixtures/system-states/lembra-loading");
+		await setTheme(page, theme);
+		const galleryBox = await page
+			.locator('[data-lembra-loading-gallery="true"]')
+			.boundingBox();
+		expect(errorHeadingBox).not.toBeNull();
+		expect(galleryBox).not.toBeNull();
+		if (errorHeadingBox && galleryBox) {
+			expect(Math.abs(errorHeadingBox.x - galleryBox.x)).toBeLessThanOrEqual(1);
 		}
 	}
 });
 
 test("permissions route loading keeps the workbench shell instead of covering it", async ({ page }) => {
-	for (const viewport of [
-		{ width: 320, height: 800 },
-		{ width: 390, height: 844 },
-		{ width: 1366, height: 768 },
-		{ width: 1920, height: 1080 },
-	]) {
+	for (const { viewport, theme } of CASES) {
 		await page.setViewportSize(viewport);
 		await page.goto("/e2e-fixtures/system-states/permissions-loading");
+		await setTheme(page, theme);
 
 		const shell = page.locator('[data-permissions-loading="true"]');
 		await expect(shell).toBeVisible();
