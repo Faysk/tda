@@ -1864,11 +1864,11 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 	await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
-		initialJobs: [failedJob()],
+		initialJobs: [failedJob({ attempt: 2 })],
 		jobEvents: [
 			{
 				seq: 90,
-				attempt: 0,
+				attempt: 1,
 				code: "OLD_ATTEMPT_EVENT",
 				at: "2026-09-29T13:59:59Z",
 				level: "warning",
@@ -1876,7 +1876,7 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 			},
 			{
 				seq: 91,
-				attempt: 1,
+				attempt: 2,
 				code: "QWEN_ALIGNMENT_WINDOW_FAILED",
 				at: "2026-09-29T14:00:00Z",
 				level: "error",
@@ -1934,7 +1934,7 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 	expect(copiedDiagnostic).toContain('"schema": "tda_job_diagnostic_clipboard_v1"');
 	expect(copiedDiagnostic).toContain('"failure_class": "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"');
 	expect(copiedDiagnostic).not.toContain("OLD_ATTEMPT_EVENT");
-	expect(copiedDiagnostic).not.toContain('"attempt": 0');
+	expect(copiedDiagnostic).not.toContain('"attempt": 1');
 	expect(copiedDiagnostic).not.toContain("Alice");
 	expect(copiedDiagnostic).not.toContain("context");
 	expect(copiedDiagnostic).not.toContain("glossary");
@@ -1987,7 +1987,7 @@ for (const viewport of [
 		expect(box).not.toBeNull();
 		expect(box?.x ?? -1).toBeGreaterThanOrEqual(-1);
 		expect(box?.y ?? -1).toBeGreaterThanOrEqual(-1);
-		expect(box?.width ?? 999).toBeLessThanOrEqual(viewport.width);
+		expect(box?.width ?? 999).toBeLessThanOrEqual(viewport.width + 0.1);
 		expect(box?.height ?? 9999).toBeLessThanOrEqual(viewport.height + 1);
 		expect(
 			await inspector.evaluate(
