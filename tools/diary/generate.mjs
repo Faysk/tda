@@ -106,8 +106,9 @@ for (const diary of diaries) {
   <link rel="stylesheet" href="/diario/${slug}/reading.css">
 </head>
 <body>
+  <a class="skip-link" href="#conteudo">Pular para a leitura</a>
   <header><nav aria-label="Navegação do diário"><a href="/diario">Todos os diários</a><a href="/diario/${slug}">Abrir versão em livro</a></nav><h1>${escapeHtml(title)}</h1><p>${escapeHtml(author)}</p></header>
-  <main>
+  <main id="conteudo">
     <nav id="sumario" aria-label="Capítulos"><h2>Sumário</h2><ol>${chapters.map((c) => `<li><a href="#${c.id}">${escapeHtml(c.title)}</a></li>`).join("")}</ol></nav>
     ${chapters.map((c) => `<section id="${c.id}" aria-labelledby="title-${c.id}"><p class="chapter-number">Capítulo ${c.number}</p><h2 id="title-${c.id}">${escapeHtml(c.title)}</h2>${c.paragraphs.map((p) => (p === "***" ? "<hr>" : `<p>${escapeHtml(p)}</p>`)).join("\n")}<a class="back" href="#sumario">Voltar ao sumário</a></section>`).join("\n")}
   </main>
