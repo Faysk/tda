@@ -41,8 +41,13 @@ test("desktop navigation overlays without resizing the workspace", async ({ page
 	const stageAfter = await stage.boundingBox();
 	const canvasAfter = await canvas.boundingBox();
 	expect(Math.abs((stageAfter?.width ?? 0) - (stageBefore?.width ?? 0))).toBeLessThan(2);
+	expect(Math.abs((stageAfter?.height ?? 0) - (stageBefore?.height ?? 0))).toBeLessThan(2);
+	expect(Math.abs((stageAfter?.x ?? 0) - (stageBefore?.x ?? 0))).toBeLessThan(2);
+	expect(Math.abs((stageAfter?.y ?? 0) - (stageBefore?.y ?? 0))).toBeLessThan(2);
 	expect(Math.abs((canvasAfter?.width ?? 0) - (canvasBefore?.width ?? 0))).toBeLessThan(2);
+	expect(Math.abs((canvasAfter?.height ?? 0) - (canvasBefore?.height ?? 0))).toBeLessThan(2);
 	expect(Math.abs((canvasAfter?.x ?? 0) - (canvasBefore?.x ?? 0))).toBeLessThan(2);
+	expect(Math.abs((canvasAfter?.y ?? 0) - (canvasBefore?.y ?? 0))).toBeLessThan(2);
 	expect(await page.locator(".react-flow__viewport").getAttribute("style")).toBe(transformBefore);
 
 	const reopen = page.getByRole("button", { name: "Explorar universo" });
@@ -67,11 +72,15 @@ test("desktop inspector overlays without resizing the canvas", async ({ page }, 
 
 	const after = await canvas.boundingBox();
 	expect(Math.abs((after?.width ?? 0) - (before?.width ?? 0))).toBeLessThan(2);
+	expect(Math.abs((after?.height ?? 0) - (before?.height ?? 0))).toBeLessThan(2);
 	expect(Math.abs((after?.x ?? 0) - (before?.x ?? 0))).toBeLessThan(2);
+	expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThan(2);
 	expect(await page.locator(".react-flow__viewport").getAttribute("style")).toBe(transformBefore);
 	const tab = await reopen.boundingBox();
 	expect(tab?.width ?? 0).toBeGreaterThanOrEqual(38);
+	expect(tab?.width ?? 999).toBeLessThanOrEqual(42);
 	expect(tab?.height ?? 0).toBeGreaterThanOrEqual(54);
+	expect(tab?.height ?? 999).toBeLessThanOrEqual(58);
 	expect(Math.abs((tab?.x ?? 0) + (tab?.width ?? 0) - (await page.evaluate(() => innerWidth)))).toBeLessThan(3);
 });
 
