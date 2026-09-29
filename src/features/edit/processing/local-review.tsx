@@ -732,6 +732,9 @@ function ReviewEditor({
 								review.lineage.alignment,
 							].filter(Boolean).join(" · ") || "desconhecido"}
 						</p>
+						{review.publicationTarget ? (
+							<p>Destino do Edit: {review.publicationTarget.campaignSlug} · sessão {review.publicationTarget.sourceSessionId}</p>
+						) : null}
 						<p>Base SHA: <code className={styles.artifactHash}>{review.baseTranscriptSha256}</code></p>
 						{review.draftSha256 ? <p>Draft SHA: <code className={styles.artifactHash}>{review.draftSha256}</code></p> : null}
 						{publicationPreflight?.eligible ? (
