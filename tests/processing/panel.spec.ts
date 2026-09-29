@@ -1496,6 +1496,47 @@ test("contextual diagnostics delegates Open result to the exact immutable run fl
 	await expect(selectedRun).toBeFocused();
 });
 
+test("contextual diagnostics keeps a result read failure visible without leaving Queue", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+	await page.route(`${LOCAL_API}/jobs/craig-job-1/result`, (route) =>
+		fulfillJson(
+			route,
+			{ error: { code: "RESULT_NOT_FOUND", recoverable: true } },
+			404,
+		),
+	);
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+
+	const inspector = page.locator("dialog[data-job-diagnostics='contextual']");
+	await inspector.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(inspector).toBeVisible();
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		inspector.getByRole("alert").filter({
+			hasText:
+				"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
+		}),
+	).toBeVisible();
+});
+
 test("Queue Open result walks the paginated catalog to the authoritative identity", async ({
 	page,
 }) => {
