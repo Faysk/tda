@@ -314,13 +314,28 @@ export function publicVerificationUrl(publicUrl, attempt, now = Date.now()) {
 	return url;
 }
 
+export function publicVerificationHeaders() {
+	return {
+		accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+		"accept-language": "en-US,en;q=0.9",
+		"cache-control": "no-cache",
+		pragma: "no-cache",
+		referer: "https://dnd.faysk.dev/",
+		"sec-fetch-dest": "image",
+		"sec-fetch-mode": "no-cors",
+		"sec-fetch-site": "same-site",
+		"user-agent":
+			"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+	};
+}
+
 async function verifyPublicDelivery(asset, attempts = 8) {
 	let lastError;
 	for (let attempt = 1; attempt <= attempts; attempt += 1) {
 		try {
 			const response = await fetch(publicVerificationUrl(asset.publicUrl, attempt), {
 				cache: "no-store",
-				headers: { "cache-control": "no-cache" },
+				headers: publicVerificationHeaders(),
 			});
 			if (!response.ok) {
 				const diagnosticHeaders = [

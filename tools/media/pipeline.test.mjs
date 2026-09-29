@@ -6,6 +6,7 @@ import test from "node:test";
 import {
 	discoverManifests,
 	publishAll,
+	publicVerificationHeaders,
 	publicVerificationUrl,
 	readAssetBytes,
 	sha256,
@@ -118,6 +119,15 @@ test("rejects local integrity drift before publication", async () => {
 	await assert.rejects(() => readAssetBytes(manifests[0].assets[0]), /mismatch/);
 });
 
+
+test("public verification uses an anonymous browser-image request without credentials", () => {
+	const headers = publicVerificationHeaders();
+	assert.match(headers["user-agent"], /^Mozilla\/5\.0/u);
+	assert.equal(headers["sec-fetch-dest"], "image");
+	assert.equal(headers.referer, "https://dnd.faysk.dev/");
+	assert.equal(headers.authorization, undefined);
+	assert.equal(headers.cookie, undefined);
+});
 
 test("public verification cache-busts readback without changing the canonical asset URL", () => {
 	const canonical = "https://media.dnd.faysk.dev/lore/yllith/abc/image.webp";
