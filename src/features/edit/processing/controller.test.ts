@@ -1068,4 +1068,37 @@ describe("processing state", () => {
 		).toBe(false);
 	});
 
+
+	it("rejects an incompatible result response without inventing a run identity", async () => {
+		const terminalJob = {
+			...job,
+			status: "succeeded",
+			stage: "succeeded",
+			result_available: true,
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.endsWith("/health")) return Response.json(health);
+			if (value.endsWith("/capabilities")) return Response.json(caps);
+			if (value.endsWith("/jobs")) return Response.json({ jobs: [terminalJob] });
+			if (value.endsWith("/jobs/test-job/result"))
+				return Response.json({
+					schema_version: "incompatible_result_contract",
+					job_id: "test-job",
+					source_id: "synthetic-source",
+					run_id: "guessed-run",
+				});
+			throw new Error(`unexpected request: ${value}`);
+		});
+		const controller = new ProcessingController(new LocalBridge(request));
+
+		await controller.connect(token);
+		await expect(controller.result("test-job")).resolves.toBeNull();
+		expect(controller.snapshot()).toMatchObject({
+			connection: "connected",
+			error: "invalid_response",
+			result: null,
+		});
+	});
+
 });
