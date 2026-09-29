@@ -432,3 +432,19 @@ Segurança planejada/aplicável no rollout:
 - browser acessa somente a rota Next server-side após identidade e capability verificadas.
 
 A presence da migration em Git não prova rollout remoto. Após Production CD, confirmar assinatura, grants, RLS da revision table e migration history no projeto canônico `dmrqnbdvbkfqzctcerbx`.
+
+### `prepare_transcript_handoff_atomic(uuid,uuid,uuid,text,jsonb,boolean)`
+
+Candidato #1061 para o **primeiro handoff privado** quando ainda não existe uma row `sessions` para o target `local_companion`.
+
+- SECURITY INVOKER; `search_path=pg_catalog, public`;
+- EXECUTE somente `service_role`;
+- revalida auth/profile, capability `campaign.transcript.publish` e campaign scope antes de target lookup;
+- `lookup_only=true` nunca cria;
+- commit resolve ou cria uma session privada `ready_for_review` e delega para o RPC single-source ou Session Assembly já hardened;
+- conflito concorrente converge pela unique source identity;
+- erro determinístico remove shell criada no mesmo statement; exceptions fazem rollback transacional;
+- audit de criação contém somente IDs/status/source identity e revision id, nunca transcript.
+
+Estado candidato: migration `20260929154000_transcript_handoff_session_prepare`; não aplicada remotamente nesta etapa.
+
