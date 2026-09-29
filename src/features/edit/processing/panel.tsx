@@ -493,6 +493,7 @@ export function ProcessingPanel({
 
 	function activateView(next: ProcessingView) {
 		const leavingDiagnostics = view === "diagnostics" && next !== "diagnostics";
+		if (next !== "queue") setResultOpenError(null);
 		setView(next);
 		if (leavingDiagnostics) void controller.observeJob(null);
 		if (next === "results") void controller.refresh("results");
@@ -500,6 +501,12 @@ export function ProcessingPanel({
 
 	async function openQueueResult(job: LocalJob) {
 		setResultOpenError(null);
+		if (state.localReview || state.localReviewBusy) {
+			setResultOpenError(
+				"Existe uma revisão aberta em Resultados. Feche ou conclua essa revisão antes de abrir outro resultado para evitar perder alterações.",
+			);
+			return;
+		}
 		const result = await controller.result(job.id);
 		if (!result?.runId) {
 			setResultOpenError(
