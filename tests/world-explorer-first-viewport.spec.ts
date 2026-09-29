@@ -110,15 +110,9 @@ test("World Explorer keeps mobile navigation, controls and inspector sheet touch
 	await detailToggle.click();
 	const detailOpen = page.getByRole("button", { name: "Abrir painel de detalhes" });
 	await expect(detailOpen).toBeVisible();
+	const inspector = page.locator("#world-workspace-inspector");
 	await expect
-		.poll(
-			async () =>
-				await detailOpen.evaluate(
-					(button) =>
-						button.parentElement?.getBoundingClientRect().height ??
-						Number.POSITIVE_INFINITY,
-				),
-		)
+		.poll(async () => (await inspector.boundingBox())?.height ?? 0)
 		.toBeLessThanOrEqual(1);
 	const reopenBox = await detailOpen.boundingBox();
 	expect(reopenBox?.width ?? 0).toBeGreaterThanOrEqual(44);

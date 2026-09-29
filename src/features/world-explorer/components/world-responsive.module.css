@@ -1,16 +1,14 @@
 .layout,
 .canvasColumn,
-.toolbar,
-.search,
-.relation,
-.reset,
 .inspector,
-.resizer,
-.panelToggle {
+.resizer {
 	min-width: 0;
 }
 
 .layout {
+	position: relative;
+	display: block;
+	width: 100%;
 	height: 100dvh;
 	min-height: 0;
 	overflow: hidden;
@@ -18,9 +16,11 @@
 
 .canvasColumn {
 	display: flex;
+	width: 100%;
 	height: 100dvh;
 	min-height: 0;
 	flex-direction: column;
+	padding: clamp(8px, 0.8vw, 14px);
 	overflow: hidden;
 }
 
@@ -35,41 +35,10 @@
 	display: none;
 }
 
-.inspector {
-	height: 100dvh;
-	overflow: auto;
-	overscroll-behavior: contain;
-}
-
-/* Closed chrome must not reserve a rail. The reopen control floats over the
- * workspace instead of charging permanent canvas rent. */
-.layout:has(.panelToggle[aria-expanded="false"]) {
-	grid-template-columns: minmax(0, 1fr) 0;
-}
-
-.layout:has(.panelToggle[aria-expanded="false"]) .inspector {
-	width: 0;
-	min-width: 0;
-	max-width: 0;
-	padding: 0;
-	border-left: 0;
-	background: transparent;
-	box-shadow: none;
-	overflow: visible;
-}
-
-.layout:has(.panelToggle[aria-expanded="false"]) .resizer {
-	display: none;
-}
-
-.layout:has(.panelToggle[aria-expanded="false"]) .panelToggle {
-	left: auto;
-	right: 12px;
-}
-
 .layout :global([data-testid="world-canvas"]) {
 	position: relative;
 	flex: 1 1 0;
+	width: 100%;
 	height: auto;
 	min-height: 0;
 }
@@ -102,6 +71,68 @@
 		0 0 0 1px color-mix(in srgb, var(--ds-accent) 8%, transparent);
 }
 
+.inspector {
+	position: fixed;
+	top: 12px;
+	right: 0;
+	bottom: 12px;
+	left: auto;
+	z-index: 55;
+	width: min(var(--world-inspector-width), calc(100vw - 52px));
+	min-width: min(320px, calc(100vw - 52px));
+	max-width: min(520px, calc(100vw - 52px));
+	height: auto;
+	max-height: calc(100dvh - 24px);
+	overflow: auto;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
+}
+
+.layout[data-world-authoring-active="true"] .inspector {
+	top: var(--site-chrome-panel-top, 66px);
+	max-height: calc(100dvh - var(--site-chrome-panel-top, 66px) - 12px);
+}
+
+.layout[data-world-inspector-mode="closed"] .inspector {
+	width: 0;
+	min-width: 0;
+	max-width: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.layout[data-world-inspector-mode="closed"] .resizer {
+	display: none;
+}
+
+.layout > :global([data-world-edge-tab][data-edge="right"]) {
+	position: fixed;
+	top: 50%;
+	right: min(var(--world-inspector-width), calc(100vw - 52px));
+	z-index: 60;
+	transform: translateY(-50%);
+	transition:
+		right var(--ds-motion-base) var(--ds-ease-soft),
+		border-color var(--ds-motion-fast) var(--ds-ease-standard),
+		background-color var(--ds-motion-fast) var(--ds-ease-standard),
+		color var(--ds-motion-fast) var(--ds-ease-standard),
+		transform var(--ds-motion-fast) var(--ds-ease-standard);
+}
+
+.layout[data-world-inspector-mode="closed"] > :global([data-world-edge-tab][data-edge="right"]) {
+	right: 0;
+}
+
+.layout[data-world-focus-mode="true"] > :global([data-world-edge-tab][data-edge="right"]) {
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+}
+
 @media (hover: hover) and (pointer: fine) {
 	.layout :global(.react-flow__pane) {
 		cursor: grab;
@@ -122,62 +153,34 @@
 	.layout[data-world-edit-state="publishing"] :global(.react-flow__node) {
 		cursor: progress;
 	}
-}
 
-@media (max-width: 1280px) {
-	.layout {
-		grid-template-columns: minmax(0, 1fr) min(var(--world-inspector-width), 330px);
-	}
-
-	.layout:has(.panelToggle[aria-expanded="false"]) {
-		grid-template-columns: minmax(0, 1fr) 0;
-	}
-
-	.toolbar {
-		grid-template-columns: minmax(0, 1fr) auto;
-	}
-
-	.search {
-		grid-column: 1 / -1;
-	}
-
-	.relation {
-		min-width: 230px;
+	.layout > :global([data-world-edge-tab][data-edge="right"]:hover) {
+		transform: translateY(-50%) translateX(-2px);
 	}
 }
 
 @media (max-width: 1120px) {
-	.layout,
-	.layout:has(.panelToggle[aria-expanded="false"]) {
-		display: block;
-		height: 100dvh;
-		min-height: 0;
-		overflow: hidden;
-	}
-
 	.canvasColumn {
-		height: 100dvh;
-		min-height: 0;
 		padding: 12px var(--ds-page-gutter) 0;
 	}
 
-	.inspector {
-		position: fixed;
+	.inspector,
+	.layout[data-world-authoring-active="true"] .inspector {
+		top: auto;
 		right: 0;
 		bottom: 0;
 		left: 0;
-		z-index: 45;
-		isolation: isolate;
 		width: auto;
+		min-width: 0;
+		max-width: none;
 		height: auto;
 		min-height: 68px;
 		max-height: min(62dvh, 600px);
-		overflow: auto;
-		overscroll-behavior: contain;
-		scrollbar-gutter: stable;
 		padding: 34px var(--ds-page-gutter) max(28px, env(safe-area-inset-bottom));
 		border-top: 1px solid var(--ds-control-border);
 		border-left: 0;
+		border-right: 0;
+		border-bottom: 0;
 		border-radius: var(--ds-radius-xl) var(--ds-radius-xl) 0 0;
 		background:
 			linear-gradient(180deg, color-mix(in srgb, var(--ds-accent-muted) 16%, transparent), transparent 78px),
@@ -200,7 +203,7 @@
 		transform: translateX(-50%);
 	}
 
-	.inspector:has(.panelToggle[aria-expanded="false"]) {
+	.layout[data-world-inspector-mode="closed"] .inspector {
 		min-height: 0;
 		max-height: 0;
 		padding: 0;
@@ -208,11 +211,9 @@
 		background: transparent;
 		box-shadow: none;
 		backdrop-filter: none;
-		overflow: visible;
-		pointer-events: none;
 	}
 
-	.inspector:has(.panelToggle[aria-expanded="false"])::before {
+	.layout[data-world-inspector-mode="closed"] .inspector::before {
 		display: none;
 	}
 
@@ -220,44 +221,16 @@
 		display: none;
 	}
 
-	/* The legacy responsive sheet hid .panelToggle below 980px. Keep this
-	 * selector more specific so the Phase 7 floating reopen control remains
-	 * present regardless of CSS module chunk ordering. */
-	.layout .panelToggle {
-		top: 10px;
-		left: max(12px, var(--ds-page-gutter));
-		display: grid;
-		width: 44px;
-		height: 44px;
-		place-items: center;
-		background: color-mix(in srgb, var(--ds-surface-elevated) 96%, var(--ds-accent-muted));
-		box-shadow: 0 8px 24px var(--ds-ambient-cool);
-		font-size: 0;
-	}
-
-	.inspector:has(.panelToggle[aria-expanded="false"]) .panelToggle {
-		position: fixed;
+	.layout > :global([data-world-edge-tab][data-edge="right"]),
+	.layout[data-world-inspector-mode="closed"] > :global([data-world-edge-tab][data-edge="right"]) {
 		top: auto;
 		right: max(14px, var(--ds-page-gutter));
 		bottom: max(14px, env(safe-area-inset-bottom));
-		left: auto;
-		pointer-events: auto;
+		transform: none;
 	}
 
-	.panelToggle::before {
-		content: "⌄";
-		color: var(--ds-foreground-soft);
-		font: 760 1.15rem/1 var(--ds-font-ui);
-	}
-
-	.panelToggle[aria-expanded="false"]::before {
-		content: "⌃";
-		color: var(--ds-accent-strong);
-	}
-
-	.panelToggle:hover::before,
-	.panelToggle:focus-visible::before {
-		color: var(--ds-accent-strong);
+	.layout > :global([data-world-edge-tab][data-edge="right"]) {
+		z-index: 60;
 	}
 
 	.layout :global(.react-flow__controls-button) {
@@ -274,44 +247,21 @@
 }
 
 @media (max-width: 700px) {
-	.toolbar {
-		grid-template-columns: 1fr;
-	}
-
-	.search {
-		grid-column: auto;
-	}
-
-	.relation {
-		min-width: 0;
-	}
-
-	.reset {
-		grid-column: auto;
+	.canvasColumn {
+		padding:
+			calc(var(--site-chrome-panel-top, 66px) + 8px)
+			7px
+			7px;
 	}
 
 	.inspector {
 		max-height: min(64dvh, 560px);
 		padding-inline: max(16px, var(--ds-page-gutter));
 	}
-
-	.inspector:has(.panelToggle[aria-expanded="false"]) {
-		max-height: 0;
-		padding: 0;
-	}
-
-	.panelToggle {
-		left: max(14px, var(--ds-page-gutter));
-	}
-
-	.layout :global(.react-flow__minimap) {
-		display: none;
-	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.layout :global([data-testid="world-canvas"]),
-	.layout :global(.react-flow__node) {
+	.layout > :global([data-world-edge-tab][data-edge="right"]) {
 		transition: none;
 	}
 }

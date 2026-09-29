@@ -86,7 +86,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Superfícies públicas — ownership visual e composição](../design-system/public-surfaces.md) | design-system / frontend público | implementado; baseline cinematográfica da Home formalizada | 2026-09-29 |
 | [TDA — Diretriz geral de UX, design e hierarquia visual](../design-system/ux-hierarchy.md) | design-system / frontend | canônico | 2026-09-12 |
 | [World Explorer — composição e UX oficial](../design-system/world-explorer-ui.md) | product / design-system / narrative-memory | direção visual aprovada; workspace atual implementado, chrome v3 planejado | 2026-09-12 |
-| [World Workspace — chrome espacial e sobreposição](../design-system/world-explorer-workspace-chrome-v3.md) | product / design-system / frontend / narrative-memory | direção UX aprovada; implementação planejada | 2026-09-12 |
+| [World Workspace — chrome espacial e sobreposição](../design-system/world-explorer-workspace-chrome-v3.md) | product / design-system / frontend / narrative-memory | direção UX aprovada; implementação concluída no código desta revisão; publicação não inferida | 2026-09-29 |
 
 ## docs/documentation
 
