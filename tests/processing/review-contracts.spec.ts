@@ -288,7 +288,9 @@ test("private handoff confirmation is a focused inline decision and Escape cance
 	await expect(confirmation).toContainText("Isso não publica capa, resumo ou transcript no site público.");
 	await page.keyboard.press("Escape");
 	await expect(confirmation).toHaveCount(0);
-	await expect(page.getByRole("button", { name: "Preparar sessão" })).toBeVisible();
+	const prepare = page.getByRole("button", { name: "Preparar sessão" });
+	await expect(prepare).toBeVisible();
+	await expect(prepare).toBeFocused();
 });
 
 test("cloud not-found is distinct from forbidden and offers a bounded recovery action", async ({ page }) => {
