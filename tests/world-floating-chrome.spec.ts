@@ -15,6 +15,15 @@ test("World floating chrome owns the canvas controls without changing their cont
 	await expect(chrome).toBeVisible();
 	await expect(chrome.getByRole("searchbox", { name: "Buscar no mundo" })).toBeVisible();
 	await expect(chrome.getByRole("button", { name: "Filtrar por relação" })).toBeVisible();
+	const relationLegend = chrome.getByRole("group", { name: "Relações visíveis" });
+	await expect(relationLegend).toHaveCount(0);
+	const legendToggle = chrome.getByRole("button", { name: "Legenda de relações" });
+	await expect(legendToggle).toBeVisible();
+	await legendToggle.click();
+	await expect(chrome.getByText("Relações visíveis", { exact: true })).toBeVisible();
+	await expect(chrome.getByText("Afinidade", { exact: true })).toBeVisible();
+	await legendToggle.click();
+	await expect(chrome.getByText("Relações visíveis", { exact: true })).not.toBeVisible();
 	await expect(chrome.getByRole("button", { name: "Reorganizar" })).toBeVisible();
 	await expect(chrome.getByRole("button", { name: "Canvas" })).toHaveAttribute("aria-pressed", "true");
 	await expect(chrome.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "false");
