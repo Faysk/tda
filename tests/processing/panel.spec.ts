@@ -1240,9 +1240,12 @@ test("Queue Open result reports a result-read failure without fake navigation", 
 		"aria-selected",
 		"true",
 	);
-	await expect(page.getByRole("alert")).toContainText(
-		"Não foi possível abrir este resultado local",
-	);
+	await expect(
+		page.getByText(
+			"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
+			{ exact: true },
+		),
+	).toBeVisible();
 });
 
 
