@@ -149,6 +149,14 @@ test("home cinematic baseline preserves viewport, keyline and readable copy widt
 		expect(Math.abs(geometry.hero.top)).toBeLessThanOrEqual(1);
 		expect(Math.abs(geometry.surface.width - viewport.width)).toBeLessThanOrEqual(2);
 		expect(Math.abs(geometry.hero.width - viewport.width)).toBeLessThanOrEqual(2);
+		const expectedEditorialWidth = Math.min(viewport.width, 2160);
+		const expectedEditorialLeft = (viewport.width - expectedEditorialWidth) / 2;
+		expect(
+			Math.abs(geometry.editorial.width - expectedEditorialWidth),
+		).toBeLessThanOrEqual(2);
+		expect(
+			Math.abs(geometry.editorial.left - expectedEditorialLeft),
+		).toBeLessThanOrEqual(2);
 		expect(geometry.hero.height).toBeGreaterThanOrEqual(
 			Math.max(viewport.height, viewport.heroMin) - 2,
 		);
