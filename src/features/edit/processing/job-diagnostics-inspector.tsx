@@ -313,11 +313,10 @@ export function JobDiagnosticsInspector({
 							</dl>
 						</section>
 
-						<div
-							className={styles.jobDiagnosticsActions}
-							role="group"
-							aria-label="Ações do processamento"
-						>
+						<fieldset className={styles.jobDiagnosticsActions}>
+							<legend className={styles.jobDiagnosticsActionsLegend}>
+								Ações do processamento
+							</legend>
 							{job.status === "succeeded" && job.result_available ? (
 								<Button
 									size="sm"
@@ -347,7 +346,7 @@ export function JobDiagnosticsInspector({
 							{copyState?.jobKey === jobKey && copyState.status === "failed" ? (
 								<span role="alert">Não foi possível copiar o diagnóstico.</span>
 							) : null}
-						</div>
+						</fieldset>
 
 						<section className={styles.jobDiagnosticsLog} aria-label="Eventos deste processamento">
 							{eventsReady ? (
