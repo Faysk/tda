@@ -15,6 +15,8 @@ const EXACT = {
 		"tests/global-navigation.spec.ts",
 		"tests/foundation.spec.ts",
 		"tests/navigation-origin.spec.ts",
+		"tests/global-loading.spec.ts",
+		"tests/d-lore-reading-mode.spec.ts",
 		"src/app/layout.tsx",
 		"src/app/public-shell.css",
 		"src/app/api/auth/me/route.ts",
@@ -25,6 +27,8 @@ const EXACT = {
 		"src/components/navigation-auth.ts",
 		"src/components/public-navigation-model.ts",
 		"src/components/theme-toggle.tsx",
+		"src/config/brand-assets.ts",
+		"src/config/brand-assets.test.ts",
 		"src/features/auth/config.ts",
 		"src/features/auth/presentation.ts",
 		"src/features/auth/server.ts",
@@ -68,7 +72,7 @@ const EXACT = {
 };
 
 const PREFIX = {
-	navigation: ["src/features/theme/"],
+	navigation: ["src/features/theme/", "src/components/global-loading/", "public/lore/d/"],
 	db: ["supabase/", "src/features/transcript-sync/"],
 	companion: ["local-companion/"],
 	processing: [
