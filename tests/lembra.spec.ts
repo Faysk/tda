@@ -247,9 +247,10 @@ test("Lembra justifies desktop rows and becomes single-column at 320px", async (
 	await addReference(page, "Dois", "Segunda");
 	await addReference(page, "Três", "Terceira");
 	await addReference(page, "Quatro", "Quarta");
+	await addReference(page, "Cinco", "Quinta");
 
 	const desktopRows = page.locator("[data-gallery-row]");
-	await expect(desktopRows).toHaveCount(1);
+	await expect(desktopRows).toHaveCount(2);
 	await expect(desktopRows.first()).toHaveAttribute("data-justified", "true");
 
 	const desktopMedia = desktopRows.first().locator("[data-gallery-media]");
@@ -270,7 +271,7 @@ test("Lembra justifies desktop rows and becomes single-column at 320px", async (
 	).toBeLessThan(1);
 
 	await page.setViewportSize({ width: 320, height: 760 });
-	await expect(page.locator("[data-gallery-row]")).toHaveCount(4);
+	await expect(page.locator("[data-gallery-row]")).toHaveCount(5);
 	expect(
 		await page.evaluate(
 			() => document.documentElement.scrollWidth <= window.innerWidth,
@@ -404,4 +405,125 @@ test("Lembra mobile viewer exposes one clear close action", async ({ page }) => 
 	await expect(close).toHaveCount(1);
 	await close.click();
 	await expect(viewer).not.toBeVisible();
+});
+
+
+test("Lembra lets the visual library own the desktop viewport", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.goto("/lembra");
+
+	const filters = page.getByRole("navigation", { name: "Filtros do Lembra" });
+	await expect(filters).toBeVisible();
+	await expect(page.locator('aside[aria-label="Filtros do Lembra"]')).toHaveCount(0);
+	await expect(filters.getByRole("button", { name: /Lembra/ })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(filters.getByRole("button", { name: /Meus itens/ })).toHaveAttribute(
+		"aria-pressed",
+		"false",
+	);
+	await expect(filters.getByRole("button", { name: /Favoritos/ })).toHaveAttribute(
+		"aria-pressed",
+		"false",
+	);
+
+	await addReference(page, "Panorama", "Referência para medir a largura útil");
+	const gallery = page.locator("[data-gallery]");
+	await expect(gallery).toBeVisible();
+
+	const gallery1920 = await gallery.boundingBox();
+	expect(gallery1920).not.toBeNull();
+	expect(gallery1920?.width ?? 0).toBeGreaterThan(1700);
+
+	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
+	const searchBox = await search.locator("..").boundingBox();
+	const brand = await page.locator(".brand").boundingBox();
+	const account = await page.locator(".account-menu-trigger").boundingBox();
+	const add = await page.getByRole("button", { name: "Adicionar imagem" }).boundingBox();
+	expect(searchBox).not.toBeNull();
+	expect(brand).not.toBeNull();
+	expect(account).not.toBeNull();
+	expect(add).not.toBeNull();
+	expect(searchBox?.x ?? 0).toBeGreaterThanOrEqual(
+		(brand?.x ?? 0) + (brand?.width ?? 0) + 4,
+	);
+	expect((add?.x ?? 0) + (add?.width ?? 0)).toBeLessThanOrEqual(
+		(account?.x ?? 0) - 6,
+	);
+
+	await filters.getByRole("button", { name: /Meus itens/ }).click();
+	await expect(filters.getByRole("button", { name: /Meus itens/ })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(filters.getByRole("button", { name: /Meus itens/ })).toContainText("1");
+
+	await page.getByRole("button", { name: "Adicionar Panorama aos favoritos" }).click();
+	await expect(filters.getByRole("button", { name: /Favoritos/ })).toContainText("1");
+	await filters.getByRole("button", { name: /Favoritos/ }).click();
+	await expect(filters.getByRole("button", { name: /Favoritos/ })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(page.getByRole("button", { name: "Panorama", exact: true })).toBeVisible();
+
+	await page.setViewportSize({ width: 2560, height: 1440 });
+	await expect
+		.poll(async () => (await gallery.boundingBox())?.width ?? 0)
+		.toBeGreaterThan((gallery1920?.width ?? 0) + 150);
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth,
+		),
+	).toBe(true);
+});
+
+test("Lembra reflows at a 200% zoom equivalent without hiding filters", async ({ page }) => {
+	// 1920 CSS pixels at 200% zoom expose roughly a 960px-wide layout viewport.
+	await page.setViewportSize({ width: 960, height: 540 });
+	await page.goto("/lembra");
+
+	const filters = page.getByRole("navigation", { name: "Filtros do Lembra" });
+	await expect(filters).toBeVisible();
+	await expect(filters.getByRole("button", { name: /Lembra/ })).toBeVisible();
+	await expect(filters.getByRole("button", { name: /Meus itens/ })).toBeVisible();
+	await expect(filters.getByRole("button", { name: /Favoritos/ })).toBeVisible();
+
+	const dateFilter = page.locator("details").filter({ hasText: "Data" });
+	await dateFilter.locator("summary").click();
+	await expect(dateFilter).toHaveAttribute("open", "");
+	const datePanel = dateFilter.locator("div").first();
+	const panelBox = await datePanel.boundingBox();
+	expect(panelBox).not.toBeNull();
+	expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThanOrEqual(960);
+
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth,
+		),
+	).toBe(true);
+});
+
+test("Lembra keeps broken media compact instead of reserving artwork height", async ({ page }) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/lembra");
+	await addReference(page, "Sem mídia", "O texto continua útil mesmo sem artwork");
+
+	const card = page.locator("article").filter({ hasText: "Sem mídia" });
+	const image = card.locator("img");
+	await expect(image).toBeVisible();
+	await image.dispatchEvent("error");
+
+	await expect(card).toContainText("Imagem indisponível");
+	await expect(card).toContainText("Por Você");
+	const media = card.locator("[data-gallery-media]");
+	const mediaBox = await media.boundingBox();
+	expect(mediaBox).not.toBeNull();
+	expect(mediaBox?.height ?? 999).toBeLessThanOrEqual(160);
+
+	await card.getByRole("button", { name: "Sem mídia", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	await expect(viewer.getByRole("heading", { name: "Sem mídia" })).toBeVisible();
+	await expect(viewer).toContainText("O texto continua útil mesmo sem artwork");
 });
