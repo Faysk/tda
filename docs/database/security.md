@@ -459,3 +459,20 @@ Controles:
 - preparação não equivale a publish: não toca `sessions.status`, session publication, mídia pública, resumo público ou transcript-publication receipts.
 
 Ver também [inventário de RPCs](rpc-inventory.md) e [migrations](migrations.md).
+
+## Primeiro handoff de transcript sem session preexistente — #1061
+
+O boundary candidato `prepare_transcript_handoff_atomic` resolve o dead-end do primeiro handoff sem transformar ausência de row em autorização implícita.
+
+Controles obrigatórios:
+
+- identity/profile, capability física `campaign.transcript.publish` e scope de campaign são verificados **antes** de lookup/criação de `sessions`;
+- `lookup_only` é estritamente read-only e retorna `not_found` sem criar shell;
+- somente `service_role` possui EXECUTE; `PUBLIC`, `anon` e `authenticated` permanecem revogados;
+- a sessão criada é privada (`ready_for_review`), ligada a `local_companion + source_session_id` e ao actor profile autorizado;
+- o wrapper não recebe nem registra transcript em audit; conteúdo continua somente no payload canônico do RPC de revisão já governado;
+- falha determinística da publicação delegada remove a shell recém-criada na mesma transação;
+- readback/replay preservam a operation identity existente e nunca criam uma sessão como efeito de consulta.
+
+O client server-side revalida ainda que o `sessionId` retornado no primeiro receipt pertence ao campaign/source exatos antes de expor sucesso ao browser. A migration candidata não foi aplicada remotamente nesta etapa.
+
