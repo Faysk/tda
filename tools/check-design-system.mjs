@@ -15,6 +15,27 @@ function sourceFiles(root) {
 	return files;
 }
 
+function runtimeAssetFiles(root) {
+	if (!fs.existsSync(root)) return [];
+
+	const files = [];
+	for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+		const fullPath = path.join(root, entry.name);
+		if (entry.isDirectory()) {
+			files.push(...runtimeAssetFiles(fullPath));
+			continue;
+		}
+		if (!/\.(css|scss|tsx?|jsx?|mjs|js|html)$/u.test(entry.name)) continue;
+		if (/\.(test|spec)\.[cm]?[jt]sx?$/u.test(entry.name)) continue;
+		files.push(fullPath);
+	}
+	return files;
+}
+
+function repoPath(filePath) {
+	return filePath.replaceAll("\\", "/");
+}
+
 const officialAssets = {
 	"favicon.svg":
 		"59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e",
@@ -46,6 +67,33 @@ for (const [file, expected] of Object.entries(officialAssets)) {
 }
 if (fs.existsSync("public/brand")) {
 	fail("public/brand must not remain as runtime media storage after R2 cutover");
+}
+
+const retiredWebStaticPaths = [
+	"/brand/favicon.svg",
+	"/brand/tda-icon-duck-black.svg",
+	"/brand/tda-icon-duck-white.svg",
+	"/brand/tda-mark-black.svg",
+	"/brand/tda-mark-white.svg",
+	"/diario/astel/favicon.svg",
+	"/lore/d/assets/d-completo.png",
+	"/lore/d/favicon.svg",
+	"/lore/yllith/favicon.svg",
+];
+
+const runtimeAssetConsumers = [
+	...runtimeAssetFiles("src"),
+	...runtimeAssetFiles("public"),
+];
+for (const filePath of runtimeAssetConsumers) {
+	const source = fs.readFileSync(filePath, "utf8");
+	for (const retiredPath of retiredWebStaticPaths) {
+		if (source.includes(retiredPath)) {
+			fail(
+				`retired web-static asset ${retiredPath} is still referenced by ${repoPath(filePath)}`,
+			);
+		}
+	}
 }
 
 const tokenCss = fs.readFileSync("src/app/design-tokens.css", "utf8");
@@ -183,17 +231,58 @@ for (const requiredImport of [
 ]) {
 	if (!layout.includes(requiredImport)) fail(`layout missing ${requiredImport}`);
 }
-const canonicalBrandUrls = [
-	"https://media.dnd.faysk.dev/brand/59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e/favicon.svg",
-	"https://media.dnd.faysk.dev/brand/66c5dbe83c07b08e6355230c255ee98fd27f4ef1ce93e4de2cce239e9217a5ec/tda-mark-black.svg",
-	"https://media.dnd.faysk.dev/brand/8474cd455cb5b6ffc254ed5ca5c3c5aa1b25f64ec8e694ed85ce1eea8b2d83ff/tda-mark-white.svg",
+
+const brandAssetContractPath = "src/config/brand-assets.ts";
+const brandAssetContract = fs.readFileSync(brandAssetContractPath, "utf8");
+for (const [file, expected] of Object.entries(officialAssets)) {
+	const asset = brandManifest.assets.find((item) => item.file === file);
+	const canonicalUrl = `${brandManifest.publicOrigin}/${brandManifest.namespace}/${expected}/${file}`;
+	if (!asset || asset.sha256 !== expected) {
+		fail(`cannot derive canonical brand URL for ${file}`);
+	}
+	if (!brandAssetContract.includes(`"${canonicalUrl}"`)) {
+		fail(`${brandAssetContractPath} missing canonical brand asset ${canonicalUrl}`);
+	}
+}
+
+const brandConsumers = [
+	{
+		file: "src/app/layout.tsx",
+		source: layout,
+		required: [
+			"TDA_BRAND_ASSETS.favicon",
+			"TDA_BRAND_ASSETS.markBlack",
+			"TDA_BRAND_ASSETS.markWhite",
+		],
+	},
+	{
+		file: "src/components/global-loading/global-loading.tsx",
+		source: fs.readFileSync(
+			"src/components/global-loading/global-loading.tsx",
+			"utf8",
+		),
+		required: ["TDA_BRAND_ASSETS.markWhite", 'data-global-loading-logo="true"'],
+	},
 ];
-for (const assetUrl of canonicalBrandUrls) {
-	if (!layout.includes(assetUrl)) {
-		fail(`layout missing canonical brand asset ${assetUrl}`);
+for (const consumer of brandConsumers) {
+	for (const required of consumer.required) {
+		if (!consumer.source.includes(required)) {
+			fail(`${consumer.file} missing canonical brand contract binding ${required}`);
+		}
+	}
+}
+
+const canonicalBrandPrefix = `${brandManifest.publicOrigin}/${brandManifest.namespace}/`;
+for (const filePath of sourceFiles("src")) {
+	if (repoPath(filePath) === brandAssetContractPath) continue;
+	const source = fs.readFileSync(filePath, "utf8");
+	if (source.includes(canonicalBrandPrefix)) {
+		fail(
+			`direct brand media URL found in ${repoPath(filePath)}; use TDA_BRAND_ASSETS instead`,
+		);
 	}
 }
 
 console.log(
-	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length} layoutExtensionAssertions=${layoutExtensions.length} semanticExtensionAssertions=${rebootSemanticExtensions.length} legacyRuntimeTokens=0`,
+	`DESIGN_SYSTEM_OK assets=${Object.keys(officialAssets).length} canonicalTokenAssertions=${canonicalTokenValues.length} promotedExtensionAssertions=${promotedExtensions.length} layoutExtensionAssertions=${layoutExtensions.length} semanticExtensionAssertions=${rebootSemanticExtensions.length} retiredRuntimeAssetReferences=0 legacyRuntimeTokens=0`,
 );
