@@ -1084,8 +1084,11 @@ test("Queue Open result navigates to the exact immutable run without opening rev
 	);
 	const selectedRun = page.locator("button[data-local-run-key][aria-current='true']");
 	await expect(selectedRun).toContainText("qwen-quality");
+	await expect(selectedRun).toHaveAttribute(
+		"data-local-run-key",
+		/run-craig-job-1-a1/,
+	);
 	await expect(selectedRun).toBeFocused();
-	await expect(page.getByText("Run run-craig-job-1-a1", { exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Revisar resultado" })).toBeVisible();
 	await expect(page.getByText("Voltar aos resultados", { exact: true })).toHaveCount(0);
 });
