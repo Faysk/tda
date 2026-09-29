@@ -293,7 +293,18 @@ def test_worker_activity_count_survives_agent_trace_throttle(monkeypatch, tmp_pa
     )
 
     with TestClient(app, base_url="http://127.0.0.1:8765") as live:
-        assert emitted.wait(10.0)
+        # This test owns lossless activity persistence, not the independent
+        # idle-worker wake contract. Make the queued pre-start job runnable
+        # explicitly after lifespan startup so Windows scheduler latency cannot
+        # turn an unrelated wake/timing delay into a false negative.
+        app.state.worker_wake.set()
+        if not emitted.wait(30.0):
+            state = app.state.store.get(job["id"])
+            pytest.fail(
+                "activity-throttle worker did not consume the queued job "
+                f"(status={state['status']!r}, stage={state['stage']!r}, "
+                f"attempt={state['attempt']!r})"
+            )
         deadline = time.monotonic() + 5.0
         state = None
         while time.monotonic() < deadline:
