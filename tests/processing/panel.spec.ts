@@ -1445,6 +1445,57 @@ test("Queue Open result navigates to the exact immutable run without opening rev
 	).toHaveCount(0);
 });
 
+test("contextual diagnostics delegates Open result to the exact immutable run flow", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+	await installCompletedRunCatalog(page, {
+		runId: "run-craig-job-1-a1",
+		profileId: "qwen-quality",
+		engine: "qwen3",
+		model: "fixture-qwen",
+		transcriptSha256: "b".repeat(64),
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+
+	const inspector = page
+		.locator("dialog[data-job-diagnostics='contextual']")
+		.filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+
+	await inspector.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(inspector).not.toBeVisible();
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const selectedRun = page.locator(
+		"button[data-local-run-key][aria-current='true']",
+	);
+	await expect(selectedRun).toHaveAttribute(
+		"data-local-run-key",
+		/run-craig-job-1-a1/,
+	);
+	await expect(selectedRun).toBeFocused();
+});
+
 test("Queue Open result walks the paginated catalog to the authoritative identity", async ({
 	page,
 }) => {
