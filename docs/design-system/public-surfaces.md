@@ -64,11 +64,12 @@ O shell público usa as extensões de layout do reboot:
 
 Consequências:
 
-- em 1920×1080 a superfície pública aproveita a largura disponível, preservando apenas o gutter fluido;
-- em 2560×1440 o shell cresce até `2160px`, evitando tanto o antigo corredor de `1200px` quanto linhas excessivamente longas;
-- Home, header, footer e `.page-section` compartilham a mesma referência horizontal;
+- em 1920×1080 as superfícies públicas aproveitam a largura disponível, preservando apenas o gutter fluido;
+- em 2560×1440 superfícies editoriais/expansivas podem centralizar conteúdo de até `2160px`, evitando tanto o antigo corredor de `1200px` quanto linhas excessivamente longas;
+- Home, footer e `.page-section` compartilham a referência horizontal da superfície de conteúdo quando essa referência se aplica;
+- o **chrome global flutuante** é viewport-bound: marca/avatar permanecem ancorados aos cantos do viewport e não são limitados por `--ds-layout-max`;
 - narrativa longa continua trabalhando em aproximadamente `880px` por decisão da superfície;
-- `/mundo` poderá ocupar sua própria viewport ampla e não deve herdar um limite global do `<main>`.
+- `/mundo` pode ocupar sua própria viewport ampla e não deve herdar um limite global do `<main>`.
 
 ## Home cinematográfica — baseline geométrica
 
