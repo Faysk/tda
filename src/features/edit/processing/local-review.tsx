@@ -609,11 +609,7 @@ function ReviewEditor({
 							"O bloqueio aconteceu localmente, antes de qualquer envio mutável. Salvar ou reabrir não é recomendado como tentativa genérica; consulte os detalhes técnicos ou atualize o cliente quando houver uma versão corrigida.",
 						technical: publicationPreflight.reason ?? "invalid_payload",
 					};
-		if (
-			!review.publicationTarget &&
-			onRepairTarget &&
-			review.publicationTargetState === "invalid"
-		)
+		if (!review.publicationTarget && onRepairTarget)
 			return {
 				key: "target-unavailable",
 				tone: "warning",
