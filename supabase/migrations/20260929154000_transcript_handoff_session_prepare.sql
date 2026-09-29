@@ -95,6 +95,7 @@ begin
 
   if not found then
     insert into public.sessions (
+      id,
       campaign_id,
       title,
       status,
@@ -102,6 +103,7 @@ begin
       source_system,
       source_session_id
     ) values (
+      gen_random_uuid(),
       p_campaign_id,
       v_source_session_id,
       'ready_for_review',
