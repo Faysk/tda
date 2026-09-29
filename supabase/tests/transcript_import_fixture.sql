@@ -6,7 +6,7 @@ create role authenticated;
 create role service_role bypassrls;
 create table public.campaigns(id uuid primary key, slug text not null);
 create table public.profiles(id uuid primary key, auth_user_id uuid unique);
-create table public.sessions(id uuid primary key, campaign_id uuid references campaigns, title text not null, status text not null default 'planned', created_by uuid references profiles, source_system text, source_session_id text, updated_at timestamptz default now(), current_editorial_draft_id uuid, current_session_publication_id uuid, unique(campaign_id,source_system,source_session_id));
+create table public.sessions(id uuid primary key, campaign_id uuid references campaigns, title text not null default 'Synthetic session', status text not null default 'planned', created_by uuid references profiles, source_system text, source_session_id text, updated_at timestamptz default now(), current_editorial_draft_id uuid, current_session_publication_id uuid, unique(campaign_id,source_system,source_session_id));
 create table public.permission_catalog(action text primary key, plane text, description text);
 create table public.role_definitions(id uuid primary key, slug text not null unique, plane text not null, description text);
 create table public.role_permissions(role_id uuid, permission_action text references permission_catalog, primary key(role_id,permission_action));
