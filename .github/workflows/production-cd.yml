@@ -301,6 +301,7 @@ jobs:
           vercel curl /lore --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/astel --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/noah --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          vercel curl /lore/pipipi --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           LEMBRA_STATUS="$(vercel curl /lembra --deployment "$DEPLOYMENT_URL" --silent --show-error --output lembra-staged.html --write-out '%{http_code}')"
           if [[ ! "$LEMBRA_STATUS" =~ ^30(1|2|3|7|8)$ ]]; then
             if [[ "$LEMBRA_STATUS" != "200" ]] || ! grep -Fq '/entrar?next=%2Flembra' lembra-staged.html; then
@@ -355,6 +356,8 @@ jobs:
           NODE
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
             --output /dev/null "$PRODUCTION_ORIGIN/"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
+            --output /dev/null "$PRODUCTION_ORIGIN/lore/pipipi"
           LEMBRA_STATUS="$(curl --silent --show-error --output lembra-canonical.html --write-out '%{http_code}' "$PRODUCTION_ORIGIN/lembra")"
           if [[ ! "$LEMBRA_STATUS" =~ ^30(1|2|3|7|8)$ ]]; then
             if [[ "$LEMBRA_STATUS" != "200" ]] || ! grep -Fq '/entrar?next=%2Flembra' lembra-canonical.html; then
