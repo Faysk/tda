@@ -1093,6 +1093,83 @@ test("Queue Open result navigates to the exact immutable run without opening rev
 	await expect(page.getByText("Voltar aos resultados", { exact: true })).toHaveCount(0);
 });
 
+test("Queue Open result walks a paginated run catalog to the authoritative run", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		additionalCapabilities: ["transcription.runs.catalog"],
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+
+	const requestedCursors: string[] = [];
+	const run = (runId: string, sha: string) => ({
+		run_id: runId,
+		status: "completed",
+		source_id: CRAIG_SOURCE_ID,
+		profile_id: "qwen-quality",
+		engine: "qwen3",
+		model: "fixture-qwen",
+		model_revision: "rev",
+		device: "cuda",
+		completed_at: "2026-09-29T14:00:00.000Z",
+		transcript_sha256: sha,
+		transcript_size_bytes: 900,
+		stats: {
+			processing_seconds: 12,
+			session_duration_seconds: 60,
+			duration_semantics: "session_extent_v1",
+			rtf: 0.2,
+			word_count: 2,
+			segment_count: 1,
+			track_count: 1,
+			turn_count: 1,
+			warning_count: 0,
+		},
+		execution_lineage: {
+			schema_version: "tda_execution_lineage_v1",
+			device: "cuda",
+			gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
+		},
+	});
+	await page.route(`${LOCAL_API}/runs*`, (route) => {
+		const cursor = new URL(route.request().url()).searchParams.get("cursor") ?? "";
+		requestedCursors.push(cursor);
+		if (cursor === "page-2") {
+			return fulfillJson(route, {
+				schema_version: "tda_local_run_catalog_v1",
+				runs: [run("run-craig-job-1-a1", "b".repeat(64))],
+				has_more: false,
+				next_cursor: null,
+			});
+		}
+		return fulfillJson(route, {
+			schema_version: "tda_local_run_catalog_v1",
+			runs: [run("run-older-unrelated", "c".repeat(64))],
+			has_more: true,
+			next_cursor: "page-2",
+		});
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const selectedRun = page.locator("button[data-local-run-key][aria-current='true']");
+	await expect(selectedRun).toHaveAttribute(
+		"data-local-run-key",
+		/run-craig-job-1-a1/,
+	);
+	expect(requestedCursors).toContain("page-2");
+});
+
 test("Queue per-job diagnostics opens contextually and preserves the Queue view", async ({ page }) => {
 	await page.addInitScript(() => {
 		Object.defineProperty(navigator, "clipboard", {
