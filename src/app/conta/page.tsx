@@ -17,7 +17,7 @@ export default async function AccountPage({
 	const access = await currentAccess();
 	const accessNotice =
 		query.acesso === "negado"
-			? "Sua conta não tem acesso à área que você tentou abrir. Escolha outra ferramenta no launcher ou fale com a pessoa responsável pela campanha."
+			? "Sua conta não tem acesso à área que você tentou abrir. Use o menu global para navegar para outro espaço ou fale com a pessoa responsável pela campanha."
 			: query.acesso === "indisponivel"
 				? "A área que você tentou abrir não conseguiu verificar seu acesso. Tente novamente em instantes."
 				: null;
