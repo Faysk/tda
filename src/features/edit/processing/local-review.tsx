@@ -573,6 +573,27 @@ function ReviewEditor({
 							? "A recuperação ultrapassou 30 dias. O recibo ainda pode ser consultado, mas um novo envio permanece bloqueado."
 							: "A consulta e qualquer repetição reutilizam a mesma identidade de operação; nenhum novo handoff será criado silenciosamente.",
 			};
+		if (
+			currentApproval &&
+			publicationPreflight &&
+			!publicationPreflight.eligible
+		)
+			return publicationPreflight.reason === "too_large"
+				? {
+						key: "too-large",
+						tone: "error",
+						title: "A revisão excede o limite do handoff",
+						detail: `O payload canônico possui ${publicationPreflight.payloadBytes?.toLocaleString("pt-BR") ?? "mais que o permitido"} bytes; o limite é ${publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes. Nenhuma operação cloud foi criada.`,
+						technical: "too_large",
+					}
+				: {
+						key: "invalid-preflight",
+						tone: "error",
+						title: "Esta revisão não é compatível com o contrato atual de handoff",
+						detail:
+							"O bloqueio aconteceu localmente, antes de qualquer envio mutável. Salvar ou reabrir não é recomendado como tentativa genérica; consulte os detalhes técnicos ou atualize o cliente quando houver uma versão corrigida.",
+						technical: publicationPreflight.reason ?? "invalid_payload",
+					};
 		if (publicationErrorCode)
 			return {
 				key: publicationErrorCode,
@@ -597,27 +618,6 @@ function ReviewEditor({
 						: publicationErrorMessage(publicationErrorCode),
 				technical: publicationErrorCode,
 			};
-		if (
-			currentApproval &&
-			publicationPreflight &&
-			!publicationPreflight.eligible
-		)
-			return publicationPreflight.reason === "too_large"
-				? {
-						key: "too-large",
-						tone: "error",
-						title: "A revisão excede o limite do handoff",
-						detail: `O payload canônico possui ${publicationPreflight.payloadBytes?.toLocaleString("pt-BR") ?? "mais que o permitido"} bytes; o limite é ${publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes. Nenhuma operação cloud foi criada.`,
-						technical: "too_large",
-					}
-				: {
-						key: "invalid-preflight",
-						tone: "error",
-						title: "Esta revisão não é compatível com o contrato atual de handoff",
-						detail:
-							"O bloqueio aconteceu localmente, antes de qualquer envio mutável. Salvar ou reabrir não é recomendado como tentativa genérica; consulte os detalhes técnicos ou atualize o cliente quando houver uma versão corrigida.",
-						technical: publicationPreflight.reason ?? "invalid_payload",
-					};
 		if (currentApproval && !publicationEnabled)
 			return {
 				key: "handoff-disabled",
