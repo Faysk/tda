@@ -101,7 +101,7 @@ test("World floating chrome remains touch-safe and contained on mobile", async (
 		chrome.getByRole("button", { name: "Filtrar por relação" }),
 		chrome.getByRole("button", { name: "Canvas" }),
 		chrome.getByRole("button", { name: "Lista" }),
-		chrome.getByRole("button", { name: "Todos" }),
+		page.getByRole("button", { name: "Todos", exact: true }),
 	]) {
 		const box = await control.boundingBox();
 		expect(box).not.toBeNull();
@@ -126,7 +126,7 @@ test("World floating chrome stays usable at the 320x800 minimum viewport", async
 		chrome.getByRole("button", { name: "Reorganizar" }),
 		chrome.getByRole("button", { name: "Canvas" }),
 		chrome.getByRole("button", { name: "Lista" }),
-		chrome.getByRole("button", { name: "Todos" }),
+		page.getByRole("button", { name: "Todos", exact: true }),
 	]) {
 		await expect(control).toBeVisible();
 		const box = await control.boundingBox();
