@@ -797,7 +797,6 @@ export function WorldExplorerClient({
 				}
 				onToggle={() => authoringUi.toggleInspector(authoringActive ? "overlay" : "docked")}
 				icon={authoringUi.inspectorCollapsed ? "‹" : "›"}
-				className={styles.inspectorToggle}
 			/>
 
 			<WorldCommandPalette
