@@ -986,8 +986,45 @@ test("Results keeps selected-run detail in document flow on Full HD", async ({ p
 	await page.getByRole("tab", { name: "Resultados" }).click();
 	const runCard = page.locator("article").filter({ hasText: "Resultado local" }).first();
 	const reviewAction = page.getByRole("button", { name: "Revisar resultado" });
+	const resultsSearch = page.locator("[data-results-search='true']");
+	const resultsMaster = page.locator("[data-results-master='true']");
+	const resultsDetail = page.locator("[data-results-detail='true']");
+	const resultsFilterStart = page.locator("[data-results-filter-start='true']");
+	const resultsCount = page.getByText("1 resultado", { exact: true });
 	await expect(reviewAction).toBeVisible();
 	await expect(runCard.getByText("Integridade e IDs", { exact: true })).toBeVisible();
+	await expect(resultsSearch).toBeVisible();
+	await expect(resultsMaster).toBeVisible();
+	await expect(resultsDetail).toBeVisible();
+	await expect(resultsFilterStart).toBeVisible();
+	await expect(resultsCount).toBeVisible();
+
+	const alignedGeometry = await page.evaluate(() => {
+		const search = document.querySelector("[data-results-search='true']");
+		const master = document.querySelector("[data-results-master='true']");
+		const detail = document.querySelector("[data-results-detail='true']");
+		const filter = document.querySelector("[data-results-filter-start='true']");
+		if (!(search instanceof HTMLElement) || !(master instanceof HTMLElement) || !(detail instanceof HTMLElement) || !(filter instanceof HTMLElement)) {
+			throw new Error("Results alignment targets are missing");
+		}
+		const searchBox = search.getBoundingClientRect();
+		const masterBox = master.getBoundingClientRect();
+		const detailBox = detail.getBoundingClientRect();
+		const filterBox = filter.getBoundingClientRect();
+		return {
+			searchRight: searchBox.right,
+			masterRight: masterBox.right,
+			detailLeft: detailBox.left,
+			filterLeft: filterBox.left,
+		};
+	});
+	expect(Math.abs(alignedGeometry.searchRight - alignedGeometry.masterRight)).toBeLessThanOrEqual(2);
+	expect(Math.abs(alignedGeometry.detailLeft - alignedGeometry.filterLeft)).toBeLessThanOrEqual(2);
+	const [countBox, detailBox] = await Promise.all([resultsCount.boundingBox(), resultsDetail.boundingBox()]);
+	expect(countBox).not.toBeNull();
+	expect(detailBox).not.toBeNull();
+	if (countBox && detailBox) expect(countBox.x).toBeLessThan(detailBox.x);
+
 	const [actionBox, primaryFactsBox] = await Promise.all([
 		reviewAction.boundingBox(),
 		runCard.locator("[data-run-primary-facts='true']").boundingBox(),
@@ -1023,6 +1060,44 @@ test("Results keeps selected-run detail in document flow on Full HD", async ({ p
 	await expect(comparisonReason).toBeVisible();
 	await page.keyboard.press("Enter");
 	await expect(comparisonReason).toBeHidden();
+
+	for (const viewport of [
+		{ width: 1440, height: 900 },
+		{ width: 1366, height: 768 },
+		{ width: 960, height: 540 },
+		{ width: 390, height: 844 },
+	]) {
+		await page.setViewportSize(viewport);
+		const horizontal = await page.evaluate(() => ({
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		}));
+		expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+		if (viewport.width > 980) {
+			const geometry = await page.evaluate(() => {
+				const search = document.querySelector("[data-results-search='true']");
+				const master = document.querySelector("[data-results-master='true']");
+				const detail = document.querySelector("[data-results-detail='true']");
+				const filter = document.querySelector("[data-results-filter-start='true']");
+				if (!(search instanceof HTMLElement) || !(master instanceof HTMLElement) || !(detail instanceof HTMLElement) || !(filter instanceof HTMLElement)) {
+					throw new Error("Responsive Results alignment targets are missing");
+				}
+				return {
+					searchRight: search.getBoundingClientRect().right,
+					masterRight: master.getBoundingClientRect().right,
+					detailLeft: detail.getBoundingClientRect().left,
+					filterLeft: filter.getBoundingClientRect().left,
+				};
+			});
+			expect(Math.abs(geometry.searchRight - geometry.masterRight)).toBeLessThanOrEqual(2);
+			expect(Math.abs(geometry.detailLeft - geometry.filterLeft)).toBeLessThanOrEqual(2);
+		} else if (viewport.width <= 760) {
+			const [masterBox, detailBox] = await Promise.all([resultsMaster.boundingBox(), resultsDetail.boundingBox()]);
+			expect(masterBox).not.toBeNull();
+			expect(detailBox).not.toBeNull();
+			if (masterBox && detailBox) expect(detailBox.y).toBeGreaterThan(masterBox.y);
+		}
+	}
 });
 
 test("Companion 0.3.16 exposes completed-run deletion without changing job-delete compatibility", async ({ page }) => {
