@@ -1193,6 +1193,14 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 		initialJobs: [failedJob()],
 		jobEvents: [
 			{
+				seq: 90,
+				attempt: 0,
+				code: "OLD_ATTEMPT_EVENT",
+				at: "2026-09-29T13:59:59Z",
+				level: "warning",
+				data: { stage: "transcription", track: 1 },
+			},
+			{
 				seq: 91,
 				attempt: 1,
 				code: "QWEN_ALIGNMENT_WINDOW_FAILED",
@@ -1235,6 +1243,8 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 	);
 	expect(copiedDiagnostic).toContain('"schema": "tda_job_diagnostic_clipboard_v1"');
 	expect(copiedDiagnostic).toContain('"failure_class": "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"');
+	expect(copiedDiagnostic).not.toContain("OLD_ATTEMPT_EVENT");
+	expect(copiedDiagnostic).not.toContain('"attempt": 0');
 	expect(copiedDiagnostic).not.toContain("Alice");
 	expect(copiedDiagnostic).not.toContain("context");
 	expect(copiedDiagnostic).not.toContain("glossary");
