@@ -67,18 +67,29 @@ test("completed runs compare locally with source and time filters before an expl
 	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toHaveCount(0);
 });
 
-test("base advances through explicit review and approval actions without a free status picker", async ({ page }) => {
+test("base advances through save, review, approval and handoff without a free status picker", async ({ page }) => {
 	await page.goto("/?review-contracts&ephemeral");
 	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();
 	await expect(page.getByLabel("Estado do draft")).toHaveCount(0);
-	await expect(page.getByRole("button", { name: "Concluir revisão" })).toBeEnabled();
+	const journey = page.getByRole("navigation", { name: "Etapas da revisão" });
+	await expect(journey).toContainText("Salvar revisão");
+	await expect(journey).toContainText("Concluir revisão");
+	await expect(journey).toContainText("Aprovar");
+	await expect(journey).toContainText("Preparar no Edit");
+
 	const search = page.getByLabel("Buscar na timeline");
 	await search.fill("persistir-busca");
-	await page.getByRole("button", { name: "Concluir revisão" }).click();
+	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeEnabled();
+	await page.getByRole("button", { name: "Salvar revisão" }).click();
 	await expect(page.getByText("Draft salvo localmente.")).toBeVisible();
 	await expect(search).toHaveValue("persistir-busca");
 	await expect(page.getByText(/Run bruto imutável · draft r1/)).toBeVisible();
+	await expect(page.getByText("Draft", { exact: true })).toBeVisible();
+
+	await expect(page.getByRole("button", { name: "Concluir revisão" })).toBeEnabled();
+	await page.getByRole("button", { name: "Concluir revisão" }).click();
 	await expect(page.getByText("Revisado", { exact: true })).toBeVisible();
+
 	await expect(page.getByRole("button", { name: "Aprovar revisão" })).toBeEnabled();
 	await page.getByRole("button", { name: "Aprovar revisão" }).click();
 	await expect(page.getByText("Aprovado localmente", { exact: true })).toBeVisible();
@@ -91,7 +102,7 @@ test("older Agent remains readable and requires an update before editing", async
 	await expect(page.getByText(/Atualize o Companion para salvar/)).toBeVisible();
 	await expect(page.getByRole("button", { name: /^Editar / }).first()).toBeDisabled();
 	await expect(page.getByRole("checkbox", { name: /^Marcar como (não )?revisado/ }).first()).toBeDisabled();
-	await expect(page.getByRole("button", { name: "Concluir revisão" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
 });
 
 test("speaker limits count emoji as one scalar and reject excess ASCII before save", async ({ page }) => {
