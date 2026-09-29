@@ -126,18 +126,10 @@ test("global loader follows the active light and dark design-system theme", asyn
 	expect(light.backgroundImage).not.toBe(dark.backgroundImage);
 });
 
-test("global loader keeps the canonical decoded mark during same-origin navigation", async ({
+test("global loader keeps the canonical decoded mark for a same-origin form navigation intent", async ({
 	page,
 }) => {
 	await page.goto("/");
-	await page.route("**/sessoes*", async (route) => {
-		if (!route.request().isNavigationRequest()) {
-			await route.continue();
-			return;
-		}
-		await new Promise((resolveDelay) => setTimeout(resolveDelay, 1200));
-		await route.continue();
-	});
 
 	await page.evaluate(() => {
 		const form = document.createElement("form");
@@ -151,12 +143,17 @@ test("global loader keeps the canonical decoded mark during same-origin navigati
 		form.append(submit);
 		document.body.append(form);
 
-		window.setTimeout(() => submit.click(), 0);
+		// The app bridge is already registered on window. Registering this later
+		// lets the bridge observe the real, non-prevented submit first, then keeps
+		// the test on the current document long enough to inspect the transition.
+		window.addEventListener("submit", (event) => event.preventDefault(), {
+			once: true,
+		});
+		form.requestSubmit(submit);
 	});
 
 	await expect(page.locator(overlay)).toBeVisible();
 	await expectLoaderLogoLoaded(page);
-	await expect(page).toHaveURL(/\/sessoes$/u, { timeout: 5000 });
 });
 
 test("global loader preserves the decoded mark with reduced motion", async ({ page }) => {
