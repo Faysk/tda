@@ -29,6 +29,7 @@ import {
 } from "./compatibility";
 import { ProcessingController } from "./controller";
 import { LocalReviewWorkspace } from "./local-review";
+import { serializeLocalRunKey } from "./local-run-key";
 import { SessionAssemblyResults } from "./session-assembly-results";
 import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
@@ -329,6 +330,8 @@ export function ProcessingPanel({
 	const [queueSearchReset, setQueueSearchReset] = useState(0);
 	const [clockNow, setClockNow] = useState(() => Date.now());
 	const [customActivityBarks, setCustomActivityBarks] = useState<readonly ActivityBark[]>([]);
+	const [resultFocus, setResultFocus] = useState<Readonly<{ key: string; requestId: number }> | null>(null);
+	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -486,13 +489,54 @@ export function ProcessingPanel({
 
 	function activateView(next: ProcessingView) {
 		const leavingDiagnostics = view === "diagnostics" && next !== "diagnostics";
+		setResultOpenError(null);
 		setView(next);
 		if (leavingDiagnostics) void controller.observeJob(null);
 		if (next === "results") void controller.refresh("results");
 	}
 
+	async function openJobResult(job: LocalJob) {
+		setResultOpenError(null);
+		const result = await controller.result(job.id);
+		if (!result?.runId) {
+			setResultOpenError(
+				"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
+			);
+			return;
+		}
+
+		const found = controller
+			.snapshot()
+			.localRuns.some(
+				(run) =>
+					run.sourceId === result.sourceId &&
+					run.runId === result.runId &&
+					(!result.transcriptSha256 ||
+						run.transcriptSha256 === result.transcriptSha256),
+			);
+		if (!found) {
+			setResultOpenError(
+				"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
+			);
+			return;
+		}
+
+		const key = serializeLocalRunKey({
+			sourceId: result.sourceId,
+			runId: result.runId,
+		});
+		setResultFocus((current) => ({
+			key,
+			requestId: (current?.requestId ?? 0) + 1,
+		}));
+		// result() resolves the authoritative catalog entry before returning.
+		// Avoid a generic first-page refresh that could immediately hide it.
+		setView("results");
+	}
+
 	function openAttentionQueue() {
 		if (view === "diagnostics") void controller.observeJob(null);
+		setResultOpenError(null);
 		setQueueFilter("attention");
 		setQueueSearchReset((value) => value + 1);
 		setView("queue");
@@ -634,6 +678,12 @@ export function ProcessingPanel({
 						</div>
 					</div>
 				</section>
+			) : null}
+
+			{resultOpenError ? (
+				<p className={styles.connectionError} role="alert">
+					{resultOpenError}
+				</p>
 			) : null}
 
 			{state.error ? (
@@ -968,7 +1018,7 @@ export function ProcessingPanel({
 							onRetry={(job) =>
 								setConfirmation({ id: job.id, action: "retry" })
 							}
-							onResult={(job) => void controller.result(job.id)}
+							onResult={(job) => void openJobResult(job)}
 							onDelete={(job) =>
 								setConfirmation({ id: job.id, action: "delete" })
 							}
@@ -996,6 +1046,8 @@ export function ProcessingPanel({
 							runs={state.localRuns}
 							hasMore={state.localRunsHasMore}
 							onLoadMore={controller.loadMoreRuns}
+							focusRunKey={resultFocus?.key ?? null}
+							focusRunRequestId={resultFocus?.requestId ?? 0}
 							review={state.localReview}
 							busy={state.localReviewBusy}
 							error={state.localReviewError}

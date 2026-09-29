@@ -25,8 +25,22 @@ function fulfillJson(
 
 async function installCompletedRunCatalog(
 	page: import("@playwright/test").Page,
-	runCount = 1,
+	runCountOrOptions:
+		| number
+		| Readonly<{
+				runCount?: number;
+				runId?: string;
+				profileId?: "whisper-detailed" | "qwen-quality";
+				engine?: string;
+				model?: string;
+				transcriptSha256?: string;
+		  }> = 1,
 ) {
+	const options =
+		typeof runCountOrOptions === "number"
+			? { runCount: runCountOrOptions }
+			: runCountOrOptions;
+	const runCount = options.runCount ?? 1;
 	await page.route(`${LOCAL_API}/sources`, (route) =>
 		fulfillJson(route, {
 			schema_version: "tda_craig_sources_v1",
@@ -44,35 +58,61 @@ async function installCompletedRunCatalog(
 		fulfillJson(route, {
 			schema_version: "tda_transcription_runs_v1",
 			source_id: CRAIG_SOURCE_ID,
-			runs: Array.from({ length: runCount }, (_, index) => ({
-				run_id: `run-results-${String(index + 1).padStart(2, "0")}`,
-				status: "completed",
-				source_id: CRAIG_SOURCE_ID,
-				profile_id: index % 2 ? "whisper-turbo" : "whisper-detailed",
-				engine: "faster-whisper",
-				model: index % 2 ? "turbo" : "large-v3",
-				model_revision: "rev",
-				device: "cuda",
-				completed_at: new Date(Date.UTC(2026, 8, 27, 18, index)).toISOString(),
-				transcript_sha256: (index % 16).toString(16).repeat(64),
-				transcript_size_bytes: 900 + index,
-				stats: {
-					processing_seconds: 12 + index,
-					session_duration_seconds: 60 + index,
-					duration_semantics: "session_extent_v1",
-					rtf: 0.2,
-					word_count: 2 + index,
-					segment_count: 1 + index,
-					track_count: 1,
-					turn_count: 1 + index,
-					warning_count: 0,
-				},
-				execution_lineage: {
-					schema_version: "tda_execution_lineage_v1",
+			runs: Array.from({ length: runCount }, (_, index) => {
+				const profileId =
+					index === 0 && options.profileId
+						? options.profileId
+						: index % 2
+							? "whisper-turbo"
+							: "whisper-detailed";
+				return {
+					run_id:
+						index === 0 && options.runId
+							? options.runId
+							: `run-results-${String(index + 1).padStart(2, "0")}`,
+					status: "completed",
+					source_id: CRAIG_SOURCE_ID,
+					profile_id: profileId,
+					engine:
+						index === 0 && options.engine
+							? options.engine
+							: profileId === "qwen-quality"
+								? "qwen3"
+								: "faster-whisper",
+					model:
+						index === 0 && options.model
+							? options.model
+							: profileId === "qwen-quality"
+								? "fixture-qwen"
+								: index % 2
+									? "turbo"
+									: "large-v3",
+					model_revision: "rev",
 					device: "cuda",
-					gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
-				},
-			})),
+					completed_at: new Date(Date.UTC(2026, 8, 27, 18, index)).toISOString(),
+					transcript_sha256:
+						index === 0 && options.transcriptSha256
+							? options.transcriptSha256
+							: (index % 16).toString(16).repeat(64),
+					transcript_size_bytes: 900 + index,
+					stats: {
+						processing_seconds: 12 + index,
+						session_duration_seconds: 60 + index,
+						duration_semantics: "session_extent_v1",
+						rtf: 0.2,
+						word_count: 2 + index,
+						segment_count: 1 + index,
+						track_count: 1,
+						turn_count: 1 + index,
+						warning_count: 0,
+					},
+					execution_lineage: {
+						schema_version: "tda_execution_lineage_v1",
+						device: "cuda",
+						gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
+					},
+				};
+			}),
 		}),
 	);
 }
@@ -1350,6 +1390,336 @@ test("Companion 0.3.16 exposes completed-run deletion without changing job-delet
 	await expect(moreActions).toBeVisible();
 	await moreActions.click();
 	await expect(page.getByRole("button", { name: /Excluir resultado local/ })).toBeVisible();
+});
+
+
+test("Queue Open result navigates to the exact immutable run without opening review", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+	await installCompletedRunCatalog(page, {
+		runId: "run-craig-job-1-a1",
+		profileId: "qwen-quality",
+		engine: "qwen3",
+		model: "fixture-qwen",
+		transcriptSha256: "b".repeat(64),
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	const openResult = queue.getByRole("button", { name: "Abrir resultado" });
+	await openResult.focus();
+	await page.keyboard.press("Enter");
+
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const selectedRun = page.locator(
+		"button[data-local-run-key][aria-current='true']",
+	);
+	await expect(selectedRun).toContainText("qwen-quality");
+	await expect(selectedRun).toHaveAttribute(
+		"data-local-run-key",
+		/run-craig-job-1-a1/,
+	);
+	await expect(selectedRun).toBeFocused();
+	await expect(
+		page.getByRole("button", { name: "Revisar resultado" }),
+	).toBeVisible();
+	await expect(
+		page.getByText("Voltar aos resultados", { exact: true }),
+	).toHaveCount(0);
+});
+
+test("Queue Open result walks the paginated catalog to the authoritative identity", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		additionalCapabilities: ["transcription.runs.catalog"],
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+
+	const requestedCursors: string[] = [];
+	const catalogRun = (
+		sourceId: string,
+		runId: string,
+		sha: string,
+		profileId = "qwen-quality",
+	) => ({
+		run_id: runId,
+		status: "completed",
+		source_id: sourceId,
+		profile_id: profileId,
+		engine: "qwen3",
+		model: "fixture-qwen",
+		model_revision: "rev",
+		device: "cuda",
+		completed_at: "2026-09-29T14:00:00.000Z",
+		transcript_sha256: sha,
+		transcript_size_bytes: 900,
+		stats: {
+			processing_seconds: 12,
+			session_duration_seconds: 60,
+			duration_semantics: "session_extent_v1",
+			rtf: 0.2,
+			word_count: 2,
+			segment_count: 1,
+			track_count: 1,
+			turn_count: 1,
+			warning_count: 0,
+		},
+		execution_lineage: {
+			schema_version: "tda_execution_lineage_v1",
+			device: "cuda",
+			gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
+		},
+	});
+
+	await page.route(`${LOCAL_API}/runs*`, (route) => {
+		const cursor =
+			new URL(route.request().url()).searchParams.get("cursor") ?? "";
+		requestedCursors.push(cursor);
+		if (cursor === "page-2") {
+			return fulfillJson(route, {
+				schema_version: "tda_local_run_catalog_v1",
+				runs: [
+					catalogRun(
+						CRAIG_SOURCE_ID,
+						"run-craig-job-1-a1",
+						"b".repeat(64),
+					),
+				],
+				has_more: false,
+				next_cursor: null,
+			});
+		}
+		return fulfillJson(route, {
+			schema_version: "tda_local_run_catalog_v1",
+			runs: [
+				catalogRun(
+					`craig-${"c".repeat(64)}`,
+					"run-other-source",
+					"d".repeat(64),
+				),
+				catalogRun(
+					CRAIG_SOURCE_ID,
+					"run-same-source-other-attempt",
+					"e".repeat(64),
+				),
+			],
+			has_more: true,
+			next_cursor: "page-2",
+		});
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const selectedRun = page.locator(
+		"button[data-local-run-key][aria-current='true']",
+	);
+	await expect(selectedRun).toHaveAttribute(
+		"data-local-run-key",
+		/run-craig-job-1-a1/,
+	);
+	await expect(selectedRun).toBeFocused();
+	expect(requestedCursors).toContain("page-2");
+});
+
+test("Queue Open result reports read failure without fake navigation", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+	await page.route(`${LOCAL_API}/jobs/craig-job-1/result`, (route) =>
+		fulfillJson(
+			route,
+			{ error: { code: "RESULT_NOT_FOUND", recoverable: true } },
+			404,
+		),
+	);
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByText(
+			"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
+			{ exact: true },
+		),
+	).toBeVisible();
+});
+
+test("Queue Open result surfaces a valid-but-missing run instead of silently selecting another", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+	await installCompletedRunCatalog(page, {
+		runId: "run-same-source-but-not-target",
+		profileId: "qwen-quality",
+		engine: "qwen3",
+		model: "fixture-qwen",
+		transcriptSha256: "c".repeat(64),
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByText(
+			"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
+			{ exact: true },
+		),
+	).toBeVisible();
+});
+
+test("Queue Open result rejects a run with matching IDs but mismatched transcript hash", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+	await installCompletedRunCatalog(page, {
+		runId: "run-craig-job-1-a1",
+		profileId: "qwen-quality",
+		engine: "qwen3",
+		model: "fixture-qwen",
+		transcriptSha256: "c".repeat(64),
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByText(
+			"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
+			{ exact: true },
+		),
+	).toBeVisible();
+});
+
+test("Queue result stays pending and wins over a concurrent refresh", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		additionalCapabilities: ["transcription.runs.catalog"],
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+		jobReadDelayMs: 250,
+	});
+
+	await page.route(`${LOCAL_API}/runs*`, async (route) => {
+		const cursor =
+			new URL(route.request().url()).searchParams.get("cursor") ?? "";
+		const run = {
+			run_id: cursor === "page-2" ? "run-craig-job-1-a1" : "run-unrelated",
+			status: "completed",
+			source_id: CRAIG_SOURCE_ID,
+			profile_id: "qwen-quality",
+			engine: "qwen3",
+			model: "fixture-qwen",
+			model_revision: "rev",
+			device: "cuda",
+			completed_at: "2026-09-29T14:00:00.000Z",
+			transcript_sha256: (cursor === "page-2" ? "b" : "c").repeat(64),
+			transcript_size_bytes: 900,
+			stats: {},
+		};
+		if (cursor === "page-2")
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		return fulfillJson(route, {
+			schema_version: "tda_local_run_catalog_v1",
+			runs: [run],
+			has_more: cursor !== "page-2",
+			next_cursor: cursor === "page-2" ? null : "page-2",
+		});
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Atualizar estado", exact: true }).click();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+
+	const open = queue.getByRole("button", { name: "Abrir resultado" });
+	await open.click();
+	await expect(queue.getByRole("button", { name: "Abrindo…" })).toBeVisible();
+
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const selectedRun = page.locator(
+		"button[data-local-run-key][aria-current='true']",
+	);
+	await expect(selectedRun).toHaveAttribute(
+		"data-local-run-key",
+		/run-craig-job-1-a1/,
+	);
+	await page.waitForTimeout(350);
+	await expect(selectedRun).toHaveAttribute(
+		"data-local-run-key",
+		/run-craig-job-1-a1/,
+	);
 });
 
 test("Fila confirma visualmente quando o Job ID é copiado", async ({ page }) => {
