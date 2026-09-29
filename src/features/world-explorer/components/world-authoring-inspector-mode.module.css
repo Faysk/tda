@@ -1,19 +1,26 @@
+/* The state name "docked" is retained for compatibility with stored/UI state,
+ * but #1085 makes its presentation non-reserving: every desktop inspector is
+ * an overlay over the spatial stage. */
 .docked :global([data-world-authoring-active="true"][data-world-inspector-mode="docked"]) {
-	grid-template-columns: minmax(0, 1fr) var(--world-inspector-width);
+	display: block;
 }
 
 .docked :global([data-world-authoring-active="true"][data-world-inspector-mode="docked"] > aside[aria-live="polite"]) {
-	position: relative;
-	z-index: 20;
-	width: var(--world-inspector-width);
-	min-width: var(--world-inspector-width);
-	max-width: var(--world-inspector-width);
+	position: fixed;
+	top: var(--site-chrome-panel-top, 66px);
+	right: 12px;
+	bottom: 12px;
+	left: auto;
+	z-index: 55;
+	width: min(var(--world-inspector-width), calc(100vw - 24px));
+	min-width: min(320px, calc(100vw - 24px));
+	max-width: min(520px, calc(100vw - 24px));
 	padding: clamp(20px, 1.6vw, 28px);
-	border: 0;
-	border-left: 1px solid var(--ds-control-border);
-	border-radius: 0;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-lg);
 	background: color-mix(in srgb, var(--ds-surface-elevated) 97%, transparent);
-	box-shadow: -14px 0 48px color-mix(in srgb, var(--ds-canvas) 44%, transparent);
+	box-shadow: -16px 18px 60px color-mix(in srgb, var(--ds-canvas) 56%, transparent);
+	backdrop-filter: blur(20px) saturate(108%);
 	overflow: auto;
 }
 
@@ -28,17 +35,14 @@
 	}
 
 	.docked :global([data-world-authoring-active="true"][data-world-inspector-mode="docked"] > aside[aria-live="polite"]) {
-		position: fixed;
 		top: auto;
 		right: 10px;
 		bottom: 10px;
 		left: 10px;
-		z-index: 55;
 		width: auto;
 		min-width: 0;
 		max-width: none;
 		max-height: min(64dvh, 620px);
-		border: 1px solid var(--ds-control-border);
 		border-radius: var(--ds-radius-xl);
 		box-shadow: 0 -18px 60px var(--ds-ambient-cool);
 	}
