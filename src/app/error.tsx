@@ -17,7 +17,6 @@ export default function ErrorPage({ reset }: { reset: () => void }) {
 			aria-busy={retrying}
 		>
 			<div className={styles.content}>
-				<p className={styles.eyebrow}>TDA</p>
 				<DisplayTitle id="system-error-title">
 					Não foi possível abrir esta história.
 				</DisplayTitle>

@@ -16,16 +16,6 @@
 	justify-items: start;
 }
 
-.eyebrow {
-	margin: 0 0 12px;
-	color: var(--ds-accent);
-	font-family: var(--ds-font-ui);
-	font-size: 0.72rem;
-	font-weight: 700;
-	letter-spacing: 0.14em;
-	line-height: 1.2;
-	text-transform: uppercase;
-}
 
 .content h1 {
 	max-width: 20ch;

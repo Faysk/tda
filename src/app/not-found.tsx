@@ -9,7 +9,6 @@ export default function NotFound() {
 			aria-labelledby="system-not-found-title"
 		>
 			<div className={styles.content}>
-				<p className={styles.eyebrow}>TDA</p>
 				<DisplayTitle id="system-not-found-title">
 					Esta história não foi encontrada.
 				</DisplayTitle>
