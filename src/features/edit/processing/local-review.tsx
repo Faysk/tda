@@ -1127,6 +1127,7 @@ export function LocalReviewWorkspace({
 	const [deleteTarget, setDeleteTarget] = useState<LocalRunSummary | null>(null);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const deleteDialog = useRef<HTMLDialogElement>(null);
+	const runListRef = useRef<HTMLElement>(null);
 	const handledFocusRequest = useRef(0);
 	const filteredRuns = useMemo(() => {
 		const query = libraryQuery.trim().toLocaleLowerCase("pt-BR");
@@ -1228,9 +1229,9 @@ export function LocalReviewWorkspace({
 		let frame = window.requestAnimationFrame(() => {
 			frame = window.requestAnimationFrame(() => {
 				const targetButton = [
-					...document.querySelectorAll<HTMLButtonElement>(
+					...(runListRef.current?.querySelectorAll<HTMLButtonElement>(
 						"button[data-local-run-key]",
-					),
+					) ?? []),
 				].find((button) => button.dataset.localRunKey === focusRunKey);
 				if (!targetButton) return;
 				handledFocusRequest.current = focusRunRequestId;
@@ -1386,7 +1387,12 @@ export function LocalReviewWorkspace({
 						</label>
 					</div>
 					<div className={styles.libraryWorkspace}>
-						<nav className={styles.runList} aria-label="Runs locais" data-results-master="true">
+						<nav
+							ref={runListRef}
+							className={styles.runList}
+							aria-label="Runs locais"
+							data-results-master="true"
+						>
 							{filteredRuns.map((run) => {
 								const key = serializeLocalRunKey(localRunKey(run));
 								const active = selectedRun
