@@ -55,60 +55,20 @@ if [[ "$CHALLENGE_COUNT" != "0" ]]; then
     exit 1
   }
 
-  CHALLENGE_LIST=".local/media-public-challenges.tsv"
+  CHALLENGE_LIST=".local/media-public-challenges.txt"
   node --input-type=module - "$RECEIPT" "$CHALLENGE_LIST" <<'NODE'
 import fs from "node:fs";
 const [receiptPath, outputPath] = process.argv.slice(2);
 const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
-const lines = receipt.assets
+const urls = receipt.assets
   .filter((asset) => asset.publicDeliveryChallenge === true)
-  .map((asset) => [asset.file, asset.publicUrl].join("\t"));
-fs.writeFileSync(outputPath, lines.length ? `${lines.join("\n")}\n` : "");
+  .map((asset) => asset.publicUrl);
+fs.writeFileSync(outputPath, urls.length ? `${urls.join("\n")}\n` : "");
 NODE
 
   VERIFIED_CHALLENGES=".local/media-public-challenges-verified.txt"
   : > "$VERIFIED_CHALLENGES"
-  while IFS=
-  node --input-type=module - "$RECEIPT" <<'NODE'
-import fs from "node:fs";
-
-const receiptPath = process.argv[2];
-const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
-const summary = receipt.summary;
-for (const field of ["assets", "published", "reused", "verified"]) {
-  if (!Number.isInteger(summary?.[field]) || summary[field] < 0) {
-    throw new Error(`Invalid media receipt summary field ${field}`);
-  }
-}
-if (summary.assets !== summary.published + summary.reused) {
-  throw new Error("Media receipt action counts do not match asset count");
-}
-if (summary.verified !== summary.assets) {
-  throw new Error("Media receipt does not verify every selected asset");
-}
-process.stdout.write(
-  [summary.assets, summary.published, summary.reused, summary.verified].join(" "),
-);
-NODE
-)"
-read -r ASSETS PUBLISHED REUSED VERIFIED <<< "$SUMMARY_LINE"
-
-emit_outputs "$ASSETS" "$PUBLISHED" "$REUSED" "$VERIFIED"
-
-if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-  {
-    echo "## Media Storage publication"
-    echo "- Range: `$RANGE`"
-    echo "- Manifests: `${#MANIFESTS[@]}`"
-    echo "- Assets: `$ASSETS`"
-    echo "- Published: `$PUBLISHED`"
-    echo "- Reused: `$REUSED`"
-    echo "- Public verified: `$VERIFIED`"
-  } >> "$GITHUB_STEP_SUMMARY"
-fi
-
-echo "MEDIA_PUBLISH_CHANGED_OK manifests=${#MANIFESTS[@]} assets=$ASSETS published=$PUBLISHED reused=$REUSED verified=$VERIFIED range=$RANGE"
-\t' read -r FILE PUBLIC_URL; do
+  while IFS= read -r PUBLIC_URL; do
     [[ -n "$PUBLIC_URL" ]] || continue
     PROXY_PATH="$(
       node --input-type=module - "$PUBLIC_URL" <<'NODE'
@@ -120,19 +80,19 @@ NODE
     HEADERS=".local/media-public-proxy-headers.txt"
     STATUS="$(vercel curl "$PROXY_PATH" --deployment "$DEPLOYMENT_URL" --silent --show-error --output "$BODY" --dump-header "$HEADERS" --write-out '%{http_code}')"
     if [[ "$STATUS" != "200" ]]; then
-      echo "::error::Staged anonymous image proxy failed for $FILE with HTTP $STATUS"
+      echo "::error::Staged anonymous image proxy failed for $PUBLIC_URL with HTTP $STATUS"
       exit 1
     fi
     if [[ ! -s "$BODY" ]]; then
-      echo "::error::Staged anonymous image proxy returned an empty body for $FILE"
+      echo "::error::Staged anonymous image proxy returned an empty body for $PUBLIC_URL"
       exit 1
     fi
     if ! tr -d '\r' < "$HEADERS" | grep -Eiq '^content-type:[[:space:]]*image/'; then
-      echo "::error::Staged anonymous image proxy did not return image content for $FILE"
+      echo "::error::Staged anonymous image proxy did not return image content for $PUBLIC_URL"
       exit 1
     fi
     printf '%s\n' "$PUBLIC_URL" >> "$VERIFIED_CHALLENGES"
-    echo "MEDIA_PUBLIC_PROXY_VERIFIED $FILE"
+    echo "MEDIA_PUBLIC_PROXY_VERIFIED $PUBLIC_URL"
   done < "$CHALLENGE_LIST"
 
   node --input-type=module - "$RECEIPT" "$VERIFIED_CHALLENGES" <<'NODE'
@@ -142,7 +102,9 @@ const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
 const verified = new Set(fs.readFileSync(verifiedPath, "utf8").split(/\r?\n/u).filter(Boolean));
 for (const asset of receipt.assets) {
   if (asset.publicDeliveryChallenge !== true) continue;
-  if (!verified.has(asset.publicUrl)) throw new Error(`Missing staged proxy verification for ${asset.file}`);
+  if (!verified.has(asset.publicUrl)) {
+    throw new Error(`Missing staged proxy verification for ${asset.file}`);
+  }
   asset.publicDeliveryVerified = true;
   asset.publicDeliveryVerificationMode = "staged-next-image";
 }
