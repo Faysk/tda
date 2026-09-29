@@ -24,14 +24,14 @@ export default function DiaryIndex() {
 							<div className={styles.spine} aria-hidden="true">
 								{diary.author}
 							</div>
-							<div>
+							<div className={styles.bookCopy}>
 								<p className={styles.eyebrow}>{diary.author}</p>
 								<h2>{diary.title}</h2>
 								<p>{diary.description}</p>
-								<span className={styles.action}>
-									Abrir o diário <span aria-hidden="true">→</span>
-								</span>
 							</div>
+							<span className={styles.action}>
+								Abrir o diário <span aria-hidden="true">→</span>
+							</span>
 						</a>
 					</li>
 				))}
