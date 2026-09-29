@@ -1,8 +1,8 @@
 # Assets oficiais da marca TDA
 
-> Status: canônico para marca; integração runtime parcial e verificável
+> Status: canônico para marca; runtime web migrado para R2
 > Owner: brand / design-system
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-29
 
 Este documento registra o **TDA Brand Pack (official)** fornecido para o reboot.
 
@@ -42,11 +42,11 @@ Checksums de referência:
 
 A geometria e os checksums abaixo continuam canônicos para a marca.
 
-Por ADR-0018, **Media Storage é o destino canônico de toda mídia persistida/publicada**, inclusive assets de marca. Os arquivos atualmente presentes em `public/brand/` são uma compatibilidade de bootstrap anterior e permanecem somente até uma migração deliberada preservar consumidores, hashes e fallback.
+Por ADR-0018, **Media Storage é o destino canônico de toda mídia persistida/publicada**, inclusive assets de marca. O runtime web foi migrado para o Cloudflare R2 em 2026-09-29; `public/brand/` não é mais storage de runtime.
 
-A fundação visual integrou primeiro SVGs byte-for-byte e ainda os valida automaticamente no Git; isso descreve o estado atual, não o destino arquitetural final.
+Os cinco SVGs oficiais abaixo foram publicados byte-for-byte pelo Media Pipeline, verificados por SHA-256/read-back/delivery e depois fixados no manifest `media/manifests/brand.json` como `sourceMode: "canonical-r2"`.
 
-Assets runtime atualmente esperados em `public/brand/`:
+Assets oficiais canônicos no R2:
 
 | Runtime | Origem no Brand Pack | SHA-256 oficial | Uso |
 | --- | --- | --- | --- |
@@ -56,7 +56,7 @@ Assets runtime atualmente esperados em `public/brand/`:
 | `tda-mark-white.svg` | `logos/tda-mark-white.svg` | `8474cd455cb5b6ffc254ed5ca5c3c5aa1b25f64ec8e694ed85ce1eea8b2d83ff` | símbolo principal em fundo escuro |
 | `favicon.svg` | `icons/favicon.svg` | `59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e` | favicon adaptativo |
 
-`tools/check-design-system.mjs` valida esses hashes em toda execução de `pnpm check`. Alterar silenciosamente um desses masters passa a quebrar CI.
+`tools/check-design-system.mjs` valida esses hashes contra o manifest canônico R2 em toda execução de `pnpm check`, além de exigir que favicon e marks usados pelo shell apontem para as URLs content-addressed corretas. Alterar silenciosamente um master ou reintroduzir `public/brand/` quebra CI.
 
 O header do reboot usa o **mark oficial** com variante black/white real conforme tema. Não usa `filter: invert()` como substituto permanente de master.
 
@@ -143,9 +143,9 @@ Favicons, ícones do pato, Apple Touch, Android/PWA, Safari e tiles.
 
 ## Destino no reboot
 
-O pacote original recomenda `public/brand/`, e essa estrutura foi usada no bootstrap inicial. No TDA atual, porém, o destino arquitetural final dos **bytes de marca** é Media Storage; o Git mantém checksums, manifests, documentação e consumers.
+O pacote original recomenda `public/brand/`, e essa estrutura foi usada apenas no bootstrap inicial. No TDA atual, os **bytes de marca do runtime web** vivem no Cloudflare R2; o Git mantém checksums, manifests, documentação e consumers.
 
-`public/brand/` é compatibilidade transitória enquanto a migração não estiver concluída.
+A compatibilidade `public/brand/` foi retirada após a publicação R2 verificada da release `prod-605c1f47186d`.
 
 Estrutura lógica esperada no estado final:
 
@@ -164,21 +164,21 @@ Git
   consumers
 ```
 
-Durante a migração, os SVGs existentes em `public/brand/` permanecem para não quebrar bootstrap/consumidores. A retirada física só ocorre depois de URLs/resolução, cache e rollback estarem comprovados.
+A retirada física de `public/brand/` ocorreu somente depois de publicação, read-back e delivery dos cinco SVGs no R2. O manifest v2 preserva hashes, bytes, MIME e provenance da release; rollback é por referência/código, sem delete destrutivo dos objetos.
 
-## Migração do bootstrap Git para Media Storage
+## Migração do bootstrap Git para Media Storage — concluída para os SVGs runtime
 
-A migração física completa é uma entrega separada porque muda o boundary dos assets binários.
+Concluído em 2026-09-29 para favicon, duck black/white e mark black/white:
 
-Critérios:
+- upload byte-for-byte para R2;
+- SHA-256 conferido contra o Brand Pack;
+- read-back e delivery público verificados;
+- shell/metadata atualizados para URLs content-addressed;
+- masters sem otimização destrutiva;
+- manifest v2 `canonical-r2` com provenance da release;
+- cópias de `public/brand/` e sources temporárias de ingestão removidas.
 
-- upload/cópia byte-for-byte para Media Storage;
-- verificação SHA-256 contra o pack oficial;
-- atualização de metadata/favicon/manifest/OG;
-- nenhuma otimização destrutiva nos masters;
-- versões derivadas otimizadas, se necessárias, têm nome e origem registrados;
-- `next/image` para imagens raster de conteúdo quando aplicável;
-- SVG oficial permanece sem redesenho.
+Os binários adicionais do Brand Pack ainda não integrados ao produto (horizontal/stacked/PWA/social etc.) continuam fora do runtime até uma entrega deliberada; isso não exige manter cópias web locais ausentes.
 
 ## Brand no World Explorer
 
