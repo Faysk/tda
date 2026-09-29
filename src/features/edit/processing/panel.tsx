@@ -533,14 +533,15 @@ export function ProcessingPanel({
 			return;
 		}
 		const found = await controller.ensureLocalRun(result.sourceId, result.runId);
+		if (diagnosticInspectorJobId !== null) closeJobDiagnostics(false);
+		setView("results");
 		if (!found) {
 			setResultOpenError(
-				"O resultado foi validado, mas o run correspondente não apareceu na biblioteca local. Atualize Resultados ou consulte o diagnóstico.",
+				"O resultado foi validado, mas o run correspondente não apareceu na biblioteca local. O resumo foi aberto em Resultados; atualize a biblioteca ou consulte o diagnóstico.",
 			);
 			return;
 		}
 
-		if (diagnosticInspectorJobId !== null) closeJobDiagnostics(false);
 		const key = serializeLocalRunKey({
 			sourceId: result.sourceId,
 			runId: result.runId,
@@ -549,7 +550,6 @@ export function ProcessingPanel({
 			key,
 			requestId: (current?.requestId ?? 0) + 1,
 		}));
-		setView("results");
 	}
 
 	function openAttentionQueue() {
