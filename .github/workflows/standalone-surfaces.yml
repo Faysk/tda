@@ -1,0 +1,75 @@
+name: Standalone Surfaces UX
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/standalone-surfaces.yml"
+      - "public/lore/astel/**"
+      - "public/lore/noah/**"
+      - "public/lore/d/**"
+      - "public/lore/yllith/**"
+      - "public/diario/astel/**"
+      - "tests/standalone-surfaces-ux.spec.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/standalone-surfaces.yml"
+      - "public/lore/astel/**"
+      - "public/lore/noah/**"
+      - "public/lore/d/**"
+      - "public/lore/yllith/**"
+      - "public/diario/astel/**"
+      - "tests/standalone-surfaces-ux.spec.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  standalone-surfaces:
+    name: standalone-surfaces
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Standalone Lore and Diário UX matrix
+        run: pnpm exec playwright test tests/standalone-surfaces-ux.spec.ts --project=desktop-1080p
+      - name: Upload standalone visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: standalone-surfaces-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/**/standalone-*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload standalone failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: standalone-surfaces-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+            test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7

@@ -15,6 +15,19 @@ body {
 	line-height: 1.8;
 	overflow-wrap: break-word;
 }
+.skip-link {
+	position: fixed;
+	left: 18px;
+	top: 14px;
+	z-index: 10;
+	padding: 9px 13px;
+	border-radius: 999px;
+	background: #413a2d;
+	color: #f1e7cf;
+	text-decoration: none;
+	transform: translateY(-180%);
+}
+.skip-link:focus { transform: none; }
 a {
 	color: #705326;
 	text-underline-offset: 4px;
