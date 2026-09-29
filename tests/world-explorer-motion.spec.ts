@@ -58,45 +58,38 @@ test("World Explorer stops relation motion when reduced motion is requested", as
 	expect(await motionPath.evaluate((element) => element.getAnimations().length)).toBe(0);
 });
 
-test("World Explorer relation legend uses DS chips and stays out of the mobile first viewport", async ({
+test("World Explorer keeps the relation legend contextual inside the relation disclosure", async ({
 	page,
 }, testInfo) => {
 	await page.goto("/mundo");
-	const legend = page.locator("fieldset:has(> span[data-family])");
+	const trigger = page.getByRole("button", { name: "Filtrar por relação" });
+	const legend = page.getByRole("list", { name: "Legenda de relações" });
 
+	await expect(trigger).toBeVisible();
+	await expect(legend).toBeHidden();
+
+	const triggerBox = await trigger.boundingBox();
+	expect(triggerBox).not.toBeNull();
 	if (testInfo.project.name === "mobile") {
-		await expect(legend).toBeHidden();
-		return;
+		expect(triggerBox?.height ?? 0).toBeGreaterThanOrEqual(44);
 	}
 
+	await trigger.click();
 	await expect(legend).toBeVisible();
-	const frame = await legend.evaluate((element) => {
-		const style = getComputedStyle(element);
-		return {
-			borderTopWidth: style.borderTopWidth,
-			borderRightWidth: style.borderRightWidth,
-			borderBottomWidth: style.borderBottomWidth,
-			boxShadow: style.boxShadow,
-			marginTop: style.marginTop,
-		};
-	});
-	expect(frame.borderTopWidth).toBe("0px");
-	expect(frame.borderRightWidth).toBe("0px");
-	expect(frame.borderBottomWidth).toBe("0px");
-	expect(frame.boxShadow).toBe("none");
-	expect(frame.marginTop).toBe("0px");
 
-	const affinity = legend.locator('span[data-family="affinity"]');
-	const chip = await affinity.evaluate((element) => {
-		const style = getComputedStyle(element);
-		const swatch = getComputedStyle(element, "::before");
-		return {
-			borderRadius: style.borderTopLeftRadius,
-			swatchWidth: Number.parseFloat(swatch.width),
-			swatchHeight: Number.parseFloat(swatch.height),
-		};
-	});
-	expect(chip.borderRadius).not.toBe("0px");
-	expect(chip.swatchWidth).toBeGreaterThanOrEqual(18);
-	expect(chip.swatchHeight).toBeLessThanOrEqual(3);
+	const affinity = legend.locator('[data-family="affinity"]');
+	await expect(affinity).toBeVisible();
+	const swatch = affinity.locator("i");
+	const swatchBox = await swatch.boundingBox();
+	expect(swatchBox).not.toBeNull();
+	expect(swatchBox?.width ?? 0).toBeGreaterThanOrEqual(18);
+	expect(swatchBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(4);
+
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+	).toBeTruthy();
+
+	await page.keyboard.press("Escape");
+	await expect(legend).toBeHidden();
+	await expect(trigger).toBeFocused();
 });
