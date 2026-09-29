@@ -327,7 +327,7 @@ export function publicVerificationHeaders() {
 	};
 }
 
-async function verifyPublicDelivery(asset, attempts = 8) {
+export async function verifyPublicDelivery(asset, attempts = 8) {
 	let lastError;
 	const allowChallengeFallback =
 		process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE === "staged-next-image";
