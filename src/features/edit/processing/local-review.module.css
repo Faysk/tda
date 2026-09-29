@@ -344,6 +344,12 @@
 	font-size: .72rem;
 }
 
+.runIdentity span {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
 .reviewNotice {
 	display: flex;
 	flex-wrap: wrap;
