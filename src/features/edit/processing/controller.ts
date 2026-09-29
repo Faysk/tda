@@ -691,8 +691,9 @@ export class ProcessingController {
 					if (!cursor || seenCursors.has(cursor)) break;
 					seenCursors.add(cursor);
 				}
+				const requestCursor = firstRead ? undefined : (cursor ?? undefined);
 				const page = await this.bridge.localRunCatalog(signal, {
-					...(firstRead ? {} : { cursor }),
+					...(requestCursor ? { cursor: requestCursor } : {}),
 					limit: 100,
 				});
 				firstRead = false;
