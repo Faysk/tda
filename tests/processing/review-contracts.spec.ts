@@ -67,18 +67,19 @@ test("completed runs compare locally with source and time filters before an expl
 	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toHaveCount(0);
 });
 
-test("base remains unsaved until an explicit editorial action", async ({ page }) => {
+test("base materializes explicitly, then approval becomes the next human decision", async ({ page }) => {
 	await page.goto("/?review-contracts&ephemeral");
-	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByText(/Base imutável · nenhuma revisão salva/)).toBeVisible();
 	const search = page.getByLabel("Buscar na timeline");
 	await search.fill("persistir-busca");
-	await page.getByLabel("Estado do draft").selectOption("approved_local");
-	await page.getByRole("button", { name: "Salvar revisão" }).click();
-	await expect(page.getByText("Draft salvo localmente.")).toBeVisible();
+	await expect(page.getByRole("button", { name: "Criar revisão" })).toBeEnabled();
+	await page.getByRole("button", { name: "Criar revisão" }).click();
+	await expect(page.getByText(/draft r1 · Snapshot salvo/)).toBeVisible();
 	await expect(search).toHaveValue("persistir-busca");
-	await expect(page.getByText(/Run bruto imutável · draft r1/)).toBeVisible();
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Aprovar revisão" })).toBeVisible();
+	await page.getByRole("button", { name: "Aprovar revisão" }).click();
+	await expect(page.getByText(/draft r1 · Aprovado localmente/)).toBeVisible();
+	await expect(page.getByTestId("save-count")).toHaveText("2");
 });
 
 test("older Agent remains readable and requires an update before editing", async ({ page }) => {
@@ -147,7 +148,7 @@ test("historical review does not claim a verified total", async ({ page }) => {
 test("target repair preserves edits and restores only the original destination", async ({ page }, testInfo) => {
     await page.goto("/?review-contracts&repair");
     const repair = page.getByRole("button", { name: "Reparar vínculo original" });
-    await expect(page.getByText(/O vínculo do handoff privado está danificado/)).toBeVisible();
+    await expect(page.getByText("O vínculo original precisa ser reparado")).toBeVisible();
     await page.getByRole("button", { name: /^Editar / }).first().click();
     await page.getByRole("textbox", { name: /^Texto em / }).first().fill("Texto preservado");
     await expect(repair).toBeDisabled();
@@ -175,7 +176,7 @@ test("bulk rename isolates a track, preserves exceptions and saves one snapshot"
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();
     await expect(page.getByLabel("Participante de origem")).toBeFocused();
-    await expect(page.getByLabel("Estado do draft")).toHaveValue("reviewed");
+    await expect(page.getByText(/Alterado após aprovação/)).toBeVisible();
     await expect(page.getByTestId("save-count")).toHaveText("0");
     const speakers = page.locator("[data-review-segment] strong");
     await expect(speakers).toHaveCount(5);
@@ -220,7 +221,7 @@ test("concurrent bulk edits reconcile by field without closing or losing the wor
     await expect(page.getByText(/Reconciliado sobre a revisão 2/)).toBeVisible();
     await expect(page.locator("[data-review-segment] strong").first()).toHaveText("Novo");
     await expect(page.locator("[data-review-segment] p").nth(1)).toHaveText("Fala remota");
-    await expect(page.getByLabel("Estado do draft")).toHaveValue("reviewed");
+    await expect(page.getByText(/Alterações não salvas/)).toBeVisible();
     await page.getByRole("button", { name: "Salvar revisão" }).click();
     await expect(page.getByText(/Run bruto imutável · draft r3/)).toBeVisible();
     await expect(page.getByTestId("save-count")).toHaveText("2");
@@ -228,7 +229,7 @@ test("concurrent bulk edits reconcile by field without closing or losing the wor
 
 test("exact runtime identity is confined to technical details", async ({ page }, testInfo) => {
  await page.goto("/?review-contracts&artifact");
- const detail = page.locator("details").filter({ hasText: "Integridade do runtime usado" });
+ const detail = page.locator("details").filter({ hasText: "Detalhes técnicos" });
  await expect(detail.locator("code").first()).not.toBeVisible();
  await detail.locator("summary").click();
  await expect(detail.locator("code").first()).toHaveText("a".repeat(64));
@@ -249,18 +250,18 @@ test("publication freezes current and requires a fresh confirmation after stale_
  await page.goto("/?review-contracts&publication");
  await expect(page.getByText(/A transcrição será enviada para a área privada de Sessões do Edit/)).toBeVisible();
  await page.getByRole("button", { name: "Preparar sessão" }).click();
- await expect(page.getByRole("alertdialog")).toContainText("Preparar esta sessão no Edit?");
- await expect(page.getByRole("alertdialog")).toContainText("Isso não publica capa, resumo ou transcript no site público.");
- await expect(page.getByRole("alertdialog")).toContainText(first);
+ await expect(page.locator("[data-publication-confirmation='true']")).toContainText("Preparar esta sessão no Edit?");
+ await expect(page.locator("[data-publication-confirmation='true']")).toContainText("Isso não publica capa, resumo ou transcript no site público.");
+ await expect(page.locator("[data-publication-confirmation='true']")).toContainText(first);
  expect(sent).toHaveLength(0);
  await page.screenshot({ path: testInfo.outputPath("publication-current-confirmation.png"), fullPage: true });
- await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
+ await page.locator("[data-publication-confirmation='true']").getByRole("button", { name: "Confirmar preparação" }).click();
  await expect(page.getByRole("alert")).toContainText("A revisão privada atual mudou");
  expect(sent).toHaveLength(1); expect(sent[0].expectedCurrentRevisionId).toBe(first); expect(reads).toBeGreaterThanOrEqual(2);
  await page.getByRole("button", { name: "Preparar sessão" }).click();
- await expect(page.getByRole("alertdialog")).toContainText(second);
+ await expect(page.locator("[data-publication-confirmation='true']")).toContainText(second);
  expect(sent).toHaveLength(1);
- await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
+ await page.locator("[data-publication-confirmation='true']").getByRole("button", { name: "Confirmar preparação" }).click();
  await expect(page.getByRole("alert")).toContainText("A revisão privada atual mudou");
  expect(sent).toHaveLength(2); expect(sent[1].expectedCurrentRevisionId).toBe(second); expect(sent[1].operationId).not.toBe(sent[0].operationId);
 });
@@ -280,7 +281,7 @@ test("lost publication recovers after reload without a second write or transcrip
  });
  await page.goto("/?review-contracts&publication");
  await page.getByRole("button", { name: "Preparar sessão" }).click();
- await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
+ await page.locator("[data-publication-confirmation='true']").getByRole("button", { name: "Confirmar preparação" }).click();
  await expect(page.getByRole("alert")).toContainText("A resposta foi perdida");
  const stored = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("tda.publication.pending.v1:")));
  expect(stored).toHaveLength(1); expect(stored[0][1]).not.toContain("Olá"); expect(stored[0][1]).not.toContain("Participante sintético"); expect(JSON.parse(stored[0][1]).operationId).toBe((committed as Record<string, unknown> | null)?.operationId);
