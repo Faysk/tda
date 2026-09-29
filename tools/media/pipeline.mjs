@@ -329,6 +329,8 @@ export function publicVerificationHeaders() {
 
 async function verifyPublicDelivery(asset, attempts = 8) {
 	let lastError;
+	const allowChallengeFallback =
+		process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE === "staged-next-image";
 	for (let attempt = 1; attempt <= attempts; attempt += 1) {
 		try {
 			const response = await fetch(publicVerificationUrl(asset.publicUrl, attempt), {
@@ -336,6 +338,14 @@ async function verifyPublicDelivery(asset, attempts = 8) {
 				headers: publicVerificationHeaders(),
 			});
 			if (!response.ok) {
+				const mitigated = response.headers.get("cf-mitigated");
+				if (mitigated === "challenge" && allowChallengeFallback) {
+					return {
+						httpStatus: response.status,
+						contentType: response.headers.get("content-type"),
+						challenged: true,
+					};
+				}
 				const diagnosticHeaders = [
 					"cf-mitigated",
 					"cf-cache-status",
@@ -364,7 +374,11 @@ async function verifyPublicDelivery(asset, attempts = 8) {
 				throw new Error(`bytes ${bytes.length} != ${asset.bytes}`);
 			if (sha256(bytes) !== asset.sha256)
 				throw new Error(`sha256 mismatch for ${asset.publicUrl}`);
-			return { httpStatus: response.status, contentType: actualType };
+			return {
+				httpStatus: response.status,
+				contentType: actualType,
+				challenged: false,
+			};
 		} catch (error) {
 			lastError = error;
 			if (attempt < attempts)
@@ -449,7 +463,10 @@ export async function publishAll({
 			contentType: asset.contentType,
 			action,
 			readBackVerified: true,
-			publicDeliveryVerified: true,
+			publicDeliveryVerified: delivery.challenged !== true,
+			publicDeliveryChallenge: delivery.challenged === true,
+			publicDeliveryVerificationMode:
+				delivery.challenged === true ? "pending-staged-next-image" : "direct",
 			httpStatus: delivery.httpStatus,
 		});
 		console.log(`MEDIA_${action.toUpperCase()} ${manifest.project} ${asset.file}`);
