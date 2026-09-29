@@ -432,3 +432,30 @@ Segurança planejada/aplicável no rollout:
 - browser acessa somente a rota Next server-side após identidade e capability verificadas.
 
 A presence da migration em Git não prova rollout remoto. Após Production CD, confirmar assinatura, grants, RLS da revision table e migration history no projeto canônico `dmrqnbdvbkfqzctcerbx`.
+
+## Candidata server-only — first transcript handoff session (#1061)
+
+### `prepare_transcript_handoff_atomic(uuid,uuid,text,jsonb,boolean)`
+
+Boundary da PR #1078 para resolver ou materializar a session privada antes do primeiro commit de transcript revision.
+
+Contrato:
+
+- `p_publication_kind` aceita somente `single_source | session_assembly`;
+- revalida auth user/profile e `campaign.transcript.publish` antes do lookup;
+- session existente precisa ser a única identidade compatível `local_companion`;
+- session ausente + commit real pode criar uma row mínima `ready_for_review`;
+- lookup/readback ausente retorna `not_found` sem mutation;
+- conflito com identidade histórica/non-local retorna `conflict`;
+- commit é delegado a `publish_transcript_revision_atomic` ou `publish_transcript_assembly_revision_atomic`, preservando CAS/replay/receipt;
+- criação de session + revision pertence ao mesmo statement/transação; falha determinística não deixa shell;
+- nenhum conteúdo de transcript entra no audit de criação.
+
+Segurança:
+
+- `SECURITY INVOKER`;
+- `search_path = pg_catalog, public`;
+- browser roles sem `EXECUTE`;
+- somente `service_role`.
+
+A migration no Git não prova rollout remoto. Confirmar migration history e grants somente via Production CD governado.
