@@ -767,21 +767,21 @@ test("account overview keeps synthetic identity and access usable across the lay
 		{
 			query: "anonymous",
 			status: "Não autenticada",
-			body: "Entre com o Discord para consultar seu perfil TDA.",
+			body: "Entre com o Discord para consultar seu vínculo TDA.",
 		},
 		{
 			query: "unavailable",
 			status: "Acesso indisponível",
-			body: "Não foi possível consultar seu perfil TDA agora.",
+			body: "Não foi possível consultar seu vínculo TDA agora.",
 		},
 		{
 			query: "unlinked",
 			status: "Não vinculada",
-			body: "Ainda sem perfil TDA vinculado.",
+			body: "Esta conta do Discord ainda não tem um perfil TDA vinculado.",
 		},
 		{
 			query: "no-grants",
-			status: "Sem permissões nesta campanha",
+			status: "Vinculada · sem permissões",
 			body: "Nenhuma permissão efetiva nesta campanha.",
 		},
 	]) {
@@ -806,19 +806,37 @@ test("account overview keeps synthetic identity and access usable across the lay
 			page.getByRole("heading", { name: "Conta e acesso", exact: true }),
 		).toBeVisible();
 		await expect(page.getByText("Pessoa Sintética", { exact: true })).toBeVisible();
-		await expect(page.getByText("profile-tda-synthetic-927", { exact: true })).toBeVisible();
+		const profileId = page.getByText("profile-tda-synthetic-927", { exact: true });
+		await expect(profileId).toBeHidden();
 		await expect(
-			page.getByRole("heading", { name: "Permissões nesta campanha", exact: true }),
+			page.getByRole("heading", { name: "Acesso nesta campanha", exact: true }),
 		).toBeVisible();
-		await expect(page.getByText("Gerenciar permissões", { exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Vínculo TDA", exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Aparência", exact: true })).toBeVisible();
+		await expect(page.getByText("Gerenciar permissões", { exact: true }).first()).toBeVisible();
+		const technicalCapability = page.getByText("campaign.permissions.manage", { exact: true });
+		await expect(technicalCapability).toBeHidden();
+		await page.getByText("Detalhes técnicos do acesso", { exact: true }).click();
+		await expect(technicalCapability).toBeVisible();
 		await expect(page.getByText("campaign/yuhara-main", { exact: true })).toHaveCount(0);
 		await expect(page.getByRole("link", { name: "Ver histórias públicas" })).toHaveCount(0);
+		await expect(page.locator('main a[href^="/edit"], main a[href="/transcricoes"]')).toHaveCount(0);
+		await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
 		await expect(page.locator('form[action="/auth/logout"]')).toHaveAttribute("method", "post");
 		await expectNoHorizontalOverflow(page);
 	}
 
+	await page.goto("/e2e-fixtures/account-overview?state=unavailable");
+	await expect(page.locator('form[action="/auth/logout"]')).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "Tentar novamente" })).toBeVisible();
+
+	await page.goto("/e2e-fixtures/account-overview?state=anonymous");
+	await expect(page.locator('form[action="/auth/logout"]')).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "Entrar com Discord" })).toBeVisible();
+
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/e2e-fixtures/account-overview");
+	await page.getByText("Identificador do perfil", { exact: true }).click();
 	const copyId = page.getByRole("button", { name: "Copiar ID" });
 	await copyId.focus();
 	await expect(copyId).toBeFocused();
