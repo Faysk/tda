@@ -203,24 +203,40 @@ test("public Sessions keeps archive value in the first viewport and reader measu
 	}
 });
 
-test("Sessions public geometry survives light theme and reduced motion", async ({ page }) => {
+test("Sessions public geometry survives dark/light themes and reduced motion", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.addInitScript(() => localStorage.setItem("tda-theme", "light"));
 	await page.emulateMedia({ reducedMotion: "reduce" });
 
-	await page.goto("/sessoes");
-	await expectNoHorizontalOverflow(page);
-	const archiveCard = page.locator('[data-session-view="grid"] article').first();
-	expect(
-		await archiveCard.evaluate((element) => getComputedStyle(element).transitionDuration),
-	).toBe("0s");
+	for (const theme of ["dark", "light"] as const) {
+		await page.goto("/sessoes");
+		await page.evaluate((value) => localStorage.setItem("tda-theme", value), theme);
+		await page.reload();
+		await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+		await expectNoHorizontalOverflow(page);
 
-	await page.goto("/sessoes/layout-contract-synthetic");
-	await expectNoHorizontalOverflow(page);
-	const previousLink = page.getByRole("link", { name: /Sessão anterior/u });
-	expect(
-		await previousLink.evaluate((element) => getComputedStyle(element).transitionDuration),
-	).toBe("0s");
+		const archiveCard = page.locator('[data-session-view="grid"] article').first();
+		expect(
+			await archiveCard.evaluate(
+				(element) => getComputedStyle(element).transitionDuration,
+			),
+		).toBe("0s");
+
+		const archiveColors = await page.locator("body").evaluate((element) => {
+			const styles = getComputedStyle(element);
+			return { background: styles.backgroundColor, foreground: styles.color };
+		});
+		expect(archiveColors.background).not.toBe(archiveColors.foreground);
+
+		await page.goto("/sessoes/layout-contract-synthetic");
+		await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+		await expectNoHorizontalOverflow(page);
+		const previousLink = page.getByRole("link", { name: /Sessão anterior/u });
+		expect(
+			await previousLink.evaluate(
+				(element) => getComputedStyle(element).transitionDuration,
+			),
+		).toBe("0s");
+	}
 });
 
 test("unavailable session state respects the public structural keyline", async ({
