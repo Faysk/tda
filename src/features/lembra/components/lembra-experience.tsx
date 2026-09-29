@@ -8,7 +8,6 @@ import {
 	useRef,
 	useState,
 	type FormEvent,
-	type ReactNode,
 } from "react";
 import { Button, Select, type SelectOption } from "@/components/ui";
 import {
@@ -118,15 +117,6 @@ function ImageIcon() {
 			<rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
 			<circle cx="9" cy="9.5" r="1.5" />
 			<path d="m5.5 17 4.5-4 3.25 3 2.5-2 2.75 3" />
-		</svg>
-	);
-}
-
-function UserIcon() {
-	return (
-		<svg viewBox="0 0 24 24" aria-hidden="true">
-			<circle cx="12" cy="8" r="3.5" />
-			<path d="M5.5 20c.6-4 2.75-6 6.5-6s5.9 2 6.5 6" />
 		</svg>
 	);
 }
@@ -918,20 +908,17 @@ export function LembraExperience({
 	const navItems: ReadonlyArray<{
 		id: ViewFilter;
 		label: string;
-		icon: ReactNode;
 		count: number;
 	}> = [
-		{ id: "all", label: "Lembra", icon: <ImageIcon />, count: references.length },
+		{ id: "all", label: "Lembra", count: references.length },
 		{
 			id: "mine",
 			label: "Meus itens",
-			icon: <UserIcon />,
 			count: references.filter((item) => item.mine).length,
 		},
 		{
 			id: "favorites",
 			label: "Favoritos",
-			icon: <HeartIcon />,
 			count: favoriteIds.size,
 		},
 	];
@@ -941,6 +928,7 @@ export function LembraExperience({
 		geometry?: LembraJustifiedItem,
 	) {
 		const favorite = favoriteIds.has(item.id);
+		const imageBroken = brokenImageIds.has(item.id);
 		return (
 			<article
 				className={styles.card}
@@ -949,17 +937,21 @@ export function LembraExperience({
 				data-gallery-card
 			>
 				<div
-					className={styles.media}
+					className={
+						imageBroken ? `${styles.media} ${styles.mediaUnavailable}` : styles.media
+					}
 					data-gallery-media
 					style={
-						geometry
-							? { height: `${geometry.height}px` }
-							: item.width && item.height
-								? { aspectRatio: `${item.width} / ${item.height}` }
-								: undefined
+						imageBroken
+							? undefined
+							: geometry
+								? { height: `${geometry.height}px` }
+								: item.width && item.height
+									? { aspectRatio: `${item.width} / ${item.height}` }
+									: undefined
 					}
 				>
-					{brokenImageIds.has(item.id) ? (
+					{imageBroken ? (
 						<div className={styles.mediaFallback} aria-hidden="true">
 							<ImageIcon />
 							<span>Imagem indisponível</span>
@@ -1025,24 +1017,6 @@ export function LembraExperience({
 
 	return (
 		<div className={styles.shell}>
-			<aside className={styles.sidebar} aria-label="Filtros do Lembra">
-				<nav className={styles.sidebarNav}>
-					{navItems.map((item) => (
-						<button
-							key={item.id}
-							type="button"
-							className={view === item.id ? styles.navItemActive : styles.navItem}
-							onClick={() => setView(item.id)}
-							aria-pressed={view === item.id}
-						>
-							<span className={styles.navIcon}>{item.icon}</span>
-							<span>{item.label}</span>
-							<span className={styles.navCount}>{item.count}</span>
-						</button>
-					))}
-				</nav>
-			</aside>
-
 			<section className={styles.content} aria-labelledby="lembra-title">
 				<h1 className={styles.visuallyHidden} id="lembra-title">
 					Lembra

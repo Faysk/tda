@@ -123,6 +123,31 @@ test("governed console shows people, human access, filters and technical details
 	await expect(
 		page.getByText("Administração governada", { exact: true }),
 	).toBeVisible();
+	await expect(
+		page.getByRole("navigation", { name: "Navegação do Edit" }),
+	).toHaveCount(0);
+	await expect(page.locator("[data-operational-page-header='true']")).toBeVisible();
+
+	const [headingBox, brandBox, triggerBox] = await Promise.all([
+		page.getByRole("heading", { level: 1, name: "Permissões" }).boundingBox(),
+		page.locator(".brand").boundingBox(),
+		page.locator(".account-menu-trigger").boundingBox(),
+	]);
+	expect(headingBox).not.toBeNull();
+	expect(brandBox).not.toBeNull();
+	expect(triggerBox).not.toBeNull();
+	if (headingBox && brandBox && triggerBox) {
+		const overlaps = (
+			left: { x: number; y: number; width: number; height: number },
+			right: { x: number; y: number; width: number; height: number },
+		) =>
+			left.x < right.x + right.width &&
+			left.x + left.width > right.x &&
+			left.y < right.y + right.height &&
+			left.y + left.height > right.y;
+		expect(overlaps(headingBox, brandBox)).toBeFalsy();
+		expect(overlaps(headingBox, triggerBox)).toBeFalsy();
+	}
 	await expect(page.getByRole("table")).toBeVisible();
 	await expect(page.getByRole("row", { name: /Pessoa member/u })).toBeVisible();
 	await expect(page.locator("body")).not.toContainText("PRIVATE_");
@@ -375,18 +400,52 @@ test("revoked admin authority fails closed on the next server request", async ({
 	}
 });
 
-test("mobile and 200% zoom keep management usable without horizontal overflow", async ({
+test("viewport matrix and 200% zoom keep management usable without horizontal overflow", async ({
 	page,
 	context,
 }, testInfo) => {
+	test.skip(
+		testInfo.project.name !== "permissions-desktop",
+		"The full viewport matrix runs once; project-level desktop/mobile coverage remains in the other permissions tests.",
+	);
+	test.setTimeout(60_000);
 	await login(context, "manager");
 
 	for (const viewport of [
+		{ width: 320, height: 800 },
 		{ width: 390, height: 844 },
 		{ width: 683, height: 384 },
+		{ width: 1366, height: 768 },
+		{ width: 1920, height: 1080 },
+		{ width: 2560, height: 1440 },
 	]) {
 		await page.setViewportSize(viewport);
 		await page.goto(path);
+		await expect(
+			page.getByRole("navigation", { name: "Navegação do Edit" }),
+		).toHaveCount(0);
+		const heading = page.getByRole("heading", { level: 1, name: "Permissões" });
+		await expect(heading).toBeVisible();
+		const [headingBox, brandBox, triggerBox] = await Promise.all([
+			heading.boundingBox(),
+			page.locator(".brand").boundingBox(),
+			page.locator(".account-menu-trigger").boundingBox(),
+		]);
+		expect(headingBox).not.toBeNull();
+		expect(brandBox).not.toBeNull();
+		expect(triggerBox).not.toBeNull();
+		if (headingBox && brandBox && triggerBox) {
+			const overlaps = (
+				left: { x: number; y: number; width: number; height: number },
+				right: { x: number; y: number; width: number; height: number },
+			) =>
+				left.x < right.x + right.width &&
+				left.x + left.width > right.x &&
+				left.y < right.y + right.height &&
+				left.y + left.height > right.y;
+			expect(overlaps(headingBox, brandBox)).toBeFalsy();
+			expect(overlaps(headingBox, triggerBox)).toBeFalsy();
+		}
 		const memberRow = page.getByRole("row", { name: /Pessoa member/u });
 		await memberRow.getByRole("button", { name: "Gerenciar" }).click();
 		const dialog = page.getByRole("dialog", { name: "Pessoa member" });

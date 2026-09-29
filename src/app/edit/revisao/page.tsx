@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { PublicLink as Link } from "@/components/public-link";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import {
 	authorizeCampaignCapabilityServer,
 	requireCapability,
@@ -99,20 +99,17 @@ export default async function NarrativeReviewPage({
 
 	return (
 		<section className={styles.shell}>
-			<nav className={styles.navigation} aria-label="Navegação do Edit">
-				<Link href="/edit/sessoes">← Sessões do Edit</Link>
-				<Link href="/mundo">Mundo</Link>
-			</nav>
-
-			<header className={styles.header}>
-				<p className={styles.eyebrow}>TDA / EDIT / REVISÃO</p>
-				<h1>Revisão narrativa</h1>
-				<p className={styles.lead}>
-					Compare cada claim com suas fontes antes de decidir. Só a opção de
-					cânone cria uma entrada <code>review_only</code>; as demais classificam
-					o candidate sem publicar conteúdo.
-				</p>
-			</header>
+			<OperationalPageHeader
+				eyebrow="Edit · Revisão"
+				title="Revisão narrativa"
+				description={
+					<p>
+						Compare cada claim com suas fontes antes de decidir. Só a opção de
+						cânone cria uma entrada <code>review_only</code>; as demais
+						classificam o candidate sem publicar conteúdo.
+					</p>
+				}
+			/>
 
 			<aside className={styles.notice}>
 				<strong>Gate humano obrigatório.</strong>

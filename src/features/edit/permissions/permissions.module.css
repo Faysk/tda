@@ -1,45 +1,10 @@
 .shell {
 	width: min(1480px, calc(100% - 2 * var(--ds-page-gutter)));
 	margin: 0 auto;
-	padding: 28px 0 64px;
+	padding: 14px 0 56px;
 	font-family: var(--ds-font-ui);
 	color: var(--ds-foreground);
 	overflow-wrap: anywhere;
-}
-
-.navigation {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 16px;
-	padding-inline:
-		var(--site-chrome-brand-clearance, 0px)
-		var(--site-chrome-profile-clearance, 0px);
-}
-
-.navigation a {
-	padding: 8px 0;
-}
-
-.header {
-	display: grid;
-	gap: 5px;
-	margin: 22px 0 18px;
-	padding-inline:
-		var(--site-chrome-brand-clearance, 0px)
-		var(--site-chrome-profile-clearance, 0px);
-}
-
-.header h1 {
-	margin: 0;
-	font-family: var(--ds-font-display);
-	font-size: clamp(2rem, 4vw, 3.4rem);
-	font-weight: 500;
-	line-height: 1;
-}
-
-.header p {
-	margin: 0;
-	color: var(--ds-foreground-muted);
 }
 
 .summaryBar,
@@ -535,7 +500,6 @@
 .searchField input:focus-visible,
 .filterField select:focus-visible,
 .reasonField textarea:focus-visible,
-.navigation a:focus-visible,
 .summaryActions button:focus-visible,
 .peopleTable button:focus-visible,
 .drawer button:focus-visible,
@@ -581,11 +545,6 @@
 	.shell {
 		width: min(100% - 32px, 1480px);
 		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
-	}
-
-	.header,
-	.navigation {
-		padding-inline: 0;
 	}
 
 	.summaryBar {
