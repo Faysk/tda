@@ -50,11 +50,91 @@
 }
 
 .root .relationSurface {
+	position: relative;
 	padding-left: 10px;
 }
 
 .root .relationSurface select {
 	height: 38px;
+}
+
+.relationDetails {
+	position: relative;
+	flex: 0 0 auto;
+	margin-right: 4px;
+}
+
+.relationDetails > summary {
+	display: grid;
+	width: 30px;
+	height: 30px;
+	place-items: center;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	color: var(--ds-foreground-muted);
+	font: 750 0.7rem/1 var(--ds-font-ui);
+	cursor: pointer;
+	list-style: none;
+}
+
+.relationDetails > summary::-webkit-details-marker {
+	display: none;
+}
+
+.relationDetails > summary:hover,
+.relationDetails > summary:focus-visible {
+	border-color: var(--ds-control-border);
+	background: var(--ds-surface-hover);
+	color: var(--ds-foreground);
+	outline: none;
+}
+
+.relationPopover {
+	position: absolute;
+	top: calc(100% + 8px);
+	right: 0;
+	z-index: 32;
+	display: grid;
+	width: min(360px, calc(100vw - 32px));
+	gap: 9px;
+	padding: 11px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 96%, transparent);
+	box-shadow: 0 16px 40px color-mix(in srgb, var(--ds-canvas) 54%, transparent);
+	backdrop-filter: blur(18px) saturate(112%);
+}
+
+.relationPopover > strong {
+	color: var(--ds-foreground);
+	font: 700 0.72rem/1.2 var(--ds-font-ui);
+}
+
+.relationLegendList {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.relationLegendList .legendItem {
+	display: inline-flex;
+	min-height: 30px;
+	align-items: center;
+	gap: 7px;
+	padding: 0 8px;
+	border-radius: 999px;
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground-soft);
+	font: 620 0.68rem/1 var(--ds-font-ui);
+}
+
+.relationLegendList .legendItem::before {
+	width: 18px;
+	height: 2px;
+	border-radius: 999px;
+	background: var(--world-relation-color, var(--world-edge-context));
+	box-shadow: 0 0 6px color-mix(in srgb, var(--world-relation-color, var(--world-edge-context)) 62%, transparent);
+	content: "";
 }
 
 .root .resetSurface {
@@ -97,8 +177,6 @@
 .secondary {
 	display: flex;
 	align-items: flex-start;
-	justify-content: space-between;
-	gap: 10px;
 	min-width: 0;
 	padding: 0 6px;
 }
@@ -204,9 +282,6 @@
 		pointer-events: auto;
 	}
 
-	.root .legendRail {
-		pointer-events: none;
-	}
 }
 
 @media (min-width: 1121px) {
@@ -250,8 +325,7 @@
 		padding: 0;
 	}
 
-	.root .filterRail,
-	.root .legendRail {
+	.root .filterRail {
 		width: 100%;
 		max-width: none;
 	}
@@ -326,8 +400,9 @@
 		gap: 0;
 	}
 
-	.root .legendRail {
-		display: none;
+	.relationDetails > summary {
+		width: 36px;
+		height: 36px;
 	}
 }
 
