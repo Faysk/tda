@@ -25,6 +25,27 @@ $privileges$;
 
 begin;
 
+insert into public.role_permissions(role_id, permission_action)
+values (
+  '66666666-6666-4666-8666-666666666666',
+  'campaign.transcript.publish'
+)
+on conflict do nothing;
+
+insert into public.role_assignments(
+  id, profile_id, role_id, scope_type, scope_id, status, starts_at
+)
+values (
+  'a1000000-0000-4000-8000-000000000000',
+  '33333333-3333-4333-8333-333333333333',
+  '66666666-6666-4666-8666-666666666666',
+  'campaign',
+  'synthetic-campaign',
+  'active',
+  now()
+)
+on conflict (id) do nothing;
+
 do $contract$
 declare
   v_input jsonb;
