@@ -50,7 +50,12 @@ NODE
 )"
 
 if [[ "$CHALLENGE_COUNT" != "0" ]]; then
-  node tools/media/verify-public-browser.mjs "$RECEIPT"
+  command -v xvfb-run >/dev/null 2>&1 || {
+    echo "::error::xvfb-run is required for full Chromium public media verification"
+    exit 1
+  }
+  xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
+    node tools/media/verify-public-browser.mjs "$RECEIPT"
 fi
 
 SUMMARY_LINE="$(
