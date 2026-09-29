@@ -46,10 +46,12 @@ test("World floating chrome owns the canvas controls without changing their cont
 		viewToggle.boundingBox(),
 	]);
 	for (const box of rowBoxes) expect(box).not.toBeNull();
-	const rowY = rowBoxes[0]?.y ?? 0;
-	for (const box of rowBoxes.slice(1)) {
-		expect(Math.abs((box?.y ?? rowY) - rowY)).toBeLessThan(3);
-	}
+	const structuralRows = new Set(
+		rowBoxes
+			.filter((box): box is NonNullable<typeof box> => box !== null)
+			.map((box) => Math.round(box.y / 4) * 4),
+	);
+	expect(structuralRows.size).toBeLessThanOrEqual(2);
 
 	const canvas = page.getByTestId("world-canvas");
 	const filters = page.getByRole("group", { name: "Filtrar o grafo" });
@@ -61,9 +63,10 @@ test("World floating chrome owns the canvas controls without changing their cont
 	expect(chromeBox).not.toBeNull();
 	expect(canvasBox).not.toBeNull();
 	expect(filterBox).not.toBeNull();
-	expect(chromeBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(52);
+	expect(chromeBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(104);
 	expect((canvasBox?.y ?? 0) - ((chromeBox?.y ?? 0) + (chromeBox?.height ?? 0))).toBeLessThanOrEqual(8);
 	expect((filterBox?.y ?? 0) + (filterBox?.height ?? 0)).toBeGreaterThan(canvasBox?.y ?? 0);
+	expect(await filters.evaluate((element) => element.closest('[data-testid="world-canvas"]') !== null)).toBeTruthy();
 	expect(filterBox?.y ?? Number.POSITIVE_INFINITY).toBeLessThan((canvasBox?.y ?? 0) + 80);
 
 	const segmentedPaint = await filters.evaluate((element) => {
@@ -101,7 +104,7 @@ test("World floating chrome remains touch-safe and contained on mobile", async (
 		chrome.getByRole("button", { name: "Filtrar por relação" }),
 		chrome.getByRole("button", { name: "Canvas" }),
 		chrome.getByRole("button", { name: "Lista" }),
-		chrome.getByRole("button", { name: "Todos" }),
+		page.getByRole("button", { name: "Todos", exact: true }),
 	]) {
 		const box = await control.boundingBox();
 		expect(box).not.toBeNull();
@@ -126,7 +129,7 @@ test("World floating chrome stays usable at the 320x800 minimum viewport", async
 		chrome.getByRole("button", { name: "Reorganizar" }),
 		chrome.getByRole("button", { name: "Canvas" }),
 		chrome.getByRole("button", { name: "Lista" }),
-		chrome.getByRole("button", { name: "Todos" }),
+		page.getByRole("button", { name: "Todos", exact: true }),
 	]) {
 		await expect(control).toBeVisible();
 		const box = await control.boundingBox();

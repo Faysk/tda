@@ -575,3 +575,45 @@
 		opacity: 0;
 	}
 }
+
+.routeStatus {
+	display: inline-flex;
+	width: fit-content;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.8rem;
+	font-weight: 600;
+	line-height: 1.4;
+}
+
+.routeStatus::before {
+	width: 7px;
+	height: 7px;
+	flex: 0 0 7px;
+	border-radius: 999px;
+	background: var(--ds-accent);
+	content: "";
+	animation: route-status-pulse 1.25s ease-in-out infinite;
+}
+
+@keyframes route-status-pulse {
+	0%,
+	100% {
+		opacity: 0.35;
+		transform: scale(0.82);
+	}
+
+	50% {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.routeStatus::before {
+		animation: none;
+	}
+}

@@ -98,21 +98,28 @@ export default async function Session({ params }: SessionParams) {
 	} catch (error) {
 		if (!(error instanceof PublishedSessionUnavailableError)) throw error;
 		return (
-			<section className="page-section">
-				<Eyebrow>Arquivo de sessões</Eyebrow>
-				<DisplayTitle>Esta sessão está temporariamente indisponível.</DisplayTitle>
-				<p>Não conseguimos consultar o arquivo agora. Tente novamente em instantes.</p>
-				<p>
-					<Link
-						className="ds-action ds-action--primary ds-action--md"
-						href={`/sessoes/${encodeURIComponent(id)}`}
-					>
-						Tentar novamente
-					</Link>{" "}
-					<Link className="ds-action ds-action--secondary ds-action--md" href="/sessoes">
-						Voltar às sessões
-					</Link>
-				</p>
+			<section className={styles.unavailable}>
+				<div className={styles.unavailableInner}>
+					<Eyebrow>Arquivo de sessões</Eyebrow>
+					<DisplayTitle className={styles.unavailableTitle}>
+						Esta sessão está temporariamente indisponível.
+					</DisplayTitle>
+					<p>Não conseguimos consultar o arquivo agora. Tente novamente em instantes.</p>
+					<div className={styles.unavailableActions}>
+						<Link
+							className="ds-action ds-action--primary ds-action--md"
+							href={`/sessoes/${encodeURIComponent(id)}`}
+						>
+							Tentar novamente
+						</Link>
+						<Link
+							className="ds-action ds-action--secondary ds-action--md"
+							href="/sessoes"
+						>
+							Voltar às sessões
+						</Link>
+					</div>
+				</div>
 			</section>
 		);
 	}
@@ -136,7 +143,10 @@ export default async function Session({ params }: SessionParams) {
 
 	return (
 		<article className={styles.page}>
-			<header className={`${styles.hero}${image ? ` ${styles.heroWithArt}` : ""}`}>
+			<header
+				className={`${styles.hero}${image ? ` ${styles.heroWithArt}` : ""}`}
+				data-session-reader-hero
+			>
 				{image ? (
 					<>
 						<Image
@@ -169,7 +179,7 @@ export default async function Session({ params }: SessionParams) {
 				</div>
 			</header>
 
-			<div className={styles.body}>
+			<div className={styles.body} data-session-reading>
 				<div className={styles.readingIntro}>
 					<span className={styles.chapterMark} aria-hidden="true">
 						◆

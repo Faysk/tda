@@ -1,11 +1,25 @@
 # World Workspace — chrome espacial e sobreposição
 
-> Status: direção UX aprovada; implementação planejada
+> Status: direção UX aprovada; implementação concluída no código desta revisão; publicação não inferida
 > Owner: product / design-system / frontend / narrative-memory
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-29
 > Fonte: feedback visual do proprietário sobre `/mundo` em desktop Full HD e modo `Conduzir`
 
 Este documento fecha a direção de composição do **World Workspace** depois do polimento de interação espacial. O objetivo é preservar o canvas como superfície dominante, reduzir chrome vertical e eliminar qualquer comportamento em que menu, inspector ou ferramenta lateral comprimam o mapa.
+
+## Estado da implementação — 29/09/2026
+
+A migração descrita aqui foi consolidada na revisão ligada à [issue #1085](https://github.com/Faysk/tda/issues/1085) e ao [PR #1106](https://github.com/Faysk/tda/pull/1106):
+
+- o stage/canvas deixou de depender de colunas reservadas por navegação ou inspector;
+- navegação esquerda e inspector direito compartilham a mesma gramática de edge tab e entram como overlays;
+- o modo público e o modo `Conduzir` deixaram de manter contratos geométricos paralelos;
+- busca, condução/status, relação, ação de layout e alternância Canvas/Lista pertencem à mesma workspace bar responsiva;
+- o rail de categorias é filho visual do canvas e não reduz a altura do React Flow;
+- a legenda permanente de relações saiu da faixa estrutural e passou para disclosure contextual;
+- módulos V3 corretivos e o antigo modo docked baseado em classe no `body` foram removidos depois de perderem consumidores.
+
+Evidência de validação desta revisão: o workflow **World Map Scale E2E** [run 36616781795](https://github.com/Faysk/tda/actions/runs/36616781795) concluiu com build e contratos de viewport/mapa em sucesso no head da implementação. O PR também amplia o gate `navigation-e2e` com contratos geométricos para 1920×1080, 2560×1440, 1366×768 e mobile. Esses recibos comprovam código/teste da revisão; **não são prova de deployment em Production**.
 
 Ler em conjunto com [World Explorer — composição e UX oficial](world-explorer-ui.md) e [Diretriz geral de UX, design e hierarquia](ux-hierarchy.md). Este documento especializa essas regras para o shell espacial do Mundo; não altera autorização, canon, lease, draft/publish ou o motor React Flow.
 

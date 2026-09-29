@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { TranscriptInventory } from "@/features/transcripts/statistics/inventory";
@@ -66,7 +67,7 @@ export default async function TranscriptsPage({
 								};
 		return (
 			<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
-				<h1>Transcrições</h1>
+				<OperationalPageHeader eyebrow="Transcrições" title="Transcrições" />
 				<p role="status">{state.message}</p>
 				<Link href={state.href}>{state.label}</Link>
 			</section>
@@ -80,12 +81,14 @@ export default async function TranscriptsPage({
 
 	return (
 		<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
-			<header className={styles.header}>
-				<p className={styles.eyebrow}>TDA · TRANSCRIÇÕES</p>
-				<h1>
-					Transcrições <span>· {campaign}</span>
-				</h1>
-			</header>
+			<OperationalPageHeader
+				eyebrow="Transcrições"
+				title={
+					<>
+						Transcrições <span className={styles.campaign}>· {campaign}</span>
+					</>
+				}
+			/>
 
 			<dl className={styles.summaryStrip} aria-label="Resumo das transcrições">
 				<div>

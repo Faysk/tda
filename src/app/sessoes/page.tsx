@@ -57,7 +57,11 @@ export default async function Sessions() {
 
 	return (
 		<div className={styles.page} data-layout-family="editorial" data-layout-role="expansive">
-			<section className={styles.hero} aria-labelledby="archive-title">
+			<section
+				className={styles.hero}
+				aria-labelledby="archive-title"
+				data-session-archive-hero
+			>
 				{artwork ? (
 					<div className={styles.backdrop} aria-hidden="true">
 						<Image
@@ -72,7 +76,7 @@ export default async function Sessions() {
 				) : null}
 				<div className={styles.backdropShade} aria-hidden="true" />
 				<div className={styles.heroInner}>
-					<header className={styles.heroCopy}>
+					<header className={styles.heroCopy} data-session-archive-copy>
 						<Eyebrow className={styles.eyebrow}>Arquivo da campanha</Eyebrow>
 						<h1 className={styles.title} id="archive-title">
 							As histórias até aqui
@@ -107,19 +111,21 @@ export default async function Sessions() {
 			</section>
 
 			<section className={styles.archive} aria-label="Sessões publicadas">
-				{sessions === undefined ? (
-					<p className={styles.state} role="status">
-						Não foi possível carregar as sessões. Tente novamente em instantes.
-					</p>
-				) : sessions === null ? (
-					<p className={styles.state}>
-						Estamos preparando o arquivo da campanha.
-					</p>
-				) : sessions.length ? (
-					<SessionList sessions={sessions} />
-				) : (
-					<p className={styles.state}>Nenhuma sessão publicada ainda.</p>
-				)}
+				<div className={styles.archiveRail} data-session-archive-rail>
+					{sessions === undefined ? (
+						<p className={styles.state} role="status">
+							Não foi possível carregar as sessões. Tente novamente em instantes.
+						</p>
+					) : sessions === null ? (
+						<p className={styles.state}>
+							Estamos preparando o arquivo da campanha.
+						</p>
+					) : sessions.length ? (
+						<SessionList sessions={sessions} />
+					) : (
+						<p className={styles.state}>Nenhuma sessão publicada ainda.</p>
+					)}
+				</div>
 			</section>
 		</div>
 	);

@@ -83,10 +83,10 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Design System oficial do TDA](../design-system/README.md) | design-system / frontend | canônico; fundação runtime e superfícies públicas implementadas | 2026-09-12 |
 | [Plano de migração do Design System para o reboot](../design-system/migration-plan.md) | design-system / frontend | DS-1/DS-2/DS-3 concluídas; DS-4 parcial; DS-5 implementada; DS-7 cleanup legado aplicado | 2026-09-07 |
 | [Assets oficiais da marca TDA](../design-system/official-assets.md) | brand / design-system | canônico para marca; runtime web migrado para R2 | 2026-09-29 |
-| [Superfícies públicas — ownership visual e composição](../design-system/public-surfaces.md) | design-system / frontend público | implementado; atualizado após Home V2 e shell responsiva | 2026-09-28 |
+| [Superfícies públicas — ownership visual e composição](../design-system/public-surfaces.md) | design-system / frontend público | implementado; baseline cinematográfica da Home formalizada | 2026-09-29 |
 | [TDA — Diretriz geral de UX, design e hierarquia visual](../design-system/ux-hierarchy.md) | design-system / frontend | canônico | 2026-09-12 |
 | [World Explorer — composição e UX oficial](../design-system/world-explorer-ui.md) | product / design-system / narrative-memory | direção visual aprovada; workspace atual implementado, chrome v3 planejado | 2026-09-12 |
-| [World Workspace — chrome espacial e sobreposição](../design-system/world-explorer-workspace-chrome-v3.md) | product / design-system / frontend / narrative-memory | direção UX aprovada; implementação planejada | 2026-09-12 |
+| [World Workspace — chrome espacial e sobreposição](../design-system/world-explorer-workspace-chrome-v3.md) | product / design-system / frontend / narrative-memory | direção UX aprovada; implementação concluída no código desta revisão; publicação não inferida | 2026-09-29 |
 
 ## docs/documentation
 
@@ -124,7 +124,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Edit Workbench — área administrativa do TDA](../features/edit-workbench.md) | Edit / produto + frontend | arquitetura aprovada; implementação incremental em andamento | 2026-09-07 |
 | [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | preparado; projection publicada pendente | 2026-09-08 |
 | [Feature — Timeline por entidade](../features/entity-timeline.md) | narrative-memory | preparado | 2026-09-06 |
-| [Navegação global do TDA](../features/global-navigation.md) | navigation / frontend / identity-access | painel global unificado integrado; contrato e QA automatizado ativos | 2026-09-28 |
+| [Navegação global do TDA](../features/global-navigation.md) | navigation / frontend / identity-access | painel global unificado integrado; contrato e QA automatizado ativos | 2026-09-29 |
 | [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | arquitetura aprovada; decisão editorial, não comprovação de implementação | 2026-09-13 |
 | [Feature/conceito — Intents / intenção](../features/intents.md) | não atribuído | **não definido / não encontrado como conceito canônico** | 2026-09-06 |
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-19 |
