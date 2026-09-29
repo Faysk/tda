@@ -6,10 +6,16 @@
 		var(--ds-canvas);
 }
 
+.hero,
+.archive {
+	width: min(100%, var(--ds-layout-max, 2160px));
+	margin-inline: auto;
+	padding-inline: var(--ds-page-gutter, clamp(20px, 3.5vw, 72px));
+}
+
 .hero {
-	width: min(1120px, calc(100% - 40px));
-	margin: 0 auto;
-	padding: clamp(72px, 9vw, 132px) 0 clamp(42px, 6vw, 76px);
+	padding-top: clamp(72px, 9vw, 132px);
+	padding-bottom: clamp(42px, 6vw, 76px);
 }
 
 .eyebrow {
@@ -37,9 +43,7 @@
 
 .archive {
 	display: grid;
-	gap: 32px;
-	width: min(1120px, calc(100% - 40px));
-	margin: 0 auto;
+	gap: clamp(24px, 2.2vw, 40px);
 }
 
 .card {
@@ -77,6 +81,11 @@
 	padding: clamp(28px, 5vw, 68px);
 	color: #fffaf1;
 	text-decoration: none;
+}
+
+.cardLink:focus-visible {
+	outline: 2px solid var(--ds-on-art-accent, #f2c879);
+	outline-offset: -6px;
 }
 
 .cardCopy {
@@ -127,11 +136,6 @@
 }
 
 @media (max-width: 650px) {
-	.hero,
-	.archive {
-		width: calc(100% - 28px);
-	}
-
 	.hero {
 		padding-top: max(54px, calc(var(--site-chrome-panel-top, 66px) + 8px));
 	}

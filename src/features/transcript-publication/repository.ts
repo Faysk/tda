@@ -40,7 +40,9 @@ export const databasePublicationDependencies: PublicationDependencies = {
 			},
 			target: async (expected) => {
 				// This lookup is reached only after authorizePublicationRequest
-				// proves the operator has the exact campaign scope.
+				// proves the operator has the exact campaign scope. A missing
+				// local_companion session is a valid *unresolved* first-handoff
+				// state; the atomic commit boundary may create it later.
 				const { data: campaign, error: campaignError } = await client
 					.from("campaigns")
 					.select("id")
@@ -54,27 +56,29 @@ export const databasePublicationDependencies: PublicationDependencies = {
 				if (!campaign)
 					return { ok: false as const, reason: "not_found" as const };
 
-				const { data: session, error: sessionError } = await client
+				const { data: sessions, error: sessionError } = await client
 					.from("sessions")
-					.select("id")
+					.select("id,source_system")
 					.eq("campaign_id", campaign.id)
-					.eq("source_system", "local_companion")
 					.eq("source_session_id", expected.sourceSessionId)
-					.maybeSingle();
+					.limit(2);
 				if (sessionError)
 					return {
 						ok: false as const,
 						reason: "dependency_unavailable" as const,
 					};
-				return session
-					? {
-							ok: true as const,
-							value: {
-								campaignId: campaign.id,
-								sessionId: session.id,
-							},
-						}
-					: { ok: false as const, reason: "not_found" as const };
+				if ((sessions ?? []).length > 1)
+					return { ok: false as const, reason: "conflict" as const };
+				const session = sessions?.[0];
+				if (session && session.source_system !== "local_companion")
+					return { ok: false as const, reason: "conflict" as const };
+				return {
+					ok: true as const,
+					value: {
+						campaignId: campaign.id,
+						sessionId: session?.id ?? null,
+					},
+				};
 			},
 		});
 	},
@@ -103,27 +107,26 @@ async function invoke(
 		payloadJson: input.payloadJson,
 		segmentCount: input.segmentCount,
 	};
-	const { data, error } =
-		input.publicationKind === "single_source"
-			? await client.rpc("publish_transcript_revision_atomic", {
-					p_auth_user_id: actor.authUserId,
-					p_actor_profile_id: actor.profileId,
-					p_input: {
-						...commonInput,
-						sourceId: input.sourceId,
-						runId: input.runId,
-					},
-					p_lookup_only: lookupOnly,
-				})
-			: await client.rpc("publish_transcript_assembly_revision_atomic", {
-					p_auth_user_id: actor.authUserId,
-					p_actor_profile_id: actor.profileId,
-					p_input: {
-						...commonInput,
-						provenance: input.provenance,
-					},
-					p_lookup_only: lookupOnly,
-				});
+	const { data, error } = await client.rpc(
+		"prepare_transcript_handoff_atomic",
+		{
+			p_auth_user_id: actor.authUserId,
+			p_actor_profile_id: actor.profileId,
+			p_publication_kind: input.publicationKind,
+			p_input:
+				input.publicationKind === "single_source"
+					? {
+							...commonInput,
+							sourceId: input.sourceId,
+							runId: input.runId,
+						}
+					: {
+							...commonInput,
+							provenance: input.provenance,
+						},
+			p_lookup_only: lookupOnly,
+		},
+	);
 	if (
 		error ||
 		!data ||
@@ -151,6 +154,11 @@ async function invoke(
 export async function readCurrentPublication(actor: AuthorizedPublicationActor) {
 	const client = editDataClient();
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
+	if (actor.sessionId === null)
+		return {
+			ok: true as const,
+			current: { actorProfileId: actor.profileId, revisionId: null },
+		};
 	const { data, error } = await client
 		.from("sessions")
 		.select("current_transcript_revision_id")
@@ -174,6 +182,7 @@ export async function setCurrentPublication(
 ): Promise<CurrentMutationResult> {
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
+	if (actor.sessionId === null) return { ok: false, reason: "not_found" };
 
 	const { data, error } = await client.rpc(
 		"set_current_transcript_revision_atomic",

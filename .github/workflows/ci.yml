@@ -285,6 +285,13 @@ jobs:
           tests/world-authoring-command-palette.spec.ts
           --project=desktop-1080p
           --project=mobile
+      - name: Loader and standalone favicon contracts
+        run: >-
+          pnpm exec playwright test
+          tests/global-loading.spec.ts
+          tests/d-lore-reading-mode.spec.ts
+          --project=desktop-1080p
+          --project=mobile
       - name: Global navigation and shell contracts
         run: >-
           pnpm exec playwright test

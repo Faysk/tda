@@ -24,8 +24,8 @@ export function ReviewFixture() {
 		persistence: ephemeral ? "ephemeral_base" : "persisted",
 		...(oldAgent ? {} : { snapshotContract: "tda_local_review_cas_v1" }),
 		status: bulk || publication ? "approved_local" : "draft",
-		approvalCurrent: false,
-		approvedAt: null,
+		approvalCurrent: bulk || publication,
+		approvedAt: bulk || publication ? "2026-09-26T12:00:01Z" : null,
 		createdAt: ephemeral ? null : "2026-09-26T12:00:00Z",
 		updatedAt: ephemeral ? null : "2026-09-26T12:00:00Z",
 		lineage: {
@@ -83,6 +83,7 @@ export function ReviewFixture() {
 				segmentId: "1-0",
 				start: 0,
 				end: 1,
+				...(publication ? { timelineStart: 120, timelineEnd: 121 } : {}),
 				text: "Olá\u0085mundo",
 				speaker: "Participante sintético",
 				reviewed: false,
@@ -185,11 +186,18 @@ export function ReviewFixture() {
                 setSaveCount((count) => count + 1);
                 setSaveError(null);
                 if (new URLSearchParams(location.search).has("conflict") && baseline.draftRevision !== 2) { setSaveError("LOCAL_REVIEW_DRAFT_CONFLICT"); return; }
+                const approvalOnly =
+                    status === "approved_local" &&
+                    baseline.persistence === "persisted" &&
+                    JSON.stringify(segments) === JSON.stringify(baseline.segments);
                 setReview({ ...baseline, status, segments,
 				approvalCurrent: status === "approved_local",
 				approvedAt: status === "approved_local" ? "2026-09-26T12:00:01Z" : null,
-				persistence: "persisted", draftRevision: (baseline.draftRevision ?? 0) + 1,
-				draftSha256: "e".repeat(64), createdAt: "2026-09-26T12:00:00Z", updatedAt: "2026-09-26T12:00:00Z" }); }}
+				persistence: "persisted",
+                draftRevision: approvalOnly ? baseline.draftRevision : (baseline.draftRevision ?? 0) + 1,
+				draftSha256: approvalOnly ? baseline.draftSha256 : "e".repeat(64),
+                createdAt: baseline.createdAt ?? "2026-09-26T12:00:00Z",
+                updatedAt: approvalOnly ? baseline.updatedAt : "2026-09-26T12:00:00Z" }); }}
 			onLoadLatest={async () => ({ ...review, draftRevision: 2, draftSha256: "f".repeat(64), status: "approved_local",
                 segments: review.segments.map((segment, index) => index === 0 ? { ...segment, speaker: "Remoto" } : index === 1 ? { ...segment, text: "Fala remota" } : segment),
             })}

@@ -7,7 +7,7 @@ import type { PublicationTarget } from "./contract";
 
 export type ResolvedPublicationTarget = Readonly<{
 	campaignId: string;
-	sessionId: string;
+	sessionId: string | null;
 }>;
 
 export type PublicationAuthorizationQueries = Readonly<{
@@ -21,7 +21,7 @@ export type PublicationAuthorizationQueries = Readonly<{
 		| Readonly<{ ok: true; value: ResolvedPublicationTarget }>
 		| Readonly<{
 				ok: false;
-				reason: "not_found" | "dependency_unavailable";
+				reason: "not_found" | "conflict" | "dependency_unavailable";
 		  }>
 	>;
 }>;
