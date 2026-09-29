@@ -345,6 +345,7 @@ function ReviewEditor({
 	const [publicationRecovery, setPublicationRecovery] = useState<PublicationConfirmation | null>(null);
     const publicationCurrent = publicationRecovery?.current;
 	const [publishConfirmation, setPublishConfirmation] = useState(false);
+	const publishDialog = useRef<HTMLDialogElement>(null);
 	const [publishing, setPublishing] = useState(false);
     const editingBlocked = busy || comparing || comparison !== null || publishing;
 	const [publicationErrorCode, setPublicationErrorCode] = useState<string | null>(null);
@@ -356,6 +357,13 @@ function ReviewEditor({
 	useEffect(() => {
 		if (editingKey) editingTextRef.current?.focus();
 	}, [editingKey]);
+
+	useEffect(() => {
+		const dialog = publishDialog.current;
+		if (!dialog) return;
+		if (publishConfirmation && !dialog.open) dialog.showModal();
+		if (!publishConfirmation && dialog.open) dialog.close();
+	}, [publishConfirmation]);
 
 	useEffect(() => {
 		if (lastServerReview.current === review) return;
@@ -803,12 +811,18 @@ function ReviewEditor({
 				</div>
 			) : null}
 
-			{publishConfirmation && review.publicationTarget ? (
-				<section
+			{review.publicationTarget ? (
+				<dialog
+					ref={publishDialog}
 					className={styles.publishConfirmation}
 					role="alertdialog"
+					aria-modal="true"
 					aria-labelledby="publication-confirmation-title"
 					aria-describedby="publication-confirmation-detail"
+					onCancel={(event) => {
+						event.preventDefault();
+						if (!publishing) setPublishConfirmation(false);
+					}}
 				>
 					<div>
 						<span className={styles.eyebrow}>Handoff privado</span>
@@ -829,6 +843,7 @@ function ReviewEditor({
 					</div>
 					<div className={styles.publishActions}>
 						<Button
+							autoFocus
 							size="sm"
 							variant="tertiary"
 							disabled={publishing}
@@ -845,7 +860,7 @@ function ReviewEditor({
 							{publishing ? "Preparando…" : "Preparar sessão"}
 						</Button>
 					</div>
-				</section>
+				</dialog>
 			) : null}
 
 			{!approvalCurrent && !review.publicationTarget && onRepairTarget ? (
