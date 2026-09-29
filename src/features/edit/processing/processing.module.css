@@ -1937,11 +1937,13 @@
 
 /* Contextual per-job diagnostics inspector */
 .jobDiagnosticsDialog {
+	position: fixed;
+	inset: 0 0 0 auto;
 	width: min(760px, 94vw);
 	max-width: none;
 	height: 100dvh;
 	max-height: 100dvh;
-	margin: 0 0 0 auto;
+	margin: 0;
 	padding: 0;
 	border: 0;
 	border-inline-start: 1px solid var(--ds-border);
