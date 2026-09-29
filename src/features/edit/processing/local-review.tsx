@@ -889,6 +889,8 @@ export function LocalReviewWorkspace({
 	const [deleteTarget, setDeleteTarget] = useState<LocalRunSummary | null>(null);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const deleteDialog = useRef<HTMLDialogElement>(null);
+	const handledFocusRequest = useRef(0);
+	const pendingDomFocusRequest = useRef<number | null>(null);
 	const filteredRuns = useMemo(() => {
 		const query = libraryQuery.trim().toLocaleLowerCase("pt-BR");
 		const values = runs.filter((run) => {
@@ -970,14 +972,22 @@ export function LocalReviewWorkspace({
 	}, [selectedRun, selectedRunKey]);
 
 	useEffect(() => {
-		if (!focusRunKey) return;
+		if (
+			!focusRunKey ||
+			focusRunRequestId <= 0 ||
+			handledFocusRequest.current === focusRunRequestId
+		)
+			return;
 		const target = runs.find(
 			(run) => serializeLocalRunKey(localRunKey(run)) === focusRunKey,
 		);
 		if (!target) return;
 
-		// Queue -> Results navigation is identity-driven. Clear library filters
-		// that could hide the exact run, then select it without opening review.
+		// Queue -> Results navigation is a one-shot identity request. Clear
+		// filters that could hide the exact run, select it, and then consume the
+		// request so later background refreshes never steal the user's selection.
+		handledFocusRequest.current = focusRunRequestId;
+		pendingDomFocusRequest.current = focusRunRequestId;
 		setLibraryQuery("");
 		setProfileFilter("all");
 		setReviewFilter("all");
@@ -985,11 +995,17 @@ export function LocalReviewWorkspace({
 	}, [focusRunKey, focusRunRequestId, runs]);
 
 	useLayoutEffect(() => {
-		if (!focusRunKey || selectedRunKey !== focusRunKey) return;
+		if (
+			!focusRunKey ||
+			selectedRunKey !== focusRunKey ||
+			pendingDomFocusRequest.current !== focusRunRequestId
+		)
+			return;
 		const targetButton = [...document.querySelectorAll<HTMLButtonElement>(
 			"button[data-local-run-key]",
 		)].find((button) => button.dataset.localRunKey === focusRunKey);
 		if (!targetButton) return;
+		pendingDomFocusRequest.current = null;
 		targetButton.focus({ preventScroll: true });
 		targetButton.scrollIntoView({ block: "nearest", inline: "nearest" });
 	}, [focusRunKey, focusRunRequestId, selectedRunKey]);
