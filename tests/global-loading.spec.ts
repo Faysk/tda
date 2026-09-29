@@ -126,34 +126,22 @@ test("global loader follows the active light and dark design-system theme", asyn
 	expect(light.backgroundImage).not.toBe(dark.backgroundImage);
 });
 
-test("global loader keeps the canonical decoded mark for a same-origin form navigation intent", async ({
+test("global loader keeps the canonical decoded mark during a real route transition", async ({
 	page,
 }) => {
-	await page.goto("/");
+	await page.goto("/e2e-fixtures/global-loading");
 
-	await page.evaluate(() => {
-		const form = document.createElement("form");
-		form.id = "global-loader-route-form";
-		form.action = "/sessoes";
-		form.method = "get";
-
-		const submit = document.createElement("button");
-		submit.type = "submit";
-		submit.textContent = "Abrir arquivo de sessões";
-		form.append(submit);
-		document.body.append(form);
-
-		// The app bridge is already registered on window. Registering this later
-		// lets the bridge observe the real, non-prevented submit first, then keeps
-		// the test on the current document long enough to inspect the transition.
-		window.addEventListener("submit", (event) => event.preventDefault(), {
-			once: true,
-		});
-		form.requestSubmit(submit);
+	const navigation = page.waitForURL(/\/e2e-fixtures\/global-loading\/slow$/u);
+	await page.getByRole("link", { name: "Abrir rota lenta" }).click({
+		noWaitAfter: true,
 	});
 
 	await expect(page.locator(overlay)).toBeVisible();
 	await expectLoaderLogoLoaded(page);
+	await navigation;
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+		"Global Loading E2E Target",
+	);
 });
 
 test("global loader preserves the decoded mark with reduced motion", async ({ page }) => {
