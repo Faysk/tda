@@ -314,7 +314,11 @@ export function ProcessingQueueView({
 								const detailsId = `queue-job-details-${job.id}`;
 								return (
 									<Fragment key={job.id}>
-										<tr className={styles.row} data-status={job.status}>
+										<tr
+										className={styles.row}
+										data-status={job.status}
+										data-job-id={job.id}
+									>
 											<td
 												data-label="Sessão / source"
 												className={styles.identityCell}
