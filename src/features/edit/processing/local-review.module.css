@@ -1,4 +1,9 @@
-.library,
+.library {
+	display: grid;
+	gap: 10px;
+	min-width: 0;
+}
+
 .editor {
 	display: grid;
 	gap: 14px;
@@ -45,6 +50,49 @@
 	font-size: 1.25rem;
 }
 
+.libraryTitleLine {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	min-width: 0;
+}
+
+.libraryCount {
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: .72rem;
+	font-weight: 650;
+	white-space: nowrap;
+}
+
+.libraryHelp {
+	position: relative;
+	align-self: center;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: .72rem;
+}
+
+.libraryHelp summary {
+	cursor: pointer;
+	font-weight: 650;
+}
+
+.libraryHelp p {
+	position: absolute;
+	right: 0;
+	z-index: 2;
+	width: min(360px, 80vw);
+	margin: 6px 0 0;
+	padding: 9px 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface-elevated);
+	box-shadow: var(--ds-shadow-sm);
+	color: var(--ds-foreground-soft);
+	line-height: 1.4;
+}
+
 .libraryHeader > span,
 .editorHeader p,
 .libraryIntro,
@@ -71,7 +119,7 @@
 
 .libraryToolbar {
 	display: grid;
-	grid-template-columns: minmax(220px, 1.6fr) repeat(3, minmax(130px, .65fr));
+	grid-template-columns: var(--processing-results-master-track, minmax(280px, 360px)) repeat(3, minmax(120px, 1fr));
 	align-items: end;
 	gap: 8px;
 }
@@ -103,7 +151,7 @@
 
 .libraryWorkspace {
 	display: grid;
-	grid-template-columns: minmax(250px, .72fr) minmax(0, 1.7fr);
+	grid-template-columns: var(--processing-results-master-track, minmax(280px, 360px)) minmax(0, 1fr);
 	align-items: start;
 	gap: 10px;
 	min-width: 0;
@@ -568,6 +616,21 @@
 }
 
 @media (max-width: 760px) {
+	.libraryHelp {
+		justify-self: start;
+	}
+
+	.libraryHelp p {
+		right: auto;
+		left: 0;
+	}
+
+	.libraryTitleLine {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 2px;
+	}
+
 	.runHeader {
 		display: grid;
 	}
