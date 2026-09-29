@@ -23,7 +23,21 @@ function fulfillJson(
 	});
 }
 
-async function installCompletedRunCatalog(page: import("@playwright/test").Page) {
+async function installCompletedRunCatalog(
+	page: import("@playwright/test").Page,
+	options: Readonly<{
+		runId?: string;
+		profileId?: "whisper-detailed" | "qwen-quality";
+		engine?: string;
+		model?: string;
+		transcriptSha256?: string;
+	}> = {},
+) {
+	const runId = options.runId ?? "run-delete-compat-1";
+	const profileId = options.profileId ?? "whisper-detailed";
+	const engine = options.engine ?? (profileId === "qwen-quality" ? "qwen3" : "faster-whisper");
+	const model = options.model ?? (profileId === "qwen-quality" ? "Qwen3-ASR" : "large-v3");
+	const transcriptSha256 = options.transcriptSha256 ?? "b".repeat(64);
 	await page.route(`${LOCAL_API}/sources`, (route) =>
 		fulfillJson(route, {
 			schema_version: "tda_craig_sources_v1",
@@ -43,16 +57,16 @@ async function installCompletedRunCatalog(page: import("@playwright/test").Page)
 			source_id: CRAIG_SOURCE_ID,
 			runs: [
 				{
-					run_id: "run-delete-compat-1",
+					run_id: runId,
 					status: "completed",
 					source_id: CRAIG_SOURCE_ID,
-					profile_id: "whisper-detailed",
-					engine: "faster-whisper",
-					model: "large-v3",
+					profile_id: profileId,
+					engine,
+					model,
 					model_revision: "rev",
 					device: "cuda",
 					completed_at: "2026-09-27T18:00:00.000Z",
-					transcript_sha256: "b".repeat(64),
+					transcript_sha256: transcriptSha256,
 					transcript_size_bytes: 900,
 					stats: {
 						processing_seconds: 12,
@@ -1041,6 +1055,84 @@ test("Companion 0.3.16 exposes completed-run deletion without changing job-delet
 	await expect(moreActions).toBeVisible();
 	await moreActions.click();
 	await expect(page.getByRole("button", { name: /Excluir resultado local/ })).toBeVisible();
+});
+
+test("Queue Open result navigates to the exact immutable run without opening review", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+	await installCompletedRunCatalog(page, {
+		runId: "run-craig-job-1-a1",
+		profileId: "qwen-quality",
+		engine: "qwen3",
+		model: "fixture-qwen",
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const selectedRun = page.locator("button[data-local-run-key][aria-current='true']");
+	await expect(selectedRun).toContainText("qwen-quality");
+	await expect(selectedRun).toBeFocused();
+	await expect(page.getByText("Run run-craig-job-1-a1", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Revisar resultado" })).toBeVisible();
+	await expect(page.getByText("Voltar aos resultados", { exact: true })).toHaveCount(0);
+});
+
+test("Queue per-job diagnostics opens contextually and preserves the Queue view", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [failedJob()],
+		jobEvents: [
+			{
+				seq: 91,
+				attempt: 1,
+				code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+				at: "2026-09-29T14:00:00Z",
+				level: "error",
+				data: {
+					stage: "alignment",
+					track: 1,
+					window: 89,
+					failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+				},
+			},
+		],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queueTab = page.getByRole("tab", { name: "Fila" });
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: "Atenção", exact: true }).click();
+	const moreActions = queue.getByRole("button", { name: /Mais ações para/ });
+	await moreActions.click();
+	await queue.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+
+	await expect(queueTab).toHaveAttribute("aria-selected", "true");
+	const inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(inspector).toContainText("craig-job-1");
+	await expect(inspector).toContainText("QWEN_ALIGNMENT_REQUIRED");
+	await expect(inspector.getByRole("log")).toContainText("Falha de alinhamento Qwen");
+
+	await page.keyboard.press("Escape");
+	await expect(inspector).not.toBeVisible();
+	await expect(queueTab).toHaveAttribute("aria-selected", "true");
+	await expect(moreActions).toBeFocused();
 });
 
 test("Fila confirma visualmente quando o Job ID é copiado", async ({ page }) => {
