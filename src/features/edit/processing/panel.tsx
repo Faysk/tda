@@ -889,6 +889,13 @@ export function ProcessingPanel({
 										<div className={styles.activeActions}>
 											<Button
 												size="sm"
+												variant="tertiary"
+												onClick={() => openJobDiagnostics(activeJob)}
+											>
+												Abrir diagnóstico
+											</Button>
+											<Button
+												size="sm"
 												className={styles.dangerAction}
 												disabled={
 													state.mutation?.kind === "cancel" &&
@@ -1137,8 +1144,12 @@ export function ProcessingPanel({
 							onCancel={(jobId) => controller.jobAction(jobId, "cancel")}
 							onObserve={(jobId) => controller.observeJob(jobId)}
 							onOpenDiagnostics={(jobId) => {
-								activateView("diagnostics");
-								void controller.observeJob(jobId);
+								const job = state.jobs.find((candidate) => candidate.id === jobId);
+								if (job) openJobDiagnostics(job);
+								else {
+									activateView("diagnostics");
+									void controller.observeJob(jobId);
+								}
 							}}
 						/>
 					</section>
