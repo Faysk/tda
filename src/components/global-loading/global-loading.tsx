@@ -410,15 +410,17 @@ export function useGlobalLoadingFlag(
 	}, [active, begin, immediate]);
 }
 
-export function GlobalRouteLoading() {
-	const { begin } = useGlobalLoading();
-	const [hydrated, setHydrated] = useState(false);
-
-	useEffect(() => {
-		const stop = begin({ immediate: true });
-		setHydrated(true);
-		return stop;
-	}, [begin]);
-
-	return hydrated ? null : <LoaderVisual phase="active" serverFallback />;
+export function GlobalRouteLoading({
+	label = "Carregando conteúdo",
+}: Readonly<{ label?: string }>) {
+	return (
+		<p
+			className={styles.routeStatus}
+			role="status"
+			aria-live="polite"
+			aria-atomic="true"
+		>
+			{label}
+		</p>
+	);
 }
