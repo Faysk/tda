@@ -679,11 +679,9 @@ export class ProcessingController {
 				"transcription.runs.catalog",
 			)
 		) {
-			let cursor = this.#state.localRunsNextCursor;
-			let hasMore = this.#state.localRunsHasMore;
-			let firstRead =
-				this.#state.localRuns.length === 0 ||
-				this.#state.libraryRefreshError !== null;
+			let cursor: string | null = null;
+			let hasMore = true;
+			let firstRead = true;
 			const seenCursors = new Set<string>();
 
 			while (!signal.aborted && (firstRead || (hasMore && cursor))) {
@@ -996,8 +994,15 @@ export class ProcessingController {
 			if (
 				signal.aborted ||
 				!result.runId ||
+				(job.context?.campaignId !== undefined &&
+					job.context.campaignId !== result.campaignId) ||
+				(job.context?.sessionId !== undefined &&
+					job.context.sessionId !== result.sessionId) ||
 				(job.context?.sourceId !== undefined &&
-					job.context.sourceId !== result.sourceId)
+					job.context.sourceId !== result.sourceId) ||
+				(job.context?.profileId !== undefined &&
+					result.profileId !== undefined &&
+					job.context.profileId !== result.profileId)
 			)
 				return;
 
