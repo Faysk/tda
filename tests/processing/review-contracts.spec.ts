@@ -67,18 +67,23 @@ test("completed runs compare locally with source and time filters before an expl
 	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toHaveCount(0);
 });
 
-test("base remains unsaved until an explicit editorial action", async ({ page }) => {
+test("base advances through explicit review and approval actions without a free status picker", async ({ page }) => {
 	await page.goto("/?review-contracts&ephemeral");
 	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByLabel("Estado do draft")).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Concluir revisão" })).toBeEnabled();
 	const search = page.getByLabel("Buscar na timeline");
 	await search.fill("persistir-busca");
-	await page.getByLabel("Estado do draft").selectOption("approved_local");
-	await page.getByRole("button", { name: "Salvar revisão" }).click();
+	await page.getByRole("button", { name: "Concluir revisão" }).click();
 	await expect(page.getByText("Draft salvo localmente.")).toBeVisible();
 	await expect(search).toHaveValue("persistir-busca");
 	await expect(page.getByText(/Run bruto imutável · draft r1/)).toBeVisible();
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByText("Revisado", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Aprovar revisão" })).toBeEnabled();
+	await page.getByRole("button", { name: "Aprovar revisão" }).click();
+	await expect(page.getByText("Aprovado localmente", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Preparar sessão" })).toBeDisabled();
+	await expect(page.getByText("Handoff privado indisponível neste ambiente")).toBeVisible();
 });
 
 test("older Agent remains readable and requires an update before editing", async ({ page }) => {
@@ -86,7 +91,7 @@ test("older Agent remains readable and requires an update before editing", async
 	await expect(page.getByText(/Atualize o Companion para salvar/)).toBeVisible();
 	await expect(page.getByRole("button", { name: /^Editar / }).first()).toBeDisabled();
 	await expect(page.getByRole("checkbox", { name: /^Marcar como (não )?revisado/ }).first()).toBeDisabled();
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Concluir revisão" })).toBeDisabled();
 });
 
 test("speaker limits count emoji as one scalar and reject excess ASCII before save", async ({ page }) => {
@@ -96,10 +101,10 @@ test("speaker limits count emoji as one scalar and reject excess ASCII before sa
 	await speaker.fill("😀".repeat(160));
 	await expect(speaker).toHaveValue("😀".repeat(160));
 	await expect(speaker).toHaveAttribute("aria-invalid", "false");
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeEnabled();
+	await expect(page.getByRole("button", { name: "Salvar alterações" })).toBeEnabled();
 	await speaker.fill("a".repeat(161));
 	await expect(speaker).toHaveAttribute("aria-invalid", "true");
-	await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Salvar alterações" })).toBeDisabled();
 	await expect(page.getByRole("alert")).toContainText("Corrija os campos");
 });
 
@@ -112,12 +117,8 @@ test("review shows factual warning totals with bounded details and Unicode word 
 	await expect(
 		page.getByRole("heading", { name: "whisper-detailed" }),
 	).toBeVisible();
-	await expect(
-		page.getByText("Avisos", { exact: true }).locator("..").locator("strong"),
-	).toHaveText("5000");
-	await expect(
-		page.getByText("Palavras", { exact: true }).locator("..").locator("strong"),
-	).toHaveText("2");
+	await expect(page.getByText("5.000 avisos", { exact: true })).toBeVisible();
+	await expect(page.getByText("2 palavras", { exact: true })).toBeVisible();
 	await page.locator("summary").filter({ hasText: "avisos do pipeline" }).click();
 	await expect(page.locator("summary").filter({ hasText: "avisos do pipeline" })).toHaveText(
 		"5000 avisos do pipeline · mostrando 50 tipos dos primeiros 1000 avisos",
@@ -147,18 +148,19 @@ test("historical review does not claim a verified total", async ({ page }) => {
 test("target repair preserves edits and restores only the original destination", async ({ page }, testInfo) => {
     await page.goto("/?review-contracts&repair");
     const repair = page.getByRole("button", { name: "Reparar vínculo original" });
-    await expect(page.getByText(/O vínculo do handoff privado está danificado/)).toBeVisible();
+    await expect(page.getByText(/O vínculo original está danificado/)).toBeVisible();
     await page.getByRole("button", { name: /^Editar / }).first().click();
     await page.getByRole("textbox", { name: /^Texto em / }).first().fill("Texto preservado");
     await expect(repair).toBeDisabled();
-    await page.getByRole("button", { name: "Salvar revisão" }).click();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
     await expect(repair).toBeEnabled();
     await page.getByRole("button", { name: /^Concluir / }).first().click();
     await page.screenshot({ path: testInfo.outputPath("publication-target-repair.png"), fullPage: true });
     await repair.click();
     await expect(repair).toHaveCount(0);
     await expect(page.locator("[data-review-segment] p").first()).toHaveText("Texto preservado");
-    await expect(page.getByText(/Destino: yuhara-main · sessão sessao-synthetic/)).toBeVisible();
+    await page.getByText("Detalhes técnicos", { exact: true }).click();
+    await expect(page.getByText(/Destino do Edit: yuhara-main · sessão sessao-synthetic/)).toBeVisible();
 });
 
 
@@ -175,13 +177,13 @@ test("bulk rename isolates a track, preserves exceptions and saves one snapshot"
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();
     await expect(page.getByLabel("Participante de origem")).toBeFocused();
-    await expect(page.getByLabel("Estado do draft")).toHaveValue("reviewed");
+    await expect(page.getByText("Alterações não salvas", { exact: true })).toBeVisible();
     await expect(page.getByTestId("save-count")).toHaveText("0");
     const speakers = page.locator("[data-review-segment] strong");
     await expect(speakers).toHaveCount(5);
     expect(await speakers.allTextContents()).toEqual(["Nome normalizado", "Nome normalizado", "Nome normalizado", "Convidado", "Alex"]);
     await page.screenshot({ path: testInfo.outputPath("participant-rename.png"), fullPage: true });
-    await page.getByRole("button", { name: "Salvar revisão" }).click();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
     await expect(page.getByTestId("save-count")).toHaveText("1");
     await expect(speakers.first()).toHaveText("Nome normalizado");
 });
@@ -193,7 +195,7 @@ test("bulk rename survives a save conflict", async ({ page }) => {
     await page.getByLabel("Novo nome").fill("Novo");
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();
-    await page.getByRole("button", { name: "Salvar revisão" }).click();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
     await expect(page.getByRole("alert")).toContainText("mudou em outra aba");
     await expect(page.locator("[data-review-segment] strong").first()).toHaveText("Novo");
     await expect(page.getByText("Alterações não salvas neste draft.")).toBeVisible();
@@ -208,10 +210,10 @@ test("concurrent bulk edits reconcile by field without closing or losing the wor
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();
     await page.getByLabel("Buscar na timeline").fill("Fala");
-    await page.getByRole("button", { name: "Salvar revisão" }).click();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
     await page.getByRole("button", { name: "Comparar com versão mais recente" }).click();
     await expect(page.getByText(/3 mudanças locais · 1 colisões/)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Salvar revisão" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Salvar alterações" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Reconciliar no draft" })).toBeDisabled();
     await page.getByLabel("Manter minha alteração").check();
     await page.screenshot({ path: testInfo.outputPath("review-conflict.png"), fullPage: true });
@@ -220,8 +222,8 @@ test("concurrent bulk edits reconcile by field without closing or losing the wor
     await expect(page.getByText(/Reconciliado sobre a revisão 2/)).toBeVisible();
     await expect(page.locator("[data-review-segment] strong").first()).toHaveText("Novo");
     await expect(page.locator("[data-review-segment] p").nth(1)).toHaveText("Fala remota");
-    await expect(page.getByLabel("Estado do draft")).toHaveValue("reviewed");
-    await page.getByRole("button", { name: "Salvar revisão" }).click();
+    await expect(page.getByText("Alterações não salvas", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
     await expect(page.getByText(/Run bruto imutável · draft r3/)).toBeVisible();
     await expect(page.getByTestId("save-count")).toHaveText("2");
 });
