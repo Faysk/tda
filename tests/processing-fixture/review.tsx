@@ -5,13 +5,15 @@ import { useState } from "react";
 
 // Synthetic browser data; the product never imports this isolated harness.
 export function ReviewFixture() {
-	const publication = new URLSearchParams(location.search).has("publication");
-	const legacy = new URLSearchParams(location.search).has("legacy");
-	const ephemeral = new URLSearchParams(location.search).has("ephemeral");
-	const oldAgent = new URLSearchParams(location.search).has("old-agent");
-	const bulk = new URLSearchParams(location.search).has("bulk");
-	const comparisonMode = new URLSearchParams(location.search).has("comparison");
-	const metricsMode = new URLSearchParams(location.search).has("metrics") || comparisonMode;
+	const params = new URLSearchParams(location.search);
+	const invalidHandoff = params.has("invalid-handoff");
+	const publication = params.has("publication") || invalidHandoff;
+	const legacy = params.has("legacy");
+	const ephemeral = params.has("ephemeral");
+	const oldAgent = params.has("old-agent");
+	const bulk = params.has("bulk");
+	const comparisonMode = params.has("comparison");
+	const metricsMode = params.has("metrics") || comparisonMode;
     const [saveCount, setSaveCount] = useState(0);
     const [openedRunId, setOpenedRunId] = useState("");
     const [saveError, setSaveError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function ReviewFixture() {
 			device: "cpu",
 			computeType: "int8",
 			alignment: "native",
-			executionLineage: new URLSearchParams(location.search).has("artifact") ? {
+			executionLineage: params.has("artifact") ? {
                 schemaVersion: "tda_execution_lineage_v1", companionVersion: "synthetic", runtimeFamily: "whisper", runtimeVersion: "1.1.5", device: "cpu", computeType: "int8", gpu: null,
                 runtimeArtifact: { runtimeId: "whisper-ctranslate2", version: "1.1.5", workerSha256: "a".repeat(64), archiveSha256: "b".repeat(64) },
             } : null,
@@ -71,7 +73,7 @@ export function ReviewFixture() {
 			totalSegments: 1,
 			reviewPercent: 0,
 			editedSegments: 0,
-			wordCount: 2,
+			wordCount: invalidHandoff ? 999 : 2,
 			warningCount: legacy ? 1000 : 5000,
 		},
 		segments: bulk ? Array.from({ length: 5 }, (_, index) => ({
@@ -184,7 +186,7 @@ export function ReviewFixture() {
 			onSave={(baseline, status, segments) => {
 				setSaveCount((count) => count + 1);
 				setSaveError(null);
-				if (new URLSearchParams(location.search).has("conflict") && baseline.draftRevision !== 2) {
+				if (params.has("conflict") && baseline.draftRevision !== 2) {
 					setSaveError("LOCAL_REVIEW_DRAFT_CONFLICT");
 					return;
 				}
@@ -214,7 +216,7 @@ export function ReviewFixture() {
 			onLoadLatest={async () => ({ ...review, draftRevision: 2, draftSha256: "f".repeat(64), status: "approved_local",
                 segments: review.segments.map((segment, index) => index === 0 ? { ...segment, speaker: "Remoto" } : index === 1 ? { ...segment, text: "Fala remota" } : segment),
             })}
-            onRepairTarget={new URLSearchParams(location.search).has("repair") ? () => setReview({ ...review,
+            onRepairTarget={params.has("repair") ? () => setReview({ ...review,
                 publicationTargetState: "valid", publicationTarget: {
                     campaignSlug: "yuhara-main", sourceSessionId: "sessao-synthetic",
                     jobId: "synthetic",
