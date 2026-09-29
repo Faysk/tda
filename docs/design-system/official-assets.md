@@ -56,9 +56,11 @@ Assets oficiais canônicos no R2:
 | `tda-mark-white.svg` | `logos/tda-mark-white.svg` | `8474cd455cb5b6ffc254ed5ca5c3c5aa1b25f64ec8e694ed85ce1eea8b2d83ff` | símbolo principal em fundo escuro |
 | `favicon.svg` | `icons/favicon.svg` | `59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e` | favicon adaptativo |
 
-`tools/check-design-system.mjs` valida esses hashes contra o manifest canônico R2 em toda execução de `pnpm check`, além de exigir que favicon e marks usados pelo shell apontem para as URLs content-addressed corretas. Alterar silenciosamente um master ou reintroduzir `public/brand/` quebra CI.
+`src/config/brand-assets.ts` é o contrato único de URLs runtime para os cinco SVGs oficiais. Shell, loader e novos consumers React/Next devem importar esse contrato em vez de repetir URLs ou reconstruir paths locais. O manifest continua sendo a fonte de integridade/provenance; o módulo de runtime apenas fixa as URLs canônicas já verificadas.
 
-O header do reboot usa o **mark oficial** com variante black/white real conforme tema. Não usa `filter: invert()` como substituto permanente de master.
+`tools/check-design-system.mjs` valida esses hashes contra o manifest canônico R2 em toda execução de `pnpm check`, exige que o contrato runtime contenha as URLs content-addressed correspondentes, bloqueia URLs de marca duplicadas diretamente em outros sources e varre `src/` + `public/` contra referências aos paths web-static aposentados no cutover. Alterar silenciosamente um master, reintroduzir `public/brand/` ou deixar um consumer apontando para um path removido quebra CI.
+
+O header usa os masters black/white reais conforme o tema. O loader global consome o master white canônico pelo mesmo contrato e preserva o tratamento de tema já existente; em ambos os casos, o byte de origem continua sendo um asset oficial verificado no R2, sem fallback para `public/brand/`.
 
 ### Binários ainda não migrados para o boundary final
 

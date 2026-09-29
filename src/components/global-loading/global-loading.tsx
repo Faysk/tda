@@ -11,6 +11,7 @@ import {
 	useState,
 	type ReactNode,
 } from "react";
+import { TDA_BRAND_ASSETS } from "@/config/brand-assets";
 import {
 	GLOBAL_LOADING_START_EVENT,
 	GLOBAL_LOADING_STOP_EVENT,
@@ -191,10 +192,12 @@ function LoaderVisual({
 					<div className={styles.logoSpin} ref={logoSpinRef}>
 						<Image
 							className={`${styles.logoImage} ${themeStyles.logoImage}`}
-							src="/brand/tda-mark-white.svg"
+							src={TDA_BRAND_ASSETS.markWhite}
 							alt=""
 							width={176}
 							height={176}
+							unoptimized
+							data-global-loading-logo="true"
 						/>
 					</div>
 				</div>
