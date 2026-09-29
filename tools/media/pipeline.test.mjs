@@ -250,7 +250,7 @@ test("canonical R2 read-back rejects missing, size, MIME and sha256 drift", asyn
 		/content-type mismatch/u,
 	);
 	await assert.rejects(
-		() => inspectRemote(remoteClientFor({ bytes: Buffer.from("tampered") }), manifest, asset),
+		() => inspectRemote(remoteClientFor({ bytes: Buffer.alloc(bytes.length, 0x78) }), manifest, asset),
 		/sha256 mismatch/u,
 	);
 });
