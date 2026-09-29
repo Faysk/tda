@@ -298,6 +298,7 @@ jobs:
           tests/global-navigation.spec.ts
           tests/floating-shell-public-routes.spec.ts
           tests/layout-geometry.spec.ts
+          tests/layout-receipts.spec.ts
           tests/foundation.spec.ts
           tests/navigation-origin.spec.ts
           tests/world-catalogs.spec.ts
@@ -326,6 +327,7 @@ jobs:
             test-results/**/layout-keylines-sessoes.png
             test-results/**/layout-keylines-lembra.png
             test-results/**/layout-keylines-workbench.png
+            test-results/**/layout-cross-*.png
           if-no-files-found: error
           retention-days: 30
       - name: Upload sanitized navigation failure artifacts
