@@ -6,20 +6,24 @@
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-lg);
 }
+
 .eyebrow {
 	color: var(--ds-foreground-muted);
 	font-size: 0.8rem;
 	letter-spacing: 0.12em;
 }
+
 .title {
 	margin: 1rem 0;
 	font-size: clamp(1.8rem, 4vw, 2.6rem);
 	line-height: 1.15;
 }
+
 .description {
 	color: var(--ds-foreground-muted);
 	line-height: 1.7;
 }
+
 .actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -27,17 +31,44 @@
 	align-items: center;
 	margin-top: 2rem;
 }
+
 .notice {
 	border-left: 3px solid var(--ds-accent);
 	padding: 1rem;
 	margin: 1.5rem 0;
 	line-height: 1.6;
 }
+
 @media (max-width: 600px) {
 	.shell {
 		margin: calc(var(--site-chrome-panel-top, 66px) + 12px) 1rem 2rem;
 		padding: 1.5rem;
 	}
+}
+
+.loginShell {
+	width: min(calc(100% - 2rem), 34rem);
+	max-width: 34rem;
+	margin:
+		max(clamp(2rem, 5vw, 4rem), calc(var(--site-chrome-panel-top, 66px) + 12px))
+		auto clamp(2rem, 5vw, 4rem);
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+}
+
+.loginShell .actions {
+	margin-top: 1.5rem;
+}
+
+.loginFootnote {
+	max-width: 32rem;
+	margin: 1.25rem 0 0;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.82rem;
+	line-height: 1.55;
 }
 
 .taskGrid {
@@ -46,9 +77,11 @@
 	gap: 1rem;
 	margin-top: 2rem;
 }
+
 .taskGrid:empty {
 	display: none;
 }
+
 .taskCard {
 	display: flex;
 	flex-direction: column;
@@ -61,37 +94,43 @@
 	min-width: 0;
 	overflow-wrap: anywhere;
 }
+
 .taskCard:hover {
 	border-color: var(--ds-accent);
 }
+
 .taskCard:focus-visible {
 	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 4px;
 }
+
 .taskTitle {
 	font-size: 1.125rem;
 	line-height: 1.4;
 	font-weight: 600;
 }
+
 .taskDescription {
 	color: var(--ds-foreground-muted);
 	font-size: 1rem;
 	line-height: 1.6;
 }
+
 .accountSession:not(:empty) {
 	border-top: 1px solid var(--ds-border);
 	margin-top: 2rem;
 	padding-top: 1.5rem;
 }
+
 @media (max-width: 600px) {
 	.taskGrid {
 		grid-template-columns: minmax(0, 1fr);
 	}
+
 	.taskCard {
 		padding: 1rem;
 	}
 }
-
 
 .accountShell {
 	width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
@@ -244,7 +283,7 @@
 
 .profileIdRow > code,
 .scopeLine code,
-.permissionGroup code {
+.technicalCapabilityList code {
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 	overflow-wrap: anywhere;
 }
@@ -332,8 +371,6 @@
 }
 
 .permissionGroup li {
-	display: grid;
-	gap: 0.2rem;
 	padding: 0.7rem 0;
 	border-bottom: 1px solid var(--ds-border-subtle);
 	font-family: var(--ds-font-ui);
@@ -345,7 +382,53 @@
 	font-weight: 650;
 }
 
-.permissionGroup code {
+.technicalDetails {
+	margin-top: 1rem;
+	padding-top: 0.8rem;
+	border-top: 1px solid var(--ds-border-subtle);
+	font-family: var(--ds-font-ui);
+}
+
+.technicalDetails summary {
+	width: fit-content;
+	color: var(--ds-foreground-muted);
+	font-size: 0.78rem;
+	font-weight: 720;
+	cursor: pointer;
+}
+
+.technicalDetails summary:hover,
+.technicalDetails[open] summary {
+	color: var(--ds-foreground);
+}
+
+.technicalDetails summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+
+.technicalCapabilityList {
+	display: grid;
+	margin: 0.85rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.technicalCapabilityList li {
+	display: grid;
+	gap: 0.2rem;
+	padding: 0.6rem 0;
+	border-bottom: 1px solid var(--ds-border-subtle);
+	font-family: var(--ds-font-ui);
+}
+
+.technicalCapabilityList span {
+	color: var(--ds-foreground-soft);
+	font-size: 0.78rem;
+	font-weight: 650;
+}
+
+.technicalCapabilityList code {
 	color: var(--ds-foreground-muted);
 	font-size: 0.7rem;
 	line-height: 1.45;
@@ -381,7 +464,9 @@
 @media (max-width: 720px) {
 	.accountShell {
 		width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
-		margin: 2rem auto;
+		margin:
+			max(2rem, calc(var(--site-chrome-panel-top, 66px) + 12px))
+			auto 2rem;
 		padding: 0;
 	}
 
