@@ -1,12 +1,28 @@
 import { ActionLink, DisplayTitle } from "@/components/ui";
+import styles from "./system-state.module.css";
 
 export default function NotFound() {
 	return (
-		<section className="page-section">
-			<DisplayTitle>Esta história não foi encontrada.</DisplayTitle>
-			<ActionLink href="/sessoes" variant="secondary">
-				Voltar às sessões
-			</ActionLink>
+		<section
+			className={styles.shell}
+			data-system-state="not-found"
+			aria-labelledby="system-not-found-title"
+		>
+			<div className={styles.content}>
+				<p className={styles.eyebrow}>TDA</p>
+				<DisplayTitle id="system-not-found-title">
+					Esta história não foi encontrada.
+				</DisplayTitle>
+				<p className={styles.copy}>
+					O endereço pode ter mudado ou não existir mais. Volte ao início para
+					continuar explorando o TDA.
+				</p>
+				<div className={styles.actions}>
+					<ActionLink href="/" variant="primary">
+						Voltar ao início
+					</ActionLink>
+				</div>
+			</div>
 		</section>
 	);
 }
