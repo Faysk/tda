@@ -330,7 +330,7 @@ export function publicVerificationHeaders() {
 export async function verifyPublicDelivery(asset, attempts = 8) {
 	let lastError;
 	const allowChallengeFallback =
-		process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE === "staged-next-image";
+		process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE === "browser";
 	for (let attempt = 1; attempt <= attempts; attempt += 1) {
 		try {
 			const response = await fetch(publicVerificationUrl(asset.publicUrl, attempt), {
@@ -466,7 +466,7 @@ export async function publishAll({
 			publicDeliveryVerified: delivery.challenged !== true,
 			publicDeliveryChallenge: delivery.challenged === true,
 			publicDeliveryVerificationMode:
-				delivery.challenged === true ? "pending-staged-next-image" : "direct",
+				delivery.challenged === true ? "pending-browser" : "direct",
 			httpStatus: delivery.httpStatus,
 		});
 		console.log(`MEDIA_${action.toUpperCase()} ${manifest.project} ${asset.file}`);
