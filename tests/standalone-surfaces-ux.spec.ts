@@ -78,6 +78,21 @@ async function expectNoHorizontalOverflow(page: Page, label: string) {
 		clientWidth: document.documentElement.clientWidth,
 		bodyScrollWidth: document.body.scrollWidth,
 		innerWidth: window.innerWidth,
+		offenders: Array.from(document.body.querySelectorAll<HTMLElement>("*"))
+			.flatMap((element) => {
+				const style = getComputedStyle(element);
+				if (style.display === "none" || style.visibility === "hidden") return [];
+				const rect = element.getBoundingClientRect();
+				if (rect.right <= window.innerWidth + 1) return [];
+				return [{
+					tag: element.tagName.toLowerCase(),
+					id: element.id,
+					className: typeof element.className === "string" ? element.className : "",
+					right: Math.round(rect.right * 10) / 10,
+					width: Math.round(rect.width * 10) / 10,
+				}];
+			})
+			.slice(0, 8),
 	}));
 	expect(
 		metrics.scrollWidth,
@@ -163,6 +178,12 @@ async function expectSkipLinkWorks(
 	await page.keyboard.press("Tab");
 	await expect(skip, `${label}: skip link must be first keyboard stop`).toBeFocused();
 	await expect(skip, `${label}: focused skip link must be visible`).toBeInViewport();
+
+	await expect
+		.poll(async () => (await skip.boundingBox())?.y ?? Number.NEGATIVE_INFINITY, {
+			message: `${label}: focused skip link must finish inside the viewport`,
+		})
+		.toBeGreaterThanOrEqual(-1);
 
 	const box = await skip.boundingBox();
 	expect(box, `${label}: focused skip link box`).not.toBeNull();
@@ -274,7 +295,7 @@ test("standalone catalogs keep published entries discoverable and private lores 
 
 	await page.goto("/diario/astel");
 	await expect(
-		page.locator('a[href="/diario/astel/leitura.html"]').first(),
+		page.locator('a[href="/diario/astel/leitura.html"]:visible').first(),
 	).toBeVisible();
 });
 
