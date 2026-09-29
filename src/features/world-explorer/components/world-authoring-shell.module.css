@@ -69,13 +69,8 @@
 	right: 0;
 	left: auto;
 	z-index: 60;
-	width: 42px;
-	height: 76px;
-	border-right: 0;
-	border-radius: var(--ds-radius-md) 0 0 var(--ds-radius-md);
-	background: color-mix(in srgb, var(--ds-surface-elevated) 94%, transparent);
-	box-shadow: -8px 10px 32px color-mix(in srgb, var(--ds-canvas) 34%, transparent);
-	backdrop-filter: blur(14px) saturate(108%);
+	width: 40px;
+	height: 56px;
 	transform: translateY(-50%);
 }
 
@@ -100,13 +95,6 @@
 
 .active[data-world-inspector-mode="overlay"] .inspector > :global(hr) {
 	display: none;
-}
-
-.active[data-world-inspector-mode="overlay"] .inspector button[aria-label="Recolher painel de detalhes"] {
-	position: absolute;
-	top: 10px;
-	right: 10px;
-	left: auto;
 }
 
 .focusMode .publicChrome {
@@ -206,8 +194,9 @@
 	}
 
 	.active[data-world-inspector-mode="closed"] .inspector button[aria-label="Abrir painel de detalhes"] {
-		width: 40px;
-		height: 64px;
+		width: 44px;
+		height: 44px;
+		transform: none;
 	}
 }
 
