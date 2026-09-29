@@ -53,7 +53,24 @@ async function expectFirstCriticalContentClear(
 	expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
 }
 
-test("floating chrome leaves first critical public content reachable at 320px and 390px", async ({ page }) => {
+async function sharedKeyline(page: import("@playwright/test").Page) {
+	return page.evaluate(() => {
+		const styles = getComputedStyle(document.documentElement);
+		const gutter = Number.parseFloat(styles.getPropertyValue("--ds-page-gutter"));
+		const layoutMax = Number.parseFloat(styles.getPropertyValue("--ds-layout-max"));
+		const layoutWidth = Math.min(innerWidth, layoutMax);
+		return {
+			gutter,
+			layoutMax,
+			x: Math.max(0, (innerWidth - layoutWidth) / 2) + gutter,
+			contentWidth: layoutWidth - gutter * 2,
+		};
+	});
+}
+
+test("floating chrome leaves first critical public content reachable at 320px and 390px", async ({
+	page,
+}) => {
 	for (const viewport of [
 		{ width: 320, height: 800 },
 		{ width: 390, height: 844 },
@@ -65,14 +82,98 @@ test("floating chrome leaves first critical public content reachable at 320px an
 	}
 });
 
-test("representative public surfaces remain clear at the 200% zoom-equivalent viewport", async ({ page }) => {
+test("representative public surfaces remain clear at the 200% zoom-equivalent viewport", async ({
+	page,
+}) => {
 	await page.setViewportSize({ width: 683, height: 384 });
 	for (const route of ["/sessoes", "/lore", "/diario", "/lembra"] as const) {
 		await expectFirstCriticalContentClear(page, route);
 	}
 });
 
-test("Pipipi cinematic hero uses the reclaimed viewport in the shell gate", async ({ page }) => {
+test("Lore and Diário share the structural keyline and intentionally use wide viewports", async ({
+	page,
+}) => {
+	for (const viewport of [
+		{ width: 1920, height: 1080 },
+		{ width: 2560, height: 1440 },
+	]) {
+		await page.setViewportSize(viewport);
+
+		await page.goto("/lore");
+		const loreKeyline = await sharedKeyline(page);
+		const loreHeading = await page
+			.getByRole("heading", {
+				level: 1,
+				name: "Histórias que ganharam outro palco.",
+			})
+			.boundingBox();
+		const loreCard = await page
+			.locator('section[aria-label="Lores publicadas"] article')
+			.first()
+			.boundingBox();
+		expect(loreHeading).not.toBeNull();
+		expect(loreCard).not.toBeNull();
+		if (loreHeading && loreCard) {
+			expect(Math.abs(loreHeading.x - loreKeyline.x)).toBeLessThanOrEqual(2);
+			expect(Math.abs(loreCard.x - loreKeyline.x)).toBeLessThanOrEqual(2);
+			expect(loreCard.width).toBeGreaterThanOrEqual(
+				loreKeyline.contentWidth - 3,
+			);
+		}
+
+		await page.goto("/diario");
+		const diaryKeyline = await sharedKeyline(page);
+		const diaryHeading = await page
+			.getByRole("heading", { level: 1, name: "Diários", exact: true })
+			.boundingBox();
+		const diaryBook = await page
+			.getByRole("link", { name: /Astel Nightshade.*Diário de Astel/ })
+			.first()
+			.boundingBox();
+		expect(diaryHeading).not.toBeNull();
+		expect(diaryBook).not.toBeNull();
+		if (diaryHeading && diaryBook) {
+			expect(Math.abs(diaryHeading.x - diaryKeyline.x)).toBeLessThanOrEqual(2);
+			expect(Math.abs(diaryBook.x - diaryKeyline.x)).toBeLessThanOrEqual(2);
+			expect(diaryBook.width).toBeGreaterThanOrEqual(1500);
+			expect(diaryBook.width).toBeLessThanOrEqual(1542);
+		}
+	}
+});
+
+test("Lore archive keeps visible focus and disables artwork motion when requested", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await page.goto("/lore");
+
+	const firstLore = page
+		.locator('section[aria-label="Lores publicadas"] article a')
+		.first();
+	await firstLore.focus();
+	await expect(firstLore).toBeFocused();
+	const focusOutline = await firstLore.evaluate((element) => {
+		const styles = getComputedStyle(element);
+		return {
+			style: styles.outlineStyle,
+			width: Number.parseFloat(styles.outlineWidth),
+		};
+	});
+	expect(focusOutline.style).not.toBe("none");
+	expect(focusOutline.width).toBeGreaterThanOrEqual(2);
+
+	const artworkTransition = await page
+		.locator('section[aria-label="Lores publicadas"] article img')
+		.first()
+		.evaluate((element) => getComputedStyle(element).transitionDuration);
+	expect(artworkTransition).toBe("0s");
+});
+
+test("Pipipi cinematic hero uses the reclaimed viewport in the shell gate", async ({
+	page,
+}) => {
 	for (const viewport of [
 		{ width: 390, height: 844 },
 		{ width: 1366, height: 768 },
@@ -89,7 +190,9 @@ test("Pipipi cinematic hero uses the reclaimed viewport in the shell gate", asyn
 	}
 });
 
-test("Pipipi sticky chapter navigation clears the global chrome on mobile", async ({ page }) => {
+test("Pipipi sticky chapter navigation clears the global chrome on mobile", async ({
+	page,
+}) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/lore/pipipi");
 
@@ -117,4 +220,3 @@ test("Pipipi sticky chapter navigation clears the global chrome on mobile", asyn
 	expect(navBox.x).toBeGreaterThanOrEqual(-1);
 	expect(navBox.x + navBox.width).toBeLessThanOrEqual(391);
 });
-
