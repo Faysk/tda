@@ -16,7 +16,7 @@
 		var(--site-chrome-top) + var(--site-chrome-trigger-size) + var(--site-chrome-gap)
 	);
 	--site-chrome-bottom-safe: calc(env(safe-area-inset-bottom, 0px) + 12px);
-	--nav-profile-panel-motion: 2000ms;
+	--nav-profile-panel-motion: 280ms;
 	scroll-padding-block-start: calc(var(--site-chrome-panel-top) + 8px);
 }
 
@@ -342,12 +342,12 @@ footer {
 	right: 0;
 	z-index: 910;
 	display: grid;
-	width: min(500px, calc(100vw - 24px));
-	max-height: min(76vh, 720px);
-	gap: 12px;
+	width: min(430px, calc(100vw - 24px));
+	max-height: min(76vh, 680px);
+	gap: 14px;
 	overflow-y: auto;
 	overscroll-behavior: contain;
-	padding: 14px;
+	padding: 16px;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface-elevated);
@@ -362,16 +362,9 @@ footer {
 	will-change: opacity, mask-size;
 }
 
-.account-menu-account-block {
-	display: grid;
-	gap: 10px;
-}
-
 .account-menu-navigation {
 	display: grid;
 	gap: 12px;
-	padding-top: 12px;
-	border-top: 1px solid var(--ds-border-subtle);
 }
 
 .account-menu-navigation h2 {
@@ -385,15 +378,102 @@ footer {
 	text-transform: uppercase;
 }
 
-.account-menu-panel .product-launcher-grid {
-	gap: 7px;
+.account-menu-link-list {
+	display: grid;
+	gap: 2px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
 }
 
-.account-menu-panel .product-launcher-link {
-	min-height: 80px;
-	grid-template-rows: 36px minmax(2.4em, auto);
-	gap: 4px;
-	padding: 7px 6px;
+.account-menu-nav-link,
+.account-menu-group-entry {
+	display: grid;
+	width: 100%;
+	min-height: 48px;
+	grid-template-columns: 28px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 10px;
+	border: 1px solid transparent;
+	border-radius: var(--ds-radius-sm);
+	background: transparent;
+	color: var(--ds-foreground-soft);
+	font-family: var(--ds-font-ui);
+	font-size: 0.88rem;
+	font-weight: 650;
+	line-height: 1.25;
+	text-align: left;
+	text-decoration: none;
+	cursor: pointer;
+	transition:
+		border-color var(--ds-motion-fast) var(--ds-ease-standard),
+		background var(--ds-motion-fast) var(--ds-ease-standard),
+		color var(--ds-motion-fast) var(--ds-ease-standard);
+}
+
+.account-menu-nav-link[aria-current="page"],
+.account-menu-group-entry[aria-current="page"] {
+	border-color: color-mix(in srgb, var(--ds-accent) 48%, transparent);
+	background: color-mix(in srgb, var(--ds-accent) 8%, transparent);
+	color: var(--ds-foreground);
+}
+
+.account-menu-nav-icon {
+	width: 24px;
+	height: 24px;
+	color: var(--ds-foreground-muted);
+}
+
+.account-menu-nav-link[aria-current="page"] .account-menu-nav-icon,
+.account-menu-group-entry[aria-current="page"] .account-menu-nav-icon {
+	color: var(--ds-accent);
+}
+
+.account-menu-chevron {
+	color: var(--ds-foreground-muted);
+	font-size: 1rem;
+}
+
+.account-menu-tools-entry {
+	margin-top: 10px;
+	padding-top: 12px;
+	border-top-color: var(--ds-border-subtle);
+	border-radius: 0 0 var(--ds-radius-sm) var(--ds-radius-sm);
+}
+
+.account-menu-view-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 6px;
+}
+
+.account-menu-view-header h2 {
+	margin: 0;
+}
+
+.account-menu-back {
+	display: inline-flex;
+	min-height: 40px;
+	align-items: center;
+	gap: 6px;
+	padding: 7px 9px;
+	border: 1px solid transparent;
+	border-radius: var(--ds-radius-sm);
+	background: transparent;
+	color: var(--ds-foreground-soft);
+	font-family: var(--ds-font-ui);
+	font-size: 0.78rem;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+.account-menu-account-block {
+	display: grid;
+	gap: 10px;
+	padding-top: 12px;
+	border-top: 1px solid var(--ds-border-subtle);
 }
 
 .account-menu-panel form {
@@ -474,14 +554,20 @@ footer {
 }
 
 .account-menu-trigger:focus-visible,
-.account-menu-action:focus-visible {
+.account-menu-action:focus-visible,
+.account-menu-nav-link:focus-visible,
+.account-menu-group-entry:focus-visible,
+.account-menu-back:focus-visible {
 	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
 }
 
 @media (hover: hover) and (pointer: fine) {
 	.account-menu-trigger:hover,
-	.account-menu-action:hover {
+	.account-menu-action:hover,
+	.account-menu-nav-link:hover,
+	.account-menu-group-entry:hover,
+	.account-menu-back:hover {
 		border-color: var(--ds-accent);
 		background: var(--ds-surface-hover);
 		color: var(--ds-foreground);
@@ -545,6 +631,9 @@ footer {
 	.product-launcher-link,
 	.account-menu-trigger,
 	.account-menu-action,
+	.account-menu-nav-link,
+	.account-menu-group-entry,
+	.account-menu-back,
 	.account-menu-panel[data-state] {
 		transition: none;
 	}
