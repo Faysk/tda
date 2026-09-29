@@ -40,9 +40,11 @@ try:
         repo/'supabase/migrations/20260926220608_transcript_publication_current_cas.sql',
         repo/'supabase/migrations/20260928023000_transcript_revision_web_edits.sql',
         repo/'supabase/migrations/20260928024500_transcript_multi_source_provenance.sql',
+        repo/'supabase/migrations/20260929154000_transcript_handoff_session_prepare.sql',
         repo/'supabase/migrations/20260928153000_prepare_legacy_transcript_revision.sql',
         repo/'supabase/tests/transcript_publication_revisions.sql',
         repo/'supabase/tests/transcript_multi_source_provenance.sql',
+        repo/'supabase/tests/transcript_handoff_session_prepare.sql',
         repo/'supabase/tests/transcript_revision_web_edits.sql',
         repo/'supabase/tests/legacy_transcript_prepare.sql',
     ]
