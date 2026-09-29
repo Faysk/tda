@@ -1477,3 +1477,25 @@ Após 30 dias, o registro expira para novos envios: readback continua permitido,
 Rollback: desativar publicação enquanto houver regressão e preservar journals; voltar a cliente sem journal não recupera pendências. Sem migration adicional; depende do CAS #636. Não ativa Production nem satisfaz sozinho o aceite editorial #430.
 
 Evidência local #638 em 2026-09-26: check completo (687 testes Web e 40 Node), build e 22 cenários Playwright desktop/mobile aprovados. O cenário de commit com resposta perdida e receipt indisponível recarrega a página, recupera a operation original e comprova exatamente um POST. Testes de escopo, troca de ator no servidor, mismatch, expiração e falha de armazenamento aprovados.
+
+## Guided review → private Edit handoff — candidato #1060–#1064
+
+A review Web separa explicitamente **projeção de apresentação** de **snapshot publicável**. Campos derivados usados somente para timeline, como `timelineStart/timelineEnd`, nunca entram no serializer canônico. O handoff mapeia explicitamente os sete campos editoriais do segmento; o canonicalizer continua rejeitando chaves desconhecidas. Assim, mudar apenas a projeção cronológica não altera payload/hash/publishability.
+
+O lifecycle visual deixa de ser um select livre. A superfície orienta uma próxima ação por vez:
+
+```text
+revisar/salvar
+  -> concluir revisão
+  -> aprovar o snapshot salvo exato
+  -> preparar sessão privada no Edit
+  -> abrir sessão editorial
+```
+
+Salvar não aprova, aprovar não faz handoff e preparar no Edit não publica o site. Edição após approval remove a autoridade current na working copy e exige save + approval nova conforme #660.
+
+Diagnóstico segue precedência de gates. A interface apresenta um blocker dominante e uma ação realmente capaz de avançar: save/integridade local → approval → canonical preflight → target/provenance → current/recovery → receipt. `invalid_payload`, `too_large`, `forbidden`, `not_found`, `conflict`, `stale_current` e resposta ambígua não são condensados no mesmo “salve/reabra”. Recovery consulta primeiro a mesma operation identity.
+
+A composição da review prioriza workflow, busca e timeline. Contagens ficam compactas; hardware/runtime/hashes são progressive disclosure; participante em lote permanece disclosure sob demanda. A primeira viewport deixa de tratar seis métricas técnicas como cards de igual peso.
+
+Para first handoff, um target autorizado ainda sem row cloud é estado válido. Current read pode representar `revisionId=null` sem criar nada; a confirmação final usa o boundary atômico #1061 para resolver/criar a session privada e commitar a transcript revision. Isso não muda a separação entre handoff privado e publicação pública de sessão.
