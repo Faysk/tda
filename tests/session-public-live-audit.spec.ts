@@ -19,6 +19,11 @@ async function box(locator: Locator): Promise<Box> {
 	return value;
 }
 
+async function optionalBox(locator: Locator): Promise<Box | null> {
+	if ((await locator.count()) === 0) return null;
+	return locator.boundingBox();
+}
+
 async function installMarks(
 	page: Page,
 	marks: readonly Readonly<{ label: string; box: Box }>[],
@@ -26,14 +31,17 @@ async function installMarks(
 ) {
 	await page.evaluate(
 		({ marks, titleX }) => {
-			document.querySelectorAll("[data-tda-geometry-mark]").forEach((node) => node.remove());
+			document.querySelectorAll("[data-tda-geometry-mark]").forEach((node) => {
+				node.remove();
+			});
+			const scrollY = window.scrollY;
 			for (const mark of marks) {
 				const overlay = document.createElement("div");
 				overlay.dataset.tdaGeometryMark = "true";
 				Object.assign(overlay.style, {
-					position: "fixed",
+					position: "absolute",
 					left: `${mark.box.x}px`,
-					top: `${mark.box.y}px`,
+					top: `${mark.box.y + scrollY}px`,
 					width: `${mark.box.width}px`,
 					height: `${mark.box.height}px`,
 					border: "2px dashed #ff4d8d",
@@ -59,10 +67,10 @@ async function installMarks(
 			const keyline = document.createElement("div");
 			keyline.dataset.tdaGeometryMark = "true";
 			Object.assign(keyline.style, {
-				position: "fixed",
+				position: "absolute",
 				left: `${titleX}px`,
 				top: "0",
-				bottom: "0",
+				height: `${Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)}px`,
 				width: "1px",
 				background: "#5eead4",
 				boxShadow: "0 0 0 1px rgba(0,0,0,.35)",
@@ -77,33 +85,42 @@ async function installMarks(
 
 async function clearMarks(page: Page) {
 	await page.evaluate(() => {
-		document.querySelectorAll("[data-tda-geometry-mark]").forEach((node) => node.remove());
+		document.querySelectorAll("[data-tda-geometry-mark]").forEach((node) => {
+			node.remove();
+		});
 	});
 }
 
-test("capture current public Sessions geometry before #1086 product patch", async ({ page }, testInfo) => {
-	for (const viewport of viewports) {
+for (const viewport of viewports) {
+	test(`capture current public Sessions geometry before #1086 patch at ${viewport.label}`, async ({
+		page,
+	}, testInfo) => {
 		await page.setViewportSize({ width: viewport.width, height: viewport.height });
-		await page.goto("/sessoes", { waitUntil: "networkidle" });
+		await page.goto("/sessoes", { waitUntil: "domcontentloaded" });
 
-		const title = page.getByRole("heading", { level: 1, name: "As histórias até aqui" });
+		const title = page.getByRole("heading", {
+			level: 1,
+			name: "As histórias até aqui",
+		});
 		const hero = page.locator('section[aria-labelledby="archive-title"]');
 		const stats = page.locator('dl[aria-label="Resumo público do arquivo"]');
 		const archive = page.locator('section[aria-label="Sessões publicadas"]');
 		const firstCard = archive.locator("article").first();
 		const firstSessionLink = firstCard.locator('a[href^="/sessoes/"]').first();
 
-		const [titleBox, heroBox, statsBox, archiveBox, firstCardBox] = await Promise.all([
-			box(title),
-			box(hero),
-			box(stats),
-			box(archive),
-			box(firstCard),
-		]);
+		const [titleBox, heroBox, statsBox, archiveBox, firstCardBox] =
+			await Promise.all([
+				box(title),
+				box(hero),
+				box(stats),
+				box(archive),
+				box(firstCard),
+			]);
 		const href = await firstSessionLink.getAttribute("href");
 		expect(href).toMatch(/^\/sessoes\//u);
 
 		const archiveMetrics = {
+			surface: "archive",
 			viewport,
 			title: titleBox,
 			hero: heroBox,
@@ -115,6 +132,7 @@ test("capture current public Sessions geometry before #1086 product patch", asyn
 			heroEndY: heroBox.y + heroBox.height,
 			firstCardStartY: firstCardBox.y,
 		};
+		console.log(`TDA_SESSION_BASELINE ${JSON.stringify(archiveMetrics)}`);
 		await writeFile(
 			testInfo.outputPath(`session-baseline-archive-${viewport.label}.json`),
 			JSON.stringify(archiveMetrics, null, 2),
@@ -133,26 +151,30 @@ test("capture current public Sessions geometry before #1086 product patch", asyn
 		);
 		await page.screenshot({
 			path: testInfo.outputPath(`session-baseline-archive-${viewport.label}.png`),
-			fullPage: false,
+			fullPage: true,
 		});
 		await clearMarks(page);
 
-		await page.goto(href ?? "/sessoes", { waitUntil: "networkidle" });
+		await page.goto(href ?? "/sessoes", { waitUntil: "domcontentloaded" });
 		const readerTitle = page.getByRole("heading", { level: 1 }).first();
 		const article = page.locator("article").first();
 		const readerHero = article.locator("header").first();
 		const back = page.getByRole("link", { name: /Arquivo de sessões/u }).first();
 		const story = page.locator(".story-content").first();
-		const pagination = page.getByRole("navigation", { name: "Navegação entre sessões" });
+		const pagination = page.getByRole("navigation", {
+			name: "Navegação entre sessões",
+		});
 
-		const [readerTitleBox, readerHeroBox, backBox, storyBox] = await Promise.all([
-			box(readerTitle),
-			box(readerHero),
-			box(back),
-			box(story),
-		]);
-		const paginationBox = (await pagination.count()) > 0 ? await box(pagination) : null;
+		const [readerTitleBox, readerHeroBox, backBox, storyBox, paginationBox] =
+			await Promise.all([
+				box(readerTitle),
+				box(readerHero),
+				box(back),
+				box(story),
+				optionalBox(pagination),
+			]);
 		const readerMetrics = {
+			surface: "reader",
 			viewport,
 			title: readerTitleBox,
 			hero: readerHeroBox,
@@ -163,6 +185,7 @@ test("capture current public Sessions geometry before #1086 product patch", asyn
 			readingWidth: storyBox.width,
 			heroEndY: readerHeroBox.y + readerHeroBox.height,
 		};
+		console.log(`TDA_SESSION_BASELINE ${JSON.stringify(readerMetrics)}`);
 		await writeFile(
 			testInfo.outputPath(`session-baseline-reader-${viewport.label}.json`),
 			JSON.stringify(readerMetrics, null, 2),
@@ -181,8 +204,8 @@ test("capture current public Sessions geometry before #1086 product patch", asyn
 		);
 		await page.screenshot({
 			path: testInfo.outputPath(`session-baseline-reader-${viewport.label}.png`),
-			fullPage: false,
+			fullPage: true,
 		});
 		await clearMarks(page);
-	}
-});
+	});
+}
