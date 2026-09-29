@@ -595,81 +595,205 @@ function ReviewEditor({
 	return (
 		<section className={styles.editor} aria-labelledby="local-review-title">
 			<div className={styles.editorHeader}>
-				<div>
-					<span className={styles.eyebrow}>Revisão local derivada</span>
-					<h2 id="local-review-title">{review.lineage.profileId}</h2>
-					<p>
-						Run bruto imutável · {ephemeral ? "Sem revisão salva" : `draft r${review.draftRevision}`} · SHA{" "}
-						{review.baseTranscriptSha256.slice(0, 12)}…
-					</p>
+				<div className={styles.editorIdentity}>
+					<Button size="sm" variant="tertiary" disabled={busy || publishing} onClick={attemptClose}>
+						← Resultados
+					</Button>
+					<div>
+						<span className={styles.eyebrow}>Revisão local derivada</span>
+						<div className={styles.editorTitleLine}>
+							<h2 id="local-review-title">{review.lineage.profileId}</h2>
+							<StatusPill tone={approvalCurrent ? "success" : dirty ? "warning" : review.status === "reviewed" ? "accent" : "neutral"}>
+								{dirty
+									? "Alterações não salvas"
+									: approvalCurrent
+										? "Aprovado localmente"
+										: review.status === "reviewed"
+											? "Revisado"
+											: ephemeral
+												? "Sem draft salvo"
+												: "Draft"}
+							</StatusPill>
+						</div>
+						<p>
+							Run bruto imutável · {ephemeral ? "base local" : `draft r${review.draftRevision}`} · SHA{" "}
+							{review.baseTranscriptSha256.slice(0, 12)}…
+						</p>
+					</div>
 				</div>
 				<div className={styles.headerActions}>
-					<Button size="sm" variant="tertiary" disabled={busy || publishing} onClick={attemptClose}>
-						Voltar aos resultados
-					</Button>
-					<Button
-						size="sm"
-						variant="primary"
-						disabled={editingBlocked || !dirty || !canSave || invalidStrings}
-						onClick={() => {
-							rememberVisibleAnchor();
-							void onSave(baseline, status, segments);
-						}}
-					>
-						{busy ? "Salvando…" : "Salvar revisão"}
-					</Button>
-					{publicationEnabled && review.publicationTarget ? (
+					{prepared && review.publicationTarget ? (
+						<a
+							className={actionStyles({ size: "sm", variant: "primary" })}
+							href={`/edit/sessoes/${encodeURIComponent(review.publicationTarget.sourceSessionId)}`}
+						>
+							Abrir sessão no Edit
+						</a>
+					) : dirty ? (
+						<Button
+							size="sm"
+							variant="primary"
+							disabled={editingBlocked || !canSave || invalidStrings}
+							onClick={saveWorkingCopy}
+						>
+							{busy ? "Salvando…" : "Salvar alterações"}
+						</Button>
+					) : review.status === "draft" ? (
+						<Button
+							size="sm"
+							variant="primary"
+							disabled={editingBlocked || !canSave || invalidStrings}
+							onClick={() => transitionReview("reviewed")}
+						>
+							{busy ? "Salvando…" : "Concluir revisão"}
+						</Button>
+					) : review.status === "reviewed" ? (
+						<Button
+							size="sm"
+							variant="primary"
+							disabled={editingBlocked || !canSave || invalidStrings}
+							onClick={() => transitionReview("approved_local")}
+						>
+							{busy ? "Aprovando…" : "Aprovar revisão"}
+						</Button>
+					) : (
 						<Button
 							size="sm"
 							variant="primary"
 							disabled={
-								editingBlocked || error === "LOCAL_REVIEW_DRAFT_CONFLICT" ||
+								editingBlocked ||
+								error === "LOCAL_REVIEW_DRAFT_CONFLICT" ||
 								publishing ||
-								dirty ||
-								review.status !== "approved_local" ||
-								Boolean(publicationReceipt)
+								publicationPreflight?.eligible !== true ||
+								Boolean(handoffBlocker)
 							}
 							onClick={() => void preparePublicationConfirmation()}
 						>
-							{publicationReceipt
-								? `Preparado · r${publicationReceipt.revisionNumber}`
-								: publishing
-									? "Preparando…"
-									: "Preparar sessão"}
+							{publishing ? "Consultando…" : "Preparar sessão"}
 						</Button>
-					) : null}
+					)}
 				</div>
 			</div>
 
-			{!canSave ? <p role="status">Atualize o Companion para salvar revisões com verificação de conteúdo. A leitura continua disponível.</p> : null}
-			<div className={styles.reviewNotice}>
-				<strong>Nada ficará público automaticamente.</strong>
-				<span>
-					{review.publicationTarget
-						? `A transcrição será enviada para a área privada de Sessões do Edit. Nada ficará público no site até a publicação editorial final. Destino: ${review.publicationTarget.campaignSlug} · sessão ${review.publicationTarget.sourceSessionId}. ${publicationEnabled ? "Somente a confirmação explícita abaixo prepara este snapshot salvo." : "O handoff cloud continua desativado neste ambiente."}`
-						: "O destino privado do Edit está indisponível. A revisão continua local e só pode ser preparada com um vínculo verificado."}
+			<nav className={styles.reviewJourney} aria-label="Etapas da revisão">
+				<ol>
+					{workflowSteps.map((step, index) => {
+						const state = step.complete ? "complete" : index === currentWorkflowStep ? "current" : "upcoming";
+						return (
+							<li key={step.label} data-state={state} aria-current={state === "current" ? "step" : undefined}>
+								<span aria-hidden="true">{step.complete ? "✓" : index + 1}</span>
+								<strong>{step.label}</strong>
+							</li>
+						);
+					})}
+				</ol>
+				<p>
+					<strong>Preparar no Edit é privado.</strong>{" "}
+					A publicação pública de capa, título e resumo acontece depois, dentro da sessão editorial.
+				</p>
+			</nav>
+
+			<div className={styles.reviewToolbar}>
+				<label className={styles.search}>
+					<span>Buscar na timeline</span>
+					<input
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+						placeholder="Texto, participante ou HH:MM:SS…"
+					/>
+				</label>
+				<span className={styles.timelineCount}>
+					{visible.length} de {segments.length} falas · timeline contínua
 				</span>
 			</div>
 
-			{publicationPreflight && !publicationPreflight.eligible ? (
-				<p className={styles.error} role="status">
-					{publicationPreflight.reason === "too_large"
-						? `Aprovado localmente, mas o handoff privado está indisponível: payload canônico ${publicationPreflight.payloadBytes?.toLocaleString("pt-BR") ?? "acima do limite"} bytes / ${publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes.`
-						: "Aprovado localmente, mas este snapshot não passa no contrato atual de handoff. Salve/reabra a revisão antes de preparar a sessão."}
-				</p>
-			) : publicationPreflight?.eligible ? (
-				<p className={styles.saved} role="status">
-					Handoff privado compatível · payload canônico {publicationPreflight.payloadBytes?.toLocaleString("pt-BR")} / {publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes.
+			<div className={styles.reviewMeta} aria-label="Resumo da revisão">
+				<span><strong>{reviewed.toLocaleString("pt-BR")} / {segments.length.toLocaleString("pt-BR")}</strong> revisadas</span>
+				<span><strong>{words.toLocaleString("pt-BR")}</strong> palavras</span>
+				<span><strong>{participants}</strong> participantes</span>
+				<span><strong>{formatSeconds(review.stats.sessionDurationSeconds)}</strong> de sessão</span>
+				{review.review.warningCount > 0 ? (
+					<span className={styles.warningMeta}><strong>{review.review.warningCount.toLocaleString("pt-BR")}</strong> avisos</span>
+				) : (
+					<span><strong>0</strong> avisos</span>
+				)}
+				<details className={styles.technicalDetails}>
+					<summary>Detalhes técnicos</summary>
+					<div>
+						<p>Processamento: {formatSeconds(review.stats.processingMetrics?.totalProcessingSeconds ?? review.stats.processingSeconds)}</p>
+						<p>Tracks: {review.stats.trackCount ?? "—"} · segmentos alterados no último save: {review.review.editedSegments}</p>
+						<p>Hardware: {review.lineage.executionLineage?.gpu?.model ?? review.lineage.device ?? "—"}</p>
+						<p>
+							Runtime: {[
+								review.lineage.executionLineage?.runtimeFamily,
+								review.lineage.executionLineage?.runtimeVersion,
+								review.lineage.computeType,
+								review.lineage.alignment,
+							].filter(Boolean).join(" · ") || "desconhecido"}
+						</p>
+						<p>Base SHA: <code className={styles.artifactHash}>{review.baseTranscriptSha256}</code></p>
+						{review.draftSha256 ? <p>Draft SHA: <code className={styles.artifactHash}>{review.draftSha256}</code></p> : null}
+						{publicationPreflight?.eligible ? (
+							<p>Handoff: compatível · {publicationPreflight.payloadBytes?.toLocaleString("pt-BR")} / {publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes</p>
+						) : null}
+					</div>
+				</details>
+			</div>
+
+			{!canSave ? (
+				<div className={styles.handoffBlocker} role="status">
+					<div>
+						<strong>Companion incompatível para edição</strong>
+						<span>Atualize o Companion para salvar revisões com verificação de conteúdo. A leitura continua disponível.</span>
+					</div>
+				</div>
+			) : null}
+
+			{handoffBlocker ? (
+				<div className={styles.handoffBlocker} role="status">
+					<div>
+						<strong>{handoffBlocker.title}</strong>
+						<span>{handoffBlocker.detail}</span>
+					</div>
+					<div className={styles.handoffActions}>
+						{handoffBlocker.action === "repair" && onRepairTarget ? (
+							<Button type="button" variant="secondary" disabled={busy || dirty || publishing} onClick={() => void onRepairTarget()}>
+								Reparar vínculo original
+							</Button>
+						) : null}
+						{handoffBlocker.action === "retry" ? (
+							<Button type="button" variant="secondary" disabled={publishing} onClick={() => void preparePublicationConfirmation()}>
+								Consultar novamente
+							</Button>
+						) : null}
+						{handoffBlocker.action === "abandon" ? (
+							<Button type="button" variant="secondary" disabled={publishing} onClick={() => void abandonPublication()}>
+								Abandonar handoff anterior
+							</Button>
+						) : null}
+					</div>
+				</div>
+			) : approvalCurrent && publicationPreflight?.eligible ? (
+				<p className={styles.handoffReady} role="status">
+					Revisão aprovada e compatível · pronta para preparar a sessão privada no Edit.
 				</p>
 			) : null}
 
-            {!review.publicationTarget && onRepairTarget ? (
-                <div className={styles.notice}>
-                    <p>{review.publicationTargetState === "invalid" ? "O vínculo do handoff privado está danificado." : "O destino privado do Edit não está disponível."} O reparo usa somente a origem verificada. Sem essa prova, o Companion mantém o handoff bloqueado.</p>
-                    <Button type="button" variant="secondary" disabled={busy || dirty || publishing} onClick={() => void onRepairTarget()}>Reparar vínculo original</Button>
-                    {dirty ? <p>Salve suas alterações antes de reparar o vínculo.</p> : null}
-                </div>
-            ) : null}
+			{publicationReceipt && review.publicationTarget ? (
+				<div className={styles.published} role="status">
+					<span>
+						Sessão preparada no Edit · revisão cloud {publicationReceipt.revisionNumber} · receipt{" "}
+						{publicationReceipt.receiptId.slice(0, 12)}…
+					</span>
+					<a
+						className={actionStyles({ size: "sm", variant: "secondary" })}
+						href={`/edit/sessoes/${encodeURIComponent(review.publicationTarget.sourceSessionId)}`}
+					>
+						Abrir sessão no Edit
+					</a>
+				</div>
+			) : null}
+
 			{publishConfirmation && review.publicationTarget ? (
 				<section
 					className={styles.publishConfirmation}
