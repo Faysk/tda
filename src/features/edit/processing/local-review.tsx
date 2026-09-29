@@ -347,9 +347,11 @@ function ReviewEditor({
 	const [publicationRecovery, setPublicationRecovery] = useState<PublicationConfirmation | null>(null);
     const publicationCurrent = publicationRecovery?.current;
 	const [publishConfirmation, setPublishConfirmation] = useState(false);
+	const publishDialog = useRef<HTMLDialogElement>(null);
+	const publishReturnFocus = useRef<HTMLElement | null>(null);
 	const [publishing, setPublishing] = useState(false);
     const editingBlocked = busy || comparing || comparison !== null || publishing;
-	const [publicationError, setPublicationError] = useState<string | null>(null);
+	const [publicationErrorCode, setPublicationErrorCode] = useState<string | null>(null);
 	const [publicationReceipt, setPublicationReceipt] =
 		useState<PublicationReceiptView | null>(null);
 	const canSave = review.snapshotContract === "tda_local_review_cas_v1";
@@ -358,6 +360,37 @@ function ReviewEditor({
 	useEffect(() => {
 		if (editingKey) editingTextRef.current?.focus();
 	}, [editingKey]);
+
+	useEffect(() => {
+		const dialog = publishDialog.current;
+		if (!dialog) return;
+		if (publishConfirmation && !dialog.open) {
+			dialog.showModal();
+			return;
+		}
+		if (!publishConfirmation && dialog.open) {
+			dialog.close();
+			queueMicrotask(() => {
+				if (publicationReceipt) {
+					const success = document.querySelector<HTMLElement>(
+						'[data-handoff-success-link="true"]',
+					);
+					if (success) {
+						success.focus();
+						return;
+					}
+				}
+				const previous = publishReturnFocus.current;
+				if (previous?.isConnected) {
+					previous.focus();
+					return;
+				}
+				document
+					.querySelector<HTMLElement>('[data-handoff-trigger="prepare"]')
+					?.focus();
+			});
+		}
+	}, [publishConfirmation, publicationReceipt]);
 
 	useEffect(() => {
 		if (lastServerReview.current === review) return;
@@ -390,16 +423,22 @@ function ReviewEditor({
 	}, [dirty]);
 
     useEffect(() => {
-        if (!publicationEnabled || !review.publicationTarget || review.status !== "approved_local" || dirty) return;
+        if (
+            !publicationEnabled ||
+            !review.publicationTarget ||
+            review.status !== "approved_local" ||
+            dirty ||
+            publicationPreflight?.eligible !== true
+        ) return;
         let cancelled = false;
         const invalidate = () => { setPublicationRecovery(null); setPublicationReceipt(null); setPublishConfirmation(false); };
         const recover = async () => {
             invalidate(); setPublishing(true);
             try {
                 const result = await browserPublicationRecovery().inspect(review);
-                if (!cancelled) { setPublicationRecovery(result); setPublicationReceipt(result.receipt); setPublicationError(null); }
+                if (!cancelled) { setPublicationRecovery(result); setPublicationReceipt(result.receipt); setPublicationErrorCode(null); }
             } catch (cause) {
-                if (!cancelled) setPublicationError(publicationErrorMessage(cause instanceof PublicationClientError || cause instanceof PublicationRecoveryError ? cause.code : "dependency_unavailable"));
+                if (!cancelled) setPublicationErrorCode(cause instanceof PublicationClientError || cause instanceof PublicationRecoveryError ? cause.code : "dependency_unavailable");
             } finally { if (!cancelled) setPublishing(false); }
         };
         const focus = () => { void recover(); };
@@ -409,7 +448,7 @@ function ReviewEditor({
         window.addEventListener("storage", focus);
         document.addEventListener("visibilitychange", visibility);
         return () => { cancelled = true; window.removeEventListener("focus", focus); window.removeEventListener("storage", focus); document.removeEventListener("visibilitychange", visibility); };
-    }, [publicationEnabled, review, dirty]);
+    }, [publicationEnabled, review, dirty, publicationPreflight]);
 
 	const visible = useMemo(() => {
 		const normalized = query.trim().toLocaleLowerCase("pt-BR");
@@ -437,6 +476,91 @@ function ReviewEditor({
 		0,
 	);
 	const participants = new Set(segments.map((segment) => segment.speaker)).size;
+	const approvalCurrent = review.status === "approved_local" && review.approvalCurrent && !dirty;
+	const savedDraft = !ephemeral && !dirty;
+	const reviewedCurrent =
+		savedDraft && (review.status === "reviewed" || approvalCurrent);
+	const prepared = Boolean(publicationReceipt);
+	const currentWorkflowStep = prepared
+		? 4
+		: approvalCurrent
+			? 3
+			: reviewedCurrent
+				? 2
+				: savedDraft
+					? 1
+					: 0;
+	const workflowSteps = [
+		{
+			label: "Salvar revisão",
+			complete: savedDraft || reviewedCurrent || approvalCurrent || prepared,
+		},
+		{
+			label: "Concluir revisão",
+			complete: reviewedCurrent || approvalCurrent || prepared,
+		},
+		{ label: "Aprovar", complete: approvalCurrent || prepared },
+		{ label: "Preparar no Edit", complete: prepared },
+	] as const;
+
+	const handoffBlocker = (() => {
+		if (prepared || !approvalCurrent) return null;
+		if (!publicationEnabled) return {
+			title: "Handoff privado indisponível neste ambiente",
+			detail: "A revisão está aprovada, mas o envio para Sessões do Edit não está ativado aqui.",
+			action: null as "repair" | "retry" | "abandon" | null,
+		};
+		if (!review.publicationTarget) return {
+			title: review.publicationTargetState === "invalid"
+				? "O vínculo original precisa ser reparado"
+				: "O destino privado ainda não está vinculado",
+			detail: "O Companion só pode continuar usando a origem verificada. Nenhuma sessão será escolhida por aproximação.",
+			action: onRepairTarget ? "repair" as const : null,
+		};
+		if (publicationPreflight && !publicationPreflight.eligible) {
+			if (publicationPreflight.reason === "too_large") return {
+				title: "Esta revisão excede o limite do handoff",
+				detail: `Payload canônico ${publicationPreflight.payloadBytes?.toLocaleString("pt-BR") ?? "acima do limite"} bytes · limite ${publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes. Nada foi enviado.`,
+				action: null,
+			};
+			return {
+				title: "Esta revisão aprovada não é compatível com o contrato atual",
+				detail: `O preflight bloqueou o handoff antes de qualquer envio (${publicationPreflight.reason ?? "invalid_payload"}). Salvar ou reabrir por si só não é tratado como correção.`,
+				action: null,
+			};
+		}
+		if (publicationRecovery?.pending) return {
+			title: publicationRecovery.blocked === "expired"
+				? "Existe um handoff antigo ainda não reconciliado"
+				: publicationRecovery.blocked === "mismatch"
+					? "Outra revisão possui um handoff pendente nesta campanha"
+					: "O handoff anterior ainda precisa ser reconciliado",
+			detail: publicationRecovery.blocked === "expired"
+				? "O recibo ainda pode existir. Novos envios ficam bloqueados até você reconciliar ou abandonar explicitamente essa intenção."
+				: "Consultar novamente reutiliza a mesma operation id e não cria outra revisão privada.",
+			action: publicationRecovery.blocked ? "abandon" as const : "retry" as const,
+		};
+		if (!publicationErrorCode) return null;
+		const messages: Record<string, { title: string; detail: string; action: "retry" | null }> = {
+			unauthenticated: { title: "Sua sessão Web expirou", detail: "Entre novamente e retome esta revisão. Nenhum handoff foi confirmado.", action: null },
+			forbidden: { title: "Sua conta não pode preparar esta campanha", detail: "O bloqueio é de acesso; ele não significa que a sessão não exista.", action: null },
+			publish_capability_undefined: { title: "O handoff privado não está ativado", detail: "A revisão continua local e aprovada. Nada foi enviado.", action: null },
+			not_found: { title: "O destino privado não pôde ser resolvido", detail: "A campanha ou o vínculo esperado não foi localizado depois da autorização. Tente consultar novamente; se persistir, repare a origem em vez de criar um destino por palpite.", action: "retry" },
+			conflict: { title: "Existe um conflito de identidade no destino", detail: "O TDA bloqueou o handoff para não duplicar ou trocar silenciosamente a sessão vinculada.", action: "retry" },
+			stale_current: { title: "A revisão privada mudou desde a sua confirmação", detail: "Atualize o estado e confirme novamente sobre a revisão atual.", action: "retry" },
+			dependency_unavailable: { title: "O serviço de handoff está temporariamente indisponível", detail: "Nenhuma alteração foi confirmada. Consulte novamente antes de formar uma nova intenção.", action: "retry" },
+			unconfirmed: { title: "O handoff pode ter sido concluído", detail: "A resposta foi perdida. Consulte o recibo usando a mesma operação antes de tentar qualquer novo envio.", action: "retry" },
+			storage_unavailable: { title: "O navegador não conseguiu preservar a intenção", detail: "O envio foi bloqueado antes da rede para evitar uma operação sem recovery durável.", action: null },
+			pending_mismatch: { title: "Há outra revisão com recovery pendente", detail: "Reabra a revisão original ou abandone explicitamente a intenção anterior.", action: null },
+			pending_expired: { title: "O recovery pendente expirou", detail: "Consulte o recibo ou abandone explicitamente antes de criar nova intenção.", action: null },
+			profile_changed: { title: "O perfil autenticado mudou", detail: "Recarregue a autorização antes de continuar.", action: "retry" },
+		};
+		return messages[publicationErrorCode] ?? {
+			title: "O handoff foi bloqueado",
+			detail: publicationErrorMessage(publicationErrorCode),
+			action: "retry" as const,
+		};
+	})();
 
 	function rememberVisibleAnchor() {
 		const anchor = Array.from(
@@ -461,6 +585,20 @@ function ReviewEditor({
 			),
 		);
 		setDirty(true);
+        setPublicationReceipt(null);
+        setPublicationRecovery(null);
+        setPublicationErrorCode(null);
+        setPublishConfirmation(false);
+	}
+
+	function saveWorkingCopy() {
+		rememberVisibleAnchor();
+		void onSave(baseline, status, segments);
+	}
+
+	function transitionReview(next: "reviewed" | "approved_local") {
+		rememberVisibleAnchor();
+		void onSave(baseline, next, segments);
 	}
 
 	function attemptClose() {
@@ -475,119 +613,266 @@ function ReviewEditor({
 	}
 
     function recoveryError(cause: unknown) {
-        return publicationErrorMessage(cause instanceof PublicationClientError || cause instanceof PublicationRecoveryError ? cause.code : "dependency_unavailable");
+        return cause instanceof PublicationClientError || cause instanceof PublicationRecoveryError
+            ? cause.code
+            : "dependency_unavailable";
     }
     async function preparePublicationConfirmation() {
-        setPublishing(true); setPublicationError(null); setPublicationRecovery(null); setPublishConfirmation(false);
+		publishReturnFocus.current =
+			document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setPublishing(true); setPublicationErrorCode(null); setPublicationRecovery(null); setPublishConfirmation(false);
         try {
             const result = await browserPublicationRecovery().inspect(review);
             setPublicationRecovery(result); setPublicationReceipt(result.receipt);
             if (!result.receipt && !result.blocked) setPublishConfirmation(true);
-        } catch (cause) { setPublicationError(recoveryError(cause)); }
+        } catch (cause) { setPublicationErrorCode(recoveryError(cause)); }
         finally { setPublishing(false); }
     }
     async function confirmPublication() {
         if (publishing || !publicationRecovery || publicationRecovery.blocked || dirty || review.status !== "approved_local" || publicationPreflight?.eligible !== true) return;
-        setPublishing(true); setPublicationError(null);
+        setPublishing(true); setPublicationErrorCode(null);
         try {
             const receipt = await browserPublicationRecovery().execute(review, publicationRecovery, onPublish);
             setPublicationReceipt(receipt); setPublicationRecovery(null);
         } catch (cause) {
-            setPublicationRecovery(null); setPublicationError(recoveryError(cause));
+            setPublicationRecovery(null); setPublicationErrorCode(recoveryError(cause));
         } finally { setPublishConfirmation(false); setPublishing(false); }
     }
     async function abandonPublication() {
         if (!publicationRecovery?.pending || !window.confirm("O handoff privado anterior pode já ter sido concluído. Abandonar a recuperação não desfaz esse commit; apenas permite formar uma nova intenção editorial, que pode criar outra revisão privada. Nada é publicado no site por esta ação. Continuar?")) return;
         setPublishing(true); setPublishConfirmation(false);
-        try { await browserPublicationRecovery().abandon(review, publicationRecovery); setPublicationRecovery(null); setPublicationError(null); }
-        catch (cause) { setPublicationRecovery(null); setPublicationError(recoveryError(cause)); }
+        try { await browserPublicationRecovery().abandon(review, publicationRecovery); setPublicationRecovery(null); setPublicationErrorCode(null); }
+        catch (cause) { setPublicationRecovery(null); setPublicationErrorCode(recoveryError(cause)); }
         finally { setPublishing(false); }
     }
 
 	return (
 		<section className={styles.editor} aria-labelledby="local-review-title">
 			<div className={styles.editorHeader}>
-				<div>
-					<span className={styles.eyebrow}>Revisão local derivada</span>
-					<h2 id="local-review-title">{review.lineage.profileId}</h2>
-					<p>
-						Run bruto imutável · {ephemeral ? "Sem revisão salva" : `draft r${review.draftRevision}`} · SHA{" "}
-						{review.baseTranscriptSha256.slice(0, 12)}…
-					</p>
+				<div className={styles.editorIdentity}>
+					<Button size="sm" variant="tertiary" disabled={busy || publishing} onClick={attemptClose}>
+						← Resultados
+					</Button>
+					<div>
+						<span className={styles.eyebrow}>Revisão local derivada</span>
+						<div className={styles.editorTitleLine}>
+							<h2 id="local-review-title">{review.lineage.profileId}</h2>
+							<StatusPill tone={approvalCurrent ? "success" : dirty ? "warning" : review.status === "reviewed" ? "accent" : "neutral"}>
+								{dirty
+									? "Alterações não salvas"
+									: approvalCurrent
+										? "Aprovado localmente"
+										: review.status === "reviewed"
+											? "Revisado"
+											: ephemeral
+												? "Sem draft salvo"
+												: "Draft"}
+							</StatusPill>
+						</div>
+						<p>
+							Run bruto imutável · {ephemeral ? "base local" : `draft r${review.draftRevision}`} · SHA{" "}
+							{review.baseTranscriptSha256.slice(0, 12)}…
+						</p>
+					</div>
 				</div>
 				<div className={styles.headerActions}>
-					<Button size="sm" variant="tertiary" disabled={busy || publishing} onClick={attemptClose}>
-						Voltar aos resultados
-					</Button>
-					<Button
-						size="sm"
-						variant="primary"
-						disabled={editingBlocked || !dirty || !canSave || invalidStrings}
-						onClick={() => {
-							rememberVisibleAnchor();
-							void onSave(baseline, status, segments);
-						}}
-					>
-						{busy ? "Salvando…" : "Salvar revisão"}
-					</Button>
-					{publicationEnabled && review.publicationTarget ? (
+					{prepared && review.publicationTarget ? (
+						<a
+							data-handoff-success-link="true"
+							className={actionStyles({ size: "sm", variant: "primary" })}
+							href={`/edit/sessoes/${encodeURIComponent(review.publicationTarget.sourceSessionId)}`}
+						>
+							Abrir sessão no Edit
+						</a>
+					) : dirty ? (
 						<Button
 							size="sm"
 							variant="primary"
+							disabled={editingBlocked || !canSave || invalidStrings}
+							onClick={saveWorkingCopy}
+						>
+							{busy ? "Salvando…" : "Salvar alterações"}
+						</Button>
+					) : ephemeral ? (
+						<Button
+							size="sm"
+							variant="primary"
+							disabled={editingBlocked || !canSave || invalidStrings}
+							onClick={saveWorkingCopy}
+						>
+							{busy ? "Salvando…" : "Salvar revisão"}
+						</Button>
+					) : review.status === "draft" ? (
+						<Button
+							size="sm"
+							variant="primary"
+							disabled={editingBlocked || !canSave || invalidStrings}
+							onClick={() => transitionReview("reviewed")}
+						>
+							{busy ? "Salvando…" : "Concluir revisão"}
+						</Button>
+					) : review.status === "reviewed" ? (
+						<Button
+							size="sm"
+							variant="primary"
+							disabled={editingBlocked || !canSave || invalidStrings}
+							onClick={() => transitionReview("approved_local")}
+						>
+							{busy ? "Aprovando…" : "Aprovar revisão"}
+						</Button>
+					) : (
+						<Button
+							data-handoff-trigger="prepare"
+							size="sm"
+							variant="primary"
 							disabled={
-								editingBlocked || error === "LOCAL_REVIEW_DRAFT_CONFLICT" ||
+								editingBlocked ||
+								error === "LOCAL_REVIEW_DRAFT_CONFLICT" ||
 								publishing ||
-								dirty ||
-								review.status !== "approved_local" ||
-								Boolean(publicationReceipt)
+								publicationPreflight?.eligible !== true ||
+								Boolean(handoffBlocker)
 							}
 							onClick={() => void preparePublicationConfirmation()}
 						>
-							{publicationReceipt
-								? `Preparado · r${publicationReceipt.revisionNumber}`
-								: publishing
-									? "Preparando…"
-									: "Preparar sessão"}
+							{publishing ? "Consultando…" : "Preparar sessão"}
 						</Button>
-					) : null}
+					)}
 				</div>
 			</div>
 
-			{!canSave ? <p role="status">Atualize o Companion para salvar revisões com verificação de conteúdo. A leitura continua disponível.</p> : null}
-			<div className={styles.reviewNotice}>
-				<strong>Nada ficará público automaticamente.</strong>
-				<span>
-					{review.publicationTarget
-						? `A transcrição será enviada para a área privada de Sessões do Edit. Nada ficará público no site até a publicação editorial final. Destino: ${review.publicationTarget.campaignSlug} · sessão ${review.publicationTarget.sourceSessionId}. ${publicationEnabled ? "Somente a confirmação explícita abaixo prepara este snapshot salvo." : "O handoff cloud continua desativado neste ambiente."}`
-						: "O destino privado do Edit está indisponível. A revisão continua local e só pode ser preparada com um vínculo verificado."}
+			<nav className={styles.reviewJourney} aria-label="Etapas da revisão">
+				<ol>
+					{workflowSteps.map((step, index) => {
+						const state = step.complete ? "complete" : index === currentWorkflowStep ? "current" : "upcoming";
+						return (
+							<li key={step.label} data-state={state} aria-current={state === "current" ? "step" : undefined}>
+								<span aria-hidden="true">{step.complete ? "✓" : index + 1}</span>
+								<strong>{step.label}</strong>
+							</li>
+						);
+					})}
+				</ol>
+				<p>
+					<strong>Preparar no Edit é privado.</strong>{" "}
+					A publicação pública de capa, título e resumo acontece depois, dentro da sessão editorial.
+				</p>
+			</nav>
+
+			<div className={styles.reviewToolbar}>
+				<label className={styles.search}>
+					<span>Buscar na timeline</span>
+					<input
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+						placeholder="Texto, participante ou HH:MM:SS…"
+					/>
+				</label>
+				<span className={styles.timelineCount}>
+					{visible.length} de {segments.length} falas · timeline contínua
 				</span>
 			</div>
 
-			{publicationPreflight && !publicationPreflight.eligible ? (
-				<p className={styles.error} role="status">
-					{publicationPreflight.reason === "too_large"
-						? `Aprovado localmente, mas o handoff privado está indisponível: payload canônico ${publicationPreflight.payloadBytes?.toLocaleString("pt-BR") ?? "acima do limite"} bytes / ${publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes.`
-						: "Aprovado localmente, mas este snapshot não passa no contrato atual de handoff. Salve/reabra a revisão antes de preparar a sessão."}
-				</p>
-			) : publicationPreflight?.eligible ? (
-				<p className={styles.saved} role="status">
-					Handoff privado compatível · payload canônico {publicationPreflight.payloadBytes?.toLocaleString("pt-BR")} / {publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes.
+			<fieldset className={styles.reviewMeta}>
+				<legend className={styles.reviewMetaLegend}>Resumo da revisão</legend>
+				<span><strong>{reviewed.toLocaleString("pt-BR")} / {segments.length.toLocaleString("pt-BR")}</strong> revisadas</span>
+				<span><strong>{words.toLocaleString("pt-BR")}</strong> palavras</span>
+				<span><strong>{participants}</strong> participantes</span>
+				<span><strong>{formatSeconds(review.stats.sessionDurationSeconds)}</strong> de sessão</span>
+				{review.review.warningCount > 0 ? (
+					<span className={styles.warningMeta}><strong>{review.review.warningCount.toLocaleString("pt-BR")}</strong> avisos</span>
+				) : (
+					<span><strong>0</strong> avisos</span>
+				)}
+				{!review.warningSummary ? <span>total histórico não verificado</span> : null}
+				<details className={styles.technicalDetails}>
+					<summary>Detalhes técnicos</summary>
+					<div>
+						<p>Processamento: {formatSeconds(review.stats.processingMetrics?.totalProcessingSeconds ?? review.stats.processingSeconds)}</p>
+						<p>Tracks: {review.stats.trackCount ?? "—"} · segmentos alterados no último save: {review.review.editedSegments}</p>
+						<p>Hardware: {review.lineage.executionLineage?.gpu?.model ?? review.lineage.device ?? "—"}</p>
+						<p>
+							Runtime: {[
+								review.lineage.executionLineage?.runtimeFamily,
+								review.lineage.executionLineage?.runtimeVersion,
+								review.lineage.computeType,
+								review.lineage.alignment,
+							].filter(Boolean).join(" · ") || "desconhecido"}
+						</p>
+						{review.publicationTarget ? (
+							<p>Destino do Edit: {review.publicationTarget.campaignSlug} · sessão {review.publicationTarget.sourceSessionId}</p>
+						) : null}
+						<p>Base SHA: <code className={styles.artifactHash}>{review.baseTranscriptSha256}</code></p>
+						{review.draftSha256 ? <p>Draft SHA: <code className={styles.artifactHash}>{review.draftSha256}</code></p> : null}
+						{publicationPreflight?.eligible ? (
+							<p>Handoff: compatível · {publicationPreflight.payloadBytes?.toLocaleString("pt-BR")} / {publicationPreflight.maxPayloadBytes.toLocaleString("pt-BR")} bytes</p>
+						) : null}
+					</div>
+				</details>
+			</fieldset>
+
+			{!canSave ? (
+				<div className={styles.handoffBlocker} role="status">
+					<div>
+						<strong>Companion incompatível para edição</strong>
+						<span>Atualize o Companion para salvar revisões com verificação de conteúdo. A leitura continua disponível.</span>
+					</div>
+				</div>
+			) : null}
+
+			{handoffBlocker ? (
+				<div className={styles.handoffBlocker} role="status">
+					<div>
+						<strong>{handoffBlocker.title}</strong>
+						<span>{handoffBlocker.detail}</span>
+					</div>
+					<div className={styles.handoffActions}>
+						{handoffBlocker.action === "repair" && onRepairTarget ? (
+							<Button type="button" variant="secondary" disabled={busy || dirty || publishing} onClick={() => void onRepairTarget()}>
+								Reparar vínculo original
+							</Button>
+						) : null}
+						{handoffBlocker.action === "retry" ? (
+							<Button type="button" variant="secondary" disabled={publishing} onClick={() => void preparePublicationConfirmation()}>
+								Consultar novamente
+							</Button>
+						) : null}
+						{publicationRecovery?.pending && handoffBlocker.action !== "abandon" ? (
+							<Button type="button" variant="tertiary" disabled={publishing} onClick={() => void abandonPublication()}>
+								Abandonar handoff anterior
+							</Button>
+						) : null}
+						{handoffBlocker.action === "abandon" ? (
+							<Button type="button" variant="secondary" disabled={publishing} onClick={() => void abandonPublication()}>
+								Abandonar handoff anterior
+							</Button>
+						) : null}
+					</div>
+				</div>
+			) : approvalCurrent && publicationPreflight?.eligible ? (
+				<p className={styles.handoffReady} role="status">
+					Revisão aprovada e compatível · pronta para preparar a sessão privada no Edit.
 				</p>
 			) : null}
 
-            {!review.publicationTarget && onRepairTarget ? (
-                <div className={styles.notice}>
-                    <p>{review.publicationTargetState === "invalid" ? "O vínculo do handoff privado está danificado." : "O destino privado do Edit não está disponível."} O reparo usa somente a origem verificada. Sem essa prova, o Companion mantém o handoff bloqueado.</p>
-                    <Button type="button" variant="secondary" disabled={busy || dirty || publishing} onClick={() => void onRepairTarget()}>Reparar vínculo original</Button>
-                    {dirty ? <p>Salve suas alterações antes de reparar o vínculo.</p> : null}
-                </div>
-            ) : null}
-			{publishConfirmation && review.publicationTarget ? (
-				<section
+			{publicationReceipt && review.publicationTarget ? (
+				<div className={styles.published} role="status">
+					Sessão preparada no Edit · revisão cloud {publicationReceipt.revisionNumber} · receipt{" "}
+					{publicationReceipt.receiptId.slice(0, 12)}…
+				</div>
+			) : null}
+
+			{review.publicationTarget ? (
+				<dialog
+					ref={publishDialog}
 					className={styles.publishConfirmation}
 					role="alertdialog"
+					aria-modal="true"
 					aria-labelledby="publication-confirmation-title"
 					aria-describedby="publication-confirmation-detail"
+					onCancel={(event) => {
+						event.preventDefault();
+						if (!publishing) setPublishConfirmation(false);
+					}}
 				>
 					<div>
 						<span className={styles.eyebrow}>Handoff privado</span>
@@ -608,6 +893,7 @@ function ReviewEditor({
 					</div>
 					<div className={styles.publishActions}>
 						<Button
+							autoFocus
 							size="sm"
 							variant="tertiary"
 							disabled={publishing}
@@ -624,53 +910,30 @@ function ReviewEditor({
 							{publishing ? "Preparando…" : "Preparar sessão"}
 						</Button>
 					</div>
-				</section>
+				</dialog>
 			) : null}
 
-            {publicationRecovery?.pending ? <div className={styles.notice} role="status">
-                <p>{publicationRecovery.blocked === "mismatch" ? "Existe um handoff anterior de outra revisão ainda não reconciliado nesta campanha. Reabra a revisão original para consultar o recibo." : publicationRecovery.blocked === "expired" ? "Este handoff não resolvido ultrapassou 30 dias. O recibo ainda pode ser consultado; novos envios estão bloqueados." : "Handoff anterior ainda não confirmado. A consulta e a repetição preservam a mesma operação, inclusive após recarregar."}</p>
-                <Button variant="secondary" disabled={publishing} onClick={() => void abandonPublication()}>Abandonar handoff anterior</Button>
-            </div> : null}
-			{publicationError ? (
-				<p className={styles.error} role="alert">{publicationError}</p>
-			) : null}
-			{publicationReceipt && review.publicationTarget ? (
-				<div className={styles.published} role="status">
-					<span>
-						Sessão preparada no Edit · revisão cloud {publicationReceipt.revisionNumber} · receipt{" "}
-						{publicationReceipt.receiptId.slice(0, 12)}…
-					</span>
-					<a
-						className={actionStyles({ size: "sm", variant: "secondary" })}
-						href={`/edit/sessoes/${encodeURIComponent(review.publicationTarget.sourceSessionId)}`}
+			{!approvalCurrent && !review.publicationTarget && onRepairTarget ? (
+				<div className={styles.targetAttention} role="status">
+					<div>
+						<strong>Destino do Edit precisa de atenção</strong>
+						<span>
+							{review.publicationTargetState === "invalid"
+								? "O vínculo original está danificado."
+								: "O destino privado ainda não está vinculado."}{" "}
+							O reparo usa somente a origem verificada e não publica nada.
+						</span>
+					</div>
+					<Button
+						type="button"
+						variant="secondary"
+						disabled={busy || dirty || publishing}
+						onClick={() => void onRepairTarget()}
 					>
-						Abrir sessão no Edit
-					</a>
+						Reparar vínculo original
+					</Button>
 				</div>
 			) : null}
-
-			<div className={styles.summaryGrid}>
-				<div><span>Revisão</span><strong>{reviewed} / {segments.length}</strong><small>{segments.length ? Math.round((reviewed / segments.length) * 100) : 100}%</small></div>
-				<div><span>Palavras</span><strong>{words}</strong><small>{review.review.editedSegments} segmentos alterados no último save</small></div>
-				<div><span>Participantes</span><strong>{participants}</strong><small>{review.stats.trackCount ?? "—"} tracks</small></div>
-				<div><span>Duração</span><strong>{formatSeconds(review.stats.sessionDurationSeconds)}</strong><small>Processamento {formatSeconds(review.stats.processingMetrics?.totalProcessingSeconds ?? review.stats.processingSeconds)}</small></div>
-				<div><span>Avisos</span><strong>{review.review.warningCount}</strong><small>{review.warningSummary ? "atalhos de atenção, não veredictos" : "total histórico não verificado"}</small></div>
-				<div>
-					<span>Hardware</span>
-					<strong>{review.lineage.executionLineage?.gpu?.model ?? review.lineage.device ?? "—"}</strong>
-					{review.lineage.executionLineage?.gpu && !review.lineage.executionLineage.executionDevice ? <small>Identidade física histórica não verificada</small> : null}
-					<small>
-						{[
-							review.lineage.executionLineage?.runtimeFamily,
-							review.lineage.executionLineage?.runtimeVersion,
-							review.lineage.computeType,
-							review.lineage.alignment,
-						]
-							.filter(Boolean)
-							.join(" · ") || "desconhecido"}
-					</small>
-				</div>
-			</div>
 
 			{review.lineage.executionLineage?.runtimeArtifact ? (
 				<details className={styles.warnings}>
@@ -707,42 +970,17 @@ function ReviewEditor({
 				</details>
 			) : null}
 
-            <ParticipantManager segments={segments} disabled={editingBlocked || publishing || !canSave} onApply={(intent) => {
-                const next = applyParticipantRename(segments, intent);
-                if (next === segments) return;
-                setSegments([...next]);
-                if (status === "approved_local") setStatus("reviewed");
-                setDirty(true);
-                setPublishConfirmation(false);
-            }} />
-            <div className={styles.reviewToolbar}>
-				<label>
-					<span>Estado do draft</span>
-					<select
-						value={status}
-						disabled={editingBlocked || !canSave}
-						onChange={(event) => {
-							setStatus(event.target.value as LocalReviewStatus);
-							setDirty(true);
-						}}
-					>
-						<option value="draft">Draft</option>
-						<option value="reviewed">Revisado</option>
-						<option value="approved_local">Aprovado localmente</option>
-					</select>
-				</label>
-				<label className={styles.search}>
-					<span>Buscar na timeline</span>
-					<input
-						value={query}
-						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Texto, participante ou HH:MM:SS…"
-					/>
-				</label>
-				<span className={styles.timelineCount}>
-					{visible.length} de {segments.length} falas · timeline contínua
-				</span>
-			</div>
+			<ParticipantManager segments={segments} disabled={editingBlocked || publishing || !canSave} onApply={(intent) => {
+				const next = applyParticipantRename(segments, intent);
+				if (next === segments) return;
+				setSegments([...next]);
+				if (status === "approved_local") setStatus("reviewed");
+				setDirty(true);
+				setPublicationReceipt(null);
+				setPublicationRecovery(null);
+				setPublicationErrorCode(null);
+				setPublishConfirmation(false);
+			}} />
 
             {error === "LOCAL_REVIEW_DRAFT_CONFLICT" && onLoadLatest ? <Button type="button" disabled={editingBlocked || publishing} onClick={async () => {
                 rememberVisibleAnchor();
@@ -983,9 +1221,6 @@ export function LocalReviewWorkspace({
 		);
 		if (!target) return;
 
-		// Queue -> Results navigation is a one-shot identity request. Clear
-		// filters that could hide the exact run, select it, and then consume the
-		// request so later background refreshes never steal the user's selection.
 		handledFocusRequest.current = focusRunRequestId;
 		pendingDomFocusRequest.current = focusRunRequestId;
 		setLibraryQuery("");
