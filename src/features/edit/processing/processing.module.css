@@ -2145,13 +2145,25 @@
 	}
 }
 
-@media (max-height: 700px) and (min-width: 761px) {
+@media (max-height: 700px) {
 	.jobDiagnosticsDialog {
 		height: 100dvh;
 	}
 
 	.jobDiagnosticsShell {
-		grid-template-rows: auto auto auto auto auto minmax(140px, 1fr) auto;
+		grid-template-rows: auto auto auto auto auto minmax(220px, auto) auto;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+
+	.jobDiagnosticsLog {
+		min-height: 220px;
+	}
+}
+
+@media (min-width: 560px) and (max-width: 760px) {
+	.jobDiagnosticsSummary .jobDetails {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
 
