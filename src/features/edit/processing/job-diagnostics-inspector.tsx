@@ -127,13 +127,16 @@ export function JobDiagnosticsInspector({
 	onCancel,
 }: Props) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
-	const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+	const [copyState, setCopyState] = useState<
+		Readonly<{ jobKey: string; status: "copied" | "failed" }> | null
+	>(null);
 	const job =
 		requestedJob && observedJob?.id === requestedJob.id ? observedJob : requestedJob;
 	const eventsReady = Boolean(
 		job && observedJobId === job.id,
 	);
 	const visibleEvents = eventsReady ? events : [];
+	const jobKey = job ? `${job.id}:${job.attempt}` : "";
 	const profile = useMemo(
 		() =>
 			job?.context?.profileId
@@ -165,10 +168,6 @@ export function JobDiagnosticsInspector({
 		if (open && !dialog.open) dialog.showModal();
 		if (!open && dialog.open) dialog.close();
 	}, [open]);
-
-	useEffect(() => {
-		setCopyState("idle");
-	}, [job?.id, job?.attempt]);
 
 	async function copyDiagnostic() {
 		if (!job) return;
@@ -235,9 +234,9 @@ export function JobDiagnosticsInspector({
 		};
 		try {
 			await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-			setCopyState("copied");
+			setCopyState({ jobKey, status: "copied" });
 		} catch {
-			setCopyState("failed");
+			setCopyState({ jobKey, status: "failed" });
 		}
 	}
 
@@ -308,7 +307,11 @@ export function JobDiagnosticsInspector({
 							</dl>
 						</section>
 
-						<div className={styles.jobDiagnosticsActions} aria-label="Ações do processamento">
+						<div
+							className={styles.jobDiagnosticsActions}
+							role="group"
+							aria-label="Ações do processamento"
+						>
 							{job.status === "succeeded" && job.result_available ? (
 								<Button
 									size="sm"
@@ -332,8 +335,12 @@ export function JobDiagnosticsInspector({
 							<Button size="sm" variant="tertiary" onClick={() => void copyDiagnostic()}>
 								Copiar diagnóstico
 							</Button>
-							{copyState === "copied" ? <span role="status">Diagnóstico copiado.</span> : null}
-							{copyState === "failed" ? <span role="alert">Não foi possível copiar o diagnóstico.</span> : null}
+							{copyState?.jobKey === jobKey && copyState.status === "copied" ? (
+								<span role="status">Diagnóstico copiado.</span>
+							) : null}
+							{copyState?.jobKey === jobKey && copyState.status === "failed" ? (
+								<span role="alert">Não foi possível copiar o diagnóstico.</span>
+							) : null}
 						</div>
 
 						<section className={styles.jobDiagnosticsLog} aria-label="Eventos deste processamento">
