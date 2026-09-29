@@ -269,11 +269,20 @@ _ERROR_SECURITY_HEADERS = {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
 }
+_PUBLIC_ERROR_CODE = re.compile(r"^[A-Z][A-Z0-9_]{0,95}$")
+_FALLBACK_ERROR_CODE = "INTERNAL_ERROR"
+
+
+def _public_error_code(code: object) -> str:
+    if isinstance(code, str) and _PUBLIC_ERROR_CODE.fullmatch(code) is not None:
+        return code
+    return _FALLBACK_ERROR_CODE
 
 
 def error(code, status, recoverable=False):
+    safe_code = _public_error_code(code)
     return JSONResponse(
-        {"error": {"code": code, "recoverable": recoverable}},
+        {"error": {"code": safe_code, "recoverable": bool(recoverable)}},
         status_code=status,
         headers=_ERROR_SECURITY_HEADERS,
     )
@@ -1412,9 +1421,8 @@ def create_app(
         return response
 
     @app.exception_handler(Conflict)
-    async def conflict(_, exc):
-        code = str(exc)
-        return error(code, 409, conflict_recoverable(code))
+    async def conflict(_, exc: Conflict):
+        return error(exc.code, 409, conflict_recoverable(exc.code))
 
     @app.exception_handler(KeyError)
     async def missing(_, exc):
