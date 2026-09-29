@@ -1,5 +1,5 @@
 import { GlobalRouteLoading } from "@/components/global-loading";
-import { PublicLink as Link } from "@/components/public-link";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import styles from "@/features/edit/permissions/permissions.module.css";
 
 const ROWS = Array.from({ length: 4 }, (_, index) => index);
@@ -14,15 +14,13 @@ export default function LoadingPermissions() {
 			data-global-loading="off"
 			aria-busy="true"
 		>
-			<nav className={styles.navigation} aria-label="Navegação do Edit">
-				<Link href="/conta">Conta e acesso</Link>
-				<Link href="/edit/sessoes">Sessões no Edit</Link>
-			</nav>
-			<header className={styles.header}>
-				<p>TDA / EDIT</p>
-				<h1>Permissões</h1>
-				<GlobalRouteLoading label="Carregando dados de permissões" />
-			</header>
+			<OperationalPageHeader
+				eyebrow="Edit · Administração"
+				title="Permissões"
+				description={
+					<GlobalRouteLoading label="Carregando dados de permissões" />
+				}
+			/>
 
 			<div className={styles.loadingSummary} aria-hidden="true">
 				<span className={`${styles.loadingBar} ${styles.loadingBarMedium}`} />
