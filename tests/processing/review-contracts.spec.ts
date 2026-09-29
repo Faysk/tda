@@ -249,8 +249,8 @@ test("publication freezes current and requires a fresh confirmation after stale_
   await route.fulfill({ status: 409, json: { ok: false, reason: "stale_current" } });
  });
  await page.goto("/?review-contracts&publication");
- await expect(page.getByText(/A transcrição será enviada para a área privada de Sessões do Edit/)).toBeVisible();
- await expect(page.getByText(/Handoff privado compatível/)).toBeVisible();
+ await expect(page.getByText(/Preparar no Edit é privado/)).toBeVisible();
+ await expect(page.getByText(/Revisão aprovada e compatível/)).toBeVisible();
  await expect(page.getByText(/snapshot não passa no contrato atual de handoff/i)).toHaveCount(0);
  await page.getByRole("button", { name: "Preparar sessão" }).click();
  await expect(page.getByRole("alertdialog")).toContainText("Preparar esta sessão no Edit?");
@@ -259,13 +259,13 @@ test("publication freezes current and requires a fresh confirmation after stale_
  expect(sent).toHaveLength(0);
  await page.screenshot({ path: testInfo.outputPath("publication-current-confirmation.png"), fullPage: true });
  await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
- await expect(page.getByRole("alert")).toContainText("A revisão privada atual mudou");
+ await expect(page.getByText("A revisão privada mudou desde a sua confirmação", { exact: true })).toBeVisible();
  expect(sent).toHaveLength(1); expect(sent[0].expectedCurrentRevisionId).toBe(first); expect(reads).toBeGreaterThanOrEqual(2);
- await page.getByRole("button", { name: "Preparar sessão" }).click();
+ await page.getByRole("button", { name: "Consultar novamente" }).click();
  await expect(page.getByRole("alertdialog")).toContainText(second);
  expect(sent).toHaveLength(1);
  await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
- await expect(page.getByRole("alert")).toContainText("A revisão privada atual mudou");
+ await expect(page.getByText("A revisão privada mudou desde a sua confirmação", { exact: true })).toBeVisible();
  expect(sent).toHaveLength(2); expect(sent[1].expectedCurrentRevisionId).toBe(second); expect(sent[1].operationId).not.toBe(sent[0].operationId);
 });
 
@@ -285,13 +285,13 @@ test("lost publication recovers after reload without a second write or transcrip
  await page.goto("/?review-contracts&publication");
  await page.getByRole("button", { name: "Preparar sessão" }).click();
  await page.getByRole("alertdialog").getByRole("button", { name: "Preparar sessão" }).click();
- await expect(page.getByRole("alert")).toContainText("A resposta foi perdida");
+ await expect(page.getByText("O handoff pode ter sido concluído", { exact: true })).toBeVisible();
  const stored = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("tda.publication.pending.v1:")));
  expect(stored).toHaveLength(1); expect(stored[0][1]).not.toContain("Olá"); expect(stored[0][1]).not.toContain("Participante sintético"); expect(JSON.parse(stored[0][1]).operationId).toBe((committed as Record<string, unknown> | null)?.operationId);
  await page.reload();
- // The recovery effect is opportunistic; exercise the explicit operator path so
- // the test does not depend on focus/visibility timing in headless Chromium.
- await page.getByRole("button", { name: "Preparar sessão" }).click();
+ // The recovery effect is opportunistic. The persisted operation must surface
+ // as recovery, never as a fresh enabled "Preparar sessão" action.
+ await expect(page.getByRole("button", { name: "Preparar sessão" })).toBeDisabled();
  await expect(page.getByRole("button", { name: "Abandonar handoff anterior" })).toBeVisible();
  let abandonmentMessage = "";
  page.once("dialog", async dialog => {
@@ -311,7 +311,7 @@ test("lost publication recovers after reload without a second write or transcrip
  await expect(editLink).toHaveAttribute("href", "/edit/sessoes/sessao-synthetic");
  await page.setViewportSize({ width: 390, height: 844 });
  await expect(editLink).toBeVisible();
- await expect(page.getByText(/Nada ficará público automaticamente/)).toBeVisible();
+ await expect(page.getByText(/Preparar no Edit é privado/)).toBeVisible();
  expect(posts).toBe(1);
  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(0);
  await page.screenshot({ path: testInfo.outputPath("publication-recovered.png"), fullPage: true });
