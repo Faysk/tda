@@ -57,6 +57,7 @@ export type ProcessingState = Readonly<{
 	system: SystemSnapshot | null;
 	events: readonly JobEvent[];
 	eventsHasOlder: boolean;
+	eventsLoading: boolean;
 	observedJobId: string | null;
 	error: BridgeErrorCode | null;
 	errorDetails: BridgeErrorDetails | null;
@@ -89,6 +90,7 @@ const initial: ProcessingState = {
 	system: null,
 	events: [],
 	eventsHasOlder: false,
+	eventsLoading: false,
 	observedJobId: null,
 	error: null,
 	errorDetails: null,
@@ -610,11 +612,20 @@ export class ProcessingController {
 		if (id !== null) {
 			// Do not briefly show another job's events while the requested
 			// diagnostic history is being loaded.
-			this.update({ observedJobId: id, events: [], eventsHasOlder: false });
+			this.update({
+				observedJobId: id,
+				events: [],
+				eventsHasOlder: false,
+				eventsLoading: true,
+			});
+		} else {
+			this.update({ eventsLoading: false });
 		}
 		await this.runOperation(null, async (signal) => {
 			await this.read(signal, { deep: false, includeLibrary: false });
 		});
+		if (this.#state.connection === "connected" && this.#observedJobOverrideId === id)
+			this.update({ eventsLoading: false });
 	};
 
 	deleteLocalRun = async (

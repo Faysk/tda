@@ -212,7 +212,7 @@ export function ProcessingBenchmark({
 	onRefresh: () => void;
 	onCancel: (jobId: string) => void | Promise<void>;
 	onObserve: (jobId: string) => void | Promise<void>;
-	onOpenDiagnostics: (jobId: string) => void;
+	onOpenDiagnostics: (job: LocalJob) => void;
 }>) {
 	const [bridge] = useState(() => new LocalBridge());
 	const [file, setFile] = useState<File | null>(null);
@@ -778,7 +778,7 @@ export function ProcessingBenchmark({
 						<Button
 							type="button"
 							variant="tertiary"
-							onClick={() => onOpenDiagnostics(active.id)}
+							onClick={() => onOpenDiagnostics(active)}
 						>
 							Ver log / Diagnóstico
 						</Button>
@@ -814,7 +814,7 @@ export function ProcessingBenchmark({
 					<Button
 						type="button"
 						variant="tertiary"
-						onClick={() => onOpenDiagnostics(latestProblem.id)}
+						onClick={() => onOpenDiagnostics(latestProblem)}
 					>
 						Ver log / Diagnóstico
 					</Button>

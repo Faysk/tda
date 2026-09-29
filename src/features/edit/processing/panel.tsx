@@ -28,6 +28,7 @@ import {
 	supportsTerminalJobDelete,
 } from "./compatibility";
 import { ProcessingController } from "./controller";
+import { JobDiagnosticsInspector } from "./job-diagnostics-inspector";
 import { LocalReviewWorkspace } from "./local-review";
 import { serializeLocalRunKey } from "./local-run-key";
 import { SessionAssemblyResults } from "./session-assembly-results";
@@ -332,6 +333,8 @@ export function ProcessingPanel({
 	const [customActivityBarks, setCustomActivityBarks] = useState<readonly ActivityBark[]>([]);
 	const [resultFocus, setResultFocus] = useState<Readonly<{ key: string; requestId: number }> | null>(null);
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
+	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
+	const diagnosticOpener = useRef<HTMLElement | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
@@ -444,7 +447,13 @@ export function ProcessingPanel({
 	const latestCompletedRun = activeJob
 		? null
 		: (state.localRuns[0] ?? null);
-	const observedJob = state.jobs.find((job) => job.id === state.observedJobId) ?? activeJob;
+	const observedJobExact =
+		state.jobs.find((job) => job.id === state.observedJobId) ?? null;
+	const observedJob = observedJobExact ?? activeJob;
+	const diagnosticInspectorJob =
+		diagnosticInspectorJobId === null
+			? null
+			: (state.jobs.find((job) => job.id === diagnosticInspectorJobId) ?? null);
 	const observedJobLive =
 		observedJob !== null &&
 		["queued", "running"].includes(observedJob.status);
@@ -495,14 +504,14 @@ export function ProcessingPanel({
 		if (next === "results") void controller.refresh("results");
 	}
 
-	async function openJobResult(job: LocalJob) {
+	async function openJobResult(job: LocalJob): Promise<string | null> {
 		setResultOpenError(null);
 		const result = await controller.result(job.id);
 		if (!result?.runId) {
-			setResultOpenError(
-				"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
-			);
-			return;
+			const message =
+				"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.";
+			setResultOpenError(message);
+			return message;
 		}
 
 		const found = controller
@@ -515,10 +524,10 @@ export function ProcessingPanel({
 						run.transcriptSha256 === result.transcriptSha256),
 			);
 		if (!found) {
-			setResultOpenError(
-				"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
-			);
-			return;
+			const message =
+				"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.";
+			setResultOpenError(message);
+			return message;
 		}
 
 		const key = serializeLocalRunKey({
@@ -532,6 +541,29 @@ export function ProcessingPanel({
 		// result() resolves the authoritative catalog entry before returning.
 		// Avoid a generic first-page refresh that could immediately hide it.
 		setView("results");
+		return null;
+	}
+
+	function openJobDiagnostics(job: LocalJob) {
+		const active =
+			document.activeElement instanceof HTMLElement ? document.activeElement : null;
+		const queueRow = [...document.querySelectorAll<HTMLElement>("[data-job-id]")].find(
+			(element) => element.dataset.jobId === job.id,
+		);
+		const stableQueueTrigger = queueRow?.querySelector<HTMLElement>(
+			"button[aria-label^='Mais ações para']",
+		);
+		diagnosticOpener.current = view === "queue" ? (stableQueueTrigger ?? active) : active;
+		setDiagnosticInspectorJobId(job.id);
+		void controller.observeJob(job.id);
+	}
+
+	function closeJobDiagnostics(restoreFocus = true) {
+		setDiagnosticInspectorJobId(null);
+		void controller.observeJob(null);
+		const opener = diagnosticOpener.current;
+		diagnosticOpener.current = null;
+		if (restoreFocus && opener) requestAnimationFrame(() => opener.focus());
 	}
 
 	function openAttentionQueue() {
@@ -869,6 +901,13 @@ export function ProcessingPanel({
 										<div className={styles.activeActions}>
 											<Button
 												size="sm"
+												variant="tertiary"
+												onClick={() => openJobDiagnostics(activeJob)}
+											>
+												Abrir diagnóstico
+											</Button>
+											<Button
+												size="sm"
 												className={styles.dangerAction}
 												disabled={
 													state.mutation?.kind === "cancel" &&
@@ -1022,10 +1061,7 @@ export function ProcessingPanel({
 							onDelete={(job) =>
 								setConfirmation({ id: job.id, action: "delete" })
 							}
-							onDiagnostics={(job) => {
-								activateView("diagnostics");
-								void controller.observeJob(job.id);
-							}}
+							onDiagnostics={openJobDiagnostics}
 						/>
 					</section>
 
@@ -1124,10 +1160,7 @@ export function ProcessingPanel({
 							onRefresh={() => void controller.refresh("manual")}
 							onCancel={(jobId) => controller.jobAction(jobId, "cancel")}
 							onObserve={(jobId) => controller.observeJob(jobId)}
-							onOpenDiagnostics={(jobId) => {
-								activateView("diagnostics");
-								void controller.observeJob(jobId);
-							}}
+							onOpenDiagnostics={openJobDiagnostics}
 						/>
 					</section>
 
@@ -1321,6 +1354,44 @@ export function ProcessingPanel({
 				</section>
 			)}
 
+
+			<JobDiagnosticsInspector
+				open={diagnosticInspectorJobId !== null}
+				requestedJob={diagnosticInspectorJob}
+				observedJob={observedJobExact}
+				observedJobId={state.observedJobId}
+				events={state.events}
+				eventsLoading={state.eventsLoading}
+				eventsStale={Boolean(state.eventsRefreshError)}
+				system={state.system}
+				health={state.health}
+				capabilities={state.capabilities}
+				activityCatalog={activityCatalog}
+				expectedPollMs={processingPollMs(
+					Boolean(
+						diagnosticInspectorJob &&
+							["queued", "running"].includes(diagnosticInspectorJob.status),
+					),
+				)}
+				pendingAction={
+					state.mutation?.targetId === diagnosticInspectorJobId &&
+					["cancel", "retry", "result"].includes(state.mutation.kind)
+						? (state.mutation.kind as "cancel" | "retry" | "result")
+						: null
+				}
+				onClose={() => closeJobDiagnostics(true)}
+				onOpenResult={async (job) => {
+					const error = await openJobResult(job);
+					if (!error) closeJobDiagnostics(false);
+					return error;
+				}}
+				onRetry={(job) =>
+					setConfirmation({ id: job.id, action: "retry" })
+				}
+				onCancel={(job) =>
+					setConfirmation({ id: job.id, action: "cancel" })
+				}
+			/>
 
 			<dialog
 				ref={dialog}

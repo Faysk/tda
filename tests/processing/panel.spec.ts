@@ -611,37 +611,42 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	await page.getByRole("button", { name: "Atenção", exact: true }).click();
 	await page.getByRole("button", { name: /Mais ações para/ }).click();
 	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
-	await expect(page.getByRole("tab", { name: "Diagnóstico" })).toHaveAttribute(
-		"aria-selected",
-		"true",
-	);
+	const queueTab = page.getByRole("tab", { name: "Fila" });
+	await expect(queueTab).toHaveAttribute("aria-selected", "true");
+	const inspector = page
+		.locator("dialog")
+		.filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
 	await expect(
-		page.getByRole("heading", { name: "Detalhes do processamento" }),
+		inspector.getByRole("heading", { name: /Diagnóstico ·/ }),
 	).toBeVisible();
 	await expect(
-		page.getByRole("heading", { name: "Histórico de eventos" }),
+		inspector.getByRole("heading", { name: "Histórico de eventos" }),
 	).toBeVisible();
-	await expect(page.getByText("1 mais recente", { exact: true })).toBeVisible();
-	await expect(page.getByRole("log")).toContainText(
+	await expect(inspector.getByText("1 mais recente", { exact: true })).toBeVisible();
+	await expect(inspector.getByRole("log")).toContainText(
 		"Falha de alinhamento Qwen · faixa 1 · janela 89.",
 	);
-	await expect(page.getByRole("log")).toContainText(
+	await expect(inspector.getByRole("log")).toContainText(
 		"Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
 	);
-	await expect(page.getByRole("log")).toContainText(
+	await expect(inspector.getByRole("log")).toContainText(
 		"Identidade da execução: runtime 1.0.11 · worker SHA-256",
 	);
-	await page.getByRole("tab", { name: "Fila" }).click();
-	await page.getByRole("button", { name: "Repetir trabalho" }).click();
-	await expect(page.getByRole("dialog")).toContainText(
-		"checkpoints compatíveis serão reutilizados quando disponíveis",
-	);
-	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+	await inspector.getByRole("button", { name: "Repetir trabalho" }).click();
+	const retryDialog = page
+		.getByRole("dialog")
+		.filter({ hasText: "checkpoints compatíveis serão reutilizados quando disponíveis" });
+	await expect(retryDialog).toBeVisible();
+	await retryDialog.getByRole("button", { name: "Confirmar", exact: true }).click();
 
 	await expect
 		.poll(() => state.job?.attempt)
 		.toBe(2);
 	expect(state.job?.status).toBe("queued");
+	await inspector.getByRole("button", { name: "Fechar" }).click();
+	await expect(inspector).not.toBeVisible();
+	await expect(queueTab).toHaveAttribute("aria-selected", "true");
 	await expect(
 		page
 			.getByRole("tabpanel", { name: "Fila" })
@@ -1440,6 +1445,98 @@ test("Queue Open result navigates to the exact immutable run without opening rev
 	).toHaveCount(0);
 });
 
+test("contextual diagnostics delegates Open result to the exact immutable run flow", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+	await installCompletedRunCatalog(page, {
+		runId: "run-craig-job-1-a1",
+		profileId: "qwen-quality",
+		engine: "qwen3",
+		model: "fixture-qwen",
+		transcriptSha256: "b".repeat(64),
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+
+	const inspector = page
+		.locator("dialog[data-job-diagnostics='contextual']")
+		.filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+
+	await inspector.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(inspector).not.toBeVisible();
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const selectedRun = page.locator(
+		"button[data-local-run-key][aria-current='true']",
+	);
+	await expect(selectedRun).toHaveAttribute(
+		"data-local-run-key",
+		/run-craig-job-1-a1/,
+	);
+	await expect(selectedRun).toBeFocused();
+});
+
+test("contextual diagnostics keeps a result read failure visible without leaving Queue", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+	await page.route(`${LOCAL_API}/jobs/craig-job-1/result`, (route) =>
+		fulfillJson(
+			route,
+			{ error: { code: "RESULT_NOT_FOUND", recoverable: true } },
+			404,
+		),
+	);
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: /Mais ações para/ }).click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+
+	const inspector = page.locator("dialog[data-job-diagnostics='contextual']");
+	await inspector.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(inspector).toBeVisible();
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		inspector.getByRole("alert").filter({
+			hasText:
+				"Não foi possível abrir este resultado local. O trabalho foi preservado; tente novamente ou consulte o diagnóstico.",
+		}),
+	).toBeVisible();
+});
+
 test("Queue Open result walks the paginated catalog to the authoritative identity", async ({
 	page,
 }) => {
@@ -1721,6 +1818,192 @@ test("Queue result stays pending and wins over a concurrent refresh", async ({
 		/run-craig-job-1-a1/,
 	);
 });
+
+test("Overview opens running-job diagnostics contextually and exposes cancel without leaving Overview", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	const overviewTab = page.getByRole("tab", { name: "Visão geral", exact: true });
+	await expect(overviewTab).toHaveAttribute("aria-selected", "true");
+	const overviewDiagnosticsButton = page
+		.getByRole("tabpanel", { name: "Visão geral" })
+		.getByRole("button", { name: "Abrir diagnóstico", exact: true });
+	await overviewDiagnosticsButton.click();
+
+	const inspector = page.locator("dialog[data-job-diagnostics='contextual']");
+	await expect(inspector).toBeVisible();
+	await expect(overviewTab).toHaveAttribute("aria-selected", "true");
+	await expect(inspector).toHaveAttribute("data-job-id", "craig-job-1");
+	await expect(inspector.getByRole("button", { name: "Cancelar" })).toBeVisible();
+
+	await inspector.getByRole("button", { name: "Fechar" }).click();
+	await expect(inspector).not.toBeVisible();
+	await expect(overviewTab).toHaveAttribute("aria-selected", "true");
+	await expect(overviewDiagnosticsButton).toBeFocused();
+});
+
+test("Queue per-job diagnostics opens contextually and preserves the Queue view", async ({ page }) => {
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: {
+				writeText: async (value: string) => {
+					(window as Window & { __copiedJobDiagnostic?: string }).__copiedJobDiagnostic =
+						value;
+				},
+			},
+		});
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [failedJob({ attempt: 2 })],
+		jobEvents: [
+			{
+				seq: 90,
+				attempt: 1,
+				code: "OLD_ATTEMPT_EVENT",
+				at: "2026-09-29T13:59:59Z",
+				level: "warning",
+				data: { stage: "transcription", track: 1 },
+			},
+			{
+				seq: 91,
+				attempt: 2,
+				code: "QWEN_ALIGNMENT_WINDOW_FAILED",
+				at: "2026-09-29T14:00:00Z",
+				level: "error",
+				data: {
+					stage: "alignment",
+					track: 1,
+					window: 89,
+					speaker: "Alice",
+					failure_class: "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+				},
+			},
+		],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queueTab = page.getByRole("tab", { name: "Fila" });
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: "Atenção", exact: true }).click();
+	const search = queue.getByLabel("Buscar");
+	await search.fill("sessao-42");
+	const moreActions = queue.getByRole("button", { name: /Mais ações para/ });
+	await moreActions.click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+
+	await expect(queueTab).toHaveAttribute("aria-selected", "true");
+	const inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(inspector).toContainText("craig-job-1");
+	await expect(inspector).toContainText("QWEN_ALIGNMENT_REQUIRED");
+	await expect(inspector.getByRole("log")).toContainText("Falha de alinhamento Qwen");
+
+	await inspector.getByRole("button", { name: "Copiar Job ID" }).click();
+	await expect(inspector.getByText("Job ID copiado.", { exact: true })).toBeVisible();
+	expect(
+		await page.evaluate(
+			() => (window as Window & { __copiedJobDiagnostic?: string }).__copiedJobDiagnostic,
+		),
+	).toBe("craig-job-1");
+
+	await inspector.getByRole("button", { name: "Copiar Source ID" }).click();
+	await expect(inspector.getByText("Source ID copiado.", { exact: true })).toBeVisible();
+	expect(
+		await page.evaluate(
+			() => (window as Window & { __copiedJobDiagnostic?: string }).__copiedJobDiagnostic,
+		),
+	).toBe(CRAIG_SOURCE_ID);
+
+	await inspector.getByRole("button", { name: "Copiar diagnóstico" }).click();
+	await expect(inspector.getByText("Diagnóstico copiado.", { exact: true })).toBeVisible();
+	const copiedDiagnostic = await page.evaluate(
+		() => (window as Window & { __copiedJobDiagnostic?: string }).__copiedJobDiagnostic,
+	);
+	expect(copiedDiagnostic).toContain('"schema": "tda_job_diagnostic_clipboard_v1"');
+	expect(copiedDiagnostic).toContain('"failure_class": "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"');
+	expect(copiedDiagnostic).not.toContain("OLD_ATTEMPT_EVENT");
+	expect(copiedDiagnostic).not.toContain('"attempt": 1');
+	expect(copiedDiagnostic).not.toContain("Alice");
+	expect(copiedDiagnostic).not.toContain("context");
+	expect(copiedDiagnostic).not.toContain("glossary");
+	expect(copiedDiagnostic).not.toContain("token");
+
+	await page.keyboard.press("Escape");
+	await expect(inspector).not.toBeVisible();
+	await expect(queueTab).toHaveAttribute("aria-selected", "true");
+	await expect(search).toHaveValue("sessao-42");
+	await expect(moreActions).toBeFocused();
+
+	await page.getByRole("tab", { name: "Diagnóstico", exact: true }).click();
+	await expect(page.getByRole("tab", { name: "Diagnóstico", exact: true })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByRole("tabpanel", { name: "Diagnóstico" }),
+	).toContainText("Detalhes do processamento");
+});
+
+for (const viewport of [
+	{ width: 320, height: 568 },
+	{ width: 360, height: 800 },
+	{ width: 390, height: 844 },
+	{ width: 683, height: 384 },
+	{ width: 1920, height: 1080 },
+	{ width: 2560, height: 1440 },
+	{ width: 3840, height: 2160 },
+] as const) {
+	test(`per-job diagnostics stays bounded at ${viewport.width}x${viewport.height} without leaving Queue`, async ({ page }) => {
+		await page.setViewportSize(viewport);
+		await installCompanionFixture(page, {
+			profileReady: true,
+			advanceJobs: false,
+			initialJobs: [failedJob()],
+		});
+
+		await page.goto("/");
+		await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+		await page.getByRole("tab", { name: "Fila" }).click();
+		const queue = page.getByRole("tabpanel", { name: "Fila" });
+		await queue.getByRole("button", { name: "Atenção", exact: true }).click();
+		await queue.getByRole("button", { name: /Mais ações para/ }).click();
+		await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+
+		const inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
+		await expect(inspector).toBeVisible();
+		const box = await inspector.boundingBox();
+		expect(box).not.toBeNull();
+		expect(box?.x ?? -1).toBeGreaterThanOrEqual(-1);
+		expect(box?.y ?? -1).toBeGreaterThanOrEqual(-1);
+		expect(box?.width ?? 999).toBeLessThanOrEqual(viewport.width + 0.1);
+		expect(box?.height ?? 9999).toBeLessThanOrEqual(viewport.height + 1);
+		expect(
+			await inspector.evaluate(
+				(element) => element.scrollWidth <= element.clientWidth + 1,
+			),
+		).toBeTruthy();
+		const log = inspector.getByLabel("Eventos deste processamento");
+		await expect(log).toBeVisible();
+		const logBox = await log.boundingBox();
+		expect(logBox?.height ?? 0).toBeGreaterThan(80);
+		await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+	});
+}
 
 test("Fila confirma visualmente quando o Job ID é copiado", async ({ page }) => {
 	await page.addInitScript(() => {
