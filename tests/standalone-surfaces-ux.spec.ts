@@ -162,6 +162,7 @@ async function expectSkipLinkWorks(
 
 	await page.keyboard.press("Tab");
 	await expect(skip, `${label}: skip link must be first keyboard stop`).toBeFocused();
+	await expect(skip, `${label}: focused skip link must be visible`).toBeInViewport();
 
 	const box = await skip.boundingBox();
 	expect(box, `${label}: focused skip link box`).not.toBeNull();
@@ -209,8 +210,11 @@ for (const surface of surfaces) {
 			);
 
 			const robotsHeader = response?.headers()["x-robots-tag"] ?? "";
+			const robotsLocator = page.locator('meta[name="robots"]');
 			const robotsMeta =
-				(await page.locator('meta[name="robots"]').getAttribute("content")) ?? "";
+				(await robotsLocator.count()) > 0
+					? (await robotsLocator.first().getAttribute("content")) ?? ""
+					: "";
 			if (surface.noindex) {
 				expect(robotsHeader.toLowerCase()).toContain("noindex");
 				expect(robotsMeta.toLowerCase()).toContain("noindex");
@@ -269,7 +273,9 @@ test("standalone catalogs keep published entries discoverable and private lores 
 	await expect(page.locator('a[href="/diario/astel"]')).toBeVisible();
 
 	await page.goto("/diario/astel");
-	await expect(page.locator('a[href="/diario/astel/leitura.html"]')).toBeVisible();
+	await expect(
+		page.locator('a[href="/diario/astel/leitura.html"]').first(),
+	).toBeVisible();
 });
 
 test("Diário de Astel opens and paginates the reader across the viewport matrix", async ({
