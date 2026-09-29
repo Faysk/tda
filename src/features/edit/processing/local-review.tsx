@@ -346,6 +346,7 @@ function ReviewEditor({
     const publicationCurrent = publicationRecovery?.current;
 	const [publishConfirmation, setPublishConfirmation] = useState(false);
 	const publishDialog = useRef<HTMLDialogElement>(null);
+	const publishReturnFocus = useRef<HTMLElement | null>(null);
 	const [publishing, setPublishing] = useState(false);
     const editingBlocked = busy || comparing || comparison !== null || publishing;
 	const [publicationErrorCode, setPublicationErrorCode] = useState<string | null>(null);
@@ -361,9 +362,33 @@ function ReviewEditor({
 	useEffect(() => {
 		const dialog = publishDialog.current;
 		if (!dialog) return;
-		if (publishConfirmation && !dialog.open) dialog.showModal();
-		if (!publishConfirmation && dialog.open) dialog.close();
-	}, [publishConfirmation]);
+		if (publishConfirmation && !dialog.open) {
+			dialog.showModal();
+			return;
+		}
+		if (!publishConfirmation && dialog.open) {
+			dialog.close();
+			queueMicrotask(() => {
+				if (publicationReceipt) {
+					const success = document.querySelector<HTMLElement>(
+						'[data-handoff-success-link="true"]',
+					);
+					if (success) {
+						success.focus();
+						return;
+					}
+				}
+				const previous = publishReturnFocus.current;
+				if (previous?.isConnected) {
+					previous.focus();
+					return;
+				}
+				document
+					.querySelector<HTMLElement>('[data-handoff-trigger="prepare"]')
+					?.focus();
+			});
+		}
+	}, [publishConfirmation, publicationReceipt]);
 
 	useEffect(() => {
 		if (lastServerReview.current === review) return;
@@ -450,11 +475,28 @@ function ReviewEditor({
 	);
 	const participants = new Set(segments.map((segment) => segment.speaker)).size;
 	const approvalCurrent = review.status === "approved_local" && review.approvalCurrent && !dirty;
-	const reviewComplete = !ephemeral && !dirty && (review.status === "reviewed" || approvalCurrent);
+	const savedDraft = !ephemeral && !dirty;
+	const reviewedCurrent =
+		savedDraft && (review.status === "reviewed" || approvalCurrent);
 	const prepared = Boolean(publicationReceipt);
-	const currentWorkflowStep = prepared ? 3 : approvalCurrent ? 2 : reviewComplete ? 1 : 0;
+	const currentWorkflowStep = prepared
+		? 4
+		: approvalCurrent
+			? 3
+			: reviewedCurrent
+				? 2
+				: savedDraft
+					? 1
+					: 0;
 	const workflowSteps = [
-		{ label: "Revisar e salvar", complete: reviewComplete || approvalCurrent || prepared },
+		{
+			label: "Salvar revisão",
+			complete: savedDraft || reviewedCurrent || approvalCurrent || prepared,
+		},
+		{
+			label: "Concluir revisão",
+			complete: reviewedCurrent || approvalCurrent || prepared,
+		},
 		{ label: "Aprovar", complete: approvalCurrent || prepared },
 		{ label: "Preparar no Edit", complete: prepared },
 	] as const;
@@ -574,6 +616,8 @@ function ReviewEditor({
             : "dependency_unavailable";
     }
     async function preparePublicationConfirmation() {
+		publishReturnFocus.current =
+			document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setPublishing(true); setPublicationErrorCode(null); setPublicationRecovery(null); setPublishConfirmation(false);
         try {
             const result = await browserPublicationRecovery().inspect(review);
@@ -632,6 +676,7 @@ function ReviewEditor({
 				<div className={styles.headerActions}>
 					{prepared && review.publicationTarget ? (
 						<a
+							data-handoff-success-link="true"
 							className={actionStyles({ size: "sm", variant: "primary" })}
 							href={`/edit/sessoes/${encodeURIComponent(review.publicationTarget.sourceSessionId)}`}
 						>
@@ -645,6 +690,15 @@ function ReviewEditor({
 							onClick={saveWorkingCopy}
 						>
 							{busy ? "Salvando…" : "Salvar alterações"}
+						</Button>
+					) : ephemeral ? (
+						<Button
+							size="sm"
+							variant="primary"
+							disabled={editingBlocked || !canSave || invalidStrings}
+							onClick={saveWorkingCopy}
+						>
+							{busy ? "Salvando…" : "Salvar revisão"}
 						</Button>
 					) : review.status === "draft" ? (
 						<Button
@@ -666,6 +720,7 @@ function ReviewEditor({
 						</Button>
 					) : (
 						<Button
+							data-handoff-trigger="prepare"
 							size="sm"
 							variant="primary"
 							disabled={
@@ -715,7 +770,7 @@ function ReviewEditor({
 				</span>
 			</div>
 
-			<div className={styles.reviewMeta} aria-label="Resumo da revisão">
+			<div className={styles.reviewMeta} role="group" aria-label="Resumo da revisão">
 				<span><strong>{reviewed.toLocaleString("pt-BR")} / {segments.length.toLocaleString("pt-BR")}</strong> revisadas</span>
 				<span><strong>{words.toLocaleString("pt-BR")}</strong> palavras</span>
 				<span><strong>{participants}</strong> participantes</span>
@@ -798,16 +853,8 @@ function ReviewEditor({
 
 			{publicationReceipt && review.publicationTarget ? (
 				<div className={styles.published} role="status">
-					<span>
-						Sessão preparada no Edit · revisão cloud {publicationReceipt.revisionNumber} · receipt{" "}
-						{publicationReceipt.receiptId.slice(0, 12)}…
-					</span>
-					<a
-						className={actionStyles({ size: "sm", variant: "secondary" })}
-						href={`/edit/sessoes/${encodeURIComponent(review.publicationTarget.sourceSessionId)}`}
-					>
-						Abrir sessão no Edit
-					</a>
+					Sessão preparada no Edit · revisão cloud {publicationReceipt.revisionNumber} · receipt{" "}
+					{publicationReceipt.receiptId.slice(0, 12)}…
 				</div>
 			) : null}
 
@@ -864,18 +911,25 @@ function ReviewEditor({
 			) : null}
 
 			{!approvalCurrent && !review.publicationTarget && onRepairTarget ? (
-				<details className={styles.warnings}>
-					<summary>Destino do Edit precisa de atenção</summary>
-					<p>
-						{review.publicationTargetState === "invalid"
-							? "O vínculo original está danificado."
-							: "O destino privado ainda não está vinculado."}{" "}
-						O reparo usa somente a origem verificada e não publica nada.
-					</p>
-					<Button type="button" variant="secondary" disabled={busy || dirty || publishing} onClick={() => void onRepairTarget()}>
+				<div className={styles.targetAttention} role="status">
+					<div>
+						<strong>Destino do Edit precisa de atenção</strong>
+						<span>
+							{review.publicationTargetState === "invalid"
+								? "O vínculo original está danificado."
+								: "O destino privado ainda não está vinculado."}{" "}
+							O reparo usa somente a origem verificada e não publica nada.
+						</span>
+					</div>
+					<Button
+						type="button"
+						variant="secondary"
+						disabled={busy || dirty || publishing}
+						onClick={() => void onRepairTarget()}
+					>
 						Reparar vínculo original
 					</Button>
-				</details>
+				</div>
 			) : null}
 
 			{review.lineage.executionLineage?.runtimeArtifact ? (
