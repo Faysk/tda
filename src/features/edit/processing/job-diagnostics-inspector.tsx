@@ -34,7 +34,7 @@ type Props = Readonly<{
 	expectedPollMs: number;
 	pendingAction: "cancel" | "retry" | "result" | null;
 	onClose: () => void;
-	onOpenResult: (job: LocalJob) => void | Promise<void>;
+	onOpenResult: (job: LocalJob) => Promise<string | null>;
 	onRetry: (job: LocalJob) => void;
 	onCancel: (job: LocalJob) => void;
 }>;
@@ -147,6 +147,9 @@ export function JobDiagnosticsInspector({
 			kind: "job" | "source";
 			status: "copied" | "failed";
 		}> | null
+	>(null);
+	const [resultActionError, setResultActionError] = useState<
+		Readonly<{ jobKey: string; message: string }> | null
 	>(null);
 	const job =
 		requestedJob && observedJob?.id === requestedJob.id ? observedJob : requestedJob;
@@ -367,7 +370,13 @@ export function JobDiagnosticsInspector({
 									size="sm"
 									variant="primary"
 									disabled={pendingAction === "result"}
-									onClick={() => void onOpenResult(job)}
+									onClick={() =>
+										void (async () => {
+											setResultActionError(null);
+											const error = await onOpenResult(job);
+											if (error) setResultActionError({ jobKey, message: error });
+										})()
+									}
 								>
 									{pendingAction === "result" ? "Abrindo…" : "Abrir resultado"}
 								</Button>
@@ -421,6 +430,9 @@ export function JobDiagnosticsInspector({
 							) : null}
 							{copyState?.jobKey === jobKey && copyState.status === "failed" ? (
 								<span role="alert">Não foi possível copiar o diagnóstico.</span>
+							) : null}
+							{resultActionError?.jobKey === jobKey ? (
+								<span role="alert">{resultActionError.message}</span>
 							) : null}
 						</fieldset>
 
