@@ -767,17 +767,17 @@ test("account overview keeps synthetic identity and access usable across the lay
 		{
 			query: "anonymous",
 			status: "Não autenticada",
-			body: "Entre com o Discord para consultar seu perfil TDA.",
+			body: "Entre com o Discord para consultar seu vínculo TDA.",
 		},
 		{
 			query: "unavailable",
 			status: "Acesso indisponível",
-			body: "Não foi possível consultar seu perfil TDA agora.",
+			body: "Não foi possível consultar seu vínculo TDA agora.",
 		},
 		{
 			query: "unlinked",
 			status: "Não vinculada",
-			body: "Ainda sem perfil TDA vinculado.",
+			body: "Esta conta do Discord ainda não tem um perfil TDA vinculado.",
 		},
 		{
 			query: "no-grants",
