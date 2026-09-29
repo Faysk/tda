@@ -69,6 +69,7 @@ declare
   v_lookup jsonb;
   v_stale jsonb;
   v_bad jsonb;
+  v_existing jsonb;
   v_missing_lookup jsonb;
   v_conflict jsonb;
   v_forbidden jsonb;
@@ -285,6 +286,68 @@ begin
     raise exception 'REJECTED_HANDOFF_LEFT_SESSION_SHELL:%', v_bad;
   end if;
 
+  -- An existing local_companion session is authoritative editorial state.
+  -- Reuse that exact row and change only the transcript revision pointer owned
+  -- by the delegated publication RPC; title/status/creator must survive.
+  insert into public.sessions(
+    id, campaign_id, source_system, source_session_id, title, status, created_by
+  ) values (
+    '10610000-0000-4000-8000-000000000050',
+    '11111111-1111-4111-8111-111111111111',
+    'local_companion',
+    'handoff-existing-local',
+    'Existing editorial title',
+    'reviewing',
+    '33333333-3333-4333-8333-333333333333'
+  );
+
+  v_input := jsonb_set(
+    jsonb_set(
+      public.synthetic_publication_input(
+        '10610000-0000-4000-8000-000000000051',
+        'run-existing-local',
+        'existing local handoff'
+      ),
+      '{sessionId}',
+      '"10610000-0000-4000-8000-000000000050"'::jsonb,
+      true
+    ),
+    '{sourceSessionId}',
+    '"handoff-existing-local"'::jsonb,
+    true
+  );
+
+  select public.prepare_transcript_handoff_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'single_source',
+    v_input,
+    false
+  ) into v_existing;
+
+  if v_existing->>'ok' <> 'true'
+     or v_existing->'receipt'->>'sessionId'
+        <> '10610000-0000-4000-8000-000000000050'
+     or (
+       select count(*)
+       from public.sessions
+       where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+         and source_system = 'local_companion'
+         and source_session_id = 'handoff-existing-local'
+     ) <> 1
+     or not exists (
+       select 1
+       from public.sessions
+       where id = '10610000-0000-4000-8000-000000000050'::uuid
+         and title = 'Existing editorial title'
+         and status = 'reviewing'
+         and created_by = '33333333-3333-4333-8333-333333333333'::uuid
+         and current_transcript_revision_id =
+             (v_existing->'receipt'->>'revisionId')::uuid
+     ) then
+    raise exception 'EXISTING_LOCAL_SESSION_WAS_REBOUND_OR_OVERWRITTEN:%', v_existing;
+  end if;
+
   -- Never duplicate or silently rebind an existing historical/non-local
   -- session that happens to use the same external identity.
   insert into public.sessions(
@@ -374,21 +437,21 @@ delete from public.transcript_publication_events
 where session_id in (
   select id from public.sessions
   where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
-    and source_session_id in ('handoff-first-session', 'handoff-historical')
+    and source_session_id in ('handoff-first-session', 'handoff-existing-local', 'handoff-historical')
 );
 
 delete from public.transcript_publication_receipts
 where session_id in (
   select id from public.sessions
   where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
-    and source_session_id in ('handoff-first-session', 'handoff-historical')
+    and source_session_id in ('handoff-first-session', 'handoff-existing-local', 'handoff-historical')
 );
 
 delete from public.transcript_revisions
 where session_id in (
   select id from public.sessions
   where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
-    and source_session_id in ('handoff-first-session', 'handoff-historical')
+    and source_session_id in ('handoff-first-session', 'handoff-existing-local', 'handoff-historical')
 );
 
 delete from public.audit_log
@@ -396,12 +459,12 @@ where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
   and session_id in (
     select id from public.sessions
     where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
-      and source_session_id in ('handoff-first-session', 'handoff-historical')
+      and source_session_id in ('handoff-first-session', 'handoff-existing-local', 'handoff-historical')
   );
 
 delete from public.sessions
 where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
-  and source_session_id in ('handoff-first-session', 'handoff-historical');
+  and source_session_id in ('handoff-first-session', 'handoff-existing-local', 'handoff-historical');
 
 delete from public.role_assignments
 where id = '10610000-0000-4000-8000-000000000001'::uuid;
