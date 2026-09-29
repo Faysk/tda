@@ -234,15 +234,29 @@ for (const requiredImport of [
 
 const brandAssetContractPath = "src/config/brand-assets.ts";
 const brandAssetContract = fs.readFileSync(brandAssetContractPath, "utf8");
+const canonicalBrandUrls = new Map();
 for (const [file, expected] of Object.entries(officialAssets)) {
 	const asset = brandManifest.assets.find((item) => item.file === file);
 	const canonicalUrl = `${brandManifest.publicOrigin}/${brandManifest.namespace}/${expected}/${file}`;
 	if (!asset || asset.sha256 !== expected) {
 		fail(`cannot derive canonical brand URL for ${file}`);
 	}
+	canonicalBrandUrls.set(file, canonicalUrl);
 	if (!brandAssetContract.includes(`"${canonicalUrl}"`)) {
 		fail(`${brandAssetContractPath} missing canonical brand asset ${canonicalUrl}`);
 	}
+}
+
+const dLoreIndexPath = "public/lore/d/index.html";
+const dLoreIndex = fs.readFileSync(dLoreIndexPath, "utf8");
+const canonicalFaviconUrl = canonicalBrandUrls.get("favicon.svg");
+if (
+	!canonicalFaviconUrl ||
+	!dLoreIndex.includes(
+		`<link rel="icon" href="${canonicalFaviconUrl}" type="image/svg+xml" />`,
+	)
+) {
+	fail(`${dLoreIndexPath} must use the canonical verified brand favicon fallback`);
 }
 
 const brandConsumers = [
