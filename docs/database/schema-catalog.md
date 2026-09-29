@@ -154,6 +154,9 @@ Campos:
 
 É o hub que conecta participants, arquivos, jobs, transcrição, candidatos, publicações e eventos.
 
+**Primeiro handoff local:** o candidato #1061 permite que uma revisão `approved_local` prepare a primeira row privada `local_companion` quando a identidade `(campaign_id, source_system, source_session_id)` ainda não existe. A row nasce `ready_for_review`; `lookup_only` nunca cria e publicação pública continua uma operação editorial separada.
+
+
 ## `participants`
 
 **Propósito:** ocorrência operacional de alguém/personagem em **uma sessão**.
