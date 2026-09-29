@@ -347,7 +347,7 @@ function ReviewEditor({
 	const [publishConfirmation, setPublishConfirmation] = useState(false);
 	const [publishing, setPublishing] = useState(false);
     const editingBlocked = busy || comparing || comparison !== null || publishing;
-	const [publicationError, setPublicationError] = useState<string | null>(null);
+	const [publicationErrorCode, setPublicationErrorCode] = useState<string | null>(null);
 	const [publicationReceipt, setPublicationReceipt] =
 		useState<PublicationReceiptView | null>(null);
 	const canSave = review.snapshotContract === "tda_local_review_cas_v1";
@@ -388,16 +388,22 @@ function ReviewEditor({
 	}, [dirty]);
 
     useEffect(() => {
-        if (!publicationEnabled || !review.publicationTarget || review.status !== "approved_local" || dirty) return;
+        if (
+            !publicationEnabled ||
+            !review.publicationTarget ||
+            review.status !== "approved_local" ||
+            dirty ||
+            publicationPreflight?.eligible !== true
+        ) return;
         let cancelled = false;
         const invalidate = () => { setPublicationRecovery(null); setPublicationReceipt(null); setPublishConfirmation(false); };
         const recover = async () => {
             invalidate(); setPublishing(true);
             try {
                 const result = await browserPublicationRecovery().inspect(review);
-                if (!cancelled) { setPublicationRecovery(result); setPublicationReceipt(result.receipt); setPublicationError(null); }
+                if (!cancelled) { setPublicationRecovery(result); setPublicationReceipt(result.receipt); setPublicationErrorCode(null); }
             } catch (cause) {
-                if (!cancelled) setPublicationError(publicationErrorMessage(cause instanceof PublicationClientError || cause instanceof PublicationRecoveryError ? cause.code : "dependency_unavailable"));
+                if (!cancelled) setPublicationErrorCode(cause instanceof PublicationClientError || cause instanceof PublicationRecoveryError ? cause.code : "dependency_unavailable");
             } finally { if (!cancelled) setPublishing(false); }
         };
         const focus = () => { void recover(); };
@@ -407,7 +413,7 @@ function ReviewEditor({
         window.addEventListener("storage", focus);
         document.addEventListener("visibilitychange", visibility);
         return () => { cancelled = true; window.removeEventListener("focus", focus); window.removeEventListener("storage", focus); document.removeEventListener("visibilitychange", visibility); };
-    }, [publicationEnabled, review, dirty]);
+    }, [publicationEnabled, review, dirty, publicationPreflight]);
 
 	const visible = useMemo(() => {
 		const normalized = query.trim().toLocaleLowerCase("pt-BR");
@@ -459,6 +465,10 @@ function ReviewEditor({
 			),
 		);
 		setDirty(true);
+        setPublicationReceipt(null);
+        setPublicationRecovery(null);
+        setPublicationErrorCode(null);
+        setPublishConfirmation(false);
 	}
 
 	function attemptClose() {
@@ -473,20 +483,22 @@ function ReviewEditor({
 	}
 
     function recoveryError(cause: unknown) {
-        return publicationErrorMessage(cause instanceof PublicationClientError || cause instanceof PublicationRecoveryError ? cause.code : "dependency_unavailable");
+        return cause instanceof PublicationClientError || cause instanceof PublicationRecoveryError
+            ? cause.code
+            : "dependency_unavailable";
     }
     async function preparePublicationConfirmation() {
-        setPublishing(true); setPublicationError(null); setPublicationRecovery(null); setPublishConfirmation(false);
+        setPublishing(true); setPublicationErrorCode(null); setPublicationRecovery(null); setPublishConfirmation(false);
         try {
             const result = await browserPublicationRecovery().inspect(review);
             setPublicationRecovery(result); setPublicationReceipt(result.receipt);
             if (!result.receipt && !result.blocked) setPublishConfirmation(true);
-        } catch (cause) { setPublicationError(recoveryError(cause)); }
+        } catch (cause) { setPublicationErrorCode(recoveryError(cause)); }
         finally { setPublishing(false); }
     }
     async function confirmPublication() {
         if (publishing || !publicationRecovery || publicationRecovery.blocked || dirty || review.status !== "approved_local" || publicationPreflight?.eligible !== true) return;
-        setPublishing(true); setPublicationError(null);
+        setPublishing(true); setPublicationErrorCode(null);
         try {
             const receipt = await browserPublicationRecovery().execute(review, publicationRecovery, onPublish);
             setPublicationReceipt(receipt); setPublicationRecovery(null);
@@ -497,8 +509,8 @@ function ReviewEditor({
     async function abandonPublication() {
         if (!publicationRecovery?.pending || !window.confirm("O handoff privado anterior pode já ter sido concluído. Abandonar a recuperação não desfaz esse commit; apenas permite formar uma nova intenção editorial, que pode criar outra revisão privada. Nada é publicado no site por esta ação. Continuar?")) return;
         setPublishing(true); setPublishConfirmation(false);
-        try { await browserPublicationRecovery().abandon(review, publicationRecovery); setPublicationRecovery(null); setPublicationError(null); }
-        catch (cause) { setPublicationRecovery(null); setPublicationError(recoveryError(cause)); }
+        try { await browserPublicationRecovery().abandon(review, publicationRecovery); setPublicationRecovery(null); setPublicationErrorCode(null); }
+        catch (cause) { setPublicationRecovery(null); setPublicationErrorCode(recoveryError(cause)); }
         finally { setPublishing(false); }
     }
 
@@ -629,8 +641,8 @@ function ReviewEditor({
                 <p>{publicationRecovery.blocked === "mismatch" ? "Existe um handoff anterior de outra revisão ainda não reconciliado nesta campanha. Reabra a revisão original para consultar o recibo." : publicationRecovery.blocked === "expired" ? "Este handoff não resolvido ultrapassou 30 dias. O recibo ainda pode ser consultado; novos envios estão bloqueados." : "Handoff anterior ainda não confirmado. A consulta e a repetição preservam a mesma operação, inclusive após recarregar."}</p>
                 <Button variant="secondary" disabled={publishing} onClick={() => void abandonPublication()}>Abandonar handoff anterior</Button>
             </div> : null}
-			{publicationError ? (
-				<p className={styles.error} role="alert">{publicationError}</p>
+			{publicationErrorCode ? (
+				<p className={styles.error} role="alert">{publicationErrorMessage(publicationErrorCode!)}</p>
 			) : null}
 			{publicationReceipt && review.publicationTarget ? (
 				<div className={styles.published} role="status">
