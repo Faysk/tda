@@ -271,6 +271,8 @@ export function JobDiagnosticsInspector({
 				event.preventDefault();
 				onClose();
 			}}
+			data-job-diagnostics="contextual"
+			data-job-id={job?.id ?? undefined}
 			onClose={() => {
 				if (open) onClose();
 			}}
@@ -317,14 +319,23 @@ export function JobDiagnosticsInspector({
 							<dl className={styles.jobDetails}>
 								<div><dt>Job ID</dt><dd className={styles.mono}>{job.id}</dd></div>
 								<div><dt>Source</dt><dd className={styles.mono}>{job.context?.sourceId ?? "—"}</dd></div>
-								<div><dt>Atualizado</dt><dd>{formatDateTime(job.updated_at)}</dd></div>
 								<div><dt>Attempt</dt><dd>{job.attempt}</dd></div>
+								<div><dt>Atualizado</dt><dd>{formatDateTime(job.updated_at)}</dd></div>
+								<div><dt>Tempo do attempt</dt><dd>{formatSeconds(job.timing.attemptElapsedSeconds)}</dd></div>
+								<div><dt>Resultado</dt><dd>{job.result_available ? "Disponível" : "Não disponível"}</dd></div>
+								<div className={styles.detailWide}>
+									<dt>Progresso</dt>
+									<dd>{job.progress ? `${job.progress.completed}/${job.progress.total} ${job.progress.unit}` : "—"}</dd>
+								</div>
+							</dl>
+						</section>
+
+						<details className={styles.jobDiagnosticsExecution}>
+							<summary>Execução e timings</summary>
+							<dl className={styles.jobDetails}>
 								<div><dt>Attempt iniciado</dt><dd>{formatDateTime(job.timing.attemptStartedAt)}</dd></div>
 								<div><dt>Etapa iniciada</dt><dd>{formatDateTime(job.timing.stageStartedAt)}</dd></div>
-								<div><dt>Tempo do attempt</dt><dd>{formatSeconds(job.timing.attemptElapsedSeconds)}</dd></div>
 								<div><dt>Tempo da etapa</dt><dd>{formatSeconds(job.timing.stageElapsedSeconds)}</dd></div>
-								<div><dt>Resultado</dt><dd>{job.result_available ? "Disponível" : "Não disponível"}</dd></div>
-								<div><dt>Progresso</dt><dd>{job.progress ? `${job.progress.completed}/${job.progress.total} ${job.progress.unit}` : "—"}</dd></div>
 								<div><dt>Engine</dt><dd>{profile?.engine ?? "—"}</dd></div>
 								<div><dt>Modelo</dt><dd>{profile?.model ?? "—"}</dd></div>
 								<div><dt>Revisão do modelo</dt><dd>{profile?.modelRevision ?? "—"}</dd></div>
@@ -338,7 +349,7 @@ export function JobDiagnosticsInspector({
 									</div>
 								) : null}
 							</dl>
-						</section>
+						</details>
 
 						<fieldset className={styles.jobDiagnosticsActions}>
 							<legend className={styles.jobDiagnosticsActionsLegend}>
