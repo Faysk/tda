@@ -1,0 +1,17 @@
+import { notFound } from "next/navigation";
+
+export const dynamic = "force-dynamic";
+
+const ROUTE_DELAY_MS = 900;
+
+export default async function GlobalLoadingSlowE2EFixture() {
+	if (process.env.TDA_E2E_FIXTURES !== "true") notFound();
+
+	await new Promise((resolveDelay) => setTimeout(resolveDelay, ROUTE_DELAY_MS));
+
+	return (
+		<main>
+			<h1>Global Loading E2E Target</h1>
+		</main>
+	);
+}
