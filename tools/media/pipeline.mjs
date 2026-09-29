@@ -308,10 +308,8 @@ async function inspectRemote(client, manifest, asset) {
 	}
 }
 
-export function publicVerificationUrl(publicUrl, attempt, now = Date.now()) {
-	const url = new URL(publicUrl);
-	url.searchParams.set("tda_verify", `${now}-${attempt}`);
-	return url;
+export function publicVerificationUrl(publicUrl) {
+	return new URL(publicUrl);
 }
 
 export function publicVerificationHeaders() {
