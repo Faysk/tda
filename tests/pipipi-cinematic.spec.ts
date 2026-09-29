@@ -10,24 +10,24 @@ const sceneIds = [
 ] as const;
 
 const runtimeAssets = [
-	"acordou-bg.avif",
-	"acordou-subject.avif",
-	"cadeira-bg.avif",
-	"cadeira-subject.avif",
-	"casa-bg.avif",
-	"casa-subject.avif",
-	"corredores-bg.avif",
-	"corredores-subject.avif",
-	"ghost-cry.avif",
-	"ghost-flute.avif",
-	"ghost-hearts.avif",
-	"ghost-soft.avif",
-	"ghost-surprise.avif",
-	"stage-bg.avif",
-	"super-bg.avif",
-	"super-subject.avif",
-	"ultimo-dia-bg.avif",
-	"ultimo-dia-subject.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/39f409991b7ceb198637333153bd457ab9338a6405e54c79974db54bf24cf982/acordou-bg.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/3db06b2a8216576452e99cc5d485b9d4e5da4fee7f28ff64856b507ef4d1ec9d/acordou-subject.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/5a5a0f4281b46824c4302a815fafff452734d4e1f2908fb4ac4734c88887a26a/cadeira-bg.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/1b9678741fa029ed6c76c84d91f9abdcdc94b91d7b7c44ab40886f9b367c0752/cadeira-subject.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/a2e400c56b9e18db51f06213d211e7ed81118a2675a89feaf460bb5bdb2a1959/casa-bg.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/a3ea5b4cad8cccbe90ed01ad7306436639995120c6bddee01638ca113f647820/casa-subject.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/50b5c88cf596b7f8c6d434abc7065df7af9c458710fce82a6c1fecd4f080cd23/corredores-bg.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/2fb0164a92fd12008f53e42e9433212d4787d3d788dc05cd017c662693235b13/corredores-subject.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/381de7c9a2cd8163891c081ee04f2893f2caa82f5f2d9d88b70e350320d4ae92/ghost-cry.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/135c4fa5a20fd7447d1470944b2a8fc1ce7e8ea69944ae886d9c3bf3d0c23611/ghost-flute.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/38ba8074b24a7cf0fc7448d5b13684eadecd785ec07935568654d15170dec84f/ghost-hearts.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/cd04c7e3fbbc647fbf44d18f9b76778a1d31c3b6f56a447cce99aa0a6a437272/ghost-soft.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/4b73eff366efc85b47fdaffcca30d99cf392f21e8c498549dc6a2cc7036ac5ce/ghost-surprise.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/a50beeeb7b598aaab89dc74e3e5cec0787df63092bf8a5487f9e450d3228f816/stage-bg.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/c372648d38ce17fe1dd3eb70fe4d7a038f13278930f8001efca875b57e889a7d/super-bg.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/0613f27dd4dc910835fe293198ba8a04aaa69f06566c05f034154b2d2aeb720b/super-subject.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/4f5fdf9203746e4a32592ba924a3ea4a4ec7c98ef8104050a5ec635ea929ae44/ultimo-dia-bg.avif",
+	"https://media.dnd.faysk.dev/lore/pipipi/b4be9868ca7af9e31caebe4dfe9939d32c784c8d69455af3fb940b0dfa8cd00a/ultimo-dia-subject.avif",
 ] as const;
 
 const staticBedScenes = ["super-herois", "cadeira", "ultimo-dia"] as const;
@@ -172,14 +172,14 @@ test("keeps the three chapter links inside the mobile viewport", async ({ page }
 	}
 });
 
-test("serves every pinned AVIF runtime asset", async ({ request }, testInfo) => {
+test("serves every pinned Pipipi AVIF from canonical R2", async ({ request }, testInfo) => {
 	test.skip(
 		testInfo.project.name !== "desktop-1080p",
 		"asset integrity only needs one browser project",
 	);
 
 	for (const asset of runtimeAssets) {
-		const response = await request.get(`/lore/pipipi/${asset}`);
+		const response = await request.get(asset);
 		expect(response.status(), asset).toBe(200);
 		expect(response.headers()["content-type"], asset).toContain("image/avif");
 	}

@@ -2,7 +2,7 @@
 
 > Status: implementação, QA e publicação em production concluídos
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-12
+> Última revisão: 2026-09-29
 > Integração: PR #118, merge commit `28668fb169534d1de7cd8a47046a9fbd0d327dfe`
 
 ## Objetivo
@@ -64,11 +64,15 @@ Com essa revisão, `ultimo-dia` deixa de ser uma associação pendente. A aprova
 
 ## Assets
 
-O runtime usa 18 derivados AVIF: sete backgrounds, seis subjects transparentes e cinco portraits de fantasma. Os masters/intermediários não são fonte de runtime.
+A entrega cinematográfica usa **18 derivados AVIF ativos**: sete backgrounds, seis subjects transparentes e cinco portraits de fantasma. Os masters/intermediários não são fonte de runtime.
 
-Os 18 derivados finais ficam versionados **diretamente** em `public/lore/pipipi/`. Não existe reconstrução em `pnpm dev`/`pnpm build`, bundle de staging ou bootstrap de assets no caminho de produção.
+Desde a migração da #1034, esses 18 derivados têm identidade canônica na Media Pipeline e são entregues pelo **Cloudflare R2** em `https://media.dnd.faysk.dev/lore/pipipi/{sha256}/{filename}`. O manifest `media/manifests/pipipi.json` fixa SHA-256, MIME e bytes; a publicação faz read-back e verificação de delivery antes do cutover de Production.
 
-O conjunto final ocupa 439.157 bytes e cada arquivo tem dimensões, alpha, tamanho e SHA-256 fixados em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-10.json`. Assim, o SHA integrado contém exatamente os bytes que o navegador usa e a integridade pode ser conferida sem depender de materialização temporária.
+Durante a transição para o contrato remote-canonical da #1036, os mesmos bytes de ingestão ficam em `media/sources/pipipi/` apenas como source da pipeline. Eles **não são servidos pelo runtime** e não constituem storage canônico; o storage canônico é R2.
+
+Os três antigos `super-static.avif`, `cadeira-static.avif` e `ultimo-dia-static.avif` não foram migrados: já estavam superseded pelas composições WebP lossless originais em 1672×941 publicadas e verificadas no R2. Mantê-los criaria duplicata sem consumidor.
+
+A evidência histórica de dimensões/alpha/tamanho/hash dos 18 AVIF permanece em `docs/integrations/evidence/pipipi-cinematic-assets-2026-09-10.json`. Ela registra o estado anterior em Git e não define mais o placement vigente.
 
 ## Runtime e performance
 
