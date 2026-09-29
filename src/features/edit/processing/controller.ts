@@ -156,11 +156,11 @@ export class ProcessingController {
 		});
 	};
 
-	private async runOperation<T>(
+	private async runOperation(
 		mutation: ProcessingMutation | null,
-		action: (signal: AbortSignal) => Promise<T>,
-	): Promise<T | null> {
-		if (mutation && this.#state.mutation) return null;
+		action: (signal: AbortSignal) => Promise<void>,
+	) {
+		if (mutation && this.#state.mutation) return;
 
 		const epoch = this.#epoch;
 		const signal = this.#request.signal;
@@ -175,7 +175,7 @@ export class ProcessingController {
 		});
 
 		try {
-			return await action(signal);
+			await action(signal);
 		} catch (error) {
 			if (epoch === this.#epoch) {
 				const code =
@@ -222,7 +222,6 @@ export class ProcessingController {
 			if (epoch === this.#epoch && mutation)
 				this.update({ mutation: null });
 		}
-		return null;
 	}
 
 	private async readJobScope(
@@ -660,81 +659,6 @@ export class ProcessingController {
 		return deleted;
 	};
 
-
-	ensureLocalRun = async (sourceId: string, runId: string): Promise<boolean> => {
-		const key = `${sourceId}:${runId}`;
-		const hasTarget = (runs: readonly LocalRunSummary[] = this.#state.localRuns) =>
-			runs.some((run) => run.sourceId === sourceId && run.runId === runId);
-		if (hasTarget()) return true;
-		if (this.#state.connection !== "connected") return false;
-
-		const epoch = this.#epoch;
-		const signal = this.#request.signal;
-		const byKey = new Map(
-			this.#state.localRuns.map((run) => [`${run.sourceId}:${run.runId}`, run]),
-		);
-		const commit = (
-			hasMore: boolean,
-			nextCursor: string | null,
-		) => {
-			const localRuns = [...byKey.values()].sort((left, right) => {
-				const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
-				const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
-				return rightTime - leftTime;
-			});
-			this.update({
-				localRuns,
-				localRunsHasMore: hasMore,
-				localRunsNextCursor: nextCursor,
-				libraryRefreshError: null,
-			});
-			return byKey.has(key);
-		};
-
-		try {
-			if (
-				this.#state.capabilities?.capabilities.includes(
-					"transcription.runs.catalog",
-				)
-			) {
-				let cursor: string | undefined;
-				const seenCursors = new Set<string>();
-				while (!signal.aborted) {
-					const page = await this.bridge.localRunCatalog(signal, {
-						...(cursor ? { cursor } : {}),
-						limit: 100,
-					});
-					if (epoch !== this.#epoch || signal.aborted) return false;
-					for (const run of page.runs)
-						byKey.set(`${run.sourceId}:${run.runId}`, run);
-					if (byKey.has(key) || !page.hasMore)
-						return commit(page.hasMore, page.nextCursor);
-					const next = page.nextCursor;
-					if (!next || seenCursors.has(next))
-						throw new BridgeError("invalid_response");
-					seenCursors.add(next);
-					cursor = next;
-				}
-				return false;
-			}
-
-			// Older compatible Companions expose per-source run listing instead of
-			// the global catalog. Query the authoritative source directly rather than
-			// waiting for a background refresh that may already be in flight.
-			const runs = await this.bridge.localRuns(sourceId, signal);
-			if (epoch !== this.#epoch || signal.aborted) return false;
-			for (const run of runs) byKey.set(`${run.sourceId}:${run.runId}`, run);
-			return commit(false, null);
-		} catch (error) {
-			if (epoch === this.#epoch && !signal.aborted)
-				this.update({
-					libraryRefreshError:
-						error instanceof BridgeError ? error.code : "service_error",
-				});
-			return false;
-		}
-	};
-
 	loadMoreRuns = async () => {
 		if (
 			this.#state.connection !== "connected" ||
@@ -989,7 +913,7 @@ export class ProcessingController {
 		this.update({ localReview: null, localReviewError: null });
 	};
 
-	result = async (id: string): Promise<ResultSummary | null> => {
+	result = async (id: string) => {
 		if (
 			this.#state.connection !== "connected" ||
 			!this.#state.jobs.some(
@@ -999,16 +923,11 @@ export class ProcessingController {
 					job.status === "succeeded",
 			)
 		)
-			return null;
+			return;
 
-		return await this.runOperation(
-			{ kind: "result", targetId: id },
-			async (signal) => {
-				const result = await this.bridge.result(id, signal);
-				if (signal.aborted) return null;
-				this.update({ result });
-				return result;
-			},
-		);
+		await this.runOperation({ kind: "result", targetId: id }, async (signal) => {
+			const result = await this.bridge.result(id, signal);
+			if (!signal.aborted) this.update({ result });
+		});
 	};
 }
