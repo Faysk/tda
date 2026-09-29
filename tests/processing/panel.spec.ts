@@ -23,7 +23,10 @@ function fulfillJson(
 	});
 }
 
-async function installCompletedRunCatalog(page: import("@playwright/test").Page) {
+async function installCompletedRunCatalog(
+	page: import("@playwright/test").Page,
+	runCount = 1,
+) {
 	await page.route(`${LOCAL_API}/sources`, (route) =>
 		fulfillJson(route, {
 			schema_version: "tda_craig_sources_v1",
@@ -41,37 +44,35 @@ async function installCompletedRunCatalog(page: import("@playwright/test").Page)
 		fulfillJson(route, {
 			schema_version: "tda_transcription_runs_v1",
 			source_id: CRAIG_SOURCE_ID,
-			runs: [
-				{
-					run_id: "run-delete-compat-1",
-					status: "completed",
-					source_id: CRAIG_SOURCE_ID,
-					profile_id: "whisper-detailed",
-					engine: "faster-whisper",
-					model: "large-v3",
-					model_revision: "rev",
-					device: "cuda",
-					completed_at: "2026-09-27T18:00:00.000Z",
-					transcript_sha256: "b".repeat(64),
-					transcript_size_bytes: 900,
-					stats: {
-						processing_seconds: 12,
-						session_duration_seconds: 60,
-						duration_semantics: "session_extent_v1",
-						rtf: 0.2,
-						word_count: 2,
-						segment_count: 1,
-						track_count: 1,
-						turn_count: 1,
-						warning_count: 0,
-					},
-					execution_lineage: {
-						schema_version: "tda_execution_lineage_v1",
-						device: "cuda",
-						gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
-					},
+			runs: Array.from({ length: runCount }, (_, index) => ({
+				run_id: `run-results-${String(index + 1).padStart(2, "0")}`,
+				status: "completed",
+				source_id: CRAIG_SOURCE_ID,
+				profile_id: index % 2 ? "whisper-turbo" : "whisper-detailed",
+				engine: "faster-whisper",
+				model: index % 2 ? "turbo" : "large-v3",
+				model_revision: "rev",
+				device: "cuda",
+				completed_at: new Date(Date.UTC(2026, 8, 27, 18, index)).toISOString(),
+				transcript_sha256: (index % 16).toString(16).repeat(64),
+				transcript_size_bytes: 900 + index,
+				stats: {
+					processing_seconds: 12 + index,
+					session_duration_seconds: 60 + index,
+					duration_semantics: "session_extent_v1",
+					rtf: 0.2,
+					word_count: 2 + index,
+					segment_count: 1 + index,
+					track_count: 1,
+					turn_count: 1 + index,
+					warning_count: 0,
 				},
-			],
+				execution_lineage: {
+					schema_version: "tda_execution_lineage_v1",
+					device: "cuda",
+					gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
+				},
+			})),
 		}),
 	);
 }
@@ -1171,6 +1172,8 @@ test("Results keeps empty Session Assembly and sync context compact", async ({ p
 
 	const sync = page.locator("[data-results-sync='true']");
 	await expect(sync).toBeVisible();
+	await expect(sync).toHaveAttribute("data-state", "unconfigured");
+	await expect(sync.getByText("Sincronização não configurada.", { exact: true })).toBeVisible();
 	const syncStyle = await sync.evaluate((element) => {
 		const style = getComputedStyle(element);
 		return {
@@ -1182,6 +1185,153 @@ test("Results keeps empty Session Assembly and sync context compact", async ({ p
 	expect(syncStyle.borderRadius).toBe("0px");
 	expect(syncStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
 	expect(syncStyle.borderTopWidth).toBe("1px");
+});
+
+test("Results keeps a 20-run master rail scrollable without page overflow", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+	});
+	await installCompletedRunCatalog(page, 20);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+
+	const master = page.locator("[data-results-master='true']");
+	await expect(page.getByText("20 resultados", { exact: true })).toBeVisible();
+	await expect(master.locator("button")).toHaveCount(20);
+	const scrollState = await master.evaluate((element) => ({
+		overflowY: getComputedStyle(element).overflowY,
+		scrollHeight: element.scrollHeight,
+		clientHeight: element.clientHeight,
+		pageScrollWidth: document.documentElement.scrollWidth,
+		pageClientWidth: document.documentElement.clientWidth,
+	}));
+	expect(["auto", "scroll"]).toContain(scrollState.overflowY);
+	expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+	expect(scrollState.pageScrollWidth).toBeLessThanOrEqual(scrollState.pageClientWidth + 1);
+});
+
+test("Results keeps a completed Session Assembly legible and actionable", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.addInitScript(() => {
+		window.localStorage.setItem(
+			"tda.processing.session-composer.last-session.v1",
+			"sessao-42",
+		);
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+		additionalCapabilities: [
+			"transcription.session-assembly",
+			"transcription.session-assembly.review",
+		],
+	});
+	await installCompletedRunCatalog(page);
+	await page.route(
+		`${LOCAL_API}/session-workspaces/yuhara-main/sessao-42/assemblies`,
+		(route) =>
+			fulfillJson(route, {
+				schema_version: "tda_session_assemblies_v1",
+				campaign_id: "yuhara-main",
+				session_id: "sessao-42",
+				assemblies: [
+					{
+						assembly_id: "c".repeat(64),
+						transcript_sha256: "d".repeat(64),
+						inputs_sha256: "c".repeat(64),
+						segment_count: 10,
+						part_count: 2,
+						participant_approval_blocked: false,
+						created_at: "2026-09-29T18:00:00.000Z",
+					},
+				],
+			}),
+	);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+
+	const assembly = page.locator("[data-results-assembly='true']");
+	await expect(assembly).toHaveAttribute("data-empty", "false");
+	await expect(assembly.getByText("2 gravações · 10 segmentos", { exact: true })).toBeVisible();
+	await expect(assembly.getByRole("button", { name: "Abrir revisão" })).toBeVisible();
+	const horizontal = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}));
+	expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+});
+
+test("Results keeps Session Assembly failure explicit without hiding the workspace", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await page.addInitScript(() => {
+		window.localStorage.setItem(
+			"tda.processing.session-composer.last-session.v1",
+			"sessao-42",
+		);
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+		additionalCapabilities: [
+			"transcription.session-assembly",
+			"transcription.session-assembly.review",
+		],
+	});
+	await installCompletedRunCatalog(page);
+	await page.route(
+		`${LOCAL_API}/session-workspaces/yuhara-main/sessao-42/assemblies`,
+		(route) => route.fulfill({ status: 503, body: "unavailable" }),
+	);
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+
+	await expect(page.locator("[data-results-assembly='true']")).toBeVisible();
+	await expect(
+		page.getByRole("alert").filter({
+			hasText: "Não foi possível atualizar as assemblies desta sessão.",
+		}),
+	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Revisar resultado" })).toBeVisible();
+});
+
+test("Results distinguishes configured publication while keeping healthy sync contextual", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+	});
+	await installCompletedRunCatalog(page);
+	await page.goto("/?publication");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+
+	const sync = page.locator("[data-results-sync='true']");
+	await expect(sync).toHaveAttribute("data-state", "ready");
+	await expect(sync.getByText("Handoff privado para o Edit disponível.", { exact: true })).toBeVisible();
+	const style = await sync.evaluate((element) => {
+		const computed = getComputedStyle(element);
+		return {
+			borderRadius: computed.borderRadius,
+			backgroundColor: computed.backgroundColor,
+			borderTopWidth: computed.borderTopWidth,
+		};
+	});
+	expect(style.borderRadius).toBe("0px");
+	expect(style.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+	expect(style.borderTopWidth).toBe("1px");
 });
 
 test("Companion 0.3.16 exposes completed-run deletion without changing job-delete compatibility", async ({ page }) => {
