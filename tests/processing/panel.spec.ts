@@ -584,37 +584,42 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 	await page.getByRole("button", { name: "Atenção", exact: true }).click();
 	await page.getByRole("button", { name: /Mais ações para/ }).click();
 	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
-	await expect(page.getByRole("tab", { name: "Diagnóstico" })).toHaveAttribute(
-		"aria-selected",
-		"true",
-	);
+	const queueTab = page.getByRole("tab", { name: "Fila" });
+	await expect(queueTab).toHaveAttribute("aria-selected", "true");
+	const inspector = page
+		.locator("dialog")
+		.filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
 	await expect(
-		page.getByRole("heading", { name: "Detalhes do processamento" }),
+		inspector.getByRole("heading", { name: /Diagnóstico ·/ }),
 	).toBeVisible();
 	await expect(
-		page.getByRole("heading", { name: "Histórico de eventos" }),
+		inspector.getByRole("heading", { name: "Histórico de eventos" }),
 	).toBeVisible();
-	await expect(page.getByText("1 mais recente", { exact: true })).toBeVisible();
-	await expect(page.getByRole("log")).toContainText(
+	await expect(inspector.getByText("1 mais recente", { exact: true })).toBeVisible();
+	await expect(inspector.getByRole("log")).toContainText(
 		"Falha de alinhamento Qwen · faixa 1 · janela 89.",
 	);
-	await expect(page.getByRole("log")).toContainText(
+	await expect(inspector.getByRole("log")).toContainText(
 		"Uma palavra extrapolou a janela ainda dentro da região que esta janela precisa proteger.",
 	);
-	await expect(page.getByRole("log")).toContainText(
+	await expect(inspector.getByRole("log")).toContainText(
 		"Identidade da execução: runtime 1.0.11 · worker SHA-256",
 	);
-	await page.getByRole("tab", { name: "Fila" }).click();
-	await page.getByRole("button", { name: "Repetir trabalho" }).click();
-	await expect(page.getByRole("dialog")).toContainText(
-		"checkpoints compatíveis serão reutilizados quando disponíveis",
-	);
-	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+	await inspector.getByRole("button", { name: "Repetir trabalho" }).click();
+	const retryDialog = page
+		.getByRole("dialog")
+		.filter({ hasText: "checkpoints compatíveis serão reutilizados quando disponíveis" });
+	await expect(retryDialog).toBeVisible();
+	await retryDialog.getByRole("button", { name: "Confirmar", exact: true }).click();
 
 	await expect
 		.poll(() => state.job?.attempt)
 		.toBe(2);
 	expect(state.job?.status).toBe("queued");
+	await inspector.getByRole("button", { name: "Fechar" }).click();
+	await expect(inspector).not.toBeVisible();
+	await expect(queueTab).toHaveAttribute("aria-selected", "true");
 	await expect(
 		page
 			.getByRole("tabpanel", { name: "Fila" })
@@ -1214,7 +1219,7 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 	await search.fill("sessao-42");
 	const moreActions = queue.getByRole("button", { name: /Mais ações para/ });
 	await moreActions.click();
-	await queue.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
 
 	await expect(queueTab).toHaveAttribute("aria-selected", "true");
 	const inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
@@ -1256,7 +1261,7 @@ test("per-job diagnostics becomes a bounded mobile sheet without leaving Queue",
 	const queue = page.getByRole("tabpanel", { name: "Fila" });
 	await queue.getByRole("button", { name: "Atenção", exact: true }).click();
 	await queue.getByRole("button", { name: /Mais ações para/ }).click();
-	await queue.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
+	await page.getByRole("button", { name: "Abrir Diagnóstico", exact: true }).click();
 
 	const inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
 	await expect(inspector).toBeVisible();
