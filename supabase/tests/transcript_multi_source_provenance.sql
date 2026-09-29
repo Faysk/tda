@@ -281,15 +281,52 @@ begin
     raise exception 'ASSEMBLY_FIRST_HANDOFF_REPLAY_DIVERGED:%', v_replay;
   end if;
 
-  delete from public.transcript_publication_events where session_id = v_session_id;
-  delete from public.transcript_assembly_publication_receipts where session_id = v_session_id;
-  delete from public.transcript_revision_parts
-    where revision_id in (select id from public.transcript_revisions where session_id = v_session_id);
-  delete from public.transcript_revisions where session_id = v_session_id;
-  delete from public.audit_log where session_id = v_session_id;
-  delete from public.sessions where id = v_session_id;
 end;
 $handoff_session$;
+
+-- The probe above intentionally runs as service_role. Cleanup runs after the
+-- DO statement has returned to the scratch owner so the test does not widen
+-- service_role DELETE grants merely to reset synthetic fixtures.
+delete from public.transcript_publication_events
+where session_id in (
+  select id from public.sessions
+  where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+    and source_session_id = 'assembly-handoff-first'
+);
+
+delete from public.transcript_assembly_publication_receipts
+where session_id in (
+  select id from public.sessions
+  where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+    and source_session_id = 'assembly-handoff-first'
+);
+
+delete from public.transcript_revision_parts
+where revision_id in (
+  select r.id
+  from public.transcript_revisions r
+  join public.sessions s on s.id = r.session_id
+  where s.campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+    and s.source_session_id = 'assembly-handoff-first'
+);
+
+delete from public.transcript_revisions
+where session_id in (
+  select id from public.sessions
+  where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+    and source_session_id = 'assembly-handoff-first'
+);
+
+delete from public.audit_log
+where session_id in (
+  select id from public.sessions
+  where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+    and source_session_id = 'assembly-handoff-first'
+);
+
+delete from public.sessions
+where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+  and source_session_id = 'assembly-handoff-first';
 
 do $main$
 declare
