@@ -15,6 +15,7 @@ export const DEFAULT_PUBLIC_ORIGIN = "https://media.dnd.faysk.dev";
 const PUBLIC_BUCKET = "tda-media-public";
 const MAX_ASSET_BYTES = 128 * 1024 * 1024;
 const ALLOWED_ENCODINGS = new Set(["binary", "base64"]);
+const ALLOWED_SOURCE_MODES = new Set(["repository", "canonical-r2"]);
 const ALLOWED_MEDIA_TYPE =
 	/^(?:image\/(?:avif|jpeg|png|webp)|audio\/[a-z0-9.+-]+|video\/[a-z0-9.+-]+|application\/pdf)$/;
 
@@ -50,8 +51,9 @@ export function validateManifest(
 	manifest,
 	{ repoRoot = process.cwd(), manifestPath = null } = {},
 ) {
-	if (!manifest || manifest.schemaVersion !== 1)
-		throw new Error("media manifest schemaVersion must be 1");
+	if (!manifest || ![1, 2].includes(manifest.schemaVersion))
+		throw new Error("media manifest schemaVersion must be 1 or 2");
+	const schemaVersion = manifest.schemaVersion;
 	if (
 		typeof manifest.project !== "string" ||
 		!/^[a-z0-9][a-z0-9-]{1,63}$/.test(manifest.project)
@@ -101,23 +103,61 @@ export function validateManifest(
 			!/^[a-f0-9]{64}$/.test(asset.sha256)
 		)
 			throw new Error(`invalid sha256 for ${asset.file}`);
-		const encoding = asset.encoding ?? "binary";
-		if (!ALLOWED_ENCODINGS.has(encoding))
-			throw new Error(`invalid source encoding for ${asset.file}`);
 		if (
 			typeof asset.contentType !== "string" ||
 			!ALLOWED_MEDIA_TYPE.test(asset.contentType)
 		)
 			throw new Error(`unsupported contentType for ${asset.file}`);
 
-		const sourcePath = safeRepoPath(
-			repoRoot,
-			asset.source,
-			`source for ${asset.file}`,
-		);
-		const sourceRelative = relative(repoRoot, sourcePath).split(sep).join("/");
-		if (!sourceRelative.startsWith("media/sources/"))
-			throw new Error(`source for ${asset.file} must live under media/sources`);
+		const sourceMode =
+			schemaVersion === 1 ? "repository" : asset.sourceMode;
+		if (!ALLOWED_SOURCE_MODES.has(sourceMode))
+			throw new Error(
+				`asset sourceMode for ${asset.file} must be repository or canonical-r2`,
+			);
+
+		let encoding = null;
+		let sourcePath = null;
+		let sourceRelative = null;
+		if (sourceMode === "repository") {
+			encoding = asset.encoding ?? "binary";
+			if (!ALLOWED_ENCODINGS.has(encoding))
+				throw new Error(`invalid source encoding for ${asset.file}`);
+			sourcePath = safeRepoPath(
+				repoRoot,
+				asset.source,
+				`source for ${asset.file}`,
+			);
+			sourceRelative = relative(repoRoot, sourcePath).split(sep).join("/");
+			if (!sourceRelative.startsWith("media/sources/"))
+				throw new Error(`source for ${asset.file} must live under media/sources`);
+			if (schemaVersion === 2 && (asset.publicationReceipt || asset.canonicalVerifiedAt))
+				throw new Error(
+					`repository source for ${asset.file} must not declare canonical R2 provenance`,
+				);
+		} else {
+			if (schemaVersion !== 2)
+				throw new Error("canonical-r2 assets require media manifest schemaVersion 2");
+			if (asset.source !== undefined || asset.encoding !== undefined)
+				throw new Error(
+					`canonical-r2 asset ${asset.file} must not declare a repository source`,
+				);
+			if (
+				typeof asset.publicationReceipt !== "string" ||
+				asset.publicationReceipt.trim().length < 3 ||
+				asset.publicationReceipt.length > 240
+			)
+				throw new Error(
+					`canonical-r2 asset ${asset.file} requires publicationReceipt provenance`,
+				);
+			if (
+				typeof asset.canonicalVerifiedAt !== "string" ||
+				Number.isNaN(Date.parse(asset.canonicalVerifiedAt))
+			)
+				throw new Error(
+					`canonical-r2 asset ${asset.file} requires canonicalVerifiedAt`,
+				);
+		}
 
 		const objectKey = `${manifest.namespace}/${asset.sha256}/${asset.file}`;
 		if (seenKeys.has(objectKey))
@@ -126,6 +166,7 @@ export function validateManifest(
 
 		return {
 			...asset,
+			sourceMode,
 			encoding,
 			sourcePath,
 			sourceRelative,
@@ -135,7 +176,7 @@ export function validateManifest(
 	});
 
 	return {
-		schemaVersion: 1,
+		schemaVersion,
 		project: manifest.project,
 		namespace: manifest.namespace,
 		bucket: manifest.bucket,
@@ -161,6 +202,8 @@ function decodeBase64Strict(text, label) {
 }
 
 export async function readAssetBytes(asset) {
+	if (asset.sourceMode === "canonical-r2")
+		throw new Error(`canonical-r2 asset ${asset.file} has no repository source bytes`);
 	const raw = await readFile(asset.sourcePath);
 	const bytes =
 		asset.encoding === "base64"
@@ -220,6 +263,11 @@ export async function validateAll(options = {}) {
 	let bytes = 0;
 	for (const manifest of manifests) {
 		for (const asset of manifest.assets) {
+			if (asset.sourceMode === "canonical-r2") {
+				assets += 1;
+				bytes += asset.bytes;
+				continue;
+			}
 			const payload = await readAssetBytes(asset);
 			assets += 1;
 			bytes += payload.length;
@@ -279,7 +327,7 @@ function isNotFound(error) {
 	);
 }
 
-async function inspectRemote(client, manifest, asset) {
+export async function inspectRemote(client, manifest, asset) {
 	try {
 		const head = await client.send(
 			new HeadObjectCommand({ Bucket: manifest.bucket, Key: asset.objectKey }),
@@ -402,12 +450,17 @@ export async function publishAll({
 	repoRoot = process.cwd(),
 	manifestDir = DEFAULT_MANIFEST_DIR,
 	receiptPath = ".local/media-publication-receipt.json",
+	remoteClient = null,
+	verifyDelivery = verifyPublicDelivery,
 } = {}) {
 	const manifests = await discoverManifests({ repoRoot, manifestDir });
 	const prepared = [];
 	for (const manifest of manifests) {
-		for (const asset of manifest.assets)
-			prepared.push({ manifest, asset, bytes: await readAssetBytes(asset) });
+		for (const asset of manifest.assets) {
+			const bytes =
+				asset.sourceMode === "canonical-r2" ? null : await readAssetBytes(asset);
+			prepared.push({ manifest, asset, bytes });
+		}
 	}
 
 	const receipt = {
@@ -428,12 +481,15 @@ export async function publishAll({
 		return receipt;
 	}
 
-	const config = r2Config();
-	const client = r2Client(config);
+	const client = remoteClient ?? r2Client(r2Config());
 	for (const { manifest, asset, bytes } of prepared) {
 		const state = await inspectRemote(client, manifest, asset);
 		let action = "reused";
 		if (!state.exists) {
+			if (asset.sourceMode === "canonical-r2")
+				throw new Error(
+					`canonical R2 object is missing for ${asset.objectKey}; refusing source-less publication`,
+				);
 			await client.send(
 				new PutObjectCommand({
 					Bucket: manifest.bucket,
@@ -452,7 +508,7 @@ export async function publishAll({
 			if (!verified.exists)
 				throw new Error(`R2 write disappeared during verification: ${asset.objectKey}`);
 		}
-		const delivery = await verifyPublicDelivery(asset);
+		const delivery = await verifyDelivery(asset);
 		receipt.assets.push({
 			project: manifest.project,
 			file: asset.file,

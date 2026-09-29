@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 import {
 	discoverManifests,
+	inspectRemote,
 	publishAll,
 	publicVerificationHeaders,
 	publicVerificationUrl,
@@ -48,6 +49,63 @@ async function fixture({ encoding = "binary", namespace = "lore/example" } = {})
 		`${JSON.stringify(manifest, null, 2)}\n`,
 	);
 	return { root, manifest, bytes, digest };
+}
+
+
+async function canonicalFixture() {
+	const root = await mkdtemp(join(tmpdir(), "tda-media-remote-"));
+	await mkdir(join(root, "media/manifests"), { recursive: true });
+	const bytes = Buffer.from("canonical-r2-media\n");
+	const digest = sha256(bytes);
+	const manifest = {
+		schemaVersion: 2,
+		project: "remote-project",
+		namespace: "lore/remote",
+		bucket: "tda-media-public",
+		publicOrigin: "https://media.dnd.faysk.dev",
+		assets: [
+			{
+				file: "remote.webp",
+				sourceMode: "canonical-r2",
+				publicationReceipt: "prod-test-remote",
+				canonicalVerifiedAt: "2026-09-29T12:00:00.000Z",
+				bytes: bytes.length,
+				sha256: digest,
+				contentType: "image/webp",
+			},
+		],
+	};
+	await writeFile(
+		join(root, "media/manifests/remote.json"),
+		`${JSON.stringify(manifest, null, 2)}\n`,
+	);
+	return { root, manifest, bytes, digest };
+}
+
+function remoteClientFor({ bytes, contentType = "image/webp", contentLength = bytes.length, missing = false } = {}) {
+	const calls = [];
+	return {
+		calls,
+		async send(command) {
+			calls.push(command.constructor.name);
+			if (command.constructor.name === "HeadObjectCommand") {
+				if (missing) {
+					const error = new Error("missing");
+					error.name = "NoSuchKey";
+					error.$metadata = { httpStatusCode: 404 };
+					throw error;
+				}
+				return { ContentLength: contentLength };
+			}
+			if (command.constructor.name === "GetObjectCommand") {
+				return {
+					ContentType: contentType,
+					Body: { transformToByteArray: async () => bytes },
+				};
+			}
+			throw new Error(`unexpected remote command: ${command.constructor.name}`);
+		},
+	};
 }
 
 test("empty repositories validate and publish as a no-op without R2 credentials", async () => {
@@ -120,6 +178,120 @@ test("rejects local integrity drift before publication", async () => {
 	await assert.rejects(() => readAssetBytes(manifests[0].assets[0]), /mismatch/);
 });
 
+
+
+test("schema v2 validates canonical R2 assets without repository source bytes", async () => {
+	const { root, bytes } = await canonicalFixture();
+	const result = await validateAll({ repoRoot: root });
+	assert.deepEqual(result, {
+		manifests: 1,
+		assets: 1,
+		bytes: bytes.length,
+		projects: ["remote-project"],
+	});
+	const [manifest] = await discoverManifests({ repoRoot: root });
+	assert.equal(manifest.assets[0].sourceMode, "canonical-r2");
+	assert.equal(manifest.assets[0].sourcePath, null);
+});
+
+test("canonical R2 manifests require explicit provenance and reject repository source fields", async () => {
+	const { root, manifest } = await canonicalFixture();
+	const asset = manifest.assets[0];
+	assert.throws(
+		() =>
+			validateManifest(
+				{
+					...manifest,
+					assets: [{ ...asset, publicationReceipt: undefined }],
+				},
+				{ repoRoot: root },
+			),
+		/requires publicationReceipt provenance/u,
+	);
+	assert.throws(
+		() =>
+			validateManifest(
+				{
+					...manifest,
+					assets: [{ ...asset, canonicalVerifiedAt: "not-a-date" }],
+				},
+				{ repoRoot: root },
+			),
+		/requires canonicalVerifiedAt/u,
+	);
+	assert.throws(
+		() =>
+			validateManifest(
+				{
+					...manifest,
+					assets: [{ ...asset, source: "media/sources/remote.webp" }],
+				},
+				{ repoRoot: root },
+			),
+		/must not declare a repository source/u,
+	);
+});
+
+test("canonical R2 read-back rejects missing, size, MIME and sha256 drift", async () => {
+	const { root, bytes } = await canonicalFixture();
+	const [manifest] = await discoverManifests({ repoRoot: root });
+	const asset = manifest.assets[0];
+
+	assert.deepEqual(
+		await inspectRemote(remoteClientFor({ bytes, missing: true }), manifest, asset),
+		{ exists: false },
+	);
+	await assert.rejects(
+		() => inspectRemote(remoteClientFor({ bytes, contentLength: bytes.length + 1 }), manifest, asset),
+		/size mismatch/u,
+	);
+	await assert.rejects(
+		() => inspectRemote(remoteClientFor({ bytes, contentType: "image/png" }), manifest, asset),
+		/content-type mismatch/u,
+	);
+	await assert.rejects(
+		() => inspectRemote(remoteClientFor({ bytes: Buffer.alloc(bytes.length, 0x78) }), manifest, asset),
+		/sha256 mismatch/u,
+	);
+});
+
+test("source-less publication fails closed when canonical R2 object is absent", async () => {
+	const { root, bytes } = await canonicalFixture();
+	await assert.rejects(
+		() =>
+			publishAll({
+				repoRoot: root,
+				remoteClient: remoteClientFor({ bytes, missing: true }),
+				verifyDelivery: async () => ({
+					httpStatus: 200,
+					contentType: "image/webp",
+					challenged: false,
+				}),
+			}),
+		/canonical R2 object is missing/u,
+	);
+});
+
+test("canonical R2 publication is idempotent reuse after verified read-back", async () => {
+	const { root, bytes } = await canonicalFixture();
+	for (let attempt = 0; attempt < 2; attempt += 1) {
+		const remoteClient = remoteClientFor({ bytes });
+		const receipt = await publishAll({
+			repoRoot: root,
+			remoteClient,
+			verifyDelivery: async () => ({
+				httpStatus: 200,
+				contentType: "image/webp",
+				challenged: false,
+			}),
+		});
+		assert.equal(receipt.summary.assets, 1);
+		assert.equal(receipt.summary.published, 0);
+		assert.equal(receipt.summary.reused, 1);
+		assert.equal(receipt.summary.verified, 1);
+		assert.deepEqual(remoteClient.calls, ["HeadObjectCommand", "GetObjectCommand"]);
+	}
+});
 
 test("public verification uses an anonymous browser-image request without credentials", () => {
 	const headers = publicVerificationHeaders();
