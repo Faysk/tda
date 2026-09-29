@@ -1368,6 +1368,7 @@ export function ProcessingPanel({
 				observedJob={observedJobExact}
 				observedJobId={state.observedJobId}
 				events={state.events}
+				eventsLoading={state.eventsLoading}
 				eventsStale={Boolean(state.eventsRefreshError)}
 				system={state.system}
 				health={state.health}
