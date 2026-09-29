@@ -1054,15 +1054,14 @@ describe("processing state", () => {
 		await controller.connect(token);
 		const result = await controller.result("test-job");
 		expect(result).toMatchObject({ sourceId, runId: targetRunId });
-		expect(controller.snapshot().localRuns).not.toContainEqual(
-			expect.objectContaining({ sourceId, runId: targetRunId }),
-		);
-
-		await expect(controller.ensureLocalRun(sourceId, targetRunId)).resolves.toBe(true);
 		expect(controller.snapshot().localRuns).toContainEqual(
 			expect.objectContaining({ sourceId, runId: targetRunId }),
 		);
 		expect(catalogCursors).toContain("page-2");
+
+		const readsAfterResult = catalogCursors.length;
+		await expect(controller.ensureLocalRun(sourceId, targetRunId)).resolves.toBe(true);
+		expect(catalogCursors).toHaveLength(readsAfterResult);
 		expect(
 			request.mock.calls.some(([url]) => String(url).endsWith("/review")),
 		).toBe(false);
