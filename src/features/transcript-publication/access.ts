@@ -7,7 +7,8 @@ import type { PublicationTarget } from "./contract";
 
 export type ResolvedPublicationTarget = Readonly<{
 	campaignId: string;
-	sessionId: string;
+	/** Null means the authorized campaign has no private Edit session yet. */
+	sessionId: string | null;
 }>;
 
 export type PublicationAuthorizationQueries = Readonly<{
