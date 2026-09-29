@@ -300,6 +300,7 @@ jobs:
           tests/foundation.spec.ts
           tests/navigation-origin.spec.ts
           tests/world-catalogs.spec.ts
+          tests/system-states.spec.ts
           --project=desktop-1080p
       - name: Upload sanitized navigation visual receipts
         if: ${{ success() }}
