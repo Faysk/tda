@@ -97,7 +97,7 @@ export async function readPublicationReceipt(
 		if (!result.ok) return result;
 		return confirmedPublicationReceipt(
 			result.receipt,
-			expectedWithResolvedTarget(access.actor, parsed.value),
+			expectedWithResolvedTarget(access.actor, parsed.value, result.receipt),
 		)
 			? result
 			: { ok: false, reason: "dependency_unavailable" };
