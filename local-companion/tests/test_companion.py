@@ -128,6 +128,26 @@ def client(tmp_path):
         yield client
 
 
+def _wake_prequeued_worker_or_fail(
+    app,
+    job_id: str,
+    ready: threading.Event,
+    *,
+    contract: str,
+    timeout: float = 30.0,
+) -> None:
+    """Wake a pre-lifespan queued job without testing the independent idle-wake path."""
+    app.state.worker_wake.set()
+    if ready.wait(timeout):
+        return
+    state = app.state.store.get(job_id)
+    pytest.fail(
+        f"{contract} worker did not consume the prequeued job "
+        f"(status={state['status']!r}, stage={state['stage']!r}, "
+        f"attempt={state['attempt']!r})"
+    )
+
+
 def test_shutdown_waits_past_fast_window_until_preparation_thread_exits(
     monkeypatch,
     tmp_path,
@@ -293,18 +313,12 @@ def test_worker_activity_count_survives_agent_trace_throttle(monkeypatch, tmp_pa
     )
 
     with TestClient(app, base_url="http://127.0.0.1:8765") as live:
-        # This test owns lossless activity persistence, not the independent
-        # idle-worker wake contract. Make the queued pre-start job runnable
-        # explicitly after lifespan startup so Windows scheduler latency cannot
-        # turn an unrelated wake/timing delay into a false negative.
-        app.state.worker_wake.set()
-        if not emitted.wait(30.0):
-            state = app.state.store.get(job["id"])
-            pytest.fail(
-                "activity-throttle worker did not consume the queued job "
-                f"(status={state['status']!r}, stage={state['stage']!r}, "
-                f"attempt={state['attempt']!r})"
-            )
+        _wake_prequeued_worker_or_fail(
+            app,
+            job["id"],
+            emitted,
+            contract="activity-throttle",
+        )
         deadline = time.monotonic() + 5.0
         state = None
         while time.monotonic() < deadline:
@@ -408,7 +422,14 @@ def test_cancelled_craig_source_stays_owned_until_worker_exits(monkeypatch, tmp_
     )
 
     with TestClient(app, base_url="http://127.0.0.1:8765") as live:
-        assert started.wait(2.0)
+        # This test owns source-ownership/cancel fencing, not startup scheduling.
+        # The job was intentionally queued before lifespan, so wake it explicitly.
+        _wake_prequeued_worker_or_fail(
+            app,
+            job["id"],
+            started,
+            contract="cancelled-source-owner",
+        )
         cancelled = live.post(
             f"/api/v1/jobs/{job['id']}/cancel",
             headers=HEADERS,
