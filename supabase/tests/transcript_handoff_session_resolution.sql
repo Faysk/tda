@@ -67,6 +67,7 @@ declare
   v_first jsonb;
   v_replay jsonb;
   v_lookup jsonb;
+  v_stale jsonb;
   v_bad jsonb;
   v_missing_lookup jsonb;
   v_conflict jsonb;
@@ -168,6 +169,46 @@ begin
 
   if v_audit_count <> 1 then
     raise exception 'HANDOFF_SESSION_AUDIT_MISSING_OR_LEAKED_CONTENT';
+  end if;
+
+  -- A second first-handoff intention formed against the original null current
+  -- must converge on the same session identity but lose the current-pointer
+  -- compare-and-swap after the first operation commits. It must not create a
+  -- second session, revision or receipt.
+  v_input := jsonb_set(
+    v_input,
+    '{operationId}',
+    '"10610000-0000-4000-8000-000000000099"'::jsonb,
+    true
+  );
+
+  select public.prepare_transcript_handoff_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'single_source',
+    v_input,
+    false
+  ) into v_stale;
+
+  if v_stale <> '{"ok":false,"reason":"stale_current"}'::jsonb
+     or (
+       select count(*)
+       from public.sessions
+       where campaign_id = '11111111-1111-4111-8111-111111111111'::uuid
+         and source_system = 'local_companion'
+         and source_session_id = 'handoff-first-session'
+     ) <> 1
+     or (
+       select count(*)
+       from public.transcript_revisions
+       where session_id = v_session_id
+     ) <> 1
+     or (
+       select count(*)
+       from public.transcript_publication_receipts
+       where session_id = v_session_id
+     ) <> 1 then
+    raise exception 'FIRST_HANDOFF_STALE_INTENT_BYPASSED_CAS:%', v_stale;
   end if;
 
   -- Receipt lookup for a never-committed target is strictly read-only.
