@@ -1415,7 +1415,9 @@ test("Queue Open result navigates to the exact immutable run without opening rev
 	await page.getByRole("tab", { name: "Fila" }).click();
 	const queue = page.getByRole("tabpanel", { name: "Fila" });
 	await queue.getByRole("button", { name: /Concluídos/ }).click();
-	await queue.getByRole("button", { name: "Abrir resultado" }).click();
+	const openResult = queue.getByRole("button", { name: "Abrir resultado" });
+	await openResult.focus();
+	await page.keyboard.press("Enter");
 
 	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
 		"aria-selected",
@@ -1578,6 +1580,45 @@ test("Queue Open result reports read failure without fake navigation", async ({
 			{ exact: true },
 		),
 	).toBeVisible();
+});
+
+test("Queue Open result surfaces a valid-but-missing run instead of silently selecting another", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("succeeded")],
+	});
+	await installCompletedRunCatalog(page, {
+		runId: "run-same-source-but-not-target",
+		profileId: "qwen-quality",
+		engine: "qwen3",
+		model: "fixture-qwen",
+		transcriptSha256: "c".repeat(64),
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Fila" }).click();
+	const queue = page.getByRole("tabpanel", { name: "Fila" });
+	await queue.getByRole("button", { name: /Concluídos/ }).click();
+	await queue.getByRole("button", { name: "Abrir resultado" }).click();
+
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page.getByText(
+			"O resultado foi validado, mas o run correspondente não apareceu na biblioteca local. Atualize os resultados ou consulte o diagnóstico.",
+			{ exact: true },
+		),
+	).toBeVisible();
+	await expect(
+		page.locator("button[data-local-run-key][aria-current='true']"),
+	).not.toHaveAttribute("data-local-run-key", /run-craig-job-1-a1/);
 });
 
 test("Queue result stays pending and wins over a concurrent refresh", async ({
