@@ -2,7 +2,6 @@
 
 import {
 	useCallback,
-	useEffect,
 	useReducer,
 	useRef,
 	type PointerEvent as ReactPointerEvent,
@@ -17,7 +16,6 @@ import {
 	type WorldAuthoringTool,
 } from "../world-authoring-ui-state";
 import { nextWorldInspectorMode } from "../world-inspector-mode";
-import { syncWorldInspectorPresentation } from "../world-inspector-presentation";
 
 export function useWorldAuthoringUi() {
 	const [state, dispatch] = useReducer(
@@ -29,13 +27,6 @@ export function useWorldAuthoringUi() {
 
 	const inspectorCollapsed = state.inspectorMode === "closed";
 	const focusMode = state.chromeMode === "minimal";
-
-	useEffect(() => {
-		syncWorldInspectorPresentation(
-			state.inspectorMode === "docked" && state.chromeMode !== "minimal",
-		);
-		return () => syncWorldInspectorPresentation(false);
-	}, [state.inspectorMode, state.chromeMode]);
 
 	const authoringStarted = useCallback(() => {
 		dispatch({ type: "authoringStarted" });
