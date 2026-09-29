@@ -52,6 +52,7 @@ declare
   v_first jsonb;
   v_replay jsonb;
   v_lookup jsonb;
+  v_stale jsonb;
   v_failed jsonb;
   v_missing jsonb;
   v_forbidden jsonb;
@@ -236,6 +237,36 @@ begin
            and session_id=v_session_id) <> 1 then
     raise exception 'FIRST_HANDOFF_REPLAY_NOT_IDEMPOTENT:first=% replay=% lookup=%',
       v_first, v_replay, v_lookup;
+  end if;
+
+  -- A second first-handoff intention formed against the old null current cannot
+  -- race past the current-pointer CAS after another operation has won.
+  v_input :=
+    jsonb_set(
+      v_input,
+      '{operationId}',
+      '"a1000000-0000-4000-8000-000000000005"'::jsonb
+    );
+
+  select public.prepare_transcript_handoff_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    '11111111-1111-4111-8111-111111111111',
+    'single_source',
+    v_input,
+    false
+  ) into v_stale;
+
+  if v_stale <> '{"ok":false,"reason":"stale_current"}'::jsonb
+     or (select count(*) from public.sessions
+         where campaign_id='11111111-1111-4111-8111-111111111111'
+           and source_system='local_companion'
+           and source_session_id='handoff-new-session') <> 1
+     or (select count(*) from public.transcript_revisions
+         where session_id=v_session_id) <> 1
+     or (select count(*) from public.transcript_publication_receipts
+         where session_id=v_session_id) <> 1 then
+    raise exception 'FIRST_HANDOFF_STALE_INTENT_BYPASSED_CAS:%', v_stale;
   end if;
 
   -- A deterministic delegated rejection must not leave an empty session shell.
