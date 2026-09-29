@@ -1095,7 +1095,7 @@ describe("processing state", () => {
 		await expect(controller.result("test-job")).resolves.toBeNull();
 		expect(controller.snapshot()).toMatchObject({
 			connection: "error",
-			error: "invalid_response",
+			error: "incompatible",
 			result: null,
 		});
 	});
