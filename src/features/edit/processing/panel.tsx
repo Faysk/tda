@@ -553,7 +553,7 @@ export function ProcessingPanel({
 		const stableQueueTrigger = queueRow?.querySelector<HTMLElement>(
 			"button[aria-label^='Mais ações para']",
 		);
-		diagnosticOpener.current = stableQueueTrigger ?? active;
+		diagnosticOpener.current = view === "queue" ? (stableQueueTrigger ?? active) : active;
 		setDiagnosticInspectorJobId(job.id);
 		void controller.observeJob(job.id);
 	}
