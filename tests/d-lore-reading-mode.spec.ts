@@ -18,6 +18,10 @@ test("D switches between cinematic and full reading modes on the same URL", asyn
 	await expect(favicon).toHaveCount(1);
 	await expect(favicon).toHaveAttribute("type", "image/svg+xml");
 	await expect(favicon).toHaveAttribute("href", TDA_BRAND_ASSETS.favicon);
+	const faviconResponse = await request.get(TDA_BRAND_ASSETS.favicon);
+	expect(faviconResponse.ok()).toBe(true);
+	expect(faviconResponse.headers()["content-type"]).toContain("image/svg+xml");
+	expect(await faviconResponse.text()).toContain("<svg");
 
 	const toggle = page.locator("#lore-mode-toggle");
 	await expect(toggle).toBeVisible();
