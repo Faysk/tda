@@ -8,6 +8,7 @@ import {
 	type LocalReviewSegment,
 } from "./protocol";
 import { LOCAL_JSON_BODY_MAX_BYTES } from "./request-budget";
+import { preflightApprovedLocalReview } from "./publication-client";
 import strings from "../../../../fixtures/transcript-review-strings-v1.json";
 
 const token = "review_bridge_token_1234567890123456789012";
@@ -191,6 +192,29 @@ describe("local result/review contracts", () => {
 		).toMatchObject({
 			timelineStart: 12,
 			timelineEnd: 13,
+		});
+	});
+
+	it("passes a parsed current review with absolute timeline projection through handoff preflight", () => {
+		const base = rawReview();
+		const raw = {
+			...base,
+			snapshot_contract: "tda_local_review_cas_v1",
+			persistence: "persisted",
+			status: "approved_local",
+			approval_current: true,
+			approved_at: "2026-09-29T12:00:00.000Z",
+			segments: base.segments.map((segment) => ({
+				...segment,
+				timeline_start: segment.start + 120,
+				timeline_end: segment.end + 120,
+			})),
+		};
+		const parsed = parseLocalReview(raw);
+		expect(parsed.segments[0]).toMatchObject({ timelineStart: 120, timelineEnd: 121 });
+		expect(preflightApprovedLocalReview(parsed)).toMatchObject({
+			eligible: true,
+			reason: null,
 		});
 	});
 
