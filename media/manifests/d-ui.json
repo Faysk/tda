@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "project": "d-lore-ui",
+  "bucket": "tda-media-public",
+  "namespace": "lore/d",
+  "publicOrigin": "https://media.dnd.faysk.dev",
+  "assets": [
+    {
+      "file": "favicon.svg",
+      "source": "media/sources/d/favicon.svg",
+      "sourceMode": "repository",
+      "bytes": 326,
+      "sha256": "e8d0b33395b023d973cacbb68fa7b120f795d4a19b9518767010ec50a152e6f2",
+      "contentType": "image/svg+xml"
+    }
+  ]
+}
