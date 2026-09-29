@@ -141,7 +141,7 @@ test("defers only an explicit Cloudflare challenge when staged fallback is enabl
 	const originalFetch = globalThis.fetch;
 	const originalMode = process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE;
 	try {
-		process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE = "staged-next-image";
+		process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE = "browser";
 		globalThis.fetch = async () =>
 			new Response("<html>challenge</html>", {
 				status: 403,
@@ -169,7 +169,7 @@ test("does not defer an ordinary 403 without the Cloudflare challenge marker", a
 	const originalFetch = globalThis.fetch;
 	const originalMode = process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE;
 	try {
-		process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE = "staged-next-image";
+		process.env.TDA_MEDIA_PUBLIC_CHALLENGE_MODE = "browser";
 		globalThis.fetch = async () => new Response("forbidden", { status: 403 });
 		await assert.rejects(
 			() => verifyPublicDelivery({
