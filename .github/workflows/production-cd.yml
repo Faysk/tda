@@ -279,6 +279,7 @@ jobs:
         if: ${{ steps.plan.outputs.media_publish == 'true' }}
         env:
           MEDIA_RANGE: ${{ steps.baseline.outputs.range }}
+          DEPLOYMENT_URL: ${{ steps.stage.outputs.url }}
         run: bash tools/ci/publish-production-media.sh "$MEDIA_RANGE"
 
       - name: Smoke staged Production artifact
