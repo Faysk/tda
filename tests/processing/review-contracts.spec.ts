@@ -248,6 +248,8 @@ test("publication freezes current and requires a fresh confirmation after stale_
  });
  await page.goto("/?review-contracts&publication");
  await expect(page.getByText(/A transcrição será enviada para a área privada de Sessões do Edit/)).toBeVisible();
+ await expect(page.getByText(/Handoff privado compatível/)).toBeVisible();
+ await expect(page.getByText(/snapshot não passa no contrato atual de handoff/i)).toHaveCount(0);
  await page.getByRole("button", { name: "Preparar sessão" }).click();
  await expect(page.getByRole("alertdialog")).toContainText("Preparar esta sessão no Edit?");
  await expect(page.getByRole("alertdialog")).toContainText("Isso não publica capa, resumo ou transcript no site público.");
