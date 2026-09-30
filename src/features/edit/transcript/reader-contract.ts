@@ -5,6 +5,8 @@ export type TranscriptReaderSegment = Readonly<{
 	trackNumber: number;
 	startMs: number;
 	endMs: number;
+	absoluteStart: string | null;
+	absoluteEnd: string | null;
 	speaker: string;
 	text: string;
 }>;
@@ -17,6 +19,17 @@ export type TranscriptReaderSnapshot = Readonly<{
 	/** Exact private legacy source snapshot shown to the operator, when applicable. */
 	legacySnapshotSha256?: string;
 }>;
+
+function trustedAbsolute(value: unknown): string | null {
+	if (
+		typeof value !== "string" ||
+		value.length > 64 ||
+		!Number.isFinite(Date.parse(value)) ||
+		(!/[zZ]$/u.test(value) && !/[+-]\d{2}:\d{2}$/u.test(value))
+	)
+		return null;
+	return value;
+}
 
 function finiteSeconds(value: unknown): number | null {
 	return typeof value === "number" && Number.isFinite(value) && value >= 0
@@ -37,6 +50,10 @@ export function normalizeRevisionSegments(raw: unknown): TranscriptReaderSegment
 		const segmentId = typeof row.segment_id === "string" ? row.segment_id : "";
 		const text = typeof row.text === "string" ? row.text : "";
 		const speaker = typeof row.speaker === "string" ? row.speaker : "";
+		const hasAbsoluteStart = row.absolute_start !== undefined && row.absolute_start !== null;
+		const hasAbsoluteEnd = row.absolute_end !== undefined && row.absolute_end !== null;
+		const absoluteStart = hasAbsoluteStart ? trustedAbsolute(row.absolute_start) : null;
+		const absoluteEnd = hasAbsoluteEnd ? trustedAbsolute(row.absolute_end) : null;
 		if (
 			trackNumber === null ||
 			trackNumber < 1 ||
@@ -44,6 +61,11 @@ export function normalizeRevisionSegments(raw: unknown): TranscriptReaderSegment
 			end === null ||
 			end < start ||
 			!segmentId ||
+			hasAbsoluteStart !== hasAbsoluteEnd ||
+			(hasAbsoluteStart &&
+				(!absoluteStart ||
+					!absoluteEnd ||
+					Date.parse(absoluteEnd) < Date.parse(absoluteStart))) ||
 			!text.trim() ||
 			!speaker.trim()
 		)
@@ -57,6 +79,8 @@ export function normalizeRevisionSegments(raw: unknown): TranscriptReaderSegment
 			trackNumber,
 			startMs: Math.round(start * 1000),
 			endMs: Math.round(end * 1000),
+			absoluteStart,
+			absoluteEnd,
 			speaker,
 			text,
 			_originalIndex: index,
@@ -165,8 +189,15 @@ export function renderTranscriptMarkdown(input: {
 		"",
 	];
 	for (const segment of input.snapshot.segments) {
+		const wallClock = segment.absoluteStart
+			? segment.absoluteStart.match(/T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2})$/u)
+			: null;
 		lines.push(
-			`[${formatTranscriptTimestamp(segment.startMs)}] **${markdownText(segment.speaker)}**`,
+			`<!-- tda:time ${JSON.stringify({
+				absoluteStart: segment.absoluteStart,
+				absoluteEnd: segment.absoluteEnd,
+			})} -->`,
+			`[${formatTranscriptTimestamp(segment.startMs)}${wallClock ? ` | ${wallClock[1]}` : ""}] **${markdownText(segment.speaker)}**`,
 			markdownText(segment.text),
 			"",
 		);
