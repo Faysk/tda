@@ -1,6 +1,6 @@
 -- Assertions for #1134 campaign discovery and authorization hardening.
 
-do $$
+do $tda_auth_test$
 begin
   if not exists (
     select 1
@@ -167,10 +167,10 @@ begin
     raise exception 'campaign authorization boundary functions lost their fixed search_path';
   end if;
 end
-$;
+$tda_auth_test$;
 
 -- Public discovery is projection-only and hides private/archived campaigns.
-do $$
+do $tda_auth_test$
 declare
   v_directory jsonb;
 begin
@@ -199,11 +199,11 @@ begin
     raise exception 'public directory enumerated private or archived campaign';
   end if;
 end
-$$;
+$tda_auth_test$;
 
 -- Edit discovery is actor-scoped, including exact project/tda campaign
 -- capabilities but excluding wrong project scopes and outsiders.
-do $$
+do $tda_auth_test$
 declare
   v_directory jsonb;
 begin
@@ -257,12 +257,12 @@ begin
     raise exception 'legacy project/dnd-scribe scope granted campaign discovery';
   end if;
 end
-$$;
+$tda_auth_test$;
 
 -- Exact capability and physical scope remain independent: project-level Edit
 -- discovery does not imply campaign.read, while session/resource grants do not
 -- escape into campaign discovery or access.
-do $
+do $tda_auth_test$
 declare
   v_actor uuid;
   v_directory jsonb;
@@ -332,10 +332,10 @@ begin
     raise exception 'session/resource scope was treated as campaign authority';
   end if;
 end
-$;
+$tda_auth_test$;
 
 -- Revocation is observed on the next call; there is no stale cached authority.
-do $
+do $tda_auth_test$
 begin
   update public.role_assignments
   set
@@ -353,12 +353,12 @@ begin
     raise exception 'revoked project grant remained effective';
   end if;
 end
-$$;
+$tda_auth_test$;
 
 -- access_directory is no longer a discovery oracle. Missing, sibling and
 -- archived targets fail opaquely, while an authorized actor receives only
 -- campaign-bound people/characters.
-do $$
+do $tda_auth_test$
 declare
   v_allowed jsonb;
   v_cross jsonb;
@@ -432,11 +432,11 @@ begin
     raise exception 'archived campaign accepted normal access-directory operation';
   end if;
 end
-$$;
+$tda_auth_test$;
 
 -- A forged sibling slug does not let a valid A credential act as B, and an
 -- outsider cannot enumerate B even when the technical slug is known.
-do $$
+do $tda_auth_test$
 begin
   perform set_config(
     'request.jwt.claim.sub',
@@ -456,7 +456,7 @@ begin
     raise exception 'outsider enumerated known private campaign';
   end if;
 end
-$$;
+$tda_auth_test$;
 
 
 -- Execute exposed RPCs under the actual browser roles, not only as owner.
