@@ -9,3 +9,28 @@
 	white-space: nowrap;
 	border: 0;
 }
+
+
+.campaignTools {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 8px;
+	font-family: var(--ds-font-ui);
+	font-size: 0.75rem;
+}
+
+.campaignTools a {
+	color: var(--ds-foreground-muted);
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.campaignTools a:hover {
+	color: var(--ds-foreground);
+}
+
+.campaignTools a:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+	border-radius: var(--ds-radius-sm);
+}
