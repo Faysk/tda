@@ -50,7 +50,8 @@ export async function GET(_request: Request, { params }: RouteContext) {
 		});
 		if (!snapshot) return failure(503);
 
-		const download = buildTranscriptDownload({
+		const download = await buildTranscriptDownload({
+			campaignSlug,
 			title: session.title,
 			sessionDate: session.sessionDate,
 			arc: session.arc,
