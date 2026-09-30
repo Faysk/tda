@@ -16,6 +16,17 @@ const campaignColumns = "id,name,slug,public_slug,lifecycle,visibility";
 const columns = `source_session_id,title,session_date,arc,summary_short,${publicMediaColumns},status,campaigns!inner(${campaignColumns})`;
 const legacyColumns = `source_session_id,title,session_date,arc,summary_short,${publicMediaColumns},status,campaigns!inner(id,name,slug)`;
 
+type CampaignRegistryError = Readonly<{ code?: string | null; message?: string | null }>;
+
+function isCampaignRegistrySchemaGap(error: CampaignRegistryError | null | undefined) {
+	if (error?.code !== "PGRST204") return false;
+	const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
+	return (
+		message.includes("campaigns") &&
+		["public_slug", "lifecycle", "visibility"].some((column) => message.includes(column))
+	);
+}
+
 const layoutFixtureSessions = [
 	{ id:"shared-session", campaignId:"fixture-a", campaignSlug:"cronicas-da-mesa", campaignName:"Crônicas da Mesa", campaignTechnicalSlug:"yuhara-main", title:"A memória mais recente do arquivo sintético", date:"2026-09-29", arc:"Contrato visual E2E", summary:"Uma memória sintética curta para validar densidade, filtros e navegação sem tocar em conteúdo privado.", fullSummary:"# Memória mais recente\n\nConteúdo sintético usado somente pelos testes E2E do layout público." },
 	{ id:"shared-session", campaignId:"fixture-b", campaignSlug:"campanha-b", campaignName:"Campanha B", campaignTechnicalSlug:"campaign-b", title:"A mesma identidade de origem em outra campanha", date:"2026-09-22", arc:"Contrato visual E2E", summary:"Fixture A/B com source_session_id repetido para provar isolamento por campanha.", fullSummary:"# Campanha B\n\nMesmo source ID, outra campanha." },
@@ -44,7 +55,10 @@ async function queryArchive(campaignSlug?: string): Promise<PublishedSession[] |
 			.order("source_session_id", { ascending:true }).range(from, from + PAGE_SIZE - 1);
 		if (campaignSlug) query = query.eq("campaigns.public_slug", campaignSlug);
 		const { data, error } = await query;
-		if (error) return queryLegacyArchive(campaignSlug);
+		if (error) {
+			if (isCampaignRegistrySchemaGap(error)) return queryLegacyArchive(campaignSlug);
+			throw new PublishedSessionUnavailableError();
+		}
 		const rows = (data ?? []).flatMap((row) => { const item = toPublishedSession(row); return item ? [item] : []; });
 		result.push(...rows);
 		if ((data ?? []).length < PAGE_SIZE) break;
@@ -86,7 +100,12 @@ export const findPublishedSession = cache(async (campaignSlug: string, id: strin
 		.eq("status","published").eq("campaigns.lifecycle","active").eq("campaigns.visibility","public")
 		.eq("campaigns.public_slug",campaignSlug).eq("source_session_id",id).maybeSingle();
 	if (error) {
-		if (campaignSlug !== LEGACY_CAMPAIGN_PUBLIC_SLUG) throw new PublishedSessionUnavailableError();
+		if (
+			campaignSlug !== LEGACY_CAMPAIGN_PUBLIC_SLUG ||
+			!isCampaignRegistrySchemaGap(error)
+		) {
+			throw new PublishedSessionUnavailableError();
+		}
 		const legacy=await client.from("sessions")
 			.select(`source_session_id,title,session_date,arc,summary_short,summary_full,${publicMediaColumns},status,campaigns!inner(id,name,slug)`)
 			.eq("status","published").eq("campaigns.slug",LEGACY_CAMPAIGN_TECHNICAL_SLUG).eq("source_session_id",id).maybeSingle();
