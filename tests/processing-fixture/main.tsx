@@ -19,14 +19,17 @@ window.fetch = (input, init) => {
 				: input.url;
 	const resolved = new URL(raw, window.location.origin);
 	if (resolved.pathname === "/api/edit/processing/campaign-context") {
+		const campaignContextMode = fixtureParams.get("campaign-context");
+		const unavailable = campaignContextMode === "unavailable";
 		return Promise.resolve(
 			new Response(
-				JSON.stringify({
-					ok: true,
-					campaignSlug: "yuhara-main",
-				}),
+				JSON.stringify(
+					unavailable
+						? { ok: false, reason: "campaign_unavailable" }
+						: { ok: true, campaignSlug: "yuhara-main" },
+				),
 				{
-					status: 200,
+					status: unavailable ? 409 : 200,
 					headers: { "Content-Type": "application/json" },
 				},
 			),
