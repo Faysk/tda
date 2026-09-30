@@ -140,6 +140,12 @@ test("Lembra paths activate only the targeted Lembra E2E contract", () => {
 	assert.equal(flags(["src/app/lembra/page.tsx"]).lembra, true);
 	assert.equal(flags(["src/app/api/lembra/abc/image/route.ts"]).lembra, true);
 	assert.equal(flags(["tests/lembra.spec.ts"]).lembra, true);
+	assert.equal(flags(["tools/lembra-db.py"]).lembra, true);
+	assert.equal(
+		flags(["supabase/migrations/20260930163000_lembra_campaign_classification.sql"]).lembra,
+		true,
+	);
+	assert.equal(flags(["supabase/tests/lembra_shared_library.sql"]).lembra, true);
 });
 
 test("Session editorial paths activate the targeted private-to-public journey gate", () => {

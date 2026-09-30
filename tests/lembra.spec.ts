@@ -29,6 +29,60 @@ async function addReference(
 	await expect(dialog).not.toBeVisible();
 }
 
+
+test("Lembra campaign classification stays optional, filterable and non-authoritative", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns");
+
+	const campaignFilter = page.getByRole("button", { name: "Filtrar por campanha" });
+	await expect(campaignFilter).toBeVisible();
+
+	await campaignFilter.click();
+	await page.getByRole("option", { name: "Geral", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Geral", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Mesa", exact: true })).toHaveCount(0);
+
+	await campaignFilter.click();
+	await page.getByRole("option", { name: "Crônicas da Mesa", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Mesa", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Geral", exact: true })).toHaveCount(0);
+
+	await page.getByRole("button", { name: "Limpar filtros" }).click();
+	const search = page.getByPlaceholder(
+		"Buscar título, descrição, autor ou data...",
+	);
+	await search.fill("campanha arquivada");
+	await expect(page.getByRole("button", { name: "Histórica", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Mesa", exact: true })).toHaveCount(0);
+	await page.getByRole("button", { name: "Limpar filtros" }).click();
+
+	await page.getByRole("button", { name: "Histórica", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	await expect(viewer).toContainText("Campanha Arquivada · arquivada");
+	await viewer.getByRole("button", { name: "Editar", exact: true }).click();
+	await viewer.getByRole("button", { name: "Campanha da referência" }).click();
+	await expect(
+		page.getByRole("option", { name: "Campanha Arquivada · arquivada", exact: true }),
+	).toBeVisible();
+	await page.keyboard.press("Escape");
+	await viewer.getByRole("button", { name: "Fechar referência" }).click();
+
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "nova-referencia.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+	const composer = page.getByRole("dialog");
+	await expect(composer.getByRole("heading", { name: "Quase lá." })).toBeVisible();
+	await composer.getByRole("button", { name: "Campanha da referência" }).click();
+	await expect(
+		page.getByRole("option", { name: "Campanha Arquivada · arquivada", exact: true }),
+	).toHaveCount(0);
+	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
+	await expect(
+		composer.getByRole("button", { name: "Campanha da referência" }),
+	).toContainText("Campanha Pública B");
+});
+
 test("Lembra stays dense, searchable and usable from keyboard", async ({ page }) => {
 	await page.goto("/lembra");
 
@@ -338,7 +392,7 @@ test("Lembra preserves source proportions in composer, gallery and viewer", asyn
 	const dialog = page.getByRole("dialog");
 	const preview = dialog.getByAltText("Preview da referência selecionada");
 	await expect(preview).toBeVisible();
-	expect(await preview.evaluate((element) => getComputedStyle(element).objectFit)).toBe("contain");
+	await expect(preview).toHaveCSS("object-fit", "contain");
 
 	await dialog.getByLabel("Nome").fill("Quadrada");
 	await dialog.getByRole("button", { name: "Guardar", exact: true }).click();
@@ -346,7 +400,7 @@ test("Lembra preserves source proportions in composer, gallery and viewer", asyn
 
 	const cardImage = page.locator("article").filter({ hasText: "Quadrada" }).locator("img");
 	await expect(cardImage).toBeVisible();
-	expect(await cardImage.evaluate((element) => getComputedStyle(element).objectFit)).toBe("contain");
+	await expect(cardImage).toHaveCSS("object-fit", "contain");
 	expect(
 		await cardImage.evaluate((element) => {
 			const image = element as HTMLImageElement;
@@ -357,7 +411,7 @@ test("Lembra preserves source proportions in composer, gallery and viewer", asyn
 	await page.getByRole("button", { name: "Quadrada", exact: true }).click();
 	const viewerImage = page.getByAltText("Referência visual: Quadrada");
 	await expect(viewerImage).toBeVisible();
-	expect(await viewerImage.evaluate((element) => getComputedStyle(element).objectFit)).toBe("contain");
+	await expect(viewerImage).toHaveCSS("object-fit", "contain");
 });
 
 test("Lembra viewer fits a portrait image without cropping its source frame", async ({ page }) => {

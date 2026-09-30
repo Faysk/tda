@@ -18,6 +18,7 @@ insert into public.lembra_references (
   id,
   title,
   description,
+  campaign_id,
   status,
   staged_bucket,
   object_key,
@@ -34,6 +35,7 @@ values (
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'Ruínas élficas',
   'Arcos antigos cobertos por árvores.',
+  null,
   'active',
   'tda-media-preview',
   'lembra/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.png',
@@ -61,6 +63,14 @@ begin
     where status = 'active'
   ) <> 1 then
     raise exception 'expected one active shared reference';
+  end if;
+
+  if (
+    select campaign_id
+    from public.lembra_references
+    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  ) is not null then
+    raise exception 'legacy Lembra reference must remain in Geral after migration';
   end if;
 
   if (
@@ -109,6 +119,106 @@ begin
     when check_violation then
       null;
   end;
+end;
+$$;
+
+update public.lembra_references
+set campaign_id = '11111111-1111-4111-8111-111111111111'
+where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+do $$
+declare
+  v_key text;
+begin
+  select object_key into v_key
+  from public.lembra_references
+  where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  if v_key <> 'lembra/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.png' then
+    raise exception 'campaign classification must not move or rewrite the immutable Lembra object key';
+  end if;
+
+  begin
+    update public.lembra_references
+    set campaign_id = '99999999-9999-4999-8999-999999999999'
+    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    raise exception 'unknown campaign classification should have failed';
+  exception
+    when foreign_key_violation then
+      null;
+  end;
+end;
+$$;
+
+update public.lembra_references
+set campaign_id = '33333333-3333-4333-8333-333333333333'
+where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+do $$
+begin
+  if not exists (
+    select 1
+    from public.lembra_references
+    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+      and campaign_id = '33333333-3333-4333-8333-333333333333'
+  ) then
+    raise exception 'archived campaign classification must remain readable';
+  end if;
+end;
+$$;
+
+delete from public.campaigns
+where id = '33333333-3333-4333-8333-333333333333';
+
+do $$
+begin
+  if (
+    select campaign_id
+    from public.lembra_references
+    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  ) is not null then
+    raise exception 'campaign deletion must degrade Lembra classification back to Geral';
+  end if;
+end;
+$$;
+
+do $$
+declare
+  v_expected_updated_at timestamptz;
+  v_first_count integer;
+  v_stale_count integer;
+begin
+  select updated_at into v_expected_updated_at
+  from public.lembra_references
+  where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  update public.lembra_references
+  set
+    title = 'Writer A',
+    updated_at = v_expected_updated_at + interval '1 second'
+  where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    and updated_at = v_expected_updated_at;
+  get diagnostics v_first_count = row_count;
+
+  update public.lembra_references
+  set
+    title = 'Writer B stale',
+    updated_at = v_expected_updated_at + interval '2 seconds'
+  where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    and updated_at = v_expected_updated_at;
+  get diagnostics v_stale_count = row_count;
+
+  if v_first_count <> 1 or v_stale_count <> 0 then
+    raise exception 'Lembra optimistic metadata update must reject stale writers';
+  end if;
+
+  if (
+    select title
+    from public.lembra_references
+    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  ) <> 'Writer A' then
+    raise exception 'stale metadata writer overwrote the winning update';
+  end if;
 end;
 $$;
 

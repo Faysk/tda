@@ -2,7 +2,7 @@
 
 > Status: persistência compartilhada em Production; galeria justified responsiva rastreada na #738
 > Owner: frontend / integrations-media / identity-access
-> Última revisão: 2026-09-27
+> Última revisão: 2026-09-30
 > Fonte de verdade: este contrato, `docs/design-system/`, `docs/architecture.md` e o boundary de Media Storage
 
 ## Objetivo
@@ -38,7 +38,7 @@ Usuário não autenticado não acessa a biblioteca quando a persistência estive
 
 Consequências:
 
-- não existe isolamento por campanha;
+- não existe isolamento por campanha; `campaign_id` é classificação opcional de organização, não boundary de autorização;
 - não existe separação de leitura/escrita por role;
 - não existe “dono” como boundary de permissão;
 - autoria é contexto histórico e critério de busca;
@@ -74,12 +74,13 @@ paste ───────┼─> File -> preview -> nome/descrição -> guarda
 file picker ─┘
 ```
 
-O composer pede somente:
+O composer pede:
 
 - **Nome** — obrigatório;
-- **Descrição** — opcional.
+- **Descrição** — opcional;
+- **Campanha** — opcional, com `Geral` como ausência explícita de classificação.
 
-Autor e data são automáticos.
+Autor e data são automáticos. Somente campaigns **ativas e públicas** podem receber uma nova classificação nesta entrega. Uma referência já classificada em campaign arquivada continua legível/editável e pode permanecer nela ou voltar para `Geral`; campaign arquivada não aparece como destino novo. Campaign privada não é enumerada nem aceita por UUID enquanto #1134 não definir discovery/membership multi-campaign com segurança.
 
 Ao publicar, o feedback visual acompanha estados reais sem expandir o composer:
 
@@ -99,6 +100,7 @@ A busca textual combina termos encontrados em:
 - nome;
 - descrição;
 - autor;
+- nome humano da campaign, quando classificada;
 - data de publicação.
 
 Exemplo:
@@ -111,6 +113,8 @@ pode combinar autor + título/descrição + data no mesmo item.
 
 Também existem:
 
+- filtro `Campanha: Todas | Geral | <nome>`;
+- campaign arquivada permanece filtrável quando houver referência histórica;
 - filtro inclusivo `De / Até`;
 - ordenação por mais recentes;
 - mais antigas;
@@ -128,6 +132,7 @@ Clicar na imagem ou no título abre um viewer amplo com:
 - descrição;
 - autor;
 - data;
+- campaign ou `Geral`;
 - favorito;
 - edição;
 - remoção;
@@ -167,6 +172,7 @@ lembra_references
 - id
 - title
 - description
+- campaign_id nullable
 - status
 - staged_bucket
 - object_key
@@ -188,7 +194,9 @@ lembra_favorites
 - created_at
 ```
 
-Hoje não existe `campaign_id`. ADR-0020 preserva o Lembra como biblioteca global; #1132 pode adicionar **classificação opcional** de campaign sem transformar essa classificação em authorization boundary.
+`campaign_id = null` significa **Geral / sem campaign**. Referências existentes permanecem `null` na migração; nenhuma é empurrada para `yuhara-main` por suposição. A FK usa `ON DELETE SET NULL`, portanto a remoção administrativa de uma campaign degrada a classificação para Geral sem apagar a referência.
+
+Classificação não altera acesso, autoria, favoritos, R2 key, bucket ou bytes. Usuário autenticado continua vendo a biblioteca compartilhada mesmo sem membership/grant da **campaign pública** classificada. O nome exibido é metadata de organização do Lembra; slug técnico não é apresentado. Campaigns privadas ficam fora do catálogo/selector desta entrega para que o service role não vire um oracle de discovery antes de #1134. Enquanto o registry first-class ainda não estiver aplicado no banco, a classificação degrada deliberadamente para `Geral`: a galeria continua disponível, o selector não enumera campaigns e payload forjado com `campaign_id` é recusado.
 
 `created_by_name` é um snapshot produzido pelo servidor a partir da identidade autenticada para exibição/busca. O browser nunca fornece autoria.
 
@@ -249,6 +257,7 @@ Qualquer usuário autenticado pode:
 - criar referência;
 - alterar nome;
 - alterar descrição;
+- atribuir/remover classificação opcional de campaign;
 - remover referência;
 - favoritar/desfavoritar.
 
@@ -267,7 +276,9 @@ Tratar sem perder a galeria atual:
 - sessão expirada;
 - write de metadata falhando após materialização do objeto;
 - item removido enquanto outro cliente o visualiza;
-- atualização concorrente simples;
+- atualização concorrente simples — metadata usa comparação de `updated_at` e retorna conflito em vez de sobrescrever silenciosamente;
+- campaign arquivada após classificação;
+- campaign inexistente/forjada no payload;
 - busca sem resultado.
 
 A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-side sem segredo.
@@ -283,7 +294,13 @@ A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-
 - [ ] autoria e data vêm do servidor;
 - [ ] `Meus itens` continua sendo somente filtro;
 - [ ] favoritos persistem por usuário;
-- [ ] busca por nome/descrição/autor/data continua funcionando;
+- [ ] busca por nome/descrição/autor/campaign/data continua funcionando;
+- [ ] filtro por `Todas | Geral | campaign` combina com Meus itens/Favoritos/período;
+- [ ] referência legacy permanece em Geral;
+- [ ] campaign arquivada não quebra referência existente e não é destino novo;
+- [ ] usuário sem membership da campaign continua sob a regra global autenticada do Lembra;
+- [ ] atribuir/remover campaign não muda `object_key` nem bytes R2;
+- [ ] atualização concorrente falha com conflito, sem lost update;
 - [ ] filtro por período e ordenação continuam funcionando;
 - [ ] drag/drop, paste e picker usam o mesmo pipeline;
 - [ ] preview, galeria e viewer preservam a proporção original sem crop;
@@ -302,6 +319,8 @@ A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-
 Não fazem parte do roadmap atual do Lembra:
 
 - isolamento/autorização por campaign; classificação opcional não altera o boundary global;
+- usar classificação de campaign como grant/restrição de acesso;
+- mover bytes R2 ao trocar classificação;
 - RBAC/capabilities próprias;
 - tags;
 - categorias obrigatórias;
@@ -321,22 +340,25 @@ A simplicidade é requisito, não ausência de funcionalidade.
 
 ## Rollout
 
-1. mergear código/schema com `TDA_LEMBRA_ENABLED=false`;
+1. mergear código/schema preservando compatibilidade com Production pré-registry; classificação fica em `Geral` enquanto `campaigns.lifecycle/visibility` não existirem;
 2. validar migration em PostgreSQL descartável;
 3. aplicar migration deliberadamente no Supabase canônico;
 4. confirmar R2 private acessível pelo runtime server-side;
 5. confirmar secrets server-side no runtime;
 6. ativar `TDA_LEMBRA_ENABLED=true`;
 7. smoke autenticado com dois usuários:
-   - A publica;
-   - B vê;
-   - B edita;
+   - A publica em Geral e em uma campaign ativa;
+   - B vê ambas mesmo sem membership da campaign classificada;
+   - B filtra Geral/campaign e edita classificação;
    - A vê atualização;
    - B favorita para si;
    - A não recebe favorito de B;
+   - referência em campaign arquivada continua legível;
    - A/B removem;
    - reload preserva estado correto;
-8. validar caso negativo de upload inválido e sessão anônima.
+8. validar que troca de classificação preserva o mesmo `object_key`;
+9. validar conflito concorrente de metadata;
+10. validar caso negativo de campaign forjada, upload inválido e sessão anônima.
 
 ## Referências
 

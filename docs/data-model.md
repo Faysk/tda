@@ -152,6 +152,19 @@ Regra: **fonte → candidato → revisão → memória/publicação**. Nada deve
 
 Essas tabelas registram pipeline e retenção. O reboot não deve reativar retenção cloud de áudio bruto.
 
+### Lembra
+
+`lembra_references` continua uma biblioteca visual **global entre usuários autenticados**. A classificação opcional `campaign_id` é metadata de organização:
+
+- `null` = Geral / sem campaign;
+- FK aponta para `campaigns.id` e usa `ON DELETE SET NULL`;
+- classificação não participa de autorização, autoria, favorito ou ownership da mídia;
+- trocar classificação não altera `object_key`, bucket ou bytes;
+- campaign arquivada permanece legível em referências históricas e não deve ser oferecida como destino novo;
+- o catálogo de classificação desta entrega só enumera campaigns públicas; discovery privada permanece responsabilidade de #1134.
+
+`lembra_favorites` continua por `auth_user_id + reference_id` e é independente de campaign.
+
 ### Integração externa
 - `external_api_clients`
 - `external_api_keys`

@@ -84,6 +84,7 @@ const EXACT = {
 	lembra: new Set([
 		".github/workflows/ci.yml",
 		"tests/lembra.spec.ts",
+		"tools/lembra-db.py",
 	]),
 	sessions: new Set([
 		".github/workflows/ci.yml",
@@ -162,6 +163,11 @@ function matches(path, domain) {
 	if (
 		domain === "sessions" &&
 		/^supabase\/(?:migrations|tests)\/.*session_(?:editorial|publication|cover)/u.test(path)
+	)
+		return true;
+	if (
+		domain === "lembra" &&
+		/^supabase\/(?:migrations|tests)\/.*lembra/u.test(path)
 	)
 		return true;
 	return false;

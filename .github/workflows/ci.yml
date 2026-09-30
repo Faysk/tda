@@ -388,10 +388,17 @@ jobs:
           cache: pnpm
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-16
+      - name: Lembra PostgreSQL classification contract
+        run: python tools/lembra-db.py
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
       - name: Lembra browser contract
-        run: pnpm exec playwright test tests/lembra.spec.ts --project=desktop-1080p
+        run: >-
+          pnpm exec playwright test
+          tests/lembra.spec.ts
+          --project=desktop-1080p
+          --project=mobile
       - name: Upload sanitized Lembra failure artifacts
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

@@ -11,6 +11,7 @@ const ITEM = {
 	description: "Arcos antigos cobertos por árvores",
 	author: "Thom",
 	createdAt: "2026-09-21T14:30:00.000Z",
+	campaign: { name: "Crônicas da Mesa" },
 };
 
 describe("Lembra search", () => {
@@ -27,6 +28,11 @@ describe("Lembra search", () => {
 
 	it("supports mixed terms across different fields", () => {
 		expect(matchesLembraSearch(ITEM, "thom arcos elficas")).toBe(true);
+	});
+
+	it("searches the optional campaign display name without exposing a slug", () => {
+		expect(matchesLembraSearch(ITEM, "cronicas mesa")).toBe(true);
+		expect(matchesLembraSearch({ ...ITEM, campaign: null }, "cronicas")).toBe(false);
 	});
 
 	it("makes the publication date searchable", () => {
