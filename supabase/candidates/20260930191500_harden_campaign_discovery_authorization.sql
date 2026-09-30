@@ -74,7 +74,7 @@ create or replace function public.has_profile_campaign_capability(
   p_profile_id uuid,
   p_campaign_slug text,
   p_action text,
-  p_at timestamptz default clock_timestamp()
+  p_at timestamptz default statement_timestamp()
 )
 returns boolean
 language sql
@@ -153,11 +153,11 @@ grant execute on function public.campaign_public_directory() to anon;
 grant execute on function public.campaign_public_directory() to authenticated;
 grant execute on function public.campaign_public_directory() to service_role;
 
--- Authenticated operational discovery returns only campaigns for which the
--- current profile has at least one effective campaign/narrative capability.
--- Project grants count only when they are on project/tda and contain an exact
--- campaign/narrative action. Archived campaigns may remain visible to an
--- authorized actor for historical navigation; mutation guards remain separate.
+-- Authenticated operational discovery is governed by the exact
+-- campaign.edit.access capability. Project grants count only on project/tda and
+-- only when their role contains that exact action. Archived campaigns may remain
+-- visible to an authorized actor for historical navigation; mutation guards
+-- remain separate.
 create or replace function public.campaign_edit_directory()
 returns jsonb
 language plpgsql
@@ -168,6 +168,7 @@ as $$
 declare
   v_auth_user_id uuid := auth.uid();
   v_profile_id uuid;
+  v_now timestamptz := statement_timestamp();
 begin
   if v_auth_user_id is null then
     return '[]'::jsonb;
@@ -203,15 +204,12 @@ begin
         join public.role_permissions permission
           on permission.role_id = assignment.role_id
         where assignment.profile_id = v_profile_id
+          and permission.permission_action = 'campaign.edit.access'
           and assignment.status = 'active'
-          and assignment.starts_at <= clock_timestamp()
+          and assignment.starts_at <= v_now
           and (
             assignment.ends_at is null
-            or assignment.ends_at > clock_timestamp()
-          )
-          and (
-            permission.permission_action like 'campaign.%'
-            or permission.permission_action like 'narrative.%'
+            or assignment.ends_at > v_now
           )
           and (
             (
@@ -291,13 +289,13 @@ begin
     viewer_profile.id,
     campaign_row.slug,
     'campaign.access.manage',
-    clock_timestamp()
+    statement_timestamp()
   );
   can_read := can_manage or public.has_profile_campaign_capability(
     viewer_profile.id,
     campaign_row.slug,
     'campaign.read',
-    clock_timestamp()
+    statement_timestamp()
   );
 
   if not can_read then
@@ -465,7 +463,7 @@ comment on function public.campaign_public_directory() is
 'Public #1134 campaign discovery projection. Returns only active/public route key, name and description; private/archived campaigns are not enumerable.';
 
 comment on function public.campaign_edit_directory() is
-'Authenticated #1134 operational campaign discovery. Returns only campaigns with an active effective campaign/narrative capability for the current profile; raw grants are never returned.';
+'Authenticated #1134 operational campaign discovery. Returns only campaigns with active effective campaign.edit.access for the current profile; raw grants are never returned.';
 
 comment on function public.access_directory(text) is
 'Hardened #1134 campaign people/onboarding directory. Requires current profile plus campaign.read or campaign.access.manage, denies archived/missing/unauthorized targets opaquely, and no longer enumerates global unlinked profiles.';
