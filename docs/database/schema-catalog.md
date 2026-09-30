@@ -13,7 +13,7 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 
 | Tabela | Linhas observadas | Papel |
 | --- | ---: | --- |
-| `campaigns` | 2 após #1123 | campanhas |
+| `campaigns` | 1 | campanhas |
 | `profiles` | 5 | pessoas/contas |
 | `campaign_members` | 4 | membership legado simples |
 | `sessions` | 11 | sessões da campanha |
