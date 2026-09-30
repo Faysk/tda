@@ -59,6 +59,9 @@ describe("session intent recovery receipt", () => {
 			NOW,
 		);
 		receipt = updateSessionIntentReceipt(receipt, {
+			enqueue: { sourceId: SOURCE_B, key: "enqueue-b" },
+		});
+		receipt = updateSessionIntentReceipt(receipt, {
 			job: { sourceId: SOURCE_B, jobId: "job-b" },
 		});
 		receipt = updateSessionIntentReceipt(receipt, {
@@ -75,6 +78,7 @@ describe("session intent recovery receipt", () => {
 			profileId: "whisper-detailed",
 			context: "mesa de quinta",
 			glossary: "Yuhara",
+			enqueueKeys: { [SOURCE_B]: "enqueue-b" },
 			jobIds: { [SOURCE_B]: "job-b" },
 			runIds: { [SOURCE_B]: "run-b" },
 		});
