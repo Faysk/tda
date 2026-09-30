@@ -1033,7 +1033,7 @@ export function SessionIntentCoordinator({
 	return (
 		<section
 			className={styles.intent}
-			aria-labelledby="session-intent-title"
+			aria-label="Transcrição da sessão"
 			data-session-intent="true"
 		>
 			<div className={styles.header}>
