@@ -301,3 +301,37 @@
 		min-width: 0;
 	}
 }
+
+
+.importInput {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	clip-path: inset(50%);
+}
+
+.importPreview {
+	grid-column: 1 / -1;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	flex-wrap: wrap;
+	padding: 10px 12px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-base);
+}
+
+.importPreview > div:first-child {
+	display: grid;
+	gap: 3px;
+}
+
+.importPreview span {
+	color: var(--ds-text-muted);
+	font-size: .8rem;
+}
