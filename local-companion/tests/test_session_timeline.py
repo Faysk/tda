@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from tda_companion.session_timeline import (
+    project_trusted_absolute_time,
     automatic_placements,
     classify_start_time,
     enrich_workspace_timeline,
@@ -497,3 +498,33 @@ def test_exact_touch_and_one_millisecond_gap_overlap_remain_distinct():
     assert overlap["parts"][1]["relation_seconds"] == pytest.approx(0.001)
     assert overlap["parts"][1]["overlap_resolution_valid"] is True
     assert overlap["timeline"]["state"] == "ready"
+
+
+def test_project_trusted_absolute_time_preserves_explicit_offset_and_rolls_midnight():
+    assert project_trusted_absolute_time(
+        "2026-09-12T23:59:59+01:00",
+        "trusted_absolute",
+        3.25,
+    ) == "2026-09-13T00:00:02.250+01:00"
+    assert project_trusted_absolute_time(
+        "2026-09-12T22:34:23Z",
+        "trusted_absolute",
+        0,
+    ) == "2026-09-12T22:34:23.000Z"
+
+
+@pytest.mark.parametrize("confidence", ["ambiguous", "opaque", "missing"])
+def test_project_trusted_absolute_time_never_invents_untrusted_wall_clock(confidence):
+    assert project_trusted_absolute_time(
+        "2026-09-12T22:34:23+01:00",
+        confidence,
+        44,
+    ) is None
+
+
+def test_project_trusted_absolute_time_rechecks_claimed_trust():
+    assert project_trusted_absolute_time(
+        "22:34:23",
+        "trusted_absolute",
+        44,
+    ) is None
