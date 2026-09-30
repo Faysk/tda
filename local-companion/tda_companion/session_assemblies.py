@@ -5,7 +5,7 @@ import json
 import math
 import re
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -217,6 +217,33 @@ def _segment_id(
     return hashlib.sha256(payload).hexdigest()
 
 
+
+def _trusted_absolute_time(
+    part: Mapping[str, Any],
+    local_start: float,
+    local_end: float,
+) -> dict[str, str] | None:
+    if part.get("source_start_confidence") != "trusted_absolute":
+        return None
+    raw = part.get("source_start_time")
+    if not isinstance(raw, str) or not raw.strip():
+        raise SessionAssemblyError("SESSION_ASSEMBLY_ABSOLUTE_TIME_INVALID")
+    try:
+        source_start = datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise SessionAssemblyError("SESSION_ASSEMBLY_ABSOLUTE_TIME_INVALID") from exc
+    if source_start.tzinfo is None or source_start.utcoffset() is None:
+        raise SessionAssemblyError("SESSION_ASSEMBLY_ABSOLUTE_TIME_INVALID")
+    start = source_start + timedelta(seconds=local_start)
+    end = source_start + timedelta(seconds=local_end)
+    return {
+        "schema_version": "tda_segment_absolute_time_v1",
+        "confidence": "trusted_absolute",
+        "source_start": raw.strip(),
+        "start": start.isoformat(timespec="milliseconds"),
+        "end": end.isoformat(timespec="milliseconds"),
+    }
+
 def _build_transcript(
     *,
     campaign_id: str,
@@ -342,6 +369,11 @@ def _build_transcript(
                         "raw_speaker": raw_speaker,
                         "start": global_start,
                         "end": global_end,
+                        "absolute_time": _trusted_absolute_time(
+                            part,
+                            local_start,
+                            local_end,
+                        ),
                         "text": text,
                         "words": projected_words,
                     }
@@ -407,6 +439,9 @@ def _canonical_inputs(
                 "transcript_sha256": run_manifests[str(part.get("part_id"))]["transcript_sha256"],
                 "ordinal": part.get("ordinal"),
                 "session_offset_seconds": part.get("session_offset_seconds"),
+                "source_start_time": part.get("source_start_time"),
+                "source_start_confidence": part.get("source_start_confidence"),
+                "source_start_utc": part.get("source_start_utc"),
                 "trim_start_seconds": part.get("trim_start_seconds", 0.0),
                 "trim_end_seconds": part.get("trim_end_seconds"),
                 "overlap_resolution": part.get("overlap_resolution"),
