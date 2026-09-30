@@ -141,6 +141,40 @@ test("troca de campaign com trabalho autoritativo exige confirmação e não ret
 	await expect(page).toHaveURL("/");
 });
 
+test("workspace não expõe nem oferece ações para jobs de outra campaign", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureJob("queued"),
+			fixtureJob("running", {
+				id: "campaign-b-job",
+				context: {
+					campaign_id: "campaign-b",
+					session_id: "sessao-privada-b",
+					source_id: CRAIG_SOURCE_ID,
+					profile_id: "qwen-quality",
+				},
+			}),
+		],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	const commandBar = page.getByRole("region", {
+		name: "Estado e comandos do TDA Companion",
+	});
+	await expect(commandBar).toContainText("0 processando");
+	await expect(commandBar).toContainText("1 na fila");
+	await expect(page.getByText("sessao-privada-b", { exact: false })).toHaveCount(0);
+
+	await page.getByRole("tab", { name: "Fila" }).click();
+	await expect(page.getByText("sessao-privada-b", { exact: false })).toHaveCount(0);
+	await expect(page.locator('[data-job-id="campaign-b-job"]')).toHaveCount(0);
+});
+
 test("API incompatível, versão antiga, offline e Origin negada são diagnósticos distintos", async ({
 	page,
 }, testInfo) => {
