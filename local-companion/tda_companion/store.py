@@ -1115,6 +1115,12 @@ class Store:
         with self.read() as db:
             return db.execute("SELECT 1 FROM jobs WHERE status='running' LIMIT 1").fetchone() is not None
 
+    def has_active_jobs(self):
+        with self.read() as db:
+            return db.execute(
+                "SELECT 1 FROM jobs WHERE status IN ('queued','running') LIMIT 1"
+            ).fetchone() is not None
+
     def has_active_transcription_jobs(self):
         with self.read() as db:
             rows = db.execute(
