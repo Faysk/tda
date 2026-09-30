@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados + domínios
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-30
 
 Este documento explica **o significado das relações**, não apenas FKs. O catálogo físico está em [schema-catalog.md](schema-catalog.md).
 
@@ -10,7 +10,11 @@ Este documento explica **o significado das relações**, não apenas FKs. O cat�
 
 ### Campaign
 
-`campaigns.id` é o boundary principal dos dados narrativos. `yuhara-main` é a campanha vigente, mas queries novas devem continuar explicitando o campaign boundary quando pertinente.
+`campaigns.id` é o boundary principal dos dados narrativos. O registry suporta N campanhas; nenhuma query nova deve assumir uma única campanha vigente.
+
+`campaigns.slug` é identidade técnica/compatibilidade e pode continuar sendo usado por helpers legados que resolvem o UUID da campanha. `campaigns.public_slug` é identidade pública/rota e **não** é boundary relacional nem scope de autorização. Alterar nome ou rota pública não deve alterar FKs, membership ou RBAC.
+
+`yuhara-main` permanece como identidade técnica da campanha histórica. O registro de `antes-que-seja-tarde` cria somente a raiz de campanha; sessões, entities, memberships e canon precisam ser associados explicitamente ao `campaigns.id` correto por seus próprios fluxos.
 
 ### Profile
 
@@ -22,7 +26,7 @@ Este documento explica **o significado das relações**, não apenas FKs. O cat�
 
 ### Session
 
-`sessions.id` identifica uma sessão de jogo/processamento/publicação. É o principal agregador de evidências temporais.
+`sessions.id` identifica uma sessão de jogo/processamento/publicação. É o principal agregador de evidências temporais. Toda sessão pertence explicitamente a uma campanha por `sessions.campaign_id`; ordenação/timeline entre campanhas não elimina esse boundary.
 
 ## Pessoa ↔ personagem
 
@@ -146,6 +150,8 @@ role_assignments ──> profiles
 
 O assignment responde **quem tem qual role em qual scope**. A role resolve capabilities. O consumidor deve perguntar pela capability, evitando acoplamento a nomes de role.
 
+Para scope de campanha, a identidade pública (`public_slug`) nunca substitui o `campaign_id`/scope canônico. Helpers que recebem o slug técnico existem por compatibilidade e devem resolver a campanha antes da decisão de autorização.
+
 `campaign_members` continua paralelo por compatibilidade. Ele não deve ganhar novas responsabilidades quando RBAC já modela a necessidade.
 
 ## DM tenure
@@ -213,6 +219,8 @@ Exemplos: família, aliança, dívida, conflito, traição. "Conhece" e "sabe se
 ## Anti-patterns
 
 - usar nome textual como FK lógica permanente;
+- usar `public_slug` como FK lógica ou scope de autorização;
+- assumir uma campanha única ao consultar sessões, entities, canon ou membership;
 - ligar NPC a profile artificial para reutilizar UI;
 - criar entity para cada menção sem resolução/revisão;
 - transformar `metadata` num grafo oculto;
