@@ -4,6 +4,11 @@ import process from "node:process";
 const workspace = process.cwd();
 const mount = `${workspace}:/workspace`;
 
+// postgres:16-alpine intentionally stays our only persistent Docker image.
+// Python is installed into the writable layer of this --rm container only,
+// then disappears with the container after the contract finishes.
+const command = "apk add --no-cache python3 >/dev/null && python3 tools/campaign-registry-db.py";
+
 const result = spawnSync(
   "docker",
   [
@@ -14,8 +19,9 @@ const result = spawnSync(
     "-w",
     "/workspace",
     "postgres:16-alpine",
-    "python3",
-    "tools/campaign-registry-db.py",
+    "sh",
+    "-lc",
+    command,
   ],
   {
     stdio: "inherit",
