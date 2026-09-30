@@ -67,6 +67,12 @@ O fato de Qwen poder usar CUDA 13.x não autoriza migrar o runtime Whisper para 
 
 Toda exceção precisa ser explícita e ter justificativa técnica ou legal. Exceções de dependência runtime devem ser machine-readable no manifest correspondente, vinculadas à versão pinada e rejeitadas automaticamente quando o pin divergir.
 
+### Python/uv preservados durante recovery 0.3.17
+
+A release de controle **Companion 0.3.17** mantém temporariamente Python `3.12.14` e `uv 0.12.18` embora existam patches estáveis mais novos. O motivo é reproduzibilidade: o trabalho de #1210 adiciona apenas o ciclo de recuperação do Qwen Runtime e não deve reconstruir silenciosamente os runtimes ASR já aceitos fisicamente nem alterar a identidade de releases Stable existentes.
+
+As exceções são machine-readable em `local-companion/runtime/qwen-windows-x64.json`, vinculadas exatamente aos pins retidos. Trocar qualquer um desses pins invalida automaticamente a exceção. A remoção exige uma entrega própria, com runtime versionado novo quando os bytes mudarem, build/packaging completo e gate físico aplicável.
+
 ### WiX Toolset
 
 O MSI permanece temporariamente em WiX 5.0.2. WiX 6/7 introduzem mudança major e requisitos de licenciamento/OSMF que precisam ser avaliados antes de adotarmos a versão mais nova no pipeline. Essa retenção não autoriza deixar as demais dependências desatualizadas.
