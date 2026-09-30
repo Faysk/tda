@@ -73,7 +73,7 @@ Nenhuma lore cria uploader, endpoint operacional ou autorização próprios. A r
 
 ## Situação atual
 
-| Lore | Delivery | Listada | Campanha principal | Indexação desejada agora |
+| Lore | Delivery | Listada | Vínculo campaign atual | Indexação desejada agora |
 | --- | --- | --- | --- | --- |
 | Pipipi | `app` | Sim | Sim, conforme o projeto existente | Preservar política pública atual |
 | Astel / Noah | `standalone` estática, candidato local | Sim, solicitado | Sem novas entidades/relações; ligações editoriais por slug | Canonical próprio; sem copiar o noindex das lores externas |
@@ -98,7 +98,7 @@ Essas decisões não se inferem umas das outras:
 - **vinculada**: pertence a campanha/universo confirmado;
 - **indexável**: pode entrar em mecanismos de busca.
 
-D e Seika ficam, no estado atual, públicas por URL, não listadas, sem vínculo com a campanha principal e não indexáveis. Yllith permanece planejada: quando for publicada, seguirá o mesmo estado editorial de não listada, sem vínculo com a campanha principal e não indexável, salvo nova decisão explícita. `noindex` não é controle de acesso; quem souber a URL de uma lore publicada ainda pode abrir a página.
+D e Seika ficam, no estado atual, públicas por URL, não listadas, sem vínculo com a campaign legado/default e não indexáveis. Yllith permanece planejada: quando for publicada, seguirá o mesmo estado editorial de não listada, sem vínculo com a campaign legado/default e não indexável, salvo nova decisão explícita. `noindex` não é controle de acesso; quem souber a URL de uma lore publicada ainda pode abrir a página.
 
 ## Contrato de produção para standalone
 
