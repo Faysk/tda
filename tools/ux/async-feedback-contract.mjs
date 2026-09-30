@@ -96,9 +96,11 @@ assertIncludes("src/features/lembra/components/lembra-experience.tsx", [
 	[/uploadStatus\.phase === "finalizing"/u, "Lembra must separate finalize from upload progress"],
 	[/className=\{styles\.visuallyHidden\}[\s\S]{0,160}role="status"/u, "Lembra upload stage changes must use a dedicated polite live region"],
 ]);
+assertIncludes("src/features/lembra/components/lembra-experience.tsx", [
+	[/className=\{styles\.uploadStatus\}\s+data-phase=\{uploadStatus\.phase\}\s*>/u, "Lembra numeric progress container must stay outside the live region"],
+]);
 assertExcludes("src/features/lembra/components/lembra-experience.tsx", [
 	[/data-global-loading="true"/u, "Lembra local work must not opt into the global overlay"],
-	[/className=\{styles\.uploadStatus\}[\s\S]{0,120}role="status"/u, "Lembra numeric progress container must not spam the live region"],
 ]);
 
 assertIncludes("src/features/world-explorer/components/world-entity-media-editor.tsx", [
@@ -107,9 +109,11 @@ assertIncludes("src/features/world-explorer/components/world-entity-media-editor
 	[/setUploadPhase\("finalizing"\)/u, "World portrait finalize must remain a distinct stage"],
 	[/className=\{styles\.visuallyHidden\}[\s\S]{0,160}role="status"/u, "World upload stage changes must use a dedicated polite live region"],
 ]);
+assertIncludes("src/features/world-explorer/components/world-entity-media-editor.tsx", [
+	[/className=\{styles\.operationStatus\}\s+data-phase=\{uploadPhase\}\s*>/u, "World numeric chunk progress must stay outside the live region"],
+]);
 assertExcludes("src/features/world-explorer/components/world-entity-media-editor.tsx", [
 	[/data-global-loading="true"/u, "World portrait upload must not opt into the global overlay"],
-	[/className=\{styles\.operationStatus\}[\s\S]{0,120}role="status"/u, "World numeric chunk progress must not spam the live region"],
 ]);
 
 assertIncludes("src/features/edit/sessions/session-cover-editor.tsx", [
