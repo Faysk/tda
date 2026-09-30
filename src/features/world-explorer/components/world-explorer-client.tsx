@@ -61,6 +61,7 @@ import {
 	WorldFloatingChrome,
 	WorldPublicationReceipt,
 } from "./world-floating-chrome";
+import { WorldStatusOverlay } from "./world-status-overlay";
 import {
 	WorldAccessibleRelations,
 	WorldInspectorContent,
@@ -587,8 +588,6 @@ export function WorldExplorerClient({
 			context={commandContext}
 			canEditContent={canEditContent}
 			busy={edit.busy}
-			busyNotice={edit.busyNotice}
-			feedback={edit.feedback}
 			focusMode={authoringActive && authoringUi.focusMode}
 			inspectorOpen={!authoringUi.inspectorCollapsed}
 			onEnter={edit.start}
@@ -659,6 +658,11 @@ export function WorldExplorerClient({
 						searchInputRef={searchInputRef}
 					/>
 				</div>
+
+				<WorldStatusOverlay
+					busyNotice={edit.busyNotice}
+					feedback={edit.feedback}
+				/>
 
 				{view === "canvas" ? (
 					<WorldCanvas
