@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { renderTranscriptMarkdownV1 } from "../../transcript-review/markdown-contract";
 import { LocalBridge } from "./bridge";
 import {
@@ -36,7 +35,7 @@ import {
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
 	SESSION_COMPOSER_CHANGE_EVENT,
-	SESSION_COMPOSER_LAST_SESSION_KEY,
+	sessionComposerLastSessionKey,
 	SESSION_COMPOSER_RECOVERY_KEY,
 	type SessionComposerPendingSubmission,
 } from "./session-composer-storage";
@@ -44,6 +43,7 @@ import styles from "./session-composer.module.css";
 
 type Props = Readonly<{
 	bridge: LocalBridge;
+	campaignId: string;
 	capabilities: readonly string[];
 	sessionId: string;
 	currentSource: CraigSource | null;
@@ -130,6 +130,7 @@ function partTime(part: SessionWorkspacePart): string {
 
 export function SessionRecordingComposer({
 	bridge,
+	campaignId,
 	capabilities,
 	sessionId,
 	currentSource,
@@ -231,7 +232,7 @@ export function SessionRecordingComposer({
 			onActiveChange?.(next.parts.length > 0);
 			try {
 				window.localStorage.setItem(SESSION_COMPOSER_RECOVERY_KEY, next.sessionId);
-				window.localStorage.setItem(SESSION_COMPOSER_LAST_SESSION_KEY, next.sessionId);
+				window.localStorage.setItem(sessionComposerLastSessionKey(campaignId), next.sessionId);
 			} catch {
 				// Recovery is best-effort; the Agent workspace remains authoritative.
 			}
@@ -248,8 +249,8 @@ export function SessionRecordingComposer({
 		setLocalError(null);
 		try {
 			const next = create
-				? await bridge.ensureSessionWorkspace(CAMPAIGN_SLUG, sessionId, controller.signal)
-				: await bridge.sessionWorkspace(CAMPAIGN_SLUG, sessionId, controller.signal);
+				? await bridge.ensureSessionWorkspace(campaignId, sessionId, controller.signal)
+				: await bridge.sessionWorkspace(campaignId, sessionId, controller.signal);
 			await adopt(next, controller.signal);
 			announce("Composer da sessão recarregado.");
 		} catch (cause) {
@@ -312,7 +313,7 @@ export function SessionRecordingComposer({
 		void (async () => {
 			try {
 				const next = await bridge.sessionWorkspace(
-					CAMPAIGN_SLUG,
+					campaignId,
 					sessionId,
 					controller.signal,
 				);
@@ -403,7 +404,7 @@ export function SessionRecordingComposer({
 			let next =
 				workspace ??
 				(await bridge.ensureSessionWorkspace(
-					CAMPAIGN_SLUG,
+					campaignId,
 					sessionId,
 					controller.signal,
 				));
@@ -413,7 +414,7 @@ export function SessionRecordingComposer({
 				return;
 			}
 			next = await bridge.attachSessionSource(
-				CAMPAIGN_SLUG,
+				campaignId,
 				sessionId,
 				currentSource.sourceId,
 				next.revision,
@@ -458,7 +459,7 @@ export function SessionRecordingComposer({
 			) {
 				try {
 					const next = await bridge.sessionWorkspace(
-						CAMPAIGN_SLUG,
+						campaignId,
 						sessionId,
 						controller.signal,
 					);
