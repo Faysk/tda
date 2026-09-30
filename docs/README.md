@@ -55,8 +55,6 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Princípios e invariantes](architecture/invariants.md)
 - [Multi-campaign — contrato, rotas e rollout](architecture/multi-campaign.md) — identidade de campaign, matriz canônica/compatibilidade, boundaries e rollout faseado.
 - [ADR-0018 — core portátil, GitHub como control plane e providers substituíveis](adr/0018-portable-core-github-control-plane.md)
-- [ADR-0019 — sessão composta por múltiplas recording sources via assembly pós-ASR](adr/0019-multi-recording-session-assembly.md)
-- [ADR-0020 — campaigns first-class, identidade estável e rotas campaign-aware](adr/0020-first-class-campaigns.md)
 - [ADR-0019 — sessão composta por múltiplas recording sources via assembly pós-ASR](adr/0019-multi-recording-session-assembly.md) — decisão accepted; implementação multi-recording integrada e gated.
 - [ADR-0020 — campaigns first-class, identidade estável e rotas campaign-aware](adr/0020-first-class-campaigns.md) — decisão accepted para a evolução multi-campaign.
 - [Edit Workbench — boundary administrativo](architecture/edit-workbench.md)
@@ -156,6 +154,8 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [ADR-0016 — runs locais imutáveis, revisão explícita e publicação versionada](adr/0016-transcript-runs-review-publication.md)
 - [ADR-0017 — Web como entrada única do processamento e sessão loopback automática](adr/0017-web-single-entry-loopback-session.md)
 - [ADR-0018 — core portátil, GitHub como control plane e providers substituíveis](adr/0018-portable-core-github-control-plane.md)
+- [ADR-0019 — sessão composta por múltiplas recording sources via assembly pós-ASR](adr/0019-multi-recording-session-assembly.md)
+- [ADR-0020 — campaigns first-class, identidade estável e rotas campaign-aware](adr/0020-first-class-campaigns.md)
 
 ### Governança da própria documentação
 
