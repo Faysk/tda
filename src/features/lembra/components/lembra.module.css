@@ -1211,6 +1211,15 @@
 	line-height: 1.35;
 }
 
+.uploadStatus[data-phase="success"] .uploadStatusHeader,
+.uploadStatus[data-phase="success"] .uploadStatusHeader strong {
+	color: var(--ds-success);
+}
+
+.uploadStatus[data-phase="error"] .uploadStatusHeader {
+	color: var(--ds-danger);
+}
+
 .composerMessage {
 	margin-top: 10px;
 	padding: 9px 11px;

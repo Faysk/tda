@@ -36,9 +36,12 @@ export function Progress({
 	tone = "neutral",
 }: ProgressProps) {
 	const safeMax = Number.isFinite(max) && max > 0 ? max : 1;
-	const determinate = value !== undefined && Number.isFinite(value);
+	const determinate = value !== undefined;
 	const safeValue = determinate
-		? Math.min(safeMax, Math.max(0, value ?? 0))
+		? Math.min(
+				safeMax,
+				Math.max(0, Number.isFinite(value) ? value : 0),
+			)
 		: undefined;
 	const ratio = safeValue === undefined ? undefined : safeValue / safeMax;
 	const style = {

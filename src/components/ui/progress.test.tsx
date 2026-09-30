@@ -9,6 +9,8 @@ describe("Progress", () => {
 		{ input: 100, expected: "100" },
 		{ input: -25, expected: "0" },
 		{ input: 140, expected: "100" },
+		{ input: Number.NaN, expected: "0" },
+		{ input: Number.POSITIVE_INFINITY, expected: "0" },
 	])("renders factual determinate progress and clamps $input to $expected", ({ input, expected }) => {
 		const html = renderToStaticMarkup(
 			<Progress
@@ -38,6 +40,7 @@ describe("Progress", () => {
 		expect(html).toContain('data-progress-mode="indeterminate"');
 		expect(html).toContain('aria-label="Validando"');
 		expect(html).not.toContain(' value="');
+		expect(html).not.toContain("aria-valuenow");
 		expect(html).toContain("tone-neutral");
 	});
 
