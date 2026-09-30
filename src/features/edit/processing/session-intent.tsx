@@ -1033,7 +1033,10 @@ export function SessionIntentCoordinator({
 	return (
 		<section
 			className={styles.intent}
-			aria-labelledby="session-intent-title"
+			aria-label={
+				"Transcrição da sessão · " +
+				(workspace?.sessionId ?? request?.sessionId ?? "Sessão")
+			}
 			data-session-intent="true"
 		>
 			<div className={styles.header}>
