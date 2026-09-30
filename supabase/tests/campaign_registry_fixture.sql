@@ -48,6 +48,14 @@ create unique index sessions_source_external_unique
   on public.sessions(campaign_id, source_system, source_session_id)
   where source_system is not null and source_session_id is not null;
 
+create table public.participants (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  character_entity_id uuid references public.entities(id) on delete restrict,
+  player_name text,
+  character_name text
+);
+
 insert into public.campaigns (
   id,
   name,
@@ -85,5 +93,33 @@ insert into public.profile_characters (
   '10000000-0000-4000-8000-000000000001',
   '30000000-0000-4000-8000-000000000001',
   '20000000-0000-4000-8000-000000000001',
+  'PC legado'
+);
+
+insert into public.sessions (
+  id,
+  campaign_id,
+  title,
+  status,
+  source_system,
+  source_session_id
+) values (
+  '40000000-0000-4000-8000-000000000010',
+  '10000000-0000-4000-8000-000000000001',
+  'Sessão legado válida',
+  'ready_for_review',
+  'legacy',
+  'legacy-session'
+);
+
+insert into public.participants (
+  session_id,
+  character_entity_id,
+  player_name,
+  character_name
+) values (
+  '40000000-0000-4000-8000-000000000010',
+  '20000000-0000-4000-8000-000000000001',
+  'Jogador',
   'PC legado'
 );
