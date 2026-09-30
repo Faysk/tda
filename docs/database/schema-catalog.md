@@ -13,7 +13,7 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 
 | Tabela | Linhas observadas | Papel |
 | --- | ---: | --- |
-| `campaigns` | 1 | campanhas |
+| `campaigns` | 2 após #1123 | campanhas |
 | `profiles` | 5 | pessoas/contas |
 | `campaign_members` | 4 | membership legado simples |
 | `sessions` | 11 | sessões da campanha |
@@ -65,18 +65,40 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 
 **Propósito:** raiz de isolamento narrativo. A fotografia observada contém uma campaign com technical slug `yuhara-main`; isso descreve o estado físico atual, não uma limitação arquitetural a uma única campaign.
 
-Campos:
+Campos após a migration candidata `20260930161500_first_class_campaign_registry`:
 
-- `id uuid` PK;
-- `name text`;
-- `slug text unique` — technical slug/compatibilidade observado; ADR-0020 não o usa como nome público nem route key renomeável;
+- `id uuid` PK — autoridade relacional;
+- `name text` — apresentação humana;
+- `slug text unique` — technical slug/compatibilidade; não é rename editorial nem route key pública;
+- `public_slug text not null` — route key pública canônica, única case-insensitive;
+- `lifecycle text` — `active | archived`;
+- `visibility text` — `public | private`, independente de lifecycle;
+- `archived_at timestamptz?` — obrigatório somente quando `lifecycle=archived`;
 - `description text?`;
 - `metadata jsonb` — extensão, não contrato central;
-- timestamps.
+- timestamps legados.
+
+Backfill definido na mesma migration:
+- a row existente preserva UUID e technical slug `yuhara-main`, passa a `name='Crônicas da Mesa'`, `public_slug='cronicas-da-mesa'`, `active/public`;
+- a segunda campaign nasce somente como identidade: `Antes que seja tarde`, technical/public slug `antes-que-seja-tarde`, `active/private`, sem session/entity/canon/membership/lore inferidos;
+- inserts legados que fornecem apenas `slug` continuam válidos: trigger preenche `public_slug=slug`.
 
 É referenciada por sessions, memberships, entities, canon, RBAC relacionado, auditoria e integrações. Multi-campaign deve sempre respeitar `campaign_id`; nenhum lookup campaign-owned pode depender de unicidade global implícita de `source_session_id`/slug de entity.
 
-**Contrato planejado, ainda não afirmado como schema aplicado:** #1123 deve adicionar lifecycle `active | archived` e identidade pública/aliases coerentes com ADR-0020. Esses campos/tabelas só passam a integrar este catálogo físico depois de migration aplicada e revalidada.
+### `campaign_public_route_aliases`
+
+**Propósito:** preservar route keys públicas históricas sem renomear UUID ou technical slug.
+
+Campos:
+- `id uuid` PK;
+- `campaign_id -> campaigns` com cascade;
+- `route_key text` único case-insensitive;
+- `created_at`, `retired_at?`;
+- `metadata jsonb`.
+
+Canonical `public_slug` e aliases compartilham um único domínio lógico de colisão por triggers serializados com advisory lock. Uma alias nunca pode ser reutilizada como canonical de outra campaign, nem o contrário.
+
+A compatibilidade inicial registra `yuhara-main` como alias da campaign **Crônicas da Mesa**.
 
 ## `profiles`
 
