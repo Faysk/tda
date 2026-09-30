@@ -67,6 +67,17 @@ describe("governed permission mutation", () => {
 		expect(denied.persist).not.toHaveBeenCalled();
 	});
 
+	it("denies a forged sibling campaign before persistence", async () => {
+		const deps = dependencies();
+		expect(
+			await mutatePermissions(
+				{ ...request, campaignSlug: "antes-que-seja-tarde" },
+				deps,
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+		expect(deps.persist).not.toHaveBeenCalled();
+	});
+
 	it("validates CAS identifiers and change shapes before access reads", async () => {
 		for (const override of [
 			{ expectedRevision: -1 },
