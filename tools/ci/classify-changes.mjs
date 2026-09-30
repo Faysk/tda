@@ -54,6 +54,7 @@ const EXACT = {
 		"tools/transcript-sync-db.py",
 		"tools/world-layout-db.py",
 		"tools/world-entity-media-db.py",
+		"tools/campaign-registry-db.py",
 		"tools/test_world_layout_db.py",
 		"tools/test_world_entity_media_db.py",
 		"tools/ci/check-migrations.mjs",
