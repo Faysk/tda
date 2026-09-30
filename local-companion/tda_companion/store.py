@@ -46,7 +46,7 @@ class Store:
         self.path = root / "jobs.sqlite3"
         with self.tx() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
                 raise RuntimeError("DATABASE_VERSION_UNSUPPORTED")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS jobs (
@@ -85,19 +85,6 @@ class Store:
                     campaign_id TEXT NOT NULL,
                     session_id TEXT NOT NULL,
                     revision INTEGER NOT NULL DEFAULT 0,
-                    created TEXT NOT NULL,
-                    updated TEXT NOT NULL,
-                    PRIMARY KEY(campaign_id, session_id)
-                );
-                CREATE TABLE IF NOT EXISTS session_transcription_intents (
-                    campaign_id TEXT NOT NULL,
-                    session_id TEXT NOT NULL,
-                    request_id TEXT NOT NULL,
-                    profile_id TEXT NOT NULL,
-                    context TEXT NOT NULL,
-                    glossary TEXT NOT NULL,
-                    context_sha256 TEXT NOT NULL,
-                    glossary_sha256 TEXT NOT NULL,
                     created TEXT NOT NULL,
                     updated TEXT NOT NULL,
                     PRIMARY KEY(campaign_id, session_id)
@@ -214,7 +201,7 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS jobs_status_updated_id_idx "
                 "ON jobs(status, updated DESC, id DESC)"
             )
-            db.execute("PRAGMA user_version=13")
+            db.execute("PRAGMA user_version=12")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
@@ -372,6 +359,49 @@ class Store:
         return value
 
     @staticmethod
+    def _session_intent_setting_key(campaign_id, session_id):
+        return f"session_transcription_intent:{campaign_id}:{session_id}"
+
+    @classmethod
+    def _session_intent_record(cls, raw):
+        try:
+            row = json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT") from None
+        if not isinstance(row, dict):
+            raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT")
+        try:
+            request_id = cls._session_intent_request_id(row.get("request_id"))
+            profile_id = cls._session_intent_profile(row.get("profile_id"))
+            context = cls._session_intent_text(row.get("context"), "CONTEXT")
+            glossary = cls._session_intent_text(row.get("glossary"), "GLOSSARY")
+        except Conflict:
+            raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT") from None
+        context_sha256 = hashlib.sha256(context.encode("utf-8")).hexdigest()
+        glossary_sha256 = hashlib.sha256(glossary.encode("utf-8")).hexdigest()
+        if (
+            row.get("schema_version") != "tda_session_transcription_intent_v1"
+            or row.get("context_sha256") != context_sha256
+            or row.get("glossary_sha256") != glossary_sha256
+            or not isinstance(row.get("created"), str)
+            or not isinstance(row.get("updated"), str)
+        ):
+            raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT")
+        return {
+            "schema_version": "tda_session_transcription_intent_v1",
+            "campaign_id": row.get("campaign_id"),
+            "session_id": row.get("session_id"),
+            "request_id": request_id,
+            "profile_id": profile_id,
+            "context": context,
+            "glossary": glossary,
+            "context_sha256": context_sha256,
+            "glossary_sha256": glossary_sha256,
+            "created": row["created"],
+            "updated": row["updated"],
+        }
+
+    @staticmethod
     def _session_intent_dto(row):
         return {
             "schema_version": "tda_session_transcription_intent_v1",
@@ -404,6 +434,7 @@ class Store:
         glossary = self._session_intent_text(glossary, "GLOSSARY")
         context_sha256 = hashlib.sha256(context.encode("utf-8")).hexdigest()
         glossary_sha256 = hashlib.sha256(glossary.encode("utf-8")).hexdigest()
+        setting_key = self._session_intent_setting_key(campaign_id, session_id)
         with self.tx() as db:
             workspace = db.execute(
                 "SELECT 1 FROM session_workspaces WHERE campaign_id=? AND session_id=?",
@@ -411,11 +442,11 @@ class Store:
             ).fetchone()
             if workspace is None:
                 raise Conflict("SESSION_WORKSPACE_NOT_FOUND")
-            current = db.execute(
-                "SELECT * FROM session_transcription_intents "
-                "WHERE campaign_id=? AND session_id=?",
-                (campaign_id, session_id),
+            saved = db.execute(
+                "SELECT value FROM settings WHERE key=?",
+                (setting_key,),
             ).fetchone()
+            current = self._session_intent_record(saved["value"]) if saved is not None else None
             if current is not None and current["request_id"] == request_id:
                 if (
                     current["profile_id"] != profile_id
@@ -425,53 +456,48 @@ class Store:
                     raise Conflict("SESSION_TRANSCRIPTION_INTENT_CONFLICT")
                 return self._session_intent_dto(current)
             now = utc_now()
-            created = current["created"] if current is not None else now
+            row = {
+                "schema_version": "tda_session_transcription_intent_v1",
+                "campaign_id": campaign_id,
+                "session_id": session_id,
+                "request_id": request_id,
+                "profile_id": profile_id,
+                "context": context,
+                "glossary": glossary,
+                "context_sha256": context_sha256,
+                "glossary_sha256": glossary_sha256,
+                "created": current["created"] if current is not None else now,
+                "updated": now,
+            }
             db.execute(
-                """
-                INSERT INTO session_transcription_intents(
-                    campaign_id,session_id,request_id,profile_id,context,glossary,
-                    context_sha256,glossary_sha256,created,updated
-                ) VALUES (?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(campaign_id,session_id) DO UPDATE SET
-                    request_id=excluded.request_id,
-                    profile_id=excluded.profile_id,
-                    context=excluded.context,
-                    glossary=excluded.glossary,
-                    context_sha256=excluded.context_sha256,
-                    glossary_sha256=excluded.glossary_sha256,
-                    updated=excluded.updated
-                """,
+                "INSERT INTO settings(key,value) VALUES (?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (
-                    campaign_id,
-                    session_id,
-                    request_id,
-                    profile_id,
-                    context,
-                    glossary,
-                    context_sha256,
-                    glossary_sha256,
-                    created,
-                    now,
+                    setting_key,
+                    json.dumps(
+                        row,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
                 ),
             )
-            row = db.execute(
-                "SELECT * FROM session_transcription_intents "
-                "WHERE campaign_id=? AND session_id=?",
-                (campaign_id, session_id),
-            ).fetchone()
             return self._session_intent_dto(row)
 
     def session_transcription_intent(self, campaign_id, session_id):
         campaign_id = self._workspace_identity(campaign_id, "CAMPAIGN")
         session_id = self._workspace_identity(session_id, "SESSION")
+        setting_key = self._session_intent_setting_key(campaign_id, session_id)
         with self.read() as db:
-            row = db.execute(
-                "SELECT * FROM session_transcription_intents "
-                "WHERE campaign_id=? AND session_id=?",
-                (campaign_id, session_id),
+            saved = db.execute(
+                "SELECT value FROM settings WHERE key=?",
+                (setting_key,),
             ).fetchone()
-            if row is None:
+            if saved is None:
                 raise Conflict("SESSION_TRANSCRIPTION_INTENT_NOT_FOUND")
+            row = self._session_intent_record(saved["value"])
+            if row["campaign_id"] != campaign_id or row["session_id"] != session_id:
+                raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT")
             return self._session_intent_dto(row)
 
     def _session_workspace_for_update(self, db, campaign_id, session_id, expected_revision):
