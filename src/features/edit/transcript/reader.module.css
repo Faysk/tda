@@ -85,6 +85,8 @@
 }
 
 .timestamp {
+	display: grid;
+	gap: 2px;
 	border: 0;
 	padding: 0;
 	background: transparent;
@@ -93,6 +95,17 @@
 	font-variant-numeric: tabular-nums;
 	text-align: left;
 	cursor: pointer;
+}
+
+.timestamp > span {
+	color: var(--ds-text-primary);
+}
+
+.timestamp small {
+	color: var(--ds-text-muted);
+	font: inherit;
+	font-size: .72rem;
+	font-variant-numeric: tabular-nums;
 }
 
 .speaker {
