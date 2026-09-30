@@ -8,8 +8,14 @@ import {
 
 export const SESSION_COMPOSER_RECOVERY_KEY =
 	"tda.processing.session-composer.v1";
-export const SESSION_COMPOSER_LAST_SESSION_KEY =
-	"tda.processing.session-composer.last-session.v1";
+const SESSION_COMPOSER_LAST_SESSION_PREFIX =
+	"tda.processing.session-composer.last-session.v2";
+
+export function sessionComposerLastSessionKey(campaignId: string): string {
+	if (!/^[A-Za-z0-9_-]{1,128}$/u.test(campaignId))
+		throw new Error("Invalid campaign id for session composer storage");
+	return `${SESSION_COMPOSER_LAST_SESSION_PREFIX}:${campaignId}`;
+}
 export const SESSION_COMPOSER_CHANGE_EVENT =
 	"tda-session-composer-change";
 
