@@ -413,7 +413,7 @@ test("anonymous unified panel keeps macro navigation, safe return path and appea
 	await page.goto("/sessoes");
 	const panel = await openGlobalMenu(page);
 	await expect(panel.getByRole("button", { name: "Entrar com Discord" })).toBeVisible();
-	await expect(panel.locator('input[name="next"]')).toHaveValue("/sessoes");
+	await expect(panel.locator('input[name="next"]')).toHaveValue("/campanhas/sessoes");
 	await expect(panel.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
 	await expect(panel.getByRole("button", { name: "Mundo", exact: true })).toBeVisible();
 	await expect(panel.getByText("Ferramentas", { exact: true })).toHaveCount(0);

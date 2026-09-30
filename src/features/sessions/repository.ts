@@ -30,6 +30,7 @@ function isCampaignRegistrySchemaGap(error: CampaignRegistryError | null | undef
 const layoutFixtureSessions = [
 	{ id:"shared-session", campaignId:"fixture-a", campaignSlug:"cronicas-da-mesa", campaignName:"Crônicas da Mesa", campaignTechnicalSlug:"yuhara-main", title:"A memória mais recente do arquivo sintético", date:"2026-09-29", arc:"Contrato visual E2E", summary:"Uma memória sintética curta para validar densidade, filtros e navegação sem tocar em conteúdo privado.", fullSummary:"# Memória mais recente\n\nConteúdo sintético usado somente pelos testes E2E do layout público." },
 	{ id:"shared-session", campaignId:"fixture-b", campaignSlug:"campanha-b", campaignName:"Campanha B", campaignTechnicalSlug:"campaign-b", title:"A mesma identidade de origem em outra campanha", date:"2026-09-22", arc:"Contrato visual E2E", summary:"Fixture A/B com source_session_id repetido para provar isolamento por campanha.", fullSummary:"# Campanha B\n\nMesmo source ID, outra campanha." },
+	{ id:"layout-contract-synthetic", campaignId:"fixture-a", campaignSlug:"cronicas-da-mesa", campaignName:"Crônicas da Mesa", campaignTechnicalSlug:"yuhara-main", title:"Sessão Sintética de Layout com um título editorial mais longo", date:"2026-09-22", arc:"Contrato visual E2E", summary:"Resumo público sintético usado somente para validar a composição da página de sessão e o ritmo do arquivo.", fullSummary:"# Memória sintética\n\nEste conteúdo existe apenas no ambiente E2E e não representa fatos da campanha.\n\n## Continuidade\n\nO artigo mantém texto suficiente para exercitar a largura de leitura e o fluxo editorial sem acessar dados privados.\n\nA composição precisa continuar confortável com parágrafos, subtítulos e navegação entre memórias." },
 	{ id:"layout-contract-previous", campaignId:"fixture-a", campaignSlug:"cronicas-da-mesa", campaignName:"Crônicas da Mesa", campaignTechnicalSlug:"yuhara-main", title:"Uma memória anterior para validar a navegação", date:"2026-09-15", arc:"Contrato visual E2E", summary:"Terceiro registro sintético para garantir navegação scoped.", fullSummary:"# Memória anterior\n\nConteúdo sintético." },
 ] as const satisfies readonly PublishedSession[];
 
@@ -119,10 +120,11 @@ export const findLegacyPublishedSession = cache(async (id:string) => {
 	if (!id || id.length>220) return null;
 	if (layoutFixtureEnabled()) {
 		const matches=layoutFixtureSessions.filter((session)=>session.id===id);
+		if (matches.length === 0) throw new PublishedSessionUnavailableError();
 		return matches.length===1 && matches[0]?.campaignTechnicalSlug===LEGACY_CAMPAIGN_TECHNICAL_SLUG ? matches[0] : null;
 	}
 	const archive=await queryArchive();
-	if (!archive) return null;
+	if (!archive) throw new PublishedSessionUnavailableError();
 	const matches=archive.filter((session)=>session.id===id);
 	return matches.length===1 && matches[0]?.campaignTechnicalSlug===LEGACY_CAMPAIGN_TECHNICAL_SLUG ? matches[0] : null;
 });

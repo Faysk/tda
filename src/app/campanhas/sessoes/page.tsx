@@ -33,7 +33,7 @@ export default async function CampaignSessionsArchive() {
 				</dl> : null}
 			</div>
 		</section>
-		<section className={styles.archive} aria-label="Sessões publicadas"><div className={styles.archiveRail}>
+		<section className={styles.archive} aria-label="Sessões publicadas"><div className={styles.archiveRail} data-session-archive-rail>
 			{sessions === undefined ? <p className={styles.state}>Não foi possível carregar as sessões. Tente novamente em instantes.</p>
 			: sessions === null ? <p className={styles.state}>Estamos preparando o arquivo de campanhas.</p>
 			: sessions.length ? <SessionList sessions={sessions} showCampaignFilter />

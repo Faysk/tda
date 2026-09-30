@@ -150,7 +150,7 @@ export default async function CampaignSessionsPage({ params }: Props) {
 			</section>
 
 			<section className={styles.archive} aria-label="Sessões publicadas">
-				<div className={styles.archiveRail}>
+				<div className={styles.archiveRail} data-session-archive-rail>
 					{sessions.length === 0 ? (
 						<div className={styles.state}>
 							<h2>Nenhuma sessão publicada ainda</h2>
