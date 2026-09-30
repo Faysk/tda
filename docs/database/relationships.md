@@ -15,13 +15,18 @@ Este documento explica **o significado das relações**, não apenas FKs. O cat�
 ### Invariantes cross-campaign
 
 - session, entity, canon e World state pertencem à campaign resolvida;
-- participant herda campaign da session;
+- participant herda campaign da session; o candidate #1123 impede `character_entity_id` de campaign irmã;
 - profile permanece identidade global humana;
-- `profile_characters` só associa profile a entity dentro do boundary declarado;
+- `profile_characters` só associa profile a entity dentro do boundary declarado; #1123 prepara FK composta `(campaign_id, entity_id)`;
+- `canon_entries.entity_id`, quando presente, resolve entity da mesma campaign por FK composta;
+- raw move de session/entity que quebraria participant→entity ownership falha fechado; move legítimo pertence à operação de domínio de #1129;
 - relation source/target pertencem à mesma campaign da relation;
 - source IDs e slugs narrativos podem repetir entre campaigns quando o domínio permitir;
-- nenhuma FK lógica é validada somente por ID client-side sem conferir ownership;
-- mover session entre campaigns é operação de domínio própria, não update cru de FK.
+- nenhuma FK lógica é validada somente por ID client-side sem conferir ownership.
+
+### Route identity
+
+`campaigns.public_slug` é a route key pública canônica e `campaign_public_route_aliases` guarda valores históricos. Ambos resolvem para `campaigns.id`; nenhum participa de FK narrativa nem scope RBAC. O technical slug `campaigns.slug` permanece identidade de compatibilidade.
 
 ### Profile
 
