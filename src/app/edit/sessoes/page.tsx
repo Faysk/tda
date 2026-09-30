@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { WorkspaceRouteLoading } from "@/components/loading";
 import { PublicLink as Link } from "@/components/public-link";
 import { StatusPill } from "@/components/ui";
 import { requireCapability } from "@/features/auth/server";
@@ -66,14 +68,11 @@ function ErrorState() {
 	);
 }
 
-export default async function EditSessionsPage({
-	searchParams,
+async function EditSessionsContent({
+	filters,
 }: {
-	searchParams: SearchParams;
+	filters: SessionLibraryFilters;
 }) {
-	await requireCapability(EDIT_CAPABILITIES.transcriptRead, "/edit/sessoes");
-	const filters = parseFilters(await searchParams);
-
 	let sessions: Awaited<ReturnType<typeof listEditSessionLibrary>>;
 	try {
 		sessions = await listEditSessionLibrary(CAMPAIGN_SLUG);
@@ -236,5 +235,28 @@ export default async function EditSessionsPage({
 				</div>
 			)}
 		</section>
+	);
+}
+
+
+export default async function EditSessionsPage({
+	searchParams,
+}: {
+	searchParams: SearchParams;
+}) {
+	await requireCapability(EDIT_CAPABILITIES.transcriptRead, "/edit/sessoes");
+	const filters = parseFilters(await searchParams);
+
+	return (
+		<Suspense
+			fallback={
+				<WorkspaceRouteLoading
+					label="Carregando biblioteca editorial"
+					variant="library"
+				/>
+			}
+		>
+			<EditSessionsContent filters={filters} />
+		</Suspense>
 	);
 }

@@ -19,6 +19,7 @@ const EXACT = {
 		"tests/navigation-origin.spec.ts",
 		"tests/global-loading.spec.ts",
 		"tests/d-lore-reading-mode.spec.ts",
+		"tests/route-loading.spec.ts",
 		"tests/world-catalogs.spec.ts",
 		"src/features/lore/components/lore-index-page.tsx",
 		"src/features/lore/components/lore-index-page.module.css",
@@ -92,6 +93,8 @@ const PREFIX = {
 		"src/components/global-loading/",
 		"src/app/e2e-fixtures/global-loading/",
 		"src/app/e2e-fixtures/system-states/",
+		"src/app/e2e-fixtures/route-loading/",
+		"src/components/loading/",
 		"src/app/sessoes/",
 		"public/lore/d/",
 	],
@@ -130,6 +133,11 @@ function matches(path, domain) {
 	if (CLASSIFIER_CONTRACT.has(path)) return true;
 	if (EXACT[domain].has(path)) return true;
 	if (PREFIX[domain].some((prefix) => path.startsWith(prefix))) return true;
+	if (
+		domain === "navigation" &&
+		(path === "src/app/loading.tsx" || /^src\/app\/.+\/loading\.tsx$/u.test(path))
+	)
+		return true;
 	if (domain === "companion" && /^tools\/check-companion-.*\.py$/u.test(path))
 		return true;
 	if (

@@ -37,11 +37,17 @@ const EXPECTED = {
 		"src/app/transcricoes/page.tsx",
 	],
 	specialSurfaces: [
+		"src/app/conta/loading.tsx",
+		"src/app/diario/loading.tsx",
 		"src/app/edit/[campaignSlug]/permissions/loading.tsx",
+		"src/app/edit/processamento/loading.tsx",
+		"src/app/edit/revisao/loading.tsx",
 		"src/app/error.tsx",
 		"src/app/lembra/error.tsx",
 		"src/app/lembra/loading.tsx",
+		"src/app/mundo/loading.tsx",
 		"src/app/not-found.tsx",
+		"src/app/transcricoes/loading.tsx",
 	],
 	standaloneHtml: [
 		"public/diario/astel/index.html",
