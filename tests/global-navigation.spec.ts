@@ -311,6 +311,7 @@ test("profile panel stays anchored to the floating avatar after document scroll"
 	const triggerBox = await trigger.boundingBox();
 	expect(triggerBox).not.toBeNull();
 	const panel = await openGlobalMenu(page);
+	await expectGlobalMenuVisuallySettled(page);
 	const panelBox = await page.locator(".account-menu-panel").boundingBox();
 	expect(panelBox).not.toBeNull();
 	if (!triggerBox || !panelBox) return;
