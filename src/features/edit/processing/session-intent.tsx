@@ -15,8 +15,8 @@ import {
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
 	SESSION_COMPOSER_CHANGE_EVENT,
-	sessionComposerLastSessionKey,
-	sessionComposerRecoveryKey,
+	readSessionComposerRecoveryPointer,
+	saveSessionComposerPointers,
 	type SessionComposerPendingSubmission,
 } from "./session-composer-storage";
 import {
@@ -153,8 +153,7 @@ function sourceLabel(
 
 function saveRecoveryPointer(campaignId: string, sessionId: string) {
 	try {
-		window.localStorage.setItem(sessionComposerRecoveryKey(campaignId), sessionId);
-		window.localStorage.setItem(sessionComposerLastSessionKey(campaignId), sessionId);
+		saveSessionComposerPointers(window.localStorage, campaignId, sessionId);
 	} catch {
 		// Browser storage is only a pointer. The Agent workspace remains authoritative.
 	}
@@ -450,7 +449,7 @@ export function SessionIntentCoordinator({
 		if (!enabled || disabled || request || workspace) return;
 		let saved: string | null = null;
 		try {
-			saved = window.localStorage.getItem(sessionComposerRecoveryKey(campaignId));
+			saved = readSessionComposerRecoveryPointer(window.localStorage, campaignId);
 		} catch {
 			saved = null;
 		}
