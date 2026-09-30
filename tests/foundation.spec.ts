@@ -11,7 +11,7 @@ async function openAppearance(page: import("@playwright/test").Page) {
 test("home and archive work without cloud secrets", async ({ page }) => {
 	await page.goto("/");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-		"A memória mais recente do arquivo sintético",
+		"A memória global mais recente vem da campanha B",
 	);
 	await page.getByRole("button", { name: "Abrir menu global" }).click();
 	await page
@@ -21,6 +21,54 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
 		"As histórias até aqui",
 	);
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= innerWidth,
+		),
+	).toBeTruthy();
+});
+
+test("home aggregates campaigns with scoped links and readable campaign identity", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/");
+
+	const campaignName =
+		"Campanha B — nome longo para validar a Home em telas estreitas";
+	await expect(page.getByText(campaignName, { exact: true })).toBeVisible();
+
+	const heroLink = page.getByRole("link", {
+		name: "A memória global mais recente vem da campanha B",
+	});
+	await expect(heroLink).toHaveAttribute(
+		"href",
+		"/campanhas/campanha-b/sessoes/shared-session",
+	);
+
+	await expect(
+		page.getByRole("link", { name: /A memória mais recente do arquivo sintético/u }),
+	).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/sessoes/shared-session",
+	);
+	await expect(
+		page.getByRole("link", { name: /Ver todas as sessões/u }),
+	).toHaveAttribute("href", "/campanhas/sessoes");
+
+	const campaignGeometry = await page
+		.getByText(campaignName, { exact: true })
+		.evaluate((element) => {
+			const rect = element.getBoundingClientRect();
+			return {
+				left: rect.left,
+				right: rect.right,
+				whiteSpace: getComputedStyle(element).whiteSpace,
+			};
+		});
+	expect(campaignGeometry.left).toBeGreaterThanOrEqual(0);
+	expect(campaignGeometry.right).toBeLessThanOrEqual(390);
+	expect(campaignGeometry.whiteSpace).toBe("normal");
 	expect(
 		await page.evaluate(
 			() => document.documentElement.scrollWidth <= innerWidth,
