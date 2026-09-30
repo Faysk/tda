@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
 import type { SessionArchiveItem } from "@/features/sessions/archive";
-import { formatSessionDate } from "@/features/sessions/model";
+import { formatSessionDate, sessionPublicKey, sessionPublicPath } from "@/features/sessions/model";
 import styles from "./session-list.module.css";
 
 type ViewMode = "grid" | "list";
@@ -108,7 +108,7 @@ function GridCard({
 	session: SessionArchiveItem;
 	latest: boolean;
 }) {
-	const href = `/sessoes/${encodeURIComponent(session.id)}`;
+	const href = sessionPublicPath(session);
 	const date = formatSessionDate(session.date);
 
 	return (
@@ -129,7 +129,7 @@ function GridCard({
 				</div>
 				<div className={styles.cardBody}>
 					<p className={styles.arc}>
-						{session.arc || "Memória da campanha"}
+						{session.campaignName} · {session.arc || "Memória da campanha"}
 					</p>
 					<h2 className={styles.cardTitle}>{session.title}</h2>
 					<p className={styles.summary}>
@@ -149,7 +149,7 @@ function GridCard({
 }
 
 function ListRow({ session }: { session: SessionArchiveItem }) {
-	const href = `/sessoes/${encodeURIComponent(session.id)}`;
+	const href = sessionPublicPath(session);
 	const date = formatSessionDate(session.date);
 
 	return (
@@ -194,7 +194,7 @@ export function SessionList({
 	sessions: readonly SessionArchiveItem[];
 }) {
 	const [query, setQuery] = useState("");
-	const [arc, setArc] = useState("all");
+	const [campaign, setCampaign] = useState("all");\n\tconst [arc, setArc] = useState("all");
 	const [sort, setSort] = useState<SortMode>("newest");
 	const [view, setView] = useState<ViewMode>("grid");
 
@@ -213,10 +213,10 @@ export function SessionList({
 	const visible = useMemo(() => {
 		const needle = normalizeSearch(query.trim());
 		const items = sessions.filter((session) => {
-			if (arc !== "all" && session.arc !== arc) return false;
+			if (campaign !== "all" && session.campaignSlug !== campaign) return false;\n\t\t\tif (arc !== "all" && session.arc !== arc) return false;
 			if (!needle) return true;
 			return normalizeSearch(
-				`${session.title} ${session.arc} ${session.summary}`,
+				`${session.title} ${session.campaignName} ${session.arc} ${session.summary}`,
 			).includes(needle);
 		});
 
@@ -224,7 +224,7 @@ export function SessionList({
 			if (sort === "title") return collator.compare(a.title, b.title);
 			return compareDates(a, b, sort === "oldest");
 		});
-	}, [arc, query, sessions, sort]);
+	}, [arc, campaign, query, sessions, sort]);
 
 	const filtered = query.trim().length > 0 || arc !== "all";
 	const latestId = sessions[0]?.id;
@@ -332,7 +332,7 @@ export function SessionList({
 						</div>
 						<div className={styles.listBody}>
 							{visible.map((session) => (
-								<ListRow key={session.id} session={session} />
+								<ListRow key={sessionPublicKey(session)} session={session} />
 							))}
 						</div>
 					</div>
