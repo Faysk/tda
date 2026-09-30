@@ -59,7 +59,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Banco de dados — índice](../database/README.md) | dados/Supabase | vigente | 2026-09-07 |
-| [Campaign identity — inventário de consumidores](../database/campaign-identity-consumers.md) | database / identity-access / routing | baseline para #1123 | 2026-09-30 |
+| [Campaign identity — inventário de consumidores](../database/campaign-identity-consumers.md) | database / identity-access / routing | baseline para #1123; atualização obrigatória quando um consumer deixa de depender do technical slug | 2026-09-30 |
 | [Reconciliações do migration history](../database/migration-reconciliations.md) | dados/Supabase + operations | vigente | 2026-09-10 |
 | [Migrations e evolução do schema](../database/migrations.md) | dados/Supabase | vigente | 2026-09-22 |
 | [Relacionamentos e ownership de dados](../database/relationships.md) | dados + domínios | vigente | 2026-09-30 |
