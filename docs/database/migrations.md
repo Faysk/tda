@@ -1683,12 +1683,13 @@ Objetivos do candidate:
 
 - materializar `campaigns.lifecycle = active | archived`;
 - separar `visibility = public | private` do lifecycle;
-- adicionar `public_slug` canônico sem renomear o technical slug;
-- preservar aliases públicas em `campaign_public_route_aliases`;
+- adicionar `public_slug` canônico sem renomear o technical slug e bloquear mutation posterior do technical slug;
+- preservar aliases públicas em `campaign_public_route_aliases`; rename de `public_slug` grava automaticamente o valor anterior como alias na mesma transação;
 - manter `yuhara-main` como identidade técnica/RBAC e apresentá-la como **Crônicas da Mesa**;
 - criar **Antes que seja tarde** somente como row de identidade `active/private`, sem conteúdo narrativo ou membership inferidos;
 - recusar rollout se `source_session_id` de sessions ou `slug` de entities ainda estiverem globalmente únicos sem `campaign_id`;
-- reforçar `profile_characters(campaign_id, entity_id)` contra vínculo cross-campaign.
+- reforçar `profile_characters(campaign_id, entity_id)` contra vínculo cross-campaign;
+- reforçar `participants.session_id ↔ character_entity_id` para que a entity pertença à mesma campaign herdada da session.
 
 Segurança do candidate:
 
@@ -1708,7 +1709,9 @@ Validação sintética obrigatória antes de promoção:
 - mesmo entity slug permitido em A/B e recusado dentro de A;
 - FK lógica profile-character→entity cross-campaign recusada;
 - lifecycle active/archived + consistência de `archived_at`;
-- rename de `public_slug` com alias histórico, mantendo technical slug;
+- rename de `public_slug` com alias histórico automático, mantendo technical slug;
+- mutation do technical slug fail-closed;
+- participant apontando para entity de campaign irmã fail-closed;
 - colisão canonical↔alias fail-closed;
 - insert legado que informa apenas `id,name,slug` continua válido;
 - RLS/grants/function-security da alias table verificados.
