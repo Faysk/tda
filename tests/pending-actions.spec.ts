@@ -6,6 +6,15 @@ const overlay =
 test("server action pending stays local and preserves button geometry", async ({
 	page,
 }) => {
+	const mutationRequests: string[] = [];
+	page.on("request", (request) => {
+		if (
+			request.method() === "POST" &&
+			new URL(request.url()).pathname === "/e2e-fixtures/pending-actions"
+		) {
+			mutationRequests.push(request.url());
+		}
+	});
 	await page.goto("/e2e-fixtures/pending-actions");
 
 	const button = page.getByRole("button", { name: "Registrar decisão" });
@@ -21,11 +30,14 @@ test("server action pending stays local and preserves button geometry", async ({
 	await expect(page.getByRole("button", { name: "Ação independente" })).toBeEnabled();
 	await expect(page.locator(overlay)).toHaveCount(0);
 
+	await pending.evaluate((element) => (element as HTMLButtonElement).click());
+
 	const during = await pending.boundingBox();
 	expect(during).not.toBeNull();
 	expect(Math.abs((during?.width ?? 0) - (before?.width ?? 0))).toBeLessThanOrEqual(1);
 
 	await expect(page.getByRole("button", { name: "Registrar decisão" })).toBeEnabled();
+	expect(mutationRequests).toHaveLength(1);
 });
 
 test("Next Form search navigation exposes local pending before route loading", async ({
