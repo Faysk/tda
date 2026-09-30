@@ -859,17 +859,23 @@ test("ambiguous enqueue reuses the same idempotency identity and reconnect keeps
 	expect(firstKeys).toHaveLength(1);
 	expect(firstKeys[0]).not.toBe("");
 
-	multi.dropAgentOnce();
-	await page.waitForTimeout(2800);
-	await expect(intent).toBeVisible();
-
-	await intent.getByRole("button", { name: "Tentar novamente" }).click();
-	await expect(intent).toContainText("Transcrição pronta");
+	await page.reload();
+	const recovered = page.getByRole("region", {
+		name: /Transcrição da sessão/u,
+	});
+	await expect(recovered).toBeVisible();
+	await expect(recovered).toContainText("Transcrição pronta");
+	await expect(page.getByLabel("ID da sessão")).toHaveValue(SESSION);
+	await expect(page.getByLabel("Perfil")).toHaveValue("whisper-detailed");
 	const secondKeys = multi.keysFor(SOURCE_IDS[1] ?? "");
 	expect(secondKeys).toHaveLength(2);
 	expect(secondKeys[0]).toBe(secondKeys[1]);
 	expect(multi.postCount(SOURCE_IDS[0] ?? "")).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[1] ?? "")).toBe(2);
+
+	multi.dropAgentOnce();
+	await page.waitForTimeout(2800);
+	await expect(recovered).toContainText("Transcrição pronta");
 });
 
 test("cancelling one recording preserves completed siblings and retry stays selective", async ({
