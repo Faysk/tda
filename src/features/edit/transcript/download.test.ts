@@ -21,8 +21,9 @@ const first = {
 };
 
 describe("private transcript markdown download", () => {
-	it("uses private no-store markdown headers and a safe filename", () => {
-		const download = buildTranscriptDownload({
+	it("uses private no-store markdown headers and a safe filename", async () => {
+		const download = await buildTranscriptDownload({
+			campaignSlug: "yuhara-main",
 			title: "Entre Canções / Raízes",
 			sessionDate: "2026-08-19",
 			arc: "Raízes",
@@ -41,8 +42,9 @@ describe("private transcript markdown download", () => {
 		expect(download.body).toContain("Primeiro snapshot 🌲");
 	});
 
-	it("renders exactly the captured revision even if a newer snapshot exists later", () => {
-		const captured = buildTranscriptDownload({
+	it("renders exactly the captured revision even if a newer snapshot exists later", async () => {
+		const captured = await buildTranscriptDownload({
+			campaignSlug: "yuhara-main",
 			title: "Sessão",
 			sessionDate: null,
 			arc: null,
@@ -57,13 +59,14 @@ describe("private transcript markdown download", () => {
 		};
 		expect(captured.body).toContain("Primeiro snapshot");
 		expect(captured.body).not.toContain("Segundo snapshot");
-		expect(buildTranscriptDownload({
+		expect((await buildTranscriptDownload({
+			campaignSlug: "yuhara-main",
 			title: "Sessão",
 			sessionDate: null,
 			arc: null,
 			sourceSessionId: "sessao",
 			snapshot: newer,
-		}).body).toContain("Segundo snapshot");
+		})).body).toContain("Segundo snapshot");
 	});
 
 	it("does not disclose forbidden targets through status differences", () => {
