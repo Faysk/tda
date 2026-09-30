@@ -19,6 +19,7 @@ export type ManageableCampaign = Readonly<{
 	lifecycle: CampaignLifecycle;
 	visibility: CampaignVisibility;
 	archivedAt: string | null;
+	updatedAt: string;
 }>;
 
 export type CampaignMutationFailure =
