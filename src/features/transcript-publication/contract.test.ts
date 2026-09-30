@@ -140,6 +140,39 @@ describe("transcript publication contract", () => {
 		expect(parsed.value.payloadJson).not.toContain("yuhara-main");
 	});
 
+	it("preserves only source-bound trusted wall-clock metadata", () => {
+		const value = requestValue();
+		Object.assign(value.review.segments[0] as Record<string, unknown>, {
+			absoluteTime: {
+				startIso: "2026-09-12T23:59:59+01:00",
+				endIso: "2026-09-13T00:00:00+01:00",
+				source: sourceId,
+			},
+		});
+		const result = preparePublication(JSON.stringify(value));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(JSON.parse(result.value.payloadJson).segments[0]).toMatchObject({
+			absolute_time_state: "trusted_absolute",
+			absolute_start: "2026-09-12T23:59:59+01:00",
+			absolute_end: "2026-09-13T00:00:00+01:00",
+			absolute_time_source: sourceId,
+		});
+
+		const wrongSource = requestValue();
+		Object.assign(wrongSource.review.segments[0] as Record<string, unknown>, {
+			absoluteTime: {
+				startIso: "2026-09-12T23:59:59+01:00",
+				endIso: "2026-09-13T00:00:00+01:00",
+				source: `craig-${"f".repeat(64)}`,
+			},
+		});
+		expect(preparePublication(JSON.stringify(wrongSource))).toEqual({
+			ok: false,
+			reason: "invalid_payload",
+		});
+	});
+
 	it("requires explicit local approval", () => {
 		const value = requestValue();
 		value.review.status = "reviewed";
