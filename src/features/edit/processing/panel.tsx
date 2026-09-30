@@ -385,8 +385,14 @@ export function ProcessingPanel({
 	const campaignJobs = state.jobs.filter(
 		(job) => job.context?.campaignId === campaignId,
 	);
+	const diagnosticJobs = state.jobs.filter(
+		(job) =>
+			job.kind === "benchmark.craig" || job.context?.campaignId === campaignId,
+	);
 	const campaignRuns = state.localRuns.filter(
-		(run) => run.publicationTarget?.campaignSlug === campaignId,
+		(run) =>
+			run.publicationTarget === null ||
+			run.publicationTarget.campaignSlug === campaignId,
 	);
 	const label = connected
 		? { preparing: "Em preparação", ready: "Pronto", paused: "Fila pausada" }[
@@ -466,12 +472,12 @@ export function ProcessingPanel({
 		? null
 		: (campaignRuns[0] ?? null);
 	const observedJobExact =
-		campaignJobs.find((job) => job.id === state.observedJobId) ?? null;
+		diagnosticJobs.find((job) => job.id === state.observedJobId) ?? null;
 	const observedJob = observedJobExact ?? activeJob;
 	const diagnosticInspectorJob =
 		diagnosticInspectorJobId === null
 			? null
-			: (campaignJobs.find((job) => job.id === diagnosticInspectorJobId) ?? null);
+			: (diagnosticJobs.find((job) => job.id === diagnosticInspectorJobId) ?? null);
 	const observedJobLive =
 		observedJob !== null &&
 		["queued", "running"].includes(observedJob.status);
