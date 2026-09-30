@@ -332,9 +332,19 @@ export function WorldEntityMediaEditor({
 				<div
 					className={styles.operationStatus}
 					data-phase={uploadPhase}
-					role="status"
-					aria-live="polite"
 				>
+					<span
+						className={styles.visuallyHidden}
+						role="status"
+						aria-live="polite"
+						aria-atomic="true"
+					>
+						{uploadPhase === "preparing"
+							? "Preparando a imagem."
+							: uploadPhase === "uploading"
+								? "Envio da imagem em andamento."
+								: "Validando a imagem."}
+					</span>
 					<div className={styles.operationHeader}>
 						<strong>
 							{uploadPhase === "preparing"
