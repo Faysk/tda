@@ -55,6 +55,10 @@ import {
 	formatEstimateRange,
 } from "./processing-estimator";
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
+import {
+	processingCampaignHref,
+	type ProcessingCampaignOption,
+} from "./campaign-context";
 import styles from "./processing.module.css";
 
 type Confirmation =
@@ -311,10 +315,16 @@ function eventTrackContext(
 }
 
 export function ProcessingPanel({
+	campaignId,
+	campaignName,
+	campaignOptions,
 	publicationEnabled = false,
 	activityBarksManage = false,
 	activityPackScope = null,
 }: Readonly<{
+	campaignId: string;
+	campaignName: string;
+	campaignOptions: readonly ProcessingCampaignOption[];
 	publicationEnabled?: boolean;
 	activityBarksManage?: boolean;
 	activityPackScope?: string | null;
@@ -334,6 +344,8 @@ export function ProcessingPanel({
 	const [resultFocus, setResultFocus] = useState<Readonly<{ key: string; requestId: number }> | null>(null);
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
+	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
+	const [campaignSelection, setCampaignSelection] = useState(campaignId);
 	const diagnosticOpener = useRef<HTMLElement | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
@@ -579,6 +591,35 @@ export function ProcessingPanel({
 		});
 	}
 
+	function switchCampaign(nextCampaignId: string) {
+		if (nextCampaignId === campaignId) {
+			setCampaignSelection(campaignId);
+			return;
+		}
+		if (!campaignOptions.some((campaign) => campaign.technicalSlug === nextCampaignId)) {
+			setCampaignSelection(campaignId);
+			return;
+		}
+		const authoritativeWork = state.jobs.some((job) =>
+			["queued", "running"].includes(job.status),
+		);
+		const needsConfirmation =
+			submissionDraftActive ||
+			authoritativeWork ||
+			Boolean(state.mutation) ||
+			Boolean(state.uncertainSubmission);
+		if (
+			needsConfirmation &&
+			!window.confirm(
+				"Trocar de campanha descarta apenas o formulário local desta tela. Trabalhos já enfileirados ou em execução mantêm a campanha original. Deseja continuar?",
+			)
+		) {
+			setCampaignSelection(campaignId);
+			return;
+		}
+		window.location.assign(processingCampaignHref(nextCampaignId));
+	}
+
 	function selectViewFromKeyboard(
 		event: ReactKeyboardEvent<HTMLButtonElement>,
 		index: number,
@@ -605,6 +646,29 @@ export function ProcessingPanel({
 
 	return (
 		<div className={styles.panel} data-global-loading="off">
+			<section className={styles.campaignContext} aria-label="Campanha do processamento">
+				<div>
+					<span>Campanha</span>
+					<strong>{campaignName}</strong>
+				</div>
+				<label>
+					<span className={styles.visuallyHidden}>Trocar campanha</span>
+					<select
+						value={campaignSelection}
+						onChange={(event) => {
+							const next = event.target.value;
+							setCampaignSelection(next);
+							switchCampaign(next);
+						}}
+					>
+						{campaignOptions.map((campaign) => (
+							<option key={campaign.technicalSlug} value={campaign.technicalSlug}>
+								{campaign.name}
+							</option>
+						))}
+					</select>
+				</label>
+			</section>
 			<div className={styles.processingHeader}>
 				<div
 					className={styles.processingTabs}
@@ -939,6 +1003,7 @@ export function ProcessingPanel({
 								)}
 							</section>
 							<ProcessingSubmission
+								campaignId={campaignId}
 								className={styles.submissionCard}
 								compact={Boolean(activeJob || queued.length)}
 								onOpenDiagnostics={() => activateView("diagnostics")}
@@ -946,6 +1011,7 @@ export function ProcessingPanel({
 								benchmarks={state.benchmarkResults}
 								system={state.system}
 								recoveryScope={activityPackScope}
+								onDraftStateChange={setSubmissionDraftActive}
 							/>
 						</div>
 						{latestCompletedRun ? (
@@ -1075,6 +1141,7 @@ export function ProcessingPanel({
 						{state.libraryRefreshError ? <p role="status">Resultados desatualizados. A última leitura foi preservada; tente atualizar.</p> : null}
 						{state.capabilities ? (
 							<SessionAssemblyResults
+								campaignId={campaignId}
 								capabilities={state.capabilities.capabilities}
 							/>
 						) : null}
