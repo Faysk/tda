@@ -104,6 +104,54 @@ A estratégia é:
 
 - `20260915211245 transcript_review_contract_comments` — migration COMMENT-only aplicada remotamente; arquivo local equivalente `20260915211000_transcript_review_contract_comments.sql`. Não reexecutar DDL nem editar migration history apenas para alinhar o timestamp.
 
+## Candidato — registry multi-campanha
+
+### `supabase/candidates/20260930140000_campaign_registry_multicampaign.sql`
+
+**Estado:** migration **candidata**, versionada fora de `supabase/migrations/` e validada somente em PostgreSQL 16 sintético nesta entrega; **não aplicada nem autorizada para o Supabase canônico**. Merge desta fundação não deve provocar DDL remoto.
+
+Objetivo:
+
+- transformar `campaigns` em registry operacional explícito para N campanhas;
+- preservar UUID e `slug` técnico de `yuhara-main`, mantendo os scopes RBAC existentes;
+- separar apresentação pública em `name/public_slug`, com aliases históricos de public slug;
+- introduzir lifecycle `active | archived` e visibility `private | public`;
+- registrar a campanha histórica como **Crônicas da Mesa** / `cronicas-da-mesa`;
+- registrar **Antes que seja tarde** como segunda identidade aprovada, inicialmente privada e sem session/entity/canon/membership/grant inferido;
+- qualificar source-session identity e known entity relations por campaign.
+
+Integridade:
+
+- technical slug é imutável in-place; mudança exige migration deliberada;
+- public slug pode mudar sem quebrar URLs anteriores: o valor antigo entra em `campaign_public_slug_aliases`;
+- aliases públicos não são scopes de autorização;
+- canonical/technical route keys e aliases usam advisory locks no mesmo collision domain; escrita direta de alias também é validada contra routes canônicas;
+- a migration falha se encontrar unique global de source session incompatível com A/B;
+- `profile_characters(campaign_id,entity_id)` e `canon_entries(campaign_id,entity_id)` precisam apontar para entity da mesma campaign;
+- participant com `character_entity_id` cross-campaign é rejeitado por trigger após preflight dos dados existentes.
+
+Segurança:
+
+- a tabela de aliases tem RLS habilitado;
+- `anon` e `authenticated` não possuem acesso direto;
+- guards de integridade são trigger-only `SECURITY DEFINER`, com `search_path = pg_catalog, public` e `EXECUTE` direto revogado; assim RLS não pode esconder colisões canonical↔alias nem vínculos cross-campaign;
+- nenhum assignment/capability novo é criado;
+- **Antes que seja tarde** nasce `visibility='private'`; publicação/gestão pertence a #1124.
+
+Validação sintética:
+
+- `tools/campaign-registry-db.py` sobe PostgreSQL 16 descartável, Unix-socket-only, sem credenciais/seed de Production;
+- `supabase/tests/campaign_registry_fixture.sql` representa o estado legado mínimo;
+- `supabase/tests/campaign_registry_multicampaign.sql` prova duas campaigns, colisões legítimas de source/entity entre A/B, bloqueio de links cross-campaign, lifecycle, rename/replay de public slug, preservação de `yuhara-main` e ausência de grants/browser enumeration;
+- receipt esperado: `CAMPAIGN_REGISTRY_DATABASE_OK ... remote_mutation=false`.
+
+Rollback/compatibilidade:
+
+- consumidores legados podem continuar lendo `campaigns.id/slug` sem conhecer as colunas novas;
+- rollback lógico antes da ativação de consumidores consiste em não promover o candidate; uma futura autorização deve copiar o SQL revisado para **nova migration com timestamp corrente**, após revalidação do schema remoto;
+- depois de eventual aplicação, não renomear `yuhara-main` nem apagar a segunda campaign para simular rollback; primeiro desativar consumidores novos e usar migration corretiva preservando UUIDs, aliases e referências;
+- nenhuma aplicação remota é autorizada apenas pela existência deste arquivo.
+
 ## Boundary do reboot aplicado
 
 As migrations abaixo são mudanças explicitamente assumidas, versionadas e observadas no histórico remoto do novo repositório TDA.
