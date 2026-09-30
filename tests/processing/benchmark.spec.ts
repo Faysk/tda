@@ -190,6 +190,7 @@ test("benchmark resumes an update that was already running before the page opene
 
 	await expect(panel).toContainText("2 / 4 perfis prontos");
 	const recovery = panel.locator("[data-qwen-runtime-recovery='true']");
+	await expect(recovery).toContainText("Atualizando");
 	await expect(recovery).toContainText("Baixando Qwen Runtime…");
 	await expect.poll(() => state.qwenRuntimeStatusGetCount).toBeGreaterThanOrEqual(2);
 	await expect(panel).toContainText("4 / 4 perfis prontos");
