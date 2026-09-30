@@ -364,8 +364,46 @@ export function ProcessingBenchmark({
 		const key = qwenInstalledVersionFromProfiles ?? "unknown";
 		if (qwenRuntimeCheckKey.current === key) return;
 		qwenRuntimeCheckKey.current = key;
-		void checkQwenRuntime();
+
+		const controller = new AbortController();
+		let disposed = false;
+		setQwenRuntimeBusy(true);
+		setQwenRuntimeError(null);
+		void (async () => {
+			try {
+				let observed = await bridge.checkQwenRuntime(controller.signal);
+				if (disposed || controller.signal.aborted) return;
+				setQwenRuntime(observed);
+				while (observed.active && !controller.signal.aborted) {
+					await new Promise((resolve) => window.setTimeout(resolve, 650));
+					if (disposed || controller.signal.aborted) return;
+					observed = await bridge.qwenRuntimeStatus(controller.signal);
+					if (disposed || controller.signal.aborted) return;
+					setQwenRuntime(observed);
+				}
+				if (observed.state === "failed") {
+					setQwenRuntimeError(
+						observed.errorCode
+							? `Não foi possível verificar a Stable do Qwen Runtime · ${observed.errorCode}`
+							: "Não foi possível verificar a Stable do Qwen Runtime.",
+					);
+				}
+			} catch (cause) {
+				if (disposed || controller.signal.aborted) return;
+				setQwenRuntimeError(
+					bridgeMessage(cause, "Não foi possível verificar o Qwen Runtime."),
+				);
+			} finally {
+				if (!disposed) setQwenRuntimeBusy(false);
+			}
+		})();
+
+		return () => {
+			disposed = true;
+			controller.abort();
+		};
 	}, [
+		bridge,
 		connected,
 		qwenRuntimeBlocked,
 		qwenRuntimeCheckSupported,
