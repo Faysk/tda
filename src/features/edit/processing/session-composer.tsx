@@ -36,7 +36,7 @@ import {
 	resolveSessionComposerPendingSubmission,
 	SESSION_COMPOSER_CHANGE_EVENT,
 	sessionComposerLastSessionKey,
-	SESSION_COMPOSER_RECOVERY_KEY,
+	sessionComposerRecoveryKey,
 	type SessionComposerPendingSubmission,
 } from "./session-composer-storage";
 import styles from "./session-composer.module.css";
@@ -231,7 +231,7 @@ export function SessionRecordingComposer({
 			setWorkspace(next);
 			onActiveChange?.(next.parts.length > 0);
 			try {
-				window.localStorage.setItem(SESSION_COMPOSER_RECOVERY_KEY, next.sessionId);
+				window.localStorage.setItem(sessionComposerRecoveryKey(campaignId), next.sessionId);
 				window.localStorage.setItem(sessionComposerLastSessionKey(campaignId), next.sessionId);
 			} catch {
 				// Recovery is best-effort; the Agent workspace remains authoritative.
@@ -292,7 +292,7 @@ export function SessionRecordingComposer({
 		restored.current = true;
 		let saved: string | null = null;
 		try {
-			saved = window.localStorage.getItem(SESSION_COMPOSER_RECOVERY_KEY);
+			saved = window.localStorage.getItem(sessionComposerRecoveryKey(campaignId));
 		} catch {
 			saved = null;
 		}
@@ -303,7 +303,7 @@ export function SessionRecordingComposer({
 		if (!supported || !validSessionId(sessionId)) return;
 		let saved: string | null = null;
 		try {
-			saved = window.localStorage.getItem(SESSION_COMPOSER_RECOVERY_KEY);
+			saved = window.localStorage.getItem(sessionComposerRecoveryKey(campaignId));
 		} catch {
 			saved = null;
 		}
@@ -836,7 +836,7 @@ export function SessionRecordingComposer({
 
 	function forgetComposer() {
 		try {
-			window.localStorage.removeItem(SESSION_COMPOSER_RECOVERY_KEY);
+			window.localStorage.removeItem(sessionComposerRecoveryKey(campaignId));
 		} catch {
 			// Only the browser recovery pointer is cleared.
 		}
