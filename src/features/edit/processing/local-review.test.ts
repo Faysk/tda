@@ -194,6 +194,37 @@ describe("local result/review contracts", () => {
 		});
 	});
 
+	it("parses trusted wall-clock metadata and fails closed for inconsistent authority", () => {
+		const raw = rawReview();
+		Object.assign(raw.segments[0] as Record<string, unknown>, {
+			absolute_time_state: "trusted_absolute",
+			absolute_start: "2026-09-12T23:59:59+01:00",
+			absolute_end: "2026-09-13T00:00:00+01:00",
+			absolute_time_source: sourceId,
+		});
+		expect(parseLocalReview(raw).segments[0]?.absoluteTime).toEqual({
+			startIso: "2026-09-12T23:59:59+01:00",
+			endIso: "2026-09-13T00:00:00+01:00",
+			source: sourceId,
+		});
+
+		Object.assign(raw.segments[0] as Record<string, unknown>, {
+			absolute_time_state: "unavailable",
+			absolute_start: null,
+			absolute_end: null,
+			absolute_time_source: null,
+		});
+		expect(parseLocalReview(raw).segments[0]?.absoluteTime).toBeNull();
+
+		Object.assign(raw.segments[0] as Record<string, unknown>, {
+			absolute_time_state: "trusted_absolute",
+			absolute_start: "2026-09-12T23:59:59",
+			absolute_end: "2026-09-13T00:00:00",
+			absolute_time_source: sourceId,
+		});
+		expect(() => parseLocalReview(raw)).toThrow(BridgeError);
+	});
+
 	it("transmits the opened snapshot identity and rejects legacy writes", async () => {
 		const transport = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(rawReview()));
 		const bridge = new LocalBridge(transport);
