@@ -630,6 +630,7 @@ export function ProcessingSubmission({
 
 			const sessionIntentCapabilities = [
 				"transcription.session-workspace",
+				"transcription.session-intent",
 				"transcription.session-timeline",
 				"transcription.session-participants",
 				"transcription.session-assembly",
