@@ -245,35 +245,60 @@ begin
   end if;
 end $$;
 
--- Source identities are campaign-qualified. Detect an incompatible global
--- unique before consumers start relying on A/B collisions being valid.
-do $$
+-- Source identities are campaign-qualified. Detect incompatible global
+-- UNIQUE indexes as well as named constraints before consumers start relying
+-- on A/B collisions being valid.
+do $
 declare
-  v_bad_constraint text;
+  v_bad_index text;
+  v_columns text[];
 begin
-  select conname into v_bad_constraint
-  from pg_constraint
-  where conrelid = 'public.sessions'::regclass
-    and contype = 'u'
-    and (
-      conkey = array[
-        (select attnum from pg_attribute where attrelid = 'public.sessions'::regclass and attname = 'source_session_id')
-      ]::smallint[]
-      or conkey = array[
-        (select attnum from pg_attribute where attrelid = 'public.sessions'::regclass and attname = 'source_system'),
-        (select attnum from pg_attribute where attrelid = 'public.sessions'::regclass and attname = 'source_session_id')
-      ]::smallint[]
-    )
-  limit 1;
+  for v_bad_index, v_columns in
+    select
+      index_class.relname,
+      (
+        select array_agg(attribute.attname order by key_column.ordinality)
+        from unnest(index_meta.indkey) with ordinality as key_column(attnum, ordinality)
+        join pg_attribute attribute
+          on attribute.attrelid = index_meta.indrelid
+         and attribute.attnum = key_column.attnum
+      )
+    from pg_index index_meta
+    join pg_class index_class on index_class.oid = index_meta.indexrelid
+    where index_meta.indrelid = 'public.sessions'::regclass
+      and index_meta.indisunique
+  loop
+    if v_columns = array['source_session_id']::text[]
+       or v_columns = array['source_system', 'source_session_id']::text[] then
+      raise exception 'global session source uniqueness % must be reconciled before multi-campaign rollout', v_bad_index;
+    end if;
+  end loop;
+end $;
 
-  if v_bad_constraint is not null then
-    raise exception 'global session source uniqueness % must be reconciled before multi-campaign rollout', v_bad_constraint;
+do $
+declare
+  v_has_campaign_source_unique boolean;
+begin
+  select exists (
+    select 1
+    from pg_index index_meta
+    where index_meta.indrelid = 'public.sessions'::regclass
+      and index_meta.indisunique
+      and (
+        select array_agg(attribute.attname order by key_column.ordinality)
+        from unnest(index_meta.indkey) with ordinality as key_column(attnum, ordinality)
+        join pg_attribute attribute
+          on attribute.attrelid = index_meta.indrelid
+         and attribute.attnum = key_column.attnum
+      ) = array['campaign_id', 'source_system', 'source_session_id']::text[]
+  ) into v_has_campaign_source_unique;
+
+  if not v_has_campaign_source_unique then
+    create unique index sessions_campaign_source_identity_unique
+      on public.sessions(campaign_id, source_system, source_session_id)
+      where source_system is not null and source_session_id is not null;
   end if;
-end $$;
-
-create unique index if not exists sessions_campaign_source_identity_unique
-  on public.sessions(campaign_id, source_system, source_session_id)
-  where source_system is not null and source_session_id is not null;
+end $;
 
 create unique index if not exists entities_campaign_id_id_unique
   on public.entities(campaign_id, id);
