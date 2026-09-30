@@ -392,10 +392,10 @@ begin
     when unique_violation then null;
   end;
 end
-$;
+$$;
 
 -- Technical slug is compatibility identity and cannot drift through an editorial rename.
-do $
+do $$
 declare
   v_legacy_id uuid;
 begin
@@ -412,10 +412,10 @@ begin
     when check_violation then null;
   end;
 end
-$;
+$$;
 
 -- Participant session and character entity must resolve to the same campaign.
-do $
+do $$
 declare
   v_legacy_session_id uuid := '40000000-0000-4000-8000-000000000010';
   v_second_entity_id uuid := '20000000-0000-4000-8000-000000000002';
@@ -438,7 +438,7 @@ begin
     when foreign_key_violation then null;
   end;
 end
-$;
+$$;
 
 -- Legacy campaign creation remains compatible: public_slug defaults from slug
 -- in the BEFORE INSERT trigger, while lifecycle/visibility use additive defaults.
