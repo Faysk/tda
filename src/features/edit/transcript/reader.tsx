@@ -14,6 +14,7 @@ import {
 	parseTranscriptTimestamp,
 	type TranscriptReaderSegment,
 } from "./reader-contract";
+import { parseTranscriptRoundTripMarkdown } from "./markdown-roundtrip";
 import styles from "./reader.module.css";
 
 const INITIAL_VISIBLE = 300;
@@ -25,6 +26,15 @@ type WorkingEdit = Readonly<{
 }>;
 
 type SavePhase = "idle" | "saving" | "saved" | "conflict" | "error";
+type ImportPreview = Readonly<{
+	fileName: string;
+	edits: readonly Readonly<{
+		trackNumber: number;
+		segmentId: string;
+		speaker: string;
+		text: string;
+	}>[];
+}>;
 
 export type TranscriptReaderSaveAction = typeof saveTranscriptRevisionEditsAction;
 
@@ -61,6 +71,8 @@ export function TranscriptReader({
 	sessionId = null,
 	revisionId = null,
 	revisionNumber = null,
+	campaignSlug = null,
+	sourceSessionId = null,
 	saveAction = saveTranscriptRevisionEditsAction,
 	active = true,
 }: Readonly<{
@@ -71,6 +83,8 @@ export function TranscriptReader({
 	sessionId?: string | null;
 	revisionId?: string | null;
 	revisionNumber?: number | null;
+	campaignSlug?: string | null;
+	sourceSessionId?: string | null;
 	saveAction?: TranscriptReaderSaveAction;
 	active?: boolean;
 }>) {
@@ -87,6 +101,8 @@ export function TranscriptReader({
 	const [savePhase, setSavePhase] = useState<SavePhase>("idle");
 	const [saveMessage, setSaveMessage] = useState("");
 	const [remoteRevisionNumber, setRemoteRevisionNumber] = useState<number | null>(null);
+	const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+	const importInputRef = useRef<HTMLInputElement>(null);
 	const pendingOperation = useRef<{ id: string; signature: string } | null>(null);
 
 	const [query, setQuery] = useState("");
@@ -106,6 +122,11 @@ export function TranscriptReader({
 		Boolean(sessionId) &&
 		Boolean(currentRevisionId) &&
 		baseline.every((segment) => Boolean(segment.sourceSegmentId));
+	const canRoundTrip =
+		canEdit &&
+		Boolean(campaignSlug) &&
+		Boolean(sourceSessionId) &&
+		Boolean(currentRevisionNumber);
 
 	const matches = useMemo(() => {
 		if (!normalizedQuery) return [] as number[];
@@ -200,6 +221,82 @@ export function TranscriptReader({
 		setSavePhase("idle");
 		setSaveMessage("");
 		pendingOperation.current = null;
+	}
+
+	async function previewMarkdownImport(file: File) {
+		if (
+			!canRoundTrip ||
+			!campaignSlug ||
+			!sourceSessionId ||
+			!currentRevisionId ||
+			!currentRevisionNumber
+		)
+			return;
+		if (dirty) {
+			setSavePhase("error");
+			setSaveMessage(
+				"Salve ou descarte a working copy atual antes de importar um Markdown.",
+			);
+			return;
+		}
+		setImportPreview(null);
+		try {
+			const parsed = await parseTranscriptRoundTripMarkdown({
+				markdown: await file.text(),
+				expected: {
+					campaignSlug,
+					sourceSessionId,
+					baseRevisionId: currentRevisionId,
+					baseRevisionNumber: currentRevisionNumber,
+				},
+				baseline,
+			});
+			setImportPreview({ fileName: file.name, edits: parsed.edits });
+			setSavePhase("idle");
+			setSaveMessage(
+				parsed.changedSegments === 0
+					? "Markdown válido e idêntico à revisão atual. Nenhuma nova revisão será criada."
+					: \`Markdown válido: \${parsed.changedSegments.toLocaleString("pt-BR")} fala(s) alterada(s). Revise o resumo e aplique à working copy.\`,
+			);
+		} catch (error) {
+			setSavePhase("error");
+			setSaveMessage(
+				error instanceof Error && error.message === "TRANSCRIPT_MARKDOWN_STALE_BASE"
+					? "Este Markdown pertence a outra revisão. Nada foi aplicado."
+					: "O Markdown não passou na validação estrutural. Marcadores, identidade e timestamps precisam permanecer intactos.",
+			);
+		} finally {
+			if (importInputRef.current) importInputRef.current.value = "";
+		}
+	}
+
+	function applyMarkdownImport() {
+		if (!importPreview) return;
+		const edits = new Map(
+			importPreview.edits.map((edit) => [
+				\`\${edit.trackNumber}\\0\${edit.segmentId}\`,
+				edit,
+			]),
+		);
+		const next: Record<string, WorkingEdit> = {};
+		for (const segment of baseline) {
+			if (!segment.sourceSegmentId) continue;
+			const edit = edits.get(
+				\`\${segment.trackNumber}\\0\${segment.sourceSegmentId}\`,
+			);
+			if (edit)
+				next[segment.id] = { speaker: edit.speaker, text: edit.text };
+		}
+		setWorking(next);
+		setEditMode(true);
+		setActiveEditId(null);
+		setImportPreview(null);
+		setSavePhase("idle");
+		setSaveMessage(
+			Object.keys(next).length
+				? \`\${Object.keys(next).length.toLocaleString("pt-BR")} alteração(ões) importada(s) para a working copy. Revise e salve quando estiver pronto.\`
+				: "Nenhuma mudança efetiva para aplicar.",
+		);
 	}
 
 	function buildRequest(): TranscriptEditRequest | null {
@@ -438,6 +535,30 @@ export function TranscriptReader({
 					Baixar transcrição (.md)
 				</a>
 
+				{canRoundTrip ? (
+					<>
+						<input
+							ref={importInputRef}
+							className={styles.importInput}
+							type="file"
+							accept=".md,text/markdown,text/plain"
+							aria-label="Importar transcrição Markdown corrigida"
+							onChange={(event) => {
+								const file = event.currentTarget.files?.[0];
+								if (file) void previewMarkdownImport(file);
+							}}
+						/>
+						<Button
+							size="sm"
+							variant="tertiary"
+							disabled={savePhase === "saving"}
+							onClick={() => importInputRef.current?.click()}
+						>
+							Importar .md corrigido
+						</Button>
+					</>
+				) : null}
+
 				{canEdit ? (
 					<div className={styles.editControls}>
 						<Button
@@ -477,6 +598,33 @@ export function TranscriptReader({
 								</Button>
 							</>
 						) : null}
+					</div>
+				) : null}
+
+				{importPreview ? (
+					<div className={styles.importPreview} role="status">
+						<div>
+							<strong>Prévia do Markdown</strong>
+							<span>
+								{importPreview.fileName} · {importPreview.edits.length.toLocaleString("pt-BR")} alteração(ões)
+							</span>
+						</div>
+						<div className={styles.conflictActions}>
+							<Button
+								size="sm"
+								disabled={savePhase === "saving" || importPreview.edits.length === 0}
+								onClick={applyMarkdownImport}
+							>
+								Aplicar à working copy
+							</Button>
+							<Button
+								size="sm"
+								variant="tertiary"
+								onClick={() => setImportPreview(null)}
+							>
+								Descartar importação
+							</Button>
+						</div>
 					</div>
 				) : null}
 
