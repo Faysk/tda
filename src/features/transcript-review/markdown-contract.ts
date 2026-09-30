@@ -241,6 +241,23 @@ export async function transcriptMarkdownStructureSha256(
 	return sha256Hex(canonicalStructure(base, segments));
 }
 
+export async function transcriptMarkdownContentSha256(
+	segments: readonly TranscriptMarkdownSegment[],
+): Promise<string> {
+	validateSegments(segments);
+	return sha256Hex(
+		JSON.stringify(
+			segments.map((segment) => ({
+				id: segment.id,
+				start_ms: segment.startMs,
+				end_ms: segment.endMs,
+				speaker: canonicalEditableText(segment.speaker),
+				text: canonicalEditableText(segment.text),
+			})),
+		),
+	);
+}
+
 export async function renderTranscriptMarkdownV1(input: {
 	base: TranscriptMarkdownBase;
 	segments: readonly TranscriptMarkdownSegment[];
