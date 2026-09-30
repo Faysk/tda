@@ -906,10 +906,16 @@ test("ambiguous enqueue reuses the same idempotency identity and reconnect keeps
 			hasText: "Não foi possível confirmar a entrada desta gravação.",
 		}),
 	).toContainText("Não foi possível confirmar a entrada desta gravação.");
-	expect(multi.postedSources).toEqual([SOURCE_IDS[0], SOURCE_IDS[1]]);
+	await expect.poll(() => multi.keysFor(SOURCE_IDS[1] ?? "").length).toBe(2);
+	expect(multi.postedSources).toEqual([
+		SOURCE_IDS[0],
+		SOURCE_IDS[1],
+		SOURCE_IDS[1],
+	]);
 	const firstKeys = multi.keysFor(SOURCE_IDS[1] ?? "");
-	expect(firstKeys).toHaveLength(1);
+	expect(firstKeys).toHaveLength(2);
 	expect(firstKeys[0]).not.toBe("");
+	expect(firstKeys[0]).toBe(firstKeys[1]);
 
 	await page.reload();
 	const recovered = page.getByRole("region", {
