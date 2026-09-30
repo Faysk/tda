@@ -61,5 +61,6 @@ Estes SQL permanecem deliberadamente fora de Production:
 - `candidates/20260921021000_transcript_publication_revisions.sql` — modelo candidato de revisions completas imutáveis + current pointer + receipts/eventos atômicos; **sem role assignment e não autorizado para Production**;
 - `candidates/20260908231000_backfill_screacky_historical_alias.sql`;
 - `candidates/20260930174200_first_class_campaign_registry.sql` — candidate expand-only de #1123 para lifecycle/public route identity/aliases e invariantes cross-campaign; validado apenas em PostgreSQL scratch até decisão explícita de rollout.
+- `candidates/20260930191500_harden_campaign_discovery_authorization.sql` — candidate #1134 para discovery público/Edit, capability exata e hardening de `access_directory`; depende de #1123 e permanece scratch-only até rollout deliberado.
 
 Os contratos e gates de ativação continuam em `docs/integrations/transcript-import.md`, `docs/features/world-entity-media-foundation.md` e `docs/database/migrations.md`.
