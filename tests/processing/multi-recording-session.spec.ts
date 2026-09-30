@@ -901,9 +901,11 @@ test("ambiguous enqueue reuses the same idempotency identity and reconnect keeps
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
-	await expect(intent.getByRole("alert")).toContainText(
-		"Não foi possível confirmar a entrada desta gravação.",
-	);
+	await expect(
+		intent.getByRole("alert").filter({
+			hasText: "Não foi possível confirmar a entrada desta gravação.",
+		}),
+	).toContainText("Não foi possível confirmar a entrada desta gravação.");
 	expect(multi.postedSources).toEqual([SOURCE_IDS[0], SOURCE_IDS[1]]);
 	const firstKeys = multi.keysFor(SOURCE_IDS[1] ?? "");
 	expect(firstKeys).toHaveLength(1);
