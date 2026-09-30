@@ -96,10 +96,11 @@ begin
     raise exception 'browser roles received direct alias table privileges';
   end if;
 
-  if not has_table_privilege(
-    'service_role',
-    'public.campaign_public_route_aliases',
-    'select,insert,update,delete'
+  if not (
+    has_table_privilege('service_role', 'public.campaign_public_route_aliases', 'select')
+    and has_table_privilege('service_role', 'public.campaign_public_route_aliases', 'insert')
+    and has_table_privilege('service_role', 'public.campaign_public_route_aliases', 'update')
+    and has_table_privilege('service_role', 'public.campaign_public_route_aliases', 'delete')
   ) then
     raise exception 'service_role is missing alias table privileges';
   end if;
