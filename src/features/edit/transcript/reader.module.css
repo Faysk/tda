@@ -76,7 +76,7 @@
 
 .segment {
 	display: grid;
-	grid-template-columns: 94px minmax(110px, 180px) minmax(0, 1fr);
+	grid-template-columns: minmax(118px, 164px) minmax(110px, 180px) minmax(0, 1fr);
 	gap: 16px;
 	align-items: start;
 	padding: 13px 10px;
@@ -85,6 +85,8 @@
 }
 
 .timestamp {
+	display: grid;
+	gap: 2px;
 	border: 0;
 	padding: 0;
 	background: transparent;
@@ -93,6 +95,13 @@
 	font-variant-numeric: tabular-nums;
 	text-align: left;
 	cursor: pointer;
+}
+
+.timestamp small {
+	font-size: .72rem;
+	line-height: 1.25;
+	color: var(--ds-text-subtle, var(--ds-text-muted));
+	white-space: normal;
 }
 
 .speaker {
@@ -143,7 +152,7 @@
 		grid-column: auto;
 	}
 	.segment {
-		grid-template-columns: 82px minmax(0, 1fr);
+		grid-template-columns: minmax(104px, 132px) minmax(0, 1fr);
 		gap: 8px 12px;
 	}
 	.text {
