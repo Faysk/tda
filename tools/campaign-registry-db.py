@@ -90,7 +90,7 @@ try:
 
     paths = [
         repo / "supabase/tests/campaign_registry_fixture.sql",
-        repo / "supabase/migrations/20260930161500_first_class_campaign_registry.sql",
+        repo / "supabase/candidates/20260930161500_first_class_campaign_registry.sql",
         repo / "supabase/tests/campaign_registry.sql",
     ]
     output_parts: list[str] = []
