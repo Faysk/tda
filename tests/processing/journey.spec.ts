@@ -67,7 +67,7 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	await expect(commandBar).not.toContainText("Synthetic CPU");
 
 	for (const locator of [
-		page.getByText("Nova transcrição Craig", { exact: true }),
+		page.getByText("Transcrever sessão", { exact: true }),
 		commandBar,
 	]) {
 		const box = await locator.boundingBox();
@@ -122,7 +122,7 @@ test("known-buggy Qwen runtime stays blocked when compatible Stable is not publi
 
 	await selectCraig(page);
 	await expect(
-		page.getByRole("button", { name: "Começar transcrição" }),
+		page.getByRole("button", { name: "Transcrever sessão" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(state.preparationPostCount).toBe(0);
@@ -160,7 +160,7 @@ test("known-buggy Qwen runtime offers update only when compatible Stable is publ
 
 	await selectCraig(page);
 	await expect(
-		page.getByRole("button", { name: "Começar transcrição" }),
+		page.getByRole("button", { name: "Transcrever sessão" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(state.preparationPostCount).toBe(0);
@@ -197,7 +197,7 @@ test("Qwen runtime availability lookup failure stays blocked without inventing a
 
 	await selectCraig(page);
 	await expect(
-		page.getByRole("button", { name: "Começar transcrição" }),
+		page.getByRole("button", { name: "Transcrever sessão" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(state.preparationPostCount).toBe(0);
@@ -217,7 +217,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("Nova transcrição Craig", { exact: true })).toBeVisible();
+	await expect(page.getByText("Transcrever sessão", { exact: true })).toBeVisible();
 
 	const health = state.requests.find((request) => request.path === "/health");
 	const session = state.requests.find((request) => request.path === "/session");
@@ -226,7 +226,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 	expect(state.sessionCount).toBe(1);
 
 	await selectCraig(page);
-	await page.getByRole("button", { name: "Começar transcrição" }).click();
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 
 	await expect
 		.poll(() => state.uploadCount)
@@ -299,13 +299,13 @@ test("ambiguous job response reuses the same idempotency key without re-uploadin
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
 
-	await page.getByRole("button", { name: "Começar transcrição" }).click();
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 	await expect(page.getByRole("alert")).toContainText(
 		"Não foi possível alcançar o Companion local",
 	);
 	await expect(page.getByText(/tentativa ficou ambígua/i)).toBeVisible();
 
-	await page.getByRole("button", { name: "Começar transcrição" }).click();
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 	await expect
 		.poll(() => state.jobPostCount)
 		.toBe(2);
@@ -327,7 +327,7 @@ test("ambiguous job response reuses the persisted idempotency key after reload",
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
 
-	await page.getByRole("button", { name: "Começar transcrição" }).click();
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 	await expect(page.getByRole("alert")).toContainText(
 		"Não foi possível alcançar o Companion local",
 	);
@@ -345,7 +345,7 @@ test("ambiguous job response reuses the persisted idempotency key after reload",
 	await page.reload();
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await selectCraig(page);
-	await page.getByRole("button", { name: "Começar transcrição" }).click();
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 	await expect.poll(() => state.jobPostCount).toBe(2);
 
 	expect(firstKey).toBeTruthy();
@@ -374,7 +374,7 @@ test("UTF-8 envelope budget blocks an accepted character count before upload", a
 
 	await expect(page.getByRole("alert")).toContainText("bytes UTF-8");
 	await expect(
-		page.getByRole("button", { name: "Começar transcrição" }),
+		page.getByRole("button", { name: "Transcrever sessão" }),
 	).toBeDisabled();
 	expect(state.uploadCount).toBe(0);
 	expect(
