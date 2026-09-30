@@ -59,6 +59,32 @@ begin
     ) then
     raise exception 'edit campaign directory grants are incorrect';
   end if;
+
+  if has_function_privilege(
+      'authenticated',
+      'public.submit_profile_claim(text,uuid,text,text,text,text,text[],text)',
+      'execute'
+    )
+    or has_function_privilege(
+      'authenticated',
+      'public.review_profile_claim(uuid,text,text)',
+      'execute'
+    ) then
+    raise exception 'legacy claim RPCs remain directly executable by authenticated';
+  end if;
+
+  if not has_function_privilege(
+      'service_role',
+      'public.submit_profile_claim(text,uuid,text,text,text,text,text[],text)',
+      'execute'
+    )
+    or not has_function_privilege(
+      'service_role',
+      'public.review_profile_claim(uuid,text,text)',
+      'execute'
+    ) then
+    raise exception 'service role lost required legacy claim RPC execution';
+  end if;
 end
 $$;
 
