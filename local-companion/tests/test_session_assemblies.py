@@ -205,6 +205,42 @@ def test_session_assembly_builds_bounded_parts_deterministically(tmp_path, count
     assert len({row["assembly_segment_id"] for row in transcript["segments"]}) == count
 
 
+def test_assembly_projects_only_trusted_wall_clock_per_recording_and_preserves_offset(tmp_path):
+    data_root = tmp_path / "Data"
+    runs = [
+        stage_run(data_root, 1, start=1.0, text="antes da meia-noite"),
+        stage_run(data_root, 2, start=2.0, text="sem relógio confiável"),
+    ]
+    workspace = workspace_for(runs)
+    workspace["parts"][0].update(
+        source_start_time="2026-09-27T23:59:59+01:00",
+        source_start_confidence="trusted_absolute",
+        source_start_utc="2026-09-27T22:59:59Z",
+    )
+    workspace["parts"][1].update(
+        source_start_time="23:00:00",
+        source_start_confidence="ambiguous",
+        source_start_utc=None,
+    )
+
+    assembly = build(data_root, runs, workspace=workspace)
+    _manifest, transcript = load_session_assembly_transcript(
+        data_root, "campaign-a", "session-a", assembly["assembly_id"]
+    )
+
+    first, second = transcript["segments"]
+    assert first["absolute_start"] == "2026-09-28T00:00:00.000+01:00"
+    assert first["absolute_end"] == "2026-09-28T00:00:01.000+01:00"
+    assert second["absolute_start"] is None
+    assert second["absolute_end"] is None
+
+    review = open_assembly_review(
+        data_root, "campaign-a", "session-a", assembly["assembly_id"], base_only=True
+    )
+    assert review["segments"][0]["absolute_start"] == first["absolute_start"]
+    assert review["segments"][1]["absolute_start"] is None
+
+
 def test_switching_only_one_selected_run_creates_new_assembly_and_preserves_old(tmp_path):
     data_root = tmp_path / "Data"
     first_source = stage_run(data_root, 1, job_suffix="a", text="antes")
