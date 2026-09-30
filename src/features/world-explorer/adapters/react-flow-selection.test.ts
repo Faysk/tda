@@ -74,6 +74,7 @@ describe("World React Flow selection decoration", () => {
 			targetSide: expect.any(String),
 			sourceLane: 0,
 			targetLane: 0,
+			bendOffset: expect.any(Number),
 		});
 
 		// The cached structure itself stays selection-neutral and can be reused.
