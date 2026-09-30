@@ -66,7 +66,6 @@ describe("R2 public session delivery", () => {
 			"media.dnd.faysk.dev",
 			"media.dnd.faysk.dev:8443",
 		),
-		`${prefix}${key}.webp`.replace("yuhara-main", "another-campaign"),
 		"https://media.dnd.faysk.dev/private/master.png",
 		"https://tda-media-private.example/master.png",
 		"https://tda-media-preview.example/image.png",
@@ -79,6 +78,16 @@ describe("R2 public session delivery", () => {
 			hasRemoteMatch([], config.images?.remotePatterns ?? [], new URL(url)),
 		).toBe(false);
 	});
+	it("rejects cross-campaign media in the session model while the global Next matcher allows it", () => {
+		const url = `${prefix}${key}.webp`.replace("yuhara-main", "another-campaign");
+		expect(
+			toPublishedSession({ ...row, cover_image_url: url }),
+		).not.toHaveProperty("coverImage");
+		expect(
+			hasRemoteMatch([], config.images?.remotePatterns ?? [], new URL(url)),
+		).toBe(true);
+	});
+
 	it("rejects embedded credentials and fragments in the model", () => {
 		for (const url of [
 			`${prefix}${key}.webp#private`,
