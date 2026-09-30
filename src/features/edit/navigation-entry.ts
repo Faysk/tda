@@ -5,6 +5,7 @@ import {
 	type EditCapability,
 } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
+import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 
 export type EditEntryDestination = Readonly<{
 	href: string;
@@ -30,6 +31,8 @@ export function firstAuthorizedEditDestination(
 	context: EditAccessContext,
 	now = new Date(),
 ): string | null {
+	if (canManageCampaignRegistry(context, now)) return "/edit/campanhas";
+
 	for (const destination of EDIT_ENTRY_PRIORITY) {
 		if (
 			authorizeCampaignCapability(

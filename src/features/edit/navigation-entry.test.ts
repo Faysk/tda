@@ -48,6 +48,30 @@ describe("legacy /edit compatibility destination", () => {
 		);
 	});
 
+
+	it("routes project campaign managers to the registry before campaign-scoped tools", () => {
+		const base = context([EDIT_CAPABILITIES.transcriptRead]);
+		expect(
+			firstAuthorizedEditDestination(
+				{
+					...base,
+					grants: [
+						...base.grants,
+						{
+							action: "project.campaigns.manage",
+							scopeType: "project",
+							scopeId: "tda",
+							status: "active",
+							startsAt: "2026-01-01T00:00:00.000Z",
+							endsAt: null,
+						},
+					],
+				},
+				now,
+			),
+		).toBe("/edit/campanhas");
+	});
+
 	it("chooses the first authorized tool rather than grant insertion order", () => {
 		expect(
 			firstAuthorizedEditDestination(

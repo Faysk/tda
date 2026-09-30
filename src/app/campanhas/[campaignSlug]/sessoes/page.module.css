@@ -1,0 +1,77 @@
+.page {
+	width: min(var(--ds-layout-expansive, 2160px), 100%);
+	margin: 0 auto;
+	padding:
+		clamp(48px, 7vw, 88px)
+		var(--ds-page-gutter)
+		clamp(76px, 8vw, 120px);
+}
+
+.header {
+	display: grid;
+	max-width: 860px;
+	gap: 12px;
+	margin-bottom: clamp(34px, 5vw, 58px);
+}
+
+.eyebrow {
+	margin: 0;
+	color: var(--ds-accent-strong);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+}
+
+.header h1 {
+	max-width: 14ch;
+	margin: 0;
+	font-family: var(--ds-font-display);
+	font-size: clamp(2.8rem, 5vw, 5.1rem);
+	font-weight: 400;
+	line-height: 0.98;
+	letter-spacing: -0.04em;
+	text-wrap: balance;
+}
+
+.header > p:last-child {
+	max-width: 680px;
+	margin: 4px 0 0;
+	color: var(--ds-foreground-soft);
+	font-family: var(--ds-font-body);
+	line-height: 1.65;
+}
+
+.archive {
+	width: min(100%, var(--ds-layout-editorial, 1540px));
+	margin-inline: auto;
+}
+
+.state {
+	max-width: 760px;
+	padding: 26px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-lg);
+	background: var(--ds-surface);
+}
+
+.state h1,
+.state h2 {
+	margin: 0;
+	font-family: var(--ds-font-display);
+	font-size: 1.65rem;
+	font-weight: 500;
+}
+
+.state p {
+	margin: 10px 0 0;
+	color: var(--ds-foreground-soft);
+	line-height: 1.6;
+}
+
+@media (max-width: 480px) {
+	.page {
+		padding-top: 38px;
+	}
+}
