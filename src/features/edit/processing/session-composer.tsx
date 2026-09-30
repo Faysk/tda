@@ -21,6 +21,7 @@ import type {
 	SessionAssemblyReviewSummary,
 } from "./session-composer-protocol";
 import { BridgeError } from "./protocol";
+import { SessionAssemblyReviewEditor } from "./session-assembly-review";
 import type {
 	CraigSource,
 	LocalJob,
@@ -155,6 +156,7 @@ export function SessionRecordingComposer({
 	);
 	const [assemblies, setAssemblies] = useState<readonly SessionAssemblyListItem[]>([]);
 	const [lastAssembly, setLastAssembly] = useState<SessionAssembly | null>(null);
+	const [reviewAssembly, setReviewAssembly] = useState<SessionAssembly | null>(null);
 	const [review, setReview] = useState<SessionAssemblyReviewSummary | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [live, setLive] = useState<string | null>(null);
@@ -395,6 +397,7 @@ export function SessionRecordingComposer({
 		setBusy(true);
 		setLocalError(null);
 		setReview(null);
+		setReviewAssembly(null);
 		try {
 			if (workspace && workspace.sessionId !== sessionId) {
 				throw new BridgeError("conflict", "SESSION_WORKSPACE_SESSION_MISMATCH");
@@ -445,6 +448,7 @@ export function SessionRecordingComposer({
 		setBusy(true);
 		setLocalError(null);
 		setReview(null);
+		setReviewAssembly(null);
 		try {
 			const next = await action(workspace, controller.signal);
 			await adopt(next, controller.signal);
@@ -738,6 +742,7 @@ export function SessionRecordingComposer({
 		setBusy(true);
 		setLocalError(null);
 		setReview(null);
+		setReviewAssembly(null);
 		try {
 			const built = await bridge.buildSessionAssembly(
 				workspace.campaignId,
@@ -746,6 +751,7 @@ export function SessionRecordingComposer({
 				controller.signal,
 			);
 			setLastAssembly(built);
+			setReviewAssembly(built);
 			const listing = await bridge.sessionAssemblies(
 				workspace.campaignId,
 				workspace.sessionId,
@@ -772,15 +778,24 @@ export function SessionRecordingComposer({
 		setBusy(true);
 		setLocalError(null);
 		try {
-			const value = await bridge.sessionAssemblyReviewBase(
-				workspace.campaignId,
-				workspace.sessionId,
-				assemblyId,
-				controller.signal,
-			);
+			const [assembly, value] = await Promise.all([
+				bridge.sessionAssembly(
+					workspace.campaignId,
+					workspace.sessionId,
+					assemblyId,
+					controller.signal,
+				),
+				bridge.sessionAssemblyReview(
+					workspace.campaignId,
+					workspace.sessionId,
+					assemblyId,
+					controller.signal,
+				),
+			]);
+			setReviewAssembly(assembly);
 			setReview(value);
 			announce(
-				"Base de revisão da assembly carregada · " +
+				"Revisão da sessão carregada · " +
 					value.segmentCount +
 					" segmentos.",
 			);
@@ -805,6 +820,7 @@ export function SessionRecordingComposer({
 		setAssemblies([]);
 		setLastAssembly(null);
 		setReview(null);
+		setReviewAssembly(null);
 		onActiveChange?.(false);
 		announce("Composer fechado. As gravações, runs e assemblies locais foram preservados.");
 	}
@@ -1100,14 +1116,14 @@ export function SessionRecordingComposer({
 						</div>
 					) : null}
 
-					{review ? (
-						<div className={styles.reviewLoaded} role="status">
-							<strong>Base da revisão carregada da assembly {short(review.assemblyId, 12)}</strong>
-							<span>
-								{review.segmentCount} segmentos · {review.reviewedSegments} revisados · estado {review.status}
-								{review.approvalBlocked ? " · aprovação bloqueada por participantes" : ""}
-							</span>
-						</div>
+					{review && reviewAssembly ? (
+						<SessionAssemblyReviewEditor
+							key={reviewAssembly.assemblyId}
+							bridge={bridge}
+							assembly={reviewAssembly}
+							initialReview={review}
+							onReviewChange={setReview}
+						/>
 					) : null}
 				</>
 			) : (
