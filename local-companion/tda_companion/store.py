@@ -371,6 +371,8 @@ class Store:
         if not isinstance(row, dict):
             raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT")
         try:
+            campaign_id = cls._workspace_identity(row.get("campaign_id"), "CAMPAIGN")
+            session_id = cls._workspace_identity(row.get("session_id"), "SESSION")
             request_id = cls._session_intent_request_id(row.get("request_id"))
             profile_id = cls._session_intent_profile(row.get("profile_id"))
             context = cls._session_intent_text(row.get("context"), "CONTEXT")
@@ -389,8 +391,8 @@ class Store:
             raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT")
         return {
             "schema_version": "tda_session_transcription_intent_v1",
-            "campaign_id": row.get("campaign_id"),
-            "session_id": row.get("session_id"),
+            "campaign_id": campaign_id,
+            "session_id": session_id,
             "request_id": request_id,
             "profile_id": profile_id,
             "context": context,
