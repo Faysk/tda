@@ -1671,3 +1671,58 @@ Validação sintética:
 - `tools/transcript-sync-db.py` aplica migration + contratos em PostgreSQL descartável.
 
 Rollback é forward-only: retirar primeiro o consumidor Web; sessions privadas/revisions já confirmadas continuam evidência válida. Não apagar receipt/revision/session real para simular rollback.
+
+
+## 2026-09-30 — candidate first-class campaign registry (#1123)
+
+### `supabase/candidates/20260930161500_first_class_campaign_registry.sql`
+
+**Estado:** candidato revisável; **não está em `supabase/migrations/` e não está autorizado para aplicação remota nesta entrega**.
+
+Objetivos do candidate:
+
+- materializar `campaigns.lifecycle = active | archived`;
+- separar `visibility = public | private` do lifecycle;
+- adicionar `public_slug` canônico sem renomear o technical slug;
+- preservar aliases públicas em `campaign_public_route_aliases`;
+- manter `yuhara-main` como identidade técnica/RBAC e apresentá-la como **Crônicas da Mesa**;
+- criar **Antes que seja tarde** somente como row de identidade `active/private`, sem conteúdo narrativo ou membership inferidos;
+- recusar rollout se `source_session_id` de sessions ou `slug` de entities ainda estiverem globalmente únicos sem `campaign_id`;
+- reforçar `profile_characters(campaign_id, entity_id)` contra vínculo cross-campaign.
+
+Segurança do candidate:
+
+- a tabela de aliases nasce com RLS habilitado;
+- `anon` e `authenticated` recebem zero acesso direto;
+- `service_role` recebe DML explícito para futuros resolvers server-side;
+- os dois triggers de integridade canonical↔alias usam `SECURITY DEFINER` apenas para não permitir que RLS esconda colisões;
+- `EXECUTE` direto desses trigger-functions é revogado de `PUBLIC`, `anon` e `authenticated`;
+- nenhuma policy/grant existente de `campaigns`, nenhum RPC de discovery e nenhum assignment RBAC é alterado.
+
+Validação sintética obrigatória antes de promoção:
+
+- `python tools/campaign-registry-db.py` em PostgreSQL 16 descartável;
+- duas campaigns com UUID/slug/nome distintos;
+- UUID legado preservado;
+- mesmo `source_session_id` permitido em A/B e recusado dentro de A;
+- mesmo entity slug permitido em A/B e recusado dentro de A;
+- FK lógica profile-character→entity cross-campaign recusada;
+- lifecycle active/archived + consistência de `archived_at`;
+- rename de `public_slug` com alias histórico, mantendo technical slug;
+- colisão canonical↔alias fail-closed;
+- insert legado que informa apenas `id,name,slug` continua válido;
+- RLS/grants/function-security da alias table verificados.
+
+### Promoção posterior
+
+Quando houver decisão explícita para Production:
+
+1. revalidar o schema remoto e consumidores de `campaigns.slug`;
+2. criar **uma nova migration com timestamp corrente** copiando o SQL aprovado do candidate; não renomear o candidate antigo;
+3. executar CI PostgreSQL scratch no SHA exato;
+4. usar o Production CD/runbook normal, nunca SQL manual;
+5. conferir read-back de `campaigns`, constraints, indexes, triggers, grants e RLS;
+6. confirmar que a segunda campaign continua sem sessions/entities/canon/memberships;
+7. só então liberar as issues de discovery/navegação que dependem do registry.
+
+Rollback de compatibilidade é aditivo: código anterior continua resolvendo `campaigns.slug='yuhara-main'`. Não apagar campaigns/aliases nem renomear UUID/technical slug para simular rollback. Se a nova UI precisar ser desativada, parar seus consumers e manter o schema/dados expandidos.
