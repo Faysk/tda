@@ -9,7 +9,7 @@ import type { PublishedSession } from "./model";
 import { sessionPublicMetadata } from "./metadata";
 
 const firstSession: PublishedSession = {
-	id: "session-alpha",
+	id: "session-alpha",\n\tcampaignId: "campaign-a",\n\tcampaignSlug: "cronicas-da-mesa",\n\tcampaignName: "Crônicas da Mesa",\n\tcampaignTechnicalSlug: "yuhara-main",
 	title: "A Porta de Yuhara",
 	date: "2026-01-10",
 	arc: "Yuhara",
@@ -19,7 +19,7 @@ const firstSession: PublishedSession = {
 };
 
 const secondSession: PublishedSession = {
-	id: "session-beta",
+	id: "session-beta",\n\tcampaignId: "campaign-a",\n\tcampaignSlug: "cronicas-da-mesa",\n\tcampaignName: "Crônicas da Mesa",\n\tcampaignTechnicalSlug: "yuhara-main",
 	title: "O Último Sino",
 	date: "2026-01-17",
 	arc: "Yuhara",
