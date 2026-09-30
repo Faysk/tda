@@ -237,7 +237,7 @@ grant execute on function public.campaign_edit_directory() to service_role;
 -- proof. Until that model exists, they are server-only: browser callers cannot
 -- bypass the hardened directory by posting a target_profile_id directly, and
 -- review cannot continue to authorize by owner/master role names.
-do $
+do $$
 begin
   if to_regprocedure(
     'public.submit_profile_claim(text,uuid,text,text,text,text,text[],text)'
@@ -257,7 +257,7 @@ begin
     execute 'grant execute on function public.review_profile_claim(uuid,text,text) to service_role';
   end if;
 end
-$;
+$$;
 
 -- access_directory is a campaign people/onboarding surface, not campaign
 -- discovery. A caller must already be authenticated, linked to a profile and
