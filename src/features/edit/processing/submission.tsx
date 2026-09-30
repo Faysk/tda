@@ -199,7 +199,7 @@ export function ProcessingSubmission({
 	runs?: readonly LocalRunSummary[];
 	benchmarks?: readonly BenchmarkResult[];
 	system?: SystemSnapshot | null;
-}> = {}) {
+}>) {
 	const paired = useSyncExternalStore(
 		subscribeLocalBridgePairing,
 		localBridgePaired,
@@ -417,7 +417,7 @@ export function ProcessingSubmission({
 			glossary,
 			context,
 		});
-	}, [context, glossary, profile, sessionId, source]);
+	}, [campaignId, context, glossary, profile, sessionId, source]);
 	const requestTooLarge =
 		requestBytes !== null && requestBytes > LOCAL_JSON_BODY_MAX_BYTES;
 
