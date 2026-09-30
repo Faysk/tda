@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Image from "next/image";
 import { PublicLink as Link } from "@/components/public-link";
 import { Eyebrow, SectionTitle } from "@/components/ui";
 import { buildPublicMetadata, SITE_NAME } from "@/config/public-metadata";
 import { LoreHomeEntry } from "@/features/lore/components/lore-home-entry";
+import { buildHomeSessionFeed } from "@/features/sessions/home-feed";
 import { sessionPublicMetadataImage } from "@/features/sessions/metadata";
 import {
 	formatSessionDate,
+	sessionPublicKey,
+	sessionPublicPath,
 	type PublishedSession,
 } from "@/features/sessions/model";
 import { listPublishedSessions } from "@/features/sessions/repository";
@@ -17,13 +21,17 @@ export const dynamic = "force-dynamic";
 const homeDescription =
 	"Um arquivo vivo das sessões, decisões e memórias que construímos juntos ao redor da mesa.";
 
-export async function generateMetadata(): Promise<Metadata> {
-	let latest: PublishedSession | undefined;
+const readHomePublishedSessions = cache(async () => {
 	try {
-		latest = (await listPublishedSessions())?.[0];
+		return await listPublishedSessions();
 	} catch {
-		latest = undefined;
+		return undefined;
 	}
+});
+
+export async function generateMetadata(): Promise<Metadata> {
+	const sessions = await readHomePublishedSessions();
+	const latest = sessions ? buildHomeSessionFeed(sessions).latest : undefined;
 	const image = latest ? sessionPublicMetadataImage(latest) : undefined;
 
 	return buildPublicMetadata({
@@ -77,7 +85,7 @@ function ArchivePreview({ unavailable = false }: { unavailable?: boolean }) {
 				TDA
 			</div>
 			<div>
-				<Eyebrow>{unavailable ? "Arquivo indisponível" : "Arquivo da campanha"}</Eyebrow>
+				<Eyebrow>{unavailable ? "Arquivo indisponível" : "Arquivo das campanhas"}</Eyebrow>
 				<h1 id="home-title">
 					{unavailable
 						? "Não conseguimos abrir a última memória agora."
@@ -94,15 +102,10 @@ function ArchivePreview({ unavailable = false }: { unavailable?: boolean }) {
 }
 
 export default async function Home() {
-	let sessions: Awaited<ReturnType<typeof listPublishedSessions>> | undefined;
-	try {
-		sessions = await listPublishedSessions();
-	} catch {
-		sessions = undefined;
-	}
-
-	const latest = sessions?.[0];
-	const recent = sessions?.slice(latest ? 1 : 0, latest ? 5 : 4) ?? [];
+	const sessions = await readHomePublishedSessions();
+	const feed = sessions ? buildHomeSessionFeed(sessions) : null;
+	const latest = feed?.latest;
+	const recent = feed?.recent ?? [];
 	const latestDate = latest ? formatSessionDate(latest.date) : "";
 
 	return (
@@ -119,6 +122,7 @@ export default async function Home() {
 					<article className={styles.heroLatest} data-home-editorial-anchor="latest">
 						<span className={styles.latestBadge}>Última sessão</span>
 						<div className={styles.latestMeta}>
+							<span className={styles.campaignName}>{latest.campaignName}</span>
 							<span>{latest.arc || "Memória da campanha"}</span>
 							{latestDate ? (
 								<time className={styles.latestDate} dateTime={latest.date}>
@@ -127,9 +131,7 @@ export default async function Home() {
 							) : null}
 						</div>
 						<h1 className={styles.latestTitle} id="home-title">
-							<Link href={`/sessoes/${encodeURIComponent(latest.id)}`}>
-								{latest.title}
-							</Link>
+							<Link href={sessionPublicPath(latest)}>{latest.title}</Link>
 						</h1>
 						<p className={styles.latestSummary}>
 							{latest.summary ||
@@ -137,7 +139,7 @@ export default async function Home() {
 						</p>
 						<Link
 							className={styles.latestLink}
-							href={`/sessoes/${encodeURIComponent(latest.id)}`}
+							href={sessionPublicPath(latest)}
 						>
 							Abrir sessão <span aria-hidden="true">→</span>
 						</Link>
@@ -159,7 +161,7 @@ export default async function Home() {
 							Memórias recentes
 						</SectionTitle>
 					</div>
-					<Link className={styles.sectionLink} href="/sessoes">
+					<Link className={styles.sectionLink} href="/campanhas/sessoes">
 						Ver todas as sessões <span aria-hidden="true">→</span>
 					</Link>
 				</div>
@@ -175,10 +177,10 @@ export default async function Home() {
 				) : recent.length ? (
 					<div className={styles.memoryGrid}>
 						{recent.map((session) => {
-							const href = `/sessoes/${encodeURIComponent(session.id)}`;
+							const href = sessionPublicPath(session);
 							const date = formatSessionDate(session.date);
 							return (
-								<article className={styles.memoryCard} key={session.id}>
+								<article className={styles.memoryCard} key={sessionPublicKey(session)}>
 									<Link className={styles.memoryCardLink} href={href}>
 										<div className={styles.memoryMedia}>
 											<SessionArtwork session={session} />
