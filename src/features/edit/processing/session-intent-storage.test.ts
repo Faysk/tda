@@ -89,6 +89,36 @@ describe("session intent recovery receipt", () => {
 		expect(serialized).not.toContain("Yuhara");
 	});
 
+	test("fails closed when persistent recovery contains an unexpected plaintext field", async () => {
+		const storage = new MemoryStorage();
+		const identity = await sessionIntentReceiptIdentity({
+			profileScope: "profile-42:yuhara-main",
+			campaignId: "yuhara-main",
+			sessionId: "sessao-42",
+		});
+		const receipt = createSessionIntentReceipt(
+			identity,
+			{
+				requestId: "intent-42",
+				sourceIds: [SOURCE_A],
+				profileId: "whisper-detailed",
+				contextSha256: "c".repeat(64),
+				glossarySha256: "d".repeat(64),
+			},
+			NOW,
+		);
+		expect(saveSessionIntentReceipt(storage, identity, receipt, NOW)).toBe(true);
+		const key = storage.key(0);
+		expect(key).not.toBeNull();
+		if (!key) throw new Error("expected recovery key");
+		const corrupted = JSON.parse(storage.getItem(key) ?? "{}") as Record<string, unknown>;
+		corrupted.context = "segredo que nunca deve persistir no browser";
+		storage.setItem(key, JSON.stringify(corrupted));
+
+		expect(loadSessionIntentReceipt(storage, identity, NOW + 1)).toBeNull();
+		expect(storage.getItem(key)).toBeNull();
+	});
+
 	test("scope hash prevents another signed-in profile from loading the receipt", async () => {
 		const storage = new MemoryStorage();
 		const owner = await sessionIntentReceiptIdentity({
