@@ -41,15 +41,13 @@ export function formatArchiveDate(value: string) {
 	return `${String(parts.day).padStart(2, "0")} ${month} ${parts.year}`;
 }
 
-export function summarizeSessionArchive(
-	sessions: readonly SessionArchiveItem[],
-): SessionArchiveSummary {
+export function summarizeSessionArchive(\n\tsessions: readonly SessionArchiveItem[],\n\toptions: { qualifyArcsByCampaign?: boolean } = {},\n): SessionArchiveSummary {
 	const arcs = new Set<string>();
 	const dates: string[] = [];
 
 	for (const session of sessions) {
 		const arc = session.arc.trim();
-		if (arc) arcs.add(arc.toLocaleLowerCase("pt-BR"));
+		if (arc) {\n\t\t\tconst normalizedArc = arc.toLocaleLowerCase("pt-BR");\n\t\t\tarcs.add(options.qualifyArcsByCampaign ? `${session.campaignSlug}:${normalizedArc}` : normalizedArc);\n\t\t}
 		if (archiveDateParts(session.date)) dates.push(session.date);
 	}
 
