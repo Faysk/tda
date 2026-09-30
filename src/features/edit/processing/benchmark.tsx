@@ -371,7 +371,36 @@ export function ProcessingBenchmark({
 		setQwenRuntimeError(null);
 		void (async () => {
 			try {
-				let observed = await bridge.checkQwenRuntime(controller.signal);
+				let observed = await bridge.qwenRuntimeStatus(controller.signal);
+				if (disposed || controller.signal.aborted) return;
+
+				if (observed.active) {
+					setQwenRuntime(observed);
+					while (observed.active && !controller.signal.aborted) {
+						await new Promise((resolve) => window.setTimeout(resolve, 650));
+						if (disposed || controller.signal.aborted) return;
+						observed = await bridge.qwenRuntimeStatus(controller.signal);
+						if (disposed || controller.signal.aborted) return;
+						setQwenRuntime(observed);
+					}
+					if (observed.mode === "update" && observed.state === "completed") {
+						setStatus("Qwen Runtime atualizado. Recalculando prontidão…");
+						const refreshed = await refreshCatalog(controller.signal);
+						if (disposed || controller.signal.aborted) return;
+						onRefresh();
+						const qwenReady = ["qwen-fast", "qwen-quality"].every(
+							(id) => refreshed.transcription.catalog.find((item) => item.id === id)?.ready,
+						);
+						setStatus(
+							qwenReady
+								? "Qwen Runtime atualizado. Qwen Fast e Qwen Quality estão prontos."
+								: "Qwen Runtime atualizado. A prontidão foi recalculada; conclua os gates restantes se houver.",
+						);
+						return;
+					}
+				}
+
+				observed = await bridge.checkQwenRuntime(controller.signal);
 				if (disposed || controller.signal.aborted) return;
 				setQwenRuntime(observed);
 				while (observed.active && !controller.signal.aborted) {
