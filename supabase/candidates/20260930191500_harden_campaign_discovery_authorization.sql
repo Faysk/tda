@@ -198,29 +198,11 @@ begin
         order by campaign.name, campaign.slug
       )
       from public.campaigns campaign
-      where exists (
-        select 1
-        from public.role_assignments assignment
-        join public.role_permissions permission
-          on permission.role_id = assignment.role_id
-        where assignment.profile_id = v_profile_id
-          and permission.permission_action = 'campaign.edit.access'
-          and assignment.status = 'active'
-          and assignment.starts_at <= v_now
-          and (
-            assignment.ends_at is null
-            or assignment.ends_at > v_now
-          )
-          and (
-            (
-              assignment.scope_type = 'campaign'
-              and assignment.scope_id = campaign.slug
-            )
-            or (
-              assignment.scope_type = 'project'
-              and assignment.scope_id = 'tda'
-            )
-          )
+      where public.has_profile_campaign_capability(
+        v_profile_id,
+        campaign.slug,
+        'campaign.edit.access',
+        v_now
       )
     ),
     '[]'::jsonb
