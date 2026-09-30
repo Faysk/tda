@@ -841,7 +841,7 @@ export function ProcessingSubmission({
 							type="file"
 							multiple
 							accept=".zip,application/zip"
-							aria-label="Exports do Craig"
+							aria-label="Export do Craig"
 							disabled={busy || Boolean(intentRequest)}
 							onChange={(event) => {
 								applyFiles(Array.from(event.target.files ?? []));
