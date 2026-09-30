@@ -1696,3 +1696,31 @@ Validação sintética obrigatória: `python tools/campaign-registry-db.py` usa 
 A inspeção remota desta preparação foi **somente metadata/constraints agregadas**: Production ainda possui uma row em `campaigns`, source session já é unique por `(campaign_id, source_system, source_session_id)`, entity slug por `(campaign_id, slug)` e não foram observados mismatches agregados em profile-character/canon/participant. Nenhum DDL ou dado narrativo foi alterado remotamente.
 
 Promoção posterior exige decisão/runbook separado, migration nova com timestamp corrente, CI no SHA exato e read-back. Rollback é expand-only: desativar consumers novos preservando schema/dados; não apagar campaigns/aliases nem renomear UUID/technical slug.
+
+## 2026-09-30 — candidate campaign discovery/authorization hardening (#1134)
+
+### `supabase/candidates/20260930191500_harden_campaign_discovery_authorization.sql`
+
+**Estado:** candidato revisável; depende do schema preparado em #1123 e não está autorizado para aplicação remota nesta entrega.
+
+O candidate prepara:
+
+- `project.campaigns.manage` como capability explícita de criação/administração de registry, inicialmente atribuída a `platform_owner`;
+- helper interno de capability exata com campaign scope ou `project/tda`, sem EXECUTE de browser;
+- `campaign_public_directory()` com projection mínima `routeKey/name/description`, somente `active/public`;
+- `campaign_edit_directory()` governado **exclusivamente** por `campaign.edit.access`, com project grant válido somente em `scope_type=project, scope_id=tda`;
+- `access_directory(text)` fail-closed por capability (`campaign.read` ou `campaign.access.manage`), sem enumeração de profiles globais não vinculados;
+- ausência, sibling campaign e archived campaign com resposta opaca equivalente no boundary de access/onboarding;
+- project scope histórico `dnd-scribe` não satisfaz discovery multi-campaign.
+
+Gate sintético:
+
+- `tools/campaign-authorization-db.py`;
+- PostgreSQL 16 descartável, socket Unix only, sem PG env herdado;
+- aplica #1123 + #1134 em replay antes dos asserts;
+- A/B + outsider + project/tda + project/dnd-scribe + archived/public/private;
+- revoke observado na chamada seguinte;
+- browser grants e helper-oracle verificados.
+
+Rollout é expand/replace forward-only: aplicar #1123 antes, promover #1134 em migration nova de timestamp corrente após revisão, executar scratch no SHA exato, read-back de funções/grants e advisors. Nenhuma mutation de Production é executada por este candidate.
+

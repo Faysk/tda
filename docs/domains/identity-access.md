@@ -199,6 +199,15 @@ ADR-0020 fixa a semântica que #1134 deve implementar e testar:
 
 Um assignment ativo em `scope_type="project", scope_id="tda"` continua semanticamente global por capability e pode cobrir campaigns criadas futuramente **somente para actions realmente presentes na role**. Isso não equivale a membership universal, não concede discovery irrestrita e não elimina a prova de ownership do recurso.
 
+Implementação candidata de #1134:
+
+- **discovery pública** não usa RBAC e expõe apenas `active/public` por projection mínima;
+- **discovery Edit** usa a capability exata `campaign.edit.access`; possuir outra action não transforma o ator em descobridor por acidente;
+- um `campaign.edit.access` de `project/tda` cobre todas as campaigns, inclusive archived para navegação histórica; `project/dnd-scribe` não cobre nenhuma;
+- criação/administração de registry usa `project.campaigns.manage`, inicialmente ligada a `platform_owner`;
+- onboarding sem vínculo não enumera profiles globais: até existir invite/elegibility explícito, `access_directory` exige `campaign.read` ou `campaign.access.manage`;
+- `missing`, sibling e archived retornam negação opaca no boundary de access/onboarding.
+
 ### Session / resource / integration
 
 Não existe herança genérica aprovada. Cada resolver precisa provar a cadeia real de ownership antes de aceitar grant de campaign/project.
@@ -267,21 +276,21 @@ Usuário autenticado sem profile pode solicitar associação somente dentro de u
 
 ### Finding AUTH-001 — target profile sem prova campaign-scoped
 
-`submit_profile_claim(...)` valida existência/vínculo do target, mas o contrato observado não prova que o profile é elegível para a campaign solicitada. `access_directory(...)` também possui caminho que pode considerar profile global não vinculado.
+O RPC legado `submit_profile_claim(...)` não possui prova de invite/elegibility campaign-scoped suficiente para multi-campaign. `auth_user_id IS NULL` nunca é tratado como evidência de pertença.
 
-Na fotografia de 2026-09-07 não havia profile não vinculado disponível para explorar essa combinação, porém a fraqueza é estrutural e precisa ser corrigida **antes de abrir o fluxo oficial de claim**.
+O candidate #1134 fecha o bypass antes da ativação multi-campaign:
 
-Correção necessária pelo dono do banco:
+- `access_directory(...)` deixa de enumerar profiles globais não vinculados;
+- `submit_profile_claim(...)` perde `EXECUTE` direto de `authenticated`/browser e permanece apenas server-only;
+- o fluxo de claim só pode voltar a ser exposto quando existir invite/elegibility explícito, com teste negativo cross-campaign.
 
-- elegibilidade explícita no contexto da campaign; ou
-- convite/estado próprio equivalente;
-- teste negativo cross-campaign.
-
-Não aceitar `auth_user_id IS NULL` como prova suficiente de elegibilidade.
+Isso preserva os dados/claims históricos sem transformar uma lacuna de onboarding em oracle entre campaigns.
 
 ### Finding AUTH-002 — review autorizado por role legado
 
-`review_profile_claim(...)` ainda depende de `owner/master`. A convergência deve reautorizar pela capability apropriada, hoje modelada como `campaign.access.manage`, sem inferir poder por nome da role.
+`review_profile_claim(...)` legado ainda decide autoridade por `owner/master`. O candidate #1134 não tenta reescrever essa mutation no mesmo passo: ele revoga `EXECUTE` direto de `authenticated` e mantém o RPC server-only.
+
+Antes de reexpor review de claim, o boundary servidor/RPC deve exigir `campaign.access.manage` efetiva para a campaign da claim e preservar as verificações de identidade Discord. Não inferir poder por nome da role.
 
 ### Finding AUTH-003 — approval mantém somente membership legado
 

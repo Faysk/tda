@@ -28,9 +28,9 @@ Todas as definições observadas usam `SET search_path TO pg_catalog, public`, r
 | `current_profile_id()` | helper interno | resolve `auth.uid()` para `profiles.id` | authenticated pode executar diretamente | candidato a `REVOKE EXECUTE` de authenticated após prova final de consumidores |
 | `has_campaign_role(uuid,text[])` | helper interno | resolve profile atual e membership ativo | authenticated pode executar diretamente | candidato a `REVOKE EXECUTE` após prova final de consumidores |
 | `has_campaign_role_slug(text,text[])` | helper interno | resolve profile atual, campaign e membership ativo | authenticated pode executar diretamente | candidato a `REVOKE EXECUTE` após prova final de consumidores |
-| `access_directory(text)` | endpoint autenticado de onboarding/claims | exige usuário autenticado; admin recebe visão ampliada | authenticated | manter por enquanto; revisar escopo multi-campaign antes do Edit público |
-| `submit_profile_claim(...)` | endpoint autenticado de onboarding | exige requester ligado e valida target/claim | authenticated | manter enquanto fluxo de claim existir |
-| `review_profile_claim(...)` | endpoint admin | usa autorização admin interna antes de aprovar/rejeitar | authenticated + autorização interna | manter enquanto fluxo legado existir |
+| `access_directory(text)` | endpoint autenticado de pessoas/claims | candidate #1134 exige profile + `campaign.read` ou `campaign.access.manage`; missing/sibling/archived são opacos | authenticated | substituir comportamento legado no rollout #1134; sem enumeração global de unlinked profiles |
+| `submit_profile_claim(...)` | legado de onboarding | não prova invite/elegibility campaign-scoped | candidate #1134 revoga authenticated; service_role only | reexpor somente após invite/elegibility explícito + negativos A/B |
+| `review_profile_claim(...)` | legado de review de claim | autoriza por owner/master legado | candidate #1134 revoga authenticated; service_role only | reexpor somente por boundary `campaign.access.manage` |
 | `table_notes_directory(text,text)` | endpoint autenticado de campanha | exige profile e membership ativo; filtra visibilidade | authenticated | manter enquanto fluxo legado existir |
 | `review_table_note(...)` | endpoint admin | exige role admin interna antes do update | authenticated + autorização interna | manter enquanto fluxo legado existir |
 
@@ -319,6 +319,20 @@ Consequência: `pg_stat_user_functions` não oferece contagem histórica útil d
 - reduzir número de `SECURITY DEFINER` públicos ao mínimo necessário;
 - preferir fronteira server-side ou funções invoker quando a elevação não for necessária;
 - remover endpoints legados somente depois da independência ser comprovada.
+
+
+
+### Candidate #1134 — discovery first-class sem oracle
+
+O candidate `20260930191500_harden_campaign_discovery_authorization.sql` adiciona três boundaries:
+
+- `campaign_public_directory()`: callable por `anon/authenticated`, projection mínima e apenas campaigns `active/public`;
+- `campaign_edit_directory()`: callable por `authenticated`, retorna somente campaigns cobertas por `campaign.edit.access` efetiva;
+- `has_profile_campaign_capability(...)`: helper interno `SECURITY DEFINER` com search_path fixo, sem EXECUTE para `anon/authenticated`.
+
+`access_directory(text)` deixa de ser mecanismo de discovery/onboarding aberto: o caller já precisa possuir leitura/gestão da campaign. Usuário sem membership/invite explícito não recebe candidatos globais para claim. O fluxo futuro de convite/elegibilidade deve ser próprio e não reutilizar `auth_user_id IS NULL` como prova de pertença.
+
+O candidate também cria `project.campaigns.manage` para separar criação de campaign de qualquer grant local. Não existe fallback por nome de role nem por `project/dnd-scribe`.
 
 ## Regra
 

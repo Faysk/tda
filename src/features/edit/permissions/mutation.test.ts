@@ -11,7 +11,7 @@ const roleId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 const assignmentId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
 const operationId = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
 
-function dependencies(grants = [
+function dependencies(grants: EditAccessContext["grants"] = [
 	{
 		action: EDIT_CAPABILITIES.permissionsManage,
 		scopeType: "campaign",
@@ -65,6 +65,72 @@ describe("governed permission mutation", () => {
 			reason: "forbidden",
 		});
 		expect(denied.persist).not.toHaveBeenCalled();
+	});
+
+	it("denies a forged sibling campaign before persistence", async () => {
+		const deps = dependencies();
+		expect(
+			await mutatePermissions(
+				{ ...request, campaignSlug: "antes-que-seja-tarde" },
+				deps,
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+		expect(deps.persist).not.toHaveBeenCalled();
+	});
+
+
+	it("honors only the exact project/tda permission-management capability", async () => {
+		const project = dependencies([
+			{
+				action: EDIT_CAPABILITIES.permissionsManage,
+				scopeType: "project",
+				scopeId: "tda",
+				status: "active",
+				startsAt: "2020-01-01T00:00:00Z",
+				endsAt: null,
+			},
+		]);
+		expect(
+			await mutatePermissions(
+				{ ...request, campaignSlug: "antes-que-seja-tarde" },
+				project,
+			),
+		).toMatchObject({ ok: true, status: "updated" });
+		expect(project.persist).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ campaignSlug: "antes-que-seja-tarde" }),
+		);
+
+		for (const grants of [
+			[
+				{
+					action: EDIT_CAPABILITIES.permissionsManage,
+					scopeType: "project",
+					scopeId: "dnd-scribe",
+					status: "active",
+					startsAt: "2020-01-01T00:00:00Z",
+					endsAt: null,
+				},
+			],
+			[
+				{
+					action: EDIT_CAPABILITIES.transcriptRead,
+					scopeType: "project",
+					scopeId: "tda",
+					status: "active",
+					startsAt: "2020-01-01T00:00:00Z",
+					endsAt: null,
+				},
+			],
+		]) {
+			const denied = dependencies(grants);
+			expect(
+				await mutatePermissions(
+					{ ...request, campaignSlug: "antes-que-seja-tarde" },
+					denied,
+				),
+			).toEqual({ ok: false, reason: "forbidden" });
+			expect(denied.persist).not.toHaveBeenCalled();
+		}
 	});
 
 	it("validates CAS identifiers and change shapes before access reads", async () => {

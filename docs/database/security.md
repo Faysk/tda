@@ -207,7 +207,16 @@ ADR-0020 + #1134 fecham a direção antes da ativação multi-campaign:
 - A credential + B campaign deve falhar fechado;
 - archived campaign preserva histórico, mas não abre onboarding normal.
 
-A forma SQL/RPC exata continua pertencendo a #1134. Não alterar grants em Production nesta entrega documental.
+O candidate #1134 preparado em `supabase/candidates/20260930191500_harden_campaign_discovery_authorization.sql` materializa essa direção sem tocar Production:
+
+- `campaign_public_directory()` expõe apenas `active/public` e somente `routeKey/name/description`;
+- `campaign_edit_directory()` exige a capability exata `campaign.edit.access`; project grant só vale em `scope_type=project, scope_id=tda`;
+- `access_directory(text)` passa a exigir profile resolvido + `campaign.read` ou `campaign.access.manage`, retorna o mesmo `forbidden` para missing/sibling/archived e não enumera profiles globais sem vínculo;
+- `project.campaigns.manage` separa criação/administração de registry de qualquer membership de campaign;
+- o helper interno de capability tem EXECUTE de browser revogado para não virar oracle.
+- `submit_profile_claim(...)` e `review_profile_claim(...)` perdem EXECUTE direto de `authenticated` enquanto invite/elegibility e review por capability não estiverem resolvidos; ambos permanecem server-only para compatibilidade controlada.
+
+Esse SQL continua **candidate-only** e depende de #1123 aplicado primeiro. Grants/DDL de Production só mudam por migration/runbook separado, com read-back e advisors.
 
 ### Checklist para cada RPC
 
