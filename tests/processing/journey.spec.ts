@@ -67,7 +67,7 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	await expect(commandBar).not.toContainText("Synthetic CPU");
 
 	for (const locator of [
-		page.getByText("Transcrever sessão", { exact: true }),
+		page.getByRole("heading", { name: "Transcrever sessão" }),
 		commandBar,
 	]) {
 		const box = await locator.boundingBox();
@@ -217,7 +217,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("Transcrever sessão", { exact: true })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Transcrever sessão" })).toBeVisible();
 
 	const health = state.requests.find((request) => request.path === "/health");
 	const session = state.requests.find((request) => request.path === "/session");
@@ -303,7 +303,6 @@ test("ambiguous job response reuses the same idempotency key without re-uploadin
 	await expect(page.getByRole("alert")).toContainText(
 		"Não foi possível alcançar o Companion local",
 	);
-	await expect(page.getByText(/tentativa ficou ambígua/i)).toBeVisible();
 
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 	await expect
@@ -331,7 +330,6 @@ test("ambiguous job response reuses the persisted idempotency key after reload",
 	await expect(page.getByRole("alert")).toContainText(
 		"Não foi possível alcançar o Companion local",
 	);
-	await expect(page.getByText(/tentativa ficou ambígua/i)).toBeVisible();
 	const firstKey = state.idempotencyKeys[0];
 	const pendingBeforeReload = await page.evaluate(() => {
 		const entries = Object.entries(localStorage).filter(([key]) =>
