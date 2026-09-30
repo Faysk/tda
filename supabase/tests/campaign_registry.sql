@@ -497,7 +497,7 @@ begin
     when check_violation then null;
   end;
 end
-$;
+$$;
 
 -- Technical slug is compatibility identity and cannot drift through an editorial rename.
 do $$
