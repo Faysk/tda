@@ -117,6 +117,64 @@ async function installCompletedRunCatalog(
 	);
 }
 
+test("troca de campaign com trabalho autoritativo exige confirmação e não retaggeia o job", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	const selector = page.getByLabel("Trocar campanha");
+	await expect(selector).toHaveValue("yuhara-main");
+	await expect(page.getByText("Crônicas da Mesa", { exact: true }).first()).toBeVisible();
+
+	page.once("dialog", async (dialog) => {
+		expect(dialog.type()).toBe("confirm");
+		expect(dialog.message()).toContain("mantêm a campanha original");
+		await dialog.dismiss();
+	});
+	await selector.selectOption("antes-que-seja-tarde");
+
+	await expect(selector).toHaveValue("yuhara-main");
+	await expect(page).toHaveURL("/");
+});
+
+test("workspace não expõe nem oferece ações para jobs de outra campaign", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureJob("queued"),
+			fixtureJob("running", {
+				id: "campaign-b-job",
+				context: {
+					campaign_id: "campaign-b",
+					session_id: "sessao-privada-b",
+					source_id: CRAIG_SOURCE_ID,
+					profile_id: "qwen-quality",
+				},
+			}),
+		],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	const commandBar = page.getByRole("region", {
+		name: "Estado e comandos do TDA Companion",
+	});
+	await expect(commandBar).toContainText("0 processando");
+	await expect(commandBar).toContainText("1 na fila");
+	await expect(page.getByText("sessao-privada-b", { exact: false })).toHaveCount(0);
+
+	await page.getByRole("tab", { name: "Fila" }).click();
+	await expect(page.getByText("sessao-privada-b", { exact: false })).toHaveCount(0);
+	await expect(page.locator('[data-job-id="campaign-b-job"]')).toHaveCount(0);
+});
+
 test("API incompatível, versão antiga, offline e Origin negada são diagnósticos distintos", async ({
 	page,
 }, testInfo) => {
@@ -1163,7 +1221,7 @@ test("Results keeps empty Session Assembly and sync context compact", async ({ p
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await page.addInitScript(() => {
 		window.localStorage.setItem(
-			"tda.processing.session-composer.last-session.v1",
+			"tda.processing.session-composer.last-session.v2:yuhara-main",
 			"sessao-42",
 		);
 	});
@@ -1264,7 +1322,7 @@ test("Results keeps a completed Session Assembly legible and actionable", async 
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await page.addInitScript(() => {
 		window.localStorage.setItem(
-			"tda.processing.session-composer.last-session.v1",
+			"tda.processing.session-composer.last-session.v2:yuhara-main",
 			"sessao-42",
 		);
 	});
@@ -1318,7 +1376,7 @@ test("Results keeps Session Assembly failure explicit without hiding the workspa
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await page.addInitScript(() => {
 		window.localStorage.setItem(
-			"tda.processing.session-composer.last-session.v1",
+			"tda.processing.session-composer.last-session.v2:yuhara-main",
 			"sessao-42",
 		);
 	});
@@ -2105,7 +2163,7 @@ test("Fila mantém a tentativa de clipboard mais nova quando respostas chegam fo
 			fixtureJob("running", {
 				id: "job-first",
 				context: {
-					campaign_id: "synthetic",
+					campaign_id: "yuhara-main",
 					session_id: "session-first",
 					source_id: "source-first",
 					profile_id: "qwen-quality",
@@ -2114,7 +2172,7 @@ test("Fila mantém a tentativa de clipboard mais nova quando respostas chegam fo
 			fixtureJob("queued", {
 				id: "job-second",
 				context: {
-					campaign_id: "synthetic",
+					campaign_id: "yuhara-main",
 					session_id: "session-second",
 					source_id: "source-second",
 					profile_id: "whisper-turbo",

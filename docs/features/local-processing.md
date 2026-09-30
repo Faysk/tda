@@ -11,20 +11,26 @@ O contrato editorial pós-processamento é definido em [Transcrição — runs l
 
 ## Campaign context no processamento
 
-ADR-0020/#1128 adicionam um invariant antes do handoff cloud: uma submissão que possa criar/ligar sessão precisa de campaign explícita.
+ADR-0020/#1128 tornam campaign um contexto explícito antes de qualquer submissão que possa criar/ligar sessão ou chegar ao handoff cloud.
 
-O contrato alvo é:
+No slice Web preparado por #1128:
 
+- `/edit/processamento` não assume mais `yuhara-main` como autoridade implícita;
+- o servidor enumera somente campaigns **ativas** cobertas por `campaign.local.process`; grant `project/tda` cobre campaigns ativas conforme a política RBAC, enquanto grants de campaign restringem a consulta aos slugs autorizados;
+- zero campaigns elegíveis produz estado vazio explícito; uma única opção é canonicalizada na própria rota de compatibilidade; múltiplas opções exigem escolha do operador;
+- query string, select e `localStorage` expressam intenção, nunca autorização: a campaign escolhida é resolvida e reautorizada server-side antes da workspace aparecer; no submit ela é revalidada antes de qualquer upload/preparação local e novamente imediatamente antes de criar o job, cobrindo revogação/arquivamento durante uma preparação longa;
 - campaign faz parte da identidade da intenção/idempotency, junto de source/operação/parâmetros relevantes;
-- selecionar outra campaign na UI não retaggeia job/run já iniciado;
+- recovery pointer, last-session pointer e receipts metadata-only são namespaced por campaign, impedindo colisão A/B com o mesmo `sessionId`; no rollout, os dois pointers legados single-campaign são migrados somente para `yuhara-main`, nunca reaproveitados por outra campaign;
+- selecionar outra campaign na UI não retaggeia job/run já iniciado. Se existe formulário local pendente, enqueue incerto, mutação ou trabalho queued/running, a troca exige confirmação e faz navegação completa; o Agent continua autoritativo sobre o trabalho original;
 - retry/recovery preserva a campaign original da intenção;
 - o mesmo source em campaigns diferentes representa intenções distintas e auditáveis;
-- handoff compara campaign da intenção com campaign da session alvo antes de qualquer write;
-- mismatch falha fechado;
-- criação de campaign é fluxo administrativo separado, nunca efeito colateral de `Processar`;
+- Session Workspace/Intent/Assembly usam a campaign selecionada em todas as operações locais;
+- a workspace Web não apresenta nem oferece ações de fila/revisão para jobs/runs atribuídos a outra campaign; respostas de resultado cujo `campaignId` diverge do contexto selecionado falham fechadas em vez de abrir/reclassificar o run;
+- handoff usa a campaign imutável da assembly e o servidor cloud reautoriza capability, resolve `campaigns.slug` e procura a session por `campaign_id + source_session_id` antes do write atômico; mismatch falha fechado;
+- criação de campaign é fluxo administrativo separado. Quando originada pelo CTA do Processamento, o retorno carrega o novo technical slug, mas a tela volta a verificar `campaign.local.process`; criar identidade não auto-concede acesso nem cria session/entity/canon;
 - run ASR bruto continua imutável e não vira canon/publicação por receber campaign context.
 
-Até #1128 ser implementada, `/edit/processamento` continua sendo rota de compatibilidade do estado single-campaign. O alvo canônico privado é `/edit/[campaign]/processamento` conforme [contrato multi-campaign](../architecture/multi-campaign.md).
+A URL `/edit/processamento?campanha=<technical-slug>` é a compatibilidade deep-linkable deste slice. O alvo arquitetural privado continua sendo `/edit/[campaign]/processamento`; promover a rota canônica pertence ao rollout coordenado de navegação/aliases e não muda a identidade local do processamento.
 
 ## Estado atual
 

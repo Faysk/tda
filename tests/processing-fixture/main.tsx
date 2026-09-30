@@ -9,16 +9,40 @@ import processingStyles from "../../src/features/edit/processing/processing.modu
 
 const originalFetch = window.fetch.bind(window);
 const fixtureParams = new URLSearchParams(location.search);
-// The integrated test selects a separate scratch service; real product endpoint stays fixed.
-if (fixtureParams.has("integrated")) {
-	window.fetch = (input, init) =>
-		originalFetch(
-			typeof input === "string"
-				? input.replace("http://127.0.0.1:8765/", "http://127.0.0.1:18765/")
-				: input,
-			init,
+
+window.fetch = (input, init) => {
+	const raw =
+		typeof input === "string"
+			? input
+			: input instanceof URL
+				? input.toString()
+				: input.url;
+	const resolved = new URL(raw, window.location.origin);
+	if (resolved.pathname === "/api/edit/processing/campaign-context") {
+		const campaignContextMode = fixtureParams.get("campaign-context");
+		const unavailable = campaignContextMode === "unavailable";
+		return Promise.resolve(
+			new Response(
+				JSON.stringify(
+					unavailable
+						? { ok: false, reason: "campaign_unavailable" }
+						: { ok: true, campaignSlug: "yuhara-main" },
+				),
+				{
+					status: unavailable ? 409 : 200,
+					headers: { "Content-Type": "application/json" },
+				},
+			),
 		);
-}
+	}
+
+	// The integrated test selects a separate scratch service; real product endpoint stays fixed.
+	const target =
+		fixtureParams.has("integrated") && typeof input === "string"
+			? input.replace("http://127.0.0.1:8765/", "http://127.0.0.1:18765/")
+			: input;
+	return originalFetch(target, init);
+};
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing fixture root");
 createRoot(root).render(
@@ -42,6 +66,20 @@ createRoot(root).render(
 			<ReviewFixture />
 		) : (
 			<ProcessingPanel
+				campaignId="yuhara-main"
+				campaignName="Crônicas da Mesa"
+				campaignOptions={[
+					{
+						technicalSlug: "yuhara-main",
+						name: "Crônicas da Mesa",
+						routeKey: "cronicas-da-mesa",
+					},
+					{
+						technicalSlug: "antes-que-seja-tarde",
+						name: "Antes que seja tarde",
+						routeKey: "antes-que-seja-tarde",
+					},
+				]}
 				activityPackScope="fixture-profile:yuhara-main"
 				publicationEnabled={fixtureParams.has("publication")}
 			/>

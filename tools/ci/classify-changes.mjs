@@ -121,6 +121,7 @@ const PREFIX = {
 	processing: [
 		"src/features/edit/processing/",
 		"src/app/edit/processamento/",
+		"src/app/api/edit/processing/",
 		"tests/processing/",
 		"tests/processing-ux/",
 		"tests/processing-integration/",
@@ -139,6 +140,7 @@ const PREFIX = {
 		"src/features/edit/sessions/",
 		"src/features/edit/transcript/",
 		"src/features/sessions/",
+		"src/features/transcript-publication/",
 	],
 	media: ["media/", "tools/media/"],
 };

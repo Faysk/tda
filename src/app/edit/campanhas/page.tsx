@@ -54,6 +54,10 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 
 	const status = queryValue(params, "status");
 	const error = queryValue(params, "erro");
+	const returnTo =
+		queryValue(params, "next") === "/edit/processamento"
+			? "/edit/processamento"
+			: null;
 	const feedback = feedbackText(status, error);
 
 	return (
@@ -98,6 +102,9 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 							</p>
 						</div>
 						<form className={styles.form} action={createCampaignAction}>
+							{returnTo ? (
+								<input type="hidden" name="returnTo" value={returnTo} />
+							) : null}
 							<label>
 								<span>Nome</span>
 								<input name="name" required maxLength={120} autoComplete="off" />

@@ -47,6 +47,7 @@ export const databasePublicationDependencies: PublicationDependencies = {
 					.from("campaigns")
 					.select("id")
 					.eq("slug", expected.campaignSlug)
+					.eq("lifecycle", "active")
 					.maybeSingle();
 				if (campaignError)
 					return {

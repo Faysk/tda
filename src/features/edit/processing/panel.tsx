@@ -55,6 +55,10 @@ import {
 	formatEstimateRange,
 } from "./processing-estimator";
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
+import {
+	processingCampaignHref,
+	type ProcessingCampaignOption,
+} from "./campaign-context";
 import styles from "./processing.module.css";
 
 type Confirmation =
@@ -311,10 +315,16 @@ function eventTrackContext(
 }
 
 export function ProcessingPanel({
+	campaignId,
+	campaignName,
+	campaignOptions,
 	publicationEnabled = false,
 	activityBarksManage = false,
 	activityPackScope = null,
 }: Readonly<{
+	campaignId: string;
+	campaignName: string;
+	campaignOptions: readonly ProcessingCampaignOption[];
 	publicationEnabled?: boolean;
 	activityBarksManage?: boolean;
 	activityPackScope?: string | null;
@@ -334,6 +344,8 @@ export function ProcessingPanel({
 	const [resultFocus, setResultFocus] = useState<Readonly<{ key: string; requestId: number }> | null>(null);
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
+	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
+	const [campaignSelection, setCampaignSelection] = useState(campaignId);
 	const diagnosticOpener = useRef<HTMLElement | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
@@ -370,6 +382,27 @@ export function ProcessingPanel({
 	}, [confirmation]);
 
 	const connected = state.connection === "connected";
+	const campaignJobs = state.jobs.filter(
+		(job) =>
+			job.kind === "synthetic.fixture" || job.context?.campaignId === campaignId,
+	);
+	const diagnosticJobs = state.jobs.filter(
+		(job) =>
+			job.kind === "benchmark.craig" || job.context?.campaignId === campaignId,
+	);
+	const campaignRuns = state.localRuns.filter(
+		(run) =>
+			run.publicationTarget === null ||
+			run.publicationTarget.campaignSlug === campaignId,
+	);
+	const resultJob =
+		state.result === null
+			? null
+			: (state.jobs.find((job) => job.id === state.result?.jobId) ?? null);
+	const resultVisibleInCampaign =
+		state.result !== null &&
+		(state.result.campaignId === campaignId ||
+			resultJob?.kind === "synthetic.fixture");
 	const label = connected
 		? { preparing: "Em preparação", ready: "Pronto", paused: "Fila pausada" }[
 				state.health?.lifecycle ?? "preparing"
@@ -383,14 +416,14 @@ export function ProcessingPanel({
 					: state.error === "session_incompatible" || state.error === "incompatible"
 						? "Companion incompatível"
 						: "Serviço desconectado";
-	const running = state.jobs.filter((job) => job.status === "running");
-	const queued = state.jobs
+	const running = campaignJobs.filter((job) => job.status === "running");
+	const queued = campaignJobs
 		.filter((job) => job.status === "queued")
 		.sort(
 			(left, right) =>
 				new Date(left.updated_at).getTime() - new Date(right.updated_at).getTime(),
 		);
-	const attention = state.jobs.filter((job) =>
+	const attention = campaignJobs.filter((job) =>
 		["failed", "interrupted"].includes(job.status),
 	);
 	const activeJob = running[0] ?? null;
@@ -446,14 +479,14 @@ export function ProcessingPanel({
 		: null;
 	const latestCompletedRun = activeJob
 		? null
-		: (state.localRuns[0] ?? null);
+		: (campaignRuns[0] ?? null);
 	const observedJobExact =
-		state.jobs.find((job) => job.id === state.observedJobId) ?? null;
+		diagnosticJobs.find((job) => job.id === state.observedJobId) ?? null;
 	const observedJob = observedJobExact ?? activeJob;
 	const diagnosticInspectorJob =
 		diagnosticInspectorJobId === null
 			? null
-			: (state.jobs.find((job) => job.id === diagnosticInspectorJobId) ?? null);
+			: (diagnosticJobs.find((job) => job.id === diagnosticInspectorJobId) ?? null);
 	const observedJobLive =
 		observedJob !== null &&
 		["queued", "running"].includes(observedJob.status);
@@ -514,10 +547,18 @@ export function ProcessingPanel({
 			return message;
 		}
 
+		if (job.kind !== "synthetic.fixture" && result.campaignId !== campaignId) {
+			const message =
+				"O Companion retornou um resultado de outra campanha. O resultado foi preservado, mas esta tela não vai abri-lo neste contexto.";
+			setResultOpenError(message);
+			return message;
+		}
 		const found = controller
 			.snapshot()
 			.localRuns.some(
 				(run) =>
+					(run.publicationTarget === null ||
+						run.publicationTarget.campaignSlug === campaignId) &&
 					run.sourceId === result.sourceId &&
 					run.runId === result.runId &&
 					(!result.transcriptSha256 ||
@@ -579,6 +620,35 @@ export function ProcessingPanel({
 		});
 	}
 
+	function switchCampaign(nextCampaignId: string) {
+		if (nextCampaignId === campaignId) {
+			setCampaignSelection(campaignId);
+			return;
+		}
+		if (!campaignOptions.some((campaign) => campaign.technicalSlug === nextCampaignId)) {
+			setCampaignSelection(campaignId);
+			return;
+		}
+		const authoritativeWork = campaignJobs.some((job) =>
+			["queued", "running"].includes(job.status),
+		);
+		const needsConfirmation =
+			submissionDraftActive ||
+			authoritativeWork ||
+			Boolean(state.mutation) ||
+			Boolean(state.uncertainSubmission);
+		if (
+			needsConfirmation &&
+			!window.confirm(
+				"Trocar de campanha descarta apenas o formulário local desta tela. Trabalhos já enfileirados ou em execução mantêm a campanha original. Deseja continuar?",
+			)
+		) {
+			setCampaignSelection(campaignId);
+			return;
+		}
+		window.location.assign(processingCampaignHref(nextCampaignId));
+	}
+
 	function selectViewFromKeyboard(
 		event: ReactKeyboardEvent<HTMLButtonElement>,
 		index: number,
@@ -605,6 +675,29 @@ export function ProcessingPanel({
 
 	return (
 		<div className={styles.panel} data-global-loading="off">
+			<section className={styles.campaignContext} aria-label="Campanha do processamento">
+				<div>
+					<span>Campanha</span>
+					<strong>{campaignName}</strong>
+				</div>
+				<label>
+					<span className={styles.visuallyHidden}>Trocar campanha</span>
+					<select
+						value={campaignSelection}
+						onChange={(event) => {
+							const next = event.target.value;
+							setCampaignSelection(next);
+							switchCampaign(next);
+						}}
+					>
+						{campaignOptions.map((campaign) => (
+							<option key={campaign.technicalSlug} value={campaign.technicalSlug}>
+								{campaign.name}
+							</option>
+						))}
+					</select>
+				</label>
+			</section>
 			<div className={styles.processingHeader}>
 				<div
 					className={styles.processingTabs}
@@ -939,6 +1032,7 @@ export function ProcessingPanel({
 								)}
 							</section>
 							<ProcessingSubmission
+								campaignId={campaignId}
 								className={styles.submissionCard}
 								compact={Boolean(activeJob || queued.length)}
 								onOpenDiagnostics={() => activateView("diagnostics")}
@@ -946,6 +1040,7 @@ export function ProcessingPanel({
 								benchmarks={state.benchmarkResults}
 								system={state.system}
 								recoveryScope={activityPackScope}
+								onDraftStateChange={setSubmissionDraftActive}
 							/>
 						</div>
 						{latestCompletedRun ? (
@@ -1045,7 +1140,7 @@ export function ProcessingPanel({
 						hidden={view !== "queue"}
 					>
 						<ProcessingQueueView
-							jobs={state.jobs}
+							jobs={campaignJobs}
 							filter={queueFilter}
 							onFilterChange={setQueueFilter}
 							resetSearchKey={queueSearchReset}
@@ -1075,11 +1170,12 @@ export function ProcessingPanel({
 						{state.libraryRefreshError ? <p role="status">Resultados desatualizados. A última leitura foi preservada; tente atualizar.</p> : null}
 						{state.capabilities ? (
 							<SessionAssemblyResults
+								campaignId={campaignId}
 								capabilities={state.capabilities.capabilities}
 							/>
 						) : null}
 						<LocalReviewWorkspace
-							runs={state.localRuns}
+							runs={campaignRuns}
 							hasMore={state.localRunsHasMore}
 							onLoadMore={controller.loadMoreRuns}
 							focusRunKey={resultFocus?.key ?? null}
@@ -1130,7 +1226,7 @@ export function ProcessingPanel({
 									)}
 								</p>
 							</div>
-							{state.result ? (
+							{resultVisibleInCampaign && state.result ? (
 								<div className={styles.resultSummary} role="status">
 									<span>Resultado local</span>
 									<strong>{state.result.sessionId}</strong>

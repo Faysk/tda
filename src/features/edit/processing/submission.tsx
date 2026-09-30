@@ -10,7 +10,10 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { Button } from "@/components/ui/button";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
+import {
+	ProcessingCampaignValidationError,
+	validateProcessingCampaignForEnqueue,
+} from "./campaign-validation";
 import {
 	LocalBridge,
 	localBridgePaired,
@@ -181,22 +184,26 @@ const EMPTY_RUNS: readonly LocalRunSummary[] = [];
 const EMPTY_BENCHMARKS: readonly BenchmarkResult[] = [];
 
 export function ProcessingSubmission({
+	campaignId,
 	className,
 	compact = false,
 	recoveryScope = null,
+	onDraftStateChange,
 	onOpenDiagnostics,
 	runs = EMPTY_RUNS,
 	benchmarks = EMPTY_BENCHMARKS,
 	system = null,
 }: Readonly<{
+	campaignId: string;
 	className?: string;
 	compact?: boolean;
 	recoveryScope?: string | null;
+	onDraftStateChange?: (active: boolean) => void;
 	onOpenDiagnostics?: () => void;
 	runs?: readonly LocalRunSummary[];
 	benchmarks?: readonly BenchmarkResult[];
 	system?: SystemSnapshot | null;
-}> = {}) {
+}>) {
 	const paired = useSyncExternalStore(
 		subscribeLocalBridgePairing,
 		localBridgePaired,
@@ -407,16 +414,30 @@ export function ProcessingSubmission({
 	const requestBytes = useMemo(() => {
 		if (!profile || !/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) return null;
 		return craigTranscriptionRequestByteLength({
-			campaignId: CAMPAIGN_SLUG,
+			campaignId: campaignId,
 			sessionId,
 			sourceId: source?.sourceId ?? `craig-${"0".repeat(64)}`,
 			profileId: profile,
 			glossary,
 			context,
 		});
-	}, [context, glossary, profile, sessionId, source]);
+	}, [campaignId, context, glossary, profile, sessionId, source]);
 	const requestTooLarge =
 		requestBytes !== null && requestBytes > LOCAL_JSON_BODY_MAX_BYTES;
+
+	const draftActive = Boolean(
+		busy ||
+			intentRequest ||
+			composerActive ||
+			files.length ||
+			sessionId.trim() ||
+			context.trim() ||
+			glossary.trim(),
+	);
+	useEffect(() => {
+		onDraftStateChange?.(draftActive);
+		return () => onDraftStateChange?.(false);
+	}, [draftActive, onDraftStateChange]);
 
 	if (!paired) return null;
 
@@ -447,6 +468,31 @@ export function ProcessingSubmission({
 		setDragActive(false);
 		if (busy || intentRequest) return;
 		applyFiles(Array.from(event.dataTransfer.files));
+	}
+
+	async function revalidateSelectedCampaign(
+		signal: AbortSignal,
+		statusMessage: string,
+	): Promise<boolean> {
+		setStatus(statusMessage);
+		try {
+			await validateProcessingCampaignForEnqueue(campaignId, signal);
+			return true;
+		} catch (cause) {
+			if (
+				cause instanceof ProcessingCampaignValidationError &&
+				cause.code === "campaign_unavailable"
+			) {
+				setError(
+					"A campanha deixou de estar ativa ou seu acesso de processamento mudou. Nenhum trabalho novo foi criado. Recarregue a seleção de campanha antes de tentar novamente.",
+				);
+			} else {
+				setError(
+					"Não foi possível revalidar a campanha com segurança. Nenhum trabalho novo foi criado; tente novamente quando o Edit estiver disponível.",
+				);
+			}
+			return false;
+		}
 	}
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
@@ -483,6 +529,13 @@ export function ProcessingSubmission({
 		setBusy(true);
 		setPendingStage("validating");
 		setError(null);
+		if (
+			!(await revalidateSelectedCampaign(
+				controller.signal,
+				"Confirmando acesso à campanha antes de preparar arquivos locais…",
+			))
+		)
+			return;
 		setStatus("Validando os ZIPs no Companion local…");
 
 		let stagedSelections = [...files];
@@ -628,6 +681,14 @@ export function ProcessingSubmission({
 				}
 			}
 
+			if (
+				!(await revalidateSelectedCampaign(
+					controller.signal,
+					"Reconfirmando acesso à campanha antes de criar o trabalho…",
+				))
+			)
+				return;
+
 			const sessionIntentCapabilities = [
 				"transcription.session-workspace",
 				"transcription.session-intent",
@@ -648,7 +709,7 @@ export function ProcessingSubmission({
 				}
 				const staged = stagedSources[0]!;
 				const signature = JSON.stringify([
-					CAMPAIGN_SLUG,
+					campaignId,
 					sessionId,
 					staged.sourceId,
 					profile,
@@ -659,7 +720,7 @@ export function ProcessingSubmission({
 				const pending = await resolveSessionComposerPendingSubmission({
 					storage: window.localStorage,
 					recoveryScope,
-					campaignId: CAMPAIGN_SLUG,
+					campaignId: campaignId,
 					sessionId,
 					sourceId: staged.sourceId,
 					profileId: profile,
@@ -671,7 +732,7 @@ export function ProcessingSubmission({
 				setStatus("Enviando a gravação ao Companion local…");
 				const job = await bridge.transcription(
 					{
-						campaignId: CAMPAIGN_SLUG,
+						campaignId: campaignId,
 						sessionId,
 						sourceId: staged.sourceId,
 						profileId: profile,
@@ -1132,6 +1193,7 @@ export function ProcessingSubmission({
 				<>
 					<SessionIntentCoordinator
 						bridge={bridge}
+						campaignId={campaignId}
 						capabilities={capabilities.capabilities}
 						request={intentRequest}
 						recoveryScope={recoveryScope}
@@ -1165,6 +1227,7 @@ export function ProcessingSubmission({
 							</summary>
 							<SessionRecordingComposer
 								bridge={bridge}
+								campaignId={campaignId}
 								capabilities={capabilities.capabilities}
 								sessionId={sessionId}
 								currentSource={null}
