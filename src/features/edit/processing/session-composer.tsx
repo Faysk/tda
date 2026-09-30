@@ -232,8 +232,11 @@ export function SessionRecordingComposer({
 			setWorkspace(next);
 			onActiveChange?.(next.parts.length > 0);
 			try {
-				window.localStorage.setItem(sessionComposerRecoveryKey(campaignId), next.sessionId);
-				window.localStorage.setItem(sessionComposerLastSessionKey(campaignId), next.sessionId);
+				saveSessionComposerPointers(
+					window.localStorage,
+					campaignId,
+					next.sessionId,
+				);
 			} catch {
 				// Recovery is best-effort; the Agent workspace remains authoritative.
 			}
