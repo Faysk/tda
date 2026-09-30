@@ -464,56 +464,9 @@ export function ProcessingSubmission({
 		applyFiles(Array.from(event.dataTransfer.files));
 	}
 
-	async function analyzeSource() {
-		if (
-			busy ||
-			!file ||
-			!profile ||
-			!canSubmit ||
-			profileBlocked ||
-			qwenRuntimeUpgradeRequired ||
-			requestTooLarge
-		)
-			return;
-		const fileValidation = validateCraigFile(file);
-		if (fileValidation) {
-			setFileError(fileValidation);
-			return;
-		}
-		const controller = new AbortController();
-		request.current?.abort();
-		request.current = controller;
-		setBusy(true);
-		setPendingStage("validating");
-		setError(null);
-		setFileError(null);
-		setStatus("Analisando o ZIP diretamente no Companion local…");
-		try {
-			const staged = await bridge.craigSource(file, controller.signal);
-			setSource(staged);
-			setStatus(
-				`ZIP analisado localmente · ${staged.trackCount} tracks · ${Math.round(
-					staged.audioWorkSeconds ?? 0,
-				)} s de trabalho de áudio.`,
-			);
-		} catch (cause) {
-			setSource(null);
-			setError(
-				cause instanceof BridgeError
-					? cause.serverCode
-						? localOperationMessage(cause.serverCode)
-						: messageFor(cause.code)
-					: messageFor("service_error"),
-			);
-		} finally {
-			setBusy(false);
-			setPendingStage(null);
-		}
-	}
-
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (busy || !file || !profile || !canSubmit || profileBlocked) return;
+		if (busy || !files.length || !profile || !canSubmit || profileBlocked) return;
 		if (qwenRuntimeUpgradeRequired) {
 			setError(qwenRuntimeBlockMessage);
 			return;
@@ -522,9 +475,11 @@ export function ProcessingSubmission({
 			setError("Use um ID de sessão com letras, números, _ ou -, até 128 caracteres.");
 			return;
 		}
-		const fileValidation = validateCraigFile(file);
-		if (fileValidation) {
-			setFileError(fileValidation);
+		const invalidFile = files
+			.map((candidate) => ({ candidate, reason: validateCraigFile(candidate) }))
+			.find((item) => item.reason);
+		if (invalidFile) {
+			setFileError(invalidFile.candidate.name + ": " + invalidFile.reason);
 			return;
 		}
 		if (requestTooLarge) {
@@ -542,17 +497,36 @@ export function ProcessingSubmission({
 		setError(null);
 		setFileError(null);
 		setStatus(
-			source
-				? "Revalidando a fonte já analisada neste Companion…"
-				: "Analisando o ZIP diretamente no Companion local…",
+			files.length === 1
+				? "Validando a gravação diretamente no Companion local…"
+				: "Validando " + files.length + " gravações diretamente no Companion local…",
 		);
 		try {
-			const staged = source ?? (await bridge.craigSource(file, controller.signal));
-			if (!source) setSource(staged);
+			const stagedSources = await stageSessionSources(
+				bridge,
+				files,
+				controller.signal,
+				(index, total, candidate) =>
+					setStatus(
+						"Validando gravação " +
+							index +
+							"/" +
+							total +
+							" · " +
+							candidate.name,
+					),
+			);
+			const staged = stagedSources[0];
+			if (!staged) {
+				setError("Nenhuma gravação válida foi selecionada.");
+				return;
+			}
+			setSource(staged);
 			setStatus(
-				source
-					? `Fonte local verificada · ${staged.trackCount} tracks.`
-					: `ZIP analisado localmente · ${staged.trackCount} tracks · continuando automaticamente.`,
+				(stagedSources.length === 1
+					? "Gravação verificada"
+					: stagedSources.length + " gravações verificadas") +
+					" · continuando automaticamente.",
 			);
 
 			// Uploads grandes can take long enough for runtime/model readiness to
@@ -651,109 +625,43 @@ export function ProcessingSubmission({
 				}
 			}
 
-			const signature = JSON.stringify([
-				CAMPAIGN_SLUG,
+			setPendingStage("submitting");
+			setStatus("Montando a sessão local e enfileirando somente o que falta…");
+			const workflow = await composeAndQueueSession({
+				bridge,
+				sources: stagedSources,
 				sessionId,
-				staged.sourceId,
 				profile,
 				glossary,
 				context,
-				false,
-			]);
-			let recoveryIdentity: PendingSubmissionRecoveryIdentity | null = null;
-			if (recoveryScope) {
-				try {
-					recoveryIdentity = await pendingSubmissionRecoveryIdentity({
-						profileScope: recoveryScope,
-						campaignId: CAMPAIGN_SLUG,
-						sessionId,
-						sourceId: staged.sourceId,
-						profileId: profile,
-						requestSignature: signature,
-					});
-				} catch {
-					recoveryIdentity = null;
-				}
-			}
-			if (!pending.current || pending.current.signature !== signature) {
-				let recoveredKey: string | null = null;
-				if (recoveryIdentity) {
-					try {
-						recoveredKey =
-							loadPendingSubmission(window.localStorage, recoveryIdentity)
-								?.idempotencyKey ?? null;
-					} catch {
-						recoveredKey = null;
-					}
-				}
-				pending.current = {
-					key: recoveredKey ?? crypto.randomUUID(),
-					signature,
-					recoveryIdentity,
-					recoveredFromStorage: recoveredKey !== null,
-				};
-				if (recoveryIdentity) {
-					try {
-						savePendingSubmission(
-							window.localStorage,
-							recoveryIdentity,
-							pending.current.key,
-						);
-					} catch {
-						// Browser persistence is recovery-only; enqueue remains usable without it.
-					}
-				}
-			} else if (recoveryIdentity && !pending.current.recoveryIdentity) {
-				pending.current = { ...pending.current, recoveryIdentity };
-				try {
-					savePendingSubmission(
-						window.localStorage,
-						recoveryIdentity,
-						pending.current.key,
-					);
-				} catch {
-					// Preserve the same-mount idempotency key even if storage is unavailable.
-				}
-			}
-			const submission = pending.current;
-			if (!submission) return;
-
-			setPendingStage("submitting");
-			setStatus("Enviando o pedido ao Companion local…");
-			const job = await bridge.transcription(
-				{
-					campaignId: CAMPAIGN_SLUG,
-					sessionId,
-					sourceId: staged.sourceId,
-					profileId: profile,
-					glossary,
-					context,
-				},
-				submission.key,
-				controller.signal,
-			);
-			if (submission.recoveryIdentity) {
-				try {
-					clearPendingSubmission(
-						window.localStorage,
-						submission.recoveryIdentity,
-					);
-				} catch {
-					// A confirmed response remains authoritative even if cleanup is unavailable.
-				}
-			}
-			pending.current = null;
+				recoveryScope,
+				storage: window.localStorage,
+				signal: controller.signal,
+			});
+			setComposerActive(true);
+			setWorkflowNonce((value) => value + 1);
 			setStatus(
-				submission.recoveredFromStorage
-					? `Trabalho ${job.id.slice(0, 8)}… reconciliado com o Companion local.`
-					: `Trabalho ${job.id.slice(0, 8)}… entrou na fila local.`,
+				workflow.workspace.timeline.state === "ready"
+					? "Sessão em andamento · " +
+							workflow.queued +
+							" gravação(ões) enfileirada(s), " +
+							workflow.reused +
+							" reaproveitada(s). A transcrição contínua será montada automaticamente."
+					: "Processamento iniciado. A cronologia precisa de uma decisão antes da montagem final.",
 			);
+			setFiles([]);
 			setFile(null);
 			setSource(null);
-			if (!composerActive) setSessionId("");
 			if (fileInput.current) fileInput.current.value = "";
 		} catch (cause) {
-			if (cause instanceof BridgeError) {
+			if (
+				cause instanceof SessionTranscriptionWorkflowError &&
+				cause.code === "recording_variant"
+			) {
+				setError(
+					"Há duas variantes da mesma gravação. Escolha qual delas pertence à sessão antes de continuar.",
+				);
+			} else if (cause instanceof BridgeError) {
 				if (sourceMustBeRestaged(cause.serverCode)) setSource(null);
 				setError(
 					cause.serverCode
@@ -764,9 +672,7 @@ export function ProcessingSubmission({
 				setError(messageFor("service_error"));
 			}
 			setStatus(
-				pending.current
-					? "A tentativa ficou ambígua; repetir com os mesmos dados reutiliza a mesma chave idempotente."
-					: null,
+				"A sessão foi preservada localmente. Repetir com os mesmos dados reconcilia as gravações pelo contrato idempotente.",
 			);
 		} finally {
 			setBusy(false);
