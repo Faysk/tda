@@ -25,6 +25,7 @@ No slice Web preparado por #1128:
 - retry/recovery preserva a campaign original da intenção;
 - o mesmo source em campaigns diferentes representa intenções distintas e auditáveis;
 - Session Workspace/Intent/Assembly usam a campaign selecionada em todas as operações locais;
+- a workspace Web não apresenta nem oferece ações de fila/revisão para jobs/runs atribuídos a outra campaign; respostas de resultado cujo `campaignId` diverge do contexto selecionado falham fechadas em vez de abrir/reclassificar o run;
 - handoff usa a campaign imutável da assembly e o servidor cloud reautoriza capability, resolve `campaigns.slug` e procura a session por `campaign_id + source_session_id` antes do write atômico; mismatch falha fechado;
 - criação de campaign é fluxo administrativo separado. Quando originada pelo CTA do Processamento, o retorno carrega o novo technical slug, mas a tela volta a verificar `campaign.local.process`; criar identidade não auto-concede acesso nem cria session/entity/canon;
 - run ASR bruto continua imutável e não vira canon/publicação por receber campaign context.
