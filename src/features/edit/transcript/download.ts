@@ -18,7 +18,7 @@ export async function buildTranscriptDownload(input: {
 	);
 	return {
 		filename,
-		body: renderTranscriptMarkdown(input),
+		body: await renderTranscriptMarkdown(input),
 		headers: {
 			"Cache-Control": "private, no-store",
 			"Content-Disposition": `attachment; filename="${filename}"`,
