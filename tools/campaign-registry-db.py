@@ -53,7 +53,8 @@ psql = [
 
 def sql_file(path: pathlib.Path) -> str:
     try:
-        return run(psql, input=path.read_text(encoding="utf-8"), timeout=30).stdout.strip()
+        payload = "\\set VERBOSITY verbose\n" + path.read_text(encoding="utf-8")
+        return run(psql, input=payload, timeout=30).stdout.strip()
     except subprocess.CalledProcessError as error:
         relative = path.relative_to(repo)
         raise RuntimeError(
