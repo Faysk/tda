@@ -37,7 +37,7 @@ def test_schema_v12_preserves_timeline_fields_without_rewriting_source_identity(
             for row in db.execute("PRAGMA table_info(session_recording_parts)")
         }
 
-    assert version == 12
+    assert version == 13
     assert "ordering_mode" in workspace_columns
     assert {
         "timeline_mode",
