@@ -32,6 +32,7 @@ const WORLD_EDIT_DRAFT_SAFETY_FLUSH_MS = 10_000;
 const WORLD_BUSY_NOTICE_MS = 5_000;
 
 type WorldEditState = "view" | "acquiring" | "editing" | "publishing";
+type WorldTerminalAction = "finish" | "discard";
 type LayoutDraftResult = Awaited<ReturnType<typeof saveWorldLayoutSessionDraftAction>>;
 type GraphDraftResult = Awaited<ReturnType<typeof saveWorldGraphDraftAction>>;
 
@@ -73,6 +74,8 @@ export function useWorldEditSession({
 	const [graphDirty, setGraphDirty] = useState(false);
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [busyNotice, setBusyNotice] = useState<string | null>(null);
+	const [terminalAction, setTerminalAction] = useState<WorldTerminalAction | null>(null);
+	const terminalActionRef = useRef<WorldTerminalAction | null>(null);
 	const layoutDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const graphDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const draftSafetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,7 +90,8 @@ export function useWorldEditSession({
 	const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
 	const editing = state === "editing" || state === "publishing";
-	const busy = state === "acquiring" || state === "publishing";
+	const busy =
+		state === "acquiring" || state === "publishing" || terminalAction !== null;
 	const hasChanges = layoutDirty || graphDirty;
 
 	useEffect(() => {
@@ -611,8 +615,26 @@ export function useWorldEditSession({
 		setFeedback(message);
 	}
 
+	function beginTerminalAction(action: WorldTerminalAction): boolean {
+		if (terminalActionRef.current !== null) return false;
+		terminalActionRef.current = action;
+		setTerminalAction(action);
+		return true;
+	}
+
+	function endTerminalAction(action: WorldTerminalAction) {
+		if (terminalActionRef.current !== action) return;
+		terminalActionRef.current = null;
+		setTerminalAction(null);
+	}
+
 	async function finish() {
-		await release("Edição encerrada sem publicar. O rascunho confirmado foi preservado.");
+		if (!beginTerminalAction("finish")) return;
+		try {
+			await release("Edição encerrada sem publicar. O rascunho confirmado foi preservado.");
+		} finally {
+			endTerminalAction("finish");
+		}
 	}
 
 	async function discard() {
@@ -621,8 +643,10 @@ export function useWorldEditSession({
 			"Descartar este rascunho? O Mundo publicado será mantido. Uma cópia de recuperação ficará registrada para auditoria, mas esta sessão será encerrada.",
 		);
 		if (!confirmed) return;
+		if (!beginTerminalAction("discard")) return;
 
-		cancelPendingDraftSaves();
+		try {
+			cancelPendingDraftSaves();
 		const sequence = sessionSequence.current;
 		setFeedback("Preservando uma cópia final antes de descartar o rascunho…");
 
@@ -674,7 +698,10 @@ export function useWorldEditSession({
 		setGraphDraft(null);
 		setState("view");
 		onReleaseLayout();
-		setFeedback("Rascunho descartado. O Mundo publicado foi mantido e uma cópia de recuperação foi preservada.");
+			setFeedback("Rascunho descartado. O Mundo publicado foi mantido e uma cópia de recuperação foi preservada.");
+		} finally {
+			endTerminalAction("discard");
+		}
 	}
 
 	return {
