@@ -385,8 +385,9 @@ export function ProcessingBenchmark({
 					}
 					if (observed.mode === "update" && observed.state === "completed") {
 						setStatus("Qwen Runtime atualizado. Recalculando prontidão…");
-						const refreshed = await refreshCatalog(controller.signal);
+						const refreshed = await bridge.capabilities(controller.signal);
 						if (disposed || controller.signal.aborted) return;
+						setCatalog(refreshed.transcription.catalog);
 						onRefresh();
 						const qwenReady = ["qwen-fast", "qwen-quality"].every(
 							(id) => refreshed.transcription.catalog.find((item) => item.id === id)?.ready,
@@ -437,6 +438,7 @@ export function ProcessingBenchmark({
 		qwenRuntimeBlocked,
 		qwenRuntimeCheckSupported,
 		qwenInstalledVersionFromProfiles,
+		onRefresh,
 	]);
 
 	async function refreshCatalog(signal: AbortSignal) {
