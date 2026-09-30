@@ -12,6 +12,24 @@ Este documento explica **o significado das relações**, não apenas FKs. O cat�
 
 `campaigns.id` é o boundary principal dos dados narrativos. A partir de #1123, `campaigns.slug` é a identidade técnica estável usada por compatibilidade/RBAC e `campaigns.public_slug` é a identidade pública de rota; aliases históricos não têm autoridade. Queries novas devem sempre explicitar o campaign boundary quando pertinente, mesmo quando source IDs ou entity slugs coincidirem entre campanhas. `active | archived` é lifecycle, não delete: referências históricas continuam válidas.
 
+### Inventário de consumidores de identidade de campanha (#1123)
+
+O registry separa identidade técnica de apresentação, mas os consumidores existentes não são migrados todos neste slice. O inventário abaixo define ownership para o rollout, evitando que cada frente reinvente o significado de slug:
+
+| Consumer | Estado após #1123 | Owner do próximo slice |
+| --- | --- | --- |
+| `src/features/sessions/model.ts` / `CAMPAIGN_SLUG="yuhara-main"` | compatibilidade deliberada da campanha histórica | #1125 / #1127 |
+| `src/features/auth/server.ts` e RBAC `scope_type='campaign'` | continuam usando slug técnico | #1134 |
+| `src/app/edit/[campaignSlug]/permissions` | rota já recebe slug explicitamente; autorização continua técnica | #1134 / #1136 |
+| `src/features/world-explorer/components/world-entity-media-editor.tsx` lease key local | ainda contém `yuhara-main` no namespace do browser | #1130 |
+| `src/features/edit/processing/session-intent-storage.ts` | receipt já inclui `campaignId` no escopo | #1128 revalida seleção explícita |
+| publication clients de Processing | já transportam campaign identity, mas naming/seleção precisam convergir | #1128 / #1133 |
+| session-cover/media keys `campaigns/{campaignSlug}/...` | slug técnico permanece no namespace atual; allowlist histórica ainda é específica de `yuhara-main` | #1135 |
+| rotas públicas de sessões/Home | ainda assumem campanha histórica | #1124 / #1125 / #1127 |
+| public navigation/Edit navigation | ainda não resolve `public_slug`/alias de forma global | #1136 |
+
+Regra de transição: **não trocar um consumidor técnico para `public_slug` só porque a coluna existe**. Autorização, storage e idempotency continuam em UUID/slug técnico até o owner do domínio migrar conscientemente. Roteamento público pode adotar `public_slug`/alias quando #1124/#1125/#1136 implementarem a resolução server-side.
+
 ### Profile
 
 `profiles.id` identifica pessoa/conta. Pode apontar para `auth.users`. É usado como ator, speaker humano, membro, aprovador e receptor de role.
