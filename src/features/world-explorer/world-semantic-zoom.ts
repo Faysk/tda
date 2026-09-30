@@ -110,10 +110,10 @@ export function worldEdgeSemanticPresentation(
 	}
 
 	return {
-		strokeOpacity: input.dimmed ? 0.12 : 0.94,
-		strokeWidthScale: 1,
-		showHalo: true,
-		showLabel: !input.dimmed,
+		strokeOpacity: input.dimmed ? 0.08 : 0.62,
+		strokeWidthScale: 0.84,
+		showHalo: false,
+		showLabel: false,
 		showMotion: false,
 	};
 }
