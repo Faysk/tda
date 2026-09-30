@@ -89,7 +89,7 @@ describe("submission model", () => {
 	});
 
 	test("CTA expresses one final intent while exposing automatic pipeline stages", () => {
-		expect(submissionCtaLabel(null)).toBe("Começar transcrição");
+		expect(submissionCtaLabel(null)).toBe("Transcrever sessão");
 		expect(submissionCtaLabel("validating")).toBe("Validando ZIP…");
 		expect(submissionCtaLabel("preparing")).toBe("Preparando profile…");
 		expect(submissionCtaLabel("submitting")).toBe("Enviando ao Companion…");

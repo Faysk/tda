@@ -44,6 +44,7 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		"src/components/navigation-auth.ts",
 		"src/components/public-navigation-model.ts",
 		"src/components/theme-toggle.tsx",
+		"src/components/session-list.tsx",
 		"src/components/global-loading/global-loading.tsx",
 		"src/app/e2e-fixtures/global-loading/page.tsx",
 		"src/config/brand-assets.ts",
@@ -52,10 +53,29 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		"public/lore/d/script.js",
 		"tests/global-loading.spec.ts",
 		"tests/d-lore-reading-mode.spec.ts",
+		"tests/route-loading.spec.ts",
+		"tests/pending-actions.spec.ts",
+		"tests/progress-feedback.spec.ts",
+		"tools/ux/async-feedback-contract.mjs",
+		"src/app/e2e-fixtures/pending-actions/page.tsx",
+		"src/app/e2e-fixtures/progress-feedback/page.tsx",
+		"src/components/ui/button.tsx",
+		"src/components/ui/form-submit-button.tsx",
+		"src/features/world-explorer/hooks/use-world-edit-session.ts",
+		"src/features/world-explorer/components/world-conductor-bar.tsx",
+		"src/components/ui/progress.tsx",
+		"src/components/ui/progress.module.css",
+		"src/components/ui/animated-progress.tsx",
+		"src/components/loading/route-skeletons.tsx",
+		"src/components/loading/route-skeletons.module.css",
+		"src/app/e2e-fixtures/route-loading/editorial/loading.tsx",
+		"src/app/sessoes/loading.tsx",
 		"tests/world-catalogs.spec.ts",
 		"src/features/lore/components/lore-index-page.tsx",
 		"src/features/lore/components/lore-cinematic-hero.module.css",
 		"tests/system-states.spec.ts",
+		"tests/session-public-layout.spec.ts",
+		"src/app/sessoes/page.module.css",
 		"src/app/error.tsx",
 		"src/app/not-found.tsx",
 		"src/app/e2e-fixtures/system-states/error/page.tsx",
@@ -85,6 +105,8 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		flags(["src/components/session-share-actions.tsx"]).navigation,
 		false,
 	);
+	assert.equal(flags(["src/app/loading.tsx"]).navigation, true);
+	assert.equal(flags(["src/app/mundo/loading.tsx"]).navigation, true);
 });
 
 test("Processing Web paths activate the Processing E2E contract", () => {

@@ -30,6 +30,7 @@ import {
 	parseLocalSources,
 	parseResultSummary,
 	parseSessionParticipantMapping,
+	parseSessionTranscriptionIntent,
 	parseSessionWorkspace,
 	parseSystemSnapshot,
 	runIdentifier,
@@ -43,6 +44,8 @@ import {
 	parseSessionAssembly,
 	parseSessionAssemblyList,
 	parseSessionAssemblyReviewSummary,
+	type SessionAssemblyReviewSegment,
+	type SessionAssemblyReviewSummary,
 } from "./session-composer-protocol";
 
 const LOCAL_REVIEW_BODY_MAX_BYTES = 32 * 1024 * 1024;
@@ -333,6 +336,42 @@ export class LocalBridge {
 			),
 		);
 	}
+	async sessionTranscriptionIntent(
+		campaignId: string,
+		sessionId: string,
+		signal: AbortSignal,
+	) {
+		return parseSessionTranscriptionIntent(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/intent`,
+				signal,
+			),
+		);
+	}
+	async saveSessionTranscriptionIntent(
+		campaignId: string,
+		sessionId: string,
+		input: Readonly<{
+			requestId: string;
+			profileId: CraigTranscriptionInput["profileId"];
+			context: string;
+			glossary: string;
+		}>,
+		signal: AbortSignal,
+	) {
+		return parseSessionTranscriptionIntent(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/intent`,
+				signal,
+				{
+					request_id: identifier(input.requestId),
+					profile_id: input.profileId,
+					context: input.context,
+					glossary: input.glossary,
+				},
+			),
+		);
+	}
 	async attachSessionSource(
 		campaignId: string,
 		sessionId: string,
@@ -552,6 +591,100 @@ export class LocalBridge {
 					assemblyId +
 					"/review/base",
 				signal,
+			),
+			assemblyId,
+		);
+	}
+
+	async sessionAssemblyReview(
+		campaignId: string,
+		sessionId: string,
+		assemblyId: string,
+		signal: AbortSignal,
+	) {
+		if (!/^[0-9a-f]{64}$/u.test(assemblyId))
+			throw new BridgeError("invalid_response");
+		return parseSessionAssemblyReviewSummary(
+			await this.reviewJson(
+				"/session-workspaces/" +
+					identifier(campaignId) +
+					"/" +
+					identifier(sessionId) +
+					"/assemblies/" +
+					assemblyId +
+					"/review",
+				signal,
+			),
+			assemblyId,
+		);
+	}
+
+	async saveSessionAssemblyReview(
+		campaignId: string,
+		sessionId: string,
+		assemblyId: string,
+		baseline: SessionAssemblyReviewSummary,
+		status: LocalReviewStatus,
+		segments: readonly SessionAssemblyReviewSegment[],
+		signal: AbortSignal,
+	) {
+		if (!/^[0-9a-f]{64}$/u.test(assemblyId) || baseline.assemblyId !== assemblyId)
+			throw new BridgeError("conflict", "SESSION_ASSEMBLY_REVIEW_DRAFT_CONFLICT");
+		const expected =
+			baseline.persistence === "ephemeral_base"
+				? {
+						persistence: "ephemeral_base",
+						base_transcript_sha256: baseline.baseTranscriptSha256,
+					}
+				: {
+						persistence: "persisted",
+						draft_revision: baseline.draftRevision,
+						draft_sha256: baseline.draftSha256,
+					};
+		return parseSessionAssemblyReviewSummary(
+			await this.reviewJson(
+				"/session-workspaces/" +
+					identifier(campaignId) +
+					"/" +
+					identifier(sessionId) +
+					"/assemblies/" +
+					assemblyId +
+					"/review",
+				signal,
+				{
+					snapshot_contract: "tda_session_assembly_review_cas_v1",
+					expected,
+					status,
+					segments: segments.map((segment) => ({
+						assembly_segment_id: segment.assemblySegmentId,
+						part_id: segment.partId,
+						source_id: segment.sourceId,
+						run_id: segment.runId,
+						source_segment_id: segment.sourceSegmentId,
+						track_number: segment.trackNumber,
+						participant_id: segment.participantId,
+						start: segment.start,
+						end: segment.end,
+						...(segment.absoluteTime === undefined
+							? {}
+							: segment.absoluteTime
+								? {
+										absolute_time_state: "trusted_absolute",
+										absolute_start: segment.absoluteTime.startIso,
+										absolute_end: segment.absoluteTime.endIso,
+										absolute_time_source: segment.absoluteTime.source,
+									}
+								: {
+										absolute_time_state: "unavailable",
+										absolute_start: null,
+										absolute_end: null,
+										absolute_time_source: null,
+									}),
+						text: segment.text,
+						speaker: segment.speaker,
+						reviewed: segment.reviewed,
+					})),
+				},
 			),
 			assemblyId,
 		);

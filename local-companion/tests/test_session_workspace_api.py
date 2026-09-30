@@ -45,6 +45,7 @@ def test_session_workspace_api_is_additive_durable_and_cas_guarded(
         capabilities = client.get("/api/v1/capabilities", headers=HEADERS)
         assert capabilities.status_code == 200
         assert "transcription.session-workspace" in capabilities.json()["capabilities"]
+        assert "transcription.session-intent" in capabilities.json()["capabilities"]
 
         created = client.post(
             "/api/v1/session-workspaces/campaign-a/session-a",
@@ -403,3 +404,87 @@ def test_browser_session_is_scoped_to_participant_mapping_routes(tmp_path: Path,
         assert updated.status_code == 200
         assert updated.json()["participants"][0]["participant_id"] == "f" * 32
         assert updated.json()["participants"][0]["profile_id"] is None
+
+
+def test_browser_session_intent_recovery_keeps_text_in_local_agent(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    monkeypatch.setattr(
+        api_module,
+        "load_craig_package",
+        lambda _root, verify_tracks=False: SimpleNamespace(),
+    )
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        session = client.post("/api/v1/session", headers={"Origin": ORIGIN}, json={})
+        assert session.status_code == 200
+        browser_headers = {
+            "Authorization": f"Bearer {session.json()['token']}",
+            "Origin": ORIGIN,
+        }
+        created = client.post(
+            "/api/v1/session-workspaces/campaign-intent/session-intent",
+            headers=browser_headers,
+            json={},
+        )
+        assert created.status_code == 200
+
+        saved = client.post(
+            "/api/v1/session-workspaces/campaign-intent/session-intent/intent",
+            headers=browser_headers,
+            json={
+                "request_id": "intent-a",
+                "profile_id": "qwen-quality",
+                "context": "mesa de quinta",
+                "glossary": "Yuhara",
+            },
+        )
+        assert saved.status_code == 200
+        body = saved.json()
+        assert body["schema_version"] == "tda_session_transcription_intent_v1"
+        assert body["context"] == "mesa de quinta"
+        assert body["glossary"] == "Yuhara"
+        assert len(body["context_sha256"]) == 64
+        assert len(body["glossary_sha256"]) == 64
+
+        recovered = client.get(
+            "/api/v1/session-workspaces/campaign-intent/session-intent/intent",
+            headers=browser_headers,
+        )
+        assert recovered.status_code == 200
+        assert recovered.json() == body
+
+        workspace = client.get(
+            "/api/v1/session-workspaces/campaign-intent/session-intent",
+            headers=browser_headers,
+        )
+        assert workspace.status_code == 200
+        serialized_workspace = workspace.text
+        assert "mesa de quinta" not in serialized_workspace
+        assert "Yuhara" not in serialized_workspace
+
+        conflict = client.post(
+            "/api/v1/session-workspaces/campaign-intent/session-intent/intent",
+            headers=browser_headers,
+            json={
+                "request_id": "intent-a",
+                "profile_id": "qwen-quality",
+                "context": "mudou",
+                "glossary": "Yuhara",
+            },
+        )
+        assert conflict.status_code == 409
+        assert (
+            conflict.json()["error"]["code"]
+            == "SESSION_TRANSCRIPTION_INTENT_CONFLICT"
+        )
+
+    restarted = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    with TestClient(restarted, base_url="http://127.0.0.1:8765") as client:
+        recovered = client.get(
+            "/api/v1/session-workspaces/campaign-intent/session-intent/intent",
+            headers=HEADERS,
+        )
+        assert recovered.status_code == 200
+        assert recovered.json()["context"] == "mesa de quinta"
+        assert recovered.json()["glossary"] == "Yuhara"

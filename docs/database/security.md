@@ -86,19 +86,6 @@ role_slug == "master"
 
 A primeira forma permite alterar composição de roles sem reescrever UI e regras de negócio.
 
-### Boundary multi-campaign (#1123)
-
-O registry de campanhas separa deliberadamente identidade relacional, técnica e pública:
-
-- `campaigns.id` é a autoridade relacional e o boundary preferido para autorização;
-- `campaigns.slug` permanece como identidade técnica/compatibilidade para helpers e consumidores legados;
-- `campaigns.public_slug` é somente identidade pública/rota e **não concede nem seleciona autorização**;
-- `campaigns.name` é apresentação editorial e nunca participa de uma decisão de acesso.
-
-Registrar uma nova campanha não concede membership, role assignment ou capability a ninguém. Em particular, o bootstrap de `antes-que-seja-tarde` da #1123 cria apenas a raiz da campanha; acesso à campanha deve ser concedido explicitamente por um fluxo de autorização próprio.
-
-A #1123 não muda silenciosamente a semântica das RPCs legadas que recebem `campaign_slug`. Elas continuam usando o slug técnico de compatibilidade. A evolução desses endpoints deve resolver a campanha e validar membership/capability no boundary apropriado, com testes negativos cross-campaign, antes de ampliar a superfície da segunda campanha.
-
 ## RLS
 
 Na revisão de 2026-09-06, RLS estava habilitado em todas as 43 tabelas públicas observadas.
@@ -120,7 +107,7 @@ Uma policy nova precisa responder:
 
 ## Fronteira pública atual
 
-O site público usa consultas server-side estreitas para conteúdo publicado da campanha principal. A chave server-side possui poder elevado e **não é tecnicamente read-only**.
+O site público vigente usa consultas server-side estreitas para conteúdo publicado da campaign legado/default. A chave server-side possui poder elevado e **não é tecnicamente read-only**.
 
 Mitigações atuais:
 
@@ -134,6 +121,22 @@ Mitigações atuais:
 ### Dívida futura
 
 Uma role/view/endpoint tecnicamente read-only e de menor privilégio é desejável antes de ampliar a superfície pública, desde que introduzida com migration revisada e sem quebrar o legado.
+
+## Invariantes de segurança multi-campaign
+
+Antes de ativar uma segunda campaign:
+
+1. discovery pública retorna somente projection pública mínima;
+2. discovery Edit retorna somente campaigns operacionalmente descobríveis pelo actor;
+3. slug, UUID, cookie, query e localStorage são input não confiável;
+4. servidor resolve campaign e ownership do recurso antes da mutation;
+5. `scope_type=project, scope_id=tda` pode cobrir campaigns futuras somente para a action explicitamente presente na role;
+6. session/resource scope não herda genericamente sem resolver documentado;
+7. erro cross-campaign não vira oracle de existência;
+8. service-role query continua selecionando/filtering server-side e nunca confia apenas no filtro do browser;
+9. testes negativos A/B + outsider + stale/revoked grant são gate de rollout.
+
+Ver [ADR-0020](../adr/0020-first-class-campaigns.md) e [contrato multi-campaign](../architecture/multi-campaign.md).
 
 ## `SECURITY DEFINER`
 
@@ -179,11 +182,18 @@ Endpoints autenticados/administrativos mantidos durante a transição:
 
 ### Atenção especial: `access_directory`
 
-O caminho não-admin mascara dados Discord e retorna apenas profiles ainda não ligados a Auth, mas não exige explicitamente membership prévia na campanha solicitada. Com uma única campanha conhecida isso não criou um vazamento cross-campaign observado; o registry multi-campanha da #1123 torna essa dívida explícita, mas **não concede acesso à segunda campanha nem altera o contrato da RPC**.
+O caminho não-admin mascara dados Discord e retorna apenas profiles ainda não ligados a Auth, mas não exige explicitamente membership prévia na campaign solicitada. Com uma única campaign conhecida isso não criou leak cross-campaign observado.
 
-Antes de expor onboarding/diretório para uma segunda campanha ou Edit público, o contrato precisa decidir se a consulta exige convite/membership/capability ou se diretório autenticado por slug técnico é comportamento intencional. Essa decisão deve incluir teste negativo em que um usuário autorizado apenas na campanha A tenta consultar a campanha B.
+ADR-0020 + #1134 fecham a direção antes da ativação multi-campaign:
 
-Não alterar essa semântica silenciosamente: é regra de produto/autorização e precisa de teste negativo.
+- slug recebido não autoriza discovery;
+- actor precisa satisfazer o contrato operacional de discovery/onboarding da campaign;
+- campaign privada não pode ser enumerada por troca de slug/UUID;
+- project grant só ajuda quando contém a capability aplicável; não é membership implícito;
+- A credential + B campaign deve falhar fechado;
+- archived campaign preserva histórico, mas não abre onboarding normal.
+
+A forma SQL/RPC exata continua pertencendo a #1134. Não alterar grants em Production nesta entrega documental.
 
 ### Checklist para cada RPC
 
@@ -199,7 +209,7 @@ Não alterar essa semântica silenciosamente: é regra de produto/autorização 
 ### Ação antes do Edit público
 
 - cobrir os cinco endpoints intencionais com testes positivos/negativos;
-- decidir contrato multi-campaign de `access_directory`;
+- implementar e testar o contrato multi-campaign de `access_directory` definido em ADR-0020/#1134;
 - comprovar ausência de consumidores externos dos três helpers;
 - quando seguro, versionar migration que revogue `EXECUTE` direto de `authenticated` dos helpers;
 - rodar advisors e smoke tests depois da mudança;
@@ -260,3 +270,234 @@ O SQL:
 - não cria audit em conflito;
 - não revela a existência de segmento cross-campaign;
 - preserva `character_name` quando o speaker não muda e invalida essa identidade quando o speaker textual muda.
+
+## `SECURITY INVOKER` server-only do World layout — aplicado
+
+As migrations de persistência editorial do World layout e lease exclusivo estão aplicadas no Supabase canônico. O migration history remoto inclui `20260908203249 world_layout_capability`, `20260908203331 world_layout_snapshot_atomic`, `20260908203441 world_layout_service_role_privileges`, `20260908203642 world_layout_site_editor_grant` e `20260909205836 world_edit_lease`.
+
+Capability:
+
+```text
+campaign.world.layout.edit
+```
+
+- plane `narrative`;
+- o catálogo/role foi versionado sem criar assignment de usuário por inferência;
+- assignments ativos são avaliados por scope no boundary.
+
+Storage `world_layout_snapshots` e `world_edit_leases`:
+
+- RLS habilitado;
+- nenhuma policy de browser;
+- `PUBLIC`, `anon` e `authenticated` sem acesso;
+- grants server-side mínimos conforme contrato de cada tabela.
+
+RPCs do boundary:
+
+- `save_world_layout_snapshot_atomic(...)`;
+- `acquire_world_edit_lease_atomic(...)`;
+- `renew_world_edit_lease_atomic(...)`;
+- `save_world_edit_layout_draft_atomic(...)`;
+- `publish_world_edit_layout_atomic(...)`;
+- `release_world_edit_lease_atomic(...)`.
+
+As funções observadas são `SECURITY INVOKER`, usam `search_path = pg_catalog, public`, não são executáveis por `anon/authenticated` e revalidam identity/profile, capability, assignment ativo, campaign/scope, lease e revision conforme o caso.
+
+### Audience na leitura
+
+A tabela não ganhou policy pública como atalho. O fluxo server-side continua:
+
+```text
+request + identidade/audience
+  -> projection autorizada de nodes/edges
+  -> carregar snapshot aplicável
+  -> intersectar positions com IDs já autorizados
+  -> sanitizar contrato
+  -> browser
+```
+
+Chaves presentes no JSONB jamais podem ser usadas para decidir quais nodes existem/ficam visíveis.
+
+### Validação observada
+
+O PostgreSQL sintético prova RLS/grants, autorização/scope, payload, revision/conflict/no-op, recovery e rollback. No Supabase canônico, grants e signatures foram revalidados após aplicação; em 2026-09-10 havia `0` snapshots e `0` leases ativos durante o preflight da autoria factual.
+
+## `SECURITY INVOKER` server-only do World graph — aplicado #119
+
+A migration versionada localmente como `20260909215000_world_graph_authoring.sql` foi aplicada deliberadamente em 2026-09-10 e registrada no migration history remoto como `20260910002529 world_graph_authoring`. Não reexecutar o DDL para alinhar apenas o número local/remoto; o drift nominal precisa permanecer documentado até reconciliação deliberada.
+
+Objetos físicos observados após a aplicação:
+
+- `relation_types` para semântica por campanha;
+- `world_relation_styles` para apresentação de tipos, separada da semântica;
+- `entity_relations` para vínculos first-class entre `entities`;
+- `entity_relation_sources` para provenance por `canon_entry`;
+- `world_graph_heads` e `world_graph_revisions` para optimistic concurrency + snapshots publicados;
+- `world_edit_leases` estendido com `base_graph_revision`, `draft_graph` e `graph_draft_initialized`;
+- trigger `world_edit_lease_graph_handoff` para impedir herança de draft factual por outro editor.
+
+Boundary físico revalidado:
+
+- RLS habilitado nas seis tabelas novas e nenhuma policy de browser;
+- `PUBLIC`, `anon` e `authenticated` sem acesso direto às tabelas/RPCs editoriais;
+- `service_role` recebe apenas os grants versionados: sem `DELETE` nas tabelas factuais, sem write em `entity_relation_sources` e sem `UPDATE` em `world_graph_revisions`;
+- `acquire_world_graph_draft_atomic`, `save_world_graph_draft_atomic` e `publish_world_edit_state_atomic` são `SECURITY INVOKER`, usam `search_path = pg_catalog, public`, não são executáveis por `anon/authenticated` e são executáveis por `service_role`;
+- autoria factual exige `campaign.content.edit` e um lease vigente de `campaign.world.layout.edit` para a mesma identity/profile/campaign;
+- publicação factual e layout compartilham a mesma transação SQL para evitar estado parcialmente publicado;
+- conflito de graph revision preserva o rascunho; novo holder não herda draft factual privado do holder anterior;
+- depois que lease exclusivo + graph revision são validados, a RPC trata o draft salvo como intenção autoritativa daquela sessão: uma relação ativa anterior semanticamente substituída é preservada como histórico não ativo, sem abrir espaço para um segundo escritor nem relaxar capability/provenance.
+
+### Review/provenance
+
+Relação factual pública não pode ser inventada apenas no editor. O contrato continua sendo `evidence -> candidate -> human review -> canon_entry -> relation -> entity_relation_sources`.
+
+A fatia #119 cria a tabela de provenance e **não** cria ainda o fluxo de anexar uma `canon_entry` nova a uma relação. O boundary da aplicação bloqueia `public_campaign`/`public_web` quando a relação ativa não possui source já existente. Assim, relações novas desta fatia devem permanecer `private_*` ou `review_only` até a fatia de provenance/review.
+
+`service_role` recebe apenas `SELECT` em `entity_relation_sources` nesta fatia; não existe CRUD genérico de source. Isso é limitação deliberada, não permissão implícita para publicar sem prova.
+
+### Ativação pública separada
+
+A existência das tabelas canônicas não ativa automaticamente o dataset real em `/mundo`. A projection pública canônica fica atrás de `TDA_WORLD_CANONICAL_ENABLED=true`; sem essa ativação deliberada, o World público continua no dataset demonstrativo explicitamente não canônico.
+
+A aplicação de schema preservou os dados existentes: `entities=3`, `canon_entries=0`, `world_layout_snapshots=0`, `world_edit_leases=0`; as seis tabelas factuais novas permaneceram vazias e nenhum `world_graph.publish` foi criado durante a validação. O helper de snapshot projetou `3` nodes, `0` edges e `0` relation types, e chamadas de acquire/publish com identidade inexistente falharam fechado com `forbidden`.
+
+Ativar a projection pública canônica neste estado continua prematuro: há somente 1 entity `public_web` conhecida e nenhuma `canon_entry` para sustentar relações públicas.
+
+### Advisors pós-aplicação
+
+O security advisor reexecutado em 2026-09-10 reportou:
+
+- 46 ocorrências informativas de `rls_enabled_no_policy`; as seis tabelas novas entram deliberadamente nesse grupo deny-by-default;
+- as mesmas 8 funções `SECURITY DEFINER` legadas executáveis por `authenticated` já inventariadas;
+- Leaked Password Protection desabilitada.
+
+O performance advisor reportou 59 FKs sem covering index e 30 índices sem uso registrado. Parte do aumento decorre das novas FKs de autoria/audit. O item `entity_relation_sources(canon_entry_id)` foi registrado como candidato de otimização quando o fluxo de provenance passar a consultar por fonte; nenhum índice/policy foi criado automaticamente apenas para silenciar advisor. Os caminhos de exploração já possuem índices `(campaign_id, source_entity_id)` e `(campaign_id, target_entity_id)`.
+
+Nenhum advisor introduziu blocker de segurança para manter a infraestrutura aplicada com a projection pública canônica desativada.
+
+## Secrets e service roles
+
+Nunca versionar:
+
+- Supabase service/secret key;
+- JWT secrets;
+- OAuth client secrets;
+- token R2;
+- API keys externas;
+- Vercel tokens.
+
+Client/browser recebe apenas identificadores/chaves públicas apropriadas ao SDK quando a arquitetura permitir.
+
+## API externa
+
+`external_api_keys` guarda `key_hash` e `key_prefix`, scopes, expiração/revogação e contadores. O secret completo não deve ser armazenado em claro nem documentado.
+
+Rotação deve criar nova credencial e revogar a anterior de forma explícita.
+
+## Conteúdo narrativo e audience
+
+Visibility existente inclui combinações como:
+
+- `private_master`;
+- `private_players`;
+- `review_only`;
+- `public_campaign`;
+- `public_web`.
+
+Outras tabelas legadas possuem vocabulário próprio (`dm_review`, `table_private`, etc.). Antes de construir knowledge/audience avançado, normalizar semântica no domínio, não apenas traduzir strings na UI.
+
+## Segurança de candidatos/outtakes
+
+Outtakes possuem níveis de sensibilidade/aprovação próprios. Conteúdo `private` ou `sensitive` não deve ser exposto porque a session/publication principal é pública.
+
+## Proteção de senha vazada
+
+O advisor revalidado em 2026-09-10 continua sinalizando **Leaked Password Protection desabilitada** no Auth. Como o fluxo vigente é orientado a OAuth, isso não bloqueia a etapa atual. Se login por senha for habilitado, tratar como requisito de hardening e revisar configuração Auth.
+
+## Auditoria
+
+`audit_log` existe, mas sua existência não significa que todo write atual seja auditado. Portanto:
+
+- mapear writes críticos do Edit;
+- manter action estável e payload old/new mínimo por mutation;
+- não depender do log como mecanismo de autorização;
+- não apagar audit para simular rollback de uma edição.
+
+Para transcript, a action é `transcript_segment.update`; old/new registram somente o estado editorial alterável e a revision.
+
+Para o World layout aplicado, a action é `world_layout.update`; old/new registram `schemaVersion`, `view`, `revision` e o snapshot limitado de positions. Para publicação factual do World, a action versionada é `world_graph.publish`; nenhuma dessas actions foi criada artificialmente pela simples aplicação do schema.
+
+## Testes mínimos para autorização
+
+Para cada nova superfície autenticada, testar pelo menos:
+
+- usuário sem login;
+- usuário autenticado sem profile resolvido;
+- player sem capability;
+- player com capability no campaign correto;
+- capability em campaign/scope errado;
+- DM/operator autorizado;
+- ID de recurso de outra campaign;
+- tentativa de acessar conteúdo master/private;
+- RPC chamada diretamente com parâmetros manipulados.
+
+## Regra de mudança
+
+Qualquer alteração em policy, grant, function security, role/capability ou secret boundary exige:
+
+- migration;
+- atualização deste documento e de `rpc-inventory.md` quando houver RPC;
+- teste de acesso positivo e negativo;
+- registro em `verification-log.md` após aplicação;
+- ADR se alterar a estratégia de segurança.
+
+## Lembra
+
+A biblioteca `/lembra` é compartilhada por produto entre todos os usuários autenticados, mas isso **não** implica grants diretos no banco.
+
+Contrato candidato:
+
+- `lembra_references` e `lembra_favorites` com RLS habilitado;
+- sem grants para `anon` ou `authenticated`;
+- sessão validada no boundary Next server-side;
+- qualquer sessão autenticada pode criar/editar/retirar qualquer referência;
+- favoritos são filtrados pelo `auth_user_id` da sessão;
+- nenhum role/capability narrativo é consultado;
+- bytes ficam no R2 privado e a rota de imagem revalida sessão antes do read-back;
+- service role e credenciais R2 nunca são enviados ao browser.
+
+Esse modelo mantém a UX sem burocracia de permissão sem transformar o storage/banco em acesso público.
+
+
+## Preparação legada #984 — boundary candidato
+
+A PR #997 introduz um boundary candidato para preparar explicitamente sessões antigas no modelo de revisão moderno. **Nenhuma migration desta PR foi aplicada no projeto canônico `dmrqnbdvbkfqzctcerbx` até o gate de rollout.**
+
+Controles:
+
+- a página continua exigindo `campaign.transcript.read` para leitura e `campaign.content.edit` para preparar;
+- o server action resolve Auth/profile novamente; o SQL repete identity/capability/scope antes do lookup da sessão;
+- `prepare_legacy_transcript_revision_atomic` é `SECURITY INVOKER` e server-only;
+- execução direta é revogada de `PUBLIC`, `anon` e `authenticated`;
+- nenhuma fala é enviada como parâmetro RPC ou gravada no `audit_log`;
+- o snapshot exibido é ligado a um fingerprint SHA-256 determinístico; divergência retorna `stale_legacy` com zero mutation;
+- preparação não equivale a publish: não toca `sessions.status`, session publication, mídia pública, resumo público ou transcript-publication receipts.
+
+Ver também [inventário de RPCs](rpc-inventory.md) e [migrations](migrations.md).
+
+## Handoff privado de transcript — resolução/criação de session (#1061)
+
+A PR #1078 adiciona `prepare_transcript_handoff_atomic(uuid,uuid,text,jsonb,boolean)` como boundary server-only para o caso em que a revisão local aprovada possui campaign/source-session válidos, mas a row privada de `sessions` ainda não existe.
+
+Regras de segurança:
+
+- authorization de `campaign.transcript.publish` acontece antes de consultar existência/conflito do target;
+- `lookup_only=true` nunca cria session;
+- session nova nasce `source_system='local_companion'` e `status='ready_for_review'`; isso **não** equivale a publicação pública;
+- target histórico/non-local de mesma identidade não é alterado ou duplicado silenciosamente;
+- o wrapper não relaxa canonical payload, CAS, receipt, replay ou provenance dos RPCs de publicação existentes;
+- rejeição conhecida não deixa shell vazia;
+- audit da criação é metadata-only e não carrega transcript;
+- browser roles não executam a função diretamente.
+
+O endpoint Web continua autenticado/same-origin. Um target ainda não materializado pode ser representado server-side como `sessionId=null`; somente a confirmação final, dentro do boundary SQL autorizado, pode materializá-lo.

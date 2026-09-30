@@ -10,11 +10,18 @@ Este documento explica **o significado das relações**, não apenas FKs. O cat�
 
 ### Campaign
 
-`campaigns.id` é o boundary principal dos dados narrativos. O registry suporta N campanhas; nenhuma query nova deve assumir uma única campanha vigente.
+`campaigns.id` é o boundary principal dos dados narrativos. A campaign legado/default usa technical slug `yuhara-main`, mas ADR-0020 torna o boundary first-class para N campaigns. Queries novas explicitam campaign sempre que o recurso é campaign-owned; nomes/public route keys nunca substituem o UUID relacional.
 
-`campaigns.slug` é identidade técnica/compatibilidade e pode continuar sendo usado por helpers legados que resolvem o UUID da campanha. `campaigns.public_slug` é identidade pública/rota e **não** é boundary relacional nem scope de autorização. Alterar nome ou rota pública não deve alterar FKs, membership ou RBAC.
+### Invariantes cross-campaign
 
-`yuhara-main` permanece como identidade técnica da campanha histórica. O registro de `antes-que-seja-tarde` cria somente a raiz de campanha; sessões, entities, memberships e canon precisam ser associados explicitamente ao `campaigns.id` correto por seus próprios fluxos.
+- session, entity, canon e World state pertencem à campaign resolvida;
+- participant herda campaign da session;
+- profile permanece identidade global humana;
+- `profile_characters` só associa profile a entity dentro do boundary declarado;
+- relation source/target pertencem à mesma campaign da relation;
+- source IDs e slugs narrativos podem repetir entre campaigns quando o domínio permitir;
+- nenhuma FK lógica é validada somente por ID client-side sem conferir ownership;
+- mover session entre campaigns é operação de domínio própria, não update cru de FK.
 
 ### Profile
 
@@ -26,7 +33,7 @@ Este documento explica **o significado das relações**, não apenas FKs. O cat�
 
 ### Session
 
-`sessions.id` identifica uma sessão de jogo/processamento/publicação. É o principal agregador de evidências temporais. Toda sessão pertence explicitamente a uma campanha por `sessions.campaign_id`; ordenação/timeline entre campanhas não elimina esse boundary.
+`sessions.id` identifica uma sessão de jogo/processamento/publicação. É o principal agregador de evidências temporais.
 
 ## Pessoa ↔ personagem
 
@@ -150,8 +157,6 @@ role_assignments ──> profiles
 
 O assignment responde **quem tem qual role em qual scope**. A role resolve capabilities. O consumidor deve perguntar pela capability, evitando acoplamento a nomes de role.
 
-Para scope de campanha, a identidade pública (`public_slug`) nunca substitui o `campaign_id`/scope canônico. Helpers que recebem o slug técnico existem por compatibilidade e devem resolver a campanha antes da decisão de autorização.
-
 `campaign_members` continua paralelo por compatibilidade. Ele não deve ganhar novas responsabilidades quando RBAC já modela a necessidade.
 
 ## DM tenure
@@ -218,9 +223,8 @@ Exemplos: família, aliança, dívida, conflito, traição. "Conhece" e "sabe se
 
 ## Anti-patterns
 
-- usar nome textual como FK lógica permanente;
-- usar `public_slug` como FK lógica ou scope de autorização;
-- assumir uma campanha única ao consultar sessões, entities, canon ou membership;
+- usar nome textual/public route key como FK lógica permanente;
+- fazer lookup global por `source_session_id` ou entity slug em recurso campaign-owned;
 - ligar NPC a profile artificial para reutilizar UI;
 - criar entity para cada menção sem resolução/revisão;
 - transformar `metadata` num grafo oculto;

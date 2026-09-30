@@ -2,7 +2,7 @@
 
 > Status: implementação funcional e gate E2E/recovery concluídos
 > Owner: sessions / processing / transcripts
-> Última revisão: 2026-09-28
+> Última revisão: 2026-09-30
 > Fonte de verdade: este documento, ADR-0019 accepted e epic #843
 
 ## Objetivo
@@ -499,50 +499,86 @@ Workspace mutável não é dono dos bytes de source/run.
 
 ## UX alvo
 
-### Single-source
+### Princípio de produto
 
-Fluxo curto existente permanece reconhecível.
+A unidade mental do operador é a **sessão**. ZIP, source, job, run,
+Recording Part, workspace e Session Assembly continuam existindo como contratos
+internos de segurança e provenance, mas não formam um wizard obrigatório.
 
-### Multi-source
+O caminho normal é:
 
 ```text
 Sessão
-  Gravações
-   1. ZIP A · analisado · run selecionado
-   2. ZIP B · analisado · precisa processar
-   3. ZIP C · overlap a resolver
-
-  + Adicionar gravação
-
-  [Processar pendentes]
-  [Resolver timeline]
-  [Montar transcrição da sessão]
+  -> selecionar ou soltar 1..N ZIPs Craig
+  -> escolher profile/contexto/glossário uma vez
+  -> Transcrever sessão
+  -> acompanhar progresso por gravação
+  -> Revisar transcrição
 ```
 
-O sistema deve mostrar:
-- duplicate;
-- ordem;
-- tempo/duração quando factual;
-- gap/overlap;
-- participants/conflicts;
-- status por part;
-- selected run;
-- readiness da assembly.
+O Web deve:
 
-### Implementação Web do composer
+- aceitar múltiplos arquivos na mesma seleção e em drops sucessivos;
+- manter cada arquivo independentemente válido, inválido, duplicado ou com falha;
+- preservar os demais quando um ZIP é inválido;
+- deduplicar bytes idênticos por `source_id` sem criar trabalho duplicado;
+- pedir decisão somente para variantes reais de mesmo `recording_id`, cronologia
+  ambígua/overlap, participante ambíguo ou múltiplos resultados elegíveis;
+- preparar runtime/modelo uma vez por intenção quando necessário;
+- enfileirar somente gravações sem resultado elegível;
+- reutilizar gravações já concluídas;
+- reprocessar somente falhas;
+- aplicar ordem temporal confiável e gaps comprovados automaticamente;
+- selecionar automaticamente o resultado quando existe authority inequívoca;
+- montar a Session Assembly automaticamente assim que as invariantes permitem;
+- apresentar o resultado final como uma transcrição contínua pronta para review.
 
-O composer é aditivo ao formulário single-source. O operador mantém o `session_id` uma vez, anexa sources já verificadas ao workspace persistente e só vê controles multi-part quando decide compor a sessão.
+O progresso primário usa linguagem de produto, por exemplo
+`2/3 concluídas · 1 transcrevendo`. IDs, hashes, source/run/workspace/assembly,
+ordenação manual e ferramentas de diagnóstico ficam em **Detalhes técnicos**.
 
-O primeiro corte Web usa:
-- botões de subir/descer como reorder acessível, sem depender de drag;
-- CAS do workspace para attach, reorder, timing, participant mapping e seleção de run;
-- confirmação explícita de gap e resolução explícita de overlap/boundary;
-- listagem de runs por source e seleção independente por part;
-- `Processar pendentes` somente para parts sem run concluído;
-- readiness fail-closed antes de `Montar transcrição da sessão`;
-- Session Assemblies distintas dos runs-fonte na aba Resultados;
-- base de review carregada pelo `assembly_id`, sem tratar a assembly como run ASR;
-- pointer de recuperação no navegador apenas para reencontrar o workspace; o Agent continua sendo authority do estado persistido.
+### Recuperação
+
+O Agent continua sendo authority de workspace, intenção de transcrição, jobs,
+runs e assemblies. Profile/contexto/glossário da intenção são persistidos
+somente no SQLite local do Companion. O navegador guarda apenas metadata
+bounded de recuperação: scope/campaign/session, source IDs, profile, hashes de
+contexto/glossário e identidades de enqueue/job/run. Texto de
+contexto/glossário, transcript, paths e bytes ZIP não entram no storage
+persistente do browser.
+
+Reload/reconnect valida o receipt do browser contra a intenção local do Agent
+antes de restaurar a operação. Divergência de request/profile/hash falha
+fechado. Isso permite recuperar inclusive a janela attach -> enqueue sem
+recriar source/job confirmado nem apagar partes concluídas.
+
+Quando uma resposta de enqueue fica ambígua, a mesma identidade persistida é
+reutilizada. Quando um job falha/cancela/interrompe após ter sido criado, retry
+usa o job persistido do Agent para preservar a configuração local da intenção e
+reexecutar somente aquela gravação.
+
+Se o navegador desaparecer antes de um arquivo selecionado chegar ao Agent,
+os bytes desse arquivo não são inventados nem persistidos no browser: o operador
+precisa selecionar novamente apenas o ZIP ainda não staged. Isso preserva a
+regra de que áudio bruto continua local e sob controle explícito.
+
+### Exceções com decisão humana
+
+- **same `recording_id`, bytes diferentes:** manter ambas ou escolher uma;
+- **dois ou mais resultados elegíveis sem authority da intenção:** escolher um;
+- **ordem temporal sem evidência suficiente / overlap:** resolver somente a
+  ambiguidade;
+- **participant mapping bloqueado:** confirmar a pessoa correta.
+
+Essas exceções abrem/indicam os controles técnicos existentes, mas o caminho
+feliz não exige attach manual, `Processar pendentes`, seleção de run por part
+nem `Montar transcrição da sessão`.
+
+### Compatibilidade
+
+Uma sessão com um único ZIP usa exatamente a mesma intenção 1..N. Não existe um
+segundo produto escondido para “single-source”; o orquestrador simplesmente
+tem uma gravação para acompanhar.
 
 ## Gate sintético de regressão
 
@@ -555,6 +591,32 @@ A #852 consolida as provas do fluxo multi-recording em camadas proporcionais, se
 - `processing-e2e` permanece dono da jornada browser 2 parts e `transcript-import-postgres` permanece dono do scratch PostgreSQL completo.
 
 Esse gate não roda modelo ASR pesado, não usa áudio de campanha e não substitui aceite físico de GPU.
+
+### Gate integrado de review e Markdown
+
+A #1118 estende essa proteção até o fim da jornada editorial privada. O job
+`session-workflow-gate` é obrigatório quando processamento, transcript review,
+publicação multi-source ou a jornada browser correspondente mudam. Ele compõe,
+sem reimplementar os contratos donos:
+
+- intenção 1..N, selective retry e Session Assembly do Companion;
+- review CAS da Assembly, incluindo conflito stale e aprovação do draft exato;
+- o parser/serializer compartilhado `TDA Transcript Markdown v1`, onde somente
+  participante e texto são editáveis e IDs/ordem/timestamps permanecem
+  estruturais;
+- dual-time: elapsed continua canônico e wall-clock só aparece quando a origem
+  absoluta foi validada;
+- publicação privada `tda_transcript_publication_request_v2` com provenance de
+  todas as parts e recuperação por receipt da mesma `operationId`;
+- browser sintético de ponta a ponta e scanner estático que rejeita paths
+  privados e metadata de recovery contendo transcript/contexto/glossário em
+  plaintext.
+
+O browser limita a renderização simultânea da lista de review a 200 falas, sem
+truncar o draft nem o Markdown. Assim, sessões sintéticas de milhares de
+segmentos continuam validadas pelo contrato sem transformar o DOM num churrasco
+de memória. O handoff para o Edit é explícito e privado; não publica transcript,
+capa ou resumo no site público.
 
 ## Falhas e recuperação
 

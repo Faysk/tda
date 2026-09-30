@@ -32,6 +32,7 @@ const WORLD_EDIT_DRAFT_SAFETY_FLUSH_MS = 10_000;
 const WORLD_BUSY_NOTICE_MS = 5_000;
 
 type WorldEditState = "view" | "acquiring" | "editing" | "publishing";
+type WorldTerminalAction = "finish" | "discard";
 type LayoutDraftResult = Awaited<ReturnType<typeof saveWorldLayoutSessionDraftAction>>;
 type GraphDraftResult = Awaited<ReturnType<typeof saveWorldGraphDraftAction>>;
 
@@ -73,6 +74,8 @@ export function useWorldEditSession({
 	const [graphDirty, setGraphDirty] = useState(false);
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [busyNotice, setBusyNotice] = useState<string | null>(null);
+	const [terminalAction, setTerminalAction] = useState<WorldTerminalAction | null>(null);
+	const terminalActionRef = useRef<WorldTerminalAction | null>(null);
 	const layoutDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const graphDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const draftSafetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,7 +90,8 @@ export function useWorldEditSession({
 	const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
 	const editing = state === "editing" || state === "publishing";
-	const busy = state === "acquiring" || state === "publishing";
+	const busy =
+		state === "acquiring" || state === "publishing" || terminalAction !== null;
 	const hasChanges = layoutDirty || graphDirty;
 
 	useEffect(() => {
@@ -449,7 +453,13 @@ export function useWorldEditSession({
 	}
 
 	async function publish() {
-		if (state !== "editing" || !leaseToken || !hasChanges) return;
+		if (
+			state !== "editing" ||
+			!leaseToken ||
+			!hasChanges ||
+			terminalActionRef.current !== null
+		)
+			return;
 		cancelPendingDraftSaves();
 		const sequence = sessionSequence.current;
 		setState("publishing");
@@ -611,76 +621,108 @@ export function useWorldEditSession({
 		setFeedback(message);
 	}
 
+	function beginTerminalAction(action: WorldTerminalAction): boolean {
+		if (terminalActionRef.current !== null) return false;
+		terminalActionRef.current = action;
+		setTerminalAction(action);
+		return true;
+	}
+
+	function endTerminalAction(action: WorldTerminalAction) {
+		if (terminalActionRef.current !== action) return;
+		terminalActionRef.current = null;
+		setTerminalAction(null);
+	}
+
 	async function finish() {
-		await release("Edição encerrada sem publicar. O rascunho confirmado foi preservado.");
+		if (!beginTerminalAction("finish")) return;
+		try {
+			await release("Edição encerrada sem publicar. O rascunho confirmado foi preservado.");
+		} finally {
+			endTerminalAction("finish");
+		}
 	}
 
 	async function discard() {
-		if (!leaseToken || state !== "editing") return;
+		if (!leaseToken || state !== "editing" || terminalActionRef.current !== null) return;
 		const confirmed = window.confirm(
 			"Descartar este rascunho? O Mundo publicado será mantido. Uma cópia de recuperação ficará registrada para auditoria, mas esta sessão será encerrada.",
 		);
 		if (!confirmed) return;
+		if (!beginTerminalAction("discard")) return;
 
-		cancelPendingDraftSaves();
-		const sequence = sessionSequence.current;
-		setFeedback("Preservando uma cópia final antes de descartar o rascunho…");
+		try {
+			cancelPendingDraftSaves();
+			const sequence = sessionSequence.current;
+			setFeedback("Preservando uma cópia final antes de descartar o rascunho…");
 
-		const layoutCandidate = buildLayoutCandidate(graphDraftRef.current);
-		if (!layoutCandidate) {
-			setFeedback(worldDraftSaveFailureMessage("invalid_payload"));
-			return;
-		}
-		const layoutResult = await queueLayoutDraftRequest(leaseToken, layoutCandidate);
-		if (sequence !== sessionSequence.current) return;
-		if (!layoutResult.ok) {
-			if (layoutResult.reason === "lease_lost" || layoutResult.reason === "forbidden") {
-				markLeaseLost(layoutResult.reason);
-			} else {
-				setFeedback(worldDraftSaveFailureMessage(layoutResult.reason));
+			const layoutCandidate = buildLayoutCandidate(graphDraftRef.current);
+			if (!layoutCandidate) {
+				setFeedback(worldDraftSaveFailureMessage("invalid_payload"));
+				return;
 			}
-			return;
-		}
-
-		if (canEditContent && graphDraftRef.current) {
-			const validationMessage = graphValidationSaveMessage(graphDraftRef.current);
-			const graphResult = validationMessage
-				? null
-				: await queueGraphDraftRequest(leaseToken, graphDraftRef.current);
+			const layoutResult = await queueLayoutDraftRequest(leaseToken, layoutCandidate);
 			if (sequence !== sessionSequence.current) return;
-			if (graphResult && !graphResult.ok) {
-				if (graphResult.reason === "lease_lost" || graphResult.reason === "forbidden") {
-					markLeaseLost(graphResult.reason);
+			if (!layoutResult.ok) {
+				if (
+					layoutResult.reason === "lease_lost" ||
+					layoutResult.reason === "forbidden"
+				) {
+					markLeaseLost(layoutResult.reason);
 				} else {
-					setFeedback(worldDraftSaveFailureMessage(graphResult.reason));
+					setFeedback(worldDraftSaveFailureMessage(layoutResult.reason));
 				}
 				return;
 			}
-		}
 
-		await saveQueue.current;
-		const result = await discardWorldLayoutSessionAction(leaseToken);
-		if (!result.ok) {
-			setFeedback(worldEditFailureMessage(result.reason));
-			return;
+			if (canEditContent && graphDraftRef.current) {
+				const validationMessage = graphValidationSaveMessage(graphDraftRef.current);
+				const graphResult = validationMessage
+					? null
+					: await queueGraphDraftRequest(leaseToken, graphDraftRef.current);
+				if (sequence !== sessionSequence.current) return;
+				if (graphResult && !graphResult.ok) {
+					if (
+						graphResult.reason === "lease_lost" ||
+						graphResult.reason === "forbidden"
+					) {
+						markLeaseLost(graphResult.reason);
+					} else {
+						setFeedback(worldDraftSaveFailureMessage(graphResult.reason));
+					}
+					return;
+				}
+			}
+
+			await saveQueue.current;
+			const result = await discardWorldLayoutSessionAction(leaseToken);
+			if (!result.ok) {
+				setFeedback(worldEditFailureMessage(result.reason));
+				return;
+			}
+			sessionSequence.current += 1;
+			saveFailureRef.current = { layout: null, graph: null };
+			window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+			setLeaseToken(null);
+			setLayoutDirty(false);
+			setGraphDirty(false);
+			graphDraftRef.current = null;
+			setGraphDraft(null);
+			setState("view");
+			onReleaseLayout();
+			setFeedback(
+				"Rascunho descartado. O Mundo publicado foi mantido e uma cópia de recuperação foi preservada.",
+			);
+		} finally {
+			endTerminalAction("discard");
 		}
-		sessionSequence.current += 1;
-		saveFailureRef.current = { layout: null, graph: null };
-		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
-		setLeaseToken(null);
-		setLayoutDirty(false);
-		setGraphDirty(false);
-		graphDraftRef.current = null;
-		setGraphDraft(null);
-		setState("view");
-		onReleaseLayout();
-		setFeedback("Rascunho descartado. O Mundo publicado foi mantido e uma cópia de recuperação foi preservada.");
 	}
 
 	return {
 		state,
 		editing,
 		busy,
+		terminalAction,
 		hasChanges,
 		graphDraft,
 		feedback,

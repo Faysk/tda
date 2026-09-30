@@ -68,7 +68,7 @@ for (const viewport of viewports) {
 
 		await expect(page.getByText("Processando agora", { exact: true })).toBeVisible();
 		await expect(
-			page.getByText("Nova transcrição Craig", { exact: true }),
+			page.getByRole("heading", { name: "Transcrever sessão", exact: true }),
 		).toBeVisible();
 		await expect(
 			page.getByRole("button", { name: "Cancelar trabalho" }),
@@ -353,7 +353,7 @@ test("low-height notebook keeps essential actions reachable instead of clipping"
 	page,
 }) => {
 	await openRunningWorkspace(page, 1024, 768);
-	const start = page.getByRole("button", { name: "Começar transcrição" });
+	const start = page.getByRole("button", { name: "Transcrever sessão" });
 	await start.scrollIntoViewIfNeeded();
 	await expect(start).toBeVisible();
 	const overflow = await page.evaluate(() => ({

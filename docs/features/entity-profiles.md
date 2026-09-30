@@ -45,9 +45,21 @@ Ele compõe, conforme disponibilidade/autorização:
 
 A projection pública real continua pendente. Os shells atuais não publicam fixtures nem promovem conteúdo de teste a canon.
 
+## Boundary de campaign
+
+Entity profile é campaign-owned quando a entity pertence a uma campaign. ADR-0020 exige que resolver, cache e canonical distingam entities com o mesmo slug em campaigns diferentes.
+
+Regras:
+
+- `entities.id` + `campaign_id` são autoridade; slug é roteamento/apresentação;
+- entity slug pode repetir entre campaigns se o schema físico permitir;
+- projection pública resolve campaign antes de buscar a entity;
+- relations, canon, mentions, sessions e mídia compostos no perfil precisam pertencer à mesma campaign ou possuir vínculo global explicitamente permitido;
+- profile humano continua global e não vira campaign-owned;
+- cross-campaign lookup retorna indisponível sem revelar a existência da outra entity.
 ## Rotas de produto
 
-Rotas podem variar por tipo para UX/SEO:
+As rotas atuais por tipo continuam válidas como compatibilidade do estado single-campaign:
 
 ```text
 /personagens/[slug]
@@ -57,6 +69,16 @@ Rotas podem variar por tipo para UX/SEO:
 /musicas/[slug]
 /quests/[slug]
 ```
+
+No rollout multi-campaign, o canonical específico precisa carregar campaign, por exemplo:
+
+```text
+/campanhas/[campaign]/personagens/[slug]
+/campanhas/[campaign]/npcs/[slug]
+/campanhas/[campaign]/lugares/[slug]
+```
+
+Os aliases antigos só podem redirecionar quando a resolução for inequívoca; nunca fazem lookup global por slug.
 
 A implementação compartilha resolver/model base por `entities.id`/slug em vez de duplicar domínio para cada rota. Tipos sem rota aprovada continuam sem URL inventada.
 

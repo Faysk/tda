@@ -33,7 +33,9 @@ ADRs registram **por que** decisões estruturais foram tomadas. Eles não substi
 | [0015](0015-recovery-oriented-delivery.md) | accepted | entrega web evolui para main-only, Preview por PR, gates proporcionais e rollback como recuperação normal |
 | [0016](0016-transcript-runs-review-publication.md) | accepted | runs locais são imutáveis; revisão/publicação são etapas explícitas e versionadas |
 | [0017](0017-web-single-entry-loopback-session.md) | accepted | Web é a entrada única de processamento; Companion executa/observa e o browser recebe sessão loopback temporária automática |
+| [0018](0018-portable-core-github-control-plane.md) | accepted | core portátil, GitHub como control plane e providers externos substituíveis |
 | [0019](0019-multi-recording-session-assembly.md) | accepted | uma sessão pode compor múltiplas sources/runs por Session Assembly imutável pós-ASR |
+| [0020](0020-first-class-campaigns.md) | accepted | campaigns são first-class; UUID é autoridade relacional, slug técnico é compatibilidade e rotas campaign-scoped usam identidade pública separada |
 
 ## Quando criar ADR
 

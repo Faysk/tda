@@ -61,7 +61,7 @@ export default async function LoginPage({
 			) : null}
 
 			<div className={styles.actions}>
-				<form action="/auth/discord" method="post">
+				<form action="/auth/discord" data-global-loading-submit="true" method="post">
 					<input type="hidden" name="next" value={safeReturnPath(query.next)} />
 					<Button type="submit" variant="primary" disabled={!available}>
 						Entrar com Discord

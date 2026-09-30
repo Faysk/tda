@@ -9,7 +9,9 @@ import {
 	renderTranscriptMarkdownV1,
 	TranscriptMarkdownError,
 	TRANSCRIPT_MARKDOWN_MAX_BYTES,
+	type TranscriptMarkdownBase,
 	type TranscriptMarkdownImport,
+	type TranscriptMarkdownSegment,
 } from "./markdown-contract";
 import {
 	applyLocalReviewMarkdownImport,
@@ -61,28 +63,30 @@ function excerpt(value: string): string {
 	return single.length > 120 ? single.slice(0, 117) + "…" : single;
 }
 
-export function LocalReviewMarkdownRoundTrip({
-	baseline,
+export function TranscriptMarkdownRoundTrip({
+	base,
 	segments,
+	title,
+	fileIdentity,
 	dirty,
 	disabled,
 	onApply,
 }: Readonly<{
-	baseline: LocalReview;
-	segments: readonly LocalReviewSegment[];
+	base: TranscriptMarkdownBase;
+	segments: readonly TranscriptMarkdownSegment[];
+	title: string;
+	fileIdentity: string;
 	dirty: boolean;
 	disabled: boolean;
-	onApply: (segments: readonly LocalReviewSegment[]) => void;
+	onApply: (result: TranscriptMarkdownImport) => void;
 }>) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [preview, setPreview] = useState<Preview | null>(null);
-	const base = localReviewMarkdownBase(baseline);
 	const baseKey = JSON.stringify(base);
 
 	useEffect(() => {
-		// The structural base is an intentional reset key for imported preview state.
 		void baseKey;
 		setPreview(null);
 		setError(null);
@@ -93,21 +97,12 @@ export function LocalReviewMarkdownRoundTrip({
 		setBusy(true);
 		setError(null);
 		try {
-			const markdown = await renderTranscriptMarkdownV1({
-				base,
-				segments: localReviewMarkdownSegments({ segments }),
-				title:
-					baseline.publicationTarget?.sourceSessionId ??
-					"Revisão " + baseline.lineage.profileId,
-			});
+			const markdown = await renderTranscriptMarkdownV1({ base, segments, title });
 			const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
 			const url = URL.createObjectURL(blob);
 			const anchor = document.createElement("a");
-			const identity =
-				baseline.publicationTarget?.sourceSessionId ??
-				baseline.runId.slice(0, 24);
 			anchor.href = url;
-			anchor.download = filePart(identity) + "-transcricao-tda-v1.md";
+			anchor.download = filePart(fileIdentity) + "-transcricao-tda-v1.md";
 			anchor.rel = "noopener";
 			document.body.append(anchor);
 			anchor.click();
@@ -133,7 +128,7 @@ export function LocalReviewMarkdownRoundTrip({
 			const result = await parseTranscriptMarkdownV1({
 				text,
 				expectedBase: base,
-				expectedSegments: localReviewMarkdownSegments({ segments }),
+				expectedSegments: segments,
 			});
 			setPreview({ fileName: file.name, baseKey, result });
 		} catch (cause) {
@@ -150,7 +145,7 @@ export function LocalReviewMarkdownRoundTrip({
 				setError("A revisão-base mudou depois da validação. Importe o arquivo novamente.");
 			return;
 		}
-		onApply(applyLocalReviewMarkdownImport(segments, preview.result));
+		onApply(preview.result);
 		setPreview(null);
 		setError(null);
 	}
@@ -163,13 +158,7 @@ export function LocalReviewMarkdownRoundTrip({
 				IDs, timestamps, ordem e quantidade de falas são verificados antes de qualquer alteração.
 			</p>
 			<div>
-				<Button
-					type="button"
-					size="sm"
-					variant="tertiary"
-					disabled={disabled || busy}
-					onClick={() => void exportMarkdown()}
-				>
+				<Button type="button" size="sm" variant="tertiary" disabled={disabled || busy} onClick={() => void exportMarkdown()}>
 					{busy ? "Validando…" : "Exportar Markdown TDA v1"}
 				</Button>
 				<input
@@ -179,21 +168,11 @@ export function LocalReviewMarkdownRoundTrip({
 					hidden
 					onChange={(event) => void load(event.currentTarget.files?.[0])}
 				/>
-				<Button
-					type="button"
-					size="sm"
-					variant="tertiary"
-					disabled={disabled || busy || dirty}
-					onClick={() => inputRef.current?.click()}
-				>
+				<Button type="button" size="sm" variant="tertiary" disabled={disabled || busy || dirty} onClick={() => inputRef.current?.click()}>
 					Importar revisão (.md)
 				</Button>
 			</div>
-			{dirty ? (
-				<p role="status">
-					Salve ou descarte as alterações locais antes de importar um arquivo externo.
-				</p>
-			) : null}
+			{dirty ? <p role="status">Salve ou descarte as alterações locais antes de importar um arquivo externo.</p> : null}
 			{error ? <p role="alert">{error}</p> : null}
 			{preview ? (
 				<section aria-label="Prévia da importação Markdown" data-transcript-markdown-preview="true">
@@ -219,30 +198,46 @@ export function LocalReviewMarkdownRoundTrip({
 						<p>Nenhuma mudança editorial detectada. Nenhuma nova revisão será criada.</p>
 					)}
 					{preview.result.changes.length > 20 ? (
-						<p>
-							Mostrando 20 de {preview.result.changes.length.toLocaleString("pt-BR")} mudanças.
-						</p>
+						<p>Mostrando 20 de {preview.result.changes.length.toLocaleString("pt-BR")} mudanças.</p>
 					) : null}
 					<div>
-						<Button type="button" size="sm" variant="tertiary" onClick={() => setPreview(null)}>
-							Cancelar
-						</Button>
-						<Button
-							type="button"
-							size="sm"
-							variant="primary"
-							disabled={preview.result.changedSegments === 0 || disabled}
-							onClick={apply}
-						>
+						<Button type="button" size="sm" variant="tertiary" onClick={() => setPreview(null)}>Cancelar</Button>
+						<Button type="button" size="sm" variant="primary" disabled={preview.result.changedSegments === 0 || disabled} onClick={apply}>
 							Aplicar à working copy
 						</Button>
 					</div>
 					<small>
-						A aplicação ainda não salva. Revise a working copy e use Salvar alterações; o CAS do Companion
-						recusará uma base que tenha ficado stale.
+						A aplicação ainda não salva. Revise a working copy e use Salvar alterações; o CAS do Companion recusará uma base que tenha ficado stale.
 					</small>
 				</section>
 			) : null}
 		</details>
+	);
+}
+
+export function LocalReviewMarkdownRoundTrip({
+	baseline,
+	segments,
+	dirty,
+	disabled,
+	onApply,
+}: Readonly<{
+	baseline: LocalReview;
+	segments: readonly LocalReviewSegment[];
+	dirty: boolean;
+	disabled: boolean;
+	onApply: (segments: readonly LocalReviewSegment[]) => void;
+}>) {
+	const markdownSegments = localReviewMarkdownSegments({ segments });
+	return (
+		<TranscriptMarkdownRoundTrip
+			base={localReviewMarkdownBase(baseline)}
+			segments={markdownSegments}
+			title={baseline.publicationTarget?.sourceSessionId ?? "Revisão " + baseline.lineage.profileId}
+			fileIdentity={baseline.publicationTarget?.sourceSessionId ?? baseline.runId.slice(0, 24)}
+			dirty={dirty}
+			disabled={disabled}
+			onApply={(result) => onApply(applyLocalReviewMarkdownImport(segments, result))}
+		/>
 	);
 }

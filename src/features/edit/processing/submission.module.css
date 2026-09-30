@@ -593,3 +593,101 @@
 		margin: 8px 0 0;
 	}
 }
+
+
+.fileList {
+	display: grid;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.fileList li {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	min-width: 0;
+	padding: 8px 9px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: color-mix(in srgb, var(--ds-canvas-subtle) 76%, transparent);
+}
+
+.fileList li > div {
+	display: grid;
+	min-width: 0;
+	gap: 2px;
+}
+
+.fileList strong,
+.fileList span,
+.fileList small {
+	overflow-wrap: anywhere;
+}
+
+.fileList strong {
+	font-size: 0.76rem;
+}
+
+.fileList span,
+.fileList small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+	line-height: 1.35;
+}
+
+.fileList li[data-state="invalid"],
+.fileList li[data-state="error"] {
+	border-color: color-mix(in srgb, var(--ds-danger) 35%, var(--ds-border));
+}
+
+.fileList li[data-state="duplicate"] {
+	border-color: color-mix(in srgb, var(--ds-warning) 35%, var(--ds-border));
+}
+
+.fileList small[role="alert"] {
+	color: var(--ds-danger);
+}
+
+.technical {
+	margin-top: 10px;
+	padding: 8px 9px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface);
+}
+
+.technical > summary {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	color: var(--ds-foreground-soft);
+	cursor: pointer;
+	font-size: 0.74rem;
+	font-weight: 700;
+}
+
+.technical > summary small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.68rem;
+	font-weight: 500;
+}
+
+.technical > summary:focus-visible {
+	outline: 2px solid var(--ds-focus-ring);
+	outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+	.fileList li,
+	.technical > summary {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.fileList :global(.ds-action) {
+		width: 100%;
+	}
+}

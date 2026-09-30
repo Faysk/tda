@@ -2,7 +2,7 @@
 
 > Status: implementado
 > Owner: sessions
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-30
 
 ## Objetivo
 
@@ -15,9 +15,18 @@ Modelar a campanha e cada sessão sem confundir:
 
 ## Campaign
 
-Campaign é boundary de dados narrativos. Hoje a campanha principal é `yuhara-main`.
+Campaign é boundary de dados narrativos. O runtime legado/default usa o technical slug `yuhara-main`, cuja apresentação pública planejada é **Crônicas da Mesa**. ADR-0020 define a evolução para múltiplas campaigns first-class.
 
-O fato de existir uma campanha não autoriza hardcode indiscriminado no domínio. Onde a query/ação pertence a uma campaign, o boundary deve ser explícito.
+Identidade:
+
+- UUID é autoridade relacional;
+- technical slug é compatibilidade e não muda por rename editorial;
+- nome público e public route key são apresentação;
+- lifecycle mínimo é `active | archived`, separado de discovery/visibilidade.
+
+Onde query/ação pertence a uma campaign, o boundary é explícito. `source_session_id` não é identificador global: dois registros em campaigns diferentes podem legitimamente compartilhar o mesmo source ID se as constraints físicas do domínio permitirem.
+
+A segunda campaign planejada **Antes que seja tarde** começa apenas com identidade/metadata aprovada. Não criar session, participant, entity, canon ou publication fictícios para “preencher” a campaign.
 
 ## Session
 
@@ -137,13 +146,23 @@ Não promover para `/sessoes` métricas que pertencem ao leitor privado de trans
 
 O repository público continua server-only e estreito; não deve consultar transcrições ou perfis para enriquecer cards públicos.
 
-## Compatibilidade de URL
+## Rotas públicas e compatibilidade
 
-O legado usava fragmentos `#/sessao/{sourceSessionId}` e `#/sessao/{sourceSessionId}/resumo`. O reboot converte apenas formatos conhecidos para `/sessoes/{sourceSessionId}` sem reintroduzir frontend legado.
+O contrato multi-campaign canônico está em [architecture/multi-campaign](../architecture/multi-campaign.md).
+
+- arquivo agregado: `/campanhas/sessoes`;
+- archive específico: `/campanhas/[campaign]/sessoes`;
+- detalhe canônico: `/campanhas/[campaign]/sessoes/[sourceSessionId]`;
+- `/sessoes` torna-se compatibilidade para o agregado;
+- `/sessoes/[sourceSessionId]` só pode resolver o boundary legado explicitamente conhecido e redirecionar; não faz lookup global.
+
+O legado por fragmentos `#/sessao/{sourceSessionId}` e `#/sessao/{sourceSessionId}/resumo` continua compatível somente pela mesma regra: a ponte não pode escolher campaign por coincidência de source ID.
 
 ## Invariantes
 
-- session pertence a campaign;
+- session pertence a exatamente uma campaign;
+- source/session lookup é campaign-qualified quando campaign participa da identidade;
+- move entre campaigns é mutation explícita, auditável e nunca simples troca de FK client-side;
 - participant pertence a uma session;
 - participant não é identity global;
 - publicar session não publica automaticamente fontes;
@@ -153,6 +172,7 @@ O legado usava fragmentos `#/sessao/{sourceSessionId}` e `#/sessao/{sourceSessio
 
 ## Futuro
 
+- diretório e archives multi-campaign conforme ADR-0020;
 - criação/edição de sessions pelo Edit;
 - expected participants;
 - live session mode;

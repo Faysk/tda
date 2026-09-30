@@ -20,7 +20,6 @@ import {
 	BridgeError,
 	type BenchmarkResult,
 	type Capabilities,
-	type CraigSource,
 	type LocalRunSummary,
 	type PreparationStatus,
 	type SystemSnapshot,
@@ -39,12 +38,14 @@ import {
 	truncateUnicodeScalars,
 } from "./request-budget";
 import {
-	clearPendingSubmission,
-	loadPendingSubmission,
-	pendingSubmissionRecoveryIdentity,
-	savePendingSubmission,
-	type PendingSubmissionRecoveryIdentity,
-} from "./submission-recovery";
+	appendCraigFiles,
+	markExactSourceDuplicates,
+	removeCraigFileSelection,
+	replaceCraigFileSelection,
+	stageableCraigFiles,
+	type CraigFileSelection,
+	uniqueStagedCraigSources,
+} from "./craig-file-selection";
 import {
 	fetchQwenRuntimeReleaseAvailability,
 	qwenRuntimeReleaseLabel,
@@ -53,6 +54,15 @@ import {
 } from "./qwen-runtime-release-availability";
 import { SessionRecordingComposer } from "./session-composer";
 import {
+	SessionIntentCoordinator,
+	type SessionTranscriptionIntent,
+} from "./session-intent";
+import {
+	confirmSessionComposerPendingSubmission,
+	resolveSessionComposerPendingSubmission,
+	type SessionComposerPendingSubmission,
+} from "./session-composer-storage";
+import {
 	chooseSubmissionProfile,
 	formatSubmissionBytes,
 	profileReadinessCopy,
@@ -60,7 +70,6 @@ import {
 	submissionEngineLabel,
 	submissionProfileLabel,
 	suggestSessionIdFromFilename,
-	validateCraigFile,
 } from "./submission-model";
 import styles from "./submission.module.css";
 const QWEN_RUNTIME_UPGRADE_REASON = "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED";
@@ -166,23 +175,7 @@ function localOperationMessage(code: string | null): string {
 					: `Operação local não concluída · ${code}`);
 }
 
-type PendingSubmission = {
-	key: string;
-	signature: string;
-	recoveryIdentity: PendingSubmissionRecoveryIdentity | null;
-	recoveredFromStorage: boolean;
-};
-
 type PendingStage = "validating" | "preparing" | "submitting";
-
-function sourceMustBeRestaged(code: string | null): boolean {
-	if (!code) return false;
-	return (
-		code.startsWith("CRAIG_MANIFEST_") ||
-		code === "CRAIG_STAGING_EXISTING_INVALID" ||
-		code === "CRAIG_STAGING_REPAIR_FAILED"
-	);
-}
 
 const EMPTY_RUNS: readonly LocalRunSummary[] = [];
 const EMPTY_BENCHMARKS: readonly BenchmarkResult[] = [];
@@ -215,10 +208,13 @@ export function ProcessingSubmission({
 	const [sessionId, setSessionId] = useState("");
 	const [context, setContext] = useState("");
 	const [glossary, setGlossary] = useState("");
-	const [file, setFile] = useState<File | null>(null);
-	const [fileError, setFileError] = useState<string | null>(null);
-	const [source, setSource] = useState<CraigSource | null>(null);
+	const [files, setFiles] = useState<readonly CraigFileSelection[]>([]);
+	const source =
+		files.find((item) => item.source && item.state === "valid")?.source ?? null;
+	const [intentRequest, setIntentRequest] =
+		useState<SessionTranscriptionIntent | null>(null);
 	const [composerActive, setComposerActive] = useState(false);
+	const [technicalOpen, setTechnicalOpen] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [pendingStage, setPendingStage] = useState<PendingStage | null>(null);
 	const [dragActive, setDragActive] = useState(false);
@@ -232,8 +228,8 @@ export function ProcessingSubmission({
 		QwenRuntimeReleaseAvailability | "checking" | null
 	>(null);
 	const request = useRef<AbortController | null>(null);
+	const fallbackPending = useRef<SessionComposerPendingSubmission | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
-	const pending = useRef<PendingSubmission | null>(null);
 
 	useEffect(() => {
 		return () => request.current?.abort();
@@ -424,99 +420,54 @@ export function ProcessingSubmission({
 
 	if (!paired) return null;
 
-	function applyFile(nextFile: File | null) {
-		setSource(null);
+	function applyFiles(nextFiles: readonly File[]) {
+		if (!nextFiles.length || busy || intentRequest) return;
 		setStatus(null);
 		setError(null);
-		pending.current = null;
-		if (!nextFile) {
-			setFile(null);
-			setFileError(null);
-			return;
-		}
-		const validation = validateCraigFile(nextFile);
-		if (validation) {
-			setFile(null);
-			setFileError(validation);
-			if (fileInput.current) fileInput.current.value = "";
-			return;
-		}
-		setFile(nextFile);
-		setFileError(null);
-		if (!sessionId) {
-			const suggestion = suggestSessionIdFromFilename(nextFile.name);
-			if (suggestion) setSessionId(suggestion);
-		}
+		setFiles((current) => {
+			const next = appendCraigFiles(current, nextFiles);
+			if (!sessionId) {
+				const first = next.find((item) => item.state !== "invalid");
+				const suggestion = first
+					? suggestSessionIdFromFilename(first.file.name)
+					: "";
+				if (suggestion) setSessionId(suggestion);
+			}
+			return next;
+		});
+	}
+
+	function removeFile(id: string) {
+		if (busy || intentRequest) return;
+		setFiles((current) => removeCraigFileSelection(current, id));
 	}
 
 	function handleDrop(event: DragEvent<HTMLButtonElement>) {
 		event.preventDefault();
 		setDragActive(false);
-		if (busy) return;
-		applyFile(event.dataTransfer.files.item(0));
-	}
-
-	async function analyzeSource() {
-		if (
-			busy ||
-			!file ||
-			!profile ||
-			!canSubmit ||
-			profileBlocked ||
-			qwenRuntimeUpgradeRequired ||
-			requestTooLarge
-		)
-			return;
-		const fileValidation = validateCraigFile(file);
-		if (fileValidation) {
-			setFileError(fileValidation);
-			return;
-		}
-		const controller = new AbortController();
-		request.current?.abort();
-		request.current = controller;
-		setBusy(true);
-		setPendingStage("validating");
-		setError(null);
-		setFileError(null);
-		setStatus("Analisando o ZIP diretamente no Companion local…");
-		try {
-			const staged = await bridge.craigSource(file, controller.signal);
-			setSource(staged);
-			setStatus(
-				`ZIP analisado localmente · ${staged.trackCount} tracks · ${Math.round(
-					staged.audioWorkSeconds ?? 0,
-				)} s de trabalho de áudio.`,
-			);
-		} catch (cause) {
-			setSource(null);
-			setError(
-				cause instanceof BridgeError
-					? cause.serverCode
-						? localOperationMessage(cause.serverCode)
-						: messageFor(cause.code)
-					: messageFor("service_error"),
-			);
-		} finally {
-			setBusy(false);
-			setPendingStage(null);
-		}
+		if (busy || intentRequest) return;
+		applyFiles(Array.from(event.dataTransfer.files));
 	}
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (busy || !file || !profile || !canSubmit || profileBlocked) return;
+		if (
+			busy ||
+			intentRequest ||
+			!profile ||
+			!canSubmit ||
+			profileBlocked ||
+			stageableCraigFiles(files).length === 0
+		)
+			return;
 		if (qwenRuntimeUpgradeRequired) {
 			setError(qwenRuntimeBlockMessage);
 			return;
 		}
 		if (!/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) {
-			setError("Use um ID de sessão com letras, números, _ ou -, até 128 caracteres.");
-			return;
-		}
-		const fileValidation = validateCraigFile(file);
-		if (fileValidation) {
-			setFileError(fileValidation);
+			setError(
+				"Use um ID de sessão com letras, números, _ ou -, até 128 caracteres.",
+			);
 			return;
 		}
 		if (requestTooLarge) {
@@ -532,24 +483,55 @@ export function ProcessingSubmission({
 		setBusy(true);
 		setPendingStage("validating");
 		setError(null);
-		setFileError(null);
-		setStatus(
-			source
-				? "Revalidando a fonte já analisada neste Companion…"
-				: "Analisando o ZIP diretamente no Companion local…",
-		);
-		try {
-			const staged = source ?? (await bridge.craigSource(file, controller.signal));
-			if (!source) setSource(staged);
-			setStatus(
-				source
-					? `Fonte local verificada · ${staged.trackCount} tracks.`
-					: `ZIP analisado localmente · ${staged.trackCount} tracks · continuando automaticamente.`,
-			);
+		setStatus("Validando os ZIPs no Companion local…");
 
-			// Uploads grandes can take long enough for runtime/model readiness to
-			// change. Decide preparation from a fresh Agent snapshot, not from the
-			// render that existed when the user clicked submit.
+		let stagedSelections = [...files];
+		const patch = (
+			id: string,
+			change: Partial<Omit<CraigFileSelection, "id" | "file">>,
+		) => {
+			stagedSelections = replaceCraigFileSelection(
+				stagedSelections,
+				id,
+				change,
+			);
+			setFiles(stagedSelections);
+		};
+
+		try {
+			for (const item of stagedSelections) {
+				if (item.state === "invalid") continue;
+				if (item.source && (item.state === "valid" || item.state === "duplicate"))
+					continue;
+				patch(item.id, { state: "validating", error: null });
+				try {
+					const staged = await bridge.craigSource(item.file, controller.signal);
+					patch(item.id, { state: "valid", source: staged, error: null });
+				} catch (cause) {
+					patch(item.id, {
+						state: "error",
+						source: null,
+						error:
+							cause instanceof BridgeError
+								? cause.serverCode
+									? localOperationMessage(cause.serverCode)
+									: messageFor(cause.code)
+								: messageFor("service_error"),
+					});
+				}
+				if (controller.signal.aborted) return;
+			}
+
+			stagedSelections = markExactSourceDuplicates(stagedSelections);
+			setFiles(stagedSelections);
+			const stagedSources = uniqueStagedCraigSources(stagedSelections);
+			if (!stagedSources.length) {
+				setError(
+					"Nenhum ZIP válido ficou pronto. Corrija somente os arquivos com erro e tente novamente.",
+				);
+				return;
+			}
+
 			const currentCapabilities = await bridge.capabilities(controller.signal);
 			setCapabilities(currentCapabilities);
 			const currentProfiles = currentCapabilities.transcription.catalog.length
@@ -582,11 +564,12 @@ export function ProcessingSubmission({
 			}
 			if (!selectedProfile.ready) {
 				setPendingStage("preparing");
-				setStatus("Preparando o perfil no Agent local…");
+				setStatus("Preparando o perfil uma vez para toda a sessão…");
 				let observed = preparation;
+				const preparationSource = stagedSources[0]!;
 				if (observed?.active) {
 					if (
-						observed.sourceId !== staged.sourceId ||
+						observed.sourceId !== preparationSource.sourceId ||
 						observed.profileId !== profile
 					) {
 						setError(
@@ -596,7 +579,7 @@ export function ProcessingSubmission({
 					}
 				} else {
 					observed = await bridge.prepareProfile(
-						staged.sourceId,
+						preparationSource.sourceId,
 						profile,
 						controller.signal,
 					);
@@ -627,7 +610,7 @@ export function ProcessingSubmission({
 					setError(localOperationMessage(observed.errorCode));
 					return;
 				}
-				setStatus("Perfil preparado e validado. Confirmando capacidade do Agent…");
+				setStatus("Perfil pronto. Confirmando capacidade do Companion…");
 				const refreshed = await bridge.capabilities(controller.signal);
 				setCapabilities(refreshed);
 				const refreshedProfile = refreshed.transcription.catalog.find(
@@ -638,127 +621,102 @@ export function ProcessingSubmission({
 					return;
 				}
 				if (!refreshed.transcription.profiles.includes(profile)) {
-					setError("O Agent concluiu a preparação, mas ainda não anunciou o perfil como pronto.");
+					setError(
+						"O Agent concluiu a preparação, mas ainda não anunciou o perfil como pronto.",
+					);
 					return;
 				}
 			}
 
-			const signature = JSON.stringify([
-				CAMPAIGN_SLUG,
-				sessionId,
-				staged.sourceId,
-				profile,
-				glossary,
-				context,
-				false,
-			]);
-			let recoveryIdentity: PendingSubmissionRecoveryIdentity | null = null;
-			if (recoveryScope) {
-				try {
-					recoveryIdentity = await pendingSubmissionRecoveryIdentity({
-						profileScope: recoveryScope,
-						campaignId: CAMPAIGN_SLUG,
-						sessionId,
-						sourceId: staged.sourceId,
-						profileId: profile,
-						requestSignature: signature,
-					});
-				} catch {
-					recoveryIdentity = null;
-				}
-			}
-			if (!pending.current || pending.current.signature !== signature) {
-				let recoveredKey: string | null = null;
-				if (recoveryIdentity) {
-					try {
-						recoveredKey =
-							loadPendingSubmission(window.localStorage, recoveryIdentity)
-								?.idempotencyKey ?? null;
-					} catch {
-						recoveredKey = null;
-					}
-				}
-				pending.current = {
-					key: recoveredKey ?? crypto.randomUUID(),
-					signature,
-					recoveryIdentity,
-					recoveredFromStorage: recoveredKey !== null,
-				};
-				if (recoveryIdentity) {
-					try {
-						savePendingSubmission(
-							window.localStorage,
-							recoveryIdentity,
-							pending.current.key,
-						);
-					} catch {
-						// Browser persistence is recovery-only; enqueue remains usable without it.
-					}
-				}
-			} else if (recoveryIdentity && !pending.current.recoveryIdentity) {
-				pending.current = { ...pending.current, recoveryIdentity };
-				try {
-					savePendingSubmission(
-						window.localStorage,
-						recoveryIdentity,
-						pending.current.key,
+			const sessionIntentCapabilities = [
+				"transcription.session-workspace",
+				"transcription.session-intent",
+				"transcription.session-timeline",
+				"transcription.session-participants",
+				"transcription.session-assembly",
+				"transcription.session-assembly.review",
+			];
+			const supportsSessionIntent = sessionIntentCapabilities.every((capability) =>
+				currentCapabilities.capabilities.includes(capability),
+			);
+			if (!supportsSessionIntent) {
+				if (stagedSources.length !== 1) {
+					setError(
+						"Este Companion suporta uma gravação por vez. Atualize o aplicativo local para transcrever vários ZIPs como uma única sessão.",
 					);
-				} catch {
-					// Preserve the same-mount idempotency key even if storage is unavailable.
+					return;
 				}
-			}
-			const submission = pending.current;
-			if (!submission) return;
-
-			setPendingStage("submitting");
-			setStatus("Enviando o pedido ao Companion local…");
-			const job = await bridge.transcription(
-				{
+				const staged = stagedSources[0]!;
+				const signature = JSON.stringify([
+					CAMPAIGN_SLUG,
+					sessionId,
+					staged.sourceId,
+					profile,
+					glossary,
+					context,
+					false,
+				]);
+				const pending = await resolveSessionComposerPendingSubmission({
+					storage: window.localStorage,
+					recoveryScope,
 					campaignId: CAMPAIGN_SLUG,
 					sessionId,
 					sourceId: staged.sourceId,
 					profileId: profile,
-					glossary,
-					context,
-				},
-				submission.key,
-				controller.signal,
-			);
-			if (submission.recoveryIdentity) {
-				try {
-					clearPendingSubmission(
-						window.localStorage,
-						submission.recoveryIdentity,
-					);
-				} catch {
-					// A confirmed response remains authoritative even if cleanup is unavailable.
-				}
-			}
-			pending.current = null;
-			setStatus(
-				submission.recoveredFromStorage
-					? `Trabalho ${job.id.slice(0, 8)}… reconciliado com o Companion local.`
-					: `Trabalho ${job.id.slice(0, 8)}… entrou na fila local.`,
-			);
-			setFile(null);
-			setSource(null);
-			if (!composerActive) setSessionId("");
-			if (fileInput.current) fileInput.current.value = "";
-		} catch (cause) {
-			if (cause instanceof BridgeError) {
-				if (sourceMustBeRestaged(cause.serverCode)) setSource(null);
-				setError(
-					cause.serverCode
-						? localOperationMessage(cause.serverCode)
-						: messageFor(cause.code),
+					requestSignature: signature,
+					existing: fallbackPending.current,
+				});
+				fallbackPending.current = pending;
+				setPendingStage("submitting");
+				setStatus("Enviando a gravação ao Companion local…");
+				const job = await bridge.transcription(
+					{
+						campaignId: CAMPAIGN_SLUG,
+						sessionId,
+						sourceId: staged.sourceId,
+						profileId: profile,
+						glossary,
+						context,
+					},
+					pending.key,
+					controller.signal,
 				);
-			} else {
-				setError(messageFor("service_error"));
+				confirmSessionComposerPendingSubmission(window.localStorage, pending);
+				fallbackPending.current = null;
+				setFiles([]);
+				setStatus(
+					`Job ${job.id} confirmado no Companion · ${job.status === "succeeded" ? "concluído" : "acompanhe na fila"}.`,
+				);
+				return;
 			}
+
+			setPendingStage("submitting");
 			setStatus(
-				pending.current
-					? "A tentativa ficou ambígua; repetir com os mesmos dados reutiliza a mesma chave idempotente."
-					: null,
+				stagedSources.length === 1
+					? "Iniciando a transcrição da sessão…"
+					: `Iniciando a transcrição da sessão com ${stagedSources.length} gravações…`,
+			);
+			setIntentRequest({
+				id: crypto.randomUUID(),
+				sessionId,
+				sources: stagedSources.map((staged) => ({
+					sourceId: staged.sourceId,
+					label:
+						stagedSelections.find(
+							(item) => item.source?.sourceId === staged.sourceId,
+						)?.file.name ?? "Gravação",
+				})),
+				profile,
+				context,
+				glossary,
+			});
+		} catch (cause) {
+			setError(
+				cause instanceof BridgeError
+					? cause.serverCode
+						? localOperationMessage(cause.serverCode)
+						: messageFor(cause.code)
+					: messageFor("service_error"),
 			);
 		} finally {
 			setBusy(false);
@@ -838,9 +796,9 @@ export function ProcessingSubmission({
 			<div className={styles.heading}>
 				<div>
 					<span>Processamento local</span>
-					<h2 id="new-local-transcription">Nova transcrição Craig</h2>
+					<h2 id="new-local-transcription">Transcrever sessão</h2>
 				</div>
-				<small>Craig ZIP → Companion → GPU local</small>
+				<small>1..N ZIPs Craig → uma transcrição contínua</small>
 			</div>
 
 			{!capabilities && capabilityError ? (
@@ -877,62 +835,107 @@ export function ProcessingSubmission({
 						className={styles.dropZone}
 						data-craig-dropzone="true"
 						data-active={dragActive ? "true" : "false"}
-						data-selected={file ? "true" : "false"}
+						data-selected={files.length ? "true" : "false"}
 					>
 						<input
 							ref={fileInput}
 							className={styles.fileInput}
 							type="file"
+							multiple
 							accept=".zip,application/zip"
 							aria-label="Export do Craig"
-							disabled={busy}
-							onChange={(event) => applyFile(event.target.files?.[0] ?? null)}
+							disabled={busy || Boolean(intentRequest)}
+							onChange={(event) => {
+								applyFiles(Array.from(event.target.files ?? []));
+								event.currentTarget.value = "";
+							}}
 						/>
 						<button
 							type="button"
 							className={styles.dropAction}
 							data-craig-drop-target="true"
-							disabled={busy}
+							disabled={busy || Boolean(intentRequest)}
 							onClick={() => fileInput.current?.click()}
 							onDragEnter={(event) => {
 								event.preventDefault();
-								if (!busy) setDragActive(true);
+								if (!busy && !intentRequest) setDragActive(true);
 							}}
 							onDragOver={(event) => {
 								event.preventDefault();
-								if (!busy) setDragActive(true);
+								if (!busy && !intentRequest) setDragActive(true);
 							}}
 							onDragLeave={(event) => {
-								if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+								if (
+									event.currentTarget.contains(
+										event.relatedTarget as Node | null,
+									)
+								)
+									return;
 								setDragActive(false);
 							}}
 							onDrop={handleDrop}
 						>
-							<span className={styles.dropGlyph} aria-hidden="true">{file ? "✓" : "ZIP"}</span>
+							<span className={styles.dropGlyph} aria-hidden="true">
+								{files.length ? files.length : "ZIP"}
+							</span>
 							<span className={styles.dropCopy}>
-								<strong>{file ? file.name : "Arraste o ZIP do Craig aqui"}</strong>
+								<strong>
+									{files.length
+										? `${files.length} ${files.length === 1 ? "gravação selecionada" : "gravações selecionadas"}`
+										: "Arraste um ou vários ZIPs do Craig aqui"}
+								</strong>
 								<span>
-									{file
-										? `${formatSubmissionBytes(file.size)} · escolher outro arquivo`
-										: "ou escolher arquivo"}
+									{intentRequest
+										? "Intenção iniciada; o conjunto está fixado nesta sessão."
+										: files.length
+											? "solte mais ZIPs para adicionar sem apagar os anteriores"
+											: "ou escolha um ou vários arquivos"}
 								</span>
 							</span>
 						</button>
 					</div>
 
-					{fileError ? <p className={styles.inlineError} role="alert">{fileError}</p> : null}
-
-					{file ? (
-						<dl className={styles.fileFacts}>
-							<div><dt>Arquivo</dt><dd title={file.name}>{file.name}</dd></div>
-							<div><dt>Tamanho</dt><dd>{formatSubmissionBytes(file.size)}</dd></div>
-							{source ? (
-								<>
-									<div><dt>Tracks</dt><dd>{source.trackCount}</dd></div>
-									<div><dt>Fonte</dt><dd>{source.reused ? "Já verificada" : "Verificada agora"}</dd></div>
-								</>
-							) : null}
-						</dl>
+					{files.length ? (
+						<ul className={styles.fileList} aria-label="Gravações selecionadas">
+							{files.map((item, index) => (
+								<li key={item.id} data-state={item.state}>
+									<div>
+										<strong title={item.file.name}>
+											{index + 1}. {item.file.name}
+										</strong>
+										<span>
+											{formatSubmissionBytes(item.file.size)} ·{" "}
+											{item.state === "selected"
+												? "pronta para validar"
+												: item.state === "validating"
+													? "validando localmente…"
+													: item.state === "valid"
+														? "validada"
+														: item.state === "duplicate"
+															? "duplicata exata · será reutilizada uma vez"
+															: item.state === "invalid"
+																? "arquivo inválido"
+																: "falha local"}
+										</span>
+										{item.error ? (
+											<small role="alert">{item.error}</small>
+										) : null}
+									</div>
+									{!intentRequest ? (
+										<Button
+											type="button"
+											size="sm"
+											variant="tertiary"
+											disabled={busy}
+											aria-label={`Remover ${item.file.name}`}
+											onClick={() => removeFile(item.id)}
+										>
+											Remover
+										</Button>
+									) : null}
+								</li>
+							))}
+						</ul>
 					) : null}
 
 					<div className={styles.identityGrid}>
@@ -945,7 +948,7 @@ export function ProcessingSubmission({
 								pattern="[A-Za-z0-9_-]{1,128}"
 								maxLength={128}
 								required
-								disabled={busy || composerActive}
+								disabled={busy || composerActive || Boolean(intentRequest)}
 								placeholder="sessao-42"
 								aria-describedby="session-id-help"
 							/>
@@ -960,7 +963,7 @@ export function ProcessingSubmission({
 							<select
 								value={profile}
 								onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
-								disabled={busy}
+								disabled={busy || Boolean(intentRequest)}
 								required
 							>
 								{availableProfiles.map((item) => (
@@ -976,7 +979,8 @@ export function ProcessingSubmission({
 								variant="primary"
 								disabled={
 									busy ||
-									!file ||
+									Boolean(intentRequest) ||
+									stageableCraigFiles(files).length === 0 ||
 									!profile ||
 									!canSubmit ||
 									requestTooLarge ||
@@ -986,24 +990,6 @@ export function ProcessingSubmission({
 							>
 								{submissionCtaLabel(pendingStage)}
 							</Button>
-							{!source ? (
-								<Button
-									type="button"
-									variant="tertiary"
-									disabled={
-										busy ||
-										!file ||
-										!profile ||
-										!canSubmit ||
-										requestTooLarge ||
-										profileBlocked ||
-										qwenRuntimeUpgradeRequired
-									}
-									onClick={() => void analyzeSource()}
-								>
-									Analisar para sessão composta
-								</Button>
-							) : null}
 							{requestTooLarge ? (
 								<span className={styles.budgetWarning}>
 									{requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8
@@ -1115,7 +1101,7 @@ export function ProcessingSubmission({
 										onChange={(event) =>
 												setContext(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
 										}
-										disabled={busy}
+										disabled={busy || Boolean(intentRequest)}
 										placeholder="Contexto curto da sessão/campanha para reconhecimento."
 									/>
 								</label>
@@ -1126,7 +1112,7 @@ export function ProcessingSubmission({
 										onChange={(event) =>
 												setGlossary(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
 										}
-										disabled={busy}
+										disabled={busy || Boolean(intentRequest)}
 										placeholder="Personagens, NPCs, lugares e termos difíceis."
 									/>
 								</label>
@@ -1143,24 +1129,61 @@ export function ProcessingSubmission({
 			)}
 
 			{capabilities ? (
-				<SessionRecordingComposer
-					bridge={bridge}
-					capabilities={capabilities.capabilities}
-					sessionId={sessionId}
-					currentSource={source}
-					profile={profile}
-					context={context}
-					glossary={glossary}
-					profileReady={selectedProfileState?.ready === true}
-					recoveryScope={recoveryScope}
-					disabled={busy || requestTooLarge}
-					onActiveChange={setComposerActive}
-					onRestoreSessionId={(value) =>
-						setSessionId((current) => current || value)
-					}
-					onStatus={setStatus}
-					onError={setError}
-				/>
+				<>
+					<SessionIntentCoordinator
+						bridge={bridge}
+						capabilities={capabilities.capabilities}
+						request={intentRequest}
+						recoveryScope={recoveryScope}
+						disabled={busy || requestTooLarge}
+						onActiveChange={setComposerActive}
+						onRestoreSessionId={(value) =>
+							setSessionId((current) => current || value)
+						}
+						onRestoreIntent={(restored) => {
+							setProfile(restored.profile);
+							setContext(restored.context);
+							setGlossary(restored.glossary);
+						}}
+						onStatus={setStatus}
+						onError={setError}
+						onOpenTechnical={() => setTechnicalOpen(true)}
+					/>
+					{composerActive ? (
+						<details
+							className={styles.technical}
+							open={technicalOpen}
+							onToggle={(event) =>
+								setTechnicalOpen(event.currentTarget.open)
+							}
+						>
+							<summary>
+								Detalhes técnicos
+								<small>
+									ordem, participantes e resultados · use apenas quando necessário
+								</small>
+							</summary>
+							<SessionRecordingComposer
+								bridge={bridge}
+								capabilities={capabilities.capabilities}
+								sessionId={sessionId}
+								currentSource={null}
+								profile={profile}
+								context={context}
+								glossary={glossary}
+								profileReady={selectedProfileState?.ready === true}
+								recoveryScope={recoveryScope}
+								disabled={busy || requestTooLarge}
+								onActiveChange={setComposerActive}
+								onRestoreSessionId={(value) =>
+									setSessionId((current) => current || value)
+								}
+								onStatus={setStatus}
+								onError={setError}
+							/>
+						</details>
+					) : null}
+				</>
 			) : null}
 
 			{preparation?.state === "interrupted" ? (

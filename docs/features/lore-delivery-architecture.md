@@ -2,7 +2,7 @@
 
 > Status: decisão aprovada; implementação parcial
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-09-14
+> Última revisão: 2026-09-30
 
 ## Objetivo
 
@@ -73,7 +73,7 @@ Nenhuma lore cria uploader, endpoint operacional ou autorização próprios. A r
 
 ## Situação atual
 
-| Lore | Delivery | Listada | Campanha principal | Indexação desejada agora |
+| Lore | Delivery | Listada | Vínculo campaign atual | Indexação desejada agora |
 | --- | --- | --- | --- | --- |
 | Pipipi | `app` | Sim | Sim, conforme o projeto existente | Preservar política pública atual |
 | Astel / Noah | `standalone` estática, candidato local | Sim, solicitado | Sem novas entidades/relações; ligações editoriais por slug | Canonical próprio; sem copiar o noindex das lores externas |
@@ -98,7 +98,7 @@ Essas decisões não se inferem umas das outras:
 - **vinculada**: pertence a campanha/universo confirmado;
 - **indexável**: pode entrar em mecanismos de busca.
 
-D e Seika ficam, no estado atual, públicas por URL, não listadas, sem vínculo com a campanha principal e não indexáveis. Yllith permanece planejada: quando for publicada, seguirá o mesmo estado editorial de não listada, sem vínculo com a campanha principal e não indexável, salvo nova decisão explícita. `noindex` não é controle de acesso; quem souber a URL de uma lore publicada ainda pode abrir a página.
+D e Seika ficam, no estado atual, públicas por URL, não listadas, sem vínculo com a campaign legado/default e não indexáveis. Yllith permanece planejada: quando for publicada, seguirá o mesmo estado editorial de não listada, sem vínculo com a campaign legado/default e não indexável, salvo nova decisão explícita. `noindex` não é controle de acesso; quem souber a URL de uma lore publicada ainda pode abrir a página.
 
 ## Contrato de produção para standalone
 
@@ -141,8 +141,17 @@ Esse registro responde “como esta lore é entregue e qual é seu estado editor
 
 O candidato de [Astel e Noah](astel-noah-lores.md) usa `src/features/lore/standalone-catalog.json` para as duas entradas standalone listadas, seus cards e rewrites. Esse catálogo parcial não migra nem altera o estado das lores anteriores.
 
-## Futuro multi-jogo
+## Integração multi-campaign
 
-Suporte a múltiplos jogos, campanhas e universos fica fora do escopo atual. A estrutura acima permite publicar histórias paralelas hoje sem inventar vínculo com a campanha principal e sem exigir migração de banco ou CMS genérico.
+ADR-0020 aprova múltiplas campaigns, mas o registro de lore continua separando delivery/listagem/vínculo/indexação.
 
-Quando o TDA evoluir para multi-jogo/multiuniverso, catálogo e registro podem ganhar agrupamentos explícitos mantendo, quando desejável, as URLs já publicadas.
+- `campaign: null` permanece válido;
+- vínculo usa identidade explícita da campaign e não é inferido de personagem/artwork;
+- `/lore/<slug>` continua canonical da lore standalone;
+- associar uma lore a campaign não cria entity/canon/session nem muda URL automaticamente;
+- nome/public route key da campaign não entra na key de mídia da lore por conveniência;
+- catálogo global `/lore` pode continuar curado independentemente de campaign.
+
+A campaign planejada **Antes que seja tarde** e a lore D permanecem desvinculadas até decisão editorial de #1131.
+
+Multi-jogo/multiuniverso completo continua fora do escopo desta decisão.

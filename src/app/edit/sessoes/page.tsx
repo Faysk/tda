@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import Form from "next/form";
 import { PublicLink as Link } from "@/components/public-link";
-import { StatusPill } from "@/components/ui";
+import { FormSubmitButton, StatusPill } from "@/components/ui";
 import { requireCapability } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import {
@@ -111,7 +112,7 @@ export default async function EditSessionsPage({
 				</div>
 			</header>
 
-			<form className={styles.libraryFilters} method="get">
+			<Form action="/edit/sessoes" className={styles.libraryFilters}>
 				<label className={styles.librarySearch}>
 					<span>Buscar sessão</span>
 					<input
@@ -168,12 +169,15 @@ export default async function EditSessionsPage({
 					</select>
 				</label>
 				<div className={styles.libraryFilterActions}>
-					<button className={styles.librarySubmit} type="submit">
+					<FormSubmitButton
+						className={styles.librarySubmit}
+						pendingLabel="Aplicando…"
+					>
 						Aplicar
-					</button>
+					</FormSubmitButton>
 					{hasFilters ? <Link href="/edit/sessoes">Limpar filtros</Link> : null}
 				</div>
-			</form>
+			</Form>
 
 			{sessions.length === 0 ? (
 				<div className={styles.empty}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type DragEvent } from "react";
+import { Progress } from "@/components/ui";
 import { worldEntityMediaAvailabilityAction } from "../world-entity-media-availability-action";
 import {
 	finalizeWorldEntityPortraitUploadAction,
@@ -16,6 +17,14 @@ import type { WorldGraphDraftNode, WorldMediaFocalPoint } from "../model";
 import styles from "./world-entity-media-editor.module.css";
 
 const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
+
+type WorldMediaUploadPhase =
+	| "idle"
+	| "preparing"
+	| "uploading"
+	| "finalizing"
+	| "success"
+	| "error";
 
 function initials(name: string): string {
 	return name
@@ -69,6 +78,9 @@ export function WorldEntityMediaEditor({
 	const [dragging, setDragging] = useState(false);
 	const [status, setStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [uploadPhase, setUploadPhase] = useState<WorldMediaUploadPhase>("idle");
+	const [uploadedChunks, setUploadedChunks] = useState(0);
+	const [totalChunks, setTotalChunks] = useState(0);
 	const previewUrl = entity.primaryMediaAssetId
 		? worldEntityMediaPreviewUrl(entity.primaryMediaAssetId)
 		: undefined;
@@ -91,6 +103,9 @@ export function WorldEntityMediaEditor({
 	async function upload(file: File) {
 		setError(null);
 		setStatus(null);
+		setUploadPhase("idle");
+		setUploadedChunks(0);
+		setTotalChunks(0);
 		const leaseToken = window.sessionStorage.getItem(WORLD_EDIT_LEASE_STORAGE_KEY);
 		if (!leaseToken) {
 			setError("A sessão de edição não está ativa. Reabra Conduzir antes de enviar a imagem.");
@@ -107,6 +122,7 @@ export function WorldEntityMediaEditor({
 		}
 
 		setBusy(true);
+		setUploadPhase("preparing");
 		try {
 			setStatus("Preparando upload seguro…");
 			const bytes = await file.arrayBuffer();
@@ -122,12 +138,15 @@ export function WorldEntityMediaEditor({
 				intent,
 			);
 			if (!requested.ok) {
+				setUploadPhase("error");
 				setError(failureMessage(requested.reason));
 				setStatus(null);
 				return;
 			}
 
 			const chunks = Math.ceil(file.size / requested.chunkBytes);
+			setTotalChunks(chunks);
+			setUploadPhase("uploading");
 			for (let part = 0; part < chunks; part += 1) {
 				const start = part * requested.chunkBytes;
 				const end = Math.min(file.size, start + requested.chunkBytes);
@@ -148,12 +167,15 @@ export function WorldEntityMediaEditor({
 					credentials: "same-origin",
 				});
 				if (!uploaded.ok) {
+					setUploadPhase("error");
 					setError(`O upload foi recusado (${uploaded.status}).`);
 					setStatus(null);
 					return;
 				}
+				setUploadedChunks(part + 1);
 			}
 
+			setUploadPhase("finalizing");
 			setStatus("Validando bytes e registrando o asset…");
 			const finalized = await finalizeWorldEntityPortraitUploadAction(
 				leaseToken,
@@ -162,17 +184,20 @@ export function WorldEntityMediaEditor({
 				intent,
 			);
 			if (!finalized.ok) {
+				setUploadPhase("error");
 				setError(failureMessage(finalized.reason));
 				setStatus(null);
 				return;
 			}
 
+			setUploadPhase("success");
 			onChange(finalized.assetId);
 			setStatus(
 				`Imagem pronta no rascunho · ${finalized.width}×${finalized.height} · ${(finalized.bytes / 1024).toFixed(0)} KiB`,
 			);
 		} catch (uploadError) {
 			console.error("World portrait browser upload failed", uploadError);
+			setUploadPhase("error");
 			setError("O upload foi interrompido. Tente novamente sem sair da edição.");
 			setStatus(null);
 		} finally {
@@ -303,7 +328,63 @@ export function WorldEntityMediaEditor({
 					</div>
 				</>
 			) : null}
-			{status ? (
+			{busy ? (
+				<div
+					className={styles.operationStatus}
+					data-phase={uploadPhase}
+				>
+					<span
+						className={styles.visuallyHidden}
+						role="status"
+						aria-live="polite"
+						aria-atomic="true"
+					>
+						{uploadPhase === "preparing"
+							? "Preparando a imagem."
+							: uploadPhase === "uploading"
+								? "Envio da imagem em andamento."
+								: "Validando a imagem."}
+					</span>
+					<div className={styles.operationHeader}>
+						<strong>
+							{uploadPhase === "preparing"
+								? "Preparando imagem…"
+								: uploadPhase === "uploading"
+									? "Enviando imagem…"
+									: "Validando imagem…"}
+						</strong>
+						{uploadPhase === "uploading" && totalChunks > 0 ? (
+							<span>
+								{Math.round((uploadedChunks / totalChunks) * 100)}%
+							</span>
+						) : null}
+					</div>
+					{uploadPhase === "uploading" && totalChunks > 0 ? (
+						<Progress
+							ariaLabel="Upload da imagem do elemento"
+							className={styles.operationProgress}
+							max={totalChunks}
+							value={uploadedChunks}
+							valueText={`${uploadedChunks} de ${totalChunks} partes`}
+						/>
+					) : (
+						<Progress
+							ariaLabel={
+								uploadPhase === "preparing"
+									? "Preparando upload da imagem"
+									: "Validando upload da imagem"
+							}
+							className={styles.operationProgress}
+							valueText={status ?? undefined}
+						/>
+					)}
+					<small>
+						{uploadPhase === "uploading" && totalChunks > 0
+							? `${uploadedChunks} de ${totalChunks} partes recebidas`
+							: status}
+					</small>
+				</div>
+			) : status ? (
 				<p className={styles.status} role="status" aria-live="polite">
 					{status}
 				</p>

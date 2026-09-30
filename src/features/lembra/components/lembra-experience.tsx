@@ -9,7 +9,7 @@ import {
 	useState,
 	type FormEvent,
 } from "react";
-import { Button, Select, type SelectOption } from "@/components/ui";
+import { Button, Progress, Select, type SelectOption } from "@/components/ui";
 import {
 	finalizeLembraUploadAction,
 	retireLembraReferenceAction,
@@ -1374,8 +1374,13 @@ export function LembraExperience({
 										>
 											Cancelar
 										</Button>
-										<Button type="submit" variant="primary" disabled={saving}>
-											{saving ? "Salvando..." : "Salvar"}
+										<Button
+											pending={saving}
+											pendingLabel="Salvando…"
+											type="submit"
+											variant="primary"
+										>
+											Salvar
 										</Button>
 									</div>
 								</form>
@@ -1429,9 +1434,10 @@ export function LembraExperience({
 											type="button"
 											variant="secondary"
 											onClick={removeSelectedReference}
-											disabled={saving}
+											pending={saving}
+											pendingLabel="Removendo…"
 										>
-											{saving ? "Removendo..." : "Remover"}
+											Remover
 										</Button>
 									</div>
 								</fieldset>
@@ -1552,9 +1558,23 @@ export function LembraExperience({
 								<div
 									className={styles.uploadStatus}
 									data-phase={uploadStatus.phase}
-									role="status"
-									aria-live="polite"
 								>
+									<span
+										className={styles.visuallyHidden}
+										role="status"
+										aria-live="polite"
+										aria-atomic="true"
+									>
+										{uploadStatus.phase === "preparing"
+											? "Preparando a imagem."
+											: uploadStatus.phase === "uploading"
+												? "Envio da imagem em andamento."
+												: uploadStatus.phase === "finalizing"
+													? "Validando e publicando a imagem."
+													: uploadStatus.phase === "success"
+														? "Imagem publicada no Lembra."
+														: "Falha ao publicar a imagem."}
+									</span>
 									<div className={styles.uploadStatusHeader}>
 										<span>
 											{uploadStatus.phase === "preparing"
@@ -1585,25 +1605,25 @@ export function LembraExperience({
 									</div>
 
 									{uploadStatus.phase === "uploading" ? (
-										<progress
+										<Progress
+											ariaLabel="Progresso do envio da imagem"
 											className={styles.uploadProgress}
-											max={100}
-											value={Math.min(
-												100,
-												(uploadStatus.uploadedBytes /
-													Math.max(1, uploadStatus.totalBytes)) *
-													100,
-											)}
-											aria-label="Progresso do envio da imagem"
+											max={Math.max(1, uploadStatus.totalBytes)}
+											value={uploadStatus.uploadedBytes}
+											valueText={`${formatUploadBytes(uploadStatus.uploadedBytes)} de ${formatUploadBytes(uploadStatus.totalBytes)}`}
 										/>
-									) : uploadStatus.phase === "finalizing" ||
-									  uploadStatus.phase === "success" ? (
-										<div className={styles.uploadTrack} aria-hidden="true">
-											<span
-												className={styles.uploadTrackFill}
-												style={{ width: "100%" }}
-											/>
-										</div>
+									) : uploadStatus.phase === "preparing" ? (
+										<Progress
+											ariaLabel="Preparação do envio da imagem"
+											className={styles.uploadProgress}
+											valueText="Calculando integridade e preparando o envio"
+										/>
+									) : uploadStatus.phase === "finalizing" ? (
+										<Progress
+											ariaLabel="Validação e publicação da imagem"
+											className={styles.uploadProgress}
+											valueText="Validando imagem e publicando"
+										/>
 									) : null}
 
 									{uploadStatus.phase === "uploading" ? (
@@ -1645,19 +1665,22 @@ export function LembraExperience({
 									type="submit"
 									variant="primary"
 									className={styles.composerAction}
-									disabled={saving}
+									pending={saving}
+									pendingLabel={
+										uploadStatus.phase === "preparing"
+											? "Preparando…"
+											: uploadStatus.phase === "uploading"
+												? "Enviando…"
+												: uploadStatus.phase === "finalizing"
+													? "Gravando…"
+													: "Salvando…"
+									}
 								>
-									{uploadStatus.phase === "preparing"
-										? "Preparando…"
-										: uploadStatus.phase === "uploading"
-											? "Enviando…"
-											: uploadStatus.phase === "finalizing"
-												? "Gravando…"
-												: uploadStatus.phase === "success"
-													? "Publicado ✓"
-													: uploadStatus.phase === "error"
-														? "Tentar novamente"
-														: "Guardar"}
+									{uploadStatus.phase === "success"
+										? "Publicado ✓"
+										: uploadStatus.phase === "error"
+											? "Tentar novamente"
+											: "Guardar"}
 								</Button>
 							</div>
 						</div>

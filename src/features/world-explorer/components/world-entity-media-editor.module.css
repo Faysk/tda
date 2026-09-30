@@ -19,7 +19,7 @@
 }
 
 .heading span {
-	color: var(--ds-text-muted);
+	color: var(--ds-foreground-muted);
 	font-size: 0.68rem;
 }
 
@@ -39,7 +39,7 @@
 	border: 1px solid color-mix(in srgb, var(--ds-border) 88%, transparent);
 	border-radius: 999px;
 	background: var(--ds-surface-elevated);
-	color: var(--ds-text-muted);
+	color: var(--ds-foreground-muted);
 	font-size: 1rem;
 	font-weight: 800;
 	letter-spacing: 0.04em;
@@ -59,7 +59,7 @@
 	border: 1px dashed color-mix(in srgb, var(--ds-accent) 44%, var(--ds-border));
 	border-radius: 12px;
 	background: color-mix(in srgb, var(--ds-surface) 86%, transparent);
-	color: var(--ds-text);
+	color: var(--ds-foreground);
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
@@ -81,7 +81,7 @@
 
 .dropZone span,
 .status {
-	color: var(--ds-text-muted);
+	color: var(--ds-foreground-muted);
 	font-size: 0.68rem;
 	line-height: 1.45;
 }
@@ -107,7 +107,7 @@
 }
 
 .focalHeading span {
-	color: var(--ds-text-muted);
+	color: var(--ds-foreground-muted);
 	font-size: 0.66rem;
 	font-variant-numeric: tabular-nums;
 }
@@ -117,7 +117,7 @@
 	grid-template-columns: 72px minmax(0, 1fr);
 	align-items: center;
 	gap: 8px;
-	color: var(--ds-text-muted);
+	color: var(--ds-foreground-muted);
 	font-size: 0.68rem;
 	font-weight: 700;
 }
@@ -134,7 +134,7 @@
 	border: 1px solid var(--ds-border);
 	border-radius: 9px;
 	background: transparent;
-	color: var(--ds-text-muted);
+	color: var(--ds-foreground-muted);
 	font: inherit;
 	font-size: 0.68rem;
 	font-weight: 750;
@@ -158,7 +158,7 @@
 	border: 1px solid var(--ds-border);
 	border-radius: 10px;
 	background: var(--ds-surface);
-	color: var(--ds-text);
+	color: var(--ds-foreground);
 	font: inherit;
 	font-size: 0.72rem;
 	font-weight: 750;
@@ -187,9 +187,55 @@
 	white-space: nowrap;
 }
 
+.visuallyHidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
 .error {
 	margin: 0;
 	color: var(--ds-danger);
 	font-size: 0.7rem;
 	line-height: 1.45;
+}
+
+.operationStatus {
+	display: grid;
+	gap: 7px;
+	padding: 10px;
+	border: 1px solid var(--ds-border);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--ds-surface) 82%, transparent);
+}
+
+.operationHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	color: var(--ds-foreground);
+	font-size: 0.72rem;
+}
+
+.operationHeader span {
+	color: var(--ds-foreground-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.operationProgress {
+	height: 6px;
+}
+
+.operationStatus small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.66rem;
+	line-height: 1.4;
 }

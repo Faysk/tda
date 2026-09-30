@@ -82,7 +82,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/derive|participants))?$"
+    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/derive|participants|intent))?$"
 )
 _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/"
@@ -174,6 +174,19 @@ class BrowserSessionRequest(BaseModel):
 
 class SessionWorkspaceCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
+
+
+class SessionTranscriptionIntentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    request_id: str = Field(pattern=_ID_PATTERN)
+    profile_id: Literal[
+        "whisper-turbo",
+        "whisper-detailed",
+        "qwen-fast",
+        "qwen-quality",
+    ]
+    context: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
+    glossary: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
 
 
 class SessionWorkspaceAttachRequest(BaseModel):
@@ -276,6 +289,12 @@ _FALLBACK_ERROR_CODE = "INTERNAL_ERROR"
 def _public_error_code(code: object) -> str:
     if isinstance(code, str) and _PUBLIC_ERROR_CODE.fullmatch(code) is not None:
         return code
+    return _FALLBACK_ERROR_CODE
+
+
+def _public_error_code_from_exception(exc: BaseException) -> str:
+    if exc.args:
+        return _public_error_code(exc.args[0])
     return _FALLBACK_ERROR_CODE
 
 
@@ -1483,6 +1502,7 @@ def create_app(
             "transcription.review.base",
             "transcription.target.repair",
             "transcription.session-workspace",
+            "transcription.session-intent",
             "transcription.session-timeline",
             "transcription.session-participants",
             "transcription.session-assembly",
@@ -1677,6 +1697,30 @@ def create_app(
     ):
         return session_workspace_response(
             store.ensure_session_workspace(campaign_id, session_id)
+        )
+
+    @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}/intent")
+    def session_transcription_intent(campaign_id: str, session_id: str):
+        try:
+            return store.session_transcription_intent(campaign_id, session_id)
+        except Conflict as exc:
+            if str(exc) == "SESSION_TRANSCRIPTION_INTENT_NOT_FOUND":
+                return error("SESSION_TRANSCRIPTION_INTENT_NOT_FOUND", 404)
+            raise
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/intent")
+    def save_session_transcription_intent(
+        campaign_id: str,
+        session_id: str,
+        body: SessionTranscriptionIntentRequest,
+    ):
+        return store.save_session_transcription_intent(
+            campaign_id,
+            session_id,
+            body.request_id,
+            body.profile_id,
+            body.context,
+            body.glossary,
         )
 
     @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/parts")
@@ -1950,7 +1994,7 @@ def create_app(
                 verify_transcript=True,
             )
         except SessionAssemblyError as exc:
-            code = str(exc)
+            code = _public_error_code_from_exception(exc)
             return error(code, 404 if code == "SESSION_ASSEMBLY_NOT_FOUND" else 409)
 
     @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/assemblies")
@@ -2000,7 +2044,7 @@ def create_app(
         try:
             return store.jobs_page(scope=scope, cursor=cursor, limit=limit)
         except Conflict as exc:
-            code = str(exc)
+            code = _public_error_code_from_exception(exc)
             if code.startswith("JOB_LIST_"):
                 if re.fullmatch(r"JOB_LIST_[A-Z0-9_]{1,64}", code):
                     return error(code, 422)

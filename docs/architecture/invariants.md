@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: arquitetura
-> Última revisão: 2026-09-20
+> Última revisão: 2026-09-30
 
 Invariantes são regras que não devem ser quebradas silenciosamente por uma feature local. Se uma futura necessidade exigir violar uma delas, registrar ADR antes da mudança.
 
@@ -16,7 +16,7 @@ Invariantes são regras que não devem ser quebradas silenciosamente por uma fea
 
 ## Identidade
 
-6. `tda` é identidade de produto; `yuhara-main` é identidade da campanha.
+6. `tda` é identidade de produto; campaign UUID é autoridade relacional. `yuhara-main` é technical slug legado/default da campaign existente, não identidade única permanente do produto.
 7. Provenance (`craig`, `discord`, `roll20`, `local_companion`) não é renomeada para refletir branding.
 8. `profiles` representa pessoas/contas.
 9. `entities` representa objetos narrativos.
@@ -48,9 +48,12 @@ Invariantes são regras que não devem ser quebradas silenciosamente por uma fea
 26. Nova DDL entra por migration versionada.
 27. Migration aplicada remotamente deve existir no repo com mesma versão/nome.
 28. Backfill não inventa fato ausente; inferência deve ser explícita e justificada.
-29. UUID é identidade técnica preferida; nome é apresentação/resolução.
+29. Campaign UUID é autoridade relacional; technical slug é compatibilidade estável; nome e public route key são apresentação/resolução e não reescrevem FKs/grants/storage.
 30. JSONB serve extensão/metadados, não substitui relação estruturada central.
 31. Remoção de schema/grant/compatibilidade só ocorre após provar independência do consumidor antigo.
+    - Recurso campaign-owned nunca usa lookup global por source/session/entity slug quando campaign participa da identidade.
+    - Cross-campaign mismatch falha fechado antes de write; browser input de slug/UUID não é autoridade.
+    - Lembra permanece global e lore standalone pode permanecer sem campaign; exceções não viram autorização implícita.
 
 ## Processamento
 

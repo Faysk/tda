@@ -1,6 +1,4 @@
-import type { CSSProperties } from "react";
-import { classNames } from "./class-names";
-import styles from "./animated-progress.module.css";
+import { Progress } from "./progress";
 
 type Props = Readonly<{
 	value: number;
@@ -25,30 +23,20 @@ export function AnimatedProgress({
 		Math.max(0, Number.isFinite(value) ? value : 0),
 	);
 	const ratio = safeValue / safeMax;
-	const style = {
-		"--animated-progress": String(ratio),
-		"--animated-progress-duration":
-			expectedSampleMs !== undefined && Number.isFinite(expectedSampleMs) && expectedSampleMs > 0
-				? `${Math.round(expectedSampleMs)}ms`
-				: undefined,
-	} as CSSProperties;
 
 	return (
-		<span
-			className={classNames(styles.progress, className)}
-			data-animated-progress="true"
-			data-progress-label={ariaLabel}
-			data-progress-target={ratio}
-			data-progress-sample-ms={expectedSampleMs}
-		>
-			<progress
-				className={styles.accessibleProgress}
-				max={safeMax}
-				value={safeValue}
-				aria-label={ariaLabel}
-				aria-valuetext={valueText}
-			/>
-			<span className={styles.fill} style={style} aria-hidden="true" />
-		</span>
+		<Progress
+			ariaLabel={ariaLabel}
+			tone="accent"
+			className={className}
+			dataAnimatedProgress
+			dataProgressLabel={ariaLabel}
+			dataProgressSampleMs={expectedSampleMs}
+			dataProgressTarget={ratio}
+			expectedSampleMs={expectedSampleMs}
+			max={safeMax}
+			value={safeValue}
+			valueText={valueText}
+		/>
 	);
 }

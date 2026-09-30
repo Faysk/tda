@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada + convergência em andamento
 > Owner: identity/access
-> Última revisão: 2026-09-28
+> Última revisão: 2026-09-30
 
 ## Objetivo
 
@@ -150,12 +150,16 @@ A fotografia read-only de 2026-09-07 confirmou assignments ativos com `scope_id=
 
 ### Campanha
 
-Campanha principal atual:
+O scope físico usa o **technical slug** da campaign, não seu nome público nem public route key.
+
+Boundary legado/default atual:
 
 ```text
 scope_type = "campaign"
 scope_id   = "yuhara-main"
 ```
+
+`yuhara-main` permanece válido por compatibilidade mesmo quando a apresentação pública for **Crônicas da Mesa**. Novas campaigns recebem seus próprios technical slugs; alias/rename público não reescreve assignments.
 
 ### Resolução de project capability
 
@@ -182,6 +186,19 @@ Pode ser satisfeito por:
 
 Não existe regra "platform owner pode tudo". Grant global só vale para capabilities realmente presentes na role.
 
+### Multi-campaign discovery e project grants
+
+ADR-0020 fixa a semântica que #1134 deve implementar e testar:
+
+- discovery pública expõe somente projection pública de campaigns elegíveis;
+- discovery Edit devolve somente campaigns que o actor pode descobrir no contexto operacional;
+- slug/UUID fornecido pelo browser é intenção, nunca autoridade;
+- combinação forjada de slug A com UUID/recurso B falha fechada;
+- campaign privada não vira oracle por diferença de erro;
+- archived campaign preserva grants históricos, mas mutation normal é negada salvo capability administrativa explícita.
+
+Um assignment ativo em `scope_type="project", scope_id="tda"` continua semanticamente global por capability e pode cobrir campaigns criadas futuramente **somente para actions realmente presentes na role**. Isso não equivale a membership universal, não concede discovery irrestrita e não elimina a prova de ownership do recurso.
+
 ### Session / resource / integration
 
 Não existe herança genérica aprovada. Cada resolver precisa provar a cadeia real de ownership antes de aceitar grant de campaign/project.
@@ -205,27 +222,15 @@ A convergência futura para resolver RPC/database continua desejável para reduz
 
 A apresentação global não recebe o contexto interno de autorização. A `main` integra em #881 / PR #886 uma projeção mínima em `GET /api/auth/me`, usada por navegação/conta sem tornar o root layout público dependente de cookies/banco.
 
-Shape conceitual:
+Shape vigente/conceitual da projeção legada usa um único `scope` de campaign. Isso é compatibilidade enquanto só `yuhara-main` está ativa no fluxo. No rollout multi-campaign, a projeção deve separar identidade global de uma coleção/seleção de contexts autorizados; não deve fingir que um `scope` único representa o usuário inteiro.
 
-```ts
-type NavigationAccessProjection = {
-  state:
-    | "anonymous"
-    | "authenticated_unlinked"
-    | "authenticated_linked_no_grants"
-    | "authenticated_linked"
-    | "unavailable";
-  scope: {
-    type: "campaign";
-    id: string;
-  };
-  identity?: {
-    displayName: string | null;
-    avatarUrl: string | null;
-  };
-  capabilities?: string[];
-};
-```
+A forma exata do DTO multi-campaign pertence a #1134/#1136, mas precisa preservar:
+
+- estado de Auth global;
+- identidade sanitizada global;
+- campaigns descobríveis/selecionáveis apenas quando autorizadas;
+- capabilities calculadas por campaign selecionada;
+- nenhum raw grant/role/membership no browser.
 
 Regras:
 
@@ -333,8 +338,10 @@ Cada superfície autenticada deve cobrir:
 | sem login | negado / contexto `anonymous` |
 | login válido sem profile | `authenticated_unlinked`, capabilities vazias |
 | profile sem grants | `authenticated_linked_no_grants`, negado |
-| capability correta em `campaign/yuhara-main` | permitido somente para recurso da campanha |
-| mesma capability em campaign errada | negado |
+| capability correta em campaign A | permitido somente para recurso de A |
+| mesma capability em campaign B para recurso de A | negado |
+| project grant com a action correta | pode cobrir A/B conforme semantics da action; ownership continua obrigatório |
+| slug A + UUID/recurso B forjados | negado sem enumeração |
 | assignment `eligible` | negado |
 | assignment expirado/revogado | negado |
 | `scope_type=project`, `scope_id=tda` com action explicitamente presente | permitido onde o contrato da action admitir projeto global |

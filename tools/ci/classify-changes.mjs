@@ -19,6 +19,13 @@ const EXACT = {
 		"tests/navigation-origin.spec.ts",
 		"tests/global-loading.spec.ts",
 		"tests/d-lore-reading-mode.spec.ts",
+		"tests/route-loading.spec.ts",
+		"tests/pending-actions.spec.ts",
+		"tests/progress-feedback.spec.ts",
+		"tools/ux/async-feedback-contract.mjs",
+		"src/components/ui/progress.tsx",
+		"src/components/ui/progress.module.css",
+		"src/components/ui/animated-progress.tsx",
 		"tests/world-catalogs.spec.ts",
 		"src/features/lore/components/lore-index-page.tsx",
 		"src/features/lore/components/lore-index-page.module.css",
@@ -28,6 +35,7 @@ const EXACT = {
 		"src/features/lore/components/lore-cinematic-hero.module.css",
 		"src/features/lore/index-config.ts",
 		"tests/system-states.spec.ts",
+		"tests/session-public-layout.spec.ts",
 		"src/app/error.tsx",
 		"src/app/not-found.tsx",
 		"src/app/layout.tsx",
@@ -40,6 +48,11 @@ const EXACT = {
 		"src/components/navigation-auth.ts",
 		"src/components/public-navigation-model.ts",
 		"src/components/theme-toggle.tsx",
+		"src/features/world-explorer/hooks/use-world-edit-session.ts",
+		"src/features/world-explorer/components/world-conductor-bar.tsx",
+		"src/components/ui/form-submit-button.tsx",
+		"src/components/ui/button.tsx",
+		"src/components/session-list.tsx",
 		"src/config/brand-assets.ts",
 		"src/config/brand-assets.test.ts",
 		"src/features/auth/config.ts",
@@ -90,6 +103,11 @@ const PREFIX = {
 		"src/components/global-loading/",
 		"src/app/e2e-fixtures/global-loading/",
 		"src/app/e2e-fixtures/system-states/",
+		"src/app/e2e-fixtures/route-loading/",
+		"src/app/e2e-fixtures/pending-actions/",
+		"src/app/e2e-fixtures/progress-feedback/",
+		"src/components/loading/",
+		"src/app/sessoes/",
 		"public/lore/d/",
 	],
 	db: ["supabase/", "src/features/transcript-sync/"],
@@ -127,6 +145,11 @@ function matches(path, domain) {
 	if (CLASSIFIER_CONTRACT.has(path)) return true;
 	if (EXACT[domain].has(path)) return true;
 	if (PREFIX[domain].some((prefix) => path.startsWith(prefix))) return true;
+	if (
+		domain === "navigation" &&
+		(path === "src/app/loading.tsx" || /^src\/app\/.+\/loading\.tsx$/u.test(path))
+	)
+		return true;
 	if (domain === "companion" && /^tools\/check-companion-.*\.py$/u.test(path))
 		return true;
 	if (

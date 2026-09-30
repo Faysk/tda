@@ -303,6 +303,76 @@ O loader não deve alterar semântica HTTP nem ser implementado por um boundary 
 
 A validação automatizada cobre tema claro e escuro, triggers globais explícitos, operações rápidas que não devem piscar, estados locais que não podem escalar para fullscreen, opt-out de subtrees e regressões de navegação. O aceite visual de produto foi confirmado após uso em produção em `2026-09-10`, encerrando esta frente como concluída.
 
+### Loading estrutural de rota e região
+
+A camada de loading de rota usa primitivas compartilhadas em `src/components/loading/`. O fallback preserva a macrogeometria da superfície final e mantém o shell global utilizável; o skeleton nunca aciona o overlay global e declara `data-global-loading="off"` com `aria-busy="true"` somente na região em atualização.
+
+As composições canônicas são:
+
+- **Cinematic** — palco full-viewport para experiências em que narrativa/arte são o conteúdo; existe como primitive e fixture, sem instalar um `app/loading.tsx` global na Home;
+- **Editorial List** — arquivos, catálogos e listas com título, filtros e grid/lista;
+- **Editorial Detail** — hero/contexto + corpo de leitura para páginas de detalhe;
+- **Workspace** — variantes `table`, `library`, `editor` e `processing`;
+- **World/Canvas** — viewport expansiva que preserva o espaço do canvas e do chrome contextual;
+- **Compact** — superfícies pequenas como Conta, sem inventar um dashboard durante a espera.
+
+Inventário de decisão da rodada #1162:
+
+| Superfície | Estratégia |
+| --- | --- |
+| `/` Home | **sem `app/loading.tsx` global**; preservar semântica HTTP/NotFound e a baseline cinematic |
+| `/sessoes` | Editorial List |
+| `/sessoes/[id]` | Editorial Detail |
+| `/diario` | Editorial List |
+| catálogos `personagens/npcs/lugares/faccoes/quests/musicas` | Editorial List |
+| perfis `[slug]` desses catálogos | Editorial Detail |
+| `/lembra` | skeleton específico existente; continua dono da geometria de galeria |
+| `/conta` | Compact |
+| `/mundo` | World/Canvas |
+| `/transcricoes` | Workspace Table |
+| `/edit/processamento` | Workspace Processing |
+| `/edit/revisao` | Workspace Table |
+| `/edit/sessoes` | Workspace Library |
+| `/edit/sessoes/[id]` | Workspace Editor |
+| `/edit/[campaignSlug]/permissions` | loading específico existente |
+| `/lore` e lores independentes | não recebem fallback pai genérico que invada a identidade visual das lores |
+| `/entrar` | shell compacto já é a própria resposta; pending de autenticação é ação local/redirect |
+| `/edit` e `/edit/mundo` | redirects; sem skeleton artificial |
+
+Skeleton não é indicador de progresso. Ele apenas reserva a estrutura durante a resolução do segmento. Operações já montadas continuam usando pending/progresso local. Shimmer é decorativo e some com `prefers-reduced-motion: reduce`.
+
+A validação E2E usa rotas lentas sintéticas de **Cinematic, Editorial, Workspace, World/Canvas e Compact** para provar que o fallback aparece sem overlay global, o chrome compartilhado permanece utilizável e focável, existe um único status regional anunciável, os blocos decorativos ficam fora da árvore acessível, não há overflow horizontal e reduced motion remove o shimmer. A matriz automatizada cobre 320×800, 390×844, 1366×768, 1920×1080 e um viewport CSS de 960×540 como equivalente a 1920×1080 em zoom de 200%. Dark/light também são verificados contra os mesmos papéis semânticos.
+
+### Pending local de ações
+
+Ações iniciadas dentro de uma superfície usam feedback no próprio controle sempre que o resto da página pode continuar útil. O primitive `Button` aceita `pending` + `pendingLabel`; `FormSubmitButton` usa `useFormStatus()` para Server Actions e `next/form`.
+
+Contrato:
+
+- o label descreve a ação real: `Salvando…`, `Registrando…`, `Aplicando…`;
+- pending desabilita somente a ação incompatível e previne double-submit;
+- a largura considera label normal + pending para evitar salto;
+- o indicador visual é um ponto discreto, não o loader global em miniatura;
+- `aria-busy` fica no botão/região local e não promove fullscreen;
+- com `prefers-reduced-motion: reduce`, o ponto permanece visível e estático;
+- filtros GET usam `next/form` para navegação client-side e podem mostrar `Aplicando…` antes do route skeleton;
+- handoffs realmente globais, como o redirect de autenticação para Discord, fazem opt-in explícito no `GlobalFormLoadingBridge`;
+- operações com progresso mensurável migram para a primitive de progresso em vez de tentar comprimir barra/porcentagem dentro do botão.
+
+### Progresso operacional
+
+Operações já montadas usam a primitive compartilhada `Progress` em `src/components/ui/progress.tsx`.
+
+O contrato diferencia explicitamente:
+
+- **determinate** — existe denominador factual, como bytes, chunks, tracks ou itens; `value/max` são expostos pelo `<progress>` nativo e a interface pode mostrar porcentagem/contagem real;
+- **indeterminate** — a operação está ativa, mas não existe total confiável; o `<progress>` não recebe `value` e a UI comunica a etapa textual;
+- **estimated** — ETA/estimativa continua separada do progresso factual e nunca é convertida em porcentagem inventada.
+
+Tons são semânticos (`neutral`, `accent`, `success`, `warning`, `danger`). O default é neutro; Processing preserva `accent` onde o dourado já representa trabalho ativo. Uploads não transformam o acento da marca em tinta universal.
+
+Uploads seguem a state machine perceptiva `preparing → uploading → finalizing → success/error`: preparação e validação são indeterminadas quando o sistema não conhece um total, enquanto upload usa bytes/chunks reais quando disponíveis. `prefers-reduced-motion: reduce` remove deslocamento/transição decorativa sem retirar valor, label ou estado.
+
 ### Superfícies públicas
 
 A composição pública foi modularizada:
