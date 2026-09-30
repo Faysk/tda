@@ -28,11 +28,10 @@ from .craig_ingest import CraigUploadError, ingest_craig_file
 from .craig_runtime import load_craig_package
 from .diagnostics import export_diagnostics, run_diagnostics
 from .paths import CompanionPaths
-from .qwen_runtime import inspect_qwen_runtime, install_qwen_runtime_archive
-from .qwen_runtime_updates import (
-    download_qwen_runtime,
-    fetch_qwen_runtime_manifest,
-    qwen_runtime_update_available,
+from .qwen_runtime import inspect_qwen_runtime
+from .qwen_runtime_maintenance import (
+    inspect_qwen_runtime_update,
+    install_qwen_runtime_update,
 )
 from .settings import SettingsStore
 from .startup import set_start_with_windows
@@ -431,64 +430,49 @@ class DesktopBridge:
         }
 
     def check_qwen_runtime(self) -> dict[str, Any]:
-        state = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=True)
-        manifest = fetch_qwen_runtime_manifest()
-        current_version = state.get("version") if state.get("status") == "ready" else None
+        state = inspect_qwen_runtime_update(
+            self.paths.runtime_root,
+            verify_worker=True,
+        )
+        if state.get("stable_status") == "unavailable":
+            raise RuntimeError(str(state.get("error_code") or "QWEN_RUNTIME_MANIFEST_UNAVAILABLE"))
         return {
-            "status": state.get("status"),
-            "current_version": current_version,
-            "installed_version": state.get("version"),
-            "available": qwen_runtime_update_available(
-                current_version if isinstance(current_version, str) else None,
-                manifest,
-            ),
-            "version": manifest.version,
-            "tag": manifest.tag,
-            "size": manifest.bundle.archive_size,
-            "part_count": len(manifest.bundle.parts),
+            "status": state.get("installed_status"),
+            "current_version": state.get("installed_version")
+            if state.get("installed_status") == "ready"
+            else None,
+            "installed_version": state.get("installed_version"),
+            "available": state.get("update_available") is True,
+            "version": state.get("stable_version"),
+            "tag": state.get("stable_tag"),
+            "size": state.get("stable_size"),
+            "part_count": state.get("stable_part_count"),
         }
 
     def install_qwen_runtime(self) -> dict[str, Any]:
         if self._has_active_job():
             raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB")
-        state = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=True)
-        manifest = fetch_qwen_runtime_manifest()
-        current_version = state.get("version") if state.get("status") == "ready" else None
-        if not qwen_runtime_update_available(
-            current_version if isinstance(current_version, str) else None,
-            manifest,
-        ):
-            return {
-                "accepted": False,
-                "available": False,
-                "status": state.get("status"),
-                "version": manifest.version,
-            }
-        target = self.paths.runtime_root / "qwen" / manifest.version
-        repairing = bool(
-            (state.get("status") == "corrupt" and state.get("version") == manifest.version)
-            or target.exists()
-            or target.is_symlink()
-        )
-        archive = download_qwen_runtime(manifest, self.paths.cache_root)
-        installed = install_qwen_runtime_archive(
-            archive,
+        result = install_qwen_runtime_update(
             self.paths.runtime_root,
-            version=manifest.version,
-            expected_sha256=manifest.bundle.archive_sha256,
-            replace_corrupt=repairing,
+            self.paths.cache_root,
         )
-        verified = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=True)
-        if verified.get("status") != "ready" or verified.get("version") != manifest.version:
-            raise RuntimeError("QWEN_RUNTIME_INSTALL_VERIFY_FAILED")
         return {
-            "accepted": True,
-            "available": True,
-            "status": "ready",
-            "version": manifest.version,
-            "worker_sha256": installed["worker_sha256"],
-            "repaired": repairing,
-            "part_count": len(manifest.bundle.parts),
+            "accepted": result.get("accepted") is True,
+            "available": result.get("update_available") is True
+            or result.get("accepted") is True,
+            "status": result.get("status"),
+            "version": result.get("version") or result.get("stable_version"),
+            **(
+                {"worker_sha256": result.get("worker_sha256")}
+                if result.get("worker_sha256")
+                else {}
+            ),
+            **(
+                {"repaired": result.get("repaired") is True}
+                if result.get("accepted") is True
+                else {}
+            ),
+            "part_count": result.get("stable_part_count"),
         }
 
     def _maintenance_helper(self) -> Path:
