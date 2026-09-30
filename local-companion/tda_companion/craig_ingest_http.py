@@ -19,6 +19,7 @@ from .craig_runtime import load_craig_package
 from .local_review import LocalReviewError, open_base_review, open_review, review_summary, save_review
 from .publication_target import publication_target_state
 from .session_assemblies import SessionAssemblyError, assembly_dependency_for_run
+from .session_timeline import classify_start_time, project_trusted_absolute_time
 from .session_assembly_review import (
     SessionAssemblyReviewError,
     open_assembly_review,
@@ -62,6 +63,59 @@ _ALLOWED_PREFLIGHT_HEADERS = frozenset({"authorization", "content-type"})
 _LOCAL_REVIEW_BODY_MAX_BYTES = 32 * 1024 * 1024
 
 ASGIApp = Callable[[dict, Callable[[], Awaitable[dict]], Callable[[dict], Awaitable[None]]], Awaitable[None]]
+
+
+def _with_source_absolute_time(
+    review: dict[str, object],
+    *,
+    source_id: str,
+    source_start_time: object,
+) -> dict[str, object]:
+    """Add fail-closed wall-clock projection without changing review persistence.
+
+    Local review start/end stay the canonical elapsed coordinates. Absolute time is
+    response-only metadata derived from the Craig package's own trusted start time.
+    """
+    classification = classify_start_time(source_start_time)
+    confidence = classification.get("confidence")
+    raw_segments = review.get("segments")
+    if not isinstance(raw_segments, list):
+        return review
+
+    segments: list[object] = []
+    for raw in raw_segments:
+        if not isinstance(raw, dict):
+            segments.append(raw)
+            continue
+        segment = dict(raw)
+        start = segment.get("timeline_start", segment.get("start"))
+        end = segment.get("timeline_end", segment.get("end"))
+        absolute_start = project_trusted_absolute_time(
+            source_start_time,
+            confidence,
+            start,
+        )
+        absolute_end = project_trusted_absolute_time(
+            source_start_time,
+            confidence,
+            end,
+        )
+        if absolute_start is not None and absolute_end is not None:
+            segment.update(
+                absolute_time_state="trusted_absolute",
+                absolute_start=absolute_start,
+                absolute_end=absolute_end,
+                absolute_time_source=source_id,
+            )
+        else:
+            segment.update(
+                absolute_time_state="unavailable",
+                absolute_start=None,
+                absolute_end=None,
+                absolute_time_source=None,
+            )
+        segments.append(segment)
+    return {**review, "segments": segments}
 
 
 def _error(code: str, status: int, recoverable: bool = False) -> JSONResponse:
@@ -450,7 +504,7 @@ class CraigIngestBoundary:
             raise CraigPackageError("CRAIG_STAGING_PATH_INVALID")
         gate = self.source_gate if self.source_gate is not None else nullcontext()
         with gate:
-            load_craig_package(package_root, verify_tracks=False)
+            package = load_craig_package(package_root, verify_tracks=False)
             try:
                 manifest = load_run(package_root, run_id, verify_content=False)
             except TranscriptionRunError as exc:
@@ -478,6 +532,11 @@ class CraigIngestBoundary:
                     run_id=run_id,
                     value=payload,
                 )
+            review = _with_source_absolute_time(
+                review,
+                source_id=source_id,
+                source_start_time=package.start_time,
+            )
             return {**review, **publication_target_state(package_root, run_id)}
 
     async def _read_review_body(self, request: Request) -> dict[str, object]:
