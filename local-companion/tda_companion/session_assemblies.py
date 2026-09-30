@@ -5,7 +5,7 @@ import json
 import math
 import re
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -52,6 +52,27 @@ def _canonical_bytes(value: object) -> bytes:
 
 def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
+
+
+def _absolute_timestamp(start_time: object, offset_seconds: float) -> str | None:
+    """Project a source-local offset onto a trusted absolute Craig timestamp.
+
+    The original numeric UTC offset is preserved in the rendered ISO timestamp.
+    Ambiguous/naive timestamps never become wall-clock UI data.
+    """
+    if not isinstance(start_time, str) or not start_time.strip():
+        return None
+    raw = start_time.strip()
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    value = (parsed + timedelta(seconds=offset_seconds)).isoformat(timespec="milliseconds")
+    if raw.endswith("Z") and value.endswith("+00:00"):
+        value = value[:-6] + "Z"
+    return value
 
 
 def _identity(value: object, code: str) -> str:
@@ -342,6 +363,16 @@ def _build_transcript(
                         "raw_speaker": raw_speaker,
                         "start": global_start,
                         "end": global_end,
+                        "absolute_start": (
+                            _absolute_timestamp(part.get("source_start_time"), local_start)
+                            if part.get("source_start_confidence") == "trusted_absolute"
+                            else None
+                        ),
+                        "absolute_end": (
+                            _absolute_timestamp(part.get("source_start_time"), local_end)
+                            if part.get("source_start_confidence") == "trusted_absolute"
+                            else None
+                        ),
                         "text": text,
                         "words": projected_words,
                     }
