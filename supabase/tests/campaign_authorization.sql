@@ -60,6 +60,33 @@ begin
     raise exception 'edit campaign directory grants are incorrect';
   end if;
 
+
+  if has_function_privilege(
+      'anon',
+      'public.access_directory(text)',
+      'execute'
+    )
+    or not has_function_privilege(
+      'authenticated',
+      'public.access_directory(text)',
+      'execute'
+    )
+    or not has_function_privilege(
+      'service_role',
+      'public.access_directory(text)',
+      'execute'
+    ) then
+    raise exception 'access directory grants are incorrect';
+  end if;
+
+  if not has_function_privilege(
+      'service_role',
+      'public.has_profile_campaign_capability(uuid,text,text,timestamptz)',
+      'execute'
+    ) then
+    raise exception 'service role cannot execute the internal campaign capability helper';
+  end if;
+
   if has_function_privilege(
       'authenticated',
       'public.submit_profile_claim(text,uuid,text,text,text,text,text[],text)',
@@ -85,8 +112,62 @@ begin
     ) then
     raise exception 'service role lost required legacy claim RPC execution';
   end if;
+
+  if not coalesce(
+    (select p.prosecdef
+     from pg_catalog.pg_proc p
+     where p.oid = 'public.has_profile_campaign_capability(uuid,text,text,timestamptz)'::regprocedure),
+    false
+  )
+  or not coalesce(
+    (select p.prosecdef
+     from pg_catalog.pg_proc p
+     where p.oid = 'public.campaign_public_directory()'::regprocedure),
+    false
+  )
+  or not coalesce(
+    (select p.prosecdef
+     from pg_catalog.pg_proc p
+     where p.oid = 'public.campaign_edit_directory()'::regprocedure),
+    false
+  )
+  or not coalesce(
+    (select p.prosecdef
+     from pg_catalog.pg_proc p
+     where p.oid = 'public.access_directory(text)'::regprocedure),
+    false
+  ) then
+    raise exception 'campaign authorization boundary functions must remain SECURITY DEFINER';
+  end if;
+
+  if not coalesce(
+    (select 'search_path=pg_catalog, public' = any(p.proconfig)
+     from pg_catalog.pg_proc p
+     where p.oid = 'public.has_profile_campaign_capability(uuid,text,text,timestamptz)'::regprocedure),
+    false
+  )
+  or not coalesce(
+    (select 'search_path=pg_catalog, public' = any(p.proconfig)
+     from pg_catalog.pg_proc p
+     where p.oid = 'public.campaign_public_directory()'::regprocedure),
+    false
+  )
+  or not coalesce(
+    (select 'search_path=pg_catalog, public, auth' = any(p.proconfig)
+     from pg_catalog.pg_proc p
+     where p.oid = 'public.campaign_edit_directory()'::regprocedure),
+    false
+  )
+  or not coalesce(
+    (select 'search_path=pg_catalog, public, auth' = any(p.proconfig)
+     from pg_catalog.pg_proc p
+     where p.oid = 'public.access_directory(text)'::regprocedure),
+    false
+  ) then
+    raise exception 'campaign authorization boundary functions lost their fixed search_path';
+  end if;
 end
-$$;
+$;
 
 -- Public discovery is projection-only and hides private/archived campaigns.
 do $$
@@ -178,8 +259,83 @@ begin
 end
 $$;
 
+-- Exact capability and physical scope remain independent: project-level Edit
+-- discovery does not imply campaign.read, while session/resource grants do not
+-- escape into campaign discovery or access.
+do $
+declare
+  v_actor uuid;
+  v_directory jsonb;
+begin
+  perform set_config(
+    'request.jwt.claim.sub',
+    '90000000-0000-4000-8000-000000000004',
+    false
+  );
+  if public.access_directory('yuhara-main')
+     <> jsonb_build_object('ok', false, 'error', 'forbidden') then
+    raise exception 'project campaign.edit.access was incorrectly widened to campaign.read';
+  end if;
+
+  foreach v_actor in array array[
+    '90000000-0000-4000-8000-000000000003'::uuid,
+    '90000000-0000-4000-8000-000000000008'::uuid,
+    '90000000-0000-4000-8000-000000000009'::uuid,
+    '90000000-0000-4000-8000-000000000010'::uuid,
+    '90000000-0000-4000-8000-000000000011'::uuid,
+    '90000000-0000-4000-8000-000000000099'::uuid
+  ]
+  loop
+    perform set_config('request.jwt.claim.sub', v_actor::text, false);
+    v_directory := public.campaign_edit_directory();
+
+    if v_directory <> '[]'::jsonb then
+      raise exception 'non-effective actor % discovered campaigns: %', v_actor, v_directory;
+    end if;
+
+    if public.access_directory('yuhara-main')
+       <> jsonb_build_object('ok', false, 'error', 'forbidden') then
+      raise exception 'non-effective actor % crossed campaign access boundary', v_actor;
+    end if;
+  end loop;
+
+  if not public.has_profile_campaign_capability(
+    '30000000-0000-4000-8000-000000000001',
+    'yuhara-main',
+    'campaign.read',
+    statement_timestamp()
+  ) then
+    raise exception 'campaign-scoped read grant was not recognized by helper';
+  end if;
+
+  if public.has_profile_campaign_capability(
+    '30000000-0000-4000-8000-000000000001',
+    'antes-que-seja-tarde',
+    'campaign.read',
+    statement_timestamp()
+  ) then
+    raise exception 'campaign-scoped read grant escaped into sibling campaign';
+  end if;
+
+  if public.has_profile_campaign_capability(
+    '30000000-0000-4000-8000-000000000003',
+    'yuhara-main',
+    'campaign.read',
+    statement_timestamp()
+  )
+  or public.has_profile_campaign_capability(
+    '30000000-0000-4000-8000-000000000010',
+    'yuhara-main',
+    'campaign.read',
+    statement_timestamp()
+  ) then
+    raise exception 'session/resource scope was treated as campaign authority';
+  end if;
+end
+$;
+
 -- Revocation is observed on the next call; there is no stale cached authority.
-do $$
+do $
 begin
   update public.role_assignments
   set
