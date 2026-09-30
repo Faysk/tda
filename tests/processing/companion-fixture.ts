@@ -8,6 +8,20 @@ const sourceSha = "a".repeat(64);
 export const CRAIG_SOURCE_ID = `craig-${sourceSha}`;
 export const TRANSCRIPT_SHA = "b".repeat(64);
 
+function compareSemver(left: string, right: string): number {
+	const parse = (value: string) => {
+		const match = /^(\d+)\.(\d+)\.(\d+)$/u.exec(value);
+		if (!match) throw new Error(`Invalid fixture SemVer: ${value}`);
+		return match.slice(1).map(Number) as [number, number, number];
+	};
+	const a = parse(left);
+	const b = parse(right);
+	for (let index = 0; index < 3; index += 1) {
+		if (a[index] !== b[index]) return a[index] - b[index];
+	}
+	return 0;
+}
+
 export type FixtureJobStatus =
 	| "queued"
 	| "running"
@@ -488,7 +502,7 @@ export async function installCompanionFixture(
 				minimum_version: "1.0.12",
 				stable_status: options.qwenRuntimeManifestUnavailable
 					? "unavailable"
-					: qwenStableVersion && qwenStableVersion >= "1.0.12"
+					: qwenStableVersion && compareSemver(qwenStableVersion, "1.0.12") >= 0
 						? "compatible"
 						: "below_minimum",
 				stable_version: options.qwenRuntimeManifestUnavailable ? null : qwenStableVersion,
@@ -500,12 +514,12 @@ export async function installCompanionFixture(
 				update_available:
 					options.qwenRuntimeManifestUnavailable || !qwenStableVersion
 						? null
-						: qwenRuntimeVersion < qwenStableVersion && qwenStableVersion >= "1.0.12",
+						: compareSemver(qwenRuntimeVersion, qwenStableVersion) < 0 && compareSemver(qwenStableVersion, "1.0.12") >= 0,
 				can_update:
 					!options.qwenRuntimeManifestUnavailable &&
 					Boolean(qwenStableVersion) &&
-					qwenRuntimeVersion < String(qwenStableVersion) &&
-					String(qwenStableVersion) >= "1.0.12",
+					compareSemver(qwenRuntimeVersion, String(qwenStableVersion)) < 0 &&
+					compareSemver(String(qwenStableVersion), "1.0.12") >= 0,
 				error_code: options.qwenRuntimeManifestUnavailable
 					? "NETWORK_UNAVAILABLE"
 					: options.qwenRuntimeUpdateFailure ?? null,
@@ -528,15 +542,15 @@ export async function installCompanionFixture(
 				minimum_version: "1.0.12",
 				stable_status: options.qwenRuntimeManifestUnavailable
 					? "unavailable"
-					: qwenStableVersion && qwenStableVersion >= "1.0.12"
+					: qwenStableVersion && compareSemver(qwenStableVersion, "1.0.12") >= 0
 						? "compatible"
 						: "below_minimum",
 				stable_version: options.qwenRuntimeManifestUnavailable ? null : qwenStableVersion,
 				stable_tag: options.qwenRuntimeManifestUnavailable || !qwenStableVersion ? null : `companion-qwen-runtime-v${qwenStableVersion}`,
 				stable_size: options.qwenRuntimeManifestUnavailable ? null : 1024,
 				stable_part_count: options.qwenRuntimeManifestUnavailable ? null : 1,
-				update_available: options.qwenRuntimeManifestUnavailable || !qwenStableVersion ? null : qwenRuntimeVersion < qwenStableVersion && qwenStableVersion >= "1.0.12",
-				can_update: !options.qwenRuntimeManifestUnavailable && Boolean(qwenStableVersion) && qwenRuntimeVersion < String(qwenStableVersion) && String(qwenStableVersion) >= "1.0.12",
+				update_available: options.qwenRuntimeManifestUnavailable || !qwenStableVersion ? null : compareSemver(qwenRuntimeVersion, qwenStableVersion) < 0 && compareSemver(qwenStableVersion, "1.0.12") >= 0,
+				can_update: !options.qwenRuntimeManifestUnavailable && Boolean(qwenStableVersion) && compareSemver(qwenRuntimeVersion, String(qwenStableVersion)) < 0 && compareSemver(String(qwenStableVersion), "1.0.12") >= 0,
 				error_code: options.qwenRuntimeManifestUnavailable ? "NETWORK_UNAVAILABLE" : null,
 			});
 		}
