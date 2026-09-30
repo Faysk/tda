@@ -26,6 +26,24 @@ function overlaps(a: Box, b: Box) {
 	);
 }
 
+function horizontalMargins(box: Box, viewportWidth: number) {
+	return {
+		left: box.x,
+		right: viewportWidth - (box.x + box.width),
+	};
+}
+
+function expectSymmetricMargins(box: Box, viewportWidth: number, tolerance = 2) {
+	const margins = horizontalMargins(box, viewportWidth);
+	expect(Math.abs(margins.left - margins.right)).toBeLessThanOrEqual(tolerance);
+	return margins;
+}
+
+function expectSameHorizontalAxis(a: Box, b: Box, tolerance = 2) {
+	expect(Math.abs(a.x - b.x)).toBeLessThanOrEqual(tolerance);
+	expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(tolerance);
+}
+
 async function sharedKeyline(page: Page) {
 	return page.evaluate(() => {
 		const styles = getComputedStyle(document.documentElement);
@@ -66,8 +84,11 @@ test("public Sessions keeps archive value in the first viewport and reader measu
 		});
 		const archiveHero = page.locator("[data-session-archive-hero]");
 		const archiveRail = page.locator("[data-session-archive-rail]");
+		const archiveToolbar = page.locator("[data-session-archive-toolbar]");
+		const archiveResults = page.locator("[data-session-archive-results]");
+		const archiveGrid = page.locator('[data-session-view="grid"]');
 		const stats = page.locator('dl[aria-label="Resumo público do arquivo"]');
-		const firstCard = page.locator('[data-session-view="grid"] article').first();
+		const firstCard = page.locator('[data-session-card="grid"]').first();
 		const fallback = firstCard.getByText("TDA", { exact: true });
 		const brand = page.locator(".brand");
 		const account = page.locator(".account-menu-trigger");
@@ -78,6 +99,9 @@ test("public Sessions keeps archive value in the first viewport and reader measu
 			titleBox,
 			heroBox,
 			railBox,
+			toolbarBox,
+			resultsBox,
+			gridBox,
 			statsBox,
 			cardBox,
 			brandBox,
@@ -86,6 +110,9 @@ test("public Sessions keeps archive value in the first viewport and reader measu
 			requiredBox(archiveTitle),
 			requiredBox(archiveHero),
 			requiredBox(archiveRail),
+			requiredBox(archiveToolbar),
+			requiredBox(archiveResults),
+			requiredBox(archiveGrid),
 			requiredBox(stats),
 			requiredBox(firstCard),
 			requiredBox(brand),
@@ -93,17 +120,35 @@ test("public Sessions keeps archive value in the first viewport and reader measu
 		]);
 
 		expect(Math.abs(titleBox.x - keyline.x)).toBeLessThanOrEqual(2);
-		expect(Math.abs(railBox.x - keyline.x)).toBeLessThanOrEqual(2);
+		const railMargins = expectSymmetricMargins(railBox, viewport.width);
+		expectSameHorizontalAxis(toolbarBox, railBox);
+		expectSameHorizontalAxis(resultsBox, railBox);
+		expectSameHorizontalAxis(gridBox, railBox);
+		expect(Math.abs(cardBox.x - railBox.x)).toBeLessThanOrEqual(2);
 		expect(overlaps(titleBox, brandBox)).toBeFalsy();
 		expect(overlaps(titleBox, accountBox)).toBeFalsy();
 		expect(cardBox.y).toBeLessThan(viewport.height);
 		expect(statsBox.height).toBeLessThan(heroBox.height * 0.4);
 		expect(heroBox.height).toBeLessThanOrEqual(viewport.width <= 390 ? 540 : 560);
 		if (viewport.width >= 1920) {
-			expect(railBox.width).toBeGreaterThanOrEqual(1450);
-			expect(railBox.width).toBeLessThanOrEqual(1602);
-			expect(cardBox.width).toBeLessThanOrEqual(540);
+			expect(railBox.width).toBeGreaterThanOrEqual(1538);
+			expect(railBox.width).toBeLessThanOrEqual(1542);
+			expect(railBox.x).toBeGreaterThan(keyline.x);
+			expect(cardBox.width).toBeLessThanOrEqual(520);
 		}
+		await expectNoHorizontalOverflow(page);
+
+		await page.getByRole("button", { name: "Visualização em lista" }).click();
+		const archiveList = page.locator('[data-session-view="list"]');
+		const firstListRow = page.locator('[data-session-card="list"]').first();
+		await expect(archiveList).toBeVisible();
+		const [listBox, listRowBox] = await Promise.all([
+			requiredBox(archiveList),
+			requiredBox(firstListRow),
+		]);
+		expectSameHorizontalAxis(listBox, railBox);
+		expectSameHorizontalAxis(listRowBox, railBox);
+		expectSymmetricMargins(listBox, viewport.width);
 		await expectNoHorizontalOverflow(page);
 
 		await writeFile(
@@ -116,7 +161,13 @@ test("public Sessions keeps archive value in the first viewport and reader measu
 					hero: heroBox,
 					stats: statsBox,
 					rail: railBox,
+					railMargins,
+					toolbar: toolbarBox,
+					results: resultsBox,
+					grid: gridBox,
 					firstCard: cardBox,
+					list: listBox,
+					firstListRow: listRowBox,
 				},
 				null,
 				2,
@@ -201,6 +252,32 @@ test("public Sessions keeps archive value in the first viewport and reader measu
 			fullPage: true,
 		});
 	}
+});
+
+test("Sessions archive keyline survives a 200%-equivalent reflow viewport", async ({
+	page,
+}) => {
+	// Browser zoom to 200% halves the available CSS-pixel viewport. A 1366px
+	// desktop therefore exercises the same responsive layout at ~683 CSS px.
+	await page.setViewportSize({ width: 683, height: 384 });
+	await page.goto("/sessoes");
+
+	const rail = await requiredBox(page.locator("[data-session-archive-rail]"));
+	const toolbar = await requiredBox(page.locator("[data-session-archive-toolbar]"));
+	const results = await requiredBox(page.locator("[data-session-archive-results]"));
+	const grid = await requiredBox(page.locator('[data-session-view="grid"]'));
+
+	expectSymmetricMargins(rail, 683);
+	expectSameHorizontalAxis(toolbar, rail);
+	expectSameHorizontalAxis(results, rail);
+	expectSameHorizontalAxis(grid, rail);
+	await expectNoHorizontalOverflow(page);
+
+	await page.getByRole("button", { name: "Visualização em lista" }).click();
+	const list = await requiredBox(page.locator('[data-session-view="list"]'));
+	expectSameHorizontalAxis(list, rail);
+	expectSymmetricMargins(list, 683);
+	await expectNoHorizontalOverflow(page);
 });
 
 test("Sessions public geometry survives dark/light themes and reduced motion", async ({ page }) => {

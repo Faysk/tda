@@ -181,7 +181,8 @@
 }
 
 .archiveRail {
-	width: min(100%, 1600px);
+	width: min(100%, var(--ds-layout-editorial, 1540px));
+	margin-inline: auto;
 }
 
 .state {
