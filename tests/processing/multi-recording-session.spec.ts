@@ -89,6 +89,7 @@ async function installMultiRecordingRoutes(
 	let attached: string[] = [];
 	const selected = new Map<string, string>();
 	let assemblyBuilt = false;
+	let intentState: Record<string, unknown> | null = null;
 	let jobSequence = 0;
 	const jobsBySource = new Map<
 		string,
@@ -280,6 +281,44 @@ async function installMultiRecordingRoutes(
 				reused: false,
 			});
 		}
+		if (
+			path === `/session-workspaces/${CAMPAIGN}/${SESSION}/intent` &&
+			request.method() === "POST"
+		) {
+			const body = request.postDataJSON() as {
+				request_id: string;
+				profile_id: string;
+				context: string;
+				glossary: string;
+			};
+			intentState = {
+				schema_version: "tda_session_transcription_intent_v1",
+				campaign_id: CAMPAIGN,
+				session_id: SESSION,
+				request_id: body.request_id,
+				profile_id: body.profile_id,
+				context: body.context,
+				glossary: body.glossary,
+				context_sha256: "4".repeat(64),
+				glossary_sha256: "5".repeat(64),
+				created_at: NOW,
+				updated_at: NOW,
+			};
+			return json(route, intentState);
+		}
+		if (
+			path === `/session-workspaces/${CAMPAIGN}/${SESSION}/intent` &&
+			request.method() === "GET"
+		) {
+			return intentState
+				? json(route, intentState)
+				: json(
+						route,
+						{ error: { code: "SESSION_TRANSCRIPTION_INTENT_NOT_FOUND" } },
+						404,
+					);
+		}
+
 		if (path === `/session-workspaces/${CAMPAIGN}/${SESSION}`) {
 			if (request.method() === "GET" && agentOfflineOnce) {
 				agentOfflineOnce = false;
