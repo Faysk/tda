@@ -391,9 +391,6 @@ export function SessionRecordingComposer({
 		};
 	}, [bridge, runsBySource, supported, workspace]);
 
-	if (!supported) return null;
-	if (!workspace && !currentSource) return null;
-
 	async function attachCurrentSource() {
 		if (!currentSource || !validSessionId(sessionId) || busy || disabled) return;
 		const controller = new AbortController();
@@ -891,6 +888,9 @@ export function SessionRecordingComposer({
 		onActiveChange?.(false);
 		announce("Composer fechado. As gravações, runs e assemblies locais foram preservados.");
 	}
+
+	if (!supported) return null;
+	if (!workspace && !currentSource) return null;
 
 	const unresolvedConflicts =
 		mapping?.conflicts.filter((conflict) => conflict.requiresResolution) ?? [];
