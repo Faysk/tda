@@ -343,6 +343,22 @@ Skeleton não é indicador de progresso. Ele apenas reserva a estrutura durante 
 
 A validação E2E usa rotas lentas sintéticas de **Cinematic, Editorial, Workspace, World/Canvas e Compact** para provar que o fallback aparece sem overlay global, o chrome compartilhado permanece utilizável e focável, existe um único status regional anunciável, os blocos decorativos ficam fora da árvore acessível, não há overflow horizontal e reduced motion remove o shimmer. A matriz automatizada cobre 320×800, 390×844, 1366×768, 1920×1080 e um viewport CSS de 960×540 como equivalente a 1920×1080 em zoom de 200%. Dark/light também são verificados contra os mesmos papéis semânticos.
 
+### Progresso operacional
+
+Operações já montadas usam a primitive compartilhada `Progress` em `src/components/ui/progress.tsx`.
+
+O contrato diferencia explicitamente:
+
+- **determinate** — existe denominador factual, como bytes, chunks, tracks ou itens; `value/max` são expostos pelo `<progress>` nativo e a interface pode mostrar porcentagem/contagem real;
+- **indeterminate** — a operação está ativa, mas não existe total confiável; o `<progress>` não recebe `value` e a UI comunica a etapa textual;
+- **estimated** — ETA/estimativa continua separada do progresso factual e nunca é convertida em porcentagem inventada.
+
+Tons são semânticos (`neutral`, `accent`, `success`, `warning`, `danger`). O default é neutro; Processing preserva `accent` onde o dourado já representa trabalho ativo. Uploads não transformam o acento da marca em tinta universal.
+
+Uploads seguem a state machine perceptiva `preparing → uploading → finalizing → success/error`: preparação e validação são indeterminadas quando o sistema não conhece um total, enquanto upload usa bytes/chunks reais quando disponíveis. `prefers-reduced-motion: reduce` remove deslocamento/transição decorativa sem retirar valor, label ou estado.
+
+A validação E2E usa rotas lentas sintéticas das famílias Editorial, Workspace e World para provar que o fallback aparece sem overlay global, o chrome compartilhado permanece disponível, não há overflow horizontal e reduced motion remove o shimmer.
+
 ### Pending local de ações
 
 Ações iniciadas dentro de uma superfície usam feedback no próprio controle sempre que o resto da página pode continuar útil. O primitive `Button` aceita `pending` + `pendingLabel`; `FormSubmitButton` usa `useFormStatus()` para Server Actions e `next/form`.

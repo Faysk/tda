@@ -1203,76 +1203,12 @@
 
 .uploadProgress {
 	display: block;
-	appearance: none;
-}
-
-.uploadProgress::-webkit-progress-bar {
-	border-radius: inherit;
-	background: color-mix(in srgb, var(--ds-border) 72%, transparent);
-}
-
-.uploadProgress::-webkit-progress-value {
-	border-radius: inherit;
-	background: var(--ds-accent);
-}
-
-.uploadProgress::-moz-progress-bar {
-	border-radius: inherit;
-	background: var(--ds-accent);
-}
-
-.uploadTrack {
-	position: relative;
-}
-
-.uploadTrackFill {
-	display: block;
-	height: 100%;
-	border-radius: inherit;
-	background: var(--ds-accent);
-	transition: width 120ms linear;
 }
 
 .uploadStatus small {
 	color: var(--ds-foreground-muted);
 	font-size: 0.68rem;
 	line-height: 1.35;
-}
-
-.uploadStatus[data-phase="finalizing"] .uploadTrackFill {
-	position: relative;
-	overflow: hidden;
-}
-
-.uploadStatus[data-phase="finalizing"] .uploadTrackFill::after {
-	position: absolute;
-	inset: 0;
-	background: linear-gradient(
-		90deg,
-		transparent,
-		color-mix(in srgb, var(--ds-foreground) 24%, transparent),
-		transparent
-	);
-	content: "";
-	animation: lembra-upload-sheen 1.1s ease-in-out infinite;
-}
-
-.uploadStatus[data-phase="success"] .uploadStatusHeader,
-.uploadStatus[data-phase="success"] .uploadStatusHeader strong {
-	color: var(--ds-accent-strong);
-}
-
-.uploadStatus[data-phase="error"] .uploadStatusHeader {
-	color: var(--ds-danger, #c96b6b);
-}
-
-@keyframes lembra-upload-sheen {
-	from {
-		transform: translateX(-100%);
-	}
-	to {
-		transform: translateX(100%);
-	}
 }
 
 .composerMessage {
