@@ -453,7 +453,13 @@ export function useWorldEditSession({
 	}
 
 	async function publish() {
-		if (state !== "editing" || !leaseToken || !hasChanges) return;
+		if (
+			state !== "editing" ||
+			!leaseToken ||
+			!hasChanges ||
+			terminalActionRef.current !== null
+		)
+			return;
 		cancelPendingDraftSaves();
 		const sequence = sessionSequence.current;
 		setState("publishing");
@@ -638,7 +644,7 @@ export function useWorldEditSession({
 	}
 
 	async function discard() {
-		if (!leaseToken || state !== "editing") return;
+		if (!leaseToken || state !== "editing" || terminalActionRef.current !== null) return;
 		const confirmed = window.confirm(
 			"Descartar este rascunho? O Mundo publicado será mantido. Uma cópia de recuperação ficará registrada para auditoria, mas esta sessão será encerrada.",
 		);
