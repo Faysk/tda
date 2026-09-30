@@ -76,6 +76,9 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		"tests/system-states.spec.ts",
 		"tests/session-public-layout.spec.ts",
 		"src/app/sessoes/page.module.css",
+		"src/app/campanhas/page.tsx",
+		"src/app/campanhas/[campaignSlug]/sessoes/page.tsx",
+		"src/features/campaigns/model.ts",
 		"src/app/error.tsx",
 		"src/app/not-found.tsx",
 		"src/app/e2e-fixtures/system-states/error/page.tsx",
@@ -94,6 +97,7 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		"tests/layout-receipts.spec.ts",
 		"tests/foundation.spec.ts",
 		"tests/navigation-origin.spec.ts",
+		"tests/campaign-directory.spec.ts",
 		"playwright.config.ts",
 	]) {
 		const result = flags([path]);
