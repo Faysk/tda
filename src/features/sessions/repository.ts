@@ -56,25 +56,34 @@ export class PublishedSessionUnavailableError extends Error {
 	}
 }
 
-export async function listPublishedSessions(): Promise<
-	PublishedSession[] | null
-> {
-	if (layoutFixtureEnabled()) return [...layoutFixtureSessions];
+export async function listPublishedSessionsByCampaign(
+	campaignSlug: string,
+): Promise<PublishedSession[] | null> {
+	if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(campaignSlug))
+		return [];
+	if (layoutFixtureEnabled())
+		return campaignSlug === CAMPAIGN_SLUG ? [...layoutFixtureSessions] : [];
 	const client = publishedDataClient();
 	if (!client) return null;
 	const { data, error } = await client
 		.from("sessions")
 		.select(columns)
 		.eq("status", "published")
-		.eq("campaigns.slug", CAMPAIGN_SLUG)
+		.eq("campaigns.slug", campaignSlug)
 		.order("session_date", { ascending: false, nullsFirst: false })
 		.order("source_session_id", { ascending: true })
 		.limit(500);
 	if (error) throw new Error("Published sessions unavailable");
 	return (data ?? []).flatMap((row) => {
-		const item = toPublishedSession(row);
+		const item = toPublishedSession(row, false, campaignSlug);
 		return item ? [item] : [];
 	});
+}
+
+export async function listPublishedSessions(): Promise<
+	PublishedSession[] | null
+> {
+	return listPublishedSessionsByCampaign(CAMPAIGN_SLUG);
 }
 
 export async function listPublishedSessionArchive(): Promise<
