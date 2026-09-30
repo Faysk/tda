@@ -72,10 +72,10 @@ test("campaign directory remains keyboard reachable and free of horizontal overf
 	);
 	expect(mobileOverflow).toBeLessThanOrEqual(1);
 
-	// Browser zoom reduces the CSS viewport. Half-width is a deterministic
-	// approximation of 200% zoom without CSS `zoom`, which itself enlarges
-	// scrollWidth and produces a false overflow signal.
-	await page.setViewportSize({ width: 160, height: 400 });
+	// Browser zoom reduces the CSS viewport. Model a 1920×1080 desktop at
+	// 200% zoom as a 960×540 CSS viewport. Going below the product-wide
+	// 320px minimum would test an unsupported viewport rather than zoom.
+	await page.setViewportSize({ width: 960, height: 540 });
 	const zoomOverflow = await page.evaluate(
 		() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
 	);
