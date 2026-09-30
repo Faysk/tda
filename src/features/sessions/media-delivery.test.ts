@@ -12,7 +12,14 @@ const row = {
 	arc: "Arc",
 	summary_short: "Summary",
 	status: "published",
-	campaigns: { slug: "yuhara-main" },
+	campaigns: {
+		id: "campaign-a",
+		slug: "yuhara-main",
+		public_slug: "cronicas-da-mesa",
+		name: "Crônicas da Mesa",
+		lifecycle: "active",
+		visibility: "public",
+	},
 };
 
 describe("R2 public session delivery", () => {
@@ -28,6 +35,26 @@ describe("R2 public session delivery", () => {
 			).toBe(true);
 		},
 	);
+	it("accepts media for another public campaign only when the row belongs to it", () => {
+		const url = `${prefix}${key}.webp`.replace("yuhara-main", "another-campaign");
+		const anotherCampaignRow = {
+			...row,
+			campaigns: {
+				...row.campaigns,
+				id: "campaign-b",
+				slug: "another-campaign",
+				public_slug: "another-campaign",
+				name: "Another Campaign",
+			},
+		};
+		expect(
+			toPublishedSession({ ...anotherCampaignRow, cover_image_url: url })?.coverImage,
+		).toBe(url);
+		expect(
+			hasRemoteMatch([], config.images?.remotePatterns ?? [], new URL(url)),
+		).toBe(true);
+	});
+
 	it.each([
 		`${prefix}${key}.webp?token=synthetic`,
 		`${prefix}${key}.webp`.replace("https:", "http:"),
@@ -39,7 +66,6 @@ describe("R2 public session delivery", () => {
 			"media.dnd.faysk.dev",
 			"media.dnd.faysk.dev:8443",
 		),
-		`${prefix}${key}.webp`.replace("yuhara-main", "another-campaign"),
 		"https://media.dnd.faysk.dev/private/master.png",
 		"https://tda-media-private.example/master.png",
 		"https://tda-media-preview.example/image.png",
@@ -52,6 +78,16 @@ describe("R2 public session delivery", () => {
 			hasRemoteMatch([], config.images?.remotePatterns ?? [], new URL(url)),
 		).toBe(false);
 	});
+	it("rejects cross-campaign media in the session model while the global Next matcher allows it", () => {
+		const url = `${prefix}${key}.webp`.replace("yuhara-main", "another-campaign");
+		expect(
+			toPublishedSession({ ...row, cover_image_url: url }),
+		).not.toHaveProperty("coverImage");
+		expect(
+			hasRemoteMatch([], config.images?.remotePatterns ?? [], new URL(url)),
+		).toBe(true);
+	});
+
 	it("rejects embedded credentials and fragments in the model", () => {
 		for (const url of [
 			`${prefix}${key}.webp#private`,

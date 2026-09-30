@@ -46,7 +46,7 @@ const config: NextConfig = {
 				protocol: "https",
 				hostname: "media.dnd.faysk.dev",
 				port: "",
-				pathname: "/campaigns/yuhara-main/sessions/**",
+				pathname: "/campaigns/*/sessions/**",
 				search: "",
 			},
 			{

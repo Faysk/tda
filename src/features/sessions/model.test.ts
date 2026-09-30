@@ -13,21 +13,22 @@ const row = {
 	hero_image_url:
 		"https://dmrqnbdvbkfqzctcerbx.supabase.co/storage/v1/object/public/session-images/yuhara-main/example/hero.webp",
 	status: "published",
-	campaigns: { slug: "yuhara-main" },
+	campaigns: { id: "campaign-a", slug: "yuhara-main", public_slug: "cronicas-da-mesa", name: "Crônicas da Mesa", lifecycle: "active", visibility: "public" },
 	transcript: "PRIVATE",
 	metadata: { secret: "PRIVATE" },
 };
 
 describe("public session boundary", () => {
-	it("rejects drafts and other campaigns", () => {
+	it("rejects drafts and non-public campaigns", () => {
 		expect(toPublishedSession({ ...row, status: "draft" })).toBeNull();
 		expect(
-			toPublishedSession({ ...row, campaigns: { slug: "other" } }),
+			toPublishedSession({ ...row, campaigns: { ...row.campaigns, visibility: "private" } }),
 		).toBeNull();
 	});
 
 	it("only returns approved fields", () => {
 		const result = toPublishedSession(row);
+		expect(result).toMatchObject({ campaignSlug: "cronicas-da-mesa", campaignName: "Crônicas da Mesa" });
 		expect(result).not.toHaveProperty("metadata");
 		expect(result).not.toHaveProperty("transcript");
 		expect(result).not.toHaveProperty("fullSummary");
@@ -46,18 +47,28 @@ describe("public session boundary", () => {
 		expect(result).not.toHaveProperty("heroImage");
 	});
 
-
-	it("qualifies campaign-owned R2 media by the explicit campaign slug", () => {
-		const other = {
+	it("scopes canonical R2 media to the row campaign", () => {
+		const anotherCampaign = {
 			...row,
-			campaigns: { slug: "antes-que-seja-tarde" },
+			campaigns: {
+				...row.campaigns,
+				id: "campaign-b",
+				slug: "antes-que-seja-tarde",
+				public_slug: "antes-que-seja-tarde",
+				name: "Antes que Seja Tarde",
+			},
 			cover_image_url:
 				"https://media.dnd.faysk.dev/campaigns/antes-que-seja-tarde/sessions/session-1/card.webp",
 		};
+		expect(toPublishedSession(anotherCampaign)?.coverImage).toContain(
+			"/campaigns/antes-que-seja-tarde/sessions/",
+		);
 		expect(
-			toPublishedSession(other, false, "antes-que-seja-tarde")?.coverImage,
-		).toContain("/campaigns/antes-que-seja-tarde/sessions/");
-		expect(toPublishedSession(other)).toBeNull();
+			toPublishedSession({
+				...row,
+				cover_image_url: anotherCampaign.cover_image_url,
+			}),
+		).not.toHaveProperty("coverImage");
 	});
 
 	it("includes full summary only for detail", () => {

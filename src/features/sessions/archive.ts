@@ -43,13 +43,17 @@ export function formatArchiveDate(value: string) {
 
 export function summarizeSessionArchive(
 	sessions: readonly SessionArchiveItem[],
+	options: { qualifyArcsByCampaign?: boolean } = {},
 ): SessionArchiveSummary {
 	const arcs = new Set<string>();
 	const dates: string[] = [];
 
 	for (const session of sessions) {
 		const arc = session.arc.trim();
-		if (arc) arcs.add(arc.toLocaleLowerCase("pt-BR"));
+		if (arc) {
+			const normalizedArc = arc.toLocaleLowerCase("pt-BR");
+			arcs.add(options.qualifyArcsByCampaign ? `${session.campaignSlug}:${normalizedArc}` : normalizedArc);
+		}
 		if (archiveDateParts(session.date)) dates.push(session.date);
 	}
 

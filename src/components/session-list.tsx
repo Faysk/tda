@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
 import type { SessionArchiveItem } from "@/features/sessions/archive";
-import { formatSessionDate } from "@/features/sessions/model";
+import { formatSessionDate, sessionPublicKey, sessionPublicPath } from "@/features/sessions/model";
 import styles from "./session-list.module.css";
 
 type ViewMode = "grid" | "list";
@@ -108,7 +108,7 @@ function GridCard({
 	session: SessionArchiveItem;
 	latest: boolean;
 }) {
-	const href = `/sessoes/${encodeURIComponent(session.id)}`;
+	const href = sessionPublicPath(session);
 	const date = formatSessionDate(session.date);
 
 	return (
@@ -129,7 +129,7 @@ function GridCard({
 				</div>
 				<div className={styles.cardBody}>
 					<p className={styles.arc}>
-						{session.arc || "Memória da campanha"}
+						{session.campaignName} · {session.arc || "Memória da campanha"}
 					</p>
 					<h2 className={styles.cardTitle}>{session.title}</h2>
 					<p className={styles.summary}>
@@ -149,7 +149,7 @@ function GridCard({
 }
 
 function ListRow({ session }: { session: SessionArchiveItem }) {
-	const href = `/sessoes/${encodeURIComponent(session.id)}`;
+	const href = sessionPublicPath(session);
 	const date = formatSessionDate(session.date);
 
 	return (
@@ -190,10 +190,13 @@ function ListRow({ session }: { session: SessionArchiveItem }) {
 
 export function SessionList({
 	sessions,
+	showCampaignFilter = false,
 }: {
 	sessions: readonly SessionArchiveItem[];
+	showCampaignFilter?: boolean;
 }) {
 	const [query, setQuery] = useState("");
+	const [campaign, setCampaign] = useState("all");
 	const [arc, setArc] = useState("all");
 	const [sort, setSort] = useState<SortMode>("newest");
 	const [view, setView] = useState<ViewMode>("grid");
@@ -210,13 +213,26 @@ export function SessionList({
 		[sessions],
 	);
 
+	const campaigns = useMemo(() => {
+		const bySlug = new Map<string, string>();
+		for (const session of sessions) {
+			if (session.campaignSlug && !bySlug.has(session.campaignSlug)) {
+				bySlug.set(session.campaignSlug, session.campaignName);
+			}
+		}
+		return Array.from(bySlug, ([slug, name]) => ({ slug, name })).sort((a, b) =>
+			collator.compare(a.name, b.name),
+		);
+	}, [sessions]);
+
 	const visible = useMemo(() => {
 		const needle = normalizeSearch(query.trim());
 		const items = sessions.filter((session) => {
+			if (campaign !== "all" && session.campaignSlug !== campaign) return false;
 			if (arc !== "all" && session.arc !== arc) return false;
 			if (!needle) return true;
 			return normalizeSearch(
-				`${session.title} ${session.arc} ${session.summary}`,
+				`${session.title} ${session.campaignName} ${session.arc} ${session.summary}`,
 			).includes(needle);
 		});
 
@@ -224,10 +240,13 @@ export function SessionList({
 			if (sort === "title") return collator.compare(a.title, b.title);
 			return compareDates(a, b, sort === "oldest");
 		});
-	}, [arc, query, sessions, sort]);
+	}, [arc, campaign, query, sessions, sort]);
 
-	const filtered = query.trim().length > 0 || arc !== "all";
-	const latestId = sessions[0]?.id;
+	const filtered =
+		query.trim().length > 0 ||
+		arc !== "all" ||
+		(showCampaignFilter && campaign !== "all");
+	const latestKey = sessions[0] ? sessionPublicKey(sessions[0]) : undefined;
 
 	return (
 		<div className={styles.archive} data-session-archive>
@@ -242,6 +261,23 @@ export function SessionList({
 						placeholder="Buscar sessão, arco ou história..."
 					/>
 				</label>
+
+				{showCampaignFilter ? (
+					<label className={styles.selectField}>
+						<span className={styles.srOnly}>Filtrar por campanha</span>
+						<select
+							value={campaign}
+							onChange={(event) => setCampaign(event.target.value)}
+						>
+							<option value="all">Todas as campanhas</option>
+							{campaigns.map((item) => (
+								<option key={item.slug} value={item.slug}>
+									{item.name}
+								</option>
+							))}
+						</select>
+					</label>
+				) : null}
 
 				<label className={styles.selectField}>
 					<span className={styles.srOnly}>Filtrar por arco</span>
@@ -302,6 +338,7 @@ export function SessionList({
 						type="button"
 						onClick={() => {
 							setQuery("");
+							setCampaign("all");
 							setArc("all");
 						}}
 					>
@@ -315,9 +352,9 @@ export function SessionList({
 					<div className={styles.grid} data-session-view="grid">
 						{visible.map((session) => (
 							<GridCard
-								key={session.id}
+								key={sessionPublicKey(session)}
 								session={session}
-								latest={session.id === latestId}
+								latest={sessionPublicKey(session) === latestKey}
 							/>
 						))}
 					</div>
@@ -332,7 +369,7 @@ export function SessionList({
 						</div>
 						<div className={styles.listBody}>
 							{visible.map((session) => (
-								<ListRow key={session.id} session={session} />
+								<ListRow key={sessionPublicKey(session)} session={session} />
 							))}
 						</div>
 					</div>

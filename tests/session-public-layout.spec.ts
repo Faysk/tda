@@ -186,7 +186,7 @@ test("public Sessions keeps archive value in the first viewport and reader measu
 			name: /Sessão Sintética de Layout/u,
 		});
 		const readerHero = page.locator("[data-session-reader-hero]");
-		const back = page.getByRole("link", { name: "Arquivo de sessões" });
+		const back = page.getByRole("link", { name: /Arquivo de Crônicas da Mesa/u });
 		const story = page.locator(".story-content").first();
 		const previousLink = page.getByRole("link", { name: /Sessão anterior/u });
 		const nextLink = page.getByRole("link", { name: /Próxima sessão/u });

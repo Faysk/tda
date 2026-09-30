@@ -10,6 +10,10 @@ import { sessionPublicMetadata } from "./metadata";
 
 const firstSession: PublishedSession = {
 	id: "session-alpha",
+	campaignId: "campaign-a",
+	campaignSlug: "cronicas-da-mesa",
+	campaignName: "Crônicas da Mesa",
+	campaignTechnicalSlug: "yuhara-main",
 	title: "A Porta de Yuhara",
 	date: "2026-01-10",
 	arc: "Yuhara",
@@ -20,6 +24,10 @@ const firstSession: PublishedSession = {
 
 const secondSession: PublishedSession = {
 	id: "session-beta",
+	campaignId: "campaign-a",
+	campaignSlug: "cronicas-da-mesa",
+	campaignName: "Crônicas da Mesa",
+	campaignTechnicalSlug: "yuhara-main",
 	title: "O Último Sino",
 	date: "2026-01-17",
 	arc: "Yuhara",
@@ -72,10 +80,10 @@ describe("session public metadata", () => {
 		expect(first.openGraph.description).toBe(firstSession.summary);
 		expect(second.openGraph.description).toBe(secondSession.summary);
 		expect(first.alternates.canonical).toBe(
-			"https://dnd.faysk.dev/sessoes/session-alpha",
+			"https://dnd.faysk.dev/campanhas/cronicas-da-mesa/sessoes/session-alpha",
 		);
 		expect(second.alternates.canonical).toBe(
-			"https://dnd.faysk.dev/sessoes/session-beta",
+			"https://dnd.faysk.dev/campanhas/cronicas-da-mesa/sessoes/session-beta",
 		);
 		expect(first.openGraph.url).toBe(first.alternates.canonical);
 		expect(second.openGraph.url).toBe(second.alternates.canonical);
