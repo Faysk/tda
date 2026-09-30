@@ -440,7 +440,22 @@ Objetivo:
 - criar `lembra_references` para metadata verificada de mídia, autoria e soft-retire;
 - criar `lembra_favorites` como preferência pessoal por usuário;
 - manter bytes fora do PostgreSQL, em Media Storage privado;
-- não introduzir `campaign_id`, role nova ou capability específica.
+- não introduzir role nova ou capability específica.
+
+### `20260930163000_lembra_campaign_classification`
+
+**Dependência:** registry multi-campaign de #1123 / `20260930140000_campaign_registry_multicampaign`.
+
+Objetivo:
+
+- adicionar `lembra_references.campaign_id uuid null` como classificação opcional;
+- `null` representa **Geral**, preservando todas as referências legadas sem backfill;
+- FK para `campaigns(id)` usa `ON DELETE SET NULL` para não quebrar a biblioteca;
+- criar índice parcial por campaign + data para filtro da galeria;
+- manter o contrato de acesso global autenticado do Lembra: classificação não concede, amplia ou revoga autorização;
+- preservar `object_key`, bucket e bytes R2 em qualquer troca de classificação.
+
+A aplicação deve aceitar campaign arquivada já vinculada para leitura/histórico, mas não oferecê-la como destino novo. O catálogo/selector desta entrega só resolve campaigns públicas; campaign privada não pode ser descoberta nem atribuída por UUID antes da política de #1134. Payload com UUID inexistente/privado falha pela resolução server-side/FK.
 
 Segurança:
 
@@ -462,8 +477,8 @@ Integridade:
 Validação sintética:
 
 - `tools/lembra-db.py` sobe PostgreSQL 16 descartável sem TCP;
-- aplica somente a migration do Lembra sobre roles sintéticos mínimos;
-- `supabase/tests/lembra_shared_library.sql` verifica grants deny-by-default, insert válido, favorito, object key inválido e soft-retire;
+- cria registry sintético mínimo A/B/arquivada e aplica as migrations do Lembra, incluindo classificação opcional;
+- `supabase/tests/lembra_shared_library.sql` verifica grants deny-by-default, legacy `campaign_id=null`, FK, campaign arquivada, `ON DELETE SET NULL`, preservação de `object_key`, favorito, object key inválido e soft-retire;
 - recibo esperado: `LEMBRA_SHARED_DATABASE_OK synthetic=true migration=true remote_mutation=false`.
 
 Rollout:
