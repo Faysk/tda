@@ -213,6 +213,70 @@ describe("TDA transcript Markdown v1", () => {
 		expect(result.segments).toHaveLength(7_500);
 	});
 
+	it("round-trips trusted wall-clock metadata and fails closed on clock tampering", async () => {
+		const trusted: readonly TranscriptMarkdownSegment[] = [
+			{
+				...segments[0],
+				absoluteTime: {
+					startIso: "2026-09-12T23:59:59+01:00",
+					endIso: "2026-09-13T00:00:03.900+01:00",
+					source: "craig-source-a",
+				},
+			},
+			segments[1],
+		];
+		const markdown = await renderTranscriptMarkdownV1({
+			base,
+			segments: trusted,
+			title: "Sessão virando a meia-noite",
+			exportedAt: "2026-09-30T00:00:00.000Z",
+		});
+		expect(markdown).toContain("[00:00:44.000 | 23:59:59] **faysk**");
+		expect(markdown).toContain('absolute_start="2026-09-12T23:59:59+01:00"');
+		expect(markdown).toContain('absolute_end="2026-09-13T00:00:03.900+01:00"');
+		expect(markdown).toContain('absolute_source="craig-source-a"');
+		expect(markdown).toContain("[00:00:49.000] **Renan**");
+
+		const parsed = await parseTranscriptMarkdownV1({
+			text: markdown,
+			expectedBase: base,
+			expectedSegments: trusted,
+		});
+		expect(parsed.changedSegments).toBe(0);
+		expect(parsed.segments[0]?.absoluteTime).toEqual(trusted[0].absoluteTime);
+		expect(parsed.segments[1]?.absoluteTime).toBeUndefined();
+
+		await expectCode(
+			parseTranscriptMarkdownV1({
+				text: markdown.replace(
+					"[00:00:44.000 | 23:59:59]",
+					"[00:00:44.000 | 00:00:00]",
+				),
+				expectedBase: base,
+				expectedSegments: trusted,
+			}),
+			"VISIBLE_TIMESTAMP_CHANGED",
+		);
+		await expectCode(
+			parseTranscriptMarkdownV1({
+				text: markdown.replace(
+					'absolute_start="2026-09-12T23:59:59+01:00"',
+					'absolute_start="2026-09-12T23:59:58+01:00"',
+				),
+				expectedBase: base,
+				expectedSegments: trusted,
+			}),
+			"TIMING_CHANGED",
+		);
+	});
+
+	it("keeps elapsed-only Markdown byte shape when wall clock is unavailable", async () => {
+		const markdown = await exported();
+		expect(markdown).toContain("[00:00:44.000] **faysk**");
+		expect(markdown).not.toContain("absolute_start=");
+		expect(markdown).not.toContain(" | ");
+	});
+
 	it("enforces strict UTF-8 decoding", () => {
 		expect(() => decodeTranscriptMarkdownBytes(new Uint8Array([0xc3, 0x28]))).toThrow(
 			expect.objectContaining({ code: "UTF8_INVALID" }),
