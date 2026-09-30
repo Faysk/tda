@@ -148,7 +148,7 @@ Os novos campos `public_slug`, `lifecycle`, `visibility` e a tabela de aliases s
 - `lifecycle='archived'` é um bloqueio operacional de aplicação a ser aplicado nos boundaries mutáveis, não uma policy RLS automática;
 - aliases públicas nunca são scope RBAC;
 - o technical slug permanece o scope textual legado até #1134/#1136 eliminarem dependências;
-- os triggers de colisão de route key são `SECURITY INVOKER` e não ampliam grants.
+- os guards internos de route key/alias e de participant→entity usam `SECURITY DEFINER` somente como trigger, com `search_path=pg_catalog, public` e `EXECUTE` direto revogado; isso impede que RLS esconda colisões/ownership sem criar uma RPC de browser.
 
 A migration #1123 não altera policies/grants de `campaigns`, não torna a segunda campaign descobrível e não modifica `access_directory`; esse hardening continua dono de #1134.
 
