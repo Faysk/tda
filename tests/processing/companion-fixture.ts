@@ -57,6 +57,7 @@ export type CompanionFixtureOptions = {
 	qwenRuntimeStableVersion?: string | null;
 	qwenRuntimeManifestUnavailable?: boolean;
 	qwenRuntimeUpdateFailure?: string | null;
+	qwenRuntimeUpdateInitiallyActive?: boolean;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
@@ -72,6 +73,7 @@ export type CompanionFixtureState = {
 	preparationProfiles: string[];
 	qwenRuntimeCheckPostCount: number;
 	qwenRuntimeUpdatePostCount: number;
+	qwenRuntimeStatusGetCount: number;
 	idempotencyKeys: string[];
 	jobStatusesServed: string[];
 	job: Record<string, unknown> | null;
@@ -212,6 +214,7 @@ export async function installCompanionFixture(
 	let qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.12";
 	const qwenStableVersion = options.qwenRuntimeStableVersion ?? "1.0.12";
 	let qwenMaintenanceSequence = 0;
+	let qwenRuntimeRecoveredFromInitialUpdate = false;
 	let preparationReads = 0;
 	let preparationStarted = false;
 	let preparationProfile = "qwen-quality";
@@ -229,6 +232,7 @@ export async function installCompanionFixture(
 		preparationProfiles: [],
 		qwenRuntimeCheckPostCount: 0,
 		qwenRuntimeUpdatePostCount: 0,
+		qwenRuntimeStatusGetCount: 0,
 		idempotencyKeys: [],
 		jobStatusesServed: [],
 		job: options.initialJobs?.[0] ?? null,
@@ -407,7 +411,68 @@ export async function installCompanionFixture(
 			});
 		}
 		if (path === "/qwen-runtime" && request.method() === "GET") {
+			state.qwenRuntimeStatusGetCount += 1;
 			qwenMaintenanceSequence += 1;
+			if (
+				options.qwenRuntimeUpdateInitiallyActive &&
+				!qwenRuntimeRecoveredFromInitialUpdate
+			) {
+				if (state.qwenRuntimeStatusGetCount === 1) {
+					return json(route, {
+						schema: "tda_qwen_runtime_maintenance_v1",
+						state: "running",
+						active: true,
+						operation_id: "qwen-update-existing-fixture",
+						mode: "update",
+						stage: "downloading",
+						title: "Baixando Qwen Runtime…",
+						detail: "Operação iniciada antes desta página.",
+						sequence: qwenMaintenanceSequence,
+						installed_status: "ready",
+						installed_version: qwenRuntimeVersion,
+						minimum_version: "1.0.12",
+						stable_status: "compatible",
+						stable_version: qwenStableVersion,
+						stable_tag: qwenStableVersion
+							? `companion-qwen-runtime-v${qwenStableVersion}`
+							: null,
+						stable_size: 1024,
+						stable_part_count: 1,
+						update_available: true,
+						can_update: false,
+						error_code: null,
+					});
+				}
+				if (qwenStableVersion) qwenRuntimeVersion = qwenStableVersion;
+				benchmarkPrepared.add("qwen-fast");
+				benchmarkPrepared.add("qwen-quality");
+				options.qwenRuntimeUpgradeRequired = false;
+				qwenRuntimeRecoveredFromInitialUpdate = true;
+				return json(route, {
+					schema: "tda_qwen_runtime_maintenance_v1",
+					state: "completed",
+					active: false,
+					operation_id: "qwen-update-existing-fixture",
+					mode: "update",
+					stage: "complete",
+					title: "Qwen Runtime atualizado.",
+					detail: "Prontidão será recalculada pelo Companion.",
+					sequence: qwenMaintenanceSequence,
+					installed_status: "ready",
+					installed_version: qwenRuntimeVersion,
+					minimum_version: "1.0.12",
+					stable_status: "compatible",
+					stable_version: qwenStableVersion,
+					stable_tag: qwenStableVersion
+						? `companion-qwen-runtime-v${qwenStableVersion}`
+						: null,
+					stable_size: 1024,
+					stable_part_count: 1,
+					update_available: false,
+					can_update: false,
+					error_code: null,
+				});
+			}
 			return json(route, {
 				schema: "tda_qwen_runtime_maintenance_v1",
 				state: options.qwenRuntimeUpdateFailure ? "failed" : "completed",
