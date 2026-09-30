@@ -550,7 +550,7 @@ jobs:
           pnpm exec playwright test
           --config playwright.processing.config.ts
           --project=desktop
-          --grep "three ZIPs become one session intent"
+          --grep "three ZIPs become one session intent|single ZIP uses the same session journey|trusted midnight stays visible|stale Markdown import"
       - name: Session workflow privacy and evidence contract
         run: node tools/ci/check-session-workflow-gate.mjs
       - name: Upload sanitized workflow failure artifacts

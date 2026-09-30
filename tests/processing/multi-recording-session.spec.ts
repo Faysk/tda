@@ -75,6 +75,11 @@ type FixtureOptions = Readonly<{
 	recordingIds?: Readonly<Record<number, string>>;
 	failOnceSourceIndex?: number | null;
 	runningSourceIndex?: number | null;
+	reviewAbsoluteTimes?: readonly (
+		| Readonly<{ start: string; end: string }>
+		| null
+	)[];
+	failReviewSaveOnce?: boolean;
 }>;
 
 async function installMultiRecordingRoutes(
@@ -95,6 +100,7 @@ async function installMultiRecordingRoutes(
 	let reviewSha: string | null = null;
 	let reviewStatus: "draft" | "reviewed" | "approved_local" = "draft";
 	let reviewRows: Array<Record<string, unknown>> | null = null;
+	let failReviewSaveOnce = options.failReviewSaveOnce ?? false;
 	const publishedBodies: unknown[] = [];
 	let jobSequence = 0;
 	const jobsBySource = new Map<
@@ -110,21 +116,39 @@ async function installMultiRecordingRoutes(
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
 
 	const baseReviewRows = () =>
-		attached.map((sourceId, index) => ({
-			assembly_segment_id:
-				index === 0 ? SEGMENT_ID : (index + 10).toString(16).repeat(64),
-			part_id: PART_IDS[index],
-			source_id: sourceId,
-			run_id: `run-${SOURCE_IDS.indexOf(sourceId) + 1}`,
-			source_segment_id: `seg-${index + 1}`,
-			track_number: 1,
-			participant_id: "9".repeat(32),
-			start: index * 300,
-			end: index * 300 + 1,
-			text: `Trecho ${index + 1}`,
-			speaker: "Participante",
-			reviewed: false,
-		}));
+		attached.map((sourceId, index) => {
+			const absolute = options.reviewAbsoluteTimes?.[index];
+			return {
+				assembly_segment_id:
+					index === 0 ? SEGMENT_ID : (index + 10).toString(16).repeat(64),
+				part_id: PART_IDS[index],
+				source_id: sourceId,
+				run_id: `run-${SOURCE_IDS.indexOf(sourceId) + 1}`,
+				source_segment_id: `seg-${index + 1}`,
+				track_number: 1,
+				participant_id: "9".repeat(32),
+				start: index * 300,
+				end: index * 300 + 1,
+				...(options.reviewAbsoluteTimes === undefined
+					? {}
+					: absolute
+						? {
+								absolute_time_state: "trusted_absolute",
+								absolute_start: absolute.start,
+								absolute_end: absolute.end,
+								absolute_time_source: sourceId,
+							}
+						: {
+								absolute_time_state: "unavailable",
+								absolute_start: null,
+								absolute_end: null,
+								absolute_time_source: null,
+							}),
+				text: `Trecho ${index + 1}`,
+				speaker: "Participante",
+				reviewed: false,
+			};
+		});
 	const currentReviewRows = () => reviewRows ?? baseReviewRows();
 	const reviewWordCount = () =>
 		currentReviewRows().reduce((total, row) => {
@@ -686,6 +710,14 @@ async function installMultiRecordingRoutes(
 				`/session-workspaces/${CAMPAIGN}/${SESSION}/assemblies/${ASSEMBLY_ID}/review` &&
 			request.method() === "POST"
 		) {
+			if (failReviewSaveOnce) {
+				failReviewSaveOnce = false;
+				return json(
+					route,
+					{ error: { code: "SESSION_ASSEMBLY_REVIEW_DRAFT_CONFLICT" } },
+					409,
+				);
+			}
 			const body = request.postDataJSON() as {
 				status: "draft" | "reviewed" | "approved_local";
 				segments: Array<Record<string, unknown>>;
@@ -782,6 +814,162 @@ async function openProcessing(page: Page) {
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	await page.getByLabel("ID da sessão").fill(SESSION);
 }
+
+test("single ZIP uses the same session journey and opens continuous review", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0],
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles({
+		name: "sessao-42.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-single"),
+	});
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	expect(multi.attachedSources).toEqual([SOURCE_IDS[0]]);
+	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
+	expect(multi.assemblyBuilt).toBe(true);
+
+	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+	const review = page.getByRole("region", {
+		name: "Revisão da transcrição da sessão",
+	});
+	await expect(review).toBeVisible();
+	await expect(review).toContainText("1 falas");
+});
+
+test("trusted midnight stays visible while unavailable wall-clock stays absent", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		reviewAbsoluteTimes: [
+			{
+				start: "2026-09-29T23:59:59+01:00",
+				end: "2026-09-30T00:00:00+01:00",
+			},
+			null,
+		],
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "antes-da-meia-noite.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-midnight-a"),
+		},
+		{
+			name: "sem-horario-confiavel.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-midnight-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+
+	const review = page.getByRole("region", {
+		name: "Revisão da transcrição da sessão",
+	});
+	await expect(review.locator("time")).toHaveCount(1);
+	await expect(review.locator("time")).toContainText(
+		"2026-09-29 · 23:59:59 +01:00",
+	);
+	await expect(
+		review.locator("li > :not(details)").getByText(/Track 1/iu),
+	).toHaveCount(0);
+	await expect(
+		review.locator("details").getByText(/track 1/iu),
+	).toHaveCount(2);
+});
+
+test("stale Markdown import preserves the working copy and never overwrites silently", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0],
+		failReviewSaveOnce: true,
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles({
+		name: "sessao-42.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-stale"),
+	});
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+
+	const review = page.getByRole("region", {
+		name: "Revisão da transcrição da sessão",
+	});
+	await review.getByText("Markdown para revisão externa", { exact: true }).click();
+	const correctedMarkdown = (
+		await renderTranscriptMarkdownV1({
+			base: {
+				sessionId: SESSION,
+				baseKind: "session_assembly",
+				baseId: ASSEMBLY_ID,
+				baseRevision: null,
+				baseSha256: TRANSCRIPT_SHA,
+			},
+			segments: [
+				{
+					id: SEGMENT_ID,
+					startMs: 0,
+					endMs: 1_000,
+					speaker: "Participante",
+					text: "Trecho 1",
+				},
+			],
+			title: SESSION,
+			exportedAt: NOW,
+		})
+	).replace("Trecho 1", "Trecho 1 preservado após conflito");
+
+	await review.locator('input[type="file"][accept*=".md"]').setInputFiles({
+		name: "sessao-42-stale.md",
+		mimeType: "text/markdown",
+		buffer: Buffer.from(correctedMarkdown, "utf8"),
+	});
+	await review
+		.getByRole("button", { name: "Aplicar à working copy" })
+		.click();
+	await expect(
+		review.getByText("Trecho 1 preservado após conflito"),
+	).toBeVisible();
+
+	await review.getByRole("button", { name: "Salvar alterações" }).click();
+	await expect(review.getByRole("alert")).toContainText(
+		"A revisão mudou em outra aba ou processo.",
+	);
+	await expect(
+		review.getByText("Trecho 1 preservado após conflito"),
+	).toBeVisible();
+	expect(multi.reviewStatus).toBe("draft");
+});
 
 test("three ZIPs become one session intent, retry only the failed recording, auto-assemble and open review", async ({
 	page,
