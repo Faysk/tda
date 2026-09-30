@@ -1,3 +1,11 @@
+export type TranscriptAbsoluteTime = Readonly<{
+	schemaVersion: "tda_segment_absolute_time_v1";
+	confidence: "trusted_absolute";
+	sourceStart: string;
+	start: string;
+	end: string;
+}>;
+
 export type TranscriptReaderSegment = Readonly<{
 	id: string;
 	/** Stable source identity used only for private revision deltas. */
@@ -5,6 +13,7 @@ export type TranscriptReaderSegment = Readonly<{
 	trackNumber: number;
 	startMs: number;
 	endMs: number;
+	absoluteTime?: TranscriptAbsoluteTime;
 	speaker: string;
 	text: string;
 }>;
@@ -24,6 +33,38 @@ function finiteSeconds(value: unknown): number | null {
 		: null;
 }
 
+const OFFSET_ISO =
+	/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u;
+
+function parseAbsoluteTime(value: unknown): TranscriptAbsoluteTime | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (!value || typeof value !== "object" || Array.isArray(value))
+		throw new Error("Transcript absolute time is invalid");
+	const row = value as Record<string, unknown>;
+	const sourceStart = typeof row.source_start === "string" ? row.source_start : "";
+	const start = typeof row.start === "string" ? row.start : "";
+	const end = typeof row.end === "string" ? row.end : "";
+	if (
+		row.schema_version !== "tda_segment_absolute_time_v1" ||
+		row.confidence !== "trusted_absolute" ||
+		!OFFSET_ISO.test(sourceStart) ||
+		!OFFSET_ISO.test(start) ||
+		!OFFSET_ISO.test(end) ||
+		!Number.isFinite(Date.parse(sourceStart)) ||
+		!Number.isFinite(Date.parse(start)) ||
+		!Number.isFinite(Date.parse(end)) ||
+		Date.parse(end) < Date.parse(start)
+	)
+		throw new Error("Transcript absolute time is invalid");
+	return {
+		schemaVersion: "tda_segment_absolute_time_v1",
+		confidence: "trusted_absolute",
+		sourceStart,
+		start,
+		end,
+	};
+}
+
 export function normalizeRevisionSegments(raw: unknown): TranscriptReaderSegment[] {
 	if (!Array.isArray(raw)) throw new Error("Transcript revision segments are invalid");
 	const seen = new Set<string>();
@@ -37,6 +78,7 @@ export function normalizeRevisionSegments(raw: unknown): TranscriptReaderSegment
 		const segmentId = typeof row.segment_id === "string" ? row.segment_id : "";
 		const text = typeof row.text === "string" ? row.text : "";
 		const speaker = typeof row.speaker === "string" ? row.speaker : "";
+		const absoluteTime = parseAbsoluteTime(row.absolute_time);
 		if (
 			trackNumber === null ||
 			trackNumber < 1 ||
@@ -57,6 +99,7 @@ export function normalizeRevisionSegments(raw: unknown): TranscriptReaderSegment
 			trackNumber,
 			startMs: Math.round(start * 1000),
 			endMs: Math.round(end * 1000),
+			...(absoluteTime ? { absoluteTime } : {}),
 			speaker,
 			text,
 			_originalIndex: index,
@@ -94,6 +137,19 @@ export function formatTranscriptTimestamp(milliseconds: number, precise = true):
 		.map((part) => String(part).padStart(2, "0"))
 		.join(":");
 	return precise ? `${base}.${String(safe % 1000).padStart(3, "0")}` : base;
+}
+
+export function formatTranscriptWallClock(
+	value: TranscriptAbsoluteTime | undefined,
+): string | null {
+	if (!value) return null;
+	const match = value.start.match(
+		/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/u,
+	);
+	if (!match) return null;
+	const millis = (match[7] ?? "").slice(0, 3).padEnd(3, "0");
+	const offset = match[8] === "Z" ? "UTC" : match[8];
+	return `${match[3]}/${match[2]} · ${match[4]}:${match[5]}:${match[6]}.${millis} ${offset}`;
 }
 
 export function parseTranscriptTimestamp(value: string): number | null {
@@ -165,8 +221,9 @@ export function renderTranscriptMarkdown(input: {
 		"",
 	];
 	for (const segment of input.snapshot.segments) {
+		const wallClock = formatTranscriptWallClock(segment.absoluteTime);
 		lines.push(
-			`[${formatTranscriptTimestamp(segment.startMs)}] **${markdownText(segment.speaker)}**`,
+			`[${formatTranscriptTimestamp(segment.startMs)}${wallClock ? ` · ${wallClock}` : ""}] **${markdownText(segment.speaker)}**`,
 			markdownText(segment.text),
 			"",
 		);
