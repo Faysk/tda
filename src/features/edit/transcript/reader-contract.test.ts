@@ -78,7 +78,14 @@ describe("transcript reader contract", () => {
 			arc: "Raízes",
 			sourceSessionId: "sessao-19",
 			snapshot,
-		})).toContain("[00:00:03.210] **Álya**\nCoração 🌲");\n\t\texpect(await renderTranscriptMarkdown({\n\t\t\ttitle: "Entre Canções & Raízes",\n\t\t\tsessionDate: "2026-08-19",\n\t\t\tarc: "Raízes",\n\t\t\tsourceSessionId: "sessao-19",\n\t\t\tsnapshot,\n\t\t})).toContain("tda_transcript_schema: 1");
+		})).toContain("[00:00:03.210] **Álya**\nCoração 🌲");
+		expect(await renderTranscriptMarkdown({
+		\ttitle: "Entre Canções & Raízes",
+		\tsessionDate: "2026-08-19",
+		\tarc: "Raízes",
+		\tsourceSessionId: "sessao-19",
+		\tsnapshot,
+		})).toContain("tda_transcript_schema: 1");
 		expect(sanitizeTranscriptFilenamePart("Canções / Raízes:*?")).toBe("cancoes-raizes");
 		expect(transcriptMarkdownFilename("2026-08-19T20:00:00Z", "Entre Canções", 7)).toBe(
 			"2026-08-19-entre-cancoes-transcricao-r7.md",
