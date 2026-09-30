@@ -1,5 +1,6 @@
 """Transactional queue. Single supervisor owns recovery; claims are atomic."""
 import base64
+import hashlib
 import json
 import math
 import re
@@ -333,6 +334,173 @@ class Store:
                 (campaign_id, session_id),
             ).fetchone()
             return self._session_workspace_dto(db, row)
+
+    @staticmethod
+    def _session_intent_request_id(value):
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
+            raise Conflict("SESSION_TRANSCRIPTION_INTENT_REQUEST_INVALID")
+        return value
+
+    @staticmethod
+    def _session_intent_profile(value):
+        if value not in {
+            "whisper-turbo",
+            "whisper-detailed",
+            "qwen-fast",
+            "qwen-quality",
+        }:
+            raise Conflict("SESSION_TRANSCRIPTION_INTENT_PROFILE_INVALID")
+        return value
+
+    @staticmethod
+    def _session_intent_text(value, field):
+        if not isinstance(value, str) or len(value) > 1200 or "\x00" in value:
+            raise Conflict(f"SESSION_TRANSCRIPTION_INTENT_{field}_INVALID")
+        return value
+
+    @staticmethod
+    def _session_intent_setting_key(campaign_id, session_id):
+        return f"session_transcription_intent:{campaign_id}:{session_id}"
+
+    @classmethod
+    def _session_intent_record(cls, raw):
+        try:
+            row = json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT") from None
+        if not isinstance(row, dict):
+            raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT")
+        try:
+            campaign_id = cls._workspace_identity(row.get("campaign_id"), "CAMPAIGN")
+            session_id = cls._workspace_identity(row.get("session_id"), "SESSION")
+            request_id = cls._session_intent_request_id(row.get("request_id"))
+            profile_id = cls._session_intent_profile(row.get("profile_id"))
+            context = cls._session_intent_text(row.get("context"), "CONTEXT")
+            glossary = cls._session_intent_text(row.get("glossary"), "GLOSSARY")
+        except Conflict:
+            raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT") from None
+        context_sha256 = hashlib.sha256(context.encode("utf-8")).hexdigest()
+        glossary_sha256 = hashlib.sha256(glossary.encode("utf-8")).hexdigest()
+        if (
+            row.get("schema_version") != "tda_session_transcription_intent_v1"
+            or row.get("context_sha256") != context_sha256
+            or row.get("glossary_sha256") != glossary_sha256
+            or not isinstance(row.get("created"), str)
+            or not isinstance(row.get("updated"), str)
+        ):
+            raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT")
+        return {
+            "schema_version": "tda_session_transcription_intent_v1",
+            "campaign_id": campaign_id,
+            "session_id": session_id,
+            "request_id": request_id,
+            "profile_id": profile_id,
+            "context": context,
+            "glossary": glossary,
+            "context_sha256": context_sha256,
+            "glossary_sha256": glossary_sha256,
+            "created": row["created"],
+            "updated": row["updated"],
+        }
+
+    @staticmethod
+    def _session_intent_dto(row):
+        return {
+            "schema_version": "tda_session_transcription_intent_v1",
+            "campaign_id": row["campaign_id"],
+            "session_id": row["session_id"],
+            "request_id": row["request_id"],
+            "profile_id": row["profile_id"],
+            "context": row["context"],
+            "glossary": row["glossary"],
+            "context_sha256": row["context_sha256"],
+            "glossary_sha256": row["glossary_sha256"],
+            "created_at": row["created"],
+            "updated_at": row["updated"],
+        }
+
+    def save_session_transcription_intent(
+        self,
+        campaign_id,
+        session_id,
+        request_id,
+        profile_id,
+        context,
+        glossary,
+    ):
+        campaign_id = self._workspace_identity(campaign_id, "CAMPAIGN")
+        session_id = self._workspace_identity(session_id, "SESSION")
+        request_id = self._session_intent_request_id(request_id)
+        profile_id = self._session_intent_profile(profile_id)
+        context = self._session_intent_text(context, "CONTEXT")
+        glossary = self._session_intent_text(glossary, "GLOSSARY")
+        context_sha256 = hashlib.sha256(context.encode("utf-8")).hexdigest()
+        glossary_sha256 = hashlib.sha256(glossary.encode("utf-8")).hexdigest()
+        setting_key = self._session_intent_setting_key(campaign_id, session_id)
+        with self.tx() as db:
+            workspace = db.execute(
+                "SELECT 1 FROM session_workspaces WHERE campaign_id=? AND session_id=?",
+                (campaign_id, session_id),
+            ).fetchone()
+            if workspace is None:
+                raise Conflict("SESSION_WORKSPACE_NOT_FOUND")
+            saved = db.execute(
+                "SELECT value FROM settings WHERE key=?",
+                (setting_key,),
+            ).fetchone()
+            current = self._session_intent_record(saved["value"]) if saved is not None else None
+            if current is not None and current["request_id"] == request_id:
+                if (
+                    current["profile_id"] != profile_id
+                    or current["context_sha256"] != context_sha256
+                    or current["glossary_sha256"] != glossary_sha256
+                ):
+                    raise Conflict("SESSION_TRANSCRIPTION_INTENT_CONFLICT")
+                return self._session_intent_dto(current)
+            now = utc_now()
+            row = {
+                "schema_version": "tda_session_transcription_intent_v1",
+                "campaign_id": campaign_id,
+                "session_id": session_id,
+                "request_id": request_id,
+                "profile_id": profile_id,
+                "context": context,
+                "glossary": glossary,
+                "context_sha256": context_sha256,
+                "glossary_sha256": glossary_sha256,
+                "created": current["created"] if current is not None else now,
+                "updated": now,
+            }
+            db.execute(
+                "INSERT INTO settings(key,value) VALUES (?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (
+                    setting_key,
+                    json.dumps(
+                        row,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                ),
+            )
+            return self._session_intent_dto(row)
+
+    def session_transcription_intent(self, campaign_id, session_id):
+        campaign_id = self._workspace_identity(campaign_id, "CAMPAIGN")
+        session_id = self._workspace_identity(session_id, "SESSION")
+        setting_key = self._session_intent_setting_key(campaign_id, session_id)
+        with self.read() as db:
+            saved = db.execute(
+                "SELECT value FROM settings WHERE key=?",
+                (setting_key,),
+            ).fetchone()
+            if saved is None:
+                raise Conflict("SESSION_TRANSCRIPTION_INTENT_NOT_FOUND")
+            row = self._session_intent_record(saved["value"])
+            if row["campaign_id"] != campaign_id or row["session_id"] != session_id:
+                raise Conflict("SESSION_TRANSCRIPTION_INTENT_CORRUPT")
+            return self._session_intent_dto(row)
 
     def _session_workspace_for_update(self, db, campaign_id, session_id, expected_revision):
         campaign_id = self._workspace_identity(campaign_id, "CAMPAIGN")
