@@ -127,6 +127,17 @@ begin
     raise exception 'alias route guard must be SECURITY DEFINER';
   end if;
 
+  if not exists (
+    select 1
+    from pg_proc procedure_row
+    join pg_namespace namespace_row on namespace_row.oid = procedure_row.pronamespace
+    where namespace_row.nspname = 'public'
+      and procedure_row.proname = 'guard_participant_character_campaign'
+      and procedure_row.prosecdef = true
+  ) then
+    raise exception 'participant campaign guard must be SECURITY DEFINER';
+  end if;
+
   if has_function_privilege(
       'anon',
       'public.guard_campaign_public_route_key()',
@@ -146,8 +157,28 @@ begin
       'authenticated',
       'public.guard_campaign_public_route_alias()',
       'execute'
+    )
+    or has_function_privilege(
+      'anon',
+      'public.record_campaign_public_route_alias()',
+      'execute'
+    )
+    or has_function_privilege(
+      'authenticated',
+      'public.record_campaign_public_route_alias()',
+      'execute'
+    )
+    or has_function_privilege(
+      'anon',
+      'public.guard_participant_character_campaign()',
+      'execute'
+    )
+    or has_function_privilege(
+      'authenticated',
+      'public.guard_participant_character_campaign()',
+      'execute'
     ) then
-    raise exception 'browser roles can execute route guard functions directly';
+    raise exception 'browser roles can execute campaign integrity trigger functions directly';
   end if;
 end
 $$;
@@ -331,14 +362,6 @@ begin
   set public_slug = 'cronicas-da-mesa-renamed'
   where id = v_legacy_id;
 
-  insert into public.campaign_public_route_aliases(
-    campaign_id, route_key, metadata
-  ) values (
-    v_legacy_id,
-    'cronicas-da-mesa',
-    jsonb_build_object('kind', 'public-route-rename')
-  );
-
   if not exists (
     select 1
     from public.campaigns
@@ -347,6 +370,16 @@ begin
       and public_slug = 'cronicas-da-mesa-renamed'
   ) then
     raise exception 'public route rename changed technical slug';
+  end if;
+
+  if not exists (
+    select 1
+    from public.campaign_public_route_aliases
+    where campaign_id = v_legacy_id
+      and route_key = 'cronicas-da-mesa'
+      and metadata->>'kind' = 'public-route-rename'
+  ) then
+    raise exception 'public route rename did not persist the previous canonical key as an alias';
   end if;
 
   begin
@@ -359,7 +392,53 @@ begin
     when unique_violation then null;
   end;
 end
-$$;
+$;
+
+-- Technical slug is compatibility identity and cannot drift through an editorial rename.
+do $
+declare
+  v_legacy_id uuid;
+begin
+  select id into strict v_legacy_id
+  from public.campaigns where slug = 'yuhara-main';
+
+  begin
+    update public.campaigns
+    set slug = 'renamed-technical-slug'
+    where id = v_legacy_id;
+
+    raise exception 'technical campaign slug mutation was accepted';
+  exception
+    when check_violation then null;
+  end;
+end
+$;
+
+-- Participant session and character entity must resolve to the same campaign.
+do $
+declare
+  v_legacy_session_id uuid := '40000000-0000-4000-8000-000000000010';
+  v_second_entity_id uuid := '20000000-0000-4000-8000-000000000002';
+begin
+  begin
+    insert into public.participants(
+      session_id,
+      character_entity_id,
+      player_name,
+      character_name
+    ) values (
+      v_legacy_session_id,
+      v_second_entity_id,
+      'cross',
+      'cross'
+    );
+
+    raise exception 'cross-campaign participant character binding was accepted';
+  exception
+    when foreign_key_violation then null;
+  end;
+end
+$;
 
 -- Legacy campaign creation remains compatible: public_slug defaults from slug
 -- in the BEFORE INSERT trigger, while lifecycle/visibility use additive defaults.
