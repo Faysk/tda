@@ -297,10 +297,11 @@ jobs:
           pnpm exec playwright test
           tests/route-loading.spec.ts
           --project=desktop-1080p
-      - name: Local pending action contracts
+      - name: Async feedback contracts
         run: >-
           pnpm exec playwright test
           tests/pending-actions.spec.ts
+          tests/progress-feedback.spec.ts
           --project=desktop-1080p
           --project=mobile
       - name: Global navigation and shell contracts
