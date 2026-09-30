@@ -130,6 +130,11 @@ before insert or update of slug, public_slug on public.campaigns
 for each row
 execute function public.guard_campaign_route_identity();
 
+revoke all on function public.guard_campaign_route_identity() from public;
+revoke execute on function public.guard_campaign_route_identity() from anon;
+revoke execute on function public.guard_campaign_route_identity() from authenticated;
+grant execute on function public.guard_campaign_route_identity() to service_role;
+
 create or replace function public.preserve_campaign_public_slug_alias()
 returns trigger
 language plpgsql
@@ -159,6 +164,11 @@ after update of public_slug on public.campaigns
 for each row
 when (old.public_slug is distinct from new.public_slug)
 execute function public.preserve_campaign_public_slug_alias();
+
+revoke all on function public.preserve_campaign_public_slug_alias() from public;
+revoke execute on function public.preserve_campaign_public_slug_alias() from anon;
+revoke execute on function public.preserve_campaign_public_slug_alias() from authenticated;
+grant execute on function public.preserve_campaign_public_slug_alias() to service_role;
 
 comment on column public.campaigns.slug is
   'Stable technical campaign identity used by compatibility/RBAC scopes. Do not rename in place; use public_slug for public route/presentation identity.';
@@ -300,7 +310,7 @@ begin
       add constraint canon_entries_campaign_entity_fkey
       foreign key (campaign_id, entity_id)
       references public.entities(campaign_id, id)
-      on delete restrict
+      on delete set null (entity_id)
       not valid;
 
     alter table public.canon_entries
@@ -338,9 +348,14 @@ begin
 
   return new;
 end;
-$$;
+$;
 
-do $$
+revoke all on function public.enforce_participant_character_campaign() from public;
+revoke execute on function public.enforce_participant_character_campaign() from anon;
+revoke execute on function public.enforce_participant_character_campaign() from authenticated;
+grant execute on function public.enforce_participant_character_campaign() to service_role;
+
+do $
 begin
   if to_regclass('public.participants') is not null then
     if exists (
