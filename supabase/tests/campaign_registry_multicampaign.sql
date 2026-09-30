@@ -135,7 +135,7 @@ begin
 end $$;
 
 -- Canon entry must bind its campaign and entity as one identity.
-do $$
+do $
 begin
   begin
     insert into public.canon_entries(
@@ -150,7 +150,36 @@ begin
   exception
     when foreign_key_violation then null;
   end;
-end $$;
+end $;
+
+-- Moving either side of an existing participant link must also fail closed;
+-- otherwise a once-valid row could become cross-campaign after the insert.
+do $
+begin
+  begin
+    update public.sessions
+    set campaign_id = 'd0b64c86-3c83-4e9e-9cd8-b8ebd4d1d001'
+    where id = '22222222-2222-4222-8222-222222222222';
+    raise exception 'session campaign move unexpectedly broke participant isolation';
+  exception
+    when raise_exception then
+      if sqlerrm <> 'session campaign move would create cross-campaign participant links' then
+        raise;
+      end if;
+  end;
+
+  begin
+    update public.entities
+    set campaign_id = 'd0b64c86-3c83-4e9e-9cd8-b8ebd4d1d001'
+    where id = '44444444-4444-4444-8444-444444444444';
+    raise exception 'entity campaign move unexpectedly broke participant isolation';
+  exception
+    when raise_exception then
+      if sqlerrm <> 'entity campaign move would create cross-campaign participant links' then
+        raise;
+      end if;
+  end;
+end $;
 
 -- Lifecycle is first-class and invalid states fail closed.
 update public.campaigns
@@ -279,4 +308,4 @@ begin
   end if;
 end $$;
 
-select 'CAMPAIGN_REGISTRY_DATABASE_OK synthetic=true campaigns=2 source_collision=qualified entity_collision=qualified cross_campaign_fk=blocked lifecycle=explicit public_alias_history=preserved remote_mutation=false';
+select 'CAMPAIGN_REGISTRY_DATABASE_OK synthetic=true campaigns=2 source_collision=qualified entity_collision=qualified cross_campaign_fk=blocked move_guard=blocked lifecycle=explicit public_alias_history=preserved remote_mutation=false';
