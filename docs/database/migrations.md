@@ -1671,3 +1671,27 @@ Validação sintética:
 - `tools/transcript-sync-db.py` aplica migration + contratos em PostgreSQL descartável.
 
 Rollback é forward-only: retirar primeiro o consumidor Web; sessions privadas/revisions já confirmadas continuam evidência válida. Não apagar receipt/revision/session real para simular rollback.
+
+## Candidate #1123 — campaign registry
+
+### `20260930113000_campaign_registry.sql`
+
+**Estado:** candidate não aplicado ao Supabase canônico.
+
+Objetivo:
+
+- tornar `campaigns` um registry explícito multi-campanha;
+- preservar `yuhara-main` como identidade técnica/compatibilidade da campanha histórica;
+- separar `public_slug` da identidade técnica usada por consumidores e RBAC existentes;
+- adicionar lifecycle explícito `active | archived`;
+- registrar idempotentemente `antes-que-seja-tarde` sem criar sessões, entities, memberships ou canon.
+
+Validação pré-promoção:
+
+- PostgreSQL 16 real em container descartável;
+- candidate aplicado sobre schema sintético compatível;
+- contrato `supabase/tests/campaign_registry.sql` aprovado;
+- replay/idempotência aprovado;
+- nenhuma conexão ou mutação remota (`remote_mutation=false`).
+
+A aplicação no Supabase de produção exige decisão operacional separada, execução pelo database runbook e read-back verificável antes de este candidate ser descrito como aplicado.
