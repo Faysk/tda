@@ -20,6 +20,7 @@ import {
 import {
 	LEMBRA_MAX_BYTES,
 	isLembraMediaMime,
+	type LembraCampaignClassification,
 	type LembraMediaMime,
 	type LembraReference,
 	type LembraUploadIntent,
@@ -45,6 +46,7 @@ type ViewFilter = "all" | "mine" | "favorites";
 type LembraExperienceProps = Readonly<{
 	initialReferences?: readonly LembraReference[];
 	initialFavoriteIds?: readonly string[];
+	initialCampaigns?: readonly LembraCampaignClassification[];
 	persistenceEnabled?: boolean;
 }>;
 
@@ -53,6 +55,7 @@ type ReferenceDraft = Readonly<{
 	previewUrl: string;
 	title: string;
 	description: string;
+	campaignId: string | null;
 }>;
 
 type SavePhase =
@@ -286,6 +289,7 @@ function dateFilterLabel(range: LembraDateRange) {
 export function LembraExperience({
 	initialReferences = [],
 	initialFavoriteIds = [],
+	initialCampaigns = [],
 	persistenceEnabled = false,
 }: LembraExperienceProps) {
 	const [references, setReferences] = useState<LembraReference[]>(() => [
@@ -299,6 +303,7 @@ export function LembraExperience({
 	const deferredQuery = useDeferredValue(query);
 	const [dateRange, setDateRange] = useState<LembraDateRange>(EMPTY_DATE_RANGE);
 	const [sort, setSort] = useState<LembraSort>("newest");
+	const [campaignFilter, setCampaignFilter] = useState("all");
 	const [draft, setDraft] = useState<ReferenceDraft | null>(null);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [dragging, setDragging] = useState(false);
@@ -313,7 +318,36 @@ export function LembraExperience({
 	);
 	const [editTitle, setEditTitle] = useState("");
 	const [editDescription, setEditDescription] = useState("");
+	const [editCampaignId, setEditCampaignId] = useState<string | null>(null);
 	const [galleryWidth, setGalleryWidth] = useState(0);
+
+	const campaignById = useMemo(
+		() => new Map(initialCampaigns.map((campaign) => [campaign.id, campaign])),
+		[initialCampaigns],
+	);
+	const activeCampaignOptions = useMemo<readonly SelectOption<string>[]>(
+		() => [
+			{ value: "", label: "Geral" },
+			...initialCampaigns
+				.filter((campaign) => campaign.lifecycle === "active")
+				.map((campaign) => ({ value: campaign.id, label: campaign.name })),
+		],
+		[initialCampaigns],
+	);
+	const campaignFilterOptions = useMemo<readonly SelectOption<string>[]>(
+		() => [
+			{ value: "all", label: "Todas as campanhas" },
+			{ value: "general", label: "Geral" },
+			...initialCampaigns.map((campaign) => ({
+				value: campaign.id,
+				label:
+					campaign.lifecycle === "archived"
+						? `${campaign.name} · arquivada`
+						: campaign.name,
+			})),
+		],
+		[initialCampaigns],
+	);
 
 	const searchRef = useRef<HTMLInputElement>(null);
 	const dateFilterRef = useRef<HTMLDetailsElement>(null);
@@ -360,6 +394,7 @@ export function LembraExperience({
 				previewUrl,
 				title: suggestedTitle(file),
 				description: "",
+				campaignId: null,
 			};
 		});
 	}, []);
@@ -497,11 +532,27 @@ export function LembraExperience({
 		const filtered = references.filter((item) => {
 			if (view === "mine" && !item.mine) return false;
 			if (view === "favorites" && !favoriteIds.has(item.id)) return false;
+			if (campaignFilter === "general" && item.campaign !== null) return false;
+			if (
+				campaignFilter !== "all" &&
+				campaignFilter !== "general" &&
+				item.campaign?.id !== campaignFilter
+			) {
+				return false;
+			}
 			if (!matchesLembraSearch(item, deferredQuery)) return false;
 			return isWithinLembraDateRange(item.createdAt, dateRange);
 		});
 		return sortLembraReferences(filtered, sort);
-	}, [dateRange, deferredQuery, favoriteIds, references, sort, view]);
+	}, [
+		campaignFilter,
+		dateRange,
+		deferredQuery,
+		favoriteIds,
+		references,
+		sort,
+		view,
+	]);
 
 	useEffect(() => {
 		if (visibleReferences.length === 0) return;
@@ -545,7 +596,8 @@ export function LembraExperience({
 
 	const textOrDateFilterActive =
 		Boolean(query.trim()) || hasLembraDateFilter(dateRange);
-	const filtersActive = view !== "all" || textOrDateFilterActive;
+	const filtersActive =
+		view !== "all" || campaignFilter !== "all" || textOrDateFilterActive;
 
 	const emptyCopy = (() => {
 		if (references.length === 0) {
@@ -555,11 +607,11 @@ export function LembraExperience({
 					"Arraste uma imagem para esta tela, cole com Ctrl+V ou escolha um arquivo do computador.",
 			};
 		}
-		if (textOrDateFilterActive) {
+		if (textOrDateFilterActive || campaignFilter !== "all") {
 			return {
 				title: "Nada por aqui com esses filtros.",
 				description:
-					"Tente outra combinação de palavras ou ajuste o período.",
+					"Tente outra combinação de busca, campanha ou período.",
 			};
 		}
 		if (view === "favorites") {
@@ -587,6 +639,7 @@ export function LembraExperience({
 		setConfirmRemove(false);
 		setEditTitle("");
 		setEditDescription("");
+		setEditCampaignId(null);
 		setSelectedId(null);
 	}, []);
 
@@ -595,6 +648,7 @@ export function LembraExperience({
 		setConfirmRemove(false);
 		setEditTitle("");
 		setEditDescription("");
+		setEditCampaignId(null);
 		setBrokenImageIds((current) => {
 			if (!current.has(id)) return current;
 			const next = new Set(current);
@@ -615,6 +669,7 @@ export function LembraExperience({
 			setConfirmRemove(false);
 			setEditTitle("");
 			setEditDescription("");
+			setEditCampaignId(null);
 			setSelectedId(visibleReferences[nextIndex].id);
 		},
 		[selectedId, visibleReferences],
@@ -670,10 +725,14 @@ export function LembraExperience({
 				updatedAt: now,
 				imageUrl: draft.previewUrl,
 				mine: true,
+				campaign: draft.campaignId
+					? campaignById.get(draft.campaignId) ?? null
+					: null,
 			};
 			setReferences((current) => [item, ...current]);
 			setDraft(null);
 			setView("all");
+			setCampaignFilter("all");
 			setMessage("Referência adicionada nesta sessão.");
 			return;
 		}
@@ -744,6 +803,7 @@ export function LembraExperience({
 				intent,
 				title,
 				description,
+				draft.campaignId,
 			);
 			if (!finalized.ok) {
 				setUploadStatus((current) => ({ ...current, phase: "error" }));
@@ -766,6 +826,7 @@ export function LembraExperience({
 			setUploadStatus(EMPTY_UPLOAD_STATUS);
 			setDraft(null);
 			setView("all");
+			setCampaignFilter("all");
 			setMessage("Referência publicada.");
 		} catch {
 			setUploadStatus((current) => ({ ...current, phase: "error" }));
@@ -812,6 +873,7 @@ export function LembraExperience({
 		setConfirmRemove(false);
 		setEditTitle(reference.title);
 		setEditDescription(reference.description);
+		setEditCampaignId(reference.campaign?.id ?? null);
 		setEditing(true);
 	}
 
@@ -819,6 +881,7 @@ export function LembraExperience({
 		setEditing(false);
 		setEditTitle("");
 		setEditDescription("");
+		setEditCampaignId(null);
 	}
 
 	async function saveReferenceEdit(event: FormEvent<HTMLFormElement>) {
@@ -833,7 +896,15 @@ export function LembraExperience({
 			setReferences((current) =>
 				current.map((item) =>
 					item.id === selectedReference.id
-						? { ...item, title, description, updatedAt }
+						? {
+								...item,
+								title,
+								description,
+								updatedAt,
+								campaign: editCampaignId
+									? campaignById.get(editCampaignId) ?? item.campaign
+									: null,
+							}
 						: item,
 				),
 			);
@@ -848,6 +919,8 @@ export function LembraExperience({
 				selectedReference.id,
 				title,
 				description,
+				editCampaignId,
+				selectedReference.updatedAt,
 			);
 			if (!result.ok) {
 				setMessage(mutationMessage(result.reason));
@@ -901,6 +974,7 @@ export function LembraExperience({
 	function clearSearchFilters() {
 		setQuery("");
 		setDateRange(EMPTY_DATE_RANGE);
+		setCampaignFilter("all");
 		setView("all");
 		searchRef.current?.focus();
 	}
@@ -964,6 +1038,7 @@ export function LembraExperience({
 							height={item.height}
 							loading="lazy"
 							decoding="async"
+							style={{ objectFit: "contain" }}
 							onError={() =>
 								setBrokenImageIds((current) => {
 									const next = new Set(current);
@@ -1005,7 +1080,10 @@ export function LembraExperience({
 					</h2>
 					{item.description ? <p>{item.description}</p> : null}
 					<div className={styles.cardMeta}>
-						<span>Por {item.author}</span>
+						<span>
+							{item.campaign ? `${item.campaign.name} · ` : "Geral · "}
+							Por {item.author}
+						</span>
 						<time dateTime={item.createdAt}>
 							{DATE_FORMATTER.format(new Date(item.createdAt))}
 						</time>
@@ -1043,7 +1121,7 @@ export function LembraExperience({
 							<SearchIcon />
 						</span>
 						<span className={styles.visuallyHidden}>
-							Buscar por título, descrição, autor ou data
+							Buscar por título, descrição, autor, campanha ou data
 						</span>
 						<input
 							ref={searchRef}
@@ -1054,6 +1132,18 @@ export function LembraExperience({
 						/>
 						<kbd>Ctrl K</kbd>
 					</label>
+
+					<div className={styles.campaignControl}>
+						<span className={styles.visuallyHidden}>Filtrar por campanha</span>
+						<Select
+							value={campaignFilter}
+							options={campaignFilterOptions}
+							onChange={setCampaignFilter}
+							ariaLabel="Filtrar por campanha"
+							className={styles.campaignSelect}
+							embedded
+						/>
+					</div>
 
 					<details ref={dateFilterRef} className={styles.dateFilter}>
 						<summary
@@ -1365,6 +1455,29 @@ export function LembraExperience({
 											disabled={saving}
 										/>
 									</label>
+									<div className={styles.field}>
+										<span>Campanha</span>
+										<Select
+											value={editCampaignId ?? ""}
+											options={
+												selectedReference.campaign?.lifecycle === "archived"
+													? [
+														{ value: "", label: "Geral" },
+														{
+															value: selectedReference.campaign.id,
+															label: `${selectedReference.campaign.name} · arquivada`,
+														},
+														...activeCampaignOptions.filter(
+															(option) =>
+																option.value !== selectedReference.campaign?.id,
+														),
+													]
+													: activeCampaignOptions
+											}
+											onChange={(value) => setEditCampaignId(value || null)}
+											ariaLabel="Campanha da referência"
+										/>
+									</div>
 									<div className={styles.viewerEditActions}>
 										<Button
 											type="button"
@@ -1411,6 +1524,14 @@ export function LembraExperience({
 									<time dateTime={selectedReference.createdAt}>
 										{LONG_DATE_FORMATTER.format(new Date(selectedReference.createdAt))}
 									</time>
+								</div>
+								<div>
+									<span>Campanha</span>
+									<strong>
+										{selectedReference.campaign
+											? `${selectedReference.campaign.name}${selectedReference.campaign.lifecycle === "archived" ? " · arquivada" : ""}`
+											: "Geral"}
+									</strong>
 								</div>
 							</div>
 
@@ -1548,6 +1669,25 @@ export function LembraExperience({
 									placeholder="O que você quer lembrar sobre essa imagem?"
 								/>
 							</label>
+
+							<div className={styles.field}>
+								<span>Campanha</span>
+								<Select
+									value={draft.campaignId ?? ""}
+									options={activeCampaignOptions}
+									onChange={(value) =>
+										setDraft((current) =>
+											current
+												? { ...current, campaignId: value || null }
+												: current,
+										)
+									}
+									ariaLabel="Campanha da referência"
+								/>
+								<small className={styles.fieldHint}>
+									Opcional. Geral mantém a referência fora de qualquer classificação de campanha.
+								</small>
+							</div>
 
 							<div className={styles.autoMeta}>
 								<span>Publicado por você</span>
