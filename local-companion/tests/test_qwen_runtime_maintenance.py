@@ -72,6 +72,26 @@ def test_runtime_check_exposes_installed_minimum_and_compatible_stable(monkeypat
     }
 
 
+def test_runtime_check_allows_verified_update_when_installed_version_is_unknown(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        maintenance,
+        "inspect_qwen_runtime",
+        lambda *_args, **_kwargs: {"status": "missing", "version": None},
+    )
+
+    state = inspect_qwen_runtime_update(
+        tmp_path / "Runtime",
+        manifest_fetcher=lambda: _manifest("1.0.12"),
+    )
+
+    assert state["installed_status"] == "missing"
+    assert state["installed_version"] is None
+    assert state["stable_status"] == "compatible"
+    assert state["stable_version"] == "1.0.12"
+    assert state["update_available"] is True
+    assert state["can_update"] is True
+
+
 def test_runtime_check_fails_closed_when_stable_is_below_minimum(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(
         maintenance,
