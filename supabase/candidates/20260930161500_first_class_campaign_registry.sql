@@ -94,7 +94,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $$
 declare
   v_route_key text;
 begin
@@ -133,7 +133,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $$
 declare
   v_route_key text := lower(new.route_key);
 begin
@@ -173,7 +173,7 @@ revoke all on function public.guard_campaign_public_route_alias() from authentic
 -- Refuse rollout if the current physical schema still makes source/entity
 -- identities globally unique. #1123 is expand-only and must not silently drop
 -- unknown legacy constraints.
-do $
+do $$
 begin
   if exists (
     select 1
