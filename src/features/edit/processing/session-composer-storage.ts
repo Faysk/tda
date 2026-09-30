@@ -6,8 +6,14 @@ import {
 	type PendingSubmissionRecoveryIdentity,
 } from "./submission-recovery";
 
-export const SESSION_COMPOSER_RECOVERY_KEY =
-	"tda.processing.session-composer.v1";
+const SESSION_COMPOSER_RECOVERY_PREFIX =
+	"tda.processing.session-composer.recovery.v2";
+
+export function sessionComposerRecoveryKey(campaignId: string): string {
+	if (!/^[A-Za-z0-9_-]{1,128}$/u.test(campaignId))
+		throw new Error("Invalid campaign id for session composer recovery");
+	return `${SESSION_COMPOSER_RECOVERY_PREFIX}:${campaignId}`;
+}
 const SESSION_COMPOSER_LAST_SESSION_PREFIX =
 	"tda.processing.session-composer.last-session.v2";
 
