@@ -703,6 +703,25 @@ export function SessionIntentCoordinator({
 		}
 	}
 
+	async function cancelSource(sourceId: string) {
+		if (!workspace || busy || disabled) return;
+		const job = latestJobForSource(jobs, sourceId);
+		if (!job || (job.status !== "queued" && job.status !== "running")) return;
+		const controller = new AbortController();
+		setBusy(true);
+		try {
+			await bridge.jobAction(job.id, "cancel", controller.signal);
+			announce(
+				`${sourceLabel(sourceId, activeRequest, workspace)} cancelada. As demais gravações continuam preservadas.`,
+			);
+			await loadSnapshot(workspace.sessionId, controller.signal);
+		} catch (cause) {
+			fail(cause);
+		} finally {
+			setBusy(false);
+		}
+	}
+
 	async function cancelActive() {
 		if (!workspace || busy || disabled) return;
 		const active = workspace.parts
@@ -880,6 +899,22 @@ export function SessionIntentCoordinator({
 													: "aguardando"}
 									</small>
 								</div>
+								{state === "running" ? (
+									<Button
+										type="button"
+										size="sm"
+										variant="tertiary"
+										disabled={busy}
+										aria-label={`Cancelar ${sourceLabel(
+											part.sourceId,
+											activeRequest,
+											workspace,
+										)}`}
+										onClick={() => void cancelSource(part.sourceId)}
+									>
+										Cancelar
+									</Button>
+								) : null}
 							</li>
 						);
 					})}
