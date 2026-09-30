@@ -26,6 +26,7 @@
     "docs:check": "node tools/check-docs.mjs",
     "docs:generate": "node tools/documentation-catalog.mjs --write",
     "db:docs:check": "node tools/check-database-governance.mjs",
+    "db:campaign-registry:test": "docker run --rm -v \"${PWD}:/workspace\" -w /workspace postgres:16-alpine python3 tools/campaign-registry-db.py",
     "ux:inventory": "node tools/ux/layout-surface-inventory.mjs",
     "test:e2e": "playwright test && playwright test --config playwright.statistics.config.ts && playwright test --config playwright.permissions.config.ts",
     "test:processing": "playwright test --config playwright.processing.config.ts",
