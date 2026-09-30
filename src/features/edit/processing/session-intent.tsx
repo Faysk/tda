@@ -44,6 +44,7 @@ import type {
 	TranscriptionProfileId,
 } from "./protocol";
 import { BridgeError } from "./protocol";
+import { SessionAssemblyReview } from "./session-assembly-review";
 import styles from "./session-intent.module.css";
 
 export type SessionIntentSource = Readonly<{
@@ -106,6 +107,7 @@ function supported(capabilities: readonly string[]): boolean {
 		"transcription.session-timeline",
 		"transcription.session-participants",
 		"transcription.session-assembly",
+		"transcription.session-assembly.review",
 	].every((capability) => capabilities.includes(capability));
 }
 
@@ -998,7 +1000,7 @@ export function SessionIntentCoordinator({
 		const controller = new AbortController();
 		setBusy(true);
 		try {
-			const next = await bridge.sessionAssemblyReviewBase(
+			const next = await bridge.sessionAssemblyReview(
 				workspace.campaignId,
 				workspace.sessionId,
 				assembly.assemblyId,
@@ -1336,14 +1338,15 @@ export function SessionIntentCoordinator({
 				</div>
 			) : null}
 
-			{review ? (
-				<div className={styles.review} role="status">
-					<strong>Revisão contínua carregada</strong>
-					<span>
-						{review.segmentCount.toLocaleString("pt-BR")} falas ·{" "}
-						{review.reviewedSegments.toLocaleString("pt-BR")} revisadas
-					</span>
-				</div>
+			{review && assembly ? (
+				<SessionAssemblyReview
+					bridge={bridge}
+					assembly={assembly}
+					review={review}
+					disabled={busy || disabled}
+					onChange={setReview}
+					onStatus={announce}
+				/>
 			) : null}
 
 			{activeJobs.length ? (
