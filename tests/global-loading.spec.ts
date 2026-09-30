@@ -131,6 +131,33 @@ test("global loader requires an explicit blocking trigger and ignores local busy
 	expect(assetFailures).toEqual([]);
 });
 
+test("global loader stays active until the last explicit blocking operation ends", async ({
+	page,
+}) => {
+	await page.goto("/");
+
+	await page.evaluate(() => {
+		for (const id of ["concurrent-a", "concurrent-b"]) {
+			const marker = document.createElement("div");
+			marker.id = id;
+			marker.setAttribute("data-global-loading", "true");
+			document.body.append(marker);
+		}
+	});
+	await expect(page.locator(overlay)).toBeVisible();
+
+	await page.evaluate(() => {
+		document.getElementById("concurrent-a")?.remove();
+	});
+	await page.waitForTimeout(180);
+	await expect(page.locator(overlay)).toBeVisible();
+
+	await page.evaluate(() => {
+		document.getElementById("concurrent-b")?.remove();
+	});
+	await expect(page.locator(overlay)).toHaveCount(0, { timeout: 2500 });
+});
+
 test("global loader ignores explicit triggers inside an opted-out subtree", async ({ page }) => {
 	await page.goto("/");
 
