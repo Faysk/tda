@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StoryMarkdown } from "@/components/story-markdown";
 import { formatSessionDate } from "@/features/sessions/model";
 import styles from "@/features/edit/workbench.module.css";
@@ -124,6 +124,9 @@ export function SessionEditorialDraftEditor({
 		"idle" | "publishing" | "published" | "error"
 	>("idle");
 	const [publishMessage, setPublishMessage] = useState<string | null>(null);
+	const publicationDialogRef = useRef<HTMLDialogElement>(null);
+	const publicationDialogTitleRef = useRef<HTMLElement>(null);
+	const publicationTriggerRef = useRef<HTMLButtonElement>(null);
 	const dirty = !sameFields(fields, baseline);
 	const missing = useMemo(
 		() =>
@@ -149,6 +152,20 @@ export function SessionEditorialDraftEditor({
 		phase !== "saving" &&
 		phase !== "conflict" &&
 		publishPhase !== "publishing";
+
+	useEffect(() => {
+		const dialog = publicationDialogRef.current;
+		if (!dialog) return;
+		if (publishIntent) {
+			if (!dialog.open) dialog.showModal();
+			window.requestAnimationFrame(() => publicationDialogTitleRef.current?.focus());
+			return;
+		}
+		if (dialog.open) {
+			dialog.close();
+			window.requestAnimationFrame(() => publicationTriggerRef.current?.focus());
+		}
+	}, [publishIntent]);
 
 	useEffect(() => {
 		setCurrentTranscriptRevisionId(initial.currentTranscriptRevisionId);
@@ -580,97 +597,114 @@ export function SessionEditorialDraftEditor({
 				</div>
 			) : null}
 
-			{publishIntent ? (
-				<div
-					className={draftStyles.publicationConfirm}
-					role="dialog"
-					aria-label="Confirmar publicação da sessão"
-				>
-					<strong>Publicar esta sessão no site?</strong>
-					<dl className={draftStyles.publicationSummary}>
-						<div>
-							<dt>Capa</dt>
-							<dd>pronta para verificação pública</dd>
-						</div>
-						<div>
-							<dt>Arco</dt>
-							<dd>{publishIntent.fields.arc.trim() || "sem arco"}</dd>
-						</div>
-						<div>
-							<dt>Título</dt>
-							<dd>{publishIntent.fields.title.trim()}</dd>
-						</div>
-						<div>
-							<dt>Data</dt>
-							<dd>{formatSessionDate(publishIntent.fields.sessionDate)}</dd>
-						</div>
-						<div>
-							<dt>Descrição</dt>
-							<dd>
-								{fieldCount(
-									publishIntent.fields.shortDescription,
-								).toLocaleString("pt-BR")}{" "}
-								caracteres
-							</dd>
-						</div>
-						<div>
-							<dt>Resumo completo</dt>
-							<dd>
-								{fieldCount(publishIntent.fields.fullSummary).toLocaleString(
-									"pt-BR",
-								)}{" "}
-								caracteres · Markdown
-							</dd>
-						</div>
-						<div>
-							<dt>Versão pública atual</dt>
-							<dd>
-								{currentPublicationId
-									? "v" + currentPublicationVersion
-									: initial.sessionStatus === "published"
-										? "legada · pré-versionamento"
-										: "nenhuma"}
-							</dd>
-						</div>
-						<div>
-							<dt>Base do draft</dt>
-							<dd>r{publishIntent.draftRevision}</dd>
-						</div>
-					</dl>
-					<p className={styles.muted}>
-						A transcrição completa continuará privada. Somente capa, arco, título,
-						descrição curta e resumo completo serão promovidos.
-					</p>
-					{dirty ? (
-						<p role="alert">
-							O draft foi alterado depois desta confirmação. Salve e abra a
-							confirmação novamente.
+			<dialog
+				className={draftStyles.publicationConfirm}
+				ref={publicationDialogRef}
+				aria-label="Confirmar publicação da sessão"
+				onCancel={(event) => {
+					event.preventDefault();
+					cancelPublication();
+				}}
+			>
+				{publishIntent ? (
+					<>
+						<strong ref={publicationDialogTitleRef} tabIndex={-1}>
+							Publicar esta sessão no site?
+						</strong>
+						<dl className={draftStyles.publicationSummary}>
+							<div>
+								<dt>Capa</dt>
+								<dd>pronta para verificação pública</dd>
+							</div>
+							<div>
+								<dt>Arco</dt>
+								<dd>{publishIntent.fields.arc.trim() || "sem arco"}</dd>
+							</div>
+							<div>
+								<dt>Título</dt>
+								<dd>{publishIntent.fields.title.trim()}</dd>
+							</div>
+							<div>
+								<dt>Data</dt>
+								<dd>{formatSessionDate(publishIntent.fields.sessionDate)}</dd>
+							</div>
+							<div>
+								<dt>Descrição</dt>
+								<dd>
+									{fieldCount(
+										publishIntent.fields.shortDescription,
+									).toLocaleString("pt-BR")}{" "}
+									caracteres
+								</dd>
+							</div>
+							<div>
+								<dt>Resumo completo</dt>
+								<dd>
+									{fieldCount(publishIntent.fields.fullSummary).toLocaleString(
+										"pt-BR",
+									)}{" "}
+									caracteres · Markdown
+								</dd>
+							</div>
+							<div>
+								<dt>Versão pública atual</dt>
+								<dd>
+									{currentPublicationId
+										? "v" + currentPublicationVersion
+										: initial.sessionStatus === "published"
+											? "legada · pré-versionamento"
+											: "nenhuma"}
+								</dd>
+							</div>
+							<div>
+								<dt>Base do draft</dt>
+								<dd>r{publishIntent.draftRevision}</dd>
+							</div>
+						</dl>
+						<p className={styles.muted}>
+							A transcrição completa continuará privada. Somente capa, arco, título,
+							descrição curta e resumo completo serão promovidos.
 						</p>
-					) : null}
-					<div className={draftStyles.editorialActions}>
-						<button
-							className={draftStyles.controlButton}
-							disabled={publishPhase === "publishing"}
-							onClick={cancelPublication}
-							type="button"
-						>
-							Cancelar
-						</button>
-						<button
-							className={draftStyles.primaryButton}
-							disabled={publishPhase === "publishing" || dirty}
-							onClick={() => void publish()}
-							type="button"
-						>
-							{publishPhase === "publishing"
-								? "Publicando…"
-								: currentPublicationId || initial.sessionStatus === "published"
-									? "Publicar nova versão"
-									: "Publicar no site"}
-						</button>
-					</div>
-				</div>
-			) : null}
+						{dirty ? (
+							<p role="alert">
+								O draft foi alterado depois desta confirmação. Salve e abra a
+								confirmação novamente.
+							</p>
+						) : null}
+						{publishMessage ? (
+							<p
+								className={styles.saveState}
+								data-state={publishPhase === "published" ? "saved" : publishPhase}
+								role={publishPhase === "error" ? "alert" : "status"}
+							>
+								{publishMessage}
+							</p>
+						) : null}
+						<div className={draftStyles.editorialActions}>
+							<button
+								className={draftStyles.controlButton}
+								disabled={publishPhase === "publishing"}
+								onClick={cancelPublication}
+								type="button"
+							>
+								Cancelar
+							</button>
+							<button
+								className={draftStyles.primaryButton}
+								disabled={publishPhase === "publishing" || dirty}
+								onClick={() => void publish()}
+								type="button"
+							>
+								{publishPhase === "publishing"
+									? "Publicando…"
+									: currentPublicationId || initial.sessionStatus === "published"
+										? "Confirmar nova versão"
+										: "Confirmar e publicar"}
+							</button>
+						</div>
+					</>
+				) : null}
+			</dialog>
 
 			<footer className={draftStyles.editorialFooter}>
 				<div>
@@ -692,7 +726,7 @@ export function SessionEditorialDraftEditor({
 					</small>
 				</div>
 
-				{publishMessage ? (
+				{publishMessage && !publishIntent ? (
 					<span
 						className={styles.saveState}
 						data-state={publishPhase === "published" ? "saved" : publishPhase}
@@ -727,6 +761,7 @@ export function SessionEditorialDraftEditor({
 					<button
 						className={draftStyles.controlButton}
 						disabled={!publishReady}
+						ref={publicationTriggerRef}
 						title={
 							!publicationAvailable
 								? "Autoridade de publicação indisponível."
