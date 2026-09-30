@@ -248,6 +248,38 @@ describe("publication client", () => {
         expect(JSON.stringify(body)).not.toContain("f".repeat(64));
 	});
 
+	it("preserves trusted single-source wall-clock metadata through the real publication client", () => {
+		const operationId = "55555555-5555-4555-8555-555555555555";
+		const withAbsolute: LocalReview = {
+			...review,
+			segments: review.segments.map((segment) => ({
+				...segment,
+				absoluteTime: {
+					startIso: "2026-09-12T23:59:59+01:00",
+					endIso: "2026-09-13T00:00:00+01:00",
+					source: sourceId,
+				},
+			})),
+		};
+
+		const body = publicationRequestBody(withAbsolute, operationId, null);
+		expect(body.review.segments[0]?.absoluteTime).toEqual({
+			startIso: "2026-09-12T23:59:59+01:00",
+			endIso: "2026-09-13T00:00:00+01:00",
+			source: sourceId,
+		});
+		const prepared = preparePublication(JSON.stringify(body));
+		expect(prepared.ok).toBe(true);
+		if (!prepared.ok) throw new Error("expected canonical publication");
+		const payload = JSON.parse(prepared.value.payloadJson);
+		expect(payload.segments[0]).toMatchObject({
+			absolute_time_state: "trusted_absolute",
+			absolute_start: "2026-09-12T23:59:59+01:00",
+			absolute_end: "2026-09-13T00:00:00+01:00",
+			absolute_time_source: sourceId,
+		});
+	});
+
 	it("strips timeline projection fields before canonical handoff without changing payload identity", () => {
 		const operationId = "55555555-5555-4555-8555-555555555555";
 		const withTimeline: LocalReview = {
