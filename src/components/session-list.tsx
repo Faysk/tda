@@ -194,7 +194,8 @@ export function SessionList({
 	sessions: readonly SessionArchiveItem[];
 }) {
 	const [query, setQuery] = useState("");
-	const [campaign, setCampaign] = useState("all");\n\tconst [arc, setArc] = useState("all");
+	const [campaign, setCampaign] = useState("all");
+	const [arc, setArc] = useState("all");
 	const [sort, setSort] = useState<SortMode>("newest");
 	const [view, setView] = useState<ViewMode>("grid");
 
@@ -213,7 +214,8 @@ export function SessionList({
 	const visible = useMemo(() => {
 		const needle = normalizeSearch(query.trim());
 		const items = sessions.filter((session) => {
-			if (campaign !== "all" && session.campaignSlug !== campaign) return false;\n\t\t\tif (arc !== "all" && session.arc !== arc) return false;
+			if (campaign !== "all" && session.campaignSlug !== campaign) return false;
+			if (arc !== "all" && session.arc !== arc) return false;
 			if (!needle) return true;
 			return normalizeSearch(
 				`${session.title} ${session.campaignName} ${session.arc} ${session.summary}`,
