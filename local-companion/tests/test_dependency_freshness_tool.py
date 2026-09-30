@@ -107,3 +107,44 @@ def test_registry_fetch_fails_closed_after_bounded_retries(monkeypatch):
 
     assert calls == 4
     assert sleeps == [1, 2, 4]
+
+
+def test_python_patch_exception_is_exact_and_machine_readable(monkeypatch, capsys):
+    tool = _load_tool()
+    monkeypatch.setattr(
+        tool,
+        "collect",
+        lambda: (
+            {},
+            {},
+            "3.12.14",
+            {},
+            {
+                "python": {
+                    "version": "3.12.14",
+                    "reason": "Keep the accepted runtime baseline while a separately versioned rebuild validates the newer patch.",
+                }
+            },
+        ),
+    )
+    monkeypatch.setattr(tool, "latest_python_312", lambda: "3.12.15")
+
+    assert tool.main() == 0
+    output = capsys.readouterr().out
+    assert "python: 3.12.14 -> 3.12.15 [COMPATIBILITY EXCEPTION]" in output
+    assert "accepted runtime baseline" in output
+
+
+def test_python_patch_without_exact_exception_fails_closed(monkeypatch, capsys):
+    tool = _load_tool()
+    monkeypatch.setattr(
+        tool,
+        "collect",
+        lambda: ({}, {}, "3.12.14", {}, {}),
+    )
+    monkeypatch.setattr(tool, "latest_python_312", lambda: "3.12.15")
+
+    assert tool.main() == 1
+    captured = capsys.readouterr()
+    assert "python: 3.12.14 -> 3.12.15 [STALE]" in captured.out
+    assert "python: pinned 3.12.14, latest 3.12 patch 3.12.15" in captured.err
