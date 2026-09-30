@@ -11,6 +11,10 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import {
+	ProcessingCampaignValidationError,
+	validateProcessingCampaignForEnqueue,
+} from "./campaign-validation";
+import {
 	LocalBridge,
 	localBridgePaired,
 	subscribeLocalBridgePairing,
@@ -643,6 +647,25 @@ export function ProcessingSubmission({
 					);
 					return;
 				}
+			}
+
+			setStatus("Confirmando acesso à campanha antes de criar o trabalho…");
+			try {
+				await validateProcessingCampaignForEnqueue(campaignId, controller.signal);
+			} catch (cause) {
+				if (
+					cause instanceof ProcessingCampaignValidationError &&
+					cause.code === "campaign_unavailable"
+				) {
+					setError(
+						"A campanha deixou de estar ativa ou seu acesso de processamento mudou. Nenhum trabalho novo foi criado. Recarregue a seleção de campanha antes de tentar novamente.",
+					);
+				} else {
+					setError(
+						"Não foi possível revalidar a campanha com segurança. Nenhum trabalho novo foi criado; tente novamente quando o Edit estiver disponível.",
+					);
+				}
+				return;
 			}
 
 			const sessionIntentCapabilities = [
