@@ -115,6 +115,17 @@ function formatTimestamp(value: number): string {
 	return [hours, minutes, rest].map((part) => String(part).padStart(2, "0")).join(":");
 }
 
+function formatWallClock(segment: LocalReviewSegment): string | null {
+	const value = segment.absoluteTime?.start;
+	if (!value) return null;
+	const match = value.match(
+		/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/u,
+	);
+	if (!match) return null;
+	const millis = (match[7] ?? "").slice(0, 3).padEnd(3, "0");
+	return `${match[3]}/${match[2]} · ${match[4]}:${match[5]}:${match[6]}.${millis} ${match[8] === "Z" ? "UTC" : match[8]}`;
+}
+
 function timelineStart(segment: LocalReviewSegment): number {
 	return segment.timelineStart ?? segment.start;
 }
@@ -1025,9 +1036,14 @@ function ReviewEditor({
 						<article
 							className={styles.timelineRow}
 							data-review-segment={JSON.stringify([segment.trackNumber, segment.segmentId])}
+							data-track-number={segment.trackNumber}
+							title={`Proveniência técnica: track ${segment.trackNumber}`}
 							key={key}
 						>
-							<time>{formatTimestamp(timelineStart(segment))}</time>
+							<time>
+								<span>{formatTimestamp(timelineStart(segment))}</span>
+								{formatWallClock(segment) ? <small>{formatWallClock(segment)}</small> : null}
+							</time>
 							<div className={styles.timelineSpeaker}>
 								{editing ? (
 									<input
@@ -1041,7 +1057,6 @@ function ReviewEditor({
 								) : (
 									<strong>{segment.speaker}</strong>
 								)}
-								<small>Track {segment.trackNumber}</small>
 							</div>
 							<div className={styles.timelineText}>
 								{editing ? (
