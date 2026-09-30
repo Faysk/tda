@@ -1138,6 +1138,11 @@ export function ProcessingSubmission({
 						onRestoreSessionId={(value) =>
 							setSessionId((current) => current || value)
 						}
+						onRestoreIntent={(restored) => {
+							setProfile(restored.profile);
+							setContext(restored.context);
+							setGlossary(restored.glossary);
+						}}
 						onStatus={setStatus}
 						onError={setError}
 						onOpenTechnical={() => setTechnicalOpen(true)}
