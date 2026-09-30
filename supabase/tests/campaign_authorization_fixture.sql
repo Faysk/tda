@@ -97,7 +97,8 @@ create table public.profile_claims (
   updated_at timestamptz not null default now()
 );
 
-grant usage on schema auth to authenticated;
+grant usage on schema public to anon, authenticated, service_role;
+grant usage on schema auth to authenticated, service_role;
 grant execute on function auth.uid() to authenticated, service_role;
 
 insert into public.permission_catalog(action, plane, description) values
@@ -110,8 +111,8 @@ insert into public.permission_catalog(action, plane, description) values
 insert into public.role_definitions(id, slug, name, plane, description) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', 'campaign-reader', 'Campaign reader', 'narrative', 'Synthetic reader'),
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', 'campaign-manager', 'Campaign manager', 'mixed', 'Synthetic manager'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3', 'project-transcript-reader', 'Project transcript reader', 'narrative', 'Synthetic project campaign capability'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4', 'wrong-project-reader', 'Wrong project reader', 'narrative', 'Synthetic wrong project scope'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3', 'project-edit-viewer', 'Project edit viewer', 'narrative', 'Synthetic project Edit discovery capability'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4', 'wrong-project-edit-viewer', 'Wrong project edit viewer', 'narrative', 'Synthetic wrong project scope'),
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5', 'platform_owner', 'Platform owner', 'technical', 'Synthetic owner');
 
 insert into public.role_permissions(role_id, permission_action) values
@@ -119,8 +120,8 @@ insert into public.role_permissions(role_id, permission_action) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', 'campaign.edit.access'),
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', 'campaign.read'),
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', 'campaign.access.manage'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3', 'campaign.transcript.read'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4', 'campaign.transcript.read');
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3', 'campaign.edit.access'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4', 'campaign.edit.access');
 
 insert into public.profiles(id, display_name, auth_user_id, discord_id, discord_handle) values
   ('30000000-0000-4000-8000-000000000001', 'Legacy member', '90000000-0000-4000-8000-000000000001', 'discord-a', 'member-a'),
