@@ -82,6 +82,8 @@ export function LocalReviewMarkdownRoundTrip({
 	const baseKey = JSON.stringify(base);
 
 	useEffect(() => {
+		// The structural base is an intentional reset key for imported preview state.
+		void baseKey;
 		setPreview(null);
 		setError(null);
 	}, [baseKey]);
