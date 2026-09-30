@@ -95,10 +95,27 @@ try:
         create role anon nologin;
         create role authenticated nologin;
         create role service_role nologin;
+
+        create table public.campaigns (
+          id uuid primary key,
+          name text not null,
+          slug text not null unique,
+          lifecycle text not null default 'active'
+            check (lifecycle in ('active', 'archived')),
+          visibility text not null default 'private'
+            check (visibility in ('private', 'public'))
+        );
+
+        insert into public.campaigns(id, name, slug, lifecycle, visibility)
+        values
+          ('11111111-1111-4111-8111-111111111111', 'Campanha A', 'campaign-a', 'active', 'public'),
+          ('22222222-2222-4222-8222-222222222222', 'Campanha B privada', 'campaign-b', 'active', 'private'),
+          ('33333333-3333-4333-8333-333333333333', 'Campanha C', 'campaign-c', 'archived', 'public');
         """
     )
 
     run_sql_file(repo / "supabase/migrations/20260921190000_lembra_shared_library.sql")
+    run_sql_file(repo / "supabase/migrations/20260930163000_lembra_campaign_classification.sql")
     receipt = run_sql_file(repo / "supabase/tests/lembra_shared_library.sql").stdout.strip()
     if "LEMBRA_SHARED_DATABASE_OK" not in receipt:
         raise RuntimeError(f"missing Lembra contract receipt: {receipt!r}")

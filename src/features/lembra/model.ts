@@ -15,6 +15,12 @@ const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
 export type LembraMediaMime = "image/jpeg" | "image/png" | "image/webp";
 export type LembraExtension = "jpg" | "png" | "webp";
 
+export type LembraCampaignClassification = Readonly<{
+	id: string;
+	name: string;
+	lifecycle: "active" | "archived";
+}>;
+
 export type LembraReference = Readonly<{
 	id: string;
 	title: string;
@@ -27,6 +33,7 @@ export type LembraReference = Readonly<{
 	width?: number;
 	height?: number;
 	mine: boolean;
+	campaign: LembraCampaignClassification | null;
 }>;
 
 export type LembraUploadIntent = Readonly<{
@@ -161,4 +168,15 @@ export function validLembraAuthorName(value: unknown): value is string {
 		value.trim().length >= 1 &&
 		value.trim().length <= 120
 	);
+}
+
+export function validLembraCampaignId(value: unknown): value is string | null {
+	return value === null || isLembraUuid(value);
+}
+
+export function validLembraUpdatedAt(value: unknown): value is string {
+	if (typeof value !== "string" || value.length < 20 || value.length > 64) {
+		return false;
+	}
+	return !Number.isNaN(Date.parse(value));
 }

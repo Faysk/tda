@@ -392,7 +392,22 @@ Objetivo:
 - criar `lembra_references` para metadata verificada de mídia, autoria e soft-retire;
 - criar `lembra_favorites` como preferência pessoal por usuário;
 - manter bytes fora do PostgreSQL, em Media Storage privado;
-- não introduzir `campaign_id`, role nova ou capability específica.
+- não introduzir role nova ou capability específica.
+
+### `20260930163000_lembra_campaign_classification`
+
+**Dependência funcional:** registry first-class de #1123 integrado em `main` por #1201 / candidate `20260930174200_first_class_campaign_registry`. A migration nullable pode ser aplicada antes desse candidate: até `campaigns.lifecycle/visibility` existirem, o runtime mantém Lembra em `Geral` e não enumera classificação.
+
+Objetivo:
+
+- adicionar `lembra_references.campaign_id uuid null` como classificação opcional;
+- `null` representa **Geral**, preservando todas as referências legadas sem backfill;
+- FK para `campaigns(id)` usa `ON DELETE SET NULL` para não quebrar a biblioteca;
+- criar índice parcial por campaign + data para filtro da galeria;
+- manter o contrato de acesso global autenticado do Lembra: classificação não concede, amplia ou revoga autorização;
+- preservar `object_key`, bucket e bytes R2 em qualquer troca de classificação.
+
+A aplicação deve aceitar campaign arquivada já vinculada para leitura/histórico, mas não oferecê-la como destino novo. O catálogo/selector desta entrega só resolve campaigns públicas; campaign privada não pode ser descoberta nem atribuída por UUID antes da política de #1134. Payload com UUID inexistente/privado falha pela resolução server-side/FK.
 
 Segurança:
 
@@ -414,8 +429,8 @@ Integridade:
 Validação sintética:
 
 - `tools/lembra-db.py` sobe PostgreSQL 16 descartável sem TCP;
-- aplica somente a migration do Lembra sobre roles sintéticos mínimos;
-- `supabase/tests/lembra_shared_library.sql` verifica grants deny-by-default, insert válido, favorito, object key inválido e soft-retire;
+- cria registry sintético mínimo A/B/arquivada e aplica as migrations do Lembra, incluindo classificação opcional;
+- `supabase/tests/lembra_shared_library.sql` verifica grants deny-by-default, legacy `campaign_id=null`, FK, campaign arquivada, `ON DELETE SET NULL`, preservação de `object_key`, favorito, object key inválido e soft-retire;
 - recibo esperado: `LEMBRA_SHARED_DATABASE_OK synthetic=true migration=true remote_mutation=false`.
 
 Rollout:
@@ -1723,4 +1738,3 @@ Gate sintético:
 - browser grants e helper-oracle verificados.
 
 Rollout é expand/replace forward-only: aplicar #1123 antes, promover #1134 em migration nova de timestamp corrente após revisão, executar scratch no SHA exato, read-back de funções/grants e advisors. Nenhuma mutation de Production é executada por este candidate.
-

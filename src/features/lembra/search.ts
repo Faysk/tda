@@ -3,6 +3,7 @@ export type LembraSearchableReference = Readonly<{
 	description: string;
 	author: string;
 	createdAt: string;
+	campaign?: Readonly<{ name: string }> | null;
 }>;
 
 export type LembraDateRange = Readonly<{
@@ -67,6 +68,7 @@ export function matchesLembraSearch(item: LembraSearchableReference, query: stri
 			item.title,
 			item.description,
 			item.author,
+			item.campaign?.name ?? "",
 			...searchableDateValues(item.createdAt),
 		].join(" "),
 	);

@@ -6,8 +6,10 @@ import {
 	lembraPendingObjectKey,
 	lembraReferenceObjectKey,
 	lembraUploadChunkCount,
+	validLembraCampaignId,
 	validLembraDescription,
 	validLembraTitle,
+	validLembraUpdatedAt,
 	validLembraUploadIntent,
 } from "./model";
 
@@ -111,5 +113,14 @@ describe("Lembra persistence model", () => {
 		expect(validLembraTitle("x".repeat(121))).toBe(false);
 		expect(validLembraDescription("x".repeat(320))).toBe(true);
 		expect(validLembraDescription("x".repeat(321))).toBe(false);
+	});
+
+	it("accepts nullable campaign classification and database timestamps", () => {
+		expect(validLembraCampaignId(null)).toBe(true);
+		expect(validLembraCampaignId(referenceId)).toBe(true);
+		expect(validLembraCampaignId("campaign-a")).toBe(false);
+		expect(validLembraUpdatedAt("2026-09-30T15:12:13.123Z")).toBe(true);
+		expect(validLembraUpdatedAt("2026-09-30 15:12:13.123+00")).toBe(true);
+		expect(validLembraUpdatedAt("not-a-date")).toBe(false);
 	});
 });

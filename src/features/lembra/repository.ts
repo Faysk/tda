@@ -2,10 +2,12 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { lembraDataClient } from "@/integrations/supabase/server";
+import { isLembraCampaignRegistryUnavailable } from "./campaign-classification";
 import {
 	isLembraMediaMime,
 	isLembraUuid,
 	lembraImageUrl,
+	type LembraCampaignClassification,
 	type LembraMediaMime,
 	type LembraReference,
 } from "./model";
@@ -28,10 +30,13 @@ export type LembraReferenceRow = Readonly<{
 	created_at: string;
 	updated_at: string;
 	retired_at: string | null;
+	campaign_id: string | null;
 }>;
 
 const SELECT_COLUMNS =
-	"id,title,description,status,staged_bucket,object_key,sha256,mime_type,byte_size,width,height,read_back_verified,created_by_auth_user_id,created_by_name,created_at,updated_at,retired_at";
+	"id,title,description,status,staged_bucket,object_key,sha256,mime_type,byte_size,width,height,read_back_verified,created_by_auth_user_id,created_by_name,created_at,updated_at,retired_at,campaign_id";
+
+const CAMPAIGN_SELECT_COLUMNS = "id,name,lifecycle";
 
 function positiveInteger(value: number | string): number | null {
 	const number = Number(value);
@@ -51,6 +56,7 @@ export function validLembraReferenceRow(
 			row.width > 0 &&
 			Number.isSafeInteger(row.height) &&
 			row.height > 0 &&
+			(row.campaign_id === null || isLembraUuid(row.campaign_id)) &&
 			lembraImageUrl(row.id),
 	);
 }
@@ -58,6 +64,7 @@ export function validLembraReferenceRow(
 export function presentLembraRow(
 	row: LembraReferenceRow,
 	viewerAuthUserId: string,
+	campaign: LembraCampaignClassification | null = null,
 ): LembraReference | null {
 	if (!validLembraReferenceRow(row)) return null;
 	const imageUrl = lembraImageUrl(row.id);
@@ -75,28 +82,104 @@ export function presentLembraRow(
 		width: row.width,
 		height: row.height,
 		mine: row.created_by_auth_user_id === viewerAuthUserId,
+		campaign,
+	};
+}
+
+export async function loadLembraCampaignClassifications(
+	client: SupabaseClient | null = lembraDataClient(),
+): Promise<LembraCampaignClassification[]> {
+	if (!client) throw new Error("lembra_data_unavailable");
+
+	const { data, error } = await client
+		.from("campaigns")
+		.select(CAMPAIGN_SELECT_COLUMNS)
+		.eq("visibility", "public")
+		.order("name", { ascending: true })
+		.order("id", { ascending: true });
+	if (error) {
+		if (isLembraCampaignRegistryUnavailable(error)) return [];
+		throw new Error(`lembra_campaign_lookup:${error.message}`);
+	}
+
+	return (data ?? []).flatMap((row) => {
+		if (
+			!isLembraUuid(row.id) ||
+			typeof row.name !== "string" ||
+			!row.name.trim() ||
+			(row.lifecycle !== "active" && row.lifecycle !== "archived")
+		) {
+			return [];
+		}
+		return [{
+			id: row.id,
+			name: row.name.trim(),
+			lifecycle: row.lifecycle,
+		} satisfies LembraCampaignClassification];
+	});
+}
+
+export async function loadLembraCampaignClassification(
+	client: SupabaseClient,
+	campaignId: string,
+): Promise<LembraCampaignClassification | null> {
+	if (!isLembraUuid(campaignId)) return null;
+	const { data, error } = await client
+		.from("campaigns")
+		.select(CAMPAIGN_SELECT_COLUMNS)
+		.eq("id", campaignId)
+		.eq("visibility", "public")
+		.maybeSingle();
+	if (error) {
+		if (isLembraCampaignRegistryUnavailable(error)) return null;
+		throw new Error(`lembra_campaign_lookup:${error.message}`);
+	}
+	if (
+		!data ||
+		!isLembraUuid(data.id) ||
+		typeof data.name !== "string" ||
+		!data.name.trim() ||
+		(data.lifecycle !== "active" && data.lifecycle !== "archived")
+	) {
+		return null;
+	}
+	return {
+		id: data.id,
+		name: data.name.trim(),
+		lifecycle: data.lifecycle,
 	};
 }
 
 export async function loadLembraReferences(
 	viewerAuthUserId: string,
+	campaigns?: readonly LembraCampaignClassification[],
 ): Promise<LembraReference[]> {
 	const client = lembraDataClient();
 	if (!client) throw new Error("lembra_data_unavailable");
 
-	const { data, error } = await client
-		.from("lembra_references")
-		.select(SELECT_COLUMNS)
-		.eq("status", "active")
-		.order("created_at", { ascending: false })
-		.order("id", { ascending: false })
-		.limit(1000);
-	if (error) throw new Error(`lembra_reference_lookup:${error.message}`);
+	const [referenceResult, campaignList] = await Promise.all([
+		client
+			.from("lembra_references")
+			.select(SELECT_COLUMNS)
+			.eq("status", "active")
+			.order("created_at", { ascending: false })
+			.order("id", { ascending: false })
+			.limit(1000),
+		campaigns
+			? Promise.resolve([...campaigns])
+			: loadLembraCampaignClassifications(client),
+	]);
+	if (referenceResult.error) {
+		throw new Error(`lembra_reference_lookup:${referenceResult.error.message}`);
+	}
+	const campaignById = new Map(campaignList.map((campaign) => [campaign.id, campaign]));
 
-	return (data ?? []).flatMap((row) => {
+	return (referenceResult.data ?? []).flatMap((row) => {
+		const typedRow = row as LembraReferenceRow;
 		const reference = presentLembraRow(
-			row as LembraReferenceRow,
+			typedRow,
 			viewerAuthUserId,
+			typedRow.campaign_id ? campaignById.get(typedRow.campaign_id) ?? null : null,
 		);
 		return reference ? [reference] : [];
 	});
@@ -148,6 +231,7 @@ export async function insertLembraReference(
 		height: number;
 		authUserId: string;
 		authorName: string;
+		campaignId: string | null;
 	}>,
 ): Promise<LembraReferenceRow> {
 	const { data, error } = await client
@@ -167,6 +251,7 @@ export async function insertLembraReference(
 			read_back_verified: true,
 			created_by_auth_user_id: input.authUserId,
 			created_by_name: input.authorName,
+			campaign_id: input.campaignId,
 		})
 		.select(SELECT_COLUMNS)
 		.single();
@@ -179,16 +264,20 @@ export async function updateLembraReferenceMetadata(
 	referenceId: string,
 	title: string,
 	description: string,
+	campaignId: string | null,
+	expectedUpdatedAt: string,
 ): Promise<LembraReferenceRow | null> {
 	const { data, error } = await client
 		.from("lembra_references")
 		.update({
 			title,
 			description,
+			campaign_id: campaignId,
 			updated_at: new Date().toISOString(),
 		})
 		.eq("id", referenceId)
 		.eq("status", "active")
+		.eq("updated_at", expectedUpdatedAt)
 		.select(SELECT_COLUMNS)
 		.maybeSingle();
 	if (error) throw new Error(`lembra_reference_update:${error.message}`);
