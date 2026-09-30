@@ -76,6 +76,7 @@ export type SessionAssemblyReviewSummary = {
 	reviewPercent: number;
 	editedSegments: number;
 	wordCount: number;
+	segments: readonly SessionAssemblyReviewSegment[];
 };
 
 function invalid(): never {
@@ -307,5 +308,6 @@ export function parseSessionAssemblyReviewSummary(
 		reviewPercent,
 		editedSegments: integer(review.edited_segments, 0, totalSegments),
 		wordCount: integer(review.word_count, 0),
+		segments,
 	};
 }
