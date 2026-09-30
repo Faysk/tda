@@ -292,6 +292,11 @@ jobs:
           tests/d-lore-reading-mode.spec.ts
           --project=desktop-1080p
           --project=mobile
+      - name: Route and region loading contracts
+        run: >-
+          pnpm exec playwright test
+          tests/route-loading.spec.ts
+          --project=desktop-1080p
       - name: Global navigation and shell contracts
         run: >-
           pnpm exec playwright test

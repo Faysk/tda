@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { Suspense } from "react";
+import { EditorialListRouteLoading } from "@/components/loading";
 import { SessionList } from "@/components/session-list";
 import { Eyebrow } from "@/components/ui";
 import { buildPublicMetadata } from "@/config/public-metadata";
@@ -43,7 +45,7 @@ function ArchiveStat({ value, label }: { value: string; label: string }) {
 	);
 }
 
-export default async function Sessions() {
+async function SessionsContent() {
 	let sessions: Awaited<ReturnType<typeof listPublishedSessionArchive>> | undefined;
 	try {
 		sessions = await listPublishedSessionArchive();
@@ -128,5 +130,14 @@ export default async function Sessions() {
 				</div>
 			</section>
 		</div>
+	);
+}
+
+
+export default function Sessions() {
+	return (
+		<Suspense fallback={<EditorialListRouteLoading label="Carregando sessões" />}>
+			<SessionsContent />
+		</Suspense>
 	);
 }

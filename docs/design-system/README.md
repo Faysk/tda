@@ -303,6 +303,48 @@ O loader não deve alterar semântica HTTP nem ser implementado por um boundary 
 
 A validação automatizada cobre tema claro e escuro, triggers globais explícitos, operações rápidas que não devem piscar, estados locais que não podem escalar para fullscreen, opt-out de subtrees e regressões de navegação. O aceite visual de produto foi confirmado após uso em produção em `2026-09-10`, encerrando esta frente como concluída.
 
+### Loading estrutural de rota e região
+
+A camada de loading de rota usa primitivas compartilhadas em `src/components/loading/`. O fallback preserva a macrogeometria da superfície final e mantém o shell global utilizável; o skeleton nunca aciona o overlay global e declara `data-global-loading="off"` com `aria-busy="true"` somente na região em atualização.
+
+As composições canônicas são:
+
+- **Cinematic** — palco full-viewport para experiências em que narrativa/arte são o conteúdo; existe como primitive e fixture, sem instalar um `app/loading.tsx` global na Home;
+- **Editorial List** — arquivos, catálogos e listas com título, filtros e grid/lista;
+- **Editorial Detail** — hero/contexto + corpo de leitura para Suspense regional depois que identidade/existência já foram resolvidas; não é instalado como `loading.tsx` em rotas que resolvem `notFound()`, evitando introduzir um boundary de streaming adicional antes dessa decisão;
+- **Workspace** — variantes `table`, `library`, `editor` e `processing`;
+- **World/Canvas** — viewport expansiva que preserva o espaço do canvas e do chrome contextual;
+- **Compact** — superfícies pequenas como Conta, sem inventar um dashboard durante a espera.
+
+Inventário de decisão da rodada #1162:
+
+| Superfície | Estratégia |
+| --- | --- |
+| `/` Home | **sem `app/loading.tsx` global**; preservar semântica HTTP/NotFound e a baseline cinematic |
+| `/sessoes` | Editorial List via Suspense local na página |
+| `/sessoes/[id]` | **sem segment `loading.tsx`**; a rota resolve identidade/ausência antes de qualquer loading regional futuro |
+| `/diario` | Editorial List |
+| catálogos `personagens/npcs/lugares/faccoes/quests/musicas` | Editorial List via Suspense local na página |
+| perfis `[slug]` desses catálogos | **sem segment `loading.tsx`**; `renderLoreRoutePage()` pode chamar `notFound()` e o loading futuro deve entrar somente depois dessa resolução |
+| `/lembra` | skeleton específico existente; continua dono da geometria de galeria |
+| `/conta` | Compact |
+| `/mundo` | World/Canvas |
+| `/transcricoes` | Workspace Table |
+| `/edit/processamento` | Workspace Processing |
+| `/edit/revisao` | Workspace Table |
+| `/edit/sessoes` | Workspace Library via Suspense local depois da autorização |
+| `/edit/sessoes/[id]` | **sem segment `loading.tsx`**; a rota valida id/existência com `notFound()`; loading futuro deve ser regional após essa validação |
+| `/edit/[campaignSlug]/permissions` | loading específico existente |
+| `/lore` e lores independentes | não recebem fallback pai genérico que invada a identidade visual das lores |
+| `/entrar` | shell compacto já é a própria resposta; pending de autenticação é ação local/redirect |
+| `/edit` e `/edit/mundo` | redirects; sem skeleton artificial |
+
+Skeleton não é indicador de progresso. Ele apenas reserva a estrutura durante a resolução do segmento. Operações já montadas continuam usando pending/progresso local. Shimmer é decorativo e some com `prefers-reduced-motion: reduce`.
+
+Rotas de índice que compartilham o mesmo segmento com detalhes dinâmicos — como `/sessoes` + `/sessoes/[id]` e os catálogos + `[slug]` — **não** usam `loading.tsx` no segmento pai. Nesses casos o índice envolve somente seu conteúdo assíncrono em `Suspense` com o skeleton Editorial. Isso evita adicionar um boundary de streaming novo antes da decisão de identidade/ausência da rota filha; a semântica HTTP final continua pertencendo à própria rota/Next.js e não é inferida por este contrato de loading. Em workspaces privadas equivalentes, gates de autenticação/autorização também resolvem **antes** do `Suspense`; somente a consulta da região de dados fica dentro do fallback.
+
+A validação E2E usa rotas lentas sintéticas de **Cinematic, Editorial, Workspace, World/Canvas e Compact** para provar que o fallback aparece sem overlay global, o chrome compartilhado permanece utilizável e focável, existe um único status regional anunciável, os blocos decorativos ficam fora da árvore acessível, não há overflow horizontal e reduced motion remove o shimmer. A matriz automatizada cobre 320×800, 390×844, 1366×768, 1920×1080 e um viewport CSS de 960×540 como equivalente a 1920×1080 em zoom de 200%. Dark/light também são verificados contra os mesmos papéis semânticos. Rotas públicas de detalhe permanecem sem `loading.tsx` de segmento nesta entrega; a suíte de loading valida o feedback visual e não cria uma garantia nova sobre status HTTP de `notFound()`.
+
 ### Superfícies públicas
 
 A composição pública foi modularizada:

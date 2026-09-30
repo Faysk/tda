@@ -53,6 +53,11 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		"public/lore/d/script.js",
 		"tests/global-loading.spec.ts",
 		"tests/d-lore-reading-mode.spec.ts",
+		"tests/route-loading.spec.ts",
+		"src/components/loading/route-skeletons.tsx",
+		"src/components/loading/route-skeletons.module.css",
+		"src/app/e2e-fixtures/route-loading/editorial/loading.tsx",
+		"src/app/sessoes/loading.tsx",
 		"tests/world-catalogs.spec.ts",
 		"src/features/lore/components/lore-index-page.tsx",
 		"src/features/lore/components/lore-cinematic-hero.module.css",
@@ -88,6 +93,8 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		flags(["src/components/session-share-actions.tsx"]).navigation,
 		false,
 	);
+	assert.equal(flags(["src/app/loading.tsx"]).navigation, true);
+	assert.equal(flags(["src/app/mundo/loading.tsx"]).navigation, true);
 });
 
 test("Processing Web paths activate the Processing E2E contract", () => {
