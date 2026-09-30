@@ -37,6 +37,7 @@ textarea:focus-visible,
 
 /* Shared primitives. Prefer these classes/components over page-specific visual roles. */
 .ds-action {
+	position: relative;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -54,6 +55,56 @@ textarea:focus-visible,
 		border-color var(--ds-motion-fast) var(--ds-ease-standard),
 		color var(--ds-motion-fast) var(--ds-ease-standard),
 		transform var(--ds-motion-base) var(--ds-ease-soft);
+}
+
+.ds-action__label-stack {
+	display: grid;
+	min-width: 0;
+	place-items: center;
+}
+
+.ds-action__label {
+	grid-area: 1 / 1;
+}
+
+.ds-action__label--pending {
+	visibility: hidden;
+	opacity: 0;
+}
+
+.ds-action[data-pending="true"] .ds-action__label--idle {
+	visibility: hidden;
+	opacity: 0;
+}
+
+.ds-action[data-pending="true"] .ds-action__label--pending {
+	visibility: visible;
+	opacity: 1;
+}
+
+.ds-action[data-pending="true"]::after {
+	position: absolute;
+	right: 8px;
+	width: 6px;
+	height: 6px;
+	border-radius: 999px;
+	background: currentColor;
+	content: "";
+	opacity: 0.78;
+	animation: ds-action-pending-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes ds-action-pending-pulse {
+	0%,
+	100% {
+		opacity: 0.32;
+		transform: scale(0.72);
+	}
+
+	50% {
+		opacity: 0.92;
+		transform: scale(1);
+	}
 }
 
 .ds-action:disabled,
@@ -221,6 +272,11 @@ textarea:focus-visible,
 @media (prefers-reduced-motion: reduce) {
 	.ds-action {
 		transition: none;
+	}
+
+	.ds-action[data-pending="true"]::after {
+		animation: none;
+		opacity: 0.72;
 	}
 
 	.ds-action--primary:hover,

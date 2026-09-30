@@ -16,6 +16,7 @@ type WorldConductorBarProps = Readonly<{
 	context: WorldCommandContext;
 	canEditContent: boolean;
 	busy: boolean;
+	pendingAction: "finish" | "discard" | null;
 	focusMode: boolean;
 	inspectorOpen: boolean;
 	onEnter: WorldConductorAction;
@@ -70,6 +71,7 @@ export function WorldConductorBar({
 	context,
 	canEditContent,
 	busy,
+	pendingAction,
 	focusMode,
 	inspectorOpen,
 	onEnter,
@@ -198,26 +200,30 @@ export function WorldConductorBar({
 							<button
 								type="button"
 								className={styles.primaryAction}
+								aria-busy={pendingAction === "finish" || undefined}
 								disabled={busy || (!canPublish && !canFinish)}
 								onClick={() => run(canPublish ? onPublish : onFinish)}
 								aria-label={
-									canPublish
-										? canEditContent
-											? "Publicar alterações do Mundo"
-											: "Publicar alterações do layout"
-										: "Concluir edição sem alterações"
+									pendingAction === "finish"
+										? "Encerrando edição"
+										: canPublish
+											? canEditContent
+												? "Publicar alterações do Mundo"
+												: "Publicar alterações do layout"
+											: "Concluir edição sem alterações"
 								}
 							>
 								<span aria-hidden="true">{canPublish ? "↑" : "✓"}</span>
-								{canPublish ? publish.label : finish.label}
+								{pendingAction === "finish" ? "Encerrando…" : canPublish ? publish.label : finish.label}
 							</button>
 							<button
 								type="button"
 								className={styles.secondaryAction}
+								aria-busy={pendingAction === "discard" || undefined}
 								disabled={busy || !canDiscard}
 								onClick={() => run(onDiscard)}
 							>
-								{discard.label}
+								{pendingAction === "discard" ? "Descartando…" : discard.label}
 							</button>
 						</>
 					)}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { OperationalPageHeader } from "@/components/operational-page-header";
+import { FormSubmitButton } from "@/components/ui";
 import {
 	authorizeCampaignCapabilityServer,
 	requireCapability,
@@ -284,7 +285,12 @@ export default async function NarrativeReviewPage({
 												name="reviewerNotes"
 												placeholder="Explique conflito, inferência ou contexto sem repetir conteúdo desnecessariamente."
 											/>
-											<button type="submit">Registrar decisão</button>
+											<FormSubmitButton
+												pendingLabel="Registrando…"
+												variant="primary"
+											>
+												Registrar decisão
+											</FormSubmitButton>
 										</form>
 									) : null}
 								</article>

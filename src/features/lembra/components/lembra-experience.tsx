@@ -1374,8 +1374,13 @@ export function LembraExperience({
 										>
 											Cancelar
 										</Button>
-										<Button type="submit" variant="primary" disabled={saving}>
-											{saving ? "Salvando..." : "Salvar"}
+										<Button
+											pending={saving}
+											pendingLabel="Salvando…"
+											type="submit"
+											variant="primary"
+										>
+											Salvar
 										</Button>
 									</div>
 								</form>
@@ -1429,9 +1434,10 @@ export function LembraExperience({
 											type="button"
 											variant="secondary"
 											onClick={removeSelectedReference}
-											disabled={saving}
+											pending={saving}
+											pendingLabel="Removendo…"
 										>
-											{saving ? "Removendo..." : "Remover"}
+											Remover
 										</Button>
 									</div>
 								</fieldset>
@@ -1645,19 +1651,22 @@ export function LembraExperience({
 									type="submit"
 									variant="primary"
 									className={styles.composerAction}
-									disabled={saving}
+									pending={saving}
+									pendingLabel={
+										uploadStatus.phase === "preparing"
+											? "Preparando…"
+											: uploadStatus.phase === "uploading"
+												? "Enviando…"
+												: uploadStatus.phase === "finalizing"
+													? "Gravando…"
+													: "Salvando…"
+									}
 								>
-									{uploadStatus.phase === "preparing"
-										? "Preparando…"
-										: uploadStatus.phase === "uploading"
-											? "Enviando…"
-											: uploadStatus.phase === "finalizing"
-												? "Gravando…"
-												: uploadStatus.phase === "success"
-													? "Publicado ✓"
-													: uploadStatus.phase === "error"
-														? "Tentar novamente"
-														: "Guardar"}
+									{uploadStatus.phase === "success"
+										? "Publicado ✓"
+										: uploadStatus.phase === "error"
+											? "Tentar novamente"
+											: "Guardar"}
 								</Button>
 							</div>
 						</div>

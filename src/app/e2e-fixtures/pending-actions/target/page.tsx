@@ -1,0 +1,11 @@
+import { notFound } from "next/navigation";
+
+export const dynamic = "force-dynamic";
+const ROUTE_DELAY_MS = 900;
+
+export default async function PendingActionsTarget() {
+	if (process.env.TDA_E2E_FIXTURES !== "true") notFound();
+	await new Promise((resolveDelay) => setTimeout(resolveDelay, ROUTE_DELAY_MS));
+
+	return <h1>Pending Actions Target</h1>;
+}

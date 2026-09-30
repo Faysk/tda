@@ -360,11 +360,12 @@ function SegmentEditor({
 							</>
 						) : (
 							<Button
-								disabled={reloadingCurrent}
 								onClick={() => void loadCurrentVersion()}
+								pending={reloadingCurrent}
+								pendingLabel="Carregando versão atual…"
 								variant="primary"
 							>
-								{reloadingCurrent ? "Carregando versão atual…" : "Carregar versão atual"}
+								Carregar versão atual
 							</Button>
 						)}
 						{reconciliationError ? (
@@ -396,15 +397,13 @@ function SegmentEditor({
 				</label>
 				{editable ? (
 					<Button
-						disabled={!dirty || editor.phase === "saving" || editor.phase === "conflict"}
+						disabled={!dirty || editor.phase === "conflict"}
 						onClick={() => void save()}
+						pending={editor.phase === "saving"}
+						pendingLabel="Salvando…"
 						variant="primary"
 					>
-						{editor.phase === "saving"
-							? "Salvando…"
-							: editor.phase === "error"
-								? "Tentar novamente"
-								: "Salvar fala"}
+						{editor.phase === "error" ? "Tentar novamente" : "Salvar fala"}
 					</Button>
 				) : null}
 				<span className={styles.keyboardHint}>
