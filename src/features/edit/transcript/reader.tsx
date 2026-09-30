@@ -14,10 +14,12 @@ import {
 	parseTranscriptTimestamp,
 	type TranscriptReaderSegment,
 } from "./reader-contract";
+import { wallClockPresentation } from "../../transcript-review/time-contract";
 import styles from "./reader.module.css";
 
 const INITIAL_VISIBLE = 300;
 const VISIBLE_STEP = 300;
+const SEARCH_VISIBLE_LIMIT = 240;
 
 type WorkingEdit = Readonly<{
 	speaker: string;
@@ -121,11 +123,28 @@ export function TranscriptReader({
 		return result;
 	}, [baseline, normalizedQuery, working]);
 
+	useEffect(() => {
+		if (!normalizedQuery || !matches.length) return;
+		const firstMatch = matches[0];
+		setMatchCursor(0);
+		const firstFrame = requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				segmentRefs.current.get(firstMatch)?.scrollIntoView({
+					behavior: "smooth",
+					block: "center",
+				});
+			});
+		});
+		return () => cancelAnimationFrame(firstFrame);
+	}, [baseline.length, matches, normalizedQuery]);
+
 	function revealAndScroll(index: number) {
 		if (index < 0) return;
-		setVisibleCount((current) =>
-			Math.max(current, Math.min(baseline.length, index + 30)),
-		);
+		if (!normalizedQuery) {
+			setVisibleCount((current) =>
+				Math.max(current, Math.min(baseline.length, index + 30)),
+			);
+		}
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
 				segmentRefs.current.get(index)?.scrollIntoView({
@@ -146,13 +165,38 @@ export function TranscriptReader({
 	function jump() {
 		const milliseconds = parseTranscriptTimestamp(jumpValue);
 		if (milliseconds === null) return;
-		revealAndScroll(findTranscriptJumpIndex(baseline, milliseconds));
+		const index = findTranscriptJumpIndex(baseline, milliseconds);
+		if (index < 0) return;
+		if (normalizedQuery) {
+			setQuery("");
+			setMatchCursor(-1);
+		}
+		setVisibleCount((current) =>
+			Math.max(current, Math.min(baseline.length, index + 30)),
+		);
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				segmentRefs.current.get(index)?.scrollIntoView({
+					behavior: "smooth",
+					block: "center",
+				});
+			});
+		});
 	}
 
 	async function copyReference(index: number) {
 		const baseSegment = baseline[index];
 		const segment = applyWorkingEdit(baseSegment, working[baseSegment.id]);
-		const reference = `${formatTranscriptTimestamp(baseSegment.startMs)} · ${segment.speaker}`;
+		const wall = baseSegment.absoluteTime
+			? wallClockPresentation(baseSegment.absoluteTime.startIso)
+			: null;
+		const reference = [
+			formatTranscriptTimestamp(baseSegment.startMs),
+			wall ? `${wall.date} ${wall.clock} ${wall.offset === "Z" ? "UTC" : wall.offset}` : null,
+			segment.speaker,
+		]
+			.filter(Boolean)
+			.join(" · ");
 		try {
 			await navigator.clipboard.writeText(reference);
 		} catch {
@@ -309,7 +353,7 @@ export function TranscriptReader({
 
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
-		if (!sentinel || visibleCount >= baseline.length) return;
+		if (normalizedQuery || !sentinel || visibleCount >= baseline.length) return;
 		const observer = new IntersectionObserver(
 			(entries) => {
 				if (!entries.some((entry) => entry.isIntersecting)) return;
@@ -321,7 +365,7 @@ export function TranscriptReader({
 		);
 		observer.observe(sentinel);
 		return () => observer.disconnect();
-	}, [baseline.length, visibleCount]);
+	}, [baseline.length, normalizedQuery, visibleCount]);
 
 	useEffect(() => {
 		const handleKeyboardShortcut = (event: KeyboardEvent) => {
@@ -366,7 +410,33 @@ export function TranscriptReader({
 		};
 	}, [dirty]);
 
-	const visible = baseline.slice(0, visibleCount);
+	const visibleEntries = useMemo(() => {
+		if (!normalizedQuery) {
+			return baseline
+				.slice(0, visibleCount)
+				.map((baseSegment, index) => ({ baseSegment, index }));
+		}
+		if (!matches.length) return [] as Array<{
+			baseSegment: TranscriptReaderSegment;
+			index: number;
+		}>;
+		const cursor = Math.max(0, Math.min(matchCursor, matches.length - 1));
+		const anchorIndex = matches[cursor];
+		const halfWindow = Math.floor(SEARCH_VISIBLE_LIMIT / 2);
+		const start = Math.max(
+			0,
+			Math.min(
+				anchorIndex - halfWindow,
+				Math.max(0, baseline.length - SEARCH_VISIBLE_LIMIT),
+			),
+		);
+		return baseline
+			.slice(start, start + SEARCH_VISIBLE_LIMIT)
+			.map((baseSegment, offset) => ({
+				baseSegment,
+				index: start + offset,
+			}));
+	}, [baseline, matchCursor, matches, normalizedQuery, visibleCount]);
 
 	return (
 		<section
@@ -514,10 +584,13 @@ export function TranscriptReader({
 			</div>
 
 			<section className={styles.timeline} aria-label="Transcrição completa">
-				{visible.map((baseSegment, index) => {
+				{visibleEntries.map(({ baseSegment, index }) => {
 					const edit = working[baseSegment.id];
 					const segment = applyWorkingEdit(baseSegment, edit);
 					const isActive = editMode && activeEditId === baseSegment.id;
+					const wallClock = baseSegment.absoluteTime
+						? wallClockPresentation(baseSegment.absoluteTime.startIso)
+						: null;
 					return (
 						<article
 							id={`segment-${encodeURIComponent(baseSegment.id)}`}
@@ -536,7 +609,15 @@ export function TranscriptReader({
 								title="Copiar referência deste timestamp"
 								onClick={() => void copyReference(index)}
 							>
-								{formatTranscriptTimestamp(baseSegment.startMs, false)}
+								<span className={styles.elapsedTime}>
+									{formatTranscriptTimestamp(baseSegment.startMs, false)}
+								</span>
+								{wallClock && baseSegment.absoluteTime ? (
+									<span className={styles.wallClock} title={wallClock.accessible}>
+										{wallClock.clock}
+										<small>{wallClock.date} · {wallClock.offset === "Z" ? "UTC" : wallClock.offset}</small>
+									</span>
+								) : null}
 							</button>
 
 							{isActive ? (
@@ -596,9 +677,17 @@ export function TranscriptReader({
 									</div>
 								</div>
 							) : (
-								<p className={styles.text}>
-									{highlighted(segment.text, normalizedQuery)}
-								</p>
+								<div className={styles.textBlock}>
+									<p className={styles.text}>
+										{highlighted(segment.text, normalizedQuery)}
+									</p>
+									<details className={styles.technical}>
+										<summary>Detalhes técnicos</summary>
+										<small>Track {baseSegment.trackNumber}</small>
+										{baseSegment.sourceSegmentId ? <small>Segmento {baseSegment.sourceSegmentId}</small> : null}
+										{baseSegment.absoluteTime ? <small>Relógio comprovado pela fonte {baseSegment.absoluteTime.source}</small> : <small>Relógio civil indisponível para esta fonte.</small>}
+									</details>
+								</div>
 							)}
 
 							{editMode && !isActive ? (
@@ -626,7 +715,7 @@ export function TranscriptReader({
 						</article>
 					);
 				})}
-				{visibleCount < baseline.length ? (
+				{!normalizedQuery && visibleCount < baseline.length ? (
 					<div ref={sentinelRef} className={styles.more} aria-hidden="true" />
 				) : null}
 				{!baseline.length ? (

@@ -1018,7 +1018,7 @@
 
 .timelineRow {
 	display: grid;
-	grid-template-columns: 88px minmax(120px, 180px) minmax(0, 1fr) auto;
+	grid-template-columns: minmax(118px, 150px) minmax(120px, 180px) minmax(0, 1fr) auto;
 	align-items: start;
 	gap: 10px;
 	min-width: 0;
@@ -1028,12 +1028,36 @@
 	contain-intrinsic-size: 52px;
 }
 
-.timelineRow > time {
+.timelineTime {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
 	padding-top: 3px;
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-mono);
 	font-size: 0.72rem;
 	font-variant-numeric: tabular-nums;
+}
+
+.timelineTime > time {
+	color: var(--ds-foreground);
+	font-weight: 650;
+}
+
+.wallClock {
+	display: grid;
+	gap: 1px;
+	color: var(--ds-foreground-muted);
+}
+
+.wallClock > time {
+	color: inherit;
+}
+
+.wallClock small {
+	font-family: var(--ds-font-ui);
+	font-size: 0.62rem;
+	overflow-wrap: anywhere;
 }
 
 .timelineSpeaker {
@@ -1084,6 +1108,26 @@
 	line-height: 1.5;
 }
 
+.timelineTechnical {
+	margin-top: 4px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.65rem;
+}
+
+.timelineTechnical summary {
+	width: fit-content;
+	cursor: pointer;
+	text-decoration: underline;
+	text-decoration-style: dotted;
+	text-underline-offset: 2px;
+}
+
+.timelineTechnical small {
+	display: block;
+	margin-top: 2px;
+	overflow-wrap: anywhere;
+}
+
 .timelineActions {
 	display: flex;
 	align-items: center;
@@ -1113,7 +1157,7 @@
 
 @media (max-width: 720px) {
 	.timelineRow {
-		grid-template-columns: 80px minmax(0, 1fr) auto;
+		grid-template-columns: minmax(108px, 136px) minmax(0, 1fr) auto;
 	}
 	.timelineSpeaker { grid-column: 2; }
 	.timelineText {
