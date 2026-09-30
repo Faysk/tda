@@ -446,6 +446,16 @@ Abaixo é **vocabulário de trabalho**, não seed aprovada:
 
 Cada tipo precisa de exemplos reais antes de entrar na seed.
 
+## Boundary multi-campaign
+
+Relação é campaign-owned. ADR-0020 torna obrigatório tratar `campaign_id` como parte do contexto de identidade, autorização e uniqueness.
+
+- source e target pertencem à mesma campaign da relation;
+- o mesmo par de slugs/IDs externos pode existir em A e B sem colisão lógica;
+- tipo/revision/audit são resolvidos dentro da campaign;
+- mutation recebendo campaign A + endpoint de B falha antes do write;
+- projection/caches incluem campaign identity;
+- nenhum backfill cruza campaigns por similaridade textual.
 ## Constraints obrigatórias no desenho físico
 
 - source e target pertencem à mesma campanha da relation;
