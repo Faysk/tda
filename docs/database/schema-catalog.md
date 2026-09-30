@@ -63,18 +63,35 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 
 ## `campaigns`
 
-**Propósito:** raiz de isolamento narrativo. Hoje contém a campanha principal `yuhara-main`.
+**Propósito:** raiz de isolamento narrativo e registry operacional multi-campanha.
+
+Campos centrais após #1123:
+
+- `id uuid` PK — autoridade relacional estável;
+- `name text` — apresentação humana/editável;
+- `slug text unique` — identidade **técnica** estável usada por compatibilidade/RBAC; não é renomeada in-place pela aplicação;
+- `public_slug text unique` — identidade pública de rota/apresentação;
+- `lifecycle text` — `active | archived`;
+- `visibility text` — `private | public`;
+- `description text?`;
+- `metadata jsonb` — extensão, não substituto de relações estruturadas;
+- timestamps.
+
+O rollout de #1123 preserva `yuhara-main` tecnicamente, apresenta a campanha histórica como **Crônicas da Mesa** em `cronicas-da-mesa` e registra **Antes que seja tarde** como segunda identidade aprovada, inicialmente privada e sem conteúdo narrativo inferido.
+
+## `campaign_public_slug_aliases`
+
+**Propósito:** preservar public slugs anteriores depois de rename sem transformar alias em scope de autorização.
 
 Campos:
 
-- `id uuid` PK;
-- `name text`;
-- `slug text unique` — identidade legível/canônica da campanha;
-- `description text?`;
-- `metadata jsonb` — extensão, não contrato central;
-- timestamps.
+- `alias text` PK, normalizado em kebab-case minúsculo;
+- `campaign_id -> campaigns.id`;
+- `created_at`.
 
-É referenciada por sessions, memberships, entities, canon, RBAC relacionado, auditoria e integrações. Uma feature multi-campanha deve sempre respeitar `campaign_id`; não assumir eternamente que só existe uma campanha.
+A resolução pública futura pode consultar `campaigns.public_slug` e aliases históricos. RBAC, grants, FKs e mutations continuam usando UUID/`campaigns.slug`; alias público nunca concede autoridade.
+
+É referenciada por sessions, memberships, entities, canon, RBAC relacionado, auditoria e integrações. Toda query nova deve respeitar `campaign_id`; colisões de source/session/entity entre campanhas são legítimas somente quando o lookup permanece qualificado pela campanha.
 
 ## `profiles`
 
