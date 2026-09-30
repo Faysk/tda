@@ -15,3 +15,6 @@ export {
 	MetaText,
 	SectionTitle,
 } from "./typography";
+
+export { Progress } from "./progress";
+export type { ProgressProps, ProgressTone } from "./progress";

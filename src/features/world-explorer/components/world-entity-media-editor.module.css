@@ -193,3 +193,36 @@
 	font-size: 0.7rem;
 	line-height: 1.45;
 }
+
+.operationStatus {
+	display: grid;
+	gap: 7px;
+	padding: 10px;
+	border: 1px solid var(--ds-border);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--ds-surface) 82%, transparent);
+}
+
+.operationHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	color: var(--ds-text);
+	font-size: 0.72rem;
+}
+
+.operationHeader span {
+	color: var(--ds-text-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.operationProgress {
+	height: 6px;
+}
+
+.operationStatus small {
+	color: var(--ds-text-muted);
+	font-size: 0.66rem;
+	line-height: 1.4;
+}
