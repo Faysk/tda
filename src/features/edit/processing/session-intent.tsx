@@ -102,6 +102,7 @@ type Props = Readonly<{
 function supported(capabilities: readonly string[]): boolean {
 	return [
 		"transcription.session-workspace",
+		"transcription.session-intent",
 		"transcription.session-timeline",
 		"transcription.session-participants",
 		"transcription.session-assembly",
@@ -354,6 +355,17 @@ export function SessionIntentCoordinator({
 					...intent,
 					sources: desired,
 				};
+				const localIntent = await bridge.saveSessionTranscriptionIntent(
+					CAMPAIGN_SLUG,
+					intent.sessionId,
+					{
+						requestId: normalizedIntent.id,
+						profileId: normalizedIntent.profile,
+						context: normalizedIntent.context,
+						glossary: normalizedIntent.glossary,
+					},
+					controller.signal,
+				);
 				setActiveRequest(normalizedIntent);
 				saveRecoveryPointer(intent.sessionId);
 				if (recoveryScope) {
@@ -367,8 +379,8 @@ export function SessionIntentCoordinator({
 							requestId: normalizedIntent.id,
 							sourceIds: desired.map((source) => source.sourceId),
 							profileId: normalizedIntent.profile,
-							context: normalizedIntent.context,
-							glossary: normalizedIntent.glossary,
+							contextSha256: localIntent.contextSha256,
+							glossarySha256: localIntent.glossarySha256,
 							enqueueKeys: Object.fromEntries(intentEnqueueKeys.current),
 							jobIds: Object.fromEntries(intentJobIds.current),
 							runIds: Object.fromEntries(intentRunIds.current),
@@ -377,7 +389,7 @@ export function SessionIntentCoordinator({
 						intentReceipt.current = receipt;
 						saveSessionIntentReceipt(window.localStorage, identity, receipt);
 					} catch {
-						// The Agent workspace remains usable even if browser recovery storage fails.
+						// Browser persistence is recovery-only; local Agent state remains authoritative.
 					}
 				}
 
@@ -453,6 +465,18 @@ export function SessionIntentCoordinator({
 						identity,
 					);
 					if (receipt) {
+						const localIntent = await bridge.sessionTranscriptionIntent(
+							CAMPAIGN_SLUG,
+							savedSessionId,
+							controller.signal,
+						);
+						if (
+							localIntent.requestId !== receipt.requestId ||
+							localIntent.profileId !== receipt.profileId ||
+							localIntent.contextSha256 !== receipt.contextSha256 ||
+							localIntent.glossarySha256 !== receipt.glossarySha256
+						)
+							throw new Error("SESSION_INTENT_RECOVERY_AUTHORITY_MISMATCH");
 						intentReceiptIdentity.current = identity;
 						intentReceipt.current = receipt;
 						intentEnqueueKeys.current = new Map(
@@ -467,9 +491,9 @@ export function SessionIntentCoordinator({
 								sourceId,
 								label: `Gravação ${index + 1}`,
 							})),
-							profile: receipt.profileId,
-							context: receipt.context,
-							glossary: receipt.glossary,
+							profile: localIntent.profileId,
+							context: localIntent.context,
+							glossary: localIntent.glossary,
 						};
 						setActiveRequest(restored);
 						onRestoreIntent?.(restored);
