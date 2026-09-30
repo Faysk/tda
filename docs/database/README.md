@@ -10,6 +10,7 @@ Este diretório documenta o PostgreSQL/Supabase do TDA. Ele separa **contrato f�
 ## Documentos
 
 - [Catálogo das 43 tabelas públicas](schema-catalog.md)
+- [Inventário de consumidores da identidade de campaign](campaign-identity-consumers.md)
 - [Relacionamentos e ownership](relationships.md)
 - [RLS, RBAC, RPCs e segurança](security.md)
 - [Inventário de RPCs privilegiadas](rpc-inventory.md)
