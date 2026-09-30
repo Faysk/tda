@@ -1,4 +1,5 @@
-import { isReviewStringV1 } from "../../transcript-review/text-contract";\nimport type { LocalReviewStatus } from "./protocol";
+import { isReviewStringV1 } from "../../transcript-review/text-contract";
+import type { LocalReviewStatus } from "./protocol";
 
 export type SessionAssemblyPart = {
 	partId: string;
