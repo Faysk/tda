@@ -181,6 +181,34 @@ def test_runtime_update_installs_verified_stable_and_rechecks_active_version(mon
     ]
 
 
+def test_runtime_manager_sanitizes_unexpected_failure_details(monkeypatch, tmp_path: Path):
+    private_detail = r"C:\\Users\\operator\\Secret\\runtime.zip token=super-secret"
+
+    monkeypatch.setattr(
+        maintenance,
+        "inspect_qwen_runtime",
+        lambda *_args, **_kwargs: {"status": "missing", "version": None},
+    )
+
+    def broken_manifest():
+        raise RuntimeError(private_detail)
+
+    manager = QwenRuntimeMaintenanceManager(
+        runtime_root=tmp_path / "Runtime",
+        cache_root=tmp_path / "Cache",
+        manifest_fetcher=broken_manifest,
+    )
+
+    manager.start_update()
+    assert manager.wait(timeout=2)
+    final = manager.snapshot()
+
+    assert final["state"] == "failed"
+    assert final["error_code"] == "QWEN_RUNTIME_UPDATE_FAILED"
+    assert private_detail not in str(final)
+    assert "Secret" not in str(final)
+
+
 def test_runtime_manager_deduplicates_same_operation_and_fences_cross_mode(monkeypatch, tmp_path: Path):
     entered = threading.Event()
     release = threading.Event()
