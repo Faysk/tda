@@ -24,7 +24,7 @@ export type WorldFlowNodeData = {
 	isHero: boolean;
 	prominence: WorldNodeProminence;
 	isDimmed: boolean;
-	isRelationEndpoint: boolean;
+	isRelationEndpoint?: boolean;
 	authoringConnectable: boolean;
 };
 
@@ -33,7 +33,7 @@ export type WorldFlowEdgeData = {
 	family: WorldRelationFamily;
 	style?: WorldRelationStyleDTO;
 	isHighlighted: boolean;
-	isHovered: boolean;
+	isHovered?: boolean;
 	isDimmed: boolean;
 	routeOffset: number;
 	bendOffset: number;
@@ -255,7 +255,7 @@ export function applyWorldFlowEdgeHover(
 
 	const nextNodes = nodes.map((node) => {
 		const isRelationEndpoint = endpoints.has(node.id);
-		if (node.data.isRelationEndpoint === isRelationEndpoint) return node;
+		if (Boolean(node.data.isRelationEndpoint) === isRelationEndpoint) return node;
 		return {
 			...node,
 			data: { ...node.data, isRelationEndpoint },
@@ -263,7 +263,7 @@ export function applyWorldFlowEdgeHover(
 	});
 	const nextEdges = edges.map((edge) => {
 		const isHovered = edge.id === hoveredEdgeId;
-		if (edge.data?.isHovered === isHovered) return edge;
+		if (Boolean(edge.data?.isHovered) === isHovered) return edge;
 		return {
 			...edge,
 			data: edge.data ? { ...edge.data, isHovered } : edge.data,
