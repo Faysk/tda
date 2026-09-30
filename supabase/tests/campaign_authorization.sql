@@ -276,4 +276,20 @@ begin
 end
 $$;
 
+
+-- Execute exposed RPCs under the actual browser roles, not only as owner.
+set role anon;
+select public.campaign_public_directory();
+reset role;
+
+select set_config(
+  'request.jwt.claim.sub',
+  '90000000-0000-4000-8000-000000000001',
+  false
+);
+set role authenticated;
+select public.campaign_edit_directory();
+select public.access_directory('yuhara-main');
+reset role;
+
 select 'CAMPAIGN_AUTHORIZATION_SQL_OK';
