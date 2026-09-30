@@ -128,7 +128,7 @@ Exemplo:
 - master note: privado;
 - canon entry: audience própria.
 
-### Arquivo público `/sessoes`
+### Arquivos públicos multi-campanha\n\nA rota canônica agregada é `/campanhas/sessoes`; `/campanhas/[campaign]/sessoes` restringe a uma campanha e `/campanhas/[campaign]/sessoes/[sourceSessionId]` identifica o detalhe por campanha + source ID. `/sessoes` é alias de compatibilidade do agregado e `/sessoes/[sourceSessionId]` só redireciona quando a resolução legada é inequívoca.\n\nNo agregado, arcos homônimos contam separadamente por campanha. O repository pagina server-side em lotes explícitos e não impõe teto silencioso de 500 registros. Enquanto o candidate #1123 não estiver aplicado, o fallback de compatibilidade só permite a campanha histórica; nenhuma campanha nova é inferida como pública.\n\n### Arquivo público legado `/sessoes`
 
 O arquivo público pode compor e agregar somente campos que já pertencem ao contrato publicado da session, hoje:
 
