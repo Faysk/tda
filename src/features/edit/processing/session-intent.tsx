@@ -31,7 +31,6 @@ import type {
 	CraigSource,
 	LocalJob,
 	LocalRunSummary,
-	LocalSourceSummary,
 	SessionParticipantMapping,
 	SessionWorkspace,
 	TranscriptionProfileId,
@@ -76,7 +75,6 @@ type Snapshot = Readonly<{
 	mapping: SessionParticipantMapping;
 	runsBySource: ReadonlyMap<string, readonly LocalRunSummary[]>;
 	jobs: readonly LocalJob[];
-	sourcesById: ReadonlyMap<string, LocalSourceSummary>;
 }>;
 
 type Props = Readonly<{
@@ -109,7 +107,7 @@ function errorMessage(cause: unknown): string {
 	if (!(cause instanceof BridgeError))
 		return "Não foi possível continuar a transcrição da sessão.";
 	const code = cause.serverCode ?? cause.code;
-	return {
+	const messages: Record<string, string> = {
 		SESSION_WORKSPACE_REVISION_CONFLICT:
 			"A sessão mudou em outra aba. O TDA vai recarregar o estado antes de continuar.",
 		SESSION_WORKSPACE_SOURCE_UNAVAILABLE:
@@ -126,7 +124,8 @@ function errorMessage(cause: unknown): string {
 			"O Companion demorou demais para responder. O estado já salvo foi preservado.",
 		unreachable:
 			"O Companion ficou indisponível. O estado já salvo foi preservado.",
-	}[code] ?? `Operação local não concluída · ${code}`;
+	};
+	return messages[code] ?? `Operação local não concluída · ${code}`;
 }
 
 function sourceLabel(
@@ -169,9 +168,6 @@ export function SessionIntentCoordinator({
 		ReadonlyMap<string, readonly LocalRunSummary[]>
 	>(new Map());
 	const [jobs, setJobs] = useState<readonly LocalJob[]>([]);
-	const [sourcesById, setSourcesById] = useState<
-		ReadonlyMap<string, LocalSourceSummary>
-	>(new Map());
 	const [assembly, setAssembly] = useState<SessionAssembly | null>(null);
 	const [review, setReview] = useState<SessionAssemblyReviewSummary | null>(null);
 	const [activeRequest, setActiveRequest] =
@@ -222,26 +218,21 @@ export function SessionIntentCoordinator({
 						] as const,
 				),
 			);
-			const [nextMapping, jobPage, sourceCatalog] = await Promise.all([
+			const [nextMapping, jobPage] = await Promise.all([
 				bridge.sessionParticipants(next.campaignId, next.sessionId, signal),
 				bridge.jobPage("all", signal, { limit: 200 }),
-				bridge.localSources(signal),
 			]);
 			const snapshot: Snapshot = {
 				workspace: next,
 				mapping: nextMapping,
 				runsBySource: new Map(runPairs),
 				jobs: jobPage.jobs,
-				sourcesById: new Map(
-					sourceCatalog.map((source) => [source.sourceId, source]),
-				),
 			};
 			if (!signal.aborted) {
 				setWorkspace(snapshot.workspace);
 				setMapping(snapshot.mapping);
 				setRunsBySource(snapshot.runsBySource);
 				setJobs(snapshot.jobs);
-				setSourcesById(snapshot.sourcesById);
 				onActiveChange?.(snapshot.workspace.parts.length > 0);
 				saveRecoveryPointer(snapshot.workspace.sessionId);
 			}
@@ -329,7 +320,6 @@ export function SessionIntentCoordinator({
 				);
 				if (variant) {
 					setWorkspace(next);
-					setSourcesById(catalog);
 					saveRecoveryPointer(intent.sessionId);
 					setBlocker({
 						kind: "variant",
