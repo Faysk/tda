@@ -10,6 +10,11 @@ as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
 $$;
 
+alter table public.profile_characters
+  add column if not exists aliases text[] not null default '{}'::text[],
+  add column if not exists status text not null default 'approved',
+  add column if not exists approved_at timestamptz;
+
 create table public.profiles (
   id uuid primary key,
   display_name text not null,
