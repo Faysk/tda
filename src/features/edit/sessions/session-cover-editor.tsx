@@ -31,11 +31,26 @@ type CoverMetadata = Readonly<{
 	status: "staged" | "verified_public";
 }>;
 
+export type SessionCoverUploadPhase =
+	| "idle"
+	| "hashing"
+	| "uploading"
+	| "finalizing"
+	| "ready"
+	| "error"
+	| "cancelled";
+
+export type SessionCoverUploadState = Readonly<{
+	phase: SessionCoverUploadPhase;
+	progress: number | null;
+}>;
+
 type Props = Readonly<{
 	sessionId: string;
 	value: string;
 	disabled?: boolean;
 	onChange: (value: string) => void;
+	onUploadStateChange?: (state: SessionCoverUploadState) => void;
 }>;
 
 function hex(buffer: ArrayBuffer): string {
@@ -84,17 +99,30 @@ export function SessionCoverEditor({
 	value,
 	disabled = false,
 	onChange,
+	onUploadStateChange,
 }: Props) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const abortRef = useRef<AbortController | null>(null);
 	const [available, setAvailable] = useState<boolean | null>(null);
-	const [busy, setBusy] = useState(false);
-	const [finalizing, setFinalizing] = useState(false);
+	const [uploadState, setUploadState] = useState<SessionCoverUploadState>({
+		phase: "idle",
+		progress: null,
+	});
 	const [dragging, setDragging] = useState(false);
-	const [progress, setProgress] = useState(0);
 	const [status, setStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [metadata, setMetadata] = useState<CoverMetadata | null>(null);
+	const busy =
+		uploadState.phase === "hashing" ||
+		uploadState.phase === "uploading" ||
+		uploadState.phase === "finalizing";
+	const finalizing = uploadState.phase === "finalizing";
+	const progress = uploadState.progress ?? 0;
+
+	function reportUploadState(next: SessionCoverUploadState) {
+		setUploadState(next);
+		onUploadStateChange?.(next);
+	}
 
 	const privateAsset = isSessionCoverUuid(value);
 	const previewUrl = privateAsset
@@ -152,21 +180,22 @@ export function SessionCoverEditor({
 		setError(null);
 		setStatus(null);
 		setMetadata(null);
-		setProgress(0);
 
 		const mimeType = mimeFromFile(file);
 		if (!mimeType) {
+			reportUploadState({ phase: "error", progress: null });
 			setError("Use PNG ou WebP. O servidor valida os bytes reais no finalize.");
 			return;
 		}
 		if (file.size < 24 || file.size > SESSION_COVER_MEDIA_MAX_BYTES) {
+			reportUploadState({ phase: "error", progress: null });
 			setError("A capa precisa ter dados válidos e no máximo 8 MiB.");
 			return;
 		}
 
 		const controller = new AbortController();
 		abortRef.current = controller;
-		setBusy(true);
+		reportUploadState({ phase: "hashing", progress: null });
 		try {
 			setStatus("Calculando integridade local…");
 			const bytes = await file.arrayBuffer();
@@ -176,16 +205,19 @@ export function SessionCoverEditor({
 			setStatus("Preparando upload privado…");
 			const requested = await requestSessionCoverUploadAction(sessionId, intent);
 			if (!requested.ok) {
+				reportUploadState({ phase: "error", progress: null });
+				setStatus(null);
 				setError(failureMessage(requested.reason));
 				return;
 			}
 
 			const chunks = Math.ceil(file.size / requested.chunkBytes);
+			reportUploadState({ phase: "uploading", progress: 0 });
+			setStatus("Enviando nova capa…");
 			for (let part = 0; part < chunks; part += 1) {
 				if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
 				const start = part * requested.chunkBytes;
 				const end = Math.min(file.size, start + requested.chunkBytes);
-				setStatus(`Enviando capa privada… ${part + 1}/${chunks}`);
 				const response = await fetch("/api/edit/session-cover/upload", {
 					method: "PUT",
 					headers: {
@@ -203,17 +235,22 @@ export function SessionCoverEditor({
 				});
 				if (!response.ok)
 					throw new Error(`chunk_${response.status}`);
-				setProgress(Math.round(((part + 1) / chunks) * 90));
+				reportUploadState({
+					phase: "uploading",
+					progress: Math.round(((part + 1) / chunks) * 90),
+				});
 			}
 
-			setFinalizing(true);
-			setStatus("Validando magic, dimensões, hash e read-back…");
+			reportUploadState({ phase: "finalizing", progress: null });
+			setStatus("Validando formato, dimensões, hash e read-back…");
 			const finalized = await finalizeSessionCoverUploadAction(
 				sessionId,
 				requested.uploadId,
 				intent,
 			);
 			if (!finalized.ok) {
+				reportUploadState({ phase: "error", progress: null });
+				setStatus(null);
 				setError(failureMessage(finalized.reason));
 				return;
 			}
@@ -225,26 +262,27 @@ export function SessionCoverEditor({
 				height: finalized.height,
 				status: "staged",
 			});
-			setProgress(100);
 			onChange(finalized.assetId);
-			setStatus("Capa privada pronta para entrar no draft.");
+			reportUploadState({ phase: "ready", progress: 100 });
+			setStatus("Nova capa pronta no draft. Ainda privada até a publicação.");
 		} catch (uploadError) {
 			if (
 				uploadError instanceof DOMException &&
 				uploadError.name === "AbortError"
 			) {
-				setStatus("Upload cancelado. Nenhuma capa foi vinculada ao draft.");
+				reportUploadState({ phase: "cancelled", progress: null });
+				setStatus("Upload cancelado. A capa anterior foi preservada.");
 			} else {
 				console.error(
 					"Session cover browser upload failed",
 					uploadError instanceof Error ? uploadError.message : "unknown_error",
 				);
+				reportUploadState({ phase: "error", progress: null });
+				setStatus(null);
 				setError("O upload foi interrompido. A capa anterior foi preservada.");
 			}
 		} finally {
 			abortRef.current = null;
-			setBusy(false);
-			setFinalizing(false);
 			if (inputRef.current) inputRef.current.value = "";
 		}
 	}
@@ -294,13 +332,15 @@ export function SessionCoverEditor({
 					type="button"
 				>
 					<strong>
-						{busy
-							? finalizing
-								? "Validando capa…"
-								: "Enviando capa…"
-							: value
-								? "Trocar imagem"
-								: "Adicionar capa"}
+						{uploadState.phase === "hashing"
+							? "Preparando capa…"
+							: uploadState.phase === "uploading"
+								? "Enviando capa…"
+								: finalizing
+									? "Validando capa…"
+									: value
+										? "Trocar imagem"
+										: "Adicionar capa"}
 					</strong>
 					<span>PNG ou WebP · até 8 MiB · arraste ou clique</span>
 				</button>
@@ -314,6 +354,7 @@ export function SessionCoverEditor({
 								"Capa removida somente do draft. A versão pública atual não foi alterada.",
 							);
 							setMetadata(null);
+							reportUploadState({ phase: "idle", progress: null });
 							onChange("");
 						}}
 						type="button"
@@ -343,25 +384,62 @@ export function SessionCoverEditor({
 
 			{busy ? (
 				<div
-					className={styles.coverProgress}
-					role="progressbar"
-					aria-label="Upload da capa"
-					aria-valuemin={0}
-					aria-valuemax={100}
-					aria-valuenow={progress}
+					className={styles.coverOperationStatus}
+					data-phase={uploadState.phase}
+					role="status"
+					aria-live="polite"
 				>
-					<span style={{ width: `${progress}%` }} />
+					<strong>
+						{uploadState.phase === "hashing"
+							? "Preparando nova capa…"
+							: uploadState.phase === "uploading"
+								? `Enviando nova capa… ${progress}%`
+								: "Validando nova capa…"}
+					</strong>
+					<span>
+						{uploadState.phase === "hashing"
+							? "Calculando a integridade do arquivo antes do envio."
+							: uploadState.phase === "uploading"
+								? "A capa atual continua preservada até o upload e a validação terminarem."
+								: "Upload recebido; verificando formato, dimensões, hash e read-back."}
+					</span>
+					{uploadState.phase === "uploading" ? (
+						<div
+							className={styles.coverProgress}
+							role="progressbar"
+							aria-label="Upload da capa"
+							aria-valuemin={0}
+							aria-valuemax={100}
+							aria-valuenow={progress}
+						>
+							<span style={{ width: `${progress}%` }} />
+						</div>
+					) : uploadState.phase === "finalizing" ? (
+						<div
+							className={styles.coverProgress}
+							data-indeterminate="true"
+							role="progressbar"
+							aria-label="Validação da capa"
+							aria-valuetext="Validando formato, dimensões, hash e read-back"
+						>
+							<span />
+						</div>
+					) : null}
 				</div>
 			) : null}
 
 			{metadata ? (
-				<p className={styles.coverMetadata}>
+				<p
+					className={styles.coverMetadata}
+					data-state={uploadState.phase === "ready" ? "ready" : undefined}
+				>
+					{uploadState.phase === "ready" ? "✓ Nova capa pronta no draft · " : ""}
 					{metadata.width}×{metadata.height} ·{" "}
 					{metadata.mimeType === "image/webp" ? "WebP" : "PNG"} ·{" "}
 					{formatBytes(metadata.bytes)} ·{" "}
 					{metadata.status === "verified_public"
 						? "asset já verificado publicamente"
-						: "pronta no staging privado"}
+						: "ainda privada — será promovida somente ao publicar"}
 				</p>
 			) : null}
 			{available === false ? (
@@ -370,7 +448,7 @@ export function SessionCoverEditor({
 					preservada.
 				</p>
 			) : null}
-			{status ? (
+			{status && !busy ? (
 				<p className={styles.coverStatus} role="status" aria-live="polite">
 					{status}
 				</p>

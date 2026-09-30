@@ -215,6 +215,87 @@ test("lost publication response replays the same operation without creating anot
 	await expect(publicSurface).not.toContainText(PRIVATE_MARKER);
 });
 
+test("cover replacement in flight blocks publication until the new asset finishes and the draft is saved", async ({
+	page,
+}) => {
+	await page.goto("/e2e-fixtures/session-editorial");
+	await fillReadyDraft(page);
+	await saveDraft(page, 1);
+	await page.getByRole("tab", { name: "Sessão" }).click();
+
+	const publishButton = page.getByRole("button", {
+		name: "Publicar no site",
+		exact: true,
+	});
+	await expect(publishButton).toBeEnabled();
+
+	await page.getByRole("button", { name: "Simular troca de capa em andamento" }).click();
+	await expect(page.getByTestId("synthetic-cover-phase")).toHaveText("uploading");
+	await expect(page.getByText("Capa em preparação", { exact: true })).toBeVisible();
+	await expect(
+		page.getByText(
+			"Capa: envio ou validação em andamento. A publicação fica bloqueada até concluir.",
+			{ exact: true },
+		),
+	).toBeVisible();
+	await expect(publishButton).toBeDisabled();
+	await expect(
+		page.getByRole("dialog", { name: "Confirmar publicação da sessão" }),
+	).not.toBeVisible();
+
+	await page.getByRole("button", { name: "Simular validação da nova capa" }).click();
+	await expect(page.getByTestId("synthetic-cover-phase")).toHaveText("finalizing");
+	await expect(publishButton).toBeDisabled();
+
+	await page.getByRole("button", { name: "Concluir troca de capa" }).click();
+	await expect(page.getByTestId("synthetic-cover-phase")).toHaveText("ready");
+	await expect(page.getByTestId("synthetic-cover-reference")).toHaveText(
+		"/assets/sessions/synthetic-editorial-cover-replacement.webp",
+	);
+	await expect(publishButton).toBeDisabled();
+	await expect(page.getByText("Alterações não salvas", { exact: true })).toBeVisible();
+
+	await saveDraft(page, 2);
+	await expect(publishButton).toBeEnabled();
+	await publish(page);
+	await expect(page.getByTestId("synthetic-public-session")).toContainText(
+		"/assets/sessions/synthetic-editorial-cover-replacement.webp",
+	);
+});
+
+test("cancelled or failed cover replacement preserves the saved cover and releases the publish gate", async ({
+	page,
+}) => {
+	await page.goto("/e2e-fixtures/session-editorial");
+	await fillReadyDraft(page);
+	await saveDraft(page, 1);
+	await page.getByRole("tab", { name: "Sessão" }).click();
+
+	const publishButton = page.getByRole("button", {
+		name: "Publicar no site",
+		exact: true,
+	});
+	const coverReference = page.getByTestId("synthetic-cover-reference");
+
+	await page.getByRole("button", { name: "Simular troca de capa em andamento" }).click();
+	await expect(publishButton).toBeDisabled();
+	await page.getByRole("button", { name: "Cancelar troca de capa" }).click();
+	await expect(page.getByTestId("synthetic-cover-phase")).toHaveText("cancelled");
+	await expect(coverReference).toHaveText(
+		"/assets/sessions/synthetic-editorial-cover.webp",
+	);
+	await expect(publishButton).toBeEnabled();
+
+	await page.getByRole("button", { name: "Simular troca de capa em andamento" }).click();
+	await expect(publishButton).toBeDisabled();
+	await page.getByRole("button", { name: "Falhar troca de capa" }).click();
+	await expect(page.getByTestId("synthetic-cover-phase")).toHaveText("error");
+	await expect(coverReference).toHaveText(
+		"/assets/sessions/synthetic-editorial-cover.webp",
+	);
+	await expect(publishButton).toBeEnabled();
+});
+
 test("cover promotion failure and capability loss fail closed without mutating the public snapshot", async ({
 	page,
 }) => {

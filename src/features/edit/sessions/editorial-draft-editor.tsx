@@ -9,7 +9,10 @@ import draftStyles from "./editorial-draft.module.css";
 import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
 import { publishSessionEditorialDraftAction } from "./session-publication-actions";
 import type { SessionPublicationState } from "./session-publication-model";
-import { SessionCoverEditor } from "./session-cover-editor";
+import {
+	SessionCoverEditor,
+	type SessionCoverUploadState,
+} from "./session-cover-editor";
 import {
 	SESSION_DRAFT_LIMITS,
 	isCanonicalSessionDate,
@@ -124,6 +127,14 @@ export function SessionEditorialDraftEditor({
 		"idle" | "publishing" | "published" | "error"
 	>("idle");
 	const [publishMessage, setPublishMessage] = useState<string | null>(null);
+	const [coverUploadState, setCoverUploadState] = useState<SessionCoverUploadState>({
+		phase: "idle",
+		progress: null,
+	});
+	const coverUploadPending =
+		coverUploadState.phase === "hashing" ||
+		coverUploadState.phase === "uploading" ||
+		coverUploadState.phase === "finalizing";
 	const publicationDialogRef = useRef<HTMLDialogElement>(null);
 	const publicationDialogTitleRef = useRef<HTMLElement>(null);
 	const publicationTriggerRef = useRef<HTMLButtonElement>(null);
@@ -149,6 +160,7 @@ export function SessionEditorialDraftEditor({
 		!dirty &&
 		!missing.length &&
 		!transcriptChanged &&
+		!coverUploadPending &&
 		phase !== "saving" &&
 		phase !== "conflict" &&
 		publishPhase !== "publishing";
@@ -279,9 +291,11 @@ export function SessionEditorialDraftEditor({
 					? "A autoridade de publicação está indisponível agora."
 					: !publishable
 						? "Sua conta não tem a capability de publicação desta campanha."
-						: dirty
-							? "Salve o draft antes de publicar."
-							: transcriptChanged
+						: coverUploadPending
+							? "Aguarde a nova capa terminar de enviar e validar."
+							: dirty
+								? "Salve o draft antes de publicar."
+								: transcriptChanged
 								? "A transcrição mudou. Revise e salve um novo draft antes de publicar."
 								: missing.length
 									? "Complete os campos editoriais obrigatórios antes de publicar."
@@ -312,16 +326,19 @@ export function SessionEditorialDraftEditor({
 		const intent = publishIntent;
 		if (!intent || publishPhase === "publishing") return;
 		if (
+			coverUploadPending ||
 			dirty ||
 			draftId !== intent.draftId ||
 			revision !== intent.draftRevision ||
 			baseTranscriptRevisionId !== intent.baseTranscriptRevisionId
 		) {
-			setPublishIntent(null);
 			setPublishPhase("error");
 			setPublishMessage(
-				"O draft mudou depois da confirmação. Abra a confirmação novamente.",
+				coverUploadPending
+					? "A nova capa ainda está sendo enviada ou validada. Aguarde a conclusão antes de publicar."
+					: "O draft mudou depois da confirmação. Abra a confirmação novamente.",
 			);
+			if (!coverUploadPending) setPublishIntent(null);
 			return;
 		}
 
@@ -423,6 +440,7 @@ export function SessionEditorialDraftEditor({
 							onChange={(coverAssetId) =>
 								setFields((current) => ({ ...current, coverAssetId }))
 							}
+							onUploadStateChange={setCoverUploadState}
 							sessionId={sessionId}
 							value={fields.coverAssetId}
 						/>
@@ -561,12 +579,18 @@ export function SessionEditorialDraftEditor({
 			{surface === "session" ? (
 				<div className={draftStyles.readinessPanel}>
 					<strong>
-						{missing.length ? "Sessão ainda incompleta" : "Campos editoriais preenchidos"}
+						{coverUploadPending
+							? "Capa em preparação"
+							: missing.length
+								? "Sessão ainda incompleta"
+								: "Campos editoriais preenchidos"}
 					</strong>
 					<span className={styles.muted}>
-						{missing.length
-							? "Faltando: " + missing.join(", ") + "."
-							: "A publicação ainda fará validação autoritativa e da capa finalizada."}
+						{coverUploadPending
+							? "Capa: envio ou validação em andamento. A publicação fica bloqueada até concluir."
+							: missing.length
+								? "Faltando: " + missing.join(", ") + "."
+								: "A publicação ainda fará validação autoritativa e da capa finalizada."}
 					</span>
 				</div>
 			) : null}
@@ -665,7 +689,12 @@ export function SessionEditorialDraftEditor({
 							A transcrição completa continuará privada. Somente capa, arco, título,
 							descrição curta e resumo completo serão promovidos.
 						</p>
-						{dirty ? (
+						{coverUploadPending ? (
+							<p role="alert">
+								A nova capa está sendo enviada ou validada. Aguarde a conclusão antes
+								de publicar.
+							</p>
+						) : dirty ? (
 							<p role="alert">
 								O draft foi alterado depois desta confirmação. Salve e abra a
 								confirmação novamente.
@@ -691,7 +720,9 @@ export function SessionEditorialDraftEditor({
 							</button>
 							<button
 								className={draftStyles.primaryButton}
-								disabled={publishPhase === "publishing" || dirty}
+								disabled={
+									publishPhase === "publishing" || coverUploadPending || dirty
+								}
 								onClick={() => void publish()}
 								type="button"
 							>
@@ -715,10 +746,9 @@ export function SessionEditorialDraftEditor({
 					>
 						{phase === "saving"
 							? "Salvando…"
-							: message ||
-								(dirty
-									? "Alterações não salvas"
-									: "Draft r" + revision + " sincronizado")}
+							: dirty
+								? "Alterações não salvas"
+								: message || "Draft r" + revision + " sincronizado"}
 					</span>
 					<small className={styles.muted}>
 						{" "}
@@ -767,9 +797,11 @@ export function SessionEditorialDraftEditor({
 								? "Autoridade de publicação indisponível."
 								: !publishable
 									? "Sua conta não tem a capability de publicação."
-									: dirty
-										? "Salve o draft antes de publicar."
-										: transcriptChanged
+									: coverUploadPending
+										? "Aguarde a nova capa terminar de enviar e validar."
+										: dirty
+											? "Salve o draft antes de publicar."
+											: transcriptChanged
 											? "Revise a transcrição atual antes de publicar."
 											: missing.length
 												? "Complete os campos editoriais obrigatórios."

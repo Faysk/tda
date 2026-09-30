@@ -5,6 +5,7 @@ import { StoryMarkdown } from "@/components/story-markdown";
 import type { TranscriptReaderSegment } from "@/features/edit/transcript/reader-contract";
 import type { SessionEditorialDraftEditorTransport } from "./editorial-draft-editor";
 import type { SessionEditorialDraft } from "./editorial-draft-model";
+import type { SessionCoverUploadState } from "./session-cover-editor";
 import { SessionEditWorkspace } from "./session-edit-workspace";
 import workbenchStyles from "../workbench.module.css";
 
@@ -13,6 +14,8 @@ const TRANSCRIPT_REVISION_ID = "22222222-2222-4222-8222-222222222222";
 const TRANSCRIPT_REVISION_ID_2 = "22222222-2222-4222-8222-222222222223";
 const DRAFT_ID = "33333333-3333-4333-8333-333333333333";
 const COVER_REFERENCE = "/assets/sessions/synthetic-editorial-cover.webp";
+const COVER_REFERENCE_REPLACEMENT =
+	"/assets/sessions/synthetic-editorial-cover-replacement.webp";
 const PRIVATE_MARKER = "NEVER_PUBLIC_TRANSCRIPT_MARKER_9F3A";
 
 const BASE_SEGMENTS: readonly TranscriptReaderSegment[] = [
@@ -95,21 +98,83 @@ function SyntheticCoverEditor({
 	value,
 	disabled = false,
 	onChange,
+	onUploadStateChange,
 }: Readonly<{
 	sessionId: string;
 	value: string;
 	disabled?: boolean;
 	onChange: (value: string) => void;
+	onUploadStateChange?: (state: SessionCoverUploadState) => void;
 }>) {
+	const [pending, setPending] = useState(false);
+	const [phase, setPhase] = useState<SessionCoverUploadState["phase"]>("idle");
+
+	function emit(state: SessionCoverUploadState) {
+		setPhase(state.phase);
+		onUploadStateChange?.(state);
+	}
+
 	return (
 		<div data-testid="synthetic-cover-editor">
 			<button
-				disabled={disabled}
-				onClick={() => onChange(COVER_REFERENCE)}
+				disabled={disabled || pending}
+				onClick={() => {
+					onChange(COVER_REFERENCE);
+					emit({ phase: "ready", progress: 100 });
+				}}
 				type="button"
 			>
 				Usar capa sintética finalizada
 			</button>
+			<button
+				disabled={disabled || pending || !value}
+				onClick={() => {
+					setPending(true);
+					emit({ phase: "uploading", progress: 45 });
+				}}
+				type="button"
+			>
+				Simular troca de capa em andamento
+			</button>
+			{pending ? (
+				<>
+					<button
+						onClick={() => emit({ phase: "finalizing", progress: null })}
+						type="button"
+					>
+						Simular validação da nova capa
+					</button>
+					<button
+						onClick={() => {
+							onChange(COVER_REFERENCE_REPLACEMENT);
+							setPending(false);
+							emit({ phase: "ready", progress: 100 });
+						}}
+						type="button"
+					>
+						Concluir troca de capa
+					</button>
+					<button
+						onClick={() => {
+							setPending(false);
+							emit({ phase: "cancelled", progress: null });
+						}}
+						type="button"
+					>
+						Cancelar troca de capa
+					</button>
+					<button
+						onClick={() => {
+							setPending(false);
+							emit({ phase: "error", progress: null });
+						}}
+						type="button"
+					>
+						Falhar troca de capa
+					</button>
+				</>
+			) : null}
+			<output data-testid="synthetic-cover-phase">{phase}</output>
 			{value ? <output data-testid="synthetic-cover-reference">{value}</output> : null}
 		</div>
 	);

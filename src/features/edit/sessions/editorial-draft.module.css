@@ -514,8 +514,27 @@
 	border: 0;
 }
 
+.coverOperationStatus {
+	display: grid;
+	gap: 7px;
+	padding: 10px 12px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+	font-size: 0.8rem;
+	line-height: 1.4;
+}
+
+.coverOperationStatus strong {
+	color: var(--ds-foreground);
+}
+
+.coverOperationStatus > span {
+	color: var(--ds-foreground-soft);
+}
+
 .coverProgress {
-	height: 4px;
+	height: 6px;
 	overflow: hidden;
 	border-radius: 999px;
 	background: var(--ds-border);
@@ -539,6 +558,20 @@
 .coverMetadata,
 .coverStatus {
 	color: var(--ds-foreground-muted);
+}
+
+.coverMetadata[data-state="ready"] {
+	padding: 8px 10px;
+	border: 1px solid color-mix(in srgb, var(--ds-success) 52%, var(--ds-border));
+	border-radius: var(--ds-radius-sm);
+	background: color-mix(in srgb, var(--ds-success) 8%, transparent);
+	color: var(--ds-foreground);
+	font-weight: 650;
+}
+
+.coverProgress[data-indeterminate="true"] span {
+	width: 100%;
+	opacity: 0.65;
 }
 
 .coverError {
