@@ -423,6 +423,8 @@ export function prepareMultiSourceCanonicalPublication(
 		track_number: number;
 		start: number;
 		end: number;
+		absolute_start: string | null;
+		absolute_end: string | null;
 		text: string;
 		speaker: string;
 		reviewed: boolean;
@@ -444,6 +446,10 @@ export function prepareMultiSourceCanonicalPublication(
 				"text",
 				"speaker",
 				"reviewed",
+				...(segment.absoluteStart === undefined &&
+				segment.absoluteEnd === undefined
+					? []
+					: ["absoluteStart", "absoluteEnd"]),
 			])
 		)
 			return { ok: false, reason: "invalid_payload" };
@@ -456,6 +462,30 @@ export function prepareMultiSourceCanonicalPublication(
 		const trackNumber = integer(segment.trackNumber, 1, 9999);
 		const start = finite(segment.start, 0, 604800);
 		const end = finite(segment.end, 0, 604800);
+		const absolutePairAbsent =
+			segment.absoluteStart === undefined &&
+			segment.absoluteEnd === undefined;
+		const absolutePairNull =
+			segment.absoluteStart === null && segment.absoluteEnd === null;
+		const absolutePairStrings =
+			typeof segment.absoluteStart === "string" &&
+			typeof segment.absoluteEnd === "string";
+		const absoluteStart =
+			absolutePairStrings &&
+			segment.absoluteStart.length <= 64 &&
+			Number.isFinite(Date.parse(segment.absoluteStart)) &&
+			(/[zZ]$/u.test(segment.absoluteStart) ||
+				/[+-]\d{2}:\d{2}$/u.test(segment.absoluteStart))
+				? segment.absoluteStart
+				: null;
+		const absoluteEnd =
+			absolutePairStrings &&
+			segment.absoluteEnd.length <= 64 &&
+			Number.isFinite(Date.parse(segment.absoluteEnd)) &&
+			(/[zZ]$/u.test(segment.absoluteEnd) ||
+				/[+-]\d{2}:\d{2}$/u.test(segment.absoluteEnd))
+				? segment.absoluteEnd
+				: null;
 		const segmentText = isReviewStringV1(segment.text, "text")
 			? segment.text
 			: null;
@@ -478,6 +508,12 @@ export function prepareMultiSourceCanonicalPublication(
 			start === null ||
 			end === null ||
 			end < start ||
+			(!absolutePairAbsent &&
+				!absolutePairNull &&
+				(!absolutePairStrings ||
+					absoluteStart === null ||
+					absoluteEnd === null ||
+					Date.parse(absoluteEnd) < Date.parse(absoluteStart))) ||
 			segmentText === null ||
 			speaker === null ||
 			typeof segment.reviewed !== "boolean"
@@ -499,6 +535,8 @@ export function prepareMultiSourceCanonicalPublication(
 			track_number: trackNumber,
 			start,
 			end,
+			absolute_start: absoluteStart,
+			absolute_end: absoluteEnd,
 			text: segmentText,
 			speaker,
 			reviewed: segment.reviewed,
