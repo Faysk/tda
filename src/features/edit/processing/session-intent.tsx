@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
-import { LocalBridge } from "./bridge";
+import type { LocalBridge } from "./bridge";
 import {
 	latestJobForSource,
 	sessionAssemblyReadiness,
@@ -241,19 +241,6 @@ export function SessionIntentCoordinator({
 		[bridge, onActiveChange],
 	);
 
-	const refresh = useCallback(
-		async (sessionId: string) => {
-			const controller = new AbortController();
-			try {
-				return await loadSnapshot(sessionId, controller.signal);
-			} catch (cause) {
-				fail(cause);
-				return null;
-			}
-		},
-		[fail, loadSnapshot],
-	);
-
 	const begin = useCallback(
 		async (intent: SessionTranscriptionIntent) => {
 			if (
@@ -395,15 +382,16 @@ export function SessionIntentCoordinator({
 		workspace,
 	]);
 
+	const pollingSessionId = workspace?.sessionId ?? null;
 	useEffect(() => {
-		if (!enabled || !workspace) return;
+		if (!enabled || !pollingSessionId) return;
 		const controller = new AbortController();
 		let reading = false;
 		const tick = async () => {
 			if (reading || controller.signal.aborted) return;
 			reading = true;
 			try {
-				await loadSnapshot(workspace.sessionId, controller.signal);
+				await loadSnapshot(pollingSessionId, controller.signal);
 			} catch {
 				// Keep the last good Agent snapshot. Explicit errors remain actionable.
 			} finally {
@@ -415,7 +403,7 @@ export function SessionIntentCoordinator({
 			window.clearInterval(timer);
 			controller.abort();
 		};
-	}, [enabled, loadSnapshot, workspace?.sessionId]);
+	}, [enabled, loadSnapshot, pollingSessionId]);
 
 	const progress = useMemo(
 		() => intentProgress(workspace, runsBySource, jobs),
