@@ -370,6 +370,32 @@ def test_session_transcription_intent_is_local_durable_and_conflict_guarded(tmp_
     assert replaced["glossary"] == ""
 
 
+def test_session_transcription_intent_fails_closed_on_corrupt_identity(tmp_path):
+    store = Store(tmp_path)
+    store.ensure_session_workspace("campaign-corrupt", "session-corrupt")
+    store.save_session_transcription_intent(
+        "campaign-corrupt",
+        "session-corrupt",
+        "intent-corrupt",
+        "qwen-quality",
+        "contexto",
+        "glossario",
+    )
+    key = "session_transcription_intent:campaign-corrupt:session-corrupt"
+    with sqlite3.connect(store.path) as db:
+        raw = __import__("json").loads(
+            db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()[0]
+        )
+        raw["campaign_id"] = "other-campaign"
+        db.execute(
+            "UPDATE settings SET value=? WHERE key=?",
+            (__import__("json").dumps(raw), key),
+        )
+
+    with pytest.raises(Conflict, match="SESSION_TRANSCRIPTION_INTENT_CORRUPT"):
+        store.session_transcription_intent("campaign-corrupt", "session-corrupt")
+
+
 def test_v12_store_keeps_session_intent_in_existing_settings_for_rollback(tmp_path):
     store = Store(tmp_path)
     workspace = store.ensure_session_workspace("campaign-v12", "session-v12")
