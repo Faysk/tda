@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	findTranscriptJumpIndex,
 	formatTranscriptTimestamp,
+	formatTranscriptWallClock,
 	normalizeRevisionSegments,
 	parseTranscriptTimestamp,
 	renderTranscriptMarkdown,
@@ -46,6 +47,62 @@ describe("transcript reader contract", () => {
 			endMs: 14_000,
 			text: "Trecho montado",
 		});
+	});
+
+	it("keeps trusted wall-clock time with timezone and midnight while historical rows stay elapsed-only", () => {
+		const [trusted, historical] = normalizeRevisionSegments([
+			{
+				track_number: 1,
+				segment_id: "trusted",
+				start: 86403.5,
+				end: 86404.5,
+				text: "Depois da meia-noite",
+				speaker: "Alya",
+				absolute_time: {
+					schema_version: "tda_segment_absolute_time_v1",
+					confidence: "trusted_absolute",
+					source_start: "2026-09-29T23:59:58-03:00",
+					start: "2026-09-30T00:00:01.500-03:00",
+					end: "2026-09-30T00:00:02.500-03:00",
+				},
+			},
+			{
+				track_number: 2,
+				segment_id: "historical",
+				start: 90000,
+				end: 90001,
+				text: "Sem relógio inventado",
+				speaker: "Noah",
+			},
+		]);
+		expect(formatTranscriptTimestamp(trusted.startMs)).toBe("24:00:03.500");
+		expect(formatTranscriptWallClock(trusted.absoluteTime)).toBe(
+			"30/09 · 00:00:01.500 -03:00",
+		);
+		expect(historical.absoluteTime).toBeUndefined();
+		expect(formatTranscriptWallClock(historical.absoluteTime)).toBeNull();
+	});
+
+	it("fails closed on malformed or untrusted absolute-time metadata", () => {
+		expect(() =>
+			normalizeRevisionSegments([
+				{
+					track_number: 1,
+					segment_id: "bad",
+					start: 1,
+					end: 2,
+					text: "x",
+					speaker: "A",
+					absolute_time: {
+						schema_version: "tda_segment_absolute_time_v1",
+						confidence: "ambiguous",
+						source_start: "23:00:00",
+						start: "23:00:01",
+						end: "23:00:02",
+					},
+				},
+			]),
+		).toThrow(/absolute time/u);
 	});
 
 	it("supports timestamps beyond one hour with millisecond precision", () => {
