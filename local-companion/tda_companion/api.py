@@ -292,6 +292,12 @@ def _public_error_code(code: object) -> str:
     return _FALLBACK_ERROR_CODE
 
 
+def _public_error_code_from_exception(exc: BaseException) -> str:
+    if exc.args:
+        return _public_error_code(exc.args[0])
+    return _FALLBACK_ERROR_CODE
+
+
 def error(code, status, recoverable=False):
     safe_code = _public_error_code(code)
     return JSONResponse(
@@ -1988,7 +1994,7 @@ def create_app(
                 verify_transcript=True,
             )
         except SessionAssemblyError as exc:
-            code = str(exc)
+            code = _public_error_code_from_exception(exc)
             return error(code, 404 if code == "SESSION_ASSEMBLY_NOT_FOUND" else 409)
 
     @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/assemblies")
@@ -2038,7 +2044,7 @@ def create_app(
         try:
             return store.jobs_page(scope=scope, cursor=cursor, limit=limit)
         except Conflict as exc:
-            code = str(exc)
+            code = _public_error_code_from_exception(exc)
             if code.startswith("JOB_LIST_"):
                 if re.fullmatch(r"JOB_LIST_[A-Z0-9_]{1,64}", code):
                     return error(code, 422)
