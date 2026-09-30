@@ -634,6 +634,7 @@ export function ProcessingSubmission({
 				"transcription.session-timeline",
 				"transcription.session-participants",
 				"transcription.session-assembly",
+				"transcription.session-assembly.review",
 			];
 			const supportsSessionIntent = sessionIntentCapabilities.every((capability) =>
 				currentCapabilities.capabilities.includes(capability),

@@ -592,6 +592,32 @@ A #852 consolida as provas do fluxo multi-recording em camadas proporcionais, se
 
 Esse gate não roda modelo ASR pesado, não usa áudio de campanha e não substitui aceite físico de GPU.
 
+### Gate integrado de review e Markdown
+
+A #1118 estende essa proteção até o fim da jornada editorial privada. O job
+`session-workflow-gate` é obrigatório quando processamento, transcript review,
+publicação multi-source ou a jornada browser correspondente mudam. Ele compõe,
+sem reimplementar os contratos donos:
+
+- intenção 1..N, selective retry e Session Assembly do Companion;
+- review CAS da Assembly, incluindo conflito stale e aprovação do draft exato;
+- o parser/serializer compartilhado `TDA Transcript Markdown v1`, onde somente
+  participante e texto são editáveis e IDs/ordem/timestamps permanecem
+  estruturais;
+- dual-time: elapsed continua canônico e wall-clock só aparece quando a origem
+  absoluta foi validada;
+- publicação privada `tda_transcript_publication_request_v2` com provenance de
+  todas as parts e recuperação por receipt da mesma `operationId`;
+- browser sintético de ponta a ponta e scanner estático que rejeita paths
+  privados e metadata de recovery contendo transcript/contexto/glossário em
+  plaintext.
+
+O browser limita a renderização simultânea da lista de review a 200 falas, sem
+truncar o draft nem o Markdown. Assim, sessões sintéticas de milhares de
+segmentos continuam validadas pelo contrato sem transformar o DOM num churrasco
+de memória. O handoff para o Edit é explícito e privado; não publica transcript,
+capa ou resumo no site público.
+
 ## Falhas e recuperação
 
 ### Upload de uma part falha

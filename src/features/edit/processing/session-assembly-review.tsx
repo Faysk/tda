@@ -1,0 +1,456 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { actionStyles, Button } from "@/components/ui/button";
+import { StatusPill } from "@/components/ui/status";
+import { wallClockPresentation } from "../../transcript-review/time-contract";
+import { TranscriptMarkdownRoundTrip } from "../../transcript-review/local-review-markdown-roundtrip";
+import {
+	applySessionAssemblyMarkdownImport,
+	sessionAssemblyMarkdownBase,
+	sessionAssemblyMarkdownSegments,
+} from "../../transcript-review/session-assembly-markdown";
+import type { LocalBridge } from "./bridge";
+import { BridgeError } from "./protocol";
+import type {
+	SessionAssembly,
+	SessionAssemblyReviewSegment,
+	SessionAssemblyReviewSummary,
+} from "./session-composer-protocol";
+import {
+	publishApprovedSessionAssemblyReview,
+	readCurrentSessionAssemblyPublication,
+} from "./session-assembly-publication-client";
+import { PublicationClientError, type PublicationReceiptView } from "./publication-client";
+import styles from "./session-assembly-review.module.css";
+
+const ROW_LIMIT = 200;
+const PENDING_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
+type PendingPublication = Readonly<{
+	schemaVersion: "tda_session_assembly_publication_recovery_v1";
+	assemblyId: string;
+	operationId: string;
+	expectedCurrentRevisionId: string | null;
+	expectedActorProfileId: string;
+	createdAt: string;
+}>;
+
+type Props = Readonly<{
+	bridge: LocalBridge;
+	assembly: SessionAssembly;
+	review: SessionAssemblyReviewSummary;
+	disabled?: boolean;
+	onChange: (review: SessionAssemblyReviewSummary) => void;
+	onStatus?: (message: string) => void;
+}>;
+
+function pendingKey(assemblyId: string): string {
+	return "tda.processing.sessionAssemblyPublication.v1:" + assemblyId;
+}
+
+function loadPending(assemblyId: string): PendingPublication | null {
+	try {
+		const raw = window.localStorage.getItem(pendingKey(assemblyId));
+		if (!raw) return null;
+		const value = JSON.parse(raw) as Partial<PendingPublication>;
+		if (
+			value.schemaVersion !== "tda_session_assembly_publication_recovery_v1" ||
+			value.assemblyId !== assemblyId ||
+			typeof value.operationId !== "string" ||
+			!UUID.test(value.operationId) ||
+			(value.expectedCurrentRevisionId !== null &&
+				(typeof value.expectedCurrentRevisionId !== "string" ||
+					!UUID.test(value.expectedCurrentRevisionId))) ||
+			typeof value.expectedActorProfileId !== "string" ||
+			!UUID.test(value.expectedActorProfileId) ||
+			typeof value.createdAt !== "string" ||
+			!Number.isFinite(Date.parse(value.createdAt)) ||
+			Date.now() - Date.parse(value.createdAt) > PENDING_TTL_MS
+		) {
+			window.localStorage.removeItem(pendingKey(assemblyId));
+			return null;
+		}
+		return value as PendingPublication;
+	} catch {
+		return null;
+	}
+}
+
+function savePending(value: PendingPublication): boolean {
+	try {
+		window.localStorage.setItem(pendingKey(value.assemblyId), JSON.stringify(value));
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function clearPending(assemblyId: string) {
+	try {
+		window.localStorage.removeItem(pendingKey(assemblyId));
+	} catch {
+		// Recovery metadata is best effort; cloud idempotency remains authoritative.
+	}
+}
+
+function elapsed(seconds: number): string {
+	const whole = Math.max(0, Math.floor(seconds));
+	const hours = Math.floor(whole / 3600);
+	const minutes = Math.floor((whole % 3600) / 60);
+	const rest = whole % 60;
+	return [hours, minutes, rest]
+		.map((value) => String(value).padStart(2, "0"))
+		.join(":");
+}
+
+function errorMessage(cause: unknown): string {
+	if (cause instanceof BridgeError) {
+		const code = cause.serverCode ?? cause.code;
+		if (code === "SESSION_ASSEMBLY_REVIEW_DRAFT_CONFLICT")
+			return "A revisão mudou em outra aba ou processo. Sua working copy continua nesta tela; recarregue a base antes de salvar novamente.";
+		if (code === "SESSION_ASSEMBLY_REVIEW_APPROVAL_BLOCKED")
+			return "A aprovação está bloqueada por uma ambiguidade ainda não resolvida na sessão.";
+		return "O Companion recusou a revisão local · " + code;
+	}
+	if (cause instanceof PublicationClientError) {
+		return {
+			unauthenticated: "Sua sessão Web expirou. Entre novamente antes do handoff.",
+			forbidden: "Seu acesso não permite preparar esta transcrição privada.",
+			publish_capability_undefined:
+				"O handoff privado ainda não está ativado para esta campanha.",
+			approved_review_required:
+				"A revisão precisa estar salva e aprovada localmente antes do handoff.",
+			invalid_payload:
+				"O contrato da Assembly não passou na validação do handoff.",
+			too_large: "A revisão excede o limite aceito pelo handoff privado.",
+			not_found: "A sessão de destino não foi localizada no escopo autorizado.",
+			conflict: "O recibo retornado não corresponde à Assembly aprovada.",
+			stale_current:
+				"A revisão privada atual mudou na nuvem. Reconfirme o estado antes de tentar novamente.",
+			dependency_unavailable:
+				"O serviço de handoff está indisponível e não confirmou alteração.",
+			unconfirmed:
+				"A resposta se perdeu após o envio. A operação foi preservada; tentar novamente reutilizará a mesma identidade.",
+		}[cause.code];
+	}
+	if (cause instanceof Error && cause.message === "STORAGE_UNAVAILABLE")
+		return "Não foi possível preservar a identidade do handoff neste navegador.";
+	return "Não foi possível concluir esta etapa. A revisão local foi preservada.";
+}
+
+function statusTone(review: SessionAssemblyReviewSummary) {
+	return review.approvalCurrent
+		? ("success" as const)
+		: review.status === "reviewed"
+			? ("accent" as const)
+			: ("neutral" as const);
+}
+
+export function SessionAssemblyReview({
+	bridge,
+	assembly,
+	review,
+	disabled = false,
+	onChange,
+	onStatus,
+}: Props) {
+	const [baseline, setBaseline] = useState(review);
+	const [segments, setSegments] = useState<SessionAssemblyReviewSegment[]>(() =>
+		review.segments.map((segment) => ({ ...segment })),
+	);
+	const [dirty, setDirty] = useState(false);
+	const [query, setQuery] = useState("");
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [receipt, setReceipt] = useState<PublicationReceiptView | null>(null);
+	const [pending, setPending] = useState<PendingPublication | null>(null);
+
+	useEffect(() => {
+		setBaseline(review);
+		setSegments(review.segments.map((segment) => ({ ...segment })));
+		setDirty(false);
+		setReceipt(null);
+		setPending(loadPending(review.assemblyId));
+	}, [review]);
+
+	const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
+	const matches = useMemo(
+		() =>
+			segments.filter((segment) => {
+				if (!normalizedQuery) return true;
+				return (
+					segment.speaker.toLocaleLowerCase("pt-BR").includes(normalizedQuery) ||
+					segment.text.toLocaleLowerCase("pt-BR").includes(normalizedQuery) ||
+					segment.sourceId.toLocaleLowerCase("pt-BR").includes(normalizedQuery)
+				);
+			}),
+		[normalizedQuery, segments],
+	);
+	const visible = matches.slice(0, ROW_LIMIT);
+	const canApprove =
+		!disabled &&
+		!busy &&
+		!dirty &&
+		baseline.persistence === "persisted" &&
+		baseline.status !== "approved_local" &&
+		!baseline.approvalBlocked;
+	const canPublish =
+		!disabled &&
+		!busy &&
+		!dirty &&
+		baseline.persistence === "persisted" &&
+		baseline.status === "approved_local" &&
+		baseline.approvalCurrent;
+
+	function editSegment(
+		assemblySegmentId: string,
+		field: "speaker" | "text",
+		value: string,
+	) {
+		setSegments((current) =>
+			current.map((segment) =>
+				segment.assemblySegmentId === assemblySegmentId
+					? { ...segment, [field]: value, reviewed: true }
+					: segment,
+			),
+		);
+		setDirty(true);
+		setReceipt(null);
+	}
+
+	function applySaved(next: SessionAssemblyReviewSummary, message: string) {
+		setBaseline(next);
+		setSegments(next.segments.map((segment) => ({ ...segment })));
+		setDirty(false);
+		setError(null);
+		onChange(next);
+		onStatus?.(message);
+	}
+
+	async function save(status: "reviewed" | "approved_local") {
+		if (busy || disabled) return;
+		setBusy(true);
+		setError(null);
+		const controller = new AbortController();
+		try {
+			const next = await bridge.saveSessionAssemblyReview(
+				assembly.campaignId,
+				assembly.sessionId,
+				assembly.assemblyId,
+				baseline,
+				status,
+				segments,
+				controller.signal,
+			);
+			applySaved(
+				next,
+				status === "approved_local"
+					? "Revisão da sessão aprovada localmente."
+					: "Revisão da sessão salva no Companion.",
+			);
+		} catch (cause) {
+			setError(errorMessage(cause));
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	async function publish() {
+		if (!canPublish) return;
+		setBusy(true);
+		setError(null);
+		try {
+			let recovery = loadPending(assembly.assemblyId);
+			if (!recovery) {
+				const current = await readCurrentSessionAssemblyPublication(assembly);
+				recovery = {
+					schemaVersion: "tda_session_assembly_publication_recovery_v1",
+					assemblyId: assembly.assemblyId,
+					operationId: crypto.randomUUID(),
+					expectedCurrentRevisionId: current.revisionId,
+					expectedActorProfileId: current.actorProfileId,
+					createdAt: new Date().toISOString(),
+				};
+				if (!savePending(recovery)) throw new Error("STORAGE_UNAVAILABLE");
+			}
+			setPending(recovery);
+			const committed = await publishApprovedSessionAssemblyReview(
+				assembly,
+				baseline,
+				recovery.operationId,
+				recovery.expectedCurrentRevisionId,
+				fetch,
+				recovery.expectedActorProfileId,
+			);
+			clearPending(assembly.assemblyId);
+			setPending(null);
+			setReceipt(committed);
+			onStatus?.("Transcrição privada preparada no Edit.");
+		} catch (cause) {
+			if (
+				cause instanceof PublicationClientError &&
+				cause.code === "stale_current"
+			) {
+				clearPending(assembly.assemblyId);
+				setPending(null);
+			}
+			setError(errorMessage(cause));
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	return (
+		<section className={styles.review} aria-label="Revisão da transcrição da sessão">
+			<header className={styles.header}>
+				<div>
+					<span className={styles.eyebrow}>Revisão contínua</span>
+					<h3>Transcrição da sessão</h3>
+					<p>
+						{baseline.segmentCount.toLocaleString("pt-BR")} falas ·{" "}
+						{baseline.reviewedSegments.toLocaleString("pt-BR")} revisadas · Assembly{" "}
+						{assembly.assemblyId.slice(0, 12)}…
+					</p>
+				</div>
+				<div className={styles.headerActions}>
+					<StatusPill tone={statusTone(baseline)}>
+						{baseline.approvalCurrent
+							? "Aprovado"
+							: baseline.status === "reviewed"
+								? "Revisado"
+								: "Draft"}
+					</StatusPill>
+					{receipt ? (
+						<a
+							data-handoff-success-link="true"
+							className={actionStyles({ size: "sm", variant: "primary" })}
+							href={"/edit/sessoes/" + encodeURIComponent(assembly.sessionId)}
+						>
+							Abrir sessão no Edit
+						</a>
+					) : dirty ? (
+						<Button size="sm" variant="primary" disabled={busy || disabled} onClick={() => void save("reviewed")}>
+							{busy ? "Salvando…" : "Salvar alterações"}
+						</Button>
+					) : canApprove ? (
+						<Button size="sm" variant="primary" onClick={() => void save("approved_local")}>
+							Aprovar revisão
+						</Button>
+					) : canPublish ? (
+						<Button data-handoff-trigger="prepare" size="sm" variant="primary" onClick={() => void publish()}>
+							{pending ? "Confirmar handoff pendente" : "Preparar sessão no Edit"}
+						</Button>
+					) : null}
+				</div>
+			</header>
+
+			<div className={styles.tools}>
+				<label>
+					<span>Buscar na transcrição</span>
+					<input
+						type="search"
+						value={query}
+						onChange={(event) => setQuery(event.currentTarget.value)}
+						placeholder="Participante, texto ou origem"
+					/>
+				</label>
+				<TranscriptMarkdownRoundTrip
+					base={sessionAssemblyMarkdownBase(assembly, baseline)}
+					segments={sessionAssemblyMarkdownSegments(segments)}
+					title={assembly.sessionId}
+					fileIdentity={assembly.sessionId}
+					dirty={dirty}
+					disabled={disabled || busy}
+					onApply={(result) => {
+						setSegments((current) => [
+							...applySessionAssemblyMarkdownImport(current, result),
+						]);
+						setDirty(true);
+						setReceipt(null);
+					}}
+				/>
+			</div>
+
+			{pending && !receipt ? (
+				<p className={styles.notice} role="status">
+					Há um handoff com identidade preservada. A próxima tentativa reutiliza a mesma operação em vez de criar outra revisão.
+				</p>
+			) : null}
+			{error ? (
+				<p className={styles.error} role="alert">
+					{error}
+				</p>
+			) : null}
+
+			<div className={styles.summary}>
+				<strong>{matches.length.toLocaleString("pt-BR")} falas encontradas</strong>
+				<span>
+					{matches.length > ROW_LIMIT
+						? "Mostrando as primeiras " +
+							ROW_LIMIT.toLocaleString("pt-BR") +
+							" para manter a interface responsiva."
+						: "Todas as falas encontradas estão visíveis."}
+				</span>
+			</div>
+
+			<ol className={styles.segments}>
+				{visible.map((segment) => {
+					const wallClock = segment.absoluteTime
+						? wallClockPresentation(segment.absoluteTime.startIso)
+						: null;
+					return (
+						<li key={segment.assemblySegmentId} data-assembly-segment={segment.assemblySegmentId}>
+							<div className={styles.segmentMeta}>
+								<span>{elapsed(segment.start)}</span>
+								{wallClock ? (
+									<time dateTime={segment.absoluteTime?.startIso} title={wallClock.accessible}>
+										{wallClock.date} · {wallClock.clock} {wallClock.offset}
+									</time>
+								) : null}
+							</div>
+							<label>
+								<span>Participante</span>
+								<input
+									value={segment.speaker}
+									disabled={disabled || busy}
+									onChange={(event) =>
+										editSegment(
+											segment.assemblySegmentId,
+											"speaker",
+											event.currentTarget.value,
+										)
+									}
+								/>
+							</label>
+							<label>
+								<span>Texto</span>
+								<textarea
+									rows={3}
+									value={segment.text}
+									disabled={disabled || busy}
+									onChange={(event) =>
+										editSegment(
+											segment.assemblySegmentId,
+											"text",
+											event.currentTarget.value,
+										)
+									}
+								/>
+							</label>
+							<details>
+								<summary>Proveniência</summary>
+								<small>
+									Part {segment.partId} · source {segment.sourceId} · run{" "}
+									{segment.runId} · track {segment.trackNumber} · segmento{" "}
+									{segment.sourceSegmentId}
+								</small>
+							</details>
+						</li>
+					);
+				})}
+			</ol>
+		</section>
+	);
+}
