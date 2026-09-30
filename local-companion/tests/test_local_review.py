@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import hashlib
 import json
 from dataclasses import replace
@@ -149,6 +150,83 @@ def test_open_review_projects_track_offset_to_session_timeline(tmp_path: Path):
         (0.0, 1.0, 120.0, 121.0),
         (1.2, 2.2, 121.2, 122.2),
     ]
+
+
+
+def test_open_review_projects_trusted_wall_clock_and_keeps_it_immutable(
+    monkeypatch,
+    tmp_path: Path,
+):
+    package_root, source_id, run = _package(tmp_path)
+    (package_root / "manifest.json").write_text("{}", encoding="utf-8")
+    import tda_companion.local_review as local_review_module
+
+    monkeypatch.setattr(
+        local_review_module,
+        "load_craig_package",
+        lambda *args, **kwargs: SimpleNamespace(
+            start_time="2026-09-29T23:59:58-03:00"
+        ),
+    )
+    opened = open_review(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+    )
+
+    assert opened["segments"][0]["absolute_time"] == {
+        "schema_version": "tda_segment_absolute_time_v1",
+        "confidence": "trusted_absolute",
+        "source_start": "2026-09-29T23:59:58-03:00",
+        "start": "2026-09-29T23:59:58.000-03:00",
+        "end": "2026-09-29T23:59:59.000-03:00",
+    }
+    assert opened["segments"][1]["absolute_time"]["start"] == (
+        "2026-09-29T23:59:59.200-03:00"
+    )
+
+    tampered = [dict(item) for item in opened["segments"]]
+    tampered[0]["absolute_time"] = {
+        **tampered[0]["absolute_time"],
+        "start": "2026-09-30T00:00:10.000-03:00",
+    }
+    with pytest.raises(
+        LocalReviewError,
+        match="LOCAL_REVIEW_SEGMENT_TIMING_IMMUTABLE",
+    ):
+        save_review(
+            package_root,
+            source_id=source_id,
+            run_id=run["run_id"],
+            value={
+                **_expected(opened),
+                "status": "reviewed",
+                "segments": tampered,
+            },
+        )
+
+
+@pytest.mark.parametrize("start_time", [None, "23:59:58", "opaque-craig-time"])
+def test_open_review_never_invents_wall_clock_for_untrusted_start(
+    monkeypatch,
+    tmp_path: Path,
+    start_time,
+):
+    package_root, source_id, run = _package(tmp_path)
+    (package_root / "manifest.json").write_text("{}", encoding="utf-8")
+    import tda_companion.local_review as local_review_module
+
+    monkeypatch.setattr(
+        local_review_module,
+        "load_craig_package",
+        lambda *args, **kwargs: SimpleNamespace(start_time=start_time),
+    )
+    opened = open_review(
+        package_root,
+        source_id=source_id,
+        run_id=run["run_id"],
+    )
+    assert all(item["absolute_time"] is None for item in opened["segments"])
 
 
 def test_save_review_is_atomic_recoverable_and_keeps_run_immutable(
