@@ -102,6 +102,10 @@ try:
 
     sql_file(fixture)
     sql_file(migration)
+    # Replay the additive migration against the same synthetic schema. This is
+    # not a DOWN migration; it proves retry/reconciliation safety for the
+    # idempotent guards before any remote rollout is considered.
+    sql_file(migration)
     output = sql_file(assertions)
 
     if "CAMPAIGN_REGISTRY_DATABASE_OK" not in output:
