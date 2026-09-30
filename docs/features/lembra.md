@@ -188,10 +188,22 @@ lembra_favorites
 - created_at
 ```
 
-Não existe `campaign_id`.
+Hoje não existe `campaign_id`. ADR-0020 preserva o Lembra como biblioteca global; #1132 pode adicionar **classificação opcional** de campaign sem transformar essa classificação em authorization boundary.
 
 `created_by_name` é um snapshot produzido pelo servidor a partir da identidade autenticada para exibição/busca. O browser nunca fornece autoria.
 
+## Multi-campaign: exceção global deliberada
+
+Lembra não é particionado por campaign.
+
+- referência sem classificação continua válida;
+- classificação opcional serve a filtro/organização, não autorização;
+- trocar classificação não move bytes nem altera owner/security boundary;
+- a campanha corrente da navegação não filtra silenciosamente a biblioteca;
+- permissões de campaign não concedem nem retiram acesso ao Lembra;
+- qualquer futura política de acesso própria exige decisão separada, não pode ser inferida de `campaign_id`.
+
+Isso mantém a biblioteca compartilhada enquanto permite contextualizar referências quando útil.
 ## Media Storage
 
 Bytes ficam no Media Storage; PostgreSQL guarda somente metadata e identidade do objeto.
@@ -289,7 +301,7 @@ A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-
 
 Não fazem parte do roadmap atual do Lembra:
 
-- isolamento por campanha;
+- isolamento/autorização por campaign; classificação opcional não altera o boundary global;
 - RBAC/capabilities próprias;
 - tags;
 - categorias obrigatórias;
