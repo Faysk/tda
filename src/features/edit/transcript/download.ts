@@ -3,8 +3,10 @@ import {
 	transcriptMarkdownFilename,
 	type TranscriptReaderSnapshot,
 } from "./reader-contract";
+import { renderTranscriptRoundTripMarkdown } from "./markdown-roundtrip";
 
-export function buildTranscriptDownload(input: {
+export async function buildTranscriptDownload(input: {
+	campaignSlug: string;
 	title: string;
 	sessionDate: string | null;
 	arc: string | null;
@@ -16,9 +18,28 @@ export function buildTranscriptDownload(input: {
 		input.title,
 		input.snapshot.revisionNumber,
 	);
+	const roundTripEligible =
+		input.snapshot.source === "current_revision" &&
+		Boolean(input.snapshot.revisionId) &&
+		Boolean(input.snapshot.revisionNumber) &&
+		input.snapshot.segments.every((segment) => Boolean(segment.sourceSegmentId));
+	const body = roundTripEligible
+		? await renderTranscriptRoundTripMarkdown({
+				title: input.title,
+				sessionDate: input.sessionDate,
+				arc: input.arc,
+				identity: {
+					campaignSlug: input.campaignSlug,
+					sourceSessionId: input.sourceSessionId,
+					baseRevisionId: input.snapshot.revisionId as string,
+					baseRevisionNumber: input.snapshot.revisionNumber as number,
+				},
+				snapshot: input.snapshot,
+			})
+		: renderTranscriptMarkdown(input);
 	return {
 		filename,
-		body: renderTranscriptMarkdown(input),
+		body,
 		headers: {
 			"Cache-Control": "private, no-store",
 			"Content-Disposition": `attachment; filename="${filename}"`,
