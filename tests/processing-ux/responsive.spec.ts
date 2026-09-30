@@ -68,7 +68,7 @@ for (const viewport of viewports) {
 
 		await expect(page.getByText("Processando agora", { exact: true })).toBeVisible();
 		await expect(
-			page.getByText("Transcrever sessão", { exact: true }),
+			page.getByRole("heading", { name: "Transcrever sessão", exact: true }),
 		).toBeVisible();
 		await expect(
 			page.getByRole("button", { name: "Cancelar trabalho" }),
