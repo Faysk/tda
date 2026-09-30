@@ -192,6 +192,7 @@ test("Supabase and transcript-sync changes activate PostgreSQL integration", () 
 	);
 	assert.equal(flags(["src/features/transcript-sync/client.ts"]).db, true);
 	assert.equal(flags(["tools/world-layout-db.py"]).db, true);
+	assert.equal(flags(["tools/campaign-registry-db.py"]).db, true);
 });
 
 test("database documentation alone does not start PostgreSQL", () => {
