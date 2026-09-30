@@ -2,7 +2,7 @@
 
 > Status: implementação funcional e gate E2E/recovery concluídos
 > Owner: sessions / processing / transcripts
-> Última revisão: 2026-09-28
+> Última revisão: 2026-09-30
 > Fonte de verdade: este documento, ADR-0019 accepted e epic #843
 
 ## Objetivo
@@ -499,50 +499,78 @@ Workspace mutável não é dono dos bytes de source/run.
 
 ## UX alvo
 
-### Single-source
+### Princípio de produto
 
-Fluxo curto existente permanece reconhecível.
+A unidade mental do operador é a **sessão**. ZIP, source, job, run,
+Recording Part, workspace e Session Assembly continuam existindo como contratos
+internos de segurança e provenance, mas não formam um wizard obrigatório.
 
-### Multi-source
+O caminho normal é:
 
 ```text
 Sessão
-  Gravações
-   1. ZIP A · analisado · run selecionado
-   2. ZIP B · analisado · precisa processar
-   3. ZIP C · overlap a resolver
-
-  + Adicionar gravação
-
-  [Processar pendentes]
-  [Resolver timeline]
-  [Montar transcrição da sessão]
+  -> selecionar ou soltar 1..N ZIPs Craig
+  -> escolher profile/contexto/glossário uma vez
+  -> Transcrever sessão
+  -> acompanhar progresso por gravação
+  -> Revisar transcrição
 ```
 
-O sistema deve mostrar:
-- duplicate;
-- ordem;
-- tempo/duração quando factual;
-- gap/overlap;
-- participants/conflicts;
-- status por part;
-- selected run;
-- readiness da assembly.
+O Web deve:
 
-### Implementação Web do composer
+- aceitar múltiplos arquivos na mesma seleção e em drops sucessivos;
+- manter cada arquivo independentemente válido, inválido, duplicado ou com falha;
+- preservar os demais quando um ZIP é inválido;
+- deduplicar bytes idênticos por `source_id` sem criar trabalho duplicado;
+- pedir decisão somente para variantes reais de mesmo `recording_id`, cronologia
+  ambígua/overlap, participante ambíguo ou múltiplos resultados elegíveis;
+- preparar runtime/modelo uma vez por intenção quando necessário;
+- enfileirar somente gravações sem resultado elegível;
+- reutilizar gravações já concluídas;
+- reprocessar somente falhas;
+- aplicar ordem temporal confiável e gaps comprovados automaticamente;
+- selecionar automaticamente o resultado quando existe authority inequívoca;
+- montar a Session Assembly automaticamente assim que as invariantes permitem;
+- apresentar o resultado final como uma transcrição contínua pronta para review.
 
-O composer é aditivo ao formulário single-source. O operador mantém o `session_id` uma vez, anexa sources já verificadas ao workspace persistente e só vê controles multi-part quando decide compor a sessão.
+O progresso primário usa linguagem de produto, por exemplo
+`2/3 concluídas · 1 transcrevendo`. IDs, hashes, source/run/workspace/assembly,
+ordenação manual e ferramentas de diagnóstico ficam em **Detalhes técnicos**.
 
-O primeiro corte Web usa:
-- botões de subir/descer como reorder acessível, sem depender de drag;
-- CAS do workspace para attach, reorder, timing, participant mapping e seleção de run;
-- confirmação explícita de gap e resolução explícita de overlap/boundary;
-- listagem de runs por source e seleção independente por part;
-- `Processar pendentes` somente para parts sem run concluído;
-- readiness fail-closed antes de `Montar transcrição da sessão`;
-- Session Assemblies distintas dos runs-fonte na aba Resultados;
-- base de review carregada pelo `assembly_id`, sem tratar a assembly como run ASR;
-- pointer de recuperação no navegador apenas para reencontrar o workspace; o Agent continua sendo authority do estado persistido.
+### Recuperação
+
+O Agent continua sendo authority de workspace, jobs, runs e assemblies. O
+navegador mantém apenas pointers/idempotency de recuperação já previstos pelos
+contratos existentes. Reload/reconnect não deve recriar source/job confirmado
+nem apagar partes concluídas.
+
+Quando uma resposta de enqueue fica ambígua, a mesma identidade persistida é
+reutilizada. Quando um job falha/cancela/interrompe após ter sido criado, retry
+usa o job persistido do Agent para preservar profile/contexto/glossário e
+reexecutar somente aquela gravação.
+
+Se o navegador desaparecer antes de um arquivo selecionado chegar ao Agent,
+os bytes desse arquivo não são inventados nem persistidos no browser: o operador
+precisa selecionar novamente apenas o ZIP ainda não staged. Isso preserva a
+regra de que áudio bruto continua local e sob controle explícito.
+
+### Exceções com decisão humana
+
+- **same `recording_id`, bytes diferentes:** manter ambas ou escolher uma;
+- **dois ou mais resultados elegíveis sem authority da intenção:** escolher um;
+- **ordem temporal sem evidência suficiente / overlap:** resolver somente a
+  ambiguidade;
+- **participant mapping bloqueado:** confirmar a pessoa correta.
+
+Essas exceções abrem/indicam os controles técnicos existentes, mas o caminho
+feliz não exige attach manual, `Processar pendentes`, seleção de run por part
+nem `Montar transcrição da sessão`.
+
+### Compatibilidade
+
+Uma sessão com um único ZIP usa exatamente a mesma intenção 1..N. Não existe um
+segundo produto escondido para “single-source”; o orquestrador simplesmente
+tem uma gravação para acompanhar.
 
 ## Gate sintético de regressão
 
