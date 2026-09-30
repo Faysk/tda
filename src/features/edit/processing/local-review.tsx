@@ -21,6 +21,7 @@ import { prepareReviewRebase, resolveReviewRebase, type ReviewRebase } from "./r
 import { ParticipantManager } from "./participant-manager";
 import { applyParticipantRename } from "./participant-rename";
 import { countWordsV1, isReviewStringV1 } from "../../transcript-review/text-contract";
+import { LocalReviewMarkdownRoundTrip } from "../../transcript-review/local-review-markdown-roundtrip";
 import { localRunKey, serializeLocalRunKey } from "./local-run-key";
 import { processingStageLabels } from "./engine-metrics";
 import { RunComparisonView } from "./run-comparison-view";
@@ -591,6 +592,17 @@ function ReviewEditor({
         setPublishConfirmation(false);
 	}
 
+	function applyMarkdownWorkingCopy(nextSegments: readonly LocalReviewSegment[]) {
+		rememberVisibleAnchor();
+		setSegments(nextSegments.map((segment) => ({ ...segment })));
+		if (status === "approved_local") setStatus("reviewed");
+		setDirty(true);
+		setPublicationReceipt(null);
+		setPublicationRecovery(null);
+		setPublicationErrorCode(null);
+		setPublishConfirmation(false);
+	}
+
 	function saveWorkingCopy() {
 		rememberVisibleAnchor();
 		void onSave(baseline, status, segments);
@@ -809,6 +821,14 @@ function ReviewEditor({
 					</div>
 				</details>
 			</fieldset>
+
+			<LocalReviewMarkdownRoundTrip
+				baseline={baseline}
+				segments={segments}
+				dirty={dirty}
+				disabled={editingBlocked || !canSave}
+				onApply={applyMarkdownWorkingCopy}
+			/>
 
 			{!canSave ? (
 				<div className={styles.handoffBlocker} role="status">

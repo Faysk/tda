@@ -1,3 +1,4 @@
+import { isReviewStringV1 } from "../../transcript-review/text-contract";
 import type { LocalReviewStatus } from "./protocol";
 
 export type SessionAssemblyPart = {
@@ -46,6 +47,21 @@ export type SessionAssemblyList = {
 	assemblies: readonly SessionAssemblyListItem[];
 };
 
+export type SessionAssemblyReviewSegment = {
+	assemblySegmentId: string;
+	partId: string;
+	sourceId: string;
+	runId: string;
+	sourceSegmentId: string;
+	trackNumber: number;
+	participantId: string;
+	start: number;
+	end: number;
+	speaker: string;
+	text: string;
+	reviewed: boolean;
+};
+
 export type SessionAssemblyReviewSummary = {
 	assemblyId: string;
 	baseTranscriptSha256: string;
@@ -60,6 +76,7 @@ export type SessionAssemblyReviewSummary = {
 	reviewPercent: number;
 	editedSegments: number;
 	wordCount: number;
+	segments: readonly SessionAssemblyReviewSegment[];
 };
 
 function invalid(): never {
@@ -241,6 +258,35 @@ export function parseSessionAssemblyReviewSummary(
 	)
 		return invalid();
 	if (!Array.isArray(row.segments) || row.segments.length > 100_000) return invalid();
+	const segments = row.segments.map((raw) => {
+		const item = object(raw);
+		const start = number(item.start);
+		const end = number(item.end);
+		const speaker = string(item.speaker, 320);
+		const text = string(item.text, 200_000);
+		if (end < start || !isReviewStringV1(speaker, "speaker") || !isReviewStringV1(text, "text"))
+			return invalid();
+		return {
+			assemblySegmentId: hex(item.assembly_segment_id, 64),
+			partId: hex(item.part_id, 32),
+			sourceId: (() => {
+				const source = string(item.source_id, 80);
+				if (!/^craig-[0-9a-f]{64}$/u.test(source)) return invalid();
+				return source;
+			})(),
+			runId: id(item.run_id),
+			sourceSegmentId: string(item.source_segment_id, 512),
+			trackNumber: integer(item.track_number, 1, 999_999),
+			participantId: hex(item.participant_id, 32),
+			start,
+			end,
+			speaker,
+			text,
+			reviewed: bool(item.reviewed),
+		} satisfies SessionAssemblyReviewSegment;
+	});
+	if (new Set(segments.map((item) => item.assemblySegmentId)).size !== segments.length)
+		return invalid();
 	const review = object(row.review);
 	const reviewedSegments = integer(review.reviewed_segments, 0, row.segments.length);
 	const totalSegments = integer(review.total_segments, 0, 100_000);
@@ -262,5 +308,6 @@ export function parseSessionAssemblyReviewSummary(
 		reviewPercent,
 		editedSegments: integer(review.edited_segments, 0, totalSegments),
 		wordCount: integer(review.word_count, 0),
+		segments,
 	};
 }

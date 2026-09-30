@@ -487,7 +487,36 @@ describe("session assembly web contracts", () => {
 					edited_segments: 0,
 					word_count: 4,
 				},
-				segments: [{ assembly_segment_id: "one" }, { assembly_segment_id: "two" }],
+				segments: [
+					{
+						assembly_segment_id: "e".repeat(64),
+						part_id: "1".repeat(32),
+						source_id: sourceA,
+						run_id: runA,
+						source_segment_id: "source-a",
+						track_number: 1,
+						participant_id: "3".repeat(32),
+						start: 1,
+						end: 2,
+						speaker: "Alya",
+						text: "Primeira fala",
+						reviewed: false,
+					},
+					{
+						assembly_segment_id: "f".repeat(64),
+						part_id: "2".repeat(32),
+						source_id: sourceB,
+						run_id: runB,
+						source_segment_id: "source-b",
+						track_number: 2,
+						participant_id: "4".repeat(32),
+						start: 3,
+						end: 4,
+						speaker: "Noah",
+						text: "Segunda fala",
+						reviewed: false,
+					},
+				],
 			},
 			"c".repeat(64),
 		);
@@ -497,6 +526,10 @@ describe("session assembly web contracts", () => {
 			segmentCount: 2,
 			status: "draft",
 		});
+		expect(review.segments.map((segment) => segment.assemblySegmentId)).toEqual([
+			"e".repeat(64),
+			"f".repeat(64),
+		]);
 		expect(() =>
 			parseSessionAssemblyReviewSummary(
 				{

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
+import { renderTranscriptMarkdownV1 } from "../../transcript-review/markdown-contract";
 import { LocalBridge } from "./bridge";
 import {
 	latestJobForSource,
@@ -766,6 +767,46 @@ export function SessionRecordingComposer({
 		}
 	}
 
+	async function exportAssemblyReview() {
+		if (!workspace || !review || busy || disabled) return;
+		setBusy(true);
+		setLocalError(null);
+		try {
+			const markdown = await renderTranscriptMarkdownV1({
+				base: {
+					sessionId: workspace.sessionId,
+					baseKind: "session_assembly",
+					baseId: review.assemblyId,
+					baseRevision: review.draftRevision,
+					baseSha256: review.draftSha256 ?? review.baseTranscriptSha256,
+				},
+				segments: review.segments.map((segment) => ({
+					id: segment.assemblySegmentId,
+					startMs: Math.round(segment.start * 1000),
+					endMs: Math.round(segment.end * 1000),
+					speaker: segment.speaker,
+					text: segment.text,
+				})),
+				title: workspace.sessionId,
+			});
+			const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+			const url = URL.createObjectURL(blob);
+			const anchor = document.createElement("a");
+			anchor.href = url;
+			anchor.download = workspace.sessionId + "-transcricao-assembly-tda-v1.md";
+			anchor.rel = "noopener";
+			document.body.append(anchor);
+			anchor.click();
+			anchor.remove();
+			URL.revokeObjectURL(url);
+			announce("Markdown TDA v1 da transcrição contínua exportado.");
+		} catch (cause) {
+			fail(cause);
+		} finally {
+			setBusy(false);
+		}
+	}
+
 	async function openReview(assemblyId: string) {
 		if (!workspace || busy || disabled) return;
 		const controller = new AbortController();
@@ -1107,6 +1148,15 @@ export function SessionRecordingComposer({
 								{review.segmentCount} segmentos · {review.reviewedSegments} revisados · estado {review.status}
 								{review.approvalBlocked ? " · aprovação bloqueada por participantes" : ""}
 							</span>
+							<Button
+								type="button"
+								size="sm"
+								variant="tertiary"
+								disabled={busy || disabled}
+								onClick={() => void exportAssemblyReview()}
+							>
+								Baixar Markdown TDA v1
+							</Button>
 						</div>
 					) : null}
 				</>
