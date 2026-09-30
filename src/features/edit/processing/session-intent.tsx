@@ -601,7 +601,6 @@ export function SessionIntentCoordinator({
 						controller.signal,
 					);
 					enqueueRecoveryBlocked.current.delete(part.sourceId);
-					enqueueRecoveryBlocked.current.delete(part.sourceId);
 					intentJobIds.current.set(part.sourceId, job.id);
 					persistIntentReceipt({
 						job: { sourceId: part.sourceId, jobId: job.id },
@@ -747,6 +746,7 @@ export function SessionIntentCoordinator({
 						setBlocker({ kind: "enqueue", sourceIds: [part.sourceId] });
 						return;
 					}
+					enqueueRecoveryBlocked.current.delete(part.sourceId);
 					intentJobIds.current.set(part.sourceId, job.id);
 					persistIntentReceipt({
 						job: { sourceId: part.sourceId, jobId: job.id },
