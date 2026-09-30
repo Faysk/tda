@@ -190,8 +190,10 @@ function ListRow({ session }: { session: SessionArchiveItem }) {
 
 export function SessionList({
 	sessions,
+	showCampaignFilter = false,
 }: {
 	sessions: readonly SessionArchiveItem[];
+	showCampaignFilter?: boolean;
 }) {
 	const [query, setQuery] = useState("");
 	const [campaign, setCampaign] = useState("all");
@@ -211,6 +213,18 @@ export function SessionList({
 		[sessions],
 	);
 
+	const campaigns = useMemo(() => {
+		const bySlug = new Map<string, string>();
+		for (const session of sessions) {
+			if (session.campaignSlug && !bySlug.has(session.campaignSlug)) {
+				bySlug.set(session.campaignSlug, session.campaignName);
+			}
+		}
+		return Array.from(bySlug, ([slug, name]) => ({ slug, name })).sort((a, b) =>
+			collator.compare(a.name, b.name),
+		);
+	}, [sessions]);
+
 	const visible = useMemo(() => {
 		const needle = normalizeSearch(query.trim());
 		const items = sessions.filter((session) => {
@@ -228,8 +242,11 @@ export function SessionList({
 		});
 	}, [arc, campaign, query, sessions, sort]);
 
-	const filtered = query.trim().length > 0 || arc !== "all";
-	const latestId = sessions[0]?.id;
+	const filtered =
+		query.trim().length > 0 ||
+		arc !== "all" ||
+		(showCampaignFilter && campaign !== "all");
+	const latestKey = sessions[0] ? sessionPublicKey(sessions[0]) : undefined;
 
 	return (
 		<div className={styles.archive} data-session-archive>
@@ -244,6 +261,23 @@ export function SessionList({
 						placeholder="Buscar sessão, arco ou história..."
 					/>
 				</label>
+
+				{showCampaignFilter ? (
+					<label className={styles.selectField}>
+						<span className={styles.srOnly}>Filtrar por campanha</span>
+						<select
+							value={campaign}
+							onChange={(event) => setCampaign(event.target.value)}
+						>
+							<option value="all">Todas as campanhas</option>
+							{campaigns.map((item) => (
+								<option key={item.slug} value={item.slug}>
+									{item.name}
+								</option>
+							))}
+						</select>
+					</label>
+				) : null}
 
 				<label className={styles.selectField}>
 					<span className={styles.srOnly}>Filtrar por arco</span>
@@ -304,6 +338,7 @@ export function SessionList({
 						type="button"
 						onClick={() => {
 							setQuery("");
+							setCampaign("all");
 							setArc("all");
 						}}
 					>
