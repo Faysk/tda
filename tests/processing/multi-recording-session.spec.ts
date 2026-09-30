@@ -83,6 +83,8 @@ async function installMultiRecordingRoutes(
 	let uploadIndex = 0;
 	let revision = 0;
 	let timelineDerived = false;
+	let agentOfflineOnce = false;
+	let failNextSecondSourceEnqueue = false;
 	const analyzed = new Set<string>();
 	let attached: string[] = [];
 	const selected = new Map<string, string>();
@@ -94,6 +96,8 @@ async function installMultiRecordingRoutes(
 	>();
 	const postCount = new Map<string, number>();
 	const retryCount = new Map<string, number>();
+	const postedSources: string[] = [];
+	const postKeys = new Map<string, string[]>();
 	let failedOnce = false;
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
 
@@ -275,6 +279,10 @@ async function installMultiRecordingRoutes(
 			});
 		}
 		if (path === `/session-workspaces/${CAMPAIGN}/${SESSION}`) {
+			if (request.method() === "GET" && agentOfflineOnce) {
+				agentOfflineOnce = false;
+				return route.abort("failed");
+			}
 			if (request.method() === "GET") return json(route, workspace());
 			if (request.method() === "POST") return json(route, workspace());
 		}
@@ -371,7 +379,17 @@ async function installMultiRecordingRoutes(
 		if (path === "/jobs" && request.method() === "POST") {
 			const payload = request.postDataJSON() as { source_id: string };
 			const index = SOURCE_IDS.indexOf(payload.source_id);
+			const key = request.headers()["idempotency-key"] ?? "";
+			postedSources.push(payload.source_id);
 			postCount.set(payload.source_id, (postCount.get(payload.source_id) ?? 0) + 1);
+			postKeys.set(payload.source_id, [
+				...(postKeys.get(payload.source_id) ?? []),
+				key,
+			]);
+			if (failNextSecondSourceEnqueue && index === 1) {
+				failNextSecondSourceEnqueue = false;
+				return route.abort("failed");
+			}
 			jobSequence += 1;
 			const shouldFail =
 				options.failOnceSourceIndex === index && !failedOnce;
@@ -591,6 +609,18 @@ async function installMultiRecordingRoutes(
 		retryCount(sourceId: string) {
 			return retryCount.get(sourceId) ?? 0;
 		},
+		keysFor(sourceId: string) {
+			return [...(postKeys.get(sourceId) ?? [])];
+		},
+		get postedSources() {
+			return [...postedSources];
+		},
+		dropAgentOnce() {
+			agentOfflineOnce = true;
+		},
+		failNextSecondSourceEnqueue() {
+			failNextSecondSourceEnqueue = true;
+		},
 		get attachedSources() {
 			return [...attached];
 		},
@@ -791,6 +821,55 @@ test("same Craig recording with different bytes requires an explicit decision", 
 	await intent.getByRole("button", { name: "Manter ambas" }).click();
 	await expect(intent).toContainText("Transcrição pronta");
 	expect(multi.attachedSources).toEqual([SOURCE_IDS[1], SOURCE_IDS[3]]);
+});
+
+test("ambiguous enqueue reuses the same idempotency identity and reconnect keeps the workspace", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+	});
+	multi.failNextSecondSourceEnqueue();
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "parte-a.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-a"),
+		},
+		{
+			name: "parte-b.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent.getByRole("alert")).toContainText(
+		"Não foi possível confirmar a entrada desta gravação.",
+	);
+	expect(multi.postedSources).toEqual([SOURCE_IDS[0], SOURCE_IDS[1]]);
+	const firstKeys = multi.keysFor(SOURCE_IDS[1] ?? "");
+	expect(firstKeys).toHaveLength(1);
+	expect(firstKeys[0]).not.toBe("");
+
+	multi.dropAgentOnce();
+	await page.waitForTimeout(2800);
+	await expect(intent).toBeVisible();
+
+	await intent.getByRole("button", { name: "Tentar novamente" }).click();
+	await expect(intent).toContainText("Transcrição pronta");
+	const secondKeys = multi.keysFor(SOURCE_IDS[1] ?? "");
+	expect(secondKeys).toHaveLength(2);
+	expect(secondKeys[0]).toBe(secondKeys[1]);
+	expect(multi.postCount(SOURCE_IDS[0] ?? "")).toBe(1);
+	expect(multi.postCount(SOURCE_IDS[1] ?? "")).toBe(2);
 });
 
 test("cancelling one recording preserves completed siblings and retry stays selective", async ({
