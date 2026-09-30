@@ -203,6 +203,31 @@ test("benchmark resumes an update that was already running before the page opene
 	expect(state.uploadCount).toBe(0);
 });
 
+test("benchmark reconciles a Qwen update that completed before the first status poll", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkReadyProfiles: ["whisper-turbo", "whisper-detailed"],
+		qwenRuntimeUpgradeRequired: true,
+		qwenRuntimeVersion: "1.0.11",
+		qwenRuntimeStableVersion: "1.0.12",
+		qwenRuntimeUpdateInitiallyCompleted: true,
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel).toContainText("4 / 4 perfis prontos");
+	await expect(
+		panel.getByText("Qwen Runtime atualizado. Qwen Fast e Qwen Quality estão prontos."),
+	).toBeVisible();
+	await expect(panel.locator("[data-qwen-runtime-recovery='true']")).toHaveCount(0);
+	expect(state.qwenRuntimeStatusGetCount).toBeGreaterThanOrEqual(1);
+	expect(state.qwenRuntimeCheckPostCount).toBe(0);
+	expect(state.qwenRuntimeUpdatePostCount).toBe(0);
+	expect(state.uploadCount).toBe(0);
+});
+
 test("benchmark keeps update failure actionable and sanitized", async ({ page }) => {
 	const state = await installCompanionFixture(page, {
 		benchmarkProfiles: true,
