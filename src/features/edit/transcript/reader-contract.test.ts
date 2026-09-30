@@ -65,20 +65,20 @@ describe("transcript reader contract", () => {
 		expect(findTranscriptJumpIndex([], 0)).toBe(-1);
 	});
 
-	it("preserves unicode in markdown while sanitizing filesystem names", () => {
+	it("preserves unicode in versioned markdown while sanitizing filesystem names", async () => {
 		const snapshot = {
 			source: "current_revision" as const,
 			revisionId: "11111111-1111-4111-8111-111111111111",
 			revisionNumber: 7,
 			segments: [{ id: "x", trackNumber: 1, startMs: 3210, endMs: 4000, speaker: "Álya", text: "Coração 🌲" }],
 		};
-		expect(renderTranscriptMarkdown({
+		expect(await renderTranscriptMarkdown({
 			title: "Entre Canções & Raízes",
 			sessionDate: "2026-08-19",
 			arc: "Raízes",
 			sourceSessionId: "sessao-19",
 			snapshot,
-		})).toContain("[00:00:03.210] **Álya**\nCoração 🌲");
+		})).toContain("[00:00:03.210] **Álya**\nCoração 🌲");\n\t\texpect(await renderTranscriptMarkdown({\n\t\t\ttitle: "Entre Canções & Raízes",\n\t\t\tsessionDate: "2026-08-19",\n\t\t\tarc: "Raízes",\n\t\t\tsourceSessionId: "sessao-19",\n\t\t\tsnapshot,\n\t\t})).toContain("tda_transcript_schema: 1");
 		expect(sanitizeTranscriptFilenamePart("Canções / Raízes:*?")).toBe("cancoes-raizes");
 		expect(transcriptMarkdownFilename("2026-08-19T20:00:00Z", "Entre Canções", 7)).toBe(
 			"2026-08-19-entre-cancoes-transcricao-r7.md",
