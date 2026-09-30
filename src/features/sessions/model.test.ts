@@ -28,7 +28,8 @@ describe("public session boundary", () => {
 
 	it("only returns approved fields", () => {
 		const result = toPublishedSession(row);
-		expect(result).toMatchObject({ campaignSlug: "cronicas-da-mesa", campaignName: "Crônicas da Mesa" });\n\t\texpect(result).not.toHaveProperty("metadata");
+		expect(result).toMatchObject({ campaignSlug: "cronicas-da-mesa", campaignName: "Crônicas da Mesa" });
+		expect(result).not.toHaveProperty("metadata");
 		expect(result).not.toHaveProperty("transcript");
 		expect(result).not.toHaveProperty("fullSummary");
 		expect(result?.coverImage).toContain("dnd.faysk.dev/assets/sessions/");
