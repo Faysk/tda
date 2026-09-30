@@ -145,8 +145,8 @@ begin
     raise exception 'participant campaign guard must be SECURITY DEFINER';
   end if;
 
-  if not exists (
-    select 1
+  if (
+    select count(*)
     from pg_proc procedure_row
     join pg_namespace namespace_row on namespace_row.oid = procedure_row.pronamespace
     where namespace_row.nspname = 'public'
@@ -155,9 +155,7 @@ begin
         'guard_entity_campaign_move_participants'
       )
       and procedure_row.prosecdef = true
-    group by namespace_row.nspname
-    having count(*) = 2
-  ) then
+  ) <> 2 then
     raise exception 'campaign move guards must be SECURITY DEFINER';
   end if;
 
@@ -346,7 +344,7 @@ end
 $$;
 
 -- Canon entries cannot bind a valid entity UUID from a sibling campaign.
-do $
+do $$
 declare
   v_legacy_id uuid;
   v_second_entity_id uuid := '20000000-0000-4000-8000-000000000002';
@@ -372,7 +370,7 @@ begin
     when foreign_key_violation then null;
   end;
 end
-$;
+$$;
 
 -- Lifecycle is explicit and archived_at must agree with lifecycle.
 do $$
@@ -467,7 +465,7 @@ end
 $$;
 
 -- Historical alias ownership cannot be reassigned to another campaign.
-do $
+do $$
 declare
   v_legacy_id uuid;
   v_second_id uuid;
@@ -488,7 +486,7 @@ begin
     when check_violation then null;
   end;
 end
-$;
+$$;
 
 -- Technical slug is compatibility identity and cannot drift through an editorial rename.
 do $$
@@ -537,7 +535,7 @@ end
 $$;
 
 -- Raw campaign moves cannot invalidate an existing participant→entity campaign invariant.
-do $
+do $$
 declare
   v_legacy_id uuid;
   v_second_id uuid;
@@ -578,7 +576,7 @@ begin
     raise exception 'failed raw session move mutated the source row';
   end if;
 end
-$;
+$$;
 
 -- Legacy campaign creation remains compatible: public_slug defaults from slug
 -- in the BEFORE INSERT trigger, while lifecycle/visibility use additive defaults.
