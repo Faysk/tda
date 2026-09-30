@@ -73,6 +73,7 @@ type FixtureOptions = Readonly<{
 	uploadSequence?: readonly number[];
 	recordingIds?: Readonly<Record<number, string>>;
 	failOnceSourceIndex?: number | null;
+	runningSourceIndex?: number | null;
 }>;
 
 async function installMultiRecordingRoutes(
@@ -377,10 +378,28 @@ async function installMultiRecordingRoutes(
 			if (shouldFail) failedOnce = true;
 			jobsBySource.set(payload.source_id, {
 				id: `multi-job-${jobSequence}`,
-				status: shouldFail ? "failed" : "succeeded",
+				status: shouldFail
+					? "failed"
+					: options.runningSourceIndex === index
+						? "running"
+						: "succeeded",
 				attempt: 1,
 			});
 			return json(route, jobResponse(payload.source_id));
+		}
+		const cancelMatch = path.match(/^\/jobs\/(multi-job-\d+)\/cancel$/u);
+		if (cancelMatch && request.method() === "POST") {
+			const sourceId = [...jobsBySource].find(
+				([, value]) => value.id === cancelMatch[1],
+			)?.[0];
+			if (!sourceId)
+				return json(route, { error: { code: "JOB_NOT_FOUND" } }, 404);
+			const current = jobsBySource.get(sourceId)!;
+			jobsBySource.set(sourceId, {
+				...current,
+				status: "failed",
+			});
+			return json(route, jobResponse(sourceId));
 		}
 		const retryMatch = path.match(/^\/jobs\/(multi-job-\d+)\/retry$/u);
 		if (retryMatch && request.method() === "POST") {
@@ -772,6 +791,55 @@ test("same Craig recording with different bytes requires an explicit decision", 
 	await intent.getByRole("button", { name: "Manter ambas" }).click();
 	await expect(intent).toContainText("Transcrição pronta");
 	expect(multi.attachedSources).toEqual([SOURCE_IDS[1], SOURCE_IDS[3]]);
+});
+
+test("cancelling one recording preserves completed siblings and retry stays selective", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1, 2],
+		runningSourceIndex: 1,
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "parte-a.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-a"),
+		},
+		{
+			name: "parte-b.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-b"),
+		},
+		{
+			name: "parte-c.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-c"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("2/3 concluídas");
+	await intent
+		.getByRole("button", { name: "Cancelar parte-b.zip" })
+		.click();
+	await expect(intent.getByRole("alert")).toContainText("Uma gravação falhou.");
+	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
+	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
+	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
+
+	await intent.getByRole("button", { name: "Reprocessar 1 gravação" }).click();
+	await expect(intent).toContainText("Transcrição pronta");
+	expect(multi.retryCount(SOURCE_IDS[1]!)).toBe(1);
+	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
+	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
 });
 
 test("reload recovers the Agent workspace and does not expose technical controls in the happy path", async ({
