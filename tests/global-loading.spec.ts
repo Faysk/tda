@@ -131,36 +131,29 @@ test("global loader requires an explicit blocking trigger and ignores local busy
 	expect(assetFailures).toEqual([]);
 });
 
-test("global loader keeps concurrent explicit operations isolated until the last one stops", async ({
+test("global loader stays active until the last explicit blocking operation ends", async ({
 	page,
 }) => {
 	await page.goto("/");
 
 	await page.evaluate(() => {
 		for (const id of ["concurrent-a", "concurrent-b"]) {
-			window.dispatchEvent(
-				new CustomEvent("tda:global-loading-start", { detail: { id } }),
-			);
+			const marker = document.createElement("div");
+			marker.id = id;
+			marker.setAttribute("data-global-loading", "true");
+			document.body.append(marker);
 		}
 	});
 	await expect(page.locator(overlay)).toBeVisible();
 
 	await page.evaluate(() => {
-		window.dispatchEvent(
-			new CustomEvent("tda:global-loading-stop", {
-				detail: { id: "concurrent-a" },
-			}),
-		);
+		document.getElementById("concurrent-a")?.remove();
 	});
 	await page.waitForTimeout(180);
 	await expect(page.locator(overlay)).toBeVisible();
 
 	await page.evaluate(() => {
-		window.dispatchEvent(
-			new CustomEvent("tda:global-loading-stop", {
-				detail: { id: "concurrent-b" },
-			}),
-		);
+		document.getElementById("concurrent-b")?.remove();
 	});
 	await expect(page.locator(overlay)).toHaveCount(0, { timeout: 2500 });
 });
