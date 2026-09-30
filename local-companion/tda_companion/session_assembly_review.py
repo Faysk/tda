@@ -122,6 +122,7 @@ def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
                 "participant_id",
                 "start",
                 "end",
+                "absolute_time",
             )
         }
         text = segment.get("text")
@@ -163,6 +164,7 @@ def _validate_segments(candidate: Any, base_segments: list[dict[str, Any]]) -> l
         "participant_id",
         "start",
         "end",
+        "absolute_time",
     )
     for raw in candidate:
         if not isinstance(raw, dict):
