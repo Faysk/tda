@@ -30,7 +30,7 @@ test("World relation hover reinforces exactly one path and its two endpoints", a
 
 	await expect(nativeEdge).toHaveCount(1);
 	await expect(visiblePath).toBeVisible();
-	await nativeEdge.dispatchEvent("mouseenter");
+	await nativeEdge.dispatchEvent("mouseover");
 
 	await expect(visiblePath).toHaveAttribute("data-world-edge-active", "true");
 	await expect(astel).toHaveAttribute("data-world-relation-endpoint", "true");
@@ -39,7 +39,7 @@ test("World relation hover reinforces exactly one path and its two endpoints", a
 	const unrelated = page.locator('[data-world-node="dandelion"]');
 	await expect(unrelated).toHaveAttribute("data-world-relation-endpoint", "false");
 
-	await nativeEdge.dispatchEvent("mouseleave");
+	await nativeEdge.dispatchEvent("mouseout");
 	await expect(astel).toHaveAttribute("data-world-relation-endpoint", "false");
 	await expect(raven).toHaveAttribute("data-world-relation-endpoint", "false");
 });
