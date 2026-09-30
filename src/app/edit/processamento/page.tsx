@@ -38,10 +38,12 @@ function queryValue(
 function CampaignPicker({
 	campaigns,
 	invalidSelection,
+	campaignCreated,
 	canManageCampaigns,
 }: Readonly<{
 	campaigns: readonly ProcessingCampaignOption[];
 	invalidSelection: boolean;
+	campaignCreated: boolean;
 	canManageCampaigns: boolean;
 }>) {
 	return (
@@ -55,8 +57,9 @@ function CampaignPicker({
 			</p>
 			{invalidSelection ? (
 				<p className={pageStyles.campaignAlert} role="alert">
-					A campanha pedida não está disponível ou você não possui acesso a ela.
-					Nenhuma outra campanha foi escolhida automaticamente.
+					{campaignCreated
+						? "A campanha foi criada, mas seu perfil ainda não possui campaign.local.process nela. A identidade foi preservada e nenhuma permissão foi concedida automaticamente."
+						: "A campanha pedida não está disponível ou você não possui acesso a ela. Nenhuma outra campanha foi escolhida automaticamente."}
 				</p>
 			) : null}
 			{campaigns.length ? (
@@ -126,6 +129,8 @@ export default async function ProcessingPage({ searchParams }: Props) {
 	}
 
 	const requestedCampaign = queryValue(params, "campanha");
+	const campaignCreated =
+		requestedCampaign !== null && queryValue(params, "campanhaCriada") === "1";
 	if (!requestedCampaign && eligible.campaigns.length === 1)
 		redirect(processingCampaignHref(eligible.campaigns[0]!.technicalSlug));
 
@@ -141,6 +146,7 @@ export default async function ProcessingPage({ searchParams }: Props) {
 			<CampaignPicker
 				campaigns={eligible.campaigns}
 				invalidSelection={Boolean(requestedCampaign)}
+				campaignCreated={campaignCreated}
 				canManageCampaigns={canManageCampaigns}
 			/>
 		);
