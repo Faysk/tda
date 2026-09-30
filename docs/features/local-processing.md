@@ -18,9 +18,9 @@ No slice Web preparado por #1128:
 - `/edit/processamento` não assume mais `yuhara-main` como autoridade implícita;
 - o servidor enumera somente campaigns **ativas** cobertas por `campaign.local.process`; grant `project/tda` cobre campaigns ativas conforme a política RBAC, enquanto grants de campaign restringem a consulta aos slugs autorizados;
 - zero campaigns elegíveis produz estado vazio explícito; uma única opção é canonicalizada na própria rota de compatibilidade; múltiplas opções exigem escolha do operador;
-- query string, select e `localStorage` expressam intenção, nunca autorização: a campaign escolhida é resolvida e reautorizada server-side antes da workspace aparecer;
+- query string, select e `localStorage` expressam intenção, nunca autorização: a campaign escolhida é resolvida e reautorizada server-side antes da workspace aparecer; no submit ela é revalidada antes de qualquer upload/preparação local e novamente imediatamente antes de criar o job, cobrindo revogação/arquivamento durante uma preparação longa;
 - campaign faz parte da identidade da intenção/idempotency, junto de source/operação/parâmetros relevantes;
-- recovery pointer, last-session pointer e receipts metadata-only são namespaced por campaign, impedindo colisão A/B com o mesmo `sessionId`;
+- recovery pointer, last-session pointer e receipts metadata-only são namespaced por campaign, impedindo colisão A/B com o mesmo `sessionId`; no rollout, os dois pointers legados single-campaign são migrados somente para `yuhara-main`, nunca reaproveitados por outra campaign;
 - selecionar outra campaign na UI não retaggeia job/run já iniciado. Se existe formulário local pendente, enqueue incerto, mutação ou trabalho queued/running, a troca exige confirmação e faz navegação completa; o Agent continua autoritativo sobre o trabalho original;
 - retry/recovery preserva a campaign original da intenção;
 - o mesmo source em campaigns diferentes representa intenções distintas e auditáveis;
