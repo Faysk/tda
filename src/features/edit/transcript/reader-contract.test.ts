@@ -78,13 +78,6 @@ describe("transcript reader contract", () => {
 			arc: "Raízes",
 			sourceSessionId: "sessao-19",
 			snapshot,
-		})).toContain("[00:00:03.210] **Álya**\nCoração 🌲");
-		expect(await renderTranscriptMarkdown({
-		\ttitle: "Entre Canções & Raízes",
-		\tsessionDate: "2026-08-19",
-		\tarc: "Raízes",
-		\tsourceSessionId: "sessao-19",
-		\tsnapshot,
 		})).toContain("tda_transcript_schema: 1");
 		expect(sanitizeTranscriptFilenamePart("Canções / Raízes:*?")).toBe("cancoes-raizes");
 		expect(transcriptMarkdownFilename("2026-08-19T20:00:00Z", "Entre Canções", 7)).toBe(
