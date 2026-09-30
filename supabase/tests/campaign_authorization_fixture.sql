@@ -163,17 +163,17 @@ select id, '30000000-0000-4000-8000-000000000002', 'player'
 from public.campaigns where slug='antes-que-seja-tarde';
 
 insert into public.role_assignments(
-  id, profile_id, role_id, scope_type, scope_id, status, starts_at
+  id, profile_id, role_id, scope_type, scope_id, status, starts_at, ends_at
 ) values
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1','30000000-0000-4000-8000-000000000001','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','campaign','yuhara-main','active','2020-01-01'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2','30000000-0000-4000-8000-000000000002','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','campaign','antes-que-seja-tarde','active','2020-01-01'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3','30000000-0000-4000-8000-000000000004','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3','project','tda','active','2020-01-01'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4','30000000-0000-4000-8000-000000000005','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4','project','dnd-scribe','active','2020-01-01'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5','30000000-0000-4000-8000-000000000006','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','campaign','yuhara-main','active','2020-01-01'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6','30000000-0000-4000-8000-000000000003','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','session','40000000-0000-4000-8000-000000000010','active','2020-01-01'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb7','30000000-0000-4000-8000-000000000008','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','campaign','yuhara-main','eligible','2020-01-01'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1','30000000-0000-4000-8000-000000000001','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','campaign','yuhara-main','active','2020-01-01',null),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2','30000000-0000-4000-8000-000000000002','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','campaign','antes-que-seja-tarde','active','2020-01-01',null),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3','30000000-0000-4000-8000-000000000004','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3','project','tda','active','2020-01-01',null),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4','30000000-0000-4000-8000-000000000005','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4','project','dnd-scribe','active','2020-01-01',null),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5','30000000-0000-4000-8000-000000000006','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','campaign','yuhara-main','active','2020-01-01',null),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6','30000000-0000-4000-8000-000000000003','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','session','40000000-0000-4000-8000-000000000010','active','2020-01-01',null),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb7','30000000-0000-4000-8000-000000000008','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','campaign','yuhara-main','eligible','2020-01-01',null),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb8','30000000-0000-4000-8000-000000000009','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','campaign','yuhara-main','active','2020-01-01','2021-01-01'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9','30000000-0000-4000-8000-000000000010','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','resource','40000000-0000-4000-8000-000000000010','active','2020-01-01');
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9','30000000-0000-4000-8000-000000000010','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','resource','40000000-0000-4000-8000-000000000010','active','2020-01-01',null);
 
 create or replace function public.submit_profile_claim(
   campaign_slug text default 'yuhara-main'::text,
