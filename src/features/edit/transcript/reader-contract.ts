@@ -1,3 +1,9 @@
+import {
+	renderTranscriptMarkdownV1,
+	transcriptMarkdownContentSha256,
+	type TranscriptMarkdownSegment,
+} from "@/features/transcript-review/markdown-contract";
+
 export type TranscriptReaderSegment = Readonly<{
 	id: string;
 	/** Stable source identity used only for private revision deltas. */
@@ -142,34 +148,45 @@ export function transcriptMarkdownFilename(
 	return `${prefix}-${sanitizeTranscriptFilenamePart(title)}-transcricao${revision}.md`;
 }
 
-function markdownText(value: string): string {
-	return value.replace(/\r\n?/gu, "\n").trim();
+function markdownSegment(segment: TranscriptReaderSegment): TranscriptMarkdownSegment {
+	return {
+		id: segment.id,
+		startMs: segment.startMs,
+		endMs: segment.endMs,
+		speaker: segment.speaker,
+		text: segment.text,
+	};
 }
 
-export function renderTranscriptMarkdown(input: {
+export async function renderTranscriptMarkdown(input: {
 	title: string;
 	sessionDate: string | null;
 	arc: string | null;
 	sourceSessionId: string;
 	snapshot: TranscriptReaderSnapshot;
-}): string {
-	const lines = [
-		`# Transcrição — ${markdownText(input.title)}`,
-		"",
-		`Sessão: ${input.sessionDate ?? "data não informada"}`,
-		`Arco: ${input.arc ?? "não informado"}`,
-		`Origem: ${input.sourceSessionId}`,
-		`Fonte: ${input.snapshot.source === "current_revision" ? `revision privada r${input.snapshot.revisionNumber ?? "?"}` : "transcript_segments legado"}`,
-		"",
-		"## Transcrição",
-		"",
-	];
-	for (const segment of input.snapshot.segments) {
-		lines.push(
-			`[${formatTranscriptTimestamp(segment.startMs)}] **${markdownText(segment.speaker)}**`,
-			markdownText(segment.text),
-			"",
-		);
-	}
-	return `${lines.join("\n").trimEnd()}\n`;
+}): Promise<string> {
+	const segments = input.snapshot.segments.map(markdownSegment);
+	const calculatedSha256 = await transcriptMarkdownContentSha256(segments);
+	const legacySha256 = input.snapshot.legacySnapshotSha256;
+	const baseSha256 =
+		input.snapshot.source === "legacy_segments" &&
+		typeof legacySha256 === "string" &&
+		/^[0-9a-f]{64}$/u.test(legacySha256)
+			? legacySha256
+			: calculatedSha256;
+	const baseId =
+		input.snapshot.source === "current_revision" && input.snapshot.revisionId
+			? input.snapshot.revisionId
+			: "legacy:" + baseSha256;
+	return renderTranscriptMarkdownV1({
+		base: {
+			sessionId: input.sourceSessionId,
+			baseKind: "cloud_revision",
+			baseId,
+			baseRevision: input.snapshot.revisionNumber,
+			baseSha256,
+		},
+		segments,
+		title: input.title,
+	});
 }
