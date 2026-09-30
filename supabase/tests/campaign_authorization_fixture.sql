@@ -182,9 +182,9 @@ returns jsonb
 language sql
 security definer
 set search_path = pg_catalog, public, auth
-as $
+as $fn$
   select jsonb_build_object('ok', true, 'synthetic', true);
-$;
+$fn$;
 
 create or replace function public.review_profile_claim(
   claim_id uuid,
@@ -195,9 +195,9 @@ returns jsonb
 language sql
 security definer
 set search_path = pg_catalog, public, auth
-as $
+as $fn$
   select jsonb_build_object('ok', true, 'synthetic', true);
-$;
+$fn$;
 
 grant execute on function public.submit_profile_claim(
   text, uuid, text, text, text, text, text[], text
