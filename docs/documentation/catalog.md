@@ -8,14 +8,14 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-28 |
-| [Arquitetura](../architecture.md) | arquitetura | vigente | 2026-09-20 |
+| [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-30 |
+| [Arquitetura](../architecture.md) | arquitetura | vigente | 2026-09-30 |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
-| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-28 |
+| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-30 |
 | [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-29 |
 | [Publicação controlada](../releases.md) | operations / release | vigente | 2026-09-20 |
-| [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-15 |
+| [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-30 |
 
 ## docs/adr
 
@@ -40,6 +40,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0017 — Web como entrada única do processamento e sessão loopback automática](../adr/0017-web-single-entry-loopback-session.md) | local-companion / processing | accepted | Não declarado |
 | [ADR-0018 — Core portátil, GitHub como control plane e providers substituíveis](../adr/0018-portable-core-github-control-plane.md) | arquitetura / operations | accepted | 2026-09-29 |
 | [ADR-0019 — Sessão pode compor múltiplas recording sources por uma assembly pós-ASR](../adr/0019-multi-recording-session-assembly.md) | Não declarado | accepted | Não declarado |
+| [ADR-0020 — campanhas first-class, identidade estável e rotas campaign-aware](../adr/0020-first-class-campaigns.md) | architecture / sessions / identity-access / navigation | accepted | Não declarado |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
 ## docs/architecture
@@ -49,7 +50,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Arquitetura — índice detalhado](../architecture/README.md) | arquitetura do TDA | vigente | 2026-09-20 |
 | [Fluxos ponta a ponta](../architecture/data-flows.md) | arquitetura + domínios | vigente/parcialmente preparado | 2026-09-20 |
 | [Arquitetura do Edit Workbench](../architecture/edit-workbench.md) | arquitetura + Edit | accepted / implementação incremental | 2026-09-07 |
-| [Princípios e invariantes](../architecture/invariants.md) | arquitetura | vigente | 2026-09-20 |
+| [Princípios e invariantes](../architecture/invariants.md) | arquitetura | vigente | 2026-09-30 |
+| [Multi-campaign — contrato, rotas e rollout](../architecture/multi-campaign.md) | architecture / sessions / identity-access | arquitetura aprovada | 2026-09-30 |
 | [Contexto e limites do sistema](../architecture/system-context.md) | arquitetura | vigente | 2026-09-20 |
 
 ## docs/database
@@ -59,10 +61,10 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Banco de dados — índice](../database/README.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Reconciliações do migration history](../database/migration-reconciliations.md) | dados/Supabase + operations | vigente | 2026-09-10 |
 | [Migrations e evolução do schema](../database/migrations.md) | dados/Supabase | vigente | 2026-09-22 |
-| [Relacionamentos e ownership de dados](../database/relationships.md) | dados + domínios | vigente | 2026-09-06 |
+| [Relacionamentos e ownership de dados](../database/relationships.md) | dados + domínios | vigente | 2026-09-30 |
 | [Inventário de RPCs privilegiadas do Supabase](../database/rpc-inventory.md) | segurança/dados | vigente / revisão de hardening em andamento | Não declarado |
-| [Catálogo do schema Supabase](../database/schema-catalog.md) | dados/Supabase | implementado | 2026-09-06 |
-| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-21 |
+| [Catálogo do schema Supabase](../database/schema-catalog.md) | dados/Supabase | implementado | 2026-09-30 |
+| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-30 |
 | [Log de verificações do banco de produção](../database/verification-log.md) | dados/Supabase | vigente / append-only por intenção | Não declarado |
 
 ## docs/delivery
@@ -104,9 +106,9 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | Review Board com provenance + triagem implementado; adoção editorial real em andamento | 2026-09-22 |
 | [Entidades, personagens e mundo narrativo](../domains/entities.md) | narrative-memory/entities | preparado | 2026-09-06 |
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
-| [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-28 |
+| [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-30 |
 | [Processamento, jobs e áudio](../domains/processing.md) | processing/local-companion | processamento local real implementado; lifecycle editorial pós-ASR aprovado e em implementação futura | 2026-09-15 |
-| [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-09-06 |
+| [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-09-30 |
 
 ## docs/features
 
@@ -125,13 +127,13 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | preparado; projection publicada pendente | 2026-09-08 |
 | [Feature — Timeline por entidade](../features/entity-timeline.md) | narrative-memory | preparado | 2026-09-06 |
 | [Navegação global do TDA](../features/global-navigation.md) | navigation / frontend / identity-access | launcher global seccionado validado; QA automatizado ativo | 2026-09-30 |
-| [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | arquitetura aprovada; decisão editorial, não comprovação de implementação | 2026-09-13 |
+| [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | arquitetura aprovada; decisão editorial, não comprovação de implementação | 2026-09-30 |
 | [Feature/conceito — Intents / intenção](../features/intents.md) | não atribuído | **não definido / não encontrado como conceito canônico** | 2026-09-06 |
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-19 |
 | [Lembra — biblioteca compartilhada de referências visuais](../features/lembra.md) | frontend / integrations-media / identity-access | persistência compartilhada em Production; galeria justified responsiva rastreada na #738 | 2026-09-27 |
 | [Feature — Modo sessão ao vivo](../features/live-session.md) | sessions/live | histórico/planejado; fora das entregas imediatas | 2026-09-06 |
 | [Processamento local no Edit](../features/local-processing.md) | Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro | ASR local implementado; arquitetura de runs/revisão/publicação aprovada; sync cloud ainda desativado | 2026-09-28 |
-| [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md) | narrative-memory / frontend / produto | decisão aprovada; implementação parcial | 2026-09-14 |
+| [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md) | narrative-memory / frontend / produto | decisão aprovada; implementação parcial | 2026-09-30 |
 | [Fidelidade dos pacotes de D e Seika](../features/lore-pack-fidelity.md) | lores e mídia | publicado e verificado em 2026-09-12 | 2026-09-12 |
 | [Feature — Mapas narrativos](../features/maps.md) | narrative-memory/maps | em desenho | 2026-09-06 |
 | [Sessões compostas por múltiplas gravações Craig](../features/multi-recording-sessions.md) | sessions / processing / transcripts | implementação funcional e gate E2E/recovery concluídos | 2026-09-30 |
@@ -172,7 +174,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [R2 — identidade e object keys](../integrations/r2/identity-and-keys.md) | integrations/media | vigente | 2026-09-11 |
 | [R2 — lifecycle e estados](../integrations/r2/lifecycle.md) | integrations/media | vigente | 2026-09-11 |
 | [Mídia — autorização compartilhada de staging](../integrations/r2/media-access-contract.md) | integrations/media + operations | decisão aprovada | 2026-09-14 |
-| [Mídia — fluxo único de preparação e entrega](../integrations/r2/media-pipeline.md) | integrations/media + frontend + operations | arquitetura aprovada | 2026-09-29 |
+| [Mídia — fluxo único de preparação e entrega](../integrations/r2/media-pipeline.md) | integrations/media + frontend + operations | arquitetura aprovada | 2026-09-30 |
 | [Media Storage — placement de binários](../integrations/r2/placement.md) | integrations/media | vigente | 2026-09-20 |
 | [R2 — publicação e social](../integrations/r2/publication-and-social.md) | integrations/media | vigente | 2026-09-11 |
 | [R2 — segurança e custos](../integrations/r2/security-and-costs.md) | integrations/media + infraestrutura/operação | vigente | 2026-09-12 |
@@ -221,4 +223,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-145 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+147 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
