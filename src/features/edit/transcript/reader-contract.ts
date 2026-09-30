@@ -176,6 +176,7 @@ function markdownSegment(segment: TranscriptReaderSegment): TranscriptMarkdownSe
 		id: segment.id,
 		startMs: segment.startMs,
 		endMs: segment.endMs,
+		...(segment.absoluteTime ? { absoluteTime: segment.absoluteTime } : {}),
 		speaker: segment.speaker,
 		text: segment.text,
 	};
