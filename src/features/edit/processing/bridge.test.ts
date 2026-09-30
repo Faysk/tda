@@ -11,6 +11,7 @@ import {
 	parseJobEvents,
 	parseJobs,
 	parsePreparationStatus,
+	parseQwenRuntimeMaintenanceStatus,
 	parseResultSummary,
 } from "./protocol";
 import {
@@ -861,6 +862,110 @@ describe("loopback bridge", () => {
 		});
 	});
 });
+describe("Qwen runtime maintenance wire contract", () => {
+	it("parses conservative update state and keeps manifest failure explicit", () => {
+		const parsed = parseQwenRuntimeMaintenanceStatus({
+			schema: "tda_qwen_runtime_maintenance_v1",
+			state: "completed",
+			active: false,
+			operation_id: "a".repeat(32),
+			mode: "check",
+			stage: "complete",
+			title: "Qwen Runtime verificado.",
+			detail: "Estado local e Stable oficial conferidos.",
+			sequence: 3,
+			installed_status: "ready",
+			installed_version: "1.0.11",
+			minimum_version: "1.0.12",
+			stable_status: "compatible",
+			stable_version: "1.0.12",
+			stable_tag: "companion-qwen-runtime-v1.0.12",
+			stable_size: 1024,
+			stable_part_count: 2,
+			update_available: true,
+			can_update: true,
+			error_code: null,
+		});
+		expect(parsed).toMatchObject({
+			installedVersion: "1.0.11",
+			minimumVersion: "1.0.12",
+			stableVersion: "1.0.12",
+			canUpdate: true,
+		});
+
+		const unavailable = parseQwenRuntimeMaintenanceStatus({
+			schema: "tda_qwen_runtime_maintenance_v1",
+			state: "completed",
+			active: false,
+			operation_id: "b".repeat(32),
+			mode: "check",
+			stage: "complete",
+			title: "Qwen Runtime verificado.",
+			detail: "Estado local e Stable oficial conferidos.",
+			sequence: 4,
+			installed_status: "ready",
+			installed_version: "1.0.11",
+			minimum_version: "1.0.12",
+			stable_status: "unavailable",
+			stable_version: null,
+			stable_tag: null,
+			stable_size: null,
+			stable_part_count: null,
+			update_available: null,
+			can_update: false,
+			error_code: "NETWORK_UNAVAILABLE",
+		});
+		expect(unavailable).toMatchObject({
+			stableStatus: "unavailable",
+			updateAvailable: null,
+			canUpdate: false,
+			errorCode: "NETWORK_UNAVAILABLE",
+		});
+	});
+
+	it("uses one authenticated local API for check, update and status", async () => {
+		const running = {
+			schema: "tda_qwen_runtime_maintenance_v1",
+			state: "running",
+			active: true,
+			operation_id: "c".repeat(32),
+			mode: "update",
+			stage: "downloading",
+			title: "Baixando Qwen Runtime…",
+			detail: "Operação local.",
+			sequence: 2,
+			installed_status: "ready",
+			installed_version: "1.0.11",
+			minimum_version: "1.0.12",
+			stable_status: "compatible",
+			stable_version: "1.0.12",
+			stable_tag: "companion-qwen-runtime-v1.0.12",
+			stable_size: 1024,
+			stable_part_count: 2,
+			update_available: true,
+			can_update: true,
+			error_code: null,
+		};
+		const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(running));
+		const bridge = new LocalBridge(request);
+		bridge.pair(token);
+
+		await bridge.checkQwenRuntime(signal());
+		await bridge.updateQwenRuntime(signal());
+		await bridge.qwenRuntimeStatus(signal());
+
+		expect(request.mock.calls.map((call) => call[0])).toEqual([
+			`${LOCAL_API}/qwen-runtime/check`,
+			`${LOCAL_API}/qwen-runtime/update`,
+			`${LOCAL_API}/qwen-runtime`,
+		]);
+		expect(request.mock.calls[0]?.[1]?.method).toBe("POST");
+		expect(request.mock.calls[1]?.[1]?.method).toBe("POST");
+		expect(request.mock.calls[2]?.[1]?.method).toBe("GET");
+		bridge.disconnect();
+	});
+});
+
 describe("preparation wire validation", () => {
 	it("fences a ready Qwen profile when the physical gate still reports runtime 1.0.11", () => {
 		const capabilities = parseCapabilities({
