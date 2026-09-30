@@ -2,6 +2,9 @@ export const LEGACY_CAMPAIGN_TECHNICAL_SLUG = "yuhara-main";
 export const LEGACY_CAMPAIGN_PUBLIC_SLUG = "cronicas-da-mesa";
 export const LEGACY_CAMPAIGN_NAME = "Crônicas da Mesa";
 
+// Backward-compatible technical slug for legacy consumers during the multi-campaign rollout.
+export const CAMPAIGN_SLUG = LEGACY_CAMPAIGN_TECHNICAL_SLUG;
+
 export type PublishedSession = Readonly<{
 	id: string;
 	campaignId: string;
