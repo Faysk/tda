@@ -2,7 +2,7 @@
 
 > Status: accepted
 > Data: 2026-09-30
-> Owners: architecture / sessions / identity-access / navigation
+> Owner: architecture / sessions / identity-access / navigation
 > Decisão relacionada: #1122 / #1137
 
 ## Contexto
