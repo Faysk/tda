@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { LocalBridge } from "./bridge";
 import {
 	retainSessionAssemblyReview,
@@ -11,12 +10,13 @@ import {
 } from "./session-assembly-results-model";
 import {
 	SESSION_COMPOSER_CHANGE_EVENT,
-	SESSION_COMPOSER_LAST_SESSION_KEY,
+	sessionComposerLastSessionKey,
 } from "./session-composer-storage";
 import type { SessionAssemblyListItem } from "./session-composer-protocol";
 import styles from "./session-assembly-results.module.css";
 
 type Props = Readonly<{
+	campaignId: string;
 	capabilities: readonly string[];
 }>;
 
@@ -24,16 +24,16 @@ function short(value: string, size = 12) {
 	return value.slice(0, size) + "…";
 }
 
-function readSessionId(): string | null {
+function readSessionId(campaignId: string): string | null {
 	try {
-		const value = window.localStorage.getItem(SESSION_COMPOSER_LAST_SESSION_KEY);
+		const value = window.localStorage.getItem(sessionComposerLastSessionKey(campaignId));
 		return value && /^[A-Za-z0-9_-]{1,128}$/u.test(value) ? value : null;
 	} catch {
 		return null;
 	}
 }
 
-export function SessionAssemblyResults({ capabilities }: Props) {
+export function SessionAssemblyResults({ campaignId, capabilities }: Props) {
 	const enabled =
 		capabilities.includes("transcription.session-assembly") &&
 		capabilities.includes("transcription.session-assembly.review");
@@ -51,7 +51,7 @@ export function SessionAssemblyResults({ capabilities }: Props) {
 	const refresh = useCallback(async () => {
 		if (!enabled) return;
 		const generation = ++refreshGeneration.current;
-		const nextSession = readSessionId();
+		const nextSession = readSessionId(campaignId);
 		const previousSession = sessionIdRef.current;
 		sessionIdRef.current = nextSession;
 		setSessionId(nextSession);
@@ -73,7 +73,7 @@ export function SessionAssemblyResults({ capabilities }: Props) {
 		setError(null);
 		try {
 			const listing = await bridge.sessionAssemblies(
-				CAMPAIGN_SLUG,
+				campaignId,
 				nextSession,
 				controller.signal,
 			);
@@ -108,7 +108,7 @@ export function SessionAssemblyResults({ capabilities }: Props) {
 			)
 				setBusy(false);
 		}
-	}, [bridge, enabled]);
+	}, [bridge, campaignId, enabled]);
 
 	useEffect(() => {
 		if (!enabled) return;
