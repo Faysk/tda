@@ -11,6 +11,7 @@ import {
 import {
 	findTranscriptJumpIndex,
 	formatTranscriptTimestamp,
+	formatTranscriptWallClock,
 	parseTranscriptTimestamp,
 	type TranscriptReaderSegment,
 } from "./reader-contract";
@@ -173,7 +174,8 @@ export function TranscriptReader({
 	async function copyReference(index: number) {
 		const baseSegment = baseline[index];
 		const segment = applyWorkingEdit(baseSegment, working[baseSegment.id]);
-		const reference = `${formatTranscriptTimestamp(baseSegment.startMs)} · ${segment.speaker}`;
+		const wallClock = formatTranscriptWallClock(baseSegment.absoluteTime);
+		const reference = `${formatTranscriptTimestamp(baseSegment.startMs)}${wallClock ? ` · ${wallClock}` : ""} · ${segment.speaker}`;
 		try {
 			await navigator.clipboard.writeText(reference);
 		} catch {
@@ -684,7 +686,10 @@ export function TranscriptReader({
 								title="Copiar referência deste timestamp"
 								onClick={() => void copyReference(index)}
 							>
-								{formatTranscriptTimestamp(baseSegment.startMs, false)}
+								<span>{formatTranscriptTimestamp(baseSegment.startMs, false)}</span>
+								{formatTranscriptWallClock(baseSegment.absoluteTime) ? (
+									<small>{formatTranscriptWallClock(baseSegment.absoluteTime)}</small>
+								) : null}
 							</button>
 
 							{isActive ? (
