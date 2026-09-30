@@ -38,6 +38,29 @@ export type Capabilities = {
 		catalog: TranscriptionProfileState[];
 	};
 };
+export type QwenRuntimeMaintenanceStatus = {
+	schema: "tda_qwen_runtime_maintenance_v1";
+	state: "idle" | "running" | "completed" | "failed";
+	active: boolean;
+	operationId: string | null;
+	mode: "check" | "update" | null;
+	stage: string;
+	title: string;
+	detail: string;
+	sequence: number;
+	installedStatus: string;
+	installedVersion: string | null;
+	minimumVersion: string;
+	stableStatus: "unknown" | "compatible" | "below_minimum" | "unavailable";
+	stableVersion: string | null;
+	stableTag: string | null;
+	stableSize: number | null;
+	stablePartCount: number | null;
+	updateAvailable: boolean | null;
+	canUpdate: boolean;
+	errorCode: string | null;
+};
+
 export type PreparationStatus = {
 	schema: "tda_profile_preparation_v1";
 	state: "idle" | "running" | "completed" | "failed" | "interrupted";
@@ -786,6 +809,49 @@ export function parseCapabilities(value: unknown): Capabilities {
 		sync: boolean(row.sync),
 		device: { id: identifier(device.id), label: text(device.label) },
 		transcription: { profiles, catalog },
+	};
+}
+
+export function parseQwenRuntimeMaintenanceStatus(
+	value: unknown,
+): QwenRuntimeMaintenanceStatus {
+	const row = record(value);
+	if (row.schema !== "tda_qwen_runtime_maintenance_v1") return invalid();
+	if (!["idle", "running", "completed", "failed"].includes(String(row.state)))
+		return invalid();
+	const mode =
+		row.mode === null || row.mode === undefined ? null : text(row.mode, 16);
+	if (mode !== null && mode !== "check" && mode !== "update") return invalid();
+	const stableStatus = text(row.stable_status, 32);
+	if (!["unknown", "compatible", "below_minimum", "unavailable"].includes(stableStatus))
+		return invalid();
+	const nullableBoolean = (raw: unknown): boolean | null =>
+		raw === null || raw === undefined ? null : boolean(raw);
+	const stablePartCount =
+		row.stable_part_count === null || row.stable_part_count === undefined
+			? null
+			: nonNegativeInteger(row.stable_part_count);
+	return {
+		schema: "tda_qwen_runtime_maintenance_v1",
+		state: row.state as QwenRuntimeMaintenanceStatus["state"],
+		active: boolean(row.active),
+		operationId: nullableText(row.operation_id, 64),
+		mode,
+		stage: text(row.stage, 64),
+		title: text(row.title, 240),
+		detail: row.detail === "" ? "" : text(row.detail, 500),
+		sequence: nonNegativeInteger(row.sequence),
+		installedStatus: text(row.installed_status, 64),
+		installedVersion: nullableText(row.installed_version, 64),
+		minimumVersion: text(row.minimum_version, 64),
+		stableStatus: stableStatus as QwenRuntimeMaintenanceStatus["stableStatus"],
+		stableVersion: nullableText(row.stable_version, 64),
+		stableTag: nullableText(row.stable_tag, 128),
+		stableSize: nullableNonNegativeNumber(row.stable_size),
+		stablePartCount,
+		updateAvailable: nullableBoolean(row.update_available),
+		canUpdate: boolean(row.can_update),
+		errorCode: nullableText(row.error_code, 96),
 	};
 }
 
