@@ -311,7 +311,7 @@ As composições canônicas são:
 
 - **Cinematic** — palco full-viewport para experiências em que narrativa/arte são o conteúdo; existe como primitive e fixture, sem instalar um `app/loading.tsx` global na Home;
 - **Editorial List** — arquivos, catálogos e listas com título, filtros e grid/lista;
-- **Editorial Detail** — hero/contexto + corpo de leitura para Suspense regional depois que identidade/existência já foram resolvidas; não é instalado como `loading.tsx` em rotas que resolvem `notFound()`, evitando introduzir um boundary de streaming adicional antes dessa decisão;
+- **Editorial Detail** — hero/contexto + corpo de leitura para páginas de detalhe;
 - **Workspace** — variantes `table`, `library`, `editor` e `processing`;
 - **World/Canvas** — viewport expansiva que preserva o espaço do canvas e do chrome contextual;
 - **Compact** — superfícies pequenas como Conta, sem inventar um dashboard durante a espera.
@@ -321,19 +321,19 @@ Inventário de decisão da rodada #1162:
 | Superfície | Estratégia |
 | --- | --- |
 | `/` Home | **sem `app/loading.tsx` global**; preservar semântica HTTP/NotFound e a baseline cinematic |
-| `/sessoes` | Editorial List via Suspense local na página |
-| `/sessoes/[id]` | **sem segment `loading.tsx`**; a rota resolve identidade/ausência antes de qualquer loading regional futuro |
+| `/sessoes` | Editorial List |
+| `/sessoes/[id]` | Editorial Detail |
 | `/diario` | Editorial List |
-| catálogos `personagens/npcs/lugares/faccoes/quests/musicas` | Editorial List via Suspense local na página |
-| perfis `[slug]` desses catálogos | **sem segment `loading.tsx`**; `renderLoreRoutePage()` pode chamar `notFound()` e o loading futuro deve entrar somente depois dessa resolução |
+| catálogos `personagens/npcs/lugares/faccoes/quests/musicas` | Editorial List |
+| perfis `[slug]` desses catálogos | Editorial Detail |
 | `/lembra` | skeleton específico existente; continua dono da geometria de galeria |
 | `/conta` | Compact |
 | `/mundo` | World/Canvas |
 | `/transcricoes` | Workspace Table |
 | `/edit/processamento` | Workspace Processing |
 | `/edit/revisao` | Workspace Table |
-| `/edit/sessoes` | Workspace Library via Suspense local depois da autorização |
-| `/edit/sessoes/[id]` | **sem segment `loading.tsx`**; a rota valida id/existência com `notFound()`; loading futuro deve ser regional após essa validação |
+| `/edit/sessoes` | Workspace Library |
+| `/edit/sessoes/[id]` | Workspace Editor |
 | `/edit/[campaignSlug]/permissions` | loading específico existente |
 | `/lore` e lores independentes | não recebem fallback pai genérico que invada a identidade visual das lores |
 | `/entrar` | shell compacto já é a própria resposta; pending de autenticação é ação local/redirect |
@@ -341,9 +341,23 @@ Inventário de decisão da rodada #1162:
 
 Skeleton não é indicador de progresso. Ele apenas reserva a estrutura durante a resolução do segmento. Operações já montadas continuam usando pending/progresso local. Shimmer é decorativo e some com `prefers-reduced-motion: reduce`.
 
-Rotas de índice que compartilham o mesmo segmento com detalhes dinâmicos — como `/sessoes` + `/sessoes/[id]` e os catálogos + `[slug]` — **não** usam `loading.tsx` no segmento pai. Nesses casos o índice envolve somente seu conteúdo assíncrono em `Suspense` com o skeleton Editorial. Isso evita adicionar um boundary de streaming novo antes da decisão de identidade/ausência da rota filha; a semântica HTTP final continua pertencendo à própria rota/Next.js e não é inferida por este contrato de loading. Em workspaces privadas equivalentes, gates de autenticação/autorização também resolvem **antes** do `Suspense`; somente a consulta da região de dados fica dentro do fallback.
+A validação E2E usa rotas lentas sintéticas de **Cinematic, Editorial, Workspace, World/Canvas e Compact** para provar que o fallback aparece sem overlay global, o chrome compartilhado permanece utilizável e focável, existe um único status regional anunciável, os blocos decorativos ficam fora da árvore acessível, não há overflow horizontal e reduced motion remove o shimmer. A matriz automatizada cobre 320×800, 390×844, 1366×768, 1920×1080 e um viewport CSS de 960×540 como equivalente a 1920×1080 em zoom de 200%. Dark/light também são verificados contra os mesmos papéis semânticos.
 
-A validação E2E usa rotas lentas sintéticas de **Cinematic, Editorial, Workspace, World/Canvas e Compact** para provar que o fallback aparece sem overlay global, o chrome compartilhado permanece utilizável e focável, existe um único status regional anunciável, os blocos decorativos ficam fora da árvore acessível, não há overflow horizontal e reduced motion remove o shimmer. A matriz automatizada cobre 320×800, 390×844, 1366×768, 1920×1080 e um viewport CSS de 960×540 como equivalente a 1920×1080 em zoom de 200%. Dark/light também são verificados contra os mesmos papéis semânticos. Rotas públicas de detalhe permanecem sem `loading.tsx` de segmento nesta entrega; a suíte de loading valida o feedback visual e não cria uma garantia nova sobre status HTTP de `notFound()`.
+### Pending local de ações
+
+Ações iniciadas dentro de uma superfície usam feedback no próprio controle sempre que o resto da página pode continuar útil. O primitive `Button` aceita `pending` + `pendingLabel`; `FormSubmitButton` usa `useFormStatus()` para Server Actions e `next/form`.
+
+Contrato:
+
+- o label descreve a ação real: `Salvando…`, `Registrando…`, `Aplicando…`;
+- pending desabilita somente a ação incompatível e previne double-submit;
+- a largura considera label normal + pending para evitar salto;
+- o indicador visual é um ponto discreto, não o loader global em miniatura;
+- `aria-busy` fica no botão/região local e não promove fullscreen;
+- com `prefers-reduced-motion: reduce`, o ponto permanece visível e estático;
+- filtros GET usam `next/form` para navegação client-side e podem mostrar `Aplicando…` antes do route skeleton;
+- handoffs realmente globais, como o redirect de autenticação para Discord, fazem opt-in explícito no `GlobalFormLoadingBridge`;
+- operações com progresso mensurável migram para a primitive de progresso em vez de tentar comprimir barra/porcentagem dentro do botão.
 
 ### Superfícies públicas
 

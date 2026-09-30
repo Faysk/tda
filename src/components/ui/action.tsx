@@ -3,7 +3,7 @@ import { PublicLink as Link } from "../public-link";
 import { actionStyles, type ActionStyleOptions } from "./button";
 
 export { Button, actionStyles } from "./button";
-export type { ActionSize, ActionVariant } from "./button";
+export type { ActionSize, ActionVariant, ButtonProps } from "./button";
 
 type ActionLinkProps = ComponentProps<typeof Link> & ActionStyleOptions;
 

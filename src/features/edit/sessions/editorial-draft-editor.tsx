@@ -719,6 +719,7 @@ export function SessionEditorialDraftEditor({
 								Cancelar
 							</button>
 							<button
+								aria-busy={publishPhase === "publishing" || undefined}
 								className={draftStyles.primaryButton}
 								disabled={
 									publishPhase === "publishing" || coverUploadPending || dirty
@@ -768,6 +769,7 @@ export function SessionEditorialDraftEditor({
 
 				<div className={draftStyles.editorialActions}>
 					<button
+						aria-busy={phase === "saving" || undefined}
 						className={draftStyles.primaryButton}
 						disabled={
 							!editable ||
@@ -778,7 +780,7 @@ export function SessionEditorialDraftEditor({
 						onClick={() => void save()}
 						type="button"
 					>
-						Salvar draft
+						{phase === "saving" ? "Salvando…" : "Salvar draft"}
 					</button>
 					<button
 						className={draftStyles.controlButton}

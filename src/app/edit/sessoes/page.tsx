@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
-import { WorkspaceRouteLoading } from "@/components/loading";
+import Form from "next/form";
 import { PublicLink as Link } from "@/components/public-link";
-import { StatusPill } from "@/components/ui";
+import { FormSubmitButton, StatusPill } from "@/components/ui";
 import { requireCapability } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import {
@@ -68,11 +67,14 @@ function ErrorState() {
 	);
 }
 
-async function EditSessionsContent({
-	filters,
+export default async function EditSessionsPage({
+	searchParams,
 }: {
-	filters: SessionLibraryFilters;
+	searchParams: SearchParams;
 }) {
+	await requireCapability(EDIT_CAPABILITIES.transcriptRead, "/edit/sessoes");
+	const filters = parseFilters(await searchParams);
+
 	let sessions: Awaited<ReturnType<typeof listEditSessionLibrary>>;
 	try {
 		sessions = await listEditSessionLibrary(CAMPAIGN_SLUG);
@@ -110,7 +112,7 @@ async function EditSessionsContent({
 				</div>
 			</header>
 
-			<form className={styles.libraryFilters} method="get">
+			<Form action="/edit/sessoes" className={styles.libraryFilters}>
 				<label className={styles.librarySearch}>
 					<span>Buscar sessão</span>
 					<input
@@ -167,12 +169,15 @@ async function EditSessionsContent({
 					</select>
 				</label>
 				<div className={styles.libraryFilterActions}>
-					<button className={styles.librarySubmit} type="submit">
+					<FormSubmitButton
+						className={styles.librarySubmit}
+						pendingLabel="Aplicando…"
+					>
 						Aplicar
-					</button>
+					</FormSubmitButton>
 					{hasFilters ? <Link href="/edit/sessoes">Limpar filtros</Link> : null}
 				</div>
-			</form>
+			</Form>
 
 			{sessions.length === 0 ? (
 				<div className={styles.empty}>
@@ -235,28 +240,5 @@ async function EditSessionsContent({
 				</div>
 			)}
 		</section>
-	);
-}
-
-
-export default async function EditSessionsPage({
-	searchParams,
-}: {
-	searchParams: SearchParams;
-}) {
-	await requireCapability(EDIT_CAPABILITIES.transcriptRead, "/edit/sessoes");
-	const filters = parseFilters(await searchParams);
-
-	return (
-		<Suspense
-			fallback={
-				<WorkspaceRouteLoading
-					label="Carregando biblioteca editorial"
-					variant="library"
-				/>
-			}
-		>
-			<EditSessionsContent filters={filters} />
-		</Suspense>
 	);
 }
