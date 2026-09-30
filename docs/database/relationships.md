@@ -10,7 +10,7 @@ Este documento explica **o significado das relações**, não apenas FKs. O cat�
 
 ### Campaign
 
-`campaigns.id` é o boundary principal dos dados narrativos. `yuhara-main` é a campanha vigente, mas queries novas devem continuar explicitando o campaign boundary quando pertinente.
+`campaigns.id` é o boundary principal dos dados narrativos. A partir de #1123, `campaigns.slug` é a identidade técnica estável usada por compatibilidade/RBAC e `campaigns.public_slug` é a identidade pública de rota; aliases históricos não têm autoridade. Queries novas devem sempre explicitar o campaign boundary quando pertinente, mesmo quando source IDs ou entity slugs coincidirem entre campanhas. `active | archived` é lifecycle, não delete: referências históricas continuam válidas.
 
 ### Profile
 
@@ -145,6 +145,8 @@ role_assignments ──> profiles
 ```
 
 O assignment responde **quem tem qual role em qual scope**. A role resolve capabilities. O consumidor deve perguntar pela capability, evitando acoplamento a nomes de role.
+
+Para `scope_type='campaign'`, o `scope_id` continua sendo o **slug técnico** da campanha. `public_slug` e `campaign_public_slug_aliases` existem apenas para apresentação/roteamento público e nunca substituem UUID/slug técnico em autorização.
 
 `campaign_members` continua paralelo por compatibilidade. Ele não deve ganhar novas responsabilidades quando RBAC já modela a necessidade.
 
