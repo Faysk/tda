@@ -2163,7 +2163,7 @@ test("Fila mantém a tentativa de clipboard mais nova quando respostas chegam fo
 			fixtureJob("running", {
 				id: "job-first",
 				context: {
-					campaign_id: "synthetic",
+					campaign_id: "yuhara-main",
 					session_id: "session-first",
 					source_id: "source-first",
 					profile_id: "qwen-quality",
@@ -2172,7 +2172,7 @@ test("Fila mantém a tentativa de clipboard mais nova quando respostas chegam fo
 			fixtureJob("queued", {
 				id: "job-second",
 				context: {
-					campaign_id: "synthetic",
+					campaign_id: "yuhara-main",
 					session_id: "session-second",
 					source_id: "source-second",
 					profile_id: "whisper-turbo",
