@@ -112,7 +112,7 @@ function GridCard({
 	const date = formatSessionDate(session.date);
 
 	return (
-		<article className={styles.card}>
+		<article className={styles.card} data-session-card="grid">
 			<Link className={styles.cardLink} href={href}>
 				<div className={styles.media}>
 					<Artwork
@@ -153,7 +153,7 @@ function ListRow({ session }: { session: SessionArchiveItem }) {
 	const date = formatSessionDate(session.date);
 
 	return (
-		<article className={styles.listRow}>
+		<article className={styles.listRow} data-session-card="list">
 			<div className={styles.sessionCell}>
 				<div className={styles.listThumb} aria-hidden="true">
 					<Artwork session={session} sizes="72px" />
@@ -231,7 +231,7 @@ export function SessionList({
 
 	return (
 		<div className={styles.archive} data-session-archive>
-			<div className={styles.toolbar}>
+			<div className={styles.toolbar} data-session-archive-toolbar>
 				<label className={styles.search}>
 					<span className={styles.srOnly}>Buscar sessões</span>
 					<SearchIcon />
@@ -292,7 +292,7 @@ export function SessionList({
 				</div>
 			</div>
 
-			<div className={styles.resultBar}>
+			<div className={styles.resultBar} data-session-archive-results>
 				<p aria-live="polite">
 					<strong>{visible.length}</strong>{" "}
 					{visible.length === 1 ? "sessão encontrada" : "sessões encontradas"}
