@@ -11,6 +11,25 @@ import {
 	type PublicCampaign,
 } from "./model";
 
+const E2E_PUBLIC_CAMPAIGNS = [
+	{
+		routeKey: "cronicas-da-mesa",
+		technicalSlug: "yuhara-main",
+		name: "Crônicas da Mesa",
+		description: "Uma campanha sintética pública usada somente no contrato E2E.",
+	},
+	{
+		routeKey: "antes-que-seja-tarde",
+		technicalSlug: "antes-que-seja-tarde",
+		name: "Antes que seja tarde — uma campanha com nome deliberadamente comprido",
+		description: null,
+	},
+] as const;
+
+function campaignFixtureEnabled() {
+	return process.env.TDA_E2E_FIXTURES === "true";
+}
+
 const CAMPAIGN_SELECT =
 	"id,slug,public_slug,name,description,lifecycle,visibility,archived_at,updated_at";
 
@@ -92,6 +111,14 @@ export type PublicCampaignResolution =
 export async function resolvePublicCampaignRoute(
 	routeKey: string,
 ): Promise<PublicCampaignResolution> {
+	if (campaignFixtureEnabled()) {
+		const fixture = E2E_PUBLIC_CAMPAIGNS.find(
+			(campaign) => campaign.routeKey === routeKey,
+		);
+		return fixture
+			? { ok: true, campaign: fixture, canonical: true }
+			: { ok: false, reason: "not_found" };
+	}
 	if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(routeKey))
 		return { ok: false, reason: "not_found" };
 	const client = publishedDataClient();
@@ -161,6 +188,14 @@ export type CampaignDirectoryReadResult =
 	| Readonly<{ ok: false; reason: "dependency_unavailable" }>;
 
 export async function readPublicCampaignDirectory(): Promise<CampaignDirectoryReadResult> {
+	if (campaignFixtureEnabled()) {
+		return {
+			ok: true,
+			campaigns: E2E_PUBLIC_CAMPAIGNS.map(
+				({ technicalSlug: _technicalSlug, ...campaign }) => campaign,
+			),
+		};
+	}
 	const client = publishedDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
 
