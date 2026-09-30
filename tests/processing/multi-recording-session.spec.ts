@@ -600,7 +600,7 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	});
 
 	await openProcessing(page);
-	const input = page.getByLabel("Exports do Craig");
+	const input = page.getByLabel("Export do Craig");
 	await input.setInputFiles([
 		{
 			name: "sessao-42-parte-1.zip",
@@ -672,7 +672,7 @@ test("mixed valid and invalid files keep independent state and valid ZIPs still 
 	});
 
 	await openProcessing(page);
-	const input = page.getByLabel("Exports do Craig");
+	const input = page.getByLabel("Export do Craig");
 	await input.setInputFiles([
 		{
 			name: "parte-a.zip",
@@ -712,7 +712,7 @@ test("exact duplicate is reused once instead of creating a second part or job", 
 	});
 
 	await openProcessing(page);
-	await page.getByLabel("Exports do Craig").setInputFiles([
+	await page.getByLabel("Export do Craig").setInputFiles([
 		{
 			name: "original.zip",
 			mimeType: "application/zip",
@@ -749,7 +749,7 @@ test("same Craig recording with different bytes requires an explicit decision", 
 	});
 
 	await openProcessing(page);
-	await page.getByLabel("Exports do Craig").setInputFiles([
+	await page.getByLabel("Export do Craig").setInputFiles([
 		{
 			name: "recording-export-a.zip",
 			mimeType: "application/zip",
@@ -786,7 +786,7 @@ test("reload recovers the Agent workspace and does not expose technical controls
 	});
 
 	await openProcessing(page);
-	await page.getByLabel("Exports do Craig").setInputFiles([
+	await page.getByLabel("Export do Craig").setInputFiles([
 		{
 			name: "parte-1.zip",
 			mimeType: "application/zip",
