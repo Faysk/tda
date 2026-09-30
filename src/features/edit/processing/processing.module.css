@@ -2183,3 +2183,67 @@
 		}
 	}
 }
+
+
+.campaignContext {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 12px 14px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-lg);
+	background: var(--ds-surface-elevated);
+	font-family: var(--ds-font-ui);
+}
+
+.campaignContext > div {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
+.campaignContext > div > span {
+	font-size: 0.68rem;
+	font-weight: 800;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ds-foreground-muted);
+}
+
+.campaignContext strong {
+	overflow-wrap: anywhere;
+	font-size: 0.96rem;
+}
+
+.campaignContext label {
+	min-width: min(320px, 48%);
+}
+
+.campaignContext select {
+	width: 100%;
+	min-height: 40px;
+	padding: 0 34px 0 10px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface);
+	color: var(--ds-foreground);
+	font: inherit;
+}
+
+.campaignContext select:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+	.campaignContext {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.campaignContext label {
+		min-width: 0;
+		width: 100%;
+	}
+}
