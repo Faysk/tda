@@ -125,8 +125,10 @@ test("World canvas utilities keep independent corner safe areas without overlapp
 		}
 	}
 
+	const receiptPath = testInfo.outputPath("world-relation-polish-1920x1080.png");
+	await page.screenshot({ path: receiptPath });
 	await testInfo.attach("world-relation-polish-1920x1080", {
-		body: await page.screenshot(),
+		path: receiptPath,
 		contentType: "image/png",
 	});
 });
