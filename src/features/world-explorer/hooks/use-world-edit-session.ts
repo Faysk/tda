@@ -652,41 +652,47 @@ export function useWorldEditSession({
 
 			const layoutCandidate = buildLayoutCandidate(graphDraftRef.current);
 			if (!layoutCandidate) {
-			setFeedback(worldDraftSaveFailureMessage("invalid_payload"));
-			return;
+				setFeedback(worldDraftSaveFailureMessage("invalid_payload"));
+				return;
 			}
 			const layoutResult = await queueLayoutDraftRequest(leaseToken, layoutCandidate);
 			if (sequence !== sessionSequence.current) return;
 			if (!layoutResult.ok) {
-			if (layoutResult.reason === "lease_lost" || layoutResult.reason === "forbidden") {
-				markLeaseLost(layoutResult.reason);
-			} else {
-				setFeedback(worldDraftSaveFailureMessage(layoutResult.reason));
-			}
-			return;
-			}
-
-			if (canEditContent && graphDraftRef.current) {
-			const validationMessage = graphValidationSaveMessage(graphDraftRef.current);
-			const graphResult = validationMessage
-				? null
-				: await queueGraphDraftRequest(leaseToken, graphDraftRef.current);
-			if (sequence !== sessionSequence.current) return;
-			if (graphResult && !graphResult.ok) {
-				if (graphResult.reason === "lease_lost" || graphResult.reason === "forbidden") {
-					markLeaseLost(graphResult.reason);
+				if (
+					layoutResult.reason === "lease_lost" ||
+					layoutResult.reason === "forbidden"
+				) {
+					markLeaseLost(layoutResult.reason);
 				} else {
-					setFeedback(worldDraftSaveFailureMessage(graphResult.reason));
+					setFeedback(worldDraftSaveFailureMessage(layoutResult.reason));
 				}
 				return;
 			}
+
+			if (canEditContent && graphDraftRef.current) {
+				const validationMessage = graphValidationSaveMessage(graphDraftRef.current);
+				const graphResult = validationMessage
+					? null
+					: await queueGraphDraftRequest(leaseToken, graphDraftRef.current);
+				if (sequence !== sessionSequence.current) return;
+				if (graphResult && !graphResult.ok) {
+					if (
+						graphResult.reason === "lease_lost" ||
+						graphResult.reason === "forbidden"
+					) {
+						markLeaseLost(graphResult.reason);
+					} else {
+						setFeedback(worldDraftSaveFailureMessage(graphResult.reason));
+					}
+					return;
+				}
 			}
 
 			await saveQueue.current;
 			const result = await discardWorldLayoutSessionAction(leaseToken);
 			if (!result.ok) {
-			setFeedback(worldEditFailureMessage(result.reason));
-			return;
+				setFeedback(worldEditFailureMessage(result.reason));
+				return;
 			}
 			sessionSequence.current += 1;
 			saveFailureRef.current = { layout: null, graph: null };
@@ -698,7 +704,9 @@ export function useWorldEditSession({
 			setGraphDraft(null);
 			setState("view");
 			onReleaseLayout();
-			setFeedback("Rascunho descartado. O Mundo publicado foi mantido e uma cópia de recuperação foi preservada.");
+			setFeedback(
+				"Rascunho descartado. O Mundo publicado foi mantido e uma cópia de recuperação foi preservada.",
+			);
 		} finally {
 			endTerminalAction("discard");
 		}
