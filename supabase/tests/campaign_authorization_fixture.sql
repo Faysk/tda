@@ -130,7 +130,11 @@ insert into public.profiles(id, display_name, auth_user_id, discord_id, discord_
   ('30000000-0000-4000-8000-000000000004', 'Project reader', '90000000-0000-4000-8000-000000000004', null, null),
   ('30000000-0000-4000-8000-000000000005', 'Wrong project', '90000000-0000-4000-8000-000000000005', null, null),
   ('30000000-0000-4000-8000-000000000006', 'Manager A', '90000000-0000-4000-8000-000000000006', 'discord-m', 'manager-a'),
-  ('30000000-0000-4000-8000-000000000007', 'Global unlinked profile', null, 'discord-u', 'unlinked');
+  ('30000000-0000-4000-8000-000000000007', 'Global unlinked profile', null, 'discord-u', 'unlinked'),
+  ('30000000-0000-4000-8000-000000000008', 'Eligible only', '90000000-0000-4000-8000-000000000008', null, null),
+  ('30000000-0000-4000-8000-000000000009', 'Expired grant', '90000000-0000-4000-8000-000000000009', null, null),
+  ('30000000-0000-4000-8000-000000000010', 'Resource scoped', '90000000-0000-4000-8000-000000000010', null, null),
+  ('30000000-0000-4000-8000-000000000011', 'Linked no grants', '90000000-0000-4000-8000-000000000011', null, null);
 
 insert into public.campaigns(
   id, name, slug, description, metadata, lifecycle, visibility, public_slug, archived_at
@@ -166,7 +170,10 @@ insert into public.role_assignments(
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3','30000000-0000-4000-8000-000000000004','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3','project','tda','active','2020-01-01'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4','30000000-0000-4000-8000-000000000005','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4','project','dnd-scribe','active','2020-01-01'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5','30000000-0000-4000-8000-000000000006','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','campaign','yuhara-main','active','2020-01-01'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6','30000000-0000-4000-8000-000000000003','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','session','40000000-0000-4000-8000-000000000010','active','2020-01-01');
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6','30000000-0000-4000-8000-000000000003','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','session','40000000-0000-4000-8000-000000000010','active','2020-01-01'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb7','30000000-0000-4000-8000-000000000008','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','campaign','yuhara-main','eligible','2020-01-01'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb8','30000000-0000-4000-8000-000000000009','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','campaign','yuhara-main','active','2020-01-01','2021-01-01'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9','30000000-0000-4000-8000-000000000010','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','resource','40000000-0000-4000-8000-000000000010','active','2020-01-01');
 
 create or replace function public.submit_profile_claim(
   campaign_slug text default 'yuhara-main'::text,
