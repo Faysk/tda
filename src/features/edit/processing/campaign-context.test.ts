@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { processingCampaignHref } from "./campaign-context";
-import { sessionComposerLastSessionKey } from "./session-composer-storage";
+import {
+	sessionComposerLastSessionKey,
+	sessionComposerRecoveryKey,
+} from "./session-composer-storage";
 
 describe("processing campaign context", () => {
 	it("builds a deep-linkable processing URL without treating browser state as authority", () => {
@@ -19,5 +22,8 @@ describe("processing campaign context", () => {
 			sessionComposerLastSessionKey("campaign-b"),
 		);
 		expect(sessionComposerLastSessionKey("campaign-a")).toContain("campaign-a");
+		expect(sessionComposerRecoveryKey("campaign-a")).not.toBe(
+			sessionComposerRecoveryKey("campaign-b"),
+		);
 	});
 });
