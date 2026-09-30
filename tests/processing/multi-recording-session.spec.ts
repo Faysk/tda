@@ -891,7 +891,12 @@ test("trusted midnight stays visible while unavailable wall-clock stays absent",
 	await expect(review.locator("time")).toContainText(
 		"2026-09-29 · 23:59:59 +01:00",
 	);
-	await expect(review.getByText("Track 1", { exact: false })).not.toBeVisible();
+	await expect(
+		review.locator("li > :not(details)").getByText(/Track 1/iu),
+	).toHaveCount(0);
+	await expect(
+		review.locator("details").getByText(/track 1/iu),
+	).toHaveCount(2);
 });
 
 test("stale Markdown import preserves the working copy and never overwrites silently", async ({
