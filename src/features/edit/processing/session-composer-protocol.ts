@@ -8,6 +8,9 @@ export type SessionAssemblyPart = {
 	transcriptSha256: string;
 	ordinal: number;
 	sessionOffsetSeconds: number;
+	sourceStartTime: string | null;
+	sourceStartConfidence: "trusted_absolute" | "ambiguous" | "opaque" | "missing";
+	sourceStartUtc: string | null;
 	trimStartSeconds: number;
 	trimEndSeconds: number | null;
 	overlapResolution: "prefer_earlier_until" | "prefer_later_from" | null;
@@ -140,6 +143,22 @@ function parseAssemblyPart(value: unknown, expectedOrdinal: number): SessionAsse
 		return invalid();
 	const ordinal = integer(row.ordinal, 0, 63);
 	if (ordinal !== expectedOrdinal) return invalid();
+	const confidenceRaw = row.source_start_confidence ?? "missing";
+	if (
+		confidenceRaw !== "trusted_absolute" &&
+		confidenceRaw !== "ambiguous" &&
+		confidenceRaw !== "opaque" &&
+		confidenceRaw !== "missing"
+	)
+		return invalid();
+	const sourceStartTime = optionalString(row.source_start_time, 128);
+	const sourceStartUtc = optionalString(row.source_start_utc, 128);
+	if (
+		confidenceRaw === "trusted_absolute" &&
+		(!sourceStartTime || !sourceStartUtc || !Number.isFinite(Date.parse(sourceStartTime)) || !Number.isFinite(Date.parse(sourceStartUtc)))
+	)
+		return invalid();
+	if (confidenceRaw !== "trusted_absolute" && sourceStartUtc !== null) return invalid();
 	return {
 		partId: hex(row.part_id, 32),
 		sourceId: (() => {
@@ -152,6 +171,9 @@ function parseAssemblyPart(value: unknown, expectedOrdinal: number): SessionAsse
 		transcriptSha256: hex(row.transcript_sha256, 64),
 		ordinal,
 		sessionOffsetSeconds: number(row.session_offset_seconds),
+		sourceStartTime,
+		sourceStartConfidence: confidenceRaw,
+		sourceStartUtc,
 		trimStartSeconds: number(row.trim_start_seconds),
 		trimEndSeconds: nullableNumber(row.trim_end_seconds),
 		overlapResolution: overlap as SessionAssemblyPart["overlapResolution"],
