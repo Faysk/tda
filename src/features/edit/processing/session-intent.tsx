@@ -27,8 +27,16 @@ import {
 	retryableIntentJob,
 	uniqueIntentSources,
 } from "./session-intent-model";
+import {
+	createSessionIntentReceipt,
+	loadSessionIntentReceipt,
+	saveSessionIntentReceipt,
+	sessionIntentReceiptIdentity,
+	type SessionIntentReceipt,
+	type SessionIntentReceiptIdentity,
+	updateSessionIntentReceipt,
+} from "./session-intent-storage";
 import type {
-	CraigSource,
 	LocalJob,
 	LocalRunSummary,
 	SessionParticipantMapping,
@@ -39,7 +47,7 @@ import { BridgeError } from "./protocol";
 import styles from "./session-intent.module.css";
 
 export type SessionIntentSource = Readonly<{
-	source: CraigSource;
+	sourceId: string;
 	label: string;
 }>;
 
@@ -133,7 +141,7 @@ function sourceLabel(
 	request: SessionTranscriptionIntent | null,
 	workspace: SessionWorkspace | null,
 ): string {
-	const requested = request?.sources.find((item) => item.source.sourceId === sourceId);
+	const requested = request?.sources.find((item) => item.sourceId === sourceId);
 	if (requested) return requested.label;
 	const index = workspace?.parts.findIndex((part) => part.sourceId === sourceId) ?? -1;
 	return index >= 0 ? `Gravação ${index + 1}` : "Gravação";
@@ -183,6 +191,8 @@ export function SessionIntentCoordinator({
 	);
 	const intentJobIds = useRef(new Map<string, string>());
 	const intentRunIds = useRef(new Map<string, string>());
+	const intentReceiptIdentity = useRef<SessionIntentReceiptIdentity | null>(null);
+	const intentReceipt = useRef<SessionIntentReceipt | null>(null);
 	const approvedVariantSources = useRef(new Set<string>());
 	const excludedSources = useRef(new Set<string>());
 
@@ -200,6 +210,25 @@ export function SessionIntentCoordinator({
 			onError?.(message);
 		},
 		[onError],
+	);
+
+	const persistIntentReceipt = useCallback(
+		(patch: Readonly<{
+			job?: Readonly<{ sourceId: string; jobId: string }>;
+			run?: Readonly<{ sourceId: string; runId: string }>;
+		}>) => {
+			const identity = intentReceiptIdentity.current;
+			const current = intentReceipt.current;
+			if (!identity || !current) return;
+			const next = updateSessionIntentReceipt(current, patch);
+			intentReceipt.current = next;
+			try {
+				saveSessionIntentReceipt(window.localStorage, identity, next);
+			} catch {
+				// Recovery metadata must never block the Agent-owned processing flow.
+			}
+		},
+		[],
 	);
 
 	const loadSnapshot = useCallback(
@@ -286,11 +315,9 @@ export function SessionIntentCoordinator({
 					sourceCatalog.map((source) => [source.sourceId, source]),
 				);
 				const desired = uniqueIntentSources(
-					intent.sources
-						.map((item) => item.source)
-						.filter(
-							(source) => !excludedSources.current.has(source.sourceId),
-						),
+					intent.sources.filter(
+						(source) => !excludedSources.current.has(source.sourceId),
+					),
 				);
 				const combinedIds = [
 					...next.parts.map((part) => part.sourceId),
@@ -319,6 +346,36 @@ export function SessionIntentCoordinator({
 					return;
 				}
 
+				const normalizedIntent: SessionTranscriptionIntent = {
+					...intent,
+					sources: desired,
+				};
+				setActiveRequest(normalizedIntent);
+				saveRecoveryPointer(intent.sessionId);
+				if (recoveryScope) {
+					try {
+						const identity = await sessionIntentReceiptIdentity({
+							profileScope: recoveryScope,
+							campaignId: CAMPAIGN_SLUG,
+							sessionId: intent.sessionId,
+						});
+						const receipt = createSessionIntentReceipt(identity, {
+							requestId: normalizedIntent.id,
+							sourceIds: desired.map((source) => source.sourceId),
+							profileId: normalizedIntent.profile,
+							context: normalizedIntent.context,
+							glossary: normalizedIntent.glossary,
+							jobIds: Object.fromEntries(intentJobIds.current),
+							runIds: Object.fromEntries(intentRunIds.current),
+						});
+						intentReceiptIdentity.current = identity;
+						intentReceipt.current = receipt;
+						saveSessionIntentReceipt(window.localStorage, identity, receipt);
+					} catch {
+						// The Agent workspace remains usable even if browser recovery storage fails.
+					}
+				}
+
 				for (const source of desired) {
 					if (next.parts.some((part) => part.sourceId === source.sourceId))
 						continue;
@@ -330,7 +387,6 @@ export function SessionIntentCoordinator({
 						controller.signal,
 					);
 				}
-				saveRecoveryPointer(intent.sessionId);
 				await loadSnapshot(intent.sessionId, controller.signal);
 				announce(
 					desired.length === 1
@@ -359,7 +415,7 @@ export function SessionIntentCoordinator({
 	}, [begin, disabled, enabled, request]);
 
 	useEffect(() => {
-		if (!enabled || request || workspace) return;
+		if (!enabled || disabled || request || workspace) return;
 		let saved: string | null = null;
 		try {
 			saved = window.localStorage.getItem(SESSION_COMPOSER_RECOVERY_KEY);
@@ -369,7 +425,46 @@ export function SessionIntentCoordinator({
 		if (!saved || !validSessionId(saved)) return;
 		onRestoreSessionId?.(saved);
 		const controller = new AbortController();
-		void loadSnapshot(saved, controller.signal).catch((cause) => {
+		const recover = async () => {
+			if (recoveryScope) {
+				try {
+					const identity = await sessionIntentReceiptIdentity({
+						profileScope: recoveryScope,
+						campaignId: CAMPAIGN_SLUG,
+						sessionId: saved,
+					});
+					const receipt = loadSessionIntentReceipt(
+						window.localStorage,
+						identity,
+					);
+					if (receipt) {
+						intentReceiptIdentity.current = identity;
+						intentReceipt.current = receipt;
+						intentJobIds.current = new Map(Object.entries(receipt.jobIds));
+						intentRunIds.current = new Map(Object.entries(receipt.runIds));
+						const restored: SessionTranscriptionIntent = {
+							id: receipt.requestId,
+							sessionId: receipt.sessionId,
+							sources: receipt.sourceIds.map((sourceId, index) => ({
+								sourceId,
+								label: `Gravação ${index + 1}`,
+							})),
+							profile: receipt.profileId,
+							context: receipt.context,
+							glossary: receipt.glossary,
+						};
+						setActiveRequest(restored);
+						processedRequest.current = restored.id;
+						await begin(restored);
+						return;
+					}
+				} catch {
+					// Invalid or unavailable browser recovery metadata falls back to Agent state.
+				}
+			}
+			await loadSnapshot(saved, controller.signal);
+		};
+		void recover().catch((cause) => {
 			if (
 				!(
 					cause instanceof BridgeError &&
@@ -380,10 +475,13 @@ export function SessionIntentCoordinator({
 		});
 		return () => controller.abort();
 	}, [
+		begin,
+		disabled,
 		enabled,
 		fail,
 		loadSnapshot,
 		onRestoreSessionId,
+		recoveryScope,
 		request,
 		workspace,
 	]);
@@ -443,7 +541,12 @@ export function SessionIntentCoordinator({
 				if (job?.status !== "succeeded" || !job.result_available) continue;
 				try {
 					const result = await bridge.result(jobId, controller.signal);
-					if (result.runId) intentRunIds.current.set(sourceId, result.runId);
+					if (result.runId) {
+						intentRunIds.current.set(sourceId, result.runId);
+						persistIntentReceipt({
+							run: { sourceId, runId: result.runId },
+						});
+					}
 				} catch {
 					// The run catalog below remains a safe fallback when only one run exists.
 				}
@@ -557,6 +660,9 @@ export function SessionIntentCoordinator({
 						return;
 					}
 					intentJobIds.current.set(part.sourceId, job.id);
+					persistIntentReceipt({
+						job: { sourceId: part.sourceId, jobId: job.id },
+					});
 					setJobs((current) => [
 						job,
 						...current.filter((item) => item.id !== job.id),
@@ -667,6 +773,7 @@ export function SessionIntentCoordinator({
 		jobs,
 		loadSnapshot,
 		mapping,
+		persistIntentReceipt,
 		recoveryScope,
 		runsBySource,
 		workspace,
