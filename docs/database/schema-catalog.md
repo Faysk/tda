@@ -69,7 +69,7 @@ Campos após a migration candidata `supabase/candidates/20260930161500_first_cla
 
 - `id uuid` PK — autoridade relacional;
 - `name text` — apresentação humana;
-- `slug text unique` — technical slug/compatibilidade; não é rename editorial nem route key pública;
+- `slug text unique` — technical slug/compatibilidade; não é rename editorial nem route key pública; o candidate #1123 bloqueia mutation depois da criação;
 - `public_slug text not null` — route key pública canônica, única case-insensitive;
 - `lifecycle text` — `active | archived`;
 - `visibility text` — `public | private`, independente de lifecycle;
@@ -96,7 +96,7 @@ Campos:
 - `created_at`, `retired_at?`;
 - `metadata jsonb`.
 
-Canonical `public_slug` e aliases compartilham um único domínio lógico de colisão por triggers serializados com advisory lock. Uma alias nunca pode ser reutilizada como canonical de outra campaign, nem o contrário.
+Canonical `public_slug` e aliases compartilham um único domínio lógico de colisão por triggers serializados com advisory lock. Rename de `public_slug` registra o valor anterior como alias na mesma transação. Uma alias nunca pode ser reutilizada como canonical de outra campaign, nem o contrário.
 
 A compatibilidade inicial registra `yuhara-main` como alias da campaign **Crônicas da Mesa**.
 
