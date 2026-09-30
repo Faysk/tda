@@ -195,6 +195,7 @@ export function SessionIntentCoordinator({
 	const intentEnqueueKeys = useRef(new Map<string, string>());
 	const intentJobIds = useRef(new Map<string, string>());
 	const intentRunIds = useRef(new Map<string, string>());
+	const enqueueRecoveryBlocked = useRef(new Set<string>());
 	const intentReceiptIdentity = useRef<SessionIntentReceiptIdentity | null>(null);
 	const intentReceipt = useRef<SessionIntentReceipt | null>(null);
 	const approvedVariantSources = useRef(new Set<string>());
@@ -289,6 +290,7 @@ export function SessionIntentCoordinator({
 			setBusy(true);
 			setLocalError(null);
 			setBlocker(null);
+			enqueueRecoveryBlocked.current.clear();
 			setReview(null);
 			setAssembly(null);
 			setActiveRequest(intent);
@@ -574,7 +576,8 @@ export function SessionIntentCoordinator({
 			blocker?.kind === "participants" ||
 			blocker?.kind === "enqueue" ||
 			blocker?.kind === "resume" ||
-			blocker?.kind === "source"
+			blocker?.kind === "source" ||
+			enqueueRecoveryBlocked.current.size > 0
 		)
 			return;
 		advancing.current = true;
@@ -597,6 +600,8 @@ export function SessionIntentCoordinator({
 						key,
 						controller.signal,
 					);
+					enqueueRecoveryBlocked.current.delete(part.sourceId);
+					enqueueRecoveryBlocked.current.delete(part.sourceId);
 					intentJobIds.current.set(part.sourceId, job.id);
 					persistIntentReceipt({
 						job: { sourceId: part.sourceId, jobId: job.id },
@@ -737,6 +742,7 @@ export function SessionIntentCoordinator({
 							controller.signal,
 						);
 					} catch (cause) {
+						enqueueRecoveryBlocked.current.add(part.sourceId);
 						fail(cause);
 						setBlocker({ kind: "enqueue", sourceIds: [part.sourceId] });
 						return;
@@ -1273,6 +1279,7 @@ export function SessionIntentCoordinator({
 						variant="secondary"
 						disabled={busy}
 						onClick={() => {
+							enqueueRecoveryBlocked.current.clear();
 							setLocalError(null);
 							setBlocker(null);
 						}}
