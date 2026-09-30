@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useGlobalLoading } from "./global-loading";
 
 function isBlockingSameDocumentForm(form: HTMLFormElement): boolean {
+	if (form.dataset.globalLoadingSubmit !== "true") return false;
 	if (form.closest('[data-global-loading="off"]')) return false;
 	const target = form.getAttribute("target");
 	if (target && target !== "_self") return false;
@@ -27,8 +28,8 @@ export function GlobalFormLoadingBridge() {
 				return;
 			}
 
-			// Native form navigations keep the current document alive while the server
-			// responds. The normal delay prevents a flash when that response is instant.
+			// Full-screen feedback is opt-in. Most forms should expose pending state
+			// locally; this bridge is reserved for deliberate blocking transitions.
 			begin();
 		};
 
