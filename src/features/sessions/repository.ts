@@ -29,7 +29,7 @@ function isCampaignRegistrySchemaGap(error: CampaignRegistryError | null | undef
 
 const layoutFixtureSessions = [
 	{ id:"shared-session", campaignId:"fixture-a", campaignSlug:"cronicas-da-mesa", campaignName:"Crônicas da Mesa", campaignTechnicalSlug:"yuhara-main", title:"A memória mais recente do arquivo sintético", date:"2026-09-29", arc:"Contrato visual E2E", summary:"Uma memória sintética curta para validar densidade, filtros e navegação sem tocar em conteúdo privado.", fullSummary:"# Memória mais recente\n\nConteúdo sintético usado somente pelos testes E2E do layout público." },
-	{ id:"shared-session", campaignId:"fixture-b", campaignSlug:"campanha-b", campaignName:"Campanha B", campaignTechnicalSlug:"campaign-b", title:"A mesma identidade de origem em outra campanha", date:"2026-09-22", arc:"Contrato visual E2E", summary:"Fixture A/B com source_session_id repetido para provar isolamento por campanha.", fullSummary:"# Campanha B\n\nMesmo source ID, outra campanha." },
+	{ id:"shared-session", campaignId:"fixture-b", campaignSlug:"campanha-b", campaignName:"Campanha B — nome longo para validar a Home em telas estreitas", campaignTechnicalSlug:"campaign-b", title:"A memória global mais recente vem da campanha B", date:"2026-09-30", arc:"Contrato visual E2E", summary:"Fixture A/B com source_session_id repetido para provar isolamento por campanha e agregação global.", fullSummary:"# Campanha B\n\nMesmo source ID, outra campanha." },
 	{ id:"layout-contract-synthetic", campaignId:"fixture-a", campaignSlug:"cronicas-da-mesa", campaignName:"Crônicas da Mesa", campaignTechnicalSlug:"yuhara-main", title:"Sessão Sintética de Layout com um título editorial mais longo", date:"2026-09-22", arc:"Contrato visual E2E", summary:"Resumo público sintético usado somente para validar a composição da página de sessão e o ritmo do arquivo.", fullSummary:"# Memória sintética\n\nEste conteúdo existe apenas no ambiente E2E e não representa fatos da campanha.\n\n## Continuidade\n\nO artigo mantém texto suficiente para exercitar a largura de leitura e o fluxo editorial sem acessar dados privados.\n\nA composição precisa continuar confortável com parágrafos, subtítulos e navegação entre memórias." },
 	{ id:"layout-contract-previous", campaignId:"fixture-a", campaignSlug:"cronicas-da-mesa", campaignName:"Crônicas da Mesa", campaignTechnicalSlug:"yuhara-main", title:"Uma memória anterior para validar a navegação", date:"2026-09-15", arc:"Contrato visual E2E", summary:"Terceiro registro sintético para garantir navegação scoped.", fullSummary:"# Memória anterior\n\nConteúdo sintético." },
 ] as const satisfies readonly PublishedSession[];
@@ -53,7 +53,9 @@ async function queryArchive(campaignSlug?: string): Promise<PublishedSession[] |
 		let query = client.from("sessions").select(columns).eq("status", "published")
 			.eq("campaigns.lifecycle", "active").eq("campaigns.visibility", "public")
 			.order("session_date", { ascending:false, nullsFirst:false })
-			.order("source_session_id", { ascending:true }).range(from, from + PAGE_SIZE - 1);
+			.order("source_session_id", { ascending:true })
+			.order("id", { ascending:true })
+			.range(from, from + PAGE_SIZE - 1);
 		if (campaignSlug) query = query.eq("campaigns.public_slug", campaignSlug);
 		const { data, error } = await query;
 		if (error) {
@@ -75,7 +77,9 @@ async function queryLegacyArchive(campaignSlug?: string): Promise<PublishedSessi
 	for (let from = 0; ; from += PAGE_SIZE) {
 		const { data, error } = await client.from("sessions").select(legacyColumns).eq("status","published")
 			.eq("campaigns.slug", LEGACY_CAMPAIGN_TECHNICAL_SLUG)
-			.order("session_date",{ascending:false,nullsFirst:false}).order("source_session_id",{ascending:true})
+			.order("session_date",{ascending:false,nullsFirst:false})
+			.order("source_session_id",{ascending:true})
+			.order("id",{ascending:true})
 			.range(from, from + PAGE_SIZE - 1);
 		if (error) throw new PublishedSessionUnavailableError();
 		result.push(...(data ?? []).flatMap((row) => { const item=toLegacyPublishedSession(row); return item?[item]:[]; }));
