@@ -78,6 +78,61 @@ describe("governed permission mutation", () => {
 		expect(deps.persist).not.toHaveBeenCalled();
 	});
 
+
+	it("honors only the exact project/tda permission-management capability", async () => {
+		const project = dependencies([
+			{
+				action: EDIT_CAPABILITIES.permissionsManage,
+				scopeType: "project",
+				scopeId: "tda",
+				status: "active",
+				startsAt: "2020-01-01T00:00:00Z",
+				endsAt: null,
+			},
+		]);
+		expect(
+			await mutatePermissions(
+				{ ...request, campaignSlug: "antes-que-seja-tarde" },
+				project,
+			),
+		).toMatchObject({ ok: true, status: "updated" });
+		expect(project.persist).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ campaignSlug: "antes-que-seja-tarde" }),
+		);
+
+		for (const grants of [
+			[
+				{
+					action: EDIT_CAPABILITIES.permissionsManage,
+					scopeType: "project",
+					scopeId: "dnd-scribe",
+					status: "active",
+					startsAt: "2020-01-01T00:00:00Z",
+					endsAt: null,
+				},
+			],
+			[
+				{
+					action: EDIT_CAPABILITIES.transcriptRead,
+					scopeType: "project",
+					scopeId: "tda",
+					status: "active",
+					startsAt: "2020-01-01T00:00:00Z",
+					endsAt: null,
+				},
+			],
+		]) {
+			const denied = dependencies(grants);
+			expect(
+				await mutatePermissions(
+					{ ...request, campaignSlug: "antes-que-seja-tarde" },
+					denied,
+				),
+			).toEqual({ ok: false, reason: "forbidden" });
+			expect(denied.persist).not.toHaveBeenCalled();
+		}
+	});
+
 	it("validates CAS identifiers and change shapes before access reads", async () => {
 		for (const override of [
 			{ expectedRevision: -1 },
