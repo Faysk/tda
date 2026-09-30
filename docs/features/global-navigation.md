@@ -3,7 +3,7 @@
 > Status: launcher global seccionado validado; QA automatizado ativo  
 > Owner: navigation / frontend / identity-access  
 > Última revisão: 2026-09-30  
-> Fonte de verdade: este documento, decisões #963/#1082/#1188-#1192, PR #1193, floating shell #995/#999 e guards/capabilities da `main`
+> Fonte de verdade: este documento, ADR-0020, decisões #963/#1082/#1188-#1192, PR #1193, floating shell #995/#999 e guards/capabilities da `main`
 
 ## Objetivo
 
@@ -181,18 +181,33 @@ Ao voltar:
 
 A rota concreta recebe `aria-current="page"`.
 
+## Evolução multi-campaign
+
+O launcher atual ainda aponta para rotas sem campaign em vários destinos. Isso é **compatibilidade do estado de uma campaign**, não contrato final.
+
+Com ADR-0020/#1136:
+
+- `Sessões` passa a apontar para o agregado `/campanhas/sessoes`;
+- `Mundo` continua podendo abrir `/mundo` como entrypoint agregado, mas um World específico usa `/campanhas/[campaign]/mundo`;
+- ferramentas privadas resolvem uma campaign autorizada e usam `/edit/[campaign]/...`;
+- se houver mais de uma campaign válida, o launcher não escolhe `yuhara-main` silenciosamente;
+- public route key é apresentação; capability é calculada contra o technical scope/ownership resolvido no servidor;
+- a campaign selecionada deve aparecer com nome suficiente para evitar que o usuário edite o contexto errado;
+- mudança de campaign fecha/atualiza o painel sem carregar capabilities stale da campaign anterior.
+
+A implementação dessa evolução pertence a #1136 e só substitui os destinos abaixo quando as rotas correspondentes existirem e estiverem gated.
 ## Ferramentas autorizadas
 
 Ferramentas aparecem diretamente em uma seção própria do launcher e somente quando a projeção privada informa a capability necessária.
 
 | Ferramenta | Destino | Capability principal para exibição |
 | --- | --- | --- |
-| Transcrições | `/transcricoes` | `campaign.transcript.read` |
-| Editar sessões | `/edit/sessoes` | `campaign.transcript.read` |
-| Processar | `/edit/processamento` | `campaign.local.process` |
-| Editar mundo | `/mundo` | `campaign.world.layout.edit` |
-| Revisão | `/edit/revisao` | `narrative.review.read` |
-| Permissões | `/edit/yuhara-main/permissions` | `campaign.permissions.manage` |
+| Transcrições | atual: `/transcricoes`; alvo: `/edit/[campaign]/transcricoes` | `campaign.transcript.read` |
+| Editar sessões | atual: `/edit/sessoes`; alvo: `/edit/[campaign]/sessoes` | `campaign.transcript.read` |
+| Processar | atual: `/edit/processamento`; alvo: `/edit/[campaign]/processamento` | `campaign.local.process` |
+| Editar mundo | atual: `/mundo`; alvo privado: `/edit/[campaign]/mundo` | `campaign.world.layout.edit` |
+| Revisão | atual: `/edit/revisao`; alvo: `/edit/[campaign]/revisao` | `narrative.review.read` |
+| Permissões | atual: `/edit/yuhara-main/permissions`; alvo: `/edit/[campaign]/permissions` | `campaign.permissions.manage` |
 
 Regras:
 
@@ -261,13 +276,7 @@ Contrato:
 3. linked com capabilities → primeira ferramenta autorizada pela prioridade explícita;
 4. unlinked/sem grants úteis → `/conta?acesso=negado`.
 
-Prioridade determinística:
-
-1. `/edit/sessoes`;
-2. `/edit/processamento`;
-3. `/mundo`;
-4. `/edit/revisao`;
-5. `/edit/yuhara-main/permissions`.
+Enquanto o rollout multi-campaign não estiver ativo, a prioridade de compatibilidade existente permanece. Depois da ativação de múltiplas campaigns, `/edit` primeiro resolve a campaign autorizada: uma única opção pode redirecionar; múltiplas opções exigem seleção explícita. Só então aplica a prioridade de ferramenta dentro de `/edit/[campaign]/...`.
 
 Deep links mantêm seus próprios guards.
 
