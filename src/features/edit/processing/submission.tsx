@@ -438,15 +438,6 @@ export function ProcessingSubmission({
 		setFiles((current) => removeCraigFileSelection(current, id));
 	}
 
-	function resetSessionTarget() {
-		if (busy || intentRequest) return;
-		setFiles([]);
-		setSessionId("");
-		setStatus("Seleção limpa. Escolha a sessão e os ZIPs novamente.");
-		setError(null);
-		if (fileInput.current) fileInput.current.value = "";
-	}
-
 	function handleDrop(event: DragEvent<HTMLButtonElement>) {
 		event.preventDefault();
 		setDragActive(false);
@@ -739,9 +730,9 @@ export function ProcessingSubmission({
 			<div className={styles.heading}>
 				<div>
 					<span>Processamento local</span>
-					<h2 id="new-local-transcription">Nova transcrição Craig</h2>
+					<h2 id="new-local-transcription">Transcrever sessão</h2>
 				</div>
-				<small>Craig ZIP → Companion → GPU local</small>
+				<small>1..N ZIPs Craig → uma transcrição contínua</small>
 			</div>
 
 			{!capabilities && capabilityError ? (
@@ -778,62 +769,107 @@ export function ProcessingSubmission({
 						className={styles.dropZone}
 						data-craig-dropzone="true"
 						data-active={dragActive ? "true" : "false"}
-						data-selected={file ? "true" : "false"}
+						data-selected={files.length ? "true" : "false"}
 					>
 						<input
 							ref={fileInput}
 							className={styles.fileInput}
 							type="file"
+							multiple
 							accept=".zip,application/zip"
-							aria-label="Export do Craig"
-							disabled={busy}
-							onChange={(event) => applyFile(event.target.files?.[0] ?? null)}
+							aria-label="Exports do Craig"
+							disabled={busy || Boolean(intentRequest)}
+							onChange={(event) => {
+								applyFiles(Array.from(event.target.files ?? []));
+								event.currentTarget.value = "";
+							}}
 						/>
 						<button
 							type="button"
 							className={styles.dropAction}
 							data-craig-drop-target="true"
-							disabled={busy}
+							disabled={busy || Boolean(intentRequest)}
 							onClick={() => fileInput.current?.click()}
 							onDragEnter={(event) => {
 								event.preventDefault();
-								if (!busy) setDragActive(true);
+								if (!busy && !intentRequest) setDragActive(true);
 							}}
 							onDragOver={(event) => {
 								event.preventDefault();
-								if (!busy) setDragActive(true);
+								if (!busy && !intentRequest) setDragActive(true);
 							}}
 							onDragLeave={(event) => {
-								if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+								if (
+									event.currentTarget.contains(
+										event.relatedTarget as Node | null,
+									)
+								)
+									return;
 								setDragActive(false);
 							}}
 							onDrop={handleDrop}
 						>
-							<span className={styles.dropGlyph} aria-hidden="true">{file ? "✓" : "ZIP"}</span>
+							<span className={styles.dropGlyph} aria-hidden="true">
+								{files.length ? files.length : "ZIP"}
+							</span>
 							<span className={styles.dropCopy}>
-								<strong>{file ? file.name : "Arraste o ZIP do Craig aqui"}</strong>
+								<strong>
+									{files.length
+										? `${files.length} ${files.length === 1 ? "gravação selecionada" : "gravações selecionadas"}`
+										: "Arraste um ou vários ZIPs do Craig aqui"}
+								</strong>
 								<span>
-									{file
-										? `${formatSubmissionBytes(file.size)} · escolher outro arquivo`
-										: "ou escolher arquivo"}
+									{intentRequest
+										? "Intenção iniciada; o conjunto está fixado nesta sessão."
+										: files.length
+											? "solte mais ZIPs para adicionar sem apagar os anteriores"
+											: "ou escolha um ou vários arquivos"}
 								</span>
 							</span>
 						</button>
 					</div>
 
-					{fileError ? <p className={styles.inlineError} role="alert">{fileError}</p> : null}
-
-					{file ? (
-						<dl className={styles.fileFacts}>
-							<div><dt>Arquivo</dt><dd title={file.name}>{file.name}</dd></div>
-							<div><dt>Tamanho</dt><dd>{formatSubmissionBytes(file.size)}</dd></div>
-							{source ? (
-								<>
-									<div><dt>Tracks</dt><dd>{source.trackCount}</dd></div>
-									<div><dt>Fonte</dt><dd>{source.reused ? "Já verificada" : "Verificada agora"}</dd></div>
-								</>
-							) : null}
-						</dl>
+					{files.length ? (
+						<ul className={styles.fileList} aria-label="Gravações selecionadas">
+							{files.map((item, index) => (
+								<li key={item.id} data-state={item.state}>
+									<div>
+										<strong title={item.file.name}>
+											{index + 1}. {item.file.name}
+										</strong>
+										<span>
+											{formatSubmissionBytes(item.file.size)} ·{" "}
+											{item.state === "selected"
+												? "pronta para validar"
+												: item.state === "validating"
+													? "validando localmente…"
+													: item.state === "valid"
+														? "validada"
+														: item.state === "duplicate"
+															? "duplicata exata · será reutilizada uma vez"
+															: item.state === "invalid"
+																? "arquivo inválido"
+																: "falha local"}
+										</span>
+										{item.error ? (
+											<small role="alert">{item.error}</small>
+										) : null}
+									</div>
+									{!intentRequest ? (
+										<Button
+											type="button"
+											size="sm"
+											variant="tertiary"
+											disabled={busy}
+											aria-label={`Remover ${item.file.name}`}
+											onClick={() => removeFile(item.id)}
+										>
+											Remover
+										</Button>
+									) : null}
+								</li>
+							))}
+						</ul>
 					) : null}
 
 					<div className={styles.identityGrid}>
@@ -846,7 +882,7 @@ export function ProcessingSubmission({
 								pattern="[A-Za-z0-9_-]{1,128}"
 								maxLength={128}
 								required
-								disabled={busy || composerActive}
+								disabled={busy || composerActive || Boolean(intentRequest)}
 								placeholder="sessao-42"
 								aria-describedby="session-id-help"
 							/>
@@ -861,7 +897,7 @@ export function ProcessingSubmission({
 							<select
 								value={profile}
 								onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
-								disabled={busy}
+								disabled={busy || Boolean(intentRequest)}
 								required
 							>
 								{availableProfiles.map((item) => (
@@ -877,7 +913,8 @@ export function ProcessingSubmission({
 								variant="primary"
 								disabled={
 									busy ||
-									!file ||
+									Boolean(intentRequest) ||
+									stageableCraigFiles(files).length === 0 ||
 									!profile ||
 									!canSubmit ||
 									requestTooLarge ||
@@ -887,24 +924,6 @@ export function ProcessingSubmission({
 							>
 								{submissionCtaLabel(pendingStage)}
 							</Button>
-							{!source ? (
-								<Button
-									type="button"
-									variant="tertiary"
-									disabled={
-										busy ||
-										!file ||
-										!profile ||
-										!canSubmit ||
-										requestTooLarge ||
-										profileBlocked ||
-										qwenRuntimeUpgradeRequired
-									}
-									onClick={() => void analyzeSource()}
-								>
-									Analisar para sessão composta
-								</Button>
-							) : null}
 							{requestTooLarge ? (
 								<span className={styles.budgetWarning}>
 									{requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8
@@ -1016,7 +1035,7 @@ export function ProcessingSubmission({
 										onChange={(event) =>
 												setContext(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
 										}
-										disabled={busy}
+										disabled={busy || Boolean(intentRequest)}
 										placeholder="Contexto curto da sessão/campanha para reconhecimento."
 									/>
 								</label>
@@ -1027,7 +1046,7 @@ export function ProcessingSubmission({
 										onChange={(event) =>
 												setGlossary(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
 										}
-										disabled={busy}
+										disabled={busy || Boolean(intentRequest)}
 										placeholder="Personagens, NPCs, lugares e termos difíceis."
 									/>
 								</label>
@@ -1044,24 +1063,56 @@ export function ProcessingSubmission({
 			)}
 
 			{capabilities ? (
-				<SessionRecordingComposer
-					bridge={bridge}
-					capabilities={capabilities.capabilities}
-					sessionId={sessionId}
-					currentSource={source}
-					profile={profile}
-					context={context}
-					glossary={glossary}
-					profileReady={selectedProfileState?.ready === true}
-					recoveryScope={recoveryScope}
-					disabled={busy || requestTooLarge}
-					onActiveChange={setComposerActive}
-					onRestoreSessionId={(value) =>
-						setSessionId((current) => current || value)
-					}
-					onStatus={setStatus}
-					onError={setError}
-				/>
+				<>
+					<SessionIntentCoordinator
+						bridge={bridge}
+						capabilities={capabilities.capabilities}
+						request={intentRequest}
+						recoveryScope={recoveryScope}
+						disabled={busy || requestTooLarge}
+						onActiveChange={setComposerActive}
+						onRestoreSessionId={(value) =>
+							setSessionId((current) => current || value)
+						}
+						onStatus={setStatus}
+						onError={setError}
+						onOpenTechnical={() => setTechnicalOpen(true)}
+					/>
+					{composerActive ? (
+						<details
+							className={styles.technical}
+							open={technicalOpen}
+							onToggle={(event) =>
+								setTechnicalOpen(event.currentTarget.open)
+							}
+						>
+							<summary>
+								Detalhes técnicos
+								<small>
+									ordem, participantes e resultados · use apenas quando necessário
+								</small>
+							</summary>
+							<SessionRecordingComposer
+								bridge={bridge}
+								capabilities={capabilities.capabilities}
+								sessionId={sessionId}
+								currentSource={null}
+								profile={profile}
+								context={context}
+								glossary={glossary}
+								profileReady={selectedProfileState?.ready === true}
+								recoveryScope={recoveryScope}
+								disabled={busy || requestTooLarge}
+								onActiveChange={setComposerActive}
+								onRestoreSessionId={(value) =>
+									setSessionId((current) => current || value)
+								}
+								onStatus={setStatus}
+								onError={setError}
+							/>
+						</details>
+					) : null}
+				</>
 			) : null}
 
 			{preparation?.state === "interrupted" ? (
