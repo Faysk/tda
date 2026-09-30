@@ -10,7 +10,6 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { Button } from "@/components/ui/button";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	LocalBridge,
 	localBridgePaired,
@@ -181,17 +180,21 @@ const EMPTY_RUNS: readonly LocalRunSummary[] = [];
 const EMPTY_BENCHMARKS: readonly BenchmarkResult[] = [];
 
 export function ProcessingSubmission({
+	campaignId,
 	className,
 	compact = false,
 	recoveryScope = null,
+	onDraftStateChange,
 	onOpenDiagnostics,
 	runs = EMPTY_RUNS,
 	benchmarks = EMPTY_BENCHMARKS,
 	system = null,
 }: Readonly<{
+	campaignId: string;
 	className?: string;
 	compact?: boolean;
 	recoveryScope?: string | null;
+	onDraftStateChange?: (active: boolean) => void;
 	onOpenDiagnostics?: () => void;
 	runs?: readonly LocalRunSummary[];
 	benchmarks?: readonly BenchmarkResult[];
@@ -407,7 +410,7 @@ export function ProcessingSubmission({
 	const requestBytes = useMemo(() => {
 		if (!profile || !/^[A-Za-z0-9_-]{1,128}$/u.test(sessionId)) return null;
 		return craigTranscriptionRequestByteLength({
-			campaignId: CAMPAIGN_SLUG,
+			campaignId: campaignId,
 			sessionId,
 			sourceId: source?.sourceId ?? `craig-${"0".repeat(64)}`,
 			profileId: profile,
@@ -417,6 +420,20 @@ export function ProcessingSubmission({
 	}, [context, glossary, profile, sessionId, source]);
 	const requestTooLarge =
 		requestBytes !== null && requestBytes > LOCAL_JSON_BODY_MAX_BYTES;
+
+	const draftActive = Boolean(
+		busy ||
+			intentRequest ||
+			composerActive ||
+			files.length ||
+			sessionId.trim() ||
+			context.trim() ||
+			glossary.trim(),
+	);
+	useEffect(() => {
+		onDraftStateChange?.(draftActive);
+		return () => onDraftStateChange?.(false);
+	}, [draftActive, onDraftStateChange]);
 
 	if (!paired) return null;
 
@@ -648,7 +665,7 @@ export function ProcessingSubmission({
 				}
 				const staged = stagedSources[0]!;
 				const signature = JSON.stringify([
-					CAMPAIGN_SLUG,
+					campaignId,
 					sessionId,
 					staged.sourceId,
 					profile,
@@ -659,7 +676,7 @@ export function ProcessingSubmission({
 				const pending = await resolveSessionComposerPendingSubmission({
 					storage: window.localStorage,
 					recoveryScope,
-					campaignId: CAMPAIGN_SLUG,
+					campaignId: campaignId,
 					sessionId,
 					sourceId: staged.sourceId,
 					profileId: profile,
@@ -671,7 +688,7 @@ export function ProcessingSubmission({
 				setStatus("Enviando a gravação ao Companion local…");
 				const job = await bridge.transcription(
 					{
-						campaignId: CAMPAIGN_SLUG,
+						campaignId: campaignId,
 						sessionId,
 						sourceId: staged.sourceId,
 						profileId: profile,
@@ -1132,6 +1149,7 @@ export function ProcessingSubmission({
 				<>
 					<SessionIntentCoordinator
 						bridge={bridge}
+						campaignId={campaignId}
 						capabilities={capabilities.capabilities}
 						request={intentRequest}
 						recoveryScope={recoveryScope}
@@ -1165,6 +1183,7 @@ export function ProcessingSubmission({
 							</summary>
 							<SessionRecordingComposer
 								bridge={bridge}
+								campaignId={campaignId}
 								capabilities={capabilities.capabilities}
 								sessionId={sessionId}
 								currentSource={null}
