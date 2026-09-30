@@ -15,13 +15,13 @@ const identity = {
 
 function segment(index: number): TranscriptReaderSegment {
 	return {
-		id: \`r-1-seg-\${index}\`,
-		sourceSegmentId: \`seg-\${index}\`,
+		id: `r-1-seg-${index}`,
+		sourceSegmentId: `seg-${index}`,
 		trackNumber: index % 4 + 1,
 		startMs: index * 1250,
 		endMs: index * 1250 + 900,
 		speaker: index % 2 ? "Alya" : "Renan",
-		text: \`Fala sintética \${index} 🌲\`,
+		text: `Fala sintética ${index} 🌲`,
 	};
 }
 
@@ -98,7 +98,7 @@ describe("TDA Transcript Markdown v1", () => {
 			parseTranscriptRoundTripMarkdown({
 				markdown: markdown.replace(
 					/structure_sha256: [0-9a-f]{64}/u,
-					\`structure_sha256: \${"f".repeat(64)}\`,
+					`structure_sha256: ${"f".repeat(64)}`,
 				),
 				expected: identity,
 				baseline: base.segments,
@@ -143,7 +143,7 @@ describe("TDA Transcript Markdown v1", () => {
 			"<!-- tda:segment track=1 id=seg-0 start_ms=0 end_ms=900 -->";
 		await expect(
 			parseTranscriptRoundTripMarkdown({
-				markdown: markdown.replace(marker, \`\${marker}\n\${marker}\`),
+				markdown: markdown.replace(marker, `${marker}\n${marker}`),
 				expected: identity,
 				baseline: base.segments,
 			}),
