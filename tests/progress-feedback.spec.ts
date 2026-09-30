@@ -126,7 +126,7 @@ test("progress uses semantic theme roles in dark and light modes", async ({ page
 			.getByTestId("determinate-progress")
 			.locator('[data-progress-mode="determinate"]');
 		await expect(wrapper).toBeVisible();
-		const fill = wrapper.locator('> span[aria-hidden="true"]');
+		const fill = wrapper.locator(':scope > span[aria-hidden="true"]');
 
 		return {
 			track: await wrapper.evaluate((node) => getComputedStyle(node).backgroundColor),
