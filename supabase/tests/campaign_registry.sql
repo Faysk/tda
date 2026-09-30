@@ -74,6 +74,83 @@ begin
 end
 $$;
 
+-- Alias storage is server-only until #1134 defines discovery. Trigger guards
+-- are privileged only for integrity and cannot be invoked directly by browser roles.
+do $
+begin
+  if not exists (
+    select 1
+    from pg_class table_row
+    join pg_namespace namespace_row on namespace_row.oid = table_row.relnamespace
+    where namespace_row.nspname = 'public'
+      and table_row.relname = 'campaign_public_route_aliases'
+      and table_row.relrowsecurity = true
+  ) then
+    raise exception 'campaign route aliases must have RLS enabled';
+  end if;
+
+  if has_table_privilege('anon', 'public.campaign_public_route_aliases', 'select')
+     or has_table_privilege('authenticated', 'public.campaign_public_route_aliases', 'select')
+     or has_table_privilege('anon', 'public.campaign_public_route_aliases', 'insert')
+     or has_table_privilege('authenticated', 'public.campaign_public_route_aliases', 'insert') then
+    raise exception 'browser roles received direct alias table privileges';
+  end if;
+
+  if not has_table_privilege(
+    'service_role',
+    'public.campaign_public_route_aliases',
+    'select,insert,update,delete'
+  ) then
+    raise exception 'service_role is missing alias table privileges';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_proc procedure_row
+    join pg_namespace namespace_row on namespace_row.oid = procedure_row.pronamespace
+    where namespace_row.nspname = 'public'
+      and procedure_row.proname = 'guard_campaign_public_route_key'
+      and procedure_row.prosecdef = true
+  ) then
+    raise exception 'canonical route guard must be SECURITY DEFINER';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_proc procedure_row
+    join pg_namespace namespace_row on namespace_row.oid = procedure_row.pronamespace
+    where namespace_row.nspname = 'public'
+      and procedure_row.proname = 'guard_campaign_public_route_alias'
+      and procedure_row.prosecdef = true
+  ) then
+    raise exception 'alias route guard must be SECURITY DEFINER';
+  end if;
+
+  if has_function_privilege(
+      'anon',
+      'public.guard_campaign_public_route_key()',
+      'execute'
+    )
+    or has_function_privilege(
+      'authenticated',
+      'public.guard_campaign_public_route_key()',
+      'execute'
+    )
+    or has_function_privilege(
+      'anon',
+      'public.guard_campaign_public_route_alias()',
+      'execute'
+    )
+    or has_function_privilege(
+      'authenticated',
+      'public.guard_campaign_public_route_alias()',
+      'execute'
+    ) then
+    raise exception 'browser roles can execute route guard functions directly';
+  end if;
+end
+$;
+
 -- Existing external source IDs remain unique within a campaign, not globally.
 insert into public.sessions (
   id, campaign_id, title, status, source_system, source_session_id
