@@ -5,6 +5,22 @@ function read(path) {
 	return readFileSync(path, "utf8");
 }
 
+function assertIncludes(path, expectations) {
+	const source = read(path);
+	for (const [pattern, message] of expectations) {
+		assert.match(source, pattern, `${path}: ${message}`);
+	}
+	return source;
+}
+
+function assertExcludes(path, expectations) {
+	const source = read(path);
+	for (const [pattern, message] of expectations) {
+		assert.doesNotMatch(source, pattern, `${path}: ${message}`);
+	}
+	return source;
+}
+
 const globalLoading = read("src/components/global-loading/global-loading.tsx");
 const selectorMatch = globalLoading.match(
 	/const GLOBAL_BLOCKING_SELECTOR = ([^;]+);/u,
@@ -63,6 +79,59 @@ assert.match(
 	"Progress must default to a neutral semantic tone.",
 );
 
+/*
+ * Product representatives. These are intentionally high-signal invariants,
+ * not a regex reimplementation of the UI. The browser suites prove behavior;
+ * this guard keeps the actual product wiring from silently drifting back to
+ * global loading or ad-hoc feedback.
+ */
+assertIncludes("src/features/edit/transcript/editor.tsx", [
+	[/pending=\{editor\.phase === "saving"\}/u, "transcript save must stay locally pending"],
+	[/pendingLabel="Salvando…"/u, "transcript save must keep a factual pending label"],
+]);
+
+assertIncludes("src/features/lembra/components/lembra-experience.tsx", [
+	[/<Progress/u, "Lembra upload must use the shared Progress primitive"],
+	[/uploadStatus\.phase === "uploading"/u, "Lembra must preserve a factual upload phase"],
+	[/uploadStatus\.phase === "finalizing"/u, "Lembra must separate finalize from upload progress"],
+]);
+assertExcludes("src/features/lembra/components/lembra-experience.tsx", [
+	[/data-global-loading="true"/u, "Lembra local work must not opt into the global overlay"],
+]);
+
+assertIncludes("src/features/world-explorer/components/world-entity-media-editor.tsx", [
+	[/aria-busy=\{busy\}/u, "World portrait busy state must remain regional"],
+	[/<Progress/u, "World portrait upload must use the shared Progress primitive"],
+	[/uploadPhase === "finalizing"/u, "World portrait finalize must remain a distinct stage"],
+]);
+assertExcludes("src/features/world-explorer/components/world-entity-media-editor.tsx", [
+	[/data-global-loading="true"/u, "World portrait upload must not opt into the global overlay"],
+]);
+
+assertIncludes("src/features/edit/sessions/session-cover-editor.tsx", [
+	[/onUploadStateChange\?/u, "session cover must report upload state to its parent"],
+	[/<Progress/u, "session cover must use the shared Progress primitive"],
+]);
+assertIncludes("src/features/edit/sessions/editorial-draft-editor.tsx", [
+	[/coverUploadPending/u, "session publication readiness must observe cover upload state"],
+	[/!coverUploadPending/u, "publish readiness must fail closed while cover media is in flight"],
+]);
+
+assertIncludes("src/features/edit/processing/panel.tsx", [
+	[/data-global-loading="off"/u, "Processing workspace must remain shielded from global overlay promotion"],
+	[/<AnimatedProgress/u, "Processing must keep factual item/track progress"],
+]);
+
+assertIncludes("src/app/edit/revisao/page.tsx", [
+	[/FormSubmitButton/u, "review decision must use the shared pending form control"],
+	[/pendingLabel="Registrando…"/u, "review decision must expose contextual pending copy"],
+]);
+
+assertIncludes("src/app/edit/sessoes/page.tsx", [
+	[/from "next\/form"/u, "session filters must use client-side Next Form navigation"],
+	[/pendingLabel="Aplicando…"/u, "session filters must expose local pending feedback"],
+]);
+
 console.log(
-	"ASYNC_FEEDBACK_CONTRACT_OK global=explicit forms=explicit pending=local progress=typed",
+	"ASYNC_FEEDBACK_CONTRACT_OK global=explicit forms=explicit pending=local progress=typed product-representatives=guarded",
 );
