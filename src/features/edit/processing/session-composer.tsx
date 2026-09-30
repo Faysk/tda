@@ -239,7 +239,7 @@ export function SessionRecordingComposer({
 			window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
 			await loadRelated(next, signal);
 		},
-		[loadRelated, onActiveChange],
+		[campaignId, loadRelated, onActiveChange],
 	);
 
 	async function reload(create = false) {
@@ -297,7 +297,7 @@ export function SessionRecordingComposer({
 			saved = null;
 		}
 		if (!sessionId && saved && validSessionId(saved)) onRestoreSessionId?.(saved);
-	}, [onRestoreSessionId, sessionId, supported]);
+	}, [campaignId, onRestoreSessionId, sessionId, supported]);
 
 	useEffect(() => {
 		if (!supported || !validSessionId(sessionId)) return;
@@ -334,7 +334,7 @@ export function SessionRecordingComposer({
 			controller.abort();
 		};
 		// This intentionally restores only the persisted workspace identity.
-	}, [adopt, bridge, fail, sessionId, supported]);
+	}, [adopt, bridge, campaignId, fail, sessionId, supported]);
 
 	useEffect(() => {
 		if (!workspace || !supported) return;
