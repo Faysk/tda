@@ -20,6 +20,7 @@ import {
 	type XYPosition,
 } from "@xyflow/react";
 import type { WorldFlowEdge, WorldFlowNode } from "../adapters/react-flow";
+import { worldOffscreenCuePoint, worldPointInsideRect } from "../offscreen-relation-cues";
 import {
 	WORLD_CANVAS_MAX_ZOOM,
 	WORLD_CANVAS_MIN_ZOOM,
@@ -30,6 +31,10 @@ import {
 import { WorldEntityNode } from "./entity-node";
 import { WorldRelationEdge } from "./relation-edge";
 import { WorldNeighborhoodOverlay } from "./world-neighborhood-overlay";
+import {
+	WorldOffscreenRelationCues,
+	type WorldOffscreenRelationCue,
+} from "./world-offscreen-relation-cues";
 import { WorldSemanticZoomProvider } from "./world-semantic-zoom-context";
 import styles from "./world-explorer.module.css";
 
@@ -95,6 +100,7 @@ export function WorldCanvas({
 	const flowInstance = useRef<ReactFlowInstance<WorldFlowNode, WorldFlowEdge> | null>(null);
 	const canvasRef = useRef<HTMLDivElement | null>(null);
 	const [semanticZoom, setSemanticZoom] = useState<WorldSemanticZoomTier>("detail");
+	const [offscreenCues, setOffscreenCues] = useState<WorldOffscreenRelationCue[]>([]);
 
 	const syncSemanticZoom = useCallback((zoom: number) => {
 		const nextTier = worldSemanticZoomTier(zoom);
@@ -104,6 +110,82 @@ export function WorldCanvas({
 			String(worldLabelCounterScale(zoom)),
 		);
 	}, []);
+
+	const refreshOffscreenCues = useCallback(() => {
+		const instance = flowInstance.current;
+		const canvas = canvasRef.current;
+		if (!instance || !canvas) {
+			setOffscreenCues([]);
+			return;
+		}
+
+		const canvasRect = canvas.getBoundingClientRect();
+		const usableRect = {
+			left: canvasRect.left + 18,
+			top: canvasRect.top + 76,
+			right: canvasRect.right - 18,
+			bottom: canvasRect.bottom - 96,
+		};
+		if (usableRect.right <= usableRect.left || usableRect.bottom <= usableRect.top) {
+			setOffscreenCues([]);
+			return;
+		}
+
+		const currentNodes = instance.getNodes();
+		const nodeById = new Map(currentNodes.map((node) => [node.id, node]));
+		const candidates: WorldOffscreenRelationCue[] = [];
+		for (const edge of instance.getEdges()) {
+			if (!edge.selected && !edge.data?.isHighlighted) continue;
+			const source = nodeById.get(edge.source);
+			const target = nodeById.get(edge.target);
+			if (!source || !target) continue;
+			const sourcePoint = instance.flowToScreenPosition(source.position);
+			const targetPoint = instance.flowToScreenPosition(target.position);
+			const sourceInside = worldPointInsideRect(sourcePoint, usableRect);
+			const targetInside = worldPointInsideRect(targetPoint, usableRect);
+			if (sourceInside === targetInside) continue;
+
+			const insidePoint = sourceInside ? sourcePoint : targetPoint;
+			const outsidePoint = sourceInside ? targetPoint : sourcePoint;
+			const outsideNode = sourceInside ? target : source;
+			const cuePoint = worldOffscreenCuePoint(insidePoint, outsidePoint, usableRect);
+			if (!cuePoint) continue;
+			candidates.push({
+				edgeId: edge.id,
+				targetId: outsideNode.id,
+				targetLabel: outsideNode.data.item.label,
+				relationLabel: edge.data?.item.label ?? "Relação",
+				x: cuePoint.x - canvasRect.left,
+				y: cuePoint.y - canvasRect.top,
+				boundary: cuePoint.boundary,
+			});
+		}
+
+		const limit = canvasRect.width <= 700 ? 4 : 8;
+		setOffscreenCues(candidates.slice(0, limit));
+	}, []);
+
+	const navigateToOffscreenTarget = useCallback((targetId: string) => {
+		const instance = flowInstance.current;
+		if (!instance) return;
+		void instance.fitView({
+			nodes: [{ id: targetId }],
+			padding: 0.66,
+			minZoom: 0.72,
+			maxZoom: 0.95,
+			duration: 260,
+		});
+		window.setTimeout(refreshOffscreenCues, 300);
+	}, [refreshOffscreenCues]);
+
+	useEffect(() => {
+		const frame = window.requestAnimationFrame(refreshOffscreenCues);
+		window.addEventListener("resize", refreshOffscreenCues);
+		return () => {
+			window.cancelAnimationFrame(frame);
+			window.removeEventListener("resize", refreshOffscreenCues);
+		};
+	}, [nodes, edges, refreshOffscreenCues]);
 
 	const lastCameraScopeKey = useRef(cameraScopeKey);
 	useEffect(() => {
@@ -190,7 +272,10 @@ export function WorldCanvas({
 						});
 					}
 				}}
-				onNodeDragStop={(_, node) => onNodeDragStop(node)}
+				onNodeDragStop={(_, node) => {
+					onNodeDragStop(node);
+					window.requestAnimationFrame(refreshOffscreenCues);
+				}}
 				onConnect={(connection) => {
 					if (!connection.source || !connection.target) return;
 					onConnectNodes?.(connection.source, connection.target);
@@ -222,6 +307,10 @@ export function WorldCanvas({
 			</ReactFlow>
 			</WorldSemanticZoomProvider>
 			{overlay}
+			<WorldOffscreenRelationCues
+				cues={offscreenCues}
+				onNavigate={navigateToOffscreenTarget}
+			/>
 		</div>
 	);
 }
