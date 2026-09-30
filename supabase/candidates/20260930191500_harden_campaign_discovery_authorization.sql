@@ -233,6 +233,32 @@ revoke execute on function public.campaign_edit_directory() from anon;
 grant execute on function public.campaign_edit_directory() to authenticated;
 grant execute on function public.campaign_edit_directory() to service_role;
 
+-- The legacy claim RPCs do not have a campaign-scoped invite/eligibility
+-- proof. Until that model exists, they are server-only: browser callers cannot
+-- bypass the hardened directory by posting a target_profile_id directly, and
+-- review cannot continue to authorize by owner/master role names.
+do $
+begin
+  if to_regprocedure(
+    'public.submit_profile_claim(text,uuid,text,text,text,text,text[],text)'
+  ) is not null then
+    execute 'revoke all on function public.submit_profile_claim(text,uuid,text,text,text,text,text[],text) from public';
+    execute 'revoke execute on function public.submit_profile_claim(text,uuid,text,text,text,text,text[],text) from anon';
+    execute 'revoke execute on function public.submit_profile_claim(text,uuid,text,text,text,text,text[],text) from authenticated';
+    execute 'grant execute on function public.submit_profile_claim(text,uuid,text,text,text,text,text[],text) to service_role';
+  end if;
+
+  if to_regprocedure(
+    'public.review_profile_claim(uuid,text,text)'
+  ) is not null then
+    execute 'revoke all on function public.review_profile_claim(uuid,text,text) from public';
+    execute 'revoke execute on function public.review_profile_claim(uuid,text,text) from anon';
+    execute 'revoke execute on function public.review_profile_claim(uuid,text,text) from authenticated';
+    execute 'grant execute on function public.review_profile_claim(uuid,text,text) to service_role';
+  end if;
+end
+$;
+
 -- access_directory is a campaign people/onboarding surface, not campaign
 -- discovery. A caller must already be authenticated, linked to a profile and
 -- hold campaign.read or campaign.access.manage for the requested technical
