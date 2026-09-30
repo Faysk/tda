@@ -60,5 +60,6 @@ Estes SQL permanecem deliberadamente fora de Production:
 - `candidates/20260907193705_transcript_import_atomic.sql`;
 - `candidates/20260921021000_transcript_publication_revisions.sql` — modelo candidato de revisions completas imutáveis + current pointer + receipts/eventos atômicos; **sem role assignment e não autorizado para Production**;
 - `candidates/20260908231000_backfill_screacky_historical_alias.sql`.
+- `candidates/20260930140000_campaign_registry_multicampaign.sql` — registry first-class multi-campanha de #1123; **não aplicada e não autorizada para Production**; promoção exige nova migration com timestamp corrente após decisão explícita e revalidação do schema remoto.
 
 Os contratos e gates de ativação continuam em `docs/integrations/transcript-import.md`, `docs/features/world-entity-media-foundation.md` e `docs/database/migrations.md`.
