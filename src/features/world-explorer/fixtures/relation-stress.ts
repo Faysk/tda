@@ -106,7 +106,7 @@ edges.push(
 	},
 	{
 		id: "stress-cross-ab",
-		source: "stress-hub-a-node-3",
+		source: "stress-hub-a",
 		target: "stress-hub-b-node-6",
 		relationType: "stress_cross_hub",
 		label: "Corredor norte 1",
