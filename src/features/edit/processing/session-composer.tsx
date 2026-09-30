@@ -32,11 +32,12 @@ import type {
 	TranscriptionProfileId,
 } from "./protocol";
 import {
+	clearSessionComposerRecoveryPointer,
 	confirmSessionComposerPendingSubmission,
+	readSessionComposerRecoveryPointer,
 	resolveSessionComposerPendingSubmission,
 	SESSION_COMPOSER_CHANGE_EVENT,
-	sessionComposerLastSessionKey,
-	sessionComposerRecoveryKey,
+	saveSessionComposerPointers,
 	type SessionComposerPendingSubmission,
 } from "./session-composer-storage";
 import styles from "./session-composer.module.css";
@@ -292,7 +293,7 @@ export function SessionRecordingComposer({
 		restored.current = true;
 		let saved: string | null = null;
 		try {
-			saved = window.localStorage.getItem(sessionComposerRecoveryKey(campaignId));
+			saved = readSessionComposerRecoveryPointer(window.localStorage, campaignId);
 		} catch {
 			saved = null;
 		}
@@ -303,7 +304,7 @@ export function SessionRecordingComposer({
 		if (!supported || !validSessionId(sessionId)) return;
 		let saved: string | null = null;
 		try {
-			saved = window.localStorage.getItem(sessionComposerRecoveryKey(campaignId));
+			saved = readSessionComposerRecoveryPointer(window.localStorage, campaignId);
 		} catch {
 			saved = null;
 		}
@@ -836,7 +837,7 @@ export function SessionRecordingComposer({
 
 	function forgetComposer() {
 		try {
-			window.localStorage.removeItem(sessionComposerRecoveryKey(campaignId));
+			clearSessionComposerRecoveryPointer(window.localStorage, campaignId);
 		} catch {
 			// Only the browser recovery pointer is cleared.
 		}
