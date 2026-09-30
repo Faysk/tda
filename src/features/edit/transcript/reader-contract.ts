@@ -5,8 +5,8 @@ export type TranscriptReaderSegment = Readonly<{
 	trackNumber: number;
 	startMs: number;
 	endMs: number;
-	absoluteStart: string | null;
-	absoluteEnd: string | null;
+	absoluteStart?: string | null;
+	absoluteEnd?: string | null;
 	speaker: string;
 	text: string;
 }>;
@@ -194,8 +194,8 @@ export function renderTranscriptMarkdown(input: {
 			: null;
 		lines.push(
 			`<!-- tda:time ${JSON.stringify({
-				absoluteStart: segment.absoluteStart,
-				absoluteEnd: segment.absoluteEnd,
+				absoluteStart: segment.absoluteStart ?? null,
+				absoluteEnd: segment.absoluteEnd ?? null,
 			})} -->`,
 			`[${formatTranscriptTimestamp(segment.startMs)}${wallClock ? ` | ${wallClock[1]}` : ""}] **${markdownText(segment.speaker)}**`,
 			markdownText(segment.text),
