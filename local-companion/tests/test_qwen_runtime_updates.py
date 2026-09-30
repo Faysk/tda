@@ -84,9 +84,9 @@ def test_qwen_runtime_update_comparison_handles_missing_semver_and_compatibility
     assert qwen_runtime_update_available("2.0.0", manifest) is False
 
     # Numeric SemVer ordering must not regress to lexicographic comparison.
-    ten = _manifest(version="1.0.10", payloads=(b"ten",))
-    assert qwen_runtime_update_available("1.0.9", ten) is True
-    assert qwen_runtime_update_available("1.0.10", ten) is False
+    twelve = _manifest(version="1.0.12", payloads=(b"twelve",))
+    assert qwen_runtime_update_available("1.0.9", twelve) is True
+    assert qwen_runtime_update_available("1.0.12", twelve) is False
 
     obsolete = _manifest(version="1.0.1", payloads=(b"old",))
     assert qwen_runtime_update_available(None, obsolete) is False
