@@ -382,6 +382,12 @@ export function ProcessingPanel({
 	}, [confirmation]);
 
 	const connected = state.connection === "connected";
+	const campaignJobs = state.jobs.filter(
+		(job) => job.context?.campaignId === campaignId,
+	);
+	const campaignRuns = state.localRuns.filter(
+		(run) => run.publicationTarget?.campaignSlug === campaignId,
+	);
 	const label = connected
 		? { preparing: "Em preparação", ready: "Pronto", paused: "Fila pausada" }[
 				state.health?.lifecycle ?? "preparing"
@@ -395,14 +401,14 @@ export function ProcessingPanel({
 					: state.error === "session_incompatible" || state.error === "incompatible"
 						? "Companion incompatível"
 						: "Serviço desconectado";
-	const running = state.jobs.filter((job) => job.status === "running");
-	const queued = state.jobs
+	const running = campaignJobs.filter((job) => job.status === "running");
+	const queued = campaignJobs
 		.filter((job) => job.status === "queued")
 		.sort(
 			(left, right) =>
 				new Date(left.updated_at).getTime() - new Date(right.updated_at).getTime(),
 		);
-	const attention = state.jobs.filter((job) =>
+	const attention = campaignJobs.filter((job) =>
 		["failed", "interrupted"].includes(job.status),
 	);
 	const activeJob = running[0] ?? null;
@@ -458,14 +464,14 @@ export function ProcessingPanel({
 		: null;
 	const latestCompletedRun = activeJob
 		? null
-		: (state.localRuns[0] ?? null);
+		: (campaignRuns[0] ?? null);
 	const observedJobExact =
-		state.jobs.find((job) => job.id === state.observedJobId) ?? null;
+		campaignJobs.find((job) => job.id === state.observedJobId) ?? null;
 	const observedJob = observedJobExact ?? activeJob;
 	const diagnosticInspectorJob =
 		diagnosticInspectorJobId === null
 			? null
-			: (state.jobs.find((job) => job.id === diagnosticInspectorJobId) ?? null);
+			: (campaignJobs.find((job) => job.id === diagnosticInspectorJobId) ?? null);
 	const observedJobLive =
 		observedJob !== null &&
 		["queued", "running"].includes(observedJob.status);
@@ -526,10 +532,17 @@ export function ProcessingPanel({
 			return message;
 		}
 
+		if (result.campaignId !== campaignId) {
+			const message =
+				"O Companion retornou um resultado de outra campanha. O resultado foi preservado, mas esta tela não vai abri-lo neste contexto.";
+			setResultOpenError(message);
+			return message;
+		}
 		const found = controller
 			.snapshot()
 			.localRuns.some(
 				(run) =>
+					run.publicationTarget?.campaignSlug === campaignId &&
 					run.sourceId === result.sourceId &&
 					run.runId === result.runId &&
 					(!result.transcriptSha256 ||
@@ -600,7 +613,7 @@ export function ProcessingPanel({
 			setCampaignSelection(campaignId);
 			return;
 		}
-		const authoritativeWork = state.jobs.some((job) =>
+		const authoritativeWork = campaignJobs.some((job) =>
 			["queued", "running"].includes(job.status),
 		);
 		const needsConfirmation =
@@ -1111,7 +1124,7 @@ export function ProcessingPanel({
 						hidden={view !== "queue"}
 					>
 						<ProcessingQueueView
-							jobs={state.jobs}
+							jobs={campaignJobs}
 							filter={queueFilter}
 							onFilterChange={setQueueFilter}
 							resetSearchKey={queueSearchReset}
@@ -1146,7 +1159,7 @@ export function ProcessingPanel({
 							/>
 						) : null}
 						<LocalReviewWorkspace
-							runs={state.localRuns}
+							runs={campaignRuns}
 							hasMore={state.localRunsHasMore}
 							onLoadMore={controller.loadMoreRuns}
 							focusRunKey={resultFocus?.key ?? null}
@@ -1197,7 +1210,7 @@ export function ProcessingPanel({
 									)}
 								</p>
 							</div>
-							{state.result ? (
+							{state.result?.campaignId === campaignId ? (
 								<div className={styles.resultSummary} role="status">
 									<span>Resultado local</span>
 									<strong>{state.result.sessionId}</strong>
