@@ -117,6 +117,30 @@ async function installCompletedRunCatalog(
 	);
 }
 
+test("troca de campaign com trabalho autoritativo exige confirmação e não retaggeia o job", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	const selector = page.getByLabel("Trocar campanha");
+	await expect(selector).toHaveValue("yuhara-main");
+	await expect(page.getByText("Crônicas da Mesa", { exact: true }).first()).toBeVisible();
+
+	page.once("dialog", async (dialog) => {
+		expect(dialog.type()).toBe("confirm");
+		expect(dialog.message()).toContain("mantêm a campanha original");
+		await dialog.dismiss();
+	});
+	await selector.selectOption("antes-que-seja-tarde");
+
+	await expect(selector).toHaveValue("yuhara-main");
+	await expect(page).toHaveURL("/");
+});
+
 test("API incompatível, versão antiga, offline e Origin negada são diagnósticos distintos", async ({
 	page,
 }, testInfo) => {
