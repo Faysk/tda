@@ -42,6 +42,20 @@ createRoot(root).render(
 			<ReviewFixture />
 		) : (
 			<ProcessingPanel
+				campaignId="yuhara-main"
+				campaignName="Crônicas da Mesa"
+				campaignOptions={[
+					{
+						technicalSlug: "yuhara-main",
+						name: "Crônicas da Mesa",
+						routeKey: "cronicas-da-mesa",
+					},
+					{
+						technicalSlug: "antes-que-seja-tarde",
+						name: "Antes que seja tarde",
+						routeKey: "antes-que-seja-tarde",
+					},
+				]}
 				activityPackScope="fixture-profile:yuhara-main"
 				publicationEnabled={fixtureParams.has("publication")}
 			/>
