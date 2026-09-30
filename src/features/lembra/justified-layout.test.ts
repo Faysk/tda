@@ -25,6 +25,7 @@ function reference(
 		width,
 		height,
 		mine: true,
+		campaign: null,
 	};
 }
 
