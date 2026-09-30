@@ -1,0 +1,64 @@
+.layer {
+	position: absolute;
+	inset: 0;
+	z-index: 24;
+	pointer-events: none;
+}
+
+.cue {
+	position: absolute;
+	display: inline-flex;
+	max-width: min(220px, 38vw);
+	min-height: 34px;
+	align-items: center;
+	gap: 7px;
+	padding: 6px 9px;
+	border: 1px solid color-mix(in srgb, var(--ds-control-border) 86%, transparent);
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ds-surface-elevated) 92%, transparent);
+	box-shadow: 0 8px 24px color-mix(in srgb, var(--ds-canvas) 42%, transparent);
+	backdrop-filter: blur(14px) saturate(108%);
+	color: var(--ds-foreground-soft);
+	font: 680 0.62rem/1.2 var(--ds-font-ui);
+	text-align: left;
+	white-space: nowrap;
+	cursor: pointer;
+	pointer-events: auto;
+}
+
+.cue:hover,
+.cue:focus-visible {
+	border-color: color-mix(in srgb, var(--ds-accent) 68%, var(--ds-control-border));
+	background: color-mix(in srgb, var(--ds-accent-muted) 52%, var(--ds-surface-elevated));
+	color: var(--ds-foreground);
+}
+
+.cue:focus-visible {
+	outline: 2px solid var(--ds-accent);
+	outline-offset: 2px;
+}
+
+.arrow {
+	color: var(--ds-accent-strong);
+	font-size: 0.72rem;
+}
+
+.label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+@media (max-width: 700px) {
+	.cue {
+		max-width: 46vw;
+		min-height: 44px;
+		padding-inline: 10px;
+		font-size: 0.6rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cue {
+		transition: none;
+	}
+}
