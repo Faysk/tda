@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-15
+> Última revisão: 2026-09-30
 > Fonte de verdade: `Faysk/tda@main`, `feature-catalog.md`, documentos donos, `delivery/inventory.md` e `operations/deployments.md`
 
 Este roadmap coordena **ordem, dependências e prioridade de produto**. Ele não substitui as specs nem os runbooks donos de cada área. O [inventário de entregas](delivery/inventory.md) é o registro operacional único de estágio/evidência; aqui ficam somente prioridade, direção e dependências entre frentes.
@@ -31,6 +31,21 @@ Com P1 publicada, **P2 é o próximo gate narrativo ativo** da sequência #99. A
 
 Prancheta mantém estágio, PR/SHA, evidência e próximo gate no [inventário](delivery/inventory.md). A #99 coordena a rodada, mas não declara P2 ou P3 implementados, integrados ou publicados sem evidência própria.
 
+### Programa estrutural multi-campaign — #1122
+
+O TDA passa a preparar múltiplas campaigns first-class sem reordenar artificialmente a fila narrativa P1/P2/P3.
+
+Contrato aprovado em ADR-0020 e [architecture/multi-campaign](architecture/multi-campaign.md):
+
+1. **Fundação:** #1123 registry/lifecycle/identidade, #1134 discovery/RBAC e #1137 contrato/documentação;
+2. **Público/navegação:** #1124/#1125/#1127/#1136;
+3. **Operacional/editorial:** #1128/#1129/#1133;
+4. **Mundo/lore/mídia:** #1130/#1131/#1132/#1135;
+5. **Gate transversal:** #1138.
+
+Rollout é faseado: schema preparado → app compatível → backfill legado → segunda campaign → canonical routes → remoção de hardcodes → depreciação comprovada. Merge de docs não aplica migration, não cria a segunda campaign e não move conteúdo.
+
+A campaign existente preserva technical slug `yuhara-main` e ganha apresentação pública planejada **Crônicas da Mesa**. **Antes que seja tarde** é a segunda identidade editorial planejada; não criar sessions/entities/canon fictícios e não vincular D automaticamente.
 ### Frentes operacionais paralelas
 
 As frentes abaixo continuam em paralelo e **não rebaixam P1/P2/P3 na ordem de produto**:
@@ -38,7 +53,7 @@ As frentes abaixo continuam em paralelo e **não rebaixam P1/P2/P3 na ordem de p
 - **Parafuso — Edit:** convergência de persistence/revision/conflito/audit e UX real, preservando os gates donos de banco e autorização. Owners: [Edit](features/edit-workbench.md), [slice server-side](features/edit-transcript-server-slice.md) e [Identity/access](domains/identity-access.md).
 - **Motorzinho/Painelzinho — operação local:** ASR real Qwen/Whisper, supervisor/serviço, recuperação, biblioteca de runs, revisão e comparação antes de qualquer publicação. Owners: [Processamento](features/local-processing.md), [lifecycle editorial](features/transcript-review-publication.md), [Companion](integrations/local-companion.md) e ADR-0016.
 - **Carteiro/Cofrinho — sincronização/publicação:** resultado explicitamente escolhido -> consumer -> published revision -> receipt/readback -> ativação atômica; sem envio automático ao terminar ASR e sem sobrescrever conteúdo revisado. Owner: [Importação](integrations/transcript-import.md), subordinada ao lifecycle revisionado.
-- **Balde — mídia:** upload, verificação pública e eventual promoção de referências continuam operações deliberadas e separadas. Owner: [R2](integrations/r2.md).
+- **Balde — mídia:** upload, verificação pública e eventual promoção de referências continuam operações deliberadas e separadas. Media campaign-owned deve usar identidade estável e binding isolado conforme #1135/ADR-0020. Owner: [R2](integrations/r2.md).
 - **Catraca, Chaveiro e Contador de Feijão:** Auth, consulta de permissões e estatísticas mantêm seus próprios owners e evidências; mudanças de UX/estado não criam grants nem reabrem recortes concluídos sem defeito novo.
 
 Toda superfície pública compartilhável deve resolver título, resumo e arte próprios quando houver conteúdo elegível pelo caminho runtime real. Teste de helper com fixture não prova integração.
