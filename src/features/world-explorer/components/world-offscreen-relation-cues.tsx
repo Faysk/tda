@@ -32,6 +32,9 @@ export function WorldOffscreenRelationCues({
 					key={cue.edgeId}
 					type="button"
 					className={styles.cue}
+					data-world-offscreen-edge={cue.edgeId}
+					data-world-offscreen-target={cue.targetId}
+					data-world-offscreen-boundary={cue.boundary}
 					style={{
 						left: cue.x,
 						top: cue.y,
