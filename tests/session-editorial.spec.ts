@@ -29,7 +29,15 @@ async function publish(page: Page, label = "Publicar no site") {
 	await page.getByRole("button", { name: label, exact: true }).click();
 	const dialog = page.getByRole("dialog", { name: "Confirmar publicação da sessão" });
 	await expect(dialog).toBeVisible();
-	await dialog.getByRole("button", { name: label, exact: true }).click();
+	await dialog
+		.getByRole("button", {
+			name:
+				label === "Publicar nova versão"
+					? "Confirmar nova versão"
+					: "Confirmar e publicar",
+			exact: true,
+		})
+		.click();
 	return dialog;
 }
 
@@ -196,7 +204,9 @@ test("lost publication response replays the same operation without creating anot
 		),
 	).toBeVisible();
 
-	await dialog.getByRole("button", { name: "Publicar no site", exact: true }).click();
+	await dialog
+		.getByRole("button", { name: "Confirmar e publicar", exact: true })
+		.click();
 	await expect(page.getByText(/Publicação recuperada.*versão pública v1/u)).toBeVisible();
 	await expect(publicSurface.locator("article")).toHaveAttribute(
 		"data-public-version",
@@ -218,7 +228,7 @@ test("cover promotion failure and capability loss fail closed without mutating t
 	await page.getByLabel("Permitir publicação").check();
 	await page.getByRole("button", { name: "Falhar próxima promoção da capa" }).click();
 
-	await publish(page);
+	const dialog = await publish(page);
 	await expect(
 		page.getByText(
 			"A capa não pôde ser promovida e verificada publicamente. A versão anterior continua ativa.",
@@ -228,6 +238,8 @@ test("cover promotion failure and capability loss fail closed without mutating t
 	await expect(page.getByTestId("synthetic-public-session")).toContainText(
 		"Nenhuma publicação pública.",
 	);
+	await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+	await expect(dialog).not.toBeVisible();
 
 	await page.getByLabel("Permitir edição").uncheck();
 	await expect(page.getByLabel("Título")).toBeDisabled();
@@ -304,6 +316,47 @@ test("desktop transcript owns its scroll while the editorial action bar remains 
 	expect(await actionBar.evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
 	await expect(actionBar.getByRole("button", { name: "Preview", exact: true })).toBeVisible();
 	await expect(actionBar.getByRole("button", { name: "Publicar no site", exact: true })).toBeVisible();
+});
+
+test("publication confirmation opens in the top layer, receives focus and restores the trigger", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.goto("/e2e-fixtures/session-editorial");
+	await fillReadyDraft(page);
+	await saveDraft(page, 1);
+	await page.getByRole("tab", { name: "Sessão" }).click();
+
+	const editorial = page.getByRole("region", { name: "Edição editorial da sessão" });
+	await editorial.evaluate((element) => {
+		element.scrollTop = element.scrollHeight;
+	});
+	const trigger = editorial.getByRole("button", {
+		name: "Publicar no site",
+		exact: true,
+	});
+	await expect(trigger).toBeVisible();
+	await trigger.click();
+
+	const dialog = page.getByRole("dialog", { name: "Confirmar publicação da sessão" });
+	await expect(dialog).toBeVisible();
+	await expect(dialog.locator("strong").first()).toBeFocused();
+	const box = await dialog.boundingBox();
+	expect(box).not.toBeNull();
+	if (box) {
+		expect(box.y).toBeGreaterThanOrEqual(-1);
+		expect(box.y + box.height).toBeLessThanOrEqual(901);
+	}
+
+	await page.keyboard.press("Escape");
+	await expect(dialog).not.toBeVisible();
+	await expect(trigger).toBeFocused();
+
+	await trigger.click();
+	await expect(dialog).toBeVisible();
+	await expect(
+		dialog.getByRole("button", { name: "Confirmar e publicar", exact: true }),
+	).toBeVisible();
 });
 
 test("session workbench floating-shell receipts cover desktop, mobile and zoom", async ({
@@ -424,5 +477,5 @@ test("mobile workspace and publication dialog remain inside the viewport", async
 		expect(box.x + box.width).toBeLessThanOrEqual(391);
 	}
 	await dialog.getByRole("button", { name: "Cancelar" }).click();
-	await expect(dialog).toHaveCount(0);
+	await expect(dialog).not.toBeVisible();
 });
