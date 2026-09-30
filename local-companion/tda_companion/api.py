@@ -286,8 +286,16 @@ _PUBLIC_ERROR_CODE = re.compile(r"^[A-Z][A-Z0-9_]{0,95}$")
 _FALLBACK_ERROR_CODE = "INTERNAL_ERROR"
 
 
+_PUBLIC_ERROR_CODE_ALLOWLIST = frozenset(
+    {
+        "SESSION_ASSEMBLY_NOT_FOUND",
+        "JOB_LIST_INVALID",
+    }
+)
+
+
 def _public_error_code(code: object) -> str:
-    if isinstance(code, str) and _PUBLIC_ERROR_CODE.fullmatch(code) is not None:
+    if isinstance(code, str) and code in _PUBLIC_ERROR_CODE_ALLOWLIST:
         return code
     return _FALLBACK_ERROR_CODE
 
