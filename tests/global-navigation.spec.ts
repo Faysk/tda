@@ -375,28 +375,26 @@ test("World keeps floating global navigation without the retired header reveal c
 	}
 });
 
-test("tools drill-down projects only authorized tools", async ({ page }) => {
+test("tools section projects only authorized launcher cells", async ({ page }) => {
 	await mockAccess(page, { capabilities: ["campaign.transcript.read", "campaign.local.process", "campaign.permissions.manage"] });
 	await page.goto("/");
 	const panel = await openGlobalMenu(page);
 	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
-	const toolsButton = navigation.getByRole("button", { name: "Ferramentas", exact: true });
-	await expect(toolsButton).toBeVisible();
-	await toolsButton.click();
-	await expect(navigation.getByRole("heading", { name: "Ferramentas", exact: true })).toBeVisible();
+	const toolsSection = navigation.locator('[data-nav-section="tools"]');
+	await expect(toolsSection.getByRole("heading", { name: "Ferramentas", exact: true })).toBeVisible();
 	for (const label of ["Transcrições", "Editar sessões", "Processar", "Permissões"]) {
-		await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+		await expect(toolsSection.getByRole("link", { name: label, exact: true })).toBeVisible();
 	}
-	await expect(navigation.getByRole("link", { name: "Editar mundo", exact: true })).toHaveCount(0);
-	await expect(navigation.getByRole("link", { name: "Revisão", exact: true })).toHaveCount(0);
+	await expect(toolsSection.getByRole("link", { name: "Editar mundo", exact: true })).toHaveCount(0);
+	await expect(toolsSection.getByRole("link", { name: "Revisão", exact: true })).toHaveCount(0);
+	await expect(navigation.getByRole("button", { name: "Ferramentas", exact: true })).toHaveCount(0);
 });
 
-test("broad capability projection exposes the complete authorized tool set in its drill-down", async ({ page }) => {
+test("broad capability projection exposes the complete authorized tool set on the root launcher", async ({ page }) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.goto("/");
 	const panel = await openGlobalMenu(page);
-	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
-	await navigation.getByRole("button", { name: "Ferramentas", exact: true }).click();
+	const toolsSection = panel.locator('[data-nav-section="tools"]');
 	for (const label of [
 		"Transcrições",
 		"Editar sessões",
@@ -405,7 +403,7 @@ test("broad capability projection exposes the complete authorized tool set in it
 		"Revisão",
 		"Permissões",
 	]) {
-		await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+		await expect(toolsSection.getByRole("link", { name: label, exact: true })).toBeVisible();
 	}
 });
 
@@ -496,11 +494,11 @@ test("unified panel motion is reversible, inert while closing and unmounts after
 	const durations = await panel.evaluate((element) =>
 		getComputedStyle(element).transitionDuration,
 	);
-	expect(
-		durations
-			.split(",")
-			.some((value) => Number.parseFloat(value.trim()) >= 1.9),
-	).toBeTruthy();
+	const seconds = durations
+		.split(",")
+		.map((value) => Number.parseFloat(value.trim()));
+	expect(seconds.some((value) => value > 0)).toBeTruthy();
+	expect(Math.max(...seconds)).toBeLessThan(0.6);
 
 	await trigger.click();
 	await expect(trigger).toHaveAttribute("aria-expanded", "false");
@@ -542,7 +540,7 @@ test("closing global panel does not swallow Escape from the next top-layer inter
 	await expect(dialog).not.toBeVisible();
 });
 
-test("navigation action does not wait for the 2s opening animation", async ({ page }) => {
+test("navigation action remains available during panel opening motion", async ({ page }) => {
 	await mockAccess(page);
 	await page.goto("/sessoes");
 	const trigger = page.getByRole("button", { name: "Abrir menu global" });
@@ -564,7 +562,7 @@ test("rapid avatar toggles never create duplicate panels", async ({ page }) => {
 	await expect(trigger).toHaveAttribute("aria-expanded", "true");
 });
 
-test("reduced motion bypasses the long panel transition and unmounts immediately", async ({ page }) => {
+test("reduced motion bypasses panel transition and unmounts immediately", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await mockAccess(page);
 	await page.goto("/");
@@ -632,34 +630,42 @@ test("skip link becomes visible on keyboard focus with and without reduced motio
 	}
 });
 
-test("hierarchical rows keep useful icon size without launcher-card density", async ({ page }) => {
+test("sectioned launcher keeps icon-first cells readable without card-heavy chrome", async ({ page }) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.setViewportSize({ width: 1366, height: 768 });
 	await page.goto("/");
 	const panel = await openGlobalMenu(page);
 	const world = panel.getByRole("button", { name: "Mundo", exact: true });
-	const worldIcon = world.locator(".global-nav-row-icon");
-	const [rowBox, iconBox] = await Promise.all([world.boundingBox(), worldIcon.boundingBox()]);
-	expect(rowBox).not.toBeNull();
+	const worldIcon = world.locator(".global-nav-cell-icon");
+	const [cellBox, iconBox] = await Promise.all([world.boundingBox(), worldIcon.boundingBox()]);
+	expect(cellBox).not.toBeNull();
 	expect(iconBox).not.toBeNull();
-	if (rowBox && iconBox) {
-		expect(rowBox.height).toBeGreaterThanOrEqual(44);
-		expect(rowBox.height).toBeLessThan(64);
-		expect(iconBox.width).toBeGreaterThanOrEqual(22);
-		expect(iconBox.height).toBeGreaterThanOrEqual(22);
+	if (cellBox && iconBox) {
+		expect(cellBox.height).toBeGreaterThanOrEqual(80);
+		expect(cellBox.height).toBeLessThan(120);
+		expect(iconBox.width).toBeGreaterThanOrEqual(30);
+		expect(iconBox.height).toBeGreaterThanOrEqual(30);
 	}
 
-	await panel.getByRole("button", { name: "Ferramentas", exact: true }).click();
 	for (const label of ["Editar sessões", "Transcrições", "Permissões"]) {
 		const criticalLink = panel.getByRole("link", { name: label, exact: true });
 		await expect(criticalLink).toBeVisible();
 		expect(
-			await criticalLink.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+			await criticalLink.locator(".global-nav-cell-label").evaluate(
+				(element) => element.scrollWidth <= element.clientWidth + 1,
+			),
 		).toBeTruthy();
 	}
+
+	const sections = panel.locator("[data-nav-section]");
+	await expect(sections).toHaveCount(3);
+	const backgrounds = await sections.evaluateAll((elements) =>
+		elements.map((element) => getComputedStyle(element).backgroundColor),
+	);
+	expect(new Set(backgrounds).size).toBeGreaterThanOrEqual(2);
 });
 
-test("hierarchical panel stays contained across the responsive matrix and keeps primary navigation above the fold on Full HD", async ({ page }) => {
+test("sectioned launcher stays contained across the responsive matrix and preserves its grid contract", async ({ page }) => {
 	await mockAccess(page, { capabilities: allToolCapabilities });
 	await page.goto("/");
 	for (const viewport of [
@@ -677,31 +683,62 @@ test("hierarchical panel stays contained across the responsive matrix and keeps 
 		await expectNoHorizontalOverflow(page);
 		await expectPanelContained(page);
 
+		const explore = panel.locator('[data-nav-section="explore"]');
+		const tools = panel.locator('[data-nav-section="tools"]');
+		const utility = panel.locator('[data-nav-section="utility"]');
+		await expect(explore).toBeVisible();
+		await expect(tools).toBeVisible();
+		await expect(utility).toBeVisible();
+
 		for (const label of ["Sessões", "Lores", "Lembra"]) {
-			await expect(panel.getByRole("link", { name: label, exact: true })).toBeVisible();
+			await expect(explore.getByRole("link", { name: label, exact: true })).toBeVisible();
 		}
-		await expect(panel.getByRole("button", { name: "Mundo", exact: true })).toBeVisible();
-		await expect(panel.getByRole("button", { name: "Ferramentas", exact: true })).toBeVisible();
+		await expect(explore.getByRole("button", { name: "Mundo", exact: true })).toBeVisible();
+		await expect(tools.getByRole("link", { name: "Editar sessões", exact: true })).toBeVisible();
 
-		if (viewport.width === 1920 && viewport.height === 1080) {
-			const state = await panel.evaluate((element) => ({
-				clientHeight: element.clientHeight,
-				scrollHeight: element.scrollHeight,
-			}));
-			expect(state.scrollHeight).toBeLessThanOrEqual(state.clientHeight + 1);
-		}
+		const columns = await explore.locator(".global-nav-grid").evaluate((element) =>
+			getComputedStyle(element).gridTemplateColumns.split(" ").filter(Boolean).length,
+		);
+		expect(columns).toBe(viewport.width <= 360 ? 2 : 3);
 
-		await panel.getByRole("button", { name: "Mundo", exact: true }).click();
+		await explore.getByRole("button", { name: "Mundo", exact: true }).click();
 		await expect(panel.getByRole("link", { name: "Personagens", exact: true })).toBeVisible();
+		await expect(panel.getByRole("button", { name: "Voltar para Explorar", exact: true })).toBeFocused();
+		expect(await panel.evaluate((element) => element.scrollTop)).toBeLessThanOrEqual(2);
 		await expectNoHorizontalOverflow(page);
 		await panel.getByRole("button", { name: "Voltar para Explorar", exact: true }).click();
-
-		await panel.getByRole("button", { name: "Ferramentas", exact: true }).click();
-		await expect(panel.getByRole("link", { name: "Editar sessões", exact: true })).toBeVisible();
-		await expectNoHorizontalOverflow(page);
-		await panel.getByRole("button", { name: "Voltar para Explorar", exact: true }).click();
+		await expect(explore.getByRole("button", { name: "Mundo", exact: true })).toBeFocused();
 
 		await page.keyboard.press("Escape");
+	}
+});
+
+test("launcher owns one vertical scroll surface and keeps below-fold controls reachable", async ({ page }) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 390, height: 500 });
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	const overflow = await panel.evaluate((element) => getComputedStyle(element).overflowY);
+	expect(["auto", "scroll"]).toContain(overflow);
+
+	const nestedScrollOwners = await panel.locator("[data-nav-section]").evaluateAll((elements) =>
+		elements.filter((element) => {
+			const style = getComputedStyle(element);
+			return style.overflowY === "auto" || style.overflowY === "scroll";
+		}).length,
+	);
+	expect(nestedScrollOwners).toBe(0);
+
+	const logout = panel.getByRole("button", { name: "Sair", exact: true });
+	await logout.scrollIntoViewIfNeeded();
+	await logout.focus();
+	await expect(logout).toBeFocused();
+	const [panelBox, logoutBox] = await Promise.all([panel.boundingBox(), logout.boundingBox()]);
+	expect(panelBox).not.toBeNull();
+	expect(logoutBox).not.toBeNull();
+	if (panelBox && logoutBox) {
+		expect(logoutBox.y).toBeGreaterThanOrEqual(panelBox.y - 1);
+		expect(logoutBox.y + logoutBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height + 1);
 	}
 });
 
@@ -788,6 +825,43 @@ test("floating chrome contrast receipts exercise opposing backgrounds without a 
 			fullPage: false,
 		});
 	}
+});
+
+test("sectioned launcher captures World, capability and scrolled utility receipts", async ({ page }, testInfo) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.emulateMedia({ colorScheme: "dark" });
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/");
+	let panel = await openGlobalMenu(page);
+	await expectGlobalMenuVisuallySettled(page);
+	await panel.getByRole("button", { name: "Mundo", exact: true }).click();
+	await page.screenshot({
+		path: testInfo.outputPath("navigation-world-mobile-dark.png"),
+		fullPage: false,
+	});
+	await page.keyboard.press("Escape");
+
+	await page.unroute("**/api/auth/me");
+	await mockAccess(page, { capabilities: ["campaign.local.process"] });
+	await page.reload();
+	panel = await openGlobalMenu(page);
+	await expect(panel.locator('[data-nav-section="tools"]')).toBeVisible();
+	await page.screenshot({
+		path: testInfo.outputPath("navigation-partial-tools-mobile-dark.png"),
+		fullPage: false,
+	});
+	await page.keyboard.press("Escape");
+
+	await page.unroute("**/api/auth/me");
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.setViewportSize({ width: 1366, height: 600 });
+	await page.reload();
+	panel = await openGlobalMenu(page);
+	await panel.getByRole("button", { name: "Sair", exact: true }).scrollIntoViewIfNeeded();
+	await page.screenshot({
+		path: testInfo.outputPath("navigation-full-tools-utility-scrolled.png"),
+		fullPage: false,
+	});
 });
 
 test("desktop and mobile unified navigation receipts are captured from synthetic state", async ({ page }, testInfo) => {
