@@ -11,6 +11,7 @@ const first = {
 	segments: [
 		{
 			id: "r-1-a",
+			sourceSegmentId: "segment-a",
 			trackNumber: 1,
 			startMs: 3_210,
 			endMs: 4_000,
@@ -40,6 +41,9 @@ describe("private transcript markdown download", () => {
 		});
 		expect(download.headers["Content-Disposition"]).toContain("attachment");
 		expect(download.body).toContain("Primeiro snapshot 🌲");
+		expect(download.body).toContain("tda_transcript: tda_transcript_markdown_v1");
+		expect(download.body).toMatch(/structure_sha256: [0-9a-f]{64}/u);
+		expect(download.body).toContain("<!-- tda:segment track=1 id=segment-a start_ms=3210 end_ms=4000 -->");
 	});
 
 	it("renders exactly the captured revision even if a newer snapshot exists later", async () => {
