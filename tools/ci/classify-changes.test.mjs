@@ -123,6 +123,7 @@ test("Processing Web paths activate the Processing E2E contract", () => {
 		true,
 	);
 	assert.equal(flags(["tests/processing/journey.spec.ts"]).processing, true);
+	assert.equal(flags(["src/app/api/edit/processing/campaign-context/route.ts"]).processing, true);
 	assert.equal(flags(["tests/processing-ux/responsive.spec.ts"]).processing, true);
 	assert.equal(flags(["playwright.processing-ux.config.ts"]).processing, true);
 	assert.equal(
@@ -154,6 +155,10 @@ test("Session editorial paths activate the targeted private-to-public journey ga
 	]) {
 		assert.equal(flags([path]).sessions, true, path);
 	}
+	assert.equal(
+		flags(["src/features/transcript-publication/repository.ts"]).sessions,
+		true,
+	);
 	assert.equal(flags(["src/app/mundo/page.tsx"]).sessions, false);
 });
 
