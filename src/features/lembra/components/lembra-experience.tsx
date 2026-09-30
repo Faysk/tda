@@ -1558,9 +1558,23 @@ export function LembraExperience({
 								<div
 									className={styles.uploadStatus}
 									data-phase={uploadStatus.phase}
-									role="status"
-									aria-live="polite"
 								>
+									<span
+										className={styles.visuallyHidden}
+										role="status"
+										aria-live="polite"
+										aria-atomic="true"
+									>
+										{uploadStatus.phase === "preparing"
+											? "Preparando a imagem."
+											: uploadStatus.phase === "uploading"
+												? "Envio da imagem em andamento."
+												: uploadStatus.phase === "finalizing"
+													? "Validando e publicando a imagem."
+													: uploadStatus.phase === "success"
+														? "Imagem publicada no Lembra."
+														: "Falha ao publicar a imagem."}
+									</span>
 									<div className={styles.uploadStatusHeader}>
 										<span>
 											{uploadStatus.phase === "preparing"
