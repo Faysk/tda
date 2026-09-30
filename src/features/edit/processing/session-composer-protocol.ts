@@ -16,12 +16,17 @@ export type SessionAssemblyPart = {
 
 export type SessionAssembly = {
 	schemaVersion: "tda_session_assembly_v1";
+	canonicalizationVersion: "tda_session_assembly_canonical_v1";
 	assemblyId: string;
 	campaignId: string;
 	sessionId: string;
 	inputsSha256: string;
 	timelineFingerprintSha256: string;
 	participantMappingSha256: string;
+	timingPolicyVersion: "tda_session_timeline_v1";
+	segmentBoundaryPolicy: "segment_start_owner_v1";
+	participantMappingSchemaVersion: "tda_session_participant_mapping_v1";
+	participantMappingPolicy: "strong_discord_or_manual_v1";
 	participantApprovalBlocked: boolean;
 	transcriptSha256: string;
 	transcriptSizeBytes: number;
@@ -46,20 +51,50 @@ export type SessionAssemblyList = {
 	assemblies: readonly SessionAssemblyListItem[];
 };
 
+export type SessionAssemblyReviewSegment = {
+	assemblySegmentId: string;
+	partId: string;
+	sourceId: string;
+	runId: string;
+	sourceSegmentId: string;
+	trackNumber: number;
+	participantId: string;
+	start: number;
+	end: number;
+	absoluteStart: string | null;
+	absoluteEnd: string | null;
+	text: string;
+	speaker: string;
+	reviewed: boolean;
+};
+
 export type SessionAssemblyReviewSummary = {
+	snapshotContract: "tda_session_assembly_review_cas_v1";
 	assemblyId: string;
 	baseTranscriptSha256: string;
+	inputsSha256: string;
 	status: LocalReviewStatus;
 	persistence: "persisted" | "ephemeral_base";
 	draftRevision: number | null;
 	draftSha256: string | null;
 	approvalCurrent: boolean;
 	approvalBlocked: boolean;
+	approvedAt: string | null;
+	createdAt: string | null;
+	updatedAt: string | null;
 	segmentCount: number;
 	reviewedSegments: number;
 	reviewPercent: number;
 	editedSegments: number;
 	wordCount: number;
+	warningCount: number;
+	warnings: readonly string[];
+	warningSummary: {
+		totalCount: number;
+		displayedCount: number;
+		truncated: boolean;
+	};
+	segments: readonly SessionAssemblyReviewSegment[];
 };
 
 function invalid(): never {
@@ -175,12 +210,30 @@ export function parseSessionAssembly(value: unknown): SessionAssembly {
 	if (assemblyId !== inputsSha256) return invalid();
 	return {
 		schemaVersion: "tda_session_assembly_v1",
+		canonicalizationVersion: "tda_session_assembly_canonical_v1",
 		assemblyId,
 		campaignId: id(row.campaign_id, 128),
 		sessionId: id(row.session_id, 128),
 		inputsSha256,
 		timelineFingerprintSha256: hex(row.timeline_fingerprint_sha256, 64),
 		participantMappingSha256: hex(row.participant_mapping_sha256, 64),
+		timingPolicyVersion:
+			row.timing_policy_version === "tda_session_timeline_v1"
+				? "tda_session_timeline_v1"
+				: invalid(),
+		segmentBoundaryPolicy:
+			row.segment_boundary_policy === "segment_start_owner_v1"
+				? "segment_start_owner_v1"
+				: invalid(),
+		participantMappingSchemaVersion:
+			row.participant_mapping_schema_version ===
+			"tda_session_participant_mapping_v1"
+				? "tda_session_participant_mapping_v1"
+				: invalid(),
+		participantMappingPolicy:
+			row.participant_mapping_policy === "strong_discord_or_manual_v1"
+				? "strong_discord_or_manual_v1"
+				: invalid(),
 		participantApprovalBlocked: bool(row.participant_approval_blocked),
 		transcriptSha256: hex(row.transcript_sha256, 64),
 		transcriptSizeBytes: integer(row.transcript_size_bytes, 1, 64 * 1024 * 1024),
@@ -229,6 +282,8 @@ export function parseSessionAssemblyReviewSummary(
 	if (base.kind !== "session_assembly") return invalid();
 	const assemblyId = hex(base.assembly_id, 64);
 	if (expectedAssemblyId && assemblyId !== expectedAssemblyId) return invalid();
+	const baseTranscriptSha256 = hex(base.transcript_sha256, 64);
+	const inputsSha256 = hex(base.inputs_sha256, 64);
 	const persistence = string(row.persistence, 32);
 	if (persistence !== "persisted" && persistence !== "ephemeral_base") return invalid();
 	const draftRevision =
@@ -236,11 +291,61 @@ export function parseSessionAssemblyReviewSummary(
 	const draftSha256 =
 		row.draft_sha256 === null ? null : hex(row.draft_sha256, 64);
 	if (
-		(persistence === "ephemeral_base" && (draftRevision !== null || draftSha256 !== null)) ||
-		(persistence === "persisted" && (draftRevision === null || draftSha256 === null))
+		(persistence === "ephemeral_base" &&
+			(draftRevision !== null || draftSha256 !== null)) ||
+		(persistence === "persisted" &&
+			(draftRevision === null || draftSha256 === null))
 	)
 		return invalid();
-	if (!Array.isArray(row.segments) || row.segments.length > 100_000) return invalid();
+
+	if (!Array.isArray(row.segments) || row.segments.length > 100_000)
+		return invalid();
+	const segments = row.segments.map((raw) => {
+		const segment = object(raw);
+		const start = number(segment.start);
+		const end = number(segment.end);
+		if (end < start) return invalid();
+		const absoluteStart =
+			segment.absolute_start === null || segment.absolute_start === undefined
+				? null
+				: iso(segment.absolute_start);
+		const absoluteEnd =
+			segment.absolute_end === null || segment.absolute_end === undefined
+				? null
+				: iso(segment.absolute_end);
+		if ((absoluteStart === null) !== (absoluteEnd === null))
+			return invalid();
+		if (
+			absoluteStart !== null &&
+			absoluteEnd !== null &&
+			Date.parse(absoluteEnd) < Date.parse(absoluteStart)
+		)
+			return invalid();
+		const sourceId = string(segment.source_id, 80);
+		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
+		const trackNumber = integer(segment.track_number, 1, 9999);
+		const text = string(segment.text, 200_000);
+		const speaker = string(segment.speaker, 320);
+		return {
+			assemblySegmentId: hex(segment.assembly_segment_id, 64),
+			partId: hex(segment.part_id, 32),
+			sourceId,
+			runId: id(segment.run_id, 196),
+			sourceSegmentId: string(segment.source_segment_id, 256),
+			trackNumber,
+			participantId: hex(segment.participant_id, 32),
+			start,
+			end,
+			absoluteStart,
+			absoluteEnd,
+			text,
+			speaker,
+			reviewed: bool(segment.reviewed),
+		} satisfies SessionAssemblyReviewSegment;
+	});
+	if (new Set(segments.map((segment) => segment.assemblySegmentId)).size !== segments.length)
+		return invalid();
+
 	const review = object(row.review);
 	const reviewedSegments = integer(review.reviewed_segments, 0, row.segments.length);
 	const totalSegments = integer(review.total_segments, 0, 100_000);
@@ -248,19 +353,52 @@ export function parseSessionAssemblyReviewSummary(
 		return invalid();
 	const reviewPercent = number(review.review_percent);
 	if (reviewPercent > 100) return invalid();
+	const warningCount = integer(review.warning_count ?? 0, 0, 999_999_999);
+	const warnings = Array.isArray(row.warnings)
+		? row.warnings.map((warning) => string(warning, 1024))
+		: [];
+	const warningSummaryRaw =
+		row.warning_summary === undefined
+			? {
+					total_count: warningCount,
+					displayed_count: warnings.length,
+					truncated: warningCount > warnings.length,
+				}
+			: object(row.warning_summary);
+	const totalCount = integer(warningSummaryRaw.total_count, 0, 999_999_999);
+	const displayedCount = integer(warningSummaryRaw.displayed_count, 0, 1000);
+	const truncated = bool(warningSummaryRaw.truncated);
+	if (
+		totalCount !== warningCount ||
+		displayedCount !== warnings.length ||
+		truncated !== (warningCount > warnings.length)
+	)
+		return invalid();
+	const nullableIso = (raw: unknown): string | null =>
+		raw === null || raw === undefined ? null : iso(raw);
+
 	return {
+		snapshotContract: "tda_session_assembly_review_cas_v1",
 		assemblyId,
-		baseTranscriptSha256: hex(base.transcript_sha256, 64),
+		baseTranscriptSha256,
+		inputsSha256,
 		status: status(row.status),
 		persistence,
 		draftRevision,
 		draftSha256,
 		approvalCurrent: bool(row.approval_current),
 		approvalBlocked: bool(row.approval_blocked),
+		approvedAt: nullableIso(row.approved_at),
+		createdAt: nullableIso(row.created_at),
+		updatedAt: nullableIso(row.updated_at),
 		segmentCount: totalSegments,
 		reviewedSegments,
 		reviewPercent,
 		editedSegments: integer(review.edited_segments, 0, totalSegments),
 		wordCount: integer(review.word_count, 0),
+		warningCount,
+		warnings,
+		warningSummary: { totalCount, displayedCount, truncated },
+		segments,
 	};
 }
