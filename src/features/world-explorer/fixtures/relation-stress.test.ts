@@ -23,7 +23,7 @@ describe("World relation stress fixture", () => {
 	it("keeps a deterministic dense graph with mixed relation semantics", () => {
 		expect(WORLD_RELATION_STRESS_FIXTURE.nodes).toHaveLength(28);
 		expect(WORLD_RELATION_STRESS_FIXTURE.edges).toHaveLength(40);
-		expect(new Set(WORLD_RELATION_STRESS_FIXTURE.heroIds)).toHaveLength(4);
+		expect(new Set(WORLD_RELATION_STRESS_FIXTURE.heroIds).size).toBe(4);
 		expect(
 			new Set(WORLD_RELATION_STRESS_FIXTURE.edges.map((edge) => edge.family)).size,
 		).toBeGreaterThanOrEqual(6);
