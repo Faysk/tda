@@ -173,6 +173,61 @@ test("benchmark does not promise a Qwen update when the Stable manifest cannot b
 	expect(state.qwenRuntimeUpdatePostCount).toBe(0);
 });
 
+
+test("benchmark resumes an update that was already running before the page opened", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkReadyProfiles: ["whisper-turbo", "whisper-detailed"],
+		qwenRuntimeUpgradeRequired: true,
+		qwenRuntimeVersion: "1.0.11",
+		qwenRuntimeStableVersion: "1.0.12",
+		qwenRuntimeUpdateInitiallyActive: true,
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel).toContainText("2 / 4 perfis prontos");
+	const recovery = panel.locator("[data-qwen-runtime-recovery='true']");
+	await expect(recovery).toContainText("Baixando Qwen Runtime…");
+	await expect.poll(() => state.qwenRuntimeStatusGetCount).toBeGreaterThanOrEqual(2);
+	await expect(panel).toContainText("4 / 4 perfis prontos");
+	await expect(
+		panel.getByText("Qwen Runtime atualizado. Qwen Fast e Qwen Quality estão prontos."),
+	).toBeVisible();
+	await expect(recovery).toHaveCount(0);
+	expect(state.qwenRuntimeCheckPostCount).toBe(0);
+	expect(state.qwenRuntimeUpdatePostCount).toBe(0);
+	expect(state.uploadCount).toBe(0);
+});
+
+test("benchmark keeps update failure actionable and sanitized", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkReadyProfiles: ["whisper-turbo", "whisper-detailed"],
+		qwenRuntimeUpgradeRequired: true,
+		qwenRuntimeVersion: "1.0.11",
+		qwenRuntimeStableVersion: "1.0.12",
+		qwenRuntimeUpdateFailure: "QWEN_RUNTIME_UPDATE_FAILED",
+	});
+	const panel = await openBenchmark(page);
+	const recovery = panel.locator("[data-qwen-runtime-recovery='true']");
+
+	await expect.poll(() => state.qwenRuntimeCheckPostCount).toBe(1);
+	await recovery.getByRole("button", { name: "Atualizar Qwen Runtime" }).click();
+
+	await expect.poll(() => state.qwenRuntimeUpdatePostCount).toBe(1);
+	await expect(recovery.getByRole("alert")).toContainText("QWEN_RUNTIME_UPDATE_FAILED");
+	await expect(recovery.getByRole("alert")).toContainText(
+		"Não foi possível atualizar o Qwen Runtime",
+	);
+	await expect(
+		recovery.getByRole("button", { name: "Atualizar Qwen Runtime" }),
+	).toBeEnabled();
+	await expect(panel).toContainText("2 / 4 perfis prontos");
+});
+
 test("benchmark preflight reflows from mobile through 4K without horizontal overflow", async ({
 	page,
 }, testInfo) => {
