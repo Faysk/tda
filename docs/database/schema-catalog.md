@@ -65,18 +65,33 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 
 **Propósito:** raiz de isolamento narrativo. A fotografia observada contém uma campaign com technical slug `yuhara-main`; isso descreve o estado físico atual, não uma limitação arquitetural a uma única campaign.
 
-Campos:
+Estado remoto observado em 2026-09-30: `id`, `name`, `slug`, `description`, `metadata` e timestamps continuam sendo o schema aplicado. O candidate #1123 **ainda não é estado remoto**.
 
-- `id uuid` PK;
-- `name text`;
-- `slug text unique` — technical slug/compatibilidade observado; ADR-0020 não o usa como nome público nem route key renomeável;
+Campos preparados pelo candidate `supabase/candidates/20260930174200_first_class_campaign_registry.sql`:
+
+- `id uuid` PK — autoridade relacional;
+- `name text` — apresentação humana;
+- `slug text unique` — technical slug/compatibilidade e scope textual legado; o candidate bloqueia mutation depois da criação;
+- `public_slug text not null` — route key pública canônica, única case-insensitive;
+- `lifecycle text` — `active | archived`;
+- `visibility text` — `public | private`, independente de lifecycle;
+- `archived_at timestamptz?` — obrigatório somente quando `lifecycle=archived`;
 - `description text?`;
-- `metadata jsonb` — extensão, não contrato central;
-- timestamps.
+- `metadata jsonb`;
+- timestamps legados.
+
+Backfill preparado:
+- preserva UUID e technical slug `yuhara-main`, apresentando a row como **Crônicas da Mesa** / `cronicas-da-mesa`;
+- cria **Antes que seja tarde** com UUID fixo `d0b64c86-3c83-4e9e-9cd8-b8ebd4d1d001`, `active/private` e sem conteúdo narrativo inferido;
+- inserts legados que fornecem apenas `slug` continuam recebendo `public_slug=slug`.
 
 É referenciada por sessions, memberships, entities, canon, RBAC relacionado, auditoria e integrações. Multi-campaign deve sempre respeitar `campaign_id`; nenhum lookup campaign-owned pode depender de unicidade global implícita de `source_session_id`/slug de entity.
 
-**Contrato planejado, ainda não afirmado como schema aplicado:** #1123 deve adicionar lifecycle `active | archived` e identidade pública/aliases coerentes com ADR-0020. Esses campos/tabelas só passam a integrar este catálogo físico depois de migration aplicada e revalidada.
+### `campaign_public_route_aliases`
+
+Tabela preparada pelo candidate para preservar route keys públicas históricas. Contém `campaign_id`, `route_key`, timestamps e metadata. Canonical `public_slug` e aliases compartilham domínio lógico de colisão; alias ownership é imutável e aliases não recebem DELETE no grant operacional de `service_role`.
+
+A compatibilidade inicial registra `yuhara-main` como alias pública da mesma row **Crônicas da Mesa**. Aliases nunca substituem UUID ou technical slug como FK/RBAC.
 
 ## `profiles`
 
