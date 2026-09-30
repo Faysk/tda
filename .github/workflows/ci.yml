@@ -303,6 +303,7 @@ jobs:
           tests/navigation-origin.spec.ts
           tests/world-catalogs.spec.ts
           tests/system-states.spec.ts
+          tests/session-public-layout.spec.ts
           --project=desktop-1080p
       - name: Upload sanitized navigation visual receipts
         if: ${{ success() }}
@@ -323,6 +324,8 @@ jobs:
             test-results/**/shell-contrast-light-theme.png
             test-results/**/shell-contrast-mobile-dark.png
             test-results/**/shell-contrast-mobile-light.png
+            test-results/**/session-layout-*.png
+            test-results/**/session-layout-*.json
             test-results/**/layout-keylines-home.png
             test-results/**/layout-keylines-sessoes.png
             test-results/**/layout-keylines-lembra.png
