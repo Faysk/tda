@@ -27,9 +27,21 @@ Contrato aceito em ADR-0020:
 - public route key: identidade de navegação separada, com aliases quando houver rename de URL;
 - lifecycle mínimo: `active | archived`, separado de visibilidade/discovery.
 
-O schema físico para public route key/aliases/lifecycle pertence a #1123; este documento fixa a semântica antes da migration. A campaign existente preserva `yuhara-main` tecnicamente e pode ser apresentada como **Crônicas da Mesa**. A campaign planejada **Antes que seja tarde** não autoriza criar sessions/entities/canon fictícios nem vincular D automaticamente.
+A migration candidata de #1123 materializa esse contrato com `public_slug`, `lifecycle`, `visibility`, `archived_at` e `campaign_public_route_aliases`. A campaign existente preserva UUID e technical slug `yuhara-main`, enquanto a apresentação passa a **Crônicas da Mesa** e a route key canônica a `cronicas-da-mesa`. A segunda campaign **Antes que seja tarde** é criada somente como identidade `active/private`; não recebe sessions/entities/canon/memberships nem vínculo automático com D.
 
-IDs como `source_session_id` e entity slug podem ser iguais entre campaigns quando o domínio permitir; lookups correspondentes precisam ser campaign-qualified.
+IDs como `source_session_id` e entity slug podem ser iguais entre campaigns quando o domínio permitir; lookups correspondentes precisam ser campaign-qualified. O registry também torna físico o vínculo `profile_characters(campaign_id, entity_id) -> entities(campaign_id, id)`, bloqueando associação de PC a entity de campaign irmã.
+
+### Consumidores do technical slug
+
+O technical slug continua estável porque ainda participa de contratos de compatibilidade:
+
+- scopes RBAC `scope_type=campaign` usam o slug textual;
+- helpers/RPCs legados como `has_campaign_role_slug` e `access_directory` recebem slug;
+- handoff/publicação de transcript resolve UUID e depois compara assignment de campaign pelo slug;
+- rotas Edit legadas ainda carregam `[campaignSlug]`;
+- chaves de mídia, caches e processing antigos podem carregar o slug técnico até as issues donas removerem hardcodes.
+
+Por isso rename editorial altera `name`; rename de URL pública altera `public_slug` + alias; nenhum dos dois renomeia `campaigns.slug` automaticamente.
 
 ### Campaign member e RBAC
 `campaign_members` é o membership histórico simples da campanha e ainda alimenta RPCs legadas. O modelo de autorização extensível usa `permission_catalog`, `role_definitions`, `role_permissions` e `role_assignments`.
