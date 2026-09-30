@@ -231,6 +231,12 @@ def collect() -> tuple[
         add_pin(pins, sources, "uv", version, source)
 
     for name, exception in exceptions.items():
+        if name == "python":
+            if python_pin != exception["version"]:
+                raise RuntimeError(
+                    f"DEPENDENCY_FRESHNESS_EXCEPTION_VERSION_MISMATCH:python:{exception['version']}:{python_pin}"
+                )
+            continue
         pinned = pins.get(name)
         if pinned is None:
             raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTION_ORPHANED:{name}")
@@ -270,9 +276,23 @@ def main() -> int:
             stale.append(f"{name}: pinned {pinned}, latest {latest}")
 
     current_python = latest_python_312()
-    python_state = "current" if python_pin == current_python else "STALE"
+    python_exception = exceptions.get("python")
+    python_excepted = (
+        python_pin != current_python
+        and python_exception is not None
+        and python_exception.get("version") == python_pin
+    )
+    python_state = (
+        "current"
+        if python_pin == current_python
+        else "COMPATIBILITY EXCEPTION"
+        if python_excepted
+        else "STALE"
+    )
     print(f"python: {python_pin} -> {current_python} [{python_state}]")
-    if python_pin != current_python:
+    if python_excepted:
+        print(f"  reason: {python_exception['reason']}")
+    elif python_pin != current_python:
         stale.append(f"python: pinned {python_pin}, latest 3.12 patch {current_python}")
 
     print(f"Transitive test lock: {len(lock)} exact entries; compatibility is owned by the resolver.")
