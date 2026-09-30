@@ -9,6 +9,19 @@ on:
       - "tests/world-canvas-spatial-interaction.spec.ts"
       - "tests/world-explorer-first-viewport.spec.ts"
       - "tests/world-edge-style.spec.ts"
+      - "tests/world-relation-polish-gates.spec.ts"
+      - "src/features/world-explorer/fixtures/relation-stress.ts"
+      - "src/features/world-explorer/edge-route-bends.ts"
+      - "src/features/world-explorer/edge-routing.ts"
+      - "src/features/world-explorer/floating-edge-geometry.ts"
+      - "src/features/world-explorer/routed-edge-geometry.ts"
+      - "src/features/world-explorer/adapters/react-flow.ts"
+      - "src/features/world-explorer/components/world-offscreen-relation-cues.tsx"
+      - "src/features/world-explorer/components/world-offscreen-relation-cues.module.css"
+      - "src/features/world-explorer/components/world-status-overlay.tsx"
+      - "src/features/world-explorer/components/world-status-overlay.module.css"
+      - "src/features/world-explorer/components/world-floating-chrome.tsx"
+      - "src/features/world-explorer/components/world-floating-chrome.module.css"
       - "src/features/world-explorer/world-semantic-zoom.ts"
       - "src/features/world-explorer/world-neighborhoods.ts"
       - "src/features/world-explorer/components/world-canvas.tsx"
@@ -48,4 +61,13 @@ jobs:
           tests/world-canvas-spatial-interaction.spec.ts
           tests/world-explorer-first-viewport.spec.ts
           tests/world-edge-style.spec.ts
+          tests/world-relation-polish-gates.spec.ts
           --project=desktop-1080p
+      - name: Upload sanitized World relation polish receipt
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: world-map-scale-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/**/world-relation-polish-1920x1080.png
+          if-no-files-found: error
+          retention-days: 30
