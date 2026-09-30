@@ -69,6 +69,12 @@ describe("World React Flow selection decoration", () => {
 		expect(selected.nodes.find((node) => node.id === "hero")?.position).toBe(heroPosition);
 		expect(selected.edges[0].sourceHandle).toBe(route.sourceHandle);
 		expect(selected.edges[0].targetHandle).toBe(route.targetHandle);
+		expect(route.data).toMatchObject({
+			sourceSide: expect.any(String),
+			targetSide: expect.any(String),
+			sourceLane: 0,
+			targetLane: 0,
+		});
 
 		// The cached structure itself stays selection-neutral and can be reused.
 		expect(structure.nodes.every((node) => node.selected === false)).toBe(true);

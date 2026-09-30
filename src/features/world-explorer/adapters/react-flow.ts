@@ -3,7 +3,11 @@ import {
 	constellationWorldLayout,
 	type WorldLayout,
 } from "../constellation-layout";
-import { routeWorldEdgePorts } from "../edge-routing";
+import {
+	routeWorldEdgePorts,
+	type WorldPortLane,
+	type WorldPortSide,
+} from "../edge-routing";
 import { worldLayoutOverrides } from "../layout-contract";
 import type {
 	WorldEdgeDTO,
@@ -31,6 +35,10 @@ export type WorldFlowEdgeData = {
 	isDimmed: boolean;
 	routeOffset: number;
 	labelOffset: { x: number; y: number };
+	sourceSide?: WorldPortSide;
+	targetSide?: WorldPortSide;
+	sourceLane?: WorldPortLane;
+	targetLane?: WorldPortLane;
 };
 
 export type WorldFlowNode = Node<WorldFlowNodeData, "worldEntity">;
@@ -147,6 +155,10 @@ export function toReactFlowStructure(
 				isDimmed: false,
 				routeOffset: route?.offset ?? 28,
 				labelOffset: route?.labelOffset ?? { x: 0, y: 0 },
+				sourceSide: route?.sourceSide,
+				targetSide: route?.targetSide,
+				sourceLane: route?.sourceLane,
+				targetLane: route?.targetLane,
 			},
 			deletable: false,
 			selectable: true,
@@ -257,6 +269,10 @@ export function rerouteWorldEdges(
 					...edge.data,
 					routeOffset: route.offset,
 					labelOffset: route.labelOffset,
+					sourceSide: route.sourceSide,
+					targetSide: route.targetSide,
+					sourceLane: route.sourceLane,
+					targetLane: route.targetLane,
 				}
 				: edge.data,
 		};

@@ -94,7 +94,22 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const targetNode = useInternalNode(props.target);
 	const sourceBox = floatingBox(sourceNode);
 	const targetBox = floatingBox(targetNode);
-	const floating = sourceBox && targetBox ? getFloatingEdgeGeometry(sourceBox, targetBox) : null;
+	const floatingRoute = props.data
+		? {
+				source:
+					props.data.sourceSide !== undefined && props.data.sourceLane !== undefined
+						? { side: props.data.sourceSide, lane: props.data.sourceLane }
+						: undefined,
+				target:
+					props.data.targetSide !== undefined && props.data.targetLane !== undefined
+						? { side: props.data.targetSide, lane: props.data.targetLane }
+						: undefined,
+			}
+		: undefined;
+	const floating =
+		sourceBox && targetBox
+			? getFloatingEdgeGeometry(sourceBox, targetBox, floatingRoute)
+			: null;
 	const routeOffset = props.data?.routeOffset ?? 28;
 	const labelOffset = props.data?.labelOffset ?? { x: 0, y: 0 };
 	const family = props.data?.family ?? "context";
