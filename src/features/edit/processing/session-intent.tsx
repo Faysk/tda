@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import type { LocalBridge } from "./bridge";
 import {
 	latestJobForSource,
@@ -16,7 +15,7 @@ import {
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
 	SESSION_COMPOSER_CHANGE_EVENT,
-	SESSION_COMPOSER_LAST_SESSION_KEY,
+	sessionComposerLastSessionKey,
 	SESSION_COMPOSER_RECOVERY_KEY,
 	type SessionComposerPendingSubmission,
 } from "./session-composer-storage";
@@ -88,6 +87,7 @@ type Snapshot = Readonly<{
 
 type Props = Readonly<{
 	bridge: LocalBridge;
+	campaignId: string;
 	capabilities: readonly string[];
 	request: SessionTranscriptionIntent | null;
 	recoveryScope: string | null;
@@ -151,10 +151,10 @@ function sourceLabel(
 	return index >= 0 ? `Gravação ${index + 1}` : "Gravação";
 }
 
-function saveRecoveryPointer(sessionId: string) {
+function saveRecoveryPointer(campaignId: string, sessionId: string) {
 	try {
 		window.localStorage.setItem(SESSION_COMPOSER_RECOVERY_KEY, sessionId);
-		window.localStorage.setItem(SESSION_COMPOSER_LAST_SESSION_KEY, sessionId);
+		window.localStorage.setItem(sessionComposerLastSessionKey(campaignId), sessionId);
 	} catch {
 		// Browser storage is only a pointer. The Agent workspace remains authoritative.
 	}
@@ -163,6 +163,7 @@ function saveRecoveryPointer(sessionId: string) {
 
 export function SessionIntentCoordinator({
 	bridge,
+	campaignId,
 	capabilities,
 	request,
 	recoveryScope,
@@ -242,7 +243,7 @@ export function SessionIntentCoordinator({
 	const loadSnapshot = useCallback(
 		async (sessionId: string, signal: AbortSignal): Promise<Snapshot> => {
 			const next = await bridge.sessionWorkspace(
-				CAMPAIGN_SLUG,
+				campaignId,
 				sessionId,
 				signal,
 			);
@@ -271,7 +272,7 @@ export function SessionIntentCoordinator({
 				setRunsBySource(snapshot.runsBySource);
 				setJobs(snapshot.jobs);
 				onActiveChange?.(snapshot.workspace.parts.length > 0);
-				saveRecoveryPointer(snapshot.workspace.sessionId);
+				saveRecoveryPointer(campaignId, snapshot.workspace.sessionId);
 			}
 			return snapshot;
 		},
@@ -300,7 +301,7 @@ export function SessionIntentCoordinator({
 				let next: SessionWorkspace;
 				try {
 					next = await bridge.sessionWorkspace(
-						CAMPAIGN_SLUG,
+						campaignId,
 						intent.sessionId,
 						controller.signal,
 					);
@@ -310,7 +311,7 @@ export function SessionIntentCoordinator({
 						cause.serverCode === "SESSION_WORKSPACE_NOT_FOUND"
 					) {
 						next = await bridge.ensureSessionWorkspace(
-							CAMPAIGN_SLUG,
+							campaignId,
 							intent.sessionId,
 							controller.signal,
 						);
@@ -343,7 +344,7 @@ export function SessionIntentCoordinator({
 				);
 				if (variant) {
 					setWorkspace(next);
-					saveRecoveryPointer(intent.sessionId);
+					saveRecoveryPointer(campaignId, intent.sessionId);
 					setBlocker({
 						kind: "variant",
 						sourceIds: [variant.sourceId, ...variant.conflictsWith],
@@ -360,7 +361,7 @@ export function SessionIntentCoordinator({
 					sources: desired,
 				};
 				const localIntent = await bridge.saveSessionTranscriptionIntent(
-					CAMPAIGN_SLUG,
+					campaignId,
 					intent.sessionId,
 					{
 						requestId: normalizedIntent.id,
@@ -371,12 +372,12 @@ export function SessionIntentCoordinator({
 					controller.signal,
 				);
 				setActiveRequest(normalizedIntent);
-				saveRecoveryPointer(intent.sessionId);
+				saveRecoveryPointer(campaignId, intent.sessionId);
 				if (recoveryScope) {
 					try {
 						const identity = await sessionIntentReceiptIdentity({
 							profileScope: recoveryScope,
-							campaignId: CAMPAIGN_SLUG,
+							campaignId: campaignId,
 							sessionId: intent.sessionId,
 						});
 						const receipt = createSessionIntentReceipt(identity, {
@@ -401,7 +402,7 @@ export function SessionIntentCoordinator({
 					if (next.parts.some((part) => part.sourceId === source.sourceId))
 						continue;
 					next = await bridge.attachSessionSource(
-						CAMPAIGN_SLUG,
+						campaignId,
 						intent.sessionId,
 						source.sourceId,
 						next.revision,
@@ -461,7 +462,7 @@ export function SessionIntentCoordinator({
 				try {
 					const identity = await sessionIntentReceiptIdentity({
 						profileScope: recoveryScope,
-						campaignId: CAMPAIGN_SLUG,
+						campaignId: campaignId,
 						sessionId: savedSessionId,
 					});
 					const receipt = loadSessionIntentReceipt(
@@ -470,7 +471,7 @@ export function SessionIntentCoordinator({
 					);
 					if (receipt) {
 						const localIntent = await bridge.sessionTranscriptionIntent(
-							CAMPAIGN_SLUG,
+							campaignId,
 							savedSessionId,
 							controller.signal,
 						);
