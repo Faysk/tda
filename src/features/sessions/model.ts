@@ -40,7 +40,7 @@ function text(value: unknown, limit: number) {
 	return typeof value === "string" ? value.trim().slice(0, limit) : "";
 }
 
-function publicImageUrl(value: unknown) {
+function publicImageUrl(value: unknown, campaignSlug: string) {
 	if (typeof value !== "string" || value.length > 2000) return "";
 	try {
 		const url = new URL(value);
@@ -50,11 +50,15 @@ function publicImageUrl(value: unknown) {
 			(url.port || url.search || url.hash || url.username || url.password)
 		)
 			return "";
-		const allowed = publicImageSources.some(
-			(source) =>
-				url.hostname === source.hostname &&
-				url.pathname.startsWith(source.pathname),
-		);
+		const campaignMediaPath = `/campaigns/${campaignSlug}/sessions/`;
+		const allowed =
+			(url.hostname === "media.dnd.faysk.dev" &&
+				url.pathname.startsWith(campaignMediaPath)) ||
+			publicImageSources.slice(1).some(
+				(source) =>
+					url.hostname === source.hostname &&
+					url.pathname.startsWith(source.pathname),
+			);
 		return allowed ? url.toString() : "";
 	} catch {
 		return "";
@@ -84,14 +88,15 @@ export function formatSessionDate(value: string) {
 export function toPublishedSession(
 	row: Row,
 	detail = false,
+	campaignSlug = CAMPAIGN_SLUG,
 ): PublishedSession | null {
 	const campaign = row.campaigns as { slug?: unknown } | null;
-	if (row.status !== "published" || campaign?.slug !== CAMPAIGN_SLUG)
+	if (row.status !== "published" || campaign?.slug !== campaignSlug)
 		return null;
 	const id = text(row.source_session_id, 220);
 	if (!id) return null;
-	const coverImage = publicImageUrl(row.cover_image_url);
-	const heroImage = publicImageUrl(row.hero_image_url);
+	const coverImage = publicImageUrl(row.cover_image_url, campaignSlug);
+	const heroImage = publicImageUrl(row.hero_image_url, campaignSlug);
 	return {
 		id,
 		title: text(row.title, 500) || "Sessão sem título",
