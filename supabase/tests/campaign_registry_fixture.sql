@@ -1,5 +1,9 @@
 -- Synthetic pre-#1123 schema. No Production data or credentials.
 
+create role anon nologin;
+create role authenticated nologin;
+create role service_role nologin bypassrls;
+
 create table public.campaigns (
   id uuid primary key,
   name text not null,
