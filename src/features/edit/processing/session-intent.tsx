@@ -347,10 +347,16 @@ export function SessionIntentCoordinator({
 	);
 
 	useEffect(() => {
-		if (!enabled || !request || processedRequest.current === request.id) return;
+		if (
+			!enabled ||
+			disabled ||
+			!request ||
+			processedRequest.current === request.id
+		)
+			return;
 		processedRequest.current = request.id;
 		void begin(request);
-	}, [begin, enabled, request]);
+	}, [begin, disabled, enabled, request]);
 
 	useEffect(() => {
 		if (!enabled || request || workspace) return;
