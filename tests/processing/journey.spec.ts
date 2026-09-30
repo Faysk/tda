@@ -205,6 +205,27 @@ test("Qwen runtime availability lookup failure stays blocked without inventing a
 });
 
 
+test("campaign reauthorization fails before Craig upload or profile preparation", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: false,
+		advanceJobs: false,
+	});
+	await page.goto("/?campaign-context=unavailable");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await selectCraig(page);
+
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	await expect(page.getByRole("alert")).toContainText(
+		"A campanha deixou de estar ativa ou seu acesso de processamento mudou",
+	);
+	expect(state.uploadCount).toBe(0);
+	expect(state.preparationPostCount).toBe(0);
+	expect(state.jobPostCount).toBe(0);
+});
+
 test("automatic session → Craig staging → preparation → queue → progress → result", async ({
 	page,
 }) => {
