@@ -28,6 +28,14 @@ type SavePhase = "idle" | "saving" | "saved" | "conflict" | "error";
 
 export type TranscriptReaderSaveAction = typeof saveTranscriptRevisionEditsAction;
 
+function transcriptWallClock(value: string | null | undefined): string | null {
+	if (!value) return null;
+	const match = value.match(
+		/T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2})$/u,
+	);
+	return match ? match[1] : null;
+}
+
 function normalizeSearch(value: string): string {
 	return value.trim().toLocaleLowerCase("pt-BR");
 }
@@ -152,7 +160,11 @@ export function TranscriptReader({
 	async function copyReference(index: number) {
 		const baseSegment = baseline[index];
 		const segment = applyWorkingEdit(baseSegment, working[baseSegment.id]);
-		const reference = `${formatTranscriptTimestamp(baseSegment.startMs)} · ${segment.speaker}`;
+		const wallClock = transcriptWallClock(baseSegment.absoluteStart);
+		const reference =
+			`${formatTranscriptTimestamp(baseSegment.startMs)}` +
+			(wallClock ? ` · ${wallClock}` : "") +
+			` · ${segment.speaker}`;
 		try {
 			await navigator.clipboard.writeText(reference);
 		} catch {
@@ -533,10 +545,22 @@ export function TranscriptReader({
 							<button
 								type="button"
 								className={styles.timestamp}
-								title="Copiar referência deste timestamp"
+								title={
+									baseSegment.absoluteStart
+										? `Copiar tempo da sessão e horário real · ${baseSegment.absoluteStart}`
+										: "Copiar tempo da sessão"
+								}
+								aria-label={
+									baseSegment.absoluteStart
+										? `Tempo da sessão ${formatTranscriptTimestamp(baseSegment.startMs, false)}; horário real ${baseSegment.absoluteStart}`
+										: `Tempo da sessão ${formatTranscriptTimestamp(baseSegment.startMs, false)}`
+								}
 								onClick={() => void copyReference(index)}
 							>
-								{formatTranscriptTimestamp(baseSegment.startMs, false)}
+								<span>{formatTranscriptTimestamp(baseSegment.startMs, false)}</span>
+								{transcriptWallClock(baseSegment.absoluteStart) ? (
+									<small>{transcriptWallClock(baseSegment.absoluteStart)}</small>
+								) : null}
 							</button>
 
 							{isActive ? (
