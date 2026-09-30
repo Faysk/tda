@@ -485,8 +485,19 @@ begin
   exception
     when check_violation then null;
   end;
+
+  begin
+    update public.campaign_public_route_aliases
+    set route_key = 'yuhara-main-renamed'
+    where campaign_id = v_legacy_id
+      and route_key = 'yuhara-main';
+
+    raise exception 'historical campaign route alias key was mutable';
+  exception
+    when check_violation then null;
+  end;
 end
-$$;
+$;
 
 -- Technical slug is compatibility identity and cannot drift through an editorial rename.
 do $$
