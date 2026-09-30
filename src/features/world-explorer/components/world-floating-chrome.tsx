@@ -61,7 +61,6 @@ type WorldFloatingChromeProps = Readonly<{
 	demo: boolean;
 	activeRelationTypes: WorldRelationTypeDTO[];
 	searchInputRef?: Ref<HTMLInputElement>;
-	publication?: WorldPublicationMeta;
 	conductor?: ReactNode;
 }>;
 
@@ -107,6 +106,44 @@ export function WorldFilterRail({
 	);
 }
 
+type WorldPublicationReceiptProps = Readonly<{
+	publication?: WorldPublicationMeta;
+}>;
+
+export function WorldPublicationReceipt({
+	publication,
+}: WorldPublicationReceiptProps) {
+	if (!publication) return null;
+
+	return (
+		<details
+			className={chrome.versionDetails}
+			data-testid="world-published-version"
+			data-world-canvas-utility="publication"
+		>
+			<summary
+				aria-label={`Versão publicada ${worldPublicationVersionLabel(publication)}`}
+				title="Detalhes da versão publicada"
+			>
+				{worldPublicationVersionLabel(publication)}
+			</summary>
+			<div className={chrome.versionPopover}>
+				<strong>Versão publicada</strong>
+				<span>
+					Grafo r{publication.graphRevision} · Layout r{publication.layoutRevision}
+				</span>
+				<span>
+					{new Intl.DateTimeFormat("pt-BR", {
+						dateStyle: "short",
+						timeStyle: "short",
+					}).format(new Date(publication.publishedAt))}
+				</span>
+				{publication.publishedBy ? <span>por {publication.publishedBy}</span> : null}
+			</div>
+		</details>
+	);
+}
+
 export function WorldFloatingChrome({
 	query,
 	onQueryChange,
@@ -120,7 +157,6 @@ export function WorldFloatingChrome({
 	demo,
 	activeRelationTypes,
 	searchInputRef,
-	publication,
 	conductor,
 }: WorldFloatingChromeProps) {
 	const currentRelation =
@@ -252,29 +288,6 @@ export function WorldFloatingChrome({
 				</fieldset>
 			</div>
 
-			{publication ? (
-				<details className={chrome.versionDetails} data-testid="world-published-version">
-					<summary
-						aria-label={`Versão publicada ${worldPublicationVersionLabel(publication)}`}
-						title="Detalhes da versão publicada"
-					>
-						{worldPublicationVersionLabel(publication)}
-					</summary>
-					<div className={chrome.versionPopover}>
-						<strong>Versão publicada</strong>
-						<span>
-							Grafo r{publication.graphRevision} · Layout r{publication.layoutRevision}
-						</span>
-						<span>
-							{new Intl.DateTimeFormat("pt-BR", {
-								dateStyle: "short",
-								timeStyle: "short",
-							}).format(new Date(publication.publishedAt))}
-						</span>
-						{publication.publishedBy ? <span>por {publication.publishedBy}</span> : null}
-					</div>
-				</details>
-			) : null}
 		</div>
 	);
 }

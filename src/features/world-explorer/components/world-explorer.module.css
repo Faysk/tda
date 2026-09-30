@@ -342,6 +342,7 @@
 .relationLegend span[data-family="creative"]::before { background: var(--world-edge-creative); }
 
 .canvas {
+	--world-canvas-corner-inset: 12px;
 	position: relative;
 	flex: 1 1 0;
 	width: 100%;
@@ -367,6 +368,18 @@
 	border-radius: var(--ds-radius-sm);
 	overflow: hidden;
 	background: color-mix(in srgb, var(--ds-surface-elevated) 94%, transparent);
+}
+
+.canvas :global(.react-flow__controls) {
+	bottom: var(--world-canvas-corner-inset);
+	left: var(--world-canvas-corner-inset);
+	margin: 0;
+}
+
+.canvas :global(.react-flow__minimap) {
+	right: var(--world-canvas-corner-inset);
+	bottom: var(--world-canvas-corner-inset);
+	margin: 0;
 }
 
 .canvas :global(.react-flow__minimap-mask) {

@@ -319,9 +319,9 @@
 
 .versionDetails {
 	position: absolute;
-	top: calc(100% + 6px);
-	right: 6px;
-	z-index: 20;
+	top: var(--world-canvas-corner-inset, 12px);
+	right: var(--world-canvas-corner-inset, 12px);
+	z-index: 22;
 }
 
 .versionDetails > summary {
@@ -362,6 +362,23 @@
 
 .versionPopover strong {
 	color: var(--ds-foreground);
+}
+
+@media (min-width: 1121px) {
+	:global([data-world-inspector-mode]:not([data-world-inspector-mode="closed"])) .versionDetails {
+		right: calc(
+			min(var(--world-inspector-width, 370px), 520px) +
+			var(--world-canvas-corner-inset, 12px) +
+			8px
+		);
+	}
+}
+
+@media (max-width: 820px) {
+	.versionDetails {
+		top: 62px;
+		right: max(var(--world-canvas-corner-inset, 8px), env(safe-area-inset-right, 0px));
+	}
 }
 
 @media (min-width: 821px) {
