@@ -81,12 +81,20 @@ create unique index if not exists campaign_public_route_aliases_route_key_unique
 create index if not exists campaign_public_route_aliases_campaign_id_idx
   on public.campaign_public_route_aliases(campaign_id);
 
+alter table public.campaign_public_route_aliases enable row level security;
+revoke all on table public.campaign_public_route_aliases from public;
+revoke all on table public.campaign_public_route_aliases from anon;
+revoke all on table public.campaign_public_route_aliases from authenticated;
+grant select, insert, update, delete
+  on table public.campaign_public_route_aliases
+  to service_role;
+
 create or replace function public.guard_campaign_public_route_key()
 returns trigger
 language plpgsql
-security invoker
+security definer
 set search_path = pg_catalog, public
-as $$
+as $
 declare
   v_route_key text;
 begin
@@ -123,9 +131,9 @@ execute function public.guard_campaign_public_route_key();
 create or replace function public.guard_campaign_public_route_alias()
 returns trigger
 language plpgsql
-security invoker
+security definer
 set search_path = pg_catalog, public
-as $$
+as $
 declare
   v_route_key text := lower(new.route_key);
 begin
@@ -154,6 +162,78 @@ before insert or update of route_key
 on public.campaign_public_route_aliases
 for each row
 execute function public.guard_campaign_public_route_alias();
+
+revoke all on function public.guard_campaign_public_route_key() from public;
+revoke all on function public.guard_campaign_public_route_key() from anon;
+revoke all on function public.guard_campaign_public_route_key() from authenticated;
+revoke all on function public.guard_campaign_public_route_alias() from public;
+revoke all on function public.guard_campaign_public_route_alias() from anon;
+revoke all on function public.guard_campaign_public_route_alias() from authenticated;
+
+-- Refuse rollout if the current physical schema still makes source/entity
+-- identities globally unique. #1123 is expand-only and must not silently drop
+-- unknown legacy constraints.
+do $
+begin
+  if exists (
+    select 1
+    from pg_index index_row
+    join pg_class table_row on table_row.oid = index_row.indrelid
+    join pg_namespace namespace_row on namespace_row.oid = table_row.relnamespace
+    where namespace_row.nspname = 'public'
+      and table_row.relname = 'sessions'
+      and index_row.indisunique
+      and exists (
+        select 1
+        from unnest(index_row.indkey) key(attnum)
+        join pg_attribute attribute_row
+          on attribute_row.attrelid = table_row.oid
+         and attribute_row.attnum = key.attnum
+        where attribute_row.attname = 'source_session_id'
+      )
+      and not exists (
+        select 1
+        from unnest(index_row.indkey) key(attnum)
+        join pg_attribute attribute_row
+          on attribute_row.attrelid = table_row.oid
+         and attribute_row.attnum = key.attnum
+        where attribute_row.attname = 'campaign_id'
+      )
+  ) then
+    raise exception
+      'sessions has a global unique source_session_id index; refusing #1123 migration';
+  end if;
+
+  if exists (
+    select 1
+    from pg_index index_row
+    join pg_class table_row on table_row.oid = index_row.indrelid
+    join pg_namespace namespace_row on namespace_row.oid = table_row.relnamespace
+    where namespace_row.nspname = 'public'
+      and table_row.relname = 'entities'
+      and index_row.indisunique
+      and exists (
+        select 1
+        from unnest(index_row.indkey) key(attnum)
+        join pg_attribute attribute_row
+          on attribute_row.attrelid = table_row.oid
+         and attribute_row.attnum = key.attnum
+        where attribute_row.attname = 'slug'
+      )
+      and not exists (
+        select 1
+        from unnest(index_row.indkey) key(attnum)
+        join pg_attribute attribute_row
+          on attribute_row.attrelid = table_row.oid
+         and attribute_row.attnum = key.attnum
+        where attribute_row.attname = 'campaign_id'
+      )
+  ) then
+    raise exception
+      'entities has a global unique slug index; refusing #1123 migration';
+  end if;
+end
+$;
 
 -- The legacy campaign must already exist. Failing here is safer than creating a
 -- replacement UUID and silently detaching all existing campaign-owned rows.
@@ -299,8 +379,8 @@ comment on column public.campaigns.archived_at is
 comment on table public.campaign_public_route_aliases is
   'Historical public route keys for campaign redirects. Aliases never replace campaign UUID or technical slug as relational/RBAC identity.';
 comment on function public.guard_campaign_public_route_key() is
-  'Maintains a default public route key for legacy inserts and prevents canonical route keys from colliding with historical aliases.';
+  'Trigger-only integrity guard. SECURITY DEFINER with fixed search_path so RLS cannot hide alias collisions; direct execution is revoked.';
 comment on function public.guard_campaign_public_route_alias() is
-  'Prevents historical campaign route aliases from colliding with canonical public route keys.';
+  'Trigger-only integrity guard. SECURITY DEFINER with fixed search_path so RLS cannot hide canonical collisions; direct execution is revoked.';
 
 commit;
