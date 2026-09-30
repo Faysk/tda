@@ -13,12 +13,11 @@ import { canManageCampaignRegistry } from "./policy";
 import {
 	createCampaignRegistryEntry,
 	readCampaignRegistry,
-	readPublicCampaignDirectory,
 	updateCampaignLifecycle,
 	updateCampaignRegistryEntry,
 } from "./repository";
 
-export { readPublicCampaignDirectory };
+export { readPublicCampaignDirectory, resolvePublicCampaignRoute } from "./repository";
 
 export type CampaignManagementReadResult =
 	| Readonly<{
