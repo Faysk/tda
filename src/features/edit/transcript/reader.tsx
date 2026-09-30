@@ -136,7 +136,7 @@ export function TranscriptReader({
 			});
 		});
 		return () => cancelAnimationFrame(firstFrame);
-	}, [baseline.length, matches, normalizedQuery]);
+	}, [matches, normalizedQuery]);
 
 	function revealAndScroll(index: number) {
 		if (index < 0) return;
