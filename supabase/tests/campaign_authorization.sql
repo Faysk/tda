@@ -138,7 +138,7 @@ begin
   );
   v_directory := public.campaign_edit_directory();
   if jsonb_array_length(v_directory) <> 3 then
-    raise exception 'project/tda exact campaign capability did not cover campaigns: %', v_directory;
+    raise exception 'project/tda exact campaign.edit.access did not cover campaigns: %', v_directory;
   end if;
 
   perform set_config(
