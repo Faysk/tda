@@ -172,6 +172,42 @@ def test_qwen_runtime_update_is_blocked_by_queued_work(monkeypatch, tmp_path):
     assert response.json()["error"]["code"] == "RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB"
     assert FakeRuntimeManager.instances[-1].updates == 0
 
+def test_qwen_runtime_update_is_blocked_while_profile_preparation_is_active(monkeypatch, tmp_path):
+    FakeRuntimeManager.instances.clear()
+    monkeypatch.setattr(
+        api_module,
+        "QwenRuntimeMaintenanceManager",
+        FakeRuntimeManager,
+    )
+    data = tmp_path / "Data"
+    data.mkdir()
+    app = create_app(data, TOKEN, {ORIGIN}, run_worker=False)
+    monkeypatch.setattr(
+        app.state.preparation_manager,
+        "snapshot",
+        lambda: {"active": True},
+    )
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Origin": ORIGIN,
+        "Content-Type": "application/json",
+    }
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            "/api/v1/qwen-runtime/update",
+            headers=headers,
+            json={},
+        )
+
+    assert response.status_code == 409
+    assert (
+        response.json()["error"]["code"]
+        == "QWEN_RUNTIME_UPDATE_BLOCKED_BY_PREPARATION"
+    )
+    assert FakeRuntimeManager.instances[-1].updates == 0
+
+
 def test_profile_preparation_is_blocked_while_qwen_runtime_mutates(monkeypatch, tmp_path):
     FakeRuntimeManager.instances.clear()
     monkeypatch.setattr(
