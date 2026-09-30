@@ -191,6 +191,7 @@ export function SessionIntentCoordinator({
 	const pendingSubmissions = useRef(
 		new Map<string, SessionComposerPendingSubmission>(),
 	);
+	const intentEnqueueKeys = useRef(new Map<string, string>());
 	const intentJobIds = useRef(new Map<string, string>());
 	const intentRunIds = useRef(new Map<string, string>());
 	const intentReceiptIdentity = useRef<SessionIntentReceiptIdentity | null>(null);
@@ -216,6 +217,7 @@ export function SessionIntentCoordinator({
 
 	const persistIntentReceipt = useCallback(
 		(patch: Readonly<{
+			enqueue?: Readonly<{ sourceId: string; key: string }>;
 			job?: Readonly<{ sourceId: string; jobId: string }>;
 			run?: Readonly<{ sourceId: string; runId: string }>;
 		}>) => {
@@ -367,6 +369,7 @@ export function SessionIntentCoordinator({
 							profileId: normalizedIntent.profile,
 							context: normalizedIntent.context,
 							glossary: normalizedIntent.glossary,
+							enqueueKeys: Object.fromEntries(intentEnqueueKeys.current),
 							jobIds: Object.fromEntries(intentJobIds.current),
 							runIds: Object.fromEntries(intentRunIds.current),
 						});
@@ -452,6 +455,9 @@ export function SessionIntentCoordinator({
 					if (receipt) {
 						intentReceiptIdentity.current = identity;
 						intentReceipt.current = receipt;
+						intentEnqueueKeys.current = new Map(
+							Object.entries(receipt.enqueueKeys),
+						);
 						intentJobIds.current = new Map(Object.entries(receipt.jobIds));
 						intentRunIds.current = new Map(Object.entries(receipt.runIds));
 						const restored: SessionTranscriptionIntent = {
@@ -549,6 +555,39 @@ export function SessionIntentCoordinator({
 		advancing.current = true;
 		const controller = new AbortController();
 		try {
+			if (activeRequest) {
+				for (const part of workspace.parts) {
+					if (intentJobIds.current.has(part.sourceId)) continue;
+					const key = intentEnqueueKeys.current.get(part.sourceId);
+					if (!key) continue;
+					const job = await bridge.transcription(
+						{
+							campaignId: workspace.campaignId,
+							sessionId: workspace.sessionId,
+							sourceId: part.sourceId,
+							profileId: activeRequest.profile,
+							glossary: activeRequest.glossary,
+							context: activeRequest.context,
+						},
+						key,
+						controller.signal,
+					);
+					intentJobIds.current.set(part.sourceId, job.id);
+					persistIntentReceipt({
+						job: { sourceId: part.sourceId, jobId: job.id },
+					});
+					setJobs((current) => [
+						job,
+						...current.filter((item) => item.id !== job.id),
+					]);
+					await loadSnapshot(workspace.sessionId, controller.signal);
+					announce(
+						`${sourceLabel(part.sourceId, activeRequest, workspace)} recuperada com a mesma identidade de envio.`,
+					);
+					return;
+				}
+			}
+
 			for (const [sourceId, jobId] of intentJobIds.current) {
 				if (intentRunIds.current.has(sourceId)) continue;
 				const job = jobs.find((item) => item.id === jobId);
@@ -654,6 +693,10 @@ export function SessionIntentCoordinator({
 							pendingSubmissions.current.get(part.sourceId) ?? null,
 					});
 					pendingSubmissions.current.set(part.sourceId, submission);
+					intentEnqueueKeys.current.set(part.sourceId, submission.key);
+					persistIntentReceipt({
+						enqueue: { sourceId: part.sourceId, key: submission.key },
+					});
 					let job: LocalJob;
 					try {
 						job = await bridge.transcription(
