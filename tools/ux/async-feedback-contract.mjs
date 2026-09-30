@@ -104,7 +104,7 @@ assertExcludes("src/features/lembra/components/lembra-experience.tsx", [
 assertIncludes("src/features/world-explorer/components/world-entity-media-editor.tsx", [
 	[/aria-busy=\{busy\}/u, "World portrait busy state must remain regional"],
 	[/<Progress/u, "World portrait upload must use the shared Progress primitive"],
-	[/uploadPhase === "finalizing"/u, "World portrait finalize must remain a distinct stage"],
+	[/setUploadPhase\("finalizing"\)/u, "World portrait finalize must remain a distinct stage"],
 	[/className=\{styles\.visuallyHidden\}[\s\S]{0,160}role="status"/u, "World upload stage changes must use a dedicated polite live region"],
 ]);
 assertExcludes("src/features/world-explorer/components/world-entity-media-editor.tsx", [
