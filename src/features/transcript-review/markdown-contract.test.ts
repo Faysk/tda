@@ -156,7 +156,7 @@ describe("TDA transcript Markdown v1", () => {
 		await expectCode(
 			parseTranscriptMarkdownV1({
 				text: markdown.replace(
-					/"structure_sha256: "[0-9a-f]{64}"/u,
+					/structure_sha256: "[0-9a-f]{64}"/u,
 					'structure_sha256: "' + "0".repeat(64) + '"',
 				),
 				expectedBase: base,
