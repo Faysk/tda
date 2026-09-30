@@ -29,8 +29,8 @@ Todas as definições observadas usam `SET search_path TO pg_catalog, public`, r
 | `has_campaign_role(uuid,text[])` | helper interno | resolve profile atual e membership ativo | authenticated pode executar diretamente | candidato a `REVOKE EXECUTE` após prova final de consumidores |
 | `has_campaign_role_slug(text,text[])` | helper interno | resolve profile atual, campaign e membership ativo | authenticated pode executar diretamente | candidato a `REVOKE EXECUTE` após prova final de consumidores |
 | `access_directory(text)` | endpoint autenticado de pessoas/claims | candidate #1134 exige profile + `campaign.read` ou `campaign.access.manage`; missing/sibling/archived são opacos | authenticated | substituir comportamento legado no rollout #1134; sem enumeração global de unlinked profiles |
-| `submit_profile_claim(...)` | endpoint autenticado de onboarding | exige requester ligado e valida target/claim | authenticated | manter enquanto fluxo de claim existir |
-| `review_profile_claim(...)` | endpoint admin | usa autorização admin interna antes de aprovar/rejeitar | authenticated + autorização interna | manter enquanto fluxo legado existir |
+| `submit_profile_claim(...)` | legado de onboarding | não prova invite/elegibility campaign-scoped | candidate #1134 revoga authenticated; service_role only | reexpor somente após invite/elegibility explícito + negativos A/B |
+| `review_profile_claim(...)` | legado de review de claim | autoriza por owner/master legado | candidate #1134 revoga authenticated; service_role only | reexpor somente por boundary `campaign.access.manage` |
 | `table_notes_directory(text,text)` | endpoint autenticado de campanha | exige profile e membership ativo; filtra visibilidade | authenticated | manter enquanto fluxo legado existir |
 | `review_table_note(...)` | endpoint admin | exige role admin interna antes do update | authenticated + autorização interna | manter enquanto fluxo legado existir |
 
