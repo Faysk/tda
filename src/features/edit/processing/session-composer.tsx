@@ -784,6 +784,7 @@ export function SessionRecordingComposer({
 					id: segment.assemblySegmentId,
 					startMs: Math.round(segment.start * 1000),
 					endMs: Math.round(segment.end * 1000),
+					...(segment.absoluteTime ? { absoluteTime: segment.absoluteTime } : {}),
 					speaker: segment.speaker,
 					text: segment.text,
 				})),
