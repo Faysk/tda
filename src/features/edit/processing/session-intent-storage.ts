@@ -11,8 +11,6 @@ const SOURCE_ID = /^craig-[0-9a-f]{64}$/u;
 const JOB_OR_RUN_ID = /^[A-Za-z0-9._:-]{1,256}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const MAX_SOURCES = 32;
-const MAX_CONTEXT_CHARS = 1200;
-const MAX_GLOSSARY_CHARS = 1200;
 const CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 export type SessionIntentReceiptIdentity = Readonly<{
@@ -29,8 +27,8 @@ export type SessionIntentReceipt = Readonly<{
 	requestId: string;
 	sourceIds: readonly string[];
 	profileId: TranscriptionProfileId;
-	context: string;
-	glossary: string;
+	contextSha256: string;
+	glossarySha256: string;
 	enqueueKeys: Readonly<Record<string, string>>;
 	jobIds: Readonly<Record<string, string>>;
 	runIds: Readonly<Record<string, string>>;
@@ -112,10 +110,10 @@ function parseReceipt(
 			new Set(value.sourceIds).size !== value.sourceIds.length ||
 			typeof value.profileId !== "string" ||
 			!SAFE_ID.test(value.profileId) ||
-			typeof value.context !== "string" ||
-			value.context.length > MAX_CONTEXT_CHARS ||
-			typeof value.glossary !== "string" ||
-			value.glossary.length > MAX_GLOSSARY_CHARS ||
+			typeof value.contextSha256 !== "string" ||
+			!SHA256.test(value.contextSha256) ||
+			typeof value.glossarySha256 !== "string" ||
+			!SHA256.test(value.glossarySha256) ||
 			!validSourceMap(value.enqueueKeys, value.sourceIds as string[]) ||
 			!validSourceMap(value.jobIds, value.sourceIds as string[]) ||
 			!validSourceMap(value.runIds, value.sourceIds as string[]) ||
@@ -187,8 +185,8 @@ export function createSessionIntentReceipt(
 		requestId: string;
 		sourceIds: readonly string[];
 		profileId: TranscriptionProfileId;
-		context: string;
-		glossary: string;
+		contextSha256: string;
+		glossarySha256: string;
 		enqueueKeys?: Readonly<Record<string, string>>;
 		jobIds?: Readonly<Record<string, string>>;
 		runIds?: Readonly<Record<string, string>>;
@@ -203,8 +201,8 @@ export function createSessionIntentReceipt(
 		requestId: input.requestId,
 		sourceIds: [...input.sourceIds],
 		profileId: input.profileId,
-		context: input.context,
-		glossary: input.glossary,
+		contextSha256: input.contextSha256,
+		glossarySha256: input.glossarySha256,
 		enqueueKeys: { ...(input.enqueueKeys ?? {}) },
 		jobIds: { ...(input.jobIds ?? {}) },
 		runIds: { ...(input.runIds ?? {}) },
