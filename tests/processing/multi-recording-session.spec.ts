@@ -4,6 +4,7 @@ import {
 	LOCAL_API,
 	UI_ORIGIN,
 } from "./companion-fixture";
+import { renderTranscriptMarkdownV1 } from "../../src/features/transcript-review/markdown-contract";
 
 const CAMPAIGN = "yuhara-main";
 const SESSION = "sessao-42";
@@ -90,6 +91,11 @@ async function installMultiRecordingRoutes(
 	const selected = new Map<string, string>();
 	let assemblyBuilt = false;
 	let intentState: Record<string, unknown> | null = null;
+	let reviewRevision: number | null = null;
+	let reviewSha: string | null = null;
+	let reviewStatus: "draft" | "reviewed" | "approved_local" = "draft";
+	let reviewRows: Array<Record<string, unknown>> | null = null;
+	const publishedBodies: unknown[] = [];
 	let jobSequence = 0;
 	const jobsBySource = new Map<
 		string,
@@ -102,6 +108,65 @@ async function installMultiRecordingRoutes(
 	const acceptedKeys = new Map<string, string>();
 	let failedOnce = false;
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
+
+	const baseReviewRows = () =>
+		attached.map((sourceId, index) => ({
+			assembly_segment_id:
+				index === 0 ? SEGMENT_ID : (index + 10).toString(16).repeat(64),
+			part_id: PART_IDS[index],
+			source_id: sourceId,
+			run_id: `run-${SOURCE_IDS.indexOf(sourceId) + 1}`,
+			source_segment_id: `seg-${index + 1}`,
+			track_number: 1,
+			participant_id: "9".repeat(32),
+			start: index * 300,
+			end: index * 300 + 1,
+			text: `Trecho ${index + 1}`,
+			speaker: "Participante",
+			reviewed: false,
+		}));
+	const currentReviewRows = () => reviewRows ?? baseReviewRows();
+	const reviewWordCount = () =>
+		currentReviewRows().reduce((total, row) => {
+			const value = typeof row.text === "string" ? row.text.trim() : "";
+			return total + (value ? value.split(/\s+/u).length : 0);
+		}, 0);
+	const reviewResponse = (baseOnly = false) => {
+		const rows = baseOnly ? baseReviewRows() : currentReviewRows();
+		const persisted = !baseOnly && reviewRevision !== null;
+		const reviewed = rows.filter((row) => row.reviewed === true).length;
+		return {
+			schema_version: "tda_session_assembly_review_v1",
+			snapshot_contract: "tda_session_assembly_review_cas_v1",
+			persistence: persisted ? "persisted" : "ephemeral_base",
+			base: {
+				kind: "session_assembly",
+				assembly_id: ASSEMBLY_ID,
+				transcript_sha256: TRANSCRIPT_SHA,
+				inputs_sha256: ASSEMBLY_ID,
+			},
+			draft_revision: persisted ? reviewRevision : null,
+			draft_sha256: persisted ? reviewSha : null,
+			status: persisted ? reviewStatus : "draft",
+			approval_current: persisted && reviewStatus === "approved_local",
+			approval_blocked: false,
+			approved_at:
+				persisted && reviewStatus === "approved_local" ? NOW : null,
+			created_at: persisted ? NOW : null,
+			updated_at: persisted ? NOW : null,
+			review: {
+				reviewed_segments: reviewed,
+				total_segments: rows.length,
+				review_percent: rows.length ? (reviewed / rows.length) * 100 : 100,
+				edited_segments: persisted ? 1 : 0,
+				word_count: rows.reduce((total, row) => {
+					const value = typeof row.text === "string" ? row.text.trim() : "";
+					return total + (value ? value.split(/\s+/u).length : 0);
+				}, 0),
+			},
+			segments: rows,
+		};
+	};
 
 	const workspace = () => ({
 		schema_version: "tda_session_workspace_v1",
@@ -607,46 +672,72 @@ async function installMultiRecordingRoutes(
 				`/session-workspaces/${CAMPAIGN}/${SESSION}/assemblies/${ASSEMBLY_ID}/review/base` &&
 			request.method() === "GET"
 		) {
+			return json(route, reviewResponse(true));
+		}
+		if (
+			path ===
+				`/session-workspaces/${CAMPAIGN}/${SESSION}/assemblies/${ASSEMBLY_ID}/review` &&
+			request.method() === "GET"
+		) {
+			return json(route, reviewResponse(false));
+		}
+		if (
+			path ===
+				`/session-workspaces/${CAMPAIGN}/${SESSION}/assemblies/${ASSEMBLY_ID}/review` &&
+			request.method() === "POST"
+		) {
+			const body = request.postDataJSON() as {
+				status: "draft" | "reviewed" | "approved_local";
+				segments: Array<Record<string, unknown>>;
+			};
+			reviewRows = body.segments.map((row) => ({ ...row }));
+			reviewRevision = (reviewRevision ?? 0) + 1;
+			reviewSha = (reviewRevision + 9).toString(16).repeat(64);
+			reviewStatus = body.status;
+			return json(route, reviewResponse(false));
+		}
+		return route.fallback();
+	});
+
+	await page.route(/\/api\/transcript-publications(?:\/.*)?$/u, async (route) => {
+		const request = route.request();
+		const path = new URL(request.url()).pathname;
+		if (request.method() === "OPTIONS") return route.fulfill({ status: 204 });
+		if (path === "/api/transcript-publications/current") {
 			return json(route, {
-				schema_version: "tda_session_assembly_review_v1",
-				snapshot_contract: "tda_session_assembly_review_cas_v1",
-				persistence: "ephemeral_base",
-				base: {
-					kind: "session_assembly",
-					assembly_id: ASSEMBLY_ID,
-					transcript_sha256: TRANSCRIPT_SHA,
-					inputs_sha256: ASSEMBLY_ID,
+				ok: true,
+				current: {
+					actorProfileId: "11111111-1111-4111-8111-111111111111",
+					revisionId: null,
 				},
-				draft_revision: null,
-				draft_sha256: null,
-				status: "draft",
-				approval_current: false,
-				approval_blocked: false,
-				approved_at: null,
-				created_at: null,
-				updated_at: null,
-				review: {
-					reviewed_segments: 0,
-					total_segments: attached.length,
-					review_percent: 0,
-					edited_segments: 0,
-					word_count: attached.length,
+			});
+		}
+		if (
+			path === "/api/transcript-publications" ||
+			path === "/api/transcript-publications/receipt"
+		) {
+			const body = request.postDataJSON() as Record<string, unknown>;
+			publishedBodies.push(body);
+			return json(route, {
+				ok: true,
+				receipt: {
+					schemaVersion: "tda_transcript_publication_receipt_v2",
+					status: "committed",
+					receiptId: "22222222-2222-4222-8222-222222222222",
+					campaignId: "33333333-3333-4333-8333-333333333333",
+					sessionId: "44444444-4444-4444-8444-444444444444",
+					revisionId: "55555555-5555-4555-8555-555555555555",
+					revisionNumber: 1,
+					operationId: body.operationId,
+					assemblyId: ASSEMBLY_ID,
+					partCount: attached.length,
+					baseTranscriptSha256: TRANSCRIPT_SHA,
+					draftSha256: reviewSha,
+					payloadSha256: "6".repeat(64),
+					segmentCount: currentReviewRows().length,
+					wordCount: reviewWordCount(),
+					committedAt: NOW,
 				},
-				segments: attached.map((sourceId, index) => ({
-					assembly_segment_id:
-						index === 0 ? SEGMENT_ID : (index + 10).toString(16).repeat(64),
-					part_id: PART_IDS[index],
-					source_id: sourceId,
-					run_id: `run-${SOURCE_IDS.indexOf(sourceId) + 1}`,
-					source_segment_id: `seg-${index + 1}`,
-					track_number: 1,
-					participant_id: "9".repeat(32),
-					start: index * 300,
-					end: index * 300 + 1,
-					text: `Trecho ${index + 1}`,
-					speaker: "Participante",
-					reviewed: false,
-				})),
 			});
 		}
 		return route.fallback();
@@ -676,6 +767,12 @@ async function installMultiRecordingRoutes(
 		},
 		get assemblyBuilt() {
 			return assemblyBuilt;
+		},
+		get reviewStatus() {
+			return reviewStatus;
+		},
+		get publishedBodies() {
+			return [...publishedBodies];
 		},
 	};
 }
@@ -738,7 +835,88 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	expect(multi.assemblyBuilt).toBe(true);
 
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
-	await expect(intent).toContainText("Revisão contínua carregada");
+	const review = page.getByRole("region", {
+		name: "Revisão da transcrição da sessão",
+	});
+	await expect(review).toBeVisible();
+	await expect(review).toContainText("3 falas");
+
+	await review.getByText("Markdown para revisão externa", { exact: true }).click();
+	const downloadPromise = page.waitForEvent("download");
+	await review
+		.getByRole("button", { name: "Exportar Markdown TDA v1" })
+		.click();
+	const download = await downloadPromise;
+	expect(download.suggestedFilename()).toBe(
+		"sessao-42-transcricao-tda-v1.md",
+	);
+
+	const reviewSegments = SOURCE_IDS.slice(0, 3).map((sourceId, index) => ({
+		id: index === 0 ? SEGMENT_ID : (index + 10).toString(16).repeat(64),
+		startMs: index * 300_000,
+		endMs: index * 300_000 + 1_000,
+		speaker: "Participante",
+		text: `Trecho ${index + 1}`,
+	}));
+	const correctedMarkdown = (
+		await renderTranscriptMarkdownV1({
+			base: {
+				sessionId: SESSION,
+				baseKind: "session_assembly",
+				baseId: ASSEMBLY_ID,
+				baseRevision: null,
+				baseSha256: TRANSCRIPT_SHA,
+			},
+			segments: reviewSegments,
+			title: SESSION,
+			exportedAt: NOW,
+		})
+	).replace("Trecho 1", "Trecho 1 corrigido no Markdown");
+
+	await review.locator('input[type="file"][accept*=".md"]').setInputFiles({
+		name: "sessao-42-corrigida.md",
+		mimeType: "text/markdown",
+		buffer: Buffer.from(correctedMarkdown, "utf8"),
+	});
+	await expect(
+		review.getByRole("region", { name: "Prévia da importação Markdown" }),
+	).toContainText("1 alteradas");
+	await review
+		.getByRole("button", { name: "Aplicar à working copy" })
+		.click();
+	await expect(review.getByText("Trecho 1 corrigido no Markdown")).toBeVisible();
+
+	await review.getByRole("button", { name: "Salvar alterações" }).click();
+	await expect.poll(() => multi.reviewStatus).toBe("reviewed");
+	await review.getByRole("button", { name: "Aprovar revisão" }).click();
+	await expect.poll(() => multi.reviewStatus).toBe("approved_local");
+	await review
+		.getByRole("button", { name: "Preparar sessão no Edit" })
+		.click();
+	await expect(
+		review.getByRole("link", { name: "Abrir sessão no Edit" }),
+	).toBeVisible();
+	expect(multi.publishedBodies).toHaveLength(1);
+	expect(multi.publishedBodies[0]).toMatchObject({
+		schemaVersion: "tda_transcript_publication_request_v2",
+		assembly: {
+			assemblyId: ASSEMBLY_ID,
+			parts: expect.arrayContaining([
+				expect.objectContaining({ sourceId: SOURCE_IDS[0] }),
+				expect.objectContaining({ sourceId: SOURCE_IDS[1] }),
+				expect.objectContaining({ sourceId: SOURCE_IDS[2] }),
+			]),
+		},
+		review: {
+			status: "approved_local",
+			segments: expect.arrayContaining([
+				expect.objectContaining({
+					assemblySegmentId: SEGMENT_ID,
+					text: "Trecho 1 corrigido no Markdown",
+				}),
+			]),
+		},
+	});
 
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toBeVisible();
 	await expect(page.getByLabel("ID da sessão")).toBeDisabled();
@@ -746,7 +924,10 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	if (testInfo.project.name === "desktop") {
 		for (const viewport of [
 			{ width: 390, height: 844 },
+			{ width: 1440, height: 900 },
 			{ width: 1920, height: 1080 },
+			// 200% zoom equivalent of the 1440×900 critical viewport.
+			{ width: 720, height: 450 },
 		]) {
 			await page.setViewportSize(viewport);
 			await expect(intent).toBeVisible();
