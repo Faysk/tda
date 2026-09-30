@@ -798,9 +798,12 @@ export function ProcessingSubmission({
 							className={styles.fileInput}
 							type="file"
 							accept=".zip,application/zip"
-							aria-label="Export do Craig"
+							aria-label="Exports do Craig"
+							multiple
 							disabled={busy}
-							onChange={(event) => applyFile(event.target.files?.[0] ?? null)}
+							onChange={(event) =>
+								applyFiles(Array.from(event.target.files ?? []))
+							}
 						/>
 						<button
 							type="button"
@@ -824,11 +827,19 @@ export function ProcessingSubmission({
 						>
 							<span className={styles.dropGlyph} aria-hidden="true">{file ? "✓" : "ZIP"}</span>
 							<span className={styles.dropCopy}>
-								<strong>{file ? file.name : "Arraste o ZIP do Craig aqui"}</strong>
+								<strong>
+									{files.length > 1
+										? files.length + " gravações selecionadas"
+										: file
+											? file.name
+											: "Arraste um ou mais ZIPs do Craig aqui"}
+								</strong>
 								<span>
 									{file
-										? `${formatSubmissionBytes(file.size)} · escolher outro arquivo`
-										: "ou escolher arquivo"}
+										? formatSubmissionBytes(
+												files.reduce((total, item) => total + item.size, 0),
+											) + " · escolher novamente"
+										: "ou escolher arquivos"}
 								</span>
 							</span>
 						</button>
@@ -838,8 +849,23 @@ export function ProcessingSubmission({
 
 					{file ? (
 						<dl className={styles.fileFacts}>
-							<div><dt>Arquivo</dt><dd title={file.name}>{file.name}</dd></div>
-							<div><dt>Tamanho</dt><dd>{formatSubmissionBytes(file.size)}</dd></div>
+							<div><dt>Gravações</dt><dd>{files.length}</dd></div>
+							<div>
+								<dt>Arquivos</dt>
+								<dd title={files.map((item) => item.name).join(", ")}>
+									{files.length === 1
+										? file.name
+										: file.name + " +" + (files.length - 1)}
+								</dd>
+							</div>
+							<div>
+								<dt>Tamanho</dt>
+								<dd>
+									{formatSubmissionBytes(
+										files.reduce((total, item) => total + item.size, 0),
+									)}
+								</dd>
+							</div>
 							{source ? (
 								<>
 									<div><dt>Tracks</dt><dd>{source.trackCount}</dd></div>
@@ -900,24 +926,6 @@ export function ProcessingSubmission({
 							>
 								{submissionCtaLabel(pendingStage)}
 							</Button>
-							{!source ? (
-								<Button
-									type="button"
-									variant="tertiary"
-									disabled={
-										busy ||
-										!file ||
-										!profile ||
-										!canSubmit ||
-										requestTooLarge ||
-										profileBlocked ||
-										qwenRuntimeUpgradeRequired
-									}
-									onClick={() => void analyzeSource()}
-								>
-									Analisar para sessão composta
-								</Button>
-							) : null}
 							{requestTooLarge ? (
 								<span className={styles.budgetWarning}>
 									{requestBytes} / {LOCAL_JSON_BODY_MAX_BYTES} bytes UTF-8
@@ -1062,6 +1070,7 @@ export function ProcessingSubmission({
 					capabilities={capabilities.capabilities}
 					sessionId={sessionId}
 					currentSource={source}
+					workflowNonce={workflowNonce}
 					profile={profile}
 					context={context}
 					glossary={glossary}
