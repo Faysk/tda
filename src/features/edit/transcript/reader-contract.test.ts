@@ -144,4 +144,36 @@ describe("transcript reader contract", () => {
 		).toThrow(/absolute time/u);
 	});
 
+	it("exports trusted wall clock to Markdown without browser-timezone inference", async () => {
+		const markdown = await renderTranscriptMarkdown({
+			title: "Meia-noite",
+			sessionDate: "2026-09-12",
+			arc: null,
+			sourceSessionId: "sessao-midnight",
+			snapshot: {
+				source: "current_revision",
+				revisionId: "22222222-2222-4222-8222-222222222222",
+				revisionNumber: 4,
+				segments: [
+					{
+						id: "trusted",
+						trackNumber: 1,
+						startMs: 44_000,
+						endMs: 45_000,
+						absoluteTime: {
+							startIso: "2026-09-12T23:59:59+01:00",
+							endIso: "2026-09-13T00:00:00+01:00",
+							source: "craig-source-a",
+						},
+						speaker: "Alya",
+						text: "Última fala do dia.",
+					},
+				],
+			},
+		});
+		expect(markdown).toContain("[00:00:44.000 | 23:59:59] **Alya**");
+		expect(markdown).toContain('absolute_start="2026-09-12T23:59:59+01:00"');
+		expect(markdown).toContain('absolute_source="craig-source-a"');
+	});
+
 });
