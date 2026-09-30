@@ -517,6 +517,27 @@ export class LocalBridge {
 		);
 	}
 
+	async sessionAssembly(
+		campaignId: string,
+		sessionId: string,
+		assemblyId: string,
+		signal: AbortSignal,
+	) {
+		if (!/^[0-9a-f]{64}$/u.test(assemblyId))
+			throw new BridgeError("invalid_response");
+		return parseSessionAssembly(
+			await this.json(
+				"/session-workspaces/" +
+					identifier(campaignId) +
+					"/" +
+					identifier(sessionId) +
+					"/assemblies/" +
+					assemblyId,
+				signal,
+			),
+		);
+	}
+
 	async buildSessionAssembly(
 		campaignId: string,
 		sessionId: string,
