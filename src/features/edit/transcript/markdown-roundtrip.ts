@@ -93,7 +93,7 @@ export async function transcriptStructureSha256(
 			row.end_ms < row.start_ms
 		)
 			throw new Error("TRANSCRIPT_MARKDOWN_STRUCTURE_INVALID");
-		const key = \`\${row.track}\\0\${row.id}\`;
+		const key = `${row.track}\u0000${row.id}`;
 		if (seen.has(key)) throw new Error("TRANSCRIPT_MARKDOWN_DUPLICATE_SEGMENT");
 		seen.add(key);
 	}
@@ -101,14 +101,14 @@ export async function transcriptStructureSha256(
 }
 
 function marker(segment: TranscriptReaderSegment): string {
-	return \`<!-- tda:segment track=\${segment.trackNumber} id=\${encodeURIComponent(
+	return `<!-- tda:segment track=${segment.trackNumber} id=${encodeURIComponent(
 		stableSegmentId(segment),
-	)} start_ms=\${segment.startMs} end_ms=\${segment.endMs} -->\`;
+	)} start_ms=${segment.startMs} end_ms=${segment.endMs} -->`;
 }
 
 function cleanEditableText(value: string, field: "speaker" | "text"): string {
 	if (!isReviewStringV1(value, field))
-		throw new Error(\`TRANSCRIPT_MARKDOWN_\${field.toUpperCase()}_INVALID\`);
+		throw new Error(`TRANSCRIPT_MARKDOWN_${field.toUpperCase()}_INVALID`);
 	if (value.includes("<!-- tda:segment "))
 		throw new Error("TRANSCRIPT_MARKDOWN_RESERVED_MARKER_IN_TEXT");
 	return value.replace(/\r\n?/gu, "\n");
@@ -136,18 +136,18 @@ export async function renderTranscriptRoundTripMarkdown(input: {
 	const structureSha256 = await transcriptStructureSha256(input.snapshot.segments);
 	const lines = [
 		"---",
-		\`tda_transcript: \${TRANSCRIPT_MARKDOWN_SCHEMA}\`,
-		\`campaign: \${input.identity.campaignSlug}\`,
-		\`source_session_id: \${input.identity.sourceSessionId}\`,
-		\`base_revision_id: \${input.identity.baseRevisionId}\`,
-		\`base_revision_number: \${input.identity.baseRevisionNumber}\`,
-		\`structure_sha256: \${structureSha256}\`,
+		`tda_transcript: ${TRANSCRIPT_MARKDOWN_SCHEMA}`,
+		`campaign: ${input.identity.campaignSlug}`,
+		`source_session_id: ${input.identity.sourceSessionId}`,
+		`base_revision_id: ${input.identity.baseRevisionId}`,
+		`base_revision_number: ${input.identity.baseRevisionNumber}`,
+		`structure_sha256: ${structureSha256}`,
 		"---",
 		"",
-		\`# Transcrição — \${input.title.replace(/\r\n?/gu, " ").trim()}\`,
+		`# Transcrição — ${input.title.replace(/\r\n?/gu, " ").trim()}`,
 		"",
-		\`Sessão: \${input.sessionDate ?? "data não informada"}\`,
-		\`Arco: \${input.arc ?? "não informado"}\`,
+		`Sessão: ${input.sessionDate ?? "data não informada"}`,
+		`Arco: ${input.arc ?? "não informado"}`,
 		"",
 		"Edite somente o speaker e o texto das falas. Não altere nem remova linhas tda:segment.",
 		"",
@@ -157,9 +157,9 @@ export async function renderTranscriptRoundTripMarkdown(input: {
 	for (const segment of input.snapshot.segments) {
 		const speaker = cleanEditableText(segment.speaker, "speaker");
 		const text = cleanEditableText(segment.text, "text");
-		lines.push(marker(segment), \`Speaker: \${speaker}\`, text, "");
+		lines.push(marker(segment), `Speaker: ${speaker}`, text, "");
 	}
-	const body = \`\${lines.join("\n").trimEnd()}\n\`;
+	const body = `${lines.join("\n").trimEnd()}\n`;
 	if (utf8Bytes(body) > TRANSCRIPT_MARKDOWN_MAX_BYTES)
 		throw new Error("TRANSCRIPT_MARKDOWN_TOO_LARGE");
 	return body;
@@ -246,7 +246,7 @@ export async function parseTranscriptRoundTripMarkdown(input: {
 
 	const baselineByKey = new Map(
 		input.baseline.map((segment) => [
-			\`\${segment.trackNumber}\\0\${stableSegmentId(segment)}\`,
+			`${segment.trackNumber}\u0000${stableSegmentId(segment)}`,
 			segment,
 		]),
 	);
@@ -314,7 +314,7 @@ export async function parseTranscriptRoundTripMarkdown(input: {
 	let changedSegments = 0;
 	for (let position = 0; position < parsed.length; position += 1) {
 		const row = parsed[position];
-		const key = \`\${row.trackNumber}\\0\${row.segmentId}\`;
+		const key = `${row.trackNumber}\u0000${row.segmentId}`;
 		if (seen.has(key)) throw new Error("TRANSCRIPT_MARKDOWN_DUPLICATE_SEGMENT");
 		seen.add(key);
 		const base = baselineByKey.get(key);
