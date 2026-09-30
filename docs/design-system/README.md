@@ -359,6 +359,20 @@ Contrato:
 - handoffs realmente globais, como o redirect de autenticação para Discord, fazem opt-in explícito no `GlobalFormLoadingBridge`;
 - operações com progresso mensurável migram para a primitive de progresso em vez de tentar comprimir barra/porcentagem dentro do botão.
 
+### Progresso operacional
+
+Operações já montadas usam a primitive compartilhada `Progress` em `src/components/ui/progress.tsx`.
+
+O contrato diferencia explicitamente:
+
+- **determinate** — existe denominador factual, como bytes, chunks, tracks ou itens; `value/max` são expostos pelo `<progress>` nativo e a interface pode mostrar porcentagem/contagem real;
+- **indeterminate** — a operação está ativa, mas não existe total confiável; o `<progress>` não recebe `value` e a UI comunica a etapa textual;
+- **estimated** — ETA/estimativa continua separada do progresso factual e nunca é convertida em porcentagem inventada.
+
+Tons são semânticos (`neutral`, `accent`, `success`, `warning`, `danger`). O default é neutro; Processing preserva `accent` onde o dourado já representa trabalho ativo. Uploads não transformam o acento da marca em tinta universal.
+
+Uploads seguem a state machine perceptiva `preparing → uploading → finalizing → success/error`: preparação e validação são indeterminadas quando o sistema não conhece um total, enquanto upload usa bytes/chunks reais quando disponíveis. `prefers-reduced-motion: reduce` remove deslocamento/transição decorativa sem retirar valor, label ou estado.
+
 ### Superfícies públicas
 
 A composição pública foi modularizada:

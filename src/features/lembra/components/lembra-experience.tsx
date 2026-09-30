@@ -9,7 +9,7 @@ import {
 	useState,
 	type FormEvent,
 } from "react";
-import { Button, Select, type SelectOption } from "@/components/ui";
+import { Button, Progress, Select, type SelectOption } from "@/components/ui";
 import {
 	finalizeLembraUploadAction,
 	retireLembraReferenceAction,
@@ -1591,25 +1591,25 @@ export function LembraExperience({
 									</div>
 
 									{uploadStatus.phase === "uploading" ? (
-										<progress
+										<Progress
+											ariaLabel="Progresso do envio da imagem"
 											className={styles.uploadProgress}
-											max={100}
-											value={Math.min(
-												100,
-												(uploadStatus.uploadedBytes /
-													Math.max(1, uploadStatus.totalBytes)) *
-													100,
-											)}
-											aria-label="Progresso do envio da imagem"
+											max={Math.max(1, uploadStatus.totalBytes)}
+											value={uploadStatus.uploadedBytes}
+											valueText={`${formatUploadBytes(uploadStatus.uploadedBytes)} de ${formatUploadBytes(uploadStatus.totalBytes)}`}
 										/>
-									) : uploadStatus.phase === "finalizing" ||
-									  uploadStatus.phase === "success" ? (
-										<div className={styles.uploadTrack} aria-hidden="true">
-											<span
-												className={styles.uploadTrackFill}
-												style={{ width: "100%" }}
-											/>
-										</div>
+									) : uploadStatus.phase === "preparing" ? (
+										<Progress
+											ariaLabel="Preparação do envio da imagem"
+											className={styles.uploadProgress}
+											valueText="Calculando integridade e preparando o envio"
+										/>
+									) : uploadStatus.phase === "finalizing" ? (
+										<Progress
+											ariaLabel="Validação e publicação da imagem"
+											className={styles.uploadProgress}
+											valueText="Validando imagem e publicando"
+										/>
 									) : null}
 
 									{uploadStatus.phase === "uploading" ? (

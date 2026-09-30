@@ -535,16 +535,6 @@
 
 .coverProgress {
 	height: 6px;
-	overflow: hidden;
-	border-radius: 999px;
-	background: var(--ds-border);
-}
-
-.coverProgress span {
-	display: block;
-	height: 100%;
-	background: var(--ds-accent-strong);
-	transition: width 140ms ease-out;
 }
 
 .coverMetadata,
@@ -569,11 +559,6 @@
 	font-weight: 650;
 }
 
-.coverProgress[data-indeterminate="true"] span {
-	width: 100%;
-	opacity: 0.65;
-}
-
 .coverError {
 	color: var(--ds-status-danger-text);
 }
@@ -585,12 +570,6 @@
 
 	.coverUploadActions > * {
 		width: 100%;
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.coverProgress span {
-		transition: none;
 	}
 }
 

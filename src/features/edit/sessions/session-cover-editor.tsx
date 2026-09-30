@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { Progress } from "@/components/ui";
 import {
 	useEffect,
 	useRef,
@@ -237,7 +238,7 @@ export function SessionCoverEditor({
 					throw new Error(`chunk_${response.status}`);
 				reportUploadState({
 					phase: "uploading",
-					progress: Math.round(((part + 1) / chunks) * 90),
+					progress: Math.round(((part + 1) / chunks) * 100),
 				});
 			}
 
@@ -404,26 +405,25 @@ export function SessionCoverEditor({
 								: "Upload recebido; verificando formato, dimensões, hash e read-back."}
 					</span>
 					{uploadState.phase === "uploading" ? (
-						<div
+						<Progress
+							ariaLabel="Upload da capa"
 							className={styles.coverProgress}
-							role="progressbar"
-							aria-label="Upload da capa"
-							aria-valuemin={0}
-							aria-valuemax={100}
-							aria-valuenow={progress}
-						>
-							<span style={{ width: `${progress}%` }} />
-						</div>
+							max={100}
+							value={progress}
+							valueText={`${progress}% enviado`}
+						/>
+					) : uploadState.phase === "hashing" ? (
+						<Progress
+							ariaLabel="Preparação da capa"
+							className={styles.coverProgress}
+							valueText="Calculando integridade local"
+						/>
 					) : uploadState.phase === "finalizing" ? (
-						<div
+						<Progress
+							ariaLabel="Validação da capa"
 							className={styles.coverProgress}
-							data-indeterminate="true"
-							role="progressbar"
-							aria-label="Validação da capa"
-							aria-valuetext="Validando formato, dimensões, hash e read-back"
-						>
-							<span />
-						</div>
+							valueText="Validando formato, dimensões, hash e read-back"
+						/>
 					) : null}
 				</div>
 			) : null}
