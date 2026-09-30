@@ -63,9 +63,9 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 
 ## `campaigns`
 
-**Propósito:** raiz de isolamento narrativo e registry operacional multi-campanha.
+**Propósito:** raiz de isolamento narrativo. O bloco abaixo descreve o **contrato candidato #1123**; enquanto a migration `20260930140000_campaign_registry_multicampaign` não for aplicada pelo gate normal, o schema remoto observado continua com a forma histórica registrada no cabeçalho deste catálogo.
 
-Campos centrais após #1123:
+Campos centrais no contrato candidato #1123:
 
 - `id uuid` PK — autoridade relacional estável;
 - `name text` — apresentação humana/editável;
@@ -79,9 +79,9 @@ Campos centrais após #1123:
 
 O rollout de #1123 preserva `yuhara-main` tecnicamente, apresenta a campanha histórica como **Crônicas da Mesa** em `cronicas-da-mesa` e registra **Antes que seja tarde** como segunda identidade aprovada, inicialmente privada e sem conteúdo narrativo inferido.
 
-## `campaign_public_slug_aliases`
+## `campaign_public_slug_aliases` — candidato #1123
 
-**Propósito:** preservar public slugs anteriores depois de rename sem transformar alias em scope de autorização.
+**Propósito:** preservar public slugs anteriores depois de rename sem transformar alias em scope de autorização. Esta tabela é criada somente quando a migration #1123 for aplicada.
 
 Campos:
 
