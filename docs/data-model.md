@@ -27,9 +27,15 @@ Contrato aceito em ADR-0020:
 - public route key: identidade de navegação separada, com aliases quando houver rename de URL;
 - lifecycle mínimo: `active | archived`, separado de visibilidade/discovery.
 
-O schema físico para public route key/aliases/lifecycle pertence a #1123; este documento fixa a semântica antes da migration. A campaign existente preserva `yuhara-main` tecnicamente e pode ser apresentada como **Crônicas da Mesa**. A campaign planejada **Antes que seja tarde** não autoriza criar sessions/entities/canon fictícios nem vincular D automaticamente.
+O candidate de #1123 materializa esse contrato com `public_slug`, `lifecycle`, `visibility`, `archived_at` e `campaign_public_route_aliases`, sem aplicação remota automática. A campaign existente preserva UUID e technical slug `yuhara-main`, enquanto a apresentação passa a **Crônicas da Mesa** e a route key canônica a `cronicas-da-mesa`. A segunda campaign **Antes que seja tarde** usa UUID estável e nasce somente como identidade `active/private`; não recebe sessions/entities/canon/memberships nem vínculo automático com D.
 
-IDs como `source_session_id` e entity slug podem ser iguais entre campaigns quando o domínio permitir; lookups correspondentes precisam ser campaign-qualified.
+IDs como `source_session_id` e entity slug podem ser iguais entre campaigns quando o domínio permitir; lookups correspondentes precisam ser campaign-qualified. O candidate também torna físicos os vínculos `profile_characters(campaign_id, entity_id) -> entities(campaign_id, id)` e `canon_entries(campaign_id, entity_id) -> entities(campaign_id, id)`, além de bloquear participant→entity cross-campaign e raw moves que quebrariam esse ownership.
+
+### Consumidores do technical slug
+
+O technical slug continua estável porque ainda participa de contratos de compatibilidade em RBAC, RPCs, rotas Edit, sessões públicas, mídia e processamento. Rename editorial altera `name`; rename de URL pública altera `public_slug` e preserva o valor anterior como alias histórico. Nenhum dos dois renomeia `campaigns.slug`.
+
+Inventário operacional: [campaign identity — inventário de consumidores](database/campaign-identity-consumers.md).
 
 ### Campaign member e RBAC
 `campaign_members` é o membership histórico simples da campanha e ainda alimenta RPCs legadas. O modelo de autorização extensível usa `permission_catalog`, `role_definitions`, `role_permissions` e `role_assignments`.
