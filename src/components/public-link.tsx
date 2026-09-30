@@ -9,18 +9,27 @@ export type PublicLinkProps = Omit<
 	"href"
 > & {
 	href: string;
+	globalLoading?: boolean;
 };
 
-function PendingNavigation({ children }: Readonly<{ children: ReactNode }>) {
+function PendingNavigation({
+	children,
+	globalLoading,
+}: Readonly<{ children: ReactNode; globalLoading: boolean }>) {
 	const { pending } = useLinkStatus();
-	useGlobalLoadingFlag(pending);
+	useGlobalLoadingFlag(globalLoading && pending);
 	return children;
 }
 
-export function PublicLink({ href, children, ...props }: PublicLinkProps) {
+export function PublicLink({
+	href,
+	children,
+	globalLoading = false,
+	...props
+}: PublicLinkProps) {
 	return (
 		<NextLink href={href} {...props}>
-			<PendingNavigation>{children}</PendingNavigation>
+			<PendingNavigation globalLoading={globalLoading}>{children}</PendingNavigation>
 		</NextLink>
 	);
 }

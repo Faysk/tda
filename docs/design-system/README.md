@@ -263,20 +263,22 @@ O `GlobalLoadingProvider` usa tokens internos por operação. Vários carregamen
 
 #### Contrato de ativação
 
-O loader deve representar **espera bloqueante percebida pelo usuário**. Hoje entram no contrato:
+O loader representa **espera realmente global e bloqueante**, não qualquer operação assíncrona.
 
-- navegação interna por `PublicLink`, que acompanha o pending state real do App Router;
-- submits nativos same-origin por `GlobalFormLoadingBridge`;
-- elementos com `aria-busy="true"`;
-- opt-in explícito por `data-global-loading="true"`;
-- estados existentes com `data-state="saving"` quando a espera é bloqueante;
+Entram no contrato somente gatilhos explícitos:
+
+- `PublicLink globalLoading` quando uma transição foi deliberadamente classificada como global;
+- submits nativos com `data-global-loading-submit="true"`;
+- opt-in ativo por `data-global-loading="true"`;
 - hooks `useGlobalLoading()` e `useGlobalLoadingFlag()`;
 - bridge de eventos para integrações imperativas;
-- fallback de rota específico quando realmente necessário.
+- fallback excepcional quando realmente necessário.
 
-Polling, heartbeat, prefetch, autosave silencioso e sincronização de fundo **não** devem abrir o overlay. Um subtree pode declarar `data-global-loading="off"` para manter trabalho de background fora do feedback global. O provider não intercepta `window.fetch` globalmente.
+`aria-busy="true"` continua descrevendo a região que está sendo atualizada e **não** aciona o overlay. Da mesma forma, estados de feature como `data-state="saving"` permanecem locais e não possuem efeito global implícito.
 
-Essa separação é de UX e de arquitetura: o loader comunica “você está esperando por esta ação”, não “algum request existe no sistema”.
+Navegação comum por `PublicLink`, submits comuns, polling, heartbeat, prefetch, autosave, uploads locais e sincronização de fundo **não** abrem o overlay automaticamente. Um subtree pode declarar `data-global-loading="off"` para suprimir inclusive um trigger explícito herdado. O provider não intercepta `window.fetch` globalmente.
+
+Essa separação é de UX, arquitetura e acessibilidade: o tamanho do feedback acompanha o tamanho da consequência percebida. O loader comunica “a aplicação inteira está esperando por esta ação”; estados regionais devem usar feedback regional ou inline.
 
 #### Tema escuro e tema claro
 
@@ -299,7 +301,7 @@ O overlay expõe `role="status"`, `aria-busy="true"` e `aria-label="Carregando"`
 
 O loader não deve alterar semântica HTTP nem ser implementado por um boundary global que converta respostas dinâmicas de `notFound()` em streaming `200`. Por isso a navegação do App Router é observada no nível de link/estado pendente e fallbacks de rota ficam específicos.
 
-A validação automatizada cobre tema claro e escuro, estados bloqueantes, operações rápidas que não devem piscar, trabalho explicitamente de background e regressões de navegação. O aceite visual de produto foi confirmado após uso em produção em `2026-09-10`, encerrando esta frente como concluída.
+A validação automatizada cobre tema claro e escuro, triggers globais explícitos, operações rápidas que não devem piscar, estados locais que não podem escalar para fullscreen, opt-out de subtrees e regressões de navegação. O aceite visual de produto foi confirmado após uso em produção em `2026-09-10`, encerrando esta frente como concluída.
 
 ### Superfícies públicas
 

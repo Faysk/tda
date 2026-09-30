@@ -71,7 +71,7 @@ async function startBlockingLoad(page: Page) {
 	await page.evaluate(() => {
 		const marker = document.createElement("div");
 		marker.id = "global-loader-theme-marker";
-		marker.setAttribute("aria-busy", "true");
+		marker.setAttribute("data-global-loading", "true");
 		document.body.append(marker);
 	});
 	await expect(page.locator(overlay)).toBeVisible();
@@ -85,16 +85,30 @@ async function stopBlockingLoad(page: Page) {
 	await expect(page.locator(overlay)).toHaveCount(0, { timeout: 2500 });
 }
 
-test("global loader follows blocking busy state without flashing for instant work", async ({
+test("global loader requires an explicit blocking trigger and ignores local busy state", async ({
 	page,
 }) => {
 	const assetFailures = watchLoaderBrandAssetFailures(page);
 	await page.goto("/");
 
 	await page.evaluate(() => {
+		const busy = document.createElement("div");
+		busy.id = "global-loader-local-busy-marker";
+		busy.setAttribute("aria-busy", "true");
+		document.body.append(busy);
+
+		const saving = document.createElement("div");
+		saving.id = "global-loader-local-saving-marker";
+		saving.setAttribute("data-state", "saving");
+		document.body.append(saving);
+	});
+	await page.waitForTimeout(220);
+	await expect(page.locator(overlay)).toHaveCount(0);
+
+	await page.evaluate(() => {
 		const marker = document.createElement("div");
 		marker.id = "global-loader-test-marker";
-		marker.setAttribute("aria-busy", "true");
+		marker.setAttribute("data-global-loading", "true");
 		document.body.append(marker);
 	});
 	await expect(page.locator(overlay)).toBeVisible();
@@ -108,7 +122,7 @@ test("global loader follows blocking busy state without flashing for instant wor
 	await page.evaluate(() => {
 		const marker = document.createElement("div");
 		marker.id = "global-loader-fast-marker";
-		marker.setAttribute("data-state", "saving");
+		marker.setAttribute("data-global-loading", "true");
 		document.body.append(marker);
 		window.setTimeout(() => marker.remove(), 25);
 	});
@@ -117,7 +131,7 @@ test("global loader follows blocking busy state without flashing for instant wor
 	expect(assetFailures).toEqual([]);
 });
 
-test("global loader ignores explicitly background busy work", async ({ page }) => {
+test("global loader ignores explicit triggers inside an opted-out subtree", async ({ page }) => {
 	await page.goto("/");
 
 	await page.evaluate(() => {
@@ -125,7 +139,7 @@ test("global loader ignores explicitly background busy work", async ({ page }) =
 		background.id = "global-loader-background-marker";
 		background.setAttribute("data-global-loading", "off");
 		const busy = document.createElement("div");
-		busy.setAttribute("aria-busy", "true");
+		busy.setAttribute("data-global-loading", "true");
 		background.append(busy);
 		document.body.append(background);
 	});
@@ -179,7 +193,7 @@ test("global loader keeps the canonical decoded mark during a real route transit
 	await page.goto("/e2e-fixtures/global-loading");
 
 	const navigation = page.waitForURL(/\/e2e-fixtures\/global-loading\/slow$/u);
-	await page.getByRole("link", { name: "Abrir rota lenta" }).click({
+	await page.getByRole("link", { name: "Abrir rota lenta global" }).click({
 		noWaitAfter: true,
 	});
 
@@ -190,6 +204,26 @@ test("global loader keeps the canonical decoded mark during a real route transit
 		"Global Loading E2E Target",
 	);
 	expect(assetFailures).toEqual([]);
+});
+
+test("ordinary route pending stays scoped and does not open the global overlay", async ({
+	page,
+}) => {
+	await page.goto("/e2e-fixtures/global-loading");
+
+	const navigation = page.waitForURL(
+		/\/e2e-fixtures\/global-loading\/slow\?scope=local$/u,
+	);
+	await page.getByRole("link", { name: "Abrir rota lenta local" }).click({
+		noWaitAfter: true,
+	});
+
+	await page.waitForTimeout(220);
+	await expect(page.locator(overlay)).toHaveCount(0);
+	await navigation;
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+		"Global Loading E2E Target",
+	);
 });
 
 test("global loader preserves the decoded mark with reduced motion", async ({ page }) => {
