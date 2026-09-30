@@ -1671,3 +1671,28 @@ Validação sintética:
 - `tools/transcript-sync-db.py` aplica migration + contratos em PostgreSQL descartável.
 
 Rollback é forward-only: retirar primeiro o consumidor Web; sessions privadas/revisions já confirmadas continuam evidência válida. Não apagar receipt/revision/session real para simular rollback.
+
+
+## 2026-09-30 — candidate first-class campaign registry (#1123)
+
+### `supabase/candidates/20260930174200_first_class_campaign_registry.sql`
+
+**Estado:** candidato revisável; não está em `supabase/migrations/` e não autoriza aplicação remota nesta entrega.
+
+O candidate prepara:
+
+- `campaigns.lifecycle = active | archived`, `visibility = public | private`, `public_slug` e `archived_at`;
+- UUID/technical slug legado preservados, com **Crônicas da Mesa** / `cronicas-da-mesa` como apresentação pública;
+- **Antes que seja tarde** com UUID estável `d0b64c86-3c83-4e9e-9cd8-b8ebd4d1d001`, `active/private` e zero conteúdo narrativo inferido;
+- aliases públicas históricas server-only, ownership imutável e sem DELETE operacional;
+- recusa fail-closed de uniques globais incompatíveis para source session/entity slug;
+- mesma source identity e mesmo entity slug válidos entre campaigns, mas não duplicados dentro da mesma campaign;
+- FKs compostas para `profile_characters` e `canon_entries`;
+- guards participant→entity e guards contra raw session/entity moves que quebrariam ownership;
+- technical slug imutável depois da criação.
+
+Validação sintética obrigatória: `python tools/campaign-registry-db.py` usa PostgreSQL 16 descartável, Unix socket, sem TCP/credenciais/dados reais, aplica o candidate duas vezes antes dos asserts e cobre A/B, UUIDs, lifecycle, alias replay/collision/ownership, source/entity collisions, cross-campaign FKs e compatibilidade de insert legado.
+
+A inspeção remota desta preparação foi **somente metadata/constraints agregadas**: Production ainda possui uma row em `campaigns`, source session já é unique por `(campaign_id, source_system, source_session_id)`, entity slug por `(campaign_id, slug)` e não foram observados mismatches agregados em profile-character/canon/participant. Nenhum DDL ou dado narrativo foi alterado remotamente.
+
+Promoção posterior exige decisão/runbook separado, migration nova com timestamp corrente, CI no SHA exato e read-back. Rollback é expand-only: desativar consumers novos preservando schema/dados; não apagar campaigns/aliases nem renomear UUID/technical slug.
