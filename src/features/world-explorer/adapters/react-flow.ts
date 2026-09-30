@@ -24,6 +24,7 @@ export type WorldFlowNodeData = {
 	isHero: boolean;
 	prominence: WorldNodeProminence;
 	isDimmed: boolean;
+	isRelationEndpoint: boolean;
 	authoringConnectable: boolean;
 };
 
@@ -32,6 +33,7 @@ export type WorldFlowEdgeData = {
 	family: WorldRelationFamily;
 	style?: WorldRelationStyleDTO;
 	isHighlighted: boolean;
+	isHovered: boolean;
 	isDimmed: boolean;
 	routeOffset: number;
 	bendOffset: number;
@@ -124,6 +126,7 @@ export function toReactFlowStructure(
 				isHero,
 				prominence: prominenceFor(item, isHero),
 				isDimmed: false,
+				isRelationEndpoint: false,
 				authoringConnectable: false,
 			},
 			draggable: true,
@@ -153,6 +156,7 @@ export function toReactFlowStructure(
 				family: item.family,
 				style: item.style,
 				isHighlighted: false,
+				isHovered: false,
 				isDimmed: false,
 				routeOffset: route?.offset ?? 28,
 				bendOffset: route?.bendOffset ?? 0,
@@ -235,6 +239,38 @@ export function applyWorldFlowSelection(
 	});
 
 	return { nodes, edges };
+}
+
+export function applyWorldFlowEdgeHover(
+	nodes: readonly WorldFlowNode[],
+	edges: readonly WorldFlowEdge[],
+	hoveredEdgeId?: string | null,
+): WorldFlowGraph {
+	const hovered = hoveredEdgeId
+		? edges.find((edge) => edge.id === hoveredEdgeId)
+		: undefined;
+	const endpoints = hovered
+		? new Set([hovered.source, hovered.target])
+		: new Set<string>();
+
+	const nextNodes = nodes.map((node) => {
+		const isRelationEndpoint = endpoints.has(node.id);
+		if (node.data.isRelationEndpoint === isRelationEndpoint) return node;
+		return {
+			...node,
+			data: { ...node.data, isRelationEndpoint },
+		};
+	});
+	const nextEdges = edges.map((edge) => {
+		const isHovered = edge.id === hoveredEdgeId;
+		if (edge.data?.isHovered === isHovered) return edge;
+		return {
+			...edge,
+			data: edge.data ? { ...edge.data, isHovered } : edge.data,
+		};
+	});
+
+	return { nodes: nextNodes, edges: nextEdges };
 }
 
 export function toReactFlowGraph(
