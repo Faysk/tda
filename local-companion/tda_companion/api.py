@@ -2143,6 +2143,8 @@ def create_app(
         payload = body.model_dump()
         if body.kind == "transcription.craig":
             async with dispatch_gate:
+                if qwen_runtime_manager.snapshot().get("active") is True:
+                    raise Conflict("QWEN_RUNTIME_MAINTENANCE_BUSY")
                 if body.profile_id.startswith("qwen-"):
                     # Qwen is fail-closed before consulting the staged source: an
                     # unaccepted GPU/profile must not trigger source filesystem work.
@@ -2203,6 +2205,8 @@ def create_app(
                 value = store.submit(idempotency_key, payload)
         elif body.kind == "benchmark.craig":
             async with dispatch_gate:
+                if qwen_runtime_manager.snapshot().get("active") is True:
+                    raise Conflict("QWEN_RUNTIME_MAINTENANCE_BUSY")
                 if await asyncio.to_thread(store.has_active_transcription_jobs):
                     raise Conflict("BENCHMARK_RESOURCE_BUSY")
                 try:
