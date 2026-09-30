@@ -436,6 +436,14 @@ export function ProcessingBenchmark({
 		return () => {
 			disposed = true;
 			controller.abort();
+			// React Strict Mode intentionally mounts, cleans up and remounts effects
+			// in development. Relinquish this attempt's dedupe key so the remount can
+			// resume the Companion operation instead of leaving an active update
+			// without a poller. The next attempt always GETs status before POSTing,
+			// so an already-running maintenance operation is safely reattached.
+			if (qwenRuntimeCheckKey.current === key) {
+				qwenRuntimeCheckKey.current = null;
+			}
 		};
 	}, [
 		bridge,
