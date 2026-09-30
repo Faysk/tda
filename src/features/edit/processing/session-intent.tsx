@@ -67,6 +67,7 @@ type Blocker =
 	| Readonly<{ kind: "timeline"; state: SessionWorkspace["timeline"]["state"] }>
 	| Readonly<{ kind: "participants"; count: number }>
 	| Readonly<{ kind: "failed"; sourceIds: readonly string[] }>
+	| Readonly<{ kind: "enqueue"; sourceIds: readonly string[] }>
 	| Readonly<{ kind: "resume"; sourceIds: readonly string[] }>
 	| Readonly<{ kind: "source"; sourceIds: readonly string[] }>;
 
@@ -444,6 +445,7 @@ export function SessionIntentCoordinator({
 			blocker?.kind === "runs" ||
 			blocker?.kind === "timeline" ||
 			blocker?.kind === "participants" ||
+			blocker?.kind === "enqueue" ||
 			blocker?.kind === "resume" ||
 			blocker?.kind === "source"
 		)
@@ -551,18 +553,25 @@ export function SessionIntentCoordinator({
 							pendingSubmissions.current.get(part.sourceId) ?? null,
 					});
 					pendingSubmissions.current.set(part.sourceId, submission);
-					const job = await bridge.transcription(
-						{
-							campaignId: workspace.campaignId,
-							sessionId: workspace.sessionId,
-							sourceId: part.sourceId,
-							profileId: activeRequest.profile,
-							glossary: activeRequest.glossary,
-							context: activeRequest.context,
-						},
-						submission.key,
-						controller.signal,
-					);
+					let job: LocalJob;
+					try {
+						job = await bridge.transcription(
+							{
+								campaignId: workspace.campaignId,
+								sessionId: workspace.sessionId,
+								sourceId: part.sourceId,
+								profileId: activeRequest.profile,
+								glossary: activeRequest.glossary,
+								context: activeRequest.context,
+							},
+							submission.key,
+							controller.signal,
+						);
+					} catch (cause) {
+						fail(cause);
+						setBlocker({ kind: "enqueue", sourceIds: [part.sourceId] });
+						return;
+					}
 					intentJobIds.current.set(part.sourceId, job.id);
 					setJobs((current) => [
 						job,
@@ -1034,6 +1043,30 @@ export function SessionIntentCoordinator({
 						{blocker.sourceIds.length === 1
 							? "Reprocessar 1 gravação"
 							: `Reprocessar ${blocker.sourceIds.length} gravações`}
+					</Button>
+				</div>
+			) : null}
+
+			{blocker?.kind === "enqueue" ? (
+				<div className={styles.blocker} role="alert">
+					<div>
+						<strong>Não foi possível confirmar a entrada desta gravação.</strong>
+						<span>
+							A identidade da tentativa foi preservada. Tentar novamente não cria
+							um segundo job se o Agent já tiver recebido o primeiro pedido.
+						</span>
+					</div>
+					<Button
+						type="button"
+						size="sm"
+						variant="secondary"
+						disabled={busy}
+						onClick={() => {
+							setLocalError(null);
+							setBlocker(null);
+						}}
+					>
+						Tentar novamente
 					</Button>
 				</div>
 			) : null}
