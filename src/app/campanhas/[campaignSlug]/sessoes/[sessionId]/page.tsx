@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
 import { SessionShareActions } from "@/components/session-share-actions";
@@ -20,8 +21,43 @@ export async function generateMetadata({params}:Params):Promise<Metadata>{
 	return sessionPublicMetadata(session);
 }
 
-function NavigationCard({session,label}:{session:PublishedSession;label:string}){
-	return <Link className={styles.link} href={sessionPublicPath(session)}><span className={styles.linkCopy}><span className={styles.label}>{label}</span><strong className={styles.linkTitle}>{session.title}</strong>{session.arc?<span className={styles.linkArc}>{session.arc}</span>:null}</span></Link>;
+function NavigationCard({
+	session,
+	direction,
+}: {
+	session: PublishedSession;
+	direction: "previous" | "next";
+}) {
+	const image = session.coverImage || session.heroImage;
+	const isNext = direction === "next";
+	return (
+		<Link
+			className={`${styles.link}${isNext ? ` ${styles.next}` : ""}`}
+			href={sessionPublicPath(session)}
+		>
+			<span className={styles.linkMedia} aria-hidden="true">
+				{image ? (
+					<Image
+						className={styles.linkImage}
+						src={image}
+						alt=""
+						fill
+						sizes="(max-width: 700px) 96px, 148px"
+					/>
+				) : (
+					<span className={styles.linkFallback}>TDA</span>
+				)}
+				<span className={styles.linkShade} />
+			</span>
+			<span className={styles.linkCopy}>
+				<span className={styles.label}>
+					{isNext ? "Próxima sessão →" : "← Sessão anterior"}
+				</span>
+				<strong className={styles.linkTitle}>{session.title}</strong>
+				{session.arc ? <span className={styles.linkArc}>{session.arc}</span> : null}
+			</span>
+		</Link>
+	);
 }
 
 export default async function CampaignSession({params}:Params){
@@ -49,8 +85,8 @@ export default async function CampaignSession({params}:Params){
 			<div className={styles.readingIntro}><span className={styles.chapterMark} aria-hidden="true">◆</span><SessionShareActions title={session.title} description={sessionShareDescription(session.summary,session.title)}/></div>
 			<StoryMarkdown source={story} title={session.title}/>
 			{previous||next?<nav className={styles.pagination} aria-label="Navegação entre sessões">
-				{previous?<NavigationCard session={previous} label="← Sessão anterior"/>:null}
-				{next?<NavigationCard session={next} label="Próxima sessão →"/>:null}
+				{previous?<NavigationCard session={previous} direction="previous"/>:null}
+				{next?<NavigationCard session={next} direction="next"/>:null}
 			</nav>:null}
 		</div>
 	</article>;
