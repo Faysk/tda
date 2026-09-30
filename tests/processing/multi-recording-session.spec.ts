@@ -98,6 +98,7 @@ async function installMultiRecordingRoutes(
 	const retryCount = new Map<string, number>();
 	const postedSources: string[] = [];
 	const postKeys = new Map<string, string[]>();
+	const acceptedKeys = new Map<string, string>();
 	let failedOnce = false;
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
 
@@ -386,9 +387,13 @@ async function installMultiRecordingRoutes(
 				...(postKeys.get(payload.source_id) ?? []),
 				key,
 			]);
-			if (failNextSecondSourceEnqueue && index === 1) {
-				failNextSecondSourceEnqueue = false;
-				return route.abort("failed");
+			const acceptedKey = acceptedKeys.get(payload.source_id);
+			if (
+				acceptedKey &&
+				acceptedKey === key &&
+				jobsBySource.has(payload.source_id)
+			) {
+				return json(route, jobResponse(payload.source_id));
 			}
 			jobSequence += 1;
 			const shouldFail =
@@ -403,6 +408,11 @@ async function installMultiRecordingRoutes(
 						: "succeeded",
 				attempt: 1,
 			});
+			acceptedKeys.set(payload.source_id, key);
+			if (failNextSecondSourceEnqueue && index === 1) {
+				failNextSecondSourceEnqueue = false;
+				return route.abort("failed");
+			}
 			return json(route, jobResponse(payload.source_id));
 		}
 		const cancelMatch = path.match(/^\/jobs\/(multi-job-\d+)\/cancel$/u);
