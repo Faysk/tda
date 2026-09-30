@@ -34,6 +34,7 @@ export type WorldFlowEdgeData = {
 	isHighlighted: boolean;
 	isDimmed: boolean;
 	routeOffset: number;
+	bendOffset: number;
 	labelOffset: { x: number; y: number };
 	sourceSide?: WorldPortSide;
 	targetSide?: WorldPortSide;
@@ -154,6 +155,7 @@ export function toReactFlowStructure(
 				isHighlighted: false,
 				isDimmed: false,
 				routeOffset: route?.offset ?? 28,
+				bendOffset: route?.bendOffset ?? 0,
 				labelOffset: route?.labelOffset ?? { x: 0, y: 0 },
 				sourceSide: route?.sourceSide,
 				targetSide: route?.targetSide,
@@ -268,6 +270,7 @@ export function rerouteWorldEdges(
 				? {
 					...edge.data,
 					routeOffset: route.offset,
+					bendOffset: route.bendOffset,
 					labelOffset: route.labelOffset,
 					sourceSide: route.sourceSide,
 					targetSide: route.targetSide,

@@ -13,6 +13,7 @@ import {
 	type FloatingNodeBox,
 } from "../floating-edge-geometry";
 import type { WorldLineStyle, WorldRelationFamily } from "../model";
+import { getRoutedBezierPath } from "../routed-edge-geometry";
 import { worldEdgeSemanticPresentation } from "../world-semantic-zoom";
 import effects from "./relation-edge-effects.module.css";
 import styles from "./world-explorer.module.css";
@@ -111,6 +112,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 			? getFloatingEdgeGeometry(sourceBox, targetBox, floatingRoute)
 			: null;
 	const routeOffset = props.data?.routeOffset ?? 28;
+	const bendOffset = props.data?.bendOffset ?? 0;
 	const labelOffset = props.data?.labelOffset ?? { x: 0, y: 0 };
 	const family = props.data?.family ?? "context";
 	const customStyle = props.data?.style;
@@ -121,15 +123,26 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const targetY = floating?.targetY ?? props.targetY;
 	const sourcePosition = floating?.sourcePosition ?? props.sourcePosition;
 	const targetPosition = floating?.targetPosition ?? props.targetPosition;
-	const [path, labelX, labelY] = getBezierPath({
-		sourceX,
-		sourceY,
-		sourcePosition,
-		targetX,
-		targetY,
-		targetPosition,
-		curvature,
-	});
+	const [path, labelX, labelY] =
+		Math.abs(bendOffset) < 0.5
+			? getBezierPath({
+					sourceX,
+					sourceY,
+					sourcePosition,
+					targetX,
+					targetY,
+					targetPosition,
+					curvature,
+				})
+			: getRoutedBezierPath({
+					sourceX,
+					sourceY,
+					sourcePosition,
+					targetX,
+					targetY,
+					targetPosition,
+					bendOffset,
+				});
 	const item = props.data?.item;
 	const highlighted = props.data?.isHighlighted ?? false;
 	const dimmed = props.data?.isDimmed ?? false;
@@ -150,7 +163,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	// Chrome has been unreliable painting the native React Flow edge SVG in this
 	// composition. Keep the hit target there, but paint the visible curve in the
 	// same transformed layer as labels, which is proven stable in both themes.
-	const paintPadding = Math.max(120, routeOffset * 3);
+	const paintPadding = Math.max(120, routeOffset * 3, Math.abs(bendOffset) + 80);
 	const paintLeft = Math.min(sourceX, targetX) - paintPadding;
 	const paintTop = Math.min(sourceY, targetY) - paintPadding;
 	const paintWidth = Math.abs(targetX - sourceX) + paintPadding * 2;
@@ -207,6 +220,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						data-family={family}
 						data-edge-curve="bezier"
 						data-edge-anchor={floating ? "floating" : "handle"}
+						data-edge-bend={bendOffset}
 						data-world-edge={props.id}
 						data-world-semantic-zoom={semanticZoom}
 					/>
