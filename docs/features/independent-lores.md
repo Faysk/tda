@@ -28,7 +28,7 @@ Criar uma rota ou subir seus arquivos não a inclui automaticamente no catálogo
 
 Estado editorial definido para o momento:
 
-| Lore | Listagem em `/lore` | Vínculo com campanha principal |
+| Lore | Listagem em `/lore` | Vínculo campaign atual |
 | --- | --- | --- |
 | Pipipi | Preservar entrada existente | Não inferir novos vínculos desta decisão |
 | Astel e Noah | Listar; inclusão explicitamente solicitada, preparada localmente | Ligações editoriais por slug de personagem, sem criar dados narrativos |
