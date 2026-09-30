@@ -168,6 +168,44 @@ insert into public.role_assignments(
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5','30000000-0000-4000-8000-000000000006','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','campaign','yuhara-main','active','2020-01-01'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6','30000000-0000-4000-8000-000000000003','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','session','40000000-0000-4000-8000-000000000010','active','2020-01-01');
 
+create or replace function public.submit_profile_claim(
+  campaign_slug text default 'yuhara-main'::text,
+  target_profile_id uuid default null,
+  requested_display_name text default null,
+  requested_roll20_name text default null,
+  requested_discord_id text default null,
+  requested_discord_handle text default null,
+  requested_character_names text[] default '{}'::text[],
+  player_note text default null
+)
+returns jsonb
+language sql
+security definer
+set search_path = pg_catalog, public, auth
+as $
+  select jsonb_build_object('ok', true, 'synthetic', true);
+$;
+
+create or replace function public.review_profile_claim(
+  claim_id uuid,
+  decision text,
+  review_note text default null
+)
+returns jsonb
+language sql
+security definer
+set search_path = pg_catalog, public, auth
+as $
+  select jsonb_build_object('ok', true, 'synthetic', true);
+$;
+
+grant execute on function public.submit_profile_claim(
+  text, uuid, text, text, text, text, text[], text
+) to authenticated, service_role;
+grant execute on function public.review_profile_claim(
+  uuid, text, text
+) to authenticated, service_role;
+
 insert into public.profile_claims(
   campaign_id, requester_auth_user_id, requester_name, requested_display_name
 )
