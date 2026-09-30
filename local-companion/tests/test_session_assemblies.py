@@ -382,3 +382,75 @@ def test_participant_ambiguity_allows_build_but_blocks_assembly_approval(tmp_pat
                 "segments": saved["segments"],
             },
         )
+
+
+def test_trusted_source_start_projects_offset_preserving_wall_clock_and_review_keeps_it_immutable(tmp_path):
+    data_root = tmp_path / "Data"
+    runs = [stage_run(data_root, 1, start=3.5)]
+    workspace = workspace_for(runs)
+    workspace["parts"][0].update(
+        source_start_time="2026-09-29T23:59:58-03:00",
+        source_start_confidence="trusted_absolute",
+        source_start_utc="2026-09-30T02:59:58Z",
+    )
+    assembly = build(data_root, runs, workspace=workspace)
+    _, transcript = load_session_assembly_transcript(
+        data_root, "campaign-a", "session-a", assembly["assembly_id"]
+    )
+    absolute = transcript["segments"][0]["absolute_time"]
+    assert absolute == {
+        "schema_version": "tda_segment_absolute_time_v1",
+        "confidence": "trusted_absolute",
+        "source_start": "2026-09-29T23:59:58-03:00",
+        "start": "2026-09-30T00:00:01.500-03:00",
+        "end": "2026-09-30T00:00:02.500-03:00",
+    }
+
+    base = open_assembly_review(
+        data_root, "campaign-a", "session-a", assembly["assembly_id"], base_only=True
+    )
+    assert base["segments"][0]["absolute_time"] == absolute
+    tampered = [dict(row) for row in base["segments"]]
+    tampered[0] = {
+        **tampered[0],
+        "absolute_time": {
+            **absolute,
+            "start": "2026-09-30T00:00:09.000-03:00",
+        },
+    }
+    with pytest.raises(
+        SessionAssemblyReviewError,
+        match="SESSION_ASSEMBLY_REVIEW_SEGMENT_PROVENANCE_IMMUTABLE",
+    ):
+        save_assembly_review(
+            data_root,
+            "campaign-a",
+            "session-a",
+            assembly["assembly_id"],
+            {
+                "snapshot_contract": ASSEMBLY_REVIEW_SNAPSHOT_CONTRACT,
+                "expected": {
+                    "persistence": "ephemeral_base",
+                    "base_transcript_sha256": base["base"]["transcript_sha256"],
+                },
+                "status": "reviewed",
+                "segments": tampered,
+            },
+        )
+
+
+@pytest.mark.parametrize("confidence", ["ambiguous", "opaque", "missing"])
+def test_untrusted_source_start_never_projects_wall_clock(tmp_path, confidence):
+    data_root = tmp_path / "Data"
+    runs = [stage_run(data_root, 1)]
+    workspace = workspace_for(runs)
+    workspace["parts"][0].update(
+        source_start_time="23:59:58" if confidence != "missing" else None,
+        source_start_confidence=confidence,
+        source_start_utc=None,
+    )
+    assembly = build(data_root, runs, workspace=workspace)
+    _, transcript = load_session_assembly_transcript(
+        data_root, "campaign-a", "session-a", assembly["assembly_id"]
+    )
+    assert transcript["segments"][0]["absolute_time"] is None
