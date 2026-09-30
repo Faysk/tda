@@ -4,11 +4,11 @@ import {
 	type PublicSessionMediaManifest,
 	verifiedSessionMetadataImage,
 } from "../../config/public-session-media";
-import type { PublishedSession } from "./model";
+import { sessionPublicKey, sessionPublicPath, type PublishedSession } from "./model";
 import { sessionShareDescription } from "./share";
 
 export function sessionPublicMetadataImage(
-	session: Pick<PublishedSession, "id" | "title">,
+	session: Pick<PublishedSession, "id" | "title" | "campaignSlug">,
 	manifest: PublicSessionMediaManifest = PUBLIC_SESSION_MEDIA_MANIFEST,
 ) {
 	return verifiedSessionMetadataImage({
@@ -26,7 +26,7 @@ export function sessionPublicMetadata(
 	return buildPublicMetadata({
 		title: session.title,
 		description: sessionShareDescription(session.summary, session.title),
-		pathname: `/sessoes/${encodeURIComponent(session.id)}`,
+		pathname: sessionPublicPath(session),
 		type: "article",
 		...(image ? { image } : {}),
 	});
