@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable
 from uuid import uuid4
 
+from .installation_lock import InstallationLockError, qwen_runtime_maintenance_lock
 from .network import NetworkError
 from .qwen_runtime import inspect_qwen_runtime, install_qwen_runtime_archive
 from .qwen_runtime_updates import (
@@ -107,7 +108,7 @@ def inspect_qwen_runtime_update(
     return {**base, **_manifest_snapshot(state, manifest), "error_code": None}
 
 
-def install_qwen_runtime_update(
+def _install_qwen_runtime_update_locked(
     runtime_root: Path,
     cache_root: Path,
     *,
@@ -201,6 +202,29 @@ def install_qwen_runtime_update(
         "repaired": repairing,
         **_manifest_snapshot(verified, manifest),
     }
+
+
+def install_qwen_runtime_update(
+    runtime_root: Path,
+    cache_root: Path,
+    *,
+    manifest_fetcher: Callable[[], QwenRuntimeDownloadManifest] = fetch_qwen_runtime_manifest,
+    downloader: Callable[..., Path] = download_qwen_runtime,
+    is_cancelled: Callable[[], bool] | None = None,
+    on_stage: Callable[[str], None] | None = None,
+) -> dict[str, object]:
+    try:
+        with qwen_runtime_maintenance_lock():
+            return _install_qwen_runtime_update_locked(
+                runtime_root,
+                cache_root,
+                manifest_fetcher=manifest_fetcher,
+                downloader=downloader,
+                is_cancelled=is_cancelled,
+                on_stage=on_stage,
+            )
+    except InstallationLockError as exc:
+        raise QwenRuntimeMaintenanceError("QWEN_RUNTIME_MAINTENANCE_BUSY") from exc
 
 
 class QwenRuntimeMaintenanceManager:
