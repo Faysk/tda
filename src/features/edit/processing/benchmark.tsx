@@ -866,7 +866,9 @@ export function ProcessingBenchmark({
 								{!qwenRuntimeCheckSupported
 									? "Companion antigo"
 									: qwenRuntime?.active
-										? "Verificando"
+										? qwenRuntime.mode === "update"
+											? "Atualizando"
+											: "Verificando"
 										: qwenRuntime?.canUpdate
 											? "Atualização disponível"
 											: "Bloqueado"}
