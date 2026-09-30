@@ -5,7 +5,12 @@ Este documento é o contrato vigente do reboot TDA. O repositório `Faysk/dnd-sc
 ## Identidades canônicas
 
 - Produto/projeto: `tda`.
-- Campanha principal: `yuhara-main`.
+- UUID é a autoridade relacional da campanha.
+- `campaigns.slug` é identidade técnica estável para compatibilidade/RBAC; não deve ser renomeado in-place por UI.
+- `campaigns.public_slug` é identidade pública de rota/apresentação; renames preservam alias histórico.
+- Campanha histórica: técnico `yuhara-main`, apresentação **Crônicas da Mesa**, public slug `cronicas-da-mesa`.
+- Segunda identidade aprovada: **Antes que seja tarde** / `antes-que-seja-tarde`; nasce sem sessão, entity, canon ou grant inferido e permanece privada até ativação pública deliberada.
+- `campaigns.lifecycle` distingue `active` de `archived`; arquivamento não apaga referências históricas.
 - Supabase existente: `dmrqnbdvbkfqzctcerbx`.
 - `dnd-scribe` permanece temporariamente apenas como scope de compatibilidade do aplicativo legado enquanto ele estiver operacional.
 - Valores de proveniência como `craig`, `local_companion`, `discord` e `roll20` descrevem a origem dos dados e não devem ser renomeados para `tda`.
