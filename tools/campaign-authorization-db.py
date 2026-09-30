@@ -134,9 +134,11 @@ try:
         "CAMPAIGN_AUTHORIZATION_DB_OK "
         "registry_replay=1 authorization_replay=1 public_projection_minimal=1 "
         "private_archived_hidden=1 edit_discovery_scoped=1 project_tda_exact=1 "
-        "legacy_project_scope_denied=1 revoked_grant_fresh=1 "
+        "legacy_project_scope_denied=1 exact_action_separation=1 revoked_grant_fresh=1 "
+        "eligible_expired_denied=1 session_resource_scope_denied=1 unlinked_denied=1 "
         "access_directory_capability_bound=1 sibling_denied=1 missing_opaque=1 "
-        "global_unlinked_hidden=1 archived_mutation_boundary=1 helper_oracle_closed=1",
+        "global_unlinked_hidden=1 archived_mutation_boundary=1 helper_oracle_closed=1 "
+        "security_definer_search_path_pinned=1 browser_grants_reviewed=1",
         flush=True,
     )
 finally:
