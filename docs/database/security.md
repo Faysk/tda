@@ -138,6 +138,20 @@ Antes de ativar uma segunda campaign:
 
 Ver [ADR-0020](../adr/0020-first-class-campaigns.md) e [contrato multi-campaign](../architecture/multi-campaign.md).
 
+
+### Registry #1123 não concede acesso
+
+Os novos campos `public_slug`, `lifecycle`, `visibility` e a tabela de aliases são identidade/discovery metadata; eles **não** concedem capability.
+
+- `visibility='public'` apenas torna a campaign elegível a uma projection pública que ainda deve selecionar campos explicitamente;
+- `visibility='private'` não substitui RBAC nas rotas Edit;
+- `lifecycle='archived'` é um bloqueio operacional de aplicação a ser aplicado nos boundaries mutáveis, não uma policy RLS automática;
+- aliases públicas nunca são scope RBAC;
+- o technical slug permanece o scope textual legado até #1134/#1136 eliminarem dependências;
+- os triggers de colisão de route key são `SECURITY INVOKER` e não ampliam grants.
+
+A migration #1123 não altera policies/grants de `campaigns`, não torna a segunda campaign descobrível e não modifica `access_directory`; esse hardening continua dono de #1134.
+
 ## `SECURITY DEFINER`
 
 A inspeção revalidada em 2026-09-10 confirmou **8 funções `SECURITY DEFINER` em `public`**:
