@@ -3,6 +3,7 @@
 import {
 	useCallback,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 	type ReactNode,
@@ -19,7 +20,7 @@ import {
 	type ReactFlowInstance,
 	type XYPosition,
 } from "@xyflow/react";
-import type { WorldFlowEdge, WorldFlowNode } from "../adapters/react-flow";
+import { applyWorldFlowEdgeHover, type WorldFlowEdge, type WorldFlowNode } from "../adapters/react-flow";
 import {
 	WORLD_CANVAS_MAX_ZOOM,
 	WORLD_CANVAS_MIN_ZOOM,
@@ -95,6 +96,13 @@ export function WorldCanvas({
 	const flowInstance = useRef<ReactFlowInstance<WorldFlowNode, WorldFlowEdge> | null>(null);
 	const canvasRef = useRef<HTMLDivElement | null>(null);
 	const [semanticZoom, setSemanticZoom] = useState<WorldSemanticZoomTier>("detail");
+	const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+	const selectedEdgeId = edges.find((edge) => edge.selected)?.id ?? null;
+	const interactionEdgeId = hoveredEdgeId ?? selectedEdgeId;
+	const presentedGraph = useMemo(
+		() => applyWorldFlowEdgeHover(nodes, edges, interactionEdgeId),
+		[nodes, edges, interactionEdgeId],
+	);
 
 	const syncSemanticZoom = useCallback((zoom: number) => {
 		const nextTier = worldSemanticZoomTier(zoom);
@@ -142,8 +150,8 @@ export function WorldCanvas({
 		>
 			<WorldSemanticZoomProvider tier={semanticZoom}>
 			<ReactFlow<WorldFlowNode, WorldFlowEdge>
-				nodes={nodes}
-				edges={edges}
+				nodes={presentedGraph.nodes}
+				edges={presentedGraph.edges}
 				nodeTypes={NODE_TYPES}
 				edgeTypes={EDGE_TYPES}
 				nodeOrigin={NODE_ORIGIN}
@@ -174,6 +182,10 @@ export function WorldCanvas({
 				onMove={(_, viewport) => syncSemanticZoom(viewport.zoom)}
 				onNodesChange={onNodesChange}
 				onEdgesChange={onEdgesChange}
+				onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+				onEdgeMouseLeave={(_, edge) =>
+					setHoveredEdgeId((current) => (current === edge.id ? null : current))
+				}
 				onNodeClick={(_, node) => {
 					onNodeSelect(node);
 					if (
@@ -204,6 +216,7 @@ export function WorldCanvas({
 					return isConnectionValid?.(connection.source, connection.target) ?? true;
 				}}
 				onPaneClick={(event) => {
+					setHoveredEdgeId(null);
 					const instance = flowInstance.current;
 					onPaneClick(
 						instance
@@ -212,7 +225,7 @@ export function WorldCanvas({
 					);
 				}}
 			>
-				<WorldNeighborhoodOverlay nodes={nodes} />
+				<WorldNeighborhoodOverlay nodes={presentedGraph.nodes} />
 				<Controls
 					showInteractive={false}
 					position="bottom-left"
