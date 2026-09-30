@@ -137,7 +137,7 @@ export function SessionAssemblyResults({ campaignId, capabilities }: Props) {
 		setError(null);
 		try {
 			const nextReview = await bridge.sessionAssemblyReviewBase(
-				CAMPAIGN_SLUG,
+				campaignId,
 				requestSessionId,
 				assemblyId,
 				controller.signal,
