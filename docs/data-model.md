@@ -5,7 +5,7 @@ Este documento é o contrato vigente do reboot TDA. O repositório `Faysk/dnd-sc
 ## Identidades canônicas
 
 - Produto/projeto: `tda`.
-- Campanha principal: `yuhara-main`.
+- Campaign legado/default: technical slug `yuhara-main`; UUID continua sendo a autoridade relacional. A apresentação pública planejada é **Crônicas da Mesa**.
 - Supabase existente: `dmrqnbdvbkfqzctcerbx`.
 - `dnd-scribe` permanece temporariamente apenas como scope de compatibilidade do aplicativo legado enquanto ele estiver operacional.
 - Valores de proveniência como `craig`, `local_companion`, `discord` e `roll20` descrevem a origem dos dados e não devem ser renomeados para `tda`.
@@ -14,6 +14,22 @@ Este documento é o contrato vigente do reboot TDA. O repositório `Faysk/dnd-sc
 
 ### Profile
 `profiles` representa uma pessoa/conta do sistema. Pode estar vinculada a `auth.users`. Não representa um personagem do mundo.
+
+### Campaign
+
+`campaigns` é a raiz de isolamento narrativo para recursos campaign-owned.
+
+Contrato aceito em ADR-0020:
+
+- `campaigns.id`: identidade relacional estável;
+- `campaigns.slug`: technical slug/compatibilidade, não rename editorial;
+- `name`: apresentação humana;
+- public route key: identidade de navegação separada, com aliases quando houver rename de URL;
+- lifecycle mínimo: `active | archived`, separado de visibilidade/discovery.
+
+O schema físico para public route key/aliases/lifecycle pertence a #1123; este documento fixa a semântica antes da migration. A campaign existente preserva `yuhara-main` tecnicamente e pode ser apresentada como **Crônicas da Mesa**. A campaign planejada **Antes que seja tarde** não autoriza criar sessions/entities/canon fictícios nem vincular D automaticamente.
+
+IDs como `source_session_id` e entity slug podem ser iguais entre campaigns quando o domínio permitir; lookups correspondentes precisam ser campaign-qualified.
 
 ### Campaign member e RBAC
 `campaign_members` é o membership histórico simples da campanha e ainda alimenta RPCs legadas. O modelo de autorização extensível usa `permission_catalog`, `role_definitions`, `role_permissions` e `role_assignments`.
@@ -158,7 +174,7 @@ Não foi encontrado um conceito canônico chamado `intent`/`intents` no schema a
 
 ## Regras de evolução
 
-1. Preferir migrations pequenas e reversíveis.
+1. Preferir migrations pequenas, forward-only no rollout e com rollback de aplicação compatível sem apagar dados novos.
 2. Nunca apagar proveniência histórica para “renomear o produto”.
 3. Não duplicar identidade narrativa entre tabelas.
 4. JSONB é extensão, não substituto de relações estruturais importantes.
@@ -167,3 +183,5 @@ Não foi encontrado um conceito canônico chamado `intent`/`intents` no schema a
 7. `SECURITY DEFINER` exposto deve ter autorização interna revisada e grants explícitos.
 8. Canon exige fonte e revisão humana.
 9. Features futuras entram primeiro neste contrato e só depois no schema.
+10. Recursos campaign-owned não usam lookup global por identificador de origem/slug quando campaign participa da identidade.
+11. Rename de nome/public route key não reescreve UUID, technical slug, grants ou keys de storage.
