@@ -382,3 +382,101 @@ def test_participant_ambiguity_allows_build_but_blocks_assembly_approval(tmp_pat
                 "segments": saved["segments"],
             },
         )
+
+
+def test_session_assembly_projects_trusted_wall_clock_per_real_part(tmp_path):
+    data_root = tmp_path / "Data"
+    first = stage_run(data_root, 1, start=2.5, text="trusted")
+    second = stage_run(data_root, 2, start=1.0, text="untrusted")
+    runs = [first, second]
+    workspace = workspace_for(runs)
+    workspace["parts"][0].update(
+        source_start_time="2026-09-12T23:59:59+01:00",
+        source_start_confidence="trusted_absolute",
+        source_start_utc="2026-09-12T22:59:59Z",
+    )
+    workspace["parts"][1].update(
+        source_start_time="00:10:00",
+        source_start_confidence="ambiguous",
+        source_start_utc=None,
+    )
+
+    value = build(data_root, runs, workspace=workspace)
+    _, transcript = load_session_assembly_transcript(
+        data_root, "campaign-a", "session-a", value["assembly_id"]
+    )
+    by_text = {row["text"]: row for row in transcript["segments"]}
+
+    assert by_text["trusted"]["absolute_start"] == "2026-09-13T00:00:01.500+01:00"
+    assert by_text["trusted"]["absolute_end"] == "2026-09-13T00:00:02.500+01:00"
+    assert by_text["trusted"]["absolute_time_state"] == "trusted_absolute"
+    assert by_text["trusted"]["absolute_time_source"] == first[0]
+
+    assert by_text["untrusted"]["absolute_start"] is None
+    assert by_text["untrusted"]["absolute_end"] is None
+    assert by_text["untrusted"]["absolute_time_state"] == "unavailable"
+    assert by_text["untrusted"]["absolute_time_source"] is None
+
+
+def test_assembly_review_preserves_absolute_time_provenance_and_rejects_tampering(tmp_path):
+    data_root = tmp_path / "Data"
+    runs = [stage_run(data_root, 1, start=2.0)]
+    workspace = workspace_for(runs)
+    workspace["parts"][0].update(
+        source_start_time="2026-09-12T23:59:59+01:00",
+        source_start_confidence="trusted_absolute",
+        source_start_utc="2026-09-12T22:59:59Z",
+    )
+    assembly = build(data_root, runs, workspace=workspace)
+    base = open_assembly_review(
+        data_root, "campaign-a", "session-a", assembly["assembly_id"], base_only=True
+    )
+    segment = base["segments"][0]
+    assert segment["absolute_start"] == "2026-09-13T00:00:01.000+01:00"
+    assert segment["absolute_time_state"] == "trusted_absolute"
+    assert segment["absolute_time_source"] == runs[0][0]
+
+    tampered = [dict(row) for row in base["segments"]]
+    tampered[0]["absolute_start"] = "2026-09-13T00:01:01.000+01:00"
+    with pytest.raises(
+        SessionAssemblyReviewError,
+        match="SESSION_ASSEMBLY_REVIEW_SEGMENT_PROVENANCE_IMMUTABLE",
+    ):
+        save_assembly_review(
+            data_root,
+            "campaign-a",
+            "session-a",
+            assembly["assembly_id"],
+            {
+                "snapshot_contract": ASSEMBLY_REVIEW_SNAPSHOT_CONTRACT,
+                "expected": {
+                    "persistence": "ephemeral_base",
+                    "base_transcript_sha256": base["base"]["transcript_sha256"],
+                },
+                "status": "reviewed",
+                "segments": tampered,
+            },
+        )
+
+
+def test_session_assembly_identity_includes_absolute_time_authority(tmp_path):
+    data_root = tmp_path / "Data"
+    runs = [stage_run(data_root, 1)]
+    first_workspace = workspace_for(runs)
+    first_workspace["parts"][0].update(
+        source_start_time="2026-09-12T22:34:23+01:00",
+        source_start_confidence="trusted_absolute",
+        source_start_utc="2026-09-12T21:34:23Z",
+    )
+    first = build(data_root, runs, workspace=first_workspace)
+
+    shifted_workspace = workspace_for(runs)
+    shifted_workspace["parts"][0].update(
+        source_start_time="2026-09-12T22:35:23+01:00",
+        source_start_confidence="trusted_absolute",
+        source_start_utc="2026-09-12T21:35:23Z",
+    )
+    shifted = build(data_root, runs, workspace=shifted_workspace)
+
+    assert shifted["assembly_id"] != first["assembly_id"]
+    assert shifted["transcript_sha256"] != first["transcript_sha256"]

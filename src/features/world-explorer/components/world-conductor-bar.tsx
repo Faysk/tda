@@ -16,8 +16,6 @@ type WorldConductorBarProps = Readonly<{
 	context: WorldCommandContext;
 	canEditContent: boolean;
 	busy: boolean;
-	busyNotice: string | null;
-	feedback: string | null;
 	focusMode: boolean;
 	inspectorOpen: boolean;
 	onEnter: WorldConductorAction;
@@ -72,8 +70,6 @@ export function WorldConductorBar({
 	context,
 	canEditContent,
 	busy,
-	busyNotice,
-	feedback,
 	focusMode,
 	inspectorOpen,
 	onEnter,
@@ -228,17 +224,6 @@ export function WorldConductorBar({
 				</div>
 			</div>
 
-			{busyNotice ? (
-				<p className={styles.notice} role="status" data-world-conductor-notice>
-					{busyNotice}
-				</p>
-			) : null}
-			{feedback ? (
-				<p className={styles.feedback} role="status" aria-live="polite" data-world-conductor-notice>
-					<span aria-hidden="true">{active ? "●" : "·"}</span>
-					{feedback}
-				</p>
-			) : null}
 		</section>
 	);
 }

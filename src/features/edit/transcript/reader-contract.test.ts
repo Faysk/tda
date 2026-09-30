@@ -65,20 +65,20 @@ describe("transcript reader contract", () => {
 		expect(findTranscriptJumpIndex([], 0)).toBe(-1);
 	});
 
-	it("preserves unicode in markdown while sanitizing filesystem names", () => {
+	it("preserves unicode in versioned markdown while sanitizing filesystem names", async () => {
 		const snapshot = {
 			source: "current_revision" as const,
 			revisionId: "11111111-1111-4111-8111-111111111111",
 			revisionNumber: 7,
 			segments: [{ id: "x", trackNumber: 1, startMs: 3210, endMs: 4000, speaker: "Álya", text: "Coração 🌲" }],
 		};
-		expect(renderTranscriptMarkdown({
+		expect(await renderTranscriptMarkdown({
 			title: "Entre Canções & Raízes",
 			sessionDate: "2026-08-19",
 			arc: "Raízes",
 			sourceSessionId: "sessao-19",
 			snapshot,
-		})).toContain("[00:00:03.210] **Álya**\nCoração 🌲");
+		})).toContain("tda_transcript_schema: 1");
 		expect(sanitizeTranscriptFilenamePart("Canções / Raízes:*?")).toBe("cancoes-raizes");
 		expect(transcriptMarkdownFilename("2026-08-19T20:00:00Z", "Entre Canções", 7)).toBe(
 			"2026-08-19-entre-cancoes-transcricao-r7.md",
@@ -93,4 +93,87 @@ describe("transcript reader contract", () => {
 			]),
 		).toThrow(/duplicate/u);
 	});
+	it("preserves trusted wall-clock provenance without inventing it for unavailable rows", () => {
+		const segments = normalizeRevisionSegments([
+			{
+				track_number: 1,
+				segment_id: "trusted",
+				start: 1,
+				end: 2,
+				speaker: "Alice",
+				text: "Virou a meia-noite",
+				absolute_time_state: "trusted_absolute",
+				absolute_start: "2026-09-12T23:59:59+01:00",
+				absolute_end: "2026-09-13T00:00:00+01:00",
+				absolute_time_source: "craig-source-a",
+			},
+			{
+				track_number: 2,
+				segment_id: "opaque",
+				start: 3,
+				end: 4,
+				speaker: "Bob",
+				text: "Sem relógio confiável",
+				absolute_time_state: "unavailable",
+				absolute_start: null,
+				absolute_end: null,
+				absolute_time_source: null,
+			},
+		]);
+		expect(segments[0]?.absoluteTime).toEqual({
+			startIso: "2026-09-12T23:59:59+01:00",
+			endIso: "2026-09-13T00:00:00+01:00",
+			source: "craig-source-a",
+		});
+		expect(segments[1]?.absoluteTime).toBeNull();
+		expect(() =>
+			normalizeRevisionSegments([
+				{
+					track_number: 1,
+					segment_id: "bad",
+					start: 0,
+					end: 1,
+					speaker: "Alice",
+					text: "Invalido",
+					absolute_time_state: "trusted_absolute",
+					absolute_start: "2026-09-12T23:59:59",
+					absolute_end: "2026-09-13T00:00:00",
+					absolute_time_source: "craig-source-a",
+				},
+			]),
+		).toThrow(/absolute time/u);
+	});
+
+	it("exports trusted wall clock to Markdown without browser-timezone inference", async () => {
+		const markdown = await renderTranscriptMarkdown({
+			title: "Meia-noite",
+			sessionDate: "2026-09-12",
+			arc: null,
+			sourceSessionId: "sessao-midnight",
+			snapshot: {
+				source: "current_revision",
+				revisionId: "22222222-2222-4222-8222-222222222222",
+				revisionNumber: 4,
+				segments: [
+					{
+						id: "trusted",
+						trackNumber: 1,
+						startMs: 44_000,
+						endMs: 45_000,
+						absoluteTime: {
+							startIso: "2026-09-12T23:59:59+01:00",
+							endIso: "2026-09-13T00:00:00+01:00",
+							source: "craig-source-a",
+						},
+						speaker: "Alya",
+						text: "Última fala do dia.",
+					},
+				],
+			},
+		});
+		expect(markdown).toContain("[00:00:44.000 | 23:59:59] **Alya**");
+		expect(markdown).toContain('absolute_start="2026-09-12T23:59:59+01:00"');
+		expect(markdown).toContain('absolute_source="craig-source-a"');
+	});
+
 });

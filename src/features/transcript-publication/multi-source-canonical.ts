@@ -1,4 +1,5 @@
 import { countWordsV1, isReviewStringV1 } from "../transcript-review/text-contract";
+import { parseTrustedAbsoluteTime, type TrustedAbsoluteTime } from "../transcript-review/time-contract";
 
 export const MULTI_SOURCE_PUBLICATION_REQUEST_VERSION =
 	"tda_transcript_publication_request_v2" as const;
@@ -423,6 +424,10 @@ export function prepareMultiSourceCanonicalPublication(
 		track_number: number;
 		start: number;
 		end: number;
+		absolute_time_state?: "trusted_absolute";
+		absolute_start?: string;
+		absolute_end?: string;
+		absolute_time_source?: string;
 		text: string;
 		speaker: string;
 		reviewed: boolean;
@@ -441,6 +446,7 @@ export function prepareMultiSourceCanonicalPublication(
 				"trackNumber",
 				"start",
 				"end",
+				...(segment.absoluteTime === undefined ? [] : ["absoluteTime"]),
 				"text",
 				"speaker",
 				"reviewed",
@@ -463,6 +469,20 @@ export function prepareMultiSourceCanonicalPublication(
 			? segment.speaker
 			: null;
 		const part = partId ? partsById.get(partId) : undefined;
+		let absoluteTime: TrustedAbsoluteTime | null = null;
+		if (segment.absoluteTime !== undefined && segment.absoluteTime !== null) {
+			const rawAbsolute = record(segment.absoluteTime);
+			if (!rawAbsolute || !exactKeys(rawAbsolute, ["startIso", "endIso", "source"]))
+				return { ok: false, reason: "invalid_payload" };
+			absoluteTime = parseTrustedAbsoluteTime({
+				state: "trusted_absolute",
+				start: rawAbsolute.startIso,
+				end: rawAbsolute.endIso,
+				source: rawAbsolute.source,
+			});
+			if (!absoluteTime || absoluteTime.source !== sourceId)
+				return { ok: false, reason: "invalid_payload" };
+		}
 
 		if (
 			!assemblySegmentId ||
@@ -499,6 +519,14 @@ export function prepareMultiSourceCanonicalPublication(
 			track_number: trackNumber,
 			start,
 			end,
+			...(absoluteTime
+				? {
+						absolute_time_state: "trusted_absolute" as const,
+						absolute_start: absoluteTime.startIso,
+						absolute_end: absoluteTime.endIso,
+						absolute_time_source: absoluteTime.source,
+					}
+				: {}),
 			text: segmentText,
 			speaker,
 			reviewed: segment.reviewed,

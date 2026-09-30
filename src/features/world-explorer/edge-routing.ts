@@ -1,4 +1,5 @@
 import type { WorldLayout, WorldPosition } from "./constellation-layout";
+import { routeWorldEdgeBends } from "./edge-route-bends";
 import type { WorldEdgeDTO } from "./model";
 
 export const WORLD_PORT_LANES = [-2, -1, 0, 1, 2] as const;
@@ -24,6 +25,7 @@ export type WorldEdgeRoute = {
 	sourceLane: WorldPortLane;
 	targetLane: WorldPortLane;
 	offset: number;
+	bendOffset: number;
 	labelOffset: { x: number; y: number };
 };
 
@@ -145,6 +147,7 @@ export function routeWorldEdgePorts(
 		});
 	}
 
+	const bendOffsets = routeWorldEdgeBends(layout, edges);
 	const routes: Record<string, WorldEdgeRoute> = {};
 	for (const edge of edges) {
 		const sides = baseSides.get(edge.id);
@@ -164,6 +167,7 @@ export function routeWorldEdgePorts(
 			sourceLane,
 			targetLane,
 			offset: 24 + laneMagnitude * 7 + routeJitter * 2,
+			bendOffset: bendOffsets[edge.id] ?? 0,
 			labelOffset: horizontal
 				? { x: 0, y: Math.round(averageLane * 7) }
 				: { x: Math.round(averageLane * 7), y: 0 },

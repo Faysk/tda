@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Any, Iterable
 
 TIMING_POLICY_VERSION = "tda_session_timeline_v1"
@@ -62,6 +62,41 @@ def classify_start_time(value: object) -> dict[str, object | None]:
         "instant_utc": resolved.isoformat().replace("+00:00", "Z"),
         "epoch_seconds": resolved.timestamp(),
     }
+
+
+def project_trusted_absolute_time(
+    source_start_time: object,
+    confidence: object,
+    offset_seconds: object,
+) -> str | None:
+    """Project a source-local offset onto an explicitly zoned Craig start time.
+
+    The original UTC offset is preserved in the rendered ISO value. Any missing,
+    opaque or ambiguous source timestamp stays unavailable instead of borrowing
+    the browser/server timezone.
+    """
+    if confidence != "trusted_absolute":
+        return None
+    if isinstance(offset_seconds, bool) or not isinstance(offset_seconds, (int, float)):
+        return None
+    seconds = float(offset_seconds)
+    if not math.isfinite(seconds) or seconds < 0:
+        return None
+    if not isinstance(source_start_time, str):
+        return None
+    raw = source_start_time.strip()
+    classified = classify_start_time(raw)
+    if classified["confidence"] != "trusted_absolute":
+        return None
+    try:
+        start = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    projected = start + timedelta(seconds=seconds)
+    rendered = projected.isoformat(timespec="milliseconds")
+    if raw.endswith("Z") and rendered.endswith("+00:00"):
+        rendered = rendered[:-6] + "Z"
+    return rendered
 
 
 def package_duration_seconds(package: object) -> float | None:

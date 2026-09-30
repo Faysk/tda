@@ -117,6 +117,39 @@ describe("multi-source transcript publication contract", () => {
 		expect(payload).not.toHaveProperty("run_id");
 	});
 
+	it("preserves trusted wall-clock provenance for each assembly source", () => {
+		const input = requestValue(2);
+		Object.assign(input.review.segments[0] as Record<string, unknown>, {
+			absoluteTime: {
+				startIso: "2026-09-12T23:59:59+01:00",
+				endIso: "2026-09-13T00:00:00+01:00",
+				source: input.review.segments[0].sourceId,
+			},
+		});
+		const result = preparePublication(JSON.stringify(input));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(JSON.parse(result.value.payloadJson).segments[0]).toMatchObject({
+			absolute_time_state: "trusted_absolute",
+			absolute_start: "2026-09-12T23:59:59+01:00",
+			absolute_end: "2026-09-13T00:00:00+01:00",
+			absolute_time_source: input.review.segments[0].sourceId,
+		});
+
+		const tampered = requestValue(2);
+		Object.assign(tampered.review.segments[0] as Record<string, unknown>, {
+			absoluteTime: {
+				startIso: "2026-09-12T23:59:59+01:00",
+				endIso: "2026-09-13T00:00:00+01:00",
+				source: tampered.review.segments[1].sourceId,
+			},
+		});
+		expect(preparePublication(JSON.stringify(tampered))).toEqual({
+			ok: false,
+			reason: "invalid_payload",
+		});
+	});
+
 	it("rejects duplicate part/source identity and non-contiguous ordinals", () => {
 		for (const mutate of [
 			(value: ReturnType<typeof requestValue>) => {

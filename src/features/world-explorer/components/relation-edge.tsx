@@ -13,6 +13,7 @@ import {
 	type FloatingNodeBox,
 } from "../floating-edge-geometry";
 import type { WorldLineStyle, WorldRelationFamily } from "../model";
+import { getRoutedBezierPath } from "../routed-edge-geometry";
 import { worldEdgeSemanticPresentation } from "../world-semantic-zoom";
 import effects from "./relation-edge-effects.module.css";
 import styles from "./world-explorer.module.css";
@@ -94,8 +95,24 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const targetNode = useInternalNode(props.target);
 	const sourceBox = floatingBox(sourceNode);
 	const targetBox = floatingBox(targetNode);
-	const floating = sourceBox && targetBox ? getFloatingEdgeGeometry(sourceBox, targetBox) : null;
+	const floatingRoute = props.data
+		? {
+				source:
+					props.data.sourceSide !== undefined && props.data.sourceLane !== undefined
+						? { side: props.data.sourceSide, lane: props.data.sourceLane }
+						: undefined,
+				target:
+					props.data.targetSide !== undefined && props.data.targetLane !== undefined
+						? { side: props.data.targetSide, lane: props.data.targetLane }
+						: undefined,
+			}
+		: undefined;
+	const floating =
+		sourceBox && targetBox
+			? getFloatingEdgeGeometry(sourceBox, targetBox, floatingRoute)
+			: null;
 	const routeOffset = props.data?.routeOffset ?? 28;
+	const bendOffset = props.data?.bendOffset ?? 0;
 	const labelOffset = props.data?.labelOffset ?? { x: 0, y: 0 };
 	const family = props.data?.family ?? "context";
 	const customStyle = props.data?.style;
@@ -106,27 +123,40 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	const targetY = floating?.targetY ?? props.targetY;
 	const sourcePosition = floating?.sourcePosition ?? props.sourcePosition;
 	const targetPosition = floating?.targetPosition ?? props.targetPosition;
-	const [path, labelX, labelY] = getBezierPath({
-		sourceX,
-		sourceY,
-		sourcePosition,
-		targetX,
-		targetY,
-		targetPosition,
-		curvature,
-	});
+	const [path, labelX, labelY] =
+		Math.abs(bendOffset) < 0.5
+			? getBezierPath({
+					sourceX,
+					sourceY,
+					sourcePosition,
+					targetX,
+					targetY,
+					targetPosition,
+					curvature,
+				})
+			: getRoutedBezierPath({
+					sourceX,
+					sourceY,
+					sourcePosition,
+					targetX,
+					targetY,
+					targetPosition,
+					bendOffset,
+				});
 	const item = props.data?.item;
 	const highlighted = props.data?.isHighlighted ?? false;
+	const hovered = props.data?.isHovered ?? false;
+	const active = highlighted || hovered || Boolean(props.selected);
 	const dimmed = props.data?.isDimmed ?? false;
 	const semantic = worldEdgeSemanticPresentation(semanticZoom, {
-		highlighted,
+		highlighted: active,
 		dimmed,
 	});
 	const stroke = customStyle?.color ?? RELATION_STROKES[family];
 	const motionStroke = RELATION_MOTION_STROKES[family];
 	const baseWidth = customStyle?.lineWidth ?? 3;
 	const strokeWidth =
-		(highlighted ? baseWidth + 0.6 : baseWidth) * semantic.strokeWidthScale;
+		(active ? baseWidth + 0.6 : baseWidth) * semantic.strokeWidthScale;
 	const strokeOpacity = semantic.strokeOpacity;
 	const dash = customStyle
 		? STYLE_DASHES[customStyle.lineStyle]
@@ -135,7 +165,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 	// Chrome has been unreliable painting the native React Flow edge SVG in this
 	// composition. Keep the hit target there, but paint the visible curve in the
 	// same transformed layer as labels, which is proven stable in both themes.
-	const paintPadding = Math.max(120, routeOffset * 3);
+	const paintPadding = Math.max(120, routeOffset * 3, Math.abs(bendOffset) + 80);
 	const paintLeft = Math.min(sourceX, targetX) - paintPadding;
 	const paintTop = Math.min(sourceY, targetY) - paintPadding;
 	const paintWidth = Math.abs(targetX - sourceX) + paintPadding * 2;
@@ -174,7 +204,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 							fill="none"
 							stroke="var(--ds-canvas)"
 							strokeWidth={strokeWidth + 3}
-							strokeOpacity={dimmed ? 0.04 : highlighted ? 0.7 : 0.46}
+							strokeOpacity={dimmed ? 0.04 : active ? 0.7 : 0.3}
 							strokeDasharray={dash}
 							vectorEffect="non-scaling-stroke"
 							strokeLinecap="round"
@@ -192,10 +222,12 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						data-family={family}
 						data-edge-curve="bezier"
 						data-edge-anchor={floating ? "floating" : "handle"}
+						data-edge-bend={bendOffset}
+						data-world-edge-active={active ? "true" : "false"}
 						data-world-edge={props.id}
 						data-world-semantic-zoom={semanticZoom}
 					/>
-					{semantic.showMotion && highlighted && !dimmed ? (
+					{semantic.showMotion && active && !dimmed ? (
 						<path
 							d={path}
 							className={effects.flowMotion}
@@ -215,7 +247,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				</svg>
 				{item && semantic.showLabel ? (
 					<div
-						className={`${styles.edgeLabel} ${highlighted ? styles.edgeLabelHighlighted : ""}`}
+						className={`${styles.edgeLabel} ${active ? styles.edgeLabelHighlighted : ""}`}
 						data-family={family}
 						data-world-edge-label={props.id}
 						aria-hidden="true"

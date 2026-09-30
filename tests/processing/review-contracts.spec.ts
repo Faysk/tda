@@ -170,7 +170,10 @@ test("target repair preserves edits and restores only the original destination",
     await repair.click();
     await expect(repair).toHaveCount(0);
     await expect(page.locator("[data-review-segment] p").first()).toHaveText("Texto preservado");
-    await page.getByText("Detalhes técnicos", { exact: true }).click();
+    await page
+        .getByRole("group", { name: "Resumo da revisão" })
+        .locator("summary")
+        .click();
     await expect(page.getByText(/Destino do Edit: yuhara-main · sessão sessao-synthetic/)).toBeVisible();
 });
 

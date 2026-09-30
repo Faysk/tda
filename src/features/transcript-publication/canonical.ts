@@ -5,6 +5,7 @@ import {
 	type CanonicalMultiSourceProvenance,
 } from "./multi-source-canonical";
 import { countWordsV1, isReviewStringV1 } from "../transcript-review/text-contract";
+import { parseTrustedAbsoluteTime, type TrustedAbsoluteTime } from "../transcript-review/time-contract";
 
 export const PUBLICATION_REQUEST_VERSION =
 	"tda_transcript_publication_request_v1" as const;
@@ -358,6 +359,8 @@ function prepareCanonicalSingleSourcePublication(raw: string): CanonicalPrepareP
 	let computedWords = 0;
 	const canonicalSegments: Array<{
 		track_number: number; segment_id: string; start: number; end: number;
+		absolute_time_state?: "trusted_absolute"; absolute_start?: string;
+		absolute_end?: string; absolute_time_source?: string;
 		text: string; speaker: string; reviewed: boolean;
 	}> = [];
 	for (const rawSegment of segments) {
@@ -369,6 +372,7 @@ function prepareCanonicalSingleSourcePublication(raw: string): CanonicalPrepareP
 				"segmentId",
 				"start",
 				"end",
+				...(segment.absoluteTime === undefined ? [] : ["absoluteTime"]),
 				"text",
 				"speaker",
 				"reviewed",
@@ -381,6 +385,20 @@ function prepareCanonicalSingleSourcePublication(raw: string): CanonicalPrepareP
 		const end = finite(segment.end, 0, 604800);
 		const segmentText = isReviewStringV1(segment.text, "text") ? segment.text : null;
 		const speaker = isReviewStringV1(segment.speaker, "speaker") ? segment.speaker : null;
+		let absoluteTime: TrustedAbsoluteTime | null = null;
+		if (segment.absoluteTime !== undefined && segment.absoluteTime !== null) {
+			const rawAbsolute = record(segment.absoluteTime);
+			if (!rawAbsolute || !exactKeys(rawAbsolute, ["startIso", "endIso", "source"]))
+				return { ok: false, reason: "invalid_payload" };
+			absoluteTime = parseTrustedAbsoluteTime({
+				state: "trusted_absolute",
+				start: rawAbsolute.startIso,
+				end: rawAbsolute.endIso,
+				source: rawAbsolute.source,
+			});
+			if (!absoluteTime || absoluteTime.source !== sourceId)
+				return { ok: false, reason: "invalid_payload" };
+		}
 		if (
 			trackNumber === null ||
 			!segmentId ||
@@ -402,6 +420,14 @@ function prepareCanonicalSingleSourcePublication(raw: string): CanonicalPrepareP
 			segment_id: segmentId,
 			start,
 			end,
+			...(absoluteTime
+				? {
+						absolute_time_state: "trusted_absolute" as const,
+						absolute_start: absoluteTime.startIso,
+						absolute_end: absoluteTime.endIso,
+						absolute_time_source: absoluteTime.source,
+					}
+				: {}),
 			text: segmentText,
 			speaker,
 			reviewed: segment.reviewed,

@@ -44,4 +44,50 @@ describe("getFloatingEdgeGeometry", () => {
 		expect(geometry.sourceY).toBeCloseTo(82, 3);
 		expect(geometry.targetY).toBeCloseTo(258, 3);
 	});
+
+	it("spreads routed lanes across the visible silhouette", () => {
+		const source = { x: 0, y: 0, width: 100, height: 100 };
+		const target = { x: 300, y: 0, width: 100, height: 100 };
+		const lanes = [-2, -1, 0, 1, 2] as const;
+		const sourcePoints = lanes.map((lane) =>
+			getFloatingEdgeGeometry(source, target, {
+				source: { side: "right", lane },
+				target: { side: "left", lane: 0 },
+			}),
+		);
+
+		expect(sourcePoints.map((point) => point.sourceY)).toEqual(
+			[...sourcePoints.map((point) => point.sourceY)].sort((left, right) => left - right),
+		);
+		expect(new Set(sourcePoints.map((point) => point.sourceY)).size).toBe(lanes.length);
+		expect(sourcePoints[2]?.sourceX).toBeCloseTo(102, 3);
+		expect(sourcePoints[2]?.sourceY).toBeCloseTo(50, 3);
+		for (const point of sourcePoints) {
+			expect(point.sourcePosition).toBe(Position.Right);
+			const ellipse =
+				((point.sourceX - 2 - 50) / 50) ** 2 +
+				((point.sourceY - 50) / 50) ** 2;
+			expect(ellipse).toBeCloseTo(1, 6);
+		}
+	});
+
+	it("keeps target lanes distinct and side-aware", () => {
+		const source = { x: 0, y: 0, width: 80, height: 80 };
+		const target = { x: 0, y: 260, width: 80, height: 80 };
+		const upper = getFloatingEdgeGeometry(source, target, {
+			source: { side: "bottom", lane: -2 },
+			target: { side: "top", lane: -2 },
+		});
+		const lower = getFloatingEdgeGeometry(source, target, {
+			source: { side: "bottom", lane: 2 },
+			target: { side: "top", lane: 2 },
+		});
+
+		expect(upper.sourcePosition).toBe(Position.Bottom);
+		expect(lower.sourcePosition).toBe(Position.Bottom);
+		expect(upper.targetPosition).toBe(Position.Top);
+		expect(lower.targetPosition).toBe(Position.Top);
+		expect(upper.sourceX).toBeLessThan(lower.sourceX);
+		expect(upper.targetX).toBeLessThan(lower.targetX);
+	});
 });

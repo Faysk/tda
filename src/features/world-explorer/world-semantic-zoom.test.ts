@@ -97,4 +97,31 @@ describe("World semantic zoom", () => {
 			strokeOpacity: 1,
 		});
 	});
+	it("keeps neutral detail relations calm until interaction", () => {
+		expect(
+			worldEdgeSemanticPresentation("detail", {
+				highlighted: false,
+				dimmed: false,
+			}),
+		).toMatchObject({
+				strokeOpacity: 0.62,
+				strokeWidthScale: 0.84,
+				showHalo: false,
+				showLabel: false,
+			});
+
+		expect(
+			worldEdgeSemanticPresentation("detail", {
+				highlighted: true,
+				dimmed: false,
+			}),
+		).toMatchObject({
+				strokeOpacity: 1,
+				strokeWidthScale: 1,
+				showHalo: true,
+				showLabel: true,
+				showMotion: true,
+			});
+	});
+
 });

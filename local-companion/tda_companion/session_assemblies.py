@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .atomic_storage import AtomicStorageError, atomic_write
-from .session_timeline import SEGMENT_BOUNDARY_POLICY, TIMING_POLICY_VERSION
+from .session_timeline import (
+    SEGMENT_BOUNDARY_POLICY,
+    TIMING_POLICY_VERSION,
+    project_trusted_absolute_time,
+)
 from .transcription_runs import (
     TranscriptionRunError,
     load_run,
@@ -239,6 +243,8 @@ def _build_transcript(
         trim_start = _number(part.get("trim_start_seconds", 0.0), "SESSION_ASSEMBLY_TRIM_INVALID")
         trim_end = _number(part.get("trim_end_seconds"), "SESSION_ASSEMBLY_TRIM_INVALID", allow_none=True)
         assert offset is not None and trim_start is not None
+        source_start_time = part.get("source_start_time")
+        source_start_confidence = part.get("source_start_confidence", "missing")
         manifest, transcript = snapshots[part_id]
         tracks = transcript.get("tracks")
         if not isinstance(tracks, list):
@@ -320,6 +326,18 @@ def _build_transcript(
                         projected["confidence"] = confidence
                     projected_words.append(projected)
 
+                absolute_start = project_trusted_absolute_time(
+                    source_start_time,
+                    source_start_confidence,
+                    local_start,
+                )
+                absolute_end = project_trusted_absolute_time(
+                    source_start_time,
+                    source_start_confidence,
+                    local_end,
+                )
+                absolute_trusted = absolute_start is not None and absolute_end is not None
+
                 segments.append(
                     {
                         "assembly_segment_id": _segment_id(
@@ -342,6 +360,10 @@ def _build_transcript(
                         "raw_speaker": raw_speaker,
                         "start": global_start,
                         "end": global_end,
+                        "absolute_start": absolute_start,
+                        "absolute_end": absolute_end,
+                        "absolute_time_state": "trusted_absolute" if absolute_trusted else "unavailable",
+                        "absolute_time_source": source_id if absolute_trusted else None,
                         "text": text,
                         "words": projected_words,
                     }
@@ -407,6 +429,9 @@ def _canonical_inputs(
                 "transcript_sha256": run_manifests[str(part.get("part_id"))]["transcript_sha256"],
                 "ordinal": part.get("ordinal"),
                 "session_offset_seconds": part.get("session_offset_seconds"),
+                "source_start_time": part.get("source_start_time"),
+                "source_start_confidence": part.get("source_start_confidence"),
+                "source_start_utc": part.get("source_start_utc"),
                 "trim_start_seconds": part.get("trim_start_seconds", 0.0),
                 "trim_end_seconds": part.get("trim_end_seconds"),
                 "overlap_resolution": part.get("overlap_resolution"),

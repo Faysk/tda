@@ -21,6 +21,8 @@ import { prepareReviewRebase, resolveReviewRebase, type ReviewRebase } from "./r
 import { ParticipantManager } from "./participant-manager";
 import { applyParticipantRename } from "./participant-rename";
 import { countWordsV1, isReviewStringV1 } from "../../transcript-review/text-contract";
+import { wallClockPresentation } from "../../transcript-review/time-contract";
+import { LocalReviewMarkdownRoundTrip } from "../../transcript-review/local-review-markdown-roundtrip";
 import { localRunKey, serializeLocalRunKey } from "./local-run-key";
 import { processingStageLabels } from "./engine-metrics";
 import { RunComparisonView } from "./run-comparison-view";
@@ -591,6 +593,17 @@ function ReviewEditor({
         setPublishConfirmation(false);
 	}
 
+	function applyMarkdownWorkingCopy(nextSegments: readonly LocalReviewSegment[]) {
+		rememberVisibleAnchor();
+		setSegments(nextSegments.map((segment) => ({ ...segment })));
+		if (status === "approved_local") setStatus("reviewed");
+		setDirty(true);
+		setPublicationReceipt(null);
+		setPublicationRecovery(null);
+		setPublicationErrorCode(null);
+		setPublishConfirmation(false);
+	}
+
 	function saveWorkingCopy() {
 		rememberVisibleAnchor();
 		void onSave(baseline, status, segments);
@@ -810,6 +823,14 @@ function ReviewEditor({
 				</details>
 			</fieldset>
 
+			<LocalReviewMarkdownRoundTrip
+				baseline={baseline}
+				segments={segments}
+				dirty={dirty}
+				disabled={editingBlocked || !canSave}
+				onApply={applyMarkdownWorkingCopy}
+			/>
+
 			{!canSave ? (
 				<div className={styles.handoffBlocker} role="status">
 					<div>
@@ -1021,13 +1042,24 @@ function ReviewEditor({
 				{visible.map(({ segment, index }) => {
 					const key = `${segment.trackNumber}:${segment.segmentId}`;
 					const editing = editingKey === key;
+					const wallClock = segment.absoluteTime
+						? wallClockPresentation(segment.absoluteTime.startIso)
+						: null;
 					return (
 						<article
 							className={styles.timelineRow}
 							data-review-segment={JSON.stringify([segment.trackNumber, segment.segmentId])}
 							key={key}
 						>
-							<time>{formatTimestamp(timelineStart(segment))}</time>
+							<div className={styles.timelineTime}>
+								<time>{formatTimestamp(timelineStart(segment))}</time>
+								{wallClock && segment.absoluteTime ? (
+									<span className={styles.wallClock} title={wallClock.accessible}>
+										<time dateTime={segment.absoluteTime.startIso}>{wallClock.clock}</time>
+										<small>{wallClock.date} · {wallClock.offset === "Z" ? "UTC" : wallClock.offset}</small>
+									</span>
+								) : null}
+							</div>
 							<div className={styles.timelineSpeaker}>
 								{editing ? (
 									<input
@@ -1041,7 +1073,6 @@ function ReviewEditor({
 								) : (
 									<strong>{segment.speaker}</strong>
 								)}
-								<small>Track {segment.trackNumber}</small>
 							</div>
 							<div className={styles.timelineText}>
 								{editing ? (
@@ -1057,6 +1088,15 @@ function ReviewEditor({
 								) : (
 									<p>{segment.text}</p>
 								)}
+								<details className={styles.timelineTechnical}>
+									<summary>Detalhes técnicos da fala</summary>
+									<small>Track {segment.trackNumber} · segmento {segment.segmentId}</small>
+									{segment.absoluteTime ? (
+										<small>Relógio comprovado pela fonte {segment.absoluteTime.source}</small>
+									) : (
+										<small>Relógio civil indisponível para esta fonte.</small>
+									)}
+								</details>
 							</div>
 							<div className={styles.timelineActions}>
 								<label className={styles.reviewed} title={segment.reviewed ? "Revisado" : "Não revisado"}>

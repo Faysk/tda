@@ -56,7 +56,12 @@ import { WorldCommandPalette } from "./world-command-palette";
 import { WorldConductorBar } from "./world-conductor-bar";
 import { WorldContentEditor } from "./world-content-editor";
 import { WorldDirectCreateControls } from "./world-direct-create-controls";
-import { WorldFilterRail, WorldFloatingChrome } from "./world-floating-chrome";
+import {
+	WorldFilterRail,
+	WorldFloatingChrome,
+	WorldPublicationReceipt,
+} from "./world-floating-chrome";
+import { WorldStatusOverlay } from "./world-status-overlay";
 import {
 	WorldAccessibleRelations,
 	WorldInspectorContent,
@@ -583,8 +588,6 @@ export function WorldExplorerClient({
 			context={commandContext}
 			canEditContent={canEditContent}
 			busy={edit.busy}
-			busyNotice={edit.busyNotice}
-			feedback={edit.feedback}
 			focusMode={authoringActive && authoringUi.focusMode}
 			inspectorOpen={!authoringUi.inspectorCollapsed}
 			onEnter={edit.start}
@@ -653,9 +656,13 @@ export function WorldExplorerClient({
 						demo={workingProjection.demo}
 						activeRelationTypes={activeRelationTypes}
 						searchInputRef={searchInputRef}
-						publication={workingProjection.publication}
 					/>
 				</div>
+
+				<WorldStatusOverlay
+					busyNotice={edit.busyNotice}
+					feedback={edit.feedback}
+				/>
 
 				{view === "canvas" ? (
 					<WorldCanvas
@@ -682,6 +689,7 @@ export function WorldExplorerClient({
 						overlay={
 							<>
 								<WorldFilterRail filter={filter} onFilterChange={setFilter} />
+								<WorldPublicationReceipt publication={workingProjection.publication} />
 								<WorldDirectCreateControls
 									enabled={directCreateEnabled && !connectionActive}
 									placementType={createType}

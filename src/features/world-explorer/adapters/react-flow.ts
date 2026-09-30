@@ -3,7 +3,11 @@ import {
 	constellationWorldLayout,
 	type WorldLayout,
 } from "../constellation-layout";
-import { routeWorldEdgePorts } from "../edge-routing";
+import {
+	routeWorldEdgePorts,
+	type WorldPortLane,
+	type WorldPortSide,
+} from "../edge-routing";
 import { worldLayoutOverrides } from "../layout-contract";
 import type {
 	WorldEdgeDTO,
@@ -20,6 +24,7 @@ export type WorldFlowNodeData = {
 	isHero: boolean;
 	prominence: WorldNodeProminence;
 	isDimmed: boolean;
+	isRelationEndpoint?: boolean;
 	authoringConnectable: boolean;
 };
 
@@ -28,9 +33,15 @@ export type WorldFlowEdgeData = {
 	family: WorldRelationFamily;
 	style?: WorldRelationStyleDTO;
 	isHighlighted: boolean;
+	isHovered?: boolean;
 	isDimmed: boolean;
 	routeOffset: number;
+	bendOffset: number;
 	labelOffset: { x: number; y: number };
+	sourceSide?: WorldPortSide;
+	targetSide?: WorldPortSide;
+	sourceLane?: WorldPortLane;
+	targetLane?: WorldPortLane;
 };
 
 export type WorldFlowNode = Node<WorldFlowNodeData, "worldEntity">;
@@ -115,6 +126,7 @@ export function toReactFlowStructure(
 				isHero,
 				prominence: prominenceFor(item, isHero),
 				isDimmed: false,
+				isRelationEndpoint: false,
 				authoringConnectable: false,
 			},
 			draggable: true,
@@ -144,9 +156,15 @@ export function toReactFlowStructure(
 				family: item.family,
 				style: item.style,
 				isHighlighted: false,
+				isHovered: false,
 				isDimmed: false,
 				routeOffset: route?.offset ?? 28,
+				bendOffset: route?.bendOffset ?? 0,
 				labelOffset: route?.labelOffset ?? { x: 0, y: 0 },
+				sourceSide: route?.sourceSide,
+				targetSide: route?.targetSide,
+				sourceLane: route?.sourceLane,
+				targetLane: route?.targetLane,
 			},
 			deletable: false,
 			selectable: true,
@@ -223,6 +241,38 @@ export function applyWorldFlowSelection(
 	return { nodes, edges };
 }
 
+export function applyWorldFlowEdgeHover(
+	nodes: readonly WorldFlowNode[],
+	edges: readonly WorldFlowEdge[],
+	hoveredEdgeId?: string | null,
+): WorldFlowGraph {
+	const hovered = hoveredEdgeId
+		? edges.find((edge) => edge.id === hoveredEdgeId)
+		: undefined;
+	const endpoints = hovered
+		? new Set([hovered.source, hovered.target])
+		: new Set<string>();
+
+	const nextNodes = nodes.map((node) => {
+		const isRelationEndpoint = endpoints.has(node.id);
+		if (Boolean(node.data.isRelationEndpoint) === isRelationEndpoint) return node;
+		return {
+			...node,
+			data: { ...node.data, isRelationEndpoint },
+		};
+	});
+	const nextEdges = edges.map((edge) => {
+		const isHovered = edge.id === hoveredEdgeId;
+		if (Boolean(edge.data?.isHovered) === isHovered) return edge;
+		return {
+			...edge,
+			data: edge.data ? { ...edge.data, isHovered } : edge.data,
+		};
+	});
+
+	return { nodes: nextNodes, edges: nextEdges };
+}
+
 export function toReactFlowGraph(
 	projection: WorldGraphProjection,
 	selectedId?: string | null,
@@ -256,7 +306,12 @@ export function rerouteWorldEdges(
 				? {
 					...edge.data,
 					routeOffset: route.offset,
+					bendOffset: route.bendOffset,
 					labelOffset: route.labelOffset,
+					sourceSide: route.sourceSide,
+					targetSide: route.targetSide,
+					sourceLane: route.sourceLane,
+					targetLane: route.targetLane,
 				}
 				: edge.data,
 		};

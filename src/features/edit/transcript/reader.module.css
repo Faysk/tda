@@ -76,7 +76,7 @@
 
 .segment {
 	display: grid;
-	grid-template-columns: 94px minmax(110px, 180px) minmax(0, 1fr);
+	grid-template-columns: minmax(118px, 148px) minmax(110px, 180px) minmax(0, 1fr);
 	gap: 16px;
 	align-items: start;
 	padding: 13px 10px;
@@ -85,6 +85,8 @@
 }
 
 .timestamp {
+	display: grid;
+	gap: 2px;
 	border: 0;
 	padding: 0;
 	background: transparent;
@@ -93,6 +95,22 @@
 	font-variant-numeric: tabular-nums;
 	text-align: left;
 	cursor: pointer;
+}
+
+.elapsedTime {
+	color: var(--ds-text-primary);
+	font-weight: 700;
+}
+
+.wallClock {
+	display: grid;
+	gap: 1px;
+	font-size: .72rem;
+}
+
+.wallClock small {
+	font-size: .62rem;
+	overflow-wrap: anywhere;
 }
 
 .speaker {
@@ -105,6 +123,30 @@
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 	line-height: 1.62;
+}
+
+.textBlock {
+	min-width: 0;
+}
+
+.technical {
+	margin-top: 5px;
+	color: var(--ds-text-muted);
+	font-size: .68rem;
+}
+
+.technical summary {
+	width: fit-content;
+	cursor: pointer;
+	text-decoration: underline;
+	text-decoration-style: dotted;
+	text-underline-offset: 2px;
+}
+
+.technical small {
+	display: block;
+	margin-top: 2px;
+	overflow-wrap: anywhere;
 }
 
 .segment mark {
@@ -143,7 +185,7 @@
 		grid-column: auto;
 	}
 	.segment {
-		grid-template-columns: 82px minmax(0, 1fr);
+		grid-template-columns: minmax(108px, 136px) minmax(0, 1fr);
 		gap: 8px 12px;
 	}
 	.text {

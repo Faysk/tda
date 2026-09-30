@@ -4,7 +4,7 @@ import {
 	type TranscriptReaderSnapshot,
 } from "./reader-contract";
 
-export function buildTranscriptDownload(input: {
+export async function buildTranscriptDownload(input: {
 	title: string;
 	sessionDate: string | null;
 	arc: string | null;
@@ -18,7 +18,7 @@ export function buildTranscriptDownload(input: {
 	);
 	return {
 		filename,
-		body: renderTranscriptMarkdown(input),
+		body: await renderTranscriptMarkdown(input),
 		headers: {
 			"Cache-Control": "private, no-store",
 			"Content-Disposition": `attachment; filename="${filename}"`,

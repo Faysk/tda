@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorldGraphProjection } from "../model";
 import {
+	applyWorldFlowEdgeHover,
 	applyWorldFlowSelection,
 	preserveWorldFlowNodeMeasurements,
 	toReactFlowStructure,
@@ -69,6 +70,13 @@ describe("World React Flow selection decoration", () => {
 		expect(selected.nodes.find((node) => node.id === "hero")?.position).toBe(heroPosition);
 		expect(selected.edges[0].sourceHandle).toBe(route.sourceHandle);
 		expect(selected.edges[0].targetHandle).toBe(route.targetHandle);
+		expect(route.data).toMatchObject({
+			sourceSide: expect.any(String),
+			targetSide: expect.any(String),
+			sourceLane: 0,
+			targetLane: 0,
+			bendOffset: expect.any(Number),
+		});
 
 		// The cached structure itself stays selection-neutral and can be reused.
 		expect(structure.nodes.every((node) => node.selected === false)).toBe(true);
@@ -110,4 +118,22 @@ describe("World React Flow selection decoration", () => {
 		expect(hero?.data.isDimmed).toBe(true);
 		expect(reconciled.find((node) => node.id === "friend")?.measured).toBeUndefined();
 	});
+	it("reinforces only the hovered relation and its two endpoints", () => {
+		const structure = toReactFlowStructure(PROJECTION);
+		const hovered = applyWorldFlowEdgeHover(
+			structure.nodes,
+			structure.edges,
+			"hero-friend",
+		);
+
+		expect(hovered.edges[0].data?.isHovered).toBe(true);
+		expect(hovered.nodes.find((node) => node.id === "hero")?.data.isRelationEndpoint).toBe(true);
+		expect(hovered.nodes.find((node) => node.id === "friend")?.data.isRelationEndpoint).toBe(true);
+		expect(hovered.nodes.find((node) => node.id === "isolated")?.data.isRelationEndpoint).toBe(false);
+
+		const cleared = applyWorldFlowEdgeHover(hovered.nodes, hovered.edges, null);
+		expect(cleared.edges[0].data?.isHovered).toBe(false);
+		expect(cleared.nodes.every((node) => !node.data.isRelationEndpoint)).toBe(true);
+	});
+
 });

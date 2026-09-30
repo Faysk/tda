@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StoryMarkdown } from "@/components/story-markdown";
 import { formatSessionDate } from "@/features/sessions/model";
 import styles from "@/features/edit/workbench.module.css";
@@ -9,7 +9,10 @@ import draftStyles from "./editorial-draft.module.css";
 import { saveSessionEditorialDraftAction } from "./editorial-draft-actions";
 import { publishSessionEditorialDraftAction } from "./session-publication-actions";
 import type { SessionPublicationState } from "./session-publication-model";
-import { SessionCoverEditor } from "./session-cover-editor";
+import {
+	SessionCoverEditor,
+	type SessionCoverUploadState,
+} from "./session-cover-editor";
 import {
 	SESSION_DRAFT_LIMITS,
 	isCanonicalSessionDate,
@@ -124,6 +127,17 @@ export function SessionEditorialDraftEditor({
 		"idle" | "publishing" | "published" | "error"
 	>("idle");
 	const [publishMessage, setPublishMessage] = useState<string | null>(null);
+	const [coverUploadState, setCoverUploadState] = useState<SessionCoverUploadState>({
+		phase: "idle",
+		progress: null,
+	});
+	const coverUploadPending =
+		coverUploadState.phase === "hashing" ||
+		coverUploadState.phase === "uploading" ||
+		coverUploadState.phase === "finalizing";
+	const publicationDialogRef = useRef<HTMLDialogElement>(null);
+	const publicationDialogTitleRef = useRef<HTMLElement>(null);
+	const publicationTriggerRef = useRef<HTMLButtonElement>(null);
 	const dirty = !sameFields(fields, baseline);
 	const missing = useMemo(
 		() =>
@@ -146,9 +160,24 @@ export function SessionEditorialDraftEditor({
 		!dirty &&
 		!missing.length &&
 		!transcriptChanged &&
+		!coverUploadPending &&
 		phase !== "saving" &&
 		phase !== "conflict" &&
 		publishPhase !== "publishing";
+
+	useEffect(() => {
+		const dialog = publicationDialogRef.current;
+		if (!dialog) return;
+		if (publishIntent) {
+			if (!dialog.open) dialog.showModal();
+			window.requestAnimationFrame(() => publicationDialogTitleRef.current?.focus());
+			return;
+		}
+		if (dialog.open) {
+			dialog.close();
+			window.requestAnimationFrame(() => publicationTriggerRef.current?.focus());
+		}
+	}, [publishIntent]);
 
 	useEffect(() => {
 		setCurrentTranscriptRevisionId(initial.currentTranscriptRevisionId);
@@ -262,9 +291,11 @@ export function SessionEditorialDraftEditor({
 					? "A autoridade de publicação está indisponível agora."
 					: !publishable
 						? "Sua conta não tem a capability de publicação desta campanha."
-						: dirty
-							? "Salve o draft antes de publicar."
-							: transcriptChanged
+						: coverUploadPending
+							? "Aguarde a nova capa terminar de enviar e validar."
+							: dirty
+								? "Salve o draft antes de publicar."
+								: transcriptChanged
 								? "A transcrição mudou. Revise e salve um novo draft antes de publicar."
 								: missing.length
 									? "Complete os campos editoriais obrigatórios antes de publicar."
@@ -295,16 +326,19 @@ export function SessionEditorialDraftEditor({
 		const intent = publishIntent;
 		if (!intent || publishPhase === "publishing") return;
 		if (
+			coverUploadPending ||
 			dirty ||
 			draftId !== intent.draftId ||
 			revision !== intent.draftRevision ||
 			baseTranscriptRevisionId !== intent.baseTranscriptRevisionId
 		) {
-			setPublishIntent(null);
 			setPublishPhase("error");
 			setPublishMessage(
-				"O draft mudou depois da confirmação. Abra a confirmação novamente.",
+				coverUploadPending
+					? "A nova capa ainda está sendo enviada ou validada. Aguarde a conclusão antes de publicar."
+					: "O draft mudou depois da confirmação. Abra a confirmação novamente.",
 			);
+			if (!coverUploadPending) setPublishIntent(null);
 			return;
 		}
 
@@ -406,6 +440,7 @@ export function SessionEditorialDraftEditor({
 							onChange={(coverAssetId) =>
 								setFields((current) => ({ ...current, coverAssetId }))
 							}
+							onUploadStateChange={setCoverUploadState}
 							sessionId={sessionId}
 							value={fields.coverAssetId}
 						/>
@@ -544,12 +579,18 @@ export function SessionEditorialDraftEditor({
 			{surface === "session" ? (
 				<div className={draftStyles.readinessPanel}>
 					<strong>
-						{missing.length ? "Sessão ainda incompleta" : "Campos editoriais preenchidos"}
+						{coverUploadPending
+							? "Capa em preparação"
+							: missing.length
+								? "Sessão ainda incompleta"
+								: "Campos editoriais preenchidos"}
 					</strong>
 					<span className={styles.muted}>
-						{missing.length
-							? "Faltando: " + missing.join(", ") + "."
-							: "A publicação ainda fará validação autoritativa e da capa finalizada."}
+						{coverUploadPending
+							? "Capa: envio ou validação em andamento. A publicação fica bloqueada até concluir."
+							: missing.length
+								? "Faltando: " + missing.join(", ") + "."
+								: "A publicação ainda fará validação autoritativa e da capa finalizada."}
 					</span>
 				</div>
 			) : null}
@@ -580,97 +621,121 @@ export function SessionEditorialDraftEditor({
 				</div>
 			) : null}
 
-			{publishIntent ? (
-				<div
-					className={draftStyles.publicationConfirm}
-					role="dialog"
-					aria-label="Confirmar publicação da sessão"
-				>
-					<strong>Publicar esta sessão no site?</strong>
-					<dl className={draftStyles.publicationSummary}>
-						<div>
-							<dt>Capa</dt>
-							<dd>pronta para verificação pública</dd>
-						</div>
-						<div>
-							<dt>Arco</dt>
-							<dd>{publishIntent.fields.arc.trim() || "sem arco"}</dd>
-						</div>
-						<div>
-							<dt>Título</dt>
-							<dd>{publishIntent.fields.title.trim()}</dd>
-						</div>
-						<div>
-							<dt>Data</dt>
-							<dd>{formatSessionDate(publishIntent.fields.sessionDate)}</dd>
-						</div>
-						<div>
-							<dt>Descrição</dt>
-							<dd>
-								{fieldCount(
-									publishIntent.fields.shortDescription,
-								).toLocaleString("pt-BR")}{" "}
-								caracteres
-							</dd>
-						</div>
-						<div>
-							<dt>Resumo completo</dt>
-							<dd>
-								{fieldCount(publishIntent.fields.fullSummary).toLocaleString(
-									"pt-BR",
-								)}{" "}
-								caracteres · Markdown
-							</dd>
-						</div>
-						<div>
-							<dt>Versão pública atual</dt>
-							<dd>
-								{currentPublicationId
-									? "v" + currentPublicationVersion
-									: initial.sessionStatus === "published"
-										? "legada · pré-versionamento"
-										: "nenhuma"}
-							</dd>
-						</div>
-						<div>
-							<dt>Base do draft</dt>
-							<dd>r{publishIntent.draftRevision}</dd>
-						</div>
-					</dl>
-					<p className={styles.muted}>
-						A transcrição completa continuará privada. Somente capa, arco, título,
-						descrição curta e resumo completo serão promovidos.
-					</p>
-					{dirty ? (
-						<p role="alert">
-							O draft foi alterado depois desta confirmação. Salve e abra a
-							confirmação novamente.
+			<dialog
+				className={draftStyles.publicationConfirm}
+				ref={publicationDialogRef}
+				aria-label="Confirmar publicação da sessão"
+				onCancel={(event) => {
+					event.preventDefault();
+					cancelPublication();
+				}}
+			>
+				{publishIntent ? (
+					<>
+						<strong ref={publicationDialogTitleRef} tabIndex={-1}>
+							Publicar esta sessão no site?
+						</strong>
+						<dl className={draftStyles.publicationSummary}>
+							<div>
+								<dt>Capa</dt>
+								<dd>pronta para verificação pública</dd>
+							</div>
+							<div>
+								<dt>Arco</dt>
+								<dd>{publishIntent.fields.arc.trim() || "sem arco"}</dd>
+							</div>
+							<div>
+								<dt>Título</dt>
+								<dd>{publishIntent.fields.title.trim()}</dd>
+							</div>
+							<div>
+								<dt>Data</dt>
+								<dd>{formatSessionDate(publishIntent.fields.sessionDate)}</dd>
+							</div>
+							<div>
+								<dt>Descrição</dt>
+								<dd>
+									{fieldCount(
+										publishIntent.fields.shortDescription,
+									).toLocaleString("pt-BR")}{" "}
+									caracteres
+								</dd>
+							</div>
+							<div>
+								<dt>Resumo completo</dt>
+								<dd>
+									{fieldCount(publishIntent.fields.fullSummary).toLocaleString(
+										"pt-BR",
+									)}{" "}
+									caracteres · Markdown
+								</dd>
+							</div>
+							<div>
+								<dt>Versão pública atual</dt>
+								<dd>
+									{currentPublicationId
+										? "v" + currentPublicationVersion
+										: initial.sessionStatus === "published"
+											? "legada · pré-versionamento"
+											: "nenhuma"}
+								</dd>
+							</div>
+							<div>
+								<dt>Base do draft</dt>
+								<dd>r{publishIntent.draftRevision}</dd>
+							</div>
+						</dl>
+						<p className={styles.muted}>
+							A transcrição completa continuará privada. Somente capa, arco, título,
+							descrição curta e resumo completo serão promovidos.
 						</p>
-					) : null}
-					<div className={draftStyles.editorialActions}>
-						<button
-							className={draftStyles.controlButton}
-							disabled={publishPhase === "publishing"}
-							onClick={cancelPublication}
-							type="button"
-						>
-							Cancelar
-						</button>
-						<button
-							className={draftStyles.primaryButton}
-							disabled={publishPhase === "publishing" || dirty}
-							onClick={() => void publish()}
-							type="button"
-						>
-							{publishPhase === "publishing"
-								? "Publicando…"
-								: currentPublicationId || initial.sessionStatus === "published"
-									? "Publicar nova versão"
-									: "Publicar no site"}
-						</button>
-					</div>
-				</div>
-			) : null}
+						{coverUploadPending ? (
+							<p role="alert">
+								A nova capa está sendo enviada ou validada. Aguarde a conclusão antes
+								de publicar.
+							</p>
+						) : dirty ? (
+							<p role="alert">
+								O draft foi alterado depois desta confirmação. Salve e abra a
+								confirmação novamente.
+							</p>
+						) : null}
+						{publishMessage ? (
+							<p
+								className={styles.saveState}
+								data-state={publishPhase === "published" ? "saved" : publishPhase}
+								role={publishPhase === "error" ? "alert" : "status"}
+							>
+								{publishMessage}
+							</p>
+						) : null}
+						<div className={draftStyles.editorialActions}>
+							<button
+								className={draftStyles.controlButton}
+								disabled={publishPhase === "publishing"}
+								onClick={cancelPublication}
+								type="button"
+							>
+								Cancelar
+							</button>
+							<button
+								className={draftStyles.primaryButton}
+								disabled={
+									publishPhase === "publishing" || coverUploadPending || dirty
+								}
+								onClick={() => void publish()}
+								type="button"
+							>
+								{publishPhase === "publishing"
+									? "Publicando…"
+									: currentPublicationId || initial.sessionStatus === "published"
+										? "Confirmar nova versão"
+										: "Confirmar e publicar"}
+							</button>
+						</div>
+					</>
+				) : null}
+			</dialog>
 
 			<footer className={draftStyles.editorialFooter}>
 				<div>
@@ -681,10 +746,9 @@ export function SessionEditorialDraftEditor({
 					>
 						{phase === "saving"
 							? "Salvando…"
-							: message ||
-								(dirty
-									? "Alterações não salvas"
-									: "Draft r" + revision + " sincronizado")}
+							: dirty
+								? "Alterações não salvas"
+								: message || "Draft r" + revision + " sincronizado"}
 					</span>
 					<small className={styles.muted}>
 						{" "}
@@ -692,7 +756,7 @@ export function SessionEditorialDraftEditor({
 					</small>
 				</div>
 
-				{publishMessage ? (
+				{publishMessage && !publishIntent ? (
 					<span
 						className={styles.saveState}
 						data-state={publishPhase === "published" ? "saved" : publishPhase}
@@ -727,14 +791,17 @@ export function SessionEditorialDraftEditor({
 					<button
 						className={draftStyles.controlButton}
 						disabled={!publishReady}
+						ref={publicationTriggerRef}
 						title={
 							!publicationAvailable
 								? "Autoridade de publicação indisponível."
 								: !publishable
 									? "Sua conta não tem a capability de publicação."
-									: dirty
-										? "Salve o draft antes de publicar."
-										: transcriptChanged
+									: coverUploadPending
+										? "Aguarde a nova capa terminar de enviar e validar."
+										: dirty
+											? "Salve o draft antes de publicar."
+											: transcriptChanged
 											? "Revise a transcrição atual antes de publicar."
 											: missing.length
 												? "Complete os campos editoriais obrigatórios."

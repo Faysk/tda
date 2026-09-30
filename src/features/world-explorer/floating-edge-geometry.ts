@@ -1,4 +1,5 @@
 import { Position } from "@xyflow/react";
+import type { WorldPortLane, WorldPortSide } from "./edge-routing";
 
 export type FloatingNodeBox = {
 	x: number;
@@ -16,13 +17,39 @@ export type FloatingEdgeGeometry = {
 	targetPosition: Position;
 };
 
+export type FloatingEdgeEndpointRoute = Readonly<{
+	side: WorldPortSide;
+	lane: WorldPortLane;
+}>;
+
+export type FloatingEdgeRoute = Readonly<{
+	source?: FloatingEdgeEndpointRoute;
+	target?: FloatingEdgeEndpointRoute;
+}>;
+
 type BoundaryPoint = {
 	x: number;
 	y: number;
 	position: Position;
 };
 
-function boundaryPoint(node: FloatingNodeBox, opposite: FloatingNodeBox): BoundaryPoint {
+function sidePosition(side: WorldPortSide): Position {
+	switch (side) {
+		case "top":
+			return Position.Top;
+		case "right":
+			return Position.Right;
+		case "bottom":
+			return Position.Bottom;
+		case "left":
+			return Position.Left;
+	}
+}
+
+function unroutedBoundaryPoint(
+	node: FloatingNodeBox,
+	opposite: FloatingNodeBox,
+): BoundaryPoint {
 	const rx = Math.max(node.width / 2, 1);
 	const ry = Math.max(node.height / 2, 1);
 	const centerX = node.x + rx;
@@ -59,18 +86,82 @@ function boundaryPoint(node: FloatingNodeBox, opposite: FloatingNodeBox): Bounda
 	};
 }
 
+function routedBoundaryPoint(
+	node: FloatingNodeBox,
+	opposite: FloatingNodeBox,
+	route: FloatingEdgeEndpointRoute,
+): BoundaryPoint {
+	const rx = Math.max(node.width / 2, 1);
+	const ry = Math.max(node.height / 2, 1);
+	const centerX = node.x + rx;
+	const centerY = node.y + ry;
+	const oppositeCenterX = opposite.x + opposite.width / 2;
+	const oppositeCenterY = opposite.y + opposite.height / 2;
+	const dx = oppositeCenterX - centerX;
+	const dy = oppositeCenterY - centerY;
+	const denominator = Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
+	const scale = denominator > 0 ? 1 / denominator : 0;
+	const projectedX = centerX + dx * scale;
+	const projectedY = centerY + dy * scale;
+	const horizontalSide = route.side === "left" || route.side === "right";
+	const secondaryRadius = horizontalSide ? ry : rx;
+	const baseSecondary = horizontalSide ? projectedY - centerY : projectedX - centerX;
+
+	// Handles use 14% steps around the node box. Mirror that spacing on the
+	// visible silhouette, then clamp before the ellipse gets too close to its
+	// tangent so busy hubs fan out without producing near-vertical edge stubs.
+	const laneOffset = route.lane * secondaryRadius * 0.28;
+	const secondary = Math.max(
+		-secondaryRadius * 0.72,
+		Math.min(secondaryRadius * 0.72, baseSecondary + laneOffset),
+	);
+	const normalizedSecondary =
+		secondaryRadius > 0 ? Math.min(1, Math.abs(secondary) / secondaryRadius) : 0;
+	const primaryFactor = Math.sqrt(Math.max(0, 1 - normalizedSecondary ** 2));
+	const position = sidePosition(route.side);
+
+	if (horizontalSide) {
+		const direction = route.side === "right" ? 1 : -1;
+		return {
+			x: centerX + direction * rx * primaryFactor + direction * 2,
+			y: centerY + secondary,
+			position,
+		};
+	}
+
+	const direction = route.side === "bottom" ? 1 : -1;
+	return {
+		x: centerX + secondary,
+		y: centerY + direction * ry * primaryFactor + direction * 2,
+		position,
+	};
+}
+
+function boundaryPoint(
+	node: FloatingNodeBox,
+	opposite: FloatingNodeBox,
+	route?: FloatingEdgeEndpointRoute,
+): BoundaryPoint {
+	return route
+		? routedBoundaryPoint(node, opposite, route)
+		: unroutedBoundaryPoint(node, opposite);
+}
+
 /**
  * Connects the edge to the visible node silhouette instead of a fixed handle.
- * The result follows the node while it is dragged and keeps the curve pointing
- * toward the opposite entity, which makes the graph read more like a narrative
- * constellation than a port-based flowchart.
+ *
+ * When deterministic port routing is available, the visual endpoint mirrors
+ * that route on the silhouette. This keeps the organic floating-edge look while
+ * preserving the lane fan-out that prevents busy hubs from collapsing several
+ * relations onto the same apparent connection point.
  */
 export function getFloatingEdgeGeometry(
 	source: FloatingNodeBox,
 	target: FloatingNodeBox,
+	route?: FloatingEdgeRoute,
 ): FloatingEdgeGeometry {
-	const sourcePoint = boundaryPoint(source, target);
-	const targetPoint = boundaryPoint(target, source);
+	const sourcePoint = boundaryPoint(source, target, route?.source);
+	const targetPoint = boundaryPoint(target, source, route?.target);
 	return {
 		sourceX: sourcePoint.x,
 		sourceY: sourcePoint.y,

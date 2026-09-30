@@ -1,6 +1,7 @@
 import { supportsQwenAlignmentRuntime } from "./compatibility";
 import { PROCESSING_TIMING_VERSION, parseEngineMetrics, type EngineProcessingMetrics } from "./engine-metrics";
 import { isReviewStringV1 } from "../../transcript-review/text-contract";
+import { parseTrustedAbsoluteTime, type TrustedAbsoluteTime } from "../../transcript-review/time-contract";
 
 export const LOCAL_API = "http://127.0.0.1:8765/api/v1";
 export type Lifecycle = "preparing" | "ready" | "paused";
@@ -454,6 +455,8 @@ export type LocalReviewSegment = {
 	timelineStart?: number;
 	/** Absolute session timeline coordinate when supplied by the Agent. */
 	timelineEnd?: number;
+	/** Trusted source wall-clock projection; never inferred from browser timezone. */
+	absoluteTime?: TrustedAbsoluteTime | null;
 	text: string;
 	speaker: string;
 	reviewed: boolean;
@@ -1817,6 +1820,26 @@ export function parseLocalReview(
 		if (timelineEnd < timelineStart) return invalid();
 		const trackNumber = nonNegativeInteger(segment.track_number);
 		if (trackNumber < 1) return invalid();
+		let absoluteTime: TrustedAbsoluteTime | null | undefined;
+		if (segment.absolute_time_state !== undefined) {
+			if (segment.absolute_time_state === "trusted_absolute") {
+				absoluteTime = parseTrustedAbsoluteTime({
+					state: segment.absolute_time_state,
+					start: segment.absolute_start,
+					end: segment.absolute_end,
+					source: segment.absolute_time_source,
+				});
+				if (!absoluteTime) return invalid();
+			} else if (segment.absolute_time_state === "unavailable") {
+				if (
+					(segment.absolute_start !== null && segment.absolute_start !== undefined) ||
+					(segment.absolute_end !== null && segment.absolute_end !== undefined) ||
+					(segment.absolute_time_source !== null && segment.absolute_time_source !== undefined)
+				)
+					return invalid();
+				absoluteTime = null;
+			} else return invalid();
+		}
 		return {
 			trackNumber,
 			segmentId: contentText(segment.segment_id, 256),
@@ -1824,6 +1847,7 @@ export function parseLocalReview(
 			end,
 			timelineStart,
 			timelineEnd,
+			...(absoluteTime !== undefined ? { absoluteTime } : {}),
 			text: isReviewStringV1(segment.text, "text") ? segment.text : invalid(),
 			speaker: isReviewStringV1(segment.speaker, "speaker") ? segment.speaker : invalid(),
 			reviewed: boolean(segment.reviewed),
