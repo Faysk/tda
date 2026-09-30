@@ -39,6 +39,9 @@ export type CanonicalMultiSourcePart = Readonly<{
 	transcript_sha256: string;
 	ordinal: number;
 	session_offset_seconds: number;
+	source_start_time: string | null;
+	source_start_confidence: "trusted_absolute" | "ambiguous" | "opaque" | "missing";
+	source_start_utc: string | null;
 	trim_start_seconds: number;
 	trim_end_seconds: number | null;
 	overlap_resolution: "prefer_earlier_until" | "prefer_later_from" | null;
@@ -119,6 +122,65 @@ function finite(value: unknown, min: number, max: number): number | null {
 		value <= max
 		? value
 		: null;
+}
+
+type CanonicalAbsoluteTime = Readonly<{
+	schema_version: "tda_segment_absolute_time_v1";
+	confidence: "trusted_absolute";
+	source_start: string;
+	start: string;
+	end: string;
+}>;
+
+const OFFSET_ISO =
+	/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u;
+
+function trustedIso(value: unknown): string | null {
+	return typeof value === "string" &&
+		value.length <= 128 &&
+		OFFSET_ISO.test(value) &&
+		Number.isFinite(Date.parse(value))
+		? value
+		: null;
+}
+
+function parseAbsoluteTime(
+	value: unknown,
+	part: CanonicalMultiSourcePart,
+	segmentStart: number,
+	segmentEnd: number,
+): CanonicalAbsoluteTime | null | undefined {
+	if (value === undefined || value === null) {
+		return part.source_start_confidence === "trusted_absolute" ? undefined : null;
+	}
+	if (part.source_start_confidence !== "trusted_absolute") return undefined;
+	const row = record(value);
+	if (
+		!row ||
+		!exactKeys(row, ["schemaVersion", "confidence", "sourceStart", "start", "end"]) ||
+		row.schemaVersion !== "tda_segment_absolute_time_v1" ||
+		row.confidence !== "trusted_absolute"
+	)
+		return undefined;
+	const sourceStart = trustedIso(row.sourceStart);
+	const start = trustedIso(row.start);
+	const end = trustedIso(row.end);
+	if (
+		!sourceStart ||
+		!start ||
+		!end ||
+		sourceStart !== part.source_start_time ||
+		Date.parse(end) < Date.parse(start) ||
+		Math.abs((Date.parse(end) - Date.parse(start)) / 1000 - (segmentEnd - segmentStart)) > 0.002
+	)
+		return undefined;
+	return {
+		schema_version: "tda_segment_absolute_time_v1",
+		confidence: "trusted_absolute",
+		source_start: sourceStart,
+		start,
+		end,
+	};
 }
 
 function utf8Bytes(value: string): number {
@@ -246,6 +308,10 @@ export function prepareMultiSourceCanonicalPublication(
 	const canonicalParts: CanonicalMultiSourcePart[] = [];
 	for (let ordinal = 0; ordinal < rawParts.length; ordinal += 1) {
 		const part = record(rawParts[ordinal]);
+		const hasClockFields =
+			part?.sourceStartTime !== undefined ||
+			part?.sourceStartConfidence !== undefined ||
+			part?.sourceStartUtc !== undefined;
 		if (
 			!part ||
 			!exactKeys(part, [
@@ -260,6 +326,9 @@ export function prepareMultiSourceCanonicalPublication(
 				"trimEndSeconds",
 				"overlapResolution",
 				"overlapBoundarySeconds",
+				...(hasClockFields
+					? ["sourceStartTime", "sourceStartConfidence", "sourceStartUtc"]
+					: []),
 			])
 		)
 			return { ok: false, reason: "invalid_payload" };
@@ -271,6 +340,34 @@ export function prepareMultiSourceCanonicalPublication(
 		const transcriptSha256 = text(part.transcriptSha256, 64, SHA256);
 		const partOrdinal = integer(part.ordinal, 0, MAX_PARTS - 1);
 		const sessionOffsetSeconds = finite(part.sessionOffsetSeconds, 0, 604800);
+		const sourceStartConfidence =
+			!hasClockFields || part.sourceStartConfidence === undefined
+				? "missing"
+				: part.sourceStartConfidence;
+		if (
+			sourceStartConfidence !== "trusted_absolute" &&
+			sourceStartConfidence !== "ambiguous" &&
+			sourceStartConfidence !== "opaque" &&
+			sourceStartConfidence !== "missing"
+		)
+			return { ok: false, reason: "invalid_payload" };
+		const sourceStartTime =
+			!hasClockFields || part.sourceStartTime === null
+				? null
+				: typeof part.sourceStartTime === "string" && part.sourceStartTime.length <= 128
+					? part.sourceStartTime
+					: undefined;
+		const sourceStartUtc =
+			!hasClockFields || part.sourceStartUtc === null
+				? null
+				: trustedIso(part.sourceStartUtc);
+		if (
+			sourceStartTime === undefined ||
+			(sourceStartConfidence === "trusted_absolute" &&
+				(!trustedIso(sourceStartTime) || sourceStartUtc === null)) ||
+			(sourceStartConfidence !== "trusted_absolute" && sourceStartUtc !== null)
+		)
+			return { ok: false, reason: "invalid_payload" };
 		const trimStartSeconds = finite(part.trimStartSeconds, 0, 604800);
 		const trimEndSeconds =
 			part.trimEndSeconds === null
@@ -318,6 +415,9 @@ export function prepareMultiSourceCanonicalPublication(
 			transcript_sha256: transcriptSha256,
 			ordinal,
 			session_offset_seconds: sessionOffsetSeconds,
+			source_start_time: sourceStartTime,
+			source_start_confidence: sourceStartConfidence,
+			source_start_utc: sourceStartUtc,
 			trim_start_seconds: trimStartSeconds,
 			trim_end_seconds: trimEndSeconds,
 			overlap_resolution: overlapResolution,
@@ -423,6 +523,7 @@ export function prepareMultiSourceCanonicalPublication(
 		track_number: number;
 		start: number;
 		end: number;
+		absolute_time: CanonicalAbsoluteTime | null;
 		text: string;
 		speaker: string;
 		reviewed: boolean;
@@ -441,6 +542,7 @@ export function prepareMultiSourceCanonicalPublication(
 				"trackNumber",
 				"start",
 				"end",
+				...(segment.absoluteTime === undefined ? [] : ["absoluteTime"]),
 				"text",
 				"speaker",
 				"reviewed",
@@ -463,6 +565,10 @@ export function prepareMultiSourceCanonicalPublication(
 			? segment.speaker
 			: null;
 		const part = partId ? partsById.get(partId) : undefined;
+		const absoluteTime =
+			part && start !== null && end !== null
+				? parseAbsoluteTime(segment.absoluteTime, part, start, end)
+				: undefined;
 
 		if (
 			!assemblySegmentId ||
@@ -478,6 +584,7 @@ export function prepareMultiSourceCanonicalPublication(
 			start === null ||
 			end === null ||
 			end < start ||
+			absoluteTime === undefined ||
 			segmentText === null ||
 			speaker === null ||
 			typeof segment.reviewed !== "boolean"
@@ -499,6 +606,7 @@ export function prepareMultiSourceCanonicalPublication(
 			track_number: trackNumber,
 			start,
 			end,
+			absolute_time: absoluteTime,
 			text: segmentText,
 			speaker,
 			reviewed: segment.reviewed,
