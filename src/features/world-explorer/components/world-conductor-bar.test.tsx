@@ -42,6 +42,7 @@ describe("WorldConductorBar pending actions", () => {
 	it("names and marks finish work locally", () => {
 		const html = render("finish");
 		expect(html).toContain("Encerrando…");
+		expect(html).toContain('aria-label="Encerrando edição"');
 		expect(html).toContain('aria-busy="true"');
 		expect(html).not.toContain("Descartando…");
 	});

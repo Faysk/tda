@@ -204,11 +204,13 @@ export function WorldConductorBar({
 								disabled={busy || (!canPublish && !canFinish)}
 								onClick={() => run(canPublish ? onPublish : onFinish)}
 								aria-label={
-									canPublish
-										? canEditContent
-											? "Publicar alterações do Mundo"
-											: "Publicar alterações do layout"
-										: "Concluir edição sem alterações"
+									pendingAction === "finish"
+										? "Encerrando edição"
+										: canPublish
+											? canEditContent
+												? "Publicar alterações do Mundo"
+												: "Publicar alterações do layout"
+											: "Concluir edição sem alterações"
 								}
 							>
 								<span aria-hidden="true">{canPublish ? "↑" : "✓"}</span>
