@@ -1,9 +1,9 @@
 # Navegação global do TDA
 
-> Status: launcher global seccionado implementado; validação automatizada em revisão  
+> Status: launcher global seccionado validado; QA automatizado ativo  
 > Owner: navigation / frontend / identity-access  
 > Última revisão: 2026-09-30  
-> Fonte de verdade: este documento, decisões #963/#1082/#1188/#1189, floating shell #995/#999 e guards/capabilities da `main`
+> Fonte de verdade: este documento, decisões #963/#1082/#1188-#1192, PR #1193, floating shell #995/#999 e guards/capabilities da `main`
 
 ## Objetivo
 
@@ -58,12 +58,16 @@ A referência de organização é o modelo mental de app launcher do Google: gri
 | shell flutuante sem barra estrutural | integrado | #995 / #999 |
 | âncora do painel + safe-area/scrims | integrado | #1000 / #1001 |
 | Home full-bleed no topo real | integrado | #1002 |
-| launcher seccionado / IA híbrida | implementado nesta mudança | #1188 / #1189 |
-| grid icon-first + camadas tonais | implementado nesta mudança | #1190 |
-| scroll/foco/motion de utilitário | implementado nesta mudança | #1191 |
-| gates do launcher seccionado | implementados nesta mudança | #1192 |
+| launcher seccionado / IA híbrida | integrado | #1188 / #1189 / PR #1193 |
+| grid icon-first + camadas tonais | integrado | #1190 / PR #1193 |
+| scroll/foco/motion de utilitário | integrado | #1191 / PR #1193 |
+| gates do launcher seccionado | ativo | #1192 / PR #1193 / `tests/global-navigation.spec.ts` |
 
 Merge em `main` não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
+
+### Validação do candidato
+
+A implementação consolidada foi mergeada por **PR #1193** em `main@cdfd751560b473914e80978854ec7fbc99995c2c`. Antes do merge, CI/CodeQL do candidato passaram, incluindo o gate `navigation-e2e` com a matriz responsiva, auth/capabilities, scroll único, foco, motion, reduced motion e receipts sintéticos. A comprovação de publicação continua pertencendo ao Production CD do SHA canônico; este documento não infere deploy a partir do merge.
 
 ## Shell flutuante
 
