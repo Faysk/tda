@@ -1018,7 +1018,7 @@
 
 .timelineRow {
 	display: grid;
-	grid-template-columns: 88px minmax(120px, 180px) minmax(0, 1fr) auto;
+	grid-template-columns: minmax(126px, 156px) minmax(120px, 180px) minmax(0, 1fr) auto;
 	align-items: start;
 	gap: 10px;
 	min-width: 0;
@@ -1029,11 +1029,20 @@
 }
 
 .timelineRow > time {
+	display: grid;
+	gap: 2px;
 	padding-top: 3px;
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-mono);
 	font-size: 0.72rem;
 	font-variant-numeric: tabular-nums;
+}
+
+.timelineRow > time small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.64rem;
+	line-height: 1.25;
+	white-space: normal;
 }
 
 .timelineSpeaker {
@@ -1113,7 +1122,7 @@
 
 @media (max-width: 720px) {
 	.timelineRow {
-		grid-template-columns: 80px minmax(0, 1fr) auto;
+		grid-template-columns: minmax(112px, 132px) minmax(0, 1fr) auto;
 	}
 	.timelineSpeaker { grid-column: 2; }
 	.timelineText {
