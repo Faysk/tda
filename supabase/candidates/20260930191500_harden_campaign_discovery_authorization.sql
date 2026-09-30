@@ -4,7 +4,7 @@
 
 begin;
 
-do $$
+do $tda_auth$
 begin
   if not exists (
     select 1
@@ -30,7 +30,7 @@ begin
     raise exception '#1134 requires the #1123 first-class campaign registry schema';
   end if;
 end
-$$;
+$tda_auth$;
 
 -- Campaign creation is a project concern. Keep it separate from campaign-level
 -- permissions so future campaigns are not created by virtue of membership in one
@@ -52,7 +52,7 @@ from public.role_definitions role
 where role.slug = 'platform_owner'
 on conflict (role_id, permission_action) do nothing;
 
-do $$
+do $tda_auth$
 begin
   if not exists (
     select 1
@@ -64,7 +64,7 @@ begin
     raise exception 'platform_owner role is missing required project.campaigns.manage capability';
   end if;
 end
-$$;
+$tda_auth$;
 
 -- Internal capability predicate used by SECURITY DEFINER discovery/access RPCs.
 -- Direct browser execution is intentionally denied so it cannot become a
@@ -81,7 +81,7 @@ language sql
 stable
 security definer
 set search_path = pg_catalog, public
-as $$
+as $tda_auth$
   select
     p_profile_id is not null
     and p_campaign_slug is not null
@@ -107,7 +107,7 @@ as $$
           )
         )
     );
-$$;
+$tda_auth$;
 
 revoke all on function public.has_profile_campaign_capability(
   uuid, text, text, timestamptz
@@ -131,7 +131,7 @@ language sql
 stable
 security definer
 set search_path = pg_catalog, public
-as $$
+as $tda_auth$
   select coalesce(
     jsonb_agg(
       jsonb_build_object(
@@ -146,7 +146,7 @@ as $$
   from public.campaigns campaign
   where campaign.lifecycle = 'active'
     and campaign.visibility = 'public';
-$$;
+$tda_auth$;
 
 revoke all on function public.campaign_public_directory() from public;
 grant execute on function public.campaign_public_directory() to anon;
@@ -164,7 +164,7 @@ language plpgsql
 stable
 security definer
 set search_path = pg_catalog, public, auth
-as $$
+as $tda_auth$
 declare
   v_auth_user_id uuid := auth.uid();
   v_profile_id uuid;
@@ -208,7 +208,7 @@ begin
     '[]'::jsonb
   );
 end;
-$$;
+$tda_auth$;
 
 revoke all on function public.campaign_edit_directory() from public;
 revoke execute on function public.campaign_edit_directory() from anon;
@@ -219,7 +219,7 @@ grant execute on function public.campaign_edit_directory() to service_role;
 -- proof. Until that model exists, they are server-only: browser callers cannot
 -- bypass the hardened directory by posting a target_profile_id directly, and
 -- review cannot continue to authorize by owner/master role names.
-do $$
+do $tda_auth$
 begin
   if to_regprocedure(
     'public.submit_profile_claim(text,uuid,text,text,text,text,text[],text)'
@@ -239,7 +239,7 @@ begin
     execute 'grant execute on function public.review_profile_claim(uuid,text,text) to service_role';
   end if;
 end
-$$;
+$tda_auth$;
 
 -- access_directory is a campaign people/onboarding surface, not campaign
 -- discovery. A caller must already be authenticated, linked to a profile and
@@ -254,7 +254,7 @@ language plpgsql
 stable
 security definer
 set search_path = pg_catalog, public, auth
-as $$
+as $tda_auth$
 declare
   viewer_auth uuid := auth.uid();
   campaign_row public.campaigns%rowtype;
@@ -455,7 +455,7 @@ begin
     )
   );
 end;
-$$;
+$tda_auth$;
 
 revoke all on function public.access_directory(text) from public;
 revoke execute on function public.access_directory(text) from anon;
