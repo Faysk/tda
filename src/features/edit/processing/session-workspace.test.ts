@@ -3,6 +3,7 @@ import { LocalBridge } from "./bridge";
 import {
 	LOCAL_API,
 	parseSessionParticipantMapping,
+	parseSessionTranscriptionIntent,
 	parseSessionWorkspace,
 } from "./protocol";
 
@@ -276,6 +277,54 @@ describe("session workspace protocol", () => {
 	});
 });
 
+describe("session transcription intent protocol", () => {
+	it("parses local-only text with browser-safe hashes", () => {
+		const parsed = parseSessionTranscriptionIntent({
+			schema_version: "tda_session_transcription_intent_v1",
+			campaign_id: "yuhara-main",
+			session_id: "session-42",
+			request_id: "intent-42",
+			profile_id: "qwen-quality",
+			context: "mesa de quinta",
+			glossary: "Yuhara",
+			context_sha256: "a".repeat(64),
+			glossary_sha256: "b".repeat(64),
+			created_at: "2026-09-30T01:00:00Z",
+			updated_at: "2026-09-30T01:01:00Z",
+		});
+		expect(parsed).toMatchObject({
+			requestId: "intent-42",
+			profileId: "qwen-quality",
+			context: "mesa de quinta",
+			glossary: "Yuhara",
+			contextSha256: "a".repeat(64),
+			glossarySha256: "b".repeat(64),
+		});
+	});
+
+	it("fails closed on malformed intent hashes and oversized text", () => {
+		const base = {
+			schema_version: "tda_session_transcription_intent_v1",
+			campaign_id: "yuhara-main",
+			session_id: "session-42",
+			request_id: "intent-42",
+			profile_id: "qwen-quality",
+			context: "",
+			glossary: "",
+			context_sha256: "a".repeat(64),
+			glossary_sha256: "b".repeat(64),
+			created_at: "2026-09-30T01:00:00Z",
+			updated_at: "2026-09-30T01:01:00Z",
+		};
+		expect(() =>
+			parseSessionTranscriptionIntent({ ...base, context_sha256: "bad" }),
+		).toThrow();
+		expect(() =>
+			parseSessionTranscriptionIntent({ ...base, context: "x".repeat(1201) }),
+		).toThrow();
+	});
+});
+
 describe("session workspace bridge", () => {
 	it("uses fixed loopback routes and CAS payloads for chronology", async () => {
 		let current = workspace([]);
@@ -380,6 +429,59 @@ describe("session workspace bridge", () => {
 				Authorization: `Bearer ${token}`,
 			});
 		}
+		bridge.disconnect();
+	});
+
+	it("stores and recovers session intent text through the authenticated loopback only", async () => {
+		const intent = {
+			schema_version: "tda_session_transcription_intent_v1",
+			campaign_id: "yuhara-main",
+			session_id: "session-42",
+			request_id: "intent-42",
+			profile_id: "qwen-quality",
+			context: "mesa de quinta",
+			glossary: "Yuhara",
+			context_sha256: "a".repeat(64),
+			glossary_sha256: "b".repeat(64),
+			created_at: "2026-09-30T01:00:00Z",
+			updated_at: "2026-09-30T01:01:00Z",
+		};
+		const request = vi.fn<typeof fetch>().mockImplementation(async () =>
+			Response.json(intent),
+		);
+		const bridge = new LocalBridge(request);
+		bridge.pair(token);
+
+		const saved = await bridge.saveSessionTranscriptionIntent(
+			"yuhara-main",
+			"session-42",
+			{
+				requestId: "intent-42",
+				profileId: "qwen-quality",
+				context: "mesa de quinta",
+				glossary: "Yuhara",
+			},
+			signal(),
+		);
+		const recovered = await bridge.sessionTranscriptionIntent(
+			"yuhara-main",
+			"session-42",
+			signal(),
+		);
+
+		expect(saved.contextSha256).toBe("a".repeat(64));
+		expect(recovered.context).toBe("mesa de quinta");
+		expect(request.mock.calls.map(([url]) => String(url))).toEqual([
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/intent`,
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/intent`,
+		]);
+		expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toEqual({
+			request_id: "intent-42",
+			profile_id: "qwen-quality",
+			context: "mesa de quinta",
+			glossary: "Yuhara",
+		});
+		expect(request.mock.calls[1][1]?.method).toBe("GET");
 		bridge.disconnect();
 	});
 
