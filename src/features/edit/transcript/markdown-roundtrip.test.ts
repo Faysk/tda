@@ -20,6 +20,17 @@ function segment(index: number): TranscriptReaderSegment {
 		trackNumber: index % 4 + 1,
 		startMs: index * 1250,
 		endMs: index * 1250 + 900,
+		...(index === 0
+			? {
+					absoluteTime: {
+						schemaVersion: "tda_segment_absolute_time_v1" as const,
+						confidence: "trusted_absolute" as const,
+						sourceStart: "2026-09-29T23:59:58-03:00",
+						start: "2026-09-29T23:59:58-03:00",
+						end: "2026-09-29T23:59:58.900-03:00",
+					},
+				}
+			: {}),
 		speaker: index % 2 ? "Alya" : "Renan",
 		text: `Fala sintética ${index} 🌲`,
 	};
@@ -50,6 +61,7 @@ describe("TDA Transcript Markdown v1", () => {
 		const markdown = await render();
 		expect(markdown).toContain("tda_transcript: tda_transcript_markdown_v1");
 		expect(markdown).toContain("<!-- tda:segment track=1 id=seg-0 start_ms=0 end_ms=900 -->");
+		expect(markdown).toContain("Tempo: 00:00:00.000 · 29/09 · 23:59:58.000 -03:00");
 		const parsed = await parseTranscriptRoundTripMarkdown({
 			markdown,
 			expected: identity,
@@ -112,6 +124,17 @@ describe("TDA Transcript Markdown v1", () => {
 				baseline: base.segments,
 			}),
 		).rejects.toThrow("TRANSCRIPT_MARKDOWN_STRUCTURE_CHANGED");
+
+		await expect(
+			parseTranscriptRoundTripMarkdown({
+				markdown: markdown.replace(
+					"Tempo: 00:00:00.000 · 29/09 · 23:59:58.000 -03:00",
+					"Tempo: 00:00:00.000 · 30/09 · 00:00:10.000 -03:00",
+				),
+				expected: identity,
+				baseline: base.segments,
+			}),
+		).rejects.toThrow("TRANSCRIPT_MARKDOWN_TIME_CHANGED");
 
 		const firstBlock = markdown.indexOf("<!-- tda:segment");
 		const secondBlock = markdown.indexOf("<!-- tda:segment", firstBlock + 1);
