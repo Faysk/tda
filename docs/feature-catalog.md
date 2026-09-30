@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-28
+> Última revisão: 2026-09-30
 > Fonte de verdade: `Faysk/tda@main`, specs e documentos donos
 
 Este catálogo consolida a direção do TDA sem transformar automaticamente ideias históricas em schema. As referências históricas citadas abaixo vivem no legado `Faysk/dnd-scribe`.
@@ -19,6 +19,7 @@ Estados:
 
 | Feature | Estado no TDA | Base atual / decisão |
 | --- | --- | --- |
+| Multi-campaign / workspaces isolados | arquitetura aprovada; implementação planejada | [ADR-0020](adr/0020-first-class-campaigns.md) + [contrato de rotas/boundaries](architecture/multi-campaign.md) + epic #1122: UUID relacional, technical slug estável, public route key separada, lifecycle active/archived e rollout aditivo; segunda campaign ainda não é afirmada como ativa/aplicada |
 | Navegação global / conta | arquitetura aprovada; projeção de Auth, launcher, avatar e retirada dos hubs integrados; gate completo de QA pendente | [Contrato canônico](features/global-navigation.md), epic #879, PR #886, PR #890, PR #902 e PR #908; #884 fecha a matriz responsiva/teclado/visual |
 | Edit Workbench / administração | arquitetura aprovada; implementação incremental iniciada | spec em `features/edit-workbench.md`, ADR-0007, paridade viva do `dnd-scribe`; shell/transcript e leitura com revision já avançaram, persistence/Auth canônicos ainda não convergiram |
 | Processamento local no Edit | ASR local real implementado; sync cloud desativado | [Contrato da tela e gates](features/local-processing.md), ADR-0003 e ADR-0013; Craig real roda localmente em Qwen/Whisper, conclusão local não publica |
@@ -65,6 +66,22 @@ O projeto possui fontes oficiais explicitamente aprovadas e complementares:
 
 A autoridade operacional está em [docs/design-system](design-system/README.md), com a diretriz transversal em [design-system/ux-hierarchy.md](design-system/ux-hierarchy.md). Design/Brand são fundação transversal: não precisam ocupar uma posição artificial na fila de features para continuarem sendo obrigatórios.
 
+## Campaigns first-class
+
+A arquitetura de múltiplas campaigns está aprovada, mas isso não significa schema aplicado ou segunda campaign ativa.
+
+O contrato exige:
+
+- UUID como autoridade relacional;
+- `yuhara-main` preservado como technical slug legado/default;
+- apresentação pública planejada **Crônicas da Mesa**;
+- segunda campaign **Antes que seja tarde** criada somente quando a fase de registry/segurança estiver pronta;
+- rotas específicas carregando campaign;
+- lookups, caches, idempotency, World e mídia campaign-qualified;
+- Lembra e lore standalone como exceções globais/independentes documentadas;
+- gates A/B antes de rollout.
+
+Implementação é dividida nas issues #1123–#1138. Nenhum desses estados deve ser inferido apenas da existência desta documentação.
 ## World Explorer
 
 A decisão de visualização foi fechada em [ADR-0006](adr/0006-react-flow-world-explorer.md):
