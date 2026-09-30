@@ -22,6 +22,78 @@ export function sessionComposerLastSessionKey(campaignId: string): string {
 		throw new Error("Invalid campaign id for session composer storage");
 	return `${SESSION_COMPOSER_LAST_SESSION_PREFIX}:${campaignId}`;
 }
+
+const LEGACY_SINGLE_CAMPAIGN_ID = "yuhara-main";
+const LEGACY_SESSION_COMPOSER_RECOVERY_KEY =
+	"tda.processing.session-composer.v1";
+const LEGACY_SESSION_COMPOSER_LAST_SESSION_KEY =
+	"tda.processing.session-composer.last-session.v1";
+const SAFE_SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/u;
+
+function readScopedPointer(
+	storage: Storage,
+	campaignId: string,
+	key: string,
+	legacyKey: string,
+): string | null {
+	const current = storage.getItem(key);
+	if (current && SAFE_SESSION_ID.test(current)) return current;
+	if (campaignId !== LEGACY_SINGLE_CAMPAIGN_ID) return null;
+
+	const legacy = storage.getItem(legacyKey);
+	if (!legacy || !SAFE_SESSION_ID.test(legacy)) return null;
+	try {
+		storage.setItem(key, legacy);
+		storage.removeItem(legacyKey);
+	} catch {
+		// Migration is best-effort. The legacy pointer remains readable for this load.
+	}
+	return legacy;
+}
+
+export function readSessionComposerRecoveryPointer(
+	storage: Storage,
+	campaignId: string,
+): string | null {
+	return readScopedPointer(
+		storage,
+		campaignId,
+		sessionComposerRecoveryKey(campaignId),
+		LEGACY_SESSION_COMPOSER_RECOVERY_KEY,
+	);
+}
+
+export function readSessionComposerLastSessionPointer(
+	storage: Storage,
+	campaignId: string,
+): string | null {
+	return readScopedPointer(
+		storage,
+		campaignId,
+		sessionComposerLastSessionKey(campaignId),
+		LEGACY_SESSION_COMPOSER_LAST_SESSION_KEY,
+	);
+}
+
+export function saveSessionComposerPointers(
+	storage: Storage,
+	campaignId: string,
+	sessionId: string,
+): void {
+	if (!SAFE_SESSION_ID.test(sessionId))
+		throw new Error("Invalid session id for session composer storage");
+	storage.setItem(sessionComposerRecoveryKey(campaignId), sessionId);
+	storage.setItem(sessionComposerLastSessionKey(campaignId), sessionId);
+}
+
+export function clearSessionComposerRecoveryPointer(
+	storage: Storage,
+	campaignId: string,
+): void {
+	storage.removeItem(sessionComposerRecoveryKey(campaignId));
+	if (campaignId === LEGACY_SINGLE_CAMPAIGN_ID)
+		storage.removeItem(LEGACY_SESSION_COMPOSER_RECOVERY_KEY);
+}
 export const SESSION_COMPOSER_CHANGE_EVENT =
 	"tda-session-composer-change";
 
