@@ -251,6 +251,7 @@ export function ProcessingBenchmark({
 	const [acceptedJob, setAcceptedJob] = useState<LocalJob | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
 	const request = useRef<AbortController | null>(null);
+	const onRefreshRef = useRef(onRefresh);
 	const pending = useRef<PendingBenchmark | null>(null);
 
 	useEffect(() => {
@@ -353,6 +354,10 @@ export function ProcessingBenchmark({
 	useEffect(() => () => request.current?.abort(), []);
 
 	useEffect(() => {
+		onRefreshRef.current = onRefresh;
+	}, [onRefresh]);
+
+	useEffect(() => {
 		if (!connected || !qwenRuntimeBlocked || !qwenRuntimeCheckSupported) {
 			if (!qwenRuntimeBlocked) {
 				qwenRuntimeCheckKey.current = null;
@@ -388,7 +393,7 @@ export function ProcessingBenchmark({
 						const refreshed = await bridge.capabilities(controller.signal);
 						if (disposed || controller.signal.aborted) return;
 						setCatalog(refreshed.transcription.catalog);
-						onRefresh();
+						onRefreshRef.current();
 						const qwenReady = ["qwen-fast", "qwen-quality"].every(
 							(id) => refreshed.transcription.catalog.find((item) => item.id === id)?.ready,
 						);
@@ -438,7 +443,6 @@ export function ProcessingBenchmark({
 		qwenRuntimeBlocked,
 		qwenRuntimeCheckSupported,
 		qwenInstalledVersionFromProfiles,
-		onRefresh,
 	]);
 
 	async function refreshCatalog(signal: AbortSignal) {
