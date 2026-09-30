@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { safeReturnPath } from "@/features/auth/config";
 import {
 	createCampaign,
 	setCampaignLifecycle,
@@ -41,6 +42,16 @@ export async function createCampaignAction(formData: FormData) {
 		description: text(formData, "description"),
 		visibility: text(formData, "visibility"),
 	});
+	if (result.ok) {
+		const returnTo = safeReturnPath(text(formData, "returnTo"));
+		if (returnTo === "/edit/processamento") {
+			revalidatePath("/campanhas");
+			revalidatePath("/edit/campanhas");
+			redirect(
+				`/edit/processamento?campanha=${encodeURIComponent(result.campaign.technicalSlug)}&campanhaCriada=1`,
+			);
+		}
+	}
 	redirectWithResult("criada", result);
 }
 
