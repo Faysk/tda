@@ -6,29 +6,29 @@
 
 .region {
 	position: absolute;
-	border: 1px solid color-mix(in srgb, var(--ds-accent) 18%, var(--ds-border-subtle));
+	border: 1px solid color-mix(in srgb, var(--ds-accent) 11%, var(--ds-border-subtle));
 	border-radius: 72px;
 	background:
 		radial-gradient(
 			circle at 38% 32%,
-			color-mix(in srgb, var(--ds-accent-muted) 22%, transparent),
+			color-mix(in srgb, var(--ds-accent-muted) 14%, transparent),
 			transparent 62%
 		);
 	box-shadow:
 		inset 0 0 0 1px color-mix(in srgb, var(--ds-foreground) 2%, transparent),
 		inset 0 0 90px color-mix(in srgb, var(--ds-ambient-cool) 18%, transparent);
-	opacity: 0.78;
+	opacity: 0.58;
 }
 
 .layer[data-world-semantic-zoom="atlas"] .region {
-	border-color: color-mix(in srgb, var(--ds-accent) 26%, var(--ds-border-subtle));
+	border-color: color-mix(in srgb, var(--ds-accent) 20%, var(--ds-border-subtle));
 	background:
 		radial-gradient(
 			circle at 40% 34%,
-			color-mix(in srgb, var(--ds-accent-muted) 32%, transparent),
+			color-mix(in srgb, var(--ds-accent-muted) 24%, transparent),
 			transparent 66%
 		);
-	opacity: 0.92;
+	opacity: 0.82;
 }
 
 .label {
@@ -44,9 +44,10 @@
 	border: 1px solid color-mix(in srgb, var(--ds-control-border) 70%, transparent);
 	border-radius: 999px;
 	background: color-mix(in srgb, var(--ds-surface-elevated) 78%, transparent);
-	box-shadow: 0 5px 18px color-mix(in srgb, var(--ds-canvas) 18%, transparent);
+	box-shadow: 0 4px 14px color-mix(in srgb, var(--ds-canvas) 14%, transparent);
 	backdrop-filter: blur(10px);
 	white-space: nowrap;
+	opacity: 0.72;
 }
 
 .label strong {
@@ -61,7 +62,12 @@
 }
 
 .layer[data-world-semantic-zoom="atlas"] .label {
-	border-color: color-mix(in srgb, var(--ds-accent) 34%, var(--ds-control-border));
+	border-color: color-mix(in srgb, var(--ds-accent) 28%, var(--ds-control-border));
+	opacity: 0.94;
+}
+
+.layer[data-world-semantic-zoom="region"] .label {
+	opacity: 0.84;
 }
 
 @media (prefers-reduced-motion: reduce) {
