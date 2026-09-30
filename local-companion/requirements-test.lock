@@ -8,13 +8,14 @@ cffi==2.1.1
 click==8.5.0
 clr-loader==0.3.1
 colorama==0.4.6
-fastapi==0.141.1
+fastapi==0.142.2
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
 idna==3.19
 iniconfig==2.3.0
-nvidia-ml-py==13.610.43
+nvidia-ml-py==13.615.71
+opentelemetry-api==1.45.0
 packaging==26.3
 pefile==2024.8.26
 pillow==12.3.0
@@ -37,4 +38,4 @@ six==1.17.0
 starlette==1.6.0
 typing-inspection==0.4.4
 typing_extensions==4.16.0
-uvicorn==0.53.0
+uvicorn==0.54.0
