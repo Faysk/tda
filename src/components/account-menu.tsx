@@ -28,7 +28,7 @@ import {
 } from "./navigation-auth";
 
 const PANEL_ID = "global-profile-menu";
-const PANEL_MOTION_SAFETY_MS = 2_250;
+const PANEL_MOTION_SAFETY_MS = 520;
 const PRIMARY_PUBLIC_HREFS = ["/sessoes", "/mundo", "/lore", "/lembra"] as const;
 const WORLD_PUBLIC_HREFS = [
 	"/personagens",
@@ -41,7 +41,7 @@ const WORLD_PUBLIC_HREFS = [
 ] as const;
 
 type PanelPhase = "closed" | "opening" | "open" | "closing";
-type PanelView = "root" | "world" | "tools";
+type PanelView = "root" | "world";
 
 function prefersReducedMotion() {
 	return (
@@ -84,34 +84,37 @@ function AccountFallback({
 	);
 }
 
-function NavigationRowLink({
+function NavigationCellLink({
 	item,
 	pathname,
 	onNavigate,
 	label,
+	current: currentOverride,
 }: Readonly<{
 	item: NavigationItem;
 	pathname: string;
 	onNavigate: () => void;
 	label?: string;
+	current?: boolean;
 }>) {
-	const current = isCurrentNavigationPath(pathname, item.href);
+	const current =
+		currentOverride ?? isCurrentNavigationPath(pathname, item.href);
 	return (
 		<li>
 			<Link
 				href={item.href}
-				className="global-nav-row global-nav-row--link"
+				className="global-nav-cell global-nav-cell--link"
 				aria-current={current ? "page" : undefined}
 				onClick={onNavigate}
 			>
-				<NavigationIconGlyph name={item.icon} className="global-nav-row-icon" />
-				<span className="global-nav-row-label">{label ?? item.label}</span>
+				<NavigationIconGlyph name={item.icon} className="global-nav-cell-icon" />
+				<span className="global-nav-cell-label">{label ?? item.label}</span>
 			</Link>
 		</li>
 	);
 }
 
-function DrilldownButton({
+function DrilldownCell({
 	label,
 	icon,
 	current,
@@ -129,13 +132,13 @@ function DrilldownButton({
 			<button
 				ref={buttonRef}
 				type="button"
-				className="global-nav-row global-nav-row--drilldown"
+				className="global-nav-cell global-nav-cell--drilldown"
 				data-current={current ? "true" : undefined}
 				onClick={onClick}
 			>
-				<NavigationIconGlyph name={icon} className="global-nav-row-icon" />
-				<span className="global-nav-row-label">{label}</span>
-				<span className="global-nav-row-chevron" aria-hidden="true">
+				<NavigationIconGlyph name={icon} className="global-nav-cell-icon" />
+				<span className="global-nav-cell-label">{label}</span>
+				<span className="global-nav-cell-disclosure" aria-hidden="true">
 					›
 				</span>
 			</button>
@@ -153,10 +156,11 @@ export function AccountMenu() {
 	const [avatarFailed, setAvatarFailed] = useState(false);
 	const [returnPath, setReturnPath] = useState(pathname || "/");
 	const rootRef = useRef<HTMLDivElement>(null);
+	const panelRef = useRef<HTMLElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const backButtonRef = useRef<HTMLButtonElement>(null);
 	const worldButtonRef = useRef<HTMLButtonElement>(null);
-	const toolsButtonRef = useRef<HTMLButtonElement>(null);
+	const rootScrollTopRef = useRef(0);
 	const mounted = phase !== "closed";
 	const expanded = phase === "opening" || phase === "open";
 
@@ -174,7 +178,10 @@ export function AccountMenu() {
 
 	const toggle = useCallback(() => {
 		const opening = phase === "closed" || phase === "closing";
-		if (opening) setView("root");
+		if (opening) {
+			setView("root");
+			rootScrollTopRef.current = 0;
+		}
 		setPhase(
 			opening
 				? prefersReducedMotion()
@@ -186,20 +193,22 @@ export function AccountMenu() {
 		);
 	}, [phase]);
 
-	const enterView = useCallback((next: Exclude<PanelView, "root">) => {
-		setView(next);
-		requestAnimationFrame(() => backButtonRef.current?.focus());
+	const enterWorld = useCallback(() => {
+		rootScrollTopRef.current = panelRef.current?.scrollTop ?? 0;
+		setView("world");
+		requestAnimationFrame(() => {
+			panelRef.current?.scrollTo({ top: 0 });
+			backButtonRef.current?.focus();
+		});
 	}, []);
 
-	const returnToRoot = useCallback(
-		(origin: Exclude<PanelView, "root">) => {
-			setView("root");
-			requestAnimationFrame(() => {
-				(origin === "world" ? worldButtonRef : toolsButtonRef).current?.focus();
-			});
-		},
-		[],
-	);
+	const returnToRoot = useCallback(() => {
+		setView("root");
+		requestAnimationFrame(() => {
+			panelRef.current?.scrollTo({ top: rootScrollTopRef.current });
+			worldButtonRef.current?.focus();
+		});
+	}, []);
 
 	const tools = useMemo(
 		() => visibleToolNavigationItems(projection?.capabilities ?? []),
@@ -219,6 +228,7 @@ export function AccountMenu() {
 	useEffect(() => {
 		close(false);
 		setView("root");
+		rootScrollTopRef.current = 0;
 		setAvatarFailed(false);
 		setReturnPath(
 			typeof window === "undefined"
@@ -279,10 +289,6 @@ export function AccountMenu() {
 		WORLD_PUBLIC_ITEMS.some((item) =>
 			isCurrentNavigationPath(pathname, item.href),
 		);
-	const toolsCurrent = tools.some(
-		(item) =>
-			item.href !== "/mundo" && isCurrentNavigationPath(pathname, item.href),
-	);
 
 	return (
 		<div className="account-menu" ref={rootRef}>
@@ -314,6 +320,7 @@ export function AccountMenu() {
 
 			{mounted ? (
 				<section
+					ref={panelRef}
 					className="account-menu-panel"
 					id={PANEL_ID}
 					data-state={phase}
@@ -334,42 +341,67 @@ export function AccountMenu() {
 					<nav className="account-menu-navigation" aria-label="Navegação principal">
 						{view === "root" ? (
 							<div className="global-nav-view" data-view="root">
-								<h2 id="global-menu-public-title">Explorar</h2>
-								<ul
-									className="global-nav-list"
+								<section
+									className="global-nav-section global-nav-section--explore"
+									data-nav-section="explore"
 									aria-labelledby="global-menu-public-title"
 								>
-									{PRIMARY_PUBLIC_ITEMS.map((item) =>
-										item.href === "/mundo" ? (
-											<DrilldownButton
-												key={item.href}
-												label={item.label}
-												icon={item.icon}
-												current={worldCurrent}
-												buttonRef={worldButtonRef}
-												onClick={() => enterView("world")}
-											/>
-										) : (
-											<NavigationRowLink
-												key={item.href}
-												item={item}
-												pathname={pathname}
-												onNavigate={closeAfterNavigate}
-											/>
-										),
-									)}
-									{tools.length > 0 ? (
-										<DrilldownButton
-											label="Ferramentas"
-											icon="process"
-											current={toolsCurrent}
-											buttonRef={toolsButtonRef}
-											onClick={() => enterView("tools")}
-										/>
-									) : null}
-								</ul>
+									<h2 id="global-menu-public-title">Explorar</h2>
+									<ul
+										className="global-nav-grid"
+										aria-labelledby="global-menu-public-title"
+									>
+										{PRIMARY_PUBLIC_ITEMS.map((item) =>
+											item.href === "/mundo" ? (
+												<DrilldownCell
+													key={item.href}
+													label={item.label}
+													icon={item.icon}
+													current={worldCurrent}
+													buttonRef={worldButtonRef}
+													onClick={enterWorld}
+												/>
+											) : (
+												<NavigationCellLink
+													key={item.href}
+													item={item}
+													pathname={pathname}
+													onNavigate={closeAfterNavigate}
+												/>
+											),
+										)}
+									</ul>
+								</section>
+
+								{tools.length > 0 ? (
+									<section
+										className="global-nav-section global-nav-section--tools"
+										data-nav-section="tools"
+										aria-labelledby="global-menu-tools-title"
+									>
+										<h2 id="global-menu-tools-title">Ferramentas</h2>
+										<ul
+											className="global-nav-grid"
+											aria-labelledby="global-menu-tools-title"
+										>
+											{tools.map((item) => (
+												<NavigationCellLink
+													key={item.href + item.label}
+													item={item}
+													pathname={pathname}
+													current={
+														item.href === "/mundo"
+															? false
+															: isCurrentNavigationPath(pathname, item.href)
+													}
+													onNavigate={closeAfterNavigate}
+												/>
+											))}
+										</ul>
+									</section>
+								) : null}
 							</div>
-						) : view === "world" ? (
+						) : (
 							<div className="global-nav-view" data-view="world">
 								<div className="global-nav-context">
 									<button
@@ -377,63 +409,48 @@ export function AccountMenu() {
 										type="button"
 										className="global-nav-back"
 										aria-label="Voltar para Explorar"
-										onClick={() => returnToRoot("world")}
+										onClick={returnToRoot}
 									>
 										<span aria-hidden="true">←</span>
 										<span>Explorar</span>
 									</button>
-									<h2>Mundo</h2>
+									<h2 id="global-menu-world-title">Mundo</h2>
 								</div>
-								<ul className="global-nav-list" aria-label="Explorar Mundo">
-									{WORLD_ROOT_ITEM ? (
-										<NavigationRowLink
-											item={WORLD_ROOT_ITEM}
-											pathname={pathname}
-											onNavigate={closeAfterNavigate}
-											label="Explorar tudo"
-										/>
-									) : null}
-									{WORLD_PUBLIC_ITEMS.map((item) => (
-										<NavigationRowLink
-											key={item.href}
-											item={item}
-											pathname={pathname}
-											onNavigate={closeAfterNavigate}
-										/>
-									))}
-								</ul>
-							</div>
-						) : (
-							<div className="global-nav-view" data-view="tools">
-								<div className="global-nav-context">
-									<button
-										ref={backButtonRef}
-										type="button"
-										className="global-nav-back"
-										aria-label="Voltar para Explorar"
-										onClick={() => returnToRoot("tools")}
-									>
-										<span aria-hidden="true">←</span>
-										<span>Explorar</span>
-									</button>
-									<h2>Ferramentas</h2>
-								</div>
-								<ul className="global-nav-list" aria-label="Ferramentas autorizadas">
-									{tools.map((item) => (
-										<NavigationRowLink
-											key={item.href + item.label}
-											item={item}
-											pathname={pathname}
-											onNavigate={closeAfterNavigate}
-										/>
-									))}
-								</ul>
+								<section
+									className="global-nav-section global-nav-section--world"
+									data-nav-section="world"
+									aria-labelledby="global-menu-world-title"
+								>
+									<ul className="global-nav-grid" aria-label="Explorar Mundo">
+										{WORLD_ROOT_ITEM ? (
+											<NavigationCellLink
+												item={WORLD_ROOT_ITEM}
+												pathname={pathname}
+												onNavigate={closeAfterNavigate}
+												label="Explorar tudo"
+											/>
+										) : null}
+										{WORLD_PUBLIC_ITEMS.map((item) => (
+											<NavigationCellLink
+												key={item.href}
+												item={item}
+												pathname={pathname}
+												onNavigate={closeAfterNavigate}
+											/>
+										))}
+									</ul>
+								</section>
 							</div>
 						)}
 					</nav>
 
 					{view === "root" ? (
-						<div className="account-menu-utility">
+						<section
+							className="account-menu-utility global-nav-section global-nav-section--utility"
+							data-nav-section="utility"
+							aria-labelledby="global-menu-utility-title"
+						>
+							<h2 id="global-menu-utility-title">Conta e preferência</h2>
 							<div className="account-menu-account-block">
 								{projection === null ? (
 									<p className="account-menu-status" role="status">
@@ -501,7 +518,7 @@ export function AccountMenu() {
 									</button>
 								</form>
 							) : null}
-						</div>
+						</section>
 					) : null}
 				</section>
 			) : null}
