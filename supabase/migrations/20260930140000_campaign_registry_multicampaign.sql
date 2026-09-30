@@ -380,7 +380,7 @@ revoke execute on function public.enforce_participant_character_campaign() from 
 revoke execute on function public.enforce_participant_character_campaign() from authenticated;
 grant execute on function public.enforce_participant_character_campaign() to service_role;
 
-do $$
+do $
 begin
   if to_regclass('public.participants') is not null then
     if exists (
@@ -400,6 +400,71 @@ begin
     for each row
     execute function public.enforce_participant_character_campaign();
   end if;
-end $$;
+end $;
+
+create or replace function public.guard_session_campaign_move_participants()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog, public
+as $
+begin
+  if new.campaign_id is distinct from old.campaign_id
+     and exists (
+       select 1
+       from public.participants participant
+       join public.entities entity on entity.id = participant.character_entity_id
+       where participant.session_id = old.id
+         and participant.character_entity_id is not null
+         and entity.campaign_id <> new.campaign_id
+     ) then
+    raise exception 'session campaign move would create cross-campaign participant links';
+  end if;
+  return new;
+end;
+$;
+
+create or replace function public.guard_entity_campaign_move_participants()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog, public
+as $
+begin
+  if new.campaign_id is distinct from old.campaign_id
+     and exists (
+       select 1
+       from public.participants participant
+       join public.sessions session_row on session_row.id = participant.session_id
+       where participant.character_entity_id = old.id
+         and session_row.campaign_id <> new.campaign_id
+     ) then
+    raise exception 'entity campaign move would create cross-campaign participant links';
+  end if;
+  return new;
+end;
+$;
+
+revoke all on function public.guard_session_campaign_move_participants() from public;
+revoke execute on function public.guard_session_campaign_move_participants() from anon;
+revoke execute on function public.guard_session_campaign_move_participants() from authenticated;
+grant execute on function public.guard_session_campaign_move_participants() to service_role;
+
+revoke all on function public.guard_entity_campaign_move_participants() from public;
+revoke execute on function public.guard_entity_campaign_move_participants() from anon;
+revoke execute on function public.guard_entity_campaign_move_participants() from authenticated;
+grant execute on function public.guard_entity_campaign_move_participants() to service_role;
+
+drop trigger if exists sessions_participant_campaign_move_guard on public.sessions;
+create trigger sessions_participant_campaign_move_guard
+before update of campaign_id on public.sessions
+for each row
+execute function public.guard_session_campaign_move_participants();
+
+drop trigger if exists entities_participant_campaign_move_guard on public.entities;
+create trigger entities_participant_campaign_move_guard
+before update of campaign_id on public.entities
+for each row
+execute function public.guard_entity_campaign_move_participants();
 
 commit;
