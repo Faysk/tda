@@ -30,6 +30,7 @@ import {
 	parseLocalSources,
 	parseResultSummary,
 	parseSessionParticipantMapping,
+	parseSessionTranscriptionIntent,
 	parseSessionWorkspace,
 	parseSystemSnapshot,
 	runIdentifier,
@@ -330,6 +331,42 @@ export class LocalBridge {
 				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}`,
 				signal,
 				{},
+			),
+		);
+	}
+	async sessionTranscriptionIntent(
+		campaignId: string,
+		sessionId: string,
+		signal: AbortSignal,
+	) {
+		return parseSessionTranscriptionIntent(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/intent`,
+				signal,
+			),
+		);
+	}
+	async saveSessionTranscriptionIntent(
+		campaignId: string,
+		sessionId: string,
+		input: Readonly<{
+			requestId: string;
+			profileId: CraigTranscriptionInput["profileId"];
+			context: string;
+			glossary: string;
+		}>,
+		signal: AbortSignal,
+	) {
+		return parseSessionTranscriptionIntent(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/intent`,
+				signal,
+				{
+					request_id: identifier(input.requestId),
+					profile_id: input.profileId,
+					context: input.context,
+					glossary: input.glossary,
+				},
 			),
 		);
 	}

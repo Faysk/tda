@@ -307,3 +307,131 @@ def test_v11_store_migrates_participant_assignments_additively(tmp_path):
         "created",
         "updated",
     }
+
+
+def test_session_transcription_intent_is_local_durable_and_conflict_guarded(tmp_path):
+    store = Store(tmp_path)
+    store.ensure_session_workspace("campaign-intent", "session-intent")
+    saved = store.save_session_transcription_intent(
+        "campaign-intent",
+        "session-intent",
+        "intent-a",
+        "qwen-quality",
+        "mesa de quinta",
+        "Yuhara",
+    )
+    assert saved["schema_version"] == "tda_session_transcription_intent_v1"
+    assert saved["profile_id"] == "qwen-quality"
+    assert saved["context"] == "mesa de quinta"
+    assert saved["glossary"] == "Yuhara"
+    assert saved["context_sha256"] == __import__("hashlib").sha256(
+        "mesa de quinta".encode("utf-8")
+    ).hexdigest()
+    assert saved["glossary_sha256"] == __import__("hashlib").sha256(
+        "Yuhara".encode("utf-8")
+    ).hexdigest()
+
+    restarted = Store(tmp_path)
+    assert restarted.session_transcription_intent(
+        "campaign-intent", "session-intent"
+    ) == saved
+
+    repeated = restarted.save_session_transcription_intent(
+        "campaign-intent",
+        "session-intent",
+        "intent-a",
+        "qwen-quality",
+        "mesa de quinta",
+        "Yuhara",
+    )
+    assert repeated == saved
+
+    with pytest.raises(Conflict, match="SESSION_TRANSCRIPTION_INTENT_CONFLICT"):
+        restarted.save_session_transcription_intent(
+            "campaign-intent",
+            "session-intent",
+            "intent-a",
+            "qwen-quality",
+            "contexto alterado",
+            "Yuhara",
+        )
+
+    replaced = restarted.save_session_transcription_intent(
+        "campaign-intent",
+        "session-intent",
+        "intent-b",
+        "whisper-detailed",
+        "novo contexto",
+        "",
+    )
+    assert replaced["request_id"] == "intent-b"
+    assert replaced["profile_id"] == "whisper-detailed"
+    assert replaced["context"] == "novo contexto"
+    assert replaced["glossary"] == ""
+
+
+def test_session_transcription_intent_fails_closed_on_corrupt_identity(tmp_path):
+    store = Store(tmp_path)
+    store.ensure_session_workspace("campaign-corrupt", "session-corrupt")
+    store.save_session_transcription_intent(
+        "campaign-corrupt",
+        "session-corrupt",
+        "intent-corrupt",
+        "qwen-quality",
+        "contexto",
+        "glossario",
+    )
+    key = "session_transcription_intent:campaign-corrupt:session-corrupt"
+    with sqlite3.connect(store.path) as db:
+        raw = __import__("json").loads(
+            db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()[0]
+        )
+        raw["campaign_id"] = "other-campaign"
+        db.execute(
+            "UPDATE settings SET value=? WHERE key=?",
+            (__import__("json").dumps(raw), key),
+        )
+
+    with pytest.raises(Conflict, match="SESSION_TRANSCRIPTION_INTENT_CORRUPT"):
+        store.session_transcription_intent("campaign-corrupt", "session-corrupt")
+
+
+def test_v12_store_keeps_session_intent_in_existing_settings_for_rollback(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-v12", "session-v12")
+    workspace = store.attach_session_source(
+        "campaign-v12", "session-v12", source_id(1), workspace["revision"]
+    )
+    saved = store.save_session_transcription_intent(
+        "campaign-v12",
+        "session-v12",
+        "intent-v12",
+        "qwen-quality",
+        "contexto local",
+        "Yuhara",
+    )
+
+    with sqlite3.connect(store.path) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 12
+        tables = {
+            row[0]
+            for row in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        setting = db.execute(
+            "SELECT value FROM settings WHERE key=?",
+            ("session_transcription_intent:campaign-v12:session-v12",),
+        ).fetchone()
+    assert "session_transcription_intents" not in tables
+    assert setting is not None
+    assert "contexto local" in setting[0]
+    assert "Yuhara" in setting[0]
+
+    restarted = Store(tmp_path)
+    recovered = restarted.session_workspace("campaign-v12", "session-v12")
+    assert recovered["parts"][0]["source_id"] == source_id(1)
+    assert restarted.session_transcription_intent(
+        "campaign-v12", "session-v12"
+    ) == saved
+
