@@ -5,10 +5,24 @@ Este documento é o contrato vigente do reboot TDA. O repositório `Faysk/dnd-sc
 ## Identidades canônicas
 
 - Produto/projeto: `tda`.
-- Campanha principal: `yuhara-main`.
+- Registry de campanhas: `campaigns`; o sistema deve suportar N campanhas sem assumir uma única campanha vigente.
+- Campanha histórica/compatível: `yuhara-main`; esse slug técnico permanece estável para consumidores legados e RBAC existentes.
+- Segunda campanha registrada: `antes-que-seja-tarde`; o registro da campanha não implica criação automática de sessões, entities, memberships ou canon.
 - Supabase existente: `dmrqnbdvbkfqzctcerbx`.
 - `dnd-scribe` permanece temporariamente apenas como scope de compatibilidade do aplicativo legado enquanto ele estiver operacional.
 - Valores de proveniência como `craig`, `local_companion`, `discord` e `roll20` descrevem a origem dos dados e não devem ser renomeados para `tda`.
+
+### Identidade de Campaign
+
+Campanha possui identidades com responsabilidades diferentes:
+
+- `campaigns.id`: autoridade relacional estável. FKs e isolamento de dados devem usar o UUID da campanha;
+- `campaigns.slug`: identidade técnica/compatibilidade. É usada por consumidores existentes, RBAC e integrações e não deve ser renomeada para alterar apresentação ou URL pública;
+- `campaigns.public_slug`: identidade de rota/apresentação pública, evolutiva independentemente do slug técnico;
+- `campaigns.name`: nome editorial humano;
+- `campaigns.lifecycle_status`: lifecycle operacional do registro (`active | archived`).
+
+`public_slug` **não é scope de autorização**. Código de autorização deve resolver a campanha e trabalhar com `campaign_id`/scope canônico ou com os helpers de compatibilidade explicitamente documentados. Uma rota pública mudar não pode mudar silenciosamente a identidade RBAC da campanha.
 
 ## Vocabulário
 
@@ -87,83 +101,3 @@ Regra: **fonte → candidato → revisão → memória/publicação**. Nada deve
 - `role_assignments`
 - `dm_tenures`
 - `ordo_access_members`
-
-### Sessões e evidências
-- `sessions`
-- `participants`
-- `recording_files`
-- `transcript_segments`
-- `transcript_revisions` — snapshots completos e imutáveis da transcrição preparada ou corrigida no Edit; `sessions.current_transcript_revision_id` aponta para a revisão privada atual. Correções Web criam uma nova revision derivada (`parent_revision_id`) e alteram somente speaker/texto; timing e provenance permanecem herdados da revision anterior.
-- `session_editorial_drafts` — snapshots editoriais privados e imutáveis (capa/intenção, arco, título, descrições e resumo Markdown); `sessions.current_editorial_draft_id` aponta para o draft atual. Salvar draft não altera campos públicos da sessão.
-- `roll20_events`
-- `session_markers`
-- `table_notes`
-- `discord_interactions`
-- `historical_documents`
-
-### Revisão e memória narrativa
-- `segment_classifications`
-- `canon_candidates`
-- `quote_candidates`
-- `outtake_candidates`
-- `review_decisions`
-- `entities`
-- `entity_mentions`
-- `canon_entries`
-- `publications`
-- `audit_log`
-
-### Processamento local/cloud metadata
-- `processing_jobs`
-- `processing_job_steps`
-- `transcription_cache`
-- `ai_usage_ledger`
-- `craig_manifests`
-- `craig_track_extraction_steps`
-
-### Artefatos de áudio
-- `audio_chunks`
-- `audio_speech_slices`
-- `audio_artifacts`
-- `audio_artifact_events`
-- `audio_retention_policies`
-
-Essas tabelas registram pipeline e retenção. O reboot não deve reativar retenção cloud de áudio bruto.
-
-### Integração externa
-- `external_api_clients`
-- `external_api_keys`
-
-## Features futuras já sustentadas pelo modelo
-
-### Personagens e NPCs
-A base canônica é `entities`. PCs recebem vínculo com `profile_characters`; NPCs não precisam de profile humano. Ambos podem receber mentions, canon e relações futuras.
-
-### Lugares, itens, facções, organizações, arcos, conceitos, músicas e quests
-Já são tipos previstos em `entities`. Não criar tabelas independentes apenas para distinguir o tipo sem necessidade de dados estruturados específicos.
-
-### Relações / grafo
-O roadmap prevê relações e possível visualização com React Flow. Relações devem ser first-class edges entre entidades, com direção quando aplicável, visibilidade, estado e evidência/canon. O schema definitivo de relações ainda **não está aprovado**; não criar JSON solto em `entities.metadata` nem uma tabela prematura antes de fechar a semântica.
-
-Exemplos históricos que a modelagem deverá comportar: aliança, dívida, traição, família, segredo, conhecimento e conflito.
-
-### Conhecimento e audiência
-O histórico prevê separar conhecimento do jogador, personagem, público, rumor, mentira e segredo do mestre. Os campos de `visibility` existentes são uma base de audiência, mas um modelo de knowledge claims ainda precisa ser desenhado quando essa feature entrar no roadmap executável.
-
-### Busca semântica
-A busca futura deve indexar conteúdo derivado com referências às fontes e entidades. Embedding não altera o status canônico do conteúdo.
-
-### Intents
-Não foi encontrado um conceito canônico chamado `intent`/`intents` no schema atual nem na documentação histórica revisada. `item` é um tipo de entidade documentado e existente. Se `intent` representar outra feature, ela precisa de definição própria antes de virar tabela/coluna.
-
-## Regras de evolução
-
-1. Preferir migrations pequenas e reversíveis.
-2. Nunca apagar proveniência histórica para “renomear o produto”.
-3. Não duplicar identidade narrativa entre tabelas.
-4. JSONB é extensão, não substituto de relações estruturais importantes.
-5. Todo dado sensível precisa de audiência/permissão explícita antes de chegar ao browser.
-6. RLS sem policy pode ser deliberadamente fechado; não adicionar policies genéricas só para eliminar lint.
-7. `SECURITY DEFINER` exposto deve ter autorização interna revisada e grants explícitos.
-8. Canon exige fonte e revisão humana.
-9. Features futuras entram primeiro neste contrato e só depois no schema.
