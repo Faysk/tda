@@ -20,7 +20,6 @@ import {
 	BridgeError,
 	type BenchmarkResult,
 	type Capabilities,
-	type CraigSource,
 	type LocalRunSummary,
 	type PreparationStatus,
 	type SystemSnapshot,
@@ -66,7 +65,6 @@ import {
 	submissionEngineLabel,
 	submissionProfileLabel,
 	suggestSessionIdFromFilename,
-	validateCraigFile,
 } from "./submission-model";
 import styles from "./submission.module.css";
 const QWEN_RUNTIME_UPGRADE_REASON = "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED";
