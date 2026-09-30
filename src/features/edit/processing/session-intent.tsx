@@ -519,6 +519,7 @@ export function SessionIntentCoordinator({
 		return () => controller.abort();
 	}, [
 		begin,
+		bridge.sessionTranscriptionIntent,
 		disabled,
 		enabled,
 		fail,
