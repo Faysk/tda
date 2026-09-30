@@ -698,7 +698,7 @@ export function ProcessingSubmission({
 				id: crypto.randomUUID(),
 				sessionId,
 				sources: stagedSources.map((staged) => ({
-					source: staged,
+					sourceId: staged.sourceId,
 					label:
 						stagedSelections.find(
 							(item) => item.source?.sourceId === staged.sourceId,
