@@ -78,6 +78,84 @@ function parseCampaignRows<T>(
 	return result;
 }
 
+export type ResolvedPublicCampaign = PublicCampaign &
+	Readonly<{ technicalSlug: string }>;
+
+export type PublicCampaignResolution =
+	| Readonly<{
+		ok: true;
+		campaign: ResolvedPublicCampaign;
+		canonical: boolean;
+	  }>
+	| Readonly<{ ok: false; reason: "not_found" | "dependency_unavailable" }>;
+
+export async function resolvePublicCampaignRoute(
+	routeKey: string,
+): Promise<PublicCampaignResolution> {
+	if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(routeKey))
+		return { ok: false, reason: "not_found" };
+	const client = publishedDataClient();
+	if (!client) return { ok: false, reason: "dependency_unavailable" };
+
+	const canonical = await client
+		.from("campaigns")
+		.select("slug,public_slug,name,description")
+		.eq("public_slug", routeKey)
+		.eq("lifecycle", "active")
+		.eq("visibility", "public")
+		.maybeSingle();
+	if (canonical.error)
+		return { ok: false, reason: "dependency_unavailable" };
+	if (canonical.data) {
+		const parsed = parsePublicCampaign(
+			canonical.data as Record<string, unknown>,
+		);
+		const technicalSlug = stringOrNull(
+			(canonical.data as Record<string, unknown>).slug,
+		);
+		return parsed && technicalSlug
+			? {
+					ok: true,
+					campaign: { ...parsed, technicalSlug },
+					canonical: true,
+				}
+			: { ok: false, reason: "dependency_unavailable" };
+	}
+
+	const alias = await client
+		.from("campaign_public_route_aliases")
+		.select("campaign_id")
+		.eq("route_key", routeKey)
+		.is("retired_at", null)
+		.maybeSingle();
+	if (alias.error)
+		return { ok: false, reason: "dependency_unavailable" };
+	if (!alias.data?.campaign_id) return { ok: false, reason: "not_found" };
+
+	const resolved = await client
+		.from("campaigns")
+		.select("slug,public_slug,name,description")
+		.eq("id", alias.data.campaign_id)
+		.eq("lifecycle", "active")
+		.eq("visibility", "public")
+		.maybeSingle();
+	if (resolved.error)
+		return { ok: false, reason: "dependency_unavailable" };
+	if (!resolved.data) return { ok: false, reason: "not_found" };
+
+	const parsed = parsePublicCampaign(resolved.data as Record<string, unknown>);
+	const technicalSlug = stringOrNull(
+		(resolved.data as Record<string, unknown>).slug,
+	);
+	return parsed && technicalSlug
+		? {
+				ok: true,
+				campaign: { ...parsed, technicalSlug },
+				canonical: false,
+			}
+		: { ok: false, reason: "dependency_unavailable" };
+}
+
 export type CampaignDirectoryReadResult =
 	| Readonly<{ ok: true; campaigns: readonly PublicCampaign[] }>
 	| Readonly<{ ok: false; reason: "dependency_unavailable" }>;
