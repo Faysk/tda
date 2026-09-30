@@ -43,6 +43,8 @@ O technical slug continua estável porque ainda participa de contratos de compat
 
 Por isso rename editorial altera `name`; rename de URL pública altera `public_slug` + alias; nenhum dos dois renomeia `campaigns.slug` automaticamente.
 
+Inventário operacional dos consumidores atuais: [campaign identity — inventário de consumidores](database/campaign-identity-consumers.md).
+
 ### Campaign member e RBAC
 `campaign_members` é o membership histórico simples da campanha e ainda alimenta RPCs legadas. O modelo de autorização extensível usa `permission_catalog`, `role_definitions`, `role_permissions` e `role_assignments`.
 
