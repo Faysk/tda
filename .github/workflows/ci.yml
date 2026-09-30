@@ -103,6 +103,8 @@ jobs:
         run: python tools/transcript-sync-db.py </dev/null
       - name: First-class campaign registry SQL contract
         run: python tools/campaign-registry-db.py
+      - name: Cross-campaign authorization SQL contract
+        run: python tools/campaign-authorization-db.py
       - run: python tools/session-publication-db.py
       - run: python tools/world-layout-db.py
       - run: python tools/world-entity-media-db.py
