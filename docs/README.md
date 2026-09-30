@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: documentação/arquitetura
-> Última revisão: 2026-09-28
+> Última revisão: 2026-09-30
 > Fonte de verdade: `Faysk/tda@main` e documentos donos desta árvore
 
 > **Fonte de verdade do reboot.** Esta árvore documenta o produto, a arquitetura, o banco, a operação e as decisões vigentes do `Faysk/tda`.
@@ -53,8 +53,12 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Contexto e limites do sistema](architecture/system-context.md)
 - [Fluxos ponta a ponta](architecture/data-flows.md)
 - [Princípios e invariantes](architecture/invariants.md)
+- [Multi-campaign — contrato, rotas e rollout](architecture/multi-campaign.md) — identidade de campaign, matriz canônica/compatibilidade, boundaries e rollout faseado.
 - [ADR-0018 — core portátil, GitHub como control plane e providers substituíveis](adr/0018-portable-core-github-control-plane.md)
+- [ADR-0019 — sessão composta por múltiplas recording sources via assembly pós-ASR](adr/0019-multi-recording-session-assembly.md)
+- [ADR-0020 — campaigns first-class, identidade estável e rotas campaign-aware](adr/0020-first-class-campaigns.md)
 - [ADR-0019 — sessão composta por múltiplas recording sources via assembly pós-ASR](adr/0019-multi-recording-session-assembly.md) — decisão accepted; implementação multi-recording integrada e gated.
+- [ADR-0020 — campaigns first-class, identidade estável e rotas campaign-aware](adr/0020-first-class-campaigns.md) — decisão accepted para a evolução multi-campaign.
 - [Edit Workbench — boundary administrativo](architecture/edit-workbench.md)
 
 ### Design System e marca
@@ -196,7 +200,7 @@ Para mudanças concretas, a [política de documentação viva](documentation/REA
 ## Identidades e providers atuais
 
 - Produto: `tda`.
-- Campanha principal: `yuhara-main`.
+- Campaign legado/default: technical slug `yuhara-main`, preservado por compatibilidade; apresentação pública planejada **Crônicas da Mesa**. A arquitetura multi-campaign é regida por ADR-0020 e não trata esse slug como campaign única permanente.
 - Dados relacionais: PostgreSQL; provider atual Supabase, projeto `dmrqnbdvbkfqzctcerbx`.
 - Repositório vigente: `Faysk/tda`.
 - Legado: `Faysk/dnd-scribe`.
@@ -208,6 +212,6 @@ Para mudanças concretas, a [política de documentação viva](documentation/REA
 - Runtime/deploy: provider atual Vercel, conta/contexto `projeto-desenv-6905` / `projeto_desenv@outlook.com`.
 - Control plane: GitHub `Faysk/tda` + GitHub Actions. Providers externos são substituíveis e a infraestrutura é free-first.
 
-Última revisão estrutural: **2026-09-28**.
+Última revisão estrutural: **2026-09-30**.
 
 - [Do ZIP à produção — páginas e mídia com fidelidade](operations/zip-to-production.md) — preparação, preservação, integração, publicação e rollback.
