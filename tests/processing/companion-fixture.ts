@@ -53,6 +53,10 @@ export type CompanionFixtureOptions = {
 	reviewEnabled?: boolean;
 	additionalCapabilities?: readonly string[];
 	qwenRuntimeVersion?: string;
+	qwenRuntimeUpgradeRequired?: boolean;
+	qwenRuntimeStableVersion?: string | null;
+	qwenRuntimeManifestUnavailable?: boolean;
+	qwenRuntimeUpdateFailure?: string | null;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
@@ -66,6 +70,8 @@ export type CompanionFixtureState = {
 	jobPostCount: number;
 	preparationPostCount: number;
 	preparationProfiles: string[];
+	qwenRuntimeCheckPostCount: number;
+	qwenRuntimeUpdatePostCount: number;
 	idempotencyKeys: string[];
 	jobStatusesServed: string[];
 	job: Record<string, unknown> | null;
@@ -203,7 +209,9 @@ export async function installCompanionFixture(
 		options.benchmarkReadyProfiles ??
 			(options.profileReady ? [...benchmarkProfileIds] : []),
 	);
-	const qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.12";
+	let qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.12";
+	const qwenStableVersion = options.qwenRuntimeStableVersion ?? "1.0.12";
+	let qwenMaintenanceSequence = 0;
 	let preparationReads = 0;
 	let preparationStarted = false;
 	let preparationProfile = "qwen-quality";
@@ -219,6 +227,8 @@ export async function installCompanionFixture(
 		jobPostCount: 0,
 		preparationPostCount: 0,
 		preparationProfiles: [],
+		qwenRuntimeCheckPostCount: 0,
+		qwenRuntimeUpdatePostCount: 0,
 		idempotencyKeys: [],
 		jobStatusesServed: [],
 		job: options.initialJobs?.[0] ?? null,
@@ -291,13 +301,20 @@ export async function installCompanionFixture(
 		if (path === "/capabilities") {
 			if (options.benchmarkProfiles) {
 				const catalog = benchmarkProfileIds.map((id) => {
-					const ready = benchmarkPrepared.has(id);
+					const runtimeBlocked =
+						options.qwenRuntimeUpgradeRequired === true && id.startsWith("qwen-");
+					const ready = runtimeBlocked ? false : benchmarkPrepared.has(id);
 					return {
 						id,
 						engine: id.startsWith("qwen-") ? "qwen3" : "whisper",
 						ready,
-						preparation_required: !ready,
-						reason: ready ? null : "BENCHMARK_PROFILE_PREPARATION_REQUIRED",
+						preparation_required: runtimeBlocked ? false : !ready,
+						reason: ready
+							? null
+							: runtimeBlocked
+								? "QWEN_RUNTIME_REQUIRED"
+								: "BENCHMARK_PROFILE_PREPARATION_REQUIRED",
+						...(id.startsWith("qwen-") ? { runtime_version: qwenRuntimeVersion } : {}),
 					};
 				});
 				return json(route, {
@@ -307,31 +324,43 @@ export async function installCompanionFixture(
 						"transcription.craig",
 						"transcription.prepare",
 						"transcription.prepare.cancel",
+						"runtime.qwen.check",
+						"runtime.qwen.update",
 						"job.events",
 						"system.telemetry",
 					],
 					sync: false,
 					device: { id: "fixture-pc", label: "PC sintético" },
 					transcription: {
-						profiles: benchmarkProfileIds.filter((id) => benchmarkPrepared.has(id)),
+						profiles: benchmarkProfileIds.filter((id) =>
+							options.qwenRuntimeUpgradeRequired === true && id.startsWith("qwen-")
+								? false
+								: benchmarkPrepared.has(id),
+						),
 						catalog,
 						qwen_physical_gate: Object.fromEntries(
-							(["qwen-fast", "qwen-quality"] as const).map((id) => [
-								id,
-								benchmarkPrepared.has(id)
-									? {
-											status: "ready",
-											ready: true,
-											profile_id: id,
-											runtime_version: qwenRuntimeVersion,
-										}
-									: {
-											status: "missing",
-											ready: false,
-											profile_id: id,
-											reason: "BENCHMARK_PROFILE_PREPARATION_REQUIRED",
-										},
-							]),
+							(["qwen-fast", "qwen-quality"] as const).map((id) => {
+								const runtimeBlocked = options.qwenRuntimeUpgradeRequired === true;
+								return [
+									id,
+									!runtimeBlocked && benchmarkPrepared.has(id)
+										? {
+												status: "ready",
+												ready: true,
+												profile_id: id,
+												runtime_version: qwenRuntimeVersion,
+											}
+										: {
+												status: "missing",
+												ready: false,
+												profile_id: id,
+												runtime_version: qwenRuntimeVersion,
+												reason: runtimeBlocked
+													? "QWEN_GATE_RUNTIME_NOT_READY"
+													: "BENCHMARK_PROFILE_PREPARATION_REQUIRED",
+											},
+								];
+							}),
 						),
 					},
 				});
@@ -375,6 +404,109 @@ export async function installCompanionFixture(
 								},
 					},
 				},
+			});
+		}
+		if (path === "/qwen-runtime" && request.method() === "GET") {
+			qwenMaintenanceSequence += 1;
+			return json(route, {
+				schema: "tda_qwen_runtime_maintenance_v1",
+				state: options.qwenRuntimeUpdateFailure ? "failed" : "completed",
+				active: false,
+				operation_id: "qwen-runtime-fixture",
+				mode: "check",
+				stage: options.qwenRuntimeUpdateFailure ? "failed" : "complete",
+				title: "Qwen Runtime verificado.",
+				detail: "Fixture local.",
+				sequence: qwenMaintenanceSequence,
+				installed_status: "ready",
+				installed_version: qwenRuntimeVersion,
+				minimum_version: "1.0.12",
+				stable_status: options.qwenRuntimeManifestUnavailable
+					? "unavailable"
+					: qwenStableVersion && qwenStableVersion >= "1.0.12"
+						? "compatible"
+						: "below_minimum",
+				stable_version: options.qwenRuntimeManifestUnavailable ? null : qwenStableVersion,
+				stable_tag: options.qwenRuntimeManifestUnavailable || !qwenStableVersion
+					? null
+					: `companion-qwen-runtime-v${qwenStableVersion}`,
+				stable_size: options.qwenRuntimeManifestUnavailable ? null : 1024,
+				stable_part_count: options.qwenRuntimeManifestUnavailable ? null : 1,
+				update_available:
+					options.qwenRuntimeManifestUnavailable || !qwenStableVersion
+						? null
+						: qwenRuntimeVersion < qwenStableVersion && qwenStableVersion >= "1.0.12",
+				can_update:
+					!options.qwenRuntimeManifestUnavailable &&
+					Boolean(qwenStableVersion) &&
+					qwenRuntimeVersion < String(qwenStableVersion) &&
+					String(qwenStableVersion) >= "1.0.12",
+				error_code: options.qwenRuntimeManifestUnavailable
+					? "NETWORK_UNAVAILABLE"
+					: options.qwenRuntimeUpdateFailure ?? null,
+			});
+		}
+		if (path === "/qwen-runtime/check" && request.method() === "POST") {
+			state.qwenRuntimeCheckPostCount += 1;
+			return json(route, {
+				schema: "tda_qwen_runtime_maintenance_v1",
+				state: "completed",
+				active: false,
+				operation_id: "qwen-check-fixture",
+				mode: "check",
+				stage: "complete",
+				title: "Qwen Runtime verificado.",
+				detail: "Fixture local.",
+				sequence: ++qwenMaintenanceSequence,
+				installed_status: "ready",
+				installed_version: qwenRuntimeVersion,
+				minimum_version: "1.0.12",
+				stable_status: options.qwenRuntimeManifestUnavailable
+					? "unavailable"
+					: qwenStableVersion && qwenStableVersion >= "1.0.12"
+						? "compatible"
+						: "below_minimum",
+				stable_version: options.qwenRuntimeManifestUnavailable ? null : qwenStableVersion,
+				stable_tag: options.qwenRuntimeManifestUnavailable || !qwenStableVersion ? null : `companion-qwen-runtime-v${qwenStableVersion}`,
+				stable_size: options.qwenRuntimeManifestUnavailable ? null : 1024,
+				stable_part_count: options.qwenRuntimeManifestUnavailable ? null : 1,
+				update_available: options.qwenRuntimeManifestUnavailable || !qwenStableVersion ? null : qwenRuntimeVersion < qwenStableVersion && qwenStableVersion >= "1.0.12",
+				can_update: !options.qwenRuntimeManifestUnavailable && Boolean(qwenStableVersion) && qwenRuntimeVersion < String(qwenStableVersion) && String(qwenStableVersion) >= "1.0.12",
+				error_code: options.qwenRuntimeManifestUnavailable ? "NETWORK_UNAVAILABLE" : null,
+			});
+		}
+		if (path === "/qwen-runtime/update" && request.method() === "POST") {
+			state.qwenRuntimeUpdatePostCount += 1;
+			if (options.qwenRuntimeUpdateFailure) {
+				return json(route, {
+					error: { code: options.qwenRuntimeUpdateFailure, recoverable: true },
+				}, 409);
+			}
+			if (qwenStableVersion) qwenRuntimeVersion = qwenStableVersion;
+			benchmarkPrepared.add("qwen-fast");
+			benchmarkPrepared.add("qwen-quality");
+			options.qwenRuntimeUpgradeRequired = false;
+			return json(route, {
+				schema: "tda_qwen_runtime_maintenance_v1",
+				state: "completed",
+				active: false,
+				operation_id: "qwen-update-fixture",
+				mode: "update",
+				stage: "complete",
+				title: "Qwen Runtime atualizado.",
+				detail: "Prontidão será recalculada pelo Companion.",
+				sequence: ++qwenMaintenanceSequence,
+				installed_status: "ready",
+				installed_version: qwenRuntimeVersion,
+				minimum_version: "1.0.12",
+				stable_status: "compatible",
+				stable_version: qwenStableVersion,
+				stable_tag: qwenStableVersion ? `companion-qwen-runtime-v${qwenStableVersion}` : null,
+				stable_size: 1024,
+				stable_part_count: 1,
+				update_available: false,
+				can_update: false,
+				error_code: null,
 			});
 		}
 		if (path === "/system") {
