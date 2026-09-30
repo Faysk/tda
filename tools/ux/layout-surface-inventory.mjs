@@ -5,9 +5,12 @@ import { pathToFileURL } from "node:url";
 
 const EXPECTED = {
 	appPages: [
+		"src/app/campanhas/[campaignSlug]/sessoes/page.tsx",
+		"src/app/campanhas/page.tsx",
 		"src/app/conta/page.tsx",
 		"src/app/diario/page.tsx",
 		"src/app/edit/[campaignSlug]/permissions/page.tsx",
+		"src/app/edit/campanhas/page.tsx",
 		"src/app/edit/mundo/page.tsx",
 		"src/app/edit/page.tsx",
 		"src/app/edit/processamento/page.tsx",

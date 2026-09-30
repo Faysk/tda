@@ -267,7 +267,7 @@ Antes de ativar a segunda campaign:
 | --- | --- |
 | #1123 registry/schema | [Modelo de dados](../data-model.md) + docs de banco |
 | #1134 security/discovery | [Identidade e autorização](../domains/identity-access.md) + [database/security](../database/security.md) |
-| #1124 directory | este contrato + spec de campaign directory quando criada |
+| #1124 directory | [Diretório e gestão de campanhas](../features/campaign-directory.md) |
 | #1125 public sessions | [Campanhas e sessões](../domains/sessions.md) |
 | #1127 Home | este contrato + owner da Home |
 | #1128 processing | [Processamento local](../features/local-processing.md) |
