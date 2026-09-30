@@ -395,6 +395,14 @@ export function ProcessingPanel({
 			run.publicationTarget === null ||
 			run.publicationTarget.campaignSlug === campaignId,
 	);
+	const resultJob =
+		state.result === null
+			? null
+			: (state.jobs.find((job) => job.id === state.result?.jobId) ?? null);
+	const resultVisibleInCampaign =
+		state.result !== null &&
+		(state.result.campaignId === campaignId ||
+			resultJob?.kind === "synthetic.fixture");
 	const label = connected
 		? { preparing: "Em preparação", ready: "Pronto", paused: "Fila pausada" }[
 				state.health?.lifecycle ?? "preparing"
@@ -539,7 +547,7 @@ export function ProcessingPanel({
 			return message;
 		}
 
-		if (result.campaignId !== campaignId) {
+		if (job.kind !== "synthetic.fixture" && result.campaignId !== campaignId) {
 			const message =
 				"O Companion retornou um resultado de outra campanha. O resultado foi preservado, mas esta tela não vai abri-lo neste contexto.";
 			setResultOpenError(message);
@@ -1218,7 +1226,7 @@ export function ProcessingPanel({
 									)}
 								</p>
 							</div>
-							{state.result?.campaignId === campaignId ? (
+							{resultVisibleInCampaign && state.result ? (
 								<div className={styles.resultSummary} role="status">
 									<span>Resultado local</span>
 									<strong>{state.result.sessionId}</strong>
