@@ -383,7 +383,8 @@ export function ProcessingPanel({
 
 	const connected = state.connection === "connected";
 	const campaignJobs = state.jobs.filter(
-		(job) => job.context?.campaignId === campaignId,
+		(job) =>
+			job.kind === "synthetic.fixture" || job.context?.campaignId === campaignId,
 	);
 	const diagnosticJobs = state.jobs.filter(
 		(job) =>
@@ -548,7 +549,8 @@ export function ProcessingPanel({
 			.snapshot()
 			.localRuns.some(
 				(run) =>
-					run.publicationTarget?.campaignSlug === campaignId &&
+					(run.publicationTarget === null ||
+						run.publicationTarget.campaignSlug === campaignId) &&
 					run.sourceId === result.sourceId &&
 					run.runId === result.runId &&
 					(!result.transcriptSha256 ||
