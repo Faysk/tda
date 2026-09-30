@@ -44,6 +44,7 @@ const EXACT = {
 		"src/components/public-navigation-model.ts",
 		"src/components/theme-toggle.tsx",
 		"src/features/world-explorer/hooks/use-world-edit-session.ts",
+		"src/features/world-explorer/components/world-conductor-bar.tsx",
 		"src/components/ui/form-submit-button.tsx",
 		"src/components/ui/button.tsx",
 		"src/components/session-list.tsx",

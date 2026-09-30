@@ -588,6 +588,7 @@ export function WorldExplorerClient({
 			context={commandContext}
 			canEditContent={canEditContent}
 			busy={edit.busy}
+			pendingAction={edit.terminalAction}
 			focusMode={authoringActive && authoringUi.focusMode}
 			inspectorOpen={!authoringUi.inspectorCollapsed}
 			onEnter={edit.start}

@@ -722,6 +722,7 @@ export function useWorldEditSession({
 		state,
 		editing,
 		busy,
+		terminalAction,
 		hasChanges,
 		graphDraft,
 		feedback,
