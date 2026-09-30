@@ -9,8 +9,8 @@ import {
 	type SessionAssemblyReviewSelection,
 } from "./session-assembly-results-model";
 import {
+	readSessionComposerLastSessionPointer,
 	SESSION_COMPOSER_CHANGE_EVENT,
-	sessionComposerLastSessionKey,
 } from "./session-composer-storage";
 import type { SessionAssemblyListItem } from "./session-composer-protocol";
 import styles from "./session-assembly-results.module.css";
@@ -26,7 +26,7 @@ function short(value: string, size = 12) {
 
 function readSessionId(campaignId: string): string | null {
 	try {
-		const value = window.localStorage.getItem(sessionComposerLastSessionKey(campaignId));
+		const value = readSessionComposerLastSessionPointer(window.localStorage, campaignId);
 		return value && /^[A-Za-z0-9_-]{1,128}$/u.test(value) ? value : null;
 	} catch {
 		return null;
