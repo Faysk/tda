@@ -85,8 +85,9 @@ export function chooseIntentRun(
 	if (part.selectedRunId) return { kind: "selected", runId: part.selectedRunId };
 	if (intentRunId && runs.some((run) => run.runId === intentRunId))
 		return { kind: "automatic", runId: intentRunId, reason: "intent_job" };
-	if (runs.length === 1)
-		return { kind: "automatic", runId: runs[0]!.runId, reason: "single_run" };
+	const onlyRun = runs.length === 1 ? runs[0] : undefined;
+	if (onlyRun)
+		return { kind: "automatic", runId: onlyRun.runId, reason: "single_run" };
 	if (runs.length > 1)
 		return { kind: "ambiguous", runIds: runs.map((run) => run.runId) };
 	return { kind: "missing" };
