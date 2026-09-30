@@ -15,6 +15,7 @@ from .session_assemblies import (
     assembly_root,
     load_session_assembly_transcript,
 )
+from .session_timeline import classify_start_time
 
 ASSEMBLY_REVIEW_SCHEMA_VERSION = "tda_session_assembly_review_draft_v1"
 ASSEMBLY_REVIEW_RESPONSE_SCHEMA_VERSION = "tda_session_assembly_review_v1"
@@ -101,6 +102,47 @@ def _read_json(path: Path, maximum: int, missing_code: str, invalid_code: str) -
     return value, payload
 
 
+def _absolute_time_fields(segment: dict[str, Any]) -> dict[str, Any]:
+    state = segment.get("absolute_time_state")
+    start = segment.get("absolute_start")
+    end = segment.get("absolute_end")
+    source = segment.get("absolute_time_source")
+    if state == "unavailable":
+        if start is not None or end is not None or source is not None:
+            raise SessionAssemblyReviewError("SESSION_ASSEMBLY_REVIEW_ABSOLUTE_TIME_INVALID")
+        return {
+            "absolute_start": None,
+            "absolute_end": None,
+            "absolute_time_state": "unavailable",
+            "absolute_time_source": None,
+        }
+    if state != "trusted_absolute":
+        raise SessionAssemblyReviewError("SESSION_ASSEMBLY_REVIEW_ABSOLUTE_TIME_INVALID")
+    if (
+        not isinstance(start, str)
+        or not isinstance(end, str)
+        or not isinstance(source, str)
+        or not source
+        or len(source) > 160
+        or classify_start_time(start)["confidence"] != "trusted_absolute"
+        or classify_start_time(end)["confidence"] != "trusted_absolute"
+    ):
+        raise SessionAssemblyReviewError("SESSION_ASSEMBLY_REVIEW_ABSOLUTE_TIME_INVALID")
+    try:
+        start_instant = datetime.fromisoformat(start.replace("Z", "+00:00"))
+        end_instant = datetime.fromisoformat(end.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise SessionAssemblyReviewError("SESSION_ASSEMBLY_REVIEW_ABSOLUTE_TIME_INVALID") from exc
+    if end_instant < start_instant:
+        raise SessionAssemblyReviewError("SESSION_ASSEMBLY_REVIEW_ABSOLUTE_TIME_INVALID")
+    return {
+        "absolute_start": start,
+        "absolute_end": end,
+        "absolute_time_state": "trusted_absolute",
+        "absolute_time_source": source,
+    }
+
+
 def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
     raw = transcript.get("segments")
     if not isinstance(raw, list) or len(raw) > _MAX_SEGMENTS:
@@ -124,6 +166,7 @@ def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
                 "end",
             )
         }
+        absolute_time = _absolute_time_fields(segment)
         text = segment.get("text")
         speaker = segment.get("speaker")
         if (
@@ -141,6 +184,7 @@ def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
             {
                 "assembly_segment_id": segment_id,
                 **immutable,
+                **absolute_time,
                 "text": text,
                 "speaker": speaker,
                 "reviewed": False,
@@ -163,6 +207,10 @@ def _validate_segments(candidate: Any, base_segments: list[dict[str, Any]]) -> l
         "participant_id",
         "start",
         "end",
+        "absolute_start",
+        "absolute_end",
+        "absolute_time_state",
+        "absolute_time_source",
     )
     for raw in candidate:
         if not isinstance(raw, dict):

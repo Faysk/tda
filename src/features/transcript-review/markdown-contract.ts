@@ -1,3 +1,4 @@
+import { parseTrustedAbsoluteTime, wallClockPresentation, type TrustedAbsoluteTime } from "./time-contract";
 import { isReviewStringV1 } from "./text-contract";
 
 export const TRANSCRIPT_MARKDOWN_SCHEMA = 1 as const;
@@ -23,6 +24,7 @@ export type TranscriptMarkdownSegment = Readonly<{
 	id: string;
 	startMs: number;
 	endMs: number;
+	absoluteTime?: TrustedAbsoluteTime | null;
 	speaker: string;
 	text: string;
 }>;
@@ -106,6 +108,36 @@ function assertMs(value: number, field: string): void {
 		throw new TranscriptMarkdownError("MARKER_INVALID", field);
 }
 
+function trustedSegmentAbsoluteTime(
+	segment: Pick<TranscriptMarkdownSegment, "absoluteTime" | "id">,
+): TrustedAbsoluteTime | null {
+	if (!segment.absoluteTime) return null;
+	const parsed = parseTrustedAbsoluteTime({
+		state: "trusted_absolute",
+		start: segment.absoluteTime.startIso,
+		end: segment.absoluteTime.endIso,
+		source: segment.absoluteTime.source,
+	});
+	if (
+		!parsed ||
+		parsed.startIso !== segment.absoluteTime.startIso ||
+		parsed.endIso !== segment.absoluteTime.endIso ||
+		parsed.source !== segment.absoluteTime.source
+	)
+		throw new TranscriptMarkdownError("TIMING_CHANGED", "invalid trusted absolute time", {
+			id: segment.id,
+		});
+	return parsed;
+}
+
+function sameAbsoluteTime(
+	a: TrustedAbsoluteTime | null | undefined,
+	b: TrustedAbsoluteTime | null | undefined,
+): boolean {
+	if (!a || !b) return !a && !b;
+	return a.startIso === b.startIso && a.endIso === b.endIso && a.source === b.source;
+}
+
 function formatTimestamp(milliseconds: number): string {
 	const hours = Math.floor(milliseconds / 3_600_000);
 	const minutes = Math.floor((milliseconds % 3_600_000) / 60_000);
@@ -184,6 +216,7 @@ function validateSegments(
 			throw new TranscriptMarkdownError("TIMING_CHANGED", "end before start", {
 				id: segment.id,
 			});
+		trustedSegmentAbsoluteTime(segment);
 		if (!validateEditable) continue;
 		if (!isReviewStringV1(segment.speaker, "speaker"))
 			throw new TranscriptMarkdownError("SPEAKER_INVALID", "speaker invalid", {
@@ -206,7 +239,7 @@ function validateSegments(
 
 function canonicalStructure(
 	base: TranscriptMarkdownBase,
-	segments: readonly Pick<TranscriptMarkdownSegment, "id" | "startMs" | "endMs">[],
+	segments: readonly Pick<TranscriptMarkdownSegment, "id" | "startMs" | "endMs" | "absoluteTime">[],
 ): string {
 	return JSON.stringify({
 		schema: TRANSCRIPT_MARKDOWN_SCHEMA,
@@ -215,11 +248,21 @@ function canonicalStructure(
 		base_id: base.baseId,
 		base_revision: base.baseRevision,
 		base_sha256: base.baseSha256,
-		segments: segments.map((segment) => ({
-			id: segment.id,
-			start_ms: segment.startMs,
-			end_ms: segment.endMs,
-		})),
+		segments: segments.map((segment) => {
+			const absoluteTime = trustedSegmentAbsoluteTime(segment);
+			return {
+				id: segment.id,
+				start_ms: segment.startMs,
+				end_ms: segment.endMs,
+				...(absoluteTime
+					? {
+							absolute_start: absoluteTime.startIso,
+							absolute_end: absoluteTime.endIso,
+							absolute_source: absoluteTime.source,
+						}
+					: {}),
+			};
+		}),
 	});
 }
 
@@ -247,13 +290,23 @@ export async function transcriptMarkdownContentSha256(
 	validateSegments(segments);
 	return sha256Hex(
 		JSON.stringify(
-			segments.map((segment) => ({
-				id: segment.id,
-				start_ms: segment.startMs,
-				end_ms: segment.endMs,
-				speaker: canonicalEditableText(segment.speaker),
-				text: canonicalEditableText(segment.text),
-			})),
+			segments.map((segment) => {
+				const absoluteTime = trustedSegmentAbsoluteTime(segment);
+				return {
+					id: segment.id,
+					start_ms: segment.startMs,
+					end_ms: segment.endMs,
+					...(absoluteTime
+						? {
+								absolute_start: absoluteTime.startIso,
+								absolute_end: absoluteTime.endIso,
+								absolute_source: absoluteTime.source,
+							}
+						: {}),
+					speaker: canonicalEditableText(segment.speaker),
+					text: canonicalEditableText(segment.text),
+				};
+			}),
 		),
 	);
 }
@@ -292,15 +345,30 @@ export async function renderTranscriptMarkdownV1(input: {
 		"",
 	];
 	for (const segment of input.segments) {
-		lines.push(
+		const absoluteTime = trustedSegmentAbsoluteTime(segment);
+		const wallClock = absoluteTime ? wallClockPresentation(absoluteTime.startIso) : null;
+		const marker =
 			"<!-- tda:segment id=" +
-				JSON.stringify(segment.id) +
-				' start_ms="' +
-				segment.startMs +
-				'" end_ms="' +
-				segment.endMs +
-				'" -->',
-			"[" + formatTimestamp(segment.startMs) + "] **" + escapeSpeaker(canonicalEditableText(segment.speaker)) + "**",
+			JSON.stringify(segment.id) +
+			' start_ms="' +
+			segment.startMs +
+			'" end_ms="' +
+			segment.endMs +
+			'"' +
+			(absoluteTime
+				? " absolute_start=" +
+					JSON.stringify(absoluteTime.startIso) +
+					" absolute_end=" +
+					JSON.stringify(absoluteTime.endIso) +
+					" absolute_source=" +
+					JSON.stringify(absoluteTime.source)
+				: "") +
+			" -->";
+		const visibleTime =
+			formatTimestamp(segment.startMs) + (wallClock ? " | " + wallClock.clock : "");
+		lines.push(
+			marker,
+			"[" + visibleTime + "] **" + escapeSpeaker(canonicalEditableText(segment.speaker)) + "**",
 			canonicalEditableText(segment.text),
 			"",
 		);
@@ -375,14 +443,41 @@ function parseFrontmatter(lines: readonly string[]) {
 	return { base, structureSha256, bodyStart };
 }
 
-function parseMarker(line: string): { id: string; startMs: number; endMs: number } | null {
+function parseMarker(line: string): {
+	id: string;
+	startMs: number;
+	endMs: number;
+	absoluteTime?: TrustedAbsoluteTime;
+} | null {
 	if (!line.startsWith("<!-- tda:segment ")) return null;
 	if (line.length > MAX_LINE_CHARS) throw new TranscriptMarkdownError("MARKER_INVALID");
-	const match = /^<!-- tda:segment id=("(?:\\.|[^"\\])*") start_ms="(\d{1,16})" end_ms="(\d{1,16})" -->$/u.exec(line);
+	const jsonString = '("(?:\\\\.|[^"\\\\])*")';
+	const pattern = new RegExp(
+		'^<!-- tda:segment id=' +
+			jsonString +
+			' start_ms="(\\d{1,16})" end_ms="(\\d{1,16})"' +
+			'(?: absolute_start=' +
+			jsonString +
+			' absolute_end=' +
+			jsonString +
+			' absolute_source=' +
+			jsonString +
+			')? -->$',
+		"u",
+	);
+	const match = pattern.exec(line);
 	if (!match) throw new TranscriptMarkdownError("MARKER_INVALID");
 	let id: unknown;
+	let absoluteStart: unknown;
+	let absoluteEnd: unknown;
+	let absoluteSource: unknown;
 	try {
 		id = JSON.parse(match[1]);
+		if (match[4] !== undefined) {
+			absoluteStart = JSON.parse(match[4]);
+			absoluteEnd = JSON.parse(match[5]);
+			absoluteSource = JSON.parse(match[6]);
+		}
 	} catch {
 		throw new TranscriptMarkdownError("MARKER_INVALID");
 	}
@@ -392,18 +487,49 @@ function parseMarker(line: string): { id: string; startMs: number; endMs: number
 	const endMs = Number(match[3]);
 	assertMs(startMs, "segment.start_ms");
 	assertMs(endMs, "segment.end_ms");
-	if (endMs < startMs) throw new TranscriptMarkdownError("TIMING_CHANGED", "end before start", { id });
-	return { id, startMs, endMs };
+	if (endMs < startMs)
+		throw new TranscriptMarkdownError("TIMING_CHANGED", "end before start", { id });
+	if (match[4] === undefined) return { id, startMs, endMs };
+	const absoluteTime = parseTrustedAbsoluteTime({
+		state: "trusted_absolute",
+		start: absoluteStart,
+		end: absoluteEnd,
+		source: absoluteSource,
+	});
+	if (!absoluteTime)
+		throw new TranscriptMarkdownError("TIMING_CHANGED", "invalid trusted absolute time", {
+			id,
+		});
+	return { id, startMs, endMs, absoluteTime };
 }
 
-function parseHeader(line: string, expectedStartMs: number): string {
+function parseHeader(
+	line: string,
+	expectedStartMs: number,
+	expectedAbsoluteTime?: TrustedAbsoluteTime | null,
+): string {
 	if (line.length > MAX_LINE_CHARS) throw new TranscriptMarkdownError("SPEAKER_INVALID");
-	const match = /^\[([^\]]{1,64})\] \*\*(.*)\*\*$/u.exec(line);
+	const match = /^\[([^\]]{1,96})\] \*\*(.*)\*\*$/u.exec(line);
 	if (!match) throw new TranscriptMarkdownError("SPEAKER_INVALID");
-	if (parseTimestamp(match[1]) !== expectedStartMs)
+	const visibleParts = match[1].split(" | ");
+	if (
+		visibleParts.length < 1 ||
+		visibleParts.length > 2 ||
+		parseTimestamp(visibleParts[0]) !== expectedStartMs
+	)
+		throw new TranscriptMarkdownError("VISIBLE_TIMESTAMP_CHANGED");
+	const expectedWallClock = expectedAbsoluteTime
+		? wallClockPresentation(expectedAbsoluteTime.startIso)?.clock ?? null
+		: null;
+	if (
+		(expectedWallClock === null && visibleParts.length !== 1) ||
+		(expectedWallClock !== null &&
+			(visibleParts.length !== 2 || visibleParts[1] !== expectedWallClock))
+	)
 		throw new TranscriptMarkdownError("VISIBLE_TIMESTAMP_CHANGED");
 	const speaker = canonicalEditableText(unescapeSpeaker(match[2]));
-	if (!isReviewStringV1(speaker, "speaker")) throw new TranscriptMarkdownError("SPEAKER_INVALID");
+	if (!isReviewStringV1(speaker, "speaker"))
+		throw new TranscriptMarkdownError("SPEAKER_INVALID");
 	return speaker;
 }
 
@@ -458,11 +584,15 @@ export async function parseTranscriptMarkdownV1(input: {
 		seen.add(marker.id);
 		if (input.expectedSegments[parsed.length]?.id !== marker.id)
 			throw new TranscriptMarkdownError("SEGMENT_REORDERED", "segment order changed", { id: marker.id });
-		if (marker.startMs !== expected.startMs || marker.endMs !== expected.endMs)
+		if (
+			marker.startMs !== expected.startMs ||
+			marker.endMs !== expected.endMs ||
+			!sameAbsoluteTime(marker.absoluteTime, expected.absoluteTime)
+		)
 			throw new TranscriptMarkdownError("TIMING_CHANGED", "timing changed", { id: marker.id });
 		index += 1;
 		if (index >= lines.length) throw new TranscriptMarkdownError("SPEAKER_INVALID");
-		const speaker = parseHeader(lines[index], marker.startMs);
+		const speaker = parseHeader(lines[index], marker.startMs, marker.absoluteTime);
 		index += 1;
 		const textLines: string[] = [];
 		while (index < lines.length && !lines[index].startsWith("<!-- tda:segment ")) {
@@ -473,7 +603,14 @@ export async function parseTranscriptMarkdownV1(input: {
 		const text = canonicalEditableText(textLines.join("\n"));
 		if (!isReviewStringV1(text, "text"))
 			throw new TranscriptMarkdownError("TEXT_INVALID", "text invalid", { id: marker.id });
-		parsed.push({ id: marker.id, startMs: marker.startMs, endMs: marker.endMs, speaker, text });
+		parsed.push({
+			id: marker.id,
+			startMs: marker.startMs,
+			endMs: marker.endMs,
+			...(marker.absoluteTime ? { absoluteTime: marker.absoluteTime } : {}),
+			speaker,
+			text,
+		});
 	}
 	if (parsed.length !== input.expectedSegments.length)
 		throw new TranscriptMarkdownError("MARKER_MISSING", "missing markers", {

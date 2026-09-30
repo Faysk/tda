@@ -1,3 +1,4 @@
+import { parseTrustedAbsoluteTime, type TrustedAbsoluteTime } from "../../transcript-review/time-contract";
 import {
 	renderTranscriptMarkdownV1,
 	transcriptMarkdownContentSha256,
@@ -11,6 +12,7 @@ export type TranscriptReaderSegment = Readonly<{
 	trackNumber: number;
 	startMs: number;
 	endMs: number;
+	absoluteTime?: TrustedAbsoluteTime | null;
 	speaker: string;
 	text: string;
 }>;
@@ -43,6 +45,26 @@ export function normalizeRevisionSegments(raw: unknown): TranscriptReaderSegment
 		const segmentId = typeof row.segment_id === "string" ? row.segment_id : "";
 		const text = typeof row.text === "string" ? row.text : "";
 		const speaker = typeof row.speaker === "string" ? row.speaker : "";
+		let absoluteTime: TrustedAbsoluteTime | null | undefined;
+		if (row.absolute_time_state !== undefined) {
+			if (row.absolute_time_state === "trusted_absolute") {
+				absoluteTime = parseTrustedAbsoluteTime({
+					state: row.absolute_time_state,
+					start: row.absolute_start,
+					end: row.absolute_end,
+					source: row.absolute_time_source,
+				});
+				if (!absoluteTime) throw new Error("Transcript revision absolute time is invalid");
+			} else if (row.absolute_time_state === "unavailable") {
+				if (
+					(row.absolute_start !== null && row.absolute_start !== undefined) ||
+					(row.absolute_end !== null && row.absolute_end !== undefined) ||
+					(row.absolute_time_source !== null && row.absolute_time_source !== undefined)
+				)
+					throw new Error("Transcript revision absolute time is invalid");
+				absoluteTime = null;
+			} else throw new Error("Transcript revision absolute time is invalid");
+		}
 		if (
 			trackNumber === null ||
 			trackNumber < 1 ||
@@ -63,6 +85,7 @@ export function normalizeRevisionSegments(raw: unknown): TranscriptReaderSegment
 			trackNumber,
 			startMs: Math.round(start * 1000),
 			endMs: Math.round(end * 1000),
+			...(absoluteTime !== undefined ? { absoluteTime } : {}),
 			speaker,
 			text,
 			_originalIndex: index,
@@ -153,6 +176,7 @@ function markdownSegment(segment: TranscriptReaderSegment): TranscriptMarkdownSe
 		id: segment.id,
 		startMs: segment.startMs,
 		endMs: segment.endMs,
+		...(segment.absoluteTime ? { absoluteTime: segment.absoluteTime } : {}),
 		speaker: segment.speaker,
 		text: segment.text,
 	};
