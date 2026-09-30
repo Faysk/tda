@@ -11,7 +11,7 @@ const roleId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 const assignmentId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
 const operationId = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
 
-function dependencies(grants = [
+function dependencies(grants: EditAccessContext["grants"] = [
 	{
 		action: EDIT_CAPABILITIES.permissionsManage,
 		scopeType: "campaign",
