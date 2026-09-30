@@ -10,11 +10,11 @@ export default function GlobalLoadingE2EFixture() {
 		<main>
 			<h1>Global Loading E2E</h1>
 			<Link href="/e2e-fixtures/global-loading/slow" globalLoading>
-			Abrir rota lenta global
-		</Link>
-		<Link href="/e2e-fixtures/global-loading/slow?scope=local">
-			Abrir rota lenta local
-		</Link>
+				Abrir rota lenta global
+			</Link>
+			<Link href="/e2e-fixtures/global-loading/slow?scope=local">
+				Abrir rota lenta local
+			</Link>
 		</main>
 	);
 }
