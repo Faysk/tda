@@ -317,9 +317,9 @@ export function SessionList({
 					<div className={styles.grid} data-session-view="grid">
 						{visible.map((session) => (
 							<GridCard
-								key={session.id}
+								key={sessionPublicKey(session)}
 								session={session}
-								latest={session.id === latestId}
+								latest={sessionPublicKey(session) === latestKey}
 							/>
 						))}
 					</div>
