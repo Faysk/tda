@@ -1089,7 +1089,7 @@ function ReviewEditor({
 									<p>{segment.text}</p>
 								)}
 								<details className={styles.timelineTechnical}>
-									<summary>Detalhes técnicos</summary>
+									<summary>Detalhes técnicos da fala</summary>
 									<small>Track {segment.trackNumber} · segmento {segment.segmentId}</small>
 									{segment.absoluteTime ? (
 										<small>Relógio comprovado pela fonte {segment.absoluteTime.source}</small>
