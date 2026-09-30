@@ -27,6 +27,11 @@ function requestValue(partCount = 2) {
 			transcriptSha256: hexId(index + 101, 64),
 			ordinal: index,
 			sessionOffsetSeconds: index * 60,
+			sourceStartTime:
+				index === 0 ? "2026-09-29T23:59:58-03:00" : null,
+			sourceStartConfidence: index === 0 ? "trusted_absolute" : "missing",
+			sourceStartUtc:
+				index === 0 ? "2026-09-30T02:59:58Z" : null,
 			trimStartSeconds: 0,
 			trimEndSeconds: null,
 			overlapResolution: null,
@@ -42,6 +47,16 @@ function requestValue(partCount = 2) {
 		trackNumber: index + 1,
 		start: index * 60,
 		end: index * 60 + 1,
+		absoluteTime:
+			index === 0
+				? {
+					schemaVersion: "tda_segment_absolute_time_v1",
+					confidence: "trusted_absolute",
+					sourceStart: "2026-09-29T23:59:58-03:00",
+					start: "2026-09-29T23:59:58-03:00",
+					end: "2026-09-29T23:59:59-03:00",
+				}
+				: null,
 		text: "fala",
 		speaker: `Pessoa ${index + 1}`,
 		reviewed: true,
@@ -115,6 +130,49 @@ describe("multi-source transcript publication contract", () => {
 		expect(payload.provenance.parts).toHaveLength(partCount);
 		expect(payload).not.toHaveProperty("source_id");
 		expect(payload).not.toHaveProperty("run_id");
+	});
+
+
+	it("preserves only trusted absolute wall-clock provenance and rejects tampering", () => {
+		const input = requestValue(2);
+		const result = preparePublication(JSON.stringify(input));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		const payload = JSON.parse(result.value.payloadJson);
+		expect(payload.provenance.parts[0]).toMatchObject({
+			source_start_confidence: "trusted_absolute",
+			source_start_time: "2026-09-29T23:59:58-03:00",
+			source_start_utc: "2026-09-30T02:59:58Z",
+		});
+		expect(payload.segments[0].absolute_time).toMatchObject({
+			schema_version: "tda_segment_absolute_time_v1",
+			confidence: "trusted_absolute",
+		});
+		expect(payload.provenance.parts[1].source_start_confidence).toBe("missing");
+		expect(payload.segments[1].absolute_time).toBeNull();
+
+		const tampered = requestValue(2);
+		tampered.review.segments[0].absoluteTime = {
+			...tampered.review.segments[0].absoluteTime!,
+			start: "2026-09-30T00:00:10-03:00",
+		};
+		expect(preparePublication(JSON.stringify(tampered))).toEqual({
+			ok: false,
+			reason: "invalid_payload",
+		});
+
+		const invented = requestValue(2);
+		invented.review.segments[1].absoluteTime = {
+			schemaVersion: "tda_segment_absolute_time_v1",
+			confidence: "trusted_absolute",
+			sourceStart: "2026-09-29T23:59:58-03:00",
+			start: "2026-09-29T23:59:58-03:00",
+			end: "2026-09-29T23:59:59-03:00",
+		};
+		expect(preparePublication(JSON.stringify(invented))).toEqual({
+			ok: false,
+			reason: "invalid_payload",
+		});
 	});
 
 	it("rejects duplicate part/source identity and non-contiguous ordinals", () => {
