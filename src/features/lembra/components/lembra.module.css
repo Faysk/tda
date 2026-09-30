@@ -31,7 +31,7 @@
 	z-index: 20;
 	top: var(--site-chrome-top, 12px);
 	display: grid;
-	grid-template-columns: minmax(260px, 1fr) auto auto auto;
+	grid-template-columns: minmax(260px, 1fr) minmax(154px, auto) auto auto auto;
 	align-items: center;
 	gap: 8px;
 	margin: 0 0 8px;
@@ -260,6 +260,41 @@
 	background: var(--ds-surface-elevated);
 	color: var(--ds-foreground-soft);
 	font-family: var(--ds-font-ui);
+}
+
+
+.campaignControl {
+	min-width: 154px;
+	min-height: 46px;
+	display: grid;
+	align-items: center;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface-elevated);
+	color: var(--ds-foreground-soft);
+	font-family: var(--ds-font-ui);
+}
+
+.campaignControl:focus-within {
+	border-color: var(--ds-accent);
+	color: var(--ds-foreground);
+}
+
+.campaignSelect {
+	min-width: 152px;
+}
+
+.campaignSelect > button {
+	min-height: 44px;
+	padding-inline: 11px;
+	font-size: 0.8rem;
+	font-weight: 500;
+}
+
+.campaignSelect > [role="listbox"] {
+	right: 0;
+	left: 0;
+	min-width: max(100%, 220px);
 }
 
 .sortControl:focus-within {
@@ -1158,6 +1193,15 @@
 	color: var(--ds-foreground-muted);
 }
 
+
+.fieldHint {
+	margin-top: -2px;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.68rem;
+	line-height: 1.4;
+}
+
 .autoMeta {
 	display: flex;
 	flex-wrap: wrap;
@@ -1303,31 +1347,33 @@
 
 @media (max-width: 1120px) {
 	.toolbar {
-		grid-template-columns: minmax(240px, 1fr) auto auto;
-	}
-
-	.addButton {
-		grid-column: 3;
-	}
-
-	.sortControl {
-		grid-row: 2;
-		grid-column: 2;
-		justify-self: end;
-	}
-
-	.dateFilter {
-		grid-row: 2;
-		grid-column: 1;
-		justify-self: start;
+		grid-template-columns: minmax(220px, 1fr) minmax(154px, auto) auto auto;
 	}
 
 	.searchBox {
 		grid-column: 1 / 3;
 	}
 
+	.campaignControl {
+		grid-row: 2;
+		grid-column: 1;
+	}
+
+	.dateFilter {
+		grid-row: 2;
+		grid-column: 2;
+		justify-self: start;
+	}
+
+	.sortControl {
+		grid-row: 2;
+		grid-column: 3;
+		justify-self: end;
+	}
+
 	.addButton {
 		grid-row: 1 / 3;
+		grid-column: 4;
 		align-self: stretch;
 	}
 }
@@ -1362,6 +1408,7 @@
 		grid-row: auto;
 	}
 
+	.campaignControl,
 	.dateFilter,
 	.sortControl,
 	.addButton {
@@ -1466,6 +1513,7 @@
 
 	.dateSummary,
 	.dateSummaryActive,
+	.campaignControl,
 	.sortControl,
 	.addButton {
 		min-height: 44px;
@@ -1570,22 +1618,26 @@
 
 @media (max-width: 520px) {
 	.toolbar {
-		display: flex;
-		flex-wrap: wrap;
+		display: grid;
+		grid-template-columns:
+			minmax(0, 1.2fr)
+			minmax(0, 0.85fr)
+			minmax(0, 0.95fr)
+			44px;
 	}
 
 	.searchBox {
-		flex: 1 0 100%;
+		grid-column: 1 / -1;
+		min-width: 0;
 	}
 
-	.dateFilter {
-		flex: 1 1 92px;
+	.campaignControl,
+	.dateFilter,
+	.sortControl {
 		min-width: 0;
 	}
 
 	.sortControl {
-		flex: 1 1 112px;
-		min-width: 0;
 		grid-template-columns: minmax(0, 1fr);
 		padding-inline: 6px;
 	}
@@ -1632,11 +1684,13 @@
 		min-width: 0;
 	}
 
+	.campaignSelect,
 	.sortSelect {
 		width: 100%;
 		min-width: 0;
 	}
 
+	.campaignSelect > [role="listbox"],
 	.sortSelect > [role="listbox"] {
 		right: 0;
 		left: 0;
