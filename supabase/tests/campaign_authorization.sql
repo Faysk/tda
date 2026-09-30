@@ -418,7 +418,7 @@ begin
   insert into public.role_assignments(
     id, profile_id, role_id, scope_type, scope_id, status, starts_at
   ) values (
-    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbba0',
     '30000000-0000-4000-8000-000000000006',
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
     'project',
