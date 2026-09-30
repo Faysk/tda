@@ -3,7 +3,11 @@ import {
 	constellationWorldLayout,
 	type WorldLayout,
 } from "../constellation-layout";
-import {\n\trouteWorldEdgePorts,\n\ttype WorldPortLane,\n\ttype WorldPortSide,\n} from "../edge-routing";
+import {
+	routeWorldEdgePorts,
+	type WorldPortLane,
+	type WorldPortSide,
+} from "../edge-routing";
 import { worldLayoutOverrides } from "../layout-contract";
 import type {
 	WorldEdgeDTO,
