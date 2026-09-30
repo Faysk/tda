@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada
 > Owner: integrations/media + frontend + operations
-> Última revisão: 2026-09-29
+> Última revisão: 2026-09-30
 
 ## Escopo e fonte de verdade
 
@@ -54,6 +54,22 @@ O registro de mídia contém identidade/role, master de origem, bucket/key, URL 
 
 Consumidores usam o registro verificado; não montam URLs manualmente a partir do nome da personagem. Lores independentes usam stableId editorial sem inventar campanha ou entity UUID. Disponibilidade de asset não inclui a lore automaticamente no catálogo.
 
+## Namespaces e ownership multi-campaign
+
+ADR-0020/#1135 exigem que mídia campaign-owned seja endereçada/bindada por identidade **estável** da campaign.
+
+Regras do pipeline:
+
+- não derivar key nova somente de `campaign.name` ou public route key renomeável;
+- namespace/binding físico final deve usar UUID ou technical identity estável definida por #1135;
+- rename público não move nem duplica objetos;
+- banco/manifest/binding registra campaign ownership suficiente para impedir A consumir asset privado de B;
+- staging e finalize reautorizam campaign no servidor; campaign enviada pelo browser é input não confiável;
+- media key/idempotency de A e B não colidem mesmo com nomes/source IDs iguais;
+- mídia global (brand, Lembra global, lore standalone sem vínculo) continua fora de namespace campaign quando seu domínio assim define;
+- vínculo editorial de lore não move bytes automaticamente.
+
+A forma exata dos prefixes e migrations pertence a #1135; esta documentação fixa o invariant e evita que cada feature invente um namespace.
 ## Modos de origem no manifest
 
 O manifest compartilhado distingue duas situações que não podem ser confundidas:

@@ -2,8 +2,8 @@
 
 > Status: vigente
 > Owner: arquitetura
-> Última revisão: 2026-09-20
-> Fonte de verdade: [ADR-0018](adr/0018-portable-core-github-control-plane.md), invariantes e contratos donos de cada domínio
+> Última revisão: 2026-09-30
+> Fonte de verdade: [ADR-0018](adr/0018-portable-core-github-control-plane.md), [ADR-0020](adr/0020-first-class-campaigns.md), invariantes e contratos donos de cada domínio
 
 Aplicação Next única em `src/app`. Domínios em `src/features`; conexões/providers em `src/integrations`; composição em `src/components`. Sem segundo frontend ou proxy obrigatório para o legado.
 
@@ -19,13 +19,32 @@ A política de infraestrutura é **free-first**: usar opções gratuitas enquant
 
 O contrato relacional principal é PostgreSQL com migrations versionadas no Git. O provider atual é o projeto Supabase existente `dmrqnbdvbkfqzctcerbx`; ADR-0002 preserva a decisão operacional de reutilizar essa base enquanto ela atende ao TDA. Supabase não é identidade permanente da arquitetura.
 
-O servidor consulta somente sessões publicadas da campanha `yuhara-main`, com seleção explícita de campos. O catálogo não busca transcrições, metadata integral ou dados de usuários. Para mídia pública, seleciona somente referências necessárias e o model aceita apenas origens HTTPS explicitamente permitidas. Detalhe retorna resumo completo como texto escapado; a apresentação usa renderer Markdown próprio sem HTML bruto.
+O runtime público vigente ainda consulta somente sessões publicadas da campaign técnica `yuhara-main`, com seleção explícita de campos. Esse é um estado de implementação/compatibilidade, não a arquitetura final. O contrato aceito em ADR-0020 torna campaigns first-class e exige campaign context explícito em recursos campaign-owned antes da ativação de uma segunda campaign. O catálogo não busca transcrições, metadata integral ou dados de usuários. Para mídia pública, seleciona somente referências necessárias e o model aceita apenas origens HTTPS explicitamente permitidas. Detalhe retorna resumo completo como texto escapado; a apresentação usa renderer Markdown próprio sem HTML bruto.
 
-O modelo de domínio vigente está em [data-model.md](data-model.md) e o estado observado do banco em [database-audit.md](database-audit.md). `tda` é a identidade canônica do projeto; `yuhara-main` continua sendo a identidade da campanha. Proveniência (`craig`, `local_companion`, Discord/Roll20) não é renomeada. Enquanto o legado ainda opera, o scope técnico `dnd-scribe` permanece como compatibilidade ao lado de `tda`.
+O modelo de domínio vigente está em [data-model.md](data-model.md) e o estado observado do banco em [database-audit.md](database-audit.md). `tda` é a identidade canônica do projeto; `yuhara-main` permanece o technical slug legado/default da campaign existente, sem ser tratado como identidade pública única do produto. Proveniência (`craig`, `local_companion`, Discord/Roll20) não é renomeada. Enquanto o legado ainda opera, o scope técnico `dnd-scribe` permanece como compatibilidade ao lado de `tda`.
 
 RLS continua deny-by-default na maior parte do schema. O servidor atual usa chave secreta exclusivamente server-side para a leitura pública estreita; ela tem poderes elevados e não é tecnicamente read-only. Novas superfícies autenticadas devem validar a identidade do usuário e resolver capabilities do RBAC. Não abrir policies genéricas apenas para simplificar o frontend.
 
 Dependências específicas do Supabase podem ser usadas quando agregam valor, mas devem permanecer identificáveis e, quando possível, atrás do boundary de integração correspondente para que o custo de migração seja conhecido.
+
+## Campaigns first-class
+
+A evolução multi-campaign é regida por [ADR-0020](adr/0020-first-class-campaigns.md) e pela [matriz canônica de rotas/boundaries](architecture/multi-campaign.md).
+
+Princípios estruturais:
+
+- `campaigns.id` (UUID) é autoridade relacional;
+- technical slug é compatibilidade/integração e não muda por rename editorial;
+- nome público e public route key são apresentação, não FK/RBAC/storage identity;
+- recursos campaign-owned resolvem campaign no servidor antes de ler/mutar;
+- source/session/entity IDs não recebem unicidade global implícita;
+- Home e alguns catálogos podem agregar projeções públicas de várias campaigns sem transformar dados privados em conteúdo global;
+- Lembra continua exceção global com classificação opcional;
+- lore standalone pode permanecer sem vínculo de campaign;
+- project grants continuam globais somente para as capabilities explicitamente presentes na role;
+- rollout é aditivo, faseado e rollback preserva dados novos.
+
+A existência desta decisão não comprova migration aplicada nem segunda campaign ativa. O runtime só deixa de usar defaults legados quando as issues de schema, security, routing e gates da epic #1122 forem entregues.
 
 ## Runtime/deploy — provider atual: Vercel
 

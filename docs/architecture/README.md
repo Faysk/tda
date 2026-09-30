@@ -12,6 +12,7 @@ Este diretório expande [architecture.md](../architecture.md).
 - [Contexto e limites do sistema](system-context.md)
 - [Fluxos ponta a ponta](data-flows.md)
 - [Princípios e invariantes](invariants.md)
+- [Multi-campaign — contrato, rotas e rollout](multi-campaign.md)
 - [ADR-0018 — core portátil e providers substituíveis](../adr/0018-portable-core-github-control-plane.md)
 - [Edit Workbench](edit-workbench.md)
 - [Modelo canônico de dados](../data-model.md)

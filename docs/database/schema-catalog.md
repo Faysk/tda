@@ -2,7 +2,7 @@
 
 > Status: implementado
 > Owner: dados/Supabase
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-30
 > Fonte observada: `public` no projeto `dmrqnbdvbkfqzctcerbx`
 
 Este catálogo descreve as **43 tabelas públicas observadas**. Contagens são uma fotografia da revisão e não um contrato. RLS estava habilitado em todas elas.
@@ -63,18 +63,20 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 
 ## `campaigns`
 
-**Propósito:** raiz de isolamento narrativo. Hoje contém a campanha principal `yuhara-main`.
+**Propósito:** raiz de isolamento narrativo. A fotografia observada contém uma campaign com technical slug `yuhara-main`; isso descreve o estado físico atual, não uma limitação arquitetural a uma única campaign.
 
 Campos:
 
 - `id uuid` PK;
 - `name text`;
-- `slug text unique` — identidade legível/canônica da campanha;
+- `slug text unique` — technical slug/compatibilidade observado; ADR-0020 não o usa como nome público nem route key renomeável;
 - `description text?`;
 - `metadata jsonb` — extensão, não contrato central;
 - timestamps.
 
-É referenciada por sessions, memberships, entities, canon, RBAC relacionado, auditoria e integrações. Uma feature multi-campanha deve sempre respeitar `campaign_id`; não assumir eternamente que só existe uma campanha.
+É referenciada por sessions, memberships, entities, canon, RBAC relacionado, auditoria e integrações. Multi-campaign deve sempre respeitar `campaign_id`; nenhum lookup campaign-owned pode depender de unicidade global implícita de `source_session_id`/slug de entity.
+
+**Contrato planejado, ainda não afirmado como schema aplicado:** #1123 deve adicionar lifecycle `active | archived` e identidade pública/aliases coerentes com ADR-0020. Esses campos/tabelas só passam a integrar este catálogo físico depois de migration aplicada e revalidada.
 
 ## `profiles`
 

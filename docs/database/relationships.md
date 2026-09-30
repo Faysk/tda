@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: dados + domínios
-> Última revisão: 2026-09-06
+> Última revisão: 2026-09-30
 
 Este documento explica **o significado das relações**, não apenas FKs. O catálogo físico está em [schema-catalog.md](schema-catalog.md).
 
@@ -10,7 +10,18 @@ Este documento explica **o significado das relações**, não apenas FKs. O cat�
 
 ### Campaign
 
-`campaigns.id` é o boundary principal dos dados narrativos. `yuhara-main` é a campanha vigente, mas queries novas devem continuar explicitando o campaign boundary quando pertinente.
+`campaigns.id` é o boundary principal dos dados narrativos. A campaign legado/default usa technical slug `yuhara-main`, mas ADR-0020 torna o boundary first-class para N campaigns. Queries novas explicitam campaign sempre que o recurso é campaign-owned; nomes/public route keys nunca substituem o UUID relacional.
+
+### Invariantes cross-campaign
+
+- session, entity, canon e World state pertencem à campaign resolvida;
+- participant herda campaign da session;
+- profile permanece identidade global humana;
+- `profile_characters` só associa profile a entity dentro do boundary declarado;
+- relation source/target pertencem à mesma campaign da relation;
+- source IDs e slugs narrativos podem repetir entre campaigns quando o domínio permitir;
+- nenhuma FK lógica é validada somente por ID client-side sem conferir ownership;
+- mover session entre campaigns é operação de domínio própria, não update cru de FK.
 
 ### Profile
 
@@ -212,7 +223,8 @@ Exemplos: família, aliança, dívida, conflito, traição. "Conhece" e "sabe se
 
 ## Anti-patterns
 
-- usar nome textual como FK lógica permanente;
+- usar nome textual/public route key como FK lógica permanente;
+- fazer lookup global por `source_session_id` ou entity slug em recurso campaign-owned;
 - ligar NPC a profile artificial para reutilizar UI;
 - criar entity para cada menção sem resolução/revisão;
 - transformar `metadata` num grafo oculto;

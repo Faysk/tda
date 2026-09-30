@@ -2,7 +2,7 @@
 
 > Status: implementado + transição em andamento
 > Owner: segurança/dados
-> Última revisão: 2026-09-21
+> Última revisão: 2026-09-30
 > Fonte: schema/advisors do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Modelo mental
@@ -107,7 +107,7 @@ Uma policy nova precisa responder:
 
 ## Fronteira pública atual
 
-O site público usa consultas server-side estreitas para conteúdo publicado da campanha principal. A chave server-side possui poder elevado e **não é tecnicamente read-only**.
+O site público vigente usa consultas server-side estreitas para conteúdo publicado da campaign legado/default. A chave server-side possui poder elevado e **não é tecnicamente read-only**.
 
 Mitigações atuais:
 
@@ -121,6 +121,22 @@ Mitigações atuais:
 ### Dívida futura
 
 Uma role/view/endpoint tecnicamente read-only e de menor privilégio é desejável antes de ampliar a superfície pública, desde que introduzida com migration revisada e sem quebrar o legado.
+
+## Invariantes de segurança multi-campaign
+
+Antes de ativar uma segunda campaign:
+
+1. discovery pública retorna somente projection pública mínima;
+2. discovery Edit retorna somente campaigns operacionalmente descobríveis pelo actor;
+3. slug, UUID, cookie, query e localStorage são input não confiável;
+4. servidor resolve campaign e ownership do recurso antes da mutation;
+5. `scope_type=project, scope_id=tda` pode cobrir campaigns futuras somente para a action explicitamente presente na role;
+6. session/resource scope não herda genericamente sem resolver documentado;
+7. erro cross-campaign não vira oracle de existência;
+8. service-role query continua selecionando/filtering server-side e nunca confia apenas no filtro do browser;
+9. testes negativos A/B + outsider + stale/revoked grant são gate de rollout.
+
+Ver [ADR-0020](../adr/0020-first-class-campaigns.md) e [contrato multi-campaign](../architecture/multi-campaign.md).
 
 ## `SECURITY DEFINER`
 
@@ -166,9 +182,18 @@ Endpoints autenticados/administrativos mantidos durante a transição:
 
 ### Atenção especial: `access_directory`
 
-O caminho não-admin mascara dados Discord e retorna apenas profiles ainda não ligados a Auth, mas não exige explicitamente membership prévia na campanha solicitada. Com uma única campanha conhecida isso não criou um vazamento cross-campaign observado; antes de multi-campaign ou Edit público, o contrato de onboarding precisa decidir se a consulta exige convite/membership/capability ou se diretório autenticado por slug é comportamento intencional.
+O caminho não-admin mascara dados Discord e retorna apenas profiles ainda não ligados a Auth, mas não exige explicitamente membership prévia na campaign solicitada. Com uma única campaign conhecida isso não criou leak cross-campaign observado.
 
-Não alterar essa semântica silenciosamente: é regra de produto/autorização e precisa de teste negativo.
+ADR-0020 + #1134 fecham a direção antes da ativação multi-campaign:
+
+- slug recebido não autoriza discovery;
+- actor precisa satisfazer o contrato operacional de discovery/onboarding da campaign;
+- campaign privada não pode ser enumerada por troca de slug/UUID;
+- project grant só ajuda quando contém a capability aplicável; não é membership implícito;
+- A credential + B campaign deve falhar fechado;
+- archived campaign preserva histórico, mas não abre onboarding normal.
+
+A forma SQL/RPC exata continua pertencendo a #1134. Não alterar grants em Production nesta entrega documental.
 
 ### Checklist para cada RPC
 
@@ -184,7 +209,7 @@ Não alterar essa semântica silenciosamente: é regra de produto/autorização 
 ### Ação antes do Edit público
 
 - cobrir os cinco endpoints intencionais com testes positivos/negativos;
-- decidir contrato multi-campaign de `access_directory`;
+- implementar e testar o contrato multi-campaign de `access_directory` definido em ADR-0020/#1134;
 - comprovar ausência de consumidores externos dos três helpers;
 - quando seguro, versionar migration que revogue `EXECUTE` direto de `authenticated` dos helpers;
 - rodar advisors e smoke tests depois da mudança;

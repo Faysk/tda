@@ -62,6 +62,20 @@ Navegador desktop 1440px e mobile 390px: total 5.000, projeção limitada, fallb
 histórico, contagem NEL, sem overflow horizontal ou erro de página. O estado aqui
 é de candidato; merge e release exigem evidências independentes.
 
+## Campaign identity no lifecycle
+
+ADR-0020/#1133 exigem campaign explícita em qualquer revisão/publicação cloud campaign-owned.
+
+- local run continua imutável e preserva provenance própria;
+- intenção de publish/handoff carrega campaign identity;
+- `source_session_id` é resolvido junto da campaign, nunca globalmente;
+- idempotency/receipt inclui campaign para que A/B não colidam com o mesmo source/run signature;
+- revisão publicada pertence à mesma campaign da session alvo;
+- retry/lost response consulta o receipt da mesma campaign;
+- mudar o seletor de campaign não retaggeia intenção pendente;
+- stats/review UI só agrega campaigns quando o contrato explicitamente pedir agregado e a autorização tiver sido resolvida por campaign.
+
+O alvo privado canônico é `/edit/[campaign]/transcricoes`/`/edit/[campaign]/revisao`; `/transcricoes` e `/edit/revisao` permanecem entrypoints de compatibilidade até #1133/#1136.
 ## Objetivo
 
 ### Preservação de legados e listagem — candidato #674
