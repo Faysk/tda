@@ -15,7 +15,7 @@ Este documento explica **o significado das relações**, não apenas FKs. O cat�
 ### Invariantes cross-campaign
 
 - session, entity, canon e World state pertencem à campaign resolvida;
-- participant herda campaign da session;
+- participant herda campaign da session; #1123 adiciona trigger de integridade para impedir `character_entity_id` pertencente a campaign diferente da session;
 - profile permanece identidade global humana;
 - `profile_characters` só associa profile a entity dentro do boundary declarado;
 - #1123 reforça esse vínculo com FK composta `(campaign_id, entity_id) -> entities(campaign_id, id)`; IDs válidos isoladamente não bastam;
