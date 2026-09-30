@@ -12,7 +12,15 @@
 }
 
 .entityNode[data-prominence="primary"] { --node-size: 90px; }
+.entityNode[data-prominence="supporting"] .nodePortrait { opacity: 0.92; }
 .entityNode[data-prominence="context"] { --node-size: 64px; }
+.entityNode[data-prominence="context"] .nodePortrait {
+	opacity: 0.8;
+	filter: saturate(0.78);
+}
+.entityNode[data-prominence="context"] .nodeLabel {
+	color: var(--ds-foreground-soft);
+}
 .entityNodeHero { --node-size: 116px; }
 .entityNodeDimmed { opacity: 0.25; filter: saturate(0.4); }
 
@@ -63,9 +71,9 @@
 .entityNode.entityNodeHero .nodePortrait {
 	border-color: color-mix(in srgb, var(--ds-accent) 78%, var(--ds-control-border));
 	box-shadow:
-		0 0 0 4px var(--ds-accent-muted),
-		0 14px 44px var(--ds-ambient-accent),
-		inset 0 0 0 1px color-mix(in srgb, var(--ds-accent-strong) 18%, transparent);
+		0 0 0 3px color-mix(in srgb, var(--ds-accent-muted) 82%, transparent),
+		0 12px 36px color-mix(in srgb, var(--ds-ambient-accent) 78%, transparent),
+		inset 0 0 0 1px color-mix(in srgb, var(--ds-accent-strong) 14%, transparent);
 }
 
 .entityNode:hover .nodePortrait {
@@ -79,18 +87,16 @@
 .entityNode.entityNodeFocus .nodePortrait {
 	border-color: var(--ds-accent-strong);
 	box-shadow:
-		0 0 0 6px var(--ds-accent-muted),
-		0 0 34px var(--ds-ambient-accent),
-		0 18px 48px var(--ds-ambient-cool);
+		0 0 0 4px color-mix(in srgb, var(--ds-accent-muted) 82%, transparent),
+		0 14px 40px var(--ds-ambient-cool);
 }
 
 .entityNode.entityNodeSelected .nodePortrait {
 	transform: translateY(-3px) scale(1.05);
 	border-color: var(--ds-accent-strong);
 	box-shadow:
-		0 0 0 5px var(--ds-accent-muted),
-		0 0 42px var(--ds-ambient-accent),
-		0 18px 44px var(--ds-ambient-cool);
+		0 0 0 4px var(--ds-accent-muted),
+		0 16px 42px var(--ds-ambient-cool);
 }
 
 .entityNodeRelationEndpoint:not(.entityNodeSelected) .nodePortrait {
@@ -98,6 +104,13 @@
 	box-shadow:
 		0 0 0 3px color-mix(in srgb, var(--ds-foreground) 7%, transparent),
 		0 12px 34px var(--ds-ambient-cool);
+}
+
+.entityNodeSelected .nodePortrait,
+.entityNodeFocus .nodePortrait,
+.entityNodeRelationEndpoint .nodePortrait {
+	opacity: 1;
+	filter: none;
 }
 
 .nodeState {

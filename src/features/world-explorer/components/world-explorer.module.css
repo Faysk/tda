@@ -99,7 +99,7 @@
 	padding: 6px 9px;
 	font: 620 0.62rem/1 var(--ds-font-ui);
 	color: var(--ds-foreground-soft);
-	background: var(--ds-surface-elevated);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 86%, transparent);
 }
 
 .viewToggle {
@@ -352,22 +352,23 @@
 	border-radius: var(--ds-radius-lg);
 	overflow: hidden;
 	background:
-		radial-gradient(circle at 50% 46%, var(--ds-ambient-accent), transparent 25%),
-		radial-gradient(circle at 70% 20%, var(--ds-ambient-cool), transparent 32%),
-		linear-gradient(var(--ds-border-subtle) 1px, transparent 1px),
-		linear-gradient(90deg, var(--ds-border-subtle) 1px, transparent 1px),
+		radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--ds-ambient-accent) 58%, transparent), transparent 27%),
+		radial-gradient(circle at 70% 20%, color-mix(in srgb, var(--ds-ambient-cool) 72%, transparent), transparent 34%),
+		linear-gradient(color-mix(in srgb, var(--ds-border-subtle) 56%, transparent) 1px, transparent 1px),
+		linear-gradient(90deg, color-mix(in srgb, var(--ds-border-subtle) 56%, transparent) 1px, transparent 1px),
 		var(--ds-canvas);
 	background-size: auto, auto, 72px 72px, 72px 72px, auto;
-	box-shadow: inset 0 0 110px var(--ds-ambient-cool);
+	box-shadow: inset 0 0 96px color-mix(in srgb, var(--ds-ambient-cool) 72%, transparent);
 }
 
 .canvas :global(.react-flow__controls),
 .canvas :global(.react-flow__minimap) {
-	box-shadow: var(--ds-shadow);
-	border: 1px solid var(--ds-border);
+	box-shadow: 0 8px 22px color-mix(in srgb, var(--ds-canvas) 34%, transparent);
+	border: 1px solid color-mix(in srgb, var(--ds-control-border) 76%, transparent);
 	border-radius: var(--ds-radius-sm);
 	overflow: hidden;
-	background: color-mix(in srgb, var(--ds-surface-elevated) 94%, transparent);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 84%, transparent);
+	backdrop-filter: blur(10px);
 }
 
 .canvas :global(.react-flow__controls) {
@@ -383,7 +384,7 @@
 }
 
 .canvas :global(.react-flow__minimap-mask) {
-	fill: color-mix(in srgb, var(--ds-canvas) 70%, transparent);
+	fill: color-mix(in srgb, var(--ds-canvas) 78%, transparent);
 }
 
 .canvas :global(.react-flow__controls-button) {
