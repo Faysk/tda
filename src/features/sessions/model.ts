@@ -34,7 +34,6 @@ type Row = {
 };
 
 const publicImageSources = [
-	{ hostname: "media.dnd.faysk.dev", pathname: "/campaigns/" },
 	{ hostname: "dmrqnbdvbkfqzctcerbx.supabase.co", pathname: "/storage/v1/object/public/session-images/" },
 	{ hostname: "dnd.faysk.dev", pathname: "/assets/sessions/" },
 ] as const;
@@ -43,13 +42,19 @@ function text(value: unknown, limit: number) {
 	return typeof value === "string" ? value.trim().slice(0, limit) : "";
 }
 
-function publicImageUrl(value: unknown) {
+function publicImageUrl(value: unknown, campaignTechnicalSlug: string) {
 	if (typeof value !== "string" || value.length > 2000) return "";
 	try {
 		const url = new URL(value);
 		if (url.protocol !== "https:") return "";
-		if (url.hostname === "media.dnd.faysk.dev" && (url.port || url.search || url.hash || url.username || url.password)) return "";
-		return publicImageSources.some((source) => url.hostname === source.hostname && url.pathname.startsWith(source.pathname))
+		if (url.hostname === "media.dnd.faysk.dev") {
+			if (url.port || url.search || url.hash || url.username || url.password) return "";
+			const campaignPrefix = `/campaigns/${campaignTechnicalSlug}/sessions/`;
+			return url.pathname.startsWith(campaignPrefix) ? url.toString() : "";
+		}
+		return publicImageSources.some(
+			(source) => url.hostname === source.hostname && url.pathname.startsWith(source.pathname),
+		)
 			? url.toString()
 			: "";
 	} catch {
@@ -92,8 +97,8 @@ export function toPublishedSession(row: Row, detail = false): PublishedSession |
 	if (campaign.lifecycle !== "active" || campaign.visibility !== "public") return null;
 	const id = text(row.source_session_id, 220);
 	if (!id) return null;
-	const coverImage = publicImageUrl(row.cover_image_url);
-	const heroImage = publicImageUrl(row.hero_image_url);
+	const coverImage = publicImageUrl(row.cover_image_url, technicalSlug);
+	const heroImage = publicImageUrl(row.hero_image_url, technicalSlug);
 	return {
 		id,
 		campaignId,
