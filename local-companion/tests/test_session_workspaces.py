@@ -290,7 +290,7 @@ def test_v11_store_migrates_participant_assignments_additively(tmp_path):
     ) == []
 
     with sqlite3.connect(store.path) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 13
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 12
         columns = {
             row[1]
             for row in db.execute(
@@ -370,25 +370,42 @@ def test_session_transcription_intent_is_local_durable_and_conflict_guarded(tmp_
     assert replaced["glossary"] == ""
 
 
-def test_v12_store_adds_local_session_intent_table_without_losing_workspace(tmp_path):
+def test_v12_store_keeps_session_intent_in_existing_settings_for_rollback(tmp_path):
     store = Store(tmp_path)
     workspace = store.ensure_session_workspace("campaign-v12", "session-v12")
     workspace = store.attach_session_source(
         "campaign-v12", "session-v12", source_id(1), workspace["revision"]
     )
-    with sqlite3.connect(store.path) as db:
-        db.execute("DROP TABLE session_transcription_intents")
-        db.execute("PRAGMA user_version=12")
+    saved = store.save_session_transcription_intent(
+        "campaign-v12",
+        "session-v12",
+        "intent-v12",
+        "qwen-quality",
+        "contexto local",
+        "Yuhara",
+    )
 
-    migrated = Store(tmp_path)
-    recovered = migrated.session_workspace("campaign-v12", "session-v12")
-    assert recovered["parts"][0]["source_id"] == source_id(1)
-    with sqlite3.connect(migrated.path) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 13
+    with sqlite3.connect(store.path) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 12
         tables = {
             row[0]
             for row in db.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             ).fetchall()
         }
-    assert "session_transcription_intents" in tables
+        setting = db.execute(
+            "SELECT value FROM settings WHERE key=?",
+            ("session_transcription_intent:campaign-v12:session-v12",),
+        ).fetchone()
+    assert "session_transcription_intents" not in tables
+    assert setting is not None
+    assert "contexto local" in setting[0]
+    assert "Yuhara" in setting[0]
+
+    restarted = Store(tmp_path)
+    recovered = restarted.session_workspace("campaign-v12", "session-v12")
+    assert recovered["parts"][0]["source_id"] == source_id(1)
+    assert restarted.session_transcription_intent(
+        "campaign-v12", "session-v12"
+    ) == saved
+
