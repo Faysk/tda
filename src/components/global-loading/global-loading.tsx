@@ -38,14 +38,10 @@ type GlobalLoadingContextValue = Readonly<{
 const SHOW_DELAY_MS = 110;
 const EXIT_DURATION_MS = 680;
 
-const BUSY_SELECTOR = [
-	'[aria-busy="true"]',
-	'[data-global-loading="true"]',
-	'[data-state="saving"]',
-].join(",");
+const GLOBAL_BLOCKING_SELECTOR = '[data-global-loading="true"]';
 
-function hasBlockingBusyElement(): boolean {
-	return [...document.querySelectorAll(BUSY_SELECTOR)].some(
+function hasExplicitBlockingElement(): boolean {
+	return [...document.querySelectorAll(GLOBAL_BLOCKING_SELECTOR)].some(
 		(element) => !element.closest('[data-global-loading="off"]'),
 	);
 }
@@ -317,19 +313,18 @@ export function GlobalLoadingProvider({
 	}, [clearHideTimer, clearShowTimer]);
 
 	/*
-	 * Shared blocking-state contract:
-	 * - aria-busy=true is observed automatically;
-	 * - data-global-loading=true can opt a surface in explicitly;
-	 * - data-global-loading=off keeps background polling/autosave out.
+	 * Global blocking is always explicit:
+	 * - data-global-loading=true opts a surface into the full-screen overlay;
+	 * - data-global-loading=off suppresses an explicit trigger in that subtree.
 	 *
-	 * Existing surfaces already expose aria-busy or data-state="saving", so the
-	 * visual layer remains independent from feature-specific implementations.
+	 * aria-busy and feature data-state values remain local semantics. They must
+	 * never promote a regional save/upload/refetch into an application-wide wait.
 	 */
 	useEffect(() => {
 		let stopBusy: StopLoading | null = null;
 
 		const syncBusyState = () => {
-			const busy = hasBlockingBusyElement();
+			const busy = hasExplicitBlockingElement();
 			if (busy && !stopBusy) {
 				stopBusy = begin();
 			} else if (!busy && stopBusy) {
@@ -341,7 +336,7 @@ export function GlobalLoadingProvider({
 		const observer = new MutationObserver(syncBusyState);
 		observer.observe(document.body, {
 			attributes: true,
-			attributeFilter: ["aria-busy", "data-global-loading", "data-state"],
+			attributeFilter: ["data-global-loading"],
 			childList: true,
 			subtree: true,
 		});
