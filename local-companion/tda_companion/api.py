@@ -1594,6 +1594,12 @@ def create_app(
                     409,
                     True,
                 )
+            if qwen_runtime_manager.snapshot().get("active") is True:
+                return error(
+                    "TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNTIME_UPDATE",
+                    409,
+                    True,
+                )
             try:
                 value = await asyncio.to_thread(
                     start_preparation_under_source_gate,
@@ -1684,7 +1690,11 @@ def create_app(
         if shutdown_callback is None:
             raise Conflict("AGENT_CONTROL_UNAVAILABLE")
         if (
-            (store.has_running_jobs() or preparation_manager.snapshot().get("active") is True)
+            (
+                store.has_running_jobs()
+                or preparation_manager.snapshot().get("active") is True
+                or qwen_runtime_manager.snapshot().get("active") is True
+            )
             and not body.force
         ):
             raise Conflict("AGENT_BUSY")
