@@ -539,14 +539,22 @@ ordenação manual e ferramentas de diagnóstico ficam em **Detalhes técnicos**
 
 ### Recuperação
 
-O Agent continua sendo authority de workspace, jobs, runs e assemblies. O
-navegador mantém apenas pointers/idempotency de recuperação já previstos pelos
-contratos existentes. Reload/reconnect não deve recriar source/job confirmado
-nem apagar partes concluídas.
+O Agent continua sendo authority de workspace, intenção de transcrição, jobs,
+runs e assemblies. Profile/contexto/glossário da intenção são persistidos
+somente no SQLite local do Companion. O navegador guarda apenas metadata
+bounded de recuperação: scope/campaign/session, source IDs, profile, hashes de
+contexto/glossário e identidades de enqueue/job/run. Texto de
+contexto/glossário, transcript, paths e bytes ZIP não entram no storage
+persistente do browser.
+
+Reload/reconnect valida o receipt do browser contra a intenção local do Agent
+antes de restaurar a operação. Divergência de request/profile/hash falha
+fechado. Isso permite recuperar inclusive a janela attach -> enqueue sem
+recriar source/job confirmado nem apagar partes concluídas.
 
 Quando uma resposta de enqueue fica ambígua, a mesma identidade persistida é
 reutilizada. Quando um job falha/cancela/interrompe após ter sido criado, retry
-usa o job persistido do Agent para preservar profile/contexto/glossário e
+usa o job persistido do Agent para preservar a configuração local da intenção e
 reexecutar somente aquela gravação.
 
 Se o navegador desaparecer antes de um arquivo selecionado chegar ao Agent,
