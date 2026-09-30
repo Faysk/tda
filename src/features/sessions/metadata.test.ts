@@ -177,6 +177,50 @@ describe("session public metadata", () => {
 		);
 		expect(metadata.twitter.card).toBe("summary_large_image");
 	});
+
+	it("does not reuse legacy social media when another campaign shares the source id", () => {
+		const otherCampaign: PublishedSession = {
+			...firstSession,
+			campaignId: "campaign-b",
+			campaignSlug: "campaign-b",
+			campaignName: "Campaign B",
+			campaignTechnicalSlug: "campaign-b",
+		};
+		const legacyOnlyManifest: PublicSessionMediaManifest = {
+			[firstSession.id]: {
+				hero: verifiedArtifact(
+					"https://media.example.test/legacy/session-alpha/hero.webp",
+				),
+			},
+		};
+
+		const metadata = sessionPublicMetadata(otherCampaign, legacyOnlyManifest);
+		expect(metadata.openGraph.images[0]).toEqual(
+			PUBLIC_METADATA_FALLBACK_IMAGE,
+		);
+	});
+
+	it("accepts an explicit campaign-scoped social media entry", () => {
+		const otherCampaign: PublishedSession = {
+			...firstSession,
+			campaignId: "campaign-b",
+			campaignSlug: "campaign-b",
+			campaignName: "Campaign B",
+			campaignTechnicalSlug: "campaign-b",
+		};
+		const manifest: PublicSessionMediaManifest = {
+			"campaign-b:session-alpha": {
+				hero: verifiedArtifact(
+					"https://media.example.test/campaign-b/session-alpha/hero.webp",
+				),
+			},
+		};
+
+		const metadata = sessionPublicMetadata(otherCampaign, manifest);
+		expect(metadata.openGraph.images[0]).toMatchObject({
+			url: "https://media.example.test/campaign-b/session-alpha/hero.webp",
+		});
+	});
 });
 
 it("uses a distinct real image for every recovered session without an injected test manifest", () => {
