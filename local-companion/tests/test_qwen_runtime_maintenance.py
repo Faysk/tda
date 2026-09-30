@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -179,6 +180,32 @@ def test_runtime_update_installs_verified_stable_and_rechecks_active_version(mon
             "replace_corrupt": False,
         }
     ]
+
+
+def test_runtime_update_fails_fast_when_another_process_owns_the_runtime_mutex(
+    monkeypatch,
+    tmp_path: Path,
+):
+    @contextmanager
+    def busy_lock():
+        raise maintenance.InstallationLockError(
+            "QWEN_RUNTIME_MAINTENANCE_LOCK_TIMEOUT"
+        )
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(maintenance, "qwen_runtime_maintenance_lock", busy_lock)
+
+    with pytest.raises(
+        QwenRuntimeMaintenanceError,
+        match="QWEN_RUNTIME_MAINTENANCE_BUSY",
+    ):
+        install_qwen_runtime_update(
+            tmp_path / "Runtime",
+            tmp_path / "Cache",
+            manifest_fetcher=lambda: (_ for _ in ()).throw(
+                AssertionError("manifest must not be fetched while mutex is busy")
+            ),
+        )
 
 
 def test_runtime_manager_sanitizes_unexpected_failure_details(monkeypatch, tmp_path: Path):
