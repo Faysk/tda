@@ -139,6 +139,8 @@ export default async function EditSessionPage({ params }: PageProps) {
 
 			<SessionEditWorkspace
 				transcript={{
+					campaignSlug: CAMPAIGN_SLUG,
+					sourceSessionId: session.sourceSessionId,
 					downloadHref,
 					editable:
 						canEdit &&
