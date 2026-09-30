@@ -319,6 +319,8 @@ A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-
 Não fazem parte do roadmap atual do Lembra:
 
 - isolamento/autorização por campaign; classificação opcional não altera o boundary global;
+- usar classificação de campaign como grant/restrição de acesso;
+- mover bytes R2 ao trocar classificação;
 - RBAC/capabilities próprias;
 - tags;
 - categorias obrigatórias;
