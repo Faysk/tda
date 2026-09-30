@@ -71,7 +71,7 @@ Toda exceção precisa ser explícita e ter justificativa técnica ou legal. Exc
 
 A release de controle **Companion 0.3.17** mantém temporariamente Python `3.12.14` e `uv 0.12.18` embora existam patches estáveis mais novos. O motivo é reproduzibilidade: o trabalho de #1210 adiciona apenas o ciclo de recuperação do Qwen Runtime e não deve reconstruir silenciosamente os runtimes ASR já aceitos fisicamente nem alterar a identidade de releases Stable existentes.
 
-As exceções são machine-readable em `local-companion/runtime/qwen-windows-x64.json`, vinculadas exatamente aos pins retidos. Trocar qualquer um desses pins invalida automaticamente a exceção. A remoção exige uma entrega própria, com runtime versionado novo quando os bytes mudarem, build/packaging completo e gate físico aplicável.
+A exceção do **Python** é machine-readable em `local-companion/dependency-freshness-exceptions.json`, separada dos manifests de build ASR para que uma decisão de controle/release não altere um input do pacote Qwen 1.0.12 já aceito fisicamente. A exceção de **uv** já existente continua no manifest Qwen e permanece vinculada exatamente ao pin usado pelos workflows de runtime. Trocar qualquer pin invalida automaticamente a exceção correspondente. A remoção exige uma entrega própria, com runtime versionado novo quando os bytes mudarem, build/packaging completo e gate físico aplicável.
 
 ### WiX Toolset
 
@@ -85,6 +85,7 @@ A migração de WiX deve ser testada isoladamente e só entra quando o contrato/
 - Lock dos testes: `local-companion/requirements-test.lock`
 - Runtime Whisper Windows: `local-companion/runtime/whisper-windows-x64.json`
 - Runtime Qwen Windows: `local-companion/runtime/qwen-windows-x64.json`
+- Exceções de freshness do controle do Companion: `local-companion/dependency-freshness-exceptions.json`
 - Perfis e revisions ASR: `local-companion/tda_companion/asr_models.py`
 - Workflow do Companion: `.github/workflows/companion.yml`
 - Workflow do runtime Whisper: `.github/workflows/whisper-runtime.yml`
