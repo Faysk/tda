@@ -43,6 +43,10 @@ from .profile_preparation import (
 from .publication_target import PublicationTargetError, bind_publication_target, repair_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
+from .qwen_runtime_maintenance import (
+    QwenRuntimeMaintenanceError,
+    QwenRuntimeMaintenanceManager,
+)
 from .session_participants import observed_session_tracks, resolve_session_participants
 from .session_assemblies import (
     SessionAssemblyError,
@@ -98,6 +102,9 @@ def _browser_route_allowed(method: str, path: str) -> bool:
         "/api/v1/capabilities",
         "/api/v1/preparation",
         "/api/v1/preparation/cancel",
+        "/api/v1/qwen-runtime",
+        "/api/v1/qwen-runtime/check",
+        "/api/v1/qwen-runtime/update",
         "/api/v1/system",
         "/api/v1/lifecycle",
         "/api/v1/jobs",
@@ -107,6 +114,8 @@ def _browser_route_allowed(method: str, path: str) -> bool:
             or (method == "POST" and path in {
                 "/api/v1/preparation",
                 "/api/v1/preparation/cancel",
+                "/api/v1/qwen-runtime/check",
+                "/api/v1/qwen-runtime/update",
                 "/api/v1/lifecycle",
                 "/api/v1/jobs",
             })
@@ -424,6 +433,11 @@ def create_app(
         models_root=resolved_models_root,
         runtime_root=resolved_runtime_root,
         state_root=resolved_state_root,
+        cache_root=resolved_cache_root,
+        system_log=system_log,
+    )
+    qwen_runtime_manager = QwenRuntimeMaintenanceManager(
+        runtime_root=resolved_runtime_root,
         cache_root=resolved_cache_root,
         system_log=system_log,
     )
@@ -828,13 +842,17 @@ def create_app(
             job_cancel: threading.Event | None = None
             try:
                 preparation_active = False
+                runtime_maintenance_active = False
                 async with dispatch_gate:
                     preparation_active = (
                         preparation_manager.snapshot().get("active") is True
                     )
+                    runtime_maintenance_active = (
+                        qwen_runtime_manager.snapshot().get("active") is True
+                    )
                     claimed = (
                         None
-                        if preparation_active
+                        if preparation_active or runtime_maintenance_active
                         else await asyncio.to_thread(claim_under_source_gate)
                     )
                     if claimed is not None:
@@ -843,7 +861,7 @@ def create_app(
                         # so cancel/delete cannot observe a running attempt without
                         # an in-memory active-worker fence.
                         job_cancel = register_active_worker(claimed[0])
-                if preparation_active:
+                if preparation_active or runtime_maintenance_active:
                     worker_healthy = True
                     await asyncio.sleep(0.25)
                     continue
@@ -1293,6 +1311,7 @@ def create_app(
             yield
         finally:
             preparation_manager.request_cancel()
+            qwen_runtime_manager.request_cancel()
             worker_stop.set()
             worker_wake.set()
             if task:
@@ -1339,6 +1358,18 @@ def create_app(
                 # own bounded stop timeout and deliberately retains the lock when
                 # this teardown takes too long.
                 await asyncio.to_thread(preparation_manager.wait)
+            runtime_maintenance_stopped = await asyncio.to_thread(
+                qwen_runtime_manager.wait,
+                8.0,
+            )
+            if not runtime_maintenance_stopped:
+                log(
+                    "warning",
+                    "runtime",
+                    "QWEN_RUNTIME_UPDATE_SHUTDOWN_TIMEOUT",
+                    "Qwen Runtime maintenance did not stop within the fast shutdown window; keeping the data-root fence until it exits",
+                )
+                await asyncio.to_thread(qwen_runtime_manager.wait)
             await asyncio.to_thread(reconcile_completed_transcription_runs)
             await asyncio.to_thread(store.recover)
             log("info", "agent", "API_STOPPED", "Local API stopped")
@@ -1348,6 +1379,7 @@ def create_app(
     app.state.telemetry = telemetry
     app.state.browser_sessions = browser_sessions
     app.state.preparation_manager = preparation_manager
+    app.state.qwen_runtime_manager = qwen_runtime_manager
     app.state.system_log = system_log
     app.state.worker_wake = worker_wake
     app.state.source_gate = source_gate
@@ -1459,7 +1491,11 @@ def create_app(
             pid=os.getpid(),
             port=port,
             lifecycle="preparing"
-            if (not worker_healthy or preparation_manager.snapshot().get("active") is True)
+            if (
+                not worker_healthy
+                or preparation_manager.snapshot().get("active") is True
+                or qwen_runtime_manager.snapshot().get("active") is True
+            )
             else "paused"
             if store.setting("paused") == "true"
             else "ready",
@@ -1498,6 +1534,8 @@ def create_app(
             "worker.subprocess",
             "transcription.prepare",
             "transcription.prepare.cancel",
+            "runtime.qwen.check",
+            "runtime.qwen.update",
             "transcription.review",
             "transcription.review.base",
             "transcription.target.repair",
@@ -1590,6 +1628,45 @@ def create_app(
                 else 400,
                 preparation_recoverable(exc.code),
             )
+
+    @app.get("/api/v1/qwen-runtime")
+    def qwen_runtime_status():
+        return qwen_runtime_manager.snapshot()
+
+    @app.post("/api/v1/qwen-runtime/check")
+    async def qwen_runtime_check():
+        async with dispatch_gate:
+            if qwen_runtime_manager.snapshot().get("active") is True:
+                try:
+                    return qwen_runtime_manager.start_check()
+                except QwenRuntimeMaintenanceError as exc:
+                    return error(exc.code, 409, True)
+            try:
+                return qwen_runtime_manager.start_check()
+            except QwenRuntimeMaintenanceError as exc:
+                return error(exc.code, 409, True)
+
+    @app.post("/api/v1/qwen-runtime/update")
+    async def qwen_runtime_update():
+        async with dispatch_gate:
+            if preparation_manager.snapshot().get("active") is True:
+                return error(
+                    "QWEN_RUNTIME_UPDATE_BLOCKED_BY_PREPARATION",
+                    409,
+                    True,
+                )
+            if store.has_active_jobs():
+                return error(
+                    "RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB",
+                    409,
+                    True,
+                )
+            try:
+                value = qwen_runtime_manager.start_update()
+            except QwenRuntimeMaintenanceError as exc:
+                return error(exc.code, 409, True)
+        worker_wake.set()
+        return value
 
     @app.get("/api/v1/system")
     def system():
