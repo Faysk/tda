@@ -145,16 +145,18 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				});
 	const item = props.data?.item;
 	const highlighted = props.data?.isHighlighted ?? false;
+	const hovered = props.data?.isHovered ?? false;
+	const active = highlighted || hovered || Boolean(props.selected);
 	const dimmed = props.data?.isDimmed ?? false;
 	const semantic = worldEdgeSemanticPresentation(semanticZoom, {
-		highlighted,
+		highlighted: active,
 		dimmed,
 	});
 	const stroke = customStyle?.color ?? RELATION_STROKES[family];
 	const motionStroke = RELATION_MOTION_STROKES[family];
 	const baseWidth = customStyle?.lineWidth ?? 3;
 	const strokeWidth =
-		(highlighted ? baseWidth + 0.6 : baseWidth) * semantic.strokeWidthScale;
+		(active ? baseWidth + 0.6 : baseWidth) * semantic.strokeWidthScale;
 	const strokeOpacity = semantic.strokeOpacity;
 	const dash = customStyle
 		? STYLE_DASHES[customStyle.lineStyle]
@@ -202,7 +204,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 							fill="none"
 							stroke="var(--ds-canvas)"
 							strokeWidth={strokeWidth + 3}
-							strokeOpacity={dimmed ? 0.04 : highlighted ? 0.7 : 0.46}
+							strokeOpacity={dimmed ? 0.04 : active ? 0.7 : 0.3}
 							strokeDasharray={dash}
 							vectorEffect="non-scaling-stroke"
 							strokeLinecap="round"
@@ -221,10 +223,11 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						data-edge-curve="bezier"
 						data-edge-anchor={floating ? "floating" : "handle"}
 						data-edge-bend={bendOffset}
+						data-world-edge-active={active ? "true" : "false"}
 						data-world-edge={props.id}
 						data-world-semantic-zoom={semanticZoom}
 					/>
-					{semantic.showMotion && highlighted && !dimmed ? (
+					{semantic.showMotion && active && !dimmed ? (
 						<path
 							d={path}
 							className={effects.flowMotion}
@@ -244,7 +247,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				</svg>
 				{item && semantic.showLabel ? (
 					<div
-						className={`${styles.edgeLabel} ${highlighted ? styles.edgeLabelHighlighted : ""}`}
+						className={`${styles.edgeLabel} ${active ? styles.edgeLabelHighlighted : ""}`}
 						data-family={family}
 						data-world-edge-label={props.id}
 						aria-hidden="true"
