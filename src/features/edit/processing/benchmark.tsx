@@ -688,7 +688,9 @@ export function ProcessingBenchmark({
 			: null;
 
 	const nextActionCopy = qwenRuntimeBlocked
-		? "Atualize o Qwen Runtime para liberar Qwen Fast e Qwen Quality."
+		? qwenRuntimeCheckSupported
+			? "Atualize o Qwen Runtime para liberar Qwen Fast e Qwen Quality."
+			: "Atualize o Companion para habilitar a recuperação do Qwen Runtime."
 		: !file
 			? "Selecione um ZIP Craig para começar."
 		: fileError
@@ -832,7 +834,13 @@ export function ProcessingBenchmark({
 								<h3 id="benchmark-qwen-runtime-title">Runtime incompatível</h3>
 							</div>
 							<StatusPill tone={qwenRuntime?.canUpdate ? "warning" : "neutral"}>
-								{qwenRuntime?.active ? "Verificando" : qwenRuntime?.canUpdate ? "Atualização disponível" : "Bloqueado"}
+								{!qwenRuntimeCheckSupported
+									? "Companion antigo"
+									: qwenRuntime?.active
+										? "Verificando"
+										: qwenRuntime?.canUpdate
+											? "Atualização disponível"
+											: "Bloqueado"}
 							</StatusPill>
 						</div>
 						<p>
@@ -850,8 +858,10 @@ export function ProcessingBenchmark({
 							<div>
 								<dt>Stable disponível</dt>
 								<dd>
-									{qwenRuntime?.stableStatus === "compatible"
-										? qwenRuntime.stableVersion
+									{!qwenRuntimeCheckSupported
+										? "Atualize o Companion"
+										: qwenRuntime?.stableStatus === "compatible"
+											? qwenRuntime.stableVersion
 										: qwenRuntime?.stableStatus === "below_minimum"
 											? `${qwenRuntime.stableVersion ?? "Stable"} · abaixo do mínimo`
 											: qwenRuntime?.stableStatus === "unavailable"
@@ -866,6 +876,11 @@ export function ProcessingBenchmark({
 								<span>{qwenRuntime.detail}</span>
 							</p>
 						) : null}
+						{!qwenRuntimeCheckSupported ? (
+							<p className={styles.notice}>
+								Este Companion detectou o runtime incompatível, mas não anuncia a manutenção segura pela Web. Atualize o Companion antes de tentar reparar o Qwen.
+							</p>
+						) : null}
 						{qwenRuntime?.stableStatus === "below_minimum" ? (
 							<p className={styles.notice}>
 								A Stable publicada ainda não atende ao mínimo exigido. A atualização permanece bloqueada para não instalar um runtime incompatível.
@@ -874,6 +889,7 @@ export function ProcessingBenchmark({
 						{qwenRuntimeError ? (
 							<p className={styles.error} role="alert">{qwenRuntimeError}</p>
 						) : null}
+						{qwenRuntimeCheckSupported ? (
 						<div className={styles.runtimeActions}>
 							{qwenRuntime?.canUpdate && qwenRuntimeUpdateSupported ? (
 								<Button
@@ -897,6 +913,7 @@ export function ProcessingBenchmark({
 								</Button>
 							)}
 						</div>
+						) : null}
 					</section>
 				) : null}
 
