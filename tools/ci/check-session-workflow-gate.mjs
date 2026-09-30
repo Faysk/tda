@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
 const files = [
+  ".github/workflows/ci.yml",
   "tests/processing/multi-recording-session.spec.ts",
   "src/features/edit/processing/session-assembly-review.tsx",
   "src/features/edit/processing/session-assembly-publication-client.ts",
@@ -12,6 +13,12 @@ const files = [
 const content = new Map(files.map((path) => [path, readFileSync(path, "utf8")]));
 
 const requiredEvidence = [
+  [".github/workflows/ci.yml", "single ZIP uses the same session journey"],
+  [".github/workflows/ci.yml", "trusted midnight stays visible"],
+  [".github/workflows/ci.yml", "stale Markdown import"],
+  ["tests/processing/multi-recording-session.spec.ts", "single ZIP uses the same session journey"],
+  ["tests/processing/multi-recording-session.spec.ts", "trusted midnight stays visible"],
+  ["tests/processing/multi-recording-session.spec.ts", "stale Markdown import"],
   ["tests/processing/multi-recording-session.spec.ts", "Trecho 1 corrigido no Markdown"],
   ["tests/processing/multi-recording-session.spec.ts", "tda_transcript_publication_request_v2"],
   ["tests/processing/multi-recording-session.spec.ts", "{ width: 390, height: 844 }"],
