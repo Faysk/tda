@@ -165,7 +165,8 @@ insert into public.role_assignments(
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2','30000000-0000-4000-8000-000000000002','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','campaign','antes-que-seja-tarde','active','2020-01-01'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3','30000000-0000-4000-8000-000000000004','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3','project','tda','active','2020-01-01'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4','30000000-0000-4000-8000-000000000005','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4','project','dnd-scribe','active','2020-01-01'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5','30000000-0000-4000-8000-000000000006','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','campaign','yuhara-main','active','2020-01-01');
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5','30000000-0000-4000-8000-000000000006','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','campaign','yuhara-main','active','2020-01-01'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6','30000000-0000-4000-8000-000000000003','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','session','40000000-0000-4000-8000-000000000010','active','2020-01-01');
 
 insert into public.profile_claims(
   campaign_id, requester_auth_user_id, requester_name, requested_display_name
