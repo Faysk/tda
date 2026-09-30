@@ -105,6 +105,7 @@ jobs:
       - run: python tools/world-layout-db.py
       - run: python tools/world-entity-media-db.py
       - run: python tools/lembra-db.py
+      - run: python tools/campaign-registry-db.py
 
   validate:
     name: validate
