@@ -36,7 +36,11 @@
     },
     "uv": {
       "version": "0.12.18",
-      "reason": "Keep the existing reproducible Companion and ASR build-tool pin during the focused Qwen 1.0.12 owned-overflow recovery release; validate the 0.12.19 toolchain change separately so this alignment fix does not create unrelated runtime byte drift."
+      "reason": "Keep the reproducible uv 0.12.18 build-tool pin for the physically accepted Companion/ASR pipeline while the focused Companion 0.3.17 runtime-recovery release lands; validate uv 0.12.21 separately so this control-plane fix does not create unrelated package or runtime byte drift."
+    },
+    "python": {
+      "version": "3.12.14",
+      "reason": "Keep the physically accepted Python 3.12.14 baseline for the existing Whisper/Qwen runtime set while Companion 0.3.17 ships only the runtime-recovery control plane; validate Python 3.12.15 in a separately versioned ASR runtime rebuild so stable runtime identities are not silently mutated."
     }
   }
 }
