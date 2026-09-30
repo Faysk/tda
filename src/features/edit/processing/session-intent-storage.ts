@@ -12,6 +12,22 @@ const JOB_OR_RUN_ID = /^[A-Za-z0-9._:-]{1,256}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const MAX_SOURCES = 32;
 const CLOCK_SKEW_MS = 5 * 60 * 1000;
+const RECEIPT_FIELDS = new Set([
+	"schemaVersion",
+	"profileScope",
+	"campaignId",
+	"sessionId",
+	"requestId",
+	"sourceIds",
+	"profileId",
+	"contextSha256",
+	"glossarySha256",
+	"enqueueKeys",
+	"jobIds",
+	"runIds",
+	"createdAt",
+	"updatedAt",
+]);
 
 export type SessionIntentReceiptIdentity = Readonly<{
 	profileScopeHash: string;
@@ -92,6 +108,7 @@ function parseReceipt(
 	try {
 		const value = JSON.parse(raw) as Record<string, unknown>;
 		if (
+			Object.keys(value).some((key) => !RECEIPT_FIELDS.has(key)) ||
 			value.schemaVersion !== SESSION_INTENT_RECEIPT_SCHEMA ||
 			typeof value.profileScope !== "string" ||
 			!SHA256.test(value.profileScope) ||
