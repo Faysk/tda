@@ -1187,7 +1187,7 @@ test("Results keeps empty Session Assembly and sync context compact", async ({ p
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await page.addInitScript(() => {
 		window.localStorage.setItem(
-			"tda.processing.session-composer.last-session.v1",
+			"tda.processing.session-composer.last-session.v2:yuhara-main",
 			"sessao-42",
 		);
 	});
@@ -1288,7 +1288,7 @@ test("Results keeps a completed Session Assembly legible and actionable", async 
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await page.addInitScript(() => {
 		window.localStorage.setItem(
-			"tda.processing.session-composer.last-session.v1",
+			"tda.processing.session-composer.last-session.v2:yuhara-main",
 			"sessao-42",
 		);
 	});
@@ -1342,7 +1342,7 @@ test("Results keeps Session Assembly failure explicit without hiding the workspa
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await page.addInitScript(() => {
 		window.localStorage.setItem(
-			"tda.processing.session-composer.last-session.v1",
+			"tda.processing.session-composer.last-session.v2:yuhara-main",
 			"sessao-42",
 		);
 	});
