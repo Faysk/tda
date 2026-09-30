@@ -276,7 +276,7 @@ export function SessionIntentCoordinator({
 			}
 			return snapshot;
 		},
-		[bridge, onActiveChange],
+		[bridge, campaignId, onActiveChange],
 	);
 
 	const begin = useCallback(
@@ -425,6 +425,7 @@ export function SessionIntentCoordinator({
 			announce,
 			bridge,
 			busy,
+			campaignId,
 			disabled,
 			enabled,
 			fail,
@@ -525,6 +526,7 @@ export function SessionIntentCoordinator({
 	}, [
 		begin,
 		bridge.sessionTranscriptionIntent,
+		campaignId,
 		disabled,
 		enabled,
 		fail,
