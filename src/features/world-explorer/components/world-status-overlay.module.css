@@ -1,0 +1,69 @@
+.safeZone {
+	position: fixed;
+	left: 50%;
+	bottom: max(16px, env(safe-area-inset-bottom, 0px));
+	z-index: 44;
+	display: flex;
+	width: min(560px, calc(100vw - 360px));
+	justify-content: center;
+	transform: translateX(-50%);
+	pointer-events: none;
+}
+
+.message {
+	display: flex;
+	min-width: 0;
+	max-width: 100%;
+	min-height: 36px;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	padding: 8px 12px;
+	border: 1px solid color-mix(in srgb, var(--ds-control-border) 88%, transparent);
+	border-radius: var(--ds-radius-md);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 94%, transparent);
+	box-shadow: 0 12px 34px color-mix(in srgb, var(--ds-canvas) 48%, transparent);
+	backdrop-filter: blur(16px) saturate(108%);
+	color: var(--ds-foreground-soft);
+	font: 620 0.68rem/1.4 var(--ds-font-ui);
+	text-wrap: pretty;
+}
+
+.dot {
+	width: 7px;
+	height: 7px;
+	flex: 0 0 auto;
+	border-radius: 999px;
+	background: var(--ds-accent-strong);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-accent) 10%, transparent);
+}
+
+.safeZone[data-world-status-kind="busy"] .message {
+	color: var(--ds-foreground);
+}
+
+@media (max-width: 900px) {
+	.safeZone {
+		width: min(560px, calc(100vw - 32px));
+	}
+}
+
+@media (max-width: 700px) {
+	.safeZone {
+		bottom: max(104px, calc(env(safe-area-inset-bottom, 0px) + 88px));
+		width: calc(100vw - 16px);
+	}
+
+	.message {
+		min-height: 44px;
+		padding: 9px 11px;
+		font-size: 0.66rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.safeZone,
+	.message {
+		transition: none;
+	}
+}
