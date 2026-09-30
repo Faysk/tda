@@ -405,10 +405,18 @@ def _load_base(package_root: Path, source_id: str, run_id: str) -> tuple[dict[st
         raise LocalReviewError("LOCAL_REVIEW_SOURCE_MISMATCH")
     try:
         manifest, transcript = load_verified_transcript_snapshot(package_root, run_id)
-        package = load_craig_package(package_root, verify_tracks=False)
-        return manifest, {**transcript, "_source_start_time": package.start_time}
-    except (TranscriptionRunError, CraigPackageError) as exc:
+    except TranscriptionRunError as exc:
         raise LocalReviewError("LOCAL_REVIEW_BASE_RUN_INVALID") from exc
+    source_start_time = None
+    craig_manifest = package_root / "manifest.json"
+    if craig_manifest.exists():
+        try:
+            source_start_time = load_craig_package(
+                package_root, verify_tracks=False
+            ).start_time
+        except CraigPackageError as exc:
+            raise LocalReviewError("LOCAL_REVIEW_BASE_RUN_INVALID") from exc
+    return manifest, {**transcript, "_source_start_time": source_start_time}
 
 
 def _absolute_time(
