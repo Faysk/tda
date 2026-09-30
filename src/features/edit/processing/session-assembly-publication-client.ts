@@ -145,6 +145,8 @@ export function assemblyPublicationRequestBody(
 				trackNumber: segment.trackNumber,
 				start: segment.start,
 				end: segment.end,
+				absoluteStart: segment.absoluteStart,
+				absoluteEnd: segment.absoluteEnd,
 				text: segment.text,
 				speaker: segment.speaker,
 				reviewed: segment.reviewed,
