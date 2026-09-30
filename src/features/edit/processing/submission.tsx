@@ -58,6 +58,11 @@ import {
 	type SessionTranscriptionIntent,
 } from "./session-intent";
 import {
+	confirmSessionComposerPendingSubmission,
+	resolveSessionComposerPendingSubmission,
+	type SessionComposerPendingSubmission,
+} from "./session-composer-storage";
+import {
 	chooseSubmissionProfile,
 	formatSubmissionBytes,
 	profileReadinessCopy,
@@ -223,6 +228,7 @@ export function ProcessingSubmission({
 		QwenRuntimeReleaseAvailability | "checking" | null
 	>(null);
 	const request = useRef<AbortController | null>(null);
+	const fallbackPending = useRef<SessionComposerPendingSubmission | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
@@ -620,6 +626,66 @@ export function ProcessingSubmission({
 					);
 					return;
 				}
+			}
+
+			const sessionIntentCapabilities = [
+				"transcription.session-workspace",
+				"transcription.session-timeline",
+				"transcription.session-participants",
+				"transcription.session-assembly",
+			];
+			const supportsSessionIntent = sessionIntentCapabilities.every((capability) =>
+				currentCapabilities.capabilities.includes(capability),
+			);
+			if (!supportsSessionIntent) {
+				if (stagedSources.length !== 1) {
+					setError(
+						"Este Companion suporta uma gravação por vez. Atualize o aplicativo local para transcrever vários ZIPs como uma única sessão.",
+					);
+					return;
+				}
+				const staged = stagedSources[0]!;
+				const signature = JSON.stringify([
+					CAMPAIGN_SLUG,
+					sessionId,
+					staged.sourceId,
+					profile,
+					glossary,
+					context,
+					false,
+				]);
+				const pending = await resolveSessionComposerPendingSubmission({
+					storage: window.localStorage,
+					recoveryScope,
+					campaignId: CAMPAIGN_SLUG,
+					sessionId,
+					sourceId: staged.sourceId,
+					profileId: profile,
+					requestSignature: signature,
+					existing: fallbackPending.current,
+				});
+				fallbackPending.current = pending;
+				setPendingStage("submitting");
+				setStatus("Enviando a gravação ao Companion local…");
+				const job = await bridge.transcription(
+					{
+						campaignId: CAMPAIGN_SLUG,
+						sessionId,
+						sourceId: staged.sourceId,
+						profileId: profile,
+						glossary,
+						context,
+					},
+					pending.key,
+					controller.signal,
+				);
+				confirmSessionComposerPendingSubmission(window.localStorage, pending);
+				fallbackPending.current = null;
+				setFiles([]);
+				setStatus(
+					`Job ${job.id} confirmado no Companion · ${job.status === "succeeded" ? "concluído" : "acompanhe na fila"}.`,
+				);
+				return;
 			}
 
 			setPendingStage("submitting");
