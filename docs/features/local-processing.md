@@ -9,6 +9,23 @@
 
 O contrato editorial pós-processamento é definido em [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) e em ADR-0016. A regra central é: **concluir ASR não publica nada**.
 
+## Campaign context no processamento
+
+ADR-0020/#1128 adicionam um invariant antes do handoff cloud: uma submissão que possa criar/ligar sessão precisa de campaign explícita.
+
+O contrato alvo é:
+
+- campaign faz parte da identidade da intenção/idempotency, junto de source/operação/parâmetros relevantes;
+- selecionar outra campaign na UI não retaggeia job/run já iniciado;
+- retry/recovery preserva a campaign original da intenção;
+- o mesmo source em campaigns diferentes representa intenções distintas e auditáveis;
+- handoff compara campaign da intenção com campaign da session alvo antes de qualquer write;
+- mismatch falha fechado;
+- criação de campaign é fluxo administrativo separado, nunca efeito colateral de `Processar`;
+- run ASR bruto continua imutável e não vira canon/publicação por receber campaign context.
+
+Até #1128 ser implementada, `/edit/processamento` continua sendo rota de compatibilidade do estado single-campaign. O alvo canônico privado é `/edit/[campaign]/processamento` conforme [contrato multi-campaign](../architecture/multi-campaign.md).
+
 ## Estado atual
 
 ### Overview — candidato #580
