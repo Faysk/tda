@@ -67,7 +67,7 @@ test("desktop controls stay compact and advanced fields expand on demand", async
 	await expect(commandBar).not.toContainText("Synthetic CPU");
 
 	for (const locator of [
-		page.getByText("Transcrever sessão", { exact: true }),
+		page.getByRole("heading", { name: "Transcrever sessão" }),
 		commandBar,
 	]) {
 		const box = await locator.boundingBox();
@@ -217,7 +217,7 @@ test("automatic session → Craig staging → preparation → queue → progress
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("Transcrever sessão", { exact: true })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Transcrever sessão" })).toBeVisible();
 
 	const health = state.requests.find((request) => request.path === "/health");
 	const session = state.requests.find((request) => request.path === "/session");
