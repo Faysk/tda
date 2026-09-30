@@ -199,6 +199,15 @@ ADR-0020 fixa a semântica que #1134 deve implementar e testar:
 
 Um assignment ativo em `scope_type="project", scope_id="tda"` continua semanticamente global por capability e pode cobrir campaigns criadas futuramente **somente para actions realmente presentes na role**. Isso não equivale a membership universal, não concede discovery irrestrita e não elimina a prova de ownership do recurso.
 
+Implementação candidata de #1134:
+
+- **discovery pública** não usa RBAC e expõe apenas `active/public` por projection mínima;
+- **discovery Edit** usa a capability exata `campaign.edit.access`; possuir outra action não transforma o ator em descobridor por acidente;
+- um `campaign.edit.access` de `project/tda` cobre todas as campaigns, inclusive archived para navegação histórica; `project/dnd-scribe` não cobre nenhuma;
+- criação/administração de registry usa `project.campaigns.manage`, inicialmente ligada a `platform_owner`;
+- onboarding sem vínculo não enumera profiles globais: até existir invite/elegibility explícito, `access_directory` exige `campaign.read` ou `campaign.access.manage`;
+- `missing`, sibling e archived retornam negação opaca no boundary de access/onboarding.
+
 ### Session / resource / integration
 
 Não existe herança genérica aprovada. Cada resolver precisa provar a cadeia real de ownership antes de aceitar grant de campaign/project.
