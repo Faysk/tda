@@ -31,6 +31,7 @@ export type SessionIntentReceipt = Readonly<{
 	profileId: TranscriptionProfileId;
 	context: string;
 	glossary: string;
+	enqueueKeys: Readonly<Record<string, string>>;
 	jobIds: Readonly<Record<string, string>>;
 	runIds: Readonly<Record<string, string>>;
 	createdAt: string;
@@ -115,6 +116,7 @@ function parseReceipt(
 			value.context.length > MAX_CONTEXT_CHARS ||
 			typeof value.glossary !== "string" ||
 			value.glossary.length > MAX_GLOSSARY_CHARS ||
+			!validSourceMap(value.enqueueKeys, value.sourceIds as string[]) ||
 			!validSourceMap(value.jobIds, value.sourceIds as string[]) ||
 			!validSourceMap(value.runIds, value.sourceIds as string[]) ||
 			typeof value.createdAt !== "string" ||
@@ -187,6 +189,7 @@ export function createSessionIntentReceipt(
 		profileId: TranscriptionProfileId;
 		context: string;
 		glossary: string;
+		enqueueKeys?: Readonly<Record<string, string>>;
 		jobIds?: Readonly<Record<string, string>>;
 		runIds?: Readonly<Record<string, string>>;
 	}>,
@@ -202,6 +205,7 @@ export function createSessionIntentReceipt(
 		profileId: input.profileId,
 		context: input.context,
 		glossary: input.glossary,
+		enqueueKeys: { ...(input.enqueueKeys ?? {}) },
 		jobIds: { ...(input.jobIds ?? {}) },
 		runIds: { ...(input.runIds ?? {}) },
 		createdAt: new Date(now).toISOString(),
@@ -246,15 +250,19 @@ export function loadSessionIntentReceipt(
 export function updateSessionIntentReceipt(
 	receipt: SessionIntentReceipt,
 	patch: Readonly<{
+		enqueue?: Readonly<{ sourceId: string; key: string }>;
 		job?: Readonly<{ sourceId: string; jobId: string }>;
 		run?: Readonly<{ sourceId: string; runId: string }>;
 	}>,
 ): SessionIntentReceipt {
+	const enqueueKeys = { ...receipt.enqueueKeys };
 	const jobIds = { ...receipt.jobIds };
 	const runIds = { ...receipt.runIds };
+	if (patch.enqueue && receipt.sourceIds.includes(patch.enqueue.sourceId))
+		enqueueKeys[patch.enqueue.sourceId] = patch.enqueue.key;
 	if (patch.job && receipt.sourceIds.includes(patch.job.sourceId))
 		jobIds[patch.job.sourceId] = patch.job.jobId;
 	if (patch.run && receipt.sourceIds.includes(patch.run.sourceId))
 		runIds[patch.run.sourceId] = patch.run.runId;
-	return { ...receipt, jobIds, runIds };
+	return { ...receipt, enqueueKeys, jobIds, runIds };
 }
