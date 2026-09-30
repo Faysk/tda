@@ -185,19 +185,17 @@ begin
       and index_row.indisunique
       and exists (
         select 1
-        from unnest(index_row.indkey) key(attnum)
-        join pg_attribute attribute_row
-          on attribute_row.attrelid = table_row.oid
-         and attribute_row.attnum = key.attnum
-        where attribute_row.attname = 'source_session_id'
+        from pg_attribute attribute_row
+        where attribute_row.attrelid = table_row.oid
+          and attribute_row.attname = 'source_session_id'
+          and attribute_row.attnum = any(index_row.indkey)
       )
       and not exists (
         select 1
-        from unnest(index_row.indkey) key(attnum)
-        join pg_attribute attribute_row
-          on attribute_row.attrelid = table_row.oid
-         and attribute_row.attnum = key.attnum
-        where attribute_row.attname = 'campaign_id'
+        from pg_attribute attribute_row
+        where attribute_row.attrelid = table_row.oid
+          and attribute_row.attname = 'campaign_id'
+          and attribute_row.attnum = any(index_row.indkey)
       )
   ) then
     raise exception
@@ -214,19 +212,17 @@ begin
       and index_row.indisunique
       and exists (
         select 1
-        from unnest(index_row.indkey) key(attnum)
-        join pg_attribute attribute_row
-          on attribute_row.attrelid = table_row.oid
-         and attribute_row.attnum = key.attnum
-        where attribute_row.attname = 'slug'
+        from pg_attribute attribute_row
+        where attribute_row.attrelid = table_row.oid
+          and attribute_row.attname = 'slug'
+          and attribute_row.attnum = any(index_row.indkey)
       )
       and not exists (
         select 1
-        from unnest(index_row.indkey) key(attnum)
-        join pg_attribute attribute_row
-          on attribute_row.attrelid = table_row.oid
-         and attribute_row.attnum = key.attnum
-        where attribute_row.attname = 'campaign_id'
+        from pg_attribute attribute_row
+        where attribute_row.attrelid = table_row.oid
+          and attribute_row.attname = 'campaign_id'
+          and attribute_row.attnum = any(index_row.indkey)
       )
   ) then
     raise exception
