@@ -92,6 +92,7 @@ const PREFIX = {
 		"src/components/global-loading/",
 		"src/app/e2e-fixtures/global-loading/",
 		"src/app/e2e-fixtures/system-states/",
+		"src/app/sessoes/",
 		"public/lore/d/",
 	],
 	db: ["supabase/", "src/features/transcript-sync/"],
