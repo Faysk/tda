@@ -809,7 +809,9 @@ test("reload recovers the Agent workspace and does not expose technical controls
 	await expect(recovered).toContainText("Transcrição pronta");
 	await expect(page.getByLabel("ID da sessão")).toHaveValue(SESSION);
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toBeVisible();
-	await expect(page.getByText("Processar pendentes", { exact: false })).toHaveCount(0);
+	await expect(
+		page.getByText("Processar pendentes", { exact: false }),
+	).not.toBeVisible();
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
 });
