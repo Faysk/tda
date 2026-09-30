@@ -18,7 +18,7 @@ for (const viewport of [
 				fixtureJob("cancelled", {
 					id: `job-${String(index).padStart(2, "0")}`,
 					context: {
-						campaign_id: "synthetic",
+						campaign_id: "yuhara-main",
 						session_id: `session-${index}`,
 						source_id: `source-${index}`,
 						profile_id: "qwen-quality",
