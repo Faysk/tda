@@ -150,9 +150,31 @@ Contrato de UI:
 
 O drift remoto de persistência de layout identificado na issue #95 continua uma dependência de governança. A #99 não deve reaplicar migration, inventar timestamp local equivalente nem usar a existência remota como prova de que o fluxo editorial de layout está reconciliado. A edição factual de relations também continua dependente do contrato/migration próprios.
 
+## Boundary multi-campaign
+
+World state é campaign-owned. ADR-0020/#1130 exigem que a campaign participe da identidade de:
+
+- projection factual;
+- layout snapshot/head;
+- draft/checkpoint;
+- lease de edição;
+- receipt de publicação;
+- media bindings;
+- caches/revalidation.
+
+Invariantes:
+
+- draft/lease/revision de A não bloqueia nem sobrescreve B;
+- source/target de relation pertencem à mesma campaign da relation;
+- mover de campaign é operação de domínio, não troca de query parameter;
+- `?foco=` só resolve entities dentro da campaign já autorizada;
+- project grant continua sujeito à capability exata e ownership;
+- audience filtering acontece antes do browser em cada campaign.
+
+O caminho público atual `/mundo` continua entrypoint agregado/compatível. O alvo específico é `/campanhas/[campaign]/mundo`; edição privada usa `/edit/[campaign]/mundo`. A implementação não pode usar `yuhara-main` como fallback silencioso quando mais de uma campaign estiver ativa.
 ## Rotas
 
-### Canônica
+### Canônica atual / transição
 
 `/mundo`
 
@@ -164,6 +186,8 @@ Estado exploratório serializável pode usar query:
 ```
 
 Não colocar listas gigantes de edge IDs nem posições de canvas na URL.
+
+No rollout multi-campaign, `/campanhas/[campaign]/mundo` é a rota canônica de uma campaign específica; `/mundo` permanece entrypoint agregado/seleção.
 
 ### Rotas editoriais derivadas
 
