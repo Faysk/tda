@@ -139,7 +139,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $$
 begin
   if old.public_slug is null
      or old.public_slug is not distinct from new.public_slug then
@@ -174,7 +174,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists campaign_public_route_alias_recorder on public.campaigns;
 create trigger campaign_public_route_alias_recorder
@@ -288,7 +288,7 @@ begin
       'entities has a global unique slug index; refusing #1123 migration';
   end if;
 end
-$;
+$$;
 
 -- The legacy campaign must already exist. Failing here is safer than creating a
 -- replacement UUID and silently detaching all existing campaign-owned rows.
@@ -335,7 +335,7 @@ where campaign.slug = 'yuhara-main'
     where lower(alias_row.route_key) = 'yuhara-main'
   );
 
-do $
+do $$
 begin
   if not exists (
     select 1
@@ -348,7 +348,7 @@ begin
       'yuhara-main public alias does not resolve to the legacy campaign';
   end if;
 end
-$;
+$$;
 
 -- Identity-only bootstrap for the approved second campaign. No sessions,
 -- entities, canon, memberships or lore links are inferred here.
@@ -443,11 +443,11 @@ begin
       on delete restrict;
   end if;
 end
-$;
+$$;
 
 -- participants inherit campaign from sessions. Prevent a participant from
 -- linking a character entity owned by a different campaign.
-do $
+do $$
 declare
   v_mismatch_count integer;
 begin
@@ -465,14 +465,14 @@ begin
       v_mismatch_count;
   end if;
 end
-$;
+$$;
 
 create or replace function public.guard_participant_character_campaign()
 returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $$
 declare
   v_session_campaign_id uuid;
   v_entity_campaign_id uuid;
@@ -501,7 +501,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists participants_character_campaign_guard on public.participants;
 create trigger participants_character_campaign_guard
