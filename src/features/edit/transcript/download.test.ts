@@ -38,7 +38,9 @@ describe("private transcript markdown download", () => {
 			"X-Content-Type-Options": "nosniff",
 		});
 		expect(download.headers["Content-Disposition"]).toContain("attachment");
-		expect(download.body).toContain("Primeiro snapshot 🌲");\n\t\texpect(download.body).toContain("tda_transcript_schema: 1");\n\t\texpect(download.body).toContain("structure_sha256:");
+		expect(download.body).toContain("Primeiro snapshot 🌲");
+		expect(download.body).toContain("tda_transcript_schema: 1");
+		expect(download.body).toContain("structure_sha256:");
 	});
 
 	it("renders exactly the captured revision even if a newer snapshot exists later", async () => {
