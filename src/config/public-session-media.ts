@@ -38,6 +38,11 @@ export type PublicSessionMediaManifest = Readonly<
 /**
  * Runtime promotion registry for session social images.
  *
+ * Historical entries are keyed only by source_session_id and belong exclusively
+ * to the legacy yuhara-main campaign. New multi-campaign entries must use
+ * `<technicalCampaignSlug>:<sourceSessionId>` so identical source IDs in
+ * different campaigns cannot resolve to the same promoted social image.
+ *
  * The recovery/dry-run manifest from #25 is evidence, not an automatic grant.
  * Entries belong here only after the object and its unauthenticated public
  * delivery URL have both been verified. Until then metadata uses /og/default.

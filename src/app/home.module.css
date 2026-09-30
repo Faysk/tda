@@ -113,7 +113,9 @@
 .latestMeta,
 .memoryMeta {
 	display: flex;
+	min-width: 0;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: 14px;
 	font-family: var(--ds-font-ui);
 	font-size: 0.72rem;
@@ -134,11 +136,21 @@
 .latestMeta > span,
 .memoryMeta > span {
 	overflow: hidden;
+	max-width: 100%;
 	font-weight: 650;
 	letter-spacing: 0.08em;
 	text-overflow: ellipsis;
 	text-transform: uppercase;
 	white-space: nowrap;
+}
+
+.latestMeta > .campaignName,
+.memoryMeta > .campaignName {
+	overflow: visible;
+	min-width: 0;
+	text-overflow: clip;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .latestMeta > span {
@@ -588,6 +600,12 @@
 		align-items: flex-start;
 		flex-direction: column;
 		gap: 7px;
+	}
+
+	.latestMeta > span,
+	.memoryMeta > span,
+	.memoryMeta time {
+		max-width: 100%;
 	}
 
 	.latestDate::before {
