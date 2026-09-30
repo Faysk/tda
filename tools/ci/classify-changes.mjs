@@ -50,6 +50,8 @@ const EXACT = {
 		"src/components/navigation-auth.ts",
 		"src/components/public-navigation-model.ts",
 		"src/components/theme-toggle.tsx",
+		"src/features/world-explorer/hooks/use-world-edit-session.ts",
+		"src/features/world-explorer/components/world-conductor-bar.tsx",
 		"src/components/session-list.tsx",
 		"src/config/brand-assets.ts",
 		"src/config/brand-assets.test.ts",
