@@ -93,7 +93,7 @@ export function toPublishedSession(row: Row, detail = false): PublishedSession |
 	const campaignSlug = text(campaign.public_slug, 220);
 	const campaignName = text(campaign.name, 500);
 	const campaignId = text(campaign.id, 100);
-	if (!technicalSlug || !campaignSlug || !campaignName) return null;
+	if (!campaignId || !technicalSlug || !campaignSlug || !campaignName) return null;
 	if (campaign.lifecycle !== "active" || campaign.visibility !== "public") return null;
 	const id = text(row.source_session_id, 220);
 	if (!id) return null;
