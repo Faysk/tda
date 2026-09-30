@@ -214,7 +214,12 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS jobs_status_updated_id_idx "
                 "ON jobs(status, updated DESC, id DESC)"
             )
-            db.execute("PRAGMA user_version=13")
+            # The session intent table is additive and deliberately stays inside the
+            # v12 compatibility envelope: previous v12 binaries ignore the extra table,
+            # so application rollback can still open the preserved local database.
+            # Accepting transient candidate v13 above lets development installs normalize
+            # back to the rollback-compatible marker without losing the intent rows.
+            db.execute("PRAGMA user_version=12")
             db.execute("INSERT OR IGNORE INTO settings VALUES ('device', ?)", (str(uuid4()),))
             db.execute("INSERT OR IGNORE INTO settings VALUES ('paused', 'false')")
 
