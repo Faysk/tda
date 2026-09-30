@@ -946,7 +946,9 @@ describe("Qwen runtime maintenance wire contract", () => {
 			can_update: true,
 			error_code: null,
 		};
-		const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(running));
+		const request = vi
+			.fn<typeof fetch>()
+			.mockImplementation(async () => Response.json(running));
 		const bridge = new LocalBridge(request);
 		bridge.pair(token);
 
