@@ -274,7 +274,7 @@ export function TranscriptReader({
 		if (!importPreview) return;
 		const edits = new Map(
 			importPreview.edits.map((edit) => [
-				`${edit.trackNumber}\\0${edit.segmentId}`,
+				`${edit.trackNumber}\u0000${edit.segmentId}`,
 				edit,
 			]),
 		);
@@ -282,7 +282,7 @@ export function TranscriptReader({
 		for (const segment of baseline) {
 			if (!segment.sourceSegmentId) continue;
 			const edit = edits.get(
-				`${segment.trackNumber}\\0${segment.sourceSegmentId}`,
+				`${segment.trackNumber}\u0000${segment.sourceSegmentId}`,
 			);
 			if (edit)
 				next[segment.id] = { speaker: edit.speaker, text: edit.text };
