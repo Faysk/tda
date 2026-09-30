@@ -7,13 +7,16 @@ import os
 import stat
 import re
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from .atomic_storage import AtomicStorageError, atomic_write
 
 from .transcription_runs import TranscriptionRunError, load_run, load_verified_transcript_snapshot
 from .review_text import count_words_v1, valid_review_string_v1
+from .craig_runtime import load_craig_package
+from .craig import CraigPackageError
+from .session_timeline import classify_start_time
 
 REVIEW_SCHEMA_VERSION = "tda_local_review_draft_v1"
 REVIEW_RESPONSE_SCHEMA_VERSION = "tda_local_review_v1"
@@ -401,9 +404,35 @@ def _load_base(package_root: Path, source_id: str, run_id: str) -> tuple[dict[st
     if package_root.resolve().name != source_id:
         raise LocalReviewError("LOCAL_REVIEW_SOURCE_MISMATCH")
     try:
-        return load_verified_transcript_snapshot(package_root, run_id)
-    except TranscriptionRunError as exc:
+        manifest, transcript = load_verified_transcript_snapshot(package_root, run_id)
+        package = load_craig_package(package_root, verify_tracks=False)
+        return manifest, {**transcript, "_source_start_time": package.start_time}
+    except (TranscriptionRunError, CraigPackageError) as exc:
         raise LocalReviewError("LOCAL_REVIEW_BASE_RUN_INVALID") from exc
+
+
+def _absolute_time(
+    source_start_time: object,
+    timeline_start: float,
+    timeline_end: float,
+) -> dict[str, str] | None:
+    classified = classify_start_time(source_start_time)
+    if classified.get("confidence") != "trusted_absolute":
+        return None
+    raw = source_start_time.strip() if isinstance(source_start_time, str) else ""
+    try:
+        source_start = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise LocalReviewError("LOCAL_REVIEW_ABSOLUTE_TIME_INVALID") from exc
+    start = source_start + timedelta(seconds=timeline_start)
+    end = source_start + timedelta(seconds=timeline_end)
+    return {
+        "schema_version": "tda_segment_absolute_time_v1",
+        "confidence": "trusted_absolute",
+        "source_start": raw,
+        "start": start.isoformat(timespec="milliseconds"),
+        "end": end.isoformat(timespec="milliseconds"),
+    }
 
 
 def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
@@ -412,6 +441,7 @@ def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
         raise LocalReviewError("LOCAL_REVIEW_BASE_TRACKS_INVALID")
     segments: list[dict[str, Any]] = []
     seen: set[tuple[int, str]] = set()
+    source_start_time = transcript.get("_source_start_time")
     for track in tracks:
         if not isinstance(track, dict):
             raise LocalReviewError("LOCAL_REVIEW_BASE_TRACK_INVALID")
@@ -463,6 +493,11 @@ def _base_segments(transcript: dict[str, Any]) -> list[dict[str, Any]]:
                     "end": float(end),
                     "timeline_start": float(start) + float(timeline_offset),
                     "timeline_end": float(end) + float(timeline_offset),
+                    "absolute_time": _absolute_time(
+                        source_start_time,
+                        float(start) + float(timeline_offset),
+                        float(end) + float(timeline_offset),
+                    ),
                     "text": text,
                     "speaker": speaker,
                     "reviewed": False,
@@ -512,6 +547,8 @@ def _validate_segment_payload(
         seen.add(key)
         if raw.get("start") != original["start"] or raw.get("end") != original["end"]:
             raise LocalReviewError("LOCAL_REVIEW_SEGMENT_TIMING_IMMUTABLE")
+        if raw.get("absolute_time") != original["absolute_time"]:
+            raise LocalReviewError("LOCAL_REVIEW_SEGMENT_TIMING_IMMUTABLE")
         if not isinstance(text, str) or (validate_editorial and not valid_review_string_v1(text, "text")):
             raise LocalReviewError("LOCAL_REVIEW_SEGMENT_TEXT_INVALID")
         if not isinstance(speaker, str) or (validate_editorial and not valid_review_string_v1(speaker, "speaker")):
@@ -524,6 +561,7 @@ def _validate_segment_payload(
                 "segment_id": segment_id,
                 "start": original["start"],
                 "end": original["end"],
+                "absolute_time": original["absolute_time"],
                 "text": text,
                 "speaker": speaker,
                 "reviewed": reviewed,
