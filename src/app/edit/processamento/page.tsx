@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireCapability } from "@/features/auth/server";
 import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
 import { ProcessingPanel } from "@/features/edit/processing/panel";
+import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import styles from "@/features/edit/processing/processing.module.css";
 import pageStyles from "./page.module.css";
@@ -24,6 +26,7 @@ export default async function ProcessingPage() {
 		EDIT_CAPABILITIES.activityBarksManage,
 		CAMPAIGN_SLUG,
 	).ok;
+	const canManageCampaigns = canManageCampaignRegistry(access);
 	const publicationEnabled =
 		process.env.TDA_TRANSCRIPT_PUBLICATION_ENABLED === "true" &&
 		authorizeCampaignCapability(
@@ -35,6 +38,11 @@ export default async function ProcessingPage() {
 	return (
 		<section className={styles.page} data-processing-workspace="true" data-layout-family="workspace" data-layout-role="expansive">
 			<h1 className={pageStyles.visuallyHidden}>Processamento</h1>
+			{canManageCampaigns ? (
+				<nav className={pageStyles.campaignTools} aria-label="Gestão de campanhas">
+					<Link href="/edit/campanhas">Gerir campanhas</Link>
+				</nav>
+			) : null}
 
 			<ProcessingPanel
 				publicationEnabled={publicationEnabled}
