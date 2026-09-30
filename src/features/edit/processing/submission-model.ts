@@ -89,5 +89,5 @@ export function submissionCtaLabel(
 	if (pending === "validating") return "Validando ZIP…";
 	if (pending === "preparing") return "Preparando profile…";
 	if (pending === "submitting") return "Enviando ao Companion…";
-	return "Começar transcrição";
+	return "Transcrever sessão";
 }

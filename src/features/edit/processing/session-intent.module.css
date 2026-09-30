@@ -1,0 +1,195 @@
+.intent {
+	display: grid;
+	gap: 10px;
+	margin-top: 10px;
+	padding: 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+}
+
+.header,
+.complete,
+.blocker,
+.secondaryActions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.header > div,
+.complete > div,
+.blocker > div:first-child,
+.review {
+	display: grid;
+	min-width: 0;
+	gap: 3px;
+}
+
+.header > div > span,
+.complete span,
+.blocker span,
+.review span,
+.waiting,
+.live {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.4;
+}
+
+.header h3 {
+	margin: 0;
+	font-family: var(--ds-font-display);
+	font-size: 1rem;
+	font-weight: 500;
+}
+
+.header > strong {
+	font-size: 0.76rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.progressList {
+	display: grid;
+	gap: 5px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.progressList li {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	padding: 7px 8px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface);
+}
+
+.progressList li > span {
+	display: grid;
+	width: 22px;
+	height: 22px;
+	flex: 0 0 22px;
+	place-items: center;
+	border: 1px solid var(--ds-border);
+	border-radius: 999px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+}
+
+.progressList li[data-state="completed"] > span {
+	border-color: color-mix(in srgb, var(--ds-success) 45%, var(--ds-border));
+	color: var(--ds-success);
+}
+
+.progressList li[data-state="failed"] > span {
+	border-color: color-mix(in srgb, var(--ds-danger) 45%, var(--ds-border));
+	color: var(--ds-danger);
+}
+
+.progressList li > div {
+	display: grid;
+	min-width: 0;
+	gap: 2px;
+}
+
+.progressList strong {
+	overflow: hidden;
+	font-size: 0.76rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.progressList small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+}
+
+.blocker,
+.complete,
+.review {
+	padding: 9px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface);
+}
+
+.blocker {
+	border-color: color-mix(in srgb, var(--ds-warning) 45%, var(--ds-border));
+}
+
+.blocker strong,
+.complete strong,
+.review strong {
+	font-size: 0.78rem;
+}
+
+.blockerActions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 6px;
+}
+
+.complete {
+	border-color: color-mix(in srgb, var(--ds-success) 45%, var(--ds-border));
+}
+
+.review {
+	border-color: color-mix(in srgb, var(--ds-success) 30%, var(--ds-border));
+}
+
+.waiting,
+.error,
+.live {
+	margin: 0;
+}
+
+.error {
+	color: var(--ds-danger);
+	font-size: 0.72rem;
+	line-height: 1.4;
+}
+
+.live {
+	min-height: 1em;
+}
+
+.secondaryActions {
+	justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+	.intent {
+		padding: 9px;
+	}
+
+	.header,
+	.complete,
+	.blocker {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.blockerActions,
+	.secondaryActions {
+		width: 100%;
+		justify-content: stretch;
+	}
+
+	.blockerActions :global(.ds-action),
+	.complete :global(.ds-action),
+	.secondaryActions :global(.ds-action) {
+		width: 100%;
+	}
+
+	.progressList strong {
+		white-space: normal;
+	}
+}
