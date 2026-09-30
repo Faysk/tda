@@ -101,7 +101,7 @@ describe("multi-campaign Home feed", () => {
 		expect(latest).toBeDefined();
 
 		const manifest: PublicSessionMediaManifest = {
-			a: {
+			"campaign-a:a": {
 				hero: {
 					state: "verified-public",
 					publicUrl: "https://media.example.test/a.webp",
@@ -115,7 +115,7 @@ describe("multi-campaign Home feed", () => {
 					publicDeliveryVerified: true,
 				},
 			},
-			b: {
+			"campaign-b:b": {
 				hero: {
 					state: "verified-public",
 					publicUrl: "https://media.example.test/b.webp",
