@@ -65,7 +65,7 @@ Para regras conceituais, consultar [modelo de dados](../data-model.md). Para seg
 
 **Propósito:** raiz de isolamento narrativo. A fotografia observada contém uma campaign com technical slug `yuhara-main`; isso descreve o estado físico atual, não uma limitação arquitetural a uma única campaign.
 
-Campos após a migration candidata `20260930161500_first_class_campaign_registry`:
+Campos após a migration candidata `supabase/candidates/20260930161500_first_class_campaign_registry.sql`:
 
 - `id uuid` PK — autoridade relacional;
 - `name text` — apresentação humana;
