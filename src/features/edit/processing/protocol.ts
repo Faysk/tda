@@ -445,6 +445,14 @@ export type LocalRunSummary = {
 	publicationTargetState?: "valid" | "invalid" | "unbound";
 	review: LocalRunReviewSummary | null;
 };
+export type LocalAbsoluteTime = {
+	schemaVersion: "tda_segment_absolute_time_v1";
+	confidence: "trusted_absolute";
+	sourceStart: string;
+	start: string;
+	end: string;
+};
+
 export type LocalReviewSegment = {
 	trackNumber: number;
 	segmentId: string;
@@ -454,6 +462,7 @@ export type LocalReviewSegment = {
 	timelineStart?: number;
 	/** Absolute session timeline coordinate when supplied by the Agent. */
 	timelineEnd?: number;
+	absoluteTime?: LocalAbsoluteTime;
 	text: string;
 	speaker: string;
 	reviewed: boolean;
@@ -618,6 +627,37 @@ function nonNegativeNumber(value: unknown): number {
 function nullableIsoDate(value: unknown): string | null {
 	if (value === null || value === undefined) return null;
 	return isoDate(value);
+}
+
+const OFFSET_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u;
+function localAbsoluteTime(value: unknown): LocalAbsoluteTime | undefined {
+	if (value === null || value === undefined) return undefined;
+	const row = record(value);
+	if (
+		row.schema_version !== "tda_segment_absolute_time_v1" ||
+		row.confidence !== "trusted_absolute"
+	)
+		return invalid();
+	const sourceStart = text(row.source_start, 128);
+	const start = text(row.start, 128);
+	const end = text(row.end, 128);
+	if (
+		!OFFSET_ISO.test(sourceStart) ||
+		!OFFSET_ISO.test(start) ||
+		!OFFSET_ISO.test(end) ||
+		!Number.isFinite(Date.parse(sourceStart)) ||
+		!Number.isFinite(Date.parse(start)) ||
+		!Number.isFinite(Date.parse(end)) ||
+		Date.parse(end) < Date.parse(start)
+	)
+		return invalid();
+	return {
+		schemaVersion: "tda_segment_absolute_time_v1",
+		confidence: "trusted_absolute",
+		sourceStart,
+		start,
+		end,
+	};
 }
 export function transcriptionProfile(value: unknown): TranscriptionProfileId {
 	const parsed = text(value, 32);
@@ -1817,6 +1857,7 @@ export function parseLocalReview(
 		if (timelineEnd < timelineStart) return invalid();
 		const trackNumber = nonNegativeInteger(segment.track_number);
 		if (trackNumber < 1) return invalid();
+		const absoluteTime = localAbsoluteTime(segment.absolute_time);
 		return {
 			trackNumber,
 			segmentId: contentText(segment.segment_id, 256),
@@ -1824,6 +1865,7 @@ export function parseLocalReview(
 			end,
 			timelineStart,
 			timelineEnd,
+			...(absoluteTime ? { absoluteTime } : {}),
 			text: isReviewStringV1(segment.text, "text") ? segment.text : invalid(),
 			speaker: isReviewStringV1(segment.speaker, "speaker") ? segment.speaker : invalid(),
 			reviewed: boolean(segment.reviewed),
