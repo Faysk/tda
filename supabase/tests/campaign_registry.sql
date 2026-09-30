@@ -76,7 +76,7 @@ $$;
 
 -- Alias storage is server-only until #1134 defines discovery. Trigger guards
 -- are privileged only for integrity and cannot be invoked directly by browser roles.
-do $
+do $$
 begin
   if not exists (
     select 1
@@ -149,7 +149,7 @@ begin
     raise exception 'browser roles can execute route guard functions directly';
   end if;
 end
-$;
+$$;
 
 -- Existing external source IDs remain unique within a campaign, not globally.
 insert into public.sessions (
