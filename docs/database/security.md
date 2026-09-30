@@ -70,6 +70,8 @@ Mapeia profile + role para scope:
 
 O scope canônico do reboot é `project/tda`. `project/dnd-scribe` permanece temporariamente porque consumidores legados ainda o utilizam.
 
+Para `scope_type='campaign'`, autorização continua resolvendo o **slug técnico** de `campaigns.slug`. O novo `public_slug` e `campaign_public_slug_aliases` são identidade de apresentação/roteamento e **não** são aceitos como autoridade RBAC. Renomear apresentação pública não altera grants existentes; renomear o slug técnico in-place é bloqueado pelo contrato #1123 e exige migration deliberada com inventário de consumidores.
+
 ### Regra da UI/API nova
 
 Perguntar:
@@ -104,6 +106,19 @@ Uma policy nova precisa responder:
 4. quais colunas/dados podem chegar ao client?
 5. a mesma policy vaza informação por join/RPC?
 6. existe superfície server-side mais adequada?
+
+### Registry de campanhas (#1123)
+
+`campaign_public_slug_aliases` usa RLS deny-by-default e não concede leitura direta a `anon`/`authenticated`. O boundary server-side futuro resolve apenas a projection necessária. A migration de registry também:
+
+- preserva assignments existentes em `yuhara-main`;
+- mantém UUID/slug técnico separados de presentation aliases;
+- qualifica a identidade de source session por `campaign_id`;
+- adiciona integridade campaign-qualified para `profile_characters → entities` e `canon_entries → entities`;
+- rejeita participant ligado a entity de outra campanha;
+- não cria membership, role assignment ou grant para **Antes que seja tarde**.
+
+A segunda campaign nasce privada. Torná-la pública e enumerável pertence ao fluxo governado de campanhas (#1124), não ao simples fato de existir no registry.
 
 ## Fronteira pública atual
 
