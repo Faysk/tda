@@ -218,14 +218,17 @@ function parseStructural(
 		]) ||
 		typeof value.id !== "string" ||
 		!SEGMENT_ID.test(value.id) ||
+		typeof value.trackNumber !== "number" ||
 		!Number.isSafeInteger(value.trackNumber) ||
-		(value.trackNumber as number) < 1 ||
-		(value.trackNumber as number) > 9999 ||
+		value.trackNumber < 1 ||
+		value.trackNumber > 9999 ||
+		typeof value.startMs !== "number" ||
+		typeof value.endMs !== "number" ||
 		!Number.isSafeInteger(value.startMs) ||
 		!Number.isSafeInteger(value.endMs) ||
-		(value.startMs as number) < 0 ||
-		(value.endMs as number) < (value.startMs as number) ||
-		(value.endMs as number) > 604_800_000 ||
+		value.startMs < 0 ||
+		value.endMs < value.startMs ||
+		value.endMs > 604_800_000 ||
 		!(
 			value.absoluteStart === null ||
 			typeof value.absoluteStart === "string"
@@ -245,9 +248,9 @@ function parseStructural(
 			return null;
 		return {
 			id: value.id,
-			trackNumber: value.trackNumber as number,
-			startMs: value.startMs as number,
-			endMs: value.endMs as number,
+			trackNumber: value.trackNumber,
+			startMs: value.startMs,
+			endMs: value.endMs,
 			absoluteStart,
 			absoluteEnd,
 		};
@@ -283,9 +286,10 @@ function parseHeader(line: string): Header | null {
 		value.schema !== TDA_TRANSCRIPT_MARKDOWN_SCHEMA ||
 		typeof value.sessionId !== "string" ||
 		!SESSION_ID.test(value.sessionId) ||
+		typeof value.segmentCount !== "number" ||
 		!Number.isSafeInteger(value.segmentCount) ||
-		(value.segmentCount as number) < 1 ||
-		(value.segmentCount as number) > MAX_SEGMENTS ||
+		value.segmentCount < 1 ||
+		value.segmentCount > MAX_SEGMENTS ||
 		typeof value.structureSha256 !== "string" ||
 		!SHA256.test(value.structureSha256)
 	)
@@ -293,7 +297,7 @@ function parseHeader(line: string): Header | null {
 	return {
 		schema: TDA_TRANSCRIPT_MARKDOWN_SCHEMA,
 		sessionId: value.sessionId,
-		segmentCount: value.segmentCount as number,
+		segmentCount: value.segmentCount,
 		structureSha256: value.structureSha256,
 	};
 }
