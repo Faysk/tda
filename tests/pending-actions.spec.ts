@@ -55,9 +55,11 @@ test("server action error restores the action and stays local", async ({ page })
 	await expect(page.getByRole("button", { name: "Ação independente" })).toBeEnabled();
 	await expect(page.locator(overlay)).toHaveCount(0);
 
-	await expect(page.getByRole("alert")).toHaveText(
-		"A operação sintética falhou. Tente novamente.",
-	);
+	await expect(
+		page.locator('p[role="alert"]').filter({
+			hasText: "A operação sintética falhou. Tente novamente.",
+		}),
+	).toHaveText("A operação sintética falhou. Tente novamente.");
 	await expect(page.getByRole("button", { name: "Forçar erro" })).toBeEnabled();
 });
 
