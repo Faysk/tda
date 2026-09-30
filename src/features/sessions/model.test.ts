@@ -47,6 +47,30 @@ describe("public session boundary", () => {
 		expect(result).not.toHaveProperty("heroImage");
 	});
 
+	it("scopes canonical R2 media to the row campaign", () => {
+		const anotherCampaign = {
+			...row,
+			campaigns: {
+				...row.campaigns,
+				id: "campaign-b",
+				slug: "antes-que-seja-tarde",
+				public_slug: "antes-que-seja-tarde",
+				name: "Antes que Seja Tarde",
+			},
+			cover_image_url:
+				"https://media.dnd.faysk.dev/campaigns/antes-que-seja-tarde/sessions/session-1/card.webp",
+		};
+		expect(toPublishedSession(anotherCampaign)?.coverImage).toContain(
+			"/campaigns/antes-que-seja-tarde/sessions/",
+		);
+		expect(
+			toPublishedSession({
+				...row,
+				cover_image_url: anotherCampaign.cover_image_url,
+			}),
+		).not.toHaveProperty("coverImage");
+	});
+
 	it("includes full summary only for detail", () => {
 		expect(toPublishedSession(row, true)?.fullSummary).toBe("Resumo completo");
 	});
