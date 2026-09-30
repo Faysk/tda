@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada; decisão editorial, não comprovação de implementação
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-09-13
+> Última revisão: 2026-09-30
 
 ## Decisão
 
@@ -57,16 +57,29 @@ Acessibilidade e integridade não prescrevem uma estética. Uma abertura cinemat
 
 O documento dono de cada lore registra: slug/URL, fonte oficial, responsável, identidade visual/referência aprovada, vínculo narrativo conhecido ou ausente, decisão de listagem, assets/manifesto e evidência da publicação. São requisitos documentais; não introduzem schema ou nova plataforma nesta entrega.
 
-- [ ] Página funciona por acesso direto, sem depender do catálogo ou de dados da campanha principal.
+- [ ] Página funciona por acesso direto, sem depender do catálogo ou da presença de uma campaign vinculada.
 - [ ] Listagem corresponde à decisão editorial; D, Seika e Yllith ausentes do catálogo enquanto essa decisão permanecer.
 - [ ] Identidade visual da própria lore foi avaliada.
 - [ ] Imagens carregam, decodificam e preservam proporções e detalhes nas superfícies reais.
 - [ ] Preview do link representa a página individual.
 - [ ] Estilos e scripts não afetam outras rotas.
 
+## Multi-campaign
+
+A arquitetura multi-campaign agora é aprovada por ADR-0020, mas **lore standalone continua uma exceção editorial independente**:
+
+- uma lore pode ter `campaign = null`;
+- vínculo com campaign é metadata editorial explícita, não inferência pela URL, personagem ou artwork;
+- `/lore/<slug>` permanece canonical próprio e não ganha campaign no path por obrigação;
+- vincular uma lore não cria entity, relation, canon ou session;
+- remover/alterar vínculo não move seus assets automaticamente;
+- listagem em `/lore`, vínculo de campaign e indexação continuam decisões independentes.
+
+A criação da campaign **Antes que seja tarde** não publica nem vincula D automaticamente. Esse vínculo pertence a #1131 e precisa de decisão editorial própria.
+
 ## Futuro fora do escopo
 
-Suporte a outros jogos, múltiplas campanhas e universos pode ser estudado depois. A liberdade editorial atual não exige implementar agora um sistema multi-jogo, migração de banco, CMS genérico ou novo mecanismo de permissões.
+Multi-campaign não implica multi-jogo/multiuniverso completo, CMS genérico ou novo mecanismo de permissões para cada lore. Essas expansões continuam decisões separadas.
 
 - [Arquitetura de entrega das lores](lore-delivery-architecture.md) — padrão `app` vs `standalone`, estado atual e evolução futura.
 - [Do ZIP à produção](../operations/zip-to-production.md) — integrar a experiência aprovada e registrar adaptações.
