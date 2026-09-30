@@ -370,7 +370,7 @@ def test_session_transcription_intent_is_local_durable_and_conflict_guarded(tmp_
     assert replaced["glossary"] == ""
 
 
-def test_v12_store_adds_local_session_intent_table_without_losing_workspace(tmp_path):
+def test_v12_store_adds_local_session_intent_table_without_bumping_schema_version(tmp_path):
     store = Store(tmp_path)
     workspace = store.ensure_session_workspace("campaign-v12", "session-v12")
     workspace = store.attach_session_source(
@@ -384,7 +384,7 @@ def test_v12_store_adds_local_session_intent_table_without_losing_workspace(tmp_
     recovered = migrated.session_workspace("campaign-v12", "session-v12")
     assert recovered["parts"][0]["source_id"] == source_id(1)
     with sqlite3.connect(migrated.path) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 13
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 12
         tables = {
             row[0]
             for row in db.execute(
@@ -392,3 +392,25 @@ def test_v12_store_adds_local_session_intent_table_without_losing_workspace(tmp_
             ).fetchall()
         }
     assert "session_transcription_intents" in tables
+
+
+def test_transient_v13_candidate_normalizes_to_v12_without_losing_intent(tmp_path):
+    store = Store(tmp_path)
+    store.ensure_session_workspace("campaign-v13", "session-v13")
+    saved = store.save_session_transcription_intent(
+        "campaign-v13",
+        "session-v13",
+        "intent-v13",
+        "qwen-fast",
+        "contexto local",
+        "Yuhara",
+    )
+    with sqlite3.connect(store.path) as db:
+        db.execute("PRAGMA user_version=13")
+
+    reopened = Store(tmp_path)
+    assert reopened.session_transcription_intent(
+        "campaign-v13", "session-v13"
+    ) == saved
+    with sqlite3.connect(reopened.path) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 12
