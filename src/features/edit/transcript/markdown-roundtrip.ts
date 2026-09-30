@@ -1,5 +1,5 @@
 import { isReviewStringV1 } from "@/features/transcript-review/text-contract";
-import type { TranscriptReaderSegment, TranscriptReaderSnapshot } from "./reader-contract";
+import { formatTranscriptTimestamp, formatTranscriptWallClock, type TranscriptReaderSegment, type TranscriptReaderSnapshot } from "./reader-contract";
 
 export const TRANSCRIPT_MARKDOWN_SCHEMA = "tda_transcript_markdown_v1";
 export const TRANSCRIPT_MARKDOWN_MAX_BYTES = 16 * 1024 * 1024;
@@ -66,6 +66,7 @@ function structureRows(segments: readonly TranscriptReaderSegment[]) {
 		id: stableSegmentId(segment),
 		start_ms: segment.startMs,
 		end_ms: segment.endMs,
+		absolute_time: segment.absoluteTime ?? null,
 	}));
 }
 
@@ -104,6 +105,12 @@ function marker(segment: TranscriptReaderSegment): string {
 	return `<!-- tda:segment track=${segment.trackNumber} id=${encodeURIComponent(
 		stableSegmentId(segment),
 	)} start_ms=${segment.startMs} end_ms=${segment.endMs} -->`;
+}
+
+function protectedTimeLine(segment: TranscriptReaderSegment): string {
+	const elapsed = formatTranscriptTimestamp(segment.startMs);
+	const wallClock = formatTranscriptWallClock(segment.absoluteTime);
+	return `Tempo: ${elapsed}${wallClock ? ` · ${wallClock}` : ""}`;
 }
 
 function cleanEditableText(value: string, field: "speaker" | "text"): string {
@@ -149,7 +156,7 @@ export async function renderTranscriptRoundTripMarkdown(input: {
 		`Sessão: ${input.sessionDate ?? "data não informada"}`,
 		`Arco: ${input.arc ?? "não informado"}`,
 		"",
-		"Edite somente o speaker e o texto das falas. Não altere nem remova linhas tda:segment.",
+		"Edite somente o speaker e o texto das falas. Não altere nem remova linhas tda:segment ou Tempo.",
 		"",
 		"## Transcrição",
 		"",
@@ -157,7 +164,7 @@ export async function renderTranscriptRoundTripMarkdown(input: {
 	for (const segment of input.snapshot.segments) {
 		const speaker = cleanEditableText(segment.speaker, "speaker");
 		const text = cleanEditableText(segment.text, "text");
-		lines.push(marker(segment), `Speaker: ${speaker}`, text, "");
+		lines.push(marker(segment), protectedTimeLine(segment), `Speaker: ${speaker}`, text, "");
 	}
 	const body = `${lines.join("\n").trimEnd()}\n`;
 	if (utf8Bytes(body) > TRANSCRIPT_MARKDOWN_MAX_BYTES)
@@ -285,11 +292,16 @@ export async function parseTranscriptRoundTripMarkdown(input: {
 			endMs < startMs
 		)
 			throw new Error("TRANSCRIPT_MARKDOWN_MARKER_INVALID");
-		const speakerLine = lines[index + 1];
+		const baselineSegment = baselineByKey.get(
+			`${trackNumber}\u0000${segmentId}`,
+		);
+		if (!baselineSegment || lines[index + 1] !== protectedTimeLine(baselineSegment))
+			throw new Error("TRANSCRIPT_MARKDOWN_TIME_CHANGED");
+		const speakerLine = lines[index + 2];
 		if (typeof speakerLine !== "string" || !speakerLine.startsWith("Speaker: "))
 			throw new Error("TRANSCRIPT_MARKDOWN_SPEAKER_REQUIRED");
 		const speaker = speakerLine.slice("Speaker: ".length);
-		index += 2;
+		index += 3;
 		const textLines: string[] = [];
 		while (index < lines.length && !MARKER.test(lines[index])) {
 			textLines.push(lines[index]);
