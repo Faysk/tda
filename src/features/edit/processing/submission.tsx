@@ -470,6 +470,31 @@ export function ProcessingSubmission({
 		applyFiles(Array.from(event.dataTransfer.files));
 	}
 
+	async function revalidateSelectedCampaign(
+		signal: AbortSignal,
+		statusMessage: string,
+	): Promise<boolean> {
+		setStatus(statusMessage);
+		try {
+			await validateProcessingCampaignForEnqueue(campaignId, signal);
+			return true;
+		} catch (cause) {
+			if (
+				cause instanceof ProcessingCampaignValidationError &&
+				cause.code === "campaign_unavailable"
+			) {
+				setError(
+					"A campanha deixou de estar ativa ou seu acesso de processamento mudou. Nenhum trabalho novo foi criado. Recarregue a seleção de campanha antes de tentar novamente.",
+				);
+			} else {
+				setError(
+					"Não foi possível revalidar a campanha com segurança. Nenhum trabalho novo foi criado; tente novamente quando o Edit estiver disponível.",
+				);
+			}
+			return false;
+		}
+	}
+
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (
@@ -504,6 +529,13 @@ export function ProcessingSubmission({
 		setBusy(true);
 		setPendingStage("validating");
 		setError(null);
+		if (
+			!(await revalidateSelectedCampaign(
+				controller.signal,
+				"Confirmando acesso à campanha antes de preparar arquivos locais…",
+			))
+		)
+			return;
 		setStatus("Validando os ZIPs no Companion local…");
 
 		let stagedSelections = [...files];
@@ -649,24 +681,13 @@ export function ProcessingSubmission({
 				}
 			}
 
-			setStatus("Confirmando acesso à campanha antes de criar o trabalho…");
-			try {
-				await validateProcessingCampaignForEnqueue(campaignId, controller.signal);
-			} catch (cause) {
-				if (
-					cause instanceof ProcessingCampaignValidationError &&
-					cause.code === "campaign_unavailable"
-				) {
-					setError(
-						"A campanha deixou de estar ativa ou seu acesso de processamento mudou. Nenhum trabalho novo foi criado. Recarregue a seleção de campanha antes de tentar novamente.",
-					);
-				} else {
-					setError(
-						"Não foi possível revalidar a campanha com segurança. Nenhum trabalho novo foi criado; tente novamente quando o Edit estiver disponível.",
-					);
-				}
+			if (
+				!(await revalidateSelectedCampaign(
+					controller.signal,
+					"Reconfirmando acesso à campanha antes de criar o trabalho…",
+				))
+			)
 				return;
-			}
 
 			const sessionIntentCapabilities = [
 				"transcription.session-workspace",
