@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { PublicSessionMediaManifest } from "../../config/public-session-media";
 import type { PublishedSession } from "./model";
+import { sessionPublicMetadataImage } from "./metadata";
 import {
 	buildHomeSessionFeed,
 	compareHomeSessions,
@@ -90,5 +92,47 @@ describe("multi-campaign Home feed", () => {
 			"campaign-a",
 			"campaign-b",
 		]);
+	});
+
+	it("uses the same selected hero session for social metadata image resolution", () => {
+		const a = session("a", "2026-09-29", "campaign-a");
+		const b = session("b", "2026-09-30", "campaign-b");
+		const latest = buildHomeSessionFeed([a, b]).latest;
+		expect(latest).toBeDefined();
+
+		const manifest: PublicSessionMediaManifest = {
+			a: {
+				hero: {
+					state: "verified-public",
+					publicUrl: "https://media.example.test/a.webp",
+					sha256: "a".repeat(64),
+					mimeType: "image/webp",
+					bytes: 100,
+					width: 1200,
+					height: 630,
+					verifiedAt: "2026-09-30T00:00:00Z",
+					readBackVerified: true,
+					publicDeliveryVerified: true,
+				},
+			},
+			b: {
+				hero: {
+					state: "verified-public",
+					publicUrl: "https://media.example.test/b.webp",
+					sha256: "b".repeat(64),
+					mimeType: "image/webp",
+					bytes: 100,
+					width: 1200,
+					height: 630,
+					verifiedAt: "2026-09-30T00:00:00Z",
+					readBackVerified: true,
+					publicDeliveryVerified: true,
+				},
+			},
+		};
+
+		expect(sessionPublicMetadataImage(latest!, manifest)).toMatchObject({
+			url: "https://media.example.test/b.webp",
+		});
 	});
 });
