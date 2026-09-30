@@ -53,8 +53,8 @@ describe("session intent recovery receipt", () => {
 				requestId: "intent-42",
 				sourceIds: [SOURCE_A, SOURCE_B],
 				profileId: "whisper-detailed",
-				context: "mesa de quinta",
-				glossary: "Yuhara",
+				contextSha256: "a".repeat(64),
+				glossarySha256: "b".repeat(64),
 			},
 			NOW,
 		);
@@ -76,8 +76,8 @@ describe("session intent recovery receipt", () => {
 			requestId: "intent-42",
 			sourceIds: [SOURCE_A, SOURCE_B],
 			profileId: "whisper-detailed",
-			context: "mesa de quinta",
-			glossary: "Yuhara",
+			contextSha256: "a".repeat(64),
+			glossarySha256: "b".repeat(64),
 			enqueueKeys: { [SOURCE_B]: "enqueue-b" },
 			jobIds: { [SOURCE_B]: "job-b" },
 			runIds: { [SOURCE_B]: "run-b" },
@@ -85,6 +85,8 @@ describe("session intent recovery receipt", () => {
 		const serialized = JSON.stringify(restored);
 		expect(serialized).not.toContain("PK-");
 		expect(serialized).not.toContain("audio");
+		expect(serialized).not.toContain("mesa de quinta");
+		expect(serialized).not.toContain("Yuhara");
 	});
 
 	test("scope hash prevents another signed-in profile from loading the receipt", async () => {
@@ -105,8 +107,8 @@ describe("session intent recovery receipt", () => {
 				requestId: "intent-42",
 				sourceIds: [SOURCE_A],
 				profileId: "whisper-detailed",
-				context: "",
-				glossary: "",
+				contextSha256: "c".repeat(64),
+				glossarySha256: "d".repeat(64),
 			},
 			NOW,
 		);
@@ -115,7 +117,7 @@ describe("session intent recovery receipt", () => {
 		expect(loadSessionIntentReceipt(storage, owner, NOW + 1)).not.toBeNull();
 	});
 
-	test("rejects stale receipts and refuses out-of-bounds user text", async () => {
+	test("rejects stale receipts and malformed hashes", async () => {
 		const storage = new MemoryStorage();
 		const identity = await sessionIntentReceiptIdentity({
 			profileScope: "profile-42:yuhara-main",
@@ -128,8 +130,8 @@ describe("session intent recovery receipt", () => {
 				requestId: "intent-42",
 				sourceIds: [SOURCE_A],
 				profileId: "whisper-detailed",
-				context: "",
-				glossary: "",
+				contextSha256: "c".repeat(64),
+				glossarySha256: "d".repeat(64),
 			},
 			NOW,
 		);
@@ -145,8 +147,8 @@ describe("session intent recovery receipt", () => {
 					requestId: "intent-too-large",
 					sourceIds: [SOURCE_A],
 					profileId: "whisper-detailed",
-					context: "x".repeat(1201),
-					glossary: "",
+					contextSha256: "not-a-hash",
+					glossarySha256: "d".repeat(64),
 				},
 				NOW,
 			),
