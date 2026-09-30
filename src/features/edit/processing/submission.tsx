@@ -39,19 +39,17 @@ import {
 	truncateUnicodeScalars,
 } from "./request-budget";
 import {
-	clearPendingSubmission,
-	loadPendingSubmission,
-	pendingSubmissionRecoveryIdentity,
-	savePendingSubmission,
-	type PendingSubmissionRecoveryIdentity,
-} from "./submission-recovery";
-import {
 	fetchQwenRuntimeReleaseAvailability,
 	qwenRuntimeReleaseLabel,
 	qwenRuntimeReleaseMessage,
 	type QwenRuntimeReleaseAvailability,
 } from "./qwen-runtime-release-availability";
 import { SessionRecordingComposer } from "./session-composer";
+import {
+	composeAndQueueSession,
+	SessionTranscriptionWorkflowError,
+	stageSessionSources,
+} from "./session-transcription-workflow";
 import {
 	chooseSubmissionProfile,
 	formatSubmissionBytes,
@@ -166,13 +164,6 @@ function localOperationMessage(code: string | null): string {
 					: `Operação local não concluída · ${code}`);
 }
 
-type PendingSubmission = {
-	key: string;
-	signature: string;
-	recoveryIdentity: PendingSubmissionRecoveryIdentity | null;
-	recoveredFromStorage: boolean;
-};
-
 type PendingStage = "validating" | "preparing" | "submitting";
 
 function sourceMustBeRestaged(code: string | null): boolean {
@@ -216,9 +207,11 @@ export function ProcessingSubmission({
 	const [context, setContext] = useState("");
 	const [glossary, setGlossary] = useState("");
 	const [file, setFile] = useState<File | null>(null);
+	const [files, setFiles] = useState<readonly File[]>([]);
 	const [fileError, setFileError] = useState<string | null>(null);
 	const [source, setSource] = useState<CraigSource | null>(null);
 	const [composerActive, setComposerActive] = useState(false);
+	const [workflowNonce, setWorkflowNonce] = useState(0);
 	const [busy, setBusy] = useState(false);
 	const [pendingStage, setPendingStage] = useState<PendingStage | null>(null);
 	const [dragActive, setDragActive] = useState(false);
@@ -233,7 +226,6 @@ export function ProcessingSubmission({
 	>(null);
 	const request = useRef<AbortController | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
-	const pending = useRef<PendingSubmission | null>(null);
 
 	useEffect(() => {
 		return () => request.current?.abort();
@@ -424,27 +416,43 @@ export function ProcessingSubmission({
 
 	if (!paired) return null;
 
-	function applyFile(nextFile: File | null) {
+	function applyFiles(nextFiles: readonly File[]) {
 		setSource(null);
 		setStatus(null);
 		setError(null);
-		pending.current = null;
-		if (!nextFile) {
+		if (!nextFiles.length) {
 			setFile(null);
+			setFiles([]);
 			setFileError(null);
 			return;
 		}
-		const validation = validateCraigFile(nextFile);
-		if (validation) {
+		const invalid = nextFiles
+			.map((candidate) => ({
+				candidate,
+				reason: validateCraigFile(candidate),
+			}))
+			.find((item) => item.reason);
+		if (invalid) {
 			setFile(null);
-			setFileError(validation);
+			setFiles([]);
+			setFileError(invalid.candidate.name + ": " + invalid.reason);
 			if (fileInput.current) fileInput.current.value = "";
 			return;
 		}
-		setFile(nextFile);
+		const unique = nextFiles.filter(
+			(candidate, index) =>
+				nextFiles.findIndex(
+					(other) =>
+						other.name === candidate.name &&
+						other.size === candidate.size &&
+						other.lastModified === candidate.lastModified,
+				) === index,
+		);
+		setFiles(unique);
+		setFile(unique[0] ?? null);
 		setFileError(null);
-		if (!sessionId) {
-			const suggestion = suggestSessionIdFromFilename(nextFile.name);
+		if (!sessionId && unique[0]) {
+			const suggestion = suggestSessionIdFromFilename(unique[0].name);
 			if (suggestion) setSessionId(suggestion);
 		}
 	}
@@ -453,7 +461,7 @@ export function ProcessingSubmission({
 		event.preventDefault();
 		setDragActive(false);
 		if (busy) return;
-		applyFile(event.dataTransfer.files.item(0));
+		applyFiles(Array.from(event.dataTransfer.files));
 	}
 
 	async function analyzeSource() {
