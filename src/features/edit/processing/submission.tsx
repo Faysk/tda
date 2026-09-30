@@ -717,6 +717,11 @@ export function ProcessingSubmission({
 						: messageFor(cause.code)
 					: messageFor("service_error"),
 			);
+			setStatus(
+				fallbackPending.current
+					? "A tentativa ficou ambígua; repetir com os mesmos dados reutiliza a mesma chave idempotente."
+					: null,
+			);
 		} finally {
 			setBusy(false);
 			setPendingStage(null);
