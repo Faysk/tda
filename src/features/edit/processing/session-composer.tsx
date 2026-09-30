@@ -47,6 +47,7 @@ type Props = Readonly<{
 	capabilities: readonly string[];
 	sessionId: string;
 	currentSource: CraigSource | null;
+	workflowNonce?: number;
 	profile: TranscriptionProfileId | "";
 	context: string;
 	glossary: string;
@@ -133,6 +134,7 @@ export function SessionRecordingComposer({
 	capabilities,
 	sessionId,
 	currentSource,
+	workflowNonce = 0,
 	profile,
 	context,
 	glossary,
@@ -168,6 +170,7 @@ export function SessionRecordingComposer({
 	const [participantDrafts, setParticipantDrafts] = useState<Record<string, string>>({});
 	const restored = useRef(false);
 	const pendingSubmissions = useRef(new Map<string, SessionComposerPendingSubmission>());
+	const autoAdvanceKey = useRef<string | null>(null);
 
 	const currentDuplicate =
 		Boolean(currentSource) &&
@@ -334,7 +337,7 @@ export function SessionRecordingComposer({
 			controller.abort();
 		};
 		// This intentionally restores only the persisted workspace identity.
-	}, [adopt, bridge, fail, sessionId, supported]);
+	}, [adopt, bridge, fail, sessionId, supported, workflowNonce]);
 
 	useEffect(() => {
 		if (!workspace || !supported) return;
@@ -758,12 +761,18 @@ export function SessionRecordingComposer({
 				controller.signal,
 			);
 			setAssemblies(listing.assemblies);
+			const nextReview = await bridge.sessionAssemblyReview(
+				workspace.campaignId,
+				workspace.sessionId,
+				built.assemblyId,
+				controller.signal,
+			);
+			setReview(nextReview);
 			window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
 			announce(
-				"Transcrição da sessão montada · " +
+				"Transcrição contínua da sessão pronta · " +
 					built.segmentCount +
-					" segmentos · assembly " +
-					short(built.assemblyId, 12),
+					" segmentos.",
 			);
 		} catch (cause) {
 			fail(cause);
@@ -805,6 +814,64 @@ export function SessionRecordingComposer({
 			setBusy(false);
 		}
 	}
+
+	useEffect(() => {
+		if (
+			!workspace ||
+			!supported ||
+			busy ||
+			disabled ||
+			review ||
+			pending.length > 0
+		)
+			return;
+		const key = [
+			workspace.revision,
+			workspace.timeline.state,
+			workspace.parts
+				.map(
+					(part) =>
+						part.partId +
+						":" +
+						(part.selectedRunId ?? "-") +
+						":" +
+						(runsBySource.get(part.sourceId)?.length ?? 0),
+				)
+				.join("|"),
+			mapping?.conflicts.filter((item) => item.requiresResolution).length ?? -1,
+		].join("/");
+		if (autoAdvanceKey.current === key) return;
+
+		const missingRun = workspace.parts.find((part) => !part.selectedRunId);
+		if (missingRun) {
+			const candidates = runsBySource.get(missingRun.sourceId) ?? [];
+			if (candidates.length !== 1) return;
+			autoAdvanceKey.current = key;
+			void selectRun(missingRun, candidates[0]!.runId);
+			return;
+		}
+		if (
+			workspace.timeline.state !== "ready" &&
+			workspace.timeline.automaticOrderAvailable
+		) {
+			autoAdvanceKey.current = key;
+			void deriveTimeline();
+			return;
+		}
+		if (!readiness.ready) return;
+		autoAdvanceKey.current = key;
+		void buildAssembly();
+	}, [
+		busy,
+		disabled,
+		mapping,
+		pending.length,
+		readiness.ready,
+		review,
+		runsBySource,
+		supported,
+		workspace,
+	]);
 
 	function forgetComposer() {
 		try {
