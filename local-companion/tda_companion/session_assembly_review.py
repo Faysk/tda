@@ -224,7 +224,22 @@ def _approval(path: Path, draft: dict[str, Any], payload: bytes) -> dict[str, An
     return value
 
 
-def _summary(segments: list[dict[str, Any]], base: list[dict[str, Any]]) -> dict[str, Any]:
+def _warnings(transcript: dict[str, Any]) -> list[str]:
+    raw = transcript.get("warnings", [])
+    if not isinstance(raw, list):
+        return []
+    return [
+        value
+        for value in raw
+        if isinstance(value, str) and value and len(value) <= 1024
+    ]
+
+
+def _summary(
+    segments: list[dict[str, Any]],
+    base: list[dict[str, Any]],
+    warnings: list[str],
+) -> dict[str, Any]:
     by_id = {row["assembly_segment_id"]: row for row in base}
     reviewed = sum(1 for row in segments if row["reviewed"])
     edited = sum(
@@ -240,6 +255,7 @@ def _summary(segments: list[dict[str, Any]], base: list[dict[str, Any]]) -> dict
         "review_percent": round((reviewed / total) * 100, 1) if total else 100.0,
         "edited_segments": edited,
         "word_count": sum(count_words_v1(row["text"]) for row in segments),
+        "warning_count": len(warnings),
     }
 
 
@@ -248,6 +264,7 @@ def _response(
     draft: dict[str, Any],
     payload: bytes | None,
     base_segments: list[dict[str, Any]],
+    warnings: list[str],
     *,
     path: Path,
 ) -> dict[str, Any]:
@@ -278,7 +295,13 @@ def _response(
         "approved_at": approval.get("approved_at") if approval is not None else None,
         "created_at": draft["created_at"],
         "updated_at": draft["updated_at"],
-        "review": _summary(draft["segments"], base_segments),
+        "warnings": warnings[:1000],
+        "warning_summary": {
+            "total_count": len(warnings),
+            "displayed_count": min(len(warnings), 1000),
+            "truncated": len(warnings) > 1000,
+        },
+        "review": _summary(draft["segments"], base_segments, warnings),
         "segments": draft["segments"],
     }
 
@@ -288,7 +311,7 @@ def _snapshot(
     campaign_id: str,
     session_id: str,
     assembly_id: str,
-) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[str]]:
     try:
         manifest, transcript = load_session_assembly_transcript(
             data_root,
@@ -298,7 +321,7 @@ def _snapshot(
         )
     except SessionAssemblyError as exc:
         raise SessionAssemblyReviewError(str(exc)) from exc
-    return manifest, transcript, _base_segments(transcript)
+    return manifest, transcript, _base_segments(transcript), _warnings(transcript)
 
 
 def open_assembly_review(
@@ -311,7 +334,7 @@ def open_assembly_review(
 ) -> dict[str, Any]:
     path = _draft_path(data_root, campaign_id, session_id, assembly_id)
     with _lock_for(path):
-        manifest, _transcript, base_segments = _snapshot(
+        manifest, _transcript, base_segments, warnings = _snapshot(
             data_root, campaign_id, session_id, assembly_id
         )
         if not base_only and path.is_file():
@@ -332,7 +355,7 @@ def open_assembly_review(
             ):
                 raise SessionAssemblyReviewError("SESSION_ASSEMBLY_REVIEW_DRAFT_INVALID")
             draft["segments"] = _validate_segments(draft.get("segments"), base_segments)
-            return _response(manifest, draft, payload, base_segments, path=path)
+            return _response(manifest, draft, payload, base_segments, warnings, path=path)
         draft = {
             "schema_version": ASSEMBLY_REVIEW_SCHEMA_VERSION,
             "assembly_id": assembly_id,
@@ -343,7 +366,7 @@ def open_assembly_review(
             "updated_at": None,
             "segments": base_segments,
         }
-        return _response(manifest, draft, None, base_segments, path=path)
+        return _response(manifest, draft, None, base_segments, warnings, path=path)
 
 
 def save_assembly_review(
@@ -383,7 +406,7 @@ def save_assembly_review(
 
     path = _draft_path(data_root, campaign_id, session_id, assembly_id)
     with _lock_for(path):
-        manifest, _transcript, base_segments = _snapshot(
+        manifest, _transcript, base_segments, warnings = _snapshot(
             data_root, campaign_id, session_id, assembly_id
         )
         current = open_assembly_review(
@@ -432,7 +455,7 @@ def save_assembly_review(
                 "approved_at": _utc_now(),
             }
             _atomic_json(_approval_path(path), approval, _MAX_APPROVAL_BYTES)
-            return _response(manifest, draft, draft_payload, base_segments, path=path)
+            return _response(manifest, draft, draft_payload, base_segments, warnings, path=path)
 
         if not absent and status == current["status"] and segments == current_segments:
             return current
@@ -448,4 +471,4 @@ def save_assembly_review(
             "segments": segments,
         }
         payload = _atomic_json(path, draft)
-        return _response(manifest, draft, payload, base_segments, path=path)
+        return _response(manifest, draft, payload, base_segments, warnings, path=path)
