@@ -214,6 +214,7 @@ O candidate #1134 preparado em `supabase/candidates/20260930191500_harden_campai
 - `access_directory(text)` passa a exigir profile resolvido + `campaign.read` ou `campaign.access.manage`, retorna o mesmo `forbidden` para missing/sibling/archived e não enumera profiles globais sem vínculo;
 - `project.campaigns.manage` separa criação/administração de registry de qualquer membership de campaign;
 - o helper interno de capability tem EXECUTE de browser revogado para não virar oracle.
+- `submit_profile_claim(...)` e `review_profile_claim(...)` perdem EXECUTE direto de `authenticated` enquanto invite/elegibility e review por capability não estiverem resolvidos; ambos permanecem server-only para compatibilidade controlada.
 
 Esse SQL continua **candidate-only** e depende de #1123 aplicado primeiro. Grants/DDL de Production só mudam por migration/runbook separado, com read-back e advisors.
 
