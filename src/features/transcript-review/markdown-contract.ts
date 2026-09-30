@@ -67,7 +67,7 @@ export class TranscriptMarkdownError extends Error {
 			| "VISIBLE_TIMESTAMP_CHANGED"
 			| "SPEAKER_INVALID"
 			| "TEXT_INVALID",
-		message = code,
+		message: string = code,
 		public readonly details: Readonly<Record<string, string | number>> = {},
 	) {
 		super(message);
