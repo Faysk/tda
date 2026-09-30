@@ -135,6 +135,19 @@ export type SessionWorkspace = {
 	parts: SessionWorkspacePart[];
 	timeline: SessionWorkspaceTimeline;
 };
+export type SessionTranscriptionIntentState = {
+	schemaVersion: "tda_session_transcription_intent_v1";
+	campaignId: string;
+	sessionId: string;
+	requestId: string;
+	profileId: TranscriptionProfileId;
+	context: string;
+	glossary: string;
+	contextSha256: string;
+	glossarySha256: string;
+	createdAt: string;
+	updatedAt: string;
+};
 export type SessionParticipantObservation = {
 	observationId: string;
 	partId: string;
@@ -1043,6 +1056,36 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			unresolvedOverlapCount,
 			unconfirmedGapCount,
 		},
+	};
+}
+
+export function parseSessionTranscriptionIntent(
+	value: unknown,
+): SessionTranscriptionIntentState {
+	const row = record(value);
+	if (row.schema_version !== "tda_session_transcription_intent_v1")
+		return invalid();
+	const localText = (input: unknown): string => {
+		if (
+			typeof input !== "string" ||
+			Array.from(input).length > 1200 ||
+			input.includes("\0")
+		)
+			return invalid();
+		return input;
+	};
+	return {
+		schemaVersion: "tda_session_transcription_intent_v1",
+		campaignId: identifier(row.campaign_id),
+		sessionId: identifier(row.session_id),
+		requestId: identifier(row.request_id),
+		profileId: transcriptionProfile(row.profile_id),
+		context: localText(row.context),
+		glossary: localText(row.glossary),
+		contextSha256: sha256(row.context_sha256),
+		glossarySha256: sha256(row.glossary_sha256),
+		createdAt: isoDate(row.created_at),
+		updatedAt: isoDate(row.updated_at),
 	};
 }
 
