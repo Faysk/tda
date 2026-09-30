@@ -51,9 +51,9 @@ Invariantes são regras que não devem ser quebradas silenciosamente por uma fea
 29. Campaign UUID é autoridade relacional; technical slug é compatibilidade estável; nome e public route key são apresentação/resolução e não reescrevem FKs/grants/storage.
 30. JSONB serve extensão/metadados, não substitui relação estruturada central.
 31. Remoção de schema/grant/compatibilidade só ocorre após provar independência do consumidor antigo.
-31a. Recurso campaign-owned nunca usa lookup global por source/session/entity slug quando campaign participa da identidade.
-31b. Cross-campaign mismatch falha fechado antes de write; browser input de slug/UUID não é autoridade.
-31c. Lembra permanece global e lore standalone pode permanecer sem campaign; exceções não viram autorização implícita.
+    - Recurso campaign-owned nunca usa lookup global por source/session/entity slug quando campaign participa da identidade.
+    - Cross-campaign mismatch falha fechado antes de write; browser input de slug/UUID não é autoridade.
+    - Lembra permanece global e lore standalone pode permanecer sem campaign; exceções não viram autorização implícita.
 
 ## Processamento
 
