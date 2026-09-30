@@ -203,10 +203,14 @@ as $$
 declare
   v_route_key text := lower(new.route_key);
 begin
-  if tg_op = 'UPDATE' and new.campaign_id is distinct from old.campaign_id then
+  if tg_op = 'UPDATE'
+     and (
+       new.campaign_id is distinct from old.campaign_id
+       or new.route_key is distinct from old.route_key
+     ) then
     raise exception using
       errcode = '23514',
-      message = 'campaign public route alias ownership is immutable';
+      message = 'campaign public route alias identity is immutable';
   end if;
 
   perform pg_advisory_xact_lock(
