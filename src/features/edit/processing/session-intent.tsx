@@ -93,6 +93,7 @@ type Props = Readonly<{
 	disabled?: boolean;
 	onActiveChange?: (active: boolean) => void;
 	onRestoreSessionId?: (sessionId: string) => void;
+	onRestoreIntent?: (intent: SessionTranscriptionIntent) => void;
 	onStatus?: (message: string) => void;
 	onError?: (message: string) => void;
 	onOpenTechnical?: () => void;
@@ -165,6 +166,7 @@ export function SessionIntentCoordinator({
 	disabled = false,
 	onActiveChange,
 	onRestoreSessionId,
+	onRestoreIntent,
 	onStatus,
 	onError,
 	onOpenTechnical,
@@ -399,7 +401,16 @@ export function SessionIntentCoordinator({
 				setBusy(false);
 			}
 		},
-		[announce, bridge, busy, disabled, enabled, fail, loadSnapshot],
+		[
+			announce,
+			bridge,
+			busy,
+			disabled,
+			enabled,
+			fail,
+			loadSnapshot,
+			recoveryScope,
+		],
 	);
 
 	useEffect(() => {
@@ -423,7 +434,8 @@ export function SessionIntentCoordinator({
 			saved = null;
 		}
 		if (!saved || !validSessionId(saved)) return;
-		onRestoreSessionId?.(saved);
+		const savedSessionId = saved;
+		onRestoreSessionId?.(savedSessionId);
 		const controller = new AbortController();
 		const recover = async () => {
 			if (recoveryScope) {
@@ -431,7 +443,7 @@ export function SessionIntentCoordinator({
 					const identity = await sessionIntentReceiptIdentity({
 						profileScope: recoveryScope,
 						campaignId: CAMPAIGN_SLUG,
-						sessionId: saved,
+						sessionId: savedSessionId,
 					});
 					const receipt = loadSessionIntentReceipt(
 						window.localStorage,
@@ -454,6 +466,7 @@ export function SessionIntentCoordinator({
 							glossary: receipt.glossary,
 						};
 						setActiveRequest(restored);
+						onRestoreIntent?.(restored);
 						processedRequest.current = restored.id;
 						await begin(restored);
 						return;
@@ -462,7 +475,7 @@ export function SessionIntentCoordinator({
 					// Invalid or unavailable browser recovery metadata falls back to Agent state.
 				}
 			}
-			await loadSnapshot(saved, controller.signal);
+			await loadSnapshot(savedSessionId, controller.signal);
 		};
 		void recover().catch((cause) => {
 			if (
@@ -480,6 +493,7 @@ export function SessionIntentCoordinator({
 		enabled,
 		fail,
 		loadSnapshot,
+		onRestoreIntent,
 		onRestoreSessionId,
 		recoveryScope,
 		request,
