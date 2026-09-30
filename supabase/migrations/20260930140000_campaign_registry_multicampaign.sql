@@ -348,14 +348,14 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 revoke all on function public.enforce_participant_character_campaign() from public;
 revoke execute on function public.enforce_participant_character_campaign() from anon;
 revoke execute on function public.enforce_participant_character_campaign() from authenticated;
 grant execute on function public.enforce_participant_character_campaign() to service_role;
 
-do $
+do $$
 begin
   if to_regclass('public.participants') is not null then
     if exists (
