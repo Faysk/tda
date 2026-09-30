@@ -376,11 +376,33 @@ export function ProcessingBenchmark({
 		setQwenRuntimeError(null);
 		void (async () => {
 			try {
+				const refreshAfterCompletedUpdate = async (
+					observed: QwenRuntimeMaintenanceStatus,
+				) => {
+					if (observed.mode !== "update" || observed.state !== "completed")
+						return false;
+					setQwenRuntime(observed);
+					setStatus("Qwen Runtime atualizado. Recalculando prontidão…");
+					const refreshed = await bridge.capabilities(controller.signal);
+					if (disposed || controller.signal.aborted) return true;
+					setCatalog(refreshed.transcription.catalog);
+					onRefreshRef.current();
+					const qwenReady = ["qwen-fast", "qwen-quality"].every(
+						(id) => refreshed.transcription.catalog.find((item) => item.id === id)?.ready,
+					);
+					setStatus(
+						qwenReady
+							? "Qwen Runtime atualizado. Qwen Fast e Qwen Quality estão prontos."
+							: "Qwen Runtime atualizado. A prontidão foi recalculada; conclua os gates restantes se houver.",
+					);
+					return true;
+				};
+
 				let observed = await bridge.qwenRuntimeStatus(controller.signal);
 				if (disposed || controller.signal.aborted) return;
+				setQwenRuntime(observed);
 
 				if (observed.active) {
-					setQwenRuntime(observed);
 					while (observed.active && !controller.signal.aborted) {
 						await new Promise((resolve) => window.setTimeout(resolve, 650));
 						if (disposed || controller.signal.aborted) return;
@@ -388,23 +410,13 @@ export function ProcessingBenchmark({
 						if (disposed || controller.signal.aborted) return;
 						setQwenRuntime(observed);
 					}
-					if (observed.mode === "update" && observed.state === "completed") {
-						setStatus("Qwen Runtime atualizado. Recalculando prontidão…");
-						const refreshed = await bridge.capabilities(controller.signal);
-						if (disposed || controller.signal.aborted) return;
-						setCatalog(refreshed.transcription.catalog);
-						onRefreshRef.current();
-						const qwenReady = ["qwen-fast", "qwen-quality"].every(
-							(id) => refreshed.transcription.catalog.find((item) => item.id === id)?.ready,
-						);
-						setStatus(
-							qwenReady
-								? "Qwen Runtime atualizado. Qwen Fast e Qwen Quality estão prontos."
-								: "Qwen Runtime atualizado. A prontidão foi recalculada; conclua os gates restantes se houver.",
-						);
-						return;
-					}
 				}
+
+				// The update may finish between the parent's capabilities snapshot and
+				// this status read (or during a Strict Mode remount). Treat an already
+				// terminal update exactly like one we personally observed finishing.
+				if (await refreshAfterCompletedUpdate(observed)) return;
+				if (disposed || controller.signal.aborted) return;
 
 				observed = await bridge.checkQwenRuntime(controller.signal);
 				if (disposed || controller.signal.aborted) return;
