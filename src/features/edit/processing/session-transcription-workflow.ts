@@ -17,6 +17,7 @@ import {
 	loadPendingSubmission,
 	pendingSubmissionRecoveryIdentity,
 	savePendingSubmission,
+	type PendingSubmissionRecoveryIdentity,
 } from "./submission-recovery";
 
 export class SessionTranscriptionWorkflowError extends Error {
@@ -161,7 +162,7 @@ export async function composeAndQueueSession(input: Readonly<{
 			context,
 			false,
 		]);
-		let recoveryIdentity = null;
+		let recoveryIdentity: PendingSubmissionRecoveryIdentity | null = null;
 		if (recoveryScope) {
 			try {
 				recoveryIdentity = await pendingSubmissionRecoveryIdentity({
