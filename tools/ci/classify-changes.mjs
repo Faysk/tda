@@ -62,6 +62,7 @@ const EXACT = {
 	]),
 	db: new Set([
 		"tools/transcript-sync-db.py",
+		"tools/campaign-registry-db.py",
 		"tools/world-layout-db.py",
 		"tools/world-entity-media-db.py",
 		"tools/test_world_layout_db.py",
