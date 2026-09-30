@@ -256,7 +256,7 @@ export function TranscriptReader({
 			setSaveMessage(
 				parsed.changedSegments === 0
 					? "Markdown válido e idêntico à revisão atual. Nenhuma nova revisão será criada."
-					: \`Markdown válido: \${parsed.changedSegments.toLocaleString("pt-BR")} fala(s) alterada(s). Revise o resumo e aplique à working copy.\`,
+					: `Markdown válido: ${parsed.changedSegments.toLocaleString("pt-BR")} fala(s) alterada(s). Revise o resumo e aplique à working copy.`,
 			);
 		} catch (error) {
 			setSavePhase("error");
@@ -274,7 +274,7 @@ export function TranscriptReader({
 		if (!importPreview) return;
 		const edits = new Map(
 			importPreview.edits.map((edit) => [
-				\`\${edit.trackNumber}\\0\${edit.segmentId}\`,
+				`${edit.trackNumber}\\0${edit.segmentId}`,
 				edit,
 			]),
 		);
@@ -282,7 +282,7 @@ export function TranscriptReader({
 		for (const segment of baseline) {
 			if (!segment.sourceSegmentId) continue;
 			const edit = edits.get(
-				\`\${segment.trackNumber}\\0\${segment.sourceSegmentId}\`,
+				`${segment.trackNumber}\\0${segment.sourceSegmentId}`,
 			);
 			if (edit)
 				next[segment.id] = { speaker: edit.speaker, text: edit.text };
@@ -294,7 +294,7 @@ export function TranscriptReader({
 		setSavePhase("idle");
 		setSaveMessage(
 			Object.keys(next).length
-				? \`\${Object.keys(next).length.toLocaleString("pt-BR")} alteração(ões) importada(s) para a working copy. Revise e salve quando estiver pronto.\`
+				? `${Object.keys(next).length.toLocaleString("pt-BR")} alteração(ões) importada(s) para a working copy. Revise e salve quando estiver pronto.`
 				: "Nenhuma mudança efetiva para aplicar.",
 		);
 	}
