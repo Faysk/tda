@@ -1,10 +1,9 @@
-import { parseTrustedAbsoluteTime, type TrustedAbsoluteTime } from "../../transcript-review/time-contract";
-
 import {
 	renderTranscriptMarkdownV1,
 	transcriptMarkdownContentSha256,
 	type TranscriptMarkdownSegment,
 } from "@/features/transcript-review/markdown-contract";
+import { parseTrustedAbsoluteTime, type TrustedAbsoluteTime } from "../../transcript-review/time-contract";
 
 export type TranscriptReaderSegment = Readonly<{
 	id: string;
@@ -177,6 +176,7 @@ function markdownSegment(segment: TranscriptReaderSegment): TranscriptMarkdownSe
 		id: segment.id,
 		startMs: segment.startMs,
 		endMs: segment.endMs,
+		...(segment.absoluteTime !== undefined ? { absoluteTime: segment.absoluteTime } : {}),
 		speaker: segment.speaker,
 		text: segment.text,
 	};

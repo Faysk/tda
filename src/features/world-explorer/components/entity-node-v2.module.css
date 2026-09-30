@@ -93,6 +93,13 @@
 		0 18px 44px var(--ds-ambient-cool);
 }
 
+.entityNodeRelationEndpoint:not(.entityNodeSelected) .nodePortrait {
+	border-color: color-mix(in srgb, var(--ds-foreground) 58%, var(--ds-control-border));
+	box-shadow:
+		0 0 0 3px color-mix(in srgb, var(--ds-foreground) 7%, transparent),
+		0 12px 34px var(--ds-ambient-cool);
+}
+
 .nodeState {
 	position: absolute;
 	z-index: 4;

@@ -31,6 +31,7 @@ export function localReviewMarkdownSegments(
 		id: localReviewMarkdownSegmentId(segment),
 		startMs: Math.round((segment.timelineStart ?? segment.start) * 1000),
 		endMs: Math.round((segment.timelineEnd ?? segment.end) * 1000),
+		...(segment.absoluteTime !== undefined ? { absoluteTime: segment.absoluteTime } : {}),
 		speaker: segment.speaker,
 		text: segment.text,
 	}));

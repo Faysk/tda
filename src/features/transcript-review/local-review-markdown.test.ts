@@ -63,6 +63,11 @@ function review(): LocalReview {
 				end: 2,
 				timelineStart: 11,
 				timelineEnd: 12,
+				absoluteTime: {
+					startIso: "2026-09-12T23:59:59+01:00",
+					endIso: "2026-09-13T00:00:00+01:00",
+					source: "craig-source-a",
+				},
 				text: "Texto original",
 				speaker: "Alya",
 				reviewed: true,
@@ -86,6 +91,7 @@ describe("local review Markdown adapter", () => {
 			id: "track:7:segment:source-segment",
 			startMs: 11_000,
 			endMs: 12_000,
+			absoluteTime: value.segments[0].absoluteTime,
 		});
 	});
 

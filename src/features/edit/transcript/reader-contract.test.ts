@@ -93,14 +93,78 @@ describe("transcript reader contract", () => {
 			]),
 		).toThrow(/duplicate/u);
 	});
-	it("preserves trusted wall-clock provenance without inventing it for unavailable rows", () => {
+
+	it("preserves trusted wall-clock provenance and renders dual-time Markdown without changing elapsed navigation", async () => {
 		const segments = normalizeRevisionSegments([
-			{ track_number: 1, segment_id: "trusted", start: 1, end: 2, speaker: "Alice", text: "Virou a meia-noite", absolute_time_state: "trusted_absolute", absolute_start: "2026-09-12T23:59:59+01:00", absolute_end: "2026-09-13T00:00:00+01:00", absolute_time_source: "craig-source-a" },
-			{ track_number: 2, segment_id: "opaque", start: 3, end: 4, speaker: "Bob", text: "Sem relógio confiável", absolute_time_state: "unavailable", absolute_start: null, absolute_end: null, absolute_time_source: null },
+			{
+				track_number: 1,
+				segment_id: "trusted",
+				start: 1,
+				end: 2,
+				speaker: "Alice",
+				text: "Virou a meia-noite",
+				absolute_time_state: "trusted_absolute",
+				absolute_start: "2026-09-12T23:59:59+01:00",
+				absolute_end: "2026-09-13T00:00:00+01:00",
+				absolute_time_source: "craig-source-a",
+			},
+			{
+				track_number: 2,
+				segment_id: "opaque",
+				start: 3,
+				end: 4,
+				speaker: "Bob",
+				text: "Sem relógio confiável",
+				absolute_time_state: "unavailable",
+				absolute_start: null,
+				absolute_end: null,
+				absolute_time_source: null,
+			},
 		]);
-		expect(segments[0]?.absoluteTime).toEqual({ startIso: "2026-09-12T23:59:59+01:00", endIso: "2026-09-13T00:00:00+01:00", source: "craig-source-a" });
+		expect(segments[0]?.absoluteTime).toEqual({
+			startIso: "2026-09-12T23:59:59+01:00",
+			endIso: "2026-09-13T00:00:00+01:00",
+			source: "craig-source-a",
+		});
 		expect(segments[1]?.absoluteTime).toBeNull();
-		expect(() => normalizeRevisionSegments([{ track_number: 1, segment_id: "bad", start: 0, end: 1, speaker: "Alice", text: "Invalido", absolute_time_state: "trusted_absolute", absolute_start: "2026-09-12T23:59:59", absolute_end: "2026-09-13T00:00:00", absolute_time_source: "craig-source-a" }])).toThrow(/absolute time/u);
+		expect(findTranscriptJumpIndex(segments, 2_500)).toBe(1);
+		expect(formatTranscriptTimestamp(90_000_000)).toBe("25:00:00.000");
+
+		const markdown = await renderTranscriptMarkdown({
+			title: "Sessão dual",
+			sessionDate: "2026-09-12",
+			arc: null,
+			sourceSessionId: "sessao-dual",
+			snapshot: {
+				source: "current_revision",
+				revisionId: "11111111-1111-4111-8111-111111111111",
+				revisionNumber: 1,
+				segments,
+			},
+		});
+		expect(markdown).toContain("[00:00:01.000 | 23:59:59] **Alice**");
+		expect(markdown).toContain("<!-- tda:absolute-time-v1 ");
+		expect(markdown).toContain("2026-09-12T23:59:59+01:00");
+		expect(markdown).toContain("[00:00:03.000] **Bob**");
+	});
+
+	it("rejects malformed or unzoned revision wall-clock data", () => {
+		expect(() =>
+			normalizeRevisionSegments([
+				{
+					track_number: 1,
+					segment_id: "bad",
+					start: 0,
+					end: 1,
+					speaker: "Alice",
+					text: "Inválido",
+					absolute_time_state: "trusted_absolute",
+					absolute_start: "2026-09-12T23:59:59",
+					absolute_end: "2026-09-13T00:00:00",
+					absolute_time_source: "craig-source-a",
+				},
+			]),
+		).toThrow(/absolute time/u);
 	});
 
 });

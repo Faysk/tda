@@ -3,6 +3,7 @@ import {
 	decodeTranscriptMarkdownBytes,
 	parseTranscriptMarkdownV1,
 	renderTranscriptMarkdownV1,
+	transcriptMarkdownContentSha256,
 	TranscriptMarkdownError,
 	type TranscriptMarkdownBase,
 	type TranscriptMarkdownSegment,
@@ -106,6 +107,59 @@ describe("TDA transcript Markdown v1", () => {
 		});
 		expect(result.changedSegments).toBe(0);
 		expect(result.segments[1].text).toContain("<script>alert(1)</script>");
+	});
+
+
+	it("renders trusted wall clock beside elapsed time while keeping existing hashes elapsed/content based", async () => {
+		const dual: readonly TranscriptMarkdownSegment[] = [
+			{
+				...segments[0],
+				absoluteTime: {
+					startIso: "2026-09-12T23:59:59+01:00",
+					endIso: "2026-09-13T00:00:03.900+01:00",
+					source: "craig-source-a",
+				},
+			},
+			segments[1],
+		];
+		expect(await transcriptMarkdownContentSha256(dual)).toBe(
+			await transcriptMarkdownContentSha256(segments),
+		);
+		const markdown = await renderTranscriptMarkdownV1({
+			base,
+			segments: dual,
+			exportedAt: "2026-09-30T00:00:00.000Z",
+		});
+		expect(markdown).toContain("[00:00:44.000 | 23:59:59] **faysk**");
+		expect(markdown).toContain(
+			'<!-- tda:absolute-time-v1 {"start":"2026-09-12T23:59:59+01:00","end":"2026-09-13T00:00:03.900+01:00","source":"craig-source-a"} -->',
+		);
+		expect(markdown).toContain("[00:00:49.000] **Renan**");
+
+		const roundTrip = await parseTranscriptMarkdownV1({
+			text: markdown,
+			expectedBase: base,
+			expectedSegments: dual,
+		});
+		expect(roundTrip.changedSegments).toBe(0);
+		expect(roundTrip.segments[0].absoluteTime).toEqual(dual[0].absoluteTime);
+
+		await expectCode(
+			parseTranscriptMarkdownV1({
+				text: markdown.replace("| 23:59:59]", "| 00:00:00]"),
+				expectedBase: base,
+				expectedSegments: dual,
+			}),
+			"VISIBLE_TIMESTAMP_CHANGED",
+		);
+		await expectCode(
+			parseTranscriptMarkdownV1({
+				text: markdown.replace('"source":"craig-source-a"', '"source":"craig-source-b"'),
+				expectedBase: base,
+				expectedSegments: dual,
+			}),
+			"TIMING_CHANGED",
+		);
 	});
 
 	it("fails closed on wrong base and structural tampering", async () => {
