@@ -126,7 +126,15 @@ function moveToolbarFocus(event: ReactKeyboardEvent<HTMLDivElement>) {
 }
 
 function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) {
-	const { item, isFocus, isHero, prominence, isDimmed, authoringConnectable } = data;
+	const {
+		item,
+		isFocus,
+		isHero,
+		prominence,
+		isDimmed,
+		isRelationEndpoint,
+		authoringConnectable,
+	} = data;
 	const semanticZoom = useWorldSemanticZoomTier();
 	const semantic = worldNodeSemanticPresentation(semanticZoom, {
 		isHero,
@@ -139,10 +147,11 @@ function WorldEntityNodeComponent({ data, selected }: NodeProps<WorldFlowNode>) 
 	const state = stateLabel(isFocus, selected);
 	return (
 		<div
-			className={`${nodeStyles.entityNode} ${isHero ? nodeStyles.entityNodeHero : ""} ${isFocus ? nodeStyles.entityNodeFocus : ""} ${selected ? nodeStyles.entityNodeSelected : ""} ${isDimmed ? nodeStyles.entityNodeDimmed : ""}`}
+			className={`${nodeStyles.entityNode} ${isHero ? nodeStyles.entityNodeHero : ""} ${isFocus ? nodeStyles.entityNodeFocus : ""} ${selected ? nodeStyles.entityNodeSelected : ""} ${isRelationEndpoint ? nodeStyles.entityNodeRelationEndpoint : ""} ${isDimmed ? nodeStyles.entityNodeDimmed : ""}`}
 			data-world-node={item.id}
 			data-prominence={prominence}
 			data-node-kind={kind}
+			data-world-relation-endpoint={isRelationEndpoint ? "true" : "false"}
 			data-world-semantic-zoom={semanticZoom}
 		>
 			<NodeToolbar isVisible={selected} position={Position.Top} offset={18} align="center">
