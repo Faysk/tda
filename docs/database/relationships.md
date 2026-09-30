@@ -18,10 +18,17 @@ Este documento explica **o significado das relações**, não apenas FKs. O cat�
 - participant herda campaign da session;
 - profile permanece identidade global humana;
 - `profile_characters` só associa profile a entity dentro do boundary declarado;
+- #1123 reforça esse vínculo com FK composta `(campaign_id, entity_id) -> entities(campaign_id, id)`; IDs válidos isoladamente não bastam;
 - relation source/target pertencem à mesma campaign da relation;
 - source IDs e slugs narrativos podem repetir entre campaigns quando o domínio permitir;
 - nenhuma FK lógica é validada somente por ID client-side sem conferir ownership;
 - mover session entre campaigns é operação de domínio própria, não update cru de FK.
+
+### Route identity
+
+`campaigns.public_slug` é a route key pública canônica e `campaign_public_route_aliases` guarda nomes históricos. Ambos resolvem para `campaigns.id`; nenhum participa de FK narrativa ou scope RBAC.
+
+O technical slug `campaigns.slug` permanece identidade de compatibilidade. A migration #1123 registra `yuhara-main` como alias pública da mesma row, sem mudar o technical slug usado por consumers legados.
 
 ### Profile
 
