@@ -13,22 +13,22 @@ const row = {
 	hero_image_url:
 		"https://dmrqnbdvbkfqzctcerbx.supabase.co/storage/v1/object/public/session-images/yuhara-main/example/hero.webp",
 	status: "published",
-	campaigns: { slug: "yuhara-main" },
+	campaigns: { id: "campaign-a", slug: "yuhara-main", public_slug: "cronicas-da-mesa", name: "Crônicas da Mesa", lifecycle: "active", visibility: "public" },
 	transcript: "PRIVATE",
 	metadata: { secret: "PRIVATE" },
 };
 
 describe("public session boundary", () => {
-	it("rejects drafts and other campaigns", () => {
+	it("rejects drafts and non-public campaigns", () => {
 		expect(toPublishedSession({ ...row, status: "draft" })).toBeNull();
 		expect(
-			toPublishedSession({ ...row, campaigns: { slug: "other" } }),
+			toPublishedSession({ ...row, campaigns: { ...row.campaigns, visibility: "private" } }),
 		).toBeNull();
 	});
 
 	it("only returns approved fields", () => {
 		const result = toPublishedSession(row);
-		expect(result).not.toHaveProperty("metadata");
+		expect(result).toMatchObject({ campaignSlug: "cronicas-da-mesa", campaignName: "Crônicas da Mesa" });\n\t\texpect(result).not.toHaveProperty("metadata");
 		expect(result).not.toHaveProperty("transcript");
 		expect(result).not.toHaveProperty("fullSummary");
 		expect(result?.coverImage).toContain("dnd.faysk.dev/assets/sessions/");
