@@ -1688,6 +1688,23 @@ Validação sintética:
 Rollback é forward-only: retirar primeiro o consumidor Web; sessions privadas/revisions já confirmadas continuam evidência válida. Não apagar receipt/revision/session real para simular rollback.
 
 
+## 2026-10-01 — campaign cover media scope (#1135)
+
+### `20261001024500_campaign_cover_media_scope.sql`
+
+**Estado:** migration versionada para o rollout normal; sua presença no repositório não prova aplicação remota até existir receipt do Production CD no mesmo SHA.
+
+A migration é aditiva sobre o foundation de Media Storage:
+
+- amplia `media_assets.role_hint` com `campaign_cover`;
+- aceita a key imutável `campaigns/{technical-slug}/campaign/cover/{sha256}.{ext}` sem reescrever objetos legados;
+- cria `campaign_media_bindings(campaign_id, role, asset_id)`;
+- usa FK composta `(campaign_id, asset_id)` para impedir Campaign A de bindar asset de B;
+- mantém RLS deny-by-default para browser roles e acesso server-side por `service_role`;
+- rollback funcional é por binding/pointer; não exige delete de `media_assets` nem de objetos R2.
+
+Validação sintética: `tools/world-entity-media-db.py` aplica o foundation + esta migration em PostgreSQL 16 descartável e executa `supabase/tests/campaign_cover_media.sql`, cobrindo RLS/grants, A/B com o mesmo SHA, binding válido por campaign e rejeição FK de binding cruzado. Nenhum banco remoto ou bucket R2 é tocado pelo gate.
+
 ## 2026-09-30 — candidate first-class campaign registry (#1123)
 
 ### `supabase/candidates/20260930174200_first_class_campaign_registry.sql`
