@@ -296,7 +296,7 @@ test("aggregate filter keeps a zero-session campaign selectable while a sibling 
 
 	await campaignFilter.selectOption("fixture-only-campaign");
 	await expect(fixture.locator("[data-session-card]")).toHaveCount(0);
-	await expect(fixture).toContainText("Nenhuma sessão corresponde aos filtros");
+	await expect(fixture).toContainText("Nenhuma sessão por aqui.");
 
 	await campaignFilter.selectOption("fixture-with-content");
 	await expect(fixture.locator('[data-session-card="grid"]')).toHaveCount(1);
