@@ -74,14 +74,12 @@ export function toolNavigationItemsForCampaign(
 			icon: "transcripts",
 			capability: EDIT_CAPABILITIES.transcriptRead,
 		});
-		if (technicalSlug === LEGACY_CAMPAIGN_TECHNICAL_SLUG) {
-			items.push({
-				href: campaignQuery("/edit/sessoes", technicalSlug),
-				label: "Editar sessões",
-				icon: "edit-sessions",
-				capability: EDIT_CAPABILITIES.transcriptRead,
-			});
-		}
+		items.push({
+			href: `/edit/${encodeURIComponent(technicalSlug)}/sessoes`,
+			label: "Editar sessões",
+			icon: "edit-sessions",
+			capability: EDIT_CAPABILITIES.transcriptRead,
+		});
 	}
 
 	if (allowed.has(EDIT_CAPABILITIES.localProcess)) {
