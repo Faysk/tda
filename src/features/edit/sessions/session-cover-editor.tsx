@@ -47,6 +47,7 @@ export type SessionCoverUploadState = Readonly<{
 }>;
 
 type Props = Readonly<{
+	campaignSlug: string;
 	sessionId: string;
 	value: string;
 	disabled?: boolean;
@@ -96,6 +97,7 @@ function failureMessage(reason: string): string {
 }
 
 export function SessionCoverEditor({
+	campaignSlug,
 	sessionId,
 	value,
 	disabled = false,
@@ -127,7 +129,7 @@ export function SessionCoverEditor({
 
 	const privateAsset = isSessionCoverUuid(value);
 	const previewUrl = privateAsset
-		? sessionCoverPreviewUrl(sessionId, value)
+		? sessionCoverPreviewUrl(campaignSlug, sessionId, value)
 		: safeExistingCoverUrl(value);
 
 	useEffect(() => () => abortRef.current?.abort(), []);
@@ -150,7 +152,7 @@ export function SessionCoverEditor({
 		let active = true;
 		setMetadata(null);
 		if (!privateAsset) return () => {};
-		void getSessionCoverAssetStatusAction(sessionId, value)
+		void getSessionCoverAssetStatusAction(campaignSlug, sessionId, value)
 			.then((result) => {
 				if (!active) return;
 				if (!result.ok) {
@@ -174,7 +176,7 @@ export function SessionCoverEditor({
 		return () => {
 			active = false;
 		};
-	}, [privateAsset, sessionId, value]);
+	}, [campaignSlug, privateAsset, sessionId, value]);
 
 	async function upload(file: File) {
 		if (disabled || busy) return;
@@ -204,7 +206,11 @@ export function SessionCoverEditor({
 			const intent = { sha256, mimeType, bytes: file.size };
 
 			setStatus("Preparando upload privado…");
-			const requested = await requestSessionCoverUploadAction(sessionId, intent);
+			const requested = await requestSessionCoverUploadAction(
+				campaignSlug,
+				sessionId,
+				intent,
+			);
 			if (!requested.ok) {
 				reportUploadState({ phase: "error", progress: null });
 				setStatus(null);
@@ -219,7 +225,11 @@ export function SessionCoverEditor({
 				if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
 				const start = part * requested.chunkBytes;
 				const end = Math.min(file.size, start + requested.chunkBytes);
-				const response = await fetch("/api/edit/session-cover/upload", {
+				const response = await fetch(
+					"/api/edit/campaigns/" +
+						encodeURIComponent(campaignSlug) +
+						"/session-cover/upload",
+					{
 					method: "PUT",
 					headers: {
 						"Content-Type": "application/octet-stream",
@@ -233,7 +243,8 @@ export function SessionCoverEditor({
 					cache: "no-store",
 					credentials: "same-origin",
 					signal: controller.signal,
-				});
+					},
+				);
 				if (!response.ok)
 					throw new Error(`chunk_${response.status}`);
 				reportUploadState({
@@ -245,6 +256,7 @@ export function SessionCoverEditor({
 			reportUploadState({ phase: "finalizing", progress: null });
 			setStatus("Validando formato, dimensões, hash e read-back…");
 			const finalized = await finalizeSessionCoverUploadAction(
+				campaignSlug,
 				sessionId,
 				requested.uploadId,
 				intent,
