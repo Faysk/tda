@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,7 @@ MODULE_PATH = Path(__file__).with_name("qwen_runtime_recovery.py")
 SPEC = importlib.util.spec_from_file_location("qwen_runtime_recovery", MODULE_PATH)
 assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = module
 SPEC.loader.exec_module(module)
 
 
