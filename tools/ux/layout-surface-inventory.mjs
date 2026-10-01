@@ -26,6 +26,8 @@ const EXPECTED = {
 		"src/app/diario/page.tsx",
 		"src/app/edit/[campaignSlug]/mundo/page.tsx",
 		"src/app/edit/[campaignSlug]/permissions/page.tsx",
+		"src/app/edit/[campaignSlug]/sessoes/[id]/page.tsx",
+		"src/app/edit/[campaignSlug]/sessoes/page.tsx",
 		"src/app/edit/campanhas/page.tsx",
 		"src/app/edit/mundo/page.tsx",
 		"src/app/edit/page.tsx",
