@@ -69,12 +69,13 @@ export default async function LoreIndexRoute() {
 						</a>
 					</article>
 				))}
-				<article className={styles.card}>
+				<article className={styles.card} data-lore="pipipi">
 					<Image
 						className={styles.cardBackground}
 						src={PIPIPI_STAGE_BACKGROUND_URL}
 						alt=""
 						fill
+						loading="eager"
 						sizes={loreCardSizes}
 						unoptimized
 					/>
