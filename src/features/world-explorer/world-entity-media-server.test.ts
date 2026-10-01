@@ -123,7 +123,7 @@ describe("governed public image promotion", () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async () =>
-				new Response(bytes, {
+				new Response(Uint8Array.from(bytes).buffer, {
 					status: 200,
 					headers: {
 						"content-type": info.mimeType,
@@ -162,7 +162,7 @@ describe("governed public image promotion", () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async () =>
-				new Response(bytes, {
+				new Response(Uint8Array.from(bytes).buffer, {
 					status: 200,
 					headers: { "content-type": info.mimeType },
 				}),
