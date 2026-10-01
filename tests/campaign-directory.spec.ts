@@ -109,24 +109,24 @@ test("World campaign switch preserves explicit context across back, forward and 
 	await expect(campaignB).toHaveAttribute("href", WORLD_B_PATH);
 	await campaignB.click();
 
-	await expect(page).toHaveURL(/\\/campanhas\\/antes-que-seja-tarde\\/mundo$/u);
+	await expect(page).toHaveURL(/\/campanhas\/antes-que-seja-tarde\/mundo$/u);
 	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
 	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
 
 	await page.goBack();
-	await expect(page).toHaveURL(/\\/campanhas\\/cronicas-da-mesa\\/mundo$/u);
+	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/mundo$/u);
 	await expect(
 		page.locator('[data-world-edit-state][data-world-campaign="yuhara-main"]'),
 	).toBeVisible();
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
 	await page.goForward();
-	await expect(page).toHaveURL(/\\/campanhas\\/antes-que-seja-tarde\\/mundo$/u);
+	await expect(page).toHaveURL(/\/campanhas\/antes-que-seja-tarde\/mundo$/u);
 	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
 	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
 
 	await page.reload();
-	await expect(page).toHaveURL(/\\/campanhas\\/antes-que-seja-tarde\\/mundo$/u);
+	await expect(page).toHaveURL(/\/campanhas\/antes-que-seja-tarde\/mundo$/u);
 	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
 	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
 });
