@@ -2065,3 +2065,211 @@ def test_owned_overflow_on_last_window_never_uses_right_context_recovery(
     codes = [item.get("code") for item in reports]
     assert "QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED" not in codes
     assert codes.count("QWEN_ALIGNMENT_WINDOW_FAILED") == 1
+
+def test_fast_empty_signal_falls_back_to_quality_without_dual_model_residency(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    active: list[str] = []
+    lifecycle: list[str] = []
+
+    def one_signal_window(_path: Path):
+        yield AudioWindow(
+            index=1,
+            start=0.0,
+            end=60.0,
+            audio=[0.1] * 320,
+        )
+
+    def plan(profile_id: str) -> QwenPlan:
+        return QwenPlan(
+            profile_id=profile_id,
+            device="cuda",
+            dtype="bfloat16",
+            compute_capability="8.9",
+        )
+
+    def prepare(_models_root: Path, profile):
+        lifecycle.append(f"prepare:{profile.id}")
+        return Path(profile.id)
+
+    class Session:
+        def __init__(self, profile_id: str):
+            assert not active, "Fast and Quality must never be resident together"
+            self.profile_id = profile_id
+            active.append(profile_id)
+            lifecycle.append(f"open:{profile_id}")
+
+        def transcribe(self, _audio, *, prompt: str):
+            lifecycle.append(f"transcribe:{self.profile_id}")
+            if self.profile_id == "qwen-fast":
+                return "", "Portuguese"
+            assert self.profile_id == "qwen-quality"
+            return "texto recuperado", "Portuguese"
+
+        def close(self):
+            lifecycle.append(f"close:{self.profile_id}")
+            if self.profile_id in active:
+                active.remove(self.profile_id)
+
+    class Aligner:
+        def align(self, _audio, text: str, language: str):
+            assert text == "texto recuperado"
+            assert language == "Portuguese"
+            return [
+                {"text": "texto", "start_time": 1.0, "end_time": 1.5},
+                {"text": "recuperado", "start_time": 1.6, "end_time": 2.3},
+            ]
+
+        def close(self):
+            pass
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=plan,
+        model_prepare=prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda model_root, _plan: Session(model_root.name),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=one_signal_window,
+        energy_reader=lambda *_args: -12.0,
+        report=reports.append,
+    )
+
+    assert active == []
+    assert lifecycle[:6] == [
+        "prepare:qwen-fast",
+        "open:qwen-fast",
+        "transcribe:qwen-fast",
+        "close:qwen-fast",
+        "prepare:qwen-quality",
+        "open:qwen-quality",
+    ]
+    assert "close:qwen-quality" in lifecycle
+    codes = [item.get("code") for item in reports]
+    assert codes.count("QWEN_WINDOW_QUALITY_FALLBACK_STARTED") == 1
+    assert codes.count("QWEN_WINDOW_QUALITY_FALLBACK_RECOVERED") == 1
+    assert "QWEN_WINDOW_QUALITY_FALLBACK_FAILED" not in codes
+    assert "QWEN_WINDOW_EMPTY_ASR_REJECTED" not in codes
+    assert document.engine.profile == "qwen-fast"
+    assert [
+        word.text
+        for track in document.tracks
+        for segment in track.segments
+        for word in segment.words
+    ] == ["texto", "recuperado"]
+
+
+def test_fast_quality_fallback_empty_stays_fail_closed(tmp_path: Path):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    active: list[str] = []
+
+    def one_signal_window(_path: Path):
+        yield AudioWindow(
+            index=1,
+            start=0.0,
+            end=60.0,
+            audio=[0.1] * 320,
+        )
+
+    def plan(profile_id: str) -> QwenPlan:
+        return QwenPlan(
+            profile_id=profile_id,
+            device="cuda",
+            dtype="bfloat16",
+            compute_capability="8.9",
+        )
+
+    class Session:
+        def __init__(self, profile_id: str):
+            assert not active
+            self.profile_id = profile_id
+            active.append(profile_id)
+
+        def transcribe(self, _audio, *, prompt: str):
+            return "", "Portuguese"
+
+        def close(self):
+            if self.profile_id in active:
+                active.remove(self.profile_id)
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            plan_resolver=plan,
+            model_prepare=lambda _root, profile: Path(profile.id),
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda model_root, _plan: Session(model_root.name),
+            window_reader=one_signal_window,
+            energy_reader=lambda *_args: -12.0,
+            report=reports.append,
+        )
+
+    assert active == []
+    codes = [item.get("code") for item in reports]
+    assert codes.count("QWEN_WINDOW_QUALITY_FALLBACK_STARTED") == 1
+    assert codes.count("QWEN_WINDOW_QUALITY_FALLBACK_FAILED") == 1
+    assert codes.count("QWEN_WINDOW_EMPTY_ASR_REJECTED") == 1
+
+
+def test_quality_empty_signal_never_recurses_into_quality_fallback(tmp_path: Path):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    opened = 0
+
+    def one_signal_window(_path: Path):
+        yield AudioWindow(
+            index=1,
+            start=0.0,
+            end=60.0,
+            audio=[0.1] * 320,
+        )
+
+    class Session:
+        def transcribe(self, _audio, *, prompt: str):
+            return "", "Portuguese"
+
+        def close(self):
+            pass
+
+    def factory(_root, _plan):
+        nonlocal opened
+        opened += 1
+        return Session()
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-quality",
+            checkpoints=False,
+            plan_resolver=lambda profile_id: QwenPlan(
+                profile_id=profile_id,
+                device="cuda",
+                dtype="bfloat16",
+                compute_capability="8.9",
+            ),
+            model_prepare=lambda _root, profile: Path(profile.id),
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=factory,
+            window_reader=one_signal_window,
+            energy_reader=lambda *_args: -12.0,
+            report=reports.append,
+        )
+
+    assert opened == 1
+    codes = [item.get("code") for item in reports]
+    assert "QWEN_WINDOW_QUALITY_FALLBACK_STARTED" not in codes
+    assert codes.count("QWEN_WINDOW_EMPTY_ASR_REJECTED") == 1
+
