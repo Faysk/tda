@@ -21,6 +21,7 @@ export type ManageableCampaign = Readonly<{
 	visibility: CampaignVisibility;
 	archivedAt: string | null;
 	updatedAt: string;
+	coverImage: string | null;
 }>;
 
 export type CampaignMutationFailure =
