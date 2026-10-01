@@ -84,19 +84,25 @@ describe("session cover media contract", () => {
 		expect(
 			isExistingPublishedSessionCoverReference(
 				"https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/abc/cover.webp",
+				"yuhara-main",
 			),
 		).toBe(true);
 		expect(
 			isExistingPublishedSessionCoverReference(
 				"https://dmrqnbdvbkfqzctcerbx.supabase.co/storage/v1/object/public/session-images/legacy.webp",
+				"yuhara-main",
 			),
 		).toBe(true);
 		expect(
-			isExistingPublishedSessionCoverReference("/assets/sessions/legacy.webp"),
+			isExistingPublishedSessionCoverReference(
+				"/assets/sessions/legacy.webp",
+				"yuhara-main",
+			),
 		).toBe(true);
 		expect(
 			isExistingPublishedSessionCoverReference(
 				"https://media.dnd.faysk.dev/campaigns/other/sessions/abc.webp",
+				"yuhara-main",
 			),
 		).toBe(false);
 		expect(
