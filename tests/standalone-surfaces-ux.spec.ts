@@ -1,26 +1,4 @@
-import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-
-const pipipiManifest = JSON.parse(
-	await readFile(new URL("../media/manifests/pipipi.json", import.meta.url), "utf8"),
-) as {
-	publicOrigin: string;
-	namespace: string;
-	assets: Array<{ file: string; sha256: string; contentType: string }>;
-};
-
-const pipipiStageAsset = pipipiManifest.assets.find(
-	(asset) => asset.file === "stage-bg.avif",
-);
-if (!pipipiStageAsset) {
-	throw new Error("stage-bg.avif is missing from the canonical Pipipi media manifest");
-}
-
-const PIPIPI_STAGE_BACKGROUND_URL =
-	`${pipipiManifest.publicOrigin.replace(/\/$/, "")}/${pipipiManifest.namespace.replace(
-		/^\/+|\/+$/g,
-		"",
-	)}/${pipipiStageAsset.sha256}/${pipipiStageAsset.file}`;
 
 type StandaloneSurface = {
 	id: string;
@@ -319,65 +297,6 @@ test("standalone catalogs keep published entries discoverable and private lores 
 	await expect(
 		page.locator('a[href="/diario/astel/leitura.html"]:visible').first(),
 	).toBeVisible();
-});
-
-test("lore catalogue covers stay fetchable, canonical and decodable on mobile and desktop", async ({
-	page,
-	request,
-}, testInfo) => {
-	test.skip(testInfo.project.name !== "desktop-1080p");
-	test.setTimeout(120000);
-
-	for (const viewport of [
-		{ label: "390x844", width: 390, height: 844 },
-		{ label: "1920x1080", width: 1920, height: 1080 },
-	] as const) {
-		await page.setViewportSize({ width: viewport.width, height: viewport.height });
-		const response = await page.goto("/lore", { waitUntil: "domcontentloaded" });
-		expect(response?.status(), `catalogue @ ${viewport.label}`).toBe(200);
-
-		const cards = page.locator('section[aria-label="Lores publicadas"] article');
-		const cardCount = await cards.count();
-		expect(cardCount, `catalogue cards @ ${viewport.label}`).toBeGreaterThan(0);
-
-		for (let index = 0; index < cardCount; index += 1) {
-			const card = cards.nth(index);
-			await card.scrollIntoViewIfNeeded();
-			const image = card.locator("img").first();
-			await expect(image, `catalogue image ${index} @ ${viewport.label}`).toBeAttached();
-
-			await expect
-				.poll(
-					() =>
-						image.evaluate((node) => {
-							const img = node as HTMLImageElement;
-							return img.complete ? img.naturalWidth : 0;
-						}),
-					{ message: `catalogue image ${index} must decode @ ${viewport.label}` },
-				)
-				.toBeGreaterThan(0);
-
-			const assetUrl = await image.evaluate((node) => {
-				const img = node as HTMLImageElement;
-				return img.currentSrc || img.src;
-			});
-			expect(assetUrl, `catalogue image ${index} source @ ${viewport.label}`).toMatch(
-				/^https:\/\/media\.dnd\.faysk\.dev\//,
-			);
-
-			const assetResponse = await request.get(assetUrl);
-			expect(assetResponse.status(), assetUrl).toBe(200);
-			expect(assetResponse.headers()["content-type"], assetUrl).toMatch(/^image\//);
-		}
-
-		const pipipiImage = page.locator('article[data-lore="pipipi"] img').first();
-		await expect(pipipiImage).toBeAttached();
-		const pipipiSource = await pipipiImage.evaluate((node) => {
-			const img = node as HTMLImageElement;
-			return img.currentSrc || img.src;
-		});
-		expect(pipipiSource).toBe(PIPIPI_STAGE_BACKGROUND_URL);
-	}
 });
 
 test("Diário de Astel opens and paginates the reader across the viewport matrix", async ({

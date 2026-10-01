@@ -75,7 +75,6 @@ export default async function LoreIndexRoute() {
 						src={PIPIPI_STAGE_BACKGROUND_URL}
 						alt=""
 						fill
-						loading="eager"
 						sizes={loreCardSizes}
 						unoptimized
 					/>
