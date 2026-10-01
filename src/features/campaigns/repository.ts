@@ -347,13 +347,18 @@ export const resolvePublicCampaignRoute = cache(
 );
 
 export type CampaignDirectoryReadResult =
-	| Readonly<{ ok: true; campaigns: readonly PublicCampaign[] }>
+	| Readonly<{
+		ok: true;
+		campaigns: readonly PublicCampaign[];
+		registryMode: "canonical" | "legacy";
+	  }>
 	| Readonly<{ ok: false; reason: "dependency_unavailable" }>;
 
 export async function readPublicCampaignDirectory(): Promise<CampaignDirectoryReadResult> {
 	if (campaignFixtureEnabled()) {
 		return {
 			ok: true,
+			registryMode: "canonical",
 			campaigns: E2E_CAMPAIGNS.filter(
 				(campaign) =>
 					campaign.lifecycle === "active" && campaign.visibility === "public",
@@ -387,6 +392,7 @@ export async function readPublicCampaignDirectory(): Promise<CampaignDirectoryRe
 		if (!legacy.ok) return { ok: false, reason: "dependency_unavailable" };
 		return {
 			ok: true,
+			registryMode: "legacy",
 			campaigns: legacy.campaign
 				? [
 						{
@@ -420,7 +426,7 @@ export async function readPublicCampaignDirectory(): Promise<CampaignDirectoryRe
 			parsePublicCampaign(row, covers.get(targets[index].campaignId) ?? null),
 		);
 		return campaigns.every((campaign): campaign is PublicCampaign => campaign !== null)
-			? { ok: true, campaigns }
+			? { ok: true, campaigns, registryMode: "canonical" }
 			: { ok: false, reason: "dependency_unavailable" };
 	} catch {
 		return { ok: false, reason: "dependency_unavailable" };
