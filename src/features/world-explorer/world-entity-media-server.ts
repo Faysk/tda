@@ -175,6 +175,40 @@ async function putImmutableObject({
 	}
 }
 
+export async function stageGovernedImageObject({
+	objectKey,
+	bytes,
+	maxPixels,
+}: {
+	objectKey: string;
+	bytes: Uint8Array;
+	maxPixels?: number;
+}): Promise<VerifiedWorldEntityUpload> {
+	const info = inspectWorldEntityImage(bytes);
+	if (
+		maxPixels !== undefined &&
+		info.width * info.height > maxPixels
+	) {
+		failure("PIXEL_BUDGET_EXCEEDED");
+	}
+	const bucket = worldEntityMediaStagingBucket();
+	const client = stagingClient();
+	await putImmutableObject({
+		client,
+		bucket,
+		objectKey,
+		bytes,
+		info,
+		cacheControl: "private, no-store",
+	});
+	return {
+		...info,
+		bucket,
+		objectKey,
+		readBackVerified: true,
+	};
+}
+
 export async function writeWorldEntityPortraitPendingUploadChunk({
 	campaignSlug,
 	entityId,
