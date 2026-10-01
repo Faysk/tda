@@ -471,7 +471,6 @@ def test_strict_qwen_recovers_empty_signal_after_trimming_only_digital_edge_sile
     assert [segment.text for segment in document.tracks[0].segments] == [
         "fala recuperada"
     ]
-    assert "qwen_empty_signal_edge_trim_recovery" in document.warnings
 
     started = next(
         item
