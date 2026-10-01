@@ -1324,7 +1324,7 @@ jobs:
             'real_benchmark_requested = (-not [string]::IsNullOrWhiteSpace($CraigZip))',
             "companion-rc-v0.3.18-bb9b0a96fc30",
             "companion-whisper-runtime-rc-v1.1.8-ce9fdda3c35e",
-            "companion-qwen-runtime-rc-v1.0.13-bb9b0a96fc30",
+            "companion-qwen-runtime-rc-v1.0.14-d3db290b66be",
             "CompanionExePath",
             "CompanionPayloadManifest",
             "QwenRuntimeCandidateManifest",
