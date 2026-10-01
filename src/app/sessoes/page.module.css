@@ -400,7 +400,24 @@
 	}
 
 	.aggregateHero .scopeActions {
-		margin-top: 16px;
+		margin-top: 14px;
+	}
+
+	.aggregateHero .heroCopy > p {
+		margin-top: 12px;
+		line-height: 1.45;
+	}
+
+	.aggregateHero .stats {
+		row-gap: 10px;
+	}
+
+	.aggregateHero .stat:nth-child(n + 3) {
+		padding-top: 10px;
+	}
+
+	.aggregateHero .stat dt {
+		margin-top: 4px;
 	}
 
 	.scopeBreadcrumb {
