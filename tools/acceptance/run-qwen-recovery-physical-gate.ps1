@@ -1026,6 +1026,37 @@ try {
     }
     $computedTranscriptDigest = Get-Sha256 $runTranscriptPath
     if ($computedTranscriptDigest -ne $resultDigest) { Fail-Product "IMMUTABLE_RUN_TRANSCRIPT_HASH_MISMATCH" }
+
+    if ($ExpectedCraigSha256) {
+        $uvCommand = Get-Command uv -ErrorAction SilentlyContinue
+        if ($null -eq $uvCommand) { Fail-Blocked "QWEN_1236_STRUCTURE_VALIDATOR_UV_REQUIRED" }
+        $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+        $validator = Join-Path $PSScriptRoot "qwen_full_run_structure.py"
+        if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) { Fail-Harness "QWEN_1236_STRUCTURE_VALIDATOR_MISSING" }
+        $structureReceiptPath = Join-Path $EvidenceRoot "qwen-fast-full-run-structure.json"
+        & $uvCommand.Source run --project (Join-Path $repoRoot "local-companion") python $validator `
+            --transcript $runTranscriptPath `
+            --run-marker $runMarkerPath `
+            --source-id $SourceId `
+            --expected-source-sha256 $ExpectedCraigSha256 `
+            --job-id $FastJobId `
+            --attempt ([string][int]$finalAttempt) `
+            --profile-id "qwen-fast" `
+            --expected-track-count ([string][int]$craigTrackCount) `
+            --repo-root $repoRoot `
+            --output $structureReceiptPath
+        if ($LASTEXITCODE -ne 0) { Fail-Product "QWEN_1236_FULL_RUN_STRUCTURE_INVALID" }
+        $structureReceipt = Read-Json $structureReceiptPath "QWEN_1236_FULL_RUN_STRUCTURE_RECEIPT_INVALID"
+        if (
+            [string](Get-OptionalPropertyValue $structureReceipt "schema") -ne "tda_qwen_1236_full_run_structure_v1" -or
+            (Get-OptionalPropertyValue $structureReceipt "immutable_run_verified") -ne $true -or
+            [int](Get-OptionalPropertyValue $structureReceipt "track_count") -ne [int]$craigTrackCount -or
+            [string](Get-OptionalPropertyValue $structureReceipt "source_sha256") -ne $ExpectedCraigSha256
+        ) {
+            Fail-Product "QWEN_1236_FULL_RUN_STRUCTURE_RECEIPT_INVALID"
+        }
+    }
+
     Write-Json (Join-Path $EvidenceRoot "immutable-run-validation.json") ([ordered]@{
         marker = "run.json"
         run_id = $runId
