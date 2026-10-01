@@ -171,8 +171,8 @@ function Get-BenchmarkProfileState([string]$Token, [string]$ProfileId) {
 }
 
 function Ensure-BenchmarkReady([string]$Token, [string]$SourceId, [string]$ProfileId) {
-    $profile = Get-BenchmarkProfileState $Token $ProfileId
-    if ((Get-OptionalPropertyValue $profile "benchmark_ready") -eq $true) { return "already_ready" }
+    $profileState = Get-BenchmarkProfileState $Token $ProfileId
+    if ((Get-OptionalPropertyValue $profileState "benchmark_ready") -eq $true) { return "already_ready" }
 
     $started = Invoke-AgentJson $Token "POST" "/preparation" @{
         source_id = $SourceId
