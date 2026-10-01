@@ -49,8 +49,16 @@ export function isExistingPublishedSessionCoverReference(
 	if (typeof value !== "string") return false;
 	const raw = value.trim();
 	if (!raw) return false;
-	if (raw.startsWith("/assets/sessions/") && !raw.includes("?") && !raw.includes("#"))
-		return true;
+	const legacyReferenceAllowed =
+		!expectedCampaignMediaKey ||
+		expectedCampaignMediaKey === LEGACY_CAMPAIGN_MEDIA_KEY;
+	if (
+		raw.startsWith("/assets/sessions/") &&
+		!raw.includes("?") &&
+		!raw.includes("#")
+	) {
+		return legacyReferenceAllowed;
+	}
 	try {
 		const url = new URL(raw);
 		if (
@@ -76,9 +84,6 @@ export function isExistingPublishedSessionCoverReference(
 				}),
 			);
 		}
-		const legacyReferenceAllowed =
-			!expectedCampaignMediaKey ||
-			expectedCampaignMediaKey === LEGACY_CAMPAIGN_MEDIA_KEY;
 		if (
 			legacyReferenceAllowed &&
 			url.hostname === "dnd.faysk.dev" &&

@@ -96,6 +96,18 @@ describe("session cover media contract", () => {
 		).toBe(true);
 		expect(
 			isExistingPublishedSessionCoverReference(
+				"/assets/sessions/legacy.webp",
+				"campaign-b",
+			),
+		).toBe(false);
+		expect(
+			isExistingPublishedSessionCoverReference(
+				"https://dnd.faysk.dev/assets/sessions/legacy.webp",
+				"campaign-b",
+			),
+		).toBe(false);
+		expect(
+			isExistingPublishedSessionCoverReference(
 				"https://dmrqnbdvbkfqzctcerbx.supabase.co/storage/v1/object/public/session-images/legacy.webp",
 				"campaign-b",
 			),
