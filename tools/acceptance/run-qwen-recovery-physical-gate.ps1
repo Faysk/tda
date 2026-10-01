@@ -1075,7 +1075,7 @@ try {
         profile_id = "qwen-fast"
         transcript_sha256 = $resultDigest
         computed_transcript_sha256 = $computedTranscriptDigest
-        marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema")
+        marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema_version")
     })
     Write-Json (Join-Path $EvidenceRoot "qwen-fast-result.json") ([ordered]@{
         status = [string](Get-OptionalPropertyValue $fastFinal "status")
