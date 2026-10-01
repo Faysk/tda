@@ -18,6 +18,7 @@ export type TranscriptSegmentEdit = Readonly<{
 }>;
 
 export type TranscriptEditRequest = Readonly<{
+	campaignSlug: string;
 	sessionId: string;
 	expectedCurrentTranscriptRevisionId: string;
 	operationId: string;
@@ -64,6 +65,8 @@ export function validateTranscriptEditRequest(
 	input: TranscriptEditRequest,
 ): readonly string[] {
 	const issues: string[] = [];
+	if (!/^[A-Za-z0-9_-]{1,128}$/u.test(input.campaignSlug))
+		issues.push("campaign_slug");
 	if (!UUID.test(input.sessionId)) issues.push("session_id");
 	if (!UUID.test(input.expectedCurrentTranscriptRevisionId))
 		issues.push("expected_current_revision_id");
