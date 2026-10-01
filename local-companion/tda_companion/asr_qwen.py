@@ -650,6 +650,7 @@ def transcribe_craig_package_qwen(
                             "track": track.number,
                             "total_tracks": len(package.tracks),
                             "window": window.index,
+                            "completed_window_count": len(values) + 1,
                             "start_seconds": window.start,
                             "end_seconds": window.end,
                             "sample_count": diagnostics["sample_count"],
