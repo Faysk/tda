@@ -54,6 +54,7 @@ const layoutFixtureSessions = [
 			"Uma memória sintética curta para validar densidade, filtros e navegação sem tocar em conteúdo privado.",
 		fullSummary:
 			"# Memória mais recente\n\nConteúdo sintético usado somente pelos testes E2E do layout público.",
+		coverImage: "/og/default",
 	},
 	{
 		id: "shared-session",
@@ -68,6 +69,7 @@ const layoutFixtureSessions = [
 		summary:
 			"Fixture A/B com source_session_id repetido para provar isolamento por campanha e agregação global.",
 		fullSummary: "# Campanha B\n\nMesmo source ID, outra campanha.",
+		heroImage: "/og/default",
 	},
 	{
 		id: "layout-contract-synthetic",
