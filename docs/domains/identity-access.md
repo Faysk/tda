@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada + convergência em andamento
 > Owner: identity/access
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-01
 
 ## Objetivo
 
@@ -231,14 +231,27 @@ A convergência futura para resolver RPC/database continua desejável para reduz
 
 A apresentação global não recebe o contexto interno de autorização. A `main` integra em #881 / PR #886 uma projeção mínima em `GET /api/auth/me`, usada por navegação/conta sem tornar o root layout público dependente de cookies/banco.
 
-Shape vigente/conceitual da projeção legada usa um único `scope` de campaign. Isso é compatibilidade enquanto só `yuhara-main` está ativa no fluxo. No rollout multi-campaign, a projeção deve separar identidade global de uma coleção/seleção de contexts autorizados; não deve fingir que um `scope` único representa o usuário inteiro.
+Desde #1136 / PR #1239, a projeção multi-campaign usa `scope: { type: "project", id: "tda" }` como envelope global e separa os contextos autorizados em `campaigns`. Capabilities de ferramentas pertencem a cada item de campaign; o campo top-level `capabilities` permanece vazio nos estados autenticados por compatibilidade do parser e não representa autorização global.
 
-A forma exata do DTO multi-campaign pertence a #1134/#1136, mas precisa preservar:
+O estado operacional `unavailable` é deliberadamente fail-closed e possui este wire contract mínimo:
+
+```json
+{
+  "state": "unavailable",
+  "scope": { "type": "project", "id": "tda" },
+  "campaignsState": "unavailable",
+  "campaigns": []
+}
+```
+
+Nesse estado a API não devolve `identity` nem `capabilities`. O consumidor tipado `parseNavigationAuthProjection(...)` normaliza o mesmo payload para `identity: null`, `capabilities: []`, `campaignsState: "unavailable"` e `campaigns: []`. Essa diferença entre wire mínimo e projeção normalizada é intencional e deve ser coberta pelos testes de rota e navegador.
+
+A projeção multi-campaign preserva:
 
 - estado de Auth global;
-- identidade sanitizada global;
+- identidade sanitizada global apenas quando autenticada e disponível;
 - campaigns descobríveis/selecionáveis apenas quando autorizadas;
-- capabilities calculadas por campaign selecionada;
+- capabilities calculadas por campaign;
 - nenhum raw grant/role/membership no browser.
 
 Regras:

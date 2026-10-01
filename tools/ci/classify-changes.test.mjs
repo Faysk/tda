@@ -97,6 +97,8 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		"tests/layout-receipts.spec.ts",
 		"tests/foundation.spec.ts",
 		"tests/navigation-origin.spec.ts",
+		"tests/auth.spec.ts",
+		"tests/pipipi-cinematic.spec.ts",
 		"tests/campaign-directory.spec.ts",
 		"playwright.config.ts",
 	]) {

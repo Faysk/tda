@@ -312,6 +312,14 @@ jobs:
           tests/progress-feedback.spec.ts
           --project=desktop-1080p
           --project=mobile
+      - name: Auth denial and lore launcher contracts
+        run: >-
+          pnpm exec playwright test
+          tests/auth.spec.ts
+          tests/pipipi-cinematic.spec.ts
+          --grep "administrative pages disclose no data|published cinematic lores discoverable"
+          --project=desktop-1080p
+          --project=mobile
       - name: Global navigation and shell contracts
         run: >-
           pnpm exec playwright test
