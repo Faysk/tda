@@ -6,7 +6,6 @@ import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	type LegacyTranscriptPrepareRequest,
 	type LegacyTranscriptPrepareResult,
@@ -42,7 +41,7 @@ export async function prepareLegacyTranscriptAction(
 		const access = authorizeCampaignCapability(
 			context,
 			EDIT_CAPABILITIES.contentEdit,
-			CAMPAIGN_SLUG,
+			input.campaignSlug,
 		);
 		if (!access.ok)
 			return {
@@ -54,13 +53,13 @@ export async function prepareLegacyTranscriptAction(
 		const result = await persistLegacyTranscriptPreparation({
 			authUserId: identity.authUserId,
 			actorProfileId: access.profileId,
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: input.campaignSlug,
 			request: input,
 		});
 		if (!result.ok) return result;
 
 		const current = await readTranscriptSnapshot({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: input.campaignSlug,
 			sessionId: input.sessionId,
 		});
 		if (
