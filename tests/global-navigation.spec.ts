@@ -505,6 +505,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 		panel.getByRole("link", { name: "Lembra", exact: true }),
 	).toHaveAttribute("href", "/lembra");
 
+	await expectGlobalMenuVisuallySettled(page);
 	await selector.focus();
 	await expect(selector).toBeFocused();
 	expect(
