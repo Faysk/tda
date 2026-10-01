@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { verifyPublicContent } from "./verify-public-content.mjs";
+import { createVercelRequest, verifyPublicContent } from "./verify-public-content.mjs";
 
 type PublicState = "available" | "empty" | "unavailable";
 type FakeResponse = Readonly<{ status: number; finalUrl: string; body: string }>;
@@ -241,6 +241,115 @@ describe("verifyPublicContent", () => {
 				log: () => {},
 			}),
 		).rejects.toThrow("did not render available content");
+	});
+
+	test("exercises the staged vercel transport and preserves the effective redirect destination", async () => {
+		let capturedArgs: string[] = [];
+		const request = createVercelRequest({
+			deploymentUrl: "https://stage.example.test",
+			spawnSyncImpl: (_command: string, args: string[]) => {
+				capturedArgs = args;
+				return {
+					status: 0,
+					stdout:
+						marker("empty") +
+						"\n__TDA_HTTP_META__200\thttps://stage.example.test/campanhas/sessoes",
+					stderr: "",
+				};
+			},
+		});
+		const response = await request("/sessoes");
+		expect(capturedArgs).toContain("--location");
+		expect(capturedArgs).toContain("--deployment");
+		expect(response.status).toBe(200);
+		expect(response.finalUrl).toBe(
+			"https://stage.example.test/campanhas/sessoes",
+		);
+		expect(response.body).toBe(marker("empty"));
+	});
+
+	test("keeps page bodies out of sanitized semantic-smoke evidence", async () => {
+		const secretLikeText = "PRIVATE_TRANSCRIPT_SHOULD_NOT_LEAK";
+		const logs: string[] = [];
+		const result = await verify({
+			sourceSha: "sha",
+			request: requester({
+				"/": {
+					status: 200,
+					finalUrl: "https://example.test/",
+					body: marker("empty", secretLikeText),
+				},
+			}),
+			log: (line: string) => logs.push(line),
+		});
+		expect(logs.join("\n")).not.toContain(secretLikeText);
+		expect(JSON.stringify(result)).not.toContain(secretLikeText);
+	});
+
+	test("rejects an empty campaign directory when published sessions are available", async () => {
+		const sessionPath = "/campanhas/cronicas-da-mesa/sessoes/sessao-42";
+		await expect(
+			verify({
+				sourceSha: "sha",
+				request: requester({
+					"/": {
+						status: 200,
+						finalUrl: "https://example.test/",
+						body: marker("available"),
+					},
+					"/campanhas": {
+						status: 200,
+						finalUrl: "https://example.test/campanhas",
+						body: marker("empty"),
+					},
+					"/campanhas/sessoes": {
+						status: 200,
+						finalUrl: "https://example.test/campanhas/sessoes",
+						body: marker("available", `<a href="${sessionPath}">Abrir</a>`),
+					},
+					"/sessoes": {
+						status: 200,
+						finalUrl: "https://example.test/campanhas/sessoes",
+						body: marker("available"),
+					},
+				}),
+				log: () => {},
+			}),
+		).rejects.toThrow(
+			"Campaign directory is empty while the public session archive contains published sessions",
+		);
+	});
+
+	test("rejects a Home/archive semantic contradiction", async () => {
+		const sessionPath = "/campanhas/cronicas-da-mesa/sessoes/sessao-42";
+		await expect(
+			verify({
+				sourceSha: "sha",
+				request: requester({
+					"/": {
+						status: 200,
+						finalUrl: "https://example.test/",
+						body: marker("empty"),
+					},
+					"/campanhas": {
+						status: 200,
+						finalUrl: "https://example.test/campanhas",
+						body: marker("available"),
+					},
+					"/campanhas/sessoes": {
+						status: 200,
+						finalUrl: "https://example.test/campanhas/sessoes",
+						body: marker("available", `<a href="${sessionPath}">Abrir</a>`),
+					},
+					"/sessoes": {
+						status: 200,
+						finalUrl: "https://example.test/campanhas/sessoes",
+						body: marker("available"),
+					},
+				}),
+				log: () => {},
+			}),
+		).rejects.toThrow("Home/session archive semantic mismatch");
 	});
 
 	test("Production CD runs semantic smoke before and after promotion with recovery evidence", () => {
