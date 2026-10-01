@@ -5,14 +5,12 @@ test("curated lore catalogue discovers every listed experience exactly once", as
 }) => {
 	await page.goto("/lore");
 
-	for (const slug of ["astel", "noah", "pipipi", "seika"] as const) {
+	for (const slug of ["astel", "noah", "pipipi", "seika", "d", "yllith"] as const) {
 		const card = page.locator(`article[data-lore="${slug}"]`);
 		await expect(card).toHaveCount(1);
 		await expect(card.getByRole("link")).toHaveAttribute("href", `/lore/${slug}`);
 	}
 
-	await expect(page.locator('article[data-lore="d"]')).toHaveCount(0);
-	await expect(page.locator('article[data-lore="yllith"]')).toHaveCount(0);
 });
 
 test("Seika remains canonical while becoming discoverable from the catalogue", async ({
