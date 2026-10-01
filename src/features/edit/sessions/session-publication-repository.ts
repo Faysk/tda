@@ -1,7 +1,6 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
 	WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN,
@@ -25,6 +24,7 @@ type PublicationSessionRow = Readonly<{
 	source_session_id: unknown;
 	status: unknown;
 	current_session_publication_id: unknown;
+	campaigns: unknown;
 }>;
 
 type PublicationRow = Readonly<{
@@ -53,6 +53,8 @@ type CoverAssetRow = Readonly<{
 export type SessionPublicationContext = SessionPublicationState &
 	Readonly<{
 		campaignId: string;
+		campaignTechnicalSlug: string;
+		campaignPublicSlug: string;
 		sourceSessionId: string | null;
 		sessionStatus: string;
 	}>;
@@ -68,6 +70,7 @@ function positiveSafeInteger(value: unknown): number | null {
 
 export async function readSessionPublicationContext(
 	sessionId: string,
+	campaignTechnicalSlug: string,
 ): Promise<SessionPublicationContext | null> {
 	const client = editDataClient();
 	if (!client) throw new Error("Session publication data connection unavailable");
@@ -75,10 +78,10 @@ export async function readSessionPublicationContext(
 	const { data: raw, error } = await client
 		.from("sessions")
 		.select(
-			"campaign_id,source_session_id,status,current_session_publication_id,campaigns!inner(slug)",
+			"campaign_id,source_session_id,status,current_session_publication_id,campaigns!inner(slug,public_slug)",
 		)
 		.eq("id", sessionId)
-		.eq("campaigns.slug", CAMPAIGN_SLUG)
+		.eq("campaigns.slug", campaignTechnicalSlug)
 		.maybeSingle();
 	if (error) throw new Error("Session publication lookup unavailable");
 	if (!raw) return null;
@@ -86,6 +89,27 @@ export async function readSessionPublicationContext(
 	const row = raw as unknown as PublicationSessionRow;
 	const campaignId = requiredId(row.campaign_id);
 	if (!campaignId) throw new Error("Session publication campaign identity invalid");
+	const joinedCampaign = Array.isArray(row.campaigns)
+		? row.campaigns[0]
+		: row.campaigns;
+	const joinedCampaignRecord =
+		joinedCampaign && typeof joinedCampaign === "object"
+			? (joinedCampaign as Record<string, unknown>)
+			: null;
+	const joinedTechnicalSlug =
+		typeof joinedCampaignRecord?.slug === "string"
+			? joinedCampaignRecord.slug
+			: "";
+	const campaignPublicSlug =
+		typeof joinedCampaignRecord?.public_slug === "string"
+			? joinedCampaignRecord.public_slug.trim()
+			: "";
+	if (
+		joinedTechnicalSlug !== campaignTechnicalSlug ||
+		!campaignPublicSlug
+	) {
+		throw new Error("Session publication campaign routing identity invalid");
+	}
 
 	const currentPublicationId = requiredId(row.current_session_publication_id);
 	let currentVersion = 0;
@@ -108,6 +132,8 @@ export async function readSessionPublicationContext(
 
 	return {
 		campaignId,
+		campaignTechnicalSlug,
+		campaignPublicSlug,
 		sourceSessionId:
 			typeof row.source_session_id === "string" && row.source_session_id
 				? row.source_session_id
@@ -118,9 +144,18 @@ export async function readSessionPublicationContext(
 	};
 }
 
-function normalizeExistingPublicCover(reference: string): string | null {
+function normalizeExistingPublicCover(
+	reference: string,
+	campaignTechnicalSlug: string,
+): string | null {
 	const raw = reference.trim();
-	if (!isExistingPublishedSessionCoverReference(raw)) return null;
+	if (
+		!isExistingPublishedSessionCoverReference(
+			raw,
+			campaignTechnicalSlug,
+		)
+	)
+		return null;
 	if (raw.startsWith("/assets/sessions/")) return "https://dnd.faysk.dev" + raw;
 	return raw;
 }
@@ -128,6 +163,7 @@ function normalizeExistingPublicCover(reference: string): string | null {
 function verifiedPublicCoverUrl(
 	row: CoverAssetRow,
 	sessionId: string,
+	campaignTechnicalSlug: string,
 ): string | null {
 	const id = requiredId(row.id);
 	const sha256 = isSessionCoverSha256(row.sha256) ? row.sha256 : null;
@@ -154,7 +190,7 @@ function verifiedPublicCoverUrl(
 	}
 	const extension = mimeType === "image/png" ? "png" : "webp";
 	const expectedKey = sessionCoverObjectKey({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: campaignTechnicalSlug,
 		sessionId,
 		sha256,
 		extension,
@@ -189,9 +225,13 @@ async function coverAsset(
 export async function prepareSessionCoverForPublication(input: {
 	sessionId: string;
 	campaignId: string;
+	campaignTechnicalSlug: string;
 	coverReference: string;
 }): Promise<string | null> {
-	const existing = normalizeExistingPublicCover(input.coverReference);
+	const existing = normalizeExistingPublicCover(
+		input.coverReference,
+		input.campaignTechnicalSlug,
+	);
 	if (existing) return existing;
 	if (!isSessionCoverUuid(input.coverReference)) return null;
 
@@ -201,7 +241,11 @@ export async function prepareSessionCoverForPublication(input: {
 	if (!asset || asset.role_hint !== "session_cover" || asset.read_back_verified !== true)
 		return null;
 
-	const alreadyPublic = verifiedPublicCoverUrl(asset, input.sessionId);
+	const alreadyPublic = verifiedPublicCoverUrl(
+		asset,
+		input.sessionId,
+		input.campaignTechnicalSlug,
+	);
 	if (alreadyPublic) return alreadyPublic;
 	if (asset.status !== "staged") return null;
 
@@ -224,7 +268,7 @@ export async function prepareSessionCoverForPublication(input: {
 
 	const extension = mimeType === "image/png" ? "png" : "webp";
 	const expectedKey = sessionCoverObjectKey({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: input.campaignTechnicalSlug,
 		sessionId: input.sessionId,
 		sha256,
 		extension,
@@ -232,7 +276,7 @@ export async function prepareSessionCoverForPublication(input: {
 	if (!expectedKey || asset.object_key !== expectedKey) return null;
 
 	const promoted = await promoteSessionCover({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: input.campaignTechnicalSlug,
 		sessionId: input.sessionId,
 		stagedBucket: asset.staged_bucket,
 		objectKey: asset.object_key,
@@ -265,16 +309,24 @@ export async function prepareSessionCoverForPublication(input: {
 		return verifiedPublicCoverUrl(
 			updated as unknown as CoverAssetRow,
 			input.sessionId,
+			input.campaignTechnicalSlug,
 		);
 	}
 
 	// A concurrent retry may have persisted the same immutable promotion first.
 	asset = await coverAsset(client, input.campaignId, input.coverReference);
-	return asset ? verifiedPublicCoverUrl(asset, input.sessionId) : null;
+	return asset
+		? verifiedPublicCoverUrl(
+				asset,
+				input.sessionId,
+				input.campaignTechnicalSlug,
+			)
+		: null;
 }
 
 export async function readCommittedSessionPublication(input: {
 	actorProfileId: string;
+	campaignId: string;
 	request: SessionPublicationRequest;
 }): Promise<
 	| Readonly<{
@@ -315,6 +367,7 @@ export async function readCommittedSessionPublication(input: {
 
 	if (
 		operation.actor_profile_id !== input.actorProfileId ||
+		operation.campaign_id !== input.campaignId ||
 		operation.session_id !== input.request.sessionId ||
 		operation.draft_id !== input.request.draftId ||
 		operation.expected_previous_publication_id !==
@@ -332,6 +385,7 @@ export async function readCommittedSessionPublication(input: {
 		.select("id,version,payload_sha256")
 		.eq("id", publicationId)
 		.eq("session_id", input.request.sessionId)
+		.eq("campaign_id", input.campaignId)
 		.maybeSingle();
 	if (publicationError || !publicationRaw)
 		return { ok: false, reason: "dependency_unavailable" };
@@ -357,6 +411,7 @@ export async function readCommittedSessionPublication(input: {
 
 export async function persistSessionPublication(input: {
 	actorProfileId: string;
+	campaignTechnicalSlug: string;
 	request: SessionPublicationRequest;
 	publicCoverUrl: string;
 }) {
@@ -365,7 +420,7 @@ export async function persistSessionPublication(input: {
 
 	const { data, error } = await client.rpc("publish_session_editorial_with_date_atomic", {
 		p_actor_profile_id: input.actorProfileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: input.campaignTechnicalSlug,
 		p_session_id: input.request.sessionId,
 		p_draft_id: input.request.draftId,
 		p_expected_current_publication_id:
