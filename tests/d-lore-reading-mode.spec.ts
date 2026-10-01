@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
@@ -12,6 +13,26 @@ const dUiManifest = JSON.parse(
 const dFaviconAsset = dUiManifest.assets.find((asset) => asset.file === "favicon.svg");
 if (!dFaviconAsset) throw new Error("D favicon manifest asset is missing");
 const D_FAVICON_URL = `${dUiManifest.publicOrigin}/${dUiManifest.namespace}/${dFaviconAsset.sha256}/${dFaviconAsset.file}`;
+
+
+const pipipiManifest = JSON.parse(
+	readFileSync(new URL("../media/manifests/pipipi.json", import.meta.url), "utf8"),
+) as {
+	publicOrigin: string;
+	namespace: string;
+	assets: Array<{
+		file: string;
+		bytes: number;
+		sha256: string;
+		contentType: string;
+	}>;
+};
+
+const pipipiStageAsset = pipipiManifest.assets.find(
+	(asset) => asset.file === "stage-bg.avif",
+);
+if (!pipipiStageAsset) throw new Error("Pipipi stage background manifest asset is missing");
+const PIPIPI_STAGE_URL = `${pipipiManifest.publicOrigin}/${pipipiManifest.namespace}/${pipipiStageAsset.sha256}/${pipipiStageAsset.file}`;
 
 test("D switches between cinematic and full reading modes on the same URL", async ({ page, request, isMobile, viewport }) => {
 	test.setTimeout(120000);
@@ -110,4 +131,67 @@ test("D reading mode strips overlapping HTML comment delimiters until stable", a
 	// A single comment-removal pass leaves "<!-->-->" behind. The parser must
 	// repeat sanitization until stable so overlapping delimiters cannot leak.
 	await expect(readingView).not.toContainText("<!-->-->");
+});
+
+
+test("lore catalogue loads every listed cover and keeps Pipipi on the canonical R2 object", async ({ page, request }) => {
+	test.setTimeout(120000);
+	await page.goto("/lore");
+
+	for (const slug of ["astel", "noah", "pipipi"]) {
+		const card = page.locator(`[data-lore="${slug}"]`);
+		await expect(card).toHaveCount(1);
+		await card.scrollIntoViewIfNeeded();
+
+		const image = card.locator("img");
+		await expect(image).toHaveCount(1);
+		await expect
+			.poll(
+				() =>
+					image.evaluate(
+						(node) =>
+							node instanceof HTMLImageElement &&
+							node.complete &&
+							node.naturalWidth > 0 &&
+							node.naturalHeight > 0,
+					),
+				{ timeout: 30000 },
+			)
+			.toBe(true);
+
+		const src = await image.getAttribute("src");
+		expect(src).toBeTruthy();
+		if (!src) throw new Error(`catalogue image src missing for ${slug}`);
+
+		const response = await request.get(src);
+		expect(response.status(), `${slug} cover GET ${src}`).toBe(200);
+		expect(response.headers()["content-type"]?.split(";")[0]).toMatch(/^image\//);
+	}
+
+	const pipipiImage = page.locator('[data-lore="pipipi"] img');
+	const pipipiSrc = await pipipiImage.getAttribute("src");
+	expect(pipipiSrc).toBe(PIPIPI_STAGE_URL);
+	expect(new URL(PIPIPI_STAGE_URL).origin).toBe("https://media.dnd.faysk.dev");
+
+	const response = await request.get(PIPIPI_STAGE_URL);
+	expect(response.status()).toBe(200);
+	expect(response.headers()["content-type"]?.split(";")[0]).toBe(
+		pipipiStageAsset.contentType,
+	);
+	const body = await response.body();
+	expect(body.byteLength).toBe(pipipiStageAsset.bytes);
+	expect(createHash("sha256").update(body).digest("hex")).toBe(
+		pipipiStageAsset.sha256,
+	);
+
+	const rendered = await pipipiImage.evaluate((node) => ({
+		complete: (node as HTMLImageElement).complete,
+		naturalWidth: (node as HTMLImageElement).naturalWidth,
+		naturalHeight: (node as HTMLImageElement).naturalHeight,
+		objectFit: getComputedStyle(node).objectFit,
+	}));
+	expect(rendered.complete).toBe(true);
+	expect(rendered.naturalWidth).toBeGreaterThan(0);
+	expect(rendered.naturalHeight).toBeGreaterThan(0);
+	expect(rendered.objectFit).toBe("cover");
 });
