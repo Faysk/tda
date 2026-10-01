@@ -1,4 +1,5 @@
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SLUG = /^[A-Za-z0-9_-]{1,128}$/u;
 
 export type SessionMoveBlocker =
@@ -9,6 +10,8 @@ export type SessionMoveBlocker =
 	| "session_media"
 	| "review_or_canon"
 	| "entity_linked_participant"
+	| "session_evidence_or_lineage"
+	| "session_scoped_access"
 	| "destination_source_collision"
 	| "invalid_target";
 
@@ -32,7 +35,9 @@ export function validateSessionCampaignMoveRequest(
 	return issues;
 }
 
-export function normalizeSessionMoveBlockers(value: unknown): readonly SessionMoveBlocker[] {
+export function normalizeSessionMoveBlockers(
+	value: unknown,
+): readonly SessionMoveBlocker[] {
 	if (!Array.isArray(value)) return [];
 	const allowed = new Set<SessionMoveBlocker>([
 		"published_session",
@@ -42,10 +47,17 @@ export function normalizeSessionMoveBlockers(value: unknown): readonly SessionMo
 		"session_media",
 		"review_or_canon",
 		"entity_linked_participant",
+		"session_evidence_or_lineage",
+		"session_scoped_access",
 		"destination_source_collision",
 		"invalid_target",
 	]);
-	return [...new Set(value.filter((item): item is SessionMoveBlocker =>
-		typeof item === "string" && allowed.has(item as SessionMoveBlocker),
-	))];
+	return [
+		...new Set(
+			value.filter(
+				(item): item is SessionMoveBlocker =>
+					typeof item === "string" && allowed.has(item as SessionMoveBlocker),
+			),
+		),
+	];
 }
