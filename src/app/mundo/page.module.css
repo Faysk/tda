@@ -1,0 +1,62 @@
+.page {
+	width: min(980px, calc(100% - 32px));
+	margin: 0 auto;
+	padding: clamp(32px, 7vw, 84px) 0;
+}
+
+.eyebrow {
+	margin: 0 0 8px;
+	font: 750 0.68rem/1 var(--ds-font-ui);
+	letter-spacing: 0.13em;
+	text-transform: uppercase;
+	color: var(--ds-accent-strong);
+}
+
+.page h1 {
+	margin: 0;
+	font-family: var(--ds-font-display);
+	font-size: clamp(2rem, 4vw, 3rem);
+	color: var(--ds-foreground);
+}
+
+.lead {
+	max-width: 66ch;
+	color: var(--ds-foreground-muted);
+}
+
+.list {
+	display: grid;
+	gap: 1px;
+	margin: 28px 0 0;
+	padding: 0;
+	list-style: none;
+	border-block: 1px solid var(--ds-border-subtle);
+}
+
+.link {
+	display: grid;
+	gap: 5px;
+	padding: 18px 2px;
+	color: var(--ds-foreground);
+	text-decoration: none;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.link:last-child {
+	border-bottom: 0;
+}
+
+.link strong {
+	font: 720 1rem/1.2 var(--ds-font-ui);
+}
+
+.link span {
+	color: var(--ds-foreground-muted);
+	font: 500 0.82rem/1.45 var(--ds-font-ui);
+}
+
+.link:focus-visible {
+	outline: 2px solid var(--ds-focus-ring);
+	outline-offset: 5px;
+	border-radius: var(--ds-radius-sm);
+}
