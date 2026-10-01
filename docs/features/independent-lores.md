@@ -32,9 +32,9 @@ Estado editorial definido para o momento:
 | --- | --- | --- |
 | Pipipi | Preservar entrada existente | Não inferir novos vínculos desta decisão |
 | Astel e Noah | Listar; inclusão explicitamente solicitada, preparada localmente | Ligações editoriais por slug de personagem, sem criar dados narrativos |
-| D | Não listar; acesso pela URL própria | Binding editorial explícito para `antes-que-seja-tarde`; resolve somente quando a campaign existir, sem criar entity/canon/session |
+| D | Listar no catálogo curado | Binding editorial explícito para `antes-que-seja-tarde`; não cria entity/canon/session |
 | Seika | Listar no catálogo curado | Binding editorial para `antes-que-seja-tarde`; não cria entity/canon/session |
-| Yllith | Não listar; acesso pela URL própria quando publicada | Não faz parte da campanha principal |
+| Yllith | Listar no catálogo curado | Binding editorial explícito para `antes-que-seja-tarde`; não cria entity/canon/session |
 | Futuras lores independentes | Não listar automaticamente; inclusão exige escolha editorial | Não assumir vínculo |
 
 `/lore` permanece um catálogo curado do site, sujeito ao seu Design System. As páginas individuais têm liberdade visual. A presença de um arquivo em uma pasta não é critério de inclusão no catálogo.
@@ -58,7 +58,7 @@ Acessibilidade e integridade não prescrevem uma estética. Uma abertura cinemat
 O documento dono de cada lore registra: slug/URL, fonte oficial, responsável, identidade visual/referência aprovada, vínculo narrativo conhecido ou ausente, decisão de listagem, assets/manifesto e evidência da publicação. São requisitos documentais; não introduzem schema ou nova plataforma nesta entrega.
 
 - [ ] Página funciona por acesso direto, sem depender do catálogo ou da presença de uma campaign vinculada.
-- [ ] Listagem corresponde à decisão editorial vigente; Seika aparece no catálogo curado, enquanto D/Yllith permanecem fora até a slice #1286.
+- [ ] Listagem corresponde à decisão editorial vigente; D, Seika e Yllith aparecem no catálogo curado e permanecem canônicas em `/lore/<slug>`.
 - [ ] Identidade visual da própria lore foi avaliada.
 - [ ] Imagens carregam, decodificam e preservam proporções e detalhes nas superfícies reais.
 - [ ] Preview do link representa a página individual.
@@ -75,7 +75,7 @@ A arquitetura multi-campaign agora é aprovada por ADR-0020, mas **lore standalo
 - remover/alterar vínculo não move seus assets automaticamente;
 - listagem em `/lore`, vínculo de campaign e indexação continuam decisões independentes.
 
-A #1131 registra a decisão editorial de D em `src/features/lore/registry.ts`, mas o vínculo só resolve quando a campaign `antes-que-seja-tarde` existir no registry persistido. D continua `listed=false`, mantém canonical `/lore/d` e não recebe entity, relation, canon ou session por consequência do vínculo.
+A #1286 conclui a decisão editorial para D, Seika e Yllith: as três lores ficam `listed=true`, vinculadas por metadata à campaign `antes-que-seja-tarde`, mantêm canonical próprio em `/lore/<slug>` e não recebem entity, relation, canon ou session por consequência do vínculo.
 
 ## Futuro fora do escopo
 
