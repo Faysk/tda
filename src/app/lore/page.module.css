@@ -14,8 +14,8 @@
 }
 
 .hero {
-	padding-top: clamp(72px, 9vw, 132px);
-	padding-bottom: clamp(42px, 6vw, 76px);
+	padding-top: max(80px, calc(var(--site-chrome-panel-top, 66px) + 14px));
+	padding-bottom: clamp(24px, 3vw, 40px);
 }
 
 .eyebrow {
@@ -27,16 +27,16 @@
 }
 
 .hero h1 {
-	max-width: 900px;
+	max-width: 1050px;
 	margin: 0;
-	font: 600 clamp(3.4rem, 8vw, 8.4rem) / 0.88 var(--ds-font-display);
+	font: 600 clamp(2.3rem, 4.2vw, 4.8rem) / 1.02 var(--ds-font-display);
 	letter-spacing: -0.06em;
 	text-wrap: balance;
 }
 
 .hero > p:last-child {
 	max-width: 62ch;
-	margin: 26px 0 0;
+	margin: 16px 0 0;
 	color: var(--ds-foreground-muted);
 	font: 400 clamp(1rem, 1.4vw, 1.18rem) / 1.7 var(--ds-font-body);
 }
@@ -48,7 +48,7 @@
 
 .card {
 	position: relative;
-	min-height: min(72svh, 760px);
+	min-height: clamp(360px, 46svh, 560px);
 	overflow: hidden;
 	border: 1px solid var(--ds-border-subtle);
 	border-radius: clamp(26px, 4vw, 52px);
@@ -120,7 +120,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 10px;
-	margin-top: 28px;
+	margin-top: 20px;
 	padding: 12px 18px;
 	border: 1px solid rgba(255, 255, 255, 0.28);
 	border-radius: 999px;
@@ -141,11 +141,11 @@
 	}
 
 	.hero h1 {
-		font-size: clamp(3rem, 16vw, 5.5rem);
+		font-size: clamp(2.1rem, 9vw, 3.2rem);
 	}
 
 	.card {
-		min-height: 68svh;
+		min-height: 380px;
 		border-radius: 28px;
 	}
 
@@ -162,7 +162,7 @@
 	}
 
 	.cardCopy h2 {
-		font-size: clamp(2.65rem, 13vw, 4.6rem);
+		font-size: clamp(2.1rem, 10vw, 3.2rem);
 	}
 }
 

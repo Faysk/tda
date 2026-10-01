@@ -1,3 +1,4 @@
+import { PIPIPI_STAGE_BACKGROUND } from "@/config/pipipi-assets";
 import Image from "next/image";
 import { PIPIPI_CINEMATIC_ART_DIRECTION } from "../art-directions/pipipi";
 import { PIPIPI_STORY, type PipipiSceneId } from "../pipipi-story";
@@ -231,7 +232,7 @@ export function PipipiLorePage() {
 			<header className={styles.hero} id="topo">
 				<Image
 					className={styles.heroBackground}
-					src="https://media.dnd.faysk.dev/lore/pipipi/a50beeeb7b598aaab89dc74e3e5cec0787df63092bf8a5487f9e450d3228f816/stage-bg.avif"
+					src={PIPIPI_STAGE_BACKGROUND}
 					alt=""
 					fill
 					priority

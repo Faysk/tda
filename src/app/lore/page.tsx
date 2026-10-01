@@ -1,3 +1,4 @@
+import { PIPIPI_STAGE_BACKGROUND } from "@/config/pipipi-assets";
 import type { Metadata } from "next";
 import Image from "next/image";
 import { PublicLink as Link } from "@/components/public-link";
@@ -71,11 +72,11 @@ export default async function LoreIndexRoute() {
 				<article className={styles.card}>
 					<Image
 						className={styles.cardBackground}
-						src="/lore/pipipi/stage-bg.avif"
+						src={PIPIPI_STAGE_BACKGROUND}
 						alt=""
 						fill
 						sizes={loreCardSizes}
-						quality={88}
+						unoptimized
 					/>
 					<div className={styles.cardShade} aria-hidden="true" />
 					<Link className={styles.cardLink} href="/lore/pipipi">
