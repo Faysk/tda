@@ -38,8 +38,17 @@ def canonical(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def add_pin(pins: dict[str, str], sources: dict[str, list[str]], name: str, version: str, source: str) -> None:
-    key = canonical(name)
+def add_pin(
+    pins: dict[str, str],
+    sources: dict[str, list[str]],
+    name: str,
+    version: str,
+    source: str,
+    *,
+    scope: str | None = None,
+) -> None:
+    registry_name = canonical(name)
+    key = f"{scope}/{registry_name}" if scope else registry_name
     previous = pins.get(key)
     if previous is not None and previous != version:
         raise RuntimeError(f"DEPENDENCY_PIN_CONFLICT:{key}:{previous}:{version}")
@@ -152,12 +161,23 @@ def _workflow_uv_pin(path: Path) -> str:
     return next(iter(pins))
 
 
-def _read_exceptions(raw: object, source: str) -> dict[str, dict[str, str]]:
+def _read_exceptions(
+    raw: object,
+    source: str,
+    *,
+    scope: str | None = None,
+    scoped_names: set[str] | None = None,
+) -> dict[str, dict[str, str]]:
     if not isinstance(raw, dict):
         raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTIONS_INVALID:{source}")
     parsed: dict[str, dict[str, str]] = {}
     for raw_name, raw_value in raw.items():
-        name = canonical(str(raw_name))
+        registry_name = canonical(str(raw_name))
+        name = (
+            f"{scope}/{registry_name}"
+            if scope and (scoped_names is None or registry_name in scoped_names)
+            else registry_name
+        )
         if not isinstance(raw_value, dict):
             raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTION_INVALID:{source}:{name}")
         version = raw_value.get("version")
@@ -214,27 +234,47 @@ def collect() -> tuple[
             raise RuntimeError(f"DIRECT_LOCK_MISMATCH:{name}:{version}:{locked}")
 
     whisper = _runtime_json(WHISPER_RUNTIME, "tda_whisper_runtime_build_v1")
+    whisper_packages = {
+        canonical(str(name)): str(version)
+        for name, version in whisper.get("packages", {}).items()
+    }
     _merge_exceptions(
         exceptions,
         _read_exceptions(
             whisper.get("dependency_freshness_exceptions", {}),
             "whisper-windows-x64.json",
+            scope="whisper",
+            scoped_names=set(whisper_packages),
         ),
         "whisper-windows-x64.json",
     )
     python_pin = str(whisper["python"])
     if not PYTHON_312.fullmatch(python_pin):
         raise RuntimeError("WHISPER_RUNTIME_PYTHON_PIN_INVALID")
-    for name, version in whisper.get("packages", {}).items():
-        add_pin(pins, sources, str(name), str(version), "whisper-windows-x64.json")
+    for name, version in whisper_packages.items():
+        add_pin(
+            pins,
+            sources,
+            name,
+            version,
+            "whisper-windows-x64.json",
+            scope="whisper",
+        )
 
     qwen = _runtime_json(QWEN_RUNTIME, "tda_qwen_runtime_build_v1")
     qwen_python = str(qwen["python"])
+    qwen_packages = {
+        canonical(str(name)): str(version)
+        for name, version in qwen.get("packages", {}).items()
+    }
+    qwen_scoped_names = set(qwen_packages) | {"torch"}
     _merge_exceptions(
         exceptions,
         _read_exceptions(
             qwen.get("dependency_freshness_exceptions", {}),
             "qwen-windows-x64.json",
+            scope="qwen",
+            scoped_names=qwen_scoped_names,
         ),
         "qwen-windows-x64.json",
     )
@@ -255,9 +295,23 @@ def collect() -> tuple[
     torch = qwen.get("torch")
     if not isinstance(torch, dict) or not isinstance(torch.get("version"), str):
         raise RuntimeError("QWEN_RUNTIME_TORCH_PIN_INVALID")
-    add_pin(pins, sources, "torch", str(torch["version"]), "qwen-windows-x64.json")
-    for name, version in qwen.get("packages", {}).items():
-        add_pin(pins, sources, str(name), str(version), "qwen-windows-x64.json")
+    add_pin(
+        pins,
+        sources,
+        "torch",
+        str(torch["version"]),
+        "qwen-windows-x64.json",
+        scope="qwen",
+    )
+    for name, version in qwen_packages.items():
+        add_pin(
+            pins,
+            sources,
+            name,
+            version,
+            "qwen-windows-x64.json",
+            scope="qwen",
+        )
 
     workflow = COMPANION_WORKFLOW.read_text(encoding="utf-8")
     workflow_python = set(PYTHON_WORKFLOW_PIN.findall(workflow))
@@ -301,7 +355,8 @@ def main() -> int:
     print(f"Auditing {len(pins)} direct/runtime Python pins...")
     for name in sorted(pins):
         pinned = pins[name]
-        latest = latest_pypi(name)
+        registry_name = name.split("/", 1)[1] if "/" in name else name
+        latest = latest_pypi(registry_name)
         exception = exceptions.get(name)
         excepted = (
             pinned != latest
