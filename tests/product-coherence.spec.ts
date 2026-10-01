@@ -302,10 +302,9 @@ test("[auth/Edit] A+B, A-only, anonymous and unavailable states remain fail-clos
 	await page.reload();
 	panel = await openGlobalMenu(page);
 	await expect(
-		panel.getByText("As campanhas do Edit estão temporariamente indisponíveis.", {
-			exact: true,
-		}),
+		panel.getByText("Conta temporariamente indisponível", { exact: true }),
 	).toBeVisible();
+	await expect(panel.getByText("Ferramentas", { exact: true })).toHaveCount(0);
 
 	await page.unroute("**/api/auth/me");
 	await mockAccess(page, {
@@ -316,9 +315,7 @@ test("[auth/Edit] A+B, A-only, anonymous and unavailable states remain fail-clos
 	await page.reload();
 	panel = await openGlobalMenu(page);
 	await expect(
-		panel.getByText("As campanhas do Edit estão temporariamente indisponíveis.", {
-			exact: true,
-		}),
+		panel.getByText("Conta temporariamente indisponível", { exact: true }),
 	).toHaveCount(0);
 	await expect(panel.getByText("Ferramentas", { exact: true })).toHaveCount(0);
 });
