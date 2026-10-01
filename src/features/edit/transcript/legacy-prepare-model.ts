@@ -3,6 +3,7 @@ const UUID =
 const SHA256 = /^[0-9a-f]{64}$/u;
 
 export type LegacyTranscriptPrepareRequest = Readonly<{
+	campaignSlug: string;
 	sessionId: string;
 	operationId: string;
 	expectedSnapshotSha256: string;
@@ -43,6 +44,8 @@ export function validateLegacyTranscriptPrepareRequest(
 	input: LegacyTranscriptPrepareRequest,
 ): readonly string[] {
 	const issues: string[] = [];
+	if (!/^[A-Za-z0-9_-]{1,128}$/u.test(input.campaignSlug))
+		issues.push("campaign_slug");
 	if (!UUID.test(input.sessionId)) issues.push("session_id");
 	if (!UUID.test(input.operationId)) issues.push("operation_id");
 	if (!SHA256.test(input.expectedSnapshotSha256))
