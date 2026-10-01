@@ -19,7 +19,7 @@ test("home and archive work without cloud secrets", async ({ page }) => {
 		.getByRole("link", { name: "Sessões", exact: true })
 		.click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-		"As histórias até aqui",
+		"Todas as campanhas",
 	);
 	expect(
 		await page.evaluate(
@@ -273,7 +273,7 @@ test("public shell stays usable at 320px", async ({ page }) => {
 
 	await page.goto("/sessoes");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-		"As histórias até aqui",
+		"Todas as campanhas",
 	);
 	expect(
 		await page.evaluate(
