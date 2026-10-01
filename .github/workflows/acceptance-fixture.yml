@@ -932,6 +932,106 @@ jobs:
           } finally {
             $env:LOCALAPPDATA = $savedLocalAppData
           }
+          # The #1233 handoff may need Whisper 1.1.8 while the immutable
+          # Companion 0.3.18 RC installer is intentionally pinned to 1.1.7.
+          # Exercise the acceptance-only atomic sideload with tiny synthetic bytes.
+          . (Get-FunctionScriptBlock "tools/acceptance/run-final-current-source-acceptance.ps1" "Get-Sha256")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-final-current-source-acceptance.ps1" "Read-Json")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-final-current-source-acceptance.ps1" "Test-Runtime")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-final-current-source-acceptance.ps1" "Write-AtomicJson")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-final-current-source-acceptance.ps1" "Install-WhisperRuntimeArchiveForAcceptance")
+
+          function New-SyntheticWhisperZip([string]$Path,[hashtable]$Entries) {
+            Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+            $stream=[IO.File]::Open($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+            try {
+              $zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create,$true)
+              try {
+                foreach($name in $Entries.Keys) {
+                  $entry=$zip.CreateEntry([string]$name,[IO.Compression.CompressionLevel]::NoCompression)
+                  $entryStream=$entry.Open()
+                  try {
+                    $bytes=[byte[]]$Entries[$name]
+                    $entryStream.Write($bytes,0,$bytes.Length)
+                  } finally {$entryStream.Dispose()}
+                }
+              } finally {$zip.Dispose()}
+            } finally {$stream.Dispose()}
+          }
+
+          $savedDirectLocalAppData=$env:LOCALAPPDATA
+          $directRoot=Join-Path $env:RUNNER_TEMP "whisper-direct-acceptance"
+          Remove-Item -LiteralPath $directRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $directRoot | Out-Null
+          try {
+            $env:LOCALAPPDATA=Join-Path $directRoot "localappdata"
+            $assetsRoot=Join-Path $directRoot "assets"
+            New-Item -ItemType Directory -Force -Path $assetsRoot | Out-Null
+
+            $version="1.1.8"
+            $archiveName="TDAWhisperRuntime-$version-windows-x64.zip"
+            $archivePath=Join-Path $assetsRoot $archiveName
+            New-SyntheticWhisperZip $archivePath @{
+              "TDAWhisperWorker.exe"=[byte[]](1,2,3,4,5,6)
+              "nested/model.bin"=[byte[]](7,8,9)
+            }
+            $archiveSha=(Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+            $candidate=[pscustomobject]@{
+              family="whisper"
+              runtime_id="whisper-ctranslate2"
+              version=$version
+              runtime_archive_sha256=$archiveSha
+              assets=@([pscustomobject]@{name=$archiveName;sha256=$archiveSha})
+            }
+
+            Install-WhisperRuntimeArchiveForAcceptance $candidate $assetsRoot
+            if(-not(Test-Runtime $candidate)){throw "RUNTIME_DIRECT_SYNTHETIC_INSTALL_NOT_READY"}
+
+            $runtimeRoot=Join-Path $env:LOCALAPPDATA "TDA\Runtime\whisper"
+            $current=Get-Content -LiteralPath (Join-Path $runtimeRoot "current.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+            $marker=Get-Content -LiteralPath (Join-Path $runtimeRoot "$version\.tda-runtime.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+            $workerPath=Join-Path $runtimeRoot "$version\TDAWhisperWorker.exe"
+            if(
+              [string]$current.schema -ne "tda_asr_runtime_v1" -or
+              [string]$current.version -ne $version -or
+              [string]$marker.schema -ne "tda_asr_runtime_v1" -or
+              [string]$marker.archive_sha256 -ne $archiveSha -or
+              [string]$marker.worker_sha256 -ne (Get-Sha256 $workerPath)
+            ){throw "RUNTIME_DIRECT_SYNTHETIC_IDENTITY_INVALID"}
+
+            $badVersion="1.1.9"
+            $badName="TDAWhisperRuntime-$badVersion-windows-x64.zip"
+            $badPath=Join-Path $assetsRoot $badName
+            New-SyntheticWhisperZip $badPath @{
+              "../escape.txt"=[byte[]](99,98,97)
+              "TDAWhisperWorker.exe"=[byte[]](6,5,4)
+            }
+            $badSha=(Get-FileHash -LiteralPath $badPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            $badCandidate=[pscustomobject]@{
+              family="whisper"
+              runtime_id="whisper-ctranslate2"
+              version=$badVersion
+              runtime_archive_sha256=$badSha
+              assets=@([pscustomobject]@{name=$badName;sha256=$badSha})
+            }
+            try {
+              Install-WhisperRuntimeArchiveForAcceptance $badCandidate $assetsRoot
+              throw "RUNTIME_DIRECT_TRAVERSAL_ACCEPTED"
+            } catch {
+              if([string]$_.Exception.Message -ne "RUNTIME_DIRECT_ARCHIVE_PATH_INVALID"){throw}
+            }
+            if(Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA "TDA\Runtime\escape.txt")){
+              throw "RUNTIME_DIRECT_TRAVERSAL_ESCAPED"
+            }
+            $currentAfter=Get-Content -LiteralPath (Join-Path $runtimeRoot "current.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+            if([string]$currentAfter.version -ne $version -or -not(Test-Runtime $candidate)){
+              throw "RUNTIME_DIRECT_FAILED_INSTALL_CHANGED_CURRENT"
+            }
+          } finally {
+            $env:LOCALAPPDATA=$savedDirectLocalAppData
+            Remove-Item -LiteralPath $directRoot -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
           . (Get-FunctionScriptBlock "tools/acceptance/run-final-current-source-acceptance.ps1" "Get-ReleaseAsset")
           . (Get-FunctionScriptBlock "tools/acceptance/run-final-current-source-acceptance.ps1" "Assert-RuntimeCandidate")
 
