@@ -66,6 +66,8 @@ const r2 = vi.hoisted(() => {
 	return { objects, send };
 });
 
+vi.mock("server-only", () => ({}));
+
 vi.mock("@/integrations/r2/server", () => ({
 	mediaClient: () => ({ send: r2.send }),
 	privateMediaClient: () => ({ send: r2.send }),
