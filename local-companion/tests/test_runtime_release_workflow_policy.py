@@ -23,6 +23,20 @@ def _push_paths(name: str) -> set[str]:
     }
 
 
+def _runtime_family_input_paths() -> set[str]:
+    # Runtime build triggers may be intentionally conservative. Promotion/RC
+    # fences must track the actual family-owned package inputs so an unrelated
+    # Qwen manifest change cannot invalidate sealed Whisper bytes.
+    whisper = _push_paths("whisper-runtime.yml")
+    whisper.discard("local-companion/runtime/**")
+    whisper.add("local-companion/runtime/whisper-windows-x64.json")
+    return (
+        whisper
+        | _push_paths("qwen-runtime.yml")
+        | _push_paths("qwen-runtime-package.yml")
+    )
+
+
 def test_whisper_runtime_workflow_is_build_only_and_keeps_candidate_long_enough():
     value = _workflow("whisper-runtime.yml")
 
@@ -92,6 +106,25 @@ def test_whisper_runtime_workflow_tracks_worker_dependency_closure():
         assert value.count(path) == 2, f"whisper-runtime.yml must watch {path} on PR and push"
 
 
+def test_whisper_runtime_family_fences_ignore_qwen_manifest_changes():
+    whisper = _workflow("whisper-runtime.yml")
+    runtime_rc = _workflow("runtime-rc.yml")
+    runtime_promote = _workflow("runtime-promote.yml")
+    whisper_manifest = "local-companion/runtime/whisper-windows-x64.json"
+    qwen_manifest = "local-companion/runtime/qwen-windows-x64.json"
+
+    # Keep the already-published 1.1.8 build workflow untouched: changing it is
+    # itself a protected Whisper input and would invalidate the sealed candidate.
+    # The trigger can stay conservative until 1.1.8 is promoted; the byte-drift
+    # fences are the place that must be family-specific now.
+    assert whisper.count("local-companion/runtime/**") == 2
+
+    for value in (runtime_rc, runtime_promote):
+        assert '"local-companion/runtime/**"' not in value
+        assert f'"{whisper_manifest}"' in value
+        assert f'"{qwen_manifest}"' in value
+
+
 def test_qwen_runtime_workflows_track_the_strict_worker_dependency_closure():
     required = {
         "local-companion/tda_companion/asr_checkpoints.py",
@@ -122,11 +155,7 @@ def test_runtime_rc_source_drift_fence_is_family_scoped_to_real_runtime_inputs()
 
     # The RC fence must keep up with every file that can trigger an actual runtime
     # build on main, rather than conservatively invalidating the whole Companion tree.
-    required = (
-        _push_paths("whisper-runtime.yml")
-        | _push_paths("qwen-runtime.yml")
-        | _push_paths("qwen-runtime-package.yml")
-    )
+    required = _runtime_family_input_paths()
     missing = sorted(path for path in required if f'"{path}"' not in value)
     assert missing == []
 
@@ -145,11 +174,7 @@ def test_runtime_stable_promotion_drift_fence_matches_runtime_family_inputs():
     assert "RUNTIME_PROMOTION_RUNTIME_INPUT_DRIFT" in promote
     assert "RUNTIME_PROMOTION_FAMILY_INVALID" in promote
 
-    required = (
-        _push_paths("whisper-runtime.yml")
-        | _push_paths("qwen-runtime.yml")
-        | _push_paths("qwen-runtime-package.yml")
-    )
+    required = _runtime_family_input_paths()
     missing = sorted(path for path in required if f'"{path}"' not in promote)
     assert missing == []
 
