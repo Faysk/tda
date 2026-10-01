@@ -49,8 +49,8 @@ def gate(profile_id: str, version: str = "1.0.13") -> dict[str, Any]:
     }
 
 
-def benchmark(profile_id: str) -> dict[str, Any]:
-    return {
+def benchmark(profile_id: str, **overrides: Any) -> dict[str, Any]:
+    value = {
         "schema_version": "tda_benchmark_profile_v1",
         "kind": "benchmark.profile",
         "profile_id": profile_id,
@@ -72,6 +72,8 @@ def benchmark(profile_id: str) -> dict[str, Any]:
         "warning_count": 0,
         "execution_lineage": {"private": "must be discarded"},
     }
+    value.update(overrides)
+    return value
 
 
 class WorkerFailure(RuntimeError):
@@ -108,7 +110,7 @@ class QwenEmptyWindowAcceptanceTests(unittest.TestCase):
         runtime_version: str = "1.0.13",
     ) -> dict[str, Any]:
         return module.run_acceptance(
-            source_id="craig-" + "c" * 64,
+            source_id="craig-" + module.EXPECTED_SOURCE_SHA256,
             runtime_root=Path("/runtime"),
             state_root=Path("/state"),
             models_root=Path("/models"),
@@ -168,7 +170,10 @@ class QwenEmptyWindowAcceptanceTests(unittest.TestCase):
         self.assertNotIn("text", diagnostic)
         self.assertNotIn("path", diagnostic)
         serialized = json.dumps(receipt, sort_keys=True)
-        self.assertNotIn("craig-" + "c" * 64, serialized)
+        self.assertNotIn("craig-" + module.EXPECTED_SOURCE_SHA256, serialized)
+        self.assertEqual(receipt["source_sha256"], module.EXPECTED_SOURCE_SHA256)
+        self.assertEqual(receipt["expected_track_count"], 4)
+        self.assertEqual(receipt["expected_audio_work_seconds"], 1200.0)
         self.assertNotIn("Private Name", serialized)
         self.assertNotIn("private transcript", serialized)
         self.assertEqual(
@@ -248,6 +253,89 @@ class QwenEmptyWindowAcceptanceTests(unittest.TestCase):
         self.assertFalse(failed["diagnostic_complete"])
         self.assertFalse(receipt["stable_promotion_eligible"])
 
+    def test_wrong_source_fails_before_runtime_or_worker_execution(self):
+        supervisor = FakeSupervisor(
+            {
+                "qwen-fast": benchmark("qwen-fast"),
+                "qwen-quality": benchmark("qwen-quality"),
+            }
+        )
+        runtime_calls = 0
+
+        def inspect_runtime(*_args: Any, **_kwargs: Any):
+            nonlocal runtime_calls
+            runtime_calls += 1
+            return runtime_state()
+
+        with self.assertRaisesRegex(
+            module.QwenEmptyWindowAcceptanceError,
+            "QWEN_1236_SOURCE_MISMATCH",
+        ):
+            module.run_acceptance(
+                source_id="craig-" + "d" * 64,
+                runtime_root=Path("/runtime"),
+                state_root=Path("/state"),
+                models_root=Path("/models"),
+                supervisor=supervisor,
+                runtime_inspector=inspect_runtime,
+                gate_inspector=lambda *_args, profile_id, **_kwargs: gate(profile_id),
+            )
+        self.assertEqual(runtime_calls, 0)
+        self.assertEqual(supervisor.calls, [])
+
+    def test_benchmark_requires_exact_four_track_300_second_coverage(self):
+        invalid_payloads = (
+            benchmark("qwen-fast", track_count=3),
+            benchmark("qwen-fast", audio_work_seconds=900.0),
+            benchmark("qwen-fast", session_duration_seconds=240.0),
+        )
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                supervisor = FakeSupervisor(
+                    {
+                        "qwen-fast": payload,
+                        "qwen-quality": benchmark("qwen-quality"),
+                    }
+                )
+                with self.assertRaisesRegex(
+                    module.QwenEmptyWindowAcceptanceError,
+                    "QWEN_1236_BENCHMARK_COVERAGE_INVALID",
+                ):
+                    self.run_acceptance(supervisor)
+
+    def test_rejected_empty_event_cannot_become_promotion_eligible_on_result(self):
+        supervisor = FakeSupervisor(
+            {
+                "qwen-fast": (
+                    [
+                        {
+                            "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED",
+                            "stage": "transcription",
+                            "track": 2,
+                            "window": 1,
+                            "completed_window_count": 1,
+                            "start_seconds": 0.0,
+                            "end_seconds": 60.0,
+                            "sample_count": 960_000,
+                            "peak_dbfs": -32.5,
+                            "rms_dbfs": -44.0,
+                            "silence_peak_threshold_dbfs": -84.0,
+                            "silence_rms_threshold_dbfs": -90.0,
+                        }
+                    ],
+                    benchmark("qwen-fast"),
+                ),
+                "qwen-quality": benchmark("qwen-quality"),
+            }
+        )
+
+        receipt = self.run_acceptance(supervisor)
+
+        self.assertFalse(receipt["candidate_completed_both_profiles"])
+        self.assertFalse(receipt["diagnostic_complete"])
+        self.assertFalse(receipt["stable_promotion_eligible"])
+        self.assertEqual(receipt["profiles"][0]["classification"], "invalid_outcome")
+
     def test_wrong_runtime_version_fails_before_worker_execution(self):
         supervisor = FakeSupervisor(
             {
@@ -281,7 +369,7 @@ class QwenEmptyWindowAcceptanceTests(unittest.TestCase):
             "QWEN_1236_PHYSICAL_GATE_STALE",
         ):
             module.run_acceptance(
-                source_id="craig-" + "c" * 64,
+                source_id="craig-" + module.EXPECTED_SOURCE_SHA256,
                 runtime_root=Path("/runtime"),
                 state_root=Path("/state"),
                 models_root=Path("/models"),
