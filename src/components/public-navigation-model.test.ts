@@ -59,7 +59,7 @@ describe("global navigation model", () => {
 		]);
 		expect(legacy.map(({ href, label }) => [href, label])).toEqual([
 			["/transcricoes?campanha=yuhara-main", "Transcrições"],
-			["/edit/sessoes?campanha=yuhara-main", "Editar sessões"],
+			["/edit/yuhara-main/sessoes", "Editar sessões"],
 			["/edit/processamento?campanha=yuhara-main", "Processar"],
 			["/mundo?campanha=yuhara-main", "Editar mundo"],
 			["/edit/revisao?campanha=yuhara-main", "Revisão"],
@@ -80,6 +80,10 @@ describe("global navigation model", () => {
 			[
 				"/transcricoes?campanha=antes-que-seja-tarde",
 				"Transcrições",
+			],
+			[
+				"/edit/antes-que-seja-tarde/sessoes",
+				"Editar sessões",
 			],
 			[
 				"/edit/processamento?campanha=antes-que-seja-tarde",
