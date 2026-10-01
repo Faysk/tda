@@ -229,3 +229,67 @@ test("lore catalogue visual receipts cover light and dark themes at both accepta
 		});
 	}
 });
+
+
+test("campaign metadata and Seika artwork survive long names at desktop, mobile and the 200% zoom proxy", async ({
+	page,
+}) => {
+	const longCampaignName =
+		"Antes que seja tarde — As histórias que ainda cabem numa noite muito longa";
+
+	for (const scenario of [
+		{ name: "desktop", viewport: { width: 1920, height: 1080 } },
+		{ name: "mobile", viewport: { width: 390, height: 844 } },
+		{ name: "zoom-200", viewport: { width: 683, height: 384 } },
+	] as const) {
+		await page.setViewportSize(scenario.viewport);
+		await page.goto("/lore");
+
+		const card = page.locator('article[data-lore="seika"]');
+		await card.scrollIntoViewIfNeeded();
+		await expect(card).toBeVisible();
+
+		const artwork = card.locator("img").first();
+		await expect(artwork).toBeAttached();
+		await expect
+			.poll(() =>
+				artwork.evaluate((node) => {
+					const image = node as HTMLImageElement;
+					return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
+				}),
+			)
+			.toBe(true);
+
+		const metadata = card.locator("span").first();
+		await metadata.evaluate(
+			(node, campaignName) => {
+				node.textContent = `${campaignName} · Seika`;
+				node.closest("article")?.setAttribute(
+					"data-lore-campaign",
+					"antes-que-seja-tarde",
+				);
+			},
+			longCampaignName,
+		);
+
+		await expect(metadata).toContainText(longCampaignName);
+		await expect(card).toHaveAttribute(
+			"data-lore-campaign",
+			"antes-que-seja-tarde",
+		);
+		await expectNoHorizontalOverflow(page);
+
+		const [cardBox, metadataBox] = await Promise.all([
+			card.boundingBox(),
+			metadata.boundingBox(),
+		]);
+		expect(cardBox, `${scenario.name} Seika card geometry`).not.toBeNull();
+		expect(metadataBox, `${scenario.name} campaign metadata geometry`).not.toBeNull();
+		if (cardBox && metadataBox) {
+			expect(metadataBox.x).toBeGreaterThanOrEqual(cardBox.x - 1);
+			expect(metadataBox.x + metadataBox.width).toBeLessThanOrEqual(
+				cardBox.x + cardBox.width + 1,
+			);
+		}
+	}
+});
