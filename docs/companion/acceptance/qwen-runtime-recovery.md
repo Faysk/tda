@@ -157,3 +157,12 @@ Para fechar a #1210:
 - nenhum outro gate Qwen permanece bloqueando.
 
 A evidência comprova recovery de runtime/readiness, não qualidade de transcrição.
+
+
+## Physical validation on 2026-10-01
+
+The installed official Companion RC 0.3.17 updated the real Qwen Runtime from 1.0.11 to Stable 1.0.12. The MSI SHA-256 was verified against the release asset before installation. The initial harness correctly refused success because the update invalidated GPU receipts (`QWEN_GATE_BINDING_CHANGED`). No downgrade was performed to recreate the initial state.
+
+Both profiles were then prepared using an explicitly authorized local Craig archive (427,225,794 bytes). Qwen Fast and Qwen Quality completed their physical gates on NVIDIA GeForce RTX 4070 Laptop GPU, compute capability 8.9; the refreshed catalog reported all four profiles ready. This is not RTX 2080 evidence. Benchmark execution and final browser acceptance are separate gates.
+
+Future initial recovery runs may pass `--preparation-source-id craig-<sha256>` for an already staged, explicitly authorized source. The harness prepares pending Qwen profiles after runtime update and checks readiness again; it never includes the source ID, audio or transcript in its receipt. Without that argument, missing GPU acceptance still fails rather than manufacturing success. The Web flow now points explicitly to source analysis/profile preparation after update.

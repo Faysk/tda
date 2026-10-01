@@ -583,3 +583,22 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
 	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false })).toBeVisible();
 });
+
+test("runtime update leaves GPU preparation actionable before benchmark submit", async ({ page }) => {
+ const state = await installCompanionFixture(page, {
+  benchmarkProfiles: true, profileReady: false,
+  benchmarkReadyProfiles: ["whisper-turbo", "whisper-detailed"],
+  qwenRuntimeUpgradeRequired: true, qwenRuntimeVersion: "1.0.11",
+  qwenRuntimeStableVersion: "1.0.12", qwenRuntimeNeedsPreparationAfterUpdate: true,
+ });
+ const panel = await openBenchmark(page);
+ await panel.getByRole("button", { name: "Atualizar Qwen Runtime", exact: true }).click();
+ await expect(panel).toContainText("Selecione e analise um ZIP Craig para preparar os perfis nesta GPU");
+ await chooseZip(panel);
+ await analyze(panel);
+ await panel.getByRole("button", { name: "Preparar 2 perfis pendentes", exact: true }).click();
+ await expect(panel).toContainText("4 / 4 perfis prontos");
+ expect(state.preparationProfiles).toEqual(["qwen-fast", "qwen-quality"]);
+ expect(state.jobPostCount).toBe(0);
+ await expect(panel.getByRole("button", { name: "Executar benchmark de 5 minutos", exact: true })).toBeEnabled();
+});

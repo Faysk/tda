@@ -71,6 +71,7 @@ export type CompanionFixtureOptions = {
 	qwenRuntimeStableVersion?: string | null;
 	qwenRuntimeManifestUnavailable?: boolean;
 	qwenRuntimeUpdateFailure?: string | null;
+	qwenRuntimeNeedsPreparationAfterUpdate?: boolean;
 	qwenRuntimeUpdateInitiallyActive?: boolean;
 	qwenRuntimeUpdateInitiallyCompleted?: boolean;
 	advanceJobs?: boolean;
@@ -610,8 +611,10 @@ export async function installCompanionFixture(
 				}, 409);
 			}
 			if (qwenStableVersion) qwenRuntimeVersion = qwenStableVersion;
-			benchmarkPrepared.add("qwen-fast");
-			benchmarkPrepared.add("qwen-quality");
+			if (!options.qwenRuntimeNeedsPreparationAfterUpdate) {
+				benchmarkPrepared.add("qwen-fast");
+				benchmarkPrepared.add("qwen-quality");
+			}
 			options.qwenRuntimeUpgradeRequired = false;
 			return json(route, {
 				schema: "tda_qwen_runtime_maintenance_v1",

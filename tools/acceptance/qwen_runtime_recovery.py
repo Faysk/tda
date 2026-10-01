@@ -338,6 +338,25 @@ def _assert_receipt_privacy(value: Any) -> None:
         raise RecoveryAcceptanceError("QWEN_RECOVERY_RECEIPT_PRIVACY_INVALID")
 
 
+def prepare_updated_profiles(client, profiles, source_id, *, timeout_seconds, sleep=time.sleep):
+    """A runtime update invalidates GPU receipts; explicit local source enables renewed gates."""
+    pending = [key for key in REQUIRED_QWEN_PROFILES if not profiles[key].get("ready")]
+    if not pending:
+        return
+    if not source_id or not re.fullmatch(r"craig-[0-9a-f]{64}", source_id):
+        raise RecoveryAcceptanceError("QWEN_RECOVERY_PREPARATION_SOURCE_REQUIRED")
+    for profile_id in pending:
+        observed = client.request("POST", "/preparation", {"source_id": source_id, "profile_id": profile_id})
+        deadline = time.monotonic() + timeout_seconds
+        while observed.get("active") is True:
+            if time.monotonic() >= deadline:
+                raise RecoveryAcceptanceError("QWEN_RECOVERY_PREPARATION_TIMEOUT")
+            sleep(1)
+            observed = client.request("GET", "/preparation")
+        if observed.get("state") != "completed":
+            raise RecoveryAcceptanceError("QWEN_RECOVERY_PREPARATION_FAILED")
+
+
 def run_acceptance(
     client: AgentClient,
     *,
@@ -345,6 +364,7 @@ def run_acceptance(
     minimum_version: str = DEFAULT_MINIMUM,
     expected_stable_version: str | None = DEFAULT_STABLE,
     production_origin: str = DEFAULT_ORIGIN,
+    preparation_source_id: str | None = None,
     production_fetcher: Callable[[str], dict[str, str]] = fetch_production_version,
     poll_timeout_seconds: float = 2 * 60 * 60,
     sleep: Callable[[float], None] = time.sleep,
@@ -402,6 +422,10 @@ def run_acceptance(
 
     after_capabilities = client.request("GET", "/capabilities")
     after_profiles = _catalog_profiles(after_capabilities)
+    if any(not profile.get("ready") for profile in after_profiles.values()) and preparation_source_id:
+        prepare_updated_profiles(client, after_profiles, preparation_source_id,
+                                 timeout_seconds=poll_timeout_seconds, sleep=sleep)
+        after_profiles = _catalog_profiles(client.request("GET", "/capabilities"))
     _require_final_readiness(after_profiles)
 
     receipt = {
@@ -489,6 +513,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--expected-stable-version", default=DEFAULT_STABLE)
     parser.add_argument("--token-file", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--preparation-source-id", help="Explicit already staged local Craig source for GPU revalidation; never stored in receipt")
     parser.add_argument("--poll-timeout-seconds", type=float, default=2 * 60 * 60)
     return parser.parse_args(argv)
 
@@ -523,6 +548,7 @@ def main(argv: list[str] | None = None) -> int:
             minimum_version=args.minimum_version,
             expected_stable_version=args.expected_stable_version,
             production_origin=args.origin,
+            preparation_source_id=args.preparation_source_id,
             poll_timeout_seconds=args.poll_timeout_seconds,
         )
         _write_receipt(output, receipt)

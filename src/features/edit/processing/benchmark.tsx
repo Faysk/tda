@@ -418,7 +418,7 @@ export function ProcessingBenchmark({
 					setStatus(
 						qwenReady
 							? "Qwen Runtime atualizado. Qwen Fast e Qwen Quality estão prontos."
-							: "Qwen Runtime atualizado. A prontidão foi recalculada; conclua os gates restantes se houver.",
+							: "Qwen Runtime atualizado. Analise um ZIP Craig e prepare os perfis pendentes para validar os modelos nesta GPU.",
 					);
 					return true;
 				};
@@ -568,7 +568,9 @@ export function ProcessingBenchmark({
 			setStatus(
 				qwenReady
 					? "Qwen Runtime atualizado. Qwen Fast e Qwen Quality estão prontos."
-					: "Qwen Runtime atualizado. A prontidão foi recalculada; conclua os gates restantes se houver.",
+					: source
+						? "Qwen Runtime atualizado. Clique em Preparar perfis pendentes para validar os modelos nesta GPU."
+						: "Qwen Runtime atualizado. Selecione e analise um ZIP Craig para preparar os perfis nesta GPU.",
 			);
 		} catch (cause) {
 			setQwenRuntimeError(

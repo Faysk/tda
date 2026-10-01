@@ -89,6 +89,26 @@ class FakeClient:
 
 
 class QwenRuntimeRecoveryAcceptanceTests(unittest.TestCase):
+    def test_gpu_receipt_revalidation_prepares_both_profiles_without_transcript_reads(self):
+        profiles = module._catalog_profiles(capabilities(ready=False, runtime_version="1.0.12"))
+        for profile in profiles.values():
+            profile["reason"] = "QWEN_GATE_BINDING_CHANGED"
+        client = FakeClient({
+            ("POST", "/preparation"): [
+                {"active": True, "state": "running"},
+                {"active": False, "state": "completed"},
+            ],
+            ("GET", "/preparation"): [{"active": False, "state": "completed"}],
+        })
+        module.prepare_updated_profiles(client, profiles, "craig-" + "a" * 64,
+                                        timeout_seconds=5, sleep=lambda _: None)
+        self.assertEqual(client.calls.count(("POST", "/preparation")), 2)
+
+    def test_gpu_preparation_requires_an_explicit_source(self):
+        profiles = module._catalog_profiles(capabilities(ready=False, runtime_version="1.0.12"))
+        with self.assertRaisesRegex(module.RecoveryAcceptanceError, "SOURCE_REQUIRED"):
+            module.prepare_updated_profiles(FakeClient({}), profiles, None, timeout_seconds=5)
+
     def test_semver_is_numeric_not_lexicographic(self):
         self.assertTrue(module.version_at_least("1.0.10", "1.0.9"))
         self.assertFalse(module.version_at_least("1.0.9", "1.0.10"))
