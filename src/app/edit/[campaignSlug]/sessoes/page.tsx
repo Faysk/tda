@@ -56,6 +56,10 @@ export default async function CampaignEditSessionsPage({
 	return (
 		<CampaignSessionLibraryPage
 			campaignName={campaign.name}
+			campaignOptions={available.campaigns.map((candidate) => ({
+				technicalSlug: candidate.technicalSlug,
+				name: candidate.name,
+			}))}
 			campaignSlug={campaign.technicalSlug}
 			searchParams={searchParams}
 		/>
