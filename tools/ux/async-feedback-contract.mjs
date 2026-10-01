@@ -135,7 +135,7 @@ assertIncludes("src/app/edit/revisao/page.tsx", [
 	[/pendingLabel="Registrando…"/u, "review decision must expose contextual pending copy"],
 ]);
 
-assertIncludes("src/app/edit/sessoes/page.tsx", [
+assertIncludes("src/app/edit/[campaignSlug]/sessoes/page.tsx", [
 	[/from "next\/form"/u, "session filters must use client-side Next Form navigation"],
 	[/pendingLabel="Aplicando…"/u, "session filters must expose local pending feedback"],
 ]);
