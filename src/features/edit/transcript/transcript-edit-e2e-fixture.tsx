@@ -9,6 +9,8 @@ import {
 	simulateTranscriptEditRemoteRevisionAction,
 } from "./transcript-edit-e2e-actions";
 
+const CAMPAIGN_SLUG = "yuhara-main";
+
 export function TranscriptEditE2EFixture({
 	sessionId,
 	revisionId,
@@ -65,6 +67,7 @@ export function TranscriptEditE2EFixture({
 				<a href="/">Sair da fixture</a>
 			</section>
 			<TranscriptReader
+				campaignSlug={CAMPAIGN_SLUG}
 				downloadHref="#synthetic-download"
 				editable={editable}
 				revisionId={revisionId}
