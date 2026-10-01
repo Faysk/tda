@@ -181,3 +181,21 @@ O legado por fragmentos `#/sessao/{sourceSessionId}` e `#/sessao/{sourceSessionI
 - melhor reconciliação de guest/aliases.
 
 Qualquer feature futura deve preservar a distinção entre occurrence (`participant`) e identity (`profile/entity`).
+
+## Edit multi-campanha e move seguro — #1129
+
+A biblioteca privada de sessões usa contexto explícito de campanha:
+
+- `/edit/sessoes` é somente entrypoint/seleção; redireciona automaticamente apenas quando existe exatamente uma campanha autorizada;
+- `/edit/[technical_slug]/sessoes` é a biblioteca canônica;
+- `/edit/[technical_slug]/sessoes/[source_session_id]` é o detalhe canônico;
+- `source_session_id` não é lookup global e pode existir em campanhas diferentes;
+- leitura e mutations revalidam a campanha no servidor; o pathname/selector é intenção de UI, não autoridade.
+
+“Mover para outra campanha” é uma ação separada do draft editorial. O fluxo é `preflight -> confirmação -> commit`. Destinos são somente campanhas ativas com transcript read + content edit para o actor. O banco revalida origem e destino novamente no preflight/commit.
+
+O primeiro slice é deliberadamente fail-closed: uma sessão sem dependências incompatíveis pode mudar de campaign; publication ativa, transcript revisions, editorial drafts, participant→entity links, cover/media referenciada, provenance, grants de sessão e demais domínios sem migração transacional segura bloqueiam a operação com razão acionável. Não existem clones silenciosos nem updates parciais.
+
+O commit usa `operation_id` durável, row lock e audit sanitizado. Retry após resposta perdida reaproveita o receipt sem duplicar a mudança. Dois movers concorrentes serializam no row lock; o writer stale recebe conflict.
+
+Depois do commit, a aplicação revalida bibliotecas/detalhes privados e superfícies públicas da origem/destino. Falha de cache/delivery não desfaz o commit já confirmado; o retorno marca `cachePending` para recuperação explícita.
