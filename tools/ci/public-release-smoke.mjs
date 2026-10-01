@@ -154,14 +154,6 @@ function validateTransportResult(context, route, response) {
     fail(context, "unavailable_content", route);
   }
 
-  record(context.logger, {
-    sourceSha: context.sourceSha,
-    phase: context.phase,
-    route,
-    result: "pass",
-    at: nowIso(context.nowImpl),
-  });
-
   return response.body;
 }
 
@@ -282,8 +274,23 @@ export async function runPublicReleaseSmoke({
   };
 
   await request("/");
+  record(logger, {
+    sourceSha: sha,
+    phase,
+    route: "/",
+    result: "pass",
+    at: nowIso(nowImpl),
+  });
+
   const directoryBody = await request("/campanhas");
   assertCanonicalRegistry(context, directoryBody);
+  record(logger, {
+    sourceSha: sha,
+    phase,
+    route: "/campanhas",
+    result: "pass",
+    at: nowIso(nowImpl),
+  });
 
   const compatibilityBody = await request("/sessoes");
   const archiveBody = await request("/campanhas/sessoes");
@@ -304,6 +311,14 @@ export async function runPublicReleaseSmoke({
   if (archiveEmpty !== compatibilityEmpty) {
     fail(context, "compatibility_content_mismatch", "/sessoes");
   }
+  record(logger, {
+    sourceSha: sha,
+    phase,
+    route: "/sessoes",
+    result: "pass",
+    at: nowIso(nowImpl),
+    state: "canonical_redirect",
+  });
 
   const sessionPath = extractPublicSessionPath(archiveBody);
   if (!sessionPath) {
@@ -331,6 +346,14 @@ export async function runPublicReleaseSmoke({
   if (directoryEmpty) {
     fail(context, "directory_archive_inconsistent", "/campanhas");
   }
+  record(logger, {
+    sourceSha: sha,
+    phase,
+    route: "/campanhas/sessoes",
+    result: "pass",
+    at: nowIso(nowImpl),
+    state: "public_session_discovered",
+  });
 
   const sessionBody = await request(sessionPath);
   assertSessionContent(context, sessionPath, sessionBody);
