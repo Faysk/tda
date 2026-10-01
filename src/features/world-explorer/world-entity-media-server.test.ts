@@ -88,7 +88,7 @@ function png(width = 640, height = 360): Uint8Array {
 	bytes.write("IHDR", 12, "ascii");
 	bytes.writeUInt32BE(width, 16);
 	bytes.writeUInt32BE(height, 20);
-	return bytes;
+	return Uint8Array.from(bytes);
 }
 
 function sha256(bytes: Uint8Array) {
