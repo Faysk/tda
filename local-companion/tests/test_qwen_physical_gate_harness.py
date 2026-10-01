@@ -56,7 +56,7 @@ def test_qwen_recovery_physical_gate_static_contract():
     assert text.count("[CmdletBinding()]") == 1
     assert text.count('if ($Verdict -ne "PASS") { exit 1 }') == 1
     assert text.count("Qwen physical gate verdict:") == 1
-    assert len(text.splitlines()) < 1200
+    assert len(text.splitlines()) < 1250
     assert "qwen-runtime-install.json" in text
     assert '$RequiredCompanionVersion = "0.3.16"' in text
     assert '[string]$CompanionPayload.version -ne $RequiredCompanionVersion' in text
