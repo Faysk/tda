@@ -185,14 +185,14 @@ function Invoke-WhisperCraigWorker {
         [string]$Data,
         [string]$Models,
         [string]$Source,
-        [string]$Profile,
+        [string]$WhisperProfile,
         [bool]$Benchmark,
         [string]$JobId
     )
 
     $payload = [ordered]@{
         source_id = $Source
-        profile_id = $Profile
+        profile_id = $WhisperProfile
         glossary = ""
         context = ""
         cpu = $false
@@ -422,14 +422,14 @@ $stamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $profileEvidence = [Collections.Generic.List[object]]::new()
 $runChecks = [Collections.Generic.List[object]]::new()
 
-foreach ($profile in $Profiles) {
-    Write-Host "[$profile] Craig sample 300s through packaged runtime $($runtime.Version)..."
-    $sampleJob = "whisper1235-" + $profile.Replace("-", "_") + "-sample-" + $stamp
-    $sample = Invoke-WhisperCraigWorker -Runtime $runtime -Data $data -Models $models -Source $SourceId -Profile $profile -Benchmark $true -JobId $sampleJob
+foreach ($whisperProfile in $Profiles) {
+    Write-Host "[$whisperProfile] Craig sample 300s through packaged runtime $($runtime.Version)..."
+    $sampleJob = "whisper1235-" + $whisperProfile.Replace("-", "_") + "-sample-" + $stamp
+    $sample = Invoke-WhisperCraigWorker -Runtime $runtime -Data $data -Models $models -Source $SourceId -WhisperProfile $whisperProfile -Benchmark $true -JobId $sampleJob
 
     if (
         [string]$sample.Result.kind -ne "benchmark.profile" -or
-        [string]$sample.Result.profile_id -ne $profile -or
+        [string]$sample.Result.profile_id -ne $whisperProfile -or
         [string]$sample.Result.device -ne "cuda" -or
         [double]$sample.Result.sample_seconds -ne 300.0
     ) {
@@ -451,21 +451,21 @@ foreach ($profile in $Profiles) {
         span_examples = @($sample.SpanExamples)
     }
 
-    Write-Host "[$profile] Craig full transcription through packaged runtime $($runtime.Version)..."
-    $fullJob = "whisper1235-" + $profile.Replace("-", "_") + "-full-" + $stamp
-    $full = Invoke-WhisperCraigWorker -Runtime $runtime -Data $data -Models $models -Source $SourceId -Profile $profile -Benchmark $false -JobId $fullJob
+    Write-Host "[$whisperProfile] Craig full transcription through packaged runtime $($runtime.Version)..."
+    $fullJob = "whisper1235-" + $whisperProfile.Replace("-", "_") + "-full-" + $stamp
+    $full = Invoke-WhisperCraigWorker -Runtime $runtime -Data $data -Models $models -Source $SourceId -WhisperProfile $whisperProfile -Benchmark $false -JobId $fullJob
 
     if (
         [string]$full.Result.kind -ne "transcription.craig" -or
-        [string]$full.Result.profile_id -ne $profile
+        [string]$full.Result.profile_id -ne $whisperProfile
     ) {
         throw "WHISPER_1235_FULL_RESULT_INVALID"
     }
 
-    $run = Get-PublicRunMetrics -PackageRoot $packageRoot -WorkerResult $full.Result -ExpectedProfile $profile -Runtime $runtime
+    $run = Get-PublicRunMetrics -PackageRoot $packageRoot -WorkerResult $full.Result -ExpectedProfile $whisperProfile -Runtime $runtime
     $runChecks.Add($run)
     $profileEvidence.Add([ordered]@{
-        profile_id = $profile
+        profile_id = $whisperProfile
         sample = $sampleMetrics
         full = [ordered]@{
             metrics = $run.Metrics
