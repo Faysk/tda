@@ -50,7 +50,6 @@ QWEN_SEGMENT_MAX_SECONDS = 30.0
 # quiet speech must fail closed instead of being silently discarded.
 QWEN_CONFIDENT_SILENCE_PEAK_DBFS = -84.0
 QWEN_CONFIDENT_SILENCE_RMS_DBFS = -90.0
-QWEN_EDGE_SILENCE_RETRY_PAD_SECONDS = 0.25
 
 
 class QwenRuntimeError(RuntimeError):
@@ -222,52 +221,6 @@ def _qwen_window_signal_diagnostics(audio: Any) -> dict[str, int | float | bool]
         "rms_dbfs": rms_dbfs,
         "confidently_silent": confidently_silent,
     }
-
-
-def _trim_confident_silence_edges(audio: Any) -> Any | None:
-    """Return one bounded ASR retry payload with only near-digital edge silence removed.
-
-    The original window remains authoritative for alignment/timestamps. This helper
-    never treats the trimmed audio as a new timeline interval and never removes
-    interior silence.
-    """
-
-    try:
-        values = list(audio)
-    except TypeError as exc:
-        raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID") from exc
-    if not values:
-        raise QwenRuntimeError("QWEN_AUDIO_EMPTY")
-
-    amplitude_limit = 10.0 ** (QWEN_CONFIDENT_SILENCE_PEAK_DBFS / 20.0)
-    first_active: int | None = None
-    last_active: int | None = None
-    for index, raw in enumerate(values):
-        try:
-            value = float(raw)
-        except (TypeError, ValueError, OverflowError) as exc:
-            raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID") from exc
-        if not math.isfinite(value):
-            raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID")
-        if abs(value) > amplitude_limit:
-            if first_active is None:
-                first_active = index
-            last_active = index
-
-    if first_active is None or last_active is None:
-        return None
-
-    pad = int(round(QWEN_EDGE_SILENCE_RETRY_PAD_SECONDS * QWEN_SAMPLE_RATE))
-    first = max(0, first_active - pad)
-    last = min(len(values), last_active + 1 + pad)
-    if first == 0 and last == len(values):
-        return None
-
-    try:
-        trimmed = audio[first:last]
-    except (TypeError, IndexError):
-        trimmed = values[first:last]
-    return trimmed if len(trimmed) > 0 else None
 
 
 def iter_audio_windows(
@@ -706,27 +659,10 @@ def transcribe_craig_package_qwen(
                             "silence_peak_threshold_dbfs": QWEN_CONFIDENT_SILENCE_PEAK_DBFS,
                             "silence_rms_threshold_dbfs": QWEN_CONFIDENT_SILENCE_RMS_DBFS,
                         }
-                        if diagnostics["confidently_silent"]:
-                            report({**event, "code": "QWEN_WINDOW_SILENCE_CONFIRMED"})
-                        else:
-                            retry_audio = _trim_confident_silence_edges(window.audio)
-                            if retry_audio is not None:
-                                report({**event, "code": "QWEN_WINDOW_EDGE_SILENCE_RETRY"})
-                                retry_text, retry_language = asr_session.transcribe(
-                                    retry_audio, prompt=prompt
-                                )
-                                if retry_text.strip():
-                                    text = retry_text
-                                    language = retry_language
-                                    report(
-                                        {
-                                            **event,
-                                            "code": "QWEN_WINDOW_EDGE_SILENCE_RECOVERED",
-                                        }
-                                    )
-                            if not text.strip():
-                                report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
-                                raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+                        if not diagnostics["confidently_silent"]:
+                            report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
+                            raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+                        report({**event, "code": "QWEN_WINDOW_SILENCE_CONFIRMED"})
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,
