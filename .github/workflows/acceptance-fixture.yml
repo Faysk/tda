@@ -547,10 +547,10 @@ jobs:
           }
 
           try {
-            [void](Get-RequiredProductPropertyValue ([pscustomobject]@{}) "transcription" "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING")
+            [void](Get-RequiredProductPropertyValue ([pscustomobject]@{}) "transcription" "QWEN_QUALITY_RESULT_TRANSCRIPTION_MISSING")
             throw "QWEN_RECOVERY_REQUIRED_PRODUCT_PROPERTY_ACCEPTED"
           } catch {
-            if ([string]$_.Exception.Message -ne "PRODUCT_FAILED:QWEN_FAST_RESULT_TRANSCRIPTION_MISSING") { throw }
+            if ([string]$_.Exception.Message -ne "PRODUCT_FAILED:QWEN_QUALITY_RESULT_TRANSCRIPTION_MISSING") { throw }
           }
 
           $retryFixture = @(
@@ -650,7 +650,7 @@ jobs:
             "Get-OptionalPropertyValue",
             "Get-ErrorDetailMessage",
             "Assert-RetryCheckpointEvidence",
-            "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING",
+            "QWEN_QUALITY_RESULT_TRANSCRIPTION_MISSING",
             "JOB_EVENTS_RESPONSE_INVALID",
             "ASR_TEXT_CHECKPOINT_EVENT_TRACK_MISSING",
             'marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema_version")',

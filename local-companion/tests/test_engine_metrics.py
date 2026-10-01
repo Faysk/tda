@@ -40,6 +40,16 @@ def test_actual_engines_include_same_prepare_load_boundary(tmp_path, monkeypatch
         clock[0] += seconds
         return result
     package, root = _package(tmp_path)
+    monkeypatch.setattr(
+        qwen,
+        "_qwen_window_signal_diagnostics",
+        lambda _audio: {
+            "sample_count": 320,
+            "peak_dbfs": -20.0,
+            "rms_dbfs": -30.0,
+            "confidently_silent": False,
+        },
+    )
     monkeypatch.setattr(whisper, "prepare_whisper_model", lambda *a, **k: advance(10, tmp_path))
     class Whisper:
         def transcribe(self, *_args, **_kwargs):
@@ -49,16 +59,19 @@ def test_actual_engines_include_same_prepare_load_boundary(tmp_path, monkeypatch
         model_loader=lambda _, plan: advance(5, (Whisper(), plan.compute_type, False)))
     class Asr:
         def transcribe(self, *_args, **_kwargs):
-            return advance(20, ("", "Portuguese"))
+            return advance(20, ("synthetic", "Portuguese"))
         def close(self):
             pass
     class Aligner:
+        def align(self, *_args, **_kwargs):
+            return [{"text": "synthetic", "start_time": 0.0, "end_time": 1.0}]
         def close(self):
             pass
     qwen_doc = qwen.transcribe_craig_package_qwen_strict(package, root, tmp_path, profile_id="qwen-fast", checkpoints=False,
         plan_resolver=_plan, model_prepare=lambda *_: advance(10, tmp_path), aligner_prepare=lambda *_: tmp_path,
         asr_session_factory=lambda *_: advance(5, Asr()), aligner_session_factory=lambda *_: Aligner(),
-        window_reader=lambda _: iter([AudioWindow(index=1, start=0, end=100, audio=[0.0] * 320)]))
+        window_reader=lambda _: iter([AudioWindow(index=1, start=0, end=100, audio=[0.1] * 320)]),
+        energy_reader=lambda *_: -30.0)
     for document in (whisper_doc, qwen_doc):
         metrics = document.stats.processing_metrics
         validate_engine_metrics(metrics)

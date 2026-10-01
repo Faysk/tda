@@ -4,7 +4,7 @@
 > Owner: local-companion / processing  
 > Última revisão: 2026-10-01  
 > Status: harness implementado; execução física no Craig original ainda pendente  
-> Runtime candidato: Qwen `1.0.13`  
+> Runtime candidato: Qwen `1.0.14`  
 > Amostra: primeiros `300 s` do Craig já staged localmente  
 > Perfis: `qwen-fast` e `qwen-quality`
 
@@ -24,13 +24,13 @@ O benchmark normal de quatro perfis não é autoridade para este gate enquanto #
 ## Pré-condições
 
 1. checkout da revisão que contém a correção de #1236;
-2. runtime Qwen candidato exato `1.0.13` instalado localmente;
-3. os gates físicos de `qwen-fast` e `qwen-quality` refeitos para os bytes exatos do `1.0.13`;
+2. runtime Qwen candidato exato `1.0.14` instalado localmente;
+3. os gates físicos de `qwen-fast` e `qwen-quality` refeitos para os bytes exatos do `1.0.14`;
 4. Craig original ainda staged em `%LOCALAPPDATA%\TDA\Data\staging`; o gate exige exatamente o source content-addressed por `b2ac78347d88b2761e51be38a60aa266933e3b00f30e72c50626fbe599849b1e`;
 5. nenhum job concorrente usando a GPU/runtime;
 6. ambiente Python do `local-companion` disponível para executar o harness.
 
-O gate falha antes de iniciar ASR se o source não for exatamente o Craig que reproduziu #1236, se o runtime ativo não for exatamente `1.0.13`, se o worker não bater com seu hash, ou se qualquer physical gate estiver stale. A versão esperada é parte do contrato versionado do harness e não pode ser sobrescrita por flag de linha de comando; um candidato futuro exige atualização explícita do código/documento.
+O gate falha antes de iniciar ASR se o source não for exatamente o Craig que reproduziu #1236, se o runtime ativo não for exatamente `1.0.14`, se o worker não bater com seu hash, ou se qualquer physical gate estiver stale. A versão esperada é parte do contrato versionado do harness e não pode ser sobrescrita por flag de linha de comando; um candidato futuro exige atualização explícita do código/documento.
 
 ## Execução
 
@@ -102,7 +102,7 @@ O worker termina com:
 QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN
 ```
 
-e o receipt preserva somente a evidência numérica sanitizada. Esse resultado **não é silêncio e não autoriza Stable**. Ele estabelece uma causa recuperável/específica para a janela observada sem esconder possível fala.
+e o receipt preserva somente a evidência numérica sanitizada. Esse resultado **não é silêncio**. Evidência física no Craig original mostrou que retries por boundary/trim/subdivisão do mesmo `qwen-fast` não recuperam de forma confiável e podem até produzir texto espúrio sobre silêncio digital. Portanto `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN` permanece fail-closed. Se o perfil solicitado for `qwen-fast`, a recuperação de produto é explícita: reenviar a mesma sessão como um novo job `qwen-quality`, preservando profile/model provenance em vez de misturar modelos dentro do mesmo run.
 
 ### `empty_condition_not_reproduced`
 
@@ -121,6 +121,8 @@ Falha diferente. Registrar o código e tratar separadamente; não reclassificar 
 `stable_promotion_eligible` significa apenas que **o gate de #1236** deixou de bloquear o candidato. Não substitui os demais receipts/gates de release do Companion/Qwen e não autoriza promoção isoladamente.
 
 ## Gate complementar — full transcription, retry e run imutável
+
+> **Transição de candidato:** o wrapper exato abaixo continua fixado ao RC `1.0.13` até que o pacote formal `1.0.14` seja produzido após o merge desta correção e seus manifests/hashes públicos possam ser fixados sem placeholders. O wrapper antigo não é evidência de fechamento para o `1.0.14`; um follow-up deve relocká-lo ao novo RC antes do próximo aceite físico.
 
 O benchmark de 300 s usa `benchmark_sample_seconds` e, por desenho, **não grava run imutável nem checkpoint normal**. Portanto ele cobre o defeito de empty-window, mas não fecha sozinho o critério de full transcription/recovery da issue.
 
@@ -144,8 +146,8 @@ O gate reutiliza `run-qwen-recovery-physical-gate.ps1` em scratch isolado e exig
 
 1. ingest do Craig exato com quatro tracks;
 2. preparação física de `qwen-fast` e `qwen-quality`;
-3. `qwen-quality` iniciando no worker real e aceitando cancelamento limitado;
-4. `qwen-fast` persistindo checkpoint da track 1;
+3. `qwen-fast` iniciando no worker real e aceitando cancelamento limitado;
+4. `qwen-quality` persistindo checkpoint da track 1;
 5. hard crash do Agent;
 6. recuperação do job como `PROCESS_INTERRUPTED` recuperável;
 7. retry em novo attempt sem perder o checkpoint já durável;
@@ -154,19 +156,19 @@ O gate reutiliza `run-qwen-recovery-physical-gate.ps1` em scratch isolado e exig
 10. validação do transcript persistido pelo `TranscriptDocument` canônico do produto;
 11. source SHA, perfil, quatro track numbers, hashes de track, `audio_work_seconds`, `session_duration_seconds`, contagens de segments/words e `duration_semantics=session_extent_v1` coerentes entre transcript e manifest.
 
-A validação estrutural gera `qwen-fast-full-run-structure.json` apenas com hashes, números, durações e contagens. Não copia texto, speaker, áudio, path local ou token. O pacote final de evidência também permanece sanitizado: eventos mantêm somente campos estruturais allowlisted e podem preservar diagnósticos não textuais de janela/checkpoint/alignment (por exemplo `start_seconds`, `end_seconds`, contagens duráveis/reutilizadas, `sample_count`, `peak_dbfs`, `rms_dbfs`, thresholds de silêncio, `failure_class` e limites temporais); `speaker`, texto/transcript e paths continuam excluídos. Logs omitem a `message` textual livre e o leak-check rejeita token, nome do ZIP e o caminho privado completo, inclusive quando escapado em JSON.
+A validação estrutural gera `qwen-quality-full-run-structure.json` apenas com hashes, números, durações e contagens. Não copia texto, speaker, áudio, path local ou token. O pacote final de evidência também permanece sanitizado: eventos mantêm somente campos estruturais allowlisted e podem preservar diagnósticos não textuais de janela/checkpoint/alignment (por exemplo `start_seconds`, `end_seconds`, contagens duráveis/reutilizadas, `sample_count`, `peak_dbfs`, `rms_dbfs`, thresholds de silêncio, `failure_class` e limites temporais); `speaker`, texto/transcript e paths continuam excluídos. Logs omitem a `message` textual livre e o leak-check rejeita token, nome do ZIP e o caminho privado completo, inclusive quando escapado em JSON.
 
-Esse gate pode demorar porque o Fast precisa concluir o Craig real inteiro depois do retry. Isso é intencional: o critério de full transcription não deve ser inferido a partir do benchmark curto.
+Esse gate pode demorar porque o Quality precisa concluir o Craig real inteiro depois do retry. Isso é intencional: o critério de full transcription não deve ser inferido a partir do benchmark curto. O Fast continua coberto separadamente pelo contrato fail-closed/actionable de `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN`.
 
 ## Rollback
 
-O `1.0.13` é candidato imutável. Não substituir assets ou tag em caso de falha.
+O `1.0.14` é o novo candidato imutável. O `1.0.13` permanece como candidato anterior rejeitado pelo full-recovery real; nenhum dos dois pode ter assets ou tags sobrescritos.
 
-Enquanto o candidato estiver em aceite:
+Enquanto o novo candidato estiver em aceite:
 
 - `1.0.12` permanece o rollback Stable conhecido;
 - o mínimo compatível do Companion permanece `1.0.12`;
-- falha do `1.0.13` impede a promoção;
+- falha do `1.0.14` impede a promoção;
 - rollback local deve restaurar os bytes verificados de `companion-qwen-runtime-v1.0.12` e o seletor `current.json` correspondente.
 
 Depois de qualquer rollback, revalidar os physical gates porque eles são vinculados ao archive/worker/model/aligner exatos.

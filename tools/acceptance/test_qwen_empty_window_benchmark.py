@@ -17,7 +17,7 @@ sys.modules[SPEC.name] = module
 SPEC.loader.exec_module(module)
 
 
-def runtime_state(version: str = "1.0.13") -> dict[str, Any]:
+def runtime_state(version: str = "1.0.14") -> dict[str, Any]:
     return {
         "status": "ready",
         "version": version,
@@ -28,7 +28,7 @@ def runtime_state(version: str = "1.0.13") -> dict[str, Any]:
     }
 
 
-def gate(profile_id: str, version: str = "1.0.13") -> dict[str, Any]:
+def gate(profile_id: str, version: str = "1.0.14") -> dict[str, Any]:
     return {
         "status": "ready",
         "ready": True,
@@ -107,7 +107,7 @@ class QwenEmptyWindowAcceptanceTests(unittest.TestCase):
         self,
         supervisor: FakeSupervisor,
         *,
-        runtime_version: str = "1.0.13",
+        runtime_version: str = "1.0.14",
     ) -> dict[str, Any]:
         return module.run_acceptance(
             source_id="craig-" + module.EXPECTED_SOURCE_SHA256,

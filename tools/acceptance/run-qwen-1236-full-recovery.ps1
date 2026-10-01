@@ -8,7 +8,8 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $Repository = "Faysk/tda"
-$CandidateSourceSha = "bb9b0a96fc30dde1837d9f9d6b5c49467362f9c1"
+$CompanionSourceSha = "bb9b0a96fc30dde1837d9f9d6b5c49467362f9c1"
+$QwenSourceSha = "bb9b0a96fc30dde1837d9f9d6b5c49467362f9c1"
 $CompanionVersion = "0.3.18"
 $CompanionTag = "companion-rc-v0.3.18-bb9b0a96fc30"
 $CompanionPayloadSha256 = "1a22b3fed54518edd046d5ea49cffb14c7530c9038845dcef9bc1dda98c4df0e"
@@ -92,7 +93,7 @@ try {
     if (
         [string]$payload.schema -ne "tda_companion_payload_v1" -or
         [string]$payload.version -ne $CompanionVersion -or
-        [string]$payload.source_sha -ne $CandidateSourceSha -or
+        [string]$payload.source_sha -ne $CompanionSourceSha -or
         [string]$payload.source_tree_sha -notmatch '^[a-f0-9]{40}$'
     ) {
         Fail-Harness "QWEN_1236_COMPANION_IDENTITY_MISMATCH"
@@ -104,7 +105,7 @@ try {
         [string]$candidate.family -ne "qwen" -or
         [string]$candidate.runtime_id -ne "qwen3-transformers" -or
         [string]$candidate.version -ne $QwenRuntimeVersion -or
-        [string]$candidate.source_sha -ne $CandidateSourceSha -or
+        [string]$candidate.source_sha -ne $QwenSourceSha -or
         [string]$candidate.candidate_tag -ne $QwenTag
     ) {
         Fail-Harness "QWEN_1236_QWEN_IDENTITY_MISMATCH"
@@ -124,7 +125,7 @@ try {
     if ($OutputRoot) { $gateArgs.OutputRoot = $OutputRoot }
 
     Write-Host "TDA #1236 FULL RECOVERY ACCEPTANCE" -ForegroundColor Cyan
-    Write-Host "Candidate: Companion $CompanionVersion + Qwen $QwenRuntimeVersion @ $($CandidateSourceSha.Substring(0,12))" -ForegroundColor DarkCyan
+    Write-Host "Candidate: Companion $CompanionVersion @ $($CompanionSourceSha.Substring(0,12)) + Qwen $QwenRuntimeVersion @ $($QwenSourceSha.Substring(0,12))" -ForegroundColor DarkCyan
     Write-Host "Input stays local; evidence is sanitized." -ForegroundColor DarkCyan
 
     & $GateScript @gateArgs
