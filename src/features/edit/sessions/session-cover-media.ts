@@ -18,7 +18,11 @@ const UUID_PATTERN =
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
 const CAMPAIGN_SLUG_PATTERN = /^[A-Za-z0-9_-]{1,128}$/u;
 
-export type SessionCoverMediaMime = WorldEntityMediaMime;\n\nexport function isSessionCoverCampaignKey(value: unknown): value is string {\n\treturn typeof value === "string" && CAMPAIGN_SLUG_PATTERN.test(value);\n}
+export type SessionCoverMediaMime = WorldEntityMediaMime;
+
+export function isSessionCoverCampaignKey(value: unknown): value is string {
+	return typeof value === "string" && CAMPAIGN_SLUG_PATTERN.test(value);
+}
 
 export type SessionCoverUploadIntent = Readonly<{
 	sha256: string;
@@ -91,13 +95,20 @@ export function sessionCoverUploadChunkCount(bytes: number): number | null {
 }
 
 export function sessionCoverPreviewUrl(
+	campaignSlug: string,
 	sessionId: string,
 	assetId: string,
 ): string | undefined {
-	if (!isSessionCoverUuid(sessionId) || !isSessionCoverUuid(assetId))
+	if (
+		!isSessionCoverCampaignKey(campaignSlug) ||
+		!isSessionCoverUuid(sessionId) ||
+		!isSessionCoverUuid(assetId)
+	)
 		return undefined;
 	return (
-		"/api/edit/session-cover/" +
+		"/api/edit/campaigns/" +
+		encodeURIComponent(campaignSlug) +
+		"/session-cover/" +
 		encodeURIComponent(sessionId.toLowerCase()) +
 		"/" +
 		encodeURIComponent(assetId.toLowerCase())
