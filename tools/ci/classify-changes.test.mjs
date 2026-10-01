@@ -71,6 +71,7 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 		"src/app/e2e-fixtures/route-loading/editorial/loading.tsx",
 		"src/app/sessoes/loading.tsx",
 		"tests/world-catalogs.spec.ts",
+		"tests/world-campaign-context.spec.ts",
 		"src/features/lore/components/lore-index-page.tsx",
 		"src/features/lore/components/lore-cinematic-hero.module.css",
 		"tests/system-states.spec.ts",
