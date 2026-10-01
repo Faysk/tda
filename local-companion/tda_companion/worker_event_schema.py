@@ -160,15 +160,6 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         *_TRACK, "window", "completed_window_count", "start_seconds", "end_seconds",
         required=("stage", "track", "total_tracks", "speaker", "window"),
     ),
-    "QWEN_ASR_EMPTY_WITH_SIGNAL": _schema(
-        *_TRACK, "window", "window_rms_dbfs",
-        required=("stage", "track", "total_tracks", "speaker", "window"),
-        level="error",
-    ),
-    "QWEN_ASR_EMPTY_SILENCE_ACCEPTED": _schema(
-        *_TRACK, "window", "window_rms_dbfs",
-        required=("stage", "track", "total_tracks", "speaker", "window"),
-    ),
     "ASR_TEXT_CHECKPOINT_SAVED": _schema(
         *_TRACK, required=("stage", "track")
     ),
@@ -253,7 +244,6 @@ _SIGNED_SECONDS_FIELDS = frozenset({"relative_start_seconds", "relative_end_seco
 _TOKEN_FIELDS = frozenset({"profile", "device", "compute_type"})
 _RUNTIME_FIELDS = frozenset({"runtime_version", "source_runtime_version"})
 _HASH_FIELDS = frozenset({"worker_sha256", "source_signature_sha256"})
-_DBFS_FIELDS = frozenset({"window_rms_dbfs"})
 
 
 def _safe_text(value: object, maximum: int) -> str | None:
@@ -301,11 +291,6 @@ def _sanitize_field(key: str, value: object) -> Scalar | None:
         if isinstance(value, bool) or not isinstance(value, int):
             return None
         return value if 0 <= value <= _MAX_BYTES else None
-    if key in _DBFS_FIELDS:
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return None
-        number = float(value)
-        return value if math.isfinite(number) and -160.0 <= number <= 20.0 else None
     if key == "duration_ms":
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             return None
