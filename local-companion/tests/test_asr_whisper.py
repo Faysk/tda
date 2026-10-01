@@ -681,6 +681,22 @@ def test_whisper_segment_adapter_widens_parent_without_changing_word_timestamps(
     ]
 
 
+def test_whisper_independent_millisecond_rounding_preserves_containment():
+    cases = (
+        (10.0004, 10.9996, 10.0005, 10.9995),
+        (10.0005, 10.9995, 10.0005, 10.9995),
+        (99.9995, 100.0005, 99.9996, 100.0004),
+    )
+    for segment_start, segment_end, word_start, word_end in cases:
+        assert segment_start <= word_start <= word_end <= segment_end
+        rounded_segment_start = round(segment_start, 3)
+        rounded_segment_end = round(segment_end, 3)
+        rounded_word_start = round(word_start, 3)
+        rounded_word_end = round(word_end, 3)
+        assert rounded_segment_start <= rounded_word_start
+        assert rounded_word_end <= rounded_segment_end
+
+
 def test_whisper_segment_adapter_leaves_rounding_tolerance_alone():
     raw = SimpleNamespace(
         id=0,
