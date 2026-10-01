@@ -56,6 +56,7 @@ function applyWorkingEdit(
 }
 
 export function TranscriptReader({
+	campaignSlug,
 	segments,
 	sourceLabel,
 	downloadHref,
@@ -66,6 +67,7 @@ export function TranscriptReader({
 	saveAction = saveTranscriptRevisionEditsAction,
 	active = true,
 }: Readonly<{
+	campaignSlug: string;
 	segments: readonly TranscriptReaderSegment[];
 	sourceLabel: string;
 	downloadHref: string;
@@ -269,6 +271,7 @@ export function TranscriptReader({
 			};
 		}
 		return {
+			campaignSlug,
 			sessionId,
 			expectedCurrentTranscriptRevisionId: currentRevisionId,
 			operationId: pendingOperation.current.id,
