@@ -30,6 +30,9 @@ DEFAULT_PORT = 8765
 DEFAULT_MINIMUM = "1.0.12"
 DEFAULT_STABLE = "1.0.12"
 REQUIRED_QWEN_PROFILES = ("qwen-fast", "qwen-quality")
+RUNTIME_BLOCK_REASONS = frozenset(
+    {"QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED", "QWEN_RUNTIME_REQUIRED", "QWEN_GATE_RUNTIME_NOT_READY"}
+)
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
 
@@ -202,34 +205,22 @@ def _require_initial_block(
     if any(profile.get("ready") is True for profile in profiles.values()):
         raise RecoveryAcceptanceError("QWEN_RECOVERY_INITIAL_BLOCK_NOT_REPRODUCED")
 
-    installed = _nullable_text(checked.get("installed_version"))
-    catalog_versions = {
-        _nullable_text(profile.get("runtime_version")) for profile in profiles.values()
-    }
-    catalog_versions.discard(None)
-
-    stale = False
-    if installed is not None:
-        stale = not version_at_least(installed, minimum)
-    elif catalog_versions:
-        stale = all(
-            not version_at_least(version, minimum)
-            for version in catalog_versions
-            if version is not None
-        )
-    else:
-        runtime_blockers = {
-            "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
-            "QWEN_RUNTIME_REQUIRED",
-            "QWEN_GATE_RUNTIME_NOT_READY",
-        }
-        reasons = {_nullable_text(profile.get("reason")) for profile in profiles.values()}
-        reasons.discard(None)
-        stale = bool(reasons) and reasons <= runtime_blockers
-
-    if not stale:
+    reasons = {_nullable_text(profile.get("reason")) for profile in profiles.values()}
+    if (
+        None in reasons
+        or not reasons
+        or not reasons.issubset(RUNTIME_BLOCK_REASONS)
+    ):
         raise RecoveryAcceptanceError("QWEN_RECOVERY_INITIAL_BLOCK_NOT_REPRODUCED")
 
+    # The issue explicitly forbids assuming a particular stale version. A real
+    # recovery may start from an unknown version or from a same-version install
+    # that the Companion can safely repair. The subsequent check contract is
+    # authoritative for whether an official compatible operation is available.
+    installed = _nullable_text(checked.get("installed_version"))
+    if installed is not None:
+        version_tuple(installed)
+    version_tuple(minimum)
 
 def _require_check_contract(
     checked: dict[str, Any],
@@ -366,6 +357,10 @@ def run_acceptance(
     if service_version != expected_companion_version:
         raise RecoveryAcceptanceError("QWEN_RECOVERY_COMPANION_VERSION_MISMATCH")
 
+    # Anchor the evidence to canonical Production before any state-changing
+    # local maintenance call. If Production cannot be identified, fail closed.
+    production = production_fetcher(production_origin)
+
     before_capabilities = client.request("GET", "/capabilities")
     before_profiles = _catalog_profiles(before_capabilities)
 
@@ -408,8 +403,6 @@ def run_acceptance(
     after_capabilities = client.request("GET", "/capabilities")
     after_profiles = _catalog_profiles(after_capabilities)
     _require_final_readiness(after_profiles)
-
-    production = production_fetcher(production_origin)
 
     receipt = {
         "schema": "tda_qwen_runtime_recovery_acceptance_v1",
@@ -463,7 +456,7 @@ def _read_token(path: Path) -> str:
         token = path.read_text(encoding="utf-8").strip()
     except OSError:
         raise RecoveryAcceptanceError("QWEN_RECOVERY_PAIRING_TOKEN_NOT_FOUND") from None
-    if not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", token):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{43,256}", token):
         raise RecoveryAcceptanceError("QWEN_RECOVERY_PAIRING_TOKEN_INVALID")
     return token
 
@@ -519,7 +512,7 @@ def main(argv: list[str] | None = None) -> int:
         print("TDA #1210 Qwen Runtime recovery acceptance")
         print(f"Companion esperado: {args.expected_companion_version}")
         print(
-            f"Contrato Qwen: instalado < {args.minimum_version} -> Stable "
+            f"Contrato Qwen: runtime incompatível/reparável -> Stable "
             f"{args.expected_stable_version} -> qwen-fast/qwen-quality prontos"
         )
         print("Ação explícita autorizada: atualizar o Qwen Runtime pelo Companion local.")
@@ -537,7 +530,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Production commit: {receipt['production']['commit']}")
         print(f"Production release: {receipt['production']['release']}")
         print(f"Installed runtime: {receipt['after']['runtime']['installed_version']}")
-        print(f"Receipt sanitizado: {output}")
+        print("Receipt sanitizado gravado no diretório local de aceite.")
         return 0
     except RecoveryAcceptanceError as exc:
         print(f"QWEN RUNTIME RECOVERY ACCEPTANCE: FAIL {exc.code}", file=sys.stderr)
