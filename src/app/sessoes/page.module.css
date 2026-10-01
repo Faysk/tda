@@ -439,3 +439,51 @@
 		background: rgba(7, 10, 13, 0.9);
 	}
 }
+
+
+/* Keep aggregate context dense enough to expose archive content in the first mobile viewport. */
+@media (max-width: 700px) {
+	.aggregateHero {
+		min-height: clamp(330px, 44svh, 380px);
+	}
+
+	.aggregateHero .heroInner {
+		gap: 12px;
+		padding-top: 44px;
+		padding-bottom: 32px;
+	}
+
+	.aggregateHero .title {
+		margin-top: 8px;
+		font-size: clamp(2.15rem, 9.8vw, 2.85rem);
+		line-height: 1;
+	}
+
+	.aggregateHero .heroCopy > p {
+		margin-top: 8px;
+		font-size: 0.9rem;
+		line-height: 1.4;
+	}
+
+	.aggregateHero .stats {
+		row-gap: 6px;
+	}
+
+	.aggregateHero .stat {
+		padding-inline: 8px;
+	}
+
+	.aggregateHero .stat:nth-child(n + 3) {
+		padding-top: 7px;
+	}
+
+	.aggregateHero .stat dd {
+		font-size: clamp(1.18rem, 5.8vw, 1.55rem);
+	}
+
+	.aggregateHero .stat dt {
+		margin-top: 3px;
+		font-size: 0.55rem;
+		line-height: 1.18;
+	}
+}
