@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import threading
+
+import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -103,6 +105,7 @@ def test_webview_api_exposes_machine_controls_but_not_master_token_or_editorial_
     assert "snapshot" in public
     assert "open_tda" in public
     assert "restart_agent" in public
+    assert "rollback_whisper_runtime" in public
     assert "pairing_token" not in public
     assert "select_craig_session" not in public
     assert "start_craig_transcription" not in public
@@ -222,3 +225,43 @@ def test_desktop_maintenance_treats_queued_job_as_active():
 
     assert bridge._has_running_job() is False
     assert bridge._has_active_job() is True
+
+
+def test_whisper_rollback_blocks_queued_or_running_work():
+    bridge = object.__new__(DesktopBridge)
+    bridge.paths = SimpleNamespace(runtime_root=Path("Runtime"), cache_root=Path("Cache"))
+    bridge._jobs = lambda: [{"status": "queued"}]  # type: ignore[method-assign]
+    bridge.client = SimpleNamespace(get=lambda _path: {"active": False})
+
+    with pytest.raises(RuntimeError, match="RUNTIME_ROLLBACK_BLOCKED_BY_RUNNING_JOB"):
+        bridge.rollback_whisper_runtime("1.1.5")
+
+
+def test_whisper_rollback_blocks_profile_preparation():
+    bridge = object.__new__(DesktopBridge)
+    bridge.paths = SimpleNamespace(runtime_root=Path("Runtime"), cache_root=Path("Cache"))
+    bridge._jobs = lambda: []  # type: ignore[method-assign]
+    bridge.client = SimpleNamespace(
+        get=lambda path: {"active": True} if path == "/preparation" else {"active": False}
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="RUNTIME_ROLLBACK_BLOCKED_BY_TRANSCRIPTION_PREPARATION",
+    ):
+        bridge.rollback_whisper_runtime("1.1.5")
+
+
+def test_whisper_rollback_blocks_other_runtime_maintenance():
+    bridge = object.__new__(DesktopBridge)
+    bridge.paths = SimpleNamespace(runtime_root=Path("Runtime"), cache_root=Path("Cache"))
+    bridge._jobs = lambda: []  # type: ignore[method-assign]
+    bridge.client = SimpleNamespace(
+        get=lambda path: {"active": True} if path == "/qwen-runtime" else {"active": False}
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="RUNTIME_ROLLBACK_BLOCKED_BY_RUNTIME_MAINTENANCE",
+    ):
+        bridge.rollback_whisper_runtime("1.1.5")
