@@ -10,16 +10,30 @@ export type NavigationIdentity = Readonly<{
 	avatarUrl: string | null;
 }>;
 
+export type NavigationCampaignState = "none" | "first_class" | "unavailable";
+
+export type NavigationCampaignProjection = Readonly<{
+	technicalSlug: string;
+	routeKey: string | null;
+	name: string;
+	lifecycle: "active" | "archived";
+	capabilities: readonly string[];
+}>;
+
 export type NavigationAuthProjection = Readonly<{
 	state: NavigationAuthState;
 	identity: NavigationIdentity | null;
 	capabilities: readonly string[];
+	campaignsState: NavigationCampaignState;
+	campaigns: readonly NavigationCampaignProjection[];
 }>;
 
 const UNAVAILABLE_PROJECTION: NavigationAuthProjection = {
 	state: "unavailable",
 	identity: null,
 	capabilities: [],
+	campaignsState: "unavailable",
+	campaigns: [],
 };
 
 const AUTHENTICATED_STATES = new Set<NavigationAuthState>([
@@ -41,6 +55,17 @@ function parseState(value: unknown): NavigationAuthState | null {
 		case "authenticated_unlinked":
 		case "authenticated_linked":
 		case "authenticated_linked_no_grants":
+			return value;
+		default:
+			return null;
+	}
+}
+
+function parseCampaignsState(value: unknown): NavigationCampaignState | null {
+	switch (value) {
+		case "none":
+		case "first_class":
+		case "unavailable":
 			return value;
 		default:
 			return null;
@@ -70,6 +95,42 @@ function parseCapabilities(value: unknown): readonly string[] {
 	);
 }
 
+function parseCampaigns(
+	value: unknown,
+): readonly NavigationCampaignProjection[] | null {
+	if (!Array.isArray(value)) return null;
+	const campaigns: NavigationCampaignProjection[] = [];
+	for (const raw of value) {
+		const input = record(raw);
+		if (!input) return null;
+		const technicalSlug =
+			typeof input.technicalSlug === "string" && input.technicalSlug.length > 0
+				? input.technicalSlug
+				: null;
+		const name =
+			typeof input.name === "string" && input.name.length > 0
+				? input.name
+				: null;
+		const lifecycle =
+			input.lifecycle === "active" || input.lifecycle === "archived"
+				? input.lifecycle
+				: null;
+		const routeKey =
+			typeof input.routeKey === "string" && input.routeKey.length > 0
+				? input.routeKey
+				: null;
+		if (!technicalSlug || !name || !lifecycle) return null;
+		campaigns.push({
+			technicalSlug,
+			routeKey,
+			name,
+			lifecycle,
+			capabilities: parseCapabilities(input.capabilities),
+		});
+	}
+	return campaigns;
+}
+
 export function isAuthenticatedNavigationState(
 	state: NavigationAuthState,
 ): boolean {
@@ -88,6 +149,20 @@ export function parseNavigationAuthProjection(
 			state,
 			identity: null,
 			capabilities: [],
+			campaignsState: state === "unavailable" ? "unavailable" : "none",
+			campaigns: [],
+		};
+	}
+
+	const campaignsState = parseCampaignsState(input.campaignsState);
+	const campaigns = parseCampaigns(input.campaigns);
+	if (!campaignsState || !campaigns || campaignsState === "unavailable") {
+		return {
+			state,
+			identity: parseIdentity(input.identity),
+			capabilities: parseCapabilities(input.capabilities),
+			campaignsState: "unavailable",
+			campaigns: [],
 		};
 	}
 
@@ -95,6 +170,8 @@ export function parseNavigationAuthProjection(
 		state,
 		identity: parseIdentity(input.identity),
 		capabilities: parseCapabilities(input.capabilities),
+		campaignsState,
+		campaigns,
 	};
 }
 

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sessionsSource = readFileSync(
-	new URL("../../app/edit/sessoes/page.tsx", import.meta.url),
+	new URL("../../app/edit/[campaignSlug]/sessoes/page.tsx", import.meta.url),
 	"utf8",
 );
 const reviewSource = readFileSync(
@@ -39,8 +39,10 @@ describe("canonical Edit tool links", () => {
 		expect(permissionsSource).not.toContain('href="/conta"');
 	});
 
-	it("keeps the World compatibility entrypoint campaign-explicit", () => {
+	it("keeps compatibility entrypoints campaign-explicit without duplicated navigation chrome", () => {
 		expect(editEntrySource).toContain("firstAuthorizedEditDestination");
+		expect(editEntrySource).toContain("readNavigationCampaigns");
+		expect(editEntrySource).toContain("Escolha a campanha");
 		expect(editEntrySource).toContain('redirect("/entrar?next=%2Fedit")');
 		expect(editEntrySource).not.toContain("<nav");
 		expect(editWorldEntrySource).toContain("readEditableWorldCampaigns");
@@ -48,5 +50,6 @@ describe("canonical Edit tool links", () => {
 		expect(editWorldEntrySource).toContain("Escolha a campanha");
 		expect(editWorldEntrySource).not.toContain('redirect("/mundo")');
 		expect(editWorldEntrySource).not.toContain("CAMPAIGN_SLUG");
+		expect(editWorldEntrySource).not.toContain("<nav");
 	});
 });
