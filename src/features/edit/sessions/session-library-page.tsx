@@ -1,0 +1,250 @@
+import Form from "next/form";
+import { PublicLink as Link } from "@/components/public-link";
+import { FormSubmitButton, StatusPill } from "@/components/ui";
+import { requireCampaignCapability } from "@/features/auth/server";
+import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
+import {
+	filterAndSortSessionLibrary,
+	sessionEditorialLabel,
+	sessionEditorialTone,
+	sessionLibraryArcs,
+	type SessionLibraryFilters,
+} from "@/features/edit/sessions/library";
+import { listEditSessionLibrary } from "@/features/edit/sessions/repository";
+import { SessionCampaignSelector } from "@/features/edit/sessions/session-campaign-selector";
+import { SessionLibraryThumbnail } from "@/features/edit/sessions/session-library-thumbnail";
+import styles from "@/features/edit/workbench.module.css";
+import { formatSessionDate } from "@/features/sessions/model";
+
+type SearchParams = Promise<{
+	q?: string | string[];
+	estado?: string | string[];
+	publicacao?: string | string[];
+	arco?: string | string[];
+	ordem?: string | string[];
+}>;
+
+function first(value: string | string[] | undefined): string {
+	return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+function parseFilters(params: Awaited<SearchParams>): SessionLibraryFilters {
+	const sort = first(params.ordem);
+	return {
+		query: first(params.q).slice(0, 160),
+		state: first(params.estado) || "all",
+		publication: first(params.publicacao) || "all",
+		arc: first(params.arco).slice(0, 300) || "all",
+		sort:
+			sort === "date-asc" || sort === "title" || sort === "date-desc"
+				? sort
+				: "date-desc",
+	};
+}
+
+function ErrorState({ href }: Readonly<{ href: string }>) {
+	return (
+		<section className={styles.locked}>
+			<div className={styles.muted}>TDA / EDIT / SESSÕES</div>
+			<h1>Sessões indisponíveis</h1>
+			<p className={styles.muted}>
+				Não foi possível consultar a biblioteca editorial agora. Tente novamente
+				sem assumir que a lista está vazia.
+			</p>
+			<div className={styles.libraryActions}>
+				<Link href={href}>Tentar novamente</Link>
+			</div>
+		</section>
+	);
+}
+
+export async function CampaignSessionLibraryPage({
+	campaignSlug,
+	campaignName,
+	campaignOptions,
+	searchParams,
+}: {
+	campaignSlug: string;
+	campaignName: string;
+	campaignOptions: readonly Readonly<{ technicalSlug: string; name: string }>[];
+	searchParams: SearchParams;
+}) {
+	const baseHref = "/edit/" + encodeURIComponent(campaignSlug) + "/sessoes";
+	await requireCampaignCapability(
+		EDIT_CAPABILITIES.transcriptRead,
+		campaignSlug,
+		baseHref,
+	);
+	const filters = parseFilters(await searchParams);
+
+	let sessions: Awaited<ReturnType<typeof listEditSessionLibrary>>;
+	try {
+		sessions = await listEditSessionLibrary(campaignSlug);
+	} catch {
+		return <ErrorState href={baseHref} />;
+	}
+
+	const arcs = sessionLibraryArcs(sessions);
+	const visible = filterAndSortSessionLibrary(sessions, filters);
+	const hasFilters =
+		Boolean(filters.query) ||
+		filters.state !== "all" ||
+		filters.publication !== "all" ||
+		filters.arc !== "all" ||
+		filters.sort !== "date-desc";
+
+	return (
+		<section className={styles.shell}>
+			<header className={styles.pageHeader}>
+				<div>
+					<p className={styles.libraryEyebrow}>TDA / EDIT / SESSÕES · {campaignName}</p>
+					<h1 className={[styles.pageTitle, styles.libraryTitle].join(" ")}>Biblioteca editorial</h1>
+					<details className={styles.libraryGuidance}>
+						<summary>Sobre esta biblioteca</summary>
+						<p>
+							Área privada para continuar o trabalho das sessões preparadas. O
+							estado <strong>Publicado</strong> se refere à sessão no site; a
+							transcrição continua privada no Edit.
+						</p>
+					</details>
+				</div>
+				<div className={styles.libraryCount} role="status" aria-live="polite">
+					<strong>{visible.length.toLocaleString("pt-BR")}</strong> de{" "}
+					{sessions.length.toLocaleString("pt-BR")} sessões
+				</div>
+			</header>
+
+			<Form action={baseHref} className={styles.libraryFilters}>
+				<SessionCampaignSelector
+					campaigns={campaignOptions}
+					currentCampaignSlug={campaignSlug}
+				/>
+				<label className={styles.librarySearch}>
+					<span>Buscar sessão</span>
+					<input
+						className={styles.search}
+						defaultValue={filters.query}
+						maxLength={160}
+						name="q"
+						placeholder="Título, arco ou origem"
+						type="search"
+					/>
+				</label>
+				<label>
+					<span>Estado</span>
+					<select className={styles.control} defaultValue={filters.state} name="estado">
+						<option value="all">Todos os estados</option>
+						<option value="prepared">Com transcrição preparada</option>
+						<option value="unprepared">Sem transcrição preparada</option>
+						<option value="ready_for_review">Aguardando edição</option>
+						<option value="reviewing">Em edição</option>
+						<option value="approved">Pronto para publicar</option>
+						<option value="published">Publicado</option>
+						<option value="archived">Arquivado</option>
+					</select>
+				</label>
+				<label>
+					<span>Publicação</span>
+					<select
+						className={styles.control}
+						defaultValue={filters.publication}
+						name="publicacao"
+					>
+						<option value="all">Todas</option>
+						<option value="published">Publicadas no site</option>
+						<option value="unpublished">Ainda não publicadas</option>
+					</select>
+				</label>
+				<label>
+					<span>Arco</span>
+					<select className={styles.control} defaultValue={filters.arc} name="arco">
+						<option value="all">Todos os arcos</option>
+						{arcs.map((arc) => (
+							<option key={arc} value={arc}>
+								{arc}
+							</option>
+						))}
+					</select>
+				</label>
+				<label>
+					<span>Ordenar</span>
+					<select className={styles.control} defaultValue={filters.sort} name="ordem">
+						<option value="date-desc">Sessões mais recentes</option>
+						<option value="date-asc">Sessões mais antigas</option>
+						<option value="title">Título</option>
+					</select>
+				</label>
+				<div className={styles.libraryFilterActions}>
+					<FormSubmitButton
+						className={styles.librarySubmit}
+						pendingLabel="Aplicando…"
+					>
+						Aplicar
+					</FormSubmitButton>
+					{hasFilters ? <Link href={baseHref}>Limpar filtros</Link> : null}
+				</div>
+			</Form>
+
+			{sessions.length === 0 ? (
+				<div className={styles.empty}>
+					<h2>Nenhuma sessão preparada ainda</h2>
+					<p>
+						Conclua uma transcrição em Resultados e use “Preparar sessão” para
+						trazê-la à área privada do Edit.
+					</p>
+					<Link href={"/edit/processamento?campanha=" + encodeURIComponent(campaignSlug)}>Ir para Processamento</Link>
+				</div>
+			) : visible.length === 0 ? (
+				<div className={styles.empty}>
+					<h2>Nenhuma sessão corresponde aos filtros</h2>
+					<p>Os filtros continuam ativos; limpe-os para voltar à biblioteca completa.</p>
+					<Link href={baseHref}>Limpar filtros</Link>
+				</div>
+			) : (
+				<div className={styles.libraryList}>
+					{visible.map((session) => (
+						<article className={styles.libraryRow} key={session.id}>
+							<SessionLibraryThumbnail
+								src={session.thumbnail?.src ?? null}
+								privateSource={session.thumbnail?.kind === "private"}
+							/>
+							<div className={styles.libraryPrimary}>
+								<h2 className={styles.sessionTitle}>{session.title}</h2>
+								<div className={styles.sessionMeta}>
+									<StatusPill tone={sessionEditorialTone(session)}>
+										{sessionEditorialLabel(session)}
+									</StatusPill>
+									{session.arc ? (
+										<StatusPill tone="accent">{session.arc}</StatusPill>
+									) : null}
+								</div>
+								<div className={styles.librarySecondary}>
+									<span>
+										{session.sessionDate
+											? formatSessionDate(session.sessionDate)
+											: "Data não informada"}
+									</span>
+									<span>
+										{session.transcriptPrepared
+											? "Transcrição privada preparada"
+											: "Aguardando handoff da transcrição"}
+									</span>
+									<details className={styles.libraryDetails}>
+										<summary>Detalhes</summary>
+										<span className={styles.sessionId}>{session.sourceSessionId}</span>
+									</details>
+								</div>
+							</div>
+							<Link
+								className={styles.libraryOpen}
+								href={`${baseHref}/${encodeURIComponent(session.sourceSessionId)}`}
+							>
+								Abrir sessão
+							</Link>
+						</article>
+					))}
+				</div>
+			)}
+		</section>
+	);
+}
