@@ -468,6 +468,8 @@ def create_app(
         with source_gate:
             if worker_stop.is_set():
                 raise ProfilePreparationError("AGENT_SHUTTING_DOWN")
+            if purpose == "transcription":
+                return preparation_manager.start(source_id, profile_id)
             return preparation_manager.start(source_id, profile_id, purpose)
 
     def staged_package_under_source_gate(source_id: str):
