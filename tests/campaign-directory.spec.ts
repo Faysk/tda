@@ -5,11 +5,19 @@ test("public campaign directory exposes only the synthetic public projection", a
 }) => {
 	await page.goto("/campanhas");
 
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-		"Mesas que viraram memória",
-	);
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Campanhas");
 	const cards = page.locator("article");
 	await expect(cards).toHaveCount(2);
+	await expect(cards.first()).toHaveAttribute(
+		"data-campaign-route",
+		"cronicas-da-mesa",
+	);
+	await expect(
+		cards.first().locator("[data-campaign-artwork-source]"),
+	).toHaveAttribute("data-campaign-artwork-source", "fallback");
+	const firstCardBox = await cards.first().boundingBox();
+	expect(firstCardBox).not.toBeNull();
+	expect(firstCardBox?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(600);
 	await expect(page.getByRole("heading", { name: "Crônicas da Mesa" })).toBeVisible();
 	await expect(
 		page.getByRole("heading", {
@@ -17,7 +25,7 @@ test("public campaign directory exposes only the synthetic public projection", a
 		}),
 	).toBeVisible();
 
-	const links = page.getByRole("link", { name: "Abrir sessões" });
+	const links = page.getByRole("link", { name: /Abrir campanha/u });
 	await expect(links).toHaveCount(2);
 	await expect(links.nth(0)).toHaveAttribute(
 		"href",
@@ -37,7 +45,7 @@ test("campaign cards open a campaign-qualified archive without leaking sibling s
 	await page
 		.getByRole("article")
 		.filter({ hasText: "Antes que seja tarde" })
-		.getByRole("link", { name: "Abrir sessões" })
+		.getByRole("link", { name: /Abrir campanha/u })
 		.click();
 
 	await expect(page).toHaveURL(
@@ -82,7 +90,7 @@ test("campaign directory remains keyboard reachable and free of horizontal overf
 	await page.goto("/campanhas");
 
 	await page.keyboard.press("Tab");
-	const firstArchiveLink = page.getByRole("link", { name: "Abrir sessões" }).first();
+	const firstArchiveLink = page.getByRole("link", { name: /Abrir campanha/u }).first();
 	await firstArchiveLink.focus();
 	await expect(firstArchiveLink).toBeFocused();
 

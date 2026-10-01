@@ -1856,3 +1856,25 @@ segue `docs/operations/multi-campaign-activation-gate.md`:
 
 O fallback legado de #1225 só pode ser removido em entrega posterior ao receipt
 de ativação first-class.
+
+
+## 2026-10-01 — limpeza da descrição pública legada (#1281)
+
+### `20261001211000_cleanup_legacy_campaign_public_description`
+
+Migration de conteúdo deliberadamente estreita e idempotente. Remove somente a
+descrição operacional histórica exata:
+
+`Campanha principal importada pelo pipeline local.`
+
+da row cujo technical slug é `yuhara-main`.
+
+A migration:
+
+- não inventa narrativa substituta;
+- não altera nome, UUID, slug técnico, route key, lifecycle ou visibility;
+- não toca outras campaigns nem descrições editoriais já revisadas;
+- pode ser reaplicada sem efeito adicional.
+
+A UI pública usa copy neutra quando a descrição editorial está ausente e deriva
+última memória/arte somente da projection pública de sessões.

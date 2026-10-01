@@ -1,9 +1,9 @@
 # Diretório e gestão de campanhas
 
-> Status: preparado em código; ativação depende do registry/authorization multi-campaign aplicado
+> Status: registry first-class ativo; diretório público em operação
 > Owner: campaigns / public navigation / Edit
-> Última revisão: 2026-09-30
-> Issues: #1122, #1124
+> Última revisão: 2026-10-01
+> Issues: #1122, #1124, #1281
 
 ## Objetivo
 
@@ -13,22 +13,28 @@ Este documento é dono da UX e dos contratos do diretório/registry. Identidade 
 
 ## Estado de rollout
 
-A aplicação contém as superfícies e boundaries server-side, mas os candidates de #1123/#1134 continuam em `supabase/candidates/` até promoção deliberada.
+#1284 promoveu e aplicou o registry/authorization first-class em Production. O
+estado normal do diretório agora é `registryMode=canonical`.
 
-Consequências:
+O fallback legado de #1225 permanece apenas como compatibilidade defensiva
+durante rollback/recuperação. Ele não conta como readiness first-class e não é
+autoridade para Edit.
 
-- o código **não** presume que Production já possui `public_slug`, `lifecycle` ou `visibility`;
-- ausência do schema esperado produz estado de dependência indisponível, nunca fallback para enumerar rows privadas;
-- nenhuma mutation remota é executada por existir a UI;
-- o rollout do banco continua separado pelo runbook de Production.
+A projection pública continua fail-closed para erro de banco/schema não
+reconhecido e nunca enumera campaign privada/arquivada.
 
 ## Público — `/campanhas`
 
-A projection pública contém somente:
+A projection pública de campaign contém somente:
 
 - `routeKey`;
 - `name`;
-- `description`.
+- `description`;
+- `coverImage` quando existe binding público verificado.
+
+A página compõe essa projection com **uma única leitura do arquivo público de
+sessões** para derivar apresentação editorial sem N consultas por campaign.
+Somente campos já aprovados para o arquivo público entram nessa composição.
 
 Filtros obrigatórios:
 
@@ -38,15 +44,33 @@ Filtros obrigatórios:
 
 Não entram UUID, technical slug, metadata operacional, grants, memberships ou contagens que exijam consulta privada.
 
-### Estados
+### Estados e apresentação
 
 - zero campaigns: empty state editorial;
-- uma ou mais campaigns: cards compactos;
+- uma ou mais campaigns: cards compactos e comparáveis;
 - descrição ausente: fallback neutro, sem inventar narrativa;
-- dependency failure: estado explícito, sem lista parcial;
+- dependency failure do registry: estado explícito, sem lista parcial;
+- falha apenas na leitura de sessões: campaigns continuam visíveis, sem inventar
+  contagem zero nem artwork derivado;
 - archived/private: indistinguível de ausência no diretório.
 
-Cada card aponta para o archive campaign-qualified em `/campanhas/[routeKey]/sessoes`.
+Artwork segue uma ordem determinística:
+
+1. cover pública verificada da campaign;
+2. cover da memória pública mais recente;
+3. hero da memória pública mais recente;
+4. fallback visual TDA local.
+
+A memória mais recente usa o mesmo ordering determinístico do feed público
+(data, campaign e source id). Contagem e “última memória” vêm exclusivamente da
+projection pública.
+
+Cada card aponta para o archive campaign-qualified em
+`/campanhas/[routeKey]/sessoes`.
+
+Descrições operacionais de seed/import não são apresentação editorial. #1281
+limpa o placeholder histórico conhecido no dado e a UI usa copy neutra quando
+não existe descrição editorial.
 
 ## Route key e aliases
 

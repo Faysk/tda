@@ -24,6 +24,12 @@ describe("public session boundary", () => {
 		expect(
 			toPublishedSession({ ...row, campaigns: { ...row.campaigns, visibility: "private" } }),
 		).toBeNull();
+		expect(
+			toPublishedSession({
+				...row,
+				campaigns: { ...row.campaigns, lifecycle: "archived" },
+			}),
+		).toBeNull();
 	});
 
 	it("only returns approved fields", () => {
