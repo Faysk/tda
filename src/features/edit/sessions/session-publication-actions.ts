@@ -53,7 +53,7 @@ export async function publishSessionEditorialDraftAction(
 			issues,
 		};
 
-	let sessionCampaign;
+	let sessionCampaign: Awaited<ReturnType<typeof resolveEditSessionCampaign>>;
 	try {
 		sessionCampaign = await resolveEditSessionCampaign(request.sessionId);
 	} catch {
