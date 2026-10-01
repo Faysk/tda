@@ -1,5 +1,26 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { PIPIPI_STAGE_BACKGROUND_URL } from "../src/features/lore/pipipi-assets";
+
+const pipipiManifest = JSON.parse(
+	await readFile(new URL("../media/manifests/pipipi.json", import.meta.url), "utf8"),
+) as {
+	publicOrigin: string;
+	namespace: string;
+	assets: Array<{ file: string; sha256: string; contentType: string }>;
+};
+
+const pipipiStageAsset = pipipiManifest.assets.find(
+	(asset) => asset.file === "stage-bg.avif",
+);
+if (!pipipiStageAsset) {
+	throw new Error("stage-bg.avif is missing from the canonical Pipipi media manifest");
+}
+
+const PIPIPI_STAGE_BACKGROUND_URL =
+	`${pipipiManifest.publicOrigin.replace(/\/$/, "")}/${pipipiManifest.namespace.replace(
+		/^\/+|\/+$/g,
+		"",
+	)}/${pipipiStageAsset.sha256}/${pipipiStageAsset.file}`;
 
 type StandaloneSurface = {
 	id: string;
