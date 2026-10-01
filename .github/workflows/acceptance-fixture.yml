@@ -7,6 +7,7 @@ on:
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "tools/acceptance/run-processing-final-acceptance.ps1"
+      - "tools/acceptance/run-processing-benchmark-physical-gate.ps1"
       - "tools/acceptance/run-processing-stable-smoke.ps1"
       - "tools/acceptance/run-final-current-source-acceptance.ps1"
       - "tools/acceptance/run-qwen-recovery-physical-gate.ps1"
@@ -24,6 +25,7 @@ on:
       - "tools/acceptance/run-recovery-candidate-1585a932.ps1"
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "tools/acceptance/run-processing-final-acceptance.ps1"
+      - "tools/acceptance/run-processing-benchmark-physical-gate.ps1"
       - "tools/acceptance/run-processing-stable-smoke.ps1"
       - "tools/acceptance/run-final-current-source-acceptance.ps1"
       - "tools/acceptance/run-qwen-recovery-physical-gate.ps1"
@@ -56,6 +58,7 @@ jobs:
             "tools/acceptance/run-recovery-candidate-1585a932.ps1",
             "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1",
             "tools/acceptance/run-processing-final-acceptance.ps1",
+            "tools/acceptance/run-processing-benchmark-physical-gate.ps1",
             "tools/acceptance/run-processing-stable-smoke.ps1",
             "tools/acceptance/run-final-current-source-acceptance.ps1",
             "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
@@ -1088,6 +1091,7 @@ jobs:
 
           foreach ($relative in @(
             "tools/acceptance/run-processing-final-acceptance.ps1",
+            "tools/acceptance/run-processing-benchmark-physical-gate.ps1",
             "tools/acceptance/run-processing-stable-smoke.ps1",
             "tools/acceptance/run-final-current-source-acceptance.ps1",
             "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
@@ -1125,8 +1129,14 @@ jobs:
           foreach ($required in @(
             "run-final-current-source-acceptance.ps1",
             "run-qwen-recovery-physical-gate.ps1",
-            "companion-rc-v0.3.14-74a656021208",
-            "companion-qwen-runtime-rc-v1.0.10-19d9b3b64238",
+            "run-processing-benchmark-physical-gate.ps1",
+            "CraigZip",
+            "RequiredQwenRuntimeVersion",
+            "PROCESSING_BENCHMARK_ACCEPTANCE_FAILED",
+            'real_benchmark_requested = (-not [string]::IsNullOrWhiteSpace($CraigZip))',
+            "companion-rc-v0.3.18-bb9b0a96fc30",
+            "companion-whisper-runtime-rc-v1.1.7-bb9b0a96fc30",
+            "companion-qwen-runtime-rc-v1.0.13-bb9b0a96fc30",
             "CompanionExePath",
             "CompanionPayloadManifest",
             "QwenRuntimeCandidateManifest",
