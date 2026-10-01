@@ -1329,7 +1329,7 @@ describe("wire validation", () => {
 	});
 
 	it("marks benchmark preparation with an explicit purpose without changing normal preparation", async () => {
-		const sourceId = "craig-" + "e".repeat(64);
+		const sourceId = `craig-${"e".repeat(64)}`;
 		const preparation = {
 			schema: "tda_profile_preparation_v1",
 			state: "running",
@@ -1345,7 +1345,7 @@ describe("wire validation", () => {
 			elapsed_seconds: 0,
 			error_code: null,
 		};
-		const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(preparation));
+		const request = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(preparation));
 		const bridge = new LocalBridge(request);
 		bridge.pair(token);
 
