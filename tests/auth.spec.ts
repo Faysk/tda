@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { parseNavigationAuthProjection } from "../src/components/navigation-auth";
 
 test("provider fragment cancellation becomes a fixed safe message", async ({
 	page,
@@ -48,10 +49,23 @@ test("administrative pages disclose no data when access resolution is unavailabl
 }) => {
 	const result = await request.get("/api/auth/me");
 	expect(result.status()).toBe(503);
-	expect(await result.json()).toEqual({
+	const payload = await result.json();
+	expect(payload).toEqual({
 		state: "unavailable",
-		scope: { type: "campaign", id: "yuhara-main" },
+		scope: { type: "project", id: "tda" },
+		campaignsState: "unavailable",
+		campaigns: [],
+	});
+	expect(payload).not.toHaveProperty("identity");
+	expect(payload).not.toHaveProperty("capabilities");
+
+	const projection = parseNavigationAuthProjection(payload);
+	expect(projection).toEqual({
+		state: "unavailable",
+		identity: null,
 		capabilities: [],
+		campaignsState: "unavailable",
+		campaigns: [],
 	});
 	expect(result.headers()["cache-control"]).toContain("no-store");
 
