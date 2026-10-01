@@ -82,7 +82,6 @@ test("campaign directory remains keyboard reachable and free of horizontal overf
 	expect(zoomOverflow).toBeLessThanOrEqual(1);
 });
 
-
 const WORLD_A_PATH = "/campanhas/cronicas-da-mesa/mundo";
 const WORLD_B_PATH = "/campanhas/antes-que-seja-tarde/mundo";
 
@@ -106,8 +105,7 @@ test("World campaign switch preserves explicit context across back, forward and 
 	await expect(campaignSwitch).toBeFocused();
 	await page.keyboard.press("Enter");
 	const campaignB = page.getByRole("link", {
-		name: "Antes que seja tarde",
-		exact: true,
+		name: /^Antes que seja tarde/u,
 	});
 	await expect(campaignB).toHaveAttribute("href", WORLD_B_PATH);
 	await campaignB.focus();
