@@ -1,17 +1,12 @@
 "use server";
 
-import { getVerifiedServerIdentity } from "@/features/auth/server";
-import { loadEditAccessContext } from "@/features/edit/access/repository";
-import {
-	authorizeCampaignCapability,
-	EDIT_CAPABILITIES,
-} from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
-import { getSessionCoverAssetStatusAction } from "./session-cover-media-actions";
+import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import {
 	isExistingPublishedSessionCoverReference,
 	isSessionCoverUuid,
 } from "./session-cover-media";
+import { getSessionCoverAssetStatusAction } from "./session-cover-media-actions";
+import { authorizeSessionCampaignTarget } from "./session-campaign-access";
 import {
 	type SessionEditorialDraftInput,
 	validateSessionEditorialDraftInput,
@@ -37,6 +32,7 @@ export async function saveSessionEditorialDraftAction(
 			issues: ["identity"] as const,
 		};
 	}
+
 	const issues = [...validateSessionEditorialDraftInput(input)];
 	const coverReference = input.coverAssetId.trim();
 	if (
@@ -50,33 +46,34 @@ export async function saveSessionEditorialDraftAction(
 		return { ok: false as const, reason: "validation" as const, issues };
 	}
 
-	const identity = await getVerifiedServerIdentity();
-	if (!identity.ok)
+	const access = await authorizeSessionCampaignTarget(
+		input.sessionId,
+		EDIT_CAPABILITIES.contentEdit,
+	);
+	if (!access.ok) {
 		return {
 			ok: false as const,
-			reason: identity.reason,
-			issues: [identity.reason],
+			reason: access.reason,
+			issues: [access.reason],
 		};
+	}
 
+	const { campaignTechnicalSlug, profileId } = access.target;
 	try {
-		const context = await loadEditAccessContext(identity.authUserId);
-		if (!context)
+		if (
+			coverReference &&
+			!isSessionCoverUuid(coverReference) &&
+			!isExistingPublishedSessionCoverReference(
+				coverReference,
+				campaignTechnicalSlug,
+			)
+		) {
 			return {
 				ok: false as const,
-				reason: "dependency_unavailable" as const,
-				issues: ["dependency_unavailable"] as const,
+				reason: "validation" as const,
+				issues: ["cover_asset_unverified"] as const,
 			};
-		const access = authorizeCampaignCapability(
-			context,
-			EDIT_CAPABILITIES.contentEdit,
-			CAMPAIGN_SLUG,
-		);
-		if (!access.ok)
-			return {
-				ok: false as const,
-				reason: access.reason,
-				issues: [access.reason],
-			};
+		}
 
 		if (coverReference && isSessionCoverUuid(coverReference)) {
 			const cover = await getSessionCoverAssetStatusAction(
@@ -98,11 +95,18 @@ export async function saveSessionEditorialDraftAction(
 			}
 		}
 
-		const result = await persistSessionEditorialDraft(access.profileId, input);
+		const result = await persistSessionEditorialDraft(
+			profileId,
+			input,
+			campaignTechnicalSlug,
+		);
 		if (!result.ok) {
 			const remote =
 				result.reason === "conflict"
-					? await readSessionEditorialDraft(input.sessionId)
+					? await readSessionEditorialDraft(
+							input.sessionId,
+							campaignTechnicalSlug,
+						)
 					: null;
 			return {
 				ok: false as const,
@@ -112,7 +116,10 @@ export async function saveSessionEditorialDraftAction(
 			};
 		}
 
-		const saved = await readSessionEditorialDraft(input.sessionId);
+		const saved = await readSessionEditorialDraft(
+			input.sessionId,
+			campaignTechnicalSlug,
+		);
 		if (!saved || saved.revision !== result.revision)
 			return {
 				ok: false as const,
