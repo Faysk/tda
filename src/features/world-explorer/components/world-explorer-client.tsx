@@ -128,6 +128,7 @@ export function WorldExplorerClient({
 	projection,
 	campaignSlug,
 	campaignName,
+	campaignWorldHref,
 	campaignSwitchOptions,
 	canEditLayout = false,
 	canEditContent = false,
@@ -135,6 +136,7 @@ export function WorldExplorerClient({
 	projection: WorldGraphProjection;
 	campaignSlug: string;
 	campaignName: string;
+	campaignWorldHref: string;
 	campaignSwitchOptions: readonly WorldCampaignSwitchOption[];
 	canEditLayout?: boolean;
 	canEditContent?: boolean;
@@ -802,6 +804,7 @@ export function WorldExplorerClient({
 							selected={selected}
 							projection={visibleProjection}
 							focus={focus}
+							worldHref={campaignWorldHref}
 							onSelect={setSelectedId}
 							editing={edit.editing}
 						/>
