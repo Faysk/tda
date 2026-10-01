@@ -341,13 +341,14 @@ Falhas conhecidas do decoder agora devem sair como código estável `WHISPER_DEC
 `transcription=""` não pode ser tratado como silêncio sem evidência do sinal. O runtime Qwen `1.0.13` introduz um gate conservador somente para esse caso:
 
 - PCM inteiro da janela com `peak <= -84 dBFS` **e** `RMS <= -90 dBFS` → janela confirmada como silêncio quase digital, zero segmentos, timeline/progresso/checkpoint preservados;
-- qualquer energia acima desses limites → `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN`, sem descartar fala silenciosamente;
+- no `1.0.14`, vazio com sinal ganha no máximo uma segunda inferência no **mesmo modelo**, depois de aparar somente blocos inteiros de 1 s nas bordas que também comprovem silêncio quase digital pelos mesmos thresholds; nenhum bloco com sinal é removido;
+- retry reconhecido → texto real é alinhado contra a janela original e recebe provenance `qwen_empty_signal_edge_trim_recovery`; sem borda removível ou retry ainda vazio → `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN`, sem descartar fala silenciosamente;
 - resposta estruturada inválida → `QWEN_ASR_OUTPUT_INVALID`;
 - eventos de diagnóstico podem conter apenas números/índices/duração; nunca áudio, texto reconhecido, path local ou conteúdo privado.
 
 O aceite físico deve repetir a amostra Craig real de 300 s em `qwen-fast` e `qwen-quality`. Se a janela original reproduzir o vazio, o receipt precisa registrar `peak_dbfs`, `rms_dbfs`, thresholds, track/window e o desfecho sem conteúdo. Só depois o mesmo candidato imutável pode avançar de RC para Stable.
 
-Rollback do candidato: `1.0.12` continua compatível e imutável enquanto `1.0.13` está em aceite. Falha do RC mantém a Stable anterior; reversão local usa os bytes verificados do tag `companion-qwen-runtime-v1.0.12` e restaura o ponteiro ativo sem reescrever o candidato.
+Rollback do candidato: `1.0.12` continua sendo a Stable compatível e imutável durante o aceite do novo `1.0.14`; o `1.0.13` permanece um candidato imutável que falhou no full-recovery real. Falha do `1.0.14` mantém a Stable anterior; reversão local usa os bytes verificados do tag `companion-qwen-runtime-v1.0.12` e restaura o ponteiro ativo sem reescrever nenhum candidato.
 
 ## Definition of Done de uma próxima stable confiável
 
