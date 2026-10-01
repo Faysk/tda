@@ -273,11 +273,14 @@ function Test-Runtime([object]$Candidate) {
   try {
     $root=Join-Path $env:LOCALAPPDATA "TDA\Runtime\$family"
     $current=Read-Json (Join-Path $root "current.json") "RUNTIME_CURRENT_INVALID"
-    if([string]$current.runtime_id -ne [string]$Candidate.runtime_id -or [string]$current.version -ne [string]$Candidate.version){return $false}
+    if([string]$current.schema -ne "tda_asr_runtime_v1" -or
+       [string]$current.runtime_id -ne [string]$Candidate.runtime_id -or
+       [string]$current.version -ne [string]$Candidate.version){return $false}
     $versionRoot=Join-Path $root ([string]$Candidate.version)
     $marker=Read-Json (Join-Path $versionRoot ".tda-runtime.json") "RUNTIME_MARKER_INVALID"
     $workerPath=Join-Path $versionRoot $worker
-    if([string]$marker.runtime_id -ne [string]$Candidate.runtime_id -or
+    if([string]$marker.schema -ne "tda_asr_runtime_v1" -or
+       [string]$marker.runtime_id -ne [string]$Candidate.runtime_id -or
        [string]$marker.version -ne [string]$Candidate.version -or
        [string]$marker.worker -ne $worker -or
        [string]$marker.archive_sha256 -ne [string]$Candidate.runtime_archive_sha256 -or
@@ -324,7 +327,17 @@ function Install-WhisperRuntimeArchiveForAcceptance([object]$Candidate,[string]$
   $current=Join-Path $runtimeRoot "current.json"
   if(Test-Runtime $Candidate){Write-Host "whisper exact runtime already ready." -ForegroundColor Green;return}
 
+  if(Test-Path -LiteralPath $runtimeRoot){
+    $rootItem=Get-Item -LiteralPath $runtimeRoot -Force
+    if(($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw "RUNTIME_DIRECT_ROOT_REPARSE_POINT"}
+  }
   New-Item -ItemType Directory -Force -Path $runtimeRoot | Out-Null
+  foreach($existing in @($target,$current)){
+    if(Test-Path -LiteralPath $existing){
+      $item=Get-Item -LiteralPath $existing -Force
+      if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw "RUNTIME_DIRECT_TARGET_REPARSE_POINT"}
+    }
+  }
   $suffix=[Guid]::NewGuid().ToString("N")
   $staging=Join-Path $runtimeRoot ".$version-$suffix.partial"
   $backupTarget=Join-Path $runtimeRoot ".$version-$suffix.acceptance-backup"
