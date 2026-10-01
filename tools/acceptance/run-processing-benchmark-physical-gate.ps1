@@ -53,6 +53,33 @@ function Assert-Sha256([object]$Value, [string]$Code) {
     if ([string]$Value -notmatch '^[a-f0-9]{64}$') { Fail $Code }
 }
 
+function Assert-RuntimeCandidateCompatibility([object]$Candidate, [string]$Family, [Version]$MinimumVersion) {
+    $sourceSha = [string](Get-OptionalPropertyValue $Candidate "source_sha")
+    $sourceTreeSha = [string](Get-OptionalPropertyValue $Candidate "source_tree_sha")
+    $candidateTag = [string](Get-OptionalPropertyValue $Candidate "candidate_tag")
+    $versionText = [string](Get-OptionalPropertyValue $Candidate "version")
+    if (
+        $sourceSha -notmatch '^[a-f0-9]{40}$' -or
+        $sourceTreeSha -notmatch '^[a-f0-9]{40}$'
+    ) { Fail ("BENCHMARK_RUNTIME_SOURCE_IDENTITY_INVALID:" + $Family) }
+
+    try { $version = [Version]$versionText }
+    catch { Fail ("BENCHMARK_RUNTIME_VERSION_INVALID:" + $Family) }
+    if ($version -lt $MinimumVersion) {
+        Fail ("BENCHMARK_RUNTIME_VERSION_UNSUPPORTED:" + $Family)
+    }
+
+    $tagPattern = if ($Family -eq "whisper") {
+        '^companion-whisper-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$'
+    } else {
+        '^companion-qwen-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$'
+    }
+    if (
+        $candidateTag -notmatch $tagPattern -or
+        -not $candidateTag.EndsWith($sourceSha.Substring(0, 12))
+    ) { Fail ("BENCHMARK_RUNTIME_CANDIDATE_TAG_INVALID:" + $Family) }
+}
+
 function Get-AgentHealth {
     try {
         $value = Invoke-RestMethod -NoProxy -Method Get -Uri "http://127.0.0.1:$Port/api/v1/health" -TimeoutSec 2
@@ -281,6 +308,9 @@ function Assert-RuntimeCurrent([object]$Candidate, [string]$Family, [string]$Run
         family = $Family
         version = $version
         runtime_id = $RuntimeId
+        candidate_tag = [string](Get-OptionalPropertyValue $Candidate "candidate_tag")
+        source_sha = [string](Get-OptionalPropertyValue $Candidate "source_sha")
+        source_tree_sha = [string](Get-OptionalPropertyValue $Candidate "source_tree_sha")
         archive_sha256 = $candidateArchive
         worker_sha256 = $workerSha
     }
@@ -350,6 +380,9 @@ function Assert-BenchmarkResult(
                 family = $family
                 version = [string](Get-OptionalPropertyValue $artifact "version")
                 runtime_id = [string](Get-OptionalPropertyValue $artifact "runtime_id")
+                candidate_tag = [string](Get-OptionalPropertyValue $candidate "candidate_tag")
+                source_sha = [string](Get-OptionalPropertyValue $candidate "source_sha")
+                source_tree_sha = [string](Get-OptionalPropertyValue $candidate "source_tree_sha")
                 archive_sha256 = $archiveSha
                 worker_sha256 = $workerSha
             }
@@ -383,10 +416,8 @@ if (
     [string](Get-OptionalPropertyValue $payload "source_tree_sha") -notmatch '^[a-f0-9]{40}$'
 ) { Fail "BENCHMARK_COMPANION_PAYLOAD_IDENTITY_INVALID" }
 
-if (
-    [string](Get-OptionalPropertyValue $whisperCandidate "source_sha") -ne [string](Get-OptionalPropertyValue $payload "source_sha") -or
-    [string](Get-OptionalPropertyValue $qwenCandidate "source_sha") -ne [string](Get-OptionalPropertyValue $payload "source_sha")
-) { Fail "BENCHMARK_CURRENT_SOURCE_MISMATCH" }
+Assert-RuntimeCandidateCompatibility $whisperCandidate "whisper" ([Version]"1.1.7")
+Assert-RuntimeCandidateCompatibility $qwenCandidate "qwen" ([Version]"1.0.13")
 
 $gpuRows = @(& nvidia-smi --query-gpu=name,driver_version --format=csv,noheader,nounits 2>$null)
 if ($LASTEXITCODE -ne 0) { Fail "BENCHMARK_NVIDIA_SMI_FAILED" }
