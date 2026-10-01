@@ -32,10 +32,8 @@ param(
     [string]$Origin = "https://dnd.faysk.dev",
     [string]$OutputRoot = ""
 )
-
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
-
 $PackSchema = "tda_qwen_recovery_physical_gate_v1"
 $StartedAt = [DateTimeOffset]::UtcNow
 $OriginalLocalAppData = [string]$env:LOCALAPPDATA
@@ -50,15 +48,12 @@ $EventSeen = @{}
 $EventCollectors = @{}
 $Verdict = "HARNESS_FAILED"
 $VerdictCode = "HARNESS_UNCLASSIFIED"
-
 function Fail-Harness([string]$Code) { throw [InvalidOperationException]::new("HARNESS_FAILED:$Code") }
 function Fail-Product([string]$Code) { throw [InvalidOperationException]::new("PRODUCT_FAILED:$Code") }
 function Fail-Blocked([string]$Code) { throw [InvalidOperationException]::new("BLOCKED:$Code") }
-
 function Get-Sha256([string]$Path) {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
-
 function Write-Json([string]$Path, [object]$Value) {
     $parent = Split-Path -Parent $Path
     if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
@@ -66,12 +61,10 @@ function Write-Json([string]$Path, [object]$Value) {
     $Value | ConvertTo-Json -Depth 64 | Set-Content -LiteralPath $temporary -Encoding UTF8
     Move-Item -LiteralPath $temporary -Destination $Path -Force
 }
-
 function Read-Json([string]$Path, [string]$Code) {
     try { return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 64 }
     catch { Fail-Harness $Code }
 }
-
 function Get-OptionalPropertyValue([object]$Object, [string]$Name) {
     if ($null -eq $Object) { return $null }
     if ($Object -is [System.Collections.IDictionary]) {
@@ -82,39 +75,32 @@ function Get-OptionalPropertyValue([object]$Object, [string]$Name) {
     if ($null -eq $property) { return $null }
     return $property.Value
 }
-
 function Get-RequiredProductPropertyValue([object]$Object, [string]$Name, [string]$Code) {
     $value = Get-OptionalPropertyValue $Object $Name
     if ($null -eq $value) { Fail-Product $Code }
     return $value
 }
-
 function Get-RequiredHarnessPropertyValue([object]$Object, [string]$Name, [string]$Code) {
     $value = Get-OptionalPropertyValue $Object $Name
     if ($null -eq $value) { Fail-Harness $Code }
     return $value
 }
-
 function Get-ErrorDetailMessage([object]$ErrorRecord) {
     $details = Get-OptionalPropertyValue $ErrorRecord "ErrorDetails"
     return [string](Get-OptionalPropertyValue $details "Message")
 }
-
 function Get-GhJson([string]$Path, [string]$Code) {
     $raw = & gh api $Path 2>&1
     if ($LASTEXITCODE -ne 0) { Fail-Harness $Code }
     try { return ($raw | Out-String) | ConvertFrom-Json -Depth 64 }
     catch { Fail-Harness $Code }
 }
-
 function Assert-HexSha([string]$Value, [string]$Code) {
     if ($Value.ToLowerInvariant() -notmatch '^[a-f0-9]{40}$') { Fail-Harness $Code }
 }
-
 function Assert-HexSha256([string]$Value, [string]$Code) {
     if ($Value.ToLowerInvariant() -notmatch '^[a-f0-9]{64}$') { Fail-Harness $Code }
 }
-
 function Assert-WorkflowArtifact(
     [long]$WorkflowRunId,
     [long]$ArtifactId,
@@ -129,7 +115,6 @@ function Assert-WorkflowArtifact(
     }
     if ([string]$run.event -ne "pull_request") { Fail-Harness "WORKFLOW_RUN_EVENT_INVALID:$WorkflowRunId" }
     if ([string]$run.head_sha -ne $PrHeadSha) { Fail-Harness "WORKFLOW_RUN_HEAD_MISMATCH:$WorkflowRunId" }
-
     $collection = Get-GhJson "repos/$Repository/actions/runs/$WorkflowRunId/artifacts?per_page=100" "WORKFLOW_ARTIFACT_LIST_FAILED"
     $artifactMatches = @($collection.artifacts | Where-Object { [long]$_.id -eq $ArtifactId })
     if ($artifactMatches.Count -ne 1) { Fail-Harness ("ARTIFACT_NOT_BOUND_TO_WORKFLOW:{0}:{1}" -f $WorkflowRunId, $ArtifactId) }
@@ -151,12 +136,10 @@ function Assert-WorkflowArtifact(
         expires_at = [string]$value.expires_at
     }
 }
-
 function Assert-GatePortFree {
     $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
     if ($listeners.Count -gt 0) { Fail-Blocked "GATE_PORT_IN_USE:$Port" }
 }
-
 function Copy-IsolatedQwenModels([string]$SourceRoot, [string]$DestinationRoot, [string]$ScratchPath) {
     $directories = @(
         "qwen3-asr-0.6b-hf",
@@ -179,7 +162,6 @@ function Copy-IsolatedQwenModels([string]$SourceRoot, [string]$DestinationRoot, 
         $modelBytes += $bytes
         $sources.Add([ordered]@{ name = $name; path = $source; bytes = $bytes })
     }
-
     $root = [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($ScratchPath))
     $drive = [IO.DriveInfo]::new($root)
     [long]$runtimeScratchBytes = if ($ExactRcMode) {
@@ -193,7 +175,6 @@ function Copy-IsolatedQwenModels([string]$SourceRoot, [string]$DestinationRoot, 
     if ([long]$drive.AvailableFreeSpace -lt $requiredFree) {
         Fail-Blocked "SCRATCH_DISK_SPACE_INSUFFICIENT"
     }
-
     New-Item -ItemType Directory -Force -Path $DestinationRoot | Out-Null
     foreach ($row in $sources) {
         Write-Host ("Copying isolated model {0} ({1:N2} GB)..." -f $row.name, ($row.bytes / 1GB)) -ForegroundColor DarkCyan
@@ -206,7 +187,6 @@ function Copy-IsolatedQwenModels([string]$SourceRoot, [string]$DestinationRoot, 
     }
     return [ordered]@{ model_bytes = $modelBytes; required_free_bytes = $requiredFree; free_bytes_before = [long]$drive.AvailableFreeSpace }
 }
-
 function Download-ArtifactZip([long]$ArtifactId, [long]$ExpectedSize, [string]$ExpectedDigest, [string]$Destination) {
     Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
     & gh api "repos/$Repository/actions/artifacts/$ArtifactId/zip" > $Destination
@@ -216,7 +196,6 @@ function Download-ArtifactZip([long]$ArtifactId, [long]$ExpectedSize, [string]$E
     if ([long]$item.Length -ne $ExpectedSize) { Fail-Harness "ARTIFACT_DOWNLOAD_SIZE_MISMATCH:$ArtifactId" }
     if ((Get-Sha256 $Destination) -ne $ExpectedDigest) { Fail-Harness "ARTIFACT_DOWNLOAD_HASH_MISMATCH:$ArtifactId" }
 }
-
 function Sanitize-Job([object]$Job) {
     if ($null -eq $Job) { return $null }
     $attempt = Get-OptionalPropertyValue $Job "attempt"
@@ -233,7 +212,6 @@ function Sanitize-Job([object]$Job) {
         updated_at = [string](Get-OptionalPropertyValue $Job "updated_at")
     }
 }
-
 function Sanitize-Event([object]$Event) {
     if ($null -eq $Event) { Fail-Product "JOB_EVENT_NULL" }
     $sequence = Get-RequiredProductPropertyValue $Event "seq" "JOB_EVENT_SEQ_MISSING"
@@ -303,7 +281,6 @@ function Sanitize-Event([object]$Event) {
         data = $data
     }
 }
-
 function Get-MaxEventSequence([object[]]$Events) {
     [int]$maximum = 0
     foreach ($event in @($Events)) {
@@ -315,7 +292,6 @@ function Get-MaxEventSequence([object[]]$Events) {
     }
     return $maximum
 }
-
 function Assert-RetryCheckpointEvidence(
     [object[]]$Events,
     [int]$PreCrashMaxSeq,
@@ -346,7 +322,6 @@ function Assert-RetryCheckpointEvidence(
     }
     return $retryEvents
 }
-
 function Sanitize-LogRow([object]$Row) {
     $context = [ordered]@{}
     $sourceContext = Get-OptionalPropertyValue $Row "context"
