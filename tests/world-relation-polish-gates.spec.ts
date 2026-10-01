@@ -19,7 +19,7 @@ test("World relation hover reinforces exactly one path and its two endpoints", a
 	test.skip(testInfo.project.name === "mobile", "Fine-pointer relation hover contract.");
 
 	await page.setViewportSize({ width: 1366, height: 768 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await closeWorkspaceOverlays(page);
 
 	const edgeId = "astel-raven-queen";
@@ -50,7 +50,7 @@ test("World selected relations expose an actionable continuation cue when zoom p
 	test.skip(testInfo.project.name === "mobile", "Desktop off-screen continuation receipt.");
 
 	await page.setViewportSize({ width: 1366, height: 768 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await closeWorkspaceOverlays(page);
 
 	const astel = page.locator('[data-world-node="astel"]');
@@ -85,7 +85,7 @@ test("World canvas utilities keep independent corner safe areas without overlapp
 	test.skip(testInfo.project.name === "mobile", "Desktop corner geometry contract.");
 
 	await page.setViewportSize({ width: 1920, height: 1080 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	const canvas = page.getByTestId("world-canvas");
 	const filterRail = page.getByTestId("world-filter-rail");
