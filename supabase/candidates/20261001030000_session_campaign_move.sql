@@ -29,7 +29,7 @@ create or replace function public.session_campaign_move_dependency_count(
 returns bigint
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = pg_catalog, public
 as $tda_move$
 declare
@@ -68,7 +68,7 @@ create or replace function public.session_campaign_move_blockers(
 returns jsonb
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = pg_catalog, public
 as $tda_move$
 declare
@@ -197,7 +197,7 @@ create or replace function public.preflight_session_campaign_move(
 returns jsonb
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = pg_catalog, public
 as $tda_move$
 declare
@@ -324,7 +324,7 @@ create or replace function public.move_session_campaign_atomic(
 )
 returns jsonb
 language plpgsql
-security invoker
+security definer
 set search_path = pg_catalog, public
 as $tda_move$
 declare
