@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { LORE_EDITORIAL_REGISTRY } from "./registry";
 import {
@@ -6,20 +6,37 @@ import {
 	listedLoreCatalogueEntries,
 } from "./standalone-catalog";
 
-function childDirectories(url: URL) {
-	return readdirSync(url, { withFileTypes: true })
+function implementedAppLoreRoutes() {
+	const root = new URL("../../app/lore/", import.meta.url);
+	return readdirSync(root, { withFileTypes: true })
 		.filter((entry) => entry.isDirectory())
+		.filter(
+			(entry) =>
+				existsSync(new URL(`${entry.name}/page.tsx`, root)) ||
+				existsSync(new URL(`${entry.name}/route.ts`, root)),
+		)
+		.map((entry) => entry.name);
+}
+
+function implementedStaticLoreRoutes() {
+	const root = new URL("../../../public/lore/", import.meta.url);
+	return readdirSync(root, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.filter((entry) => existsSync(new URL(`${entry.name}/index.html`, root)))
 		.map((entry) => entry.name);
 }
 
 function implementedLoreRoutes() {
-	const appRoutes = childDirectories(
-		new URL("../../app/lore/", import.meta.url),
+	const appRoutes = implementedAppLoreRoutes();
+	const staticRoutes = implementedStaticLoreRoutes();
+	const implementations = [...appRoutes, ...staticRoutes];
+
+	expect(new Set(implementations).size).toBe(
+		implementations.length,
+		"a lore slug must not be implemented by both app and static delivery",
 	);
-	const publicRoutes = childDirectories(
-		new URL("../../../public/lore/", import.meta.url),
-	);
-	return [...new Set([...appRoutes, ...publicRoutes])].sort();
+
+	return implementations.sort();
 }
 
 describe("lore route, registry and catalogue contract", () => {
