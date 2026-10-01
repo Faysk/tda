@@ -58,6 +58,7 @@ export default async function CampaignWorldPage({ params, searchParams }: Props)
 				key: campaign.routeKey,
 				name: campaign.name,
 				href: worldPublicCampaignHref(campaign.routeKey, focus),
+				current: campaign.routeKey === resolved.campaign.routeKey,
 			}))
 		: [];
 
