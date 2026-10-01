@@ -517,6 +517,7 @@ jobs:
             "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING",
             "JOB_EVENTS_RESPONSE_INVALID",
             "ASR_TEXT_CHECKPOINT_EVENT_TRACK_MISSING",
+            'marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema_version")',
             "error_id =",
             "Set-StrictMode -Version Latest"
           )) {
