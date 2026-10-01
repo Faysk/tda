@@ -109,6 +109,9 @@ export async function WorldCampaignPage({
 	}
 
 	const focusId = resolveWorldFocusId(dataset, requestedFocus);
+	const campaignWorldHref =
+		switchOptions.find((option) => option.current)?.href.split("?")[0] ??
+		`/campanhas/${campaign.routeKey}/mundo`;
 	const projection = buildWorldProjection(dataset, focusId);
 	projection.layout = await loadPublishedWorldLayout(
 		projection,
@@ -140,6 +143,7 @@ export async function WorldCampaignPage({
 					projection={projection}
 					campaignSlug={campaign.technicalSlug}
 					campaignName={campaign.name}
+					campaignWorldHref={campaignWorldHref}
 					campaignSwitchOptions={switchOptions}
 					canEditLayout={canEditLayout}
 					canEditContent={fullWorldEditor}
