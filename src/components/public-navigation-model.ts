@@ -84,10 +84,7 @@ export function toolNavigationItemsForCampaign(
 		}
 	}
 
-	if (
-		technicalSlug === LEGACY_CAMPAIGN_TECHNICAL_SLUG &&
-		allowed.has(EDIT_CAPABILITIES.localProcess)
-	) {
+	if (allowed.has(EDIT_CAPABILITIES.localProcess)) {
 		items.push({
 			href: campaignQuery("/edit/processamento", technicalSlug),
 			label: "Processar",
