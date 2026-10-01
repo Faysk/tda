@@ -23,7 +23,7 @@ test("World Workspace keeps primary chrome available while navigation overlays a
 	page,
 }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	const canvas = page.getByTestId("world-canvas");
 	await expect(canvas).toBeVisible();
@@ -47,7 +47,7 @@ test("World Workspace chrome preserves transient view/filter state without creat
 	page,
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	await expectWorkspaceChromeAvailable(page);
 	await closeWorkspaceOverlays(page);
