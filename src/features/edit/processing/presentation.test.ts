@@ -66,6 +66,9 @@ describe("processing presentation", () => {
 		expect(presentJobError("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")).toContain(
 			"validação física",
 		);
+		expect(presentJobError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")).toBe(
+			"O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. Se este job usou Qwen Fast, selecione Qwen Quality no formulário e envie a mesma sessão novamente.",
+		);
 		expect(presentJobError("WHISPER_RUNTIME_UNAVAILABLE")).toContain(
 			"Whisper",
 		);
