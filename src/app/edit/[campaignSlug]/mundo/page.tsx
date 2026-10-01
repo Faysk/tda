@@ -50,6 +50,7 @@ export default async function EditCampaignWorldPage({ params, searchParams }: Pr
 			key: item.technicalSlug,
 			name: item.name,
 			href: worldEditCampaignHref(item.technicalSlug, focus),
+			current: item.technicalSlug === campaign.technicalSlug,
 		}),
 	);
 
