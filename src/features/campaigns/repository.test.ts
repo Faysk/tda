@@ -3,12 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	publishedDataClient: vi.fn(),
 	editDataClient: vi.fn(),
+	readPublicCampaignCovers: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/integrations/supabase/server", () => ({
 	publishedDataClient: mocks.publishedDataClient,
 	editDataClient: mocks.editDataClient,
+}));
+vi.mock("./campaign-cover-repository", () => ({
+	readPublicCampaignCovers: mocks.readPublicCampaignCovers,
 }));
 
 type QueryResult = Readonly<{ data: unknown; error: unknown }>;
@@ -66,6 +70,7 @@ describe("public campaign registry compatibility", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mocks.editDataClient.mockReturnValue(null);
+		mocks.readPublicCampaignCovers.mockResolvedValue(new Map());
 	});
 
 	it("restores the legacy public directory on a real PostgreSQL 42703 SELECT gap", async () => {
@@ -137,6 +142,46 @@ describe("public campaign registry compatibility", () => {
 			campaign: { routeKey: "cronicas-da-mesa", technicalSlug: "yuhara-main" },
 			canonical: false,
 		});
+	});
+
+	it("keeps a campaign cover stable when an old public route resolves through an alias", async () => {
+		const campaignId = "11111111-1111-4111-8111-111111111111";
+		const coverUrl =
+			"https://media.dnd.faysk.dev/campaigns/stable-campaign/campaign/cover/" +
+			"a".repeat(64) +
+			".webp";
+		const canonical = queryWith({ data: null, error: null });
+		const alias = queryWith({ data: { campaign_id: campaignId }, error: null });
+		const resolved = queryWith({
+			data: {
+				id: campaignId,
+				slug: "stable-campaign",
+				public_slug: "renamed-public-route",
+				name: "Campaign renamed in public",
+				description: "Alias keeps the same storage identity.",
+			},
+			error: null,
+		});
+		const client = clientWith(canonical, alias, resolved);
+		mocks.publishedDataClient.mockReturnValue(client);
+		mocks.readPublicCampaignCovers.mockResolvedValue(
+			new Map([[campaignId, coverUrl]]),
+		);
+
+		await expect(resolvePublicCampaignRoute("old-public-route")).resolves.toEqual({
+			ok: true,
+			campaign: {
+				technicalSlug: "stable-campaign",
+				routeKey: "renamed-public-route",
+				name: "Campaign renamed in public",
+				description: "Alias keeps the same storage identity.",
+				coverImage: coverUrl,
+			},
+			canonical: false,
+		});
+		expect(mocks.readPublicCampaignCovers).toHaveBeenCalledWith(client, [
+			{ campaignId, campaignMediaKey: "stable-campaign" },
+		]);
 	});
 
 	it("does not use legacy fallback for unknown routes when the registry is absent", async () => {
