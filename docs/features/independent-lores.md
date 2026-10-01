@@ -33,7 +33,7 @@ Estado editorial definido para o momento:
 | Pipipi | Preservar entrada existente | Não inferir novos vínculos desta decisão |
 | Astel e Noah | Listar; inclusão explicitamente solicitada, preparada localmente | Ligações editoriais por slug de personagem, sem criar dados narrativos |
 | D | Não listar; acesso pela URL própria | Binding editorial explícito para `antes-que-seja-tarde`; resolve somente quando a campaign existir, sem criar entity/canon/session |
-| Seika | Não listar; acesso pela URL própria | Não faz parte da campanha principal |
+| Seika | Listar no catálogo curado | Binding editorial para `antes-que-seja-tarde`; não cria entity/canon/session |
 | Yllith | Não listar; acesso pela URL própria quando publicada | Não faz parte da campanha principal |
 | Futuras lores independentes | Não listar automaticamente; inclusão exige escolha editorial | Não assumir vínculo |
 
@@ -58,7 +58,7 @@ Acessibilidade e integridade não prescrevem uma estética. Uma abertura cinemat
 O documento dono de cada lore registra: slug/URL, fonte oficial, responsável, identidade visual/referência aprovada, vínculo narrativo conhecido ou ausente, decisão de listagem, assets/manifesto e evidência da publicação. São requisitos documentais; não introduzem schema ou nova plataforma nesta entrega.
 
 - [ ] Página funciona por acesso direto, sem depender do catálogo ou da presença de uma campaign vinculada.
-- [ ] Listagem corresponde à decisão editorial; D, Seika e Yllith ausentes do catálogo enquanto essa decisão permanecer.
+- [ ] Listagem corresponde à decisão editorial vigente; Seika aparece no catálogo curado, enquanto D/Yllith permanecem fora até a slice #1286.
 - [ ] Identidade visual da própria lore foi avaliada.
 - [ ] Imagens carregam, decodificam e preservam proporções e detalhes nas superfícies reais.
 - [ ] Preview do link representa a página individual.

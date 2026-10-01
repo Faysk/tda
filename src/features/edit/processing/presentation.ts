@@ -88,6 +88,7 @@ export function presentJobError(code: string): string {
 		QWEN_RUNTIME_UNAVAILABLE: "O runtime Qwen local não está disponível ou não passou pela verificação.",
 		QWEN_RUNTIME_UNCONFIGURED: "O runtime Qwen ainda não está configurado neste Companion.",
 		QWEN_PHYSICAL_ACCEPTANCE_REQUIRED: "O Qwen precisa concluir novamente a validação física de runtime, modelo e GPU antes de processar.",
+		QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN: "O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. Se este job usou Qwen Fast, selecione Qwen Quality no formulário e envie a mesma sessão novamente.",
 		WORKER_RESULT_RUN_INVALID: "O run local falhou na validação de integridade.",
 		WORKER_RESULT_RUN_MISMATCH: "O run local não corresponde a este job e tentativa.",
 		WORKER_RESULT_INCOMPLETE: "O worker terminou sem concluir todas as unidades exigidas pela fila.",

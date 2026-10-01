@@ -72,6 +72,19 @@ Acompanhar o lifecycle completo:
 Falha antes do promote não deve mover o domínio oficial.
 
 
+### Identidade imutável de Runtime RC
+
+A descoberta automática de Runtime RC é fail-closed por versão semântica exata:
+
+1. para a família e versão esperadas, **zero** prereleases publicadas compatíveis significa candidato ainda não publicado;
+2. **exatamente uma** prerelease publicada compatível pode seguir para validação de tag, source, manifesto, assets e SHA-256;
+3. **mais de uma** prerelease publicada para a mesma família e versão é ambígua e deve abortar; publicação/ID mais recente nunca desempata identidade;
+4. drafts, releases que não são prerelease e versões diferentes são ignoradas;
+5. tag/candidate tag, family, version, source SHA, conjunto de assets, tamanhos e digests continuam exatos e fail-closed;
+6. qualquer mudança de source ou bytes do runtime exige **nova versão semântica**. Não reutilizar uma versão já publicada para um RC materialmente diferente.
+
+Isso preserva a identidade imutável do runtime entre descoberta, aceite físico, promoção e rollback. Se houver colisão de versão, corrigir a publicação/versionamento; não introduzir regra de “latest wins”.
+
 ### Exceção versionada de validação em Production — #628
 
 Para a recuperação do Qwen em #628, o proprietário autorizou explicitamente usar
@@ -120,6 +133,19 @@ A correção de contenção altera o adapter/worker empacotado e portanto exige 
 7. Depois da revisão do receipt sanitizado, copiar esse arquivo para `docs/companion/runtime-acceptance/<candidate-tag>.whisper-1235.json`. O workflow `Runtime Promote Stable` recusa o Whisper 1.1.8 se esse sidecar não corresponder ao mesmo candidate tag, source SHA/tree, workflow run e archive SHA-256; o sidecar é anexado à própria release antes da troca de canal.
 8. Qualquer falha de contenção, duração, ordering, dedup, turns ou integridade aborta a promoção. O contrato `tda_transcript_v1` continua estrito; não clipar/remover palavras nem reescrever run concluído para fazê-lo passar.
 9. Rollback seleciona um runtime Whisper anterior já publicado e compatível, preservando Models/Data/runs. Correção posterior recebe nova versão imutável.
+
+
+### Whisper Runtime 1.1.9 / cold-start do decode smoke — #1277
+
+O Runtime 1.1.8 de #1234/#1235 permanece imutável. O endurecimento do orçamento de cold-start do decoder começa somente na nova identidade **Whisper Runtime 1.1.9**.
+
+1. O smoke empacotado continua obrigatório e executa WAV e FLAC reais por `faster_whisper.audio.decode_audio`; não substituir por probe sintético.
+2. Faster-Whisper 1.2.1, CTranslate2 4.8.2 e PyAV 18.1.0 permanecem fixados neste corte; schema, sample rate e sample count continuam fail-closed.
+3. Apenas o subprocesso congelado de `--decode-smoke` recebe orçamento explícito e limitado de **90 s** para absorver variância de loader/AV/scheduler no Windows. O `--probe` continua com seu orçamento anterior.
+4. Exceder 90 s continua falhando de forma estável com `WHISPER_RUNTIME_DECODE_SMOKE_TIMEOUT`; o aumento não transforma hang em sucesso.
+5. A mudança exige nova versão semântica e novo source/archive SHA. Não retaggear, sobrescrever ou republicar qualquer asset 1.1.8.
+6. Publicação de RC continua distinta de promoção Stable; aceite físico e receipts seguem os gates governados aplicáveis ao runtime candidato.
+
 
 ## 6. Secrets e providers
 

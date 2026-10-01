@@ -43,6 +43,17 @@ function updatedMillis(job: LocalJob): number {
 	return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function queueRetryAvailable(job: LocalJob): boolean {
+	return (
+		(job.status === "failed" || job.status === "interrupted") &&
+		job.error?.recoverable === true &&
+		!(
+			job.error.code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN" &&
+			job.context?.profileId === "qwen-fast"
+		)
+	);
+}
+
 export function queueProfileLabel(profileId: string | null | undefined): string {
 	if (!profileId) return "Profile não informado";
 	const known = knownProfiles[profileId];

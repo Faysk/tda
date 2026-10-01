@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -48,6 +49,24 @@ def test_whisper_runtime_build_gates_the_packaged_faster_whisper_decoder():
     assert '("wav", wav_path)' in entry
     assert '("flac", flac_path)' in entry
     assert "WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE" in entry
+
+
+def test_whisper_runtime_decode_smoke_has_bounded_windows_cold_start_headroom():
+    build = (
+        REPO_ROOT / "local-companion" / "packaging" / "build_whisper_runtime.py"
+    ).read_text(encoding="utf-8")
+    config = json.loads(
+        (REPO_ROOT / "local-companion" / "runtime" / "whisper-windows-x64.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    # 1.1.8 is immutable. The policy change begins with the next runtime identity.
+    assert config["version"] == "1.1.9"
+    assert "WHISPER_DECODE_SMOKE_TIMEOUT_SECONDS = 90" in build
+    assert 'timeout=WHISPER_DECODE_SMOKE_TIMEOUT_SECONDS' in build
+    assert "WHISPER_RUNTIME_DECODE_SMOKE_TIMEOUT" in build
+    assert '"--decode-smoke"' in build
 
 
 def test_qwen_runtime_uses_package_builder_without_legacy_direct_stable_publisher():
@@ -129,6 +148,7 @@ def test_runtime_rc_source_drift_fence_is_family_scoped_to_real_runtime_inputs()
     )
     missing = sorted(path for path in required if f'"{path}"' not in value)
     assert missing == []
+    assert '":(exclude)local-companion/runtime/qwen-windows-x64.json"' in value
 
     # Test/acceptance-only changes do not alter packaged runtime bytes.
     assert '"local-companion/tests/test_qwen_physical_gate_harness.py"' not in value
@@ -152,6 +172,7 @@ def test_runtime_stable_promotion_drift_fence_matches_runtime_family_inputs():
     )
     missing = sorted(path for path in required if f'"{path}"' not in promote)
     assert missing == []
+    assert '":(exclude)local-companion/runtime/qwen-windows-x64.json"' in promote
 
     # Physical acceptance and test-only evolution must not force rebuilding
     # immutable runtime bytes that have not changed.
