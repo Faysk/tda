@@ -2,7 +2,12 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
 	testDir: "tests",
-	testMatch: ["campaign-isolation.spec.ts", "campaign-directory.spec.ts"],
+	testMatch: [
+		"campaign-isolation.spec.ts",
+		"campaign-directory.spec.ts",
+		"product-coherence.spec.ts",
+		"world-edge-anchor-geometry.spec.ts",
+	],
 	workers: 1,
 	use: {
 		baseURL: "http://127.0.0.1:3117",
