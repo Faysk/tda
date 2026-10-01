@@ -401,9 +401,16 @@ function Get-PublicRunMetrics {
 
     Assert-ExactRuntimeLineage $manifest.execution_lineage $Runtime "WHISPER_1235_RUN_LINEAGE_INVALID"
 
+    $transcriptSha = Get-Sha256 $transcriptPath
+    if ($transcriptSha -ne [string]$manifest.transcript_sha256) {
+        throw "WHISPER_1235_RUN_TRANSCRIPT_HASH_MISMATCH"
+    }
+
     return [pscustomobject]@{
-        Path = [IO.Path]::GetFullPath($manifestPath)
-        InitialSha256 = Get-Sha256 $manifestPath
+        ManifestPath = [IO.Path]::GetFullPath($manifestPath)
+        InitialManifestSha256 = Get-Sha256 $manifestPath
+        TranscriptPath = [IO.Path]::GetFullPath($transcriptPath)
+        InitialTranscriptSha256 = $transcriptSha
         Metrics = [ordered]@{
             audio_work_seconds = Assert-FiniteNumber $manifest.stats.audio_work_seconds "WHISPER_1235_RUN_METRICS_INVALID"
             session_duration_seconds = Assert-FiniteNumber $manifest.stats.session_duration_seconds "WHISPER_1235_RUN_METRICS_INVALID"
@@ -500,7 +507,10 @@ foreach ($whisperProfile in $Profiles) {
 }
 
 foreach ($run in $runChecks) {
-    if ((Get-Sha256 $run.Path) -ne [string]$run.InitialSha256) {
+    if (
+        (Get-Sha256 $run.ManifestPath) -ne [string]$run.InitialManifestSha256 -or
+        (Get-Sha256 $run.TranscriptPath) -ne [string]$run.InitialTranscriptSha256
+    ) {
         throw "WHISPER_1235_IMMUTABLE_RUN_CHANGED"
     }
 }
