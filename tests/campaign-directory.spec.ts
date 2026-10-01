@@ -160,3 +160,183 @@ test("World campaign switch preserves explicit context across back, forward and 
 	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
 	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
 });
+
+
+test("aggregate and campaign-scoped session archives expose distinct product scope", async ({
+	page,
+}) => {
+	await page.goto("/campanhas/sessoes");
+
+	const aggregate = page.locator('[data-session-archive-scope="aggregate"]');
+	await expect(aggregate).toBeVisible();
+	await expect(
+		aggregate.getByRole("heading", { level: 1, name: "Todas as campanhas" }),
+	).toBeVisible();
+	await expect(page.getByLabel("Filtrar por campanha")).toBeVisible();
+	const campaignArchiveLinks = page.getByRole("navigation", {
+		name: "Entrar no arquivo de uma campanha",
+	});
+	await expect(campaignArchiveLinks).toBeVisible();
+	await expect(
+		campaignArchiveLinks.getByRole("link", { name: "Crônicas da Mesa" }),
+	).toHaveAttribute("href", "/campanhas/cronicas-da-mesa/sessoes");
+	await expect(
+		campaignArchiveLinks.getByRole("link", { name: /Antes que seja tarde/u }),
+	).toHaveAttribute("href", "/campanhas/antes-que-seja-tarde/sessoes");
+	await expect(
+		page.locator('[data-session-card]').filter({ hasText: "Crônicas da Mesa" }).first(),
+	).toBeVisible();
+	await expect(
+		page
+			.locator('[data-session-card]')
+			.filter({
+				hasText:
+					"Antes que seja tarde — uma campanha com nome deliberadamente comprido",
+			})
+			.first(),
+	).toBeVisible();
+
+	await page.getByRole("button", { name: "Visualização em lista" }).click();
+	await expect(page.locator('[data-session-card="list"][data-campaign-route="cronicas-da-mesa"]').first()).toContainText(
+		"Crônicas da Mesa",
+	);
+	await expect(page.locator('[data-session-card="list"][data-campaign-route="antes-que-seja-tarde"]').first()).toContainText(
+		"Antes que seja tarde",
+	);
+
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes");
+
+	const scoped = page.locator('[data-session-archive-scope="campaign"]');
+	await expect(scoped).toHaveAttribute("data-campaign-route", "cronicas-da-mesa");
+	await expect(
+		scoped.getByRole("heading", { level: 1, name: "Crônicas da Mesa" }),
+	).toBeVisible();
+	await expect(page.getByLabel("Filtrar por campanha")).toHaveCount(0);
+	await expect(
+		page.getByRole("link", { name: "Arquivo global" }),
+	).toHaveAttribute("href", "/campanhas/sessoes");
+	await expect(page.getByRole("link", { name: "Mundo" })).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/mundo",
+	);
+	await expect(page.getByRole("link", { name: "Personagens" })).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/personagens",
+	);
+	await expect(page.getByRole("link", { name: "Lugares" })).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/lugares",
+	);
+	await expect(page.locator("[data-session-archive-hero]")).toHaveAttribute(
+		"data-campaign-artwork-source",
+		"session-artwork",
+	);
+	await expect(page.locator('[data-session-card]')).toHaveCount(3);
+	await expect(
+		page.getByRole("heading", {
+			name: "A memória global mais recente vem da campanha B",
+		}),
+	).toHaveCount(0);
+});
+
+test("campaign archive keeps campaign context visible on narrow and zoom-equivalent viewports", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 320, height: 800 });
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes");
+
+	await expect(page.getByRole("navigation", { name: "Contexto da campanha" })).toBeVisible();
+	await expect(
+		page.getByRole("link", { name: "Arquivo global" }),
+	).toBeVisible();
+	let overflow = await page.evaluate(
+		() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+	);
+	expect(overflow).toBeLessThanOrEqual(1);
+
+	await page.setViewportSize({ width: 960, height: 540 });
+	overflow = await page.evaluate(
+		() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+	);
+	expect(overflow).toBeLessThanOrEqual(1);
+	await expect(page.getByText("Campanha · arquivo de sessões")).toBeVisible();
+});
+
+
+test("aggregate campaign filter hides for one campaign and keeps all 13 sessions", async ({
+	page,
+}) => {
+	await page.goto("/e2e-fixtures/session-archive-scope");
+
+	const fixture = page.locator('[data-session-scope-fixture="one-campaign"]');
+	await expect(fixture.getByLabel("Filtrar por campanha")).toHaveCount(0);
+	await expect(fixture.locator('[data-session-card="grid"]')).toHaveCount(13);
+	await expect(
+		fixture.getByRole("navigation", {
+			name: "Entrar no arquivo de uma campanha",
+		}),
+	).toContainText("Campanha Única de Teste");
+
+	await fixture.getByRole("button", { name: "Visualização em lista" }).click();
+	await expect(fixture.locator('[data-session-card="list"]')).toHaveCount(13);
+	await expect(fixture.locator('[data-session-card="list"]').first()).toContainText(
+		"Campanha Única de Teste",
+	);
+});
+
+test("aggregate filter keeps a zero-session campaign selectable while a sibling has content", async ({
+	page,
+}) => {
+	await page.goto("/e2e-fixtures/session-archive-scope");
+
+	const fixture = page.locator('[data-session-scope-fixture="empty-campaign"]');
+	const campaignFilter = fixture.getByLabel("Filtrar por campanha");
+	await expect(campaignFilter).toBeVisible();
+	await expect(campaignFilter.locator("option")).toHaveCount(3);
+
+	await campaignFilter.selectOption("fixture-only-campaign");
+	await expect(fixture.locator("[data-session-card]")).toHaveCount(0);
+	await expect(fixture).toContainText("Nenhuma sessão por aqui.");
+
+	await campaignFilter.selectOption("fixture-with-content");
+	await expect(fixture.locator('[data-session-card="grid"]')).toHaveCount(1);
+	await expect(fixture.locator('[data-session-card="grid"]').first()).toHaveAttribute(
+		"data-campaign-route",
+		"fixture-with-content",
+	);
+});
+
+test("campaign archive aliases, direct links and history preserve canonical scope", async ({
+	page,
+}) => {
+	const alias = await page.request.get(
+		"/campanhas/cronicas-da-mesa-antiga/sessoes",
+		{ maxRedirects: 0 },
+	);
+	expect(alias.status()).toBe(307);
+	const location = alias.headers().location;
+	expect(location).toBeTruthy();
+	expect(new URL(location!, "http://127.0.0.1:3106").pathname).toBe(
+		"/campanhas/cronicas-da-mesa/sessoes",
+	);
+
+	await page.goto("/campanhas/sessoes");
+	await page
+		.getByRole("navigation", { name: "Entrar no arquivo de uma campanha" })
+		.getByRole("link", { name: "Crônicas da Mesa" })
+		.click();
+	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/sessoes$/u);
+	await expect(
+		page.locator('[data-session-archive-scope="campaign"]'),
+	).toHaveAttribute("data-campaign-route", "cronicas-da-mesa");
+
+	await page.goBack();
+	await expect(page).toHaveURL(/\/campanhas\/sessoes$/u);
+	await expect(page.locator('[data-session-archive-scope="aggregate"]')).toBeVisible();
+
+	await page.goForward();
+	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/sessoes$/u);
+	await expect(
+		page.locator('[data-session-archive-scope="campaign"]'),
+	).toHaveAttribute("data-campaign-route", "cronicas-da-mesa");
+});
