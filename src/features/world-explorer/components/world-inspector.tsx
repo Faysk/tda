@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useState } from "react";
 import { PublicLink } from "@/components/public-link";
 import { standaloneLoreForEntity } from "@/features/lore/standalone-catalog";
-import { LEGACY_CAMPAIGN_TECHNICAL_SLUG } from "@/features/sessions/model";
 import type { WorldGraphProjection, WorldNodeDTO } from "../model";
 import { relationLabelFor } from "../projection";
 import {
@@ -58,22 +57,22 @@ export function WorldInspectorContent({
 	selected,
 	projection,
 	focus,
+	campaignSlug,
+	worldHref,
 	onSelect,
 	editing,
 }: {
 	selected: WorldNodeDTO;
 	projection: WorldGraphProjection;
 	focus?: WorldNodeDTO;
+	campaignSlug: string;
+	worldHref: string;
 	onSelect: (id: string) => void;
 	editing: boolean;
 }) {
 	const [tab, setTab] = useState<InspectorTab>("overview");
 	const standaloneLore = selected.kind === "entity"
-		? standaloneLoreForEntity(
-				LEGACY_CAMPAIGN_TECHNICAL_SLUG,
-				selected.entityType,
-				selected.slug,
-			)
+		? standaloneLoreForEntity(campaignSlug, selected.entityType, selected.slug)
 		: null;
 	const relation =
 		focus && selected.id !== focus.id
@@ -281,11 +280,11 @@ export function WorldInspectorContent({
 						</PublicLink>
 					) : null}
 					{selected.slug && selected.id !== projection.focusId ? (
-						<PublicLink className={styles.focusAction} href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}>
+						<PublicLink className={styles.focusAction} href={`${worldHref}?foco=${encodeURIComponent(selected.slug)}`}>
 							Explorar conexões de {selected.label}
 						</PublicLink>
 					) : projection.mode === "focus" ? (
-						<PublicLink className={styles.focusAction} href="/mundo">
+						<PublicLink className={styles.focusAction} href={worldHref}>
 							Voltar à visão geral
 						</PublicLink>
 					) : null}
