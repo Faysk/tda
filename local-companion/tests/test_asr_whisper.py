@@ -18,6 +18,7 @@ from tda_companion.asr_whisper import (
     whisper_transcribe_options,
 )
 from tda_companion.craig import CraigPackage, CraigPackageError, CraigTrack
+from tda_companion.transcript import TranscriptTrack, TranscriptValidationError
 
 
 def _install_whisper_fixture(models_root: Path, profile_id: str = "whisper-turbo") -> Path:
@@ -605,3 +606,217 @@ def test_bind_preloaded_whisper_model_class_rejects_non_callable(monkeypatch):
         match="WHISPER_RUNTIME_PRELOAD_INVALID",
     ):
         asr_whisper.bind_preloaded_whisper_model_class(object())
+
+
+@pytest.mark.parametrize(
+    (
+        "segment_start",
+        "segment_end",
+        "word_start",
+        "word_end",
+        "expected_start",
+        "expected_end",
+        "validation_code",
+    ),
+    [
+        (100.200, 101.000, 100.149, 100.900, 100.149, 101.000, "word:BEFORE_SEGMENT"),
+        (100.000, 100.800, 100.100, 100.851, 100.000, 100.851, "word:AFTER_SEGMENT"),
+        (100.200, 100.800, 100.149, 100.851, 100.149, 100.851, "word:BEFORE_SEGMENT"),
+    ],
+)
+def test_whisper_segment_adapter_widens_parent_without_changing_word_timestamps(
+    segment_start,
+    segment_end,
+    word_start,
+    word_end,
+    expected_start,
+    expected_end,
+    validation_code,
+):
+    raw = SimpleNamespace(
+        id=7,
+        start=segment_start,
+        end=segment_end,
+        text="fixture",
+        words=[
+            SimpleNamespace(
+                word=" fixture",
+                start=word_start,
+                end=word_end,
+                probability=0.9,
+            )
+        ],
+    )
+    original = asr_whisper._segment_from_engine(2, raw)
+
+    with pytest.raises(TranscriptValidationError, match=validation_code):
+        original.validate()
+
+    reports: list[dict] = []
+    normalized = asr_whisper._normalize_segment_word_containment(
+        original,
+        track_number=2,
+        segment_number=3,
+        report=reports.append,
+    )
+
+    normalized.validate()
+    assert normalized.start == expected_start
+    assert normalized.end == expected_end
+    assert normalized.words == original.words
+    assert normalized.words[0].start == round(word_start, 3)
+    assert normalized.words[0].end == round(word_end, 3)
+    assert reports == [
+        {
+            "type": "event",
+            "code": "WHISPER_SEGMENT_SPAN_WIDENED",
+            "stage": "transcription",
+            "track": 2,
+            "segment": 3,
+            "start_seconds": round(segment_start, 3),
+            "end_seconds": round(segment_end, 3),
+            "relative_start_seconds": round(round(word_start, 3) - round(segment_start, 3), 6),
+            "relative_end_seconds": round(round(word_end, 3) - round(segment_end, 3), 6),
+        }
+    ]
+
+
+def test_whisper_segment_adapter_leaves_rounding_tolerance_alone():
+    raw = SimpleNamespace(
+        id=0,
+        start=10.0,
+        end=11.0,
+        text="fixture",
+        words=[
+            SimpleNamespace(word=" fixture", start=9.951, end=10.999, probability=0.8)
+        ],
+    )
+    original = asr_whisper._segment_from_engine(1, raw)
+    reports: list[dict] = []
+
+    normalized = asr_whisper._normalize_segment_word_containment(
+        original,
+        track_number=1,
+        segment_number=1,
+        report=reports.append,
+    )
+
+    assert normalized is original
+    assert reports == []
+
+
+@pytest.mark.parametrize(
+    ("raw", "validation_code"),
+    [
+        (
+            SimpleNamespace(
+                id=0,
+                start=1.0,
+                end=2.0,
+                text="fixture",
+                words=[SimpleNamespace(word=" bad", start=1.5, end=1.4, probability=0.8)],
+            ),
+            "word:END_BEFORE_START",
+        ),
+        (
+            SimpleNamespace(
+                id=0,
+                start=2.0,
+                end=1.0,
+                text="fixture",
+                words=[SimpleNamespace(word=" bad", start=1.0, end=1.1, probability=0.8)],
+            ),
+            "segment:END_BEFORE_START",
+        ),
+        (
+            SimpleNamespace(
+                id=0,
+                start=1.0,
+                end=2.0,
+                text="fixture",
+                words=[SimpleNamespace(word=" bad", start=float("nan"), end=1.1, probability=0.8)],
+            ),
+            "word.start:NUMBER_INVALID",
+        ),
+    ],
+)
+def test_whisper_segment_adapter_does_not_normalize_invalid_or_reversed_timestamps(
+    raw,
+    validation_code,
+):
+    segment = asr_whisper._segment_from_engine(1, raw)
+    reports: list[dict] = []
+
+    with pytest.raises(TranscriptValidationError, match=validation_code):
+        asr_whisper._normalize_segment_word_containment(
+            segment,
+            track_number=1,
+            segment_number=1,
+            report=reports.append,
+        )
+
+    assert reports == []
+
+
+def test_whisper_segment_widening_does_not_bypass_track_duration_limit():
+    raw = SimpleNamespace(
+        id=0,
+        start=299.8,
+        end=300.0,
+        text="fixture",
+        words=[
+            SimpleNamespace(word=" fixture", start=299.8, end=300.061, probability=0.8)
+        ],
+    )
+    segment = asr_whisper._segment_from_engine(1, raw)
+    normalized = asr_whisper._normalize_segment_word_containment(
+        segment,
+        track_number=1,
+        segment_number=1,
+        report=lambda _item: None,
+    )
+    track = TranscriptTrack(
+        number=1,
+        speaker="Fixture",
+        source_filename="1.flac",
+        source_sha256=None,
+        duration_seconds=300.0,
+        segments=(normalized,),
+    )
+
+    with pytest.raises(TranscriptValidationError, match="track.segment:AFTER_DURATION"):
+        track.validate()
+
+
+def test_whisper_segment_widening_stays_track_local_before_timeline_offset():
+    raw = SimpleNamespace(
+        id=0,
+        start=10.0,
+        end=10.5,
+        text="fixture",
+        words=[
+            SimpleNamespace(word=" fixture", start=9.9, end=10.5, probability=0.8)
+        ],
+    )
+    segment = asr_whisper._segment_from_engine(1, raw)
+    normalized = asr_whisper._normalize_segment_word_containment(
+        segment,
+        track_number=1,
+        segment_number=1,
+        report=lambda _item: None,
+    )
+    track = TranscriptTrack(
+        number=1,
+        speaker="Fixture",
+        source_filename="1.flac",
+        source_sha256=None,
+        duration_seconds=100.0,
+        segments=(normalized,),
+        timeline_offset_seconds=42.0,
+    )
+
+    flattened = asr_whisper.flatten_tracks((track,))
+
+    assert normalized.start == 9.9
+    assert flattened[0].start == 51.9
+    assert flattened[0].end == 52.5
