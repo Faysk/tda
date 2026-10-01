@@ -320,17 +320,6 @@ jobs:
           --grep "administrative pages disclose no data|published cinematic lores discoverable"
           --project=desktop-1080p
           --project=mobile
-      - name: Temporary 1231 broad mobile sample
-        run: >-
-          pnpm exec playwright test
-          tests/foundation.spec.ts
-          tests/navigation-origin.spec.ts
-          tests/auth.spec.ts
-          tests/lore-pack-fidelity.spec.ts
-          tests/pipipi-cinematic.spec.ts
-          tests/diary.spec.ts
-          --project=mobile
-          --reporter=line
       - name: Global navigation and shell contracts
         run: >-
           pnpm exec playwright test
