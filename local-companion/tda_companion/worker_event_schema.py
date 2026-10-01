@@ -124,6 +124,15 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         *_TRACK, "segment", "completed_segment_count",
         required=("stage", "track", "total_tracks", "speaker", "segment"),
     ),
+    "WHISPER_SEGMENT_SPAN_WIDENED": _schema(
+        "stage", "track", "segment", "start_seconds", "end_seconds",
+        "relative_start_seconds", "relative_end_seconds",
+        required=(
+            "stage", "track", "segment", "start_seconds", "end_seconds",
+            "relative_start_seconds", "relative_end_seconds",
+        ),
+        level="warning",
+    ),
     "QWEN_RUNTIME_FINGERPRINT_READY": _schema(
         "stage", "runtime_version", "worker_sha256", "duration_ms",
         required=("stage", "duration_ms"),
