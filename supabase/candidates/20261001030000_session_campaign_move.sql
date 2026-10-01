@@ -74,6 +74,7 @@ as $tda_move$
 declare
   v_session jsonb;
   v_count bigint;
+  p_relation text;
   v_blockers jsonb := '[]'::jsonb;
 begin
   select to_jsonb(s)
