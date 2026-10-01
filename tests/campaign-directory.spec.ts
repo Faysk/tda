@@ -89,7 +89,7 @@ test("World campaign switch preserves explicit context across back, forward and 
 	page,
 }) => {
 	await page.goto(WORLD_A_PATH);
-	await expect(page.locator('[data-world-campaign="yuhara-main"]')).toBeVisible();
+	await expect(page.locator('[data-world-edit-state][data-world-campaign="yuhara-main"]')).toBeVisible();
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
 	await page.getByText("Trocar", { exact: true }).click();
@@ -106,7 +106,7 @@ test("World campaign switch preserves explicit context across back, forward and 
 
 	await page.goBack();
 	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/mundo$/u);
-	await expect(page.locator('[data-world-campaign="yuhara-main"]')).toBeVisible();
+	await expect(page.locator('[data-world-edit-state][data-world-campaign="yuhara-main"]')).toBeVisible();
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
 	await page.goForward();
