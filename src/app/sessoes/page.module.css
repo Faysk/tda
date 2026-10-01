@@ -386,7 +386,7 @@
 
 @media (max-width: 700px) {
 	.aggregateHero {
-		min-height: clamp(430px, 54svh, 480px);
+		min-height: clamp(400px, 50svh, 450px);
 	}
 
 	.aggregateHero .heroInner {
