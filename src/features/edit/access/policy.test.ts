@@ -177,6 +177,29 @@ describe("authorizeCampaignCapability", () => {
 		).toEqual({ ok: false, reason: "forbidden" });
 	});
 
+	it("does not let a World grant for campaign A authorize campaign B", () => {
+		const worldGrant = grant({
+			action: EDIT_CAPABILITIES.worldLayoutEdit,
+			scopeId: "campaign-a",
+		});
+		expect(
+			authorizeCampaignCapability(
+				context({ grants: [worldGrant] }),
+				EDIT_CAPABILITIES.worldLayoutEdit,
+				"campaign-a",
+				now,
+			),
+		).toEqual({ ok: true, profileId: "profile-1" });
+		expect(
+			authorizeCampaignCapability(
+				context({ grants: [worldGrant] }),
+				EDIT_CAPABILITIES.worldLayoutEdit,
+				"campaign-b",
+				now,
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
+	});
+
 	it("keeps World layout authority separate from content editing", () => {
 		const contentEditGrant = grant({ action: EDIT_CAPABILITIES.contentEdit });
 		const layoutGrant = grant({ action: EDIT_CAPABILITIES.worldLayoutEdit });
