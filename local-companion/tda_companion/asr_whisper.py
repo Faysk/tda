@@ -11,7 +11,7 @@ import time
 from dataclasses import asdict, dataclass
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 from uuid import uuid4
 
 from .asr_checkpoints import (
@@ -547,6 +547,74 @@ def _normalize_segment_word_containment(
 
 
 
+def _validated_track_from_engine_segments(
+    *,
+    track_number: int,
+    total_tracks: int,
+    speaker: str,
+    source_filename: str,
+    source_sha256: str | None,
+    timeline_offset_seconds: float,
+    identity: dict[str, str | None] | None,
+    segments_iter: Iterable[Any],
+    info: Any,
+    sample_seconds: float | None,
+    report: ProgressCallback,
+    is_cancelled: CancelCallback,
+) -> tuple[TranscriptTrack, int]:
+    """Convert engine output through the exact canonical track validation boundary."""
+    segments: list[TranscriptSegment] = []
+    activity_last_at = 0.0
+    for segment in segments_iter:
+        if is_cancelled():
+            raise WhisperRuntimeError("ASR_CANCELLED")
+        value = _segment_from_engine(track_number, segment)
+        if not value.text:
+            continue
+        value = _normalize_segment_word_containment(
+            value,
+            track_number=track_number,
+            segment_number=len(segments) + 1,
+            report=report,
+        )
+        segments.append(value)
+        now = time.monotonic()
+        if len(segments) == 1 or now - activity_last_at >= 5.0:
+            activity_last_at = now
+            report(
+                {
+                    "type": "event",
+                    "code": "WHISPER_SEGMENT_TRANSCRIBED",
+                    "stage": "transcription",
+                    "track": track_number,
+                    "total_tracks": total_tracks,
+                    "speaker": speaker,
+                    "segment": len(segments),
+                    "completed_segment_count": len(segments),
+                }
+            )
+
+    measured_duration = float(getattr(info, "duration", 0.0) or 0.0)
+    duration = round(
+        min(measured_duration, float(sample_seconds))
+        if sample_seconds is not None
+        else measured_duration,
+        3,
+    )
+    transcript_track = TranscriptTrack(
+        number=track_number,
+        speaker=speaker,
+        source_filename=source_filename,
+        source_sha256=source_sha256,
+        duration_seconds=duration,
+        segments=tuple(segments),
+        timeline_offset_seconds=timeline_offset_seconds,
+        identity=identity,
+    )
+    transcript_track.validate()
+    return transcript_track, len(segments)
+
+
 def _distribution_version(name: str) -> str:
     try:
         return metadata.version(name)
@@ -724,57 +792,22 @@ def transcribe_craig_package(
             if model is None:
                 raise WhisperRuntimeError("WHISPER_MODEL_NOT_LOADED")
             segments_iter, info = _transcribe_with_decode_boundary(model, source, options)
-            segments: list[TranscriptSegment] = []
-            activity_last_at = 0.0
-            for segment in segments_iter:
-                if is_cancelled():
-                    raise WhisperRuntimeError("ASR_CANCELLED")
-                value = _segment_from_engine(track.number, segment)
-                if value.text:
-                    value = _normalize_segment_word_containment(
-                        value,
-                        track_number=track.number,
-                        segment_number=len(segments) + 1,
-                        report=report,
-                    )
-                    segments.append(value)
-                    now = time.monotonic()
-                    if len(segments) == 1 or now - activity_last_at >= 5.0:
-                        activity_last_at = now
-                        report(
-                            {
-                                "type": "event",
-                                "code": "WHISPER_SEGMENT_TRANSCRIBED",
-                                "stage": "transcription",
-                                "track": track.number,
-                                "total_tracks": total_tracks,
-                                "speaker": track.speaker,
-                                "segment": len(segments),
-                                "completed_segment_count": len(segments),
-                            }
-                        )
-
             identity = asdict(track.identity) if track.identity is not None else None
-            measured_duration = float(getattr(info, "duration", 0.0) or 0.0)
-            duration = round(
-                min(measured_duration, float(sample_seconds))
-                if sample_seconds is not None
-                else measured_duration,
-                3,
-            )
-            transcript_track = TranscriptTrack(
-                number=track.number,
+            transcript_track, fresh_segment_count = _validated_track_from_engine_segments(
+                track_number=track.number,
+                total_tracks=total_tracks,
                 speaker=track.speaker,
                 source_filename=track.filename,
                 source_sha256=track.sha256,
-                duration_seconds=duration,
-                segments=tuple(segments),
                 timeline_offset_seconds=track.timeline_offset_seconds,
                 identity=identity,
+                segments_iter=segments_iter,
+                info=info,
+                sample_seconds=sample_seconds,
+                report=report,
+                is_cancelled=is_cancelled,
             )
-            transcript_track.validate()
             tracks.append(transcript_track)
-            fresh_segment_count = len(segments)
             if checkpoints:
                 try:
                     save_track_checkpoint(package_root, checkpoint_signature, track, transcript_track)
