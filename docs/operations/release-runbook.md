@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release
-> Última revisão: 2026-09-28
+> Última revisão: 2026-10-01
 > Fonte de verdade: CI/CD, environments e providers atuais
 
 Este runbook é genérico. Checklists de uma feature específica pertencem ao documento da feature ou ao histórico da release, não aqui.
@@ -183,16 +183,25 @@ Não usar `supabase db push` manual para destravar Production.
 
 ## 9. Smoke de Production
 
-Depois do promote:
+O smoke público funcional roda primeiro no deployment staged e é repetido no
+domínio canônico depois do promote.
 
-- `/api/health`;
-- `/api/version`;
-- SHA/release;
-- raiz;
-- rotas alteradas;
+Validar:
+
+- `/api/health` e `/api/version` para liveness/identidade;
+- source SHA e release esperados;
+- `/`, `/campanhas`, `/sessoes` e `/campanhas/sessoes` por conteúdo semântico, não só status HTTP;
+- redirect de `/sessoes` seguido até o destino final exato `/campanhas/sessoes`;
+- nenhum estado conhecido de indisponibilidade disfarçado de HTTP 200;
+- estado vazio somente quando a página declara o vazio público esperado; erro de dependência não conta como vazio;
+- registry de campanhas em modo `canonical` antes do promote. O modo `legacy` é compatibilidade de leitura, não readiness para consumidores do schema novo;
+- quando houver sessão pública, descobrir um link no arquivo e validar a página pública final pelos marcadores do reader, sem registrar texto de resumo/transcrição;
 - auth quando alterada;
 - imagens/media URLs consumidas pela superfície;
 - canonical e metadata quando aplicáveis.
+
+O smoke só registra metadados sanitizados de evidência: SHA, fase, rota, resultado,
+horário UTC e, quando necessário, um código/estado sem corpo da resposta.
 
 Navegação normal deve permanecer em `dnd.faysk.dev`; aliases de provider são diagnóstico.
 
@@ -217,7 +226,17 @@ Histórico detalhado: [deployments](deployments.md).
 
 ### Aplicação
 
-Promover/rollback para deployment anterior saudável, confirmar health/version e corrigir via nova PR.
+Se o smoke staged falhar antes do promote, abortar: o alias/domínio oficial continua
+no deployment anterior. Não promover manualmente para contornar o gate.
+
+Se o promote concluir e uma verificação canônica posterior falhar, o workflow
+registra `Production recovery required` no step summary com source SHA, deployment
+promovido e horário UTC. Nesse caso:
+
+1. identificar o deployment anterior comprovadamente saudável;
+2. promover/rollback da aplicação para esse deployment;
+3. confirmar `/api/health`, `/api/version`, SHA/release e o smoke semântico público canônico;
+4. abrir correção em branch/PR e publicar novamente pelo lifecycle normal.
 
 ### Banco
 
