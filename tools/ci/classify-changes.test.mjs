@@ -230,13 +230,21 @@ test("database documentation alone does not start PostgreSQL", () => {
 	assert.equal(flags(["docs/database/migrations.md"]).db, false);
 });
 
-test("media manifests and tooling activate media domain", () => {
-	assert.equal(flags(["media/yllith/manifest.json"]).media, true);
-	assert.equal(flags(["tools/media/verify-public.mjs"]).media, true);
-	assert.equal(
-		flags(["tools/world-entity-media-r2-policy.test.mjs"]).media,
-		true,
-	);
+test("media manifests, campaign-owned media code and tooling activate media domain", () => {
+	for (const path of [
+		"media/yllith/manifest.json",
+		"tools/media/verify-public.mjs",
+		"tools/world-entity-media-r2-policy.test.mjs",
+		"src/features/media/campaign-media.ts",
+		"src/features/campaigns/campaign-cover-media.ts",
+		"src/features/edit/sessions/session-cover-media.ts",
+		"src/features/world-explorer/world-entity-media.ts",
+		"src/app/api/edit/campaign-cover/fixture/route.ts",
+		"src/app/api/edit/session-cover/upload/route.ts",
+		"src/app/api/world/entity-media/fixture/route.ts",
+	]) {
+		assert.equal(flags([path]).media, true, path);
+	}
 });
 
 test("classifier contract changes fail safe into every heavy domain", () => {
