@@ -362,12 +362,14 @@ test("session campaign move preflight keeps blockers actionable on keyboard and 
 	).toBeTruthy();
 });
 
-test("lost move response reuses operation id and keeps cache-pending commit visible", async ({
+test("lost move response reuses operation id and recovers cache without hiding committed state", async ({
 	page,
 }) => {
 	await page.goto("/e2e-fixtures/session-editorial");
-	await page.getByLabel("Mover para outra campanha").selectOption("campanha-b");
-	await page.getByRole("button", { name: "Pré-validar mudança" }).click();
+	const selector = page.getByLabel("Mover para outra campanha");
+	const preflight = page.getByRole("button", { name: "Pré-validar mudança" });
+	await selector.selectOption("campanha-b");
+	await preflight.click();
 	await expect(page.getByRole("heading", { name: "Pronta para confirmar" })).toBeVisible();
 
 	await page.getByRole("button", { name: "Perder próxima resposta de move" }).click();
@@ -383,10 +385,16 @@ test("lost move response reuses operation id and keeps cache-pending commit visi
 	await confirm.click();
 	await expect(page.getByText("Commit confirmado.", { exact: true })).toBeVisible();
 	await expect(
+		page.getByText("Destino confirmado: Campanha B (campanha-b).", { exact: true }),
+	).toBeVisible();
+	await expect(
 		page.getByText(/A sessão já mudou de campanha no banco.*revalidação de cache\/delivery/u),
 	).toBeVisible();
 	await expect(page.getByRole("button", { name: "Abrir destino confirmado" })).toBeVisible();
-	await expect(page.getByRole("button", { name: "Revalidar caches" })).toBeVisible();
+	const retry = page.getByRole("button", { name: "Revalidar caches" });
+	await expect(retry).toBeVisible();
+	await expect(selector).toBeDisabled();
+	await expect(preflight).toBeDisabled();
 	expect(page.url()).toBe(urlBeforeRecovery);
 
 	const ids = ((await page.getByTestId("synthetic-move-operation-ids").textContent()) ?? "")
@@ -394,6 +402,11 @@ test("lost move response reuses operation id and keeps cache-pending commit visi
 		.filter(Boolean);
 	expect(ids).toHaveLength(2);
 	expect(ids[0]).toBe(ids[1]);
+
+	await retry.click();
+	await expect(page).toHaveURL(/move=committed/u);
+	const recoveredUrl = new URL(page.url());
+	expect(recoveredUrl.searchParams.get("operationId")).toBe(ids[0]);
 });
 
 test("editorial workbench header never collides with floating global chrome", async ({ page }) => {
