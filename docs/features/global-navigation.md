@@ -185,19 +185,19 @@ A rota concreta recebe `aria-current="page"`.
 
 ## Evolução multi-campaign
 
-A PR #1219 implementa a camada de navegação de #1136 sobre ADR-0020 e consome o Processamento campaign-aware já integrado por #1128/#1208, sem antecipar as rotas ainda pertencentes a #1129/#1130/#1133.
+A PR #1219 implementa a camada de navegação de #1136 sobre ADR-0020 na branch de integração #1215. Ela consome o Processamento campaign-aware já integrado por #1128/#1208 e a rota canônica de Edit Sessions já presente no candidato #1129 da mesma integração, sem antecipar World/Review ainda pertencentes a #1130/#1133.
 
 Contrato do launcher:
 
 - `Sessões` aponta para o agregado `/campanhas/sessoes`; a compatibilidade `/sessoes` permanece redirect-only;
 - `Campanhas` aponta para `/campanhas`;
 - `Mundo` continua podendo abrir `/mundo` como entrypoint agregado, e o current-state também reconhece `/campanhas/[campaign]/mundo`;
-- a projeção autenticada usa `campaign_edit_directory()`, boundary de discovery de #1134, e calcula capabilities separadamente para cada technical campaign scope;
-- campaigns descobríveis sem nenhuma ferramenta utilizável pelo launcher não são enviadas ao browser;
+- a projeção autenticada reutiliza `readAuthorizedCampaigns(...)`, o boundary server-side compartilhado da integração, e calcula capabilities separadamente para cada technical campaign scope;
+- somente campaigns `active` com ao menos uma capability utilizável pelo launcher são enviadas ao browser;
 - se houver mais de uma campaign utilizável, o launcher exige seleção explícita e mostra somente o nome humano;
 - uma rota campaign-scoped ou `?campanha=<technicalSlug>` válido restaura o contexto correspondente; rota/slug não autorizado não inventa fallback;
 - mudança de campaign recalcula os links a partir das capabilities daquela campaign, sem reaproveitar a lista da anterior;
-- o estado pré-ativação do RPC possui compatibilidade explícita de uma campaign; falhas genéricas de discovery ficam indisponíveis e **não** escolhem `yuhara-main` por conveniência.
+- falha do registry/discovery fica indisponível e **não** escolhe `yuhara-main` por conveniência; a ativação em Production permanece responsabilidade da epic #1122/#1215 após o gate transversal.
 
 O entrypoint `/edit` aplica a mesma regra: uma única campaign utilizável pode seguir direto; duas ou mais exigem uma escolha de campaign sem criar uma segunda barra/menu de ferramentas.
 
@@ -208,7 +208,7 @@ Ferramentas aparecem diretamente em uma seção própria do launcher e somente q
 | Ferramenta | Destino seguro nesta slice | Destino canônico futuro | Capability principal |
 | --- | --- | --- | --- |
 | Transcrições | `/transcricoes?campanha=[technicalSlug]` | `/edit/[campaign]/transcricoes` | `campaign.transcript.read` |
-| Editar sessões | legado apenas: `/edit/sessoes?campanha=yuhara-main` | `/edit/[campaign]/sessoes` (#1129) | `campaign.transcript.read` |
+| Editar sessões | `/edit/[technicalSlug]/sessoes` (#1129 no candidato de integração) | já é a rota privada canônica da biblioteca | `campaign.transcript.read` |
 | Processar | `/edit/processamento?campanha=[technicalSlug]` (#1128) | futuro alias canônico `/edit/[campaign]/processamento` | `campaign.local.process` |
 | Editar mundo | legado apenas: `/mundo?campanha=yuhara-main` | `/edit/[campaign]/mundo` (#1130) | `campaign.world.layout.edit` |
 | Revisão | legado apenas: `/edit/revisao?campanha=yuhara-main` | `/edit/[campaign]/revisao` (#1133) | `narrative.review.read` |
