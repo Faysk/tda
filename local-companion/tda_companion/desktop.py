@@ -434,7 +434,13 @@ class DesktopBridge:
 
     def rollback_whisper_runtime(self, version: str) -> dict[str, Any]:
         if self._has_active_job():
-            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB")
+            raise RuntimeError("RUNTIME_ROLLBACK_BLOCKED_BY_RUNNING_JOB")
+        preparation = self.client.get("/preparation")
+        if isinstance(preparation, dict) and preparation.get("active") is True:
+            raise RuntimeError("RUNTIME_ROLLBACK_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
+        qwen_maintenance = self.client.get("/qwen-runtime")
+        if isinstance(qwen_maintenance, dict) and qwen_maintenance.get("active") is True:
+            raise RuntimeError("RUNTIME_ROLLBACK_BLOCKED_BY_RUNTIME_MAINTENANCE")
         return rollback_whisper_runtime_to_version(
             self.paths.runtime_root,
             self.paths.cache_root,
