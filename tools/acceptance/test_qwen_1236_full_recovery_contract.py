@@ -11,6 +11,23 @@ GENERIC = ROOT / "tools" / "acceptance" / "run-qwen-recovery-physical-gate.ps1"
 class Qwen1236FullRecoveryContractTests(unittest.TestCase):
     def test_wrapper_is_locked_to_exact_candidate_and_private_source_hash(self):
         text = WRAPPER.read_text(encoding="utf-8")
+        self.assertIn(
+            '$CompanionSourceSha = "bb9b0a96fc30dde1837d9f9d6b5c49467362f9c1"',
+            text,
+        )
+        self.assertIn(
+            '$QwenSourceSha = "bb9b0a96fc30dde1837d9f9d6b5c49467362f9c1"',
+            text,
+        )
+        self.assertNotIn("$CandidateSourceSha", text)
+        self.assertIn(
+            "[string]$payload.source_sha -ne $CompanionSourceSha",
+            text,
+        )
+        self.assertIn(
+            "[string]$candidate.source_sha -ne $QwenSourceSha",
+            text,
+        )
         for value in (
             'bb9b0a96fc30dde1837d9f9d6b5c49467362f9c1',
             'companion-rc-v0.3.18-bb9b0a96fc30',
