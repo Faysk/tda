@@ -1,8 +1,8 @@
 """Scratch PostgreSQL 16 gate for multi-campaign authorization (#1134).
 
 Runs only synthetic fixtures in a fresh Unix-socket-only cluster. It composes the
-approved #1123 registry candidate with the #1134 authorization candidate, replays
-both candidate layers, and proves public/Edit discovery plus access_directory
+canonical #1123 registry migration with the #1134 authorization hardening migration, replays
+both canonical layers, and proves public/Edit discovery plus access_directory
 cross-campaign denial. No environment credentials, TCP access or Production data
 are used.
 """
@@ -89,19 +89,19 @@ try:
     )
     started = True
 
-    registry_candidate = (
-        repo / "supabase/candidates/20260930174200_first_class_campaign_registry.sql"
+    registry_migration = (
+        repo / "supabase/migrations/20261001204500_activate_first_class_campaign_registry.sql"
     )
-    authorization_candidate = (
-        repo / "supabase/candidates/20260930191500_harden_campaign_discovery_authorization.sql"
+    authorization_migration = (
+        repo / "supabase/migrations/20261001205000_harden_campaign_discovery_authorization.sql"
     )
     paths = [
         repo / "supabase/tests/campaign_registry_fixture.sql",
-        registry_candidate,
-        registry_candidate,
+        registry_migration,
+        registry_migration,
         repo / "supabase/tests/campaign_authorization_fixture.sql",
-        authorization_candidate,
-        authorization_candidate,
+        authorization_migration,
+        authorization_migration,
         repo / "supabase/tests/campaign_authorization.sql",
     ]
 
