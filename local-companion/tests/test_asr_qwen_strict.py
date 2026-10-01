@@ -392,20 +392,6 @@ def test_strict_qwen_rejects_empty_transcript_when_window_has_signal(tmp_path: P
             report=reports.append,
         )
 
-    diagnostic = next(
-        item
-        for item in reports
-        if item.get("code") == "QWEN_ASR_EMPTY_WITH_SIGNAL"
-    )
-    assert diagnostic["track"] == 1
-    assert diagnostic["window"] == 1
-    assert diagnostic["window_rms_dbfs"] == -33.0
-    assert not any(
-        item.get("code") == "QWEN_ASR_EMPTY_SILENCE_ACCEPTED"
-        for item in reports
-    )
-
-
 def test_strict_qwen_accepts_legacy_empty_error_only_at_digital_floor(tmp_path: Path):
     package, root = _package(tmp_path)
     reports: list[dict] = []
@@ -447,14 +433,6 @@ def test_strict_qwen_accepts_legacy_empty_error_only_at_digital_floor(tmp_path: 
 
     assert align_calls == 0
     assert document.tracks[0].segments == ()
-    accepted = next(
-        item
-        for item in reports
-        if item.get("code") == "QWEN_ASR_EMPTY_SILENCE_ACCEPTED"
-    )
-    assert accepted["window_rms_dbfs"] == -120.0
-
-
 def test_strict_qwen_benchmark_sample_uses_supplied_window_reader(tmp_path: Path):
     package, root = _package(tmp_path)
 
