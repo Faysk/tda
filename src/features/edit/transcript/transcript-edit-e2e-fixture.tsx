@@ -65,6 +65,7 @@ export function TranscriptEditE2EFixture({
 				<a href="/">Sair da fixture</a>
 			</section>
 			<TranscriptReader
+				campaignSlug="yuhara-main"
 				downloadHref="#synthetic-download"
 				editable={editable}
 				revisionId={revisionId}
