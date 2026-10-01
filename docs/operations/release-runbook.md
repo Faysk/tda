@@ -202,7 +202,7 @@ Restaurar referência anterior quando necessário. Objetos imutáveis podem perm
 
 ### Runtime Whisper — contenção palavra/segmento (#1235)
 
-Mudança no adapter Whisper faz parte dos bytes do worker e exige versão/tag/asset novos; nunca substituir um archive já publicado sob a mesma versão. O candidato só pode ser promovido quando o archive exato também incorporar uma fronteira de decode compatível (#1234), passar os gates sintéticos e concluir os dois perfis Whisper no sample e na transcrição integral física exigidos por #1235. CI/package sem GPU não substitui esse receipt.
+Mudança no adapter Whisper faz parte dos bytes do worker e exige versão/tag/asset novos; nunca substituir um archive já publicado sob a mesma versão. Como 1.1.6 já foi materializado para #1234 antes desta mudança, o candidato de #1235 é **Whisper Runtime 1.1.7** e 1.1.6 permanece imutável. O 1.1.7 só pode ser promovido quando o archive exato também incorporar a fronteira de decode compatível (#1234), passar os gates sintéticos e concluir os dois perfis Whisper no sample e na transcrição integral física exigidos por #1235. CI/package sem GPU não substitui esse receipt.
 
 O receipt de aceite deve ligar source SHA, versão do runtime, SHA-256 do archive/worker, Faster-Whisper/CTranslate2/decoder efetivos, GPU/driver, perfil e contagens/tempos agregados. O diagnóstico `WHISPER_SEGMENT_SPAN_WIDENED` pode registrar somente limites/deltas numéricos sanitizados; texto, nomes e paths não entram na evidência publicada.
 
