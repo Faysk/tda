@@ -31,10 +31,10 @@ function implementedLoreRoutes() {
 	const staticRoutes = implementedStaticLoreRoutes();
 	const implementations = [...appRoutes, ...staticRoutes];
 
-	expect(new Set(implementations).size).toBe(
-		implementations.length,
+	expect(
+		new Set(implementations).size,
 		"a lore slug must not be implemented by both app and static delivery",
-	);
+	).toBe(implementations.length);
 
 	return implementations.sort();
 }
