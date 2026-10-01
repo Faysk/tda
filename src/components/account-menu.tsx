@@ -14,6 +14,7 @@ import { NavigationIconGlyph } from "./public-nav";
 import {
 	campaignTechnicalSlugFromLocation,
 	isCurrentNavigationPath,
+	locationHasCampaignReference,
 	PUBLIC_NAV_ITEMS,
 	toolNavigationItemsForCampaign,
 	type NavigationIcon,
@@ -163,6 +164,7 @@ export function AccountMenu() {
 	const [selectedCampaignSlug, setSelectedCampaignSlug] = useState<string | null>(
 		null,
 	);
+	const [activeCampaignSlug, setActiveCampaignSlug] = useState<string | null>(null);
 	const [avatarFailed, setAvatarFailed] = useState(false);
 	const [returnPath, setReturnPath] = useState(pathname || "/");
 	const rootRef = useRef<HTMLDivElement>(null);
@@ -251,29 +253,21 @@ export function AccountMenu() {
 
 	useEffect(() => {
 		if (!projection) return;
-		const resolveFromLocation = () =>
-			campaignTechnicalSlugFromLocation(
-				projection.campaigns,
-				typeof window === "undefined" ? pathname : window.location.pathname,
-				typeof window === "undefined" ? "" : window.location.search,
-			);
 		const applyLocation = () => {
-			const fromLocation = resolveFromLocation();
+			const currentPath = window.location.pathname;
+			const currentSearch = window.location.search;
+			const fromLocation = campaignTechnicalSlugFromLocation(projection.campaigns, currentPath, currentSearch);
+			const explicitCampaign = locationHasCampaignReference(currentPath, currentSearch);
+			setActiveCampaignSlug(fromLocation);
+			setReturnPath(currentPath + currentSearch + window.location.hash);
 			setSelectedCampaignSlug((current) => {
 				if (fromLocation) return fromLocation;
-				if (projection.campaigns.length === 1)
-					return projection.campaigns[0]?.technicalSlug ?? null;
-				if (
-					current &&
-					projection.campaigns.some(
-						(campaign) => campaign.technicalSlug === current,
-					)
-				)
-					return current;
+				if (explicitCampaign) return null;
+				if (projection.campaigns.length === 1) return projection.campaigns[0]?.technicalSlug ?? null;
+				if (current && projection.campaigns.some((campaign) => campaign.technicalSlug === current)) return current;
 				return null;
 			});
 		};
-
 		applyLocation();
 		window.addEventListener("popstate", applyLocation);
 		return () => window.removeEventListener("popstate", applyLocation);
@@ -492,11 +486,14 @@ export function AccountMenu() {
 																	key={item.href + item.label}
 																	item={item}
 																	pathname={pathname}
-																	current={isCurrentNavigationPath(
-																		pathname,
-																		item.href,
-																	)}
-																	onNavigate={closeAfterNavigate}
+																	current={
+												activeCampaignSlug === selectedCampaign.technicalSlug &&
+												isCurrentNavigationPath(pathname, item.href)
+											}
+											onNavigate={() => {
+												setActiveCampaignSlug(selectedCampaign.technicalSlug);
+												closeAfterNavigate();
+											}}
 																/>
 															))}
 														</ul>

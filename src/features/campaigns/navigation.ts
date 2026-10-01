@@ -7,7 +7,6 @@ import {
 	type EditAccessContext,
 	type EditCapability,
 } from "@/features/edit/access/policy";
-import { LEGACY_CAMPAIGN_TECHNICAL_SLUG } from "@/features/sessions/model";
 
 const NAVIGATION_TOOL_CAPABILITIES = [
 	EDIT_CAPABILITIES.transcriptRead,
@@ -38,6 +37,8 @@ export type NavigationCampaignReadResult = Readonly<{
 export async function readNavigationCampaigns(
 	context: EditAccessContext,
 ): Promise<NavigationCampaignReadResult> {
+	if (!context.profileId) return { mode: "first_class", campaigns: [] };
+
 	const byCampaign = new Map<
 		string,
 		{ name: string; capabilities: EditCapability[] }
@@ -49,16 +50,6 @@ export async function readNavigationCampaigns(
 
 		for (const campaign of result.campaigns) {
 			if (campaign.lifecycle !== "active") continue;
-			// World/Review compatibility links are intentionally limited to the
-			// historical campaign in this slice; sibling routes own their rollout.
-			if (
-				campaign.technicalSlug !== LEGACY_CAMPAIGN_TECHNICAL_SLUG &&
-				(capability === EDIT_CAPABILITIES.worldLayoutEdit ||
-					capability === EDIT_CAPABILITIES.reviewRead)
-			) {
-				continue;
-			}
-
 			const existing = byCampaign.get(campaign.technicalSlug);
 			if (existing) {
 				if (!existing.capabilities.includes(capability))

@@ -3,6 +3,7 @@ import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import {
 	campaignTechnicalSlugFromLocation,
 	isCurrentNavigationPath,
+	locationHasCampaignReference,
 	PUBLIC_NAV_ITEMS,
 	toolNavigationItemsForCampaign,
 	visibleToolNavigationItems,
@@ -61,7 +62,7 @@ describe("global navigation model", () => {
 			["/transcricoes?campanha=yuhara-main", "Transcrições"],
 			["/edit/yuhara-main/sessoes", "Editar sessões"],
 			["/edit/processamento?campanha=yuhara-main", "Processar"],
-			["/mundo?campanha=yuhara-main", "Editar mundo"],
+			["/edit/yuhara-main/mundo", "Editar mundo"],
 			["/edit/revisao?campanha=yuhara-main", "Revisão"],
 			["/edit/yuhara-main/permissions", "Permissões"],
 		]);
@@ -89,6 +90,8 @@ describe("global navigation model", () => {
 				"/edit/processamento?campanha=antes-que-seja-tarde",
 				"Processar",
 			],
+			["/edit/antes-que-seja-tarde/mundo", "Editar mundo"],
+			["/edit/revisao?campanha=antes-que-seja-tarde", "Revisão"],
 			[
 				"/edit/antes-que-seja-tarde/permissions",
 				"Permissões",
@@ -104,6 +107,13 @@ describe("global navigation model", () => {
 			]).map((item) => item.label),
 		).toEqual(["Transcrições", "Editar sessões", "Processar"]);
 		expect(visibleToolNavigationItems([])).toEqual([]);
+	});
+
+	it("detects explicit campaign references even when unauthorized", () => {
+		expect(locationHasCampaignReference("/transcricoes", "?campanha=private-b")).toBe(true);
+		expect(locationHasCampaignReference("/edit/private-b/mundo")).toBe(true);
+		expect(locationHasCampaignReference("/campanhas/private-b/sessoes")).toBe(true);
+		expect(locationHasCampaignReference("/campanhas/sessoes")).toBe(false);
 	});
 
 	it("derives campaign context from canonical paths or an explicit compatibility query", () => {

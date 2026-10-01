@@ -475,7 +475,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 				technicalSlug: "mesa-do-norte",
 				routeKey: "mesa-do-norte",
 				name: "Mesa do Norte",
-				capabilities: ["campaign.transcript.read"],
+				capabilities: ["campaign.world.layout.edit", "narrative.review.read", "campaign.permissions.manage"],
 			},
 		],
 	});
@@ -541,6 +541,19 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	await expect(
 		toolsSection.getByRole("link", { name: "Permissões", exact: true }),
 	).toHaveAttribute("href", "/edit/yuhara-main/permissions");
+	await selector.selectOption("mesa-do-norte");
+	await expect(toolsSection.getByRole("link",{name:"Editar mundo",exact:true})).toHaveAttribute("href","/edit/mesa-do-norte/mundo");
+	await expect(toolsSection.getByRole("link",{name:"Revisão",exact:true})).toHaveAttribute("href","/edit/revisao?campanha=mesa-do-norte");
+	await expect(toolsSection.getByRole("link",{name:"Permissões",exact:true})).toHaveAttribute("href","/edit/mesa-do-norte/permissions");
+});
+
+test("explicit unauthorized campaign context never falls back to the only authorized campaign", async ({ page }) => {
+	await mockAccess(page,{campaigns:[{technicalSlug:"yuhara-main",routeKey:"cronicas-da-mesa",name:"Crônicas da Mesa",capabilities:["campaign.permissions.manage"]}]});
+	await page.goto("/lore?campanha=antes-que-seja-tarde");
+	const panel=await openGlobalMenu(page);
+	const tools=panel.locator('[data-nav-section="tools"]');
+	await expect(tools.getByLabel("Campanha das ferramentas")).toHaveValue("");
+	await expect(tools.getByRole("link",{name:"Permissões",exact:true})).toHaveCount(0);
 });
 
 test("campaign-scoped public routes select the matching tool context and keep current-route state unambiguous", async ({ page }) => {

@@ -1,8 +1,8 @@
 # Navegação global do TDA
 
-> Status: launcher global seccionado validado; QA automatizado ativo  
+> Status: launcher global campaign-aware em validação; QA automatizado ativo  
 > Owner: navigation / frontend / identity-access  
-> Última revisão: 2026-09-30  
+> Última revisão: 2026-10-01  
 > Fonte de verdade: este documento, ADR-0020, decisões #963/#1082/#1188-#1192, PR #1193, floating shell #995/#999 e guards/capabilities da `main`
 
 ## Objetivo
@@ -62,7 +62,7 @@ A referência de organização é o modelo mental de app launcher do Google: gri
 | grid icon-first + camadas tonais | integrado | #1190 / PR #1193 |
 | scroll/foco/motion de utilitário | integrado | #1191 / PR #1193 |
 | gates do launcher seccionado | ativo | #1192 / PR #1193 / `tests/global-navigation.spec.ts` |
-| navegação campaign-aware + contexto explícito do Edit | candidato | #1136 / PR #1219 |
+| navegação campaign-aware + contexto explícito do Edit | candidato | #1136 / PR #1239 |
 
 Merge em `main` não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
@@ -185,7 +185,7 @@ A rota concreta recebe `aria-current="page"`.
 
 ## Evolução multi-campaign
 
-A PR #1219 implementa a camada de navegação de #1136 sobre ADR-0020 na branch de integração #1215. Ela consome o Processamento campaign-aware já integrado por #1128/#1208 e a rota canônica de Edit Sessions já presente no candidato #1129 da mesma integração, sem antecipar World/Review ainda pertencentes a #1130/#1133.
+A PR #1239 implementa a camada de navegação de #1136 sobre ADR-0020 já reconciliada com a `main` após #1129, #1130 e #1133.
 
 Contrato do launcher:
 
@@ -210,8 +210,8 @@ Ferramentas aparecem diretamente em uma seção própria do launcher e somente q
 | Transcrições | `/transcricoes?campanha=[technicalSlug]` | `/edit/[campaign]/transcricoes` | `campaign.transcript.read` |
 | Editar sessões | `/edit/[technicalSlug]/sessoes` (#1129 no candidato de integração) | já é a rota privada canônica da biblioteca | `campaign.transcript.read` |
 | Processar | `/edit/processamento?campanha=[technicalSlug]` (#1128) | futuro alias canônico `/edit/[campaign]/processamento` | `campaign.local.process` |
-| Editar mundo | legado apenas: `/mundo?campanha=yuhara-main` | `/edit/[campaign]/mundo` (#1130) | `campaign.world.layout.edit` |
-| Revisão | legado apenas: `/edit/revisao?campanha=yuhara-main` | `/edit/[campaign]/revisao` (#1133) | `narrative.review.read` |
+| Editar mundo | `/edit/[technicalSlug]/mundo` (#1130) | já canônico | `campaign.world.layout.edit` |
+| Revisão | `/edit/revisao?campanha=[technicalSlug]` (#1133) | futuro alias `/edit/[campaign]/revisao` | `narrative.review.read` |
 | Permissões | `/edit/[campaign]/permissions` | já canônico | `campaign.permissions.manage` |
 
 Regras:

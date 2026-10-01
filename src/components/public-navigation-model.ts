@@ -91,22 +91,16 @@ export function toolNavigationItemsForCampaign(
 		});
 	}
 
-	if (
-		technicalSlug === LEGACY_CAMPAIGN_TECHNICAL_SLUG &&
-		allowed.has(EDIT_CAPABILITIES.worldLayoutEdit)
-	) {
+	if (allowed.has(EDIT_CAPABILITIES.worldLayoutEdit)) {
 		items.push({
-			href: campaignQuery("/mundo", technicalSlug),
+			href: `/edit/${encodeURIComponent(technicalSlug)}/mundo`,
 			label: "Editar mundo",
 			icon: "edit-world",
 			capability: EDIT_CAPABILITIES.worldLayoutEdit,
 		});
 	}
 
-	if (
-		technicalSlug === LEGACY_CAMPAIGN_TECHNICAL_SLUG &&
-		allowed.has(EDIT_CAPABILITIES.reviewRead)
-	) {
+	if (allowed.has(EDIT_CAPABILITIES.reviewRead)) {
 		items.push({
 			href: campaignQuery("/edit/revisao", technicalSlug),
 			label: "Revisão",
@@ -172,6 +166,17 @@ function decodeSegment(value: string | undefined): string | null {
 	} catch {
 		return null;
 	}
+}
+
+export function locationHasCampaignReference(
+	pathname: string,
+	search = "",
+): boolean {
+	const parts = pathname.split("/");
+	if (parts[1] === "edit" && parts.length >= 4 && parts[2]) return true;
+	if (parts[1] === "campanhas" && parts[2] && parts[2] !== "sessoes" && parts.length >= 4)
+		return true;
+	return new URLSearchParams(search).has("campanha");
 }
 
 export function campaignTechnicalSlugFromLocation(
