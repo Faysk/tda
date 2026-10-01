@@ -128,6 +128,39 @@ def test_qwen_empty_window_signal_events_keep_only_bounded_numeric_evidence():
     assert confirmed.level == "info"
     assert confirmed.data["peak_dbfs"] == -120.0
 
+    retry = sanitize_worker_event(
+        {
+            "code": "QWEN_WINDOW_EMPTY_ASR_RETRY_STARTED",
+            **base,
+            "window_start_seconds": 0.0,
+            "window_end_seconds": 60.0,
+            "start_seconds": 6.0,
+            "end_seconds": 60.0,
+        }
+    )
+    assert retry.code == "QWEN_WINDOW_EMPTY_ASR_RETRY_STARTED"
+    assert retry.level == "warning"
+    assert retry.data["window_start_seconds"] == 0.0
+    assert retry.data["window_end_seconds"] == 60.0
+    assert retry.data["start_seconds"] == 6.0
+    assert retry.data["end_seconds"] == 60.0
+    assert "speaker" not in retry.data
+    assert "text" not in retry.data
+    assert "path" not in retry.data
+
+    recovered = sanitize_worker_event(
+        {
+            "code": "QWEN_WINDOW_EMPTY_ASR_RECOVERED",
+            **base,
+            "window_start_seconds": 0.0,
+            "window_end_seconds": 60.0,
+            "start_seconds": 6.0,
+            "end_seconds": 60.0,
+        }
+    )
+    assert recovered.code == "QWEN_WINDOW_EMPTY_ASR_RECOVERED"
+    assert recovered.level == "info"
+
     malformed = sanitize_worker_event(
         {
             "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED",
