@@ -13,15 +13,28 @@ import styles from "@/features/edit/workbench.module.css";
 type Destination = Readonly<{ technicalSlug: string; name: string }>;
 
 const BLOCKERS: Record<SessionMoveBlocker, string> = {
-	published_session: "A sessão possui publicação ativa.",
-	transcript_revision: "A sessão já possui revisão moderna de transcrição.",
-	editorial_draft: "A sessão possui draft editorial.",
-	publication_history: "A sessão possui histórico de publicação.",
-	session_media: "Há mídia de sessão no namespace da campanha atual.",
-	review_or_canon: "Há decisões de revisão ou candidatos de cânone ligados à sessão.",
-	entity_linked_participant: "Há participante já ligado a entidade da campanha.",
-	destination_source_collision: "O mesmo identificador de origem já existe no destino.",
-	invalid_target: "A campanha de destino não é válida para este movimento.",
+	published_session:
+		"A sessão está publicada. O move não altera URL pública nem publicação implicitamente; despublique ou use uma migração editorial dedicada antes de mover.",
+	transcript_revision:
+		"A sessão possui revisão moderna de transcrição. Esse histórico é campaign-bound e não é reescrito pelo move seguro.",
+	editorial_draft:
+		"A sessão possui draft editorial. O draft precisa permanecer na campanha de origem até existir uma política explícita de rebind.",
+	publication_history:
+		"A sessão possui histórico/receipt de publicação. O move seguro não reescreve snapshots públicos nem receipts.",
+	session_media:
+		"Há mídia no namespace da campanha atual. O objeto não será renomeado, copiado ou religado silenciosamente.",
+	review_or_canon:
+		"Há revisão, candidato ou memória canônica ligada à sessão. O move não duplica nem reclassifica canon.",
+	entity_linked_participant:
+		"Há participante ligado a uma entidade da campanha atual. O personagem não será copiado pelo nome para o destino.",
+	session_evidence_or_lineage:
+		"Há fontes, eventos, segmentos, jobs ou outra provenance ligada à sessão. Esse lineage precisa de uma política de rebind antes do move.",
+	session_scoped_access:
+		"Há acesso/RBAC explicitamente scoped à sessão. O grant precisa ser revisado antes do move.",
+	destination_source_collision:
+		"O mesmo identificador de origem já existe no destino. Escolha outra sessão/destino ou resolva a colisão primeiro.",
+	invalid_target:
+		"A campanha de destino não está ativa ou não é um destino válido para este movimento.",
 };
 
 export function SessionCampaignMoveControl({
@@ -39,27 +52,33 @@ export function SessionCampaignMoveControl({
 }>) {
 	const router = useRouter();
 	const [destination, setDestination] = useState("");
-	const [phase, setPhase] = useState<"idle" | "checking" | "ready" | "blocked" | "moving" | "error">("idle");
+	const [phase, setPhase] = useState<
+		"idle" | "checking" | "ready" | "blocked" | "moving" | "error"
+	>("idle");
 	const [blockers, setBlockers] = useState<readonly SessionMoveBlocker[]>([]);
 	const [message, setMessage] = useState("");
 	const operationId = useRef<string | null>(null);
-	const target = destinations.find((item) => item.technicalSlug === destination) ?? null;
+	const target =
+		destinations.find((item) => item.technicalSlug === destination) ?? null;
 
 	if (!destinations.length) return null;
 
 	async function preflight() {
 		if (!target || phase === "checking" || phase === "moving") return;
 		setPhase("checking");
-		setMessage("Verificando dependências e colisões…");
+		setMessage("Verificando autoridade, dependências, provenance e colisões…");
 		const result = await preflightSessionCampaignMoveAction({
 			sessionId,
+			sourceSessionId,
 			sourceCampaignSlug,
 			destinationCampaignSlug: target.technicalSlug,
 		});
 		if (result.ok) {
 			setBlockers([]);
 			setPhase("ready");
-			setMessage("Preflight limpo. Nenhuma escrita foi feita.");
+			setMessage(
+				"Preflight limpo. Nenhuma escrita foi feita. O commit moverá a identidade da sessão sem clonar conteúdo e registrará auditoria.",
+			);
 			return;
 		}
 		const nextBlockers = "blockers" in result ? result.blockers : [];
@@ -68,7 +87,9 @@ export function SessionCampaignMoveControl({
 		setMessage(
 			nextBlockers.length
 				? "O movimento foi bloqueado antes de qualquer escrita."
-				: "Não foi possível confirmar o preflight.",
+				: result.reason === "forbidden"
+					? "Sua autorização mudou ou não cobre origem e destino. Nada foi escrito."
+					: "Não foi possível confirmar o preflight.",
 		);
 	}
 
@@ -80,7 +101,7 @@ export function SessionCampaignMoveControl({
 					sourceCampaignName +
 					" para " +
 					target.name +
-					"? A sessão não será clonada.",
+					"? A sessão não será clonada e qualquer estado novo desde o preflight pode bloquear o commit.",
 			)
 		)
 			return;
@@ -90,6 +111,7 @@ export function SessionCampaignMoveControl({
 		const result = await moveSessionCampaignAction({
 			operationId: operationId.current,
 			sessionId,
+			sourceSessionId,
 			sourceCampaignSlug,
 			destinationCampaignSlug: target.technicalSlug,
 		});
@@ -100,9 +122,16 @@ export function SessionCampaignMoveControl({
 			setMessage(
 				nextBlockers.length
 					? "O estado mudou e o movimento foi bloqueado sem escrita parcial."
-					: "O movimento não foi confirmado. A mesma operação pode ser repetida com segurança.",
+					: result.reason === "conflict"
+						? "O estado da sessão ou do destino mudou durante o commit. Nada parcial foi mantido; execute o preflight novamente."
+						: result.reason === "operation_conflict"
+							? "Este receipt pertence a outro pedido. Gere um novo preflight antes de tentar de novo."
+							: result.reason === "forbidden"
+								? "Sua autorização mudou antes do commit. Nada foi escrito."
+								: "O movimento não foi confirmado. Em falha de transporte, a mesma operação pode ser repetida com segurança.",
 			);
-			if (result.reason !== "dependency_unavailable") operationId.current = null;
+			if (result.reason !== "dependency_unavailable")
+				operationId.current = null;
 			return;
 		}
 		operationId.current = null;
@@ -118,6 +147,11 @@ export function SessionCampaignMoveControl({
 	return (
 		<details className={styles.libraryGuidance}>
 			<summary>Mover sessão para outra campanha</summary>
+			<p className={styles.muted}>
+				Esta é uma operação separada do draft. Primeiro fazemos um preflight sem
+				escritas; dependências que não possuem política segura de rebind bloqueiam
+				o move.
+			</p>
 			<div className={styles.libraryFilterActions}>
 				<label>
 					<span>Destino</span>
@@ -141,17 +175,27 @@ export function SessionCampaignMoveControl({
 						))}
 					</select>
 				</label>
-				<Button disabled={!target || phase === "checking" || phase === "moving"} onClick={() => void preflight()} variant="secondary">
+				<Button
+					disabled={!target || phase === "checking" || phase === "moving"}
+					onClick={() => void preflight()}
+					variant="secondary"
+				>
 					{phase === "checking" ? "Verificando…" : "Verificar movimento"}
 				</Button>
 				<Button disabled={phase !== "ready"} onClick={() => void move()}>
 					{phase === "moving" ? "Movendo…" : "Mover sessão"}
 				</Button>
 			</div>
-			{message ? <p role={phase === "error" || phase === "blocked" ? "alert" : "status"}>{message}</p> : null}
+			{message ? (
+				<p role={phase === "error" || phase === "blocked" ? "alert" : "status"}>
+					{message}
+				</p>
+			) : null}
 			{blockers.length ? (
 				<ul>
-					{blockers.map((blocker) => <li key={blocker}>{BLOCKERS[blocker]}</li>)}
+					{blockers.map((blocker) => (
+						<li key={blocker}>{BLOCKERS[blocker]}</li>
+					))}
 				</ul>
 			) : null}
 		</details>
