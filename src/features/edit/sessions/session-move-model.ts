@@ -18,6 +18,7 @@ export type SessionMoveBlocker =
 export type SessionCampaignMoveRequest = Readonly<{
 	operationId: string;
 	sessionId: string;
+	sourceSessionId: string;
 	sourceCampaignSlug: string;
 	destinationCampaignSlug: string;
 }>;
@@ -28,6 +29,12 @@ export function validateSessionCampaignMoveRequest(
 	const issues: string[] = [];
 	if (!UUID.test(input.operationId)) issues.push("operation_id");
 	if (!UUID.test(input.sessionId)) issues.push("session_id");
+	if (
+		!input.sourceSessionId ||
+		input.sourceSessionId.length > 220 ||
+		input.sourceSessionId.includes("\u0000")
+	)
+		issues.push("source_session_id");
 	if (!SLUG.test(input.sourceCampaignSlug)) issues.push("source_campaign");
 	if (!SLUG.test(input.destinationCampaignSlug)) issues.push("destination_campaign");
 	if (input.sourceCampaignSlug === input.destinationCampaignSlug)
