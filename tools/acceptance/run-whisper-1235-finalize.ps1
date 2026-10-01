@@ -273,28 +273,28 @@ try {
     }
 
     $genericReceipts = [Collections.Generic.List[string]]::new()
-    foreach ($profile in $Profiles) {
-        Write-Host "[$profile] Generic runtime GPU acceptance..."
+    foreach ($profileId in $Profiles) {
+        Write-Host "[$profileId] Generic runtime GPU acceptance..."
         $receipt = Invoke-JsonProcess -Executable $worker -Arguments @(
             "--acceptance",
             "--audio", $syntheticAudio,
             "--models-root", $models,
-            "--profile", $profile,
+            "--profile", $profileId,
             "--require-gpu-name", $RequireGpuName
-        ) -ErrorPrefix ("WHISPER_1235_GENERIC_" + $profile.Replace("-", "_").ToUpperInvariant())
+        ) -ErrorPrefix ("WHISPER_1235_GENERIC_" + $profileId.Replace("-", "_").ToUpperInvariant())
 
         if (
             [string]$receipt.schema -ne "tda_whisper_gpu_acceptance_v1" -or
             $receipt.pass -ne $true -or
-            [string]$receipt.profile_id -ne $profile -or
+            [string]$receipt.profile_id -ne $profileId -or
             $null -eq $receipt.gpu -or
             $receipt.gpu.required_name_match -ne $true -or
             $null -eq $receipt.inference -or
             [string]$receipt.inference.device -ne "cuda"
         ) {
-            throw "WHISPER_1235_GENERIC_RECEIPT_INVALID:$profile"
+            throw "WHISPER_1235_GENERIC_RECEIPT_INVALID:$profileId"
         }
-        $path = Join-Path $genericRawRoot "$profile.json"
+        $path = Join-Path $genericRawRoot "$profileId.json"
         Write-Json $path $receipt
         $genericReceipts.Add($path)
     }
