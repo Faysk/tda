@@ -1,0 +1,193 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+	moveSessionCampaignAction,
+	preflightSessionCampaignMoveAction,
+} from "./session-campaign-move-actions";
+import {
+	type SessionCampaignMoveDestination,
+	type SessionCampaignMovePreview,
+	sessionCampaignMoveConsequenceLabel,
+} from "./session-campaign-move-model";
+import styles from "./session-campaign-move.module.css";
+
+type Props = Readonly<{
+	sessionId: string;
+	sourceSessionId: string;
+	sourceCampaignSlug: string;
+	sourceCampaignName: string;
+	destinations: readonly SessionCampaignMoveDestination[];
+}>;
+
+function failureLabel(reason: string): string {
+	switch (reason) {
+		case "forbidden":
+		case "profile_unresolved":
+			return "Seu perfil não possui autorização nas duas campanhas.";
+		case "conflict":
+			return "A sessão mudou de campanha ou identidade enquanto você trabalhava. Recarregue a página.";
+		case "operation_conflict":
+			return "Este identificador de operação já foi usado para outra mudança.";
+		case "blocked":
+			return "A mudança está bloqueada pelas dependências atuais.";
+		case "not_found":
+			return "A sessão ou uma das campanhas não está mais disponível.";
+		case "validation":
+			return "Os dados da mudança ficaram inválidos. Recarregue e tente novamente.";
+		default:
+			return "Não foi possível confirmar a mudança agora. Nenhuma alteração parcial deve ser assumida.";
+	}
+}
+
+export function SessionCampaignMovePanel({
+	sessionId,
+	sourceSessionId,
+	sourceCampaignSlug,
+	sourceCampaignName,
+	destinations,
+}: Props) {
+	const router = useRouter();
+	const [destination, setDestination] = useState(destinations[0]?.technicalSlug ?? "");
+	const [preview, setPreview] = useState<SessionCampaignMovePreview | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const [operationId, setOperationId] = useState<string | null>(null);
+	const [pending, startTransition] = useTransition();
+	const selected = useMemo(
+		() => destinations.find((item) => item.technicalSlug === destination),
+		[destinations, destination],
+	);
+
+	if (!destinations.length) {
+		return (
+			<section className={styles.panel} aria-labelledby="session-move-title">
+				<div>
+					<p className={styles.eyebrow}>Campanha atual</p>
+					<h2 id="session-move-title">{sourceCampaignName}</h2>
+				</div>
+				<p className={styles.muted}>
+					Não há outra campanha ativa em que você possua leitura da transcrição e edição de conteúdo.
+				</p>
+			</section>
+		);
+	}
+
+	const request = {
+		sessionId,
+		sourceSessionId,
+		sourceCampaignSlug,
+		destinationCampaignSlug: destination,
+	};
+
+	function runPreflight() {
+		setError(null);
+		setPreview(null);
+		setOperationId(null);
+		startTransition(async () => {
+			const result = await preflightSessionCampaignMoveAction(request);
+			if (!result.ok) {
+				setError(failureLabel(result.reason));
+				return;
+			}
+			setPreview(result.preview);
+		});
+	}
+
+	function commitMove() {
+		if (!preview || preview.status !== "ready") return;
+		const stableOperationId = operationId ?? crypto.randomUUID();
+		if (!operationId) setOperationId(stableOperationId);
+		setError(null);
+		startTransition(async () => {
+			try {
+				const result = await moveSessionCampaignAction({
+					...request,
+					operationId: stableOperationId,
+				});
+				if (!result.ok) {
+					if ("preview" in result && result.preview) setPreview(result.preview);
+					setError(failureLabel(result.reason));
+					return;
+				}
+				if (result.cachePending) {
+					setError(
+						"A mudança foi confirmada no banco, mas alguma revalidação de cache ficou pendente. O destino abaixo é a fonte de verdade.",
+					);
+				}
+				router.replace(result.destinationHref);
+				router.refresh();
+			} catch {
+				setError(
+					"A resposta se perdeu. Use “Confirmar mudança” novamente: o mesmo operationId será reutilizado com segurança.",
+				);
+			}
+		});
+	}
+
+	return (
+		<section className={styles.panel} aria-labelledby="session-move-title">
+			<div className={styles.heading}>
+				<div>
+					<p className={styles.eyebrow}>Campanha atual</p>
+					<h2 id="session-move-title">{sourceCampaignName}</h2>
+				</div>
+				<p className={styles.muted}>Mover é uma operação separada do draft editorial.</p>
+			</div>
+
+			<div className={styles.controls}>
+				<label>
+					<span>Mover para outra campanha</span>
+					<select
+						value={destination}
+						onChange={(event) => {
+							setDestination(event.currentTarget.value);
+							setPreview(null);
+							setError(null);
+							setOperationId(null);
+						}}
+						disabled={pending}
+					>
+						{destinations.map((item) => (
+							<option key={item.technicalSlug} value={item.technicalSlug}>
+								{item.name}
+							</option>
+						))}
+					</select>
+				</label>
+				<button type="button" onClick={runPreflight} disabled={pending || !selected}>
+					{pending ? "Verificando…" : "Pré-validar mudança"}
+				</button>
+			</div>
+
+			{error ? <p className={styles.error} role="alert">{error}</p> : null}
+
+			{preview ? (
+				<div className={styles.preview} data-status={preview.status}>
+					<h3>{preview.status === "ready" ? "Pronta para confirmar" : "Mudança bloqueada"}</h3>
+					{preview.blockers.length ? (
+						<ul>
+							{preview.blockers.map((blocker) => (
+								<li key={blocker.code}>
+									<strong>{blocker.message}</strong>
+									<span>{blocker.count} dependência(s) · {blocker.code}</span>
+								</li>
+							))}
+						</ul>
+					) : (
+						<ul>
+							{preview.consequences.map((item) => (
+								<li key={item}>{sessionCampaignMoveConsequenceLabel(item)}</li>
+							))}
+						</ul>
+					)}
+					{preview.status === "ready" ? (
+						<button type="button" onClick={commitMove} disabled={pending}>
+							{pending ? "Movendo…" : `Confirmar mudança para ${selected?.name ?? "destino"}`}
+						</button>
+					) : null}
+				</div>
+			) : null}
+		</section>
+	);
+}
