@@ -279,16 +279,15 @@ for (const surface of surfaces) {
 	});
 }
 
-test("standalone catalogs keep published entries discoverable and private lores direct-only", async ({
+test("standalone catalogue keeps every curated lore discoverable", async ({
 	page,
 }, testInfo) => {
 	test.skip(testInfo.project.name !== "desktop-1080p");
 
 	await page.goto("/lore");
-	await expect(page.locator('a[href="/lore/astel"]')).toBeVisible();
-	await expect(page.locator('a[href="/lore/noah"]')).toBeVisible();
-	await expect(page.locator('a[href="/lore/d"]')).toHaveCount(0);
-	await expect(page.locator('a[href="/lore/yllith"]')).toHaveCount(0);
+	for (const slug of ["astel", "noah", "d", "yllith"] as const) {
+		await expect(page.locator(`a[href="/lore/${slug}"]`)).toBeVisible();
+	}
 
 	await page.goto("/diario");
 	await expect(page.locator('a[href="/diario/astel"]')).toBeVisible();
