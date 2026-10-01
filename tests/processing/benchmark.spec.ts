@@ -139,6 +139,10 @@ test("benchmark can recover a Qwen runtime when the installed version is unknown
 	const panel = await openBenchmark(page);
 
 	await expect(panel).toContainText("2 / 4 perfis prontos");
+	await expect(panel.getByText("Runtime Qwen precisa ser atualizado.")).toHaveCount(2);
+	await expect(
+		panel.locator("[data-state='blocked']").filter({ hasText: "Qwen Fast" }),
+	).toBeVisible();
 	const recovery = panel.locator("[data-qwen-runtime-recovery='true']");
 	await expect(recovery).toBeVisible();
 	await expect(recovery).toContainText("Não identificado");
@@ -155,6 +159,44 @@ test("benchmark can recover a Qwen runtime when the installed version is unknown
 	await expect(recovery).toHaveCount(0);
 	expect(state.uploadCount).toBe(0);
 	expect(state.preparationPostCount).toBe(0);
+});
+
+test("Qwen runtime recovery stays readable and keyboard-operable on mobile", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkReadyProfiles: ["whisper-turbo", "whisper-detailed"],
+		qwenRuntimeUpgradeRequired: true,
+		qwenRuntimeVersion: "1.0.11",
+		qwenRuntimeStableVersion: "1.0.12",
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+	const recovery = panel.locator("[data-qwen-runtime-recovery='true']");
+
+	await expect(recovery).toBeVisible();
+	await expect(panel.getByText("Runtime Qwen precisa ser atualizado.")).toHaveCount(2);
+	const technical = panel.getByText("Detalhe técnico").first();
+	await technical.click();
+	await expect(
+		panel.getByText("QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED").first(),
+	).toBeVisible();
+
+	const horizontal = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}));
+	expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+
+	const update = recovery.getByRole("button", { name: "Atualizar Qwen Runtime" });
+	await update.focus();
+	await expect(update).toBeFocused();
+	await page.keyboard.press("Enter");
+
+	await expect.poll(() => state.qwenRuntimeUpdatePostCount).toBe(1);
+	await expect(panel).toContainText("4 / 4 perfis prontos");
 });
 
 test("benchmark fails closed when the Stable Qwen runtime is below the required minimum", async ({
