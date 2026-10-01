@@ -2,7 +2,7 @@
 
 > Status: decisão aprovada; implementação parcial
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-02
 
 ## Objetivo
 
@@ -77,9 +77,9 @@ Nenhuma lore cria uploader, endpoint operacional ou autorização próprios. A r
 | --- | --- | --- | --- | --- |
 | Pipipi | `app` | Sim | Sim, conforme o projeto existente | Preservar política pública atual |
 | Astel / Noah | `standalone` estática, candidato local | Sim, solicitado | Sem novas entidades/relações; ligações editoriais por slug | Canonical próprio; sem copiar o noindex das lores externas |
-| D | `standalone` estática | Não | Binding editorial para `antes-que-seja-tarde`, resolvido somente quando a campaign existir | Não indexar |
+| D | `standalone` estática | Sim | Binding editorial para `antes-que-seja-tarde` | Não indexar |
 | Seika | Route Handler standalone legado | Sim | Binding editorial para `antes-que-seja-tarde` | Não indexar; alinhar runtime em entrega própria se necessário |
-| Yllith | `standalone` estática planejada | Não | Não | Não indexar |
+| Yllith | `standalone` estática | Sim | Binding editorial para `antes-que-seja-tarde` | Não indexar |
 
 D e Seika chegaram à produção por estratégias técnicas diferentes. Essa diferença é histórica, não editorial.
 
@@ -98,7 +98,7 @@ Essas decisões não se inferem umas das outras:
 - **vinculada**: pertence a campanha/universo confirmado;
 - **indexável**: pode entrar em mecanismos de busca.
 
-D permanece pública por URL e não listada até a slice #1286. Seika continua pública e não indexável, mas passa a integrar o catálogo curado com binding editorial explícito para `antes-que-seja-tarde`. Yllith permanece fora do catálogo até #1286. Nenhuma dessas decisões cria entity, canon ou session automaticamente. `noindex` não é controle de acesso; quem souber a URL de uma lore publicada ainda pode abrir a página.
+D, Seika e Yllith permanecem públicas e não indexáveis em suas URLs canônicas, passam a integrar o catálogo curado e carregam binding editorial explícito para `antes-que-seja-tarde`. Nenhuma dessas decisões cria entity, canon ou session automaticamente. `noindex` não é controle de acesso; quem souber a URL de uma lore publicada ainda pode abrir a página.
 
 ## Contrato de produção para standalone
 
@@ -137,7 +137,7 @@ Campos mínimos esperados:
 }
 ```
 
-Esse registro agora vive em `src/features/lore/registry.ts`. Ele separa `delivery`, `listed`, `campaignTechnicalSlug`, `indexable` e `entityLink`; não contém texto narrativo nem cria registros no banco. `src/features/lore/standalone-catalog.json` permanece somente com metadata de apresentação dos cards Astel/Noah. A listagem consulta o registry, e o vínculo entity→standalone é campaign-qualified para que slugs iguais em campaigns diferentes não colidam.
+Esse registro agora vive em `src/features/lore/registry.ts`. Ele separa `delivery`, `listed`, `campaignTechnicalSlug`, `indexable` e `entityLink`; não contém texto narrativo nem cria registros no banco. `src/features/lore/standalone-catalog.json` mantém somente metadata de apresentação das lores curadas, sem texto narrativo fonte. A listagem consulta o registry, e o vínculo entity→standalone é campaign-qualified para que slugs iguais em campaigns diferentes não colidam.
 
 O resolver server-side `standalone-link-repository.ts` só considera o vínculo de campaign existente depois que a row de campaign pode ser resolvida. Para UI pública, badge/nome de campaign só aparece se lifecycle/visibility/public route também forem públicos e válidos; ausência do registry novo não inventa um rótulo “desconhecido”.
 
@@ -152,6 +152,6 @@ ADR-0020 aprova múltiplas campaigns, mas o registro de lore continua separando 
 - nome/public route key da campaign não entra na key de mídia da lore por conveniência;
 - catálogo global `/lore` pode continuar curado independentemente de campaign.
 
-A decisão editorial da #1131 aponta D para **Antes que seja tarde**, mas o runtime mantém o vínculo não resolvido enquanto a campaign não existir no registry persistido. Isso não lista D, não muda `/lore/d`, não cria entity/canon/session e não copia conteúdo do microsite.
+As #1285 e #1286 consolidam Seika, D e Yllith sob **Antes que seja tarde** como metadata editorial. O vínculo só se torna badge público quando a campaign também é publicável; isso não muda as URLs canônicas, não cria entity/canon/session e não copia o conteúdo narrativo para o registry.
 
 Multi-jogo/multiuniverso completo continua fora do escopo desta decisão.
