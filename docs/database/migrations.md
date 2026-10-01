@@ -1806,3 +1806,53 @@ O candidate adiciona:
 - replay idempotente por `operation_id` e conflito para operação reutilizada com identidade diferente.
 
 A operação não clona conteúdo e não migra dependências parcialmente. Um blocker resulta em zero write. Após commit, cache/delivery são efeitos pós-transação e devem ser revalidados pela aplicação; falha nessa etapa é reportada como pendência de cache, não rollback fictício do banco.
+
+
+## Ativação canônica — registry first-class de campaigns
+
+### `20261001204500_activate_first_class_campaign_registry`
+
+**Estado:** migration canônica promovida em #1284 a partir do candidate revisado
+`20260930174200_first_class_campaign_registry.sql`, sem mudança semântica.
+
+Objetivo:
+
+- adicionar `lifecycle`, `visibility`, `public_slug` e `archived_at` ao registry;
+- preservar o UUID e o technical slug histórico `yuhara-main`;
+- apresentar a campaign histórica como **Crônicas da Mesa** em
+  `/campanhas/cronicas-da-mesa/...`;
+- manter `yuhara-main` como alias de compatibilidade;
+- criar somente a identidade privada `Antes que seja tarde`, sem sessões,
+  entidades, canon, memberships ou lore inferidos;
+- materializar guards de alias, participant/entity same-campaign e invariantes
+  de move já validados no scratch #1123.
+
+### `20261001205000_harden_campaign_discovery_authorization`
+
+**Estado:** migration canônica promovida em #1284 a partir do candidate revisado
+`20260930191500_harden_campaign_discovery_authorization.sql`, sem mudança
+semântica.
+
+Depende da migration de registry acima e:
+
+- adiciona `project.campaigns.manage`;
+- mantém discovery pública em projection mínima;
+- mantém discovery Edit capability-based;
+- fixa `SECURITY DEFINER` + `search_path` nos boundaries governados;
+- fecha execução browser dos helpers/RPCs que poderiam virar oracle;
+- não transforma membership em autoridade.
+
+### Rollout
+
+A promoção de arquivos **não aplica Production por si só**. A aplicação remota
+segue `docs/operations/multi-campaign-activation-gate.md`:
+
+1. CI/scratch das migrations canônicas;
+2. migration history e read-back do registry;
+3. advisors após DDL;
+4. smoke público semântico;
+5. projection autenticada/capability;
+6. receipt sanitizado por SHA.
+
+O fallback legado de #1225 só pode ser removido em entrega posterior ao receipt
+de ativação first-class.

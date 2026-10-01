@@ -1,7 +1,7 @@
 """Scratch PostgreSQL 16 contract for first-class campaign registry (#1123).
 
 Runs only synthetic fixtures in a fresh Unix-socket-only cluster. It applies the
-candidate migration twice before assertions and verifies cross-campaign identity, lifecycle,
+canonical migration twice before assertions and verifies cross-campaign identity, lifecycle,
 route aliases, legacy compatibility and logical FK isolation. No environment
 credentials, TCP access or Production data are used.
 """
@@ -88,11 +88,11 @@ try:
     )
     started = True
 
-    candidate = repo / "supabase/candidates/20260930174200_first_class_campaign_registry.sql"
+    migration = repo / "supabase/migrations/20261001204500_activate_first_class_campaign_registry.sql"
     paths = [
         repo / "supabase/tests/campaign_registry_fixture.sql",
-        candidate,
-        candidate,
+        migration,
+        migration,
         repo / "supabase/tests/campaign_registry.sql",
     ]
     output_parts: list[str] = []
