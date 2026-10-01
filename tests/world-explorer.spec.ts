@@ -229,7 +229,7 @@ test("World Explorer relation disclosure follows the real theme toggle and keeps
 	await themeToggle.click();
 	await expect(themeToggle).toHaveAttribute("aria-checked", wasDark === "true" ? "false" : "true");
 	await page.waitForTimeout(800);
-	await page.getByRole("button", { name: "Fechar menu global" }).click();
+	await page.keyboard.press("Escape");
 	await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeHidden();
 
 	await relationTrigger.click();

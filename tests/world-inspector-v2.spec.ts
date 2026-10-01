@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("World Inspector exposes only tabs backed by visible projection data", async ({ page }) => {
 	await page.goto("/campanhas/cronicas-da-mesa/mundo");
+	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
 	await page.locator('[data-world-node="dandelion"]').click();
 
 	const overview = page.getByRole("tab", { name: "Visão geral" });
@@ -29,11 +30,13 @@ test("World Inspector exposes only tabs backed by visible projection data", asyn
 
 test("World Inspector resets navigation and hides unsupported tabs when selection changes", async ({ page }) => {
 	await page.goto("/campanhas/cronicas-da-mesa/mundo");
+	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
 	await page.locator('[data-world-node="dandelion"]').click();
 	await page.getByRole("tab", { name: /Momentos/ }).click();
 	await expect(page.locator('[data-inspector-tab="moments"]')).toBeVisible();
 
-	await page.locator('[data-world-node="astel"]').click();
+	await page.getByRole("tab", { name: "Visão geral" }).click();
+	await page.getByRole("button", { name: "Explorar relação Amizade com Astel" }).click();
 	await expect(page.getByRole("heading", { name: "Astel" })).toBeVisible();
 	await expect(page.getByRole("tab", { name: "Visão geral" })).toHaveAttribute("aria-selected", "true");
 	await expect(page.getByRole("tab", { name: /Momentos/ })).toHaveCount(0);

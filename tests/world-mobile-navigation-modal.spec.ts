@@ -51,8 +51,9 @@ test("mobile focus containment releases when viewport crosses to desktop", async
 
 	const stage = page.getByTestId("world-workspace-stage");
 	await expect(stage).not.toHaveAttribute("inert", "");
-	const stageButton = stage.locator("button").first();
-	await stageButton.focus();
+	const stageSearch = stage.getByRole("searchbox", { name: "Buscar no mundo" });
+	await stageSearch.focus();
+	await expect(stageSearch).toBeFocused();
 	await page.keyboard.press("Tab");
 
 	await expect
