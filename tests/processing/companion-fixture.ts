@@ -64,6 +64,8 @@ export type CompanionFixtureOptions = {
 	benchmarkMinimumTrackDurationSeconds?: number | null;
 	benchmarkSubmitError?: string | null;
 	benchmarkPreparationFailureProfile?: string | null;
+	benchmarkReadinessContract?: boolean;
+	whisperBenchmarkRuntimeUpgradeRequired?: boolean;
 	reviewEnabled?: boolean;
 	additionalCapabilities?: readonly string[];
 	qwenRuntimeVersion?: string | null;
@@ -320,20 +322,37 @@ export async function installCompanionFixture(
 		if (path === "/capabilities") {
 			if (options.benchmarkProfiles) {
 				const catalog = benchmarkProfileIds.map((id) => {
-					const runtimeBlocked =
+					const qwenRuntimeBlocked =
 						options.qwenRuntimeUpgradeRequired === true && id.startsWith("qwen-");
-					const ready = runtimeBlocked ? false : benchmarkPrepared.has(id);
+					const whisperBenchmarkBlocked =
+						options.whisperBenchmarkRuntimeUpgradeRequired === true &&
+						id.startsWith("whisper-");
+					const ready = qwenRuntimeBlocked ? false : benchmarkPrepared.has(id);
+					const benchmarkReady = ready && !whisperBenchmarkBlocked;
+					const benchmarkReason = benchmarkReady
+						? null
+						: qwenRuntimeBlocked
+							? "QWEN_RUNTIME_REQUIRED"
+							: whisperBenchmarkBlocked
+								? "WHISPER_BENCHMARK_RUNTIME_REQUIRED"
+								: "BENCHMARK_PROFILE_PREPARATION_REQUIRED";
 					return {
 						id,
 						engine: id.startsWith("qwen-") ? "qwen3" : "whisper",
 						ready,
-						preparation_required: runtimeBlocked ? false : !ready,
+						preparation_required: qwenRuntimeBlocked ? false : !ready,
 						reason: ready
 							? null
-							: runtimeBlocked
+							: qwenRuntimeBlocked
 								? "QWEN_RUNTIME_REQUIRED"
 								: "BENCHMARK_PROFILE_PREPARATION_REQUIRED",
-						...(id.startsWith("qwen-") ? { runtime_version: qwenRuntimeVersion } : {}),
+						benchmark_ready: benchmarkReady,
+						benchmark_preparation_required:
+							!benchmarkReady && !qwenRuntimeBlocked,
+						benchmark_reason: benchmarkReason,
+						...(id.startsWith("qwen-")
+							? { runtime_version: qwenRuntimeVersion }
+							: { runtime_version: whisperBenchmarkBlocked ? "1.1.5" : "1.1.7" }),
 					};
 				});
 				return json(route, {
@@ -343,6 +362,9 @@ export async function installCompanionFixture(
 						"transcription.craig",
 						"transcription.prepare",
 						"transcription.prepare.cancel",
+						...(options.benchmarkReadinessContract === false
+							? []
+							: ["processing.benchmark.runtime-readiness-v2"]),
 						"runtime.qwen.check",
 						"runtime.qwen.update",
 						"job.events",
@@ -721,7 +743,7 @@ export async function installCompanionFixture(
 				(options.benchmarkProfiles
 					? !benchmarkProfileIds.includes(
 							requestedProfile as (typeof benchmarkProfileIds)[number],
-						)
+						) || row.purpose !== "benchmark"
 					: requestedProfile !== "qwen-quality")
 			)
 				return invalidRequest(route);
@@ -769,8 +791,11 @@ export async function installCompanionFixture(
 				options.benchmarkProfiles &&
 				options.benchmarkPreparationFailureProfile === preparationProfile;
 			if (preparationReads >= 1 && !failed) {
-				if (options.benchmarkProfiles) benchmarkPrepared.add(preparationProfile);
-				else prepared = true;
+				if (options.benchmarkProfiles) {
+					benchmarkPrepared.add(preparationProfile);
+					if (preparationProfile.startsWith("whisper-"))
+						options.whisperBenchmarkRuntimeUpgradeRequired = false;
+				} else prepared = true;
 			}
 			return json(route, {
 				schema: "tda_profile_preparation_v1",
@@ -929,12 +954,25 @@ export async function installCompanionFixture(
 				warning_count: 0,
 				execution_lineage: {
 					schema_version: "tda_execution_lineage_v1",
-					companion_version: "0.3.14",
+					companion_version: "0.3.18",
 					runtime_family: engine === "whisper" ? "whisper" : "qwen",
-					runtime_version: "1.0.12",
-					device: "cuda",
+					runtime_version: engine === "whisper" ? "1.1.7" : "1.0.12",
+					runtime_artifact: {
+						runtime_id: engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
+						version: engine === "whisper" ? "1.1.7" : "1.0.12",
+						worker_sha256: "c".repeat(64),
+						archive_sha256: "d".repeat(64),
+					},
+					device: "cuda:0",
 					compute_type: "float16",
-					gpu: null,
+					gpu: {
+						vendor: "NVIDIA",
+						index: 0,
+						model: "NVIDIA GeForce RTX 4070 Laptop GPU",
+						vram_total_bytes: 8 * 1024 * 1024 * 1024,
+						compute_capability: "8.9",
+						driver_version: "synthetic",
+					},
 				},
 			});
 			return json(route, {

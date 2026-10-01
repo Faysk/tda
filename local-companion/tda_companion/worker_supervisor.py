@@ -15,6 +15,7 @@ from .asr_runtime import inspect_whisper_runtime
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import inspect_qwen_runtime
 from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
+from .runtime_compat import whisper_runtime_benchmark_compatible
 from .worker_protocol import (
     MAX_LINE_BYTES,
     WorkerCancelCommand,
@@ -42,6 +43,45 @@ def default_worker_command() -> list[str]:
     if getattr(sys, "frozen", False):
         return [sys.executable, "--worker"]
     return [sys.executable, "-m", "tda_companion.asr_worker"]
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value)
+    )
+
+
+def _benchmark_profile_evidence_valid(receipt: dict, profile_id: str) -> bool:
+    lineage = receipt.get("execution_lineage")
+    if not isinstance(lineage, dict) or lineage.get("schema_version") != "tda_execution_lineage_v1":
+        return False
+    expected_family = "whisper" if profile_id.startswith("whisper-") else "qwen"
+    expected_runtime_id = (
+        "whisper-ctranslate2" if expected_family == "whisper" else "qwen3-transformers"
+    )
+    runtime_version = lineage.get("runtime_version")
+    artifact = lineage.get("runtime_artifact")
+    gpu = lineage.get("gpu")
+    device = lineage.get("device")
+    return (
+        receipt.get("profile_id") == profile_id
+        and receipt.get("sample_seconds") == 300.0
+        and lineage.get("runtime_family") == expected_family
+        and isinstance(runtime_version, str)
+        and isinstance(artifact, dict)
+        and artifact.get("runtime_id") == expected_runtime_id
+        and artifact.get("version") == runtime_version
+        and _is_sha256(artifact.get("worker_sha256"))
+        and _is_sha256(artifact.get("archive_sha256"))
+        and isinstance(device, str)
+        and device.casefold().startswith("cuda")
+        and isinstance(gpu, dict)
+        and gpu.get("vendor") == "NVIDIA"
+        and isinstance(gpu.get("model"), str)
+        and bool(str(gpu.get("model")).strip())
+    )
 
 
 class WorkerSupervisor:
@@ -483,6 +523,13 @@ class WorkerSupervisor:
             worker_value = state.get("worker")
             if state.get("status") != "ready" or not isinstance(worker_value, str):
                 raise WorkerProcessError("WHISPER_RUNTIME_UNAVAILABLE")
+            if benchmark_sample_seconds is not None:
+                runtime_version = state.get("version")
+                if (
+                    not isinstance(runtime_version, str)
+                    or not whisper_runtime_benchmark_compatible(runtime_version)
+                ):
+                    raise WorkerProcessError("WHISPER_BENCHMARK_RUNTIME_REQUIRED")
             worker = Path(worker_value)
             artifact = runtime_artifact(state, family="whisper", version=worker.parent.name)
             if artifact is None:
@@ -587,6 +634,8 @@ class WorkerSupervisor:
             receipt = dict(outcome.payload)
             if receipt.get("schema_version") != "tda_benchmark_profile_v1":
                 raise WorkerProcessError("BENCHMARK_PROFILE_RESULT_INVALID", recoverable=False)
+            if not _benchmark_profile_evidence_valid(receipt, profile_id):
+                raise WorkerProcessError("BENCHMARK_PROFILE_EVIDENCE_INVALID", recoverable=False)
             receipts.append(receipt)
             on_progress(
                 WorkerMessage.create(

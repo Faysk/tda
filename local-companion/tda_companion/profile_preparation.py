@@ -33,6 +33,7 @@ from .qwen_runtime_updates import (
 )
 from .runtime_compat import (
     qwen_runtime_version_compatible,
+    whisper_runtime_benchmark_compatible,
     whisper_runtime_version_compatible,
 )
 from .runtime_rc_updates import install_published_runtime_rc
@@ -40,6 +41,7 @@ from .system_log import SystemLog
 from .whisper_desktop_prepare import WhisperDesktopPrepareError, prepare_whisper_profile
 
 _PROFILE_IDS = ("qwen-quality", "qwen-fast", "whisper-detailed", "whisper-turbo")
+_PREPARATION_PURPOSES = frozenset({"transcription", "benchmark"})
 _SOURCE_ID = re.compile(r"^craig-[0-9a-f]{64}$")
 _QWEN_RUNTIME_REPAIRABLE_PROBE_ERRORS = frozenset(
     {
@@ -150,6 +152,8 @@ def profile_catalog(
         profile = get_profile(profile_id)
         ready = False
         reason: str | None = None
+        benchmark_ready = False
+        benchmark_reason: str | None = None
         runtime_version: str | None = None
         compute_type: str | None = None
         gpu_model: str | None = None
@@ -169,6 +173,18 @@ def profile_catalog(
                 ready = whisper_model_ready(model)
                 if not ready:
                     reason = "WHISPER_MODEL_PREPARATION_REQUIRED"
+            benchmark_ready = (
+                ready
+                and runtime_version is not None
+                and whisper_runtime_benchmark_compatible(runtime_version)
+            )
+            benchmark_reason = (
+                None
+                if benchmark_ready
+                else "WHISPER_BENCHMARK_RUNTIME_REQUIRED"
+                if ready
+                else reason
+            )
         else:
             runtime_value = qwen_state.get("version")
             if isinstance(runtime_value, str):
@@ -205,6 +221,8 @@ def profile_catalog(
                         gate.get("reason")
                         or f"QWEN_GATE_{str(gate.get('status') or 'missing').upper()}"
                     )
+            benchmark_ready = ready
+            benchmark_reason = reason
         result.append(
             {
                 "id": profile_id,
@@ -212,6 +230,9 @@ def profile_catalog(
                 "ready": ready,
                 "preparation_required": not ready,
                 "reason": reason,
+                "benchmark_ready": benchmark_ready,
+                "benchmark_preparation_required": not benchmark_ready,
+                "benchmark_reason": benchmark_reason,
                 "model": profile.model_id,
                 "model_revision": profile.revision,
                 "runtime_version": runtime_version,
@@ -229,10 +250,19 @@ def _install_whisper_runtime(
     cache_root: Path,
     *,
     is_cancelled: Callable[[], bool] | None = None,
+    require_benchmark_compatibility: bool = False,
 ) -> dict[str, object]:
+    def ready_for_purpose(state: dict[str, object]) -> bool:
+        if not _runtime_ready(state, "whisper"):
+            return False
+        if not require_benchmark_compatibility:
+            return True
+        version = state.get("version")
+        return isinstance(version, str) and whisper_runtime_benchmark_compatible(version)
+
     _check_cancelled(is_cancelled)
     state = inspect_whisper_runtime(runtime_root, verify_worker=True)
-    if _runtime_ready(state, "whisper"):
+    if ready_for_purpose(state):
         return {
             "status": "ready",
             "version": state.get("version"),
@@ -246,8 +276,13 @@ def _install_whisper_runtime(
         manifest = fetch_whisper_runtime_manifest()
         current = state.get("version") if state.get("status") == "ready" else None
         current_value = current if isinstance(current, str) else None
+        manifest_compatible = (
+            whisper_runtime_benchmark_compatible(manifest.version)
+            if require_benchmark_compatibility
+            else whisper_runtime_version_compatible(manifest.version)
+        )
         if (
-            whisper_runtime_version_compatible(manifest.version)
+            manifest_compatible
             and whisper_runtime_update_available(current_value, manifest)
         ):
             target = runtime_root / "whisper" / manifest.version
@@ -272,7 +307,7 @@ def _install_whisper_runtime(
             )
             _check_cancelled(is_cancelled)
         state = inspect_whisper_runtime(runtime_root, verify_worker=True)
-        if _runtime_ready(state, "whisper"):
+        if ready_for_purpose(state):
             return {
                 "status": "ready",
                 "version": state.get("version"),
@@ -303,8 +338,12 @@ def _install_whisper_runtime(
             raise ProfilePreparationError(_error_code(exc)) from exc
         raise ProfilePreparationError(_error_code(exc)) from exc
     state = inspect_whisper_runtime(runtime_root, verify_worker=True)
-    if not _runtime_ready(state, "whisper"):
-        raise ProfilePreparationError("WHISPER_RUNTIME_INSTALL_VERIFY_FAILED")
+    if not ready_for_purpose(state):
+        raise ProfilePreparationError(
+            "WHISPER_BENCHMARK_RUNTIME_REQUIRED"
+            if require_benchmark_compatibility and _runtime_ready(state, "whisper")
+            else "WHISPER_RUNTIME_INSTALL_VERIFY_FAILED"
+        )
     return {"status": "ready", "accepted": True, **result}
 
 
@@ -638,11 +677,18 @@ class ProfilePreparationManager:
         if value is not None:
             self._set(*value, context=context)
 
-    def start(self, source_id: str, profile_id: str) -> dict[str, object]:
+    def start(
+        self,
+        source_id: str,
+        profile_id: str,
+        purpose: str = "transcription",
+    ) -> dict[str, object]:
         if not isinstance(source_id, str) or not _SOURCE_ID.fullmatch(source_id):
             raise ProfilePreparationError("CRAIG_SOURCE_INVALID")
         if profile_id not in _PROFILE_IDS:
             raise ProfilePreparationError("TRANSCRIPTION_PROFILE_INVALID")
+        if purpose not in _PREPARATION_PURPOSES:
+            raise ProfilePreparationError("TRANSCRIPTION_PREPARATION_PURPOSE_INVALID")
         with self._lock:
             thread_alive = self._thread is not None and self._thread.is_alive()
             if self._state.get("active") is True or thread_alive:
@@ -650,6 +696,7 @@ class ProfilePreparationManager:
                     self._state.get("active") is True
                     and self._state.get("source_id") == source_id
                     and self._state.get("profile_id") == profile_id
+                    and self._state.get("purpose", "transcription") == purpose
                 ):
                     return self._snapshot_locked()
                 # Terminal state is published just before _run() unwinds. Fence
@@ -662,6 +709,7 @@ class ProfilePreparationManager:
                 self._state.get("state") == "interrupted"
                 and self._state.get("source_id") == source_id
                 and self._state.get("profile_id") == profile_id
+                and self._state.get("purpose", "transcription") == purpose
             ) else None
             profile = get_profile(profile_id)
             self._cancel.clear()
@@ -674,6 +722,7 @@ class ProfilePreparationManager:
                 "source_id": source_id,
                 "profile_id": profile_id,
                 "engine": profile.engine,
+                "purpose": purpose,
                 "stage": "starting",
                 "title": "Iniciando preparação…",
                 "detail": "Conferindo runtime, modelo e capacidade local.",
@@ -692,7 +741,7 @@ class ProfilePreparationManager:
             initial = self._snapshot_locked()
             self._thread = threading.Thread(
                 target=self._run,
-                args=(operation_id, source_id, profile_id),
+                args=(operation_id, source_id, profile_id, purpose),
                 name="tda-profile-preparation",
                 daemon=True,
             )
@@ -706,12 +755,20 @@ class ProfilePreparationManager:
                 "profile_id": profile_id,
                 "engine": profile.engine,
                 "operation_id": operation_id,
+                "purpose": purpose,
             },
         )
         return initial
 
-    def _run(self, operation_id: str, source_id: str, profile_id: str) -> None:
+    def _run(
+        self,
+        operation_id: str,
+        source_id: str,
+        profile_id: str,
+        purpose: str,
+    ) -> None:
         profile = get_profile(profile_id)
+        readiness_key = "benchmark_ready" if purpose == "benchmark" else "ready"
         try:
             self._ensure_not_cancelled()
             self._set(
@@ -727,7 +784,7 @@ class ProfilePreparationManager:
             self._ensure_not_cancelled()
             catalog = profile_catalog(self.state_root, self.runtime_root, self.models_root)
             current = next(item for item in catalog if item["id"] == profile_id)
-            if current.get("ready") is True:
+            if current.get(readiness_key) is True:
                 self._set(
                     "complete",
                     "Perfil pronto.",
@@ -747,6 +804,11 @@ class ProfilePreparationManager:
                     self.runtime_root,
                     self.cache_root,
                     is_cancelled=self._should_stop,
+                    **(
+                        {"require_benchmark_compatibility": True}
+                        if purpose == "benchmark"
+                        else {}
+                    ),
                 )
                 self._set(
                     "whisper_model",
@@ -793,7 +855,7 @@ class ProfilePreparationManager:
             self._ensure_not_cancelled()
             refreshed = profile_catalog(self.state_root, self.runtime_root, self.models_root)
             ready = next(item for item in refreshed if item["id"] == profile_id)
-            if ready.get("ready") is not True:
+            if ready.get(readiness_key) is not True:
                 raise ProfilePreparationError(
                     "QWEN_PHYSICAL_ACCEPTANCE_NOT_VISIBLE"
                     if profile.engine == "qwen3"
