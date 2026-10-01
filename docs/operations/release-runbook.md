@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release
-> Última revisão: 2026-09-28
+> Última revisão: 2026-10-01
 > Fonte de verdade: CI/CD, environments e providers atuais
 
 Este runbook é genérico. Checklists de uma feature específica pertencem ao documento da feature ou ao histórico da release, não aqui.
@@ -75,6 +75,13 @@ explicitamente marcado como `empty`, seguir redirects sem sair da origem do
 deployment validado e, quando houver sessões publicadas, abrir ao menos uma sessão
 pública descoberta pelo próprio arquivo e confirmar o marcador estrutural do leitor
 público. Não usar transcript privado como fixture ou evidência.
+
+Estados compartilhados também precisam ser coerentes: o diretório de campanhas não
+pode declarar `empty` enquanto o arquivo agregado possui sessões `available`, e
+Home/arquivo devem concordar sobre a existência de conteúdo publicado. O fallback
+legado aprovado em #1225 continua válido somente quando realmente entrega conteúdo
+público utilizável; ele não prova nem ativa o registry first-class. Falhas de banco
+ou registry fora desse contrato devem permanecer `unavailable` e bloquear promote.
 
 
 ### Exceção versionada de validação em Production — #628
