@@ -43,6 +43,7 @@ function requiredId(value: unknown): string | null {
 
 export async function readSessionEditorialDraft(
 	sessionId: string,
+	campaignTechnicalSlug = CAMPAIGN_SLUG,
 ): Promise<SessionEditorialDraft | null> {
 	const client = editDataClient();
 	if (!client) throw new Error("Edit data connection is unavailable");
@@ -53,7 +54,7 @@ export async function readSessionEditorialDraft(
 			"id,status,session_date,title,arc,summary_short,summary_full,cover_image_url:metadata->>coverImageUrl,current_transcript_revision_id,current_editorial_draft_id,campaigns!inner(slug)",
 		)
 		.eq("id", sessionId)
-		.eq("campaigns.slug", CAMPAIGN_SLUG)
+		.eq("campaigns.slug", campaignTechnicalSlug)
 		.maybeSingle();
 	if (sessionError) throw new Error("Editorial session lookup unavailable");
 	if (!sessionRaw) return null;
@@ -130,13 +131,14 @@ export async function readSessionEditorialDraft(
 export async function persistSessionEditorialDraft(
 	actorProfileId: string,
 	input: SessionEditorialDraftInput,
+	campaignTechnicalSlug = CAMPAIGN_SLUG,
 ) {
 	const client = editDataClient();
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
 
 	const { data, error } = await client.rpc("save_session_editorial_draft_with_date_atomic", {
 		p_actor_profile_id: actorProfileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignTechnicalSlug,
 		p_session_id: input.sessionId,
 		p_expected_revision: input.expectedRevision,
 		p_base_transcript_revision_id: input.baseTranscriptRevisionId,
