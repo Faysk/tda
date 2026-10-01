@@ -28,7 +28,7 @@ export async function authorizeSessionCoverTarget(
 	| Readonly<{ ok: true; target: AuthorizedSessionCoverTarget }>
 	| Readonly<{ ok: false; reason: SessionCoverMediaAccessFailure }>
 > {
-	let sessionCampaign;
+	let sessionCampaign: Awaited<ReturnType<typeof resolveEditSessionCampaign>>;
 	try {
 		sessionCampaign = await resolveEditSessionCampaign(sessionId);
 	} catch {
