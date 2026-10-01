@@ -25,13 +25,13 @@ const pipipiManifest = JSON.parse(
 
 const mediaOrigin = pipipiManifest.publicOrigin.replace(/\/$/, "");
 const mediaNamespace = pipipiManifest.namespace.replace(/^\/+|\/+$/g, "");
-const stageAsset = pipipiManifest.assets.find(
-	(asset) => asset.file === "stage-bg.avif",
-);
-
-if (!stageAsset) {
-	throw new Error("stage-bg.avif is missing from the canonical Pipipi media manifest");
-}
+const stageAsset =
+	pipipiManifest.assets.find((asset) => asset.file === "stage-bg.avif") ??
+	(() => {
+		throw new Error(
+			"stage-bg.avif is missing from the canonical Pipipi media manifest",
+		);
+	})();
 
 const stageUrl = `${mediaOrigin}/${mediaNamespace}/${stageAsset.sha256}/${stageAsset.file}`;
 const route = (pathname: string) =>

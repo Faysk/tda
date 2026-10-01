@@ -21,7 +21,3 @@ export function pipipiAssetUrl(file: string) {
 }
 
 export const PIPIPI_STAGE_BACKGROUND_URL = pipipiAssetUrl("stage-bg.avif");
-
-export const PIPIPI_RUNTIME_ASSET_URLS = Object.freeze(
-	pipipiManifest.assets.map(buildPipipiAssetUrl),
-);
