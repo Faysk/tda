@@ -11,21 +11,33 @@ describe("navigation auth projection", () => {
 			state: "anonymous",
 			identity: null,
 			capabilities: [],
+			campaignsState: "none",
+			campaigns: [],
 		});
 		expect(
 			parseNavigationAuthProjection({
 				state: "unavailable",
 				identity: { displayName: "stale", avatarUrl: "https://example.test/a" },
 				capabilities: ["campaign.local.process"],
+				campaignsState: "first_class",
+				campaigns: [
+					{
+						technicalSlug: "private",
+						name: "Private",
+						lifecycle: "active",
+					},
+				],
 			}),
 		).toEqual({
 			state: "unavailable",
 			identity: null,
 			capabilities: [],
+			campaignsState: "unavailable",
+			campaigns: [],
 		});
 	});
 
-	it("accepts only the minimal authenticated navigation projection", () => {
+	it("accepts only the minimal authenticated campaign projection", () => {
 		expect(
 			parseNavigationAuthProjection({
 				state: "authenticated_linked",
@@ -34,11 +46,23 @@ describe("navigation auth projection", () => {
 					avatarUrl: "https://cdn.discordapp.com/avatars/123/hash.png",
 					privateId: "do-not-copy",
 				},
-				capabilities: [
-					"campaign.transcript.read",
-					null,
-					"",
-					"campaign.local.process",
+				capabilities: [],
+				campaignsState: "first_class",
+				campaigns: [
+					{
+						id: "never-copy-this-uuid",
+						technicalSlug: "yuhara-main",
+						routeKey: "cronicas-da-mesa",
+						name: "Crônicas da Mesa",
+						lifecycle: "active",
+						capabilities: [
+							"campaign.transcript.read",
+							null,
+							"",
+							"campaign.local.process",
+						],
+						rawGrants: ["private"],
+					},
 				],
 				rawGrants: ["private"],
 			}),
@@ -48,11 +72,44 @@ describe("navigation auth projection", () => {
 				displayName: "Renan Silva",
 				avatarUrl: "https://cdn.discordapp.com/avatars/123/hash.png",
 			},
-			capabilities: [
-				"campaign.transcript.read",
-				"campaign.local.process",
+			capabilities: [],
+			campaignsState: "first_class",
+			campaigns: [
+				{
+					technicalSlug: "yuhara-main",
+					routeKey: "cronicas-da-mesa",
+					name: "Crônicas da Mesa",
+					lifecycle: "active",
+					capabilities: [
+						"campaign.transcript.read",
+						"campaign.local.process",
+					],
+				},
 			],
 		});
+	});
+
+	it("fails the campaign projection closed on malformed or missing discovery state", () => {
+		expect(
+			parseNavigationAuthProjection({
+				state: "authenticated_linked",
+				identity: { displayName: "Pessoa", avatarUrl: null },
+				campaignsState: "first_class",
+				campaigns: [{ technicalSlug: "", name: "Broken", lifecycle: "active" }],
+			}),
+		).toEqual({
+			state: "authenticated_linked",
+			identity: { displayName: "Pessoa", avatarUrl: null },
+			capabilities: [],
+			campaignsState: "unavailable",
+			campaigns: [],
+		});
+		expect(
+			parseNavigationAuthProjection({
+				state: "authenticated_linked",
+				identity: { displayName: "Pessoa", avatarUrl: null },
+			}).campaignsState,
+		).toBe("unavailable");
 	});
 
 	it("fails closed on unknown payloads", () => {
@@ -60,11 +117,15 @@ describe("navigation auth projection", () => {
 			state: "unavailable",
 			identity: null,
 			capabilities: [],
+			campaignsState: "unavailable",
+			campaigns: [],
 		});
 		expect(parseNavigationAuthProjection(null)).toEqual({
 			state: "unavailable",
 			identity: null,
 			capabilities: [],
+			campaignsState: "unavailable",
+			campaigns: [],
 		});
 	});
 
