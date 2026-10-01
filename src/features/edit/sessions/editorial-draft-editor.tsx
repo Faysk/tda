@@ -29,6 +29,7 @@ export type SessionEditorialDraftEditorTransport = Readonly<{
 }>;
 
 type Props = Readonly<{
+	campaignSlug: string;
 	sessionId: string;
 	initial: SessionEditorialDraft;
 	initialPublication: SessionPublicationState;
@@ -86,6 +87,7 @@ function fieldCount(value: string): number {
 }
 
 export function SessionEditorialDraftEditor({
+	campaignSlug,
 	sessionId,
 	initial,
 	initialPublication,
@@ -206,6 +208,7 @@ export function SessionEditorialDraftEditor({
 		setMessage(null);
 		setRemote(null);
 		const input = {
+			campaignSlug,
 			sessionId,
 			expectedRevision: revision,
 			baseTranscriptRevisionId,
@@ -345,6 +348,7 @@ export function SessionEditorialDraftEditor({
 		setPublishPhase("publishing");
 		setPublishMessage("Publicando versão confirmada…");
 		const result = await publishDraft({
+			campaignSlug,
 			sessionId,
 			draftId: intent.draftId,
 			expectedCurrentPublicationId: intent.expectedCurrentPublicationId,
@@ -436,6 +440,7 @@ export function SessionEditorialDraftEditor({
 					<div className={draftStyles.coverField}>
 						<span className={styles.fieldLabel}>Capa</span>
 						<CoverEditor
+							campaignSlug={campaignSlug}
 							disabled={!editable}
 							onChange={(coverAssetId) =>
 								setFields((current) => ({ ...current, coverAssetId }))
