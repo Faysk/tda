@@ -102,7 +102,7 @@ O worker termina com:
 QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN
 ```
 
-e o receipt preserva somente a evidência numérica sanitizada. Esse resultado **não é silêncio**. No runtime `1.0.14`, o strict pipeline pode tentar uma única recuperação no mesmo modelo depois de remover somente blocos inteiros de 1 s nas bordas, limitado aos 6 s de overlap por lado que também estejam no piso digital pelos mesmos thresholds. O retry não remove sinal e, se reconhecer, o texto real continua sendo alinhado contra a janela original. Sem recuperação segura, `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN` permanece fail-closed.
+e o receipt preserva somente a evidência numérica sanitizada. Esse resultado **não é silêncio**. Evidência física no Craig original mostrou que retries por boundary/trim/subdivisão do mesmo `qwen-fast` não recuperam de forma confiável e podem até produzir texto espúrio sobre silêncio digital. Portanto `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN` permanece fail-closed. Se o perfil solicitado for `qwen-fast`, a recuperação de produto é explícita: reenviar a mesma sessão como um novo job `qwen-quality`, preservando profile/model provenance em vez de misturar modelos dentro do mesmo run.
 
 ### `empty_condition_not_reproduced`
 
@@ -146,8 +146,8 @@ O gate reutiliza `run-qwen-recovery-physical-gate.ps1` em scratch isolado e exig
 
 1. ingest do Craig exato com quatro tracks;
 2. preparação física de `qwen-fast` e `qwen-quality`;
-3. `qwen-quality` iniciando no worker real e aceitando cancelamento limitado;
-4. `qwen-fast` persistindo checkpoint da track 1;
+3. `qwen-fast` iniciando no worker real e aceitando cancelamento limitado;
+4. `qwen-quality` persistindo checkpoint da track 1;
 5. hard crash do Agent;
 6. recuperação do job como `PROCESS_INTERRUPTED` recuperável;
 7. retry em novo attempt sem perder o checkpoint já durável;
@@ -156,9 +156,9 @@ O gate reutiliza `run-qwen-recovery-physical-gate.ps1` em scratch isolado e exig
 10. validação do transcript persistido pelo `TranscriptDocument` canônico do produto;
 11. source SHA, perfil, quatro track numbers, hashes de track, `audio_work_seconds`, `session_duration_seconds`, contagens de segments/words e `duration_semantics=session_extent_v1` coerentes entre transcript e manifest.
 
-A validação estrutural gera `qwen-fast-full-run-structure.json` apenas com hashes, números, durações e contagens. Não copia texto, speaker, áudio, path local ou token. O pacote final de evidência também permanece sanitizado: eventos mantêm somente campos estruturais allowlisted e podem preservar diagnósticos não textuais de janela/checkpoint/alignment (por exemplo `start_seconds`, `end_seconds`, contagens duráveis/reutilizadas, `sample_count`, `peak_dbfs`, `rms_dbfs`, thresholds de silêncio, `failure_class` e limites temporais); `speaker`, texto/transcript e paths continuam excluídos. Logs omitem a `message` textual livre e o leak-check rejeita token, nome do ZIP e o caminho privado completo, inclusive quando escapado em JSON.
+A validação estrutural gera `qwen-quality-full-run-structure.json` apenas com hashes, números, durações e contagens. Não copia texto, speaker, áudio, path local ou token. O pacote final de evidência também permanece sanitizado: eventos mantêm somente campos estruturais allowlisted e podem preservar diagnósticos não textuais de janela/checkpoint/alignment (por exemplo `start_seconds`, `end_seconds`, contagens duráveis/reutilizadas, `sample_count`, `peak_dbfs`, `rms_dbfs`, thresholds de silêncio, `failure_class` e limites temporais); `speaker`, texto/transcript e paths continuam excluídos. Logs omitem a `message` textual livre e o leak-check rejeita token, nome do ZIP e o caminho privado completo, inclusive quando escapado em JSON.
 
-Esse gate pode demorar porque o Fast precisa concluir o Craig real inteiro depois do retry. Isso é intencional: o critério de full transcription não deve ser inferido a partir do benchmark curto.
+Esse gate pode demorar porque o Quality precisa concluir o Craig real inteiro depois do retry. Isso é intencional: o critério de full transcription não deve ser inferido a partir do benchmark curto. O Fast continua coberto separadamente pelo contrato fail-closed/actionable de `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN`.
 
 ## Rollback
 
