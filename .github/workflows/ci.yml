@@ -320,6 +320,7 @@ jobs:
           tests/foundation.spec.ts
           tests/navigation-origin.spec.ts
           tests/world-catalogs.spec.ts
+          tests/world-campaign-context.spec.ts
           tests/system-states.spec.ts
           tests/session-public-layout.spec.ts
           tests/campaign-directory.spec.ts
