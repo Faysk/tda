@@ -35,6 +35,10 @@ test("a campaign without a public World stays empty instead of borrowing another
 	await expect(page.getByText("O Mundo desta campanha ainda não possui conteúdo público.")).toBeVisible();
 	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
 	await expect(page.getByText("Demo · não canônico")).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "Abrir Crônicas da Mesa" })).toHaveAttribute(
+		"href",
+		WORLD_PATH,
+	);
 });
 
 test("World Explorer opens as a multi-hub overview and keeps selection separate from focus", async ({ page }) => {
