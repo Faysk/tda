@@ -90,6 +90,7 @@ const EXACT = {
 		".github/workflows/ci.yml",
 		"playwright.session-editorial.config.ts",
 		"tests/session-editorial.spec.ts",
+		"tests/session-public-layout.spec.ts",
 		"tools/session-publication-db.py",
 	]),
 	media: new Set([
@@ -137,6 +138,7 @@ const PREFIX = {
 		"src/app/edit/sessoes/",
 		"src/app/e2e-fixtures/session-editorial/",
 		"src/app/sessoes/",
+		"src/app/campanhas/[campaignSlug]/sessoes/",
 		"src/features/edit/sessions/",
 		"src/features/edit/transcript/",
 		"src/features/sessions/",
