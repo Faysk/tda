@@ -6,7 +6,6 @@ import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { getSessionCoverAssetStatusAction } from "./session-cover-media-actions";
 import {
 	isExistingPublishedSessionCoverReference,
@@ -69,7 +68,7 @@ export async function saveSessionEditorialDraftAction(
 		const access = authorizeCampaignCapability(
 			context,
 			EDIT_CAPABILITIES.contentEdit,
-			CAMPAIGN_SLUG,
+			input.campaignSlug,
 		);
 		if (!access.ok)
 			return {
@@ -80,6 +79,7 @@ export async function saveSessionEditorialDraftAction(
 
 		if (coverReference && isSessionCoverUuid(coverReference)) {
 			const cover = await getSessionCoverAssetStatusAction(
+				input.campaignSlug,
 				input.sessionId,
 				coverReference,
 			);
@@ -102,7 +102,7 @@ export async function saveSessionEditorialDraftAction(
 		if (!result.ok) {
 			const remote =
 				result.reason === "conflict"
-					? await readSessionEditorialDraft(input.sessionId)
+					? await readSessionEditorialDraft(input.campaignSlug, input.sessionId)
 					: null;
 			return {
 				ok: false as const,
@@ -112,7 +112,7 @@ export async function saveSessionEditorialDraftAction(
 			};
 		}
 
-		const saved = await readSessionEditorialDraft(input.sessionId);
+		const saved = await readSessionEditorialDraft(input.campaignSlug, input.sessionId);
 		if (!saved || saved.revision !== result.revision)
 			return {
 				ok: false as const,
