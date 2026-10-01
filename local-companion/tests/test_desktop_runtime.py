@@ -227,41 +227,28 @@ def test_desktop_maintenance_treats_queued_job_as_active():
     assert bridge._has_active_job() is True
 
 
-def test_whisper_rollback_blocks_queued_or_running_work():
+def test_whisper_rollback_delegates_to_agent_owned_gate():
     bridge = object.__new__(DesktopBridge)
-    bridge.paths = SimpleNamespace(runtime_root=Path("Runtime"), cache_root=Path("Cache"))
-    bridge._jobs = lambda: [{"status": "queued"}]  # type: ignore[method-assign]
-    bridge.client = SimpleNamespace(get=lambda _path: {"active": False})
+    observed: dict[str, object] = {}
 
-    with pytest.raises(RuntimeError, match="RUNTIME_ROLLBACK_BLOCKED_BY_RUNNING_JOB"):
-        bridge.rollback_whisper_runtime("1.1.5")
+    class Client:
+        def post(self, path, body, *, timeout=5.0):
+            observed.update(path=path, body=body, timeout=timeout)
+            return {
+                "accepted": True,
+                "previous_version": "1.1.8",
+                "version": "1.1.5",
+                "source": "preserved",
+            }
 
+    bridge.client = Client()
 
-def test_whisper_rollback_blocks_profile_preparation():
-    bridge = object.__new__(DesktopBridge)
-    bridge.paths = SimpleNamespace(runtime_root=Path("Runtime"), cache_root=Path("Cache"))
-    bridge._jobs = lambda: []  # type: ignore[method-assign]
-    bridge.client = SimpleNamespace(
-        get=lambda path: {"active": True} if path == "/preparation" else {"active": False}
-    )
+    result = bridge.rollback_whisper_runtime("1.1.5")
 
-    with pytest.raises(
-        RuntimeError,
-        match="RUNTIME_ROLLBACK_BLOCKED_BY_TRANSCRIPTION_PREPARATION",
-    ):
-        bridge.rollback_whisper_runtime("1.1.5")
-
-
-def test_whisper_rollback_blocks_other_runtime_maintenance():
-    bridge = object.__new__(DesktopBridge)
-    bridge.paths = SimpleNamespace(runtime_root=Path("Runtime"), cache_root=Path("Cache"))
-    bridge._jobs = lambda: []  # type: ignore[method-assign]
-    bridge.client = SimpleNamespace(
-        get=lambda path: {"active": True} if path == "/qwen-runtime" else {"active": False}
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="RUNTIME_ROLLBACK_BLOCKED_BY_RUNTIME_MAINTENANCE",
-    ):
-        bridge.rollback_whisper_runtime("1.1.5")
+    assert observed == {
+        "path": "/whisper-runtime/rollback",
+        "body": {"version": "1.1.5"},
+        "timeout": 600.0,
+    }
+    assert result["previous_version"] == "1.1.8"
+    assert result["version"] == "1.1.5"
