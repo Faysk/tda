@@ -401,6 +401,7 @@ jobs:
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-Event")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-MaxEventSequence")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-LogRow")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Assert-NoEvidenceLeak")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Assert-RetryCheckpointEvidence")
 
           $errorWithoutDetails = [pscustomobject]@{ Exception = [Exception]::new("offline") }
@@ -446,10 +447,29 @@ jobs:
             throw "QWEN_RECOVERY_OPTIONAL_JOB_SANITIZE_INVALID"
           }
 
-          $minimalLog = [pscustomobject]@{ code = "TEST"; message = "ok" }
+          $minimalLog = [pscustomobject]@{ code = "TEST"; message = "private C:\\Users\\Faysk\\recording.zip" }
           $sanitizedLog = Sanitize-LogRow $minimalLog
-          if ([string]$sanitizedLog.code -ne "TEST" -or $sanitizedLog.context.Count -ne 0) {
+          if (
+            [string]$sanitizedLog.code -ne "TEST" -or
+            $sanitizedLog.context.Count -ne 0 -or
+            $sanitizedLog.PSObject.Properties.Name -contains "message"
+          ) {
             throw "QWEN_RECOVERY_OPTIONAL_LOG_SANITIZE_INVALID"
+          }
+
+          $leakRoot = Join-Path $env:RUNNER_TEMP "qwen-recovery-evidence-leak-test"
+          Remove-Item -LiteralPath $leakRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $leakRoot | Out-Null
+          try {
+            '{"path":"C:\\Users\\Faysk\\recording.zip"}' | Set-Content -LiteralPath (Join-Path $leakRoot "leak.json") -Encoding UTF8
+            try {
+              Assert-NoEvidenceLeak $leakRoot "" 'C:\Users\Faysk\recording.zip'
+              throw "QWEN_RECOVERY_PRIVATE_PATH_LEAK_ACCEPTED"
+            } catch {
+              if ([string]$_.Exception.Message -ne "HARNESS_FAILED:EVIDENCE_PRIVATE_PATH_LEAK") { throw }
+            }
+          } finally {
+            Remove-Item -LiteralPath $leakRoot -Recurse -Force -ErrorAction SilentlyContinue
           }
 
           try {
@@ -559,6 +579,7 @@ jobs:
             "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING",
             "JOB_EVENTS_RESPONSE_INVALID",
             "ASR_TEXT_CHECKPOINT_EVENT_TRACK_MISSING",
+            'marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema_version")',
             "error_id =",
             "Set-StrictMode -Version Latest"
           )) {
