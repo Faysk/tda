@@ -7,8 +7,8 @@ import { StoryMarkdown } from "@/components/story-markdown";
 import { DisplayTitle, Eyebrow } from "@/components/ui";
 import { resolvePublicCampaignRoute } from "@/features/campaigns/server";
 import { sessionPublicMetadata } from "@/features/sessions/metadata";
-import { formatSessionDate, sessionPublicPath, sessionPublicKey, type PublishedSession } from "@/features/sessions/model";
-import { findPublishedSession, listPublishedSessions, PublishedSessionUnavailableError } from "@/features/sessions/repository";
+import { formatSessionDate, sessionPublicPath, type PublishedSession } from "@/features/sessions/model";
+import { findPublishedSession, findPublishedSessionNeighbors, PublishedSessionUnavailableError } from "@/features/sessions/repository";
 import { sessionShareDescription } from "@/features/sessions/share";
 import styles from "../../../../sessoes/[id]/page.module.css";
 
@@ -104,10 +104,9 @@ export default async function CampaignSession({params}:Params){
 		return <UnavailableSession/>;
 	}
 	if(!session) notFound();
-	const archive=await listPublishedSessions(session.campaignSlug).catch(()=>null);
-	const currentIndex=archive?.findIndex((item)=>sessionPublicKey(item)===sessionPublicKey(session))??-1;
-	const previous=archive&&currentIndex>=0?archive[currentIndex+1]:undefined;
-	const next=archive&&currentIndex>0?archive[currentIndex-1]:undefined;
+	const neighbors=await findPublishedSessionNeighbors(session).catch(()=>null);
+	const previous=neighbors?.previous;
+	const next=neighbors?.next;
 	const date=formatSessionDate(session.date);
 	const story=session.fullSummary||session.summary||"Resumo ainda não disponível.";
 	return <article className={styles.page}>
