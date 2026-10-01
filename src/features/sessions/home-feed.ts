@@ -1,6 +1,7 @@
 import type { PublishedSession } from "./model";
 
 export const HOME_RECENT_SESSION_LIMIT = 4;
+export const HOME_SESSION_FEED_LIMIT = HOME_RECENT_SESSION_LIMIT + 1;
 
 function compareText(a: string, b: string) {
 	return a < b ? -1 : a > b ? 1 : 0;

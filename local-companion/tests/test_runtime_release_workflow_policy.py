@@ -60,17 +60,18 @@ def test_qwen_runtime_uses_package_builder_without_legacy_direct_stable_publishe
     assert "gh release create" not in package
 
 
-def test_qwen_runtime_package_restores_runtime_rc_only_for_issue_628_1012():
+def test_qwen_runtime_package_restores_runtime_rc_only_for_issue_1236_1013():
     package = _workflow("qwen-runtime-package.yml")
 
-    assert 'REPAIR_VERSION="1.0.12"' in package
+    assert 'REPAIR_VERSION="1.0.13"' in package
     assert 'STABLE_TAG="companion-qwen-runtime-v$REPAIR_VERSION"' in package
-    assert "QWEN_RUNTIME_RC_REPAIR_VERSION_MISMATCH" in package
-    assert "QWEN_RUNTIME_RC_DISABLED_AFTER_1012_STABLE" in package
+    assert "QWEN_RUNTIME_RC_1236_VERSION_MISMATCH" in package
+    assert "QWEN_RUNTIME_RC_DISABLED_AFTER_1013_STABLE" in package
     assert "disabled_manually|disabled_inactivity" in package
     assert 'gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW/enable"' in package
     assert "QWEN_RUNTIME_RC_WORKFLOW_RESTORE_FAILED" in package
-    assert "QWEN_RUNTIME_RC_WORKFLOW_RESTORED issue=628" in package
+    assert "QWEN_RUNTIME_RC_WORKFLOW_RESTORED issue=1236" in package
+
 
 
 def test_whisper_runtime_workflow_tracks_worker_dependency_closure():

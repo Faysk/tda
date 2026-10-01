@@ -12,11 +12,13 @@ import {
 } from "react";
 import { NavigationIconGlyph } from "./public-nav";
 import {
+	campaignTechnicalSlugFromLocation,
 	isCurrentNavigationPath,
+	locationHasCampaignReference,
 	PUBLIC_NAV_ITEMS,
+	toolNavigationItemsForCampaign,
 	type NavigationIcon,
 	type NavigationItem,
-	visibleToolNavigationItems,
 } from "./public-navigation-model";
 import { PublicLink as Link } from "./public-link";
 import { ThemeToggle } from "./theme-toggle";
@@ -29,7 +31,13 @@ import {
 
 const PANEL_ID = "global-profile-menu";
 const PANEL_MOTION_SAFETY_MS = 520;
-const PRIMARY_PUBLIC_HREFS = ["/sessoes", "/mundo", "/lore", "/lembra"] as const;
+const PRIMARY_PUBLIC_HREFS = [
+	"/campanhas",
+	"/campanhas/sessoes",
+	"/mundo",
+	"/lore",
+	"/lembra",
+] as const;
 const WORLD_PUBLIC_HREFS = [
 	"/personagens",
 	"/npcs",
@@ -153,6 +161,10 @@ export function AccountMenu() {
 	const [projection, setProjection] = useState<NavigationAuthProjection | null>(
 		null,
 	);
+	const [selectedCampaignSlug, setSelectedCampaignSlug] = useState<string | null>(
+		null,
+	);
+	const [activeCampaignSlug, setActiveCampaignSlug] = useState<string | null>(null);
 	const [avatarFailed, setAvatarFailed] = useState(false);
 	const [returnPath, setReturnPath] = useState(pathname || "/");
 	const rootRef = useRef<HTMLDivElement>(null);
@@ -210,9 +222,23 @@ export function AccountMenu() {
 		});
 	}, []);
 
+	const campaigns = projection?.campaigns ?? [];
+	const selectedCampaign = useMemo(
+		() =>
+			campaigns.find(
+				(campaign) => campaign.technicalSlug === selectedCampaignSlug,
+			) ?? null,
+		[campaigns, selectedCampaignSlug],
+	);
 	const tools = useMemo(
-		() => visibleToolNavigationItems(projection?.capabilities ?? []),
-		[projection],
+		() =>
+			selectedCampaign
+				? toolNavigationItemsForCampaign(
+						selectedCampaign.technicalSlug,
+						selectedCampaign.capabilities,
+					)
+				: [],
+		[selectedCampaign],
 	);
 
 	useEffect(() => {
@@ -224,6 +250,42 @@ export function AccountMenu() {
 			active = false;
 		};
 	}, []);
+
+	useEffect(() => {
+		if (!projection) return;
+		const applyLocation = (currentPath: string) => {
+			const currentSearch = window.location.search;
+			const fromLocation = campaignTechnicalSlugFromLocation(
+				projection.campaigns,
+				currentPath,
+				currentSearch,
+			);
+			const explicitCampaign = locationHasCampaignReference(
+				currentPath,
+				currentSearch,
+			);
+			setActiveCampaignSlug(fromLocation);
+			setReturnPath(currentPath + currentSearch + window.location.hash);
+			setSelectedCampaignSlug((current) => {
+				if (fromLocation) return fromLocation;
+				if (explicitCampaign) return null;
+				if (projection.campaigns.length === 1)
+					return projection.campaigns[0]?.technicalSlug ?? null;
+				if (
+					current &&
+					projection.campaigns.some(
+						(campaign) => campaign.technicalSlug === current,
+					)
+				)
+					return current;
+				return null;
+			});
+		};
+		const onPopState = () => applyLocation(window.location.pathname);
+		applyLocation(pathname);
+		window.addEventListener("popstate", onPopState);
+		return () => window.removeEventListener("popstate", onPopState);
+	}, [projection, pathname]);
 
 	useEffect(() => {
 		close(false);
@@ -373,31 +435,97 @@ export function AccountMenu() {
 									</ul>
 								</section>
 
-								{tools.length > 0 ? (
+								{projection &&
+								isAuthenticatedNavigationState(projection.state) &&
+								(campaigns.length > 0 ||
+									projection.campaignsState === "unavailable") ? (
 									<section
 										className="global-nav-section global-nav-section--tools"
 										data-nav-section="tools"
 										aria-labelledby="global-menu-tools-title"
 									>
 										<h2 id="global-menu-tools-title">Ferramentas</h2>
-										<ul
-											className="global-nav-grid"
-											aria-labelledby="global-menu-tools-title"
-										>
-											{tools.map((item) => (
-												<NavigationCellLink
-													key={item.href + item.label}
-													item={item}
-													pathname={pathname}
-													current={
-														item.href === "/mundo"
-															? false
-															: isCurrentNavigationPath(pathname, item.href)
-													}
-													onNavigate={closeAfterNavigate}
-												/>
-											))}
-										</ul>
+										{projection.campaignsState === "unavailable" ? (
+											<p className="global-nav-campaign-status" role="status">
+												As campanhas do Edit estão temporariamente indisponíveis.
+											</p>
+										) : (
+											<>
+												<div className="global-nav-campaign-context">
+													{campaigns.length === 1 && selectedCampaign ? (
+														<p className="global-nav-campaign-current">
+															<span>Campanha</span>
+															<strong>{selectedCampaign.name}</strong>
+															{selectedCampaign.lifecycle === "archived" ? (
+																<small>Arquivada</small>
+															) : null}
+														</p>
+													) : (
+														<label className="global-nav-campaign-select">
+															<span>Campanha das ferramentas</span>
+															<select
+																aria-label="Campanha das ferramentas"
+																value={selectedCampaignSlug ?? ""}
+																onChange={(event) =>
+																	setSelectedCampaignSlug(
+																		event.currentTarget.value || null,
+																	)
+																}
+															>
+																<option value="">Escolha uma campanha</option>
+																{campaigns.map((campaign) => (
+																	<option
+																		key={campaign.technicalSlug}
+																		value={campaign.technicalSlug}
+																	>
+																		{campaign.name}
+																		{campaign.lifecycle === "archived"
+																			? " — arquivada"
+																			: ""}
+																	</option>
+																))}
+															</select>
+														</label>
+													)}
+												</div>
+
+												{selectedCampaign ? (
+													tools.length > 0 ? (
+														<ul
+															className="global-nav-grid"
+															aria-labelledby="global-menu-tools-title"
+														>
+															{tools.map((item) => (
+																<NavigationCellLink
+																	key={item.href + item.label}
+																	item={item}
+																	pathname={pathname}
+																	current={
+												activeCampaignSlug === selectedCampaign.technicalSlug &&
+												isCurrentNavigationPath(pathname, item.href)
+											}
+											onNavigate={() => {
+												setActiveCampaignSlug(
+													selectedCampaign.technicalSlug,
+												);
+												closeAfterNavigate();
+											}}
+																/>
+															))}
+														</ul>
+													) : (
+														<p className="global-nav-campaign-status" role="status">
+															Nenhuma ferramenta desta campanha está disponível
+															neste slice.
+														</p>
+													)
+												) : (
+													<p className="global-nav-campaign-status" role="status">
+														Escolha uma campanha para ver as ferramentas autorizadas.
+													</p>
+												)}
+											</>
+										)}
 									</section>
 								) : null}
 							</div>

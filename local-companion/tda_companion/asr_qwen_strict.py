@@ -20,6 +20,8 @@ from .asr_checkpoints import (
 )
 from .asr_models import QWEN_FORCED_ALIGNER_MODEL_ID, get_profile
 from .asr_qwen import (
+    QWEN_CONFIDENT_SILENCE_PEAK_DBFS,
+    QWEN_CONFIDENT_SILENCE_RMS_DBFS,
     QWEN_MAX_NEW_TOKENS,
     QWEN_SAMPLE_RATE,
     QWEN_SEGMENT_GAP_SECONDS,
@@ -38,6 +40,7 @@ from .asr_qwen import (
     _default_asr_session,
     _prepare_aligner,
     _prepare_model,
+    _qwen_window_signal_diagnostics,
     _resolve_plan,
     _runtime_fingerprint,
     _safe_track_path,
@@ -779,6 +782,27 @@ def transcribe_craig_package_qwen_strict(
                     if window.index != len(values) + 1:
                         raise QwenRuntimeError("QWEN_TEXT_PREFIX_WINDOW_GAP")
                     text, language = asr_session.transcribe(window.audio, prompt=prompt)
+                    if not text.strip():
+                        diagnostics = _qwen_window_signal_diagnostics(window.audio)
+                        event = {
+                            "type": "event",
+                            "stage": "transcription",
+                            "track": track.number,
+                            "total_tracks": total_tracks,
+                            "window": window.index,
+                            "completed_window_count": len(values) + 1,
+                            "start_seconds": window.start,
+                            "end_seconds": window.end,
+                            "sample_count": diagnostics["sample_count"],
+                            "peak_dbfs": diagnostics["peak_dbfs"],
+                            "rms_dbfs": diagnostics["rms_dbfs"],
+                            "silence_peak_threshold_dbfs": QWEN_CONFIDENT_SILENCE_PEAK_DBFS,
+                            "silence_rms_threshold_dbfs": QWEN_CONFIDENT_SILENCE_RMS_DBFS,
+                        }
+                        if not diagnostics["confidently_silent"]:
+                            report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
+                            raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+                        report({**event, "code": "QWEN_WINDOW_SILENCE_CONFIRMED"})
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,
