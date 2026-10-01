@@ -178,6 +178,15 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         *_QWEN_EMPTY_WINDOW_SIGNAL,
         required=_QWEN_EMPTY_WINDOW_SIGNAL,
     ),
+    "QWEN_WINDOW_EDGE_SILENCE_RETRY": _schema(
+        *_QWEN_EMPTY_WINDOW_SIGNAL,
+        required=_QWEN_EMPTY_WINDOW_SIGNAL,
+        level="warning",
+    ),
+    "QWEN_WINDOW_EDGE_SILENCE_RECOVERED": _schema(
+        *_QWEN_EMPTY_WINDOW_SIGNAL,
+        required=_QWEN_EMPTY_WINDOW_SIGNAL,
+    ),
     "QWEN_WINDOW_EMPTY_ASR_REJECTED": _schema(
         *_QWEN_EMPTY_WINDOW_SIGNAL,
         required=_QWEN_EMPTY_WINDOW_SIGNAL,
