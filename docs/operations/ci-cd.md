@@ -266,8 +266,15 @@ O gate verifica `/`, `/campanhas`, `/campanhas/sessoes` e a compatibilidade
 destino permaneça na origem do deployment que está sendo validado. Quando o arquivo
 publicado está `available`, descobre um link público de sessão no próprio HTML,
 abre seu destino e exige o marcador estrutural do leitor público
-(`data-session-reading`), sem ler transcript privado. Registry ausente ou
-incompatível aparece como `unavailable` e falha **antes** do promote.
+(`data-session-reading`), sem ler transcript privado. Falhas de registry ou banco
+que **não** pertencem ao contrato de compatibilidade aparecem como `unavailable`
+e falham **antes** do promote. O fallback legado aprovado em #1225 pode passar
+somente quando entrega conteúdo público válido; isso não comprova nem ativa o
+registry first-class.
+
+O gate também rejeita contradições entre superfícies que compartilham a mesma
+fonte pública, por exemplo diretório de campanhas `empty` com arquivo de sessões
+`available`, ou Home sem conteúdo enquanto o arquivo publicado está disponível.
 
 A evidência do gate registra somente SHA, rota, destino final, estado/resultado e
 horário UTC. O corpo HTML não é despejado no log.
