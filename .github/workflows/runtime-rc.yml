@@ -151,6 +151,7 @@ jobs:
                 "local-companion/tda_companion/attempt_fence.py"
                 "local-companion/tda_companion/asr_worker.py"
                 "local-companion/tda_companion/worker_protocol.py"
+                "local-companion/tda_companion/worker_event_schema.py"
                 "local-companion/tda_companion/worker_supervisor.py"
               )
             fi
