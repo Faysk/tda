@@ -530,10 +530,6 @@ def transcribe_craig_package_qwen_strict(
         "alignment": QWEN_FORCED_ALIGNER_MODEL_ID,
         "alignment_policy": QWEN_ALIGNMENT_POLICY,
         "silence_policy": QWEN_SILENCE_POLICY,
-        "empty_signal_retry_policy": QWEN_EMPTY_SIGNAL_RETRY_POLICY,
-        "empty_signal_retry_block_seconds": QWEN_EMPTY_SIGNAL_RETRY_BLOCK_SECONDS,
-        "empty_signal_retry_min_trim_seconds": QWEN_EMPTY_SIGNAL_RETRY_MIN_TRIM_SECONDS,
-        "empty_signal_retry_max_trim_seconds": QWEN_EMPTY_SIGNAL_RETRY_MAX_TRIM_SECONDS,
         **(
             {"benchmark_sample_seconds": float(sample_seconds)}
             if sample_seconds is not None
