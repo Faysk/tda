@@ -1,7 +1,6 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import type { WorldGraphDraft } from "./model";
 import {
 	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
@@ -82,9 +81,13 @@ function safeAssetForEntity(
 export async function prepareWorldEntityMediaForPublish({
 	client,
 	draft,
+	campaignId,
+	campaignTechnicalSlug,
 }: {
 	client: SupabaseClient;
 	draft: WorldGraphDraft;
+	campaignId: string;
+	campaignTechnicalSlug: string;
 }): Promise<PreparedWorldEntityMedia> {
 	if (!worldEntityMediaEnabled()) return { status: "unchanged", bindings: [] };
 
@@ -105,19 +108,6 @@ export async function prepareWorldEntityMediaForPublish({
 	}));
 	if (!requested.length) return { status: "ready", bindings };
 
-	const { data: campaign, error: campaignError } = await client
-		.from("campaigns")
-		.select("id")
-		.eq("slug", CAMPAIGN_SLUG)
-		.maybeSingle();
-	if (campaignError || !campaign?.id) {
-		console.error(
-			"World entity media publication campaign lookup failed",
-			campaignError?.message,
-		);
-		return { status: "pending", bindings };
-	}
-
 	const requestedAssetIds = [
 		...new Set(requested.flatMap((binding) => (binding.assetId ? [binding.assetId] : []))),
 	];
@@ -128,7 +118,7 @@ export async function prepareWorldEntityMediaForPublish({
 			.select(
 				"id,campaign_id,status,staged_bucket,object_key,sha256,mime_type,byte_size,width,height,read_back_verified,public_bucket,public_object_key,public_delivery_verified,public_verified_at",
 			)
-			.eq("campaign_id", campaign.id)
+			.eq("campaign_id", campaignId)
 			.in("id", requestedAssetIds);
 		if (error) {
 			console.error("World entity media publication asset lookup failed", error.message);
@@ -144,7 +134,7 @@ export async function prepareWorldEntityMediaForPublish({
 	for (const binding of requested) {
 		if (!binding.assetId) continue;
 		const asset = assetById.get(binding.assetId);
-		if (!asset || !safeAssetForEntity(asset, CAMPAIGN_SLUG, binding.entityId)) {
+		if (!asset || !safeAssetForEntity(asset, campaignTechnicalSlug, binding.entityId)) {
 			return { status: "pending", bindings };
 		}
 		if (!worldEntityMediaCanBecomePublic(binding.visibility)) continue;
@@ -162,7 +152,7 @@ export async function prepareWorldEntityMediaForPublish({
 						publicDeliveryVerified: asset.public_delivery_verified,
 						publicVerifiedAt: asset.public_verified_at,
 					},
-					{ campaignSlug: CAMPAIGN_SLUG, entityId: binding.entityId },
+					{ campaignSlug: campaignTechnicalSlug, entityId: binding.entityId },
 				),
 			);
 		if (alreadyVerified) continue;
@@ -170,7 +160,7 @@ export async function prepareWorldEntityMediaForPublish({
 
 		try {
 			const promoted = await promoteWorldEntityPortrait({
-				campaignSlug: CAMPAIGN_SLUG,
+				campaignSlug: campaignTechnicalSlug,
 				entityId: binding.entityId,
 				stagedBucket: asset.staged_bucket,
 				objectKey: asset.object_key,
@@ -194,7 +184,7 @@ export async function prepareWorldEntityMediaForPublish({
 					updated_at: promoted.verifiedAt,
 				})
 				.eq("id", asset.id)
-				.eq("campaign_id", campaign.id)
+				.eq("campaign_id", campaignId)
 				.eq("status", "staged");
 			if (updateError) {
 				console.error(
