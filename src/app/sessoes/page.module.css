@@ -291,3 +291,111 @@
 		transform: none;
 	}
 }
+
+
+.aggregateHero {
+	background:
+		radial-gradient(circle at 78% 18%, rgba(242, 200, 121, 0.1), transparent 34%),
+		linear-gradient(145deg, #090d12 0%, #070a0d 58%, #0b1016 100%);
+}
+
+.scopedHero[data-has-artwork="false"] {
+	background:
+		radial-gradient(circle at 72% 22%, rgba(242, 200, 121, 0.13), transparent 30%),
+		linear-gradient(145deg, #0b0f14 0%, #070a0d 62%, #10151c 100%);
+}
+
+.scopeBreadcrumb {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 18px;
+	color: var(--ds-on-art-soft);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	line-height: 1.4;
+	text-shadow: none;
+}
+
+.scopeBreadcrumb a {
+	color: var(--ds-on-art-accent);
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.scopeBreadcrumb a:hover {
+	text-decoration: underline;
+	text-underline-offset: 4px;
+}
+
+.scopeBreadcrumb a:focus-visible,
+.scopeAction:focus-visible {
+	border-radius: 5px;
+	outline: 2px solid var(--ds-on-art-accent);
+	outline-offset: 4px;
+}
+
+.scopeBreadcrumb [aria-current="page"] {
+	overflow: hidden;
+	max-width: min(56ch, 70vw);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.scopeActions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-top: 24px;
+	text-shadow: none;
+}
+
+.scopeAction {
+	display: inline-flex;
+	min-height: 42px;
+	align-items: center;
+	justify-content: center;
+	padding: 0 14px;
+	border: 1px solid rgba(255, 253, 248, 0.24);
+	border-radius: 999px;
+	background: rgba(7, 10, 13, 0.48);
+	color: var(--ds-on-art-foreground);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	font-weight: 700;
+	line-height: 1.2;
+	text-decoration: none;
+	backdrop-filter: blur(10px);
+	transition:
+		border-color 160ms ease,
+		background-color 160ms ease,
+		color 160ms ease;
+}
+
+.scopeAction:hover {
+	border-color: rgba(242, 200, 121, 0.62);
+	background: rgba(7, 10, 13, 0.72);
+	color: var(--ds-on-art-accent);
+}
+
+@media (max-width: 700px) {
+	.scopeBreadcrumb {
+		margin-bottom: 14px;
+	}
+
+	.scopeActions {
+		margin-top: 20px;
+	}
+
+	.scopeAction {
+		flex: 1 1 220px;
+	}
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.scopeAction {
+		backdrop-filter: none;
+		background: rgba(7, 10, 13, 0.9);
+	}
+}
