@@ -49,6 +49,14 @@ identidade da amostra, lineage e métricas factuais; não contém transcript/áu
 não cria run publicável e não escolhe vencedor. Sem referência humana, qualidade
 permanece explicitamente não medida. Este benchmark não substitui o aceite físico
 de release definido em #478.
+Desde #1233, prontidão de transcrição e prontidão de benchmark são contratos
+separados. Whisper Runtime 1.1.5 permanece aceito para transcrição normal, mas não
+pode ser anunciado como pronto para benchmark; o primeiro runtime que satisfaz o
+contrato de comando atual é 1.1.6. O Companion 0.3.18 anuncia a capability
+`processing.benchmark.runtime-readiness-v2` e publica `benchmark_ready` separado
+de `ready`. Cliente sem essa capability falha fechado para benchmark, sem bloquear
+transcrição normal. A preparação iniciada por esta tab envia `purpose=benchmark`
+e pode atualizar apenas o runtime necessário, preservando modelos, caches e dados.
 
 Validação deste comportamento: `tests/processing/panel.spec.ts` cobre progresso
 zero, ausência de denominador e a separação entre job ativo e métricas de run

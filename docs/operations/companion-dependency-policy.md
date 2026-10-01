@@ -63,6 +63,32 @@ Além da descoberta da GPU, o runtime Qwen deve executar uma operação CUDA rea
 
 O fato de Qwen poder usar CUDA 13.x não autoriza migrar o runtime Whisper para CUDA 13 enquanto CTranslate2 não suportar essa família.
 
+## Contrato de benchmark do Whisper — #1233
+
+A prontidão do Whisper possui dois níveis explícitos:
+
+- **transcrição normal:** mantém mínimo `1.1.4`; o runtime imutável `1.1.5` continua válido para jobs normais que já funcionavam;
+- **benchmark:** exige runtime **`>=1.1.6`**, porque esse é o primeiro artefato versionado depois da colisão em que dois builds diferentes foram publicados como `1.1.5`.
+
+A versão `1.1.5` nunca deve ser reconstruída, sobrescrita ou republicada com bytes novos. O reparo é sempre uma nova versão imutável. O Companion `0.3.18` anuncia `processing.benchmark.runtime-readiness-v2` e separa `ready` de `benchmark_ready`; consumidores antigos ou respostas sem esse contrato devem falhar fechados para benchmark, sem bloquear transcrição normal.
+
+A preparação iniciada pelo Benchmark usa `purpose=benchmark`. Ela pode reutilizar modelos/cache já íntegros, mas só considera o runtime pronto quando a versão ativa satisfaz o contrato de benchmark. Se a Stable ainda for `1.1.5`, o fluxo pode instalar um RC `1.1.6` publicado e verificado; isso não autoriza promovê-lo a Stable.
+
+O build do Whisper executa dois smokes no worker empacotado:
+
+1. bootstrap sintético já existente;
+2. comando real de protocolo `transcription.craig` com `benchmark_mode=true` e `benchmark_sample_seconds=300`, contra uma fonte sintética ausente.
+
+O segundo smoke deve alcançar `ready` e um erro de fonte controlado. `exit 64` antes de `ready` reprova o artefato e impede repetir a regressão de `1.1.5`. Nenhum áudio privado, modelo pesado ou transcrição é necessário para esse gate de empacotamento.
+
+### Migração e rollback
+
+A migração preserva `State`, `Data`, `Models` e caches; somente o runtime Whisper recebe uma nova identidade/version directory. O usuário pode continuar transcrevendo com `1.1.5` enquanto o benchmark estiver bloqueado e preparar `1.1.6` quando quiser executar o benchmark.
+
+Antes de promover `1.1.6` a Stable, o **archive/hash/source exatos** do RC precisam de aceite físico no Windows/GPU suportado e o benchmark real de 5 minutos deve completar os quatro perfis com lineage do runtime e GPU. CI e smoke sintético não substituem essa prova.
+
+Rollback nunca reutiliza o número `1.1.5`: se `1.1.6` falhar no aceite, não promover. Se já houver promoção e surgir regressão, selecionar deliberadamente o artefato Stable anterior conhecido, manter benchmark fail-closed quando o contrato não puder ser satisfeito e corrigir com **nova versão**. Não retaggear, rebuildar ou sobrescrever releases existentes.
+
 ## Exceções
 
 Toda exceção precisa ser explícita e ter justificativa técnica ou legal. Exceções de dependência runtime devem ser machine-readable no manifest correspondente, vinculadas à versão pinada e rejeitadas automaticamente quando o pin divergir.
