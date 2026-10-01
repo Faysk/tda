@@ -1,9 +1,5 @@
 import { currentAccess } from "@/features/auth/server";
-import {
-	authorizeCampaignCapability,
-	EDIT_CAPABILITIES,
-} from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
+import { readNavigationCampaigns } from "@/features/campaigns/navigation";
 
 export async function GET() {
 	const access = await currentAccess();
@@ -12,23 +8,35 @@ export async function GET() {
 		access.state === "authenticated_unlinked" ||
 		access.state === "authenticated_linked" ||
 		access.state === "authenticated_linked_no_grants";
-	const capabilities =
+	const navigation =
 		authenticated && context
-			? Object.values(EDIT_CAPABILITIES).filter(
-					(action) =>
-						authorizeCampaignCapability(context, action, CAMPAIGN_SLUG).ok,
-				)
+			? await readNavigationCampaigns(context)
+			: { mode: "unavailable" as const, campaigns: [] };
+
+	const legacyCapabilities =
+		navigation.mode === "legacy_compatibility"
+			? navigation.campaigns[0]?.capabilities ?? []
 			: [];
+
 	return Response.json(
 		{
 			state: access.state,
-			scope: { type: "campaign", id: CAMPAIGN_SLUG },
+			scope:
+				navigation.mode === "legacy_compatibility"
+					? { type: "campaign", id: navigation.campaigns[0]?.technicalSlug ?? null }
+					: { type: "project", id: "tda" },
 			...(authenticated
 				? {
 						identity: access.identity,
-						capabilities,
+						capabilities: legacyCapabilities,
+						campaignsState: navigation.mode,
+						campaigns: navigation.campaigns,
 					}
-				: {}),
+				: {
+						campaignsState:
+							access.state === "unavailable" ? "unavailable" : "none",
+						campaigns: [],
+					}),
 		},
 		{
 			status: access.state === "unavailable" ? 503 : 200,
