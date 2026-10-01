@@ -147,6 +147,17 @@ def test_runtime_manifest_fetch_is_no_store_and_invalid_payload_is_typed():
             version="../1.2.3",
         )
 
+    mismatched = manifest_value(
+        url="/api/downloads/companion/windows/whisper-runtime?version=1.2.4"
+    )
+    mismatched["version"] = "1.2.4"
+    mismatched["tag"] = "companion-whisper-runtime-v1.2.4"
+    with pytest.raises(NetworkError, match="^MANIFEST_INVALID$"):
+        fetch_whisper_runtime_manifest(
+            client=FakeClient(json.dumps(mismatched).encode("utf-8")),  # type: ignore[arg-type]
+            version="1.2.3",
+        )
+
     with pytest.raises(NetworkError, match="^MANIFEST_INVALID$"):
         fetch_whisper_runtime_manifest(client=FakeClient(b"not-json"))  # type: ignore[arg-type]
 
