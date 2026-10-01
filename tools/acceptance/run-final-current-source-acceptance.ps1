@@ -633,8 +633,8 @@ try{
     schema="tda_final_current_source_acceptance_v1";pass=$true;accepted_at=[DateTimeOffset]::UtcNow.ToString("o")
     companion=[ordered]@{tag=$CompanionRcTag;source_sha=[string]$cm.source_sha;source_tree_sha=[string]$cm.source_tree_sha;msi_sha256=[string]$cm.assets.msi.sha256;payload_manifest_sha256=[string]$cm.assets.payload_manifest.sha256}
     runtimes=[ordered]@{
-      whisper=[ordered]@{tag=$WhisperRuntimeRcTag;source_sha=[string]$wm.source_sha;runtime_archive_sha256=[string]$wm.runtime_archive_sha256}
-      qwen=[ordered]@{tag=$QwenRuntimeRcTag;source_sha=[string]$qm.source_sha;runtime_archive_sha256=[string]$qm.runtime_archive_sha256}
+      whisper=[ordered]@{tag=$WhisperRuntimeRcTag;source_sha=[string]$wm.source_sha;runtime_archive_sha256=[string]$wm.runtime_archive_sha256;install_mode="acceptance_direct_archive_v1"}
+      qwen=[ordered]@{tag=$QwenRuntimeRcTag;source_sha=[string]$qm.source_sha;runtime_archive_sha256=[string]$qm.runtime_archive_sha256;install_mode="companion_rc_installer_v1"}
     }
     gpu_requirement=$RequireGpuName;authenticode_required=[bool]$RequireAuthenticode
     expected_signer_thumbprint=$(if($RequireAuthenticode){($ExpectedSignerThumbprint -replace '\s','').ToUpperInvariant()}else{$null})
