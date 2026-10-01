@@ -32,6 +32,10 @@ from .qwen_runtime import inspect_qwen_runtime
 from .settings import SettingsStore
 from .startup import set_start_with_windows
 from .updates import download_update, fetch_manifest, update_available
+from .whisper_runtime_maintenance import (
+    list_whisper_runtime_rollback_candidates,
+    rollback_whisper_runtime as rollback_whisper_runtime_to_version,
+)
 
 PRODUCTION_ORIGIN = "https://dnd.faysk.dev"
 PROCESSING_URL = f"{PRODUCTION_ORIGIN}/edit/processamento"
@@ -381,6 +385,9 @@ class DesktopBridge:
             "version": manifest.version,
             "tag": manifest.tag,
             "size": manifest.size,
+            "rollback_versions": list_whisper_runtime_rollback_candidates(
+                self.paths.runtime_root
+            ),
         }
 
     def install_whisper_runtime(self) -> dict[str, Any]:
@@ -424,6 +431,21 @@ class DesktopBridge:
             "worker_sha256": installed["worker_sha256"],
             "repaired": repairing,
         }
+
+    def rollback_whisper_runtime(self, version: str) -> dict[str, Any]:
+        if self._has_active_job():
+            raise RuntimeError("RUNTIME_ROLLBACK_BLOCKED_BY_RUNNING_JOB")
+        preparation = self.client.get("/preparation")
+        if isinstance(preparation, dict) and preparation.get("active") is True:
+            raise RuntimeError("RUNTIME_ROLLBACK_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
+        qwen_maintenance = self.client.get("/qwen-runtime")
+        if isinstance(qwen_maintenance, dict) and qwen_maintenance.get("active") is True:
+            raise RuntimeError("RUNTIME_ROLLBACK_BLOCKED_BY_RUNTIME_MAINTENANCE")
+        return rollback_whisper_runtime_to_version(
+            self.paths.runtime_root,
+            self.paths.cache_root,
+            target_version=version,
+        )
 
     def _wait_qwen_runtime_maintenance(
         self,
