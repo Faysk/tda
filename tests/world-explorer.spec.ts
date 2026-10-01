@@ -1,5 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const WORLD_PATH = "/campanhas/cronicas-da-mesa/mundo";
+const EMPTY_WORLD_PATH = "/campanhas/antes-que-seja-tarde/mundo";
+
 async function closeWorkspaceOverlays(page: Page) {
 	const navigationClose = page.getByRole("button", { name: "Recolher navegação do mundo" });
 	if (await navigationClose.isVisible().catch(() => false)) await navigationClose.click();
@@ -7,8 +10,54 @@ async function closeWorkspaceOverlays(page: Page) {
 	if (await inspectorClose.isVisible().catch(() => false)) await inspectorClose.click();
 }
 
-test("World Explorer opens as a multi-hub overview and keeps selection separate from focus", async ({ page }) => {
+
+test("World entry requires an explicit campaign when more than one is public", async ({ page }) => {
 	await page.goto("/mundo");
+
+	await expect(page.getByRole("heading", { level: 1, name: "Escolha a campanha" })).toBeVisible();
+	await expect(page.getByRole("link", { name: /Crônicas da Mesa/ })).toHaveAttribute(
+		"href",
+		WORLD_PATH,
+	);
+	await expect(page.getByRole("link", { name: /Antes que seja tarde/ })).toHaveAttribute(
+		"href",
+		EMPTY_WORLD_PATH,
+	);
+	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
+});
+
+test("World campaign selection stays keyboard reachable and overflow-free on mobile", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 320, height: 800 });
+	await page.goto("/mundo");
+
+	const firstCampaign = page.getByRole("link", { name: /Crônicas da Mesa/ });
+	await firstCampaign.focus();
+	await expect(firstCampaign).toBeFocused();
+	await expect(page.locator("html")).toHaveJSProperty(
+		"scrollWidth",
+		await page.locator("html").evaluate((element) => element.clientWidth),
+	);
+});
+
+test("a campaign without a public World stays empty instead of borrowing another campaign demo", async ({
+	page,
+}) => {
+	await page.goto(EMPTY_WORLD_PATH);
+
+	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
+	await expect(page.getByText("O Mundo desta campanha ainda não possui conteúdo público.")).toBeVisible();
+	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
+	await expect(page.getByText("Demo · não canônico")).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "Abrir Crônicas da Mesa" })).toHaveAttribute(
+		"href",
+		WORLD_PATH,
+	);
+});
+
+test("World Explorer opens as a multi-hub overview and keeps selection separate from focus", async ({ page }) => {
+	await page.goto(WORLD_PATH);
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ecos da Jornada");
 	await expect(page.getByText("Demo · não canônico")).toBeVisible();
 	await expect(page.getByRole("heading", { level: 2, name: "Visão geral", exact: true })).toBeVisible();
@@ -38,7 +87,7 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 });
 
 test("World Explorer paints relation strokes in the same visible layer as edge labels", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto(WORLD_PATH);
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
 	const labelLayer = page.locator(".react-flow__edgelabel-renderer");
@@ -84,7 +133,7 @@ test("World Explorer paints relation strokes in the same visible layer as edge l
 });
 
 test("World Explorer inspector traverses visible connections without changing focus", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto(WORLD_PATH);
 	await page.locator('[data-world-node="astel"]').click();
 
 	await page.getByRole("tab", { name: /Laços/ }).click();
@@ -99,23 +148,23 @@ test("World Explorer inspector traverses visible connections without changing fo
 });
 
 test("World Explorer exposes honest SSR metadata through the central public contract", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto(WORLD_PATH);
 	await expect(page).toHaveTitle(/Ecos da Jornada — demonstração/);
-	await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /Demonstração multi-hub.*não são canon/);
-	await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", "https://dnd.faysk.dev/mundo");
-	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://dnd.faysk.dev/mundo");
+	await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /Demonstração do World Explorer de Crônicas da Mesa.*não são canon/);
+	await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", "https://dnd.faysk.dev/campanhas/cronicas-da-mesa/mundo");
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://dnd.faysk.dev/campanhas/cronicas-da-mesa/mundo");
 
-	await page.goto("/mundo?foco=astel");
-	await expect(page).toHaveTitle(/Astel · Ecos da Jornada — demonstração/);
-	await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", "https://dnd.faysk.dev/mundo?foco=astel");
+	await page.goto(`${WORLD_PATH}?foco=astel`);
+	await expect(page).toHaveTitle(/Astel · Crônicas da Mesa · Ecos da Jornada — demonstração/);
+	await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", "https://dnd.faysk.dev/campanhas/cronicas-da-mesa/mundo?foco=astel");
 
-	await page.goto("/mundo?foco=segredo-inexistente");
-	await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Ecos da Jornada — demonstração");
-	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://dnd.faysk.dev/mundo");
+	await page.goto(`${WORLD_PATH}?foco=segredo-inexistente`);
+	await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Crônicas da Mesa · Ecos da Jornada — demonstração");
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://dnd.faysk.dev/campanhas/cronicas-da-mesa/mundo");
 });
 
 test("World Explorer can switch to the textual view and filter relations from the relation disclosure", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto(WORLD_PATH);
 	await closeWorkspaceOverlays(page);
 	await page.getByRole("button", { name: "Lista" }).click();
 	const relations = page.locator('section[aria-labelledby="world-relations-title"]');
@@ -131,7 +180,7 @@ test("World Explorer can switch to the textual view and filter relations from th
 });
 
 test("World Explorer explains an empty search and recovers when the query is cleared", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto(WORLD_PATH);
 	const search = page.getByRole("searchbox", { name: "Buscar no mundo" });
 	const canvas = page.getByTestId("world-canvas");
 
@@ -149,7 +198,7 @@ test("World Explorer explains an empty search and recovers when the query is cle
 });
 
 test("World Explorer relation disclosure follows the real theme toggle and keeps the legend contextual", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto(WORLD_PATH);
 	await closeWorkspaceOverlays(page);
 	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
 	const popover = page.getByTestId("world-relation-popover");
@@ -197,7 +246,7 @@ test("World Explorer relation disclosure follows the real theme toggle and keeps
 });
 
 test("World Explorer nodes are movable without changing the URL", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto(WORLD_PATH);
 	const astel = page.locator('[data-world-node="astel"]').locator("..");
 	const before = await astel.getAttribute("style");
 	const box = await astel.boundingBox();
@@ -214,7 +263,7 @@ test("World Explorer nodes are movable without changing the URL", async ({ page 
 
 test("World Explorer collapses the side inspector before it can squeeze intermediate widths", async ({ page }) => {
 	await page.setViewportSize({ width: 1024, height: 900 });
-	await page.goto("/mundo");
+	await page.goto(WORLD_PATH);
 	await expect(page.getByTestId("world-canvas")).toBeVisible();
 	await expect(page.getByLabel("Ajustar largura do painel")).toBeHidden();
 	await expect(page.getByRole("button", { name: "Filtrar por relação" })).toBeVisible();
@@ -223,7 +272,7 @@ test("World Explorer collapses the side inspector before it can squeeze intermed
 
 test("World Explorer stays inside the viewport including the 320px minimum", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 800 });
-	await page.goto("/mundo");
+	await page.goto(WORLD_PATH);
 	await expect(page.getByTestId("world-canvas")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Todos" })).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
