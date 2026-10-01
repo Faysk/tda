@@ -107,8 +107,14 @@ describe("queue model", () => {
 		expect(queueRetryAvailable(uncertain)).toBe(false);
 
 		const qualityUncertain = {
-			...uncertain,
-			context: { ...uncertain.context, profileId: "qwen-quality" },
+			...job(
+				"quality-uncertain",
+				"failed",
+				"sessao-r",
+				"qwen-quality",
+				"2026-10-01T18:01:00Z",
+			),
+			error: { code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN", recoverable: true },
 		} satisfies LocalJob;
 		expect(queueRetryAvailable(qualityUncertain)).toBe(true);
 	});
