@@ -2,13 +2,13 @@
 
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { worldEntityMediaEnabled } from "@/features/world-explorer/world-entity-media-server";
 import { authorizeSessionCoverTarget } from "./session-cover-media-access";
 import {
 	SESSION_COVER_MEDIA_UPLOAD_CHUNK_BYTES,
 	type SessionCoverMediaMime,
 	type SessionCoverUploadIntent,
+	isSessionCoverCampaignKey,
 	isSessionCoverIntent,
 	isSessionCoverMime,
 	isSessionCoverSha256,
@@ -139,6 +139,7 @@ export async function sessionCoverMediaAvailabilityAction(): Promise<boolean> {
 }
 
 export async function requestSessionCoverUploadAction(
+	campaignSlug: string,
 	sessionId: string,
 	intent: SessionCoverUploadIntent,
 ): Promise<
@@ -161,6 +162,7 @@ export async function requestSessionCoverUploadAction(
 }
 
 export async function finalizeSessionCoverUploadAction(
+	campaignSlug: string,
 	sessionId: string,
 	uploadId: string,
 	intent: SessionCoverUploadIntent,
@@ -179,6 +181,7 @@ export async function finalizeSessionCoverUploadAction(
 	if (!worldEntityMediaEnabled())
 		return { ok: false, reason: "media_unavailable" };
 	if (
+		!isSessionCoverCampaignKey(campaignSlug) ||
 		!isSessionCoverUuid(sessionId) ||
 		!isSessionCoverUuid(uploadId) ||
 		!isSessionCoverIntent(intent)
@@ -223,6 +226,7 @@ export async function finalizeSessionCoverUploadAction(
 
 
 export async function getSessionCoverAssetStatusAction(
+	campaignSlug: string,
 	sessionId: string,
 	assetId: string,
 ): Promise<
