@@ -83,6 +83,7 @@ const layoutFixtureSessions = [
 			"Resumo público sintético usado somente para validar a composição da página de sessão e o ritmo do arquivo.",
 		fullSummary:
 			"# Memória sintética\n\nEste conteúdo existe apenas no ambiente E2E e não representa fatos da campanha.\n\n## Continuidade\n\nO artigo mantém texto suficiente para exercitar a largura de leitura e o fluxo editorial sem acessar dados privados.\n\nA composição precisa continuar confortável com parágrafos, subtítulos e navegação entre memórias.",
+		coverImage: "/og/default",
 	},
 	{
 		id: "layout-contract-previous",
@@ -96,6 +97,7 @@ const layoutFixtureSessions = [
 		summary:
 			"Terceiro registro sintético para garantir navegação scoped.",
 		fullSummary: "# Memória anterior\n\nConteúdo sintético.",
+		heroImage: "/og/default",
 	},
 ] as const satisfies readonly PublishedSession[];
 
