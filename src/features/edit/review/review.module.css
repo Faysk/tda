@@ -11,6 +11,66 @@
 	}
 }
 
+.campaignContext {
+	display: grid;
+	gap: 12px;
+	margin: 14px 0 18px;
+	padding: 14px 16px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface);
+}
+
+.campaignPicker {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: end;
+	gap: 12px;
+}
+
+.campaignPicker label {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+	font-size: 0.82rem;
+	font-weight: 700;
+}
+
+.campaignPicker select,
+.campaignPicker button {
+	min-height: 42px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	font: inherit;
+}
+
+.campaignPicker select {
+	width: 100%;
+	padding: 0 12px;
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+}
+
+.campaignPicker button {
+	padding: 0 14px;
+	background: var(--ds-action-primary-bg);
+	color: var(--ds-action-primary-foreground);
+	font-weight: 750;
+	cursor: pointer;
+}
+
+.campaignPicker select:focus-visible,
+.campaignPicker button:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.campaignAlert {
+	margin: 0;
+	color: var(--ds-warning);
+	line-height: 1.5;
+}
+
 .muted {
 	color: var(--ds-foreground-muted);
 }
@@ -189,6 +249,14 @@
 }
 
 @media (max-width: 720px) {
+	.campaignPicker {
+		grid-template-columns: 1fr;
+	}
+
+	.campaignPicker button {
+		width: 100%;
+	}
+
 	.candidateHeader,
 	.queueHeader {
 		align-items: stretch;
