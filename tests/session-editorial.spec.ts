@@ -329,6 +329,86 @@ test("cover promotion failure and capability loss fail closed without mutating t
 	).toBeDisabled();
 });
 
+test("session campaign move preflight keeps blockers actionable on keyboard and mobile", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 320, height: 800 });
+	await page.goto("/e2e-fixtures/session-editorial");
+
+	const selector = page.getByLabel("Mover para outra campanha");
+	await selector.selectOption("campanha-bloqueada");
+	await selector.focus();
+	await page.keyboard.press("Tab");
+	const preflight = page.getByRole("button", { name: "Pré-validar mudança" });
+	await expect(preflight).toBeFocused();
+	await page.keyboard.press("Enter");
+
+	await expect(page.getByRole("heading", { name: "Mudança bloqueada" })).toBeVisible();
+	await expect(page.getByText("Dependência sintética impede o move.")).toBeVisible();
+	await expect(page.getByRole("button", { name: /Confirmar mudança/u })).toHaveCount(0);
+
+	await selector.selectOption("campanha-b");
+	await preflight.click();
+	await expect(page.getByRole("heading", { name: "Pronta para confirmar" })).toBeVisible();
+	await expect(
+		page.getByText("O deep link do Edit passa a usar a campanha de destino.", {
+			exact: true,
+		}),
+	).toBeVisible();
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+		),
+	).toBeTruthy();
+});
+
+test("lost move response reuses operation id and recovers cache without hiding committed state", async ({
+	page,
+}) => {
+	await page.goto("/e2e-fixtures/session-editorial");
+	const selector = page.getByLabel("Mover para outra campanha");
+	const preflight = page.getByRole("button", { name: "Pré-validar mudança" });
+	await selector.selectOption("campanha-b");
+	await preflight.click();
+	await expect(page.getByRole("heading", { name: "Pronta para confirmar" })).toBeVisible();
+
+	await page.getByRole("button", { name: "Perder próxima resposta de move" }).click();
+	const confirm = page.getByRole("button", { name: "Confirmar mudança para Campanha B" });
+	await confirm.click();
+	await expect(
+		page.getByRole("alert").filter({
+			hasText: "A resposta se perdeu. Use “Confirmar mudança” novamente",
+		}),
+	).toBeVisible();
+
+	const urlBeforeRecovery = page.url();
+	await confirm.click();
+	await expect(page.getByText("Commit confirmado.", { exact: true })).toBeVisible();
+	await expect(
+		page.getByText("Destino confirmado: Campanha B (campanha-b).", { exact: true }),
+	).toBeVisible();
+	await expect(
+		page.getByText(/A sessão já mudou de campanha no banco.*revalidação de cache\/delivery/u),
+	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Abrir destino confirmado" })).toBeVisible();
+	const retry = page.getByRole("button", { name: "Revalidar caches" });
+	await expect(retry).toBeVisible();
+	await expect(selector).toBeDisabled();
+	await expect(preflight).toBeDisabled();
+	expect(page.url()).toBe(urlBeforeRecovery);
+
+	const ids = ((await page.getByTestId("synthetic-move-operation-ids").textContent()) ?? "")
+		.split("|")
+		.filter(Boolean);
+	expect(ids).toHaveLength(2);
+	expect(ids[0]).toBe(ids[1]);
+
+	await retry.click();
+	await expect(page).toHaveURL(/move=committed/u);
+	const recoveredUrl = new URL(page.url());
+	expect(recoveredUrl.searchParams.get("operationId")).toBe(ids[0]);
+});
+
 test("editorial workbench header never collides with floating global chrome", async ({ page }) => {
 	for (const viewport of [
 		{ width: 1366, height: 768 },

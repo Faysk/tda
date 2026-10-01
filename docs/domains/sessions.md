@@ -146,6 +146,19 @@ Não promover para `/sessoes` métricas que pertencem ao leitor privado de trans
 
 O repository público continua server-only e estreito; não deve consultar transcrições ou perfis para enriquecer cards públicos.
 
+### Limites de leitura dos consumidores públicos
+
+O arquivo completo e os consumidores de destaque possuem contratos de leitura diferentes:
+
+- o arquivo público continua usando paginação server-side em lotes de 200 e pode percorrer todas as sessões publicadas quando a própria tela precisa do conjunto completo;
+- a Home usa uma leitura dedicada e ordenada no servidor, limitada a **5 registros de conteúdo**: 1 sessão em destaque + 4 memórias recentes;
+- a ordem limitada da Home preserva `session_date DESC NULLS LAST`, depois campaign pública e `source_session_id`, mantendo determinismo quando duas campanhas compartilham o mesmo source ID;
+- o detalhe busca a sessão atual por `campaign + source_session_id` e resolve anterior/próxima por probes limitados a 1 registro cada; ele não carrega o arquivo inteiro para montar a navegação;
+- datas ausentes permanecem no fim do arquivo e os probes de vizinhança tratam explicitamente a transição entre sessões datadas e sem data;
+- esses limites são de consulta, não um cache global: não introduzem Redis, novo provider, novo tier nem mudança de persistência.
+
+A regressão de performance deve medir separadamente quantidade de requests e registros transferidos. No schema canônico com registry de campanhas disponível, a Home usa 1 request de dados / no máximo 5 registros independentemente de o arquivo possuir 13, 200 ou 1.000 sessões. Enquanto um ambiente ainda exigir o fallback de schema legado, há um probe moderno que retorna erro de compatibilidade e então 1 request de dados legado; portanto são 2 requests HTTP no total, mas continuam no máximo 5 registros de conteúdo transferidos. Para a navegação de detalhe, cada probe individual usa `limit(1)` e somente os vizinhos encontrados são transferidos; a quantidade de probes é constante e não cresce com o tamanho do arquivo.
+
 ## Rotas públicas e compatibilidade
 
 O contrato multi-campaign canônico está em [architecture/multi-campaign](../architecture/multi-campaign.md).
@@ -153,6 +166,8 @@ O contrato multi-campaign canônico está em [architecture/multi-campaign](../ar
 - arquivo agregado: `/campanhas/sessoes`;
 - archive específico: `/campanhas/[campaign]/sessoes`;
 - detalhe canônico: `/campanhas/[campaign]/sessoes/[sourceSessionId]`;
+- alias histórico de `public_slug` resolve primeiro a identidade pública da campanha e redireciona **308** para o detalhe canônico, preservando `sourceSessionId`;
+- alias retirado e campaign private/archived falham fechados como rota pública inexistente; indisponibilidade da dependência permanece estado temporário e não vira 404;
 - `/sessoes` torna-se compatibilidade para o agregado;
 - `/sessoes/[sourceSessionId]` só pode resolver o boundary legado explicitamente conhecido e redirecionar; não faz lookup global.
 

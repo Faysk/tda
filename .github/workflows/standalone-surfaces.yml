@@ -4,22 +4,30 @@ on:
   pull_request:
     paths:
       - ".github/workflows/standalone-surfaces.yml"
+      - "media/manifests/pipipi.json"
+      - "src/app/lore/**"
+      - "src/features/lore/**"
       - "public/lore/astel/**"
       - "public/lore/noah/**"
       - "public/lore/d/**"
       - "public/lore/yllith/**"
       - "public/diario/astel/**"
       - "tests/standalone-surfaces-ux.spec.ts"
+      - "tests/lore-catalogue-media.spec.ts"
   push:
     branches: [main]
     paths:
       - ".github/workflows/standalone-surfaces.yml"
+      - "media/manifests/pipipi.json"
+      - "src/app/lore/**"
+      - "src/features/lore/**"
       - "public/lore/astel/**"
       - "public/lore/noah/**"
       - "public/lore/d/**"
       - "public/lore/yllith/**"
       - "public/diario/astel/**"
       - "tests/standalone-surfaces-ux.spec.ts"
+      - "tests/lore-catalogue-media.spec.ts"
 
 permissions:
   contents: read
@@ -28,7 +36,7 @@ jobs:
   standalone-surfaces:
     name: standalone-surfaces
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -54,6 +62,37 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - name: Standalone Lore and Diário UX matrix
         run: pnpm exec playwright test tests/standalone-surfaces-ux.spec.ts --project=desktop-1080p
+      - name: Lore catalogue canonical media gate
+        shell: bash
+        run: |
+          command -v xvfb-run >/dev/null
+          xvfb-run -a pnpm exec playwright test tests/lore-catalogue-media.spec.ts --project=desktop-1080p --headed
+      - name: Wait for canonical Production SHA
+        if: ${{ github.event_name == 'push' }}
+        shell: bash
+        env:
+          PRODUCTION_ORIGIN: https://dnd.faysk.dev
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 72); do
+            body="$(curl -fsS --max-time 15 "$PRODUCTION_ORIGIN/api/version" || true)"
+            if [[ "$body" == *"$SOURCE_SHA"* ]]; then
+              echo "Canonical Production is serving $SOURCE_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Canonical Production did not reach $SOURCE_SHA within the verification window"
+          exit 1
+      - name: Canonical Production lore catalogue media gate
+        if: ${{ github.event_name == 'push' }}
+        shell: bash
+        env:
+          TDA_CATALOGUE_ORIGIN: https://dnd.faysk.dev
+        run: |
+          command -v xvfb-run >/dev/null
+          xvfb-run -a pnpm exec playwright test tests/lore-catalogue-media.spec.ts --project=desktop-1080p --headed
       - name: Upload standalone visual receipts
         if: ${{ success() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

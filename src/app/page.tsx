@@ -13,7 +13,7 @@ import {
 	sessionPublicPath,
 	type PublishedSession,
 } from "@/features/sessions/model";
-import { listPublishedSessions } from "@/features/sessions/repository";
+import { listHomePublishedSessions } from "@/features/sessions/repository";
 import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ const homeDescription =
 
 const readHomePublishedSessions = cache(async () => {
 	try {
-		return await listPublishedSessions();
+		return await listHomePublishedSessions();
 	} catch {
 		return undefined;
 	}

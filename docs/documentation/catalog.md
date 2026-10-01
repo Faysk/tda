@@ -58,6 +58,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
+| [Aceite físico — Qwen empty-window #1236](../companion/acceptance/qwen-empty-window-benchmark.md) | local-companion / processing | harness implementado; execução física no Craig original ainda pendente | 2026-10-01 |
 | [Aceite físico — recovery do Qwen Runtime no Benchmark](../companion/acceptance/qwen-runtime-recovery.md) | Processing / Companion | gate de aceite físico implementado; execução real pendente | 2026-10-01 |
 
 ## docs/database
@@ -134,7 +135,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Edit Workbench — área administrativa do TDA](../features/edit-workbench.md) | Edit / produto + frontend | arquitetura aprovada; implementação incremental em andamento | 2026-09-07 |
 | [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | projection pública implementada no código; rollout multi-campaign depende do registry/publicação de campaigns | 2026-10-01 |
 | [Feature — Timeline por entidade](../features/entity-timeline.md) | narrative-memory | preparado | 2026-09-06 |
-| [Navegação global do TDA](../features/global-navigation.md) | navigation / frontend / identity-access | launcher global seccionado validado; QA automatizado ativo | 2026-09-30 |
+| [Navegação global do TDA](../features/global-navigation.md) | navigation / frontend / identity-access | launcher global campaign-aware em validação; QA automatizado ativo | 2026-10-01 |
 | [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | arquitetura aprovada; registry/linkage implementados no código, publicação depende do registry de campaigns | 2026-10-01 |
 | [Feature/conceito — Intents / intenção](../features/intents.md) | não atribuído | **não definido / não encontrado como conceito canônico** | 2026-09-06 |
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-19 |
@@ -231,4 +232,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-150 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+151 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
