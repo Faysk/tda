@@ -52,6 +52,7 @@ O overlay nunca é commitado, não executa `migration repair`, não reescreve o 
 
 - `migrations/20260912214500_world_entity_media_foundation_v2.sql` — identidade first-class de assets do World, vínculo entity → portrait e wrapper transacional de publicação. Autorizada para rollout controlado pela #271; ainda não aplicada no Supabase Production até a execução do Production CD da promoção `Preview -> main`.
 - `migrations/20261001024500_campaign_cover_media_scope.sql` — extensão aditiva #1135 para `campaign_cover` e `campaign_media_bindings`, com FK composta same-campaign e namespace estável pelo technical slug; preserva objetos legados e exige receipt do Production CD para comprovar aplicação remota.
+- `migrations/20261001162000_world_graph_draft_campaign_isolation.sql` — correção #1138 para rejeitar UUIDs de entity/relation pertencentes a campaign irmã antes de persistir `draft_graph`; preserva recovery same-campaign e exige receipt do Production CD para comprovar aplicação remota.
 
 ## Candidatos atuais
 

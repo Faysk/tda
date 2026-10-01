@@ -7,6 +7,11 @@ import {
 } from "@/features/edit/access/policy";
 import { editDataClient } from "@/integrations/supabase/server";
 
+export {
+	editSessionDetailHref,
+	editSessionLibraryHref,
+} from "./session-routes";
+
 export type EditableSessionCampaign = Readonly<{
 	id: string;
 	technicalSlug: string;
@@ -86,15 +91,4 @@ export async function readEditableSessionCampaigns(
 		}
 	}
 	return { ok: true, campaigns };
-}
-
-export function editSessionLibraryHref(campaignSlug: string): string {
-	return `/edit/${encodeURIComponent(campaignSlug)}/sessoes`;
-}
-
-export function editSessionDetailHref(
-	campaignSlug: string,
-	sourceSessionId: string,
-): string {
-	return `${editSessionLibraryHref(campaignSlug)}/${encodeURIComponent(sourceSessionId)}`;
 }

@@ -59,11 +59,11 @@ describe("global navigation model", () => {
 			EDIT_CAPABILITIES.permissionsManage,
 		]);
 		expect(legacy.map(({ href, label }) => [href, label])).toEqual([
-			["/transcricoes?campanha=yuhara-main", "Transcrições"],
+			["/edit/yuhara-main/transcricoes", "Transcrições"],
 			["/edit/yuhara-main/sessoes", "Editar sessões"],
-			["/edit/processamento?campanha=yuhara-main", "Processar"],
+			["/edit/yuhara-main/processamento", "Processar"],
 			["/edit/yuhara-main/mundo", "Editar mundo"],
-			["/edit/revisao?campanha=yuhara-main", "Revisão"],
+			["/edit/yuhara-main/revisao", "Revisão"],
 			["/edit/yuhara-main/permissions", "Permissões"],
 		]);
 
@@ -79,7 +79,7 @@ describe("global navigation model", () => {
 		);
 		expect(secondCampaign.map(({ href, label }) => [href, label])).toEqual([
 			[
-				"/transcricoes?campanha=antes-que-seja-tarde",
+				"/edit/antes-que-seja-tarde/transcricoes",
 				"Transcrições",
 			],
 			[
@@ -87,11 +87,11 @@ describe("global navigation model", () => {
 				"Editar sessões",
 			],
 			[
-				"/edit/processamento?campanha=antes-que-seja-tarde",
+				"/edit/antes-que-seja-tarde/processamento",
 				"Processar",
 			],
 			["/edit/antes-que-seja-tarde/mundo", "Editar mundo"],
-			["/edit/revisao?campanha=antes-que-seja-tarde", "Revisão"],
+			["/edit/antes-que-seja-tarde/revisao", "Revisão"],
 			[
 				"/edit/antes-que-seja-tarde/permissions",
 				"Permissões",

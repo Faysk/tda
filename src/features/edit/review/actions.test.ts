@@ -68,7 +68,7 @@ describe("campaign-scoped narrative review action", () => {
 		mocks.editDataClient.mockReturnValue(db.value);
 
 		await expect(reviewCanonCandidateFormAction(form())).rejects.toThrow(
-			"NEXT_REDIRECT:/edit/revisao?campanha=campaign-b&resultado=rejected",
+			"NEXT_REDIRECT:/edit/campaign-b/revisao?resultado=rejected",
 		);
 		expect(mocks.authorize).toHaveBeenCalledExactlyOnceWith({
 			action: "narrative.review.manage",
@@ -88,7 +88,7 @@ describe("campaign-scoped narrative review action", () => {
 		mocks.editDataClient.mockReturnValue(db.value);
 
 		await expect(reviewCanonCandidateFormAction(form())).rejects.toThrow(
-			"NEXT_REDIRECT:/edit/revisao?campanha=campaign-b&erro=not_found",
+			"NEXT_REDIRECT:/edit/campaign-b/revisao?erro=not_found",
 		);
 		expect(db.rpc).toHaveBeenCalledExactlyOnceWith(
 			"review_canon_candidate_atomic",
@@ -100,7 +100,7 @@ describe("campaign-scoped narrative review action", () => {
 		mocks.authorize.mockResolvedValue({ ok: false, reason: "forbidden" });
 
 		await expect(reviewCanonCandidateFormAction(form())).rejects.toThrow(
-			"NEXT_REDIRECT:/edit/revisao?campanha=campaign-b&erro=forbidden",
+			"NEXT_REDIRECT:/edit/campaign-b/revisao?erro=forbidden",
 		);
 		expect(mocks.editDataClient).not.toHaveBeenCalled();
 	});
@@ -110,7 +110,7 @@ describe("campaign-scoped narrative review action", () => {
 		mocks.editDataClient.mockReturnValue(db.value);
 
 		await expect(reviewCanonCandidateFormAction(form())).rejects.toThrow(
-			"NEXT_REDIRECT:/edit/revisao?campanha=campaign-b&erro=campaign_archived",
+			"NEXT_REDIRECT:/edit/campaign-b/revisao?erro=campaign_archived",
 		);
 		expect(db.rpc).not.toHaveBeenCalled();
 	});

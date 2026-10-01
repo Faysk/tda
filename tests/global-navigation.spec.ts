@@ -520,7 +520,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 		toolsSection.getByRole("link", { name: "Transcrições", exact: true }),
 	).toHaveAttribute(
 		"href",
-		"/transcricoes?campanha=antes-que-seja-tarde",
+		"/edit/antes-que-seja-tarde/transcricoes",
 	);
 	await expect(
 		toolsSection.getByRole("link", { name: "Permissões", exact: true }),
@@ -542,7 +542,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	).toHaveAttribute("href", "/edit/yuhara-main/sessoes");
 	await expect(
 		toolsSection.getByRole("link", { name: "Revisão", exact: true }),
-	).toHaveAttribute("href", "/edit/revisao?campanha=yuhara-main");
+	).toHaveAttribute("href", "/edit/yuhara-main/revisao");
 	await expect(
 		toolsSection.getByRole("link", { name: "Permissões", exact: true }),
 	).toHaveAttribute("href", "/edit/yuhara-main/permissions");
@@ -552,7 +552,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	).toHaveAttribute("href", "/edit/mesa-do-norte/mundo");
 	await expect(
 		toolsSection.getByRole("link", { name: "Revisão", exact: true }),
-	).toHaveAttribute("href", "/edit/revisao?campanha=mesa-do-norte");
+	).toHaveAttribute("href", "/edit/mesa-do-norte/revisao");
 	await expect(
 		toolsSection.getByRole("link", { name: "Permissões", exact: true }),
 	).toHaveAttribute("href", "/edit/mesa-do-norte/permissions");

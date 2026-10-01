@@ -24,11 +24,12 @@ function reviewRedirect(
 	kind: "resultado" | "erro",
 	value: string,
 ): never {
-	const params = new URLSearchParams();
-	if (campaignSlug && SAFE_CAMPAIGN_SLUG.test(campaignSlug))
-		params.set("campanha", campaignSlug);
-	params.set(kind, value);
-	redirect(`/edit/revisao?${params.toString()}`);
+	const params = new URLSearchParams({ [kind]: value });
+	const path =
+		campaignSlug && SAFE_CAMPAIGN_SLUG.test(campaignSlug)
+			? `/edit/${encodeURIComponent(campaignSlug)}/revisao`
+			: "/edit/revisao";
+	redirect(`${path}?${params.toString()}`);
 }
 
 function knownFailure(reason: unknown) {
@@ -111,6 +112,7 @@ export async function reviewCanonCandidateFormAction(
 			(payload.status === "approved" || payload.status === "unchanged")
 		) {
 			revalidatePath("/edit/revisao");
+		revalidatePath(`/edit/${encodeURIComponent(campaignSlug)}/revisao`);
 			revalidatePath("/mundo");
 			return reviewRedirect(campaignSlug, "resultado", String(payload.status));
 		}
@@ -139,6 +141,7 @@ export async function reviewCanonCandidateFormAction(
 		(payload.status === "reviewed" || payload.status === "unchanged")
 	) {
 		revalidatePath("/edit/revisao");
+		revalidatePath(`/edit/${encodeURIComponent(campaignSlug)}/revisao`);
 		return reviewRedirect(
 			campaignSlug,
 			"resultado",

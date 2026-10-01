@@ -318,7 +318,7 @@ test("archived campaign remains readable but is labeled as historical context", 
 	await signIn(context, "archived-reader");
 	await page.goto("/transcricoes");
 
-	await expect(page).toHaveURL(/campanha=arquivo-antigo/);
+	await expect(page).toHaveURL(/\/edit\/arquivo-antigo\/transcricoes$/u);
 	await expect(
 		page.getByRole("heading", { level: 1, name: "Memórias arquivadas" }),
 	).toBeVisible();

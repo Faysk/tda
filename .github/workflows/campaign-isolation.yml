@@ -1,0 +1,573 @@
+name: Campaign Isolation Gate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/campaign-isolation.yml"
+      - "playwright.campaign-isolation.config.ts"
+      - "tests/campaign-isolation.spec.ts"
+      - "tests/campaign-directory.spec.ts"
+      - "tools/ci/campaign-isolation-*.mjs"
+      - "tools/ci/campaign-staging-smoke*.mjs"
+      - "src/app/page.tsx"
+      - "src/app/campanhas/**"
+      - "src/app/sessoes/**"
+      - "src/app/mundo/**"
+      - "src/app/transcricoes/**"
+      - "src/app/edit/**"
+      - "src/components/public-navigation-model.ts"
+      - "src/features/campaigns/**"
+      - "src/features/sessions/**"
+      - "src/features/edit/**"
+      - "src/features/transcripts/**"
+      - "src/features/world-explorer/**"
+      - "src/features/lore/**"
+      - "src/features/lembra/**"
+      - "src/config/public-session-media*"
+      - "next.config.ts"
+      - "supabase/**"
+      - "local-companion/**"
+      - "tools/*-db.py"
+      - "tools/media/**"
+      - "docs/architecture/multi-campaign.md"
+      - "docs/operations/multi-campaign-activation-gate.md"
+  push:
+    branches: [main, "codex/epic-1122-multicampaign-completion"]
+    paths:
+      - ".github/workflows/campaign-isolation.yml"
+      - "playwright.campaign-isolation.config.ts"
+      - "tests/campaign-isolation.spec.ts"
+      - "tests/campaign-directory.spec.ts"
+      - "tools/ci/campaign-isolation-*.mjs"
+      - "tools/ci/campaign-staging-smoke*.mjs"
+      - "src/app/page.tsx"
+      - "src/app/campanhas/**"
+      - "src/app/sessoes/**"
+      - "src/app/mundo/**"
+      - "src/app/transcricoes/**"
+      - "src/app/edit/**"
+      - "src/components/public-navigation-model.ts"
+      - "src/features/campaigns/**"
+      - "src/features/sessions/**"
+      - "src/features/edit/**"
+      - "src/features/transcripts/**"
+      - "src/features/world-explorer/**"
+      - "src/features/lore/**"
+      - "src/features/lembra/**"
+      - "src/config/public-session-media*"
+      - "next.config.ts"
+      - "supabase/**"
+      - "local-companion/**"
+      - "tools/*-db.py"
+      - "tools/media/**"
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact candidate commit SHA to validate
+        required: true
+        type: string
+      require_ready:
+        description: Fail closed unless every campaign consumer is ready
+        required: true
+        default: true
+        type: boolean
+      staging_base_url:
+        description: HTTPS staging origin for public smoke (required for activation receipts)
+        required: false
+        type: string
+      smoke_phase:
+        description: Whether this run is the pre- or post-activation staging receipt
+        required: true
+        default: none
+        type: choice
+        options: [none, pre_activation, post_activation]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: campaign-isolation-${{ github.event_name }}-${{ inputs.source_sha || github.sha }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
+
+jobs:
+  preflight:
+    name: campaign-readiness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+      - name: Validate executable matrix
+        run: |
+          node --test tools/ci/campaign-isolation-readiness.test.mjs tools/ci/campaign-isolation-matrix.test.mjs tools/ci/campaign-staging-smoke.test.mjs
+          node tools/ci/campaign-isolation-matrix.mjs --require-complete
+      - name: Build sanitized readiness and matrix receipts
+        run: |
+          node tools/ci/campaign-isolation-readiness.mjs --json | tee campaign-isolation-readiness.json
+          node tools/ci/campaign-isolation-matrix.mjs --json | tee campaign-isolation-matrix.json
+      - name: Enforce readiness for activation candidate
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.require_ready }}
+        run: node tools/ci/campaign-isolation-readiness.mjs --require-ready
+      - name: Upload preflight receipts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: campaign-preflight-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            campaign-isolation-readiness.json
+            campaign-isolation-matrix.json
+          if-no-files-found: error
+          retention-days: 30
+
+  domain-contracts:
+    name: campaign-domain-contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Cross-campaign domain contracts
+        run: >-
+          pnpm exec vitest run
+          src/components/public-navigation-model.test.ts
+          src/features/campaigns/authorized.test.ts
+          src/features/campaigns/model.test.ts
+          src/features/campaigns/policy.test.ts
+          src/features/campaigns/processing-policy.test.ts
+          src/features/edit/navigation-entry-contract.test.ts
+          src/features/edit/navigation-entry.test.ts
+          src/features/edit/tool-route-links-contract.test.ts
+          src/features/edit/permissions/mutation.test.ts
+          src/features/edit/permissions/projection.test.ts
+          src/features/edit/permissions/query.test.ts
+          src/features/edit/permissions/repository.test.ts
+          src/features/edit/permissions/server-query.test.ts
+          src/features/edit/processing/campaign-context.test.ts
+          src/features/edit/processing/campaign-validation.test.ts
+          src/features/edit/processing/session-intent-model.test.ts
+          src/features/edit/processing/session-intent-storage.test.ts
+          src/features/edit/review/actions.test.ts
+          src/features/edit/review/server.test.ts
+          src/features/edit/sessions/canonical-route-contract.test.ts
+          src/features/edit/sessions/session-campaign-move-cache.test.ts
+          src/features/edit/sessions/library.test.ts
+          src/features/edit/sessions/repository.test.ts
+          src/features/edit/sessions/session-cover-media.test.ts
+          src/features/edit/sessions/session-publication-model.test.ts
+          src/features/sessions/archive.test.ts
+          src/features/sessions/home-feed.test.ts
+          src/features/sessions/legacy-route.test.ts
+          src/features/sessions/media-delivery.test.ts
+          src/features/sessions/metadata.test.ts
+          src/features/sessions/model.test.ts
+          src/features/lore/campaign-context.test.ts
+          src/features/lore/public-projection.test.ts
+          src/features/lore/standalone-link-repository.test.ts
+          src/features/lembra/campaign-classification.test.ts
+          src/features/transcripts/statistics/read.test.ts
+          src/features/transcripts/statistics/server.test.ts
+          src/features/world-explorer/canonical-publication-contract.test.ts
+          src/features/world-explorer/graph-validation.test.ts
+          src/features/world-explorer/relation-provenance-contract.test.ts
+          src/features/world-explorer/world-audience.test.ts
+          src/features/world-explorer/world-audience-server.test.ts
+          src/features/world-explorer/world-campaign.test.ts
+          src/features/world-explorer/world-edit-route-contract.test.ts
+          src/features/world-explorer/world-entity-media.test.ts
+          src/features/world-explorer/world-publication.test.ts
+      - name: Campaign media contracts when the rollout slice is present
+        shell: bash
+        run: |
+          if test -f src/features/media/campaign-media.test.ts \
+             && test -f src/features/campaigns/campaign-cover-media.test.ts \
+             && test -f src/features/campaigns/campaign-cover-repository.test.ts; then
+            pnpm exec vitest run \
+              src/features/media/campaign-media.test.ts \
+              src/features/campaigns/campaign-cover-media.test.ts \
+              src/features/campaigns/campaign-cover-repository.test.ts \
+              src/features/edit/sessions/session-cover-media.test.ts \
+              src/features/world-explorer/world-entity-media-server.test.ts
+          else
+            echo "CAMPAIGN_MEDIA_CONTRACTS_PENDING"
+          fi
+
+  database-contracts:
+    name: campaign-postgres-contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-16
+      - name: Registry, authorization and atomic session moves
+        run: |
+          python tools/campaign-registry-db.py
+          python tools/campaign-authorization-db.py
+          python tools/session-campaign-move-db.py
+      - name: Transcript, publication, World, media and Lembra boundaries
+        run: |
+          python tools/transcript-sync-db.py </dev/null
+          python tools/session-publication-db.py
+          python tools/world-layout-db.py
+          python tools/world-entity-media-db.py
+          python tools/lembra-db.py
+
+  browser-contracts:
+    name: campaign-browser-e2e
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Build synthetic browser candidate
+        run: pnpm build
+        env:
+          TDA_E2E_FIXTURES: "true"
+          TDA_READ_PUBLISHED_DATA: "false"
+          TDA_EDIT_UNSAFE: "false"
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: A/B public routing, canonical, collision and geometry matrix
+        run: pnpm exec playwright test --config playwright.campaign-isolation.config.ts
+      - name: Multi-campaign selector, mobile navigation and forbidden sibling context
+        run: >-
+          pnpm exec playwright test
+          tests/global-navigation.spec.ts
+          --config playwright.config.ts
+          --project=mobile
+          --grep "multi-campaign tool launcher requires explicit context|explicit unauthorized campaign context never falls back|campaign-scoped public routes select the matching tool context|390 CSS px keeps the campaign launcher usable|tool launcher never invents an unauthorized sibling campaign|public navigation remains usable while auth projection is pending or unavailable"
+      - name: Upload sanitized browser failures
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: campaign-browser-failures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+            test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7
+
+  processing-contracts:
+    name: campaign-processing-integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.18"
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: uv venv --python 3.12.14
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Campaign identity and reauthorization unit contracts
+        run: >-
+          pnpm exec vitest run
+          src/features/edit/processing/campaign-context.test.ts
+          src/features/edit/processing/campaign-validation.test.ts
+          src/features/edit/processing/submission-recovery.test.ts
+          src/features/campaigns/processing-policy.test.ts
+          src/features/edit/processing/session-intent-model.test.ts
+          src/features/edit/processing/session-intent-storage.test.ts
+      - name: Browser recovery and reauthorization without heavy ASR
+        run: >-
+          pnpm exec playwright test
+          --config playwright.processing.config.ts
+          --project=desktop
+          --grep "campaign reauthorization fails before Craig upload or profile preparation|ambiguous job response reuses the persisted idempotency key after reload|troca de campaign com trabalho autoritativo exige confirmação e não retaggeia o job|workspace não expõe nem oferece ações para jobs de outra campaign"
+      - name: Scratch Companion integration without models
+        run: pnpm test:processing:integration
+        env:
+          TDA_COMPANION_PYTHON: .venv/bin/python
+          TDA_COMPANION_PACKAGE: ${{ github.workspace }}/local-companion
+      - name: Upload sanitized Processing failures
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: campaign-processing-failures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+            test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7
+
+  legacy-regression:
+    name: legacy-main-campaign-regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Legacy campaign compatibility
+        run: >-
+          pnpm exec vitest run
+          src/features/sessions/legacy-route.test.ts
+          src/features/sessions/media-delivery.test.ts
+          src/features/lore/standalone-catalog.test.ts
+          src/features/lembra/campaign-classification.test.ts
+          src/components/public-navigation-model.test.ts
+
+  staging-smoke:
+    name: campaign-staging-smoke
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.staging_base_url != '' && inputs.smoke_phase != 'none' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+      - name: Smoke public staging without credentials
+        env:
+          STAGING_BASE_URL: ${{ inputs.staging_base_url }}
+          SMOKE_PHASE: ${{ inputs.smoke_phase }}
+        run: node tools/ci/campaign-staging-smoke.mjs --base-url "$STAGING_BASE_URL" --phase "$SMOKE_PHASE" | tee campaign-staging-smoke.json
+      - name: Upload sanitized staging smoke
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: campaign-staging-smoke-${{ inputs.smoke_phase }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: campaign-staging-smoke.json
+          if-no-files-found: error
+          retention-days: 30
+
+  receipt:
+    name: campaign-isolation-receipt
+    if: ${{ always() }}
+    needs:
+      - preflight
+      - domain-contracts
+      - database-contracts
+      - browser-contracts
+      - processing-contracts
+      - legacy-regression
+      - staging-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+      - name: Write sanitized exact-SHA receipt
+        env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          DOMAIN_RESULT: ${{ needs.domain-contracts.result }}
+          DATABASE_RESULT: ${{ needs.database-contracts.result }}
+          BROWSER_RESULT: ${{ needs.browser-contracts.result }}
+          PROCESSING_RESULT: ${{ needs.processing-contracts.result }}
+          LEGACY_RESULT: ${{ needs.legacy-regression.result }}
+          STAGING_RESULT: ${{ needs.staging-smoke.result }}
+          SMOKE_PHASE: ${{ inputs.smoke_phase || 'none' }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+        shell: bash
+        run: |
+          node tools/ci/campaign-isolation-readiness.mjs --json > readiness.json
+          node tools/ci/campaign-isolation-matrix.mjs --json > matrix.json
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const readiness = JSON.parse(readFileSync("readiness.json", "utf8"));
+          const matrix = JSON.parse(readFileSync("matrix.json", "utf8"));
+          const receipt = {
+            schema: "tda.campaign-isolation-gate.v2",
+            sourceSha: process.env.SOURCE_SHA,
+            pullRequestHeadSha: process.env.PR_HEAD_SHA || null,
+            runId: process.env.GITHUB_RUN_ID,
+            runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+            event: process.env.GITHUB_EVENT_NAME,
+            synthetic: true,
+            containsPrivateNarrativeData: false,
+            productionMutation: false,
+            activationReady: readiness.ready,
+            negativeCaseCount: matrix.negativeCaseCount,
+            negativeCaseIds: matrix.negativeCaseIds,
+            negativeMatrixComplete: matrix.complete,
+            negativeMatrixMissingEvidence: matrix.missingEvidence,
+            negativeMatrixMissingAnchors: matrix.missingAnchors,
+            endpointActionCoverageCount: matrix.surfaceCoverageCount,
+            endpointActionCoverage: matrix.surfaceIds,
+            smokePhase: process.env.SMOKE_PHASE,
+            readinessBlockers: readiness.blockers.map(({ issue, surface, matches }) => ({
+              issue,
+              surface,
+              paths: [...new Set(matches.map((match) => match.path))],
+            })),
+            suites: {
+              preflight: process.env.PREFLIGHT_RESULT,
+              domain: process.env.DOMAIN_RESULT,
+              postgres: process.env.DATABASE_RESULT,
+              browser: process.env.BROWSER_RESULT,
+              processing: process.env.PROCESSING_RESULT,
+              legacyRegression: process.env.LEGACY_RESULT,
+              stagingSmoke: process.env.STAGING_RESULT,
+            },
+          };
+          writeFileSync("campaign-isolation-receipt.json", JSON.stringify(receipt, null, 2) + "\n");
+          NODE
+          cat campaign-isolation-receipt.json
+      - name: Upload sanitized exact-SHA receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: campaign-isolation-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: campaign-isolation-receipt.json
+          if-no-files-found: error
+          retention-days: 30
+
+  regression-gate:
+    name: campaign-isolation-regression-gate
+    if: ${{ always() }}
+    needs:
+      - preflight
+      - domain-contracts
+      - database-contracts
+      - browser-contracts
+      - processing-contracts
+      - legacy-regression
+      - receipt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require all exact-SHA isolation suites
+        env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          DOMAIN_RESULT: ${{ needs.domain-contracts.result }}
+          DATABASE_RESULT: ${{ needs.database-contracts.result }}
+          BROWSER_RESULT: ${{ needs.browser-contracts.result }}
+          PROCESSING_RESULT: ${{ needs.processing-contracts.result }}
+          LEGACY_RESULT: ${{ needs.legacy-regression.result }}
+          RECEIPT_RESULT: ${{ needs.receipt.result }}
+        run: |
+          set -euo pipefail
+          test "$PREFLIGHT_RESULT" = "success"
+          test "$DOMAIN_RESULT" = "success"
+          test "$DATABASE_RESULT" = "success"
+          test "$BROWSER_RESULT" = "success"
+          test "$PROCESSING_RESULT" = "success"
+          test "$LEGACY_RESULT" = "success"
+          test "$RECEIPT_RESULT" = "success"
+
+  activation-gate:
+    name: campaign-activation-gate
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.require_ready }}
+    needs:
+      - preflight
+      - domain-contracts
+      - database-contracts
+      - browser-contracts
+      - processing-contracts
+      - legacy-regression
+      - staging-smoke
+      - receipt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require ready exact-SHA activation candidate plus staged smoke
+        env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          DOMAIN_RESULT: ${{ needs.domain-contracts.result }}
+          DATABASE_RESULT: ${{ needs.database-contracts.result }}
+          BROWSER_RESULT: ${{ needs.browser-contracts.result }}
+          PROCESSING_RESULT: ${{ needs.processing-contracts.result }}
+          LEGACY_RESULT: ${{ needs.legacy-regression.result }}
+          STAGING_RESULT: ${{ needs.staging-smoke.result }}
+          RECEIPT_RESULT: ${{ needs.receipt.result }}
+          SMOKE_PHASE: ${{ inputs.smoke_phase }}
+        run: |
+          set -euo pipefail
+          test "$PREFLIGHT_RESULT" = "success"
+          test "$DOMAIN_RESULT" = "success"
+          test "$DATABASE_RESULT" = "success"
+          test "$BROWSER_RESULT" = "success"
+          test "$PROCESSING_RESULT" = "success"
+          test "$LEGACY_RESULT" = "success"
+          test "$STAGING_RESULT" = "success"
+          test "$RECEIPT_RESULT" = "success"
+          test "$SMOKE_PHASE" != "none"

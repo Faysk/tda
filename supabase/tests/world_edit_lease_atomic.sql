@@ -430,3 +430,64 @@ begin
 end;
 $$;
 reset role;
+
+-- A lease in campaign A never blocks the same authorized editor from opening B.
+-- Campaign identity is part of the lock key, not ambient browser/editor state.
+begin;
+delete from public.world_edit_leases;
+delete from public.world_edit_drafts;
+
+insert into public.campaigns(id, slug)
+values ('93939393-9393-4393-8393-939393939393', 'synthetic-campaign-b');
+
+insert into public.role_assignments(profile_id, role_id, scope_type, scope_id, status, starts_at)
+values (
+  '33333333-3333-4333-8333-333333333333',
+  '55555555-5555-4555-8555-555555555555',
+  'campaign',
+  'synthetic-campaign-b',
+  'active',
+  now() - interval '1 minute'
+);
+
+set role service_role;
+do $$
+declare
+  lease_a jsonb;
+  lease_b jsonb;
+  token_a uuid := '94949494-9494-4494-8494-949494949494';
+  token_b uuid := '95959595-9595-4595-8595-959595959595';
+begin
+  lease_a := public.acquire_world_edit_lease_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token_a
+  );
+  lease_b := public.acquire_world_edit_lease_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign-b',
+    token_b
+  );
+
+  if lease_a->>'status' <> 'acquired' or lease_b->>'status' <> 'acquired' then
+    raise exception 'campaign A/B leases were not independent: A=% B=%', lease_a, lease_b;
+  end if;
+
+  if (select count(*) from public.world_edit_leases) <> 2 then
+    raise exception 'campaign A/B lease isolation did not persist two independent locks';
+  end if;
+
+  if (
+    select count(distinct campaign_id)
+    from public.world_edit_leases
+    where holder_profile_id = '33333333-3333-4333-8333-333333333333'
+  ) <> 2 then
+    raise exception 'campaign A/B leases collapsed into one campaign lock';
+  end if;
+end;
+$$;
+reset role;
+rollback;
+

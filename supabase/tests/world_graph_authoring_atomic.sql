@@ -707,3 +707,115 @@ begin
 end;
 $$;
 reset role;
+
+-- A relation draft cannot smuggle an endpoint owned by a sibling campaign.
+-- The rejection happens before durable draft state is changed.
+begin;
+insert into public.campaigns(id, slug)
+values ('90909090-9090-4090-8090-909090909091', 'sibling-campaign');
+
+insert into public.entities(id, campaign_id, name, slug, entity_type)
+values (
+  '91919191-9191-4191-8191-919191919191',
+  '90909090-9090-4090-8090-909090909091',
+  'Sibling entity',
+  'sibling-entity',
+  'npc'
+);
+
+set role service_role;
+do $cross_campaign_relation$
+declare
+  result jsonb;
+  token uuid := '92929292-9292-4292-8292-929292929292';
+  draft jsonb;
+begin
+  result := public.acquire_world_edit_lease_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token
+  );
+  if result->>'status' <> 'acquired' then
+    raise exception 'cross-campaign relation fixture could not acquire lease: %', result;
+  end if;
+
+  result := public.acquire_world_graph_draft_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token
+  );
+  if result->>'ok' <> 'true' then
+    raise exception 'cross-campaign relation fixture could not acquire graph draft: %', result;
+  end if;
+
+  draft := jsonb_set(
+    result->'draftGraph',
+    '{edges,0,target}',
+    to_jsonb('91919191-9191-4191-8191-919191919191'::text),
+    false
+  );
+
+  result := public.save_world_graph_draft_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token,
+    draft
+  );
+  if result <> '{"ok":false,"reason":"invalid_payload"}'::jsonb then
+    raise exception 'cross-campaign entity relation endpoint was accepted: %', result;
+  end if;
+
+  draft := jsonb_set(
+    draft,
+    '{edges,0,target}',
+    to_jsonb('96969696-9696-4696-8696-969696969696'::text),
+    false
+  );
+  result := public.save_world_graph_draft_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token,
+    draft
+  );
+  if result <> '{"ok":false,"reason":"invalid_payload"}'::jsonb then
+    raise exception 'missing endpoint must be indistinguishable from a sibling-campaign endpoint: %', result;
+  end if;
+
+  if exists (
+    select 1
+    from public.world_edit_leases
+    where campaign_id = '11111111-1111-4111-8111-111111111111'
+      and holder_profile_id = '33333333-3333-4333-8333-333333333333'
+      and lease_token = token
+      and draft_graph #>> '{edges,0,target}' =
+        '91919191-9191-4191-8191-919191919191'
+  ) or exists (
+    select 1
+    from public.world_edit_drafts
+    where campaign_id = '11111111-1111-4111-8111-111111111111'
+      and owner_profile_id = '33333333-3333-4333-8333-333333333333'
+      and status = 'active'
+      and draft_graph #>> '{edges,0,target}' =
+        '91919191-9191-4191-8191-919191919191'
+  ) then
+    raise exception 'cross-campaign relation rejection partially mutated lease or durable draft';
+  end if;
+
+  result := public.release_world_edit_lease_atomic(
+    '44444444-4444-4444-8444-444444444444',
+    '33333333-3333-4333-8333-333333333333',
+    'synthetic-campaign',
+    token
+  );
+  if result->>'status' <> 'released' then
+    raise exception 'cross-campaign relation fixture cleanup failed: %', result;
+  end if;
+end;
+$cross_campaign_relation$;
+reset role;
+rollback;
+

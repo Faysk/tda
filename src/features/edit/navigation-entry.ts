@@ -12,13 +12,9 @@ export type EditEntryDestination = Readonly<{
 	capability: EditCapability;
 }>;
 
-function campaignQuery(href: string, campaignSlug: string): string {
-	return `${href}?campanha=${encodeURIComponent(campaignSlug)}`;
-}
-
 function campaignEditHref(
 	campaignSlug: string,
-	tool: "sessoes" | "mundo" | "permissions",
+	tool: "sessoes" | "processamento" | "mundo" | "revisao" | "permissions",
 ): string {
 	return `/edit/${encodeURIComponent(campaignSlug)}/${tool}`;
 }
@@ -32,7 +28,7 @@ function destinationsForCampaign(
 			capability: EDIT_CAPABILITIES.transcriptRead,
 		},
 		{
-			href: campaignQuery("/edit/processamento", campaignSlug),
+			href: campaignEditHref(campaignSlug, "processamento"),
 			capability: EDIT_CAPABILITIES.localProcess,
 		},
 		{
@@ -40,7 +36,7 @@ function destinationsForCampaign(
 			capability: EDIT_CAPABILITIES.worldLayoutEdit,
 		},
 		{
-			href: campaignQuery("/edit/revisao", campaignSlug),
+			href: campaignEditHref(campaignSlug, "revisao"),
 			capability: EDIT_CAPABILITIES.reviewRead,
 		},
 		{
