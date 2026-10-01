@@ -247,14 +247,16 @@ export async function prepareSessionCoverForPublication(input: {
 
 	const extension = mimeType === "image/png" ? "png" : "webp";
 	const expectedKey = sessionCoverObjectKey({
-		campaignSlug: input.campaignSlug,\n\t\tsessionId: input.sessionId,
+		campaignSlug: input.campaignSlug,
+		sessionId: input.sessionId,
 		sha256,
 		extension,
 	});
 	if (!expectedKey || asset.object_key !== expectedKey) return null;
 
 	const promoted = await promoteSessionCover({
-		campaignSlug: input.campaignSlug,\n\t\tsessionId: input.sessionId,
+		campaignSlug: input.campaignSlug,
+		sessionId: input.sessionId,
 		stagedBucket: asset.staged_bucket,
 		objectKey: asset.object_key,
 		sha256,
