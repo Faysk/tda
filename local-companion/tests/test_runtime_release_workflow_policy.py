@@ -92,6 +92,25 @@ def test_whisper_runtime_workflow_tracks_worker_dependency_closure():
         assert value.count(path) == 2, f"whisper-runtime.yml must watch {path} on PR and push"
 
 
+def test_whisper_runtime_family_fences_ignore_qwen_manifest_changes():
+    whisper = _workflow("whisper-runtime.yml")
+    runtime_rc = _workflow("runtime-rc.yml")
+    runtime_promote = _workflow("runtime-promote.yml")
+    whisper_manifest = "local-companion/runtime/whisper-windows-x64.json"
+    qwen_manifest = "local-companion/runtime/qwen-windows-x64.json"
+
+    # Qwen dependency refreshes must not rebuild or invalidate an already sealed
+    # Whisper candidate. Each runtime family owns its own manifest identity.
+    assert "local-companion/runtime/**" not in whisper
+    assert whisper.count(whisper_manifest) == 2
+    assert qwen_manifest not in whisper
+
+    for value in (runtime_rc, runtime_promote):
+        assert '"local-companion/runtime/**"' not in value
+        assert f'"{whisper_manifest}"' in value
+        assert f'"{qwen_manifest}"' in value
+
+
 def test_qwen_runtime_workflows_track_the_strict_worker_dependency_closure():
     required = {
         "local-companion/tda_companion/asr_checkpoints.py",
