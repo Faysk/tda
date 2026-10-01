@@ -6,7 +6,7 @@ test("World canvas uses map-style pan and zoom without scrolling the document", 
 	test.skip(testInfo.project.name === "mobile", "Mouse wheel and fine-pointer pan contract.");
 
 	await page.setViewportSize({ width: 1366, height: 768 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	// Side surfaces are overlays by design. Close them before exercising the
 	// spatial surface so the pointer lands on React Flow rather than drawer UI.
@@ -56,7 +56,7 @@ test("World canvas switches presentation tiers instead of shrinking all detail f
 	test.skip(testInfo.project.name === "mobile", "Fine-grained zoom control contract.");
 
 	await page.setViewportSize({ width: 1366, height: 768 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await page.getByRole("button", { name: "Recolher navegação do mundo" }).click();
 	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
 
@@ -90,7 +90,7 @@ test("World canvas refits search results after controlled nodes reconcile", asyn
 	test.skip(testInfo.project.name === "mobile", "Desktop camera framing contract.");
 
 	await page.setViewportSize({ width: 1366, height: 768 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await page.getByRole("button", { name: "Recolher navegação do mundo" }).click();
 	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
 
