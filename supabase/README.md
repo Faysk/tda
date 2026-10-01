@@ -62,5 +62,6 @@ Estes SQL permanecem deliberadamente fora de Production:
 - `candidates/20260908231000_backfill_screacky_historical_alias.sql`;
 - `candidates/20260930174200_first_class_campaign_registry.sql` — candidate expand-only de #1123 para lifecycle/public route identity/aliases e invariantes cross-campaign; validado apenas em PostgreSQL scratch até decisão explícita de rollout.
 - `candidates/20260930191500_harden_campaign_discovery_authorization.sql` — candidate #1134 para discovery público/Edit, capability exata e hardening de `access_directory`; depende de #1123 e permanece scratch-only até rollout deliberado.
+- `candidates/20261001023000_safe_session_campaign_move.sql` — candidate #1129 para preflight/commit atômico de move entre campaigns, CAS/replay/audit e bloqueio fail-closed de dependências incompatíveis; scratch-only até promoção deliberada.
 
 Os contratos e gates de ativação continuam em `docs/integrations/transcript-import.md`, `docs/features/world-entity-media-foundation.md` e `docs/database/migrations.md`.
