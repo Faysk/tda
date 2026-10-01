@@ -145,7 +145,7 @@
 	border: 1px solid var(--ds-control-border);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface-elevated);
-	box-shadow: var(--ds-shadow-elevated);
+	box-shadow: var(--ds-shadow);
 }
 
 .campaignMenu a,
@@ -159,7 +159,7 @@
 
 .campaignMenu a:hover,
 .campaignMenu a:focus-visible {
-	background: var(--ds-control-hover);
+	background: var(--ds-accent-muted);
 	outline: none;
 }
 
