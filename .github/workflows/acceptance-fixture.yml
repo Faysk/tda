@@ -384,9 +384,13 @@ jobs:
             throw "QWEN_RECOVERY_OPTIONAL_JOB_SANITIZE_INVALID"
           }
 
-          $minimalLog = [pscustomobject]@{ code = "TEST"; message = "ok" }
+          $minimalLog = [pscustomobject]@{ code = "TEST"; message = "private C:\\Users\\Faysk\\recording.zip" }
           $sanitizedLog = Sanitize-LogRow $minimalLog
-          if ([string]$sanitizedLog.code -ne "TEST" -or $sanitizedLog.context.Count -ne 0) {
+          if (
+            [string]$sanitizedLog.code -ne "TEST" -or
+            $sanitizedLog.context.Count -ne 0 -or
+            $sanitizedLog.PSObject.Properties.Name -contains "message"
+          ) {
             throw "QWEN_RECOVERY_OPTIONAL_LOG_SANITIZE_INVALID"
           }
 
