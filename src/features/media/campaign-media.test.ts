@@ -66,6 +66,18 @@ describe("campaign media identity", () => {
 		}
 	});
 
+	it("keeps standalone lore outside campaign namespace", () => {
+		const standaloneLoreKey =
+			"lore/d/" + "b".repeat(64) + "/hero.webp";
+		expect(
+			campaignMediaObjectBelongsTo({
+				objectKey: standaloneLoreKey,
+				campaignMediaKey: "campaign-a",
+			}),
+		).toBe(false);
+		expect(standaloneLoreKey.startsWith("lore/")).toBe(true);
+	});
+
 	it("includes campaign owner and namespace in cache identity", () => {
 		const a = campaignMediaCacheKey({
 			campaignId: "campaign-uuid-a",
