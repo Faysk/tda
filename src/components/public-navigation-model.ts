@@ -55,11 +55,6 @@ export const PUBLIC_NAV_ITEMS: readonly NavigationItem[] = [
 	{ href: "/diario", label: "Diários", icon: "diary" },
 ];
 
-function campaignQuery(href: string, technicalSlug: string): string {
-	const separator = href.includes("?") ? "&" : "?";
-	return `${href}${separator}campanha=${encodeURIComponent(technicalSlug)}`;
-}
-
 export function toolNavigationItemsForCampaign(
 	technicalSlug: string,
 	capabilities: readonly string[],
@@ -69,7 +64,7 @@ export function toolNavigationItemsForCampaign(
 
 	if (allowed.has(EDIT_CAPABILITIES.transcriptRead)) {
 		items.push({
-			href: campaignQuery("/transcricoes", technicalSlug),
+			href: `/edit/${encodeURIComponent(technicalSlug)}/transcricoes`,
 			label: "Transcrições",
 			icon: "transcripts",
 			capability: EDIT_CAPABILITIES.transcriptRead,
@@ -84,7 +79,7 @@ export function toolNavigationItemsForCampaign(
 
 	if (allowed.has(EDIT_CAPABILITIES.localProcess)) {
 		items.push({
-			href: campaignQuery("/edit/processamento", technicalSlug),
+			href: `/edit/${encodeURIComponent(technicalSlug)}/processamento`,
 			label: "Processar",
 			icon: "process",
 			capability: EDIT_CAPABILITIES.localProcess,
@@ -102,7 +97,7 @@ export function toolNavigationItemsForCampaign(
 
 	if (allowed.has(EDIT_CAPABILITIES.reviewRead)) {
 		items.push({
-			href: campaignQuery("/edit/revisao", technicalSlug),
+			href: `/edit/${encodeURIComponent(technicalSlug)}/revisao`,
 			label: "Revisão",
 			icon: "review",
 			capability: EDIT_CAPABILITIES.reviewRead,

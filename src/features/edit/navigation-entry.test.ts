@@ -29,9 +29,9 @@ describe("legacy /edit compatibility destination", () => {
 	it("keeps the historical redirect priority explicit and campaign-qualified", () => {
 		expect(EDIT_ENTRY_PRIORITY.map((entry) => entry.href)).toEqual([
 			"/edit/yuhara-main/sessoes",
-			"/edit/processamento?campanha=yuhara-main",
+			"/edit/yuhara-main/processamento",
 			"/edit/yuhara-main/mundo",
-			"/edit/revisao?campanha=yuhara-main",
+			"/edit/yuhara-main/revisao",
 			"/edit/yuhara-main/permissions",
 		]);
 	});
@@ -43,10 +43,10 @@ describe("legacy /edit compatibility destination", () => {
 		],
 		[
 			EDIT_CAPABILITIES.localProcess,
-			"/edit/processamento?campanha=yuhara-main",
+			"/edit/yuhara-main/processamento",
 		],
 		[EDIT_CAPABILITIES.worldLayoutEdit, "/edit/yuhara-main/mundo"],
-		[EDIT_CAPABILITIES.reviewRead, "/edit/revisao?campanha=yuhara-main"],
+		[EDIT_CAPABILITIES.reviewRead, "/edit/yuhara-main/revisao"],
 		[
 			EDIT_CAPABILITIES.permissionsManage,
 			"/edit/yuhara-main/permissions",
@@ -79,7 +79,7 @@ describe("legacy /edit compatibility destination", () => {
 				second,
 				now,
 			),
-		).toBe("/edit/processamento?campanha=antes-que-seja-tarde");
+		).toBe("/edit/antes-que-seja-tarde/processamento");
 		expect(
 			firstAuthorizedEditDestination(
 				context([EDIT_CAPABILITIES.worldLayoutEdit], second),
@@ -93,7 +93,7 @@ describe("legacy /edit compatibility destination", () => {
 				second,
 				now,
 			),
-		).toBe("/edit/revisao?campanha=antes-que-seja-tarde");
+		).toBe("/edit/antes-que-seja-tarde/revisao");
 	});
 
 	it("routes project campaign managers to the registry before campaign-scoped tools", () => {

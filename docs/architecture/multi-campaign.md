@@ -100,6 +100,7 @@ A coluna **contexto** descreve a campanha necessária para a operação, não se
 - workspace, draft, lease, layout, publication e media binding carregam campaign;
 - abrir A e B em paralelo produz contextos independentes;
 - lease/revision de A não bloqueia B;
+- draft save rejeita UUID existente de entity/relation pertencente a campaign irmã antes do primeiro write;
 - publish de A nunca invalida cache/draft de B por key global.
 
 ### Publicações
@@ -342,3 +343,11 @@ Antes de retirar a compatibilidade ou considerar a Fase 1 aplicada em Production
 6. contagem/identidade de sessões publicadas preservada e nenhuma sessão `ready_for_review` promovida como efeito do rollout.
 
 A remoção futura do fallback é uma entrega posterior ao receipt desse gate; não é consequência automática de mover o SQL de `candidates` para migrations.
+
+## Executable cross-campaign activation gate — #1138 (2026-10-01)
+
+The transversal contract above is enforced by `.github/workflows/campaign-isolation.yml` and the runbook [Multi-campaign activation gate](../operations/multi-campaign-activation-gate.md).
+
+The gate is bound to the exact candidate SHA, executes synthetic public/browser, domain, disposable PostgreSQL, Processing and legacy-regression suites, and emits a sanitized `campaign-isolation-receipt.json`. Its machine-readable matrix counts 12 critical fail-closed negatives from #1138 and binds each one to a runnable evidence file plus a semantic assertion anchor.
+
+A normal PR/main receipt records `activationReady`; after the owning rollout slices are integrated, readiness must stay green and any reintroduced implicit/global campaign boundary blocks activation. Activation requires a manual exact-SHA run with `require_ready=true`, plus public staging smoke receipts from both `pre_activation` and `post_activation` runs for the same SHA. The gate itself never deploys, applies migrations or reads private narrative content.

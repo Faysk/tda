@@ -5,7 +5,7 @@
 > Última revisão: 2026-09-28
 > Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento`, `local-companion/tda_companion`, [spec de revisão/publicação](transcript-review-publication.md) e testes associados
 
-`/edit/processamento` é a superfície operacional para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
+`/edit/[campaign]/processamento` é a superfície operacional canônica para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
 
 O contrato editorial pós-processamento é definido em [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) e em ADR-0016. A regra central é: **concluir ASR não publica nada**.
 
@@ -15,9 +15,9 @@ ADR-0020/#1128 tornam campaign um contexto explícito antes de qualquer submiss�
 
 No slice Web preparado por #1128:
 
-- `/edit/processamento` não assume mais `yuhara-main` como autoridade implícita;
+- `/edit/[campaign]/processamento` fixa a campaign no path; `/edit/processamento` permanece apenas como entrypoint de compatibilidade/seleção e não assume `yuhara-main` como autoridade implícita;
 - o servidor enumera somente campaigns **ativas** cobertas por `campaign.local.process`; grant `project/tda` cobre campaigns ativas conforme a política RBAC, enquanto grants de campaign restringem a consulta aos slugs autorizados;
-- zero campaigns elegíveis produz estado vazio explícito; uma única opção é canonicalizada na própria rota de compatibilidade; múltiplas opções exigem escolha do operador;
+- zero campaigns elegíveis produz estado vazio explícito; uma única opção é canonicalizada para `/edit/[campaign]/processamento`; múltiplas opções exigem escolha do operador;
 - query string, select e `localStorage` expressam intenção, nunca autorização: a campaign escolhida é resolvida e reautorizada server-side antes da workspace aparecer; no submit ela é revalidada antes de qualquer upload/preparação local e novamente imediatamente antes de criar o job, cobrindo revogação/arquivamento durante uma preparação longa;
 - campaign faz parte da identidade da intenção/idempotency, junto de source/operação/parâmetros relevantes;
 - recovery pointer, last-session pointer e receipts metadata-only são namespaced por campaign, impedindo colisão A/B com o mesmo `sessionId`; no rollout, os dois pointers legados single-campaign são migrados somente para `yuhara-main`, nunca reaproveitados por outra campaign;
@@ -30,7 +30,7 @@ No slice Web preparado por #1128:
 - criação de campaign é fluxo administrativo separado. Quando originada pelo CTA do Processamento, o retorno carrega o novo technical slug, mas a tela volta a verificar `campaign.local.process`; criar identidade não auto-concede acesso nem cria session/entity/canon;
 - run ASR bruto continua imutável e não vira canon/publicação por receber campaign context.
 
-A URL `/edit/processamento?campanha=<technical-slug>` é a compatibilidade deep-linkable deste slice. O alvo arquitetural privado continua sendo `/edit/[campaign]/processamento`; promover a rota canônica pertence ao rollout coordenado de navegação/aliases e não muda a identidade local do processamento.
+A URL canônica é `/edit/[campaign]/processamento`. O entrypoint `/edit/processamento` continua aceitando a seleção compatível e encaminha escolhas normais para a rota campaign-scoped; a identidade local do processamento continua sendo o technical slug validado no servidor.
 
 ## Estado atual
 
@@ -216,7 +216,7 @@ O hash integral das faixas pertence ao ingest/deep verification. No dispatch nor
 
 O envelope JSON local usa um orçamento autoritativo de **4096 bytes UTF-8** para requests POST da API v1. `context` e `glossary` continuam limitados semanticamente a **1200 valores Unicode** cada, mas a Web mede o JSON completo — incluindo kind, campaign/session/source/profile e os dois textos — antes da submissão. Um payload acima do orçamento é recusado localmente com diagnóstico acionável e o Agent mantém o mesmo limite fail-closed com `BODY_TOO_LARGE`. Contagem de caracteres não substitui a contagem de bytes de transporte.
 
-O **TDA Web é a única entrada de produto para nova transcrição**: seleção do ZIP, perfil, contexto e glossário acontece em `/edit/processamento`. O Desktop não possui mais o formulário concorrente; **Execução local** monitora fila/stage/liveness e concentra logs, diagnóstico, runtimes e manutenção.
+O **TDA Web é a única entrada de produto para nova transcrição**: seleção do ZIP, perfil, contexto e glossário acontece em `/edit/[campaign]/processamento` (ou pelo entrypoint compatível `/edit/processamento` antes da seleção). O Desktop não possui mais o formulário concorrente; **Execução local** monitora fila/stage/liveness e concentra logs, diagnóstico, runtimes e manutenção.
 
 Os perfis executáveis vêm de `capabilities`:
 

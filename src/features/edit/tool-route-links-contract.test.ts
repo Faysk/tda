@@ -9,6 +9,18 @@ const reviewSource = readFileSync(
 	new URL("../../app/edit/revisao/page.tsx", import.meta.url),
 	"utf8",
 );
+const canonicalProcessingSource = readFileSync(
+	new URL("../../app/edit/[campaignSlug]/processamento/page.tsx", import.meta.url),
+	"utf8",
+);
+const canonicalTranscriptsSource = readFileSync(
+	new URL("../../app/edit/[campaignSlug]/transcricoes/page.tsx", import.meta.url),
+	"utf8",
+);
+const canonicalReviewSource = readFileSync(
+	new URL("../../app/edit/[campaignSlug]/revisao/page.tsx", import.meta.url),
+	"utf8",
+);
 const permissionsSource = readFileSync(
 	new URL("../../app/edit/[campaignSlug]/permissions/page.tsx", import.meta.url),
 	"utf8",
@@ -37,6 +49,21 @@ describe("canonical Edit tool links", () => {
 		}
 		expect(reviewSource).not.toContain('href="/mundo"');
 		expect(permissionsSource).not.toContain('href="/conta"');
+	});
+
+	it("keeps processing, transcripts and review on campaign-scoped canonical routes", () => {
+		for (const source of [
+			canonicalProcessingSource,
+			canonicalTranscriptsSource,
+			canonicalReviewSource,
+		]) {
+			expect(source).toContain("campaignSlug");
+			expect(source).toContain("SAFE_CAMPAIGN_SLUG");
+			expect(source).not.toContain("yuhara-main");
+		}
+		expect(canonicalProcessingSource).toContain("ProcessingPage");
+		expect(canonicalTranscriptsSource).toContain("TranscriptsPage");
+		expect(canonicalReviewSource).toContain("NarrativeReviewPage");
 	});
 
 	it("keeps compatibility entrypoints campaign-explicit without duplicated navigation chrome", () => {

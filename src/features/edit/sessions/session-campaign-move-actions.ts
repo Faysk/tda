@@ -2,16 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { getVerifiedServerIdentity } from "@/features/auth/server";
-import {
-	editSessionDetailHref,
-	editSessionLibraryHref,
-	readEditableSessionCampaigns,
-} from "@/features/campaigns/sessions";
+import { editSessionDetailHref } from "@/features/campaigns/session-routes";
+import { readEditableSessionCampaigns } from "@/features/campaigns/sessions";
 import { loadEditAccessContext } from "@/features/edit/access/repository";
 import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
+import { sessionCampaignMoveRevalidationPaths } from "./session-campaign-move-cache";
 import {
 	commitSessionCampaignMove,
 	preflightSessionCampaignMove,
@@ -95,15 +93,7 @@ function invalidateMovePaths(input: {
 	sourceSessionId: string;
 }) {
 	let cachePending = false;
-	const paths = [
-		editSessionLibraryHref(input.sourceCampaignSlug),
-		editSessionLibraryHref(input.destinationCampaignSlug),
-		editSessionDetailHref(input.sourceCampaignSlug, input.sourceSessionId),
-		editSessionDetailHref(input.destinationCampaignSlug, input.sourceSessionId),
-		"/sessoes",
-		`/campanhas/${encodeURIComponent(input.sourceRouteKey)}/sessoes`,
-		`/campanhas/${encodeURIComponent(input.destinationRouteKey)}/sessoes`,
-	];
+	const paths = sessionCampaignMoveRevalidationPaths(input);
 	for (const path of paths) {
 		try {
 			revalidatePath(path);

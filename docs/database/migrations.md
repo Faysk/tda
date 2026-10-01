@@ -1705,6 +1705,45 @@ A migration é aditiva sobre o foundation de Media Storage:
 
 Validação sintética: `tools/world-entity-media-db.py` aplica o foundation + esta migration em PostgreSQL 16 descartável e executa `supabase/tests/campaign_cover_media.sql`, cobrindo RLS/grants, A/B com o mesmo SHA, binding válido por campaign e rejeição FK de binding cruzado. Nenhum banco remoto ou bucket R2 é tocado pelo gate.
 
+## 2026-10-01 — World graph draft campaign boundary (#1138)
+
+### `20261001160000_world_graph_draft_campaign_boundary.sql`
+
+**Estado:** migration corretiva versionada para o rollout normal; sua presença no repositório não comprova aplicação remota até existir receipt do Production CD para o mesmo SHA.
+
+O primeiro negativo PostgreSQL do gate #1138 demonstrou que `save_world_graph_draft_atomic(...)` precisava validar a identidade factual da campaign e a revisão corrente antes de tocar o draft durável.
+
+A migration:
+
+- mantém `SECURITY INVOKER`, `search_path = pg_catalog, public` e o boundary server-side existente;
+- rejeita node UUID já pertencente a campaign irmã antes do primeiro write;
+- exige que endpoints de edge existam no próprio draft ou na campaign atual;
+- valida lease e `base_graph_revision` antes de renovar ou persistir `world_edit_leases.draft_graph`;
+- retorna `invalid_payload`, `forbidden`, `lease_lost` ou `conflict` sem write parcial no caminho rejeitado.
+
+Validação sintética: `tools/world-layout-db.py` com `supabase/tests/world_graph_authoring_atomic.sql` e `supabase/tests/world_edit_lease_atomic.sql` em PostgreSQL 16 descartável. A migration `20261001162000_world_graph_draft_campaign_isolation.sql` abaixo endurece em seguida a mesma boundary para tornar sibling/missing UUIDs não enumeráveis e preservar o recovery same-campaign aprovado.
+
+## 2026-10-01 — World graph draft campaign isolation (#1138)
+
+### `20261001162000_world_graph_draft_campaign_isolation.sql`
+
+**Estado:** migration corretiva versionada para rollout normal; não afirmar aplicação remota antes do receipt correspondente do Production CD.
+
+O gate transversal de #1138 reproduziu em PostgreSQL 16 descartável que `save_world_graph_draft_atomic(...)` aceitava e persistia no draft da Campaign A um endpoint UUID já pertencente à Campaign B. A publicação canônica rejeitava depois, mas o boundary de draft permanecia permissivo demais.
+
+A correção é forward-only e preserva o contrato de recovery existente:
+
+- mantém a RPC como `SECURITY INVOKER`, `search_path = pg_catalog, public` e EXECUTE somente para `service_role`;
+- antes do primeiro write, rejeita UUID de node/relation já pertencente a campaign irmã;
+- endpoint de edge precisa existir no próprio draft ou como entity da campaign atual;
+- foreign/missing UUID retorna o mesmo `invalid_payload`, evitando transformar a RPC em oracle de existência cross-campaign;
+- rejeição ocorre antes de atualizar `world_edit_leases.draft_graph`, então o draft anterior permanece intacto;
+- conflito de revision **same-campaign** continua podendo checkpointar o draft privado antes de retornar `conflict`, preservando a recuperação já aprovada;
+- `supabase/tests/world_graph_authoring_atomic.sql` cobre A→B e prova ausência de mutação parcial;
+- `supabase/tests/world_edit_lease_atomic.sql` cobre leases A/B independentes no mesmo editor.
+
+Validação obrigatória: PostgreSQL scratch pelo `tools/world-layout-db.py`, sem Production DB ou dados narrativos reais.
+
 ## 2026-09-30 — candidate first-class campaign registry (#1123)
 
 ### `supabase/candidates/20260930174200_first_class_campaign_registry.sql`

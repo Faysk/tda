@@ -38,10 +38,12 @@ function reviewHref(
 	campaignSlug: string,
 	feedback?: Readonly<{ resultado?: string; erro?: string }>,
 ) {
-	const params = new URLSearchParams({ campanha: campaignSlug });
+	const params = new URLSearchParams();
 	if (feedback?.resultado) params.set("resultado", feedback.resultado);
 	if (feedback?.erro) params.set("erro", feedback.erro);
-	return `/edit/revisao?${params.toString()}`;
+	const query = params.toString();
+	const path = `/edit/${encodeURIComponent(campaignSlug)}/revisao`;
+	return query ? `${path}?${query}` : path;
 }
 
 function dateLabel(value: string | null) {
