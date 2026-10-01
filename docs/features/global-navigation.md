@@ -412,6 +412,8 @@ O gate `tests/global-navigation.spec.ts`, executado pelo job `navigation-e2e`, d
 - grid perder 3 colunas onde contratado ou 2 colunas no fallback;
 - labels essenciais forem truncados/ocultos.
 
+Além da suíte estrutural acima, `navigation-e2e` executa os cenários focados de #1231 em `tests/auth.spec.ts` e `tests/pipipi-cinematic.spec.ts`: indisponibilidade de Auth deve permanecer fail-closed sem projeção privada, e Lores deve ser descoberto pelo launcher global real usando semântica acessível e teclado em desktop/mobile.
+
 Receipts sintéticos mínimos:
 
 - desktop dark/light;
