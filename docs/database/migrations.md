@@ -1738,3 +1738,21 @@ Gate sintético:
 - browser grants e helper-oracle verificados.
 
 Rollout é expand/replace forward-only: aplicar #1123 antes, promover #1134 em migration nova de timestamp corrente após revisão, executar scratch no SHA exato, read-back de funções/grants e advisors. Nenhuma mutation de Production é executada por este candidate.
+
+
+## 2026-10-01 — candidate safe session campaign move (#1129)
+
+### `supabase/candidates/20261001023000_safe_session_campaign_move.sql`
+
+**Estado:** candidato revisável; depende da identidade multi-campanha de #1123/#1134, permanece fora de `supabase/migrations/` e não autoriza aplicação remota nesta entrega.
+
+O candidate prepara uma operação explícita e atômica para mover uma sessão entre campanhas sem reatribuição silenciosa:
+
+- resolve origem e destino por identidade estável e revalida autorização server-side nos dois escopos;
+- bloqueia o move quando dependências campaign-owned tornariam a mudança insegura, incluindo publicação, mídia, provenance e vínculos relacionais incompatíveis;
+- serializa a sessão e usa revisão/receipt para concorrência, replay e diagnóstico determinístico;
+- preserva `source_session_id` e impede colisão no destino;
+- grava audit metadata-only no mesmo commit e não copia, apaga ou regrava mídia;
+- falha fechada sem writes parciais quando preflight, autorização, CAS ou invariantes mudam.
+
+Validação obrigatória antes de promoção: PostgreSQL scratch do contrato #1129, testes Web/server de preflight/commit/replay/concurrency e CI do SHA exato. Promoção futura exige migration deployável nova, Production CD governado e read-back; rollback é forward-only e preserva receipts/audit já confirmados.
