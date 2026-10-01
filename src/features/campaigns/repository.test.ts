@@ -20,10 +20,6 @@ function queryWith(result: QueryResult) {
 	}
 	query.maybeSingle = vi.fn().mockResolvedValue(result);
 	query.single = vi.fn().mockResolvedValue(result);
-	query.then = (
-		resolve: (value: QueryResult) => unknown,
-		reject?: (reason: unknown) => unknown,
-	) => Promise.resolve(result).then(resolve, reject);
 	return query as {
 		select: ReturnType<typeof vi.fn>;
 		eq: ReturnType<typeof vi.fn>;
@@ -33,11 +29,15 @@ function queryWith(result: QueryResult) {
 		range: ReturnType<typeof vi.fn>;
 		maybeSingle: ReturnType<typeof vi.fn>;
 		single: ReturnType<typeof vi.fn>;
-		then: (
-			resolve: (value: QueryResult) => unknown,
-			reject?: (reason: unknown) => unknown,
-		) => Promise<unknown>;
 	};
+}
+
+function directoryQueryWith(result: QueryResult) {
+	const query = queryWith(result);
+	query.order
+		.mockReturnValueOnce(query)
+		.mockResolvedValueOnce(result);
+	return query;
 }
 
 function clientWith(...queries: ReturnType<typeof queryWith>[]) {
@@ -69,7 +69,7 @@ describe("public campaign registry compatibility", () => {
 	});
 
 	it("restores the legacy public directory on a real PostgreSQL 42703 SELECT gap", async () => {
-		const registry = queryWith({
+		const registry = directoryQueryWith({
 			data: null,
 			error: {
 				code: "42703",
@@ -156,7 +156,7 @@ describe("public campaign registry compatibility", () => {
 	});
 
 	it("does not hide unrelated database failures behind compatibility", async () => {
-		const registry = queryWith({
+		const registry = directoryQueryWith({
 			data: null,
 			error: {
 				code: "42501",
@@ -174,7 +174,7 @@ describe("public campaign registry compatibility", () => {
 	});
 
 	it("never opens legacy fallback when the new registry query succeeds with no eligible campaign", async () => {
-		const registry = queryWith({ data: [], error: null });
+		const registry = directoryQueryWith({ data: [], error: null });
 		const client = clientWith(registry);
 		mocks.publishedDataClient.mockReturnValue(client);
 
