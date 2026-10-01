@@ -105,11 +105,11 @@ def _activate_preserved_runtime(runtime_root: Path, target_version: str, current
         verified = inspect_whisper_runtime(runtime_root, verify_worker=True)
         if verified.get("status") != "ready" or verified.get("version") != target_version:
             raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_VERIFY_FAILED")
-    except BaseException as exc:
+    except Exception as exc:
         try:
             _atomic_json(selector, previous)
             restored = inspect_whisper_runtime(runtime_root, verify_worker=True)
-        except BaseException as restore_exc:
+        except Exception as restore_exc:
             raise WhisperRuntimeMaintenanceError(
                 "WHISPER_RUNTIME_ROLLBACK_RESTORE_FAILED"
             ) from restore_exc
@@ -172,6 +172,23 @@ def rollback_whisper_runtime(
 
     verified = inspect_whisper_runtime(runtime_root, verify_worker=True)
     if verified.get("status") != "ready" or verified.get("version") != target_version:
+        parent = whisper_root(runtime_root)
+        try:
+            _atomic_json(
+                parent / "current.json",
+                {
+                    "schema": RUNTIME_SCHEMA,
+                    "runtime_id": WHISPER_RUNTIME_ID,
+                    "version": current_version,
+                },
+            )
+            restored = inspect_whisper_runtime(runtime_root, verify_worker=True)
+        except Exception as exc:
+            raise WhisperRuntimeMaintenanceError(
+                "WHISPER_RUNTIME_ROLLBACK_RESTORE_FAILED"
+            ) from exc
+        if restored.get("status") != "ready" or restored.get("version") != current_version:
+            raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_RESTORE_FAILED")
         raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_VERIFY_FAILED")
     return {
         "accepted": True,
