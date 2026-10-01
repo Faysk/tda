@@ -180,7 +180,15 @@ export async function requestWorldEntityPortraitUploadAction(
 	}
 
 	const authorization = await authorizeWorldEntityMediaTarget(campaignSlug, leaseToken, entityId);
-	if (!authorization.ok) return authorization;
+	if (!authorization.ok) {
+		return {
+			ok: false,
+			reason:
+				authorization.reason === "not_found"
+					? "dependency_unavailable"
+					: authorization.reason,
+		};
+	}
 
 	return {
 		ok: true,
@@ -208,7 +216,15 @@ export async function finalizeWorldEntityPortraitUploadAction(
 	}
 
 	const authorization = await authorizeWorldEntityMediaTarget(campaignSlug, leaseToken, entityId);
-	if (!authorization.ok) return authorization;
+	if (!authorization.ok) {
+		return {
+			ok: false,
+			reason:
+				authorization.reason === "not_found"
+					? "dependency_unavailable"
+					: authorization.reason,
+		};
+	}
 	const { client, campaignId, profileId } = authorization.target;
 
 	try {
