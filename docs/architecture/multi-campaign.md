@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada
 > Owner: architecture / sessions / identity-access
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-01
 > Fonte de verdade: [ADR-0020](../adr/0020-first-class-campaigns.md), documentos donos de cada domínio e epic #1122
 
 ## Objetivo
@@ -310,3 +310,31 @@ Antes de ativar a segunda campaign:
 Sessions/Edit adotou o mesmo boundary explícito de campanha do World: selector/entrypoint em `/edit/sessoes`, rota canônica em `/edit/[technical_slug]/sessoes` e detalhe qualificado por campanha. Nenhum `source_session_id` é tratado como global.
 
 Server Actions de transcript/draft/publication/cover resolvem ou recebem a identidade real da sessão no servidor antes de autorizar; não usam `yuhara-main` como autoridade implícita. A troca de campanha é uma mutation de domínio separada, auditável, idempotente e fail-closed conforme `docs/domains/sessions.md`.
+
+
+## Compatibilidade operacional enquanto o registry é candidato — #1225
+
+Em 2026-10-01, Production estava em `53ec38fbb7ca92e6040640a9ce6bf514b15eb852` enquanto o registry first-class permanecia em `supabase/candidates/20260930174200_first_class_campaign_registry.sql`, sem evidência de aplicação remota. O schema observado de `public.campaigns` ainda não possuía `public_slug`, `lifecycle` nem `visibility`.
+
+Durante essa janela de Fase 1/2, leitores públicos podem degradar **somente** quando o erro comprovar a ausência dessas colunas (`42703` de PostgreSQL ou `PGRST204` de schema cache, com diagnóstico da tabela/coluna). A compatibilidade conhece apenas a campaign histórica `yuhara-main`, apresentada pela rota canônica `cronicas-da-mesa`; nenhum outro slug é descoberto por heurística.
+
+Esse fallback é de disponibilidade, não de autorização:
+
+- quando o registry novo responde normalmente, `lifecycle=active` e `visibility=public` continuam obrigatórios;
+- resultado vazio no schema novo não ativa fallback;
+- erro de permissão, conexão ou outro erro de banco continua `dependency_unavailable`;
+- `private`/`archived` nunca são reabertas pelo caminho legado;
+- o alias técnico `yuhara-main` pode resolver apenas para redirecionar à rota pública histórica conhecida.
+
+### Gate de readiness antes de ativar o registry
+
+Antes de retirar a compatibilidade ou considerar a Fase 1 aplicada em Production, registrar no mesmo SHA/release:
+
+1. migration history contendo a migration aprovada do registry;
+2. read-back de `public.campaigns` com `public_slug`, `lifecycle` e `visibility`;
+3. `yuhara-main` como `active/public` com `public_slug=cronicas-da-mesa`;
+4. campaigns `private`/`archived` ausentes das projections públicas;
+5. Home, `/campanhas`, `/campanhas/sessoes`, campaign scoped e `/mundo` lendo pelo contrato novo;
+6. contagem/identidade de sessões publicadas preservada e nenhuma sessão `ready_for_review` promovida como efeito do rollout.
+
+A remoção futura do fallback é uma entrega posterior ao receipt desse gate; não é consequência automática de mover o SQL de `candidates` para migrations.

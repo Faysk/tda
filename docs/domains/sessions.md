@@ -2,7 +2,7 @@
 
 > Status: implementado
 > Owner: sessions
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-01
 
 ## Objetivo
 
@@ -201,3 +201,17 @@ O primeiro slice é deliberadamente fail-closed: uma sessão sem dependências i
 O commit usa `operation_id` durável, row lock e audit sanitizado. Retry após resposta perdida reaproveita o receipt sem duplicar a mudança. Dois movers concorrentes serializam no row lock; o writer stale recebe conflict.
 
 Depois do commit, a aplicação revalida bibliotecas/detalhes privados e superfícies públicas da origem/destino. Falha de cache/delivery não desfaz o commit já confirmado; o retorno marca `cachePending` para recuperação explícita.
+
+
+## Compatibilidade de leitura pública durante o rollout do registry
+
+O rollout multi-campaign possui uma janela em que o app pode estar mais novo que o schema remoto. Para preservar as sessões já publicadas sem enfraquecer o boundary novo, o repository público usa dual-read estritamente classificado:
+
+- primeiro tenta a projection first-class com campaign `active/public`;
+- somente `42703` ou `PGRST204` que apontem para `public_slug`, `lifecycle` ou `visibility` de `campaigns` autorizam a projection legado;
+- a projection legado consulta exclusivamente o technical slug histórico `yuhara-main` e o apresenta como `cronicas-da-mesa`;
+- outro campaign route não pode ser satisfeito pelo fallback histórico;
+- erros de permissão/transporte/schema não relacionados continuam indisponibilidade, nunca vazio;
+- `status=published` permanece obrigatório nos dois caminhos. `ready_for_review` não é publicado por compatibilidade.
+
+Quando o registry está disponível, o caminho legado não participa da decisão e as regras `lifecycle=active` + `visibility=public` continuam sendo a autoridade de exposição.

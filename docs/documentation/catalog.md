@@ -51,7 +51,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Fluxos ponta a ponta](../architecture/data-flows.md) | arquitetura + domínios | vigente/parcialmente preparado | 2026-09-20 |
 | [Arquitetura do Edit Workbench](../architecture/edit-workbench.md) | arquitetura + Edit | accepted / implementação incremental | 2026-09-07 |
 | [Princípios e invariantes](../architecture/invariants.md) | arquitetura | vigente | 2026-09-30 |
-| [Multi-campaign — contrato, rotas e rollout](../architecture/multi-campaign.md) | architecture / sessions / identity-access | arquitetura aprovada | 2026-09-30 |
+| [Multi-campaign — contrato, rotas e rollout](../architecture/multi-campaign.md) | architecture / sessions / identity-access | arquitetura aprovada | 2026-10-01 |
 | [Contexto e limites do sistema](../architecture/system-context.md) | arquitetura | vigente | 2026-09-20 |
 
 ## docs/companion/acceptance
@@ -71,7 +71,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Relacionamentos e ownership de dados](../database/relationships.md) | dados + domínios | vigente | 2026-09-30 |
 | [Inventário de RPCs privilegiadas do Supabase](../database/rpc-inventory.md) | segurança/dados | vigente / revisão de hardening em andamento | Não declarado |
 | [Catálogo do schema Supabase](../database/schema-catalog.md) | dados/Supabase | implementado | 2026-09-30 |
-| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-30 |
+| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-10-01 |
 | [Log de verificações do banco de produção](../database/verification-log.md) | dados/Supabase | vigente / append-only por intenção | Não declarado |
 
 ## docs/delivery
@@ -115,7 +115,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
 | [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-30 |
 | [Processamento, jobs e áudio](../domains/processing.md) | processing/local-companion | processamento local real implementado; lifecycle editorial pós-ASR aprovado e em implementação futura | 2026-09-15 |
-| [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-09-30 |
+| [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-10-01 |
 
 ## docs/features
 
@@ -206,7 +206,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [CI/CD — plano de simplificação](../operations/cicd-simplification-plan.md) | operations / architecture | histórico — migração concluída em 2026-09-14 | 2026-09-14 |
 | [TDA Companion 0.3.3 — auditoria pesada de confiabilidade, segurança e release](../operations/companion-0.3.3-heavy-audit.md) | local-companion / processing / operations / security | auditoria concluída; 0.3.3 aposentada para certificação; remediação integrada na linha 0.3.4 | 2026-09-13 |
 | [TDA Companion — A-017 integridade dos modelos ASR](../operations/companion-a017-model-integrity.md) | local-companion / processing / operations / security | implementado em candidato; integração condicionada aos gates automáticos e ao aceite físico | 2026-09-14 |
-| [Companion — política de versões e dependências](../operations/companion-dependency-policy.md) | local-companion / processing | requisito de release | 2026-09-11 |
+| [Companion — política de versões e dependências](../operations/companion-dependency-policy.md) | local-companion / processing | requisito de release | 2026-10-01 |
 | [TDA Companion — Reliability R2 evidence](../operations/companion-reliability-r2-evidence.md) | Não declarado | Não declarado | Não declarado |
 | [TDA Companion — confiabilidade, manutenção e aceite real](../operations/companion-reliability.md) | local-companion / processing / operations | R1/R2 implementados; R3 C-12/C-13/C-14 implementados em candidato; stable bloqueada até aceite físico do artefato exato | 2026-09-13 |
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |

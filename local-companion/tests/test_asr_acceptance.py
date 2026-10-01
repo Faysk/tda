@@ -155,3 +155,36 @@ def test_acceptance_fails_closed_when_full_model_hash_does_not_validate(tmp_path
             monitor_factory=_Monitor,
             integrity_checker=_bad_integrity,
         )
+
+
+def test_acceptance_classifies_lazy_decoder_dependency_failure(tmp_path: Path):
+    audio = tmp_path / "private-session.flac"
+    audio.write_bytes(b"fake-audio")
+
+    class _BrokenDecoderModel:
+        def transcribe(self, _path: str, **_options):
+            def segments():
+                raise TypeError("open() got an unexpected keyword argument 'metadata_errors'")
+                yield None
+
+            return segments(), SimpleNamespace(duration=2.0)
+
+    def load_broken(_path: Path, _plan):
+        return _BrokenDecoderModel(), "float16", False
+
+    with pytest.raises(
+        WhisperAcceptanceError,
+        match="^WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE$",
+    ) as exc:
+        run_whisper_gpu_acceptance(
+            audio,
+            tmp_path / "Models",
+            profile_id="whisper-turbo",
+            cuda_status=_cuda(),
+            prepare_model=_prepare,
+            model_loader=load_broken,
+            monitor_factory=_Monitor,
+            integrity_checker=_integrity,
+        )
+
+    assert "private-session.flac" not in str(exc.value)

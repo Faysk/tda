@@ -11,6 +11,7 @@ import {
 	type ManageableCampaign,
 	type PublicCampaign,
 } from "./model";
+import { isCampaignRegistrySchemaGap } from "./schema-compatibility";
 
 const E2E_CAMPAIGNS = [
 	{
@@ -86,6 +87,8 @@ function campaignFixtureEnabled() {
 
 const CAMPAIGN_SELECT =
 	"id,slug,public_slug,name,description,lifecycle,visibility,archived_at,updated_at";
+const LEGACY_CAMPAIGN_TECHNICAL_SLUG = "yuhara-main";
+const LEGACY_CAMPAIGN_PUBLIC_SLUG = "cronicas-da-mesa";
 
 function stringOrNull(value: unknown): string | null {
 	return typeof value === "string" && value.length ? value : null;
@@ -162,6 +165,42 @@ export type PublicCampaignResolution =
 	  }>
 	| Readonly<{ ok: false; reason: "not_found" | "dependency_unavailable" }>;
 
+type PublishedCampaignClient = NonNullable<ReturnType<typeof publishedDataClient>>;
+
+type LegacyPublicCampaignRead =
+	| Readonly<{ ok: true; campaign: ResolvedPublicCampaign | null }>
+	| Readonly<{ ok: false }>;
+
+async function readLegacyPublicCampaign(
+	client: PublishedCampaignClient,
+): Promise<LegacyPublicCampaignRead> {
+	const { data, error } = await client
+		.from("campaigns")
+		.select("slug,name,description")
+		.eq("slug", LEGACY_CAMPAIGN_TECHNICAL_SLUG)
+		.maybeSingle();
+
+	if (error) return { ok: false };
+	if (!data) return { ok: true, campaign: null };
+
+	const row = data as Record<string, unknown>;
+	const technicalSlug = stringOrNull(row.slug);
+	const name = stringOrNull(row.name);
+	if (technicalSlug !== LEGACY_CAMPAIGN_TECHNICAL_SLUG || !name) {
+		return { ok: false };
+	}
+
+	return {
+		ok: true,
+		campaign: {
+			technicalSlug,
+			routeKey: LEGACY_CAMPAIGN_PUBLIC_SLUG,
+			name,
+			description: stringOrNull(row.description),
+		},
+	};
+}
+
 async function resolvePublicCampaignRouteUncached(
 	routeKey: string,
 ): Promise<PublicCampaignResolution> {
@@ -209,8 +248,25 @@ async function resolvePublicCampaignRouteUncached(
 		.eq("lifecycle", "active")
 		.eq("visibility", "public")
 		.maybeSingle();
-	if (canonical.error)
-		return { ok: false, reason: "dependency_unavailable" };
+	if (canonical.error) {
+		if (!isCampaignRegistrySchemaGap(canonical.error)) {
+			return { ok: false, reason: "dependency_unavailable" };
+		}
+		if (
+			routeKey !== LEGACY_CAMPAIGN_PUBLIC_SLUG &&
+			routeKey !== LEGACY_CAMPAIGN_TECHNICAL_SLUG
+		) {
+			return { ok: false, reason: "not_found" };
+		}
+		const legacy = await readLegacyPublicCampaign(client);
+		if (!legacy.ok) return { ok: false, reason: "dependency_unavailable" };
+		if (!legacy.campaign) return { ok: false, reason: "not_found" };
+		return {
+			ok: true,
+			campaign: legacy.campaign,
+			canonical: routeKey === LEGACY_CAMPAIGN_PUBLIC_SLUG,
+		};
+	}
 	if (canonical.data) {
 		const parsed = parsePublicCampaign(
 			canonical.data as Record<string, unknown>,
@@ -261,10 +317,10 @@ async function resolvePublicCampaignRouteUncached(
 		: { ok: false, reason: "dependency_unavailable" };
 }
 
-
 export const resolvePublicCampaignRoute = cache(
 	resolvePublicCampaignRouteUncached,
 );
+
 export type CampaignDirectoryReadResult =
 	| Readonly<{ ok: true; campaigns: readonly PublicCampaign[] }>
 	| Readonly<{ ok: false; reason: "dependency_unavailable" }>;
@@ -298,7 +354,25 @@ export async function readPublicCampaignDirectory(): Promise<CampaignDirectoryRe
 		.order("name")
 		.order("public_slug");
 
-	if (error) return { ok: false, reason: "dependency_unavailable" };
+	if (error) {
+		if (!isCampaignRegistrySchemaGap(error)) {
+			return { ok: false, reason: "dependency_unavailable" };
+		}
+		const legacy = await readLegacyPublicCampaign(client);
+		if (!legacy.ok) return { ok: false, reason: "dependency_unavailable" };
+		return {
+			ok: true,
+			campaigns: legacy.campaign
+				? [
+						{
+							routeKey: legacy.campaign.routeKey,
+							name: legacy.campaign.name,
+							description: legacy.campaign.description,
+						},
+					]
+				: [],
+		};
+	}
 	const campaigns = parseCampaignRows(data, parsePublicCampaign);
 	return campaigns
 		? { ok: true, campaigns }

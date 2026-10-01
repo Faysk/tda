@@ -80,6 +80,12 @@ describe("processing presentation", () => {
 		expect(presentJobError("WHISPER_RUNTIME_NOT_INSTALLED")).toContain(
 			"runtime Whisper",
 		);
+		expect(
+			presentJobError("WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE"),
+		).toContain("Atualize o runtime Whisper");
+		expect(presentJobError("WHISPER_AUDIO_DECODE_FAILED")).toContain(
+			"Reimporte a fonte Craig",
+		);
 	});
 
 	it("explains new integrity and worker-contract failures", () => {

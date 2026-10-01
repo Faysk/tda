@@ -33,6 +33,23 @@ def test_whisper_runtime_workflow_is_build_only_and_keeps_candidate_long_enough(
     assert "retention-days: 30" in value
 
 
+def test_whisper_runtime_build_gates_the_packaged_faster_whisper_decoder():
+    build = (REPO_ROOT / "local-companion" / "packaging" / "build_whisper_runtime.py").read_text(
+        encoding="utf-8"
+    )
+    entry = (REPO_ROOT / "local-companion" / "packaging" / "whisper_runtime_entry.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '_decode_smoke_worker(worker)' in build
+    assert 'probe.get("av") != packages["av"]' in build
+    assert '"--decode-smoke"' in entry
+    assert "from faster_whisper.audio import decode_audio" in entry
+    assert '("wav", wav_path)' in entry
+    assert '("flac", flac_path)' in entry
+    assert "WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE" in entry
+
+
 def test_qwen_runtime_uses_package_builder_without_legacy_direct_stable_publisher():
     package = _workflow("qwen-runtime-package.yml")
 
