@@ -16,6 +16,8 @@ on:
       - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - "local-companion/packaging/run-physical-acceptance.ps1"
+      - "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1"
+      - "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
     branches: [main]
@@ -61,7 +63,8 @@ jobs:
             "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
             "tools/acceptance/export-final-current-source-handoff.ps1",
             "local-companion/packaging/run-installed-acceptance.ps1",
-            "local-companion/packaging/run-physical-acceptance.ps1"
+            "local-companion/packaging/run-physical-acceptance.ps1",
+            "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1"
           )) {
             $path = Resolve-Path $relative
             $tokens = $null
@@ -84,6 +87,34 @@ jobs:
               }
               exit 1
             }
+          }
+      - name: Verify Whisper #1235 Craig acceptance contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $value = Get-Content -LiteralPath "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1" -Raw
+          foreach ($required in @(
+            'tda_whisper_craig_containment_acceptance_v1',
+            'whisper-turbo',
+            'whisper-detailed',
+            'benchmark_sample_seconds = 300.0',
+            'kind = "transcription.craig"',
+            'WHISPER_SEGMENT_SPAN_WIDENED',
+            'immutable_runs_verified = $true',
+            'contains_audio = $false',
+            'contains_transcript = $false',
+            'contains_local_paths = $false',
+            'contains_source_id = $false',
+            'TDA_ASR_RUNTIME_ARTIFACT',
+            'runtime_archive_sha256',
+            'WHISPER_1235_RUNTIME_VERSION_REQUIRED'
+          )) {
+            if (-not $value.Contains($required)) {
+              throw "WHISPER_1235_ACCEPTANCE_CONTRACT_MISSING:$required"
+            }
+          }
+          if ($value.Contains('Write-Host $line') -or $value.Contains('Set-Content -LiteralPath $line')) {
+            throw "WHISPER_1235_RAW_WORKER_OUTPUT_PERSISTED"
           }
       - name: Verify recovery launcher is pinned and transcript-free
         shell: powershell
