@@ -57,6 +57,9 @@ contrato de comando atual é 1.1.6. O Companion 0.3.18 anuncia a capability
 de `ready`. Cliente sem essa capability falha fechado para benchmark, sem bloquear
 transcrição normal. A preparação iniciada por esta tab envia `purpose=benchmark`
 e pode atualizar apenas o runtime necessário, preservando modelos, caches e dados.
+Um benchmark só conclui quando cada um dos quatro receipts carrega lineage sanitizada com
+o runtime artifact selado (worker/archive SHA-256) e a GPU NVIDIA efetivamente casada com
+a execução; evidência ausente ou parcial falha fechado e não vira resultado comparável.
 
 Validação deste comportamento: `tests/processing/panel.spec.ts` cobre progresso
 zero, ausência de denominador e a separação entre job ativo e métricas de run
