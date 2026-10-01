@@ -129,6 +129,7 @@ def test_runtime_rc_source_drift_fence_is_family_scoped_to_real_runtime_inputs()
     )
     missing = sorted(path for path in required if f'"{path}"' not in value)
     assert missing == []
+    assert '":(exclude)local-companion/runtime/qwen-windows-x64.json"' in value
 
     # Test/acceptance-only changes do not alter packaged runtime bytes.
     assert '"local-companion/tests/test_qwen_physical_gate_harness.py"' not in value
@@ -152,6 +153,7 @@ def test_runtime_stable_promotion_drift_fence_matches_runtime_family_inputs():
     )
     missing = sorted(path for path in required if f'"{path}"' not in promote)
     assert missing == []
+    assert '":(exclude)local-companion/runtime/qwen-windows-x64.json"' in promote
 
     # Physical acceptance and test-only evolution must not force rebuilding
     # immutable runtime bytes that have not changed.
