@@ -49,11 +49,22 @@ test("campaign cards open a campaign-qualified archive without leaking sibling s
 			name: /Antes que seja tarde/u,
 		}),
 	).toBeVisible();
-	await expect(page.getByText("Nenhuma sessão publicada ainda")).toBeVisible();
-	await expect(page.locator("[data-session-card]")).toHaveCount(0);
+	await expect(page.locator("[data-session-card]")).toHaveCount(1);
+	await expect(
+		page.getByRole("heading", { name: "A memória global mais recente vem da campanha B" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("heading", { name: "A memória mais recente do arquivo sintético" }),
+	).toHaveCount(0);
 
 	await page.goto("/campanhas/cronicas-da-mesa/sessoes");
 	await expect(page.locator("[data-session-card]")).toHaveCount(3);
+	await expect(
+		page.getByRole("heading", { name: "A memória mais recente do arquivo sintético" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("heading", { name: "A memória global mais recente vem da campanha B" }),
+	).toHaveCount(0);
 });
 
 test("campaign directory remains keyboard reachable and free of horizontal overflow at mobile and 200% zoom", async ({
