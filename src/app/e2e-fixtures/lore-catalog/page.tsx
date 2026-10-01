@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { LoreIndexArchive } from "@/features/lore/components/lore-index-page";
-import type { LoreEntityType, LoreRouteKind } from "@/features/lore/model";
+import type { LoreCampaignContext, LoreEntityType, LoreRouteKind } from "@/features/lore/model";
 import type { LoreIndexItem } from "@/features/lore/public-projection";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,12 @@ const ROUTE_KINDS: readonly LoreRouteKind[] = [
 	"quests",
 	"musicas",
 ];
+
+const FIXTURE_CAMPAIGN: LoreCampaignContext = {
+	routeKey: "fixture-campaign",
+	technicalSlug: "fixture-campaign-tech",
+	name: "Campanha sintética",
+};
 
 const ENTITY_TYPE_BY_ROUTE: Readonly<Record<LoreRouteKind, LoreEntityType>> = {
 	personagens: "pc",
@@ -70,7 +76,8 @@ function fixtureItem(
 			options.summary === false
 				? ""
 				: "Uma descrição pública sintética para validar densidade, hierarquia e comportamento responsivo sem depender de dados reais.",
-		href: `/${kind}/${slug}`,
+		href: `/campanhas/${FIXTURE_CAMPAIGN.routeKey}/${kind}/${slug}`,
+		campaign: FIXTURE_CAMPAIGN,
 		...(options.media ? { visual: fixtureVisual(name) } : {}),
 	};
 }
@@ -110,5 +117,11 @@ export default async function LoreCatalogE2EFixture({
 	const params = await searchParams;
 	const kind = routeKind(first(params.kind));
 	const items = scenarioItems(kind, first(params.scenario));
-	return <LoreIndexArchive routeKind={kind} items={items} />;
+	return (
+		<LoreIndexArchive
+			routeKind={kind}
+			campaign={FIXTURE_CAMPAIGN}
+			items={items}
+		/>
+	);
 }

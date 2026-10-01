@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
+import type { LoreCampaignContext } from "./model";
 import { buildPublishedLoreProfile } from "./public-projection";
 import { withPublishedLorePortraitFallback } from "./public-portrait";
+
+const campaign: LoreCampaignContext = {
+	routeKey: "cronicas-da-mesa",
+	technicalSlug: "yuhara-main",
+	name: "Crônicas da Mesa",
+};
 
 function baseProfile() {
 	const profile = buildPublishedLoreProfile({
@@ -12,7 +19,7 @@ function baseProfile() {
 		visibility: "public_web",
 		summary: "Uma memória publicada.",
 		aliases: [],
-	});
+	}, campaign);
 	if (!profile) throw new Error("profile fixture unavailable");
 	return profile;
 }

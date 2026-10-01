@@ -1,7 +1,11 @@
 import "server-only";
 import { loadWorldEntityPortraitPresentations } from "@/features/world-explorer/world-entity-media-repository";
 import { publishedDataClient } from "@/integrations/supabase/server";
-import type { LoreProfileDTO, LoreRouteKind } from "./model";
+import type {
+	LoreCampaignContext,
+	LoreProfileDTO,
+	LoreRouteKind,
+} from "./model";
 import {
 	buildPublishedLoreProfile,
 	toPublicLoreIndexItem,
@@ -13,7 +17,6 @@ import {
 	routeAcceptsLoreEntity,
 } from "./routes";
 
-const CAMPAIGN_SLUG = "yuhara-main";
 const entityColumns =
 	"id,name,slug,entity_type,status,visibility,summary,aliases";
 const canonColumns = "title,content,entry_type,visibility,status";
@@ -22,11 +25,14 @@ const sessionColumns =
 
 type PublishedClient = NonNullable<ReturnType<typeof publishedDataClient>>;
 
-async function resolveCampaignId(client: PublishedClient) {
+async function resolveCampaignId(
+	client: PublishedClient,
+	campaign: LoreCampaignContext,
+) {
 	const { data, error } = await client
 		.from("campaigns")
 		.select("id")
-		.eq("slug", CAMPAIGN_SLUG)
+		.eq("slug", campaign.technicalSlug)
 		.maybeSingle();
 	if (error) throw new Error("Published lore campaign unavailable");
 	return typeof data?.id === "string" ? data.id : null;
@@ -34,6 +40,8 @@ async function resolveCampaignId(client: PublishedClient) {
 
 async function findPublishedSessionsForEntity(
 	client: PublishedClient,
+	campaignId: string,
+	campaign: LoreCampaignContext,
 	entityId: string,
 ) {
 	const { data: participants, error: participantError } = await client
@@ -56,8 +64,9 @@ async function findPublishedSessionsForEntity(
 		.from("sessions")
 		.select(sessionColumns)
 		.in("id", sessionIds)
+		.eq("campaign_id", campaignId)
 		.eq("status", "published")
-		.eq("campaigns.slug", CAMPAIGN_SLUG)
+		.eq("campaigns.slug", campaign.technicalSlug)
 		.order("session_date", { ascending: false, nullsFirst: false })
 		.order("source_session_id", { ascending: true })
 		.limit(500);
@@ -68,13 +77,14 @@ async function findPublishedSessionsForEntity(
 async function withPublishedEntityPortrait(
 	client: PublishedClient,
 	campaignId: string,
+	campaign: LoreCampaignContext,
 	entityId: string,
 	profile: LoreProfileDTO,
 ): Promise<LoreProfileDTO> {
 	const portraits = await loadWorldEntityPortraitPresentations(
 		client,
 		campaignId,
-		CAMPAIGN_SLUG,
+		campaign.technicalSlug,
 		[entityId],
 	);
 	return withPublishedLorePortraitFallback(profile, portraits.get(entityId));
@@ -88,15 +98,16 @@ function focalPercent(value: number): number {
 /**
  * Public lore projection boundary.
  *
- * Only entities explicitly marked `public_web` are eligible. Private player/master
- * entities are filtered server-side before a DTO can reach the browser.
+ * Campaign is an explicit input: no generic lore read may silently select the
+ * legacy campaign. Only entities explicitly marked `public_web` are eligible.
  */
 export async function listPublishedLoreIndex(
 	routeKind: LoreRouteKind,
+	campaign: LoreCampaignContext,
 ): Promise<LoreIndexItem[] | null> {
 	const client = publishedDataClient();
 	if (!client) return null;
-	const campaignId = await resolveCampaignId(client);
+	const campaignId = await resolveCampaignId(client, campaign);
 	if (!campaignId) return [];
 
 	const { data, error } = await client
@@ -116,12 +127,12 @@ export async function listPublishedLoreIndex(
 	const portraits = await loadWorldEntityPortraitPresentations(
 		client,
 		campaignId,
-		CAMPAIGN_SLUG,
+		campaign.technicalSlug,
 		entityIds,
 	);
 
 	return rows.flatMap((row) => {
-		const item = toPublicLoreIndexItem(row);
+		const item = toPublicLoreIndexItem(row, campaign);
 		if (!item) return [];
 		const entityId = typeof row.id === "string" ? row.id : null;
 		const portrait = entityId ? portraits.get(entityId) : undefined;
@@ -145,11 +156,12 @@ export async function listPublishedLoreIndex(
 export async function findPublishedLoreProfile(
 	routeKind: LoreRouteKind,
 	slug: string,
+	campaign: LoreCampaignContext,
 ): Promise<LoreProfileDTO | null> {
 	if (!slug || slug.length > 180) return null;
 	const client = publishedDataClient();
 	if (!client) return null;
-	const campaignId = await resolveCampaignId(client);
+	const campaignId = await resolveCampaignId(client, campaign);
 	if (!campaignId) return null;
 
 	const { data: entity, error: entityError } = await client
@@ -173,13 +185,29 @@ export async function findPublishedLoreProfile(
 			.eq("status", "active")
 			.order("created_at", { ascending: true })
 			.limit(200),
-		findPublishedSessionsForEntity(client, entity.id),
+		findPublishedSessionsForEntity(
+			client,
+			campaignId,
+			campaign,
+			entity.id,
+		),
 	]);
 	if (canonError) throw new Error("Published lore canon unavailable");
 
-	const profile = buildPublishedLoreProfile(entity, canon ?? [], sessions);
+	const profile = buildPublishedLoreProfile(
+		entity,
+		campaign,
+		canon ?? [],
+		sessions,
+	);
 	if (!profile || !routeAcceptsLoreEntity(routeKind, profile.identity.entityType)) {
 		return null;
 	}
-	return withPublishedEntityPortrait(client, campaignId, entity.id, profile);
+	return withPublishedEntityPortrait(
+		client,
+		campaignId,
+		campaign,
+		entity.id,
+		profile,
+	);
 }

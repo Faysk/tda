@@ -2,7 +2,7 @@
 
 > Status: decisão aprovada; implementação parcial
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-01
 
 ## Objetivo
 
@@ -77,7 +77,7 @@ Nenhuma lore cria uploader, endpoint operacional ou autorização próprios. A r
 | --- | --- | --- | --- | --- |
 | Pipipi | `app` | Sim | Sim, conforme o projeto existente | Preservar política pública atual |
 | Astel / Noah | `standalone` estática, candidato local | Sim, solicitado | Sem novas entidades/relações; ligações editoriais por slug | Canonical próprio; sem copiar o noindex das lores externas |
-| D | `standalone` estática | Não | Não | Não indexar |
+| D | `standalone` estática | Não | Binding editorial para `antes-que-seja-tarde`, resolvido somente quando a campaign existir | Não indexar |
 | Seika | Route Handler standalone legado | Não | Não | Não indexar; alinhar runtime em entrega própria se necessário |
 | Yllith | `standalone` estática planejada | Não | Não | Não indexar |
 
@@ -137,9 +137,9 @@ Campos mínimos esperados:
 }
 ```
 
-Esse registro responde “como esta lore é entregue e qual é seu estado editorial?”. Sua implementação no código é uma tarefa separada desta decisão documental.
+Esse registro agora vive em `src/features/lore/registry.ts`. Ele separa `delivery`, `listed`, `campaignTechnicalSlug`, `indexable` e `entityLink`; não contém texto narrativo nem cria registros no banco. `src/features/lore/standalone-catalog.json` permanece somente com metadata de apresentação dos cards Astel/Noah. A listagem consulta o registry, e o vínculo entity→standalone é campaign-qualified para que slugs iguais em campaigns diferentes não colidam.
 
-O candidato de [Astel e Noah](astel-noah-lores.md) usa `src/features/lore/standalone-catalog.json` para as duas entradas standalone listadas, seus cards e rewrites. Esse catálogo parcial não migra nem altera o estado das lores anteriores.
+O resolver server-side `standalone-link-repository.ts` só considera o vínculo de campaign existente depois que a row de campaign pode ser resolvida. Para UI pública, badge/nome de campaign só aparece se lifecycle/visibility/public route também forem públicos e válidos; ausência do registry novo não inventa um rótulo “desconhecido”.
 
 ## Integração multi-campaign
 
@@ -152,6 +152,6 @@ ADR-0020 aprova múltiplas campaigns, mas o registro de lore continua separando 
 - nome/public route key da campaign não entra na key de mídia da lore por conveniência;
 - catálogo global `/lore` pode continuar curado independentemente de campaign.
 
-A campaign planejada **Antes que seja tarde** e a lore D permanecem desvinculadas até decisão editorial de #1131.
+A decisão editorial da #1131 aponta D para **Antes que seja tarde**, mas o runtime mantém o vínculo não resolvido enquanto a campaign não existir no registry persistido. Isso não lista D, não muda `/lore/d`, não cria entity/canon/session e não copia conteúdo do microsite.
 
 Multi-jogo/multiuniverso completo continua fora do escopo desta decisão.

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { PublicLink } from "@/components/public-link";
 import { standaloneLoreForEntity } from "@/features/lore/standalone-catalog";
+import { LEGACY_CAMPAIGN_TECHNICAL_SLUG } from "@/features/sessions/model";
 import type { WorldGraphProjection, WorldNodeDTO } from "../model";
 import { relationLabelFor } from "../projection";
 import {
@@ -68,7 +69,11 @@ export function WorldInspectorContent({
 }) {
 	const [tab, setTab] = useState<InspectorTab>("overview");
 	const standaloneLore = selected.kind === "entity"
-		? standaloneLoreForEntity(selected.entityType, selected.slug)
+		? standaloneLoreForEntity(
+				LEGACY_CAMPAIGN_TECHNICAL_SLUG,
+				selected.entityType,
+				selected.slug,
+			)
 		: null;
 	const relation =
 		focus && selected.id !== focus.id

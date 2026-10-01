@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
 import {
-	buildLoreMetadata,
-	renderLoreRoutePage,
-} from "@/features/lore/route-page";
+	buildLegacyLoreProfileMetadata,
+	renderLegacyLoreProfilePage,
+} from "@/features/lore/campaign-route";
 
 type LoreParams = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: LoreParams): Promise<Metadata> {
 	const { slug } = await params;
-	return buildLoreMetadata("personagens", slug);
+	return buildLegacyLoreProfileMetadata("personagens", slug);
 }
 
-export default async function CharacterLorePage({ params }: LoreParams) {
+export default async function CharactersLorePage({ params }: LoreParams) {
 	const { slug } = await params;
-	return renderLoreRoutePage("personagens", slug);
+	return renderLegacyLoreProfilePage("personagens", slug);
 }
