@@ -116,9 +116,9 @@ describe("session cover media contract", () => {
 
 
 	it("binds private preview URL to both session and asset", () => {
-		expect(sessionCoverPreviewUrl(sessionId, uploadId)).toBe(
-			`/api/edit/session-cover/${sessionId}/${uploadId}`,
+		expect(sessionCoverPreviewUrl("yuhara-main", sessionId, uploadId)).toBe(
+			`/api/edit/campaigns/yuhara-main/session-cover/${sessionId}/${uploadId}`,
 		);
-		expect(sessionCoverPreviewUrl("wrong", uploadId)).toBeUndefined();
+		expect(sessionCoverPreviewUrl("yuhara-main", "wrong", uploadId)).toBeUndefined();
 	});
 });
