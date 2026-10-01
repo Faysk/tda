@@ -1,5 +1,16 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { PIPIPI_RUNTIME_ASSET_URLS } from "../src/features/lore/pipipi-assets";
+
+const pipipiManifest = JSON.parse(
+	await readFile(new URL("../media/manifests/pipipi.json", import.meta.url), "utf8"),
+) as {
+	publicOrigin: string;
+	namespace: string;
+	assets: Array<{ file: string; sha256: string; contentType: string }>;
+};
+
+const pipipiOrigin = pipipiManifest.publicOrigin.replace(/\/$/, "");
+const pipipiNamespace = pipipiManifest.namespace.replace(/^\/+|\/+$/g, "");
 
 const sceneIds = [
 	"casa",
@@ -10,7 +21,9 @@ const sceneIds = [
 	"acordou",
 ] as const;
 
-const runtimeAssets = PIPIPI_RUNTIME_ASSET_URLS;
+const runtimeAssets = pipipiManifest.assets.map(
+	(asset) => `${pipipiOrigin}/${pipipiNamespace}/${asset.sha256}/${asset.file}`,
+);
 
 const staticBedScenes = ["super-herois", "cadeira", "ultimo-dia"] as const;
 
