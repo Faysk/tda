@@ -389,11 +389,11 @@ function Install-WhisperRuntimeArchiveForAcceptance([object]$Candidate,[string]$
           $parent=Split-Path -Parent $destination
           if($parent){New-Item -ItemType Directory -Force -Path $parent | Out-Null}
 
-          $input=$entry.Open()
+          $entryStream=$entry.Open()
           try {
             $output=[IO.File]::Open($destination,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
-            try {$input.CopyTo($output)} finally {$output.Dispose()}
-          } finally {$input.Dispose()}
+            try {$entryStream.CopyTo($output)} finally {$output.Dispose()}
+          } finally {$entryStream.Dispose()}
           if((Get-Item -LiteralPath $destination).Length -ne [Int64]$entry.Length){
             throw "RUNTIME_DIRECT_ARCHIVE_SIZE_MISMATCH"
           }
