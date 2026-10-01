@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { readPublicCampaignDirectory } from "@/features/campaigns/server";
-import {
-	worldPublicCampaignHref,
-} from "@/features/world-explorer/world-campaign";
+import { worldPublicCampaignHref } from "@/features/world-explorer/world-campaign";
 import { requestedWorldFocus } from "@/features/world-explorer/world-page";
 import styles from "./page.module.css";
 
@@ -37,8 +35,10 @@ export default async function MundoEntryPage({ searchParams }: Props) {
 			</main>
 		);
 	}
-	if (directory.campaigns.length === 1) {
-		redirect(worldPublicCampaignHref(directory.campaigns[0]!.routeKey, focus));
+	const onlyCampaign =
+		directory.campaigns.length === 1 ? directory.campaigns[0] : undefined;
+	if (onlyCampaign) {
+		redirect(worldPublicCampaignHref(onlyCampaign.routeKey, focus));
 	}
 
 	return (
