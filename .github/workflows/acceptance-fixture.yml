@@ -339,6 +339,7 @@ jobs:
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-Event")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Get-MaxEventSequence")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Sanitize-LogRow")
+          . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Assert-NoEvidenceLeak")
           . (Get-FunctionScriptBlock "tools/acceptance/run-qwen-recovery-physical-gate.ps1" "Assert-RetryCheckpointEvidence")
 
           $errorWithoutDetails = [pscustomobject]@{ Exception = [Exception]::new("offline") }
@@ -373,6 +374,51 @@ jobs:
             throw "QWEN_RECOVERY_OPTIONAL_EVENT_SANITIZE_INVALID"
           }
 
+          $diagnosticEvent = [pscustomobject]@{
+            seq = 10
+            code = "QWEN_WINDOW_EMPTY_ASR_REJECTED"
+            data = [pscustomobject]@{
+              stage = "transcription"
+              track = 1
+              total_tracks = 4
+              window = 24
+              completed_window_count = 24
+              durable_window_count = 20
+              start_seconds = 1242.0
+              end_seconds = 1302.0
+              sample_count = 960000
+              peak_dbfs = -31.25
+              rms_dbfs = -48.75
+              silence_peak_threshold_dbfs = -84.0
+              silence_rms_threshold_dbfs = -90.0
+              failure_class = "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"
+              context_seconds = 6.0
+              speaker = "private speaker"
+              text = "private transcript"
+              path = "C:\\private\\recording.flac"
+            }
+          }
+          $sanitizedDiagnostic = Sanitize-Event $diagnosticEvent
+          if (
+            [int]$sanitizedDiagnostic.data.track -ne 1 -or
+            [int]$sanitizedDiagnostic.data.window -ne 24 -or
+            [int]$sanitizedDiagnostic.data.durable_window_count -ne 20 -or
+            [double]$sanitizedDiagnostic.data.start_seconds -ne 1242.0 -or
+            [double]$sanitizedDiagnostic.data.end_seconds -ne 1302.0 -or
+            [int]$sanitizedDiagnostic.data.sample_count -ne 960000 -or
+            [double]$sanitizedDiagnostic.data.peak_dbfs -ne -31.25 -or
+            [double]$sanitizedDiagnostic.data.rms_dbfs -ne -48.75 -or
+            [double]$sanitizedDiagnostic.data.silence_peak_threshold_dbfs -ne -84.0 -or
+            [double]$sanitizedDiagnostic.data.silence_rms_threshold_dbfs -ne -90.0 -or
+            [string]$sanitizedDiagnostic.data.failure_class -ne "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW" -or
+            [double]$sanitizedDiagnostic.data.context_seconds -ne 6.0 -or
+            $sanitizedDiagnostic.data.PSObject.Properties.Name -contains "speaker" -or
+            $sanitizedDiagnostic.data.PSObject.Properties.Name -contains "text" -or
+            $sanitizedDiagnostic.data.PSObject.Properties.Name -contains "path"
+          ) {
+            throw "QWEN_RECOVERY_SIGNAL_DIAGNOSTIC_SANITIZE_INVALID"
+          }
+
           $minimalJob = [pscustomobject]@{ id = "job-1"; status = "queued" }
           $sanitizedJob = Sanitize-Job $minimalJob
           if (
@@ -384,10 +430,29 @@ jobs:
             throw "QWEN_RECOVERY_OPTIONAL_JOB_SANITIZE_INVALID"
           }
 
-          $minimalLog = [pscustomobject]@{ code = "TEST"; message = "ok" }
+          $minimalLog = [pscustomobject]@{ code = "TEST"; message = "private C:\\Users\\Faysk\\recording.zip" }
           $sanitizedLog = Sanitize-LogRow $minimalLog
-          if ([string]$sanitizedLog.code -ne "TEST" -or $sanitizedLog.context.Count -ne 0) {
+          if (
+            [string]$sanitizedLog.code -ne "TEST" -or
+            $sanitizedLog.context.Count -ne 0 -or
+            $sanitizedLog.PSObject.Properties.Name -contains "message"
+          ) {
             throw "QWEN_RECOVERY_OPTIONAL_LOG_SANITIZE_INVALID"
+          }
+
+          $leakRoot = Join-Path $env:RUNNER_TEMP "qwen-recovery-evidence-leak-test"
+          Remove-Item -LiteralPath $leakRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $leakRoot | Out-Null
+          try {
+            '{"path":"C:\\Users\\Faysk\\recording.zip"}' | Set-Content -LiteralPath (Join-Path $leakRoot "leak.json") -Encoding UTF8
+            try {
+              Assert-NoEvidenceLeak $leakRoot "" 'C:\Users\Faysk\recording.zip'
+              throw "QWEN_RECOVERY_PRIVATE_PATH_LEAK_ACCEPTED"
+            } catch {
+              if ([string]$_.Exception.Message -ne "HARNESS_FAILED:EVIDENCE_PRIVATE_PATH_LEAK") { throw }
+            }
+          } finally {
+            Remove-Item -LiteralPath $leakRoot -Recurse -Force -ErrorAction SilentlyContinue
           }
 
           try {
@@ -497,6 +562,7 @@ jobs:
             "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING",
             "JOB_EVENTS_RESPONSE_INVALID",
             "ASR_TEXT_CHECKPOINT_EVENT_TRACK_MISSING",
+            'marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema_version")',
             "error_id =",
             "Set-StrictMode -Version Latest"
           )) {

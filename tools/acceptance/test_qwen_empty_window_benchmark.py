@@ -336,6 +336,19 @@ class QwenEmptyWindowAcceptanceTests(unittest.TestCase):
         self.assertFalse(receipt["stable_promotion_eligible"])
         self.assertEqual(receipt["profiles"][0]["classification"], "invalid_outcome")
 
+    def test_cli_cannot_override_exact_runtime_contract(self):
+        with self.assertRaises(SystemExit):
+            module.parse_args(
+                [
+                    "--confirm",
+                    "RUN",
+                    "--source-id",
+                    "craig-" + module.EXPECTED_SOURCE_SHA256,
+                    "--expected-runtime-version",
+                    "1.0.14",
+                ]
+            )
+
     def test_wrong_runtime_version_fails_before_worker_execution(self):
         supervisor = FakeSupervisor(
             {

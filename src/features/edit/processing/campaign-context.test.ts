@@ -35,7 +35,7 @@ function memoryStorage(initial: Record<string, string> = {}): Storage {
 describe("processing campaign context", () => {
 	it("builds a deep-linkable processing URL without treating browser state as authority", () => {
 		expect(processingCampaignHref("antes-que-seja-tarde")).toBe(
-			"/edit/processamento?campanha=antes-que-seja-tarde",
+			"/edit/antes-que-seja-tarde/processamento",
 		);
 	});
 

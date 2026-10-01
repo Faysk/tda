@@ -34,7 +34,7 @@ function first(value: string | string[] | undefined) {
 }
 
 function transcriptsHref(campaignSlug: string) {
-	return `/transcricoes?campanha=${encodeURIComponent(campaignSlug)}`;
+	return `/edit/${encodeURIComponent(campaignSlug)}/transcricoes`;
 }
 
 function CampaignPicker({

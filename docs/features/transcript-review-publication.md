@@ -75,9 +75,9 @@ ADR-0020/#1133 exigem campaign explícita em qualquer revisão/publicação clou
 - mudar o seletor de campaign não retaggeia intenção pendente;
 - stats/review UI só agrega campaigns quando o contrato explicitamente pedir agregado e a autorização tiver sido resolvida por campaign.
 
-O alvo privado canônico continua sendo `/edit/[campaign]/transcricoes`/`/edit/[campaign]/revisao`, coordenado pela navegação de #1136. A entrega #1133 torna os entrypoints de compatibilidade `/transcricoes?campanha=<technical-slug>` e `/edit/revisao?campanha=<technical-slug>` explicitamente campaign-aware:
+As rotas privadas canônicas são `/edit/[campaign]/transcricoes` e `/edit/[campaign]/revisao`. Os entrypoints de compatibilidade `/transcricoes` e `/edit/revisao` continuam explicitamente campaign-aware para seleção/links antigos, mas navegação normal preserva a identidade da campaign no path:
 
-- sem query, zero campaigns autorizadas produz estado vazio e múltiplas campaigns exigem escolha; uma única opção é canonicalizada para a query explícita;
+- sem campaign no path/entrypoint, zero campaigns autorizadas produz estado vazio e múltiplas campaigns exigem escolha; uma única opção é canonicalizada para a rota privada campaign-scoped;
 - discovery usa somente grants efetivos da capability da superfície; campaign-scoped grant consulta apenas seus slugs e `project/tda` pode cobrir N campaigns sem promover outra capability;
 - UI usa `campaigns.name`; technical slug fica somente na identidade de URL/operação;
 - campaign arquivada pode permanecer legível historicamente, mas decisões novas da Review Board são bloqueadas;

@@ -82,23 +82,25 @@ test("renders the approved Pipipi cinematic structure", async ({ page }) => {
 	expect(unexpectedInfiniteAnimations).toBe(0);
 });
 
-test("makes published cinematic lores discoverable without crowding mobile navigation", async ({ page }, testInfo) => {
+test("makes published cinematic lores discoverable through the real global launcher", async ({ page }) => {
 	await page.goto("/");
-	const primaryNav = page.getByRole("navigation", { name: "Navegação principal" });
-	const navLoresLink = primaryNav.locator("a.lore-nav-link");
-	await expect(navLoresLink).toHaveAttribute("href", "/lore");
 
-	if (testInfo.project.name === "mobile") {
-		await expect(navLoresLink).toBeHidden();
-		const homeLoresLink = page.getByRole("link", { name: /Explorar lores/ });
-		await expect(homeLoresLink).toBeVisible();
-		await expect(homeLoresLink).toHaveAttribute("href", "/lore");
-		await homeLoresLink.click();
-	} else {
-		await expect(navLoresLink).toBeVisible();
-		await navLoresLink.click();
-	}
+	const trigger = page.getByRole("button", { name: "Abrir menu global" });
+	await trigger.focus();
+	await page.keyboard.press("Enter");
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
 
+	const panel = page.getByRole("region", {
+		name: "Navegação, conta e aparência",
+	});
+	await expect(panel).toBeVisible();
+	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
+	const loresLink = navigation.getByRole("link", { name: "Lores", exact: true });
+	await expect(loresLink).toBeVisible();
+	await expect(loresLink).toHaveAttribute("href", "/lore");
+
+	await loresLink.focus();
+	await page.keyboard.press("Enter");
 	await expect(page).toHaveURL(/\/lore$/);
 	await expect(
 		page.getByRole("heading", { level: 1, name: "Histórias que ganharam outro palco." }),

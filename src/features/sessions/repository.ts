@@ -58,10 +58,10 @@ const layoutFixtureSessions = [
 	{
 		id: "shared-session",
 		campaignId: "fixture-b",
-		campaignSlug: "campanha-b",
+		campaignSlug: "antes-que-seja-tarde",
 		campaignName:
-			"Campanha B — nome longo para validar a Home em telas estreitas",
-		campaignTechnicalSlug: "campaign-b",
+			"Antes que seja tarde — uma campanha com nome deliberadamente comprido",
+		campaignTechnicalSlug: "antes-que-seja-tarde",
 		title: "A memória global mais recente vem da campanha B",
 		date: "2026-09-30",
 		arc: "Contrato visual E2E",

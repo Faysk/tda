@@ -114,7 +114,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | Review Board com provenance + triagem implementado; adoção editorial real em andamento | 2026-09-22 |
 | [Entidades, personagens e mundo narrativo](../domains/entities.md) | narrative-memory/entities | preparado | 2026-09-06 |
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
-| [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-30 |
+| [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-10-01 |
 | [Processamento, jobs e áudio](../domains/processing.md) | processing/local-companion | processamento local real implementado; lifecycle editorial pós-ASR aprovado e em implementação futura | 2026-09-15 |
 | [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-10-01 |
 
@@ -201,7 +201,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-20 |
-| [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-09-27 |
+| [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-10-01 |
 | [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-29 |
 | [CI/CD — baseline da simplificação](../operations/cicd-simplification-baseline.md) | operations / architecture | auditoria | 2026-09-14 |
 | [CI/CD — plano de simplificação](../operations/cicd-simplification-plan.md) | operations / architecture | histórico — migração concluída em 2026-09-14 | 2026-09-14 |
@@ -216,6 +216,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-29 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | Stable 0.3.15; candidato 0.3.16 / Qwen 1.0.12 preparado para validação Production de #628 | 2026-09-28 |
+| [Multi-campaign activation gate](../operations/multi-campaign-activation-gate.md) | testing / identity-access / operations | operational gate for #1138 | 2026-10-01 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-29 |
 | [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-10-01 |
@@ -232,4 +233,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-151 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+152 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
