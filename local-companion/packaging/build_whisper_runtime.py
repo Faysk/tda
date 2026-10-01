@@ -22,10 +22,6 @@ NVIDIA_DISTRIBUTIONS = (
     "nvidia-cudnn-cu12",
     "nvidia-cuda-runtime-cu12",
 )
-# Frozen-worker decode imports PyAV/CTranslate2 and performs real WAV+FLAC work.
-# GitHub-hosted Windows cold starts can exceed 30s under AV/cache pressure;
-# keep the release gate bounded without turning scheduler variance into failure.
-DECODE_SMOKE_TIMEOUT_SECONDS = 90
 
 
 def run(
@@ -52,13 +48,7 @@ def _probe_worker(worker: Path) -> dict:
 
 def _decode_smoke_worker(worker: Path) -> dict:
     try:
-        value = json.loads(
-            run(
-                str(worker),
-                "--decode-smoke",
-                timeout=DECODE_SMOKE_TIMEOUT_SECONDS,
-            )
-        )
+        value = json.loads(run(str(worker), "--decode-smoke", timeout=30))
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("WHISPER_RUNTIME_DECODE_SMOKE_TIMEOUT") from exc
     except json.JSONDecodeError as exc:
