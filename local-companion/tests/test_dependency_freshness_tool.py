@@ -188,3 +188,17 @@ def test_python_patch_without_exact_exception_fails_closed(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "python: 3.12.14 -> 3.12.15 [STALE]" in captured.out
     assert "python: pinned 3.12.14, latest 3.12 patch 3.12.15" in captured.err
+
+
+def test_whisper_pyav_compatibility_exception_is_exact_and_runtime_owned():
+    tool = _load_tool()
+    pins, sources, _python_pin, _lock, exceptions = tool.collect()
+
+    assert pins["av"] == "18.1.0"
+    assert sources["av"] == ["whisper-windows-x64.json", "qwen-windows-x64.json"]
+    assert exceptions["av"]["version"] == pins["av"]
+    assert "Faster-Whisper 1.2.1" in exceptions["av"]["reason"]
+    assert "WAV/FLAC decode smoke" in exceptions["av"]["reason"]
+
+    whisper = json.loads(tool.WHISPER_RUNTIME.read_text(encoding="utf-8"))
+    assert whisper["dependency_freshness_exceptions"]["av"]["version"] == "18.1.0"
