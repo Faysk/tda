@@ -160,3 +160,73 @@ test("World campaign switch preserves explicit context across back, forward and 
 	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
 	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
 });
+
+
+test("aggregate and campaign-scoped session archives expose distinct product scope", async ({
+	page,
+}) => {
+	await page.goto("/campanhas/sessoes");
+
+	const aggregate = page.locator('[data-session-archive-scope="aggregate"]');
+	await expect(aggregate).toBeVisible();
+	await expect(
+		aggregate.getByRole("heading", { level: 1, name: "Todas as campanhas" }),
+	).toBeVisible();
+	await expect(page.getByLabel("Filtrar por campanha")).toBeVisible();
+	await expect(page.getByRole("link", { name: "Ver campanhas" })).toHaveAttribute(
+		"href",
+		"/campanhas",
+	);
+	await expect(page.getByText("Crônicas da Mesa", { exact: false }).first()).toBeVisible();
+	await expect(
+		page.getByText(
+			"Antes que seja tarde — uma campanha com nome deliberadamente comprido",
+			{ exact: false },
+		).first(),
+	).toBeVisible();
+
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes");
+
+	const scoped = page.locator('[data-session-archive-scope="campaign"]');
+	await expect(scoped).toHaveAttribute("data-campaign-route", "cronicas-da-mesa");
+	await expect(
+		scoped.getByRole("heading", { level: 1, name: "Crônicas da Mesa" }),
+	).toBeVisible();
+	await expect(page.getByLabel("Filtrar por campanha")).toHaveCount(0);
+	await expect(
+		page.getByRole("link", { name: "Arquivo de todas as campanhas" }),
+	).toHaveAttribute("href", "/campanhas/sessoes");
+	await expect(page.getByRole("link", { name: "Mundo da campanha" })).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/mundo",
+	);
+	await expect(page.locator('[data-session-card]')).toHaveCount(3);
+	await expect(
+		page.getByRole("heading", {
+			name: "A memória global mais recente vem da campanha B",
+		}),
+	).toHaveCount(0);
+});
+
+test("campaign archive keeps campaign context visible on narrow and zoom-equivalent viewports", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 320, height: 800 });
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes");
+
+	await expect(page.getByRole("navigation", { name: "Contexto da campanha" })).toBeVisible();
+	await expect(
+		page.getByRole("link", { name: "Arquivo de todas as campanhas" }),
+	).toBeVisible();
+	let overflow = await page.evaluate(
+		() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+	);
+	expect(overflow).toBeLessThanOrEqual(1);
+
+	await page.setViewportSize({ width: 960, height: 540 });
+	overflow = await page.evaluate(
+		() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+	);
+	expect(overflow).toBeLessThanOrEqual(1);
+	await expect(page.getByText("Campanha · arquivo de sessões")).toBeVisible();
+});
