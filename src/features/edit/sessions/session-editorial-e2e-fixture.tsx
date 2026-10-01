@@ -210,6 +210,8 @@ export function SessionEditorialE2EFixture({
 	const failNextCoverPromotionRef = useRef(false);
 	const loseNextMoveResponseRef = useRef(false);
 	const moveReceiptsRef = useRef(new Set<string>());
+	const moveAttemptsRef = useRef(new Map<string, number>());
+	const moveLostResponseOperationsRef = useRef(new Set<string>());
 	const [moveOperationIds, setMoveOperationIds] = useState<string[]>([]);
 	const [publicSnapshot, setPublicSnapshot] = useState<PublicSnapshot | null>(null);
 	const [editable, setEditable] = useState(true);
@@ -366,18 +368,25 @@ export function SessionEditorialE2EFixture({
 				},
 		}),
 		commit: async (request) => {
+			const attempt = (moveAttemptsRef.current.get(request.operationId) ?? 0) + 1;
+			moveAttemptsRef.current.set(request.operationId, attempt);
 			const replayed = moveReceiptsRef.current.has(request.operationId);
 			moveReceiptsRef.current.add(request.operationId);
 			setMoveOperationIds((current) => [...current, request.operationId]);
 			if (loseNextMoveResponseRef.current) {
 				loseNextMoveResponseRef.current = false;
+				moveLostResponseOperationsRef.current.add(request.operationId);
 				throw new Error("synthetic lost move response");
 			}
+			const cachePending = moveLostResponseOperationsRef.current.has(request.operationId)
+				? attempt < 3
+				: attempt < 2;
 			return {
 				ok: true as const,
 				replayed,
-				cachePending: true,
-				destinationHref: "/e2e-fixtures/session-editorial?move=committed",
+				cachePending,
+				destinationHref:
+					`/e2e-fixtures/session-editorial?move=committed&operationId=${encodeURIComponent(request.operationId)}`,
 			};
 		},
 	}), []);
