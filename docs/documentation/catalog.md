@@ -201,7 +201,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-20 |
-| [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-09-27 |
+| [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-10-01 |
 | [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-29 |
 | [CI/CD — baseline da simplificação](../operations/cicd-simplification-baseline.md) | operations / architecture | auditoria | 2026-09-14 |
 | [CI/CD — plano de simplificação](../operations/cicd-simplification-plan.md) | operations / architecture | histórico — migração concluída em 2026-09-14 | 2026-09-14 |
@@ -218,7 +218,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | Stable 0.3.15; candidato 0.3.16 / Qwen 1.0.12 preparado para validação Production de #628 | 2026-09-28 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-29 |
-| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-09-28 |
+| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-10-01 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-22 |
 | [Transcript handoff — smoke editorial de Production](../operations/transcript-handoff-production-smoke.md) | transcripts / processing / operations | vigente | 2026-09-28 |
 | [World Entity Media — smoke editorial de Production](../operations/world-entity-media-production-smoke.md) | integrations/media + world | vigente | 2026-09-28 |

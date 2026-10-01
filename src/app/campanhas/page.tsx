@@ -15,9 +15,18 @@ export const metadata: Metadata = buildPublicMetadata({
 
 export default async function CampaignDirectoryPage() {
 	const result = await readPublicCampaignDirectory();
+	const publicContentState = !result.ok
+		? "dependency_unavailable"
+		: result.campaigns.length
+			? "ready"
+			: "empty";
 
 	return (
-		<main className={styles.page} data-layout-family="editorial">
+		<main
+			className={styles.page}
+			data-layout-family="editorial"
+			data-public-content-state={publicContentState}
+		>
 			<header className={styles.header}>
 				<p className={styles.eyebrow}>TDA · campanhas</p>
 				<h1>Mesas que viraram memória</h1>

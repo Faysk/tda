@@ -72,7 +72,7 @@ export default async function CampaignSessionsPage({ params }: Props) {
 		notFound();
 	} else if (campaignSlug !== LEGACY_CAMPAIGN_PUBLIC_SLUG) {
 		return (
-			<main className={styles.page}>
+			<main className={styles.page} data-public-content-state="dependency_unavailable">
 				<p className={styles.state} role="status">
 					Não foi possível carregar as sessões desta campanha agora.
 				</p>
@@ -85,7 +85,7 @@ export default async function CampaignSessionsPage({ params }: Props) {
 		sessions = await listPublishedSessionArchive(routeKey);
 	} catch {
 		return (
-			<main className={styles.page}>
+			<main className={styles.page} data-public-content-state="dependency_unavailable">
 				<p className={styles.state} role="status">
 					Não foi possível carregar as sessões desta campanha agora.
 				</p>
@@ -95,7 +95,7 @@ export default async function CampaignSessionsPage({ params }: Props) {
 
 	if (sessions === null) {
 		return (
-			<main className={styles.page}>
+			<main className={styles.page} data-public-content-state="dependency_unavailable">
 				<p className={styles.state} role="status">
 					Estamos preparando o arquivo da campanha.
 				</p>
@@ -114,6 +114,7 @@ export default async function CampaignSessionsPage({ params }: Props) {
 			className={styles.page}
 			data-layout-family="editorial"
 			data-layout-role="expansive"
+			data-public-content-state={sessions.length ? "ready" : "empty"}
 		>
 			<section className={styles.hero} aria-labelledby="archive-title">
 				<div className={styles.backdropShade} aria-hidden="true" />

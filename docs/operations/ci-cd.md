@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release / dados
-> Última revisão: 2026-09-27
+> Última revisão: 2026-10-01
 > Fonte de verdade: workflows versionados + ADR-0015 + ADR-0018
 
 ## Objetivo
@@ -106,9 +106,9 @@ branch temporária
       +--> mídia pendente? lifecycle Media Storage
       +--> build uma vez
       +--> stage sem tráfego
-      +--> smoke
+      +--> smoke técnico + conteúdo público semântico
       +--> promote do mesmo artifact
-      +--> canonical health/version
+      +--> canonical health/version + conteúdo público semântico
       +--> receipt
 ```
 
@@ -251,6 +251,39 @@ vercel promote <deployment>
 
 O staged deployment não recebe tráfego do domínio oficial antes do smoke.
 
+### Gate semântico de conteúdo público
+
+HTTP 200 não é suficiente para promover. O staged smoke executa
+`tools/ci/verify-production-public-content.mjs` e trata o HTML público como um
+contrato pequeno e explícito:
+
+- `/`, `/campanhas` e arquivos de sessões expõem
+  `data-public-content-state=ready|empty|dependency_unavailable`;
+- `empty` é aceito somente nas superfícies em que arquivo vazio é um estado
+  legítimo;
+- `dependency_unavailable` falha mesmo com HTTP 200;
+- `/sessoes` precisa seguir redirect e terminar em `/campanhas/sessoes` no
+  mesmo origin;
+- se houver conteúdo publicado, o gate descobre um link público
+  `/campanhas/<slug>/sessoes/<id>` e verifica a página final;
+- nenhum transcript privado é lido ou impresso; o output contém somente SHA,
+  rota, status/resultado, caminho final e horário.
+
+O diretório `/campanhas` depende do registry multi-campaign. Durante a janela
+de compatibilidade documentada em #1225, porém, somente gaps classificados das
+colunas first-class podem usar o fallback histórico conhecido. Nesse caso o
+smoke valida o conteúdo público realmente servido e pode passar; isso **não**
+prova nem ativa o registry first-class. Erro de permissão, conectividade, schema
+não classificado ou falha do fallback continua `dependency_unavailable` e
+bloqueia o promote. O readiness do registry permanece um gate separado no
+contrato multi-campaign/runbook de banco. O endpoint `/api/health` continua
+liveness leve e não ganha consultas extras de banco.
+
+Falha neste gate **antes** de `vercel promote` mantém o alias canônico anterior.
+O mesmo verificador roda novamente no origin canônico após o promote. Se essa
+segunda verificação falhar, o workflow registra no summary a ação de recuperação
+e aponta para o rollback do release runbook; não tenta apagar banco ou mídia.
+
 ## Verificação canônica
 
 Após promote:
@@ -260,7 +293,10 @@ Após promote:
 - `health.commit=<SHA esperado>`;
 - `version.commit=<SHA esperado>`;
 - `version.release=<release esperado>`;
-- raiz responde.
+- o smoke semântico repete diretório, redirect do arquivo, estado vazio/erro e,
+  quando houver sessão publicada, um detalhe público real;
+- falha semântica pós-promoção exige recovery explícito no summary e rollback
+  conforme runbook.
 
 ## Receipt
 

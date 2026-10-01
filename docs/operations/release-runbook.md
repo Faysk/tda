@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release
-> Última revisão: 2026-09-28
+> Última revisão: 2026-10-01
 > Fonte de verdade: CI/CD, environments e providers atuais
 
 Este runbook é genérico. Checklists de uma feature específica pertencem ao documento da feature ou ao histórico da release, não aqui.
@@ -64,9 +64,9 @@ Acompanhar o lifecycle completo:
 4. Media Storage pendente;
 5. build;
 6. staged deploy sem tráfego;
-7. smoke;
+7. smoke técnico + conteúdo público semântico;
 8. promote do mesmo artifact;
-9. canonical verification;
+9. canonical verification + repetição do smoke semântico;
 10. receipt.
 
 Falha antes do promote não deve mover o domínio oficial.
@@ -156,12 +156,34 @@ Não usar `supabase db push` manual para destravar Production.
 
 ## 9. Smoke de Production
 
-Depois do promote:
+O smoke técnico continua verificando identidade do artefato, mas sucesso HTTP não
+equivale a conteúdo utilizável. O gate semântico público roda no staged deployment
+**antes do promote** e novamente no origin canônico **depois do promote**.
+
+Contrato mínimo:
+
+- `/` e `/campanhas` precisam declarar `ready` ou um `empty` legítimo;
+- `dependency_unavailable` falha mesmo quando a resposta é 200;
+- `/sessoes` deve seguir redirect e terminar em `/campanhas/sessoes` no mesmo origin;
+- diretório vazio + arquivo com sessões é inconsistência e falha;
+- quando o arquivo contém sessões publicadas, ao menos um link de detalhe campaign-qualified é aberto e precisa declarar `ready`;
+- bodies não são registrados no log; somente SHA, rota, status/resultado, destino final e horário.
+
+O registry multi-campaign continua fail-closed para falhas reais. A compatibilidade
+estreita de #1225 pode servir somente a campaign histórica conhecida quando o
+erro comprova o gap das colunas first-class; nesse modo o smoke valida as páginas
+resultantes, mas não considera o registry novo ativado. Erro não classificado,
+falha do fallback, permissão ou conectividade continuam
+`dependency_unavailable` e bloqueiam o promote. A ativação do registry
+first-class mantém seu gate operacional próprio, sem transformar `/api/health`
+em probe de banco.
+
+Depois do promote, continuar verificando:
 
 - `/api/health`;
 - `/api/version`;
 - SHA/release;
-- raiz;
+- smoke semântico público;
 - rotas alteradas;
 - auth quando alterada;
 - imagens/media URLs consumidas pela superfície;
@@ -190,7 +212,16 @@ Histórico detalhado: [deployments](deployments.md).
 
 ### Aplicação
 
-Promover/rollback para deployment anterior saudável, confirmar health/version e corrigir via nova PR.
+Falha do smoke staged ocorre antes do promote e deve preservar o alias anterior.
+Se o smoke canônico falhar depois do promote, o run deve registrar explicitamente
+que recovery é necessário, com o SHA que falhou e esta ação:
+
+1. promover/rollback para o deployment anterior saudável;
+2. confirmar health/version **e** smoke semântico público no origin canônico;
+3. corrigir via nova PR e nova Production.
+
+Não mascarar a falha mudando o estado para `empty` nem removendo o gate sem
+evidência de falso positivo.
 
 ### Banco
 

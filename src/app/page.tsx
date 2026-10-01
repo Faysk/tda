@@ -107,9 +107,21 @@ export default async function Home() {
 	const latest = feed?.latest;
 	const recent = feed?.recent ?? [];
 	const latestDate = latest ? formatSessionDate(latest.date) : "";
+	const publicContentState =
+		sessions === undefined || sessions === null
+			? "dependency_unavailable"
+			: sessions.length
+				? "ready"
+				: "empty";
 
 	return (
-		<div className={styles.home} data-home-surface="cinematic" data-layout-family="cinematic" data-layout-role="expansive">
+		<div
+			className={styles.home}
+			data-home-surface="cinematic"
+			data-layout-family="cinematic"
+			data-layout-role="expansive"
+			data-public-content-state={publicContentState}
+		>
 			<section className={styles.hero} aria-labelledby="home-title">
 				{latest ? (
 					<div className={styles.heroBackdrop} aria-hidden="true">

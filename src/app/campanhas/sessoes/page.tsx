@@ -16,7 +16,13 @@ export default async function CampaignSessionsArchive() {
 	let sessions: Awaited<ReturnType<typeof listPublishedSessionArchive>> | undefined;
 	try { sessions = await listPublishedSessionArchive(); } catch { sessions = undefined; }
 	const summary = sessions?.length ? summarizeSessionArchive(sessions, { qualifyArcsByCampaign: true }) : null;
-	return <div className={styles.page} data-layout-family="editorial" data-layout-role="expansive">
+	const publicContentState =
+		sessions === undefined || sessions === null
+			? "dependency_unavailable"
+			: sessions.length
+				? "ready"
+				: "empty";
+	return <div className={styles.page} data-layout-family="editorial" data-layout-role="expansive" data-public-content-state={publicContentState}>
 		<section className={styles.hero} aria-labelledby="archive-title" data-session-archive-hero>
 			<div className={styles.backdropShade} aria-hidden="true" />
 			<div className={styles.heroInner}>
