@@ -3,7 +3,6 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
 	WORLD_ENTITY_MEDIA_MAX_BYTES,
-	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
 	type WorldEntityMediaMime,
 } from "@/features/world-explorer/world-entity-media";
 import { inspectWorldEntityImage } from "@/features/world-explorer/world-entity-media-image";
