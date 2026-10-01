@@ -20,16 +20,30 @@ import {
 function invalidateSessionPublicationPaths(
 	sessionId: string,
 	sourceSessionId: string | null,
+	campaignSlug: string,
+	campaignRouteKey: string,
 ): boolean {
 	let cachePending = false;
+	const publicCampaignRoot =
+		"/campanhas/" + encodeURIComponent(campaignRouteKey) + "/sessoes";
+	const editCampaignRoot =
+		"/edit/" + encodeURIComponent(campaignSlug) + "/sessoes";
 	const paths = [
 		"/",
+		"/campanhas",
+		"/campanhas/sessoes",
+		publicCampaignRoot,
+		sourceSessionId
+			? publicCampaignRoot + "/" + encodeURIComponent(sourceSessionId)
+			: null,
 		"/sessoes",
 		sourceSessionId
 			? "/sessoes/" + encodeURIComponent(sourceSessionId)
 			: null,
 		"/edit/sessoes",
 		"/edit/sessoes/" + encodeURIComponent(sessionId),
+		editCampaignRoot,
+		editCampaignRoot + "/" + encodeURIComponent(sessionId),
 	].filter((path): path is string => Boolean(path));
 
 	for (const path of paths) {
@@ -74,6 +88,7 @@ export async function publishSessionEditorialDraftAction(
 		// saved or published something newer in the meantime.
 		const recovered = await readCommittedSessionPublication({
 			actorProfileId: access.profileId,
+			campaignId: sessionCampaign.campaignId,
 			request,
 		});
 		if (recovered?.ok === false)
@@ -96,6 +111,8 @@ export async function publishSessionEditorialDraftAction(
 					cachePending: invalidateSessionPublicationPaths(
 						request.sessionId,
 						current.sourceSessionId,
+						sessionCampaign.technicalSlug,
+						sessionCampaign.routeKey,
 					),
 				},
 			};
@@ -174,6 +191,8 @@ export async function publishSessionEditorialDraftAction(
 				cachePending: invalidateSessionPublicationPaths(
 					request.sessionId,
 					current.sourceSessionId,
+					sessionCampaign.technicalSlug,
+					sessionCampaign.routeKey,
 				),
 			},
 		};

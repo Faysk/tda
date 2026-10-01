@@ -887,7 +887,7 @@ footer {
 .global-nav-campaign-select select {
 	width: 100%;
 	min-width: 0;
-	min-height: 44px;
+	min-height: 45px;
 	padding: 8px 34px 8px 10px;
 	border: 1px solid var(--ds-control-border);
 	border-radius: var(--ds-radius-sm);

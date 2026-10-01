@@ -6,6 +6,10 @@ import {
 	publishedDataClient,
 } from "@/integrations/supabase/server";
 import {
+	readCampaignCoverStates,
+	readPublicCampaignCovers,
+} from "./campaign-cover-repository";
+import {
 	isCampaignLifecycle,
 	isCampaignVisibility,
 	type ManageableCampaign,
@@ -19,6 +23,7 @@ const E2E_CAMPAIGNS = [
 		technicalSlug: "yuhara-main",
 		name: "Crônicas da Mesa",
 		description: "Uma campanha sintética pública usada somente no contrato E2E.",
+		coverImage: null,
 		lifecycle: "active",
 		visibility: "public",
 	},
@@ -27,6 +32,7 @@ const E2E_CAMPAIGNS = [
 		technicalSlug: "antes-que-seja-tarde",
 		name: "Antes que seja tarde — uma campanha com nome deliberadamente comprido",
 		description: null,
+		coverImage: null,
 		lifecycle: "active",
 		visibility: "public",
 	},
@@ -35,6 +41,7 @@ const E2E_CAMPAIGNS = [
 		technicalSlug: "fixture-private",
 		name: "Fixture privada",
 		description: null,
+		coverImage: null,
 		lifecycle: "active",
 		visibility: "private",
 	},
@@ -43,6 +50,7 @@ const E2E_CAMPAIGNS = [
 		technicalSlug: "fixture-archived",
 		name: "Fixture arquivada",
 		description: null,
+		coverImage: null,
 		lifecycle: "archived",
 		visibility: "public",
 	},
@@ -94,7 +102,10 @@ function stringOrNull(value: unknown): string | null {
 	return typeof value === "string" && value.length ? value : null;
 }
 
-function parsePublicCampaign(row: Record<string, unknown>): PublicCampaign | null {
+function parsePublicCampaign(
+	row: Record<string, unknown>,
+	coverImage: string | null = null,
+): PublicCampaign | null {
 	const routeKey = stringOrNull(row.public_slug);
 	const name = stringOrNull(row.name);
 	if (!routeKey || !name) return null;
@@ -102,11 +113,14 @@ function parsePublicCampaign(row: Record<string, unknown>): PublicCampaign | nul
 		routeKey,
 		name,
 		description: stringOrNull(row.description),
+		coverImage,
 	};
 }
 
 function parseManageableCampaign(
 	row: Record<string, unknown>,
+	coverImage: string | null = null,
+	hasCoverBinding = false,
 ): ManageableCampaign | null {
 	const id = stringOrNull(row.id);
 	const technicalSlug = stringOrNull(row.slug);
@@ -136,6 +150,8 @@ function parseManageableCampaign(
 		visibility,
 		archivedAt: stringOrNull(row.archived_at),
 		updatedAt,
+		coverImage,
+		hasCoverBinding,
 	};
 }
 
@@ -197,6 +213,7 @@ async function readLegacyPublicCampaign(
 			routeKey: LEGACY_CAMPAIGN_PUBLIC_SLUG,
 			name,
 			description: stringOrNull(row.description),
+			coverImage: null,
 		},
 	};
 }
@@ -243,7 +260,7 @@ async function resolvePublicCampaignRouteUncached(
 
 	const canonical = await client
 		.from("campaigns")
-		.select("slug,public_slug,name,description")
+		.select("id,slug,public_slug,name,description")
 		.eq("public_slug", routeKey)
 		.eq("lifecycle", "active")
 		.eq("visibility", "public")
@@ -268,19 +285,22 @@ async function resolvePublicCampaignRouteUncached(
 		};
 	}
 	if (canonical.data) {
-		const parsed = parsePublicCampaign(
-			canonical.data as Record<string, unknown>,
-		);
-		const technicalSlug = stringOrNull(
-			(canonical.data as Record<string, unknown>).slug,
-		);
-		return parsed && technicalSlug
-			? {
-					ok: true,
-					campaign: { ...parsed, technicalSlug },
-					canonical: true,
-				}
-			: { ok: false, reason: "dependency_unavailable" };
+		const row = canonical.data as Record<string, unknown>;
+		const campaignId = stringOrNull(row.id);
+		const technicalSlug = stringOrNull(row.slug);
+		if (!campaignId || !technicalSlug)
+			return { ok: false, reason: "dependency_unavailable" };
+		try {
+			const covers = await readPublicCampaignCovers(client, [
+				{ campaignId, campaignMediaKey: technicalSlug },
+			]);
+			const parsed = parsePublicCampaign(row, covers.get(campaignId) ?? null);
+			return parsed
+				? { ok: true, campaign: { ...parsed, technicalSlug }, canonical: true }
+				: { ok: false, reason: "dependency_unavailable" };
+		} catch {
+			return { ok: false, reason: "dependency_unavailable" };
+		}
 	}
 
 	const alias = await client
@@ -295,7 +315,7 @@ async function resolvePublicCampaignRouteUncached(
 
 	const resolved = await client
 		.from("campaigns")
-		.select("slug,public_slug,name,description")
+		.select("id,slug,public_slug,name,description")
 		.eq("id", alias.data.campaign_id)
 		.eq("lifecycle", "active")
 		.eq("visibility", "public")
@@ -304,17 +324,22 @@ async function resolvePublicCampaignRouteUncached(
 		return { ok: false, reason: "dependency_unavailable" };
 	if (!resolved.data) return { ok: false, reason: "not_found" };
 
-	const parsed = parsePublicCampaign(resolved.data as Record<string, unknown>);
-	const technicalSlug = stringOrNull(
-		(resolved.data as Record<string, unknown>).slug,
-	);
-	return parsed && technicalSlug
-		? {
-				ok: true,
-				campaign: { ...parsed, technicalSlug },
-				canonical: false,
-			}
-		: { ok: false, reason: "dependency_unavailable" };
+	const row = resolved.data as Record<string, unknown>;
+	const campaignId = stringOrNull(row.id);
+	const technicalSlug = stringOrNull(row.slug);
+	if (!campaignId || !technicalSlug)
+		return { ok: false, reason: "dependency_unavailable" };
+	try {
+		const covers = await readPublicCampaignCovers(client, [
+			{ campaignId, campaignMediaKey: technicalSlug },
+		]);
+		const parsed = parsePublicCampaign(row, covers.get(campaignId) ?? null);
+		return parsed
+			? { ok: true, campaign: { ...parsed, technicalSlug }, canonical: false }
+			: { ok: false, reason: "dependency_unavailable" };
+	} catch {
+		return { ok: false, reason: "dependency_unavailable" };
+	}
 }
 
 export const resolvePublicCampaignRoute = cache(
@@ -347,7 +372,7 @@ export async function readPublicCampaignDirectory(): Promise<CampaignDirectoryRe
 
 	const { data, error } = await client
 		.from("campaigns")
-		.select("public_slug,name,description")
+		.select("id,slug,public_slug,name,description")
 		.eq("lifecycle", "active")
 		.eq("visibility", "public")
 		.not("public_slug", "is", null)
@@ -368,15 +393,38 @@ export async function readPublicCampaignDirectory(): Promise<CampaignDirectoryRe
 							routeKey: legacy.campaign.routeKey,
 							name: legacy.campaign.name,
 							description: legacy.campaign.description,
+							coverImage: legacy.campaign.coverImage,
 						},
 					]
 				: [],
 		};
 	}
-	const campaigns = parseCampaignRows(data, parsePublicCampaign);
-	return campaigns
-		? { ok: true, campaigns }
-		: { ok: false, reason: "dependency_unavailable" };
+	if (!Array.isArray(data))
+		return { ok: false, reason: "dependency_unavailable" };
+	const rows = data as Record<string, unknown>[];
+	const targets = rows
+		.map((row) => {
+			const campaignId = stringOrNull(row.id);
+			const campaignMediaKey = stringOrNull(row.slug);
+			return campaignId && campaignMediaKey ? { campaignId, campaignMediaKey } : null;
+		})
+		.filter(
+			(target): target is { campaignId: string; campaignMediaKey: string } =>
+				target !== null,
+		);
+	if (targets.length !== rows.length)
+		return { ok: false, reason: "dependency_unavailable" };
+	try {
+		const covers = await readPublicCampaignCovers(client, targets);
+		const campaigns = rows.map((row, index) =>
+			parsePublicCampaign(row, covers.get(targets[index].campaignId) ?? null),
+		);
+		return campaigns.every((campaign): campaign is PublicCampaign => campaign !== null)
+			? { ok: true, campaigns }
+			: { ok: false, reason: "dependency_unavailable" };
+	} catch {
+		return { ok: false, reason: "dependency_unavailable" };
+	}
 }
 
 export async function readCampaignRegistry(): Promise<readonly ManageableCampaign[] | null> {
@@ -389,8 +437,35 @@ export async function readCampaignRegistry(): Promise<readonly ManageableCampaig
 		.order("name")
 		.order("slug");
 
-	if (error) return null;
-	return parseCampaignRows(data, parseManageableCampaign);
+	if (error || !Array.isArray(data)) return null;
+	const rows = data as Record<string, unknown>[];
+	const targets = rows
+		.map((row) => {
+			const campaignId = stringOrNull(row.id);
+			const campaignMediaKey = stringOrNull(row.slug);
+			return campaignId && campaignMediaKey ? { campaignId, campaignMediaKey } : null;
+		})
+		.filter(
+			(target): target is { campaignId: string; campaignMediaKey: string } =>
+				target !== null,
+		);
+	if (targets.length !== rows.length) return null;
+	try {
+		const coverStates = await readCampaignCoverStates(client, targets);
+		const campaigns = rows.map((row, index) => {
+			const state = coverStates.get(targets[index].campaignId);
+			return parseManageableCampaign(
+				row,
+				state?.publicUrl ?? null,
+				state?.hasBinding ?? false,
+			);
+		});
+		return campaigns.every((campaign): campaign is ManageableCampaign => campaign !== null)
+			? campaigns
+			: null;
+	} catch {
+		return null;
+	}
 }
 
 export type CampaignCreatePersistenceInput = Readonly<{

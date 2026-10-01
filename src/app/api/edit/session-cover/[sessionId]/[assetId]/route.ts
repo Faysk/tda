@@ -5,7 +5,6 @@ import {
 	isSessionCoverUuid,
 	sessionCoverObjectKey,
 } from "@/features/edit/sessions/session-cover-media";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { inspectWorldEntityImage } from "@/features/world-explorer/world-entity-media-image";
 import {
 	readWorldEntityMediaObject,
@@ -88,7 +87,7 @@ export async function GET(
 
 		const extension = asset.mime_type === "image/png" ? "png" : "webp";
 		const expectedKey = sessionCoverObjectKey({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: access.target.campaignTechnicalSlug,
 			sessionId,
 			sha256: asset.sha256,
 			extension,

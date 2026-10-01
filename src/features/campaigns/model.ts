@@ -8,6 +8,7 @@ export type PublicCampaign = Readonly<{
 	routeKey: string;
 	name: string;
 	description: string | null;
+	coverImage: string | null;
 }>;
 
 export type ManageableCampaign = Readonly<{
@@ -20,6 +21,8 @@ export type ManageableCampaign = Readonly<{
 	visibility: CampaignVisibility;
 	archivedAt: string | null;
 	updatedAt: string;
+	coverImage: string | null;
+	hasCoverBinding: boolean;
 }>;
 
 export type CampaignMutationFailure =

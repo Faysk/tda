@@ -1,3 +1,4 @@
+import { isCampaignMediaKey } from "@/features/media/campaign-media";
 import type { WorldVisibility } from "./model";
 
 export const WORLD_ENTITY_MEDIA_ROLE = "portrait" as const;
@@ -16,7 +17,6 @@ export const WORLD_ENTITY_MEDIA_UPLOAD_EXPIRES_SECONDS = 300;
 const UUID_PATTERN =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
-const CAMPAIGN_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,95}$/u;
 
 export type WorldEntityMediaMime = "image/png" | "image/webp";
 export type WorldEntityMediaStatus = "staged" | "verified_public" | "retired";
@@ -85,7 +85,7 @@ export function worldEntityPortraitObjectKey({
 	sha256: string;
 	extension: "png" | "webp";
 }): string | null {
-	if (!CAMPAIGN_SLUG_PATTERN.test(campaignSlug)) return null;
+	if (!isCampaignMediaKey(campaignSlug)) return null;
 	if (!isWorldEntityMediaAssetId(entityId) || !SHA256_PATTERN.test(sha256)) return null;
 	return `campaigns/${campaignSlug}/entities/${entityId.toLowerCase()}/portrait/${sha256}.${extension}`;
 }
@@ -103,7 +103,7 @@ export function worldEntityPortraitPendingObjectKey({
 	sha256: string;
 	extension: "png" | "webp";
 }): string | null {
-	if (!CAMPAIGN_SLUG_PATTERN.test(campaignSlug)) return null;
+	if (!isCampaignMediaKey(campaignSlug)) return null;
 	if (
 		!isWorldEntityMediaAssetId(entityId) ||
 		!isWorldEntityMediaAssetId(uploadId) ||
@@ -127,7 +127,7 @@ export function worldEntityPortraitPendingChunkObjectKey({
 	sha256: string;
 	part: number;
 }): string | null {
-	if (!CAMPAIGN_SLUG_PATTERN.test(campaignSlug)) return null;
+	if (!isCampaignMediaKey(campaignSlug)) return null;
 	if (
 		!isWorldEntityMediaAssetId(entityId) ||
 		!isWorldEntityMediaAssetId(uploadId) ||
@@ -170,7 +170,7 @@ export function worldEntityPublicMediaUrl(
 		!asset.publicVerifiedAt ||
 		Number.isNaN(Date.parse(asset.publicVerifiedAt)) ||
 		!SHA256_PATTERN.test(asset.sha256) ||
-		!CAMPAIGN_SLUG_PATTERN.test(options.campaignSlug)
+		!isCampaignMediaKey(options.campaignSlug)
 	) {
 		return undefined;
 	}

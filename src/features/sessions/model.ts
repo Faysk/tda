@@ -46,14 +46,25 @@ function publicImageUrl(value: unknown, campaignTechnicalSlug: string) {
 	if (typeof value !== "string" || value.length > 2000) return "";
 	try {
 		const url = new URL(value);
-		if (url.protocol !== "https:") return "";
+		if (
+			url.protocol !== "https:" ||
+			url.port ||
+			url.search ||
+			url.hash ||
+			url.username ||
+			url.password
+		) {
+			return "";
+		}
 		if (url.hostname === "media.dnd.faysk.dev") {
-			if (url.port || url.search || url.hash || url.username || url.password) return "";
 			const campaignPrefix = `/campaigns/${campaignTechnicalSlug}/sessions/`;
 			return url.pathname.startsWith(campaignPrefix) ? url.toString() : "";
 		}
+		if (campaignTechnicalSlug !== LEGACY_CAMPAIGN_TECHNICAL_SLUG) return "";
 		return publicImageSources.some(
-			(source) => url.hostname === source.hostname && url.pathname.startsWith(source.pathname),
+			(source) =>
+				url.hostname === source.hostname &&
+				url.pathname.startsWith(source.pathname),
 		)
 			? url.toString()
 			: "";
