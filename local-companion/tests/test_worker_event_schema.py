@@ -83,6 +83,62 @@ def test_activity_counts_are_bounded_and_terminal_zero_is_valid():
     assert invalid.drift_reason == "unexpected_or_invalid_field"
 
 
+
+def test_qwen_empty_window_signal_events_keep_only_bounded_numeric_evidence():
+    base = {
+        "stage": "transcription",
+        "track": 2,
+        "total_tracks": 4,
+        "window": 1,
+        "completed_window_count": 1,
+        "start_seconds": 0.0,
+        "end_seconds": 240.0,
+        "sample_count": 3_840_000,
+        "peak_dbfs": -32.5,
+        "rms_dbfs": -44.0,
+        "silence_peak_threshold_dbfs": -84.0,
+        "silence_rms_threshold_dbfs": -90.0,
+        "speaker": "Private Name",
+        "text": "private transcript",
+        "path": "C:/private/audio.flac",
+    }
+
+    rejected = sanitize_worker_event(
+        {"code": "QWEN_WINDOW_EMPTY_ASR_REJECTED", **base}
+    )
+    assert rejected.code == "QWEN_WINDOW_EMPTY_ASR_REJECTED"
+    assert rejected.level == "warning"
+    assert rejected.data["sample_count"] == 3_840_000
+    assert rejected.data["peak_dbfs"] == -32.5
+    assert rejected.data["rms_dbfs"] == -44.0
+    assert rejected.data["silence_peak_threshold_dbfs"] == -84.0
+    assert rejected.data["silence_rms_threshold_dbfs"] == -90.0
+    assert "speaker" not in rejected.data
+    assert "text" not in rejected.data
+    assert "path" not in rejected.data
+    assert rejected.drift_reason == "unexpected_or_invalid_field"
+
+    confirmed = sanitize_worker_event(
+        {
+            "code": "QWEN_WINDOW_SILENCE_CONFIRMED",
+            **{**base, "peak_dbfs": -120.0, "rms_dbfs": -120.0},
+        }
+    )
+    assert confirmed.code == "QWEN_WINDOW_SILENCE_CONFIRMED"
+    assert confirmed.level == "info"
+    assert confirmed.data["peak_dbfs"] == -120.0
+
+    malformed = sanitize_worker_event(
+        {
+            "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED",
+            **{**base, "rms_dbfs": float("nan")},
+        }
+    )
+    assert malformed.code == "WORKER_EVENT_SCHEMA_INVALID"
+    assert malformed.data["reason"] == "invalid_required_field"
+
+
+
 def test_unknown_or_malformed_event_code_never_persists_raw_code_or_payload():
     for payload in (
         {"code": "PRIVATE_WORDS_FROM_TRANSCRIPT", "detail": "segredo"},
