@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { LORE_EDITORIAL_REGISTRY } from "./registry";
 import {
@@ -75,21 +75,11 @@ describe("lore route, registry and catalogue contract", () => {
 		}
 	});
 
-	it("groups the public catalogue only after more than one public campaign can be represented", () => {
-		const pageSource = readdirSync(
-			new URL("../../app/lore/", import.meta.url),
-			{ withFileTypes: true },
+	it("groups the catalogue only after more than one public campaign is represented", () => {
+		const source = readFileSync(
+			new URL("../../app/lore/page.tsx", import.meta.url),
+			"utf8",
 		);
-		expect(pageSource.some((entry) => entry.name === "page.tsx")).toBe(true);
-
-		const source = new TextDecoder().decode(
-			new Uint8Array(
-				// This import-free source check protects the server component threshold
-				// without requiring a live Supabase connection in Vitest.
-				// readFileSync is intentionally loaded lazily to keep the route scan above simple.
-				[],
-			),
-		);
-		expect(source).toBe("");
+		expect(source).toContain("const grouped = publicCampaigns.length > 1;");
 	});
 });
