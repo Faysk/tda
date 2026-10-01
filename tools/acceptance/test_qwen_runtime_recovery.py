@@ -201,6 +201,32 @@ class QwenRuntimeRecoveryAcceptanceTests(unittest.TestCase):
                 expected_stable=None,
             )
 
+    def test_unknown_installed_version_accepts_only_explicit_runtime_blocker(self):
+        profiles = module._catalog_profiles(
+            capabilities(ready=False, runtime_version="")
+        )
+        for profile in profiles.values():
+            profile["runtime_version"] = None
+            profile["reason"] = "QWEN_RUNTIME_REQUIRED"
+
+        module._require_initial_block(
+            profiles,
+            maintenance(installed_version=None, installed_status="unknown"),
+            "1.0.12",
+        )
+
+        for profile in profiles.values():
+            profile["reason"] = "QWEN_PHYSICAL_ACCEPTANCE_REQUIRED"
+        with self.assertRaisesRegex(
+            module.RecoveryAcceptanceError,
+            "QWEN_RECOVERY_INITIAL_BLOCK_NOT_REPRODUCED",
+        ):
+            module._require_initial_block(
+                profiles,
+                maintenance(installed_version=None, installed_status="unknown"),
+                "1.0.12",
+            )
+
     def test_initial_ready_qwen_cannot_fake_recovery_evidence(self):
         profiles = module._catalog_profiles(
             capabilities(ready=True, runtime_version="1.0.12")
