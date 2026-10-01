@@ -16,17 +16,18 @@ function campaignQuery(href: string, campaignSlug: string): string {
 	return `${href}?campanha=${encodeURIComponent(campaignSlug)}`;
 }
 
+function campaignEditSessionsHref(campaignSlug: string): string {
+	return `/edit/${encodeURIComponent(campaignSlug)}/sessoes`;
+}
+
 /**
- * Compatibility priority for the historical one-campaign entrypoint.
- * These links carry the campaign explicitly even though the legacy pages still
- * resolve the same historical scope until their dedicated multi-campaign slices land.
+ * Compatibility priority for the historical /edit entrypoint.
+ * Canonical campaign-aware destinations are preferred whenever the owning slice
+ * already exists; only still-global tools keep an explicit compatibility query.
  */
 export const EDIT_ENTRY_PRIORITY: readonly EditEntryDestination[] = [
 	{
-		href: campaignQuery(
-			"/edit/sessoes",
-			LEGACY_CAMPAIGN_TECHNICAL_SLUG,
-		),
+		href: campaignEditSessionsHref(LEGACY_CAMPAIGN_TECHNICAL_SLUG),
 		capability: EDIT_CAPABILITIES.transcriptRead,
 	},
 	{
@@ -56,12 +57,9 @@ export const EDIT_ENTRY_PRIORITY: readonly EditEntryDestination[] = [
 function destinationsForCampaign(
 	campaignSlug: string,
 ): readonly EditEntryDestination[] {
-	if (campaignSlug === LEGACY_CAMPAIGN_TECHNICAL_SLUG)
-		return EDIT_ENTRY_PRIORITY;
-
-	return [
+	const shared: EditEntryDestination[] = [
 		{
-			href: campaignQuery("/transcricoes", campaignSlug),
+			href: campaignEditSessionsHref(campaignSlug),
 			capability: EDIT_CAPABILITIES.transcriptRead,
 		},
 		{
@@ -72,6 +70,21 @@ function destinationsForCampaign(
 			href: `/edit/${encodeURIComponent(campaignSlug)}/permissions`,
 			capability: EDIT_CAPABILITIES.permissionsManage,
 		},
+	];
+	if (campaignSlug !== LEGACY_CAMPAIGN_TECHNICAL_SLUG) return shared;
+
+	return [
+		shared[0]!,
+		shared[1]!,
+		{
+			href: campaignQuery("/mundo", campaignSlug),
+			capability: EDIT_CAPABILITIES.worldLayoutEdit,
+		},
+		{
+			href: campaignQuery("/edit/revisao", campaignSlug),
+			capability: EDIT_CAPABILITIES.reviewRead,
+		},
+		shared[2]!,
 	];
 }
 
