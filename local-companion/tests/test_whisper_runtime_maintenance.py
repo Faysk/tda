@@ -41,6 +41,13 @@ def _install(path: Path, runtime_root: Path, version: str, payload: bytes) -> Pa
 def test_explicit_rollback_reactivates_verified_preserved_runtime(tmp_path: Path):
     runtime_root = tmp_path / "Runtime"
     cache_root = tmp_path / "Cache"
+    data_sentinel = tmp_path / "Data" / "runs" / "keep.json"
+    model_sentinel = tmp_path / "Models" / "keep.bin"
+    data_sentinel.parent.mkdir(parents=True)
+    model_sentinel.parent.mkdir(parents=True)
+    data_sentinel.write_text("run", encoding="utf-8")
+    model_sentinel.write_bytes(b"model")
+
     _install(tmp_path / "old.zip", runtime_root, "1.1.5", b"old-worker")
     _install(tmp_path / "new.zip", runtime_root, "1.1.8", b"new-worker")
 
@@ -63,6 +70,8 @@ def test_explicit_rollback_reactivates_verified_preserved_runtime(tmp_path: Path
     )
     assert selector["version"] == "1.1.5"
     assert (runtime_root / "whisper" / "1.1.8" / "TDAWhisperWorker.exe").read_bytes() == b"new-worker"
+    assert data_sentinel.read_text(encoding="utf-8") == "run"
+    assert model_sentinel.read_bytes() == b"model"
 
 
 def test_rollback_never_accepts_same_newer_or_incompatible_target(tmp_path: Path):
@@ -104,7 +113,7 @@ def test_rollback_never_accepts_same_newer_or_incompatible_target(tmp_path: Path
     assert inspect_whisper_runtime(runtime_root, verify_worker=True)["version"] == "1.1.8"
 
 
-def test_corrupt_preserved_target_does_not_replace_current_when_exact_download_fails(
+def test_corrupt_preserved_target_fails_closed_without_download_or_switch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -113,15 +122,18 @@ def test_corrupt_preserved_target_does_not_replace_current_when_exact_download_f
     _install(tmp_path / "new.zip", runtime_root, "1.1.8", b"new-worker")
     (runtime_root / "whisper" / "1.1.5" / "TDAWhisperWorker.exe").write_bytes(b"tampered")
 
-    def unavailable(*_args, **_kwargs):
-        raise NetworkError("OFFLINE")
+    def unexpected_download(*_args, **_kwargs):
+        raise AssertionError("corrupt preserved target must not trigger implicit repair/download")
 
     monkeypatch.setattr(
         "tda_companion.whisper_runtime_maintenance.fetch_whisper_runtime_manifest",
-        unavailable,
+        unexpected_download,
     )
 
-    with pytest.raises(NetworkError, match="OFFLINE"):
+    with pytest.raises(
+        WhisperRuntimeMaintenanceError,
+        match="WHISPER_RUNTIME_ROLLBACK_TARGET_INVALID",
+    ):
         rollback_whisper_runtime(
             runtime_root,
             tmp_path / "Cache",
