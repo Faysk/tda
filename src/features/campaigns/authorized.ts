@@ -143,3 +143,27 @@ export async function readAuthorizedCampaignsForCapability(
 ): Promise<AuthorizedCampaignsResult> {
 	return readAuthorizedCampaigns(context, [capability]);
 }
+
+
+export type AuthorizedCampaignResolution =
+	| Readonly<{ ok: true; campaign: AuthorizedCampaignOption }>
+	| Readonly<{
+			ok: false;
+			reason: "profile_unresolved" | "forbidden" | "dependency_unavailable";
+	  }>;
+
+export async function resolveAuthorizedCampaign(
+	context: EditAccessContext,
+	capability: EditCapability,
+	technicalSlug: string,
+): Promise<AuthorizedCampaignResolution> {
+	if (!SAFE_TECHNICAL_SLUG.test(technicalSlug))
+		return { ok: false, reason: "forbidden" };
+	const result = await readAuthorizedCampaignsForCapability(context, capability);
+	if (!result.ok) return result;
+	const campaign =
+		result.campaigns.find((item) => item.technicalSlug === technicalSlug) ?? null;
+	return campaign
+		? { ok: true, campaign }
+		: { ok: false, reason: "forbidden" };
+}
