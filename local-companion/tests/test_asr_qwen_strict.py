@@ -355,6 +355,106 @@ def test_strict_qwen_accepts_silent_window_without_alignment(tmp_path: Path):
     assert completed["completed_window_count"] == 1
 
 
+def test_strict_qwen_rejects_empty_transcript_when_window_has_signal(tmp_path: Path):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "   ", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            raise AssertionError("empty output with signal must fail before alignment")
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_WITH_SIGNAL"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: Aligner(),
+            window_reader=lambda _path: iter(
+                [AudioWindow(index=1, start=0.0, end=2.0, audio="signal")]
+            ),
+            energy_reader=lambda *_args: -33.0,
+            report=reports.append,
+        )
+
+    diagnostic = next(
+        item
+        for item in reports
+        if item.get("code") == "QWEN_ASR_EMPTY_WITH_SIGNAL"
+    )
+    assert diagnostic["track"] == 1
+    assert diagnostic["window"] == 1
+    assert diagnostic["window_rms_dbfs"] == -33.0
+    assert not any(
+        item.get("code") == "QWEN_ASR_EMPTY_SILENCE_ACCEPTED"
+        for item in reports
+    )
+
+
+def test_strict_qwen_accepts_legacy_empty_error_only_at_digital_floor(tmp_path: Path):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    align_calls = 0
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            raise QwenRuntimeError("QWEN_ASR_EMPTY_TRANSCRIPT")
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, _text: str, _language: str):
+            nonlocal align_calls
+            align_calls += 1
+            raise AssertionError("accepted silent empty windows must skip alignment")
+
+        def close(self):
+            pass
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=2.0, audio="silence")]
+        ),
+        energy_reader=lambda *_args: -120.0,
+        report=reports.append,
+    )
+
+    assert align_calls == 0
+    assert document.tracks[0].segments == ()
+    accepted = next(
+        item
+        for item in reports
+        if item.get("code") == "QWEN_ASR_EMPTY_SILENCE_ACCEPTED"
+    )
+    assert accepted["window_rms_dbfs"] == -120.0
+
+
 def test_strict_qwen_benchmark_sample_uses_supplied_window_reader(tmp_path: Path):
     package, root = _package(tmp_path)
 
