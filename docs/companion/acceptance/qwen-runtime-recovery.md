@@ -14,7 +14,7 @@ Ele **não** mede qualidade ASR e **não** substitui o aceite físico completo d
 
 1. Production Web está publicada;
 2. Companion instalado é a versão esperada;
-3. Qwen Fast e Qwen Quality começam bloqueados por runtime abaixo do mínimo;
+3. Qwen Fast e Qwen Quality começam bloqueados por incompatibilidade de runtime/alignment;
 4. o Agent confirma Stable oficial compatível;
 5. uma única atualização explícita é iniciada pelo Companion;
 6. o runtime ativo passa a atender ao mínimo;
@@ -43,13 +43,13 @@ O update só ocorre quando o operador fornece explicitamente:
 
 - Windows real com TDA Companion **0.3.17** instalado;
 - Agent local ativo;
-- Production Web acessível;
-- Qwen Runtime instalado abaixo de `1.0.12` ou estado equivalente realmente incompatível;
+- Production Web acessível e identificável **antes de qualquer mutação local**;
+- Qwen Runtime realmente incompatível: versão abaixo de `1.0.12`, versão não identificável ou instalação verificavelmente reparável;
 - Stable oficial `1.0.12` disponível;
 - nenhum job/preparation ativo;
 - gates físicos locais necessários para Qwen já existentes; caso contrário o harness deve falhar em `QWEN_RECOVERY_FINAL_QWEN_NOT_READY` em vez de declarar sucesso falso.
 
-Não fazer downgrade artificial somente para fabricar evidência se o ambiente já foi corrigido por outro caminho. Nesse caso, a reprodução inicial da #1210 deixou de existir e deve ser documentada como tal.
+Não fazer downgrade artificial somente para fabricar evidência se o ambiente já foi corrigido por outro caminho. O harness não exige que a máquina esteja especificamente em `1.0.11`: versão desconhecida e repair da mesma `1.0.12` só são aceitos quando o blocker reportado pertence à família de runtime da #1210 e o Companion confirma uma operação oficial compatível. Se o ambiente já estiver pronto, a reprodução inicial deixou de existir e deve ser documentada como tal.
 
 ## Execução
 
