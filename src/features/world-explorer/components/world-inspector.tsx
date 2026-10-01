@@ -57,12 +57,14 @@ export function WorldInspectorContent({
 	selected,
 	projection,
 	focus,
+	worldHref,
 	onSelect,
 	editing,
 }: {
 	selected: WorldNodeDTO;
 	projection: WorldGraphProjection;
 	focus?: WorldNodeDTO;
+	worldHref: string;
 	onSelect: (id: string) => void;
 	editing: boolean;
 }) {
@@ -276,11 +278,11 @@ export function WorldInspectorContent({
 						</PublicLink>
 					) : null}
 					{selected.slug && selected.id !== projection.focusId ? (
-						<PublicLink className={styles.focusAction} href={`/mundo?foco=${encodeURIComponent(selected.slug)}`}>
+						<PublicLink className={styles.focusAction} href={`${worldHref}?foco=${encodeURIComponent(selected.slug)}`}>
 							Explorar conexões de {selected.label}
 						</PublicLink>
 					) : projection.mode === "focus" ? (
-						<PublicLink className={styles.focusAction} href="/mundo">
+						<PublicLink className={styles.focusAction} href={worldHref}>
 							Voltar à visão geral
 						</PublicLink>
 					) : null}
