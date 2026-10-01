@@ -340,3 +340,53 @@ test("campaign archive aliases, direct links and history preserve canonical scop
 		page.locator('[data-session-archive-scope="campaign"]'),
 	).toHaveAttribute("data-campaign-route", "cronicas-da-mesa");
 });
+
+
+test("aggregate controls preserve campaign-qualified identity and scoped controls never leak sibling content", async ({
+	page,
+}) => {
+	await page.goto("/campanhas/sessoes");
+
+	const collisions = page.locator('[data-session-key$=":shared-session"]');
+	await expect(collisions).toHaveCount(2);
+	await expect(
+		page.locator(
+			'[data-session-key="cronicas-da-mesa:shared-session"][data-campaign-route="cronicas-da-mesa"]',
+		),
+	).toBeVisible();
+	await expect(
+		page.locator(
+			'[data-session-key="antes-que-seja-tarde:shared-session"][data-campaign-route="antes-que-seja-tarde"]',
+		),
+	).toBeVisible();
+
+	await page.getByLabel("Filtrar por arco").selectOption("Contrato visual E2E");
+	await expect(page.locator('[data-session-card="grid"]')).toHaveCount(4);
+
+	await page
+		.getByLabel("Filtrar por campanha")
+		.selectOption("antes-que-seja-tarde");
+	await expect(page.locator('[data-session-card="grid"]')).toHaveCount(1);
+	await expect(page.locator('[data-session-card="grid"]').first()).toHaveAttribute(
+		"data-campaign-route",
+		"antes-que-seja-tarde",
+	);
+
+	await page.getByLabel("Ordenar por").selectOption("title");
+	await expect(page.locator('[data-session-card="grid"]')).toHaveCount(1);
+
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes");
+	await page.getByLabel("Buscar sessões").fill("campanha B");
+	await expect(page.locator("[data-session-card]")).toHaveCount(0);
+
+	await page.getByRole("button", { name: "Limpar filtros" }).click();
+	await page.getByLabel("Ordenar por").selectOption("oldest");
+	const campaignRoutes = await page
+		.locator('[data-session-card="grid"]')
+		.evaluateAll((nodes) =>
+			Array.from(
+				new Set(nodes.map((node) => node.getAttribute("data-campaign-route"))),
+			),
+		);
+	expect(campaignRoutes).toEqual(["cronicas-da-mesa"]);
+});
