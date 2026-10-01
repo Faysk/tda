@@ -8,6 +8,7 @@ export type PublicCampaign = Readonly<{
 	routeKey: string;
 	name: string;
 	description: string | null;
+	coverImage: string | null;
 }>;
 
 export type ManageableCampaign = Readonly<{
