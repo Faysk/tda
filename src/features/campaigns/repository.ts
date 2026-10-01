@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { cache } from "react";
 import {
 	editDataClient,
 	publishedDataClient,
@@ -11,22 +12,70 @@ import {
 	type PublicCampaign,
 } from "./model";
 
-const E2E_PUBLIC_CAMPAIGNS = [
+const E2E_CAMPAIGNS = [
 	{
 		routeKey: "cronicas-da-mesa",
 		technicalSlug: "yuhara-main",
 		name: "Crônicas da Mesa",
 		description: "Uma campanha sintética pública usada somente no contrato E2E.",
+		lifecycle: "active",
+		visibility: "public",
 	},
 	{
 		routeKey: "antes-que-seja-tarde",
 		technicalSlug: "antes-que-seja-tarde",
 		name: "Antes que seja tarde — uma campanha com nome deliberadamente comprido",
 		description: null,
+		lifecycle: "active",
+		visibility: "public",
+	},
+	{
+		routeKey: "fixture-private",
+		technicalSlug: "fixture-private",
+		name: "Fixture privada",
+		description: null,
+		lifecycle: "active",
+		visibility: "private",
+	},
+	{
+		routeKey: "fixture-archived",
+		technicalSlug: "fixture-archived",
+		name: "Fixture arquivada",
+		description: null,
+		lifecycle: "archived",
+		visibility: "public",
 	},
 ] as const;
 
-function campaignFixtureEnabled() {
+const E2E_CAMPAIGN_ALIASES = [
+	{
+		routeKey: "cronicas-da-mesa-antiga",
+		campaignRouteKey: "cronicas-da-mesa",
+		retired: false,
+	},
+	{
+		routeKey: "cronicas-da-mesa-intermediaria",
+		campaignRouteKey: "cronicas-da-mesa",
+		retired: false,
+	},
+	{
+		routeKey: "cronicas-da-mesa-retirada",
+		campaignRouteKey: "cronicas-da-mesa",
+		retired: true,
+	},
+	{
+		routeKey: "fixture-private-antiga",
+		campaignRouteKey: "fixture-private",
+		retired: false,
+	},
+	{
+		routeKey: "fixture-archived-antiga",
+		campaignRouteKey: "fixture-archived",
+		retired: false,
+	},
+] as const;
+
+function campaignFixtureEnabled()function campaignFixtureEnabled() {
 	return process.env.TDA_E2E_FIXTURES === "true";
 }
 
@@ -108,16 +157,40 @@ export type PublicCampaignResolution =
 	  }>
 	| Readonly<{ ok: false; reason: "not_found" | "dependency_unavailable" }>;
 
-export async function resolvePublicCampaignRoute(
+async function resolvePublicCampaignRouteUncached(
 	routeKey: string,
 ): Promise<PublicCampaignResolution> {
 	if (campaignFixtureEnabled()) {
-		const fixture = E2E_PUBLIC_CAMPAIGNS.find(
+		const canonical = E2E_CAMPAIGNS.find(
 			(campaign) => campaign.routeKey === routeKey,
 		);
-		return fixture
-			? { ok: true, campaign: fixture, canonical: true }
-			: { ok: false, reason: "not_found" };
+		if (canonical) {
+			if (
+				canonical.lifecycle !== "active" ||
+				canonical.visibility !== "public"
+			)
+				return { ok: false, reason: "not_found" };
+			const { lifecycle: _lifecycle, visibility: _visibility, ...campaign } =
+				canonical;
+			return { ok: true, campaign, canonical: true };
+		}
+
+		const alias = E2E_CAMPAIGN_ALIASES.find(
+			(candidate) => candidate.routeKey === routeKey && !candidate.retired,
+		);
+		if (!alias) return { ok: false, reason: "not_found" };
+		const resolved = E2E_CAMPAIGNS.find(
+			(campaign) => campaign.routeKey === alias.campaignRouteKey,
+		);
+		if (!resolved) return { ok: false, reason: "dependency_unavailable" };
+		if (
+			resolved.lifecycle !== "active" ||
+			resolved.visibility !== "public"
+		)
+			return { ok: false, reason: "not_found" };
+		const { lifecycle: _lifecycle, visibility: _visibility, ...campaign } =
+			resolved;
+		return { ok: true, campaign, canonical: false };
 	}
 	if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(routeKey))
 		return { ok: false, reason: "not_found" };
@@ -183,6 +256,10 @@ export async function resolvePublicCampaignRoute(
 		: { ok: false, reason: "dependency_unavailable" };
 }
 
+
+export const resolvePublicCampaignRoute = cache(
+	resolvePublicCampaignRouteUncached,
+);
 export type CampaignDirectoryReadResult =
 	| Readonly<{ ok: true; campaigns: readonly PublicCampaign[] }>
 	| Readonly<{ ok: false; reason: "dependency_unavailable" }>;
@@ -191,8 +268,16 @@ export async function readPublicCampaignDirectory(): Promise<CampaignDirectoryRe
 	if (campaignFixtureEnabled()) {
 		return {
 			ok: true,
-			campaigns: E2E_PUBLIC_CAMPAIGNS.map(
-				({ technicalSlug: _technicalSlug, ...campaign }) => campaign,
+			campaigns: E2E_CAMPAIGNS.filter(
+				(campaign) =>
+					campaign.lifecycle === "active" && campaign.visibility === "public",
+			).map(
+				({
+					technicalSlug: _technicalSlug,
+					lifecycle: _lifecycle,
+					visibility: _visibility,
+					...campaign
+				}) => campaign,
 			),
 		};
 	}
