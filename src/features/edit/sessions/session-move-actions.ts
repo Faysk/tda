@@ -66,20 +66,34 @@ export async function moveSessionCampaignAction(
 	if (!result.ok) return result;
 
 	let cachePending = false;
-	const scopedSource =
+	const sourceLibrary =
 		"/edit/" + encodeURIComponent(input.sourceCampaignSlug) + "/sessoes";
-	const scopedDestination =
+	const destinationLibrary =
 		"/edit/" + encodeURIComponent(input.destinationCampaignSlug) + "/sessoes";
+	const publicSource =
+		"/campanhas/" +
+		encodeURIComponent(input.sourceCampaignSlug) +
+		"/sessoes/" +
+		encodeURIComponent(input.sourceSessionId);
+	const publicDestination =
+		"/campanhas/" +
+		encodeURIComponent(input.destinationCampaignSlug) +
+		"/sessoes/" +
+		encodeURIComponent(input.sourceSessionId);
+
 	for (const path of [
 		"/",
 		"/edit/sessoes",
-		scopedSource,
-		scopedDestination,
-		scopedSource + "/" + encodeURIComponent(input.sessionId),
-		scopedDestination + "/" + encodeURIComponent(input.sessionId),
+		sourceLibrary,
+		destinationLibrary,
+		sourceLibrary + "/" + encodeURIComponent(input.sourceSessionId),
+		destinationLibrary + "/" + encodeURIComponent(input.sourceSessionId),
 		"/sessoes",
+		"/sessoes/" + encodeURIComponent(input.sourceSessionId),
 		"/campanhas",
 		"/campanhas/sessoes",
+		publicSource,
+		publicDestination,
 	]) {
 		try {
 			revalidatePath(path);
