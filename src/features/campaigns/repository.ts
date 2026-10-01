@@ -5,7 +5,10 @@ import {
 	editDataClient,
 	publishedDataClient,
 } from "@/integrations/supabase/server";
-import { readPublicCampaignCovers } from "./campaign-cover-repository";
+import {
+	readCampaignCoverStates,
+	readPublicCampaignCovers,
+} from "./campaign-cover-repository";
 import {
 	isCampaignLifecycle,
 	isCampaignVisibility,
@@ -117,6 +120,7 @@ function parsePublicCampaign(
 function parseManageableCampaign(
 	row: Record<string, unknown>,
 	coverImage: string | null = null,
+	hasCoverBinding = false,
 ): ManageableCampaign | null {
 	const id = stringOrNull(row.id);
 	const technicalSlug = stringOrNull(row.slug);
@@ -147,6 +151,7 @@ function parseManageableCampaign(
 		archivedAt: stringOrNull(row.archived_at),
 		updatedAt,
 		coverImage,
+		hasCoverBinding,
 	};
 }
 
@@ -446,10 +451,15 @@ export async function readCampaignRegistry(): Promise<readonly ManageableCampaig
 		);
 	if (targets.length !== rows.length) return null;
 	try {
-		const covers = await readPublicCampaignCovers(client, targets);
-		const campaigns = rows.map((row, index) =>
-			parseManageableCampaign(row, covers.get(targets[index].campaignId) ?? null),
-		);
+		const coverStates = await readCampaignCoverStates(client, targets);
+		const campaigns = rows.map((row, index) => {
+			const state = coverStates.get(targets[index].campaignId);
+			return parseManageableCampaign(
+				row,
+				state?.publicUrl ?? null,
+				state?.hasBinding ?? false,
+			);
+		});
 		return campaigns.every((campaign): campaign is ManageableCampaign => campaign !== null)
 			? campaigns
 			: null;

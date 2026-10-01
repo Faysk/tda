@@ -177,6 +177,7 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 											campaignId={campaign.id}
 											campaignName={campaign.name}
 											coverImage={campaign.coverImage}
+											hasCoverBinding={campaign.hasCoverBinding}
 										/>
 
 										<form className={styles.form} action={updateCampaignAction}>

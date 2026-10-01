@@ -31,6 +31,11 @@ type AssetRow = Readonly<{
 	public_verified_at: unknown;
 }>;
 
+export type CampaignCoverReadState = Readonly<{
+	hasBinding: boolean;
+	publicUrl: string | null;
+}>;
+
 function text(value: unknown): string | null {
 	return typeof value === "string" && value.length ? value : null;
 }
@@ -61,11 +66,11 @@ function asCampaignCoverAsset(row: AssetRow): CampaignCoverAsset | null {
 	};
 }
 
-export async function readPublicCampaignCovers(
+export async function readCampaignCoverStates(
 	client: SupabaseClient,
 	targets: readonly CampaignCoverTarget[],
-): Promise<Map<string, string>> {
-	const byCampaign = new Map<string, string>();
+): Promise<Map<string, CampaignCoverReadState>> {
+	const byCampaign = new Map<string, CampaignCoverReadState>();
 	if (!targets.length) return byCampaign;
 
 	const targetById = new Map(
@@ -79,7 +84,15 @@ export async function readPublicCampaignCovers(
 		.in("campaign_id", ids);
 	if (bindingError)
 		throw new Error("Campaign cover binding lookup unavailable");
+
 	const bindings = (bindingData ?? []) as BindingRow[];
+	for (const binding of bindings) {
+		const campaignId = text(binding.campaign_id);
+		if (campaignId && targetById.has(campaignId)) {
+			byCampaign.set(campaignId, { hasBinding: true, publicUrl: null });
+		}
+	}
+
 	const assetIds = bindings
 		.map((binding) => text(binding.asset_id))
 		.filter((assetId): assetId is string => Boolean(assetId));
@@ -101,7 +114,7 @@ export async function readPublicCampaignCovers(
 				const id = text(row.id);
 				const campaignId = text(row.campaign_id);
 				return id && campaignId
-					? [id, { row, campaignId }] as const
+					? ([id, { row, campaignId }] as const)
 					: null;
 			})
 			.filter(
@@ -125,8 +138,22 @@ export async function readPublicCampaignCovers(
 			asset,
 			target.campaignMediaKey,
 		);
-		if (publicUrl) byCampaign.set(campaignId, publicUrl);
+		if (publicUrl) {
+			byCampaign.set(campaignId, { hasBinding: true, publicUrl });
+		}
 	}
 
 	return byCampaign;
+}
+
+export async function readPublicCampaignCovers(
+	client: SupabaseClient,
+	targets: readonly CampaignCoverTarget[],
+): Promise<Map<string, string>> {
+	const states = await readCampaignCoverStates(client, targets);
+	const publicUrls = new Map<string, string>();
+	for (const [campaignId, state] of states) {
+		if (state.publicUrl) publicUrls.set(campaignId, state.publicUrl);
+	}
+	return publicUrls;
 }

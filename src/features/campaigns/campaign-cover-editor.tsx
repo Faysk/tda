@@ -11,15 +11,17 @@ export function CampaignCoverEditor({
 	campaignId,
 	campaignName,
 	coverImage,
+	hasCoverBinding,
 }: {
 	campaignId: string;
 	campaignName: string;
 	coverImage: string | null;
+	hasCoverBinding: boolean;
 }) {
 	const router = useRouter();
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [busy, setBusy] = useState(false);
-	const [hasBinding, setHasBinding] = useState(Boolean(coverImage));
+	const [hasBinding, setHasBinding] = useState(hasCoverBinding);
 	const [message, setMessage] = useState<string | null>(null);
 
 	async function upload() {

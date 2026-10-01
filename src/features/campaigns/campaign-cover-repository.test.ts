@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { readPublicCampaignCovers } from "./campaign-cover-repository";
+import { readCampaignCoverStates } from "./campaign-cover-repository";
 
 describe("campaign cover repository", () => {
 	it("fails closed when a binding points to a missing asset", async () => {
@@ -40,12 +40,15 @@ describe("campaign cover repository", () => {
 				.mockReturnValueOnce(assetQuery),
 		};
 
-		const covers = await readPublicCampaignCovers(
+		const states = await readCampaignCoverStates(
 			client as never,
 			[{ campaignId, campaignMediaKey: "stable-campaign" }],
 		);
 
-		expect(covers.size).toBe(0);
+		expect(states.get(campaignId)).toEqual({
+			hasBinding: true,
+			publicUrl: null,
+		});
 		expect(client.from).toHaveBeenNthCalledWith(1, "campaign_media_bindings");
 		expect(client.from).toHaveBeenNthCalledWith(2, "media_assets");
 	});
