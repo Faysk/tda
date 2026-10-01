@@ -19,6 +19,13 @@ from tda_companion.worker_event_schema import sanitize_worker_event
 from tda_companion.qwen_acceptance import QwenPlan
 
 
+class _SignalAudio(str):
+    """Symbolic fixture label that still behaves like signal-bearing PCM."""
+
+    def __iter__(self):
+        return iter((0.1, -0.1, 0.05, -0.05))
+
+
 def _package(tmp_path: Path, *, two_tracks: bool = True) -> tuple[CraigPackage, Path]:
     package_root = tmp_path / "Data" / "staging" / "qwen-fixture"
     tracks_root = package_root / "tracks"
@@ -67,7 +74,7 @@ def _plan(_profile_id: str) -> QwenPlan:
 
 def _window_reader(path: Path):
     marker = 1 if path.name.startswith("1-") else 2
-    yield AudioWindow(index=1, start=0.0, end=2.0, audio=f"track-{marker}")
+    yield AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio(f"track-{marker}"))
 
 
 def _model_prepare(_models_root: Path, profile):
