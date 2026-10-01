@@ -461,8 +461,13 @@ class DesktopBridge:
                 current,
                 timeout_seconds=timeout_seconds,
             )
-            # An in-flight update already satisfies both a check and an update.
-            if current.get("mode") == "update" and current.get("state") == "completed":
+            # Reattach instead of duplicating an operation that was already in
+            # flight when the Desktop action began. A completed update is also
+            # authoritative enough to satisfy a check.
+            if current.get("state") == "completed" and (
+                current.get("mode") == mode
+                or (mode == "check" and current.get("mode") == "update")
+            ):
                 return current
 
         endpoint = "/qwen-runtime/check" if mode == "check" else "/qwen-runtime/update"
