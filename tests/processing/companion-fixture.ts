@@ -53,6 +53,9 @@ export type CompanionFixtureOptions = {
 	reviewEnabled?: boolean;
 	additionalCapabilities?: readonly string[];
 	qwenRuntimeVersion?: string;
+	qwenRuntimeStableVersion?: string;
+	qwenRuntimeManifestUnavailable?: boolean;
+	qwenRuntimeUpdateError?: string | null;
 	advanceJobs?: boolean;
 	ambiguousJobPostOnce?: boolean;
 	jobReadDelayMs?: number;
@@ -66,6 +69,7 @@ export type CompanionFixtureState = {
 	jobPostCount: number;
 	preparationPostCount: number;
 	preparationProfiles: string[];
+	qwenRuntimeUpdatePostCount: number;
 	idempotencyKeys: string[];
 	jobStatusesServed: string[];
 	job: Record<string, unknown> | null;
@@ -203,7 +207,10 @@ export async function installCompanionFixture(
 		options.benchmarkReadyProfiles ??
 			(options.profileReady ? [...benchmarkProfileIds] : []),
 	);
-	const qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.12";
+	let qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.12";
+	const qwenRuntimeStableVersion = options.qwenRuntimeStableVersion ?? "1.0.12";
+	let qwenRuntimeUpdateStarted = false;
+	let qwenRuntimeUpdateReads = 0;
 	let preparationReads = 0;
 	let preparationStarted = false;
 	let preparationProfile = "qwen-quality";
@@ -219,6 +226,7 @@ export async function installCompanionFixture(
 		jobPostCount: 0,
 		preparationPostCount: 0,
 		preparationProfiles: [],
+		qwenRuntimeUpdatePostCount: 0,
 		idempotencyKeys: [],
 		jobStatusesServed: [],
 		job: options.initialJobs?.[0] ?? null,
@@ -307,6 +315,7 @@ export async function installCompanionFixture(
 						"transcription.craig",
 						"transcription.prepare",
 						"transcription.prepare.cancel",
+						"runtime.qwen.maintenance",
 						"job.events",
 						"system.telemetry",
 					],
@@ -343,6 +352,7 @@ export async function installCompanionFixture(
 					"transcription.craig",
 					"transcription.prepare",
 					"transcription.prepare.cancel",
+					"runtime.qwen.maintenance",
 					"job.events",
 					"system.telemetry",
 				],
@@ -375,6 +385,88 @@ export async function installCompanionFixture(
 								},
 					},
 				},
+			});
+		}
+		if (path === "/runtime/qwen" && request.method() === "POST") {
+			state.qwenRuntimeUpdatePostCount += 1;
+			if (options.qwenRuntimeManifestUnavailable) {
+				return json(
+					route,
+					{ error: { code: "QWEN_RUNTIME_MANIFEST_UNAVAILABLE", recoverable: true } },
+					503,
+				);
+			}
+			qwenRuntimeUpdateStarted = true;
+			qwenRuntimeUpdateReads = 0;
+			return json(route, {
+				schema: "tda_qwen_runtime_maintenance_v1",
+				state: "running",
+				active: true,
+				operation_id: "d".repeat(32),
+				installed_status: "ready",
+				installed_version: qwenRuntimeVersion,
+				minimum_version: "1.0.12",
+				stable_status: "available",
+				stable_version: qwenRuntimeStableVersion,
+				stable_compatible: qwenRuntimeStableVersion >= "1.0.12",
+				update_available: true,
+				error_code: null,
+			});
+		}
+		if (path === "/runtime/qwen" && request.method() === "GET") {
+			const stableCompatible = qwenRuntimeStableVersion >= "1.0.12";
+			if (qwenRuntimeUpdateStarted) {
+				qwenRuntimeUpdateReads += 1;
+				if (options.qwenRuntimeUpdateError) {
+					return json(route, {
+						schema: "tda_qwen_runtime_maintenance_v1",
+						state: "failed",
+						active: false,
+						operation_id: "d".repeat(32),
+						installed_status: "ready",
+						installed_version: qwenRuntimeVersion,
+						minimum_version: "1.0.12",
+						stable_status: "available",
+						stable_version: qwenRuntimeStableVersion,
+						stable_compatible: stableCompatible,
+						update_available: true,
+						error_code: options.qwenRuntimeUpdateError,
+					});
+				}
+				if (qwenRuntimeUpdateReads >= 1) {
+					qwenRuntimeVersion = qwenRuntimeStableVersion;
+					return json(route, {
+						schema: "tda_qwen_runtime_maintenance_v1",
+						state: "completed",
+						active: false,
+						operation_id: "d".repeat(32),
+						installed_status: "ready",
+						installed_version: qwenRuntimeVersion,
+						minimum_version: "1.0.12",
+						stable_status: "available",
+						stable_version: qwenRuntimeStableVersion,
+						stable_compatible: stableCompatible,
+						update_available: false,
+						error_code: null,
+					});
+				}
+			}
+			return json(route, {
+				schema: "tda_qwen_runtime_maintenance_v1",
+				state: "idle",
+				active: false,
+				operation_id: null,
+				installed_status: "ready",
+				installed_version: qwenRuntimeVersion,
+				minimum_version: "1.0.12",
+				stable_status: options.qwenRuntimeManifestUnavailable ? "unavailable" : "available",
+				stable_version: options.qwenRuntimeManifestUnavailable ? null : qwenRuntimeStableVersion,
+				stable_compatible: options.qwenRuntimeManifestUnavailable ? false : stableCompatible,
+				update_available:
+					!options.qwenRuntimeManifestUnavailable &&
+					stableCompatible &&
+					qwenRuntimeVersion < qwenRuntimeStableVersion,
+				error_code: null,
 			});
 		}
 		if (path === "/system") {
