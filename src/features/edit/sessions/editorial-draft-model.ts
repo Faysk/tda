@@ -24,6 +24,7 @@ export type SessionEditorialDraft = Readonly<{
 }>;
 
 export type SessionEditorialDraftInput = Readonly<{
+	campaignSlug: string;
 	sessionId: string;
 	expectedRevision: number;
 	baseTranscriptRevisionId: string;
@@ -66,6 +67,7 @@ export function validateSessionEditorialDraftInput(
 	input: SessionEditorialDraftInput,
 ): readonly string[] {
 	const issues: string[] = [];
+	if (!/^[A-Za-z0-9_-]{1,128}$/u.test(input.campaignSlug)) issues.push("campaign_slug");
 	if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0)
 		issues.push("expected_revision");
 	if (!input.baseTranscriptRevisionId) issues.push("base_transcript_revision");
