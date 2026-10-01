@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release / dados
-> Última revisão: 2026-09-27
+> Última revisão: 2026-10-01
 > Fonte de verdade: workflows versionados + ADR-0015 + ADR-0018
 
 ## Objetivo
@@ -131,6 +131,8 @@ A troca futura de provider não muda o ownership da esteira: GitHub Actions cont
 Toda PR executa o núcleo comum definido em `.github/workflows/ci.yml`.
 
 Checks pesados são condicionais ao domínio alterado. Um job irrelevante pode ser `skipped`; um domínio relevante precisa terminar em sucesso para `required-ci`.
+
+O gate `navigation-e2e` mantém também dois contratos focados de integração do shell: o estado `unavailable` de `GET /api/auth/me` deve permanecer sem projeção privada, e a descoberta de Lores deve navegar pelo launcher global vigente. Mudanças em `tests/auth.spec.ts` ou `tests/pipipi-cinematic.spec.ts` classificam Navigation, mas o workflow executa somente esses cenários de regressão em `desktop-1080p` e `mobile`; não duplica as suítes completas de autenticação ou cinematic por causa dessa classificação.
 
 Preview:
 
