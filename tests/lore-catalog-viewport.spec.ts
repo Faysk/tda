@@ -26,6 +26,24 @@ async function expectInsideViewport(
 	).toBeLessThanOrEqual(viewportHeight + 1);
 }
 
+async function expectFollowsWithoutOverlap(
+	upper: Locator,
+	lower: Locator,
+	label: string,
+) {
+	const [upperBox, lowerBox] = await Promise.all([
+		upper.boundingBox(),
+		lower.boundingBox(),
+	]);
+	expect(upperBox, `${label} upper element should have layout geometry`).not.toBeNull();
+	expect(lowerBox, `${label} lower element should have layout geometry`).not.toBeNull();
+	if (!upperBox || !lowerBox) return;
+	expect(
+		lowerBox.y,
+		`${label} elements should preserve document flow without overlap`,
+	).toBeGreaterThanOrEqual(upperBox.y + upperBox.height - 1);
+}
+
 async function expectFirstStoryArtworkDecoded(page: Page) {
 	const artwork = page.locator(`${FIRST_STORY} img`).first();
 	await expect(artwork).toBeVisible();
@@ -92,18 +110,38 @@ test("lore catalogue exposes the first story identity and action in the first vi
 	}
 });
 
-test("lore catalogue keeps 320px and the 200% zoom layout proxy scrollable without overflow", async ({
+test("lore catalogue keeps 320px and the canonical 200% zoom proxy scrollable without overlap or overflow", async ({
 	page,
 }) => {
 	for (const scenario of [
 		{ name: "320px", viewport: { width: 320, height: 800 } },
-		// Browser zoom reduces the CSS viewport. 960x540 is the 200% layout
-		// equivalent of the 1920x1080 acceptance viewport used by #1232.
-		{ name: "zoom-200", viewport: { width: 960, height: 540 } },
+		// docs/design-system/ux-hierarchy.md standardizes 683x384 as the
+		// automated geometry proxy for 200% browser zoom.
+		{ name: "zoom-200", viewport: { width: 683, height: 384 } },
 	] as const) {
 		await page.setViewportSize(scenario.viewport);
 		await page.goto("/lore");
 		await expectNoHorizontalOverflow(page);
+
+		const heroTitle = page.getByRole("heading", {
+			level: 1,
+			name: "Histórias que ganharam outro palco.",
+		});
+		const hero = heroTitle.locator("..");
+		const card = page.locator(FIRST_STORY);
+		const storyTitle = card.getByRole("heading", {
+			level: 2,
+			name: "Antes da Voz",
+		});
+		const action = card.getByText("Começar a história", {
+			exact: false,
+		});
+		await expectFollowsWithoutOverlap(hero, card, `${scenario.name} intro/card`);
+		await expectFollowsWithoutOverlap(
+			storyTitle,
+			action,
+			`${scenario.name} title/action`,
+		);
 
 		const scrollState = await page.evaluate(() => {
 			const root = document.scrollingElement;
@@ -115,9 +153,6 @@ test("lore catalogue keeps 320px and the 200% zoom layout proxy scrollable witho
 		expect(scrollState.overflowY).not.toBe("hidden");
 		expect(scrollState.canScroll, `${scenario.name} should preserve natural document scrolling`).toBe(true);
 
-		const action = page.locator(FIRST_STORY).getByText("Começar a história", {
-			exact: false,
-		});
 		await action.scrollIntoViewIfNeeded();
 		await expect(action).toBeVisible();
 		await expectNoHorizontalOverflow(page);
