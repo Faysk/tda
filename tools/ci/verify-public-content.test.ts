@@ -247,7 +247,10 @@ describe("verifyPublicContent", () => {
 		let capturedArgs: string[] = [];
 		const request = createVercelRequest({
 			deploymentUrl: "https://stage.example.test",
-			spawnSyncImpl: (_command: string, args: string[]) => {
+			spawnSyncImpl: ((
+				_command: string,
+				args: string[],
+			) => {
 				capturedArgs = args;
 				return {
 					status: 0,
@@ -256,7 +259,7 @@ describe("verifyPublicContent", () => {
 						"\n__TDA_HTTP_META__200\thttps://stage.example.test/campanhas/sessoes",
 					stderr: "",
 				};
-			},
+			}) as unknown as typeof import("node:child_process").spawnSync,
 		});
 		const response = await request("/sessoes");
 		expect(capturedArgs).toContain("--location");
