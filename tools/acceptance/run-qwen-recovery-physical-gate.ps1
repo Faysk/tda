@@ -23,6 +23,9 @@ param(
     [string]$QwenArtifactSha256 = "",
     [string]$QwenRuntimeVersion = "",
     [string]$QwenRuntimeArchiveSha256 = "",
+    [string]$RequiredCompanionVersion = "0.3.16",
+    [string]$RequiredQwenRuntimeVersion = "1.0.12",
+    [string]$ExpectedCraigSha256 = "",
     [string]$RequireGpuName = "RTX 4070",
     [ValidateRange(1024, 65535)][int]$Port = 18765,
     [string]$Repository = "Faysk/tda",
@@ -34,8 +37,6 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $PackSchema = "tda_qwen_recovery_physical_gate_v1"
-$RequiredCompanionVersion = "0.3.16"
-$RequiredQwenRuntimeVersion = "1.0.12"
 $StartedAt = [DateTimeOffset]::UtcNow
 $OriginalLocalAppData = [string]$env:LOCALAPPDATA
 $AgentProcess = $null
@@ -640,6 +641,9 @@ if ($ExactRcMode) {
 }
 if ($Repository -ne "Faysk/tda") { Fail-Harness "REPOSITORY_INVALID" }
 if ($Origin -ne "https://dnd.faysk.dev") { Fail-Harness "ORIGIN_INVALID" }
+if ($RequiredCompanionVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { Fail-Harness "REQUIRED_COMPANION_VERSION_INVALID" }
+if ($RequiredQwenRuntimeVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { Fail-Harness "REQUIRED_QWEN_RUNTIME_VERSION_INVALID" }
+if ($ExpectedCraigSha256 -and $ExpectedCraigSha256 -notmatch '^[a-f0-9]{64}$') { Fail-Harness "EXPECTED_CRAIG_SHA256_INVALID" }
 if (-not $OriginalLocalAppData) { Fail-Blocked "LOCALAPPDATA_NOT_FOUND" }
 if ($PSVersionTable.PSVersion -lt [Version]"7.4") { Fail-Blocked "POWERSHELL_7_4_REQUIRED" }
 if ($null -eq (Get-Command gh -ErrorAction SilentlyContinue)) { Fail-Blocked "GH_CLI_REQUIRED" }
@@ -666,6 +670,9 @@ try {
         $CraigResolved = (Resolve-Path -LiteralPath $CraigZip -ErrorAction Stop).Path
         if ([IO.Path]::GetExtension($CraigResolved).ToLowerInvariant() -ne ".zip") {
             Fail-Blocked "CRAIG_ZIP_REQUIRED"
+        }
+        if ($ExpectedCraigSha256 -and (Get-Sha256 $CraigResolved) -ne $ExpectedCraigSha256) {
+            Fail-Blocked "CRAIG_SHA256_MISMATCH"
         }
         $CraigInput = "provided"
     } else {
@@ -872,7 +879,12 @@ try {
     $craigTrackCount = Get-OptionalPropertyValue $craig "track_count"
     $craigReused = Get-OptionalPropertyValue $craig "reused"
     if ($SourceId -notmatch '^craig-[a-f0-9]{64}$' -or $null -eq $craigTrackCount -or [int]$craigTrackCount -lt 2) { Fail-Product "CRAIG_INGEST_INVALID" }
-    Write-Json (Join-Path $EvidenceRoot "source-summary.json") ([ordered]@{ track_count = [int]$craigTrackCount; reused = $(if ($null -eq $craigReused) { $null } else { [bool]$craigReused }) })
+    if ($ExpectedCraigSha256 -and $SourceId -ne ("craig-" + $ExpectedCraigSha256)) { Fail-Product "CRAIG_SOURCE_ID_MISMATCH" }
+    Write-Json (Join-Path $EvidenceRoot "source-summary.json") ([ordered]@{
+        track_count = [int]$craigTrackCount
+        reused = $(if ($null -eq $craigReused) { $null } else { [bool]$craigReused })
+        expected_source_sha256 = $(if ($ExpectedCraigSha256) { $ExpectedCraigSha256 } else { $null })
+    })
 
     Write-Host "Physical preparation: qwen-fast..." -ForegroundColor Cyan
     $prepFast = Wait-Preparation $SourceId "qwen-fast" 2400
@@ -1014,6 +1026,37 @@ try {
     }
     $computedTranscriptDigest = Get-Sha256 $runTranscriptPath
     if ($computedTranscriptDigest -ne $resultDigest) { Fail-Product "IMMUTABLE_RUN_TRANSCRIPT_HASH_MISMATCH" }
+
+    if ($ExpectedCraigSha256) {
+        $uvCommand = Get-Command uv -ErrorAction SilentlyContinue
+        if ($null -eq $uvCommand) { Fail-Blocked "QWEN_1236_STRUCTURE_VALIDATOR_UV_REQUIRED" }
+        $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+        $validator = Join-Path $PSScriptRoot "qwen_full_run_structure.py"
+        if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) { Fail-Harness "QWEN_1236_STRUCTURE_VALIDATOR_MISSING" }
+        $structureReceiptPath = Join-Path $EvidenceRoot "qwen-fast-full-run-structure.json"
+        & $uvCommand.Source run --project (Join-Path $repoRoot "local-companion") python $validator `
+            --transcript $runTranscriptPath `
+            --run-marker $runMarkerPath `
+            --source-id $SourceId `
+            --expected-source-sha256 $ExpectedCraigSha256 `
+            --job-id $FastJobId `
+            --attempt ([string][int]$finalAttempt) `
+            --profile-id "qwen-fast" `
+            --expected-track-count ([string][int]$craigTrackCount) `
+            --repo-root $repoRoot `
+            --output $structureReceiptPath
+        if ($LASTEXITCODE -ne 0) { Fail-Product "QWEN_1236_FULL_RUN_STRUCTURE_INVALID" }
+        $structureReceipt = Read-Json $structureReceiptPath "QWEN_1236_FULL_RUN_STRUCTURE_RECEIPT_INVALID"
+        if (
+            [string](Get-OptionalPropertyValue $structureReceipt "schema") -ne "tda_qwen_1236_full_run_structure_v1" -or
+            (Get-OptionalPropertyValue $structureReceipt "immutable_run_verified") -ne $true -or
+            [int](Get-OptionalPropertyValue $structureReceipt "track_count") -ne [int]$craigTrackCount -or
+            [string](Get-OptionalPropertyValue $structureReceipt "source_sha256") -ne $ExpectedCraigSha256
+        ) {
+            Fail-Product "QWEN_1236_FULL_RUN_STRUCTURE_RECEIPT_INVALID"
+        }
+    }
+
     Write-Json (Join-Path $EvidenceRoot "immutable-run-validation.json") ([ordered]@{
         marker = "run.json"
         run_id = $runId

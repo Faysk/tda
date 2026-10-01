@@ -120,6 +120,44 @@ Falha diferente. Registrar o código e tratar separadamente; não reclassificar 
 
 `stable_promotion_eligible` significa apenas que **o gate de #1236** deixou de bloquear o candidato. Não substitui os demais receipts/gates de release do Companion/Qwen e não autoriza promoção isoladamente.
 
+## Gate complementar — full transcription, retry e run imutável
+
+O benchmark de 300 s usa `benchmark_sample_seconds` e, por desenho, **não grava run imutável nem checkpoint normal**. Portanto ele cobre o defeito de empty-window, mas não fecha sozinho o critério de full transcription/recovery da issue.
+
+Depois que o gate de 300 s estiver compreendido, execute o gate complementar com o ZIP privado original ainda local:
+
+```powershell
+.\tools\acceptance\run-qwen-1236-full-recovery.ps1 `
+  -CraigZip "<caminho-local-do-craig-original.zip>"
+```
+
+Este wrapper é travado em:
+
+- source candidato `bb9b0a96fc30dde1837d9f9d6b5c49467362f9c1`;
+- Companion RC `0.3.18`;
+- Qwen Runtime RC `1.0.13`;
+- Craig SHA-256 `b2ac78347d88b2761e51be38a60aa266933e3b00f30e72c50626fbe599849b1e`.
+
+Ele baixa somente os manifests públicos pequenos dos RCs e confere seus SHA-256 fixados. Não instala nem promove nada. Os bytes exatos do Companion 0.3.18 e Qwen 1.0.13 já precisam estar instalados localmente; caso contrário o gate retorna `BLOCKED`.
+
+O gate reutiliza `run-qwen-recovery-physical-gate.ps1` em scratch isolado e exige:
+
+1. ingest do Craig exato com quatro tracks;
+2. preparação física de `qwen-fast` e `qwen-quality`;
+3. `qwen-quality` iniciando no worker real e aceitando cancelamento limitado;
+4. `qwen-fast` persistindo checkpoint da track 1;
+5. hard crash do Agent;
+6. recuperação do job como `PROCESS_INTERRUPTED` recuperável;
+7. retry em novo attempt sem perder o checkpoint já durável;
+8. conclusão da transcrição completa;
+9. `run.json` imutável e hash do `transcript.json` batendo com o resultado;
+10. validação do transcript persistido pelo `TranscriptDocument` canônico do produto;
+11. source SHA, perfil, quatro track numbers, hashes de track, `audio_work_seconds`, `session_duration_seconds`, contagens de segments/words e `duration_semantics=session_extent_v1` coerentes entre transcript e manifest.
+
+A validação estrutural gera `qwen-fast-full-run-structure.json` apenas com hashes, números, durações e contagens. Não copia texto, speaker, áudio, path local ou token. O pacote final de evidência também permanece sanitizado.
+
+Esse gate pode demorar porque o Fast precisa concluir o Craig real inteiro depois do retry. Isso é intencional: o critério de full transcription não deve ser inferido a partir do benchmark curto.
+
 ## Rollback
 
 O `1.0.13` é candidato imutável. Não substituir assets ou tag em caso de falha.
