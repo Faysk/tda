@@ -135,7 +135,7 @@ def test_qwen_legacy_confirmed_silence_event_matches_worker_schema_contract(tmp_
 
     class Asr:
         def transcribe(self, _audio, *, prompt: str):
-            return "", "Portuguese"
+            raise AssertionError("confirmed silence must be classified before ASR")
 
         def close(self):
             pass
