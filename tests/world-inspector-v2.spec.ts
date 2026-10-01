@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("World Inspector exposes only tabs backed by visible projection data", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await page.locator('[data-world-node="dandelion"]').click();
 
 	const overview = page.getByRole("tab", { name: "Visão geral" });
@@ -28,7 +28,7 @@ test("World Inspector exposes only tabs backed by visible projection data", asyn
 });
 
 test("World Inspector resets navigation and hides unsupported tabs when selection changes", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await page.locator('[data-world-node="dandelion"]').click();
 	await page.getByRole("tab", { name: /Momentos/ }).click();
 	await expect(page.locator('[data-inspector-tab="moments"]')).toBeVisible();
