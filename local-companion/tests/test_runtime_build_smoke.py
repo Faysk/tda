@@ -45,3 +45,42 @@ def test_installed_smoke_preserves_archive_seal(tmp_path, monkeypatch):
     monkeypatch.setattr(smoke.subprocess, "run", run)
     smoke.launch(worker, "1.2.3", "whisper", "fixture", 20)
     assert marker.read_bytes() == original
+
+
+def test_build_smoke_allows_root_overrides_but_not_runtime_identity_override(
+    tmp_path,
+    monkeypatch,
+):
+    worker = tmp_path / "worker.exe"
+    worker.write_bytes(b"synthetic worker")
+    observed = {}
+
+    def run(*args, **kwargs):
+        del args
+        observed.update(kwargs["env"])
+        identity = verify_frozen_runtime_artifact(
+            kwargs["env"],
+            executable=worker,
+            frozen=True,
+        )
+        assert identity["version"] == "1.2.3"
+        return "ok"
+
+    monkeypatch.setattr(smoke.subprocess, "run", run)
+    result = smoke.launch(
+        worker,
+        "1.2.3",
+        "whisper",
+        "fixture",
+        20,
+        {
+            "TDA_WORKER_DATA_ROOT": str(tmp_path / "Data"),
+            "TDA_ASR_RUNTIME_VERSION": "9.9.9",
+            "TDA_ASR_RUNTIME_FAMILY": "qwen",
+        },
+    )
+
+    assert result == "ok"
+    assert observed["TDA_WORKER_DATA_ROOT"] == str(tmp_path / "Data")
+    assert observed["TDA_ASR_RUNTIME_VERSION"] == "1.2.3"
+    assert observed["TDA_ASR_RUNTIME_FAMILY"] == "whisper"

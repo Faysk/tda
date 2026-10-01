@@ -804,7 +804,11 @@ class ProfilePreparationManager:
                     self.runtime_root,
                     self.cache_root,
                     is_cancelled=self._should_stop,
-                    require_benchmark_compatibility=purpose == "benchmark",
+                    **(
+                        {"require_benchmark_compatibility": True}
+                        if purpose == "benchmark"
+                        else {}
+                    ),
                 )
                 self._set(
                     "whisper_model",

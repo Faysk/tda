@@ -31,10 +31,10 @@ def launch(
     try:
         environment = {
             **os.environ,
+            **(environment_overrides or {}),
             "TDA_ASR_RUNTIME_FAMILY": family,
             "TDA_ASR_RUNTIME_VERSION": version,
             "TDA_ASR_RUNTIME_ARTIFACT": json.dumps(artifact),
-            **(environment_overrides or {}),
         }
         return subprocess.run(
             [str(worker)],
