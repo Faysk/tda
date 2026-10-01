@@ -185,7 +185,7 @@ export async function finalizeSessionCoverUploadAction(
 	)
 		return { ok: false, reason: "invalid_payload" };
 
-	const authorization = await authorizeSessionCoverTarget(sessionId);
+	const authorization = await authorizeSessionCoverTarget(campaignSlug, sessionId);
 	if (!authorization.ok) return authorization;
 
 	try {
@@ -243,7 +243,7 @@ export async function getSessionCoverAssetStatusAction(
 	if (!isSessionCoverCampaignKey(campaignSlug) || !isSessionCoverUuid(sessionId) || !isSessionCoverUuid(assetId))
 		return { ok: false, reason: "invalid_payload" };
 
-	const authorization = await authorizeSessionCoverTarget(sessionId);
+	const authorization = await authorizeSessionCoverTarget(campaignSlug, sessionId);
 	if (!authorization.ok) return authorization;
 
 	const { data, error } = await authorization.target.client
