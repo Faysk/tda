@@ -196,12 +196,14 @@ function ProfileReadiness({
 	profile: TranscriptionProfileState | null;
 	id: (typeof PROFILES)[number];
 }>) {
+	const qwenRuntimeUpgrade = needsQwenRuntimeRecovery(profile);
 	const state = profile?.ready
 		? "ready"
-		: profile?.preparationRequired
-			? "prepare"
-			: "blocked";
-	const qwenRuntimeUpgrade = needsQwenRuntimeRecovery(profile);
+		: qwenRuntimeUpgrade
+			? "blocked"
+			: profile?.preparationRequired
+				? "prepare"
+				: "blocked";
 	const detail =
 		profile?.ready
 			? "Pronto"
@@ -213,7 +215,7 @@ function ProfileReadiness({
 	return (
 		<div className={styles.profileRow} data-state={state}>
 			<strong>{LABELS[id]}</strong>
-			<span>{profile?.ready ? "✓" : profile?.preparationRequired ? "◌" : "!"} {detail}</span>
+			<span>{profile?.ready ? "✓" : qwenRuntimeUpgrade ? "!" : profile?.preparationRequired ? "◌" : "!"} {detail}</span>
 			{profile?.reason && !profile.ready ? (
 				<details className={styles.technicalDetail}>
 					<summary>Detalhe técnico</summary>
@@ -305,7 +307,12 @@ export function ProcessingBenchmark({
 	const readyCount = profileStates.filter((item) => item?.ready).length;
 	const pendingProfiles = profileStates.filter(
 		(item): item is TranscriptionProfileState =>
-			Boolean(item && !item.ready && item.preparationRequired),
+			Boolean(
+				item &&
+					!item.ready &&
+					item.preparationRequired &&
+					!needsQwenRuntimeRecovery(item),
+			),
 	);
 	const blockedProfiles = profileStates.filter(
 		(item) => item === null || (!item.ready && !item.preparationRequired),
