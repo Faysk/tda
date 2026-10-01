@@ -473,3 +473,14 @@ Segurança:
 - somente `service_role`.
 
 A migration no Git não prova rollout remoto. Confirmar migration history e grants somente via Production CD governado.
+
+## Session campaign move — candidate #1129
+
+| RPC/helper | Consumer | Security / grants | Contract |
+| --- | --- | --- | --- |
+| `preflight_session_campaign_move(uuid,uuid,text,text,uuid,text)` | server actions do Edit | `service_role` only | Revalida actor/profile, capabilities source+destination, session/source identity, lifecycle, collision e blockers. Não escreve. |
+| `move_session_campaign_atomic(uuid,uuid,text,text,uuid,text,uuid)` | server actions do Edit | `service_role` only | Row lock + preflight sob lock + update + audit + idempotency receipt em uma transação. |
+| `session_campaign_move_blockers(uuid,uuid)` | RPCs acima | `service_role` only | Inventaria dependências que ainda impedem move seguro. |
+| `session_campaign_move_dependency_count(text,text,uuid)` | helper interno | `service_role` only | Conta dependências em tabelas opcionais do domínio sem expor conteúdo. |
+
+Todos os quatro permanecem candidatos scratch-only enquanto `20261001030000_session_campaign_move.sql` não for promovido deliberadamente.
