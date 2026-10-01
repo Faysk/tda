@@ -12,6 +12,7 @@ type Phase = "idle" | "confirm" | "preparing" | "error" | "prepared";
 export type LegacyTranscriptPrepareAction = typeof prepareLegacyTranscriptAction;
 
 export function LegacyTranscriptPrepare({
+	campaignSlug,
 	sessionId,
 	sessionTitle,
 	segmentCount,
@@ -19,6 +20,7 @@ export function LegacyTranscriptPrepare({
 	editable,
 	action = prepareLegacyTranscriptAction,
 }: Readonly<{
+	campaignSlug: string;
 	sessionId: string;
 	sessionTitle: string;
 	segmentCount: number;
@@ -50,6 +52,7 @@ export function LegacyTranscriptPrepare({
 		let result: LegacyTranscriptPrepareResult;
 		try {
 			result = await action({
+				campaignSlug,
 				sessionId,
 				operationId: operationId.current,
 				expectedSnapshotSha256: snapshotSha256,
