@@ -16,9 +16,9 @@ export const SESSION_COVER_MEDIA_MAX_PIXELS = 64_000_000;
 const UUID_PATTERN =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
-const CAMPAIGN_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,95}$/u;
+const CAMPAIGN_SLUG_PATTERN = /^[A-Za-z0-9_-]{1,128}$/u;
 
-export type SessionCoverMediaMime = WorldEntityMediaMime;
+export type SessionCoverMediaMime = WorldEntityMediaMime;\n\nexport function isSessionCoverCampaignKey(value: unknown): value is string {\n\treturn typeof value === "string" && CAMPAIGN_SLUG_PATTERN.test(value);\n}
 
 export type SessionCoverUploadIntent = Readonly<{
 	sha256: string;
@@ -54,11 +54,10 @@ export function isExistingPublishedSessionCoverReference(value: unknown): boolea
 			url.hash
 		)
 			return false;
-		if (
-			url.hostname === "media.dnd.faysk.dev" &&
-			url.pathname.startsWith("/campaigns/yuhara-main/sessions/")
-		)
-			return !url.search;
+		if (url.hostname === "media.dnd.faysk.dev") {
+			const match = url.pathname.match(/^\/campaigns\/([^/]+)\/sessions\//u);
+			if (match && isSessionCoverCampaignKey(match[1])) return !url.search;
+		}
 		if (
 			url.hostname === "dnd.faysk.dev" &&
 			url.pathname.startsWith("/assets/sessions/")
@@ -112,7 +111,7 @@ export function sessionCoverObjectKey(input: {
 	extension: "png" | "webp";
 }): string | null {
 	if (
-		!CAMPAIGN_SLUG_PATTERN.test(input.campaignSlug) ||
+		!isSessionCoverCampaignKey(input.campaignSlug) ||
 		!isSessionCoverUuid(input.sessionId) ||
 		!isSessionCoverSha256(input.sha256)
 	)
@@ -137,7 +136,7 @@ export function sessionCoverPendingChunkObjectKey(input: {
 	part: number;
 }): string | null {
 	if (
-		!CAMPAIGN_SLUG_PATTERN.test(input.campaignSlug) ||
+		!isSessionCoverCampaignKey(input.campaignSlug) ||
 		!isSessionCoverUuid(input.sessionId) ||
 		!isSessionCoverUuid(input.uploadId) ||
 		!isSessionCoverSha256(input.sha256) ||
