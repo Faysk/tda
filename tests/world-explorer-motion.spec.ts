@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("World Explorer visibly animates only the relations connected to the selected node", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "no-preference" });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await expect(page.locator("[data-world-edge-motion]")).toHaveCount(0);
 
 	await page.locator('[data-world-node="astel"]').click();
@@ -47,7 +47,7 @@ test("World Explorer visibly animates only the relations connected to the select
 
 test("World Explorer stops relation motion when reduced motion is requested", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await page.locator('[data-world-node="astel"]').click();
 
 	const motionPath = page.locator("[data-world-edge-motion]").first();
@@ -61,7 +61,7 @@ test("World Explorer stops relation motion when reduced motion is requested", as
 test("World Explorer keeps the relation legend contextual inside the relation disclosure", async ({
 	page,
 }, testInfo) => {
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	const trigger = page.getByRole("button", { name: "Filtrar por relação" });
 	const legend = page.getByRole("list", { name: "Legenda de relações" });
 
