@@ -26,6 +26,21 @@ test("World entry requires an explicit campaign when more than one is public", a
 	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
 });
 
+test("World campaign selection stays keyboard reachable and overflow-free on mobile", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 320, height: 800 });
+	await page.goto("/mundo");
+
+	const firstCampaign = page.getByRole("link", { name: /Crônicas da Mesa/ });
+	await firstCampaign.focus();
+	await expect(firstCampaign).toBeFocused();
+	await expect(page.locator("html")).toHaveJSProperty(
+		"scrollWidth",
+		await page.locator("html").evaluate((element) => element.clientWidth),
+	);
+});
+
 test("a campaign without a public World stays empty instead of borrowing another campaign demo", async ({
 	page,
 }) => {
