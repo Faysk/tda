@@ -74,12 +74,14 @@ function parseDirectoryPayload(
 				? row.routeKey
 				: null;
 		if (!technicalSlug || !name || !lifecycle) return null;
+		const capabilities = capabilitiesForCampaign(context, technicalSlug);
+		if (capabilities.length === 0) continue;
 		campaigns.push({
 			technicalSlug,
 			routeKey,
 			name,
 			lifecycle,
-			capabilities: capabilitiesForCampaign(context, technicalSlug),
+			capabilities,
 		});
 	}
 	return campaigns;
