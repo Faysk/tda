@@ -126,8 +126,26 @@ def test_runtime_manifest_fetch_is_no_store_and_invalid_payload_is_typed():
 
     assert manifest.version == "1.2.3"
     assert client.timeout == 4.0
+    assert client.request.full_url.endswith("/whisper-runtime/manifest")
     assert client.request.get_header("Cache-control") == "no-store"
     assert client.request.get_header("Pragma") == "no-cache"
+
+    exact_client = FakeClient(payload)
+    exact = fetch_whisper_runtime_manifest(
+        timeout=4.0,
+        client=exact_client,  # type: ignore[arg-type]
+        version="1.2.3",
+    )
+    assert exact.version == "1.2.3"
+    assert exact_client.request.full_url.endswith(
+        "/whisper-runtime/manifest?version=1.2.3"
+    )
+
+    with pytest.raises(ValueError, match="INVALID_RUNTIME_VERSION"):
+        fetch_whisper_runtime_manifest(
+            client=FakeClient(payload),  # type: ignore[arg-type]
+            version="../1.2.3",
+        )
 
     with pytest.raises(NetworkError, match="^MANIFEST_INVALID$"):
         fetch_whisper_runtime_manifest(client=FakeClient(b"not-json"))  # type: ignore[arg-type]
