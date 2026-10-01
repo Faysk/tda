@@ -24,6 +24,7 @@ type EditorialUnavailable = Readonly<{
 }>;
 
 type LegacyPreparationProps = Readonly<{
+	campaignSlug: string;
 	sessionId: string;
 	sessionTitle: string;
 	segmentCount: number;
