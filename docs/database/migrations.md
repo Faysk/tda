@@ -1750,3 +1750,18 @@ O candidate adiciona:
 - replay idempotente por `operation_id` e conflito para operação reutilizada com identidade diferente.
 
 A operação não clona conteúdo e não migra dependências parcialmente. Um blocker resulta em zero write. Após commit, cache/delivery são efeitos pós-transação e devem ser revalidados pela aplicação; falha nessa etapa é reportada como pendência de cache, não rollback fictício do banco.
+
+
+## 2026-10-01 — activation delivery for #1122/#1129/#1138
+
+Deployable migrations prepared from the reviewed candidates, in dependency order:
+
+- `20261001053000_activate_first_class_campaign_registry.sql`;
+- `20261001053100_activate_campaign_discovery_authorization.sql`;
+- `20261001053200_activate_session_campaign_move.sql`.
+
+This delivery is authorized to complete the campaign rollout. The historical candidates remain unchanged for provenance; scratch gates now execute the deployable files. **Prepared does not mean remotely applied**: Production CD applies them only after validation and deliberate merge/release; migration history and live acceptance are recorded separately.
+
+Preflight on 2026-10-01: Production has 1 campaign, 14 sessions (13 published, 1 ready for review), 3 media assets and zero orphan media. Registry and authorization scratch gates passed with replay, same-source A/B isolation, aliases, immutable identity, revoked/sibling grants and browser function permissions. The move gate covers blockers, atomicity, idempotency and concurrent stale writes. No narrative rows are rewritten by rollout; the second campaign starts private and identity-only.
+
+Rollback: revert consumers or disable new campaign operations, preserving additive columns, aliases and operation receipts. Do not delete campaigns or media, restore the old permissive discovery function, or change stable technical keys. A real session move is reversed only through a fresh authorized move and preflight; do not edit campaign_id manually.

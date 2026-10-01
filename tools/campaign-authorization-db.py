@@ -90,10 +90,10 @@ try:
     started = True
 
     registry_candidate = (
-        repo / "supabase/candidates/20260930174200_first_class_campaign_registry.sql"
+        repo / "supabase/migrations/20261001053000_activate_first_class_campaign_registry.sql"
     )
     authorization_candidate = (
-        repo / "supabase/candidates/20260930191500_harden_campaign_discovery_authorization.sql"
+        repo / "supabase/migrations/20261001053100_activate_campaign_discovery_authorization.sql"
     )
     paths = [
         repo / "supabase/tests/campaign_registry_fixture.sql",

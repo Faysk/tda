@@ -88,7 +88,7 @@ try:
     )
     started = True
 
-    candidate = repo / "supabase/candidates/20260930174200_first_class_campaign_registry.sql"
+    candidate = repo / "supabase/migrations/20261001053000_activate_first_class_campaign_registry.sql"
     paths = [
         repo / "supabase/tests/campaign_registry_fixture.sql",
         candidate,
