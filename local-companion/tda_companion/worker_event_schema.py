@@ -76,6 +76,7 @@ _QWEN_EMPTY_WINDOW_SIGNAL = (
     "silence_peak_threshold_dbfs",
     "silence_rms_threshold_dbfs",
 )
+
 EVENT_SCHEMAS: dict[str, EventSchema] = {
     "ASR_EXECUTION_DEVICE": _schema("stage", "device", "kind", "logical_index", "physical_uuid", "pci_bus_id", required=("stage", "device", "kind")),
     "WHISPER_RUNTIME_IMPORT_STARTED": _schema(
