@@ -65,6 +65,10 @@ function destinationsForCampaign(
 			capability: EDIT_CAPABILITIES.transcriptRead,
 		},
 		{
+			href: campaignQuery("/edit/processamento", campaignSlug),
+			capability: EDIT_CAPABILITIES.localProcess,
+		},
+		{
 			href: `/edit/${encodeURIComponent(campaignSlug)}/permissions`,
 			capability: EDIT_CAPABILITIES.permissionsManage,
 		},
