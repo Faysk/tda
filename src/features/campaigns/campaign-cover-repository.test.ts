@@ -4,24 +4,17 @@ vi.mock("server-only", () => ({}));
 
 import { readPublicCampaignCovers } from "./campaign-cover-repository";
 
-type QueryResult = Readonly<{ data: unknown; error: unknown }>;
-
-function thenableQuery(result: QueryResult) {
-	const query: Record<string, unknown> = {};
-	for (const method of ["select", "eq", "in"]) {
-		query[method] = vi.fn(() => query);
-	}
-	query.then = (
-		resolve: (value: QueryResult) => unknown,
-		reject: (reason?: unknown) => unknown,
-	) => Promise.resolve(result).then(resolve, reject);
-	return query;
-}
-
 describe("campaign cover repository", () => {
 	it("fails closed when a binding points to a missing asset", async () => {
 		const campaignId = "11111111-1111-4111-8111-111111111111";
-		const bindingQuery = thenableQuery({
+		const bindingQuery = {
+			select: vi.fn(),
+			eq: vi.fn(),
+			in: vi.fn(),
+		};
+		bindingQuery.select.mockReturnValue(bindingQuery);
+		bindingQuery.eq.mockReturnValue(bindingQuery);
+		bindingQuery.in.mockResolvedValue({
 			data: [
 				{
 					campaign_id: campaignId,
@@ -30,7 +23,16 @@ describe("campaign cover repository", () => {
 			],
 			error: null,
 		});
-		const assetQuery = thenableQuery({ data: [], error: null });
+
+		const assetQuery = {
+			select: vi.fn(),
+			in: vi.fn(),
+		};
+		assetQuery.select.mockReturnValue(assetQuery);
+		assetQuery.in
+			.mockReturnValueOnce(assetQuery)
+			.mockResolvedValueOnce({ data: [], error: null });
+
 		const client = {
 			from: vi
 				.fn()
