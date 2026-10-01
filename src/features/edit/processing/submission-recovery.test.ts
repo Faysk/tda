@@ -146,6 +146,36 @@ describe("pending Craig submission recovery", () => {
 		expect(loadPendingSubmission(storage, original, 2_000_001)).not.toBeNull();
 	});
 
+	it("never reuses a pending idempotency key across campaigns with the same session/source/profile", async () => {
+		const storage = new MemoryStorage();
+		const shared = {
+			profileScope: "private-profile-id",
+			sessionId: "same-session",
+			sourceId,
+			profileId: "qwen-quality",
+		};
+		const campaignA = await identity({
+			...shared,
+			campaignId: "campaign-a",
+		});
+		const campaignB = await identity({
+			...shared,
+			campaignId: "campaign-b",
+		});
+
+		expect(campaignA.requestSignatureHash).not.toBe(
+			campaignB.requestSignatureHash,
+		);
+		savePendingSubmission(storage, campaignA, "key-campaign-a", 2_500_000);
+
+		expect(
+			loadPendingSubmission(storage, campaignB, 2_500_001),
+		).toBeNull();
+		expect(
+			loadPendingSubmission(storage, campaignA, 2_500_001)?.idempotencyKey,
+		).toBe("key-campaign-a");
+	});
+
 	it("expires unresolved intent and clears it after a confirmed response", async () => {
 		const storage = new MemoryStorage();
 		const value = await identity();
