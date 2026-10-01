@@ -16,6 +16,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 
 $Schema = "tda_whisper_craig_containment_acceptance_v1"
 $Profiles = @("whisper-turbo", "whisper-detailed")
+$ExpectedTrackCount = 4
 $MaxSpanExamples = 32
 
 function Get-Sha256([string]$Path) {
@@ -466,6 +467,12 @@ foreach ($whisperProfile in $Profiles) {
         throw "WHISPER_1235_SAMPLE_RESULT_INVALID"
     }
     Assert-ExactRuntimeLineage $sample.Result.execution_lineage $runtime "WHISPER_1235_SAMPLE_LINEAGE_INVALID"
+    if ([int]$sample.Result.track_count -ne $ExpectedTrackCount) {
+        throw "WHISPER_1235_TRACK_COUNT_REQUIRED"
+    }
+    if ([int]$sample.Result.segment_count -le 0 -or [int]$sample.Result.word_count -le 0) {
+        throw "WHISPER_1235_SPEECH_RESULT_REQUIRED"
+    }
 
     $sampleMetrics = [ordered]@{
         sample_seconds = 300.0
@@ -493,6 +500,16 @@ foreach ($whisperProfile in $Profiles) {
     }
 
     $run = Get-PublicRunMetrics -PackageRoot $packageRoot -WorkerResult $full.Result -ExpectedProfile $whisperProfile -Runtime $runtime
+    if ([int]$run.Metrics.track_count -ne $ExpectedTrackCount) {
+        throw "WHISPER_1235_TRACK_COUNT_REQUIRED"
+    }
+    if (
+        [int]$run.Metrics.segment_count -le 0 -or
+        [int]$run.Metrics.word_count -le 0 -or
+        [int]$run.Metrics.turn_count -le 0
+    ) {
+        throw "WHISPER_1235_SPEECH_RESULT_REQUIRED"
+    }
     $runChecks.Add($run)
     $profileEvidence.Add([ordered]@{
         profile_id = $whisperProfile
@@ -550,7 +567,7 @@ $receipt = [ordered]@{
     contains_source_id = $false
 }
 
-$receiptPath = Join-Path $output "whisper-1235-acceptance.json"
+$receiptPath = Join-Path $output (([string]$runtime.Candidate.candidate_tag) + ".whisper-1235.json")
 $temporary = "$receiptPath.partial"
 $receipt | ConvertTo-Json -Depth 64 -Compress |
     Set-Content -LiteralPath $temporary -Encoding UTF8 -NoNewline
