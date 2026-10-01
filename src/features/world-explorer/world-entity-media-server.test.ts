@@ -151,7 +151,7 @@ describe("governed public image promotion", () => {
 			WORLD_ENTITY_MEDIA_PUBLIC_BUCKET + "/" + objectKey,
 		);
 		expect(stored).toBeDefined();
-		expect(Buffer.from(stored?.bytes ?? [])).toEqual(bytes);
+		expect(Array.from(stored?.bytes ?? [])).toEqual(Array.from(bytes));
 	});
 
 	it("supports the production private staging bucket without exposing it directly", async () => {
