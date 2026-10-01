@@ -50,6 +50,7 @@ QWEN_SEGMENT_MAX_SECONDS = 30.0
 # quiet speech must fail closed instead of being silently discarded.
 QWEN_CONFIDENT_SILENCE_PEAK_DBFS = -84.0
 QWEN_CONFIDENT_SILENCE_RMS_DBFS = -90.0
+QWEN_SILENCE_POLICY = "pre-asr-near-digital-v1"
 
 
 class QwenRuntimeError(RuntimeError):
@@ -599,6 +600,7 @@ def transcribe_craig_package_qwen(
         "device": plan.device,
         "dtype": plan.dtype,
         "alignment": QWEN_FORCED_ALIGNER_MODEL_ID,
+        "silence_policy": QWEN_SILENCE_POLICY,
     }
     signature = build_checkpoint_signature(
         package,
@@ -641,28 +643,34 @@ def transcribe_craig_package_qwen(
                 for window in window_reader(source):
                     if is_cancelled():
                         raise QwenRuntimeError("ASR_CANCELLED")
-                    text, language = asr_session.transcribe(window.audio, prompt=prompt)
-                    if not text.strip():
-                        diagnostics = _qwen_window_signal_diagnostics(window.audio)
-                        event = {
-                            "type": "event",
-                            "stage": "transcription",
-                            "track": track.number,
-                            "total_tracks": len(package.tracks),
-                            "window": window.index,
-                            "completed_window_count": len(values) + 1,
-                            "start_seconds": window.start,
-                            "end_seconds": window.end,
-                            "sample_count": diagnostics["sample_count"],
-                            "peak_dbfs": diagnostics["peak_dbfs"],
-                            "rms_dbfs": diagnostics["rms_dbfs"],
-                            "silence_peak_threshold_dbfs": QWEN_CONFIDENT_SILENCE_PEAK_DBFS,
-                            "silence_rms_threshold_dbfs": QWEN_CONFIDENT_SILENCE_RMS_DBFS,
-                        }
-                        if not diagnostics["confidently_silent"]:
+                    diagnostics = _qwen_window_signal_diagnostics(window.audio)
+                    event = {
+                        "type": "event",
+                        "stage": "transcription",
+                        "track": track.number,
+                        "total_tracks": len(package.tracks),
+                        "window": window.index,
+                        "completed_window_count": len(values) + 1,
+                        "start_seconds": window.start,
+                        "end_seconds": window.end,
+                        "sample_count": diagnostics["sample_count"],
+                        "peak_dbfs": diagnostics["peak_dbfs"],
+                        "rms_dbfs": diagnostics["rms_dbfs"],
+                        "silence_peak_threshold_dbfs": QWEN_CONFIDENT_SILENCE_PEAK_DBFS,
+                        "silence_rms_threshold_dbfs": QWEN_CONFIDENT_SILENCE_RMS_DBFS,
+                    }
+                    if diagnostics["confidently_silent"]:
+                        text = ""
+                        language = profile.language or "Portuguese"
+                        report({**event, "code": "QWEN_WINDOW_SILENCE_CONFIRMED"})
+                    else:
+                        text, language = asr_session.transcribe(
+                            window.audio,
+                            prompt=prompt,
+                        )
+                        if not text.strip():
                             report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
                             raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
-                        report({**event, "code": "QWEN_WINDOW_SILENCE_CONFIRMED"})
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,
