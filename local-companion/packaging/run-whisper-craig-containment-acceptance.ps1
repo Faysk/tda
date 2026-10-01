@@ -411,6 +411,8 @@ $receipt = [ordered]@{
     immutable_runs_verified = $true
     contains_audio = $false
     contains_transcript = $false
+    contains_text = $false
+    contains_speaker = $false
     contains_local_paths = $false
     contains_source_id = $false
 }
@@ -1911,6 +1913,15 @@ Write-Host "Sanitized receipt: $receiptPath"
         [string]$Lineage.runtime_artifact.archive_sha256 -ne [string]$Runtime.ArchiveSha256
     ) {
         throw $Code
+    }
+    if ($RequireGpuName) {
+        if (
+            $null -eq $Lineage.gpu -or
+            -not [string]$Lineage.gpu.model -or
+            ([string]$Lineage.gpu.model).IndexOf($RequireGpuName, [StringComparison]::OrdinalIgnoreCase) -lt 0
+        ) {
+            throw $Code
+        }
     }
 }
 
