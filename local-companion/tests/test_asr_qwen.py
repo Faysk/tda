@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
+
+import pytest
 
 from tda_companion.asr_models import get_profile
 from tda_companion.asr_qwen import (
     AudioWindow,
     QwenRuntimeError,
+    _parse_qwen_asr_decoded,
+    _parse_qwen_asr_output,
+    _qwen_window_signal_diagnostics,
     transcribe_craig_package_qwen,
 )
 from tda_companion.craig import CraigPackage, CraigTrack
+from tda_companion.worker_event_schema import sanitize_worker_event
 from tda_companion.qwen_acceptance import QwenPlan
 
 
@@ -70,6 +77,107 @@ def _model_prepare(_models_root: Path, profile):
 
 def _aligner_prepare(_models_root: Path):
     return Path("qwen-aligner")
+
+
+def test_qwen_structured_output_distinguishes_empty_recognition_from_invalid_payload():
+    assert _parse_qwen_asr_output(
+        {"transcription": "   ", "language": "Portuguese"}
+    ) == ("", "Portuguese")
+    for invalid in (
+        {},
+        {"transcription": None, "language": None},
+        {"transcription": []},
+        {"transcription": "texto", "language": {}},
+    ):
+        with pytest.raises(QwenRuntimeError, match="QWEN_ASR_OUTPUT_INVALID"):
+            _parse_qwen_asr_output(invalid)
+
+
+def test_qwen_decode_envelope_rejects_missing_or_ambiguous_results():
+    assert _parse_qwen_asr_decoded(
+        [{"transcription": "", "language": "Portuguese"}]
+    ) == ("", "Portuguese")
+    for decoded in (None, {}, [], [{}, {}]):
+        with pytest.raises(QwenRuntimeError, match="QWEN_ASR_OUTPUT_INVALID"):
+            _parse_qwen_asr_decoded(decoded)
+
+
+def test_qwen_empty_window_signal_gate_is_conservative_for_quiet_and_voiced_audio():
+    silence = [0.0] * 320
+    quiet_voiced_like = [
+        1e-4 * math.sin(2.0 * math.pi * 220.0 * index / 16_000.0)
+        for index in range(320)
+    ]
+    voiced = [
+        0.1 * math.sin(2.0 * math.pi * 220.0 * index / 16_000.0)
+        for index in range(320)
+    ]
+
+    silent = _qwen_window_signal_diagnostics(silence)
+    quiet = _qwen_window_signal_diagnostics(quiet_voiced_like)
+    normal = _qwen_window_signal_diagnostics(voiced)
+
+    assert silent == {
+        "sample_count": 320,
+        "peak_dbfs": -120.0,
+        "rms_dbfs": -120.0,
+        "confidently_silent": True,
+    }
+    assert quiet["confidently_silent"] is False
+    assert quiet["peak_dbfs"] > -84.0
+    assert normal["confidently_silent"] is False
+    assert normal["peak_dbfs"] > quiet["peak_dbfs"]
+
+
+def test_qwen_legacy_confirmed_silence_event_matches_worker_schema_contract(tmp_path: Path):
+    package, package_root = _package(tmp_path, two_tracks=False)
+    reports: list[dict] = []
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, *_args):
+            raise AssertionError("confirmed silence must not be aligned")
+
+        def close(self):
+            pass
+
+    document = transcribe_craig_package_qwen(
+        package,
+        package_root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        report=reports.append,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan_value: Asr(),
+        aligner_session_factory=lambda _root, _plan_value: Aligner(),
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=2.0, audio=[0.0] * 320)]
+        ),
+        energy_reader=lambda *_args: -120.0,
+    )
+
+    silence = next(
+        item
+        for item in reports
+        if item.get("code") == "QWEN_WINDOW_SILENCE_CONFIRMED"
+    )
+    assert silence["completed_window_count"] == 1
+    sanitized = sanitize_worker_event(
+        {key: value for key, value in silence.items() if key != "type"}
+    )
+    assert sanitized.code == "QWEN_WINDOW_SILENCE_CONFIRMED"
+    assert sanitized.drift_reason is None
+    assert document.tracks[0].duration_seconds == 2.0
+    assert document.tracks[0].segments == ()
 
 
 def test_qwen_craig_runs_asr_then_releases_it_before_aligner_and_deduplicates(tmp_path: Path):

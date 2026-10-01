@@ -336,6 +336,19 @@ Promoção 1.1.6 continua obedecendo C-13: os mesmos bytes gerados e validados e
 
 Falhas conhecidas do decoder agora devem sair como código estável `WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE` (ou `WHISPER_AUDIO_DECODE_FAILED` para erro PyAV de mídia), sem caminho ou conteúdo do áudio. Problemas de timestamps/word containment depois da inferência continuam separados em #1235 e não podem ser mascarados por ajuste de VAD/timestamps nesta correção.
 
+### Qwen — janela com ASR vazio (#1236)
+
+`transcription=""` não pode ser tratado como silêncio sem evidência do sinal. O runtime Qwen `1.0.13` introduz um gate conservador somente para esse caso:
+
+- PCM inteiro da janela com `peak <= -84 dBFS` **e** `RMS <= -90 dBFS` → janela confirmada como silêncio quase digital, zero segmentos, timeline/progresso/checkpoint preservados;
+- qualquer energia acima desses limites → `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN`, sem descartar fala silenciosamente;
+- resposta estruturada inválida → `QWEN_ASR_OUTPUT_INVALID`;
+- eventos de diagnóstico podem conter apenas números/índices/duração; nunca áudio, texto reconhecido, path local ou conteúdo privado.
+
+O aceite físico deve repetir a amostra Craig real de 300 s em `qwen-fast` e `qwen-quality`. Se a janela original reproduzir o vazio, o receipt precisa registrar `peak_dbfs`, `rms_dbfs`, thresholds, track/window e o desfecho sem conteúdo. Só depois o mesmo candidato imutável pode avançar de RC para Stable.
+
+Rollback do candidato: `1.0.12` continua compatível e imutável enquanto `1.0.13` está em aceite. Falha do RC mantém a Stable anterior; reversão local usa os bytes verificados do tag `companion-qwen-runtime-v1.0.12` e restaura o ponteiro ativo sem reescrever o candidato.
+
 ## Definition of Done de uma próxima stable confiável
 
 A próxima stable só pode ser promovida se, **no mesmo MSI/hash publicado**:
@@ -403,3 +416,8 @@ Cada fase deve entrar por PR rastreável em `Preview`, com documentação e test
 - Craig: https://craig.chat/
 - Faster-Whisper: https://github.com/SYSTRAN/faster-whisper
 - Qwen3-ASR: https://github.com/QwenLM/Qwen3-ASR
+
+
+### Aceite específico #1236
+
+O rerun físico Qwen-only de 300 s e o formato do receipt sanitizado estão em [docs/companion/acceptance/qwen-empty-window-benchmark.md](../companion/acceptance/qwen-empty-window-benchmark.md).

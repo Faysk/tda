@@ -44,6 +44,13 @@ QWEN_MAX_NEW_TOKENS = 512
 QWEN_SEGMENT_GAP_SECONDS = 1.0
 QWEN_SEGMENT_MAX_SECONDS = 30.0
 
+# Empty ASR text is not evidence of silence on its own. Only windows whose
+# decoded PCM sits very close to the digital noise floor may be treated as a
+# legitimate zero-segment interval. Keep these thresholds deliberately strict:
+# quiet speech must fail closed instead of being silently discarded.
+QWEN_CONFIDENT_SILENCE_PEAK_DBFS = -84.0
+QWEN_CONFIDENT_SILENCE_RMS_DBFS = -90.0
+
 
 class QwenRuntimeError(RuntimeError):
     def __init__(self, code: str):
@@ -150,6 +157,70 @@ def _model_is_cuda_only(model: Any) -> bool:
         has_offload = any(value.startswith("cpu") or value.startswith("disk") for value in values)
         return has_cuda and not has_offload
     return str(getattr(model, "device", "")).lower().startswith("cuda")
+
+
+def _parse_qwen_asr_output(parsed: Any) -> tuple[str, str]:
+    """Validate the processor's structured ASR response without inventing text."""
+
+    if not isinstance(parsed, dict) or "transcription" not in parsed:
+        raise QwenRuntimeError("QWEN_ASR_OUTPUT_INVALID")
+    raw_text = parsed.get("transcription")
+    if not isinstance(raw_text, str):
+        raise QwenRuntimeError("QWEN_ASR_OUTPUT_INVALID")
+    raw_language = parsed.get("language")
+    if raw_language is not None and not isinstance(raw_language, str):
+        raise QwenRuntimeError("QWEN_ASR_OUTPUT_INVALID")
+    text = raw_text.strip()
+    language = (raw_language or "Portuguese").strip() or "Portuguese"
+    return text, language
+
+
+def _parse_qwen_asr_decoded(decoded: Any) -> tuple[str, str]:
+    if not isinstance(decoded, (list, tuple)) or len(decoded) != 1:
+        raise QwenRuntimeError("QWEN_ASR_OUTPUT_INVALID")
+    return _parse_qwen_asr_output(decoded[0])
+
+
+def _qwen_window_signal_diagnostics(audio: Any) -> dict[str, int | float | bool]:
+    """Return sanitized whole-window signal evidence for empty ASR decisions."""
+
+    try:
+        values = iter(audio)
+    except TypeError as exc:
+        raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID") from exc
+
+    count = 0
+    peak = 0.0
+    squared_sum = 0.0
+    try:
+        for raw in values:
+            value = float(raw)
+            if not math.isfinite(value):
+                raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID")
+            absolute = abs(value)
+            peak = max(peak, absolute)
+            squared_sum += value * value
+            count += 1
+    except QwenRuntimeError:
+        raise
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID") from exc
+    if count <= 0:
+        raise QwenRuntimeError("QWEN_AUDIO_EMPTY")
+
+    rms = math.sqrt(squared_sum / count)
+    peak_dbfs = round(20.0 * math.log10(max(peak, 1e-6)), 3)
+    rms_dbfs = round(20.0 * math.log10(max(rms, 1e-6)), 3)
+    confidently_silent = (
+        peak_dbfs <= QWEN_CONFIDENT_SILENCE_PEAK_DBFS
+        and rms_dbfs <= QWEN_CONFIDENT_SILENCE_RMS_DBFS
+    )
+    return {
+        "sample_count": count,
+        "peak_dbfs": peak_dbfs,
+        "rms_dbfs": rms_dbfs,
+        "confidently_silent": confidently_silent,
+    }
 
 
 def iter_audio_windows(
@@ -286,16 +357,10 @@ class QwenAsrSession:
             with self._torch.inference_mode():
                 output_ids = self.model.generate(**inputs, max_new_tokens=QWEN_MAX_NEW_TOKENS)
             generated_ids = output_ids[:, inputs["input_ids"].shape[1] :]
-            parsed = self.processor.decode(generated_ids, return_format="parsed")[0]
+            decoded = self.processor.decode(generated_ids, return_format="parsed")
         except Exception as exc:
             raise QwenRuntimeError(_qwen_inference_failure_code(exc)) from exc
-        if not isinstance(parsed, dict):
-            raise QwenRuntimeError("QWEN_ASR_OUTPUT_INVALID")
-        text = str(parsed.get("transcription") or "").strip()
-        if not text:
-            raise QwenRuntimeError("QWEN_ASR_EMPTY_TRANSCRIPT")
-        language = str(parsed.get("language") or "Portuguese")
-        return text, language
+        return _parse_qwen_asr_decoded(decoded)
 
     def close(self) -> None:
         self.model = None
@@ -577,6 +642,27 @@ def transcribe_craig_package_qwen(
                     if is_cancelled():
                         raise QwenRuntimeError("ASR_CANCELLED")
                     text, language = asr_session.transcribe(window.audio, prompt=prompt)
+                    if not text.strip():
+                        diagnostics = _qwen_window_signal_diagnostics(window.audio)
+                        event = {
+                            "type": "event",
+                            "stage": "transcription",
+                            "track": track.number,
+                            "total_tracks": len(package.tracks),
+                            "window": window.index,
+                            "completed_window_count": len(values) + 1,
+                            "start_seconds": window.start,
+                            "end_seconds": window.end,
+                            "sample_count": diagnostics["sample_count"],
+                            "peak_dbfs": diagnostics["peak_dbfs"],
+                            "rms_dbfs": diagnostics["rms_dbfs"],
+                            "silence_peak_threshold_dbfs": QWEN_CONFIDENT_SILENCE_PEAK_DBFS,
+                            "silence_rms_threshold_dbfs": QWEN_CONFIDENT_SILENCE_RMS_DBFS,
+                        }
+                        if not diagnostics["confidently_silent"]:
+                            report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
+                            raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+                        report({**event, "code": "QWEN_WINDOW_SILENCE_CONFIRMED"})
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,
@@ -624,6 +710,8 @@ def transcribe_craig_package_qwen(
                     window = windows.get(pending.index)
                     if window is None:
                         raise QwenRuntimeError("QWEN_WINDOW_REPLAY_MISMATCH")
+                    if not pending.text.strip():
+                        continue
                     try:
                         aligned = aligner.align(window.audio, pending.text, pending.language)
                         words = _validated_words(aligned, window)
