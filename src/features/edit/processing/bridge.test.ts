@@ -716,6 +716,7 @@ describe("loopback bridge", () => {
 		expect(started).toMatchObject({
 			state: "running",
 			profileId: "qwen-quality",
+			purpose: "transcription",
 			stage: "qwen_probe",
 		});
 		expect(observed.operationId).toBe("op123");
@@ -1233,6 +1234,7 @@ describe("preparation wire validation", () => {
 				source_id: `craig-${"a".repeat(64)}`,
 				profile_id: "qwen-quality",
 				engine: "qwen3",
+				purpose: "benchmark",
 				stage: "complete",
 				title: "Preparação concluída.",
 				detail: "Pronto.",
@@ -1243,6 +1245,7 @@ describe("preparation wire validation", () => {
 		).toMatchObject({
 			state: "completed",
 			profileId: "qwen-quality",
+			purpose: "benchmark",
 			elapsedSeconds: 42.5,
 		});
 	});
