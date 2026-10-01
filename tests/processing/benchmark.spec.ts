@@ -125,6 +125,38 @@ test("benchmark repairs one stale Qwen runtime for both profiles without requiri
 	expect(state.preparationPostCount).toBe(0);
 });
 
+test("benchmark can recover a Qwen runtime when the installed version is unknown", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkReadyProfiles: ["whisper-turbo", "whisper-detailed"],
+		qwenRuntimeUpgradeRequired: true,
+		qwenRuntimeVersion: null,
+		qwenRuntimeStableVersion: "1.0.12",
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel).toContainText("2 / 4 perfis prontos");
+	const recovery = panel.locator("[data-qwen-runtime-recovery='true']");
+	await expect(recovery).toBeVisible();
+	await expect(recovery).toContainText("Não identificado");
+	await expect(recovery).toContainText("≥ 1.0.12");
+	await expect(recovery).toContainText("1.0.12");
+	await expect.poll(() => state.qwenRuntimeCheckPostCount).toBe(1);
+
+	const update = recovery.getByRole("button", { name: "Atualizar Qwen Runtime" });
+	await expect(update).toBeEnabled();
+	await update.click();
+
+	await expect.poll(() => state.qwenRuntimeUpdatePostCount).toBe(1);
+	await expect(panel).toContainText("4 / 4 perfis prontos");
+	await expect(recovery).toHaveCount(0);
+	expect(state.uploadCount).toBe(0);
+	expect(state.preparationPostCount).toBe(0);
+});
+
 test("benchmark fails closed when the Stable Qwen runtime is below the required minimum", async ({
 	page,
 }) => {
