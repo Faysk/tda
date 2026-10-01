@@ -219,7 +219,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Multi-campaign activation gate](../operations/multi-campaign-activation-gate.md) | testing / identity-access / operations | operational gate for #1138 | 2026-10-01 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-29 |
-| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-09-28 |
+| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-10-01 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-22 |
 | [Transcript handoff — smoke editorial de Production](../operations/transcript-handoff-production-smoke.md) | transcripts / processing / operations | vigente | 2026-09-28 |
 | [World Entity Media — smoke editorial de Production](../operations/world-entity-media-production-smoke.md) | integrations/media + world | vigente | 2026-09-28 |
