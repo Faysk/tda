@@ -9,6 +9,7 @@ import type { SessionCoverUploadState } from "./session-cover-editor";
 import { SessionEditWorkspace } from "./session-edit-workspace";
 import workbenchStyles from "../workbench.module.css";
 
+const CAMPAIGN_SLUG = "yuhara-main";
 const SESSION_ID = "11111111-1111-4111-8111-111111111111";
 const TRANSCRIPT_REVISION_ID = "22222222-2222-4222-8222-222222222222";
 const TRANSCRIPT_REVISION_ID_2 = "22222222-2222-4222-8222-222222222223";
@@ -402,11 +403,14 @@ export function SessionEditorialE2EFixture({
 			<section aria-label="Workspace editorial privado" data-testid="session-editorial-workspace-frame">
 				<SessionEditWorkspace
 					transcript={{
+						campaignSlug: CAMPAIGN_SLUG,
+						sessionId: SESSION_ID,
 						downloadHref: "/e2e-fixtures/session-editorial/transcript",
 						segments,
 						sourceLabel: "Revisão privada sintética · r1",
 					}}
 					editorial={{
+						campaignSlug: CAMPAIGN_SLUG,
 						editable,
 						initial: {
 							...initialDraft,
