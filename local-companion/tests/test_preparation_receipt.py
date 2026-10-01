@@ -47,6 +47,41 @@ def test_resume_creates_new_id_and_stale_cancel_cannot_touch_it(tmp_path, monkey
     assert manager._cancel.is_set()
 
 
+def test_legacy_receipt_without_purpose_defaults_to_transcription(tmp_path):
+    store = PreparationReceipt(tmp_path)
+    path = store._path(create=True)
+    path.write_text(json.dumps(receipt()), encoding="utf-8")
+
+    restored = store.read()
+
+    assert restored is not None
+    assert restored["purpose"] == "transcription"
+
+
+def test_benchmark_restart_preserves_purpose_and_resume_lineage(tmp_path, monkeypatch):
+    manager = _manager(tmp_path)
+    manager._receipt.write(receipt(purpose="benchmark"))
+
+    restarted = _manager(tmp_path)
+    snapshot = restarted.snapshot()
+    assert snapshot["state"] == "interrupted"
+    assert snapshot["purpose"] == "benchmark"
+    persisted = restarted._receipt.read()
+    assert persisted is not None
+    assert persisted["purpose"] == "benchmark"
+
+    monkeypatch.setattr(restarted, "_run", lambda *_args: None)
+    started = restarted.start(
+        "craig-" + "b" * 64,
+        "whisper-turbo",
+        "benchmark",
+    )
+    restarted.wait(1)
+
+    assert started["purpose"] == "benchmark"
+    assert started["resumes_operation_id"] == "a" * 32
+
+
 def test_terminal_receipt_and_sanitized_allowlist(tmp_path):
     manager = _manager(tmp_path)
     manager._receipt.write(receipt(state="completed", stage="complete", path="private", token="secret", transcript="private"))
