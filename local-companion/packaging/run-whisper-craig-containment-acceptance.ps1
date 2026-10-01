@@ -238,6 +238,14 @@ function Invoke-WhisperCraigWorker {
         $exitCode = [int]$process.ExitCode
         $null = $stderrTask.GetAwaiter().GetResult()
     } finally {
+        try {
+            if (-not $process.HasExited) {
+                $process.Kill($true)
+                $process.WaitForExit(5000)
+            }
+        } catch {
+            # Best-effort teardown only; preserve the original acceptance failure.
+        }
         $process.Dispose()
     }
 
