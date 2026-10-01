@@ -70,17 +70,6 @@ export async function moveSessionCampaignAction(
 		"/edit/" + encodeURIComponent(input.sourceCampaignSlug) + "/sessoes";
 	const destinationLibrary =
 		"/edit/" + encodeURIComponent(input.destinationCampaignSlug) + "/sessoes";
-	const publicSource =
-		"/campanhas/" +
-		encodeURIComponent(input.sourceCampaignSlug) +
-		"/sessoes/" +
-		encodeURIComponent(input.sourceSessionId);
-	const publicDestination =
-		"/campanhas/" +
-		encodeURIComponent(input.destinationCampaignSlug) +
-		"/sessoes/" +
-		encodeURIComponent(input.sourceSessionId);
-
 	for (const path of [
 		"/",
 		"/edit/sessoes",
@@ -92,11 +81,23 @@ export async function moveSessionCampaignAction(
 		"/sessoes/" + encodeURIComponent(input.sourceSessionId),
 		"/campanhas",
 		"/campanhas/sessoes",
-		publicSource,
-		publicDestination,
 	]) {
 		try {
 			revalidatePath(path);
+		} catch {
+			cachePending = true;
+		}
+	}
+
+	// Public campaign routes use a public route key that is intentionally not
+	// the technical/RBAC slug. Invalidate the dynamic canonical surfaces rather
+	// than fabricating a public URL from a technical slug.
+	for (const pattern of [
+		"/campanhas/[campaign]/sessoes",
+		"/campanhas/[campaign]/sessoes/[sourceSessionId]",
+	]) {
+		try {
+			revalidatePath(pattern, "page");
 		} catch {
 			cachePending = true;
 		}
