@@ -8,7 +8,7 @@ test("public navigation preserves the current origin", async ({ page }) => {
 		.getByRole("navigation", { name: "Navegação principal" })
 		.getByRole("link", { name: "Sessões", exact: true });
 
-	await expect(archiveLink).toHaveAttribute("href", "/sessoes");
+	await expect(archiveLink).toHaveAttribute("href", "/campanhas/sessoes");
 	await archiveLink.click();
 
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
