@@ -1,8 +1,8 @@
 # Lores independentes — publicação, liberdade visual e catálogo
 
-> Status: arquitetura aprovada; decisão editorial, não comprovação de implementação
+> Status: arquitetura aprovada; registry/linkage implementados no código, publicação depende do registry de campaigns
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-01
 
 ## Decisão
 
@@ -32,7 +32,7 @@ Estado editorial definido para o momento:
 | --- | --- | --- |
 | Pipipi | Preservar entrada existente | Não inferir novos vínculos desta decisão |
 | Astel e Noah | Listar; inclusão explicitamente solicitada, preparada localmente | Ligações editoriais por slug de personagem, sem criar dados narrativos |
-| D | Não listar; acesso pela URL própria | Não faz parte da campanha principal |
+| D | Não listar; acesso pela URL própria | Binding editorial explícito para `antes-que-seja-tarde`; resolve somente quando a campaign existir, sem criar entity/canon/session |
 | Seika | Não listar; acesso pela URL própria | Não faz parte da campanha principal |
 | Yllith | Não listar; acesso pela URL própria quando publicada | Não faz parte da campanha principal |
 | Futuras lores independentes | Não listar automaticamente; inclusão exige escolha editorial | Não assumir vínculo |
@@ -75,7 +75,7 @@ A arquitetura multi-campaign agora é aprovada por ADR-0020, mas **lore standalo
 - remover/alterar vínculo não move seus assets automaticamente;
 - listagem em `/lore`, vínculo de campaign e indexação continuam decisões independentes.
 
-A criação da campaign **Antes que seja tarde** não publica nem vincula D automaticamente. Esse vínculo pertence a #1131 e precisa de decisão editorial própria.
+A #1131 registra a decisão editorial de D em `src/features/lore/registry.ts`, mas o vínculo só resolve quando a campaign `antes-que-seja-tarde` existir no registry persistido. D continua `listed=false`, mantém canonical `/lore/d` e não recebe entity, relation, canon ou session por consequência do vínculo.
 
 ## Futuro fora do escopo
 

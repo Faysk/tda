@@ -1,5 +1,9 @@
 import { buildPublicMetadata } from "@/config/public-metadata";
-import type { LoreRouteKind } from "./model";
+import type {
+	LoreCampaignContext,
+	LoreRouteKind,
+} from "./model";
+import { loreIndexHref } from "./routes";
 
 export type LoreIndexVisualKind =
 	| "portrait"
@@ -87,11 +91,14 @@ export const LORE_INDEX_COPY: Record<LoreRouteKind, LoreIndexCopy> = {
 	},
 };
 
-export function loreIndexMetadata(routeKind: LoreRouteKind) {
+export function loreIndexMetadata(
+	routeKind: LoreRouteKind,
+	campaign?: LoreCampaignContext,
+) {
 	const copy = LORE_INDEX_COPY[routeKind];
 	return buildPublicMetadata({
-		title: copy.title,
+		title: campaign ? `${copy.title} — ${campaign.name}` : copy.title,
 		description: copy.description,
-		pathname: `/${routeKind}`,
+		pathname: loreIndexHref(routeKind, campaign?.routeKey),
 	});
 }

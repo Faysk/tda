@@ -7,7 +7,10 @@ import type {
 	LoreMediaDTO,
 	LoreProfileDTO,
 } from "../model";
-import { loreRouteKindForEntity } from "../routes";
+import {
+	loreIndexHref,
+	loreRouteKindForEntity,
+} from "../routes";
 import { standaloneLoreForEntity } from "../standalone-catalog";
 import { LoreExperience } from "./lore-experience";
 import styles from "./lore-page.module.css";
@@ -128,6 +131,7 @@ function LoreBlock({ block }: { block: LoreBlockDTO }) {
 
 export function LorePage({ profile }: LorePageProps) {
 	const standaloneLore = standaloneLoreForEntity(
+		profile.campaign?.technicalSlug,
 		profile.identity.entityType,
 		profile.identity.slug,
 	);
@@ -138,9 +142,29 @@ export function LorePage({ profile }: LorePageProps) {
 		<article className={styles.page}>
 			{routeKind && catalogCopy ? (
 				<nav className={styles.profileContext} aria-label="Contexto de exploração">
-					<PublicLink href="/mundo">Mundo</PublicLink>
+					<PublicLink href="/campanhas">Campanhas</PublicLink>
 					<span aria-hidden="true">›</span>
-					<PublicLink href={`/${routeKind}`}>{catalogCopy.title}</PublicLink>
+					<PublicLink
+						href={
+							profile.campaign
+								? `/campanhas/${encodeURIComponent(profile.campaign.routeKey)}/mundo`
+								: "/mundo"
+						}
+					>
+						Mundo
+					</PublicLink>
+					{profile.campaign ? (
+						<>
+							<span aria-hidden="true">›</span>
+							<span>{profile.campaign.name}</span>
+						</>
+					) : null}
+					<span aria-hidden="true">›</span>
+					<PublicLink
+						href={loreIndexHref(routeKind, profile.campaign?.routeKey)}
+					>
+						{catalogCopy.title}
+					</PublicLink>
 					<span aria-hidden="true">›</span>
 					<span aria-current="page">{profile.identity.name}</span>
 				</nav>

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { PublicLink as Link } from "@/components/public-link";
 import { buildPublicMetadata } from "@/config/public-metadata";
-import standaloneLores from "@/features/lore/standalone-catalog.json";
+import { listedStandaloneLores } from "@/features/lore/standalone-catalog";
+import { resolveStandaloneLoreCampaignLink } from "@/features/lore/standalone-link-repository";
 import styles from "./page.module.css";
 
 export const metadata: Metadata = buildPublicMetadata({
@@ -15,7 +16,18 @@ export const metadata: Metadata = buildPublicMetadata({
 const loreCardSizes =
 	"(max-width: 650px) calc(100vw - 40px), (max-width: 2160px) 93vw, 2016px";
 
-export default function LoreIndexRoute() {
+export default async function LoreIndexRoute() {
+	const standaloneLores = listedStandaloneLores();
+	const [standaloneCampaigns, pipipiCampaign] = await Promise.all([
+		Promise.all(
+			standaloneLores.map(async (lore) => [
+				lore.slug,
+				(await resolveStandaloneLoreCampaignLink(lore.slug))?.publicCampaign ?? null,
+			] as const),
+		),
+		resolveStandaloneLoreCampaignLink("pipipi"),
+	]);
+	const campaignByLore = new Map(standaloneCampaigns);
 	return (
 		<div className={styles.page} data-layout-family="editorial" data-layout-role="expansive">
 			<header className={styles.hero}>
@@ -41,7 +53,12 @@ export default function LoreIndexRoute() {
 						<div className={styles.cardShade} aria-hidden="true" />
 						<a className={styles.cardLink} href={`/lore/${lore.slug}`}>
 							<div className={styles.cardCopy}>
-								<span>{lore.name}</span>
+								<span>
+									{lore.name}
+									{campaignByLore.get(lore.slug)
+										? ` · ${campaignByLore.get(lore.slug)?.name}`
+										: ""}
+								</span>
 								<h2>{lore.title}</h2>
 								<p>{lore.description}</p>
 								<span className={styles.action}>
@@ -63,7 +80,12 @@ export default function LoreIndexRoute() {
 					<div className={styles.cardShade} aria-hidden="true" />
 					<Link className={styles.cardLink} href="/lore/pipipi">
 						<div className={styles.cardCopy}>
-							<span>Pipipi</span>
+							<span>
+								Pipipi
+								{pipipiCampaign?.publicCampaign
+									? ` · ${pipipiCampaign.publicCampaign.name}`
+									: ""}
+							</span>
 							<h2>A Casa Onde os Super-Heróis Visitavam</h2>
 							<p>
 								A história de Pipipi, da Casa onde viveu e das duas metades de

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { EditorialListRouteLoading } from "@/components/loading";
-import { LoreIndexPage } from "@/features/lore/components/lore-index-page";
+import { LegacyLoreIndexPage } from "@/features/lore/campaign-route";
 import { loreIndexMetadata } from "@/features/lore/index-config";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +8,8 @@ export const metadata = loreIndexMetadata("faccoes");
 
 export default function FactionsIndexPage() {
 	return (
-		<Suspense fallback={<EditorialListRouteLoading label="Carregando facções" />}>
-			<LoreIndexPage routeKind="faccoes" />
+		<Suspense fallback={<EditorialListRouteLoading label="Carregando faccoes" />}>
+			<LegacyLoreIndexPage routeKind="faccoes" />
 		</Suspense>
 	);
 }

@@ -31,6 +31,12 @@ export type LoreRouteKind =
 	| "musicas"
 	| "quests";
 
+export type LoreCampaignContext = Readonly<{
+	routeKey: string;
+	technicalSlug: string;
+	name: string;
+}>;
+
 export type LoreMotionPreset =
 	| "still"
 	| "cinematic-soft"
@@ -228,6 +234,7 @@ export type LoreNarrationDTO = {
 
 export type LoreProfileDTO = {
 	identity: LoreIdentityDTO;
+	campaign?: LoreCampaignContext;
 	presentation: LorePresentation;
 	sections: LoreSectionDTO[];
 	narration?: LoreNarrationDTO;

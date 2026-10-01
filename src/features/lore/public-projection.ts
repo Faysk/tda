@@ -1,5 +1,6 @@
 import { formatSessionDate } from "../sessions/model";
 import type {
+	LoreCampaignContext,
 	LoreCardDTO,
 	LoreEntityType,
 	LoreProfileDTO,
@@ -7,8 +8,6 @@ import type {
 } from "./model";
 import { resolveLorePresentation } from "./presentation";
 import { loreHrefFor } from "./routes";
-
-const CAMPAIGN_SLUG = "yuhara-main";
 
 export type PublicLoreEntityRow = Readonly<{
 	id?: unknown;
@@ -52,6 +51,7 @@ export type LoreIndexItem = Readonly<{
 	name: string;
 	summary: string;
 	href: string;
+	campaign: LoreCampaignContext;
 	visual?: LoreIndexVisual;
 }>;
 
@@ -91,13 +91,16 @@ function loreEntityType(value: unknown): LoreEntityType | null {
 		: null;
 }
 
-function publishedEntityIdentity(row: PublicLoreEntityRow) {
+function publishedEntityIdentity(
+	row: PublicLoreEntityRow,
+	campaign: LoreCampaignContext,
+) {
 	if (row.visibility !== "public_web") return null;
 	const slug = cleanText(row.slug, 180);
 	const name = cleanText(row.name, 320);
 	const entityType = loreEntityType(row.entity_type);
 	if (!slug || !name || !entityType) return null;
-	const href = loreHrefFor(entityType, slug);
+	const href = loreHrefFor(entityType, slug, campaign.routeKey);
 	if (!href) return null;
 	return {
 		slug,
@@ -110,8 +113,10 @@ function publishedEntityIdentity(row: PublicLoreEntityRow) {
 
 export function toPublicLoreIndexItem(
 	row: PublicLoreEntityRow,
+	campaign: LoreCampaignContext,
 ): LoreIndexItem | null {
-	return publishedEntityIdentity(row);
+	const entity = publishedEntityIdentity(row, campaign);
+	return entity ? { ...entity, campaign } : null;
 }
 
 function canonCards(rows: readonly PublicCanonEntryRow[]): LoreCardDTO[] {
@@ -130,11 +135,14 @@ function canonCards(rows: readonly PublicCanonEntryRow[]): LoreCardDTO[] {
 	});
 }
 
-function sessionCards(rows: readonly PublicLoreSessionRow[]): LoreCardDTO[] {
+function sessionCards(
+	rows: readonly PublicLoreSessionRow[],
+	campaign: LoreCampaignContext,
+): LoreCardDTO[] {
 	return rows.flatMap((row, index) => {
 		if (row.status !== "published") return [];
-		const campaign = row.campaigns as { slug?: unknown } | null;
-		if (campaign?.slug !== CAMPAIGN_SLUG) return [];
+		const linkedCampaign = row.campaigns as { slug?: unknown } | null;
+		if (linkedCampaign?.slug !== campaign.technicalSlug) return [];
 
 		const sessionId = cleanText(row.source_session_id, 220);
 		const title = cleanText(row.title, 500);
@@ -151,7 +159,7 @@ function sessionCards(rows: readonly PublicLoreSessionRow[]): LoreCardDTO[] {
 				title,
 				...(eyebrow ? { eyebrow } : {}),
 				...(summary ? { summary } : {}),
-				href: `/sessoes/${encodeURIComponent(sessionId)}`,
+				href: `/campanhas/${encodeURIComponent(campaign.routeKey)}/sessoes/${encodeURIComponent(sessionId)}`,
 			},
 		];
 	});
@@ -161,6 +169,7 @@ function profileSections(
 	summary: string,
 	canonRows: readonly PublicCanonEntryRow[],
 	sessionRows: readonly PublicLoreSessionRow[],
+	campaign: LoreCampaignContext,
 ): LoreSectionDTO[] {
 	const sections: LoreSectionDTO[] = [];
 	if (summary) {
@@ -193,7 +202,7 @@ function profileSections(
 		});
 	}
 
-	const sessions = sessionCards(sessionRows);
+	const sessions = sessionCards(sessionRows, campaign);
 	if (sessions.length) {
 		sections.push({
 			id: "sessions",
@@ -214,21 +223,23 @@ function profileSections(
 
 export function buildPublishedLoreProfile(
 	row: PublicLoreEntityRow,
+	campaign: LoreCampaignContext,
 	canonRows: readonly PublicCanonEntryRow[] = [],
 	sessionRows: readonly PublicLoreSessionRow[] = [],
 ): LoreProfileDTO | null {
-	const entity = publishedEntityIdentity(row);
+	const entity = publishedEntityIdentity(row, campaign);
 	if (!entity) return null;
 
 	return {
 		identity: {
-			id: entity.slug,
+			id: `${campaign.routeKey}:${entity.slug}`,
 			slug: entity.slug,
 			entityType: entity.entityType,
 			name: entity.name,
 			eyebrow: ENTITY_TYPE_LABELS[entity.entityType],
 			...(entity.summary ? { summary: entity.summary } : {}),
 		},
+		campaign,
 		presentation: resolveLorePresentation({
 			motion: {
 				preset: "still",
@@ -237,6 +248,6 @@ export function buildPublishedLoreProfile(
 				scrollParallax: false,
 			},
 		}),
-		sections: profileSections(entity.summary, canonRows, sessionRows),
+		sections: profileSections(entity.summary, canonRows, sessionRows, campaign),
 	};
 }
