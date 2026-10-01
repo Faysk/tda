@@ -145,7 +145,17 @@ const PREFIX = {
 		"src/features/sessions/",
 		"src/features/transcript-publication/",
 	],
-	media: ["media/", "tools/media/"],
+	media: [
+		"media/",
+		"tools/media/",
+		"src/features/media/",
+		"src/features/campaigns/campaign-cover",
+		"src/features/edit/sessions/session-cover-media",
+		"src/features/world-explorer/world-entity-media",
+		"src/app/api/edit/campaign-cover/",
+		"src/app/api/edit/session-cover/",
+		"src/app/api/world/entity-media/",
+	],
 };
 
 function normalized(path) {
