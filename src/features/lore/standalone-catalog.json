@@ -12,5 +12,19 @@
 		"title": "Sonhos com Dentes",
 		"description": "A história de Noah Wood: família, sonhos, um espírito primal e a coragem de partir de Strixhaven.",
 		"cover": "https://media.dnd.faysk.dev/lore/noah/647b74775c3c0266b409e8a42c1629aa9aa321569c5393c9aab79fccdca8b450/noah_sonho_floresta_quori.webp"
+	},
+	{
+		"slug": "pipipi",
+		"name": "Pipipi",
+		"title": "A Casa Onde os Super-Heróis Visitavam",
+		"description": "A história de Pipipi, da Casa onde viveu e das duas metades de uma mesma memória.",
+		"cover": "https://media.dnd.faysk.dev/lore/pipipi/a50beeeb7b598aaab89dc74e3e5cec0787df63092bf8a5487f9e450d3228f816/stage-bg.avif"
+	},
+	{
+		"slug": "seika",
+		"name": "Seika",
+		"title": "Antes do Inverno",
+		"description": "Uma história sobre cuidado, casa e a estrada que começa quando alguém não volta.",
+		"cover": "https://media.dnd.faysk.dev/lore/seika/74cf3cdab85ed37eac4a28276864449b9101716e63202ae32a9c314e299793b5/wide-departure-full.webp"
 	}
 ]
