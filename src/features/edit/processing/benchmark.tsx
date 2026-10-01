@@ -87,6 +87,20 @@ function bridgeMessage(error: unknown, fallback: string): string {
 				"Há trabalho local ativo. Aguarde a fila ficar livre antes de preparar os perfis.",
 			TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB:
 				"Espere o trabalho atual terminar antes de preparar outro perfil.",
+			QWEN_RUNTIME_UPDATE_BLOCKED_BY_ACTIVE_JOB:
+				"Há uma transcrição ou benchmark ativo. Aguarde terminar antes de atualizar o Qwen Runtime.",
+			QWEN_RUNTIME_UPDATE_BLOCKED_BY_PREPARATION:
+				"Há uma preparação de perfil em andamento. Aguarde terminar antes de atualizar o Qwen Runtime.",
+			QWEN_RUNTIME_UPDATE_ALREADY_RUNNING:
+				"A atualização do Qwen Runtime já está em andamento neste Companion.",
+			QWEN_RUNTIME_UPDATE_IN_PROGRESS:
+				"O Qwen Runtime está sendo atualizado. Aguarde a manutenção terminar.",
+			QWEN_RUNTIME_MANIFEST_UNAVAILABLE:
+				"Não foi possível validar a Stable do Qwen Runtime agora. Tente novamente mais tarde.",
+			QWEN_RUNTIME_STABLE_BELOW_MINIMUM:
+				"A Stable publicada ainda não atende o mínimo exigido por este Companion.",
+			QWEN_RUNTIME_UPDATE_NOT_AVAILABLE:
+				"O Qwen Runtime instalado já não possui uma Stable compatível mais nova.",
 			CRAIG_ZIP_REQUIRED: "Escolha um arquivo .zip exportado pelo Craig.",
 			CRAIG_UPLOAD_EMPTY: "O ZIP selecionado está vazio.",
 			CRAIG_ARCHIVE_INVALID: "O ZIP não pôde ser validado como export Craig.",
