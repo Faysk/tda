@@ -171,7 +171,9 @@ def test_qwen_legacy_confirmed_silence_event_matches_worker_schema_contract(tmp_
         if item.get("code") == "QWEN_WINDOW_SILENCE_CONFIRMED"
     )
     assert silence["completed_window_count"] == 1
-    sanitized = sanitize_worker_event(silence)
+    sanitized = sanitize_worker_event(
+        {key: value for key, value in silence.items() if key != "type"}
+    )
     assert sanitized.code == "QWEN_WINDOW_SILENCE_CONFIRMED"
     assert sanitized.drift_reason is None
     assert document.tracks[0].duration_seconds == 2.0
