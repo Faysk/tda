@@ -28,7 +28,6 @@ const EXACT = {
 		"src/components/ui/progress.module.css",
 		"src/components/ui/animated-progress.tsx",
 		"tests/world-catalogs.spec.ts",
-		"tests/world-campaign-context.spec.ts",
 		"src/features/lore/components/lore-index-page.tsx",
 		"src/features/lore/components/lore-index-page.module.css",
 		"src/features/lore/components/lore-page.tsx",
