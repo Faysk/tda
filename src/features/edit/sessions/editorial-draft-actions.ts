@@ -6,7 +6,6 @@ import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { getSessionCoverAssetStatusAction } from "./session-cover-media-actions";
 import {
 	isExistingPublishedSessionCoverReference,
@@ -20,6 +19,7 @@ import {
 	persistSessionEditorialDraft,
 	readSessionEditorialDraft,
 } from "./editorial-draft-repository";
+import { resolveEditSessionCampaign } from "./repository";
 
 const UUID =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -66,10 +66,17 @@ export async function saveSessionEditorialDraftAction(
 				reason: "dependency_unavailable" as const,
 				issues: ["dependency_unavailable"] as const,
 			};
+		const sessionCampaign = await resolveEditSessionCampaign(input.sessionId);
+		if (!sessionCampaign || sessionCampaign.lifecycle !== "active")
+			return {
+				ok: false as const,
+				reason: "not_found" as const,
+				issues: ["not_found"] as const,
+			};
 		const access = authorizeCampaignCapability(
 			context,
 			EDIT_CAPABILITIES.contentEdit,
-			CAMPAIGN_SLUG,
+			sessionCampaign.technicalSlug,
 		);
 		if (!access.ok)
 			return {
@@ -98,11 +105,15 @@ export async function saveSessionEditorialDraftAction(
 			}
 		}
 
-		const result = await persistSessionEditorialDraft(access.profileId, input);
+		const result = await persistSessionEditorialDraft(
+			access.profileId,
+			sessionCampaign.technicalSlug,
+			input,
+		);
 		if (!result.ok) {
 			const remote =
 				result.reason === "conflict"
-					? await readSessionEditorialDraft(input.sessionId)
+					? await readSessionEditorialDraft(input.sessionId, sessionCampaign.technicalSlug)
 					: null;
 			return {
 				ok: false as const,
@@ -112,7 +123,10 @@ export async function saveSessionEditorialDraftAction(
 			};
 		}
 
-		const saved = await readSessionEditorialDraft(input.sessionId);
+		const saved = await readSessionEditorialDraft(
+			input.sessionId,
+			sessionCampaign.technicalSlug,
+		);
 		if (!saved || saved.revision !== result.revision)
 			return {
 				ok: false as const,
