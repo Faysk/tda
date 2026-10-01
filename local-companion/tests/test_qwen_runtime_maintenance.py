@@ -336,3 +336,86 @@ def test_qwen_runtime_update_is_blocked_while_preparation_is_active(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "QWEN_RUNTIME_UPDATE_BLOCKED_BY_PREPARATION"
+
+
+def test_qwen_runtime_maintenance_deduplicates_an_active_operation(
+    tmp_path: Path,
+    monkeypatch,
+):
+    entered = __import__("threading").Event()
+    release = __import__("threading").Event()
+    manifest = _manifest("1.0.12")
+    archive = tmp_path / "runtime.zip"
+    archive.write_bytes(b"runtime")
+
+    monkeypatch.setattr(
+        maintenance,
+        "inspect_qwen_runtime",
+        lambda *_args, **_kwargs: {
+            "status": "ready",
+            "version": "1.0.11",
+            "worker": "TDAQwenWorker.exe",
+        },
+    )
+    monkeypatch.setattr(
+        maintenance,
+        "fetch_qwen_runtime_manifest",
+        lambda timeout=5.0: manifest,
+    )
+
+    def download(*_args, **_kwargs):
+        entered.set()
+        assert release.wait(timeout=2)
+        return archive
+
+    monkeypatch.setattr(maintenance, "download_qwen_runtime", download)
+    monkeypatch.setattr(
+        maintenance,
+        "install_qwen_runtime_archive",
+        lambda *_args, **_kwargs: {"worker_sha256": "a" * 64},
+    )
+
+    manager = QwenRuntimeMaintenanceManager(
+        runtime_root=tmp_path / "Runtime",
+        cache_root=tmp_path / "Cache",
+    )
+    manager.start()
+    assert entered.wait(timeout=1)
+
+    with pytest.raises(
+        QwenRuntimeMaintenanceError,
+        match="QWEN_RUNTIME_UPDATE_ALREADY_RUNNING",
+    ):
+        manager.start()
+
+    release.set()
+    _wait(manager)
+
+
+def test_qwen_runtime_update_is_blocked_while_transcription_job_is_active(
+    tmp_path: Path,
+    monkeypatch,
+):
+    app = create_app(
+        tmp_path / "Data",
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+    )
+    monkeypatch.setattr(
+        app.state.store,
+        "has_active_transcription_jobs",
+        lambda: True,
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            "/api/v1/runtime/qwen/update",
+            headers={
+                "Authorization": f"Bearer {TOKEN}",
+                "Origin": ORIGIN,
+            },
+            json={},
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "QWEN_RUNTIME_UPDATE_BLOCKED_BY_ACTIVE_JOB"
