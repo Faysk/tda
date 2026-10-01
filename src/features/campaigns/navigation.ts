@@ -6,6 +6,7 @@ import {
 	type EditAccessContext,
 	type EditCapability,
 } from "@/features/edit/access/policy";
+import { LEGACY_CAMPAIGN_TECHNICAL_SLUG } from "@/features/sessions/model";
 
 const NAVIGATION_TOOL_CAPABILITIES = [
 	EDIT_CAPABILITIES.transcriptRead,
@@ -42,14 +43,26 @@ export async function readNavigationCampaigns(
 	);
 	if (!result.ok) return { mode: "unavailable", campaigns: [] };
 
-	return {
-		mode: "first_class",
-		campaigns: result.campaigns.map((campaign) => ({
+	const campaigns: NavigationCampaign[] = [];
+	for (const campaign of result.campaigns) {
+		const capabilities = campaign.capabilities.filter(
+			(capability) =>
+				capability === EDIT_CAPABILITIES.transcriptRead ||
+				capability === EDIT_CAPABILITIES.localProcess ||
+				capability === EDIT_CAPABILITIES.permissionsManage ||
+				(campaign.technicalSlug === LEGACY_CAMPAIGN_TECHNICAL_SLUG &&
+					(capability === EDIT_CAPABILITIES.worldLayoutEdit ||
+						capability === EDIT_CAPABILITIES.reviewRead)),
+		);
+		if (capabilities.length === 0) continue;
+		campaigns.push({
 			technicalSlug: campaign.technicalSlug,
 			routeKey: campaign.routeKey,
 			name: campaign.name,
 			lifecycle: "active",
-			capabilities: campaign.capabilities,
-		})),
-	};
+			capabilities,
+		});
+	}
+
+	return { mode: "first_class", campaigns };
 }
