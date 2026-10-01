@@ -113,7 +113,11 @@ jobs:
             'faster_whisper = [string]$runtime.Build.packages."faster-whisper"',
             'ctranslate2 = [string]$runtime.Build.packages.ctranslate2',
             'pyav = [string]$runtime.Build.packages.av',
-            'WHISPER_1235_RUNTIME_VERSION_REQUIRED'
+            'WHISPER_1235_RUNTIME_VERSION_REQUIRED',
+            '$ExpectedTrackCount = 4',
+            'WHISPER_1235_TRACK_COUNT_REQUIRED',
+            'WHISPER_1235_SPEECH_RESULT_REQUIRED',
+            '.whisper-1235.json'
           )) {
             if (-not $value.Contains($required)) {
               throw "WHISPER_1235_ACCEPTANCE_CONTRACT_MISSING:$required"
@@ -121,6 +125,21 @@ jobs:
           }
           if ($value.Contains('Write-Host $line') -or $value.Contains('Set-Content -LiteralPath $line')) {
             throw "WHISPER_1235_RAW_WORKER_OUTPUT_PERSISTED"
+          }
+
+          $promotion = Get-Content -LiteralPath ".github/workflows/runtime-promote.yml" -Raw
+          foreach ($required in @(
+            'Require Whisper #1235 Craig containment acceptance',
+            'tda_whisper_craig_containment_acceptance_v1',
+            'docs/companion/runtime-acceptance',
+            '.whisper-1235.json',
+            'WHISPER_1235_ACCEPTANCE_IDENTITY_MISMATCH',
+            'WHISPER_1235_IMMUTABLE_RUN_REQUIRED',
+            'Whisper-1235-acceptance.json'
+          )) {
+            if (-not $promotion.Contains($required)) {
+              throw "WHISPER_1235_PROMOTION_GATE_MISSING:$required"
+            }
           }
       - name: Verify recovery launcher is pinned and transcript-free
         shell: powershell
