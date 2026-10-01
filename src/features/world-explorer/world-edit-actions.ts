@@ -7,7 +7,6 @@ import {
 } from "@/features/auth/server";
 import { loadEditAccessContext } from "@/features/edit/access/repository";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 import { DANDELION_WORLD_DEMO } from "./fixtures/dandelion";
 import {
@@ -15,6 +14,7 @@ import {
 	sanitizeWorldLayoutProjection,
 } from "./layout-contract";
 import type { WorldLayoutProjection } from "./model";
+import { isWorldCampaignSlug } from "./world-campaign";
 import { buildWorldProjection } from "./projection";
 
 const UUID_PATTERN =
@@ -129,10 +129,10 @@ function draftFromRpc(payload: RpcPayload): WorldLayoutProjection | undefined {
 	);
 }
 
-async function authorizedLayoutEditor() {
+async function authorizedLayoutEditor(campaignSlug: string) {
 	return authorizeCampaignCapabilityServer({
 		action: EDIT_CAPABILITIES.worldLayoutEdit,
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: campaignSlug,
 	});
 }
 
@@ -154,11 +154,12 @@ async function verifiedProfile() {
 }
 
 export async function acquireWorldEditLeaseAction(
+	campaignSlug: string,
 	leaseToken: string,
 ): Promise<AcquireWorldEditLeaseResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
 
-	const access = await authorizedLayoutEditor();
+	const access = await authorizedLayoutEditor(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
@@ -166,7 +167,7 @@ export async function acquireWorldEditLeaseAction(
 	const { data, error } = await client.rpc("acquire_world_edit_lease_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
@@ -204,10 +205,11 @@ export async function acquireWorldEditLeaseAction(
 }
 
 export async function renewWorldEditLeaseAction(
+	campaignSlug: string,
 	leaseToken: string,
 ): Promise<WorldEditMutationResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
-	const access = await authorizedLayoutEditor();
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	const access = await authorizedLayoutEditor(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
@@ -215,7 +217,7 @@ export async function renewWorldEditLeaseAction(
 	const { data, error } = await client.rpc("renew_world_edit_lease_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
@@ -240,14 +242,15 @@ export async function renewWorldEditLeaseAction(
 }
 
 export async function saveWorldEditDraftAction(
+	campaignSlug: string,
 	leaseToken: string,
 	candidate: WorldLayoutProjection,
 ): Promise<WorldEditMutationResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
 	const sanitized = strictLayoutCandidate(candidate);
 	if (!sanitized) return { ok: false, reason: "invalid_payload" };
 
-	const access = await authorizedLayoutEditor();
+	const access = await authorizedLayoutEditor(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
@@ -255,7 +258,7 @@ export async function saveWorldEditDraftAction(
 	const { data, error } = await client.rpc("save_world_edit_layout_draft_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 		p_positions: sanitized.positions,
 	});
@@ -291,10 +294,11 @@ export async function saveWorldEditDraftAction(
 }
 
 export async function publishWorldEditLayoutAction(
+	campaignSlug: string,
 	leaseToken: string,
 ): Promise<WorldEditMutationResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
-	const access = await authorizedLayoutEditor();
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	const access = await authorizedLayoutEditor(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
@@ -303,7 +307,7 @@ export async function publishWorldEditLayoutAction(
 		const { data: campaign, error: campaignError } = await client
 			.from("campaigns")
 			.select("id")
-			.eq("slug", CAMPAIGN_SLUG)
+			.eq("slug", campaignSlug)
 			.maybeSingle();
 		if (campaignError || !campaign?.id) {
 			if (campaignError)
@@ -330,13 +334,14 @@ export async function publishWorldEditLayoutAction(
 	const { data, error } = await client.rpc("publish_world_edit_layout_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
 		if (error) console.error("World edit publish failed", error.message);
 		const receipt = await confirmedReceipt();
 		if (receipt?.ok) {
+			revalidatePath(`/edit/${campaignSlug}/mundo`);
 			revalidatePath("/mundo");
 			return receipt;
 		}
@@ -346,7 +351,8 @@ export async function publishWorldEditLayoutAction(
 	if (payload.ok === true && (payload.status === "saved" || payload.status === "unchanged")) {
 		const revision = safeRevision(payload.revision);
 		if (revision === undefined) return { ok: false, reason: "dependency_unavailable" };
-		revalidatePath("/mundo");
+		revalidatePath(`/edit/${campaignSlug}/mundo`);
+			revalidatePath("/mundo");
 		return { ok: true, status: payload.status, revision };
 	}
 	if (payload.ok === false && payload.reason === "conflict") {
@@ -359,6 +365,7 @@ export async function publishWorldEditLayoutAction(
 	if (payload.ok === false && payload.reason === "lease_lost") {
 		const receipt = await confirmedReceipt();
 		if (receipt?.ok) {
+			revalidatePath(`/edit/${campaignSlug}/mundo`);
 			revalidatePath("/mundo");
 			return receipt;
 		}
@@ -371,9 +378,10 @@ export async function publishWorldEditLayoutAction(
 }
 
 export async function releaseWorldEditLeaseAction(
+	campaignSlug: string,
 	leaseToken: string,
 ): Promise<WorldEditMutationResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
 	const profile = await verifiedProfile();
 	if (!profile.ok) return { ok: false, reason: profile.reason };
 	const client = editDataClient();
@@ -382,7 +390,7 @@ export async function releaseWorldEditLeaseAction(
 	const { data, error } = await client.rpc("release_world_edit_lease_atomic", {
 		p_auth_user_id: profile.authUserId,
 		p_actor_profile_id: profile.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
