@@ -60,16 +60,17 @@ def _release(family: str, version: str, source: str, *, release_id: int, draft=F
     }
 
 
-def test_discovery_ignores_draft_and_selects_newest_exact_published_runtime():
-    source_a = "1" * 40
-    source_b = "2" * 40
+def test_discovery_ignores_draft_unrelated_and_non_prerelease_candidates():
+    source = "1" * 40
+    ignored = "2" * 40
+    stable = _release("qwen", RC_QWEN_VERSION, ignored, release_id=11, prerelease=False)
     client = _Client(
         {
             1: [
-                _release("qwen", RC_QWEN_VERSION, source_a, release_id=10, draft=True),
-                _release("qwen", "9.9.9", source_b, release_id=11),
-                _release("qwen", RC_QWEN_VERSION, source_a, release_id=12),
-                _release("qwen", RC_QWEN_VERSION, source_b, release_id=13),
+                _release("qwen", RC_QWEN_VERSION, ignored, release_id=10, draft=True),
+                stable,
+                _release("qwen", "9.9.9", ignored, release_id=12),
+                _release("qwen", RC_QWEN_VERSION, source, release_id=13),
             ]
         }
     )
@@ -77,7 +78,26 @@ def test_discovery_ignores_draft_and_selects_newest_exact_published_runtime():
     value = runtime_rc.discover_published_runtime_rc("qwen", client=client)
 
     assert value["id"] == 13
-    assert value["tag_name"].endswith(source_b[:12])
+    assert value["tag_name"].endswith(source[:12])
+    assert len(client.urls) == 1
+
+
+def test_discovery_fails_closed_when_same_version_has_multiple_published_candidates():
+    source_a = "3" * 40
+    source_b = "4" * 40
+    client = _Client(
+        {
+            1: [
+                _release("qwen", RC_QWEN_VERSION, source_a, release_id=20),
+                _release("qwen", RC_QWEN_VERSION, source_b, release_id=21),
+            ]
+        }
+    )
+
+    with pytest.raises(NetworkError) as exc:
+        runtime_rc.discover_published_runtime_rc("qwen", client=client)
+
+    assert exc.value.code == "RUNTIME_RC_RELEASE_VERSION_AMBIGUOUS"
     assert len(client.urls) == 1
 
 
