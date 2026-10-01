@@ -101,7 +101,7 @@ test("makes published cinematic lores discoverable through the real global launc
 
 	await loresLink.focus();
 	await page.keyboard.press("Enter");
-	await expect(page).toHaveURL(/\\/lore$/);
+	await expect(page).toHaveURL(/\/lore$/);
 	await expect(
 		page.getByRole("heading", { level: 1, name: "Histórias que ganharam outro palco." }),
 	).toBeVisible();
