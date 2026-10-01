@@ -341,7 +341,7 @@ Falhas conhecidas do decoder agora devem sair como código estável `WHISPER_DEC
 `transcription=""` não pode ser tratado como silêncio sem evidência do sinal. O runtime Qwen `1.0.13` introduz um gate conservador somente para esse caso:
 
 - PCM inteiro da janela com `peak <= -84 dBFS` **e** `RMS <= -90 dBFS` → janela confirmada como silêncio quase digital, zero segmentos, timeline/progresso/checkpoint preservados;
-- no `1.0.14`, vazio com sinal ganha no máximo uma segunda inferência no **mesmo modelo**, depois de aparar somente blocos inteiros de 1 s nas bordas que também comprovem silêncio quase digital pelos mesmos thresholds; nenhum bloco com sinal é removido;
+- no `1.0.14`, vazio com sinal ganha no máximo uma segunda inferência no **mesmo modelo**, depois de aparar somente blocos inteiros de 1 s nas bordas, limitado aos 6 s de overlap por lado que também comprovem silêncio quase digital pelos mesmos thresholds; nenhum bloco com sinal é removido;
 - retry reconhecido → texto real é alinhado contra a janela original e a recuperação fica auditável pelos eventos estruturados de retry/recovery; sem borda removível ou retry ainda vazio → `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN`, sem descartar fala silenciosamente;
 - resposta estruturada inválida → `QWEN_ASR_OUTPUT_INVALID`;
 - eventos de diagnóstico podem conter apenas números/índices/duração; nunca áudio, texto reconhecido, path local ou conteúdo privado.
