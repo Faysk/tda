@@ -25,9 +25,19 @@ type NavigationState =
 	| "authenticated_linked"
 	| "authenticated_linked_no_grants";
 
+type MockCampaign = Readonly<{
+	technicalSlug: string;
+	routeKey: string | null;
+	name: string;
+	lifecycle?: "active" | "archived";
+	capabilities: readonly string[];
+}>;
+
 type MockAccessOptions = Readonly<{
 	state?: NavigationState;
 	capabilities?: readonly string[];
+	campaigns?: readonly MockCampaign[];
+	campaignsState?: "first_class" | "legacy_compatibility" | "unavailable";
 	identity?: Readonly<{
 		displayName: string | null;
 		avatarUrl: string | null;
@@ -45,6 +55,20 @@ async function mockAccess(
 		state === "authenticated_unlinked" ||
 		state === "authenticated_linked" ||
 		state === "authenticated_linked_no_grants";
+	const capabilities = options.capabilities ?? [];
+	const campaigns =
+		options.campaigns ??
+		(authenticated
+			? [
+					{
+						technicalSlug: "yuhara-main",
+						routeKey: "cronicas-da-mesa",
+						name: "Crônicas da Mesa",
+						lifecycle: "active" as const,
+						capabilities,
+					},
+				]
+			: []);
 
 	await page.route("**/api/auth/me", async (route) => {
 		await route.fulfill({
@@ -52,16 +76,21 @@ async function mockAccess(
 			contentType: "application/json",
 			body: JSON.stringify({
 				state,
-				scope: { type: "campaign", id: "yuhara-main" },
+				scope: { type: "project", id: "tda" },
 				...(authenticated
 					? {
 							identity:
 								options.identity === undefined
 									? { displayName: "Navegação Teste", avatarUrl: null }
 									: options.identity,
-							capabilities: options.capabilities ?? [],
+							capabilities: [],
+							campaignsState: options.campaignsState ?? "first_class",
+							campaigns,
 						}
-					: {}),
+					: {
+							campaignsState: state === "unavailable" ? "unavailable" : "none",
+							campaigns: [],
+						}),
 			}),
 		});
 	});
@@ -117,7 +146,7 @@ test("avatar is the only global trigger and exposes hierarchical public IA", asy
 
 	const panel = await openGlobalMenu(page);
 	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
-	for (const label of ["Sessões", "Lores", "Lembra"]) {
+	for (const label of ["Campanhas", "Sessões", "Lores", "Lembra"]) {
 		await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
 	}
 	const world = navigation.getByRole("button", { name: "Mundo", exact: true });
