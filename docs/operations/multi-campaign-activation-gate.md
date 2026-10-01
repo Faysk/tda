@@ -63,3 +63,31 @@ It does not send cookies, Auth headers, tokens or campaign grants. Authenticated
 ## Rollback
 
 If post-activation smoke or any governed read-back fails, stop the rollout and use the owning feature/database rollback plan. Keep additive schema/data/aliases intact unless their owner explicitly authorizes a reverse migration. Never delete campaign rows, media bytes or receipts merely to make the gate green.
+
+
+## Registry first-class activation (#1284)
+
+The registry activation uses the canonical migrations:
+
+- `20261001204500_activate_first_class_campaign_registry`;
+- `20261001205000_harden_campaign_discovery_authorization`.
+
+Before treating the first-class registry as active, the Production receipt must
+show all of the following for the deployed candidate:
+
+- both migration names present in remote migration history;
+- `campaigns.public_slug/lifecycle/visibility/archived_at` present;
+- `yuhara-main` remains the technical slug while
+  `cronicas-da-mesa` is canonical and `yuhara-main` is an alias;
+- the second identity `antes-que-seja-tarde` remains
+  `active/private/identity_only` until an explicit later activation;
+- public discovery excludes private/archived rows;
+- authenticated campaign discovery is capability-based and does not expose raw
+  grants;
+- security/performance advisors are reviewed after DDL;
+- the semantic public smoke and campaign isolation gate are green for the same
+  SHA.
+
+Do not restore Edit tools by falling back to `yuhara-main` client-side. If the
+registry read fails, navigation must remain fail-closed until the database
+contract is healthy.
