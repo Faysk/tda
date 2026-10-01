@@ -12,6 +12,7 @@ from tda_companion.asr_qwen import (
     _parse_qwen_asr_decoded,
     _parse_qwen_asr_output,
     _qwen_window_signal_diagnostics,
+    _trim_confident_silence_edges,
     transcribe_craig_package_qwen,
 )
 from tda_companion.craig import CraigPackage, CraigTrack
@@ -127,6 +128,123 @@ def test_qwen_empty_window_signal_gate_is_conservative_for_quiet_and_voiced_audi
     assert quiet["peak_dbfs"] > -84.0
     assert normal["confidently_silent"] is False
     assert normal["peak_dbfs"] > quiet["peak_dbfs"]
+
+
+
+
+def test_qwen_signal_empty_retries_once_after_near_digital_edge_trim(tmp_path: Path):
+    package, package_root = _package(tmp_path, two_tracks=False)
+    reports: list[dict] = []
+    calls: list[int] = []
+    audio = ([0.0] * 16_000) + ([0.1] * 16_000)
+
+    trimmed = _trim_confident_silence_edges(audio)
+    assert trimmed is not None
+    assert len(trimmed) == 20_000
+
+    class Asr:
+        def transcribe(self, value, *, prompt: str):
+            calls.append(len(value))
+            if len(calls) == 1:
+                return "", "Portuguese"
+            return "fala recuperada", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, value, text: str, language: str):
+            assert value is audio
+            assert text == "fala recuperada"
+            assert language == "Portuguese"
+            return [
+                {"text": "fala", "start_time": 1.10, "end_time": 1.30},
+                {"text": "recuperada", "start_time": 1.31, "end_time": 1.60},
+            ]
+
+        def close(self):
+            pass
+
+    document = transcribe_craig_package_qwen(
+        package,
+        package_root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        report=reports.append,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan_value: Asr(),
+        aligner_session_factory=lambda _root, _plan_value: Aligner(),
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=2.0, audio=audio)]
+        ),
+        energy_reader=lambda *_args: -12.0,
+    )
+
+    assert calls == [32_000, 20_000]
+    assert document.tracks[0].segments[0].start == 1.1
+    assert document.tracks[0].segments[0].end == 1.6
+    codes = [item.get("code") for item in reports]
+    assert "QWEN_WINDOW_EDGE_SILENCE_RETRY" in codes
+    assert "QWEN_WINDOW_EDGE_SILENCE_RECOVERED" in codes
+    assert "QWEN_WINDOW_EMPTY_ASR_REJECTED" not in codes
+
+    recovered = next(
+        item for item in reports
+        if item.get("code") == "QWEN_WINDOW_EDGE_SILENCE_RECOVERED"
+    )
+    sanitized = sanitize_worker_event(
+        {key: value for key, value in recovered.items() if key != "type"}
+    )
+    assert sanitized.code == "QWEN_WINDOW_EDGE_SILENCE_RECOVERED"
+    assert sanitized.data["peak_dbfs"] > -84.0
+
+
+def test_qwen_signal_empty_without_trim_candidate_still_fails_closed(tmp_path: Path):
+    package, package_root = _package(tmp_path, two_tracks=False)
+    reports: list[dict] = []
+    calls = 0
+    audio = [0.1] * 32_000
+
+    class Asr:
+        def transcribe(self, _value, *, prompt: str):
+            nonlocal calls
+            calls += 1
+            return "", "Portuguese"
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
+        transcribe_craig_package_qwen(
+            package,
+            package_root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            report=reports.append,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan_value: Asr(),
+            aligner_session_factory=lambda *_args: (_ for _ in ()).throw(
+                AssertionError("alignment must not run")
+            ),
+            window_reader=lambda _path: iter(
+                [AudioWindow(index=1, start=0.0, end=2.0, audio=audio)]
+            ),
+        )
+
+    assert calls == 1
+    assert _trim_confident_silence_edges(audio) is None
+    assert any(
+        item.get("code") == "QWEN_WINDOW_EMPTY_ASR_REJECTED" for item in reports
+    )
+    assert not any(
+        item.get("code") == "QWEN_WINDOW_EDGE_SILENCE_RETRY" for item in reports
+    )
 
 
 def test_qwen_legacy_confirmed_silence_event_matches_worker_schema_contract(tmp_path: Path):
