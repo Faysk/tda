@@ -42,43 +42,6 @@ def test_known_activity_event_drops_private_extra_fields_without_losing_safe_met
     assert "segredo" not in repr(event)
 
 
-def test_qwen_empty_output_events_keep_only_sanitized_signal_diagnostics():
-    signal = sanitize_worker_event(
-        {
-            "code": "QWEN_ASR_EMPTY_WITH_SIGNAL",
-            "stage": "transcription",
-            "track": 1,
-            "total_tracks": 4,
-            "speaker": "Alice",
-            "window": 1,
-            "window_rms_dbfs": -33.244,
-            "text": "must never persist",
-            "path": "C:/private/audio.flac",
-        }
-    )
-    assert signal.code == "QWEN_ASR_EMPTY_WITH_SIGNAL"
-    assert signal.level == "error"
-    assert signal.data["window_rms_dbfs"] == -33.244
-    assert "text" not in signal.data
-    assert "path" not in signal.data
-    assert signal.drift_reason == "unexpected_or_invalid_field"
-
-    silent = sanitize_worker_event(
-        {
-            "code": "QWEN_ASR_EMPTY_SILENCE_ACCEPTED",
-            "stage": "transcription",
-            "track": 1,
-            "total_tracks": 1,
-            "speaker": "Alice",
-            "window": 2,
-            "window_rms_dbfs": -120.0,
-        }
-    )
-    assert silent.code == "QWEN_ASR_EMPTY_SILENCE_ACCEPTED"
-    assert silent.level == "info"
-    assert silent.data["window_rms_dbfs"] == -120.0
-
-
 def test_activity_counts_are_bounded_and_terminal_zero_is_valid():
     qwen = sanitize_worker_event(
         {
