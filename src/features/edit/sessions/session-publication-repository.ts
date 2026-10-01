@@ -1,7 +1,6 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
 	WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN,
@@ -67,6 +66,7 @@ function positiveSafeInteger(value: unknown): number | null {
 }
 
 export async function readSessionPublicationContext(
+	campaignSlug: string,
 	sessionId: string,
 ): Promise<SessionPublicationContext | null> {
 	const client = editDataClient();
@@ -78,7 +78,7 @@ export async function readSessionPublicationContext(
 			"campaign_id,source_session_id,status,current_session_publication_id,campaigns!inner(slug)",
 		)
 		.eq("id", sessionId)
-		.eq("campaigns.slug", CAMPAIGN_SLUG)
+		.eq("campaigns.slug", campaignSlug)
 		.maybeSingle();
 	if (error) throw new Error("Session publication lookup unavailable");
 	if (!raw) return null;
@@ -127,6 +127,7 @@ function normalizeExistingPublicCover(reference: string): string | null {
 
 function verifiedPublicCoverUrl(
 	row: CoverAssetRow,
+	campaignSlug: string,
 	sessionId: string,
 ): string | null {
 	const id = requiredId(row.id);
@@ -154,7 +155,7 @@ function verifiedPublicCoverUrl(
 	}
 	const extension = mimeType === "image/png" ? "png" : "webp";
 	const expectedKey = sessionCoverObjectKey({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug,
 		sessionId,
 		sha256,
 		extension,
@@ -187,6 +188,7 @@ async function coverAsset(
 }
 
 export async function prepareSessionCoverForPublication(input: {
+	campaignSlug: string;
 	sessionId: string;
 	campaignId: string;
 	coverReference: string;
@@ -201,7 +203,7 @@ export async function prepareSessionCoverForPublication(input: {
 	if (!asset || asset.role_hint !== "session_cover" || asset.read_back_verified !== true)
 		return null;
 
-	const alreadyPublic = verifiedPublicCoverUrl(asset, input.sessionId);
+	const alreadyPublic = verifiedPublicCoverUrl(asset, input.campaignSlug, input.sessionId);
 	if (alreadyPublic) return alreadyPublic;
 	if (asset.status !== "staged") return null;
 
@@ -224,7 +226,7 @@ export async function prepareSessionCoverForPublication(input: {
 
 	const extension = mimeType === "image/png" ? "png" : "webp";
 	const expectedKey = sessionCoverObjectKey({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: input.campaignSlug,
 		sessionId: input.sessionId,
 		sha256,
 		extension,
@@ -264,13 +266,14 @@ export async function prepareSessionCoverForPublication(input: {
 	if (!updateError && updated) {
 		return verifiedPublicCoverUrl(
 			updated as unknown as CoverAssetRow,
+			input.campaignSlug,
 			input.sessionId,
 		);
 	}
 
 	// A concurrent retry may have persisted the same immutable promotion first.
 	asset = await coverAsset(client, input.campaignId, input.coverReference);
-	return asset ? verifiedPublicCoverUrl(asset, input.sessionId) : null;
+	return asset ? verifiedPublicCoverUrl(asset, input.campaignSlug, input.sessionId) : null;
 }
 
 export async function readCommittedSessionPublication(input: {
@@ -294,9 +297,10 @@ export async function readCommittedSessionPublication(input: {
 	const { data: raw, error } = await client
 		.from("session_publication_operations")
 		.select(
-			"campaign_id,session_id,draft_id,publication_id,expected_previous_publication_id,payload_sha256,actor_profile_id",
+			"campaign_id,session_id,draft_id,publication_id,expected_previous_publication_id,payload_sha256,actor_profile_id,campaigns!inner(slug)",
 		)
 		.eq("operation_id", input.request.operationId)
+		.eq("campaigns.slug", input.request.campaignSlug)
 		.maybeSingle();
 	if (error) return { ok: false, reason: "dependency_unavailable" };
 	if (!raw) return null;
@@ -365,7 +369,7 @@ export async function persistSessionPublication(input: {
 
 	const { data, error } = await client.rpc("publish_session_editorial_with_date_atomic", {
 		p_actor_profile_id: input.actorProfileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: input.request.campaignSlug,
 		p_session_id: input.request.sessionId,
 		p_draft_id: input.request.draftId,
 		p_expected_current_publication_id:
