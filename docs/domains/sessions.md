@@ -158,6 +158,52 @@ O contrato multi-campaign canônico está em [architecture/multi-campaign](../ar
 
 O legado por fragmentos `#/sessao/{sourceSessionId}` e `#/sessao/{sourceSessionId}/resumo` continua compatível somente pela mesma regra: a ponte não pode escolher campaign por coincidência de source ID.
 
+## Move seguro entre campaigns
+
+O Edit usa a identidade canônica `campaign + source_session_id` para abrir e mover uma
+session. O comando **Mover para outra campanha** é separado de salvar draft e possui
+duas fases:
+
+1. **preflight zero-write** reautoriza `campaign.content.edit` na origem e no
+   destino e lista blockers;
+2. **commit atômico** bloqueia a row da session, repete o preflight dentro da
+   transação, troca `campaign_id`, grava um receipt idempotente por
+   `operation_id` e registra audit metadata-only.
+
+O move não clona conteúdo e não tenta "resolver" dependências por nome. Enquanto
+não existir política explícita de rebind, bloqueiam o move: publication ativa ou
+histórica, transcript revision, draft editorial, mídia em namespace de campaign,
+review/canon, participant ligado a entity, fontes/lineage de processamento e
+grants ativos/eligible scoped à session. Colisão de `source_session_id` no destino
+também bloqueia.
+
+### Publicação e URLs
+
+Publication ativa nunca é redirecionada ou despublicada implicitamente. A operação
+fica bloqueada até que uma ação editorial separada remova o estado público ou uma
+migration futura defina, teste e audite uma política transacional de redirect/rebind.
+Isso evita canonical público apontando para campaign errada.
+
+### Concorrência e retry
+
+O commit usa lock pessimista da session e receipt durável. Uma segunda tentativa
+concorrente observa `conflict`; replay do mesmo `operation_id` com exatamente os
+mesmos parâmetros retorna o receipt existente. Reusar o receipt com outra
+origem/destino/session/actor é `operation_conflict`.
+
+### Cache, delivery e compensação
+
+Banco e audit são a autoridade do commit. Depois de `moved`/replay, a aplicação
+revalida biblioteca Edit, detalhes privados, arquivo agregado e URLs públicas
+campaign-qualified de origem/destino.
+
+Falha de cache/revalidation **não desfaz o commit do banco**. Ela é marcada como
+`cachePending`; a compensação segura é repetir a mesma operação idempotente (ou
+revalidar novamente) e nunca executar um "move de volta" automático. Se delivery
+continuar inconsistente, operação deve tratar como incidente de cache/read-model
+usando o receipt/audit como fonte de verdade. Não existe compensação que copie ou
+reescreva transcript, media ou canon.
+
 ## Invariantes
 
 - session pertence a exatamente uma campaign;
