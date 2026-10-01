@@ -7,6 +7,10 @@ import type { SessionEditorialDraftEditorTransport } from "./editorial-draft-edi
 import type { SessionEditorialDraft } from "./editorial-draft-model";
 import type { SessionCoverUploadState } from "./session-cover-editor";
 import { SessionEditWorkspace } from "./session-edit-workspace";
+import {
+	SessionCampaignMovePanel,
+	type SessionCampaignMoveTransport,
+} from "./session-campaign-move";
 import workbenchStyles from "../workbench.module.css";
 
 const SESSION_ID = "11111111-1111-4111-8111-111111111111";
@@ -204,6 +208,11 @@ export function SessionEditorialE2EFixture({
 	);
 	const loseNextResponseRef = useRef(false);
 	const failNextCoverPromotionRef = useRef(false);
+	const loseNextMoveResponseRef = useRef(false);
+	const moveReceiptsRef = useRef(new Set<string>());
+	const moveAttemptsRef = useRef(new Map<string, number>());
+	const moveLostResponseOperationsRef = useRef(new Set<string>());
+	const [moveOperationIds, setMoveOperationIds] = useState<string[]>([]);
 	const [publicSnapshot, setPublicSnapshot] = useState<PublicSnapshot | null>(null);
 	const [editable, setEditable] = useState(true);
 	const [publishable, setPublishable] = useState(true);
@@ -327,6 +336,61 @@ export function SessionEditorialE2EFixture({
 		};
 	}, []);
 
+	const moveTransport = useMemo<SessionCampaignMoveTransport>(() => ({
+		preflight: async (request) => ({
+			ok: true as const,
+			preview: request.destinationCampaignSlug === "campanha-bloqueada"
+				? {
+					status: "blocked" as const,
+					sessionId: request.sessionId,
+					sourceSessionId: request.sourceSessionId,
+					sourceCampaignSlug: request.sourceCampaignSlug,
+					destinationCampaignSlug: request.destinationCampaignSlug,
+					blockers: [{
+						code: "synthetic_binding",
+						count: 1,
+						message: "Dependência sintética impede o move.",
+					}],
+					consequences: [],
+				}
+				: {
+					status: "ready" as const,
+					sessionId: request.sessionId,
+					sourceSessionId: request.sourceSessionId,
+					sourceCampaignSlug: request.sourceCampaignSlug,
+					destinationCampaignSlug: request.destinationCampaignSlug,
+					blockers: [],
+					consequences: [
+						"edit_url_changes",
+						"campaign_scope_changes",
+						"cache_revalidation_required",
+					],
+				},
+		}),
+		commit: async (request) => {
+			const attempt = (moveAttemptsRef.current.get(request.operationId) ?? 0) + 1;
+			moveAttemptsRef.current.set(request.operationId, attempt);
+			const replayed = moveReceiptsRef.current.has(request.operationId);
+			moveReceiptsRef.current.add(request.operationId);
+			setMoveOperationIds((current) => [...current, request.operationId]);
+			if (loseNextMoveResponseRef.current) {
+				loseNextMoveResponseRef.current = false;
+				moveLostResponseOperationsRef.current.add(request.operationId);
+				throw new Error("synthetic lost move response");
+			}
+			const cachePending = moveLostResponseOperationsRef.current.has(request.operationId)
+				? attempt < 3
+				: attempt < 2;
+			return {
+				ok: true as const,
+				replayed,
+				cachePending,
+				destinationHref:
+					`/e2e-fixtures/session-editorial?move=committed&operationId=${encodeURIComponent(request.operationId)}`,
+			};
+		},
+	}), []);
+
 	function simulateTranscriptRevision() {
 		transcriptRevisionRef.current = TRANSCRIPT_REVISION_ID_2;
 		setTranscriptRevisionId(TRANSCRIPT_REVISION_ID_2);
@@ -396,8 +460,39 @@ export function SessionEditorialE2EFixture({
 				>
 					Falhar próxima promoção da capa
 				</button>
+				<button
+					onClick={() => {
+						loseNextMoveResponseRef.current = true;
+					}}
+					type="button"
+				>
+					Perder próxima resposta de move
+				</button>
+				<output data-testid="synthetic-move-operation-ids">
+					{moveOperationIds.join("|")}
+				</output>
 				<output data-testid="remote-draft-revision">{remoteRevision}</output>
 			</section>
+
+			<SessionCampaignMovePanel
+				sessionId={SESSION_ID}
+				sourceSessionId="synthetic-editorial"
+				sourceCampaignSlug="campanha-a"
+				sourceCampaignName="Campanha A"
+				destinations={[
+					{
+						technicalSlug: "campanha-b",
+						routeKey: "campanha-b",
+						name: "Campanha B",
+					},
+					{
+						technicalSlug: "campanha-bloqueada",
+						routeKey: "campanha-bloqueada",
+						name: "Campanha bloqueada",
+					},
+				]}
+				transport={moveTransport}
+			/>
 
 			<section aria-label="Workspace editorial privado" data-testid="session-editorial-workspace-frame">
 				<SessionEditWorkspace
