@@ -1,5 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
+const WORLD_WORKSPACE_PATH = "/campanhas/cronicas-da-mesa/mundo";
+
 async function expectNoHorizontalOverflow(page: Page) {
 	const geometry = await page.evaluate(() => ({
 		scrollWidth: document.documentElement.scrollWidth,
@@ -82,7 +84,7 @@ test("sanitized cross-surface receipts cover the consolidated TDA layout familie
 	await expect(page.locator('aside[aria-label="Filtros do Lembra"]')).toHaveCount(0);
 	await receipt(page, testInfo, "lembra");
 
-	await gotoSurface(page, "/mundo");
+	await gotoSurface(page, WORLD_WORKSPACE_PATH);
 	await closeWorldOverlays(page);
 	await receipt(page, testInfo, "world-closed");
 
