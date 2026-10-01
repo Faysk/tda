@@ -101,13 +101,18 @@ test("World campaign switch preserves explicit context across back, forward and 
 	if (await navigationClose.isVisible().catch(() => false)) {
 		await navigationClose.click();
 	}
-	await page.getByText("Trocar", { exact: true }).click();
+	const campaignSwitch = page.getByText("Trocar", { exact: true });
+	await campaignSwitch.focus();
+	await expect(campaignSwitch).toBeFocused();
+	await page.keyboard.press("Enter");
 	const campaignB = page.getByRole("link", {
 		name: "Antes que seja tarde",
 		exact: true,
 	});
 	await expect(campaignB).toHaveAttribute("href", WORLD_B_PATH);
-	await campaignB.click();
+	await campaignB.focus();
+	await expect(campaignB).toBeFocused();
+	await page.keyboard.press("Enter");
 
 	await expect(page).toHaveURL(/\/campanhas\/antes-que-seja-tarde\/mundo$/u);
 	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
