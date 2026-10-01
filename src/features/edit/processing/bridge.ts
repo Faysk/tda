@@ -714,11 +714,13 @@ export class LocalBridge {
 		sourceId: string,
 		profileId: CraigTranscriptionInput["profileId"],
 		signal: AbortSignal,
+		purpose: "transcription" | "benchmark" = "transcription",
 	) {
 		return parsePreparationStatus(
 			await this.json("/preparation", signal, {
 				source_id: identifier(sourceId),
 				profile_id: profileId,
+				...(purpose === "benchmark" ? { purpose } : {}),
 			}),
 		);
 	}

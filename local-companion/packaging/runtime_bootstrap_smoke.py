@@ -6,7 +6,14 @@ import subprocess
 from pathlib import Path
 
 
-def launch(worker: Path, version: str, family: str, command: str, timeout: int):
+def launch(
+    worker: Path,
+    version: str,
+    family: str,
+    command: str,
+    timeout: int,
+    environment_overrides: dict[str, str] | None = None,
+):
     runtime_id = {"whisper": "whisper-ctranslate2", "qwen": "qwen3-transformers"}[family]
     with worker.open("rb") as handle:
         digest = hashlib.file_digest(handle, "sha256").hexdigest()
@@ -22,10 +29,22 @@ def launch(worker: Path, version: str, family: str, command: str, timeout: int):
             raise RuntimeError("RUNTIME_SMOKE_SEAL_INVALID")
         artifact["archive_sha256"] = stored.get("archive_sha256")
     try:
-        return subprocess.run([str(worker)], input=command, text=True, capture_output=True,
-                              timeout=timeout, check=False, env={**os.environ,
-                              "TDA_ASR_RUNTIME_FAMILY": family, "TDA_ASR_RUNTIME_VERSION": version,
-                              "TDA_ASR_RUNTIME_ARTIFACT": json.dumps(artifact)})
+        environment = {
+            **os.environ,
+            "TDA_ASR_RUNTIME_FAMILY": family,
+            "TDA_ASR_RUNTIME_VERSION": version,
+            "TDA_ASR_RUNTIME_ARTIFACT": json.dumps(artifact),
+            **(environment_overrides or {}),
+        }
+        return subprocess.run(
+            [str(worker)],
+            input=command,
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+            env=environment,
+        )
     finally:
         if temporary:
             marker.unlink()

@@ -99,6 +99,8 @@ function bridgeMessage(error: unknown, fallback: string): string {
 				"O benchmark precisa de pelo menos 5:00 reais em todas as tracks desta fonte.",
 			BENCHMARK_PROFILES_NOT_READY:
 				"Um ou mais perfis deixaram de estar prontos. Atualize a prontidão antes de tentar novamente.",
+			WHISPER_BENCHMARK_RUNTIME_REQUIRED:
+				"O Whisper Runtime instalado transcreve normalmente, mas precisa ser atualizado para executar benchmark.",
 			BENCHMARK_RESOURCE_BUSY:
 				"Há uma transcrição ou benchmark usando os recursos locais. Aguarde essa execução terminar.",
 			TRANSCRIPTION_PREPARATION_ALREADY_RUNNING:
@@ -196,37 +198,52 @@ function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
 function ProfileReadiness({
 	profile,
 	id,
+	benchmarkContractSupported,
 }: Readonly<{
 	profile: TranscriptionProfileState | null;
 	id: (typeof PROFILES)[number];
+	benchmarkContractSupported: boolean;
 }>) {
 	const qwenRuntimeRecovery = needsQwenRuntimeRecovery(profile);
 	const qwenRuntimeUpgrade = requiresQwenRuntimeUpgrade(profile);
-	const state = profile?.ready
-		? "ready"
-		: qwenRuntimeRecovery
-			? "blocked"
-			: profile?.preparationRequired
-				? "prepare"
-				: "blocked";
-	const detail =
-		profile?.ready
+	const benchmarkReason = profile?.benchmarkReason ?? null;
+	const state = !benchmarkContractSupported
+		? "blocked"
+		: profile?.benchmarkReady
+			? "ready"
+			: qwenRuntimeRecovery
+				? "blocked"
+				: profile?.benchmarkPreparationRequired
+					? "prepare"
+					: "blocked";
+	const detail = !benchmarkContractSupported
+		? "Atualize o Companion para validar a prontidão de benchmark."
+		: profile?.benchmarkReady
 			? "Pronto"
-			: qwenRuntimeUpgrade
-				? "Runtime Qwen precisa ser atualizado."
-				: qwenRuntimeRecovery
-					? "Runtime Qwen precisa ser verificado."
-					: profile
-					? (profileReadinessCopy(profile) ?? profile.reason ?? "Indisponível")
-					: "Não anunciado pelo Companion";
+			: benchmarkReason === "WHISPER_BENCHMARK_RUNTIME_REQUIRED"
+				? "Whisper Runtime precisa ser atualizado para benchmark."
+				: qwenRuntimeUpgrade
+					? "Runtime Qwen precisa ser atualizado."
+					: qwenRuntimeRecovery
+						? "Runtime Qwen precisa ser verificado."
+						: profile
+							? (benchmarkReason ?? profileReadinessCopy(profile) ?? profile.reason ?? "Indisponível")
+							: "Não anunciado pelo Companion";
 	return (
 		<div className={styles.profileRow} data-state={state}>
 			<strong>{LABELS[id]}</strong>
-			<span>{profile?.ready ? "✓" : qwenRuntimeRecovery ? "!" : profile?.preparationRequired ? "◌" : "!"} {detail}</span>
-			{profile?.reason && !profile.ready ? (
+			<span>
+				{benchmarkContractSupported && profile?.benchmarkReady
+					? "✓"
+					: benchmarkContractSupported && profile?.benchmarkPreparationRequired
+						? "◌"
+						: "!"}{" "}
+				{detail}
+			</span>
+			{benchmarkContractSupported && benchmarkReason && !profile?.benchmarkReady ? (
 				<details className={styles.technicalDetail}>
 					<summary>Detalhe técnico</summary>
-					<code>{profile.reason}</code>
+					<code>{benchmarkReason}</code>
 				</details>
 			) : null}
 		</div>
@@ -311,20 +328,31 @@ export function ProcessingBenchmark({
 	const profileStates = PROFILES.map(
 		(id) => catalog.find((item) => item.id === id) ?? null,
 	);
-	const readyCount = profileStates.filter((item) => item?.ready).length;
+	const benchmarkContractSupported =
+		capabilities?.capabilities.includes("processing.benchmark.runtime-readiness-v2") ??
+		false;
+	const readyCount = benchmarkContractSupported
+		? profileStates.filter((item) => item?.benchmarkReady).length
+		: 0;
 	const pendingProfiles = profileStates.filter(
 		(item): item is TranscriptionProfileState =>
 			Boolean(
-				item &&
-					!item.ready &&
-					item.preparationRequired &&
+				benchmarkContractSupported &&
+					item &&
+					!item.benchmarkReady &&
+					item.benchmarkPreparationRequired &&
 					!needsQwenRuntimeRecovery(item),
 			),
 	);
-	const blockedProfiles = profileStates.filter(
-		(item) => item === null || (!item.ready && !item.preparationRequired),
-	);
-	const qwenRuntimeBlocked = profileStates.some(needsQwenRuntimeRecovery);
+	const blockedProfiles = benchmarkContractSupported
+		? profileStates.filter(
+				(item) =>
+					item === null ||
+					(!item.benchmarkReady && !item.benchmarkPreparationRequired),
+			)
+		: profileStates;
+	const qwenRuntimeBlocked =
+		benchmarkContractSupported && profileStates.some(needsQwenRuntimeRecovery);
 	const qwenInstalledVersionFromProfiles =
 		profileStates.find(
 			(item) => needsQwenRuntimeRecovery(item) && item?.runtimeVersion,
@@ -333,7 +361,8 @@ export function ProcessingBenchmark({
 		capabilities?.capabilities.includes("runtime.qwen.check") ?? false;
 	const qwenRuntimeUpdateSupported =
 		capabilities?.capabilities.includes("runtime.qwen.update") ?? false;
-	const allProfilesReady = readyCount === PROFILES.length;
+	const allProfilesReady =
+		benchmarkContractSupported && readyCount === PROFILES.length;
 	const fileError = file ? validateCraigFile(file) : null;
 	const sampleEligible =
 		source === null ||
@@ -641,6 +670,7 @@ export function ProcessingBenchmark({
 					source.sourceId,
 					profile.id,
 					controller.signal,
+					"benchmark",
 				);
 				setPreparation(observed);
 				while (observed.active && !controller.signal.aborted) {
@@ -662,7 +692,9 @@ export function ProcessingBenchmark({
 			setStatus("Preparação concluída. Confirmando os quatro perfis…");
 			const refreshed = await refreshCatalog(controller.signal);
 			const ready = PROFILES.every(
-				(id) => refreshed.transcription.catalog.find((item) => item.id === id)?.ready,
+				(id) =>
+					refreshed.transcription.catalog.find((item) => item.id === id)
+						?.benchmarkReady,
 			);
 			if (ready) setStatus("Quatro perfis prontos para o benchmark.");
 			else
@@ -767,7 +799,9 @@ export function ProcessingBenchmark({
 			? `${LABELS[preparation.profileId]} · ${preparation.title}`
 			: null;
 
-	const nextActionCopy = qwenRuntimeBlocked
+	const nextActionCopy = !benchmarkContractSupported
+		? "Atualize o Companion para habilitar o contrato de prontidão do benchmark."
+		: qwenRuntimeBlocked
 		? !qwenRuntimeCheckSupported
 			? "Atualize o Companion para habilitar a recuperação do Qwen Runtime."
 			: qwenRuntime?.canUpdate
@@ -900,11 +934,16 @@ export function ProcessingBenchmark({
 								<span className={styles.eyebrow}>Readiness</span>
 								<h3 id="benchmark-readiness-title">Perfis locais</h3>
 							</div>
-							<strong>{readyCount} / {PROFILES.length} perfis prontos</strong>
+							<strong>{readyCount} / {PROFILES.length} perfis prontos para benchmark</strong>
 						</div>
 						<div className={styles.profileReadiness}>
 							{PROFILES.map((id, index) => (
-								<ProfileReadiness key={id} id={id} profile={profileStates[index] ?? null} />
+								<ProfileReadiness
+									key={id}
+									id={id}
+									profile={profileStates[index] ?? null}
+									benchmarkContractSupported={benchmarkContractSupported}
+								/>
 							))}
 						</div>
 					</section>

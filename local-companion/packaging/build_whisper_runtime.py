@@ -149,6 +149,76 @@ def _smoke_worker_bootstrap(worker: Path, version: str) -> dict:
     }
 
 
+def _smoke_worker_benchmark_contract(worker: Path, version: str) -> dict:
+    command = json.dumps(
+        {
+            "protocol": "tda_worker_v1",
+            "type": "run",
+            "job_id": "runtime-benchmark-contract-smoke",
+            "attempt": 1,
+            "kind": "transcription.craig",
+            "payload": {
+                "source_id": "craig-" + "0" * 64,
+                "profile_id": "whisper-turbo",
+                "glossary": "",
+                "context": "",
+                "cpu": False,
+                "benchmark_mode": True,
+                "benchmark_sample_seconds": 300.0,
+            },
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ) + "\n"
+    with tempfile.TemporaryDirectory(prefix="tda-whisper-benchmark-contract-") as value:
+        root = Path(value)
+        data_root = root / "Data"
+        models_root = root / "Models"
+        data_root.mkdir()
+        models_root.mkdir()
+        try:
+            result = launch_sealed_smoke(
+                worker,
+                version,
+                "whisper",
+                command,
+                30,
+                {
+                    "TDA_WORKER_DATA_ROOT": str(data_root),
+                    "TDA_WORKER_MODELS_ROOT": str(models_root),
+                },
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("WHISPER_RUNTIME_BENCHMARK_CONTRACT_TIMEOUT") from exc
+
+    if result.returncode == 64:
+        raise RuntimeError("WHISPER_RUNTIME_BENCHMARK_COMMAND_REJECTED")
+    messages = []
+    for line in result.stdout.splitlines():
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("WHISPER_RUNTIME_BENCHMARK_PROTOCOL_INVALID") from exc
+        if isinstance(item, dict):
+            messages.append(item)
+    types = [str(item.get("type") or "") for item in messages]
+    if "ready" not in types or "error" not in types or "result" in types:
+        raise RuntimeError("WHISPER_RUNTIME_BENCHMARK_CONTRACT_NOT_EXERCISED")
+    return {
+        "ready": True,
+        "returncode": result.returncode,
+        "message_types": types,
+        "terminal_error": next(
+            (
+                str(item.get("payload", {}).get("code") or "")
+                for item in messages
+                if item.get("type") == "error" and isinstance(item.get("payload"), dict)
+            ),
+            "",
+        ),
+    }
+
+
 def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
     sys.path.insert(0, str(ROOT / "local-companion"))
     from tda_companion.asr_runtime import (  # noqa: PLC0415
@@ -176,7 +246,12 @@ def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
         ):
             raise RuntimeError("WHISPER_RUNTIME_INSTALLED_PROBE_FAILED")
         bootstrap = _smoke_worker_bootstrap(worker, version)
-        return {"probe": probe, "bootstrap": bootstrap}
+        benchmark_contract = _smoke_worker_benchmark_contract(worker, version)
+        return {
+            "probe": probe,
+            "bootstrap": bootstrap,
+            "benchmark_contract": benchmark_contract,
+        }
 
 
 def main() -> int:
@@ -231,6 +306,7 @@ def main() -> int:
         ):
             raise RuntimeError("WHISPER_RUNTIME_PROBE_NOT_READY")
         bootstrap = _smoke_worker_bootstrap(worker, version)
+        benchmark_contract = _smoke_worker_benchmark_contract(worker, version)
         if probe.get("faster_whisper") != packages["faster-whisper"]:
             raise RuntimeError("WHISPER_RUNTIME_FASTER_WHISPER_VERSION_MISMATCH")
         if probe.get("ctranslate2") != packages["ctranslate2"]:
@@ -251,6 +327,7 @@ def main() -> int:
             "gpu": config["gpu"],
             "probe": probe,
             "bootstrap": bootstrap,
+            "benchmark_contract": benchmark_contract,
             "required_dlls": list(REQUIRED_DLLS),
             "nvidia_dll_counts": copied_dlls,
         }
