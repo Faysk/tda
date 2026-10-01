@@ -55,12 +55,25 @@ describe("processing benchmark contract", () => {
 			warning_count: 0,
 			execution_lineage: {
 				schema_version: "tda_execution_lineage_v1",
-				companion_version: "0.3.16",
+				companion_version: "0.3.18",
 				runtime_family: engine === "whisper" ? "whisper" : "qwen",
-				runtime_version: "1.0.0",
-				device: "cuda",
+				runtime_version: engine === "whisper" ? "1.1.6" : "1.0.12",
+				runtime_artifact: {
+					runtime_id: engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
+					version: engine === "whisper" ? "1.1.6" : "1.0.12",
+					worker_sha256: "c".repeat(64),
+					archive_sha256: "d".repeat(64),
+				},
+				device: "cuda:0",
 				compute_type: "float16",
-				gpu: null,
+				gpu: {
+					vendor: "NVIDIA",
+					index: 0,
+					model: "NVIDIA GeForce RTX 4070 Laptop GPU",
+					vram_total_bytes: 8 * 1024 * 1024 * 1024,
+					compute_capability: "8.9",
+					driver_version: "synthetic",
+				},
 			},
 		});
 		const result = parseBenchmarkResult(
@@ -95,6 +108,58 @@ describe("processing benchmark contract", () => {
 		expect(result.sampleSeconds).toBe(300);
 		expect(result.profiles.every((item) => item.processingTimingVersion === "engine_processing_v1")).toBe(true);
 		expect(JSON.stringify(result)).not.toContain("transcript");
+		expect(result.profiles.every((item) => item.executionLineage?.runtimeArtifact?.archiveSha256 === "d".repeat(64))).toBe(true);
+		expect(result.profiles.every((item) => item.executionLineage?.gpu?.model === "NVIDIA GeForce RTX 4070 Laptop GPU")).toBe(true);
+	});
+
+	it("rejects benchmark receipts without exact runtime and GPU evidence", () => {
+		const profile = (profileId: string, engine: "whisper" | "qwen3") => ({
+			kind: "benchmark.profile",
+			schema_version: "tda_benchmark_profile_v1",
+			profile_id: profileId,
+			engine,
+			model: "model",
+			model_revision: "revision",
+			device: "cuda",
+			compute_type: "float16",
+			alignment: "native",
+			sample_seconds: 300,
+			audio_work_seconds: 300,
+			session_duration_seconds: 300,
+			processing_timing_version: "engine_processing_v1",
+			processing_seconds: 30,
+			rtf: 0.1,
+			word_count: 10,
+			segment_count: 2,
+			track_count: 1,
+			warning_count: 0,
+			execution_lineage: null,
+		});
+		expect(() =>
+			parseBenchmarkResult(
+				{
+					schema_version: "tda_processing_benchmark_v1",
+					kind: "benchmark.craig",
+					job_id: "benchmark-job",
+					source_id: "craig-" + "a".repeat(64),
+					campaign_id: "benchmark-local",
+					session_id: "benchmark-local",
+					sample_identity_sha256: "b".repeat(64),
+					sample_seconds: 300,
+					execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+					track_count: 1,
+					audio_work_seconds: 300,
+					prepared: true,
+					profiles: [
+						profile("whisper-turbo", "whisper"),
+						profile("whisper-detailed", "whisper"),
+						profile("qwen-fast", "qwen3"),
+						profile("qwen-quality", "qwen3"),
+					],
+				},
+				"benchmark-job",
+			),
+		).toThrow();
 	});
 
 	it("rejects reordered or incomplete benchmark receipts", () => {
