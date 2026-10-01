@@ -134,6 +134,19 @@ A correção de contenção altera o adapter/worker empacotado e portanto exige 
 8. Qualquer falha de contenção, duração, ordering, dedup, turns ou integridade aborta a promoção. O contrato `tda_transcript_v1` continua estrito; não clipar/remover palavras nem reescrever run concluído para fazê-lo passar.
 9. Rollback seleciona um runtime Whisper anterior já publicado e compatível, preservando Models/Data/runs. Correção posterior recebe nova versão imutável.
 
+
+### Whisper Runtime 1.1.9 / cold-start do decode smoke — #1277
+
+O Runtime 1.1.8 de #1234/#1235 permanece imutável. O endurecimento do orçamento de cold-start do decoder começa somente na nova identidade **Whisper Runtime 1.1.9**.
+
+1. O smoke empacotado continua obrigatório e executa WAV e FLAC reais por `faster_whisper.audio.decode_audio`; não substituir por probe sintético.
+2. Faster-Whisper 1.2.1, CTranslate2 4.8.2 e PyAV 18.1.0 permanecem fixados neste corte; schema, sample rate e sample count continuam fail-closed.
+3. Apenas o subprocesso congelado de `--decode-smoke` recebe orçamento explícito e limitado de **90 s** para absorver variância de loader/AV/scheduler no Windows. O `--probe` continua com seu orçamento anterior.
+4. Exceder 90 s continua falhando de forma estável com `WHISPER_RUNTIME_DECODE_SMOKE_TIMEOUT`; o aumento não transforma hang em sucesso.
+5. A mudança exige nova versão semântica e novo source/archive SHA. Não retaggear, sobrescrever ou republicar qualquer asset 1.1.8.
+6. Publicação de RC continua distinta de promoção Stable; aceite físico e receipts seguem os gates governados aplicáveis ao runtime candidato.
+
+
 ## 6. Secrets e providers
 
 Antes de operação remota, confirmar o boundary correto:

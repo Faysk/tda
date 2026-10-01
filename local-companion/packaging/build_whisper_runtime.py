@@ -22,6 +22,10 @@ NVIDIA_DISTRIBUTIONS = (
     "nvidia-cudnn-cu12",
     "nvidia-cuda-runtime-cu12",
 )
+# Frozen Windows workers can spend tens of seconds in loader/AV cold start on
+# GitHub-hosted runners before decode begins. Keep this bounded, but give the
+# mandatory real WAV+FLAC Faster-Whisper smoke enough scheduler headroom.
+WHISPER_DECODE_SMOKE_TIMEOUT_SECONDS = 90
 
 
 def run(
@@ -48,7 +52,13 @@ def _probe_worker(worker: Path) -> dict:
 
 def _decode_smoke_worker(worker: Path) -> dict:
     try:
-        value = json.loads(run(str(worker), "--decode-smoke", timeout=30))
+        value = json.loads(
+            run(
+                str(worker),
+                "--decode-smoke",
+                timeout=WHISPER_DECODE_SMOKE_TIMEOUT_SECONDS,
+            )
+        )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("WHISPER_RUNTIME_DECODE_SMOKE_TIMEOUT") from exc
     except json.JSONDecodeError as exc:
