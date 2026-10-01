@@ -38,7 +38,7 @@ export const LORE_EDITORIAL_REGISTRY = [
 		entityLink: { campaignTechnicalSlug: "yuhara-main", entityType: "pc", entitySlug: "noah" },
 	},
 	{
-		slug: "d", delivery: "standalone", listed: false,
+		slug: "d", delivery: "standalone", listed: true,
 		campaignTechnicalSlug: "antes-que-seja-tarde", indexable: false, entityLink: null,
 	},
 	{
@@ -46,8 +46,8 @@ export const LORE_EDITORIAL_REGISTRY = [
 		campaignTechnicalSlug: "antes-que-seja-tarde", indexable: false, entityLink: null,
 	},
 	{
-		slug: "yllith", delivery: "standalone", listed: false,
-		campaignTechnicalSlug: null, indexable: false, entityLink: null,
+		slug: "yllith", delivery: "standalone", listed: true,
+		campaignTechnicalSlug: "antes-que-seja-tarde", indexable: false, entityLink: null,
 	},
 ] as const satisfies readonly LoreEditorialRegistration[];
 
