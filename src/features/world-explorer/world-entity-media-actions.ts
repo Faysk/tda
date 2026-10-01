@@ -2,7 +2,6 @@
 
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	WORLD_ENTITY_MEDIA_MAX_BYTES,
 	WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
@@ -205,11 +204,16 @@ export async function finalizeWorldEntityPortraitUploadAction(
 
 	const authorization = await authorizeWorldEntityMediaTarget(leaseToken, entityId);
 	if (!authorization.ok) return authorization;
-	const { client, campaignId, profileId } = authorization.target;
+	const {
+		client,
+		campaignId,
+		campaignTechnicalSlug,
+		profileId,
+	} = authorization.target;
 
 	try {
 		const upload = await finalizeWorldEntityPortraitPendingUpload({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: campaignTechnicalSlug,
 			entityId,
 			uploadId,
 			expectedSha256: intent.sha256,
