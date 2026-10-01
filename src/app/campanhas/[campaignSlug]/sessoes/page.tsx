@@ -114,14 +114,24 @@ export default async function CampaignSessionsPage({ params }: Props) {
 		);
 	}
 
-	if (sessions[0]) {
+	if (!resolved.ok && sessions[0]) {
 		campaignName = sessions[0].campaignName;
 	}
 
 	const summary = summarizeSessionArchive(sessions);
-	const latest = sessions[0] ?? null;
+	const sessionArtwork = sessions.find(
+		(session) => session.coverImage || session.heroImage,
+	);
 	const campaignArtwork =
-		campaignCoverImage || latest?.coverImage || latest?.heroImage || null;
+		campaignCoverImage ||
+		sessionArtwork?.coverImage ||
+		sessionArtwork?.heroImage ||
+		null;
+	const artworkSource = campaignCoverImage
+		? "campaign-cover"
+		: campaignArtwork
+			? "session-artwork"
+			: "fallback";
 	const campaignPath = `/campanhas/${encodeURIComponent(routeKey)}`;
 
 	return (
@@ -137,6 +147,7 @@ export default async function CampaignSessionsPage({ params }: Props) {
 				aria-labelledby="archive-title"
 				data-session-archive-hero
 				data-has-artwork={campaignArtwork ? "true" : "false"}
+				data-campaign-artwork-source={artworkSource}
 			>
 				{campaignArtwork ? (
 					<div className={styles.backdrop} aria-hidden="true">
@@ -157,7 +168,7 @@ export default async function CampaignSessionsPage({ params }: Props) {
 							className={styles.scopeBreadcrumb}
 							aria-label="Contexto da campanha"
 						>
-							<Link href="/campanhas">Campanhas</Link>
+							<Link href="/campanhas/sessoes">Todas as campanhas</Link>
 							<span aria-hidden="true">›</span>
 							<span aria-current="page">{campaignName}</span>
 						</nav>
@@ -173,14 +184,29 @@ export default async function CampaignSessionsPage({ params }: Props) {
 							className={styles.scopeActions}
 							aria-label={`Explorar ${campaignName}`}
 						>
-							<Link className={styles.scopeAction} href="/campanhas/sessoes">
-								Arquivo de todas as campanhas
+							<Link
+								className={styles.scopeAction}
+								href="/campanhas/sessoes"
+							>
+								Arquivo global
 							</Link>
 							<Link
 								className={styles.scopeAction}
 								href={`${campaignPath}/mundo`}
 							>
-								Mundo da campanha
+								Mundo
+							</Link>
+							<Link
+								className={styles.scopeAction}
+								href={`${campaignPath}/personagens`}
+							>
+								Personagens
+							</Link>
+							<Link
+								className={styles.scopeAction}
+								href={`${campaignPath}/lugares`}
+							>
+								Lugares
 							</Link>
 						</nav>
 					</header>
@@ -198,11 +224,11 @@ export default async function CampaignSessionsPage({ params }: Props) {
 							<dd>{formatArchiveNumber(summary.arcs)}</dd>
 						</div>
 						<div className={styles.stat}>
-							<dt>primeira memória</dt>
+							<dt>primeira memória desta campanha</dt>
 							<dd>{formatArchiveDate(summary.firstDate)}</dd>
 						</div>
 						<div className={styles.stat}>
-							<dt>última memória</dt>
+							<dt>última memória desta campanha</dt>
 							<dd>{formatArchiveDate(summary.latestDate)}</dd>
 						</div>
 					</dl>
