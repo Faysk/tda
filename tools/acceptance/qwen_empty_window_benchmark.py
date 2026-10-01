@@ -187,15 +187,20 @@ def _profile_classification(
     diagnostics: list[dict[str, Any]],
 ) -> str:
     codes = {str(item.get("code") or "") for item in diagnostics}
+    if terminal != "result":
+        if (
+            error_code == "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"
+            and "QWEN_WINDOW_EMPTY_ASR_REJECTED" in codes
+        ):
+            return "empty_recognition_with_signal"
+        if error_code:
+            return "other_failure"
+        return "invalid_outcome"
     if "QWEN_WINDOW_EMPTY_ASR_REJECTED" in codes:
-        return "empty_recognition_with_signal"
+        return "invalid_outcome"
     if "QWEN_WINDOW_SILENCE_CONFIRMED" in codes:
         return "confirmed_near_digital_silence"
-    if terminal == "result":
-        return "empty_condition_not_reproduced"
-    if error_code:
-        return "other_failure"
-    return "invalid_outcome"
+    return "empty_condition_not_reproduced"
 
 
 def _assert_receipt_privacy(value: object) -> None:
