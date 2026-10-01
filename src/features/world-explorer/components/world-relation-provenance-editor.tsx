@@ -35,9 +35,11 @@ function failureMessage(reason: WorldRelationProvenanceFailure): string {
 }
 
 export function WorldRelationProvenanceEditor({
+	campaignSlug,
 	relationId,
 	onPublicationEligibilityChange,
 }: {
+	campaignSlug: string;
 	relationId: string;
 	onPublicationEligibilityChange: (eligible: boolean) => void;
 }) {
@@ -57,7 +59,7 @@ export function WorldRelationProvenanceEditor({
 		setSelectedCanonEntryIds([]);
 		onPublicationEligibilityChange(false);
 
-		void loadWorldRelationProvenanceAction(relationId).then((result) => {
+		void loadWorldRelationProvenanceAction(campaignSlug, relationId).then((result) => {
 			if (cancelled) return;
 			setLoading(false);
 			if (!result.ok) {
@@ -71,7 +73,7 @@ export function WorldRelationProvenanceEditor({
 		return () => {
 			cancelled = true;
 		};
-	}, [relationId, onPublicationEligibilityChange]);
+	}, [campaignSlug, relationId, onPublicationEligibilityChange]);
 
 	const activeCanonEntryIds = useMemo(
 		() => provenance?.options.map((option) => option.id) ?? [],
@@ -96,6 +98,7 @@ export function WorldRelationProvenanceEditor({
 		setSaving(true);
 		setFeedback(null);
 		const replaceResult = await replaceWorldRelationProvenanceAction(
+			campaignSlug,
 			relationId,
 			activeRelationCanonSourceIds(selectedCanonEntryIds, activeCanonEntryIds),
 		);
@@ -105,7 +108,7 @@ export function WorldRelationProvenanceEditor({
 			return;
 		}
 
-		const refreshed = await loadWorldRelationProvenanceAction(relationId);
+		const refreshed = await loadWorldRelationProvenanceAction(campaignSlug, relationId);
 		setSaving(false);
 		if (!refreshed.ok) {
 			setProvenance(null);
