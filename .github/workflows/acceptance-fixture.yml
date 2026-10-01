@@ -1208,7 +1208,7 @@ jobs:
             "PROCESSING_BENCHMARK_ACCEPTANCE_FAILED",
             'real_benchmark_requested = (-not [string]::IsNullOrWhiteSpace($CraigZip))',
             "companion-rc-v0.3.18-bb9b0a96fc30",
-            "companion-whisper-runtime-rc-v1.1.7-bb9b0a96fc30",
+            "companion-whisper-runtime-rc-v1.1.8-ce9fdda3c35e",
             "companion-qwen-runtime-rc-v1.0.13-bb9b0a96fc30",
             "CompanionExePath",
             "CompanionPayloadManifest",
@@ -1234,6 +1234,27 @@ jobs:
             if ($processing.Contains($forbidden)) {
               throw ("HANDOFF_PROCESSING_LEGACY_ARTIFACT_PIN_PRESENT:" + $forbidden)
             }
+          }
+
+          $benchmarkGate = Get-Content -LiteralPath (Join-Path $out "tools\acceptance\run-processing-benchmark-physical-gate.ps1") -Raw
+          foreach ($required in @(
+            "Assert-RuntimeCandidateCompatibility",
+            '([Version]"1.1.7")',
+            '([Version]"1.0.13")',
+            "BENCHMARK_RUNTIME_SOURCE_IDENTITY_INVALID",
+            "BENCHMARK_RUNTIME_VERSION_UNSUPPORTED",
+            "candidate_tag =",
+            "source_sha =",
+            "source_tree_sha =",
+            "archive_sha256 =",
+            "worker_sha256 ="
+          )) {
+            if (-not $benchmarkGate.Contains($required)) {
+              throw ("BENCHMARK_GATE_COMPATIBILITY_CONTRACT_MISSING:" + $required)
+            }
+          }
+          if ($benchmarkGate.Contains("BENCHMARK_CURRENT_SOURCE_MISMATCH")) {
+            throw "BENCHMARK_GATE_LEGACY_SOURCE_COUPLING_PRESENT"
           }
 
           $qwenRecovery = Get-Content -LiteralPath (Join-Path $out "tools\acceptance\run-qwen-recovery-physical-gate.ps1") -Raw
