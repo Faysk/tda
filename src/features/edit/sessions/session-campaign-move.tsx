@@ -72,7 +72,11 @@ export function SessionCampaignMovePanel({
 	const [preview, setPreview] = useState<SessionCampaignMovePreview | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [operationId, setOperationId] = useState<string | null>(null);
-	const [recoveryHref, setRecoveryHref] = useState<string | null>(null);
+	const [recovery, setRecovery] = useState<Readonly<{
+		href: string;
+		destinationName: string;
+		destinationSlug: string;
+	}> | null>(null);
 	const [pending, startTransition] = useTransition();
 	const selected = useMemo(
 		() => destinations.find((item) => item.technicalSlug === destination),
@@ -104,7 +108,7 @@ export function SessionCampaignMovePanel({
 		setError(null);
 		setPreview(null);
 		setOperationId(null);
-		setRecoveryHref(null);
+		setRecovery(null);
 		startTransition(async () => {
 			const result = await transport.preflight(request);
 			if (!result.ok) {
@@ -133,10 +137,14 @@ export function SessionCampaignMovePanel({
 				}
 				if (result.cachePending) {
 					setError(null);
-					setRecoveryHref(result.destinationHref);
+					setRecovery({
+						href: result.destinationHref,
+						destinationName: selected?.name ?? destination,
+						destinationSlug: destination,
+					});
 					return;
 				}
-				setRecoveryHref(null);
+				setRecovery(null);
 				router.replace(result.destinationHref);
 				router.refresh();
 			} catch {
@@ -167,9 +175,9 @@ export function SessionCampaignMovePanel({
 							setPreview(null);
 							setError(null);
 							setOperationId(null);
-							setRecoveryHref(null);
+							setRecovery(null);
 						}}
-						disabled={pending}
+						disabled={pending || Boolean(recovery)}
 					>
 						{destinations.map((item) => (
 							<option key={item.technicalSlug} value={item.technicalSlug}>
@@ -178,16 +186,23 @@ export function SessionCampaignMovePanel({
 						))}
 					</select>
 				</label>
-				<button type="button" onClick={runPreflight} disabled={pending || !selected}>
+				<button
+					type="button"
+					onClick={runPreflight}
+					disabled={pending || !selected || Boolean(recovery)}
+				>
 					{pending ? "Verificando…" : "Pré-validar mudança"}
 				</button>
 			</div>
 
 			{error ? <p className={styles.error} role="alert">{error}</p> : null}
 
-			{recoveryHref ? (
+			{recovery ? (
 				<div className={styles.recovery} role="status">
 					<strong>Commit confirmado.</strong>
+					<span>
+						Destino confirmado: {recovery.destinationName} ({recovery.destinationSlug}).
+					</span>
 					<span>
 						A sessão já mudou de campanha no banco. A revalidação de cache/delivery
 						 ficou pendente; isso não desfaz o commit.
@@ -195,7 +210,7 @@ export function SessionCampaignMovePanel({
 					<button
 						type="button"
 						onClick={() => {
-							router.replace(recoveryHref);
+							router.replace(recovery.href);
 							router.refresh();
 						}}
 					>
@@ -226,10 +241,10 @@ export function SessionCampaignMovePanel({
 					{preview.status === "ready" ? (
 						<button type="button" onClick={commitMove} disabled={pending}>
 							{pending
-								? recoveryHref
+								? recovery
 									? "Revalidando…"
 									: "Movendo…"
-								: recoveryHref
+								: recovery
 									? "Revalidar caches"
 									: `Confirmar mudança para ${selected?.name ?? "destino"}`}
 						</button>
