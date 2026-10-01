@@ -136,7 +136,7 @@ assertIncludes("src/app/edit/revisao/page.tsx", [
 ]);
 
 assertIncludes("src/features/edit/sessions/session-library-page.tsx", [
-	[/from "next\\/form"/u, "campaign-scoped session filters must use client-side Next Form navigation"],
+	[/from "next\/form"/u, "campaign-scoped session filters must use client-side Next Form navigation"],
 	[/pendingLabel="Aplicando…"/u, "campaign-scoped session filters must expose local pending feedback"],
 ]);
 
