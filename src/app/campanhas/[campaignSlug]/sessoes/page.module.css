@@ -2,7 +2,7 @@
 	width: min(var(--ds-layout-expansive, 2160px), 100%);
 	margin: 0 auto;
 	padding:
-		clamp(48px, 7vw, 88px)
+		max(80px, calc(var(--site-chrome-panel-top, 66px) + 14px))
 		var(--ds-page-gutter)
 		clamp(76px, 8vw, 120px);
 }
@@ -72,6 +72,6 @@
 
 @media (max-width: 480px) {
 	.page {
-		padding-top: 38px;
+		padding-top: max(80px, calc(var(--site-chrome-panel-top, 66px) + 14px));
 	}
 }

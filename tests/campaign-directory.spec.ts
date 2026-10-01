@@ -130,3 +130,16 @@ test("World campaign switch preserves explicit context across back, forward and 
 	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
 	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
 });
+
+
+test("campaign introductions clear the floating brand on narrow screens", async ({ page }) => {
+ for (const width of [320, 390, 1366]) {
+  await page.setViewportSize({ width, height: 800 });
+  for (const path of ["/campanhas", "/campanhas/cronicas-da-mesa/sessoes"]) {
+   await page.goto(path);
+   const headerTop = await page.locator("main header").last().evaluate(element => element.getBoundingClientRect().top);
+   const brandBottom = await page.getByRole("link", { name: "TDA — Tem Dado Aqui — início", exact: true }).evaluate(element => element.getBoundingClientRect().bottom);
+   expect(headerTop).toBeGreaterThanOrEqual(brandBottom + 8);
+  }
+ }
+});
