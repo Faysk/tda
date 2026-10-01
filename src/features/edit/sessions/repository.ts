@@ -100,8 +100,15 @@ function toLibrarySeed(row: SessionRow): SessionLibrarySeed | null {
 	};
 }
 
-function publicThumbnail(reference: string | null): SessionLibraryThumbnail | null {
-	if (!reference || !isExistingPublishedSessionCoverReference(reference)) return null;
+function publicThumbnail(
+	campaignSlug: string,
+	reference: string | null,
+): SessionLibraryThumbnail | null {
+	if (
+		!reference ||
+		!isExistingPublishedSessionCoverReference(reference, campaignSlug)
+	)
+		return null;
 	return { src: reference, kind: "public" };
 }
 
@@ -217,10 +224,10 @@ export async function listEditSessionLibrary(
 				if (readablePrivateAssets.has(draftCover))
 					thumbnail = privateThumbnail(campaignSlug, seed.sessionId, draftCover);
 			} else {
-				thumbnail = publicThumbnail(draftCover);
+				thumbnail = publicThumbnail(campaignSlug, draftCover);
 			}
 		}
-		thumbnail ??= publicThumbnail(seed.publicCoverReference);
+		thumbnail ??= publicThumbnail(campaignSlug, seed.publicCoverReference);
 		return { ...seed.item, thumbnail };
 	});
 }
