@@ -70,7 +70,8 @@ def test_actual_engines_include_same_prepare_load_boundary(tmp_path, monkeypatch
     qwen_doc = qwen.transcribe_craig_package_qwen_strict(package, root, tmp_path, profile_id="qwen-fast", checkpoints=False,
         plan_resolver=_plan, model_prepare=lambda *_: advance(10, tmp_path), aligner_prepare=lambda *_: tmp_path,
         asr_session_factory=lambda *_: advance(5, Asr()), aligner_session_factory=lambda *_: Aligner(),
-        window_reader=lambda _: iter([AudioWindow(index=1, start=0, end=100, audio=[0.1] * 320)]))
+        window_reader=lambda _: iter([AudioWindow(index=1, start=0, end=100, audio=[0.1] * 320)]),
+        energy_reader=lambda *_: -30.0)
     for document in (whisper_doc, qwen_doc):
         metrics = document.stats.processing_metrics
         validate_engine_metrics(metrics)
