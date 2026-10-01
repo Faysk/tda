@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
 	testDir: "tests",
-	testIgnore: ["statistics/**", "**/processing/**", "**/processing-integration/**"],
+	testIgnore: ["**/statistics/**", "**/processing/**", "**/processing-integration/**", "**/processing-ux/**", "**/campaign-isolation.spec.ts", "**/transcript-edit.spec.ts", "**/session-editorial.spec.ts", "**/legacy-transcript-prepare.spec.ts", "**/session-public-layout.spec.ts"],
 	workers: 2,
 	use: { baseURL: "http://127.0.0.1:3101" },
 	webServer: [
@@ -32,7 +32,8 @@ export default defineConfig({
 				SUPABASE_URL: "http://127.0.0.1:3104",
 				SUPABASE_PUBLISHABLE_KEY: "sb_publishable_synthetic",
 				TDA_AUTH_ORIGIN: "http://127.0.0.1:3103",
-				TDA_READ_EDIT_DATA: "false",
+				TDA_READ_EDIT_DATA: "true",
+				SUPABASE_SECRET_KEY: "sb_secret_synthetic",
 				TDA_EDIT_UNSAFE: "false",
 				TDA_READ_PUBLISHED_DATA: "false",
 				TDA_WORLD_DEMO_FALLBACK: "true",

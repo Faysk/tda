@@ -361,9 +361,7 @@ test("Lembra keeps very long reference names inside the mobile card", async ({ p
 
 	const titleButton = page.getByRole("button", { name: longTitle, exact: true });
 	await expect(titleButton).toBeVisible();
-	const box = await titleButton.boundingBox();
-	expect(box).not.toBeNull();
-	expect(box?.width ?? 999).toBeLessThan(280);
+	await expect.poll(async () => (await titleButton.boundingBox())?.width ?? 999).toBeLessThan(280);
 });
 
 

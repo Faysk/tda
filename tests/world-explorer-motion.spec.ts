@@ -62,7 +62,7 @@ test("World Explorer keeps the relation legend contextual inside the relation di
 	page,
 }, testInfo) => {
 	await page.goto("/campanhas/cronicas-da-mesa/mundo");
-	const trigger = page.getByRole("button", { name: "Filtrar por relação" });
+	const trigger = page.locator('summary[aria-label="Filtrar por relação"]');
 	const legend = page.getByRole("list", { name: "Legenda de relações" });
 
 	await expect(trigger).toBeVisible();

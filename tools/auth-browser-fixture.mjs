@@ -26,6 +26,7 @@ createServer((request, response) => {
 				user_metadata: {},
 			}),
 		);
+	else if (url.pathname === "/rest/v1/profiles") response.end("null");
 	else if (url.pathname === "/auth/v1/logout") {
 		response.statusCode = 204;
 		response.end();

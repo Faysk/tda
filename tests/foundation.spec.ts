@@ -473,14 +473,14 @@ test("legacy session hashes map to reboot paths", async ({ page }) => {
 test("unavailable published session keeps the public recovery navigation contract", async ({
 	page,
 }) => {
-	const response = await page.goto("/sessoes/nonexistent");
+	const response = await page.goto("/sessoes/layout-contract-unavailable");
 	expect(response?.status()).toBe(200);
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
 		"Esta sessão está temporariamente indisponível.",
 	);
 	await expect(page.getByRole("link", { name: "Tentar novamente" })).toHaveAttribute(
 		"href",
-		"/sessoes/nonexistent",
+		"/sessoes/layout-contract-unavailable",
 	);
 	await expect(page.getByRole("link", { name: "Voltar às sessões" })).toBeVisible();
 });

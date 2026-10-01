@@ -33,6 +33,7 @@ test("World inspector presents authorized context without inventing unavailable 
 test("World contextual inspector stays usable as the mobile sheet", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/campanhas/cronicas-da-mesa/mundo");
+	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
 	await page.locator('[data-world-node="dandelion"]').click();
 
 	const inspector = page.getByRole("complementary");

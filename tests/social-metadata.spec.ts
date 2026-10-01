@@ -73,9 +73,9 @@ test("sessions index owns its preview instead of inheriting Home metadata", asyn
 	expect(response.status()).toBe(200);
 	const head = htmlHead(await response.text());
 
-	expect(canonicalHref(head)).toBe("https://dnd.faysk.dev/sessoes");
+	expect(canonicalHref(head)).toBe("https://dnd.faysk.dev/campanhas/sessoes");
 	expect(metaContent(head, "property", "og:url")).toBe(
-		"https://dnd.faysk.dev/sessoes",
+		"https://dnd.faysk.dev/campanhas/sessoes",
 	);
 	expect(metaContent(head, "property", "og:title")).toBe("Sessões");
 	expect(metaContent(head, "property", "og:description")).toContain(

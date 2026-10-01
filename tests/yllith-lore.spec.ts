@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+
+const manifest = JSON.parse(readFileSync("media/manifests/yllith-ui.json", "utf8"));
+const mediaUrl = (file: string) => { const asset = manifest.assets.find((item: { file: string }) => item.file === file); if (!asset) throw new Error(`Missing media: ${file}`); return `${manifest.publicOrigin}/${manifest.namespace}/${asset.sha256}/${asset.file}`; };
 
 const SOCIAL =
 	"https://media.dnd.faysk.dev/lore/yllith/b9858046c31ddc338fafe822b8c6132d4b4a4383c5f11b7b6e536943f8509f48/social-yllith.jpg";
 const HERO =
-	"https://media.dnd.faysk.dev/lore/yllith/77ec8886af074c15310ec9f078c530d24d9fbe29cb1ff12fe9ab27b8b031538f/yllith.webp";
+	"https://media.dnd.faysk.dev/lore/yllith/384d17c645ce923a5fc1bb6526bb213d50f9e5c4ea0a6e90e8320d6aa33cc73f/yllith-hq.png";
 
 test("Yllith is a direct-only standalone lore with cinematic and reading modes", async ({ page, request }) => {
 	test.setTimeout(120000);
@@ -15,8 +19,8 @@ test("Yllith is a direct-only standalone lore with cinematic and reading modes",
 	expect(response.headers()["x-robots-tag"]).toContain("noindex");
 
 	await page.goto("/lore/yllith");
-	await expect(page.locator("h1").first()).toContainText("conquistar");
-	await expect(page.locator('link[rel~="icon"]')).toHaveAttribute("href", "favicon.svg");
+	await expect(page.locator("h1").first()).toHaveText("Yllith.");
+	await expect(page.locator('link[rel~="icon"]')).toHaveAttribute("href", mediaUrl("favicon.svg"));
 	await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
 		"content",
 		"noindex,nofollow,noarchive,noimageindex",
@@ -62,7 +66,7 @@ test("Yllith exposes the approved full reading source and favicon", async ({ req
 	expect(text).toContain("Sequoia Vermelha fica para trás");
 	expect(text).toContain("Uma matilha não nasce quando alguém manda");
 
-	const favicon = await request.get("/lore/yllith/favicon.svg");
+	const favicon = await request.get(mediaUrl("favicon.svg"));
 	expect(favicon.ok()).toBeTruthy();
 	expect(await favicon.text()).toContain('aria-label="Yllith"');
 });

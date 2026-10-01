@@ -92,7 +92,10 @@ export async function listPublishedSessionArchive(campaignSlug?: string): Promis
 
 export const findPublishedSession = cache(async (campaignSlug: string, id: string) => {
 	if (!campaignSlug || campaignSlug.length > 220 || !id || id.length > 220) return null;
-	if (layoutFixtureEnabled()) return fixtureArchive(campaignSlug).find((session)=>session.id===id) ?? null;
+	if (layoutFixtureEnabled()) {
+		if (id === "layout-contract-unavailable") throw new PublishedSessionUnavailableError();
+		return fixtureArchive(campaignSlug).find((session)=>session.id===id) ?? null;
+	}
 	const client=publishedDataClient();
 	if (!client) throw new PublishedSessionUnavailableError();
 	const {data,error}=await client.from("sessions")

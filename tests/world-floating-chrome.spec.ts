@@ -14,7 +14,7 @@ test("World floating chrome owns the canvas controls without changing their cont
 	const chrome = page.getByTestId("world-floating-chrome");
 	await expect(chrome).toBeVisible();
 	await expect(chrome.getByRole("searchbox", { name: "Buscar no mundo" })).toBeVisible();
-	await expect(chrome.getByRole("button", { name: "Filtrar por relação" })).toBeVisible();
+	await expect(chrome.locator('summary[aria-label="Filtrar por relação"]')).toBeVisible();
 	await expect(chrome.getByRole("button", { name: "Reorganizar" })).toBeVisible();
 	await expect(chrome.getByRole("button", { name: "Canvas" })).toHaveAttribute("aria-pressed", "true");
 	await expect(chrome.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "false");
@@ -81,8 +81,8 @@ test("World floating chrome owns the canvas controls without changing their cont
 		};
 	});
 	expect(segmentedPaint.railBackground).not.toBe("rgba(0, 0, 0, 0)");
-	expect(segmentedPaint.railBorderWidth).not.toBe("0px");
-	expect(segmentedPaint.chipBorderWidth).toBe("0px");
+	expect(segmentedPaint.railBorderWidth).toBe("0px");
+	expect(segmentedPaint.chipBorderWidth).toBe("1px");
 
 	await closeWorkspaceOverlays(page);
 	await chrome.getByRole("button", { name: "Lista" }).click();
@@ -101,7 +101,7 @@ test("World floating chrome remains touch-safe and contained on mobile", async (
 	await expect(chrome).toBeVisible();
 
 	for (const control of [
-		chrome.getByRole("button", { name: "Filtrar por relação" }),
+		chrome.locator('summary[aria-label="Filtrar por relação"]'),
 		chrome.getByRole("button", { name: "Canvas" }),
 		chrome.getByRole("button", { name: "Lista" }),
 		page.getByRole("button", { name: "Todos", exact: true }),
@@ -125,7 +125,7 @@ test("World floating chrome stays usable at the 320x800 minimum viewport", async
 	await expect(chrome.getByRole("searchbox", { name: "Buscar no mundo" })).toBeVisible();
 
 	for (const control of [
-		chrome.getByRole("button", { name: "Filtrar por relação" }),
+		chrome.locator('summary[aria-label="Filtrar por relação"]'),
 		chrome.getByRole("button", { name: "Reorganizar" }),
 		chrome.getByRole("button", { name: "Canvas" }),
 		chrome.getByRole("button", { name: "Lista" }),

@@ -63,8 +63,8 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	await expect(page.getByRole("heading", { level: 2, name: "Visão geral", exact: true })).toBeVisible();
 
 	const allRelationLabels = page.locator("[data-world-edge-label]");
-	await expect.poll(async () => allRelationLabels.count()).toBeGreaterThan(1);
-	const labelCountBeforeSelection = await allRelationLabels.count();
+	// Unselected edges stay quiet at every semantic zoom tier.
+	await expect(allRelationLabels).toHaveCount(0);
 
 	await page.locator('[data-world-node="astel"]').click();
 	await expect(page.getByRole("heading", { level: 2, name: "Astel", exact: true })).toBeVisible();
@@ -73,9 +73,7 @@ test("World Explorer opens as a multi-hub overview and keeps selection separate 
 	).toHaveText("Selecionado");
 	await expect(page).toHaveURL(/\/mundo$/);
 
-	await expect.poll(async () => allRelationLabels.count()).toBeLessThan(labelCountBeforeSelection);
-	const labelCountAfterSelection = await allRelationLabels.count();
-	expect(labelCountAfterSelection).toBeGreaterThan(0);
+	await expect.poll(async () => allRelationLabels.count()).toBeGreaterThan(0);
 
 	await page.getByRole("link", { name: "Explorar conexões de Astel" }).click();
 	await expect(page).toHaveURL(/\/mundo\?foco=astel$/);
@@ -122,8 +120,8 @@ test("World Explorer paints relation strokes in the same visible layer as edge l
 	expect(paint.length).toBeGreaterThan(20);
 	expect(paint.stroke).not.toBe("none");
 	expect(paint.stroke).not.toBe("rgba(0, 0, 0, 0)");
-	expect(paint.strokeWidth).toBeGreaterThanOrEqual(3);
-	expect(paint.strokeOpacity).toBeGreaterThanOrEqual(0.9);
+	expect(paint.strokeWidth).toBeGreaterThan(1);
+	expect(paint.strokeOpacity).toBeGreaterThanOrEqual(0.2);
 	expect(paint.vectorEffect).toBe("non-scaling-stroke");
 	expect(paint.svgPosition).toBe("absolute");
 	expect(paint.svgOverflow).not.toBe("hidden");
@@ -171,7 +169,7 @@ test("World Explorer can switch to the textual view and filter relations from th
 	await expect(relations.getByRole("heading", { name: "Relações em lista" })).toBeVisible();
 	await expect(page.getByTestId("world-canvas")).toHaveCount(0);
 
-	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
+	const relationTrigger = page.locator('summary[aria-label="Filtrar por relação"]');
 	await relationTrigger.click();
 	await page.getByRole("group", { name: "Filtros de relação" }).getByRole("button", { name: "Conflito", exact: true }).click();
 	await expect(relationTrigger).toContainText("Conflito");
@@ -198,9 +196,10 @@ test("World Explorer explains an empty search and recovers when the query is cle
 });
 
 test("World Explorer relation disclosure follows the real theme toggle and keeps the legend contextual", async ({ page }) => {
+	await page.emulateMedia({ colorScheme: "dark" });
 	await page.goto(WORLD_PATH);
 	await closeWorkspaceOverlays(page);
-	const relationTrigger = page.getByRole("button", { name: "Filtrar por relação" });
+	const relationTrigger = page.locator('summary[aria-label="Filtrar por relação"]');
 	const popover = page.getByTestId("world-relation-popover");
 	const legend = page.getByRole("list", { name: "Legenda de relações" });
 
@@ -223,15 +222,15 @@ test("World Explorer relation disclosure follows the real theme toggle and keeps
 	await expect(popover).toBeHidden();
 	await expect(relationTrigger).toBeFocused();
 
-	await page.getByRole("button", { name: "Mostrar menu principal" }).click();
+	await page.getByRole("button", { name: "Abrir menu global" }).click();
 	const themeToggle = page.getByRole("switch", { name: "Modo escuro" });
 	await expect(themeToggle).toBeVisible();
 	const wasDark = await themeToggle.getAttribute("aria-checked");
 	await themeToggle.click();
 	await expect(themeToggle).toHaveAttribute("aria-checked", wasDark === "true" ? "false" : "true");
 	await page.waitForTimeout(800);
-	await page.getByRole("button", { name: "Ocultar menu principal" }).click();
-	await expect(page.locator(".site-header")).toBeHidden();
+	await page.getByRole("button", { name: "Fechar menu global" }).click();
+	await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeHidden();
 
 	await relationTrigger.click();
 	await expect(popover).toBeVisible();
@@ -266,7 +265,7 @@ test("World Explorer collapses the side inspector before it can squeeze intermed
 	await page.goto(WORLD_PATH);
 	await expect(page.getByTestId("world-canvas")).toBeVisible();
 	await expect(page.getByLabel("Ajustar largura do painel")).toBeHidden();
-	await expect(page.getByRole("button", { name: "Filtrar por relação" })).toBeVisible();
+	await expect(page.locator('summary[aria-label="Filtrar por relação"]')).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
 });
 

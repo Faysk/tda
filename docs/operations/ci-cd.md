@@ -340,3 +340,7 @@ Esses documentos explicam como chegamos aqui. Não substituem este runbook para 
 `tools/ci/verify-public-content.mjs` valida HTML do artefato staged antes da promoção e repete no domínio canônico depois da identidade de release. Home, diretório e arquivo devem declarar `ready` ou `empty`; `unavailable`, marker ausente, status incorreto, redirect legado incorreto ou detalhe publicado quebrado interrompem a entrega. O estado vazio saudável é permitido, sem mascarar falha de dependência. O health continua liveness, não prova de conteúdo.
 
 O receipt contém apenas paths públicos e estados. Rollback: usar a entrega anterior validada; não desabilitar o gate para publicar HTML indisponível. Falha antes da promoção preserva a referência canônica atual. Nenhum deploy extra é feito para executar esse teste.
+
+## Ownership das suítes de navegador (2026-10-01)
+
+`pnpm test:e2e` executa a suíte pública e, em sequência, os ambientes dedicados de estatísticas, permissões, edição de sessões, transcrição, isolamento de campanhas e UX de processamento. O discovery público exclui esses testes com padrões completos, evitando executar fixtures especializadas contra o servidor público. Processamento e integração do Companion continuam com seus gates dedicados. A fixture de autenticação usa somente um provider HTTP local e um perfil sintético sem vínculo; nunca credenciais de produção.

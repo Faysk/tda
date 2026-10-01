@@ -10,6 +10,7 @@ async function candidateMedia(page: Page) {
 			readFileSync(`media/manifests/${slug}.json`, "utf8"),
 		);
 		for (const asset of manifest.assets) {
+			if (asset.sourceMode === "canonical-r2") continue;
 			const url = `${manifest.publicOrigin}/${manifest.namespace}/${asset.sha256}/${asset.file}`;
 			await page.route(url, (route) =>
 				route.fulfill({
