@@ -74,7 +74,6 @@ export async function publishSessionEditorialDraftAction(
 		// saved or published something newer in the meantime.
 		const recovered = await readCommittedSessionPublication({
 			actorProfileId: access.profileId,
-			campaignSlug: sessionCampaign.technicalSlug,
 			request,
 		});
 		if (recovered?.ok === false)
@@ -137,6 +136,7 @@ export async function publishSessionEditorialDraftAction(
 
 		const committed = await persistSessionPublication({
 			actorProfileId: access.profileId,
+			campaignSlug: sessionCampaign.technicalSlug,
 			request,
 			publicCoverUrl,
 		});
