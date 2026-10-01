@@ -412,6 +412,18 @@ def test_strict_qwen_rejects_empty_asr_when_window_has_signal(
     )
 
 
+def test_qwen_empty_signal_retry_never_trims_past_overlap_horizon():
+    audio = [0.0] * (10 * 16_000) + [0.1, -0.1] * (25 * 16_000)
+    window = AudioWindow(index=1, start=100.0, end=160.0, audio=audio)
+
+    retry = asr_qwen_strict._empty_signal_retry_window(window)
+
+    assert retry is not None
+    assert retry.start == 106.0
+    assert retry.end == 160.0
+    assert len(retry.audio) == 54 * 16_000
+
+
 def test_strict_qwen_recovers_empty_signal_after_trimming_only_digital_edge_silence(
     tmp_path: Path,
 ):
