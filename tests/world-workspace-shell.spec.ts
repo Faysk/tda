@@ -17,7 +17,7 @@ async function waitForInitialFitView(page: Page) {
 
 test("desktop navigation overlays without resizing the workspace", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name === "mobile", "Desktop overlay contract.");
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	const workspace = page.getByTestId("world-workspace");
 	const stage = page.getByTestId("world-workspace-stage");
@@ -53,7 +53,7 @@ test("desktop navigation overlays without resizing the workspace", async ({ page
 
 test("desktop inspector overlays without resizing the canvas", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name === "mobile", "Desktop overlay contract.");
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	const canvas = page.getByTestId("world-canvas");
 	const inspector = page.locator('aside[aria-live="polite"]');
@@ -85,7 +85,7 @@ test("desktop inspector overlays without resizing the canvas", async ({ page }, 
 
 test("mobile inspector still collapses to a bottom-sheet reopen control", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name !== "mobile", "Mobile inspector contract.");
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	const inspector = page.locator('aside[aria-live="polite"]');
 	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
 	const reopen = page.getByRole("button", { name: "Abrir painel de detalhes" });
@@ -99,7 +99,7 @@ test("mobile inspector still collapses to a bottom-sheet reopen control", async 
 test("desktop authoring inspector derives its top edge from floating chrome geometry", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name === "mobile", "Desktop authoring inspector contract.");
 	await page.setViewportSize({ width: 1366, height: 768 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	const explorer = page.locator("[data-world-authoring-active]").first();
 	await expect(explorer).toBeVisible();
@@ -130,7 +130,7 @@ test("desktop authoring inspector derives its top edge from floating chrome geom
 
 test("mobile navigation remains a non-reserving modal overlay", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name !== "mobile", "Mobile navigation contract.");
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	const workspace = page.getByTestId("world-workspace");
 	const stage = page.getByTestId("world-workspace-stage");
 	const before = await stage.boundingBox();
