@@ -76,6 +76,7 @@ export function LegacyTranscriptPrepareE2EFixture() {
 			<div data-testid="legacy-attempt-ids">{attemptIds.join("|")}</div>
 			<LegacyTranscriptPrepare
 				action={action}
+				campaignSlug="yuhara-main"
 				editable
 				segmentCount={2}
 				sessionId={SESSION_ID}
