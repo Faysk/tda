@@ -80,14 +80,14 @@ test("public Sessions keeps archive value in the first viewport and reader measu
 		const keyline = await sharedKeyline(page);
 		const archiveTitle = page.getByRole("heading", {
 			level: 1,
-			name: "As histórias até aqui",
+			name: "Todas as campanhas",
 		});
 		const archiveHero = page.locator("[data-session-archive-hero]");
 		const archiveRail = page.locator("[data-session-archive-rail]");
 		const archiveToolbar = page.locator("[data-session-archive-toolbar]");
 		const archiveResults = page.locator("[data-session-archive-results]");
 		const archiveGrid = page.locator('[data-session-view="grid"]');
-		const stats = page.locator('dl[aria-label="Resumo público do arquivo"]');
+		const stats = page.locator('dl[aria-label="Resumo de todas as campanhas"]');
 		const firstCard = page.locator('[data-session-card="grid"]').first();
 		const fallback = firstCard.getByText("TDA", { exact: true });
 		const brand = page.locator(".brand");
