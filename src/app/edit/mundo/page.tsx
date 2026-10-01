@@ -27,8 +27,9 @@ export default async function EditWorldCompatibilityPage() {
 			</main>
 		);
 	}
-	if (eligible.campaigns.length === 1) {
-		redirect(worldEditCampaignHref(eligible.campaigns[0]!.technicalSlug));
+	const onlyCampaign = eligible.campaigns.length === 1 ? eligible.campaigns[0] : undefined;
+	if (onlyCampaign) {
+		redirect(worldEditCampaignHref(onlyCampaign.technicalSlug));
 	}
 
 	return (
