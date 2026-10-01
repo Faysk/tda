@@ -79,7 +79,7 @@ describe("legacy /edit compatibility destination", () => {
 				second,
 				now,
 			),
-		).toBeNull();
+		).toBe("/edit/processamento?campanha=antes-que-seja-tarde");
 	});
 
 	it("routes project campaign managers to the registry before campaign-scoped tools", () => {
