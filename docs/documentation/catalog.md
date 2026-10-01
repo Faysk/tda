@@ -132,16 +132,16 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Edit — slice server-side de transcrição](../features/edit-transcript-server-slice.md) | Edit / aplicação + dados | leitura contínua e correção privada por revisions imutáveis implementadas; boundary legado por segmento preservado para compatibilidade | 2026-09-28 |
 | [Edit — modo temporário sem autenticação](../features/edit-unsafe-development.md) | Edit / aplicação + segurança | compatibilidade temporária de desenvolvimento | 2026-09-07 |
 | [Edit Workbench — área administrativa do TDA](../features/edit-workbench.md) | Edit / produto + frontend | arquitetura aprovada; implementação incremental em andamento | 2026-09-07 |
-| [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | preparado; projection publicada pendente | 2026-09-08 |
+| [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | projection pública implementada no código; rollout multi-campaign depende do registry/publicação de campaigns | 2026-10-01 |
 | [Feature — Timeline por entidade](../features/entity-timeline.md) | narrative-memory | preparado | 2026-09-06 |
 | [Navegação global do TDA](../features/global-navigation.md) | navigation / frontend / identity-access | launcher global seccionado validado; QA automatizado ativo | 2026-09-30 |
-| [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | arquitetura aprovada; decisão editorial, não comprovação de implementação | 2026-09-30 |
+| [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | arquitetura aprovada; registry/linkage implementados no código, publicação depende do registry de campaigns | 2026-10-01 |
 | [Feature/conceito — Intents / intenção](../features/intents.md) | não atribuído | **não definido / não encontrado como conceito canônico** | 2026-09-06 |
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-19 |
 | [Lembra — biblioteca compartilhada de referências visuais](../features/lembra.md) | frontend / integrations-media / identity-access | persistência compartilhada em Production; galeria justified responsiva rastreada na #738 | 2026-09-30 |
 | [Feature — Modo sessão ao vivo](../features/live-session.md) | sessions/live | histórico/planejado; fora das entregas imediatas | 2026-09-06 |
 | [Processamento local no Edit](../features/local-processing.md) | Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro | ASR local implementado; arquitetura de runs/revisão/publicação aprovada; sync cloud ainda desativado | 2026-09-28 |
-| [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md) | narrative-memory / frontend / produto | decisão aprovada; implementação parcial | 2026-09-30 |
+| [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md) | narrative-memory / frontend / produto | decisão aprovada; implementação parcial | 2026-10-01 |
 | [Fidelidade dos pacotes de D e Seika](../features/lore-pack-fidelity.md) | lores e mídia | publicado e verificado em 2026-09-12 | 2026-09-12 |
 | [Feature — Mapas narrativos](../features/maps.md) | narrative-memory/maps | em desenho | 2026-09-06 |
 | [Sessões compostas por múltiplas gravações Craig](../features/multi-recording-sessions.md) | sessions / processing / transcripts | implementação funcional e gate E2E/recovery concluídos | 2026-09-30 |
