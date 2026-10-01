@@ -17,7 +17,7 @@ async function closeWorkspaceOverlays(page: Page) {
 
 test("wide World workspace uses one safe control row and keeps contextual chrome inside the canvas", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name === "mobile", "Wide workspace contract.");
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	const viewport = page.viewportSize();
 	if (!viewport || viewport.width < 1920) test.skip();
 
@@ -100,7 +100,7 @@ test("World workspace gives 4K space to the canvas and keeps compact desktop to 
 	test.skip(testInfo.project.name === "mobile", "Desktop geometry matrix.");
 
 	await page.setViewportSize({ width: 2560, height: 1440 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	const canvas4k = page.getByTestId("world-canvas");
 	const stage4k = page.getByTestId("world-workspace-stage");
 	const inspector4k = page.locator('#world-workspace-inspector');
