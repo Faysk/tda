@@ -269,6 +269,7 @@ class ProfilePreparationRequest(BaseModel):
         "qwen-fast",
         "qwen-quality",
     ]
+    purpose: Literal["transcription", "benchmark"] = "transcription"
 
 
 class ProfilePreparationCancelRequest(BaseModel):
@@ -459,11 +460,15 @@ def create_app(
                 return None
             return store.claim()
 
-    def start_preparation_under_source_gate(source_id: str, profile_id: str):
+    def start_preparation_under_source_gate(
+        source_id: str,
+        profile_id: str,
+        purpose: str,
+    ):
         with source_gate:
             if worker_stop.is_set():
                 raise ProfilePreparationError("AGENT_SHUTTING_DOWN")
-            return preparation_manager.start(source_id, profile_id)
+            return preparation_manager.start(source_id, profile_id, purpose)
 
     def staged_package_under_source_gate(source_id: str):
         with source_gate:
@@ -1530,6 +1535,7 @@ def create_app(
             "job.list.cursor",
             "transcription.runs.catalog",
             "processing.benchmark",
+            "processing.benchmark.runtime-readiness-v2",
             "system.telemetry",
             "worker.subprocess",
             "transcription.prepare",
@@ -1605,6 +1611,7 @@ def create_app(
                     start_preparation_under_source_gate,
                     body.source_id,
                     body.profile_id,
+                    body.purpose,
                 )
             except ProfilePreparationError as exc:
                 status = (
@@ -2228,13 +2235,24 @@ def create_app(
                     resolved_runtime_root,
                     resolved_models_root,
                 )
-                ready = {
-                    str(item.get("id"))
+                benchmark_state = {
+                    str(item.get("id")): item
                     for item in catalog
-                    if item.get("ready") is True
                 }
-                if any(profile not in ready for profile in _BENCHMARK_PROFILES):
-                    raise Conflict("BENCHMARK_PROFILES_NOT_READY")
+                if any(
+                    benchmark_state.get(profile, {}).get("benchmark_ready") is not True
+                    for profile in _BENCHMARK_PROFILES
+                ):
+                    whisper_blocked = any(
+                        benchmark_state.get(profile, {}).get("benchmark_reason")
+                        == "WHISPER_BENCHMARK_RUNTIME_REQUIRED"
+                        for profile in ("whisper-turbo", "whisper-detailed")
+                    )
+                    raise Conflict(
+                        "WHISPER_BENCHMARK_RUNTIME_REQUIRED"
+                        if whisper_blocked
+                        else "BENCHMARK_PROFILES_NOT_READY"
+                    )
                 payload.update(
                     units=len(_BENCHMARK_PROFILES),
                     sample_seconds=_BENCHMARK_SAMPLE_SECONDS,

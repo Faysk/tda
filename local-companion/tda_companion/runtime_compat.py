@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION = "1.1.4"
+MIN_BENCHMARK_WHISPER_RUNTIME_VERSION = "1.1.6"
 MIN_COMPATIBLE_QWEN_RUNTIME_VERSION = "1.0.12"
 _VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 
@@ -23,6 +24,10 @@ def runtime_version_compatible(value: str, minimum: str) -> bool:
 
 def whisper_runtime_version_compatible(value: str) -> bool:
     return runtime_version_compatible(value, MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION)
+
+
+def whisper_runtime_benchmark_compatible(value: str) -> bool:
+    return runtime_version_compatible(value, MIN_BENCHMARK_WHISPER_RUNTIME_VERSION)
 
 
 def qwen_runtime_version_compatible(value: str) -> bool:
