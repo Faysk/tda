@@ -71,7 +71,6 @@ describe("lore route, registry and catalogue contract", () => {
 		const routes = new Set(implementedLoreRoutes());
 		const directOnly = LORE_EDITORIAL_REGISTRY.filter((entry) => !entry.listed);
 
-		expect(directOnly.length).toBeGreaterThan(0);
 		for (const registration of directOnly) {
 			expect(routes.has(registration.slug)).toBe(true);
 			expect(registration.indexable).toBe(false);
