@@ -145,6 +145,8 @@ jobs:
           fi
 
       - run: python -m unittest discover -s tools/media -p test_lore_svg.py
+      - name: Qwen runtime recovery acceptance harness tests
+        run: python -m unittest discover -s tools/acceptance -p "test_*.py"
       - name: Typecheck, lint, unit and repository checks
         run: pnpm check
       - name: Build application
