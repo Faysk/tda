@@ -9,7 +9,6 @@ export type PublicCampaign = Readonly<{
 	name: string;
 	description: string | null;
 	coverImage: string | null;
-	hasCoverBinding: boolean;
 }>;
 
 export type ManageableCampaign = Readonly<{
@@ -23,6 +22,7 @@ export type ManageableCampaign = Readonly<{
 	archivedAt: string | null;
 	updatedAt: string;
 	coverImage: string | null;
+	hasCoverBinding: boolean;
 }>;
 
 export type CampaignMutationFailure =
