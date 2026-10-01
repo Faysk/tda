@@ -793,7 +793,7 @@ export function ProcessingSubmission({
 		request.current?.abort();
 		request.current = controller;
 		try {
-			setPreparation(await bridge.prepareProfile(preparation.sourceId, preparation.profileId, controller.signal));
+			setPreparation(\n\t\t\t\tawait bridge.prepareProfile(\n\t\t\t\t\tpreparation.sourceId,\n\t\t\t\t\tpreparation.profileId,\n\t\t\t\t\tcontroller.signal,\n\t\t\t\t\tpreparation.purpose,\n\t\t\t\t),\n\t\t\t);
 			setStatus("Retomando preparação após reinício. Os arquivos locais serão verificados novamente.");
 		} catch (cause) {
 			setError(cause instanceof BridgeError && cause.serverCode ? localOperationMessage(cause.serverCode) : messageFor("service_error"));
