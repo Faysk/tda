@@ -483,12 +483,16 @@ export async function promoteGovernedImageObject({
 		signal: AbortSignal.timeout(15_000),
 	});
 	if (!response.ok) failure("PUBLIC_DELIVERY_FAILED");
-	const contentLength = Number(response.headers.get("content-length"));
-	if (
-		Number.isFinite(contentLength) &&
-		(contentLength < 1 || contentLength > WORLD_ENTITY_MEDIA_MAX_BYTES)
-	) {
-		failure("PUBLIC_DELIVERY_TOO_LARGE");
+	const contentLengthHeader = response.headers.get("content-length");
+	if (contentLengthHeader !== null) {
+		const contentLength = Number(contentLengthHeader);
+		if (
+			!Number.isFinite(contentLength) ||
+			contentLength < 1 ||
+			contentLength > WORLD_ENTITY_MEDIA_MAX_BYTES
+		) {
+			failure("PUBLIC_DELIVERY_TOO_LARGE");
+		}
 	}
 	const delivered = new Uint8Array(await response.arrayBuffer());
 	const mime = response.headers.get("content-type")?.split(";", 1)[0]?.trim();
