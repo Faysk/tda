@@ -106,9 +106,11 @@ branch temporária
       +--> mídia pendente? lifecycle Media Storage
       +--> build uma vez
       +--> stage sem tráfego
-      +--> smoke
+      +--> smoke HTTP/runtime
+      +--> smoke semântico do conteúdo público
       +--> promote do mesmo artifact
       +--> canonical health/version
+      +--> smoke semântico canônico
       +--> receipt
 ```
 
@@ -251,6 +253,25 @@ vercel promote <deployment>
 
 O staged deployment não recebe tráfego do domínio oficial antes do smoke.
 
+Antes do promote, o gate `tools/ci/verify-public-content.mjs` valida conteúdo público
+como contrato funcional, não apenas status HTTP. As superfícies públicas expõem
+`data-public-content-state=available|empty|unavailable`:
+
+- `available` exige conteúdo utilizável;
+- `empty` é um estado vazio deliberado e válido;
+- `unavailable` indica falha/dependência indisponível e bloqueia a release mesmo com HTTP 200.
+
+O gate verifica `/`, `/campanhas`, `/campanhas/sessoes` e a compatibilidade
+`/sessoes`, seguindo o redirect até `/campanhas/sessoes` e exigindo que o
+destino permaneça na origem do deployment que está sendo validado. Quando o arquivo
+publicado está `available`, descobre um link público de sessão no próprio HTML,
+abre seu destino e exige o marcador estrutural do leitor público
+(`data-session-reading`), sem ler transcript privado. Registry ausente ou
+incompatível aparece como `unavailable` e falha **antes** do promote.
+
+A evidência do gate registra somente SHA, rota, destino final, estado/resultado e
+horário UTC. O corpo HTML não é despejado no log.
+
 ## Verificação canônica
 
 Após promote:
@@ -260,7 +281,13 @@ Após promote:
 - `health.commit=<SHA esperado>`;
 - `version.commit=<SHA esperado>`;
 - `version.release=<release esperado>`;
-- raiz responde.
+- raiz responde;
+- o mesmo smoke semântico do conteúdo público passa no domínio canônico.
+
+Se o smoke semântico canônico falhar depois do promote, o workflow registra no
+summary a ação de recuperação: identificar o deployment saudável anterior,
+promover/rollback, reverificar health/version + conteúdo público e corrigir por nova
+PR. O job permanece vermelho; a recuperação não é automatizada de forma destrutiva.
 
 ## Receipt
 
@@ -274,7 +301,8 @@ Uma release registra pelo menos:
 - canonical origin;
 - migrations executadas ou skipped;
 - Media Storage executado ou skipped;
-- smoke staged/canonical.
+- smoke staged/canonical;
+- smoke semântico de conteúdo público staged/canonical.
 
 Para mídia, `step success` não prova publicação. O receipt deve distinguir zero assets de publicação/reuso/verificação real.
 

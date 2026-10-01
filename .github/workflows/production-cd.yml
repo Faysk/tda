@@ -333,7 +333,15 @@ jobs:
           if (version.release !== process.env.RELEASE_ID) throw new Error(`Release id mismatch: ${version.release}`);
           NODE
 
+      - name: Verify staged public content semantics
+        env:
+          DEPLOYMENT_URL: ${{ steps.stage.outputs.url }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          PUBLIC_CONTENT_TRANSPORT: vercel
+        run: node tools/ci/verify-public-content.mjs
+
       - name: Promote the tested artifact
+        id: promote
         env:
           DEPLOYMENT_URL: ${{ steps.stage.outputs.url }}
         run: vercel promote "$DEPLOYMENT_URL" --yes --timeout=5m --token="$VERCEL_TOKEN"
@@ -378,6 +386,30 @@ jobs:
             exit 1
           fi
 
+      - name: Verify canonical public content after promotion
+        id: canonical_public_content
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: node tools/ci/verify-public-content.mjs
+
+      - name: Record public-content recovery action
+        if: ${{ failure() && steps.promote.outcome == 'success' && steps.canonical_public_content.outcome == 'failure' }}
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          RECORDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          {
+            echo "## Production public-content smoke failed after promote"
+            echo
+            echo "- Source SHA: $SOURCE_SHA"
+            echo "- Recorded at: $RECORDED_AT"
+            echo "- Recovery: identify the previous healthy deployment, promote/rollback it, verify canonical health/version and public-content semantics, then repair through a new PR."
+            echo "- Runbook: docs/operations/release-runbook.md#11-rollback"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Canonical public-content smoke failed after promote. Follow the application rollback runbook."
+
       - name: Record tiny release receipt
         shell: bash
         env:
@@ -406,6 +438,7 @@ jobs:
           - Migrations applied: \`$MIGRATIONS\`
           - Changed media publication lifecycle: \`$MEDIA\`
           - Staged + canonical smoke: PASS
+          - Public-content semantic smoke: PASS
           EOF
 
           if gh release view "$RELEASE_ID" >/dev/null 2>&1; then

@@ -41,7 +41,7 @@ export async function generateMetadata({params}:Params):Promise<Metadata>{
 }
 
 function UnavailableSession(){
-	return <section className={styles.unavailable}><div className={styles.unavailableInner}><Eyebrow>Arquivo de sessões</Eyebrow><DisplayTitle className={styles.unavailableTitle}>Esta sessão está temporariamente indisponível.</DisplayTitle></div></section>;
+	return <section className={styles.unavailable} data-public-content-state="unavailable"><div className={styles.unavailableInner}><Eyebrow>Arquivo de sessões</Eyebrow><DisplayTitle className={styles.unavailableTitle}>Esta sessão está temporariamente indisponível.</DisplayTitle></div></section>;
 }
 
 function NavigationCard({
@@ -109,7 +109,7 @@ export default async function CampaignSession({params}:Params){
 	const next=neighbors?.next;
 	const date=formatSessionDate(session.date);
 	const story=session.fullSummary||session.summary||"Resumo ainda não disponível.";
-	return <article className={styles.page}>
+	return <article className={styles.page} data-public-content-state="available">
 		<header className={styles.hero} data-session-reader-hero><div className={styles.heroInner}><div className={styles.content}>
 			<Link className={styles.back} href={`/campanhas/${encodeURIComponent(session.campaignSlug)}/sessoes`}>← <span>Arquivo de {session.campaignName}</span></Link>
 			<Eyebrow className={styles.eyebrow}>{session.campaignName} · {session.arc||"Memória da campanha"}</Eyebrow>

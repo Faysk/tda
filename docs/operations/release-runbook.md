@@ -64,12 +64,17 @@ Acompanhar o lifecycle completo:
 4. Media Storage pendente;
 5. build;
 6. staged deploy sem tráfego;
-7. smoke;
+7. smoke HTTP/runtime + smoke semântico do conteúdo público;
 8. promote do mesmo artifact;
-9. canonical verification;
+9. canonical verification + repetição do smoke semântico;
 10. receipt.
 
-Falha antes do promote não deve mover o domínio oficial.
+Falha antes do promote não deve mover o domínio oficial. O smoke semântico deve
+rejeitar HTTP 200 que renderize `unavailable`, aceitar somente vazio
+explicitamente marcado como `empty`, seguir redirects sem sair da origem do
+deployment validado e, quando houver sessões publicadas, abrir ao menos uma sessão
+pública descoberta pelo próprio arquivo e confirmar o marcador estrutural do leitor
+público. Não usar transcript privado como fixture ou evidência.
 
 
 ### Exceção versionada de validação em Production — #628
@@ -169,18 +174,32 @@ Não usar `supabase db push` manual para destravar Production.
 
 ## 9. Smoke de Production
 
-Depois do promote:
+O mesmo gate funcional roda no staged **antes** do promote e no domínio canônico
+**depois** do promote.
+
+Verificar:
 
 - `/api/health`;
 - `/api/version`;
 - SHA/release;
-- raiz;
+- `/`, `/campanhas` e `/campanhas/sessoes` com estado semântico explícito;
+- `/sessoes` seguindo redirect até o arquivo canônico;
+- uma sessão pública descoberta no arquivo quando o estado for `available`;
+- estado `empty` somente quando a superfície o declara deliberadamente;
+- estado `unavailable` sempre como falha, mesmo sob HTTP 200;
 - rotas alteradas;
 - auth quando alterada;
 - imagens/media URLs consumidas pela superfície;
 - canonical e metadata quando aplicáveis.
 
-Navegação normal deve permanecer em `dnd.faysk.dev`; aliases de provider são diagnóstico.
+A saída sanitizada deve conter SHA, rota, resultado e horário, sem bodies privados
+ou secrets. Navegação normal deve permanecer em `dnd.faysk.dev`; aliases de
+provider são diagnóstico.
+
+Se a verificação canônica falhar depois do promote, registrar imediatamente a ação
+de recuperação no summary do run: identificar o deployment saudável anterior,
+promover/rollback, verificar novamente health/version + conteúdo público e abrir a
+correção por nova PR. Não esconder a falha transformando-a em estado vazio.
 
 ## 10. Receipt
 
