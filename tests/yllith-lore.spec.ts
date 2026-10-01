@@ -47,10 +47,12 @@ test("Yllith is a direct-only standalone lore with cinematic and reading modes",
 	expect(errors).toEqual([]);
 });
 
-test("Yllith remains absent from the curated lore catalog", async ({ page }) => {
+test("Yllith is discoverable from the curated lore catalog", async ({ page }) => {
 	await page.goto("/lore");
-	await expect(page.locator('a[href="/lore/yllith"]')).toHaveCount(0);
-	await expect(page.getByText("Yllith", { exact: true })).toHaveCount(0);
+	const card = page.locator('article[data-lore="yllith"]');
+	await expect(card).toHaveCount(1);
+	await expect(card.getByRole("link")).toHaveAttribute("href", "/lore/yllith");
+	await expect(card.getByRole("heading", { name: "Nascida para conquistar" })).toBeVisible();
 });
 
 test("Yllith exposes the approved full reading source and favicon", async ({ request }) => {

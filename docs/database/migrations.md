@@ -1878,3 +1878,29 @@ A migration:
 
 A UI pública usa copy neutra quando a descrição editorial está ausente e deriva
 última memória/arte somente da projection pública de sessões.
+
+
+## Candidato — ativação pública de Antes que seja tarde
+
+### `20261001223000_publish_antes_que_seja_tarde.sql`
+
+**Estado:** candidato em `supabase/candidates/`; **não aplicado e não autorizado para Production apenas pelo merge desta PR**.
+
+Objetivo:
+
+- promover somente a `visibility` da campaign técnica `antes-que-seja-tarde` de `private` para `public`;
+- exigir read-back da identidade aprovada: `slug`, nome editorial `Antes que seja tarde`, `public_slug` e `lifecycle = active`;
+- não criar nem alterar entity, canon, session, relation, lore content ou media binding;
+- manter a ativação separada da implementação de catálogo para que o badge público só apareça depois do gate deliberado.
+
+Gates antes da aplicação:
+
+- build que contém o onboarding curado de D/Seika/Yllith já publicado no SHA candidato;
+- smoke multi-campaign do mesmo SHA verde;
+- campaign existente com identidade/lifecycle/public slug esperados;
+- aplicação pelo runbook e read-back posterior de `visibility = public`.
+
+Rollback lógico:
+
+- restaurar `visibility = 'private'` para a mesma campaign;
+- não apagar rows narrativas nem mover assets, porque o candidato não cria nenhum deles.
