@@ -11,6 +11,7 @@ import {
 	type SessionLibraryFilters,
 } from "@/features/edit/sessions/library";
 import { listEditSessionLibrary } from "@/features/edit/sessions/repository";
+import { SessionCampaignSelector } from "@/features/edit/sessions/session-campaign-selector";
 import { SessionLibraryThumbnail } from "@/features/edit/sessions/session-library-thumbnail";
 import styles from "@/features/edit/workbench.module.css";
 import { formatSessionDate } from "@/features/sessions/model";
@@ -60,10 +61,12 @@ function ErrorState({ href }: Readonly<{ href: string }>) {
 export async function CampaignSessionLibraryPage({
 	campaignSlug,
 	campaignName,
+	campaignOptions,
 	searchParams,
 }: {
 	campaignSlug: string;
 	campaignName: string;
+	campaignOptions: readonly Readonly<{ technicalSlug: string; name: string }>[];
 	searchParams: SearchParams;
 }) {
 	const baseHref = "/edit/" + encodeURIComponent(campaignSlug) + "/sessoes";
@@ -112,6 +115,10 @@ export async function CampaignSessionLibraryPage({
 			</header>
 
 			<Form action={baseHref} className={styles.libraryFilters}>
+				<SessionCampaignSelector
+					campaigns={campaignOptions}
+					currentCampaignSlug={campaignSlug}
+				/>
 				<label className={styles.librarySearch}>
 					<span>Buscar sessão</span>
 					<input
