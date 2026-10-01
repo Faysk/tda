@@ -594,22 +594,25 @@ function Write-EvidenceManifest([string]$EvidenceRoot) {
 }
 
 function Assert-NoEvidenceLeak([string]$EvidenceRoot, [string]$SecretToken, [string]$PrivatePath) {
-    $privateNeedles = [Collections.Generic.List[string]]::new()
+    $privatePathNeedles = [Collections.Generic.List[string]]::new()
+    $privateName = ""
     if ($PrivatePath) {
-        $privateNeedles.Add($PrivatePath)
+        $privatePathNeedles.Add($PrivatePath)
         $escapedPrivatePath = $PrivatePath.Replace('\', '\\')
-        if ($escapedPrivatePath -ne $PrivatePath) { $privateNeedles.Add($escapedPrivatePath) }
+        if ($escapedPrivatePath -ne $PrivatePath) { $privatePathNeedles.Add($escapedPrivatePath) }
         $privateName = [IO.Path]::GetFileName($PrivatePath)
-        if ($privateName) { $privateNeedles.Add($privateName) }
     }
     foreach ($file in Get-ChildItem -LiteralPath $EvidenceRoot -File -Recurse) {
         if ($file.Extension -notin @(".json", ".txt")) { continue }
         $text = [string](Get-Content -LiteralPath $file.FullName -Raw -ErrorAction SilentlyContinue)
         if ($SecretToken -and $text.Contains($SecretToken)) { Fail-Harness "EVIDENCE_PAIRING_TOKEN_LEAK" }
-        foreach ($needle in $privateNeedles) {
+        foreach ($needle in $privatePathNeedles) {
             if ($text.IndexOf($needle, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
                 Fail-Harness "EVIDENCE_PRIVATE_PATH_LEAK"
             }
+        }
+        if ($privateName -and $text.IndexOf($privateName, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            Fail-Harness "EVIDENCE_PRIVATE_FILENAME_LEAK"
         }
     }
 }
