@@ -221,6 +221,29 @@ describe("session public metadata", () => {
 			url: "https://media.example.test/campaign-b/session-alpha/hero.webp",
 		});
 	});
+
+	it("keeps canonical URLs campaign-qualified when source ids collide", () => {
+		const otherCampaign: PublishedSession = {
+			...firstSession,
+			campaignId: "campaign-b",
+			campaignSlug: "campaign-b",
+			campaignName: "Campaign B",
+			campaignTechnicalSlug: "campaign-b",
+		};
+
+		const first = sessionPublicMetadata(firstSession, {});
+		const second = sessionPublicMetadata(otherCampaign, {});
+
+		expect(first.alternates.canonical).toBe(
+			"https://dnd.faysk.dev/campanhas/cronicas-da-mesa/sessoes/session-alpha",
+		);
+		expect(second.alternates.canonical).toBe(
+			"https://dnd.faysk.dev/campanhas/campaign-b/sessoes/session-alpha",
+		);
+		expect(second.alternates.canonical).not.toBe(first.alternates.canonical);
+		expect(second.openGraph.url).toBe(second.alternates.canonical);
+	});
+
 });
 
 it("uses a distinct real image for every recovered session without an injected test manifest", () => {
