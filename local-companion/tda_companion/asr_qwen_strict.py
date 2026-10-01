@@ -528,6 +528,7 @@ def transcribe_craig_package_qwen_strict(
         "dtype": plan.dtype,
         "alignment": QWEN_FORCED_ALIGNER_MODEL_ID,
         "alignment_policy": QWEN_ALIGNMENT_POLICY,
+        "empty_signal_recovery": "qwen-fast-to-quality-once-v1",
         **(
             {"benchmark_sample_seconds": float(sample_seconds)}
             if sample_seconds is not None
@@ -739,7 +740,7 @@ def transcribe_craig_package_qwen_strict(
         report({"type": "stage", "stage": "model_prepare", "profile": profile.id})
         model_root = model_prepare(models_root.resolve(), profile)
         report({"type": "stage", "stage": "model_load", "profile": profile.id})
-        asr_session: AsrSession = asr_session_factory(model_root, plan)
+        asr_session: AsrSession | None = asr_session_factory(model_root, plan)
         report(device_event(plan.device))
         report({"type": "stage", "stage": "transcription", "profile": profile.id})
         try:
@@ -781,6 +782,10 @@ def transcribe_craig_package_qwen_strict(
                         continue
                     if window.index != len(values) + 1:
                         raise QwenRuntimeError("QWEN_TEXT_PREFIX_WINDOW_GAP")
+                    if asr_session is None:
+                        report({"type": "stage", "stage": "model_load", "profile": profile.id})
+                        asr_session = asr_session_factory(model_root, plan)
+                        report(device_event(plan.device))
                     text, language = asr_session.transcribe(window.audio, prompt=prompt)
                     if not text.strip():
                         diagnostics = _qwen_window_signal_diagnostics(window.audio)
@@ -800,9 +805,76 @@ def transcribe_craig_package_qwen_strict(
                             "silence_rms_threshold_dbfs": QWEN_CONFIDENT_SILENCE_RMS_DBFS,
                         }
                         if not diagnostics["confidently_silent"]:
-                            report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
-                            raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
-                        report({**event, "code": "QWEN_WINDOW_SILENCE_CONFIRMED"})
+                            if profile.id != "qwen-fast":
+                                report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
+                                raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+
+                            fallback_event = {
+                                **event,
+                                "profile": "qwen-quality",
+                            }
+                            report(
+                                {
+                                    **fallback_event,
+                                    "code": "QWEN_WINDOW_QUALITY_FALLBACK_STARTED",
+                                }
+                            )
+                            # The 0.6B Fast model must leave VRAM before the 1.7B
+                            # Quality model is constructed. A later Fast window
+                            # lazily reloads Fast, keeping recovery bounded to one
+                            # alternate-model attempt for this exact window.
+                            asr_session.close()
+                            asr_session = None
+                            if is_cancelled():
+                                raise QwenRuntimeError("ASR_CANCELLED")
+
+                            quality_profile = get_profile("qwen-quality")
+                            quality_plan = plan_resolver(quality_profile.id)
+                            quality_root = model_prepare(
+                                models_root.resolve(),
+                                quality_profile,
+                            )
+                            quality_session: AsrSession | None = None
+                            try:
+                                quality_session = asr_session_factory(
+                                    quality_root,
+                                    quality_plan,
+                                )
+                                report(device_event(quality_plan.device))
+                                text, language = quality_session.transcribe(
+                                    window.audio,
+                                    prompt=prompt,
+                                )
+                            finally:
+                                if quality_session is not None:
+                                    quality_session.close()
+
+                            if is_cancelled():
+                                raise QwenRuntimeError("ASR_CANCELLED")
+                            if not text.strip():
+                                report(
+                                    {
+                                        **fallback_event,
+                                        "code": "QWEN_WINDOW_QUALITY_FALLBACK_FAILED",
+                                    }
+                                )
+                                report(
+                                    {
+                                        **event,
+                                        "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED",
+                                    }
+                                )
+                                raise QwenRuntimeError(
+                                    "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"
+                                )
+                            report(
+                                {
+                                    **fallback_event,
+                                    "code": "QWEN_WINDOW_QUALITY_FALLBACK_RECOVERED",
+                                }
+                            )
+                        else:
+                            report({**event, "code": "QWEN_WINDOW_SILENCE_CONFIRMED"})
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,
@@ -910,7 +982,8 @@ def transcribe_craig_package_qwen_strict(
                             }
                         )
         finally:
-            asr_session.close()
+            if asr_session is not None:
+                asr_session.close()
 
     new_tracks: dict[int, TranscriptTrack] = {}
     energy_by_segment: dict[tuple[int, str], float] = {}
