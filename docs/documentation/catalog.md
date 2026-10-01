@@ -51,7 +51,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Fluxos ponta a ponta](../architecture/data-flows.md) | arquitetura + domínios | vigente/parcialmente preparado | 2026-09-20 |
 | [Arquitetura do Edit Workbench](../architecture/edit-workbench.md) | arquitetura + Edit | accepted / implementação incremental | 2026-09-07 |
 | [Princípios e invariantes](../architecture/invariants.md) | arquitetura | vigente | 2026-09-30 |
-| [Multi-campaign — contrato, rotas e rollout](../architecture/multi-campaign.md) | architecture / sessions / identity-access | arquitetura aprovada | 2026-09-30 |
+| [Multi-campaign — contrato, rotas e rollout](../architecture/multi-campaign.md) | architecture / sessions / identity-access | arquitetura aprovada | 2026-10-01 |
 | [Contexto e limites do sistema](../architecture/system-context.md) | arquitetura | vigente | 2026-09-20 |
 
 ## docs/companion/acceptance
@@ -71,7 +71,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Relacionamentos e ownership de dados](../database/relationships.md) | dados + domínios | vigente | 2026-09-30 |
 | [Inventário de RPCs privilegiadas do Supabase](../database/rpc-inventory.md) | segurança/dados | vigente / revisão de hardening em andamento | Não declarado |
 | [Catálogo do schema Supabase](../database/schema-catalog.md) | dados/Supabase | implementado | 2026-09-30 |
-| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-09-30 |
+| [Segurança do banco: Auth, RLS, RBAC, RPCs e grants](../database/security.md) | segurança/dados | implementado + transição em andamento | 2026-10-01 |
 | [Log de verificações do banco de produção](../database/verification-log.md) | dados/Supabase | vigente / append-only por intenção | Não declarado |
 
 ## docs/delivery
@@ -115,7 +115,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
 | [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-09-30 |
 | [Processamento, jobs e áudio](../domains/processing.md) | processing/local-companion | processamento local real implementado; lifecycle editorial pós-ASR aprovado e em implementação futura | 2026-09-15 |
-| [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-09-30 |
+| [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-10-01 |
 
 ## docs/features
 
