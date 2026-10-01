@@ -38,6 +38,21 @@ export type Capabilities = {
 		catalog: TranscriptionProfileState[];
 	};
 };
+export type QwenRuntimeMaintenanceStatus = {
+	schema: "tda_qwen_runtime_maintenance_v1";
+	state: "idle" | "running" | "completed" | "failed";
+	active: boolean;
+	operationId: string | null;
+	installedStatus: string;
+	installedVersion: string | null;
+	minimumVersion: string;
+	stableStatus: "unknown" | "available" | "unavailable";
+	stableVersion: string | null;
+	stableCompatible: boolean;
+	updateAvailable: boolean;
+	errorCode: string | null;
+};
+
 export type PreparationStatus = {
 	schema: "tda_profile_preparation_v1";
 	state: "idle" | "running" | "completed" | "failed" | "interrupted";
@@ -786,6 +801,32 @@ export function parseCapabilities(value: unknown): Capabilities {
 		sync: boolean(row.sync),
 		device: { id: identifier(device.id), label: text(device.label) },
 		transcription: { profiles, catalog },
+	};
+}
+
+export function parseQwenRuntimeMaintenanceStatus(
+	value: unknown,
+): QwenRuntimeMaintenanceStatus {
+	const row = record(value);
+	if (row.schema !== "tda_qwen_runtime_maintenance_v1") return invalid();
+	const state = text(row.state, 32);
+	if (!["idle", "running", "completed", "failed"].includes(state)) return invalid();
+	const stableStatus = text(row.stable_status, 32);
+	if (!["unknown", "available", "unavailable"].includes(stableStatus))
+		return invalid();
+	return {
+		schema: "tda_qwen_runtime_maintenance_v1",
+		state: state as QwenRuntimeMaintenanceStatus["state"],
+		active: boolean(row.active),
+		operationId: nullableText(row.operation_id, 64),
+		installedStatus: text(row.installed_status, 32),
+		installedVersion: nullableText(row.installed_version, 32),
+		minimumVersion: text(row.minimum_version, 32),
+		stableStatus: stableStatus as QwenRuntimeMaintenanceStatus["stableStatus"],
+		stableVersion: nullableText(row.stable_version, 32),
+		stableCompatible: boolean(row.stable_compatible),
+		updateAvailable: boolean(row.update_available),
+		errorCode: nullableText(row.error_code, 96),
 	};
 }
 
