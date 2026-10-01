@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-EXPECTED_RUNTIME_VERSION = "1.0.13"
+EXPECTED_RUNTIME_VERSION = "1.0.14"
 SAMPLE_SECONDS = 300.0
 EXPECTED_SOURCE_SHA256 = "b2ac78347d88b2761e51be38a60aa266933e3b00f30e72c50626fbe599849b1e"
 EXPECTED_TRACK_COUNT = 4
