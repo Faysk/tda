@@ -185,31 +185,56 @@ def _parse_qwen_asr_decoded(decoded: Any) -> tuple[str, str]:
 def _qwen_window_signal_diagnostics(audio: Any) -> dict[str, int | float | bool]:
     """Return sanitized whole-window signal evidence for empty ASR decisions."""
 
-    try:
-        values = iter(audio)
-    except TypeError as exc:
-        raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID") from exc
-
     count = 0
     peak = 0.0
-    squared_sum = 0.0
-    try:
-        for raw in values:
-            value = float(raw)
-            if not math.isfinite(value):
-                raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID")
-            absolute = abs(value)
-            peak = max(peak, absolute)
-            squared_sum += value * value
-            count += 1
-    except QwenRuntimeError:
-        raise
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID") from exc
-    if count <= 0:
-        raise QwenRuntimeError("QWEN_AUDIO_EMPTY")
+    rms = 0.0
 
-    rms = math.sqrt(squared_sum / count)
+    # Real decoded Qwen windows are NumPy arrays. This diagnostic now runs before
+    # every ASR call, so keep that hot path vectorized instead of iterating roughly
+    # 960k Python objects per 60-second window. Generic iterables remain supported
+    # for fixtures/adapters and preserve the same rounded dBFS contract.
+    try:
+        import numpy as np
+    except ImportError:
+        np = None  # type: ignore[assignment]
+
+    if np is not None and isinstance(audio, np.ndarray):
+        try:
+            if audio.size <= 0:
+                raise QwenRuntimeError("QWEN_AUDIO_EMPTY")
+            if not bool(np.all(np.isfinite(audio))):
+                raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID")
+            count = int(audio.size)
+            peak = float(np.max(np.abs(audio)))
+            squared = np.square(audio, dtype=np.float64)
+            rms = math.sqrt(float(np.mean(squared)))
+        except QwenRuntimeError:
+            raise
+        except (TypeError, ValueError, OverflowError, FloatingPointError) as exc:
+            raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID") from exc
+    else:
+        try:
+            values = iter(audio)
+        except TypeError as exc:
+            raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID") from exc
+
+        squared_sum = 0.0
+        try:
+            for raw in values:
+                value = float(raw)
+                if not math.isfinite(value):
+                    raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID")
+                absolute = abs(value)
+                peak = max(peak, absolute)
+                squared_sum += value * value
+                count += 1
+        except QwenRuntimeError:
+            raise
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID") from exc
+        if count <= 0:
+            raise QwenRuntimeError("QWEN_AUDIO_EMPTY")
+        rms = math.sqrt(squared_sum / count)
     peak_dbfs = round(20.0 * math.log10(max(peak, 1e-6)), 3)
     rms_dbfs = round(20.0 * math.log10(max(rms, 1e-6)), 3)
     confidently_silent = (
