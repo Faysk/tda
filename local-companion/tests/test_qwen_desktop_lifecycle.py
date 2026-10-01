@@ -237,3 +237,28 @@ def test_desktop_reattaches_to_existing_agent_update_without_duplicate_post(
     assert posts == []
     assert value["accepted"] is True
     assert value["version"] == "1.2.3"
+
+
+def test_desktop_reattaches_to_existing_agent_check_without_duplicate_post(
+    tmp_path: Path,
+):
+    bridge = _bridge(tmp_path)
+    get_values = iter(
+        [
+            _status(state="running", mode="check", active=True),
+            _status(
+                state="completed",
+                mode="check",
+                update_available=True,
+            ),
+        ]
+    )
+    posts: list[str] = []
+    bridge.client.get = lambda _path: next(get_values)  # type: ignore[method-assign]
+    bridge.client.post = lambda path, _body: posts.append(path)  # type: ignore[method-assign]
+
+    value = bridge.check_qwen_runtime()
+
+    assert posts == []
+    assert value["current_version"] == "1.2.2"
+    assert value["available"] is True
