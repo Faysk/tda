@@ -73,6 +73,11 @@ const E2E_CAMPAIGN_ALIASES = [
 		campaignRouteKey: "fixture-archived",
 		retired: false,
 	},
+	{
+		routeKey: "fixture-dependency-unavailable",
+		campaignRouteKey: "fixture-missing",
+		retired: false,
+	},
 ] as const;
 
 function campaignFixtureEnabled() {
