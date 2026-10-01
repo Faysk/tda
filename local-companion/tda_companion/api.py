@@ -43,6 +43,10 @@ from .profile_preparation import (
 from .publication_target import PublicationTargetError, bind_publication_target, repair_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
+from .qwen_runtime_maintenance import (
+    QwenRuntimeMaintenanceError,
+    QwenRuntimeMaintenanceManager,
+)
 from .session_participants import observed_session_tracks, resolve_session_participants
 from .session_assemblies import (
     SessionAssemblyError,
@@ -98,6 +102,8 @@ def _browser_route_allowed(method: str, path: str) -> bool:
         "/api/v1/capabilities",
         "/api/v1/preparation",
         "/api/v1/preparation/cancel",
+        "/api/v1/runtime/qwen",
+        "/api/v1/runtime/qwen/update",
         "/api/v1/system",
         "/api/v1/lifecycle",
         "/api/v1/jobs",
@@ -107,6 +113,7 @@ def _browser_route_allowed(method: str, path: str) -> bool:
             or (method == "POST" and path in {
                 "/api/v1/preparation",
                 "/api/v1/preparation/cancel",
+                "/api/v1/runtime/qwen/update",
                 "/api/v1/lifecycle",
                 "/api/v1/jobs",
             })
@@ -424,6 +431,11 @@ def create_app(
         models_root=resolved_models_root,
         runtime_root=resolved_runtime_root,
         state_root=resolved_state_root,
+        cache_root=resolved_cache_root,
+        system_log=system_log,
+    )
+    qwen_runtime_maintenance = QwenRuntimeMaintenanceManager(
+        runtime_root=resolved_runtime_root,
         cache_root=resolved_cache_root,
         system_log=system_log,
     )
@@ -1348,6 +1360,7 @@ def create_app(
     app.state.telemetry = telemetry
     app.state.browser_sessions = browser_sessions
     app.state.preparation_manager = preparation_manager
+    app.state.qwen_runtime_maintenance = qwen_runtime_maintenance
     app.state.system_log = system_log
     app.state.worker_wake = worker_wake
     app.state.source_gate = source_gate
@@ -1498,6 +1511,7 @@ def create_app(
             "worker.subprocess",
             "transcription.prepare",
             "transcription.prepare.cancel",
+            "runtime.qwen.maintenance",
             "transcription.review",
             "transcription.review.base",
             "transcription.target.repair",
@@ -1550,6 +1564,8 @@ def create_app(
     @app.post("/api/v1/preparation")
     async def prepare_profile(body: ProfilePreparationRequest):
         async with dispatch_gate:
+            if qwen_runtime_maintenance.active():
+                return error("QWEN_RUNTIME_UPDATE_IN_PROGRESS", 409, True)
             if store.has_active_transcription_jobs():
                 return error(
                     "TRANSCRIPTION_PREPARATION_BLOCKED_BY_ACTIVE_JOB",
@@ -1590,6 +1606,29 @@ def create_app(
                 else 400,
                 preparation_recoverable(exc.code),
             )
+
+    @app.get("/api/v1/runtime/qwen")
+    async def qwen_runtime_status():
+        return await asyncio.to_thread(
+            qwen_runtime_maintenance.snapshot,
+            refresh_manifest=True,
+        )
+
+    @app.post("/api/v1/runtime/qwen/update")
+    async def update_qwen_runtime():
+        async with dispatch_gate:
+            if store.has_active_transcription_jobs():
+                return error("QWEN_RUNTIME_UPDATE_BLOCKED_BY_ACTIVE_JOB", 409, True)
+            if preparation_manager.snapshot().get("active") is True:
+                return error("QWEN_RUNTIME_UPDATE_BLOCKED_BY_PREPARATION", 409, True)
+            try:
+                return await asyncio.to_thread(qwen_runtime_maintenance.start)
+            except QwenRuntimeMaintenanceError as exc:
+                code = _public_error_code(exc.code)
+                status = 409
+                if code == "QWEN_RUNTIME_MANIFEST_UNAVAILABLE":
+                    status = 503
+                return error(code, status, True)
 
     @app.get("/api/v1/system")
     def system():
@@ -2054,6 +2093,11 @@ def create_app(
     @app.post("/api/v1/jobs")
     async def submit(body: JobRequest, idempotency_key: str = Header(pattern=_ID_PATTERN)):
         payload = body.model_dump()
+        if (
+            body.kind in {"transcription.craig", "benchmark.craig"}
+            and qwen_runtime_maintenance.active()
+        ):
+            raise Conflict("QWEN_RUNTIME_UPDATE_IN_PROGRESS")
         if body.kind == "transcription.craig":
             async with dispatch_gate:
                 if body.profile_id.startswith("qwen-"):
