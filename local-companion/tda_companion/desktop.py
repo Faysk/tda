@@ -506,7 +506,7 @@ class DesktopBridge:
             "update",
             timeout_seconds=2 * 60 * 60,
         )
-        accepted = result.get("mode") == "update" and result.get("state") == "completed"
+        accepted = result.get("accepted") is True
         return {
             "accepted": accepted,
             "available": result.get("update_available") is True or accepted,
