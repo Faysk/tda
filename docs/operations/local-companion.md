@@ -320,6 +320,29 @@ Se o harness falhar antes de um perfil, os workers continuam podendo ser executa
 
 Os modos `--acceptance` individuais aceitam `--audio`, `--models-root`, `--profile`, `--require-gpu-name`, `--context-file`, `--glossary-file` e `--transcript-out`. Qwen também aceita `--record-gate`, `--runtime-root` e `--state-root`.
 
+## ASR Whisper — contenção palavra/segmento (#1235)
+
+O contrato canônico continua estrito: toda palavra deve permanecer dentro do segmento pai e nenhuma correção pode apagar, recortar ou deslocar timestamps de palavra apenas para satisfazer a validação. O adapter Whisper trata os timestamps de palavra válidos como a evidência temporal mais fina do próprio segmento. Quando a única violação é `word:BEFORE_SEGMENT` ou `word:AFTER_SEGMENT`, o adapter pode **alargar somente o envelope do segmento pai** até o mínimo/máximo dos filhos e executa novamente a validação canônica completa.
+
+Esse ajuste é deliberadamente estreito. Timestamp não finito/negativo, palavra ou segmento invertido, palavras fora de ordem, segmento além da duração da track e demais invariantes continuam falhando fechado. O ajuste ocorre em coordenadas locais da track; `timeline_offset_seconds` só é aplicado depois, na montagem da timeline global. Cada alargamento emite `WHISPER_SEGMENT_SPAN_WIDENED` com limites e deltas numéricos sanitizados, sem texto reconhecido, nome de speaker ou path de áudio.
+
+Qualquer release que altere esse adapter muda os bytes do worker e portanto exige **nova versão imutável do Whisper Runtime**. #1234 já materializou 1.1.6 e #1233 materializou oficialmente 1.1.7 para o contrato de benchmark; por isso #1235 avança para **Whisper Runtime 1.1.8** e preserva 1.1.6/1.1.7, sem sobrescrever nem reconstruir tag/asset existente. A promoção de 1.1.8 permanece bloqueada até a fronteira de decode #1234 estar incorporada nos mesmos bytes e até os dois perfis Whisper completarem sample e transcrição integral no hardware físico autorizado. O receipt publicado registra identidade/hash do runtime, GPU e métricas agregadas; não registra áudio, transcript, speaker ou path privado.
+
+Para o gate físico específico de #1235, usar `local-companion/packaging/run-whisper-craig-containment-acceptance.ps1` com o Craig **já staged localmente**, o `TDARuntime-candidate.json` do RC exato e PowerShell 7. O harness executa, no worker empacotado, `whisper-turbo` e `whisper-detailed` em duas fases cada: benchmark Craig de exatamente 300 s e transcrição integral. O caminho normal `transcription.craig` é usado nas duas fases; o full precisa produzir `run.json` e `transcript.json`, o SHA do transcript deve corresponder ao manifesto e **ambos os arquivos** são re-hashados ao final para detectar mutação posterior.
+
+Exemplo de forma, sem caminhos ou identificadores reais:
+
+```powershell
+pwsh -File local-companion/packaging/run-whisper-craig-containment-acceptance.ps1 `
+  -DataRoot "<TDA-Data-local>" `
+  -SourceId "<source-id-local>" `
+  -RuntimeCandidateManifest "<TDARuntime-candidate.json>"
+```
+
+O único arquivo destinado a compartilhamento é `<candidate-tag>.whisper-1235.json`. Ele contém versão/tag/hash do runtime, GPU/driver, contagens e tempos agregados, quantidade de widenings e no máximo 32 exemplos **numéricos** de limites relativos. O harness descarta stderr e mensagens brutas do worker, não grava `source_id`, áudio, transcrição, speaker nem caminhos locais.
+
+Rollback volta para um runtime Whisper anterior já publicado e compatível, preservando Models/Data e sem converter artefatos canônicos. Um rollback não autoriza desabilitar `TranscriptDocument.validate()`, remover palavras, clipar timestamps nem regravar runs imutáveis.
+
 ## ASR Whisper — receita preservada
 
 Os dois perfis Whisper preservam inicialmente a receita comprovada pelo legado:

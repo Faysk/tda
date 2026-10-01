@@ -17,6 +17,7 @@ on:
       - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - "local-companion/packaging/run-physical-acceptance.ps1"
+      - "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
     branches: [main]
@@ -35,6 +36,7 @@ on:
       - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - "local-companion/packaging/run-physical-acceptance.ps1"
+      - "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
 permissions:
@@ -64,7 +66,8 @@ jobs:
             "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
             "tools/acceptance/export-final-current-source-handoff.ps1",
             "local-companion/packaging/run-installed-acceptance.ps1",
-            "local-companion/packaging/run-physical-acceptance.ps1"
+            "local-companion/packaging/run-physical-acceptance.ps1",
+            "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1"
           )) {
             $path = Resolve-Path $relative
             $tokens = $null
@@ -88,6 +91,76 @@ jobs:
               exit 1
             }
           }
+      - name: Verify Whisper #1235 Craig acceptance contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $value = Get-Content -LiteralPath "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1" -Raw
+          foreach ($required in @(
+            'tda_whisper_craig_containment_acceptance_v1',
+            'whisper-turbo',
+            'whisper-detailed',
+            'benchmark_sample_seconds = 300.0',
+            'kind = "transcription.craig"',
+            'WHISPER_SEGMENT_SPAN_WIDENED',
+            'immutable_runs_verified = $true',
+            'contains_audio = $false',
+            'contains_transcript = $false',
+            'contains_local_paths = $false',
+            'contains_source_id = $false',
+            'TDA_ASR_RUNTIME_ARTIFACT',
+            'runtime_archive_sha256',
+            'WHISPER_1235_RUN_TRANSCRIPT_HASH_MISMATCH',
+            'InitialTranscriptSha256',
+            'source_sha = [string]$runtime.Candidate.source_sha',
+            'faster_whisper = [string]$runtime.Build.packages."faster-whisper"',
+            'ctranslate2 = [string]$runtime.Build.packages.ctranslate2',
+            'pyav = [string]$runtime.Build.packages.av',
+            'WHISPER_1235_RUNTIME_VERSION_REQUIRED',
+            '$ExpectedTrackCount = 4',
+            'WHISPER_1235_TRACK_COUNT_REQUIRED',
+            'WHISPER_1235_SPEECH_RESULT_REQUIRED',
+            '.whisper-1235.json'
+          )) {
+            if (-not $value.Contains($required)) {
+              throw "WHISPER_1235_ACCEPTANCE_CONTRACT_MISSING:$required"
+            }
+          }
+          if ($value.Contains('Write-Host $line') -or $value.Contains('Set-Content -LiteralPath $line')) {
+            throw "WHISPER_1235_RAW_WORKER_OUTPUT_PERSISTED"
+          }
+
+          $promotion = Get-Content -LiteralPath ".github/workflows/runtime-promote.yml" -Raw
+          foreach ($required in @(
+            'Require Whisper #1235 Craig containment acceptance',
+            'tools/acceptance/whisper_1235_receipt.py',
+            '--evidence-root docs/companion/runtime-acceptance',
+            '--retained-output prepared/Whisper-1235-acceptance.json'
+          )) {
+            if (-not $promotion.Contains($required)) {
+              throw "WHISPER_1235_PROMOTION_GATE_MISSING:$required"
+            }
+          }
+
+          $verifier = Get-Content -LiteralPath "tools/acceptance/whisper_1235_receipt.py" -Raw
+          foreach ($required in @(
+            'tda_whisper_craig_containment_acceptance_v1',
+            '.whisper-1235.json',
+            'WHISPER_1235_ACCEPTANCE_IDENTITY_MISMATCH',
+            'WHISPER_1235_IMMUTABLE_RUN_REQUIRED',
+            'WHISPER_1235_ACCEPTANCE_PRIVACY_INVALID',
+            'WHISPER_1235_FULL_TRACK_COUNT_INVALID'
+          )) {
+            if (-not $verifier.Contains($required)) {
+              throw "WHISPER_1235_RECEIPT_VERIFIER_MISSING:$required"
+            }
+          }
+      - name: Unit-test Whisper #1235 promotion evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python tools/acceptance/test_whisper_1235_receipt.py
+
       - name: Verify recovery launcher is pinned and transcript-free
         shell: powershell
         run: |
