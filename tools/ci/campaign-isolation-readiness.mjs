@@ -43,6 +43,8 @@ const RULES = [
 			"World public/editorial routes, layout, leases and publish actions must be campaign-qualified.",
 		files: [
 			{ path: "src/app/mundo/page.tsx", forbidden: [/CAMPAIGN_SLUG/u] },
+			{ path: "src/app/campanhas/[campaignSlug]/mundo/page.tsx", forbidden: [] },
+			{ path: "src/app/edit/[campaignSlug]/mundo/page.tsx", forbidden: [] },
 			{
 				path: "src/features/world-explorer/world-edit-actions.ts",
 				forbidden: [/CAMPAIGN_SLUG/u],
@@ -118,6 +120,10 @@ const RULES = [
 		description:
 			"Global/Edit navigation must preserve campaign context and never silently target the legacy campaign.",
 		files: [
+			{ path: "src/app/edit/[campaignSlug]/sessoes/page.tsx", forbidden: [] },
+			{ path: "src/app/edit/[campaignSlug]/processamento/page.tsx", forbidden: [] },
+			{ path: "src/app/edit/[campaignSlug]/transcricoes/page.tsx", forbidden: [] },
+			{ path: "src/app/edit/[campaignSlug]/revisao/page.tsx", forbidden: [] },
 			{
 				path: "src/features/edit/navigation-entry.ts",
 				forbidden: [/CAMPAIGN_SLUG/u],
