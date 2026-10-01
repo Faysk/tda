@@ -76,6 +76,7 @@ jobs:
           node --test
           tools/ci/classify-changes.test.mjs
           tools/ci/production-release-plan.test.mjs
+          tools/ci/public-release-smoke.test.mjs
           tools/ci/github-actions-security.test.mjs
 
   transcript-import-postgres:
