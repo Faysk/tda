@@ -4,7 +4,7 @@ test("World Explorer keeps the mobile inspector recoverable with touch-sized con
 	page,
 }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await page.locator('[data-world-node="astel"]').click();
 	await expect(
 		page.getByRole("heading", { level: 2, name: "Astel", exact: true }),
