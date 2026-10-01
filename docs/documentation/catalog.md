@@ -58,6 +58,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
+| [Aceite físico — Qwen empty-window #1236](../companion/acceptance/qwen-empty-window-benchmark.md) | local-companion / processing | harness implementado; execução física no Craig original ainda pendente | 2026-10-01 |
 | [Aceite físico — recovery do Qwen Runtime no Benchmark](../companion/acceptance/qwen-runtime-recovery.md) | Processing / Companion | gate de aceite físico implementado; execução real pendente | 2026-10-01 |
 
 ## docs/database
@@ -231,4 +232,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-150 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+151 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
+
+import pytest
 
 from tda_companion.asr_models import get_profile
 from tda_companion.asr_qwen import (
     AudioWindow,
     QwenRuntimeError,
+    _parse_qwen_asr_decoded,
+    _parse_qwen_asr_output,
+    _qwen_window_signal_diagnostics,
     transcribe_craig_package_qwen,
 )
 from tda_companion.craig import CraigPackage, CraigTrack
@@ -70,6 +76,56 @@ def _model_prepare(_models_root: Path, profile):
 
 def _aligner_prepare(_models_root: Path):
     return Path("qwen-aligner")
+
+
+def test_qwen_structured_output_distinguishes_empty_recognition_from_invalid_payload():
+    assert _parse_qwen_asr_output(
+        {"transcription": "   ", "language": "Portuguese"}
+    ) == ("", "Portuguese")
+    for invalid in (
+        {},
+        {"transcription": None, "language": None},
+        {"transcription": []},
+        {"transcription": "texto", "language": {}},
+    ):
+        with pytest.raises(QwenRuntimeError, match="QWEN_ASR_OUTPUT_INVALID"):
+            _parse_qwen_asr_output(invalid)
+
+
+def test_qwen_decode_envelope_rejects_missing_or_ambiguous_results():
+    assert _parse_qwen_asr_decoded(
+        [{"transcription": "", "language": "Portuguese"}]
+    ) == ("", "Portuguese")
+    for decoded in (None, {}, [], [{}, {}]):
+        with pytest.raises(QwenRuntimeError, match="QWEN_ASR_OUTPUT_INVALID"):
+            _parse_qwen_asr_decoded(decoded)
+
+
+def test_qwen_empty_window_signal_gate_is_conservative_for_quiet_and_voiced_audio():
+    silence = [0.0] * 320
+    quiet_voiced_like = [
+        1e-4 * math.sin(2.0 * math.pi * 220.0 * index / 16_000.0)
+        for index in range(320)
+    ]
+    voiced = [
+        0.1 * math.sin(2.0 * math.pi * 220.0 * index / 16_000.0)
+        for index in range(320)
+    ]
+
+    silent = _qwen_window_signal_diagnostics(silence)
+    quiet = _qwen_window_signal_diagnostics(quiet_voiced_like)
+    normal = _qwen_window_signal_diagnostics(voiced)
+
+    assert silent == {
+        "sample_count": 320,
+        "peak_dbfs": -120.0,
+        "rms_dbfs": -120.0,
+        "confidently_silent": True,
+    }
+    assert quiet["confidently_silent"] is False
+    assert quiet["peak_dbfs"] > -84.0
+    assert normal["confidently_silent"] is False
+    assert normal["peak_dbfs"] > quiet["peak_dbfs"]
 
 
 def test_qwen_craig_runs_asr_then_releases_it_before_aligner_and_deduplicates(tmp_path: Path):

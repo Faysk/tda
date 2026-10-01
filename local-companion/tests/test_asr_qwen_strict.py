@@ -318,7 +318,7 @@ def test_strict_qwen_accepts_silent_window_without_alignment(tmp_path: Path):
         asr_session_factory=lambda _root, _plan: Asr(),
         aligner_session_factory=lambda _root, _plan: Aligner(),
         window_reader=lambda _path: iter(
-            [AudioWindow(index=1, start=0.0, end=2.0, audio="silence")]
+            [AudioWindow(index=1, start=0.0, end=2.0, audio=[0.0] * 320)]
         ),
         energy_reader=lambda *_args: -120.0,
         report=reports.append,
@@ -355,6 +355,193 @@ def test_strict_qwen_accepts_silent_window_without_alignment(tmp_path: Path):
     assert completed["completed_window_count"] == 1
 
 
+@pytest.mark.parametrize("amplitude", [1e-4, 0.1])
+def test_strict_qwen_rejects_empty_asr_when_window_has_signal(
+    tmp_path: Path,
+    amplitude: float,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "", "Portuguese"
+
+        def close(self):
+            pass
+
+    audio = [
+        amplitude * math.sin(2.0 * math.pi * 220.0 * index / 16_000.0)
+        for index in range(320)
+    ]
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=lambda _root: (_ for _ in ()).throw(
+                AssertionError("uncertain empty ASR must fail before alignment")
+            ),
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: (_ for _ in ()).throw(
+                AssertionError("uncertain empty ASR must fail before aligner creation")
+            ),
+            window_reader=lambda _path: iter(
+                [AudioWindow(index=1, start=0.0, end=2.0, audio=audio)]
+            ),
+            report=reports.append,
+        )
+
+    rejected = next(
+        item for item in reports if item.get("code") == "QWEN_WINDOW_EMPTY_ASR_REJECTED"
+    )
+    assert rejected["track"] == 1
+    assert rejected["window"] == 1
+    assert rejected["sample_count"] == 320
+    assert rejected["peak_dbfs"] > rejected["silence_peak_threshold_dbfs"]
+    assert "text" not in rejected
+    assert "audio" not in rejected
+    assert not any(
+        item.get("code") == "QWEN_WINDOW_SILENCE_CONFIRMED" for item in reports
+    )
+
+
+def test_strict_qwen_mixed_tracks_keep_silent_timeline_and_voiced_identity(tmp_path: Path):
+    package, root = _two_track_package(tmp_path)
+    reports: list[dict] = []
+    align_calls: list[str] = []
+
+    def reader(path: Path):
+        if path.name.startswith("1-"):
+            audio = [0.0] * 320
+        else:
+            audio = [0.1, -0.1] * 160
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=audio)
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            if max(abs(float(value)) for value in audio) == 0.0:
+                return "", "Portuguese"
+            return "fala preservada", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, text: str, _language: str):
+            align_calls.append(text)
+            return [
+                {"text": "fala", "start_time": 0.2, "end_time": 0.5},
+                {"text": "preservada", "start_time": 0.6, "end_time": 1.2},
+            ]
+
+        def close(self):
+            pass
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -10.0,
+        report=reports.append,
+    )
+
+    assert [track.number for track in document.tracks] == [1, 2]
+    assert [track.speaker for track in document.tracks] == ["Alice", "Bob"]
+    assert document.tracks[0].duration_seconds == 2.0
+    assert document.tracks[0].segments == ()
+    assert document.tracks[1].duration_seconds == 2.0
+    assert [segment.text for segment in document.tracks[1].segments] == ["fala preservada"]
+    assert align_calls == ["fala preservada"]
+    assert document.stats.segment_count == 1
+    assert document.stats.word_count == 2
+    assert any(
+        item.get("code") == "QWEN_WINDOW_SILENCE_CONFIRMED"
+        and item.get("track") == 1
+        for item in reports
+    )
+
+
+def test_strict_qwen_silent_track_checkpoint_reuses_zero_segment_result(tmp_path: Path):
+    package, root = _package(tmp_path)
+    created = {"asr": 0, "aligner": 0}
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            return "", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, *_args):
+            raise AssertionError("confirmed silence must never reach alignment")
+
+        def close(self):
+            pass
+
+    def asr_factory(_root, _plan):
+        created["asr"] += 1
+        return Asr()
+
+    def aligner_factory(_root, _plan):
+        created["aligner"] += 1
+        return Aligner()
+
+    common = dict(
+        profile_id="qwen-fast",
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=2.0, audio=[0.0] * 320)]
+        ),
+        energy_reader=lambda *_args: -120.0,
+    )
+
+    first = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        asr_session_factory=asr_factory,
+        aligner_session_factory=aligner_factory,
+        **common,
+    )
+    reports: list[dict] = []
+    second = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        report=reports.append,
+        asr_session_factory=lambda *_args: (_ for _ in ()).throw(
+            AssertionError("silent track checkpoint must skip ASR")
+        ),
+        aligner_session_factory=lambda *_args: (_ for _ in ()).throw(
+            AssertionError("silent track checkpoint must skip aligner")
+        ),
+        **common,
+    )
+
+    assert created == {"asr": 1, "aligner": 1}
+    assert first.tracks[0].segments == ()
+    assert second.tracks[0].segments == ()
+    assert second.tracks[0].duration_seconds == 2.0
+    assert any(item.get("code") == "ASR_CHECKPOINT_REUSED" for item in reports)
+
+
 def test_strict_qwen_benchmark_sample_uses_supplied_window_reader(tmp_path: Path):
     package, root = _package(tmp_path)
 
@@ -377,7 +564,7 @@ def test_strict_qwen_benchmark_sample_uses_supplied_window_reader(tmp_path: Path
     def reader(_path):
         nonlocal calls
         calls += 1
-        yield AudioWindow(index=1, start=0.0, end=2.0, audio="silence")
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=[0.0] * 320)
 
     document = transcribe_craig_package_qwen_strict(
         package,
