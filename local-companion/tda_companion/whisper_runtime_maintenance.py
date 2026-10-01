@@ -145,7 +145,13 @@ def _activate_preserved_runtime(runtime_root: Path, target_version: str, current
 
     try:
         _atomic_json(selector, selected)
-        if _ready_current_version(runtime_root) != target_version:
+        try:
+            selected_version = _ready_current_version(runtime_root)
+        except WhisperRuntimeMaintenanceError as exc:
+            raise WhisperRuntimeMaintenanceError(
+                "WHISPER_RUNTIME_ROLLBACK_VERIFY_FAILED"
+            ) from exc
+        if selected_version != target_version:
             raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_VERIFY_FAILED")
         worker_sha256 = _verified_worker_sha256(runtime_root, target_version)
     except Exception as exc:
