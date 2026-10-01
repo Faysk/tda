@@ -2,7 +2,6 @@ import "server-only";
 
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 
 const UUID_PATTERN =
@@ -10,6 +9,7 @@ const UUID_PATTERN =
 const SOURCE_PREVIEW_LIMIT = 3;
 const SOURCE_TEXT_LIMIT = 1200;
 const SOURCE_BATCH_SIZE = 100;
+const SAFE_CAMPAIGN_SLUG = /^[A-Za-z0-9_-]{1,128}$/u;
 
 export type CanonReviewSource = Readonly<{
 	key: string;
@@ -92,15 +92,19 @@ function candidatePreviewIds(candidate: {
 	};
 }
 
-export async function loadCanonReviewQueue(): Promise<CanonReviewQueueResult> {
+export async function loadCanonReviewQueue(
+	campaignSlug: string,
+): Promise<CanonReviewQueueResult> {
+	if (!SAFE_CAMPAIGN_SLUG.test(campaignSlug))
+		return { ok: false, reason: "forbidden" };
 	const access = await authorizeCampaignCapabilityServer({
 		action: EDIT_CAPABILITIES.reviewRead,
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug,
 	});
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const transcriptAccess = await authorizeCampaignCapabilityServer({
 		action: EDIT_CAPABILITIES.transcriptRead,
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug,
 	});
 
 	const client = editDataClient();
@@ -109,12 +113,13 @@ export async function loadCanonReviewQueue(): Promise<CanonReviewQueueResult> {
 	const { data: campaign, error: campaignError } = await client
 		.from("campaigns")
 		.select("id")
-		.eq("slug", CAMPAIGN_SLUG)
+		.eq("slug", campaignSlug)
 		.maybeSingle();
-	if (campaignError || !campaign?.id) {
+	if (campaignError) {
 		console.error("Canon review campaign lookup failed");
 		return { ok: false, reason: "dependency_unavailable" };
 	}
+	if (!campaign?.id) return { ok: false, reason: "forbidden" };
 
 	const { data: sessions, error: sessionsError } = await client
 		.from("sessions")

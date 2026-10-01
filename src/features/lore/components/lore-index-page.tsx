@@ -2,7 +2,10 @@ import Image from "next/image";
 import { PublicLink as Link } from "@/components/public-link";
 import { Eyebrow } from "@/components/ui";
 import { LORE_INDEX_COPY } from "../index-config";
-import type { LoreRouteKind } from "../model";
+import type {
+	LoreCampaignContext,
+	LoreRouteKind,
+} from "../model";
 import type { LoreIndexItem } from "../public-projection";
 import { listPublishedLoreIndex } from "../repository";
 import styles from "./lore-index-page.module.css";
@@ -40,6 +43,7 @@ function ArchiveCard({
 			className={styles.card}
 			data-lore-card="true"
 			data-rich={rich ? "true" : "false"}
+			data-campaign={item.campaign.routeKey}
 		>
 			<Link className={styles.cardLink} href={item.href}>
 				<div
@@ -77,9 +81,11 @@ function ArchiveCard({
 
 export function LoreIndexArchive({
 	routeKind,
+	campaign,
 	items,
 }: {
 	routeKind: LoreRouteKind;
+	campaign: LoreCampaignContext;
 	items: readonly LoreIndexItem[] | null | undefined;
 }) {
 	const copy = LORE_INDEX_COPY[routeKind];
@@ -88,6 +94,7 @@ export function LoreIndexArchive({
 		<div
 			className={styles.page}
 			data-lore-index={routeKind}
+			data-campaign={campaign.routeKey}
 			data-visual-kind={copy.visualKind}
 			data-layout-family="editorial"
 			data-layout-role="editorial"
@@ -96,13 +103,21 @@ export function LoreIndexArchive({
 				<div className={styles.heroGlow} aria-hidden="true" />
 				<div className={styles.heroInner}>
 					<nav className={styles.contextNav} aria-label="Contexto de exploração">
-						<Link href="/mundo">Mundo</Link>
+						<Link href="/campanhas">Campanhas</Link>
+						<span aria-hidden="true">›</span>
+						<Link href={`/campanhas/${encodeURIComponent(campaign.routeKey)}/mundo`}>
+							Mundo
+						</Link>
+						<span aria-hidden="true">›</span>
+						<span>{campaign.name}</span>
 						<span aria-hidden="true">›</span>
 						<span aria-current="page">{copy.title}</span>
 					</nav>
 
 					<div className={styles.heroCopy}>
-						<Eyebrow className={styles.eyebrow}>{copy.eyebrow}</Eyebrow>
+						<Eyebrow className={styles.eyebrow}>
+							{copy.eyebrow} · {campaign.name}
+						</Eyebrow>
 						<h1 id="lore-index-title">{copy.title}</h1>
 						<p>{copy.description}</p>
 					</div>
@@ -117,7 +132,7 @@ export function LoreIndexArchive({
 
 			<section
 				className={styles.archive}
-				aria-label={`Arquivo de ${copy.title.toLocaleLowerCase("pt-BR")}`}
+				aria-label={`Arquivo de ${copy.title.toLocaleLowerCase("pt-BR")} de ${campaign.name}`}
 			>
 				{items === undefined ? (
 					<div className={styles.state} role="status">
@@ -133,7 +148,7 @@ export function LoreIndexArchive({
 					<div className={styles.grid}>
 						{items.map((item) => (
 							<ArchiveCard
-								key={`${item.entityType}:${item.slug}`}
+								key={`${item.campaign.routeKey}:${item.entityType}:${item.slug}`}
 								item={item}
 								routeKind={routeKind}
 							/>
@@ -143,7 +158,7 @@ export function LoreIndexArchive({
 					<div className={styles.state}>
 						<strong>{copy.emptyTitle}</strong>
 						<span>{copy.emptyDescription}</span>
-						<Link href="/mundo">Explorar os Ecos da Jornada</Link>
+						<Link href="/campanhas">Explorar outras campanhas</Link>
 					</div>
 				)}
 			</section>
@@ -151,13 +166,25 @@ export function LoreIndexArchive({
 	);
 }
 
-export async function LoreIndexPage({ routeKind }: { routeKind: LoreRouteKind }) {
+export async function LoreIndexPage({
+	routeKind,
+	campaign,
+}: {
+	routeKind: LoreRouteKind;
+	campaign: LoreCampaignContext;
+}) {
 	let items: Awaited<ReturnType<typeof listPublishedLoreIndex>> | undefined;
 	try {
-		items = await listPublishedLoreIndex(routeKind);
+		items = await listPublishedLoreIndex(routeKind, campaign);
 	} catch {
 		items = undefined;
 	}
 
-	return <LoreIndexArchive routeKind={routeKind} items={items} />;
+	return (
+		<LoreIndexArchive
+			routeKind={routeKind}
+			campaign={campaign}
+			items={items}
+		/>
+	);
 }

@@ -37,7 +37,7 @@ test("six public archives keep one technical base while exposing type context", 
 		});
 		await expect(context.getByRole("link", { name: "Mundo" })).toHaveAttribute(
 			"href",
-			"/mundo",
+			"/campanhas/fixture-campaign/mundo",
 		);
 		await expect(context.locator('[aria-current="page"]')).toHaveText(label);
 		await expect(page.locator("[data-lore-card]")).toHaveCount(1);

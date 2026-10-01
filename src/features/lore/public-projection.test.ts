@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { LoreCampaignContext } from "./model";
 import {
 	buildPublishedLoreProfile,
 	toPublicLoreIndexItem,
@@ -6,6 +7,18 @@ import {
 	type PublicLoreEntityRow,
 	type PublicLoreSessionRow,
 } from "./public-projection";
+
+const campaignA: LoreCampaignContext = {
+	routeKey: "campaign-a",
+	technicalSlug: "campaign-a-tech",
+	name: "Campaign A",
+};
+
+const campaignB: LoreCampaignContext = {
+	routeKey: "campaign-b",
+	technicalSlug: "campaign-b-tech",
+	name: "Campaign B",
+};
 
 function entity(overrides: Partial<PublicLoreEntityRow> = {}): PublicLoreEntityRow {
 	return {
@@ -41,25 +54,46 @@ function session(overrides: Partial<PublicLoreSessionRow> = {}): PublicLoreSessi
 		arc: "A Forja de Thalindra",
 		summary_short: "Uma sessão publicada associada ao personagem.",
 		status: "published",
-		campaigns: { slug: "yuhara-main" },
+		campaigns: { slug: campaignA.technicalSlug },
 		...overrides,
 	};
 }
 
 describe("public lore projection", () => {
 	it("rejects entities that are not explicitly public_web", () => {
-		expect(toPublicLoreIndexItem(entity({ visibility: "private_players" }))).toBeNull();
-		expect(buildPublishedLoreProfile(entity({ visibility: "private_master" }))).toBeNull();
+		expect(
+			toPublicLoreIndexItem(entity({ visibility: "private_players" }), campaignA),
+		).toBeNull();
+		expect(
+			buildPublishedLoreProfile(entity({ visibility: "private_master" }), campaignA),
+		).toBeNull();
 	});
 
-	it("uses slug as the public identifier instead of leaking the database UUID", () => {
-		const profile = buildPublishedLoreProfile(entity());
-		expect(profile?.identity.id).toBe("dandelion");
+	it("uses campaign + slug as public identity without leaking the database UUID", () => {
+		const profile = buildPublishedLoreProfile(entity(), campaignA);
+		expect(profile?.identity.id).toBe("campaign-a:dandelion");
+		expect(profile?.campaign).toEqual(campaignA);
 		expect(JSON.stringify(profile)).not.toContain("private-database-id");
 	});
 
+	it("keeps equal slugs in different campaigns on distinct routes and identities", () => {
+		const row = entity({ slug: "same" });
+		expect(toPublicLoreIndexItem(row, campaignA)?.href).toBe(
+			"/campanhas/campaign-a/personagens/same",
+		);
+		expect(toPublicLoreIndexItem(row, campaignB)?.href).toBe(
+			"/campanhas/campaign-b/personagens/same",
+		);
+		expect(buildPublishedLoreProfile(row, campaignA)?.identity.id).toBe(
+			"campaign-a:same",
+		);
+		expect(buildPublishedLoreProfile(row, campaignB)?.identity.id).toBe(
+			"campaign-b:same",
+		);
+	});
+
 	it("projects only active public canon entries", () => {
-		const profile = buildPublishedLoreProfile(entity(), [
+		const profile = buildPublishedLoreProfile(entity(), campaignA, [
 			canon(),
 			canon({ title: "Privado", visibility: "private_players" }),
 			canon({ title: "Arquivado", status: "archived" }),
@@ -70,45 +104,50 @@ describe("public lore projection", () => {
 		expect(serialized).not.toContain("Arquivado");
 	});
 
-	it("projects only published campaign sessions without leaking internal session IDs", () => {
-		const profile = buildPublishedLoreProfile(entity({ summary: null }), [], [
-			session(),
-			session({
-				id: "private-draft-id",
-				title: "Rascunho",
-				status: "ready_for_review",
-			}),
-			session({
-				id: "private-other-campaign-id",
-				title: "Outra campanha",
-				campaigns: { slug: "outra-campanha" },
-			}),
-		]);
+	it("projects only published sessions from the exact campaign", () => {
+		const profile = buildPublishedLoreProfile(
+			entity({ summary: null }),
+			campaignA,
+			[],
+			[
+				session(),
+				session({ title: "Rascunho", status: "ready_for_review" }),
+				session({
+					title: "Outra campanha",
+					campaigns: { slug: campaignB.technicalSlug },
+				}),
+			],
+		);
 		const serialized = JSON.stringify(profile);
 		expect(serialized).toContain("O Retorno do Bardo");
-		expect(serialized).toContain("/sessoes/public-session-id");
+		expect(serialized).toContain(
+			"/campanhas/campaign-a/sessoes/public-session-id",
+		);
 		expect(serialized).toContain("01 de julho de 2026");
 		expect(serialized).not.toContain("Rascunho");
 		expect(serialized).not.toContain("Outra campanha");
-		expect(serialized).not.toContain("private-session-uuid");
-		expect(serialized).not.toContain("private-draft-id");
-		expect(serialized).not.toContain("private-other-campaign-id");
 	});
 
-	it("does not invent profile sections when no public narrative or session data exists", () => {
-		const profile = buildPublishedLoreProfile(entity({ summary: null }), []);
+	it("does not invent sections when no public narrative or session data exists", () => {
+		const profile = buildPublishedLoreProfile(
+			entity({ summary: null }),
+			campaignA,
+		);
 		expect(profile?.sections).toEqual([]);
 		expect(profile?.presentation.motion.preset).toBe("still");
 	});
 
 	it("builds route-safe index items only for supported public entity types", () => {
-		expect(toPublicLoreIndexItem(entity())).toEqual({
+		expect(toPublicLoreIndexItem(entity(), campaignA)).toEqual({
 			slug: "dandelion",
 			entityType: "pc",
 			name: "Dandelion",
 			summary: "Uma memória publicada.",
-			href: "/personagens/dandelion",
+			href: "/campanhas/campaign-a/personagens/dandelion",
+			campaign: campaignA,
 		});
-		expect(toPublicLoreIndexItem(entity({ entity_type: "other" }))).toBeNull();
+		expect(
+			toPublicLoreIndexItem(entity({ entity_type: "other" }), campaignA),
+		).toBeNull();
 	});
 });

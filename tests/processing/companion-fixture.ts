@@ -66,7 +66,7 @@ export type CompanionFixtureOptions = {
 	benchmarkPreparationFailureProfile?: string | null;
 	reviewEnabled?: boolean;
 	additionalCapabilities?: readonly string[];
-	qwenRuntimeVersion?: string;
+	qwenRuntimeVersion?: string | null;
 	qwenRuntimeUpgradeRequired?: boolean;
 	qwenRuntimeStableVersion?: string | null;
 	qwenRuntimeManifestUnavailable?: boolean;
@@ -226,7 +226,7 @@ export async function installCompanionFixture(
 		options.benchmarkReadyProfiles ??
 			(options.profileReady ? [...benchmarkProfileIds] : []),
 	);
-	let qwenRuntimeVersion = options.qwenRuntimeVersion ?? "1.0.12";
+	let qwenRuntimeVersion = options.qwenRuntimeVersion === undefined ? "1.0.12" : options.qwenRuntimeVersion;
 	const qwenStableVersion = options.qwenRuntimeStableVersion ?? "1.0.12";
 	let qwenMaintenanceSequence = 0;
 	let qwenRuntimeRecoveredFromInitialUpdate = false;
@@ -549,11 +549,14 @@ export async function installCompanionFixture(
 				update_available:
 					options.qwenRuntimeManifestUnavailable || !qwenStableVersion
 						? null
-						: compareSemver(qwenRuntimeVersion, qwenStableVersion) < 0 && compareSemver(qwenStableVersion, "1.0.12") >= 0,
+						: (qwenRuntimeVersion === null ||
+								compareSemver(qwenRuntimeVersion, qwenStableVersion) < 0) &&
+							compareSemver(qwenStableVersion, "1.0.12") >= 0,
 				can_update:
 					!options.qwenRuntimeManifestUnavailable &&
 					Boolean(qwenStableVersion) &&
-					compareSemver(qwenRuntimeVersion, String(qwenStableVersion)) < 0 &&
+					(qwenRuntimeVersion === null ||
+						compareSemver(qwenRuntimeVersion, String(qwenStableVersion)) < 0) &&
 					compareSemver(String(qwenStableVersion), "1.0.12") >= 0,
 				error_code: options.qwenRuntimeManifestUnavailable
 					? "NETWORK_UNAVAILABLE"
@@ -584,8 +587,18 @@ export async function installCompanionFixture(
 				stable_tag: options.qwenRuntimeManifestUnavailable || !qwenStableVersion ? null : `companion-qwen-runtime-v${qwenStableVersion}`,
 				stable_size: options.qwenRuntimeManifestUnavailable ? null : 1024,
 				stable_part_count: options.qwenRuntimeManifestUnavailable ? null : 1,
-				update_available: options.qwenRuntimeManifestUnavailable || !qwenStableVersion ? null : compareSemver(qwenRuntimeVersion, qwenStableVersion) < 0 && compareSemver(qwenStableVersion, "1.0.12") >= 0,
-				can_update: !options.qwenRuntimeManifestUnavailable && Boolean(qwenStableVersion) && compareSemver(qwenRuntimeVersion, String(qwenStableVersion)) < 0 && compareSemver(String(qwenStableVersion), "1.0.12") >= 0,
+				update_available:
+					options.qwenRuntimeManifestUnavailable || !qwenStableVersion
+						? null
+						: (qwenRuntimeVersion === null ||
+								compareSemver(qwenRuntimeVersion, qwenStableVersion) < 0) &&
+							compareSemver(qwenStableVersion, "1.0.12") >= 0,
+				can_update:
+					!options.qwenRuntimeManifestUnavailable &&
+					Boolean(qwenStableVersion) &&
+					(qwenRuntimeVersion === null ||
+						compareSemver(qwenRuntimeVersion, String(qwenStableVersion)) < 0) &&
+					compareSemver(String(qwenStableVersion), "1.0.12") >= 0,
 				error_code: options.qwenRuntimeManifestUnavailable ? "NETWORK_UNAVAILABLE" : null,
 			});
 		}

@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 
 const UUID_PATTERN =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const SAFE_CAMPAIGN_SLUG = /^[A-Za-z0-9_-]{1,128}$/u;
 const MAX_REVIEWER_NOTES = 2000;
 const REVIEW_DECISIONS = new Set([
 	"approved_canon",
@@ -19,8 +19,16 @@ const REVIEW_DECISIONS = new Set([
 	"private",
 ]);
 
-function reviewRedirect(kind: "resultado" | "erro", value: string): never {
-	redirect(`/edit/revisao?${kind}=${encodeURIComponent(value)}`);
+function reviewRedirect(
+	campaignSlug: string | null,
+	kind: "resultado" | "erro",
+	value: string,
+): never {
+	const params = new URLSearchParams();
+	if (campaignSlug && SAFE_CAMPAIGN_SLUG.test(campaignSlug))
+		params.set("campanha", campaignSlug);
+	params.set(kind, value);
+	redirect(`/edit/revisao?${params.toString()}`);
 }
 
 function knownFailure(reason: unknown) {
@@ -34,19 +42,36 @@ function knownFailure(reason: unknown) {
 	);
 }
 
+async function campaignMutationFailure(
+	campaignSlug: string,
+): Promise<"dependency_unavailable" | "not_found" | "campaign_archived" | null> {
+	const client = editDataClient();
+	if (!client) return "dependency_unavailable";
+	const { data, error } = await client
+		.from("campaigns")
+		.select("lifecycle")
+		.eq("slug", campaignSlug)
+		.maybeSingle();
+	if (error) return "dependency_unavailable";
+	if (!data) return "not_found";
+	return data.lifecycle === "active" ? null : "campaign_archived";
+}
+
 export async function reviewCanonCandidateFormAction(
 	formData: FormData,
 ): Promise<never> {
+	const campaignSlug = String(formData.get("campaignSlug") ?? "").trim();
 	const candidateId = String(formData.get("candidateId") ?? "").trim();
 	const reviewerNotes = String(formData.get("reviewerNotes") ?? "").trim();
 	const decision = String(formData.get("decision") ?? "").trim();
 
 	if (
+		!SAFE_CAMPAIGN_SLUG.test(campaignSlug) ||
 		!UUID_PATTERN.test(candidateId) ||
 		reviewerNotes.length > MAX_REVIEWER_NOTES ||
 		!REVIEW_DECISIONS.has(decision)
 	) {
-		return reviewRedirect("erro", "invalid_payload");
+		return reviewRedirect(null, "erro", "invalid_payload");
 	}
 
 	const capability =
@@ -55,24 +80,29 @@ export async function reviewCanonCandidateFormAction(
 			: EDIT_CAPABILITIES.reviewManage;
 	const access = await authorizeCampaignCapabilityServer({
 		action: capability,
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug,
 	});
-	if (!access.ok) return reviewRedirect("erro", access.reason);
+	if (!access.ok) return reviewRedirect(campaignSlug, "erro", access.reason);
+
+	const lifecycleFailure = await campaignMutationFailure(campaignSlug);
+	if (lifecycleFailure)
+		return reviewRedirect(campaignSlug, "erro", lifecycleFailure);
 
 	const client = editDataClient();
-	if (!client) return reviewRedirect("erro", "dependency_unavailable");
+	if (!client)
+		return reviewRedirect(campaignSlug, "erro", "dependency_unavailable");
 
 	if (decision === "approved_canon") {
 		const { data, error } = await client.rpc("approve_canon_candidate_atomic", {
 			p_auth_user_id: access.authUserId,
 			p_actor_profile_id: access.profileId,
-			p_campaign_slug: CAMPAIGN_SLUG,
+			p_campaign_slug: campaignSlug,
 			p_candidate_id: candidateId,
 			p_reviewer_notes: reviewerNotes || null,
 		});
 		if (error || !data || typeof data !== "object" || Array.isArray(data)) {
 			console.error("Canon candidate approval failed");
-			return reviewRedirect("erro", "dependency_unavailable");
+			return reviewRedirect(campaignSlug, "erro", "dependency_unavailable");
 		}
 
 		const payload = data as Readonly<Record<string, unknown>>;
@@ -82,25 +112,25 @@ export async function reviewCanonCandidateFormAction(
 		) {
 			revalidatePath("/edit/revisao");
 			revalidatePath("/mundo");
-			return reviewRedirect("resultado", String(payload.status));
+			return reviewRedirect(campaignSlug, "resultado", String(payload.status));
 		}
 		if (knownFailure(payload.reason)) {
-			return reviewRedirect("erro", String(payload.reason));
+			return reviewRedirect(campaignSlug, "erro", String(payload.reason));
 		}
-		return reviewRedirect("erro", "dependency_unavailable");
+		return reviewRedirect(campaignSlug, "erro", "dependency_unavailable");
 	}
 
 	const { data, error } = await client.rpc("review_canon_candidate_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_candidate_id: candidateId,
 		p_decision: decision,
 		p_reviewer_notes: reviewerNotes || null,
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
 		console.error("Canon candidate triage failed");
-		return reviewRedirect("erro", "dependency_unavailable");
+		return reviewRedirect(campaignSlug, "erro", "dependency_unavailable");
 	}
 
 	const payload = data as Readonly<Record<string, unknown>>;
@@ -110,12 +140,13 @@ export async function reviewCanonCandidateFormAction(
 	) {
 		revalidatePath("/edit/revisao");
 		return reviewRedirect(
+			campaignSlug,
 			"resultado",
 			payload.status === "unchanged" ? "unchanged" : decision,
 		);
 	}
 	if (knownFailure(payload.reason)) {
-		return reviewRedirect("erro", String(payload.reason));
+		return reviewRedirect(campaignSlug, "erro", String(payload.reason));
 	}
-	return reviewRedirect("erro", "dependency_unavailable");
+	return reviewRedirect(campaignSlug, "erro", "dependency_unavailable");
 }

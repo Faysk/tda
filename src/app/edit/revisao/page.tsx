@@ -1,24 +1,30 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
 import { FormSubmitButton } from "@/components/ui";
+import { currentAccess } from "@/features/auth/server";
 import {
-	authorizeCampaignCapabilityServer,
-	requireCapability,
-} from "@/features/auth/server";
-import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
+	readAuthorizedCampaigns,
+	type AuthorizedCampaign,
+} from "@/features/campaigns/authorized";
+import {
+	authorizeCampaignCapability,
+	EDIT_CAPABILITIES,
+} from "@/features/edit/access/policy";
 import { reviewCanonCandidateFormAction } from "@/features/edit/review/actions";
 import { loadCanonReviewQueue } from "@/features/edit/review/server";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import styles from "@/features/edit/review/review.module.css";
 
 export const metadata: Metadata = {
 	title: "Revisão narrativa · Edit",
 	description: "Fila humana de revisão antes da entrada no cânone da campanha.",
+	robots: { index: false, follow: false },
 };
 export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<
 	Readonly<{
+		campanha?: string | string[];
 		resultado?: string | string[];
 		erro?: string | string[];
 	}>
@@ -26,6 +32,16 @@ type SearchParams = Promise<
 
 function first(value: string | string[] | undefined) {
 	return Array.isArray(value) ? value[0] : value;
+}
+
+function reviewHref(
+	campaignSlug: string,
+	feedback?: Readonly<{ resultado?: string; erro?: string }>,
+) {
+	const params = new URLSearchParams({ campanha: campaignSlug });
+	if (feedback?.resultado) params.set("resultado", feedback.resultado);
+	if (feedback?.erro) params.set("erro", feedback.erro);
+	return `/edit/revisao?${params.toString()}`;
 }
 
 function dateLabel(value: string | null) {
@@ -44,13 +60,16 @@ function timeLabel(value: number | null) {
 	const hours = Math.floor(seconds / 3600);
 	const minutes = Math.floor((seconds % 3600) / 60);
 	const rest = seconds % 60;
-	return [hours, minutes, rest].map((part) => String(part).padStart(2, "0")).join(":");
+	return [hours, minutes, rest]
+		.map((part) => String(part).padStart(2, "0"))
+		.join(":");
 }
 
 function feedbackMessage(result: string | undefined, error: string | undefined) {
 	if (result === "approved")
 		return "Candidato aprovado como cânone em revisão. Nenhuma publicação pública foi feita.";
-	if (result === "rejected") return "Candidato rejeitado e retirado da fila.";
+	if (result === "rejected")
+		return "Candidato rejeitado e retirado da fila.";
 	if (result === "interpretation")
 		return "Candidato classificado como interpretação, sem criação de cânone.";
 	if (result === "possible_hook")
@@ -62,16 +81,69 @@ function feedbackMessage(result: string | undefined, error: string | undefined) 
 	if (result === "unchanged")
 		return "Esta decisão já estava registrada; nenhuma evidência foi duplicada.";
 	if (error === "forbidden")
-		return "Sua conta não possui autoridade para esta decisão.";
+		return "Sua autoridade para esta decisão mudou. Atualize a campanha e a fila antes de tentar novamente.";
 	if (error === "not_found")
-		return "O candidato não está mais disponível nesta campanha.";
+		return "O candidato não está disponível nesta campanha.";
 	if (error === "source_required")
 		return "Aprovação bloqueada: o candidate não possui fonte física resolvível na mesma sessão.";
+	if (error === "campaign_archived")
+		return "Esta campanha foi arquivada. A fila pode ser consultada historicamente, mas novas decisões estão bloqueadas.";
 	if (error === "invalid_state" || error === "conflict")
 		return "O candidato mudou desde a abertura da página. Atualize a fila antes de decidir.";
+	if (error === "invalid_payload")
+		return "A decisão recebida não possui um contexto de campanha válido.";
 	if (error)
 		return "Não foi possível concluir a revisão. Nenhuma alteração parcial foi mantida.";
 	return null;
+}
+
+function CampaignPicker({
+	campaigns,
+	selected,
+	invalidSelection = false,
+}: Readonly<{
+	campaigns: readonly AuthorizedCampaign[];
+	selected?: string;
+	invalidSelection?: boolean;
+}>) {
+	return (
+		<div className={styles.campaignContext}>
+			{invalidSelection ? (
+				<p className={styles.campaignAlert} role="alert">
+					A campanha pedida não está disponível neste contexto. Ela pode não
+					existir, estar fora do seu acesso ou não estar mais disponível.
+					Nenhuma campanha alternativa foi escolhida automaticamente.
+				</p>
+			) : null}
+			<form className={styles.campaignPicker} method="get">
+				<label htmlFor="review-campaign">
+					<span>Campanha</span>
+					<select
+						id="review-campaign"
+						name="campanha"
+						required
+						defaultValue={selected ?? ""}
+					>
+						<option value="" disabled>
+							Selecione…
+						</option>
+						{campaigns.map((campaign) => (
+							<option
+								key={campaign.technicalSlug}
+								value={campaign.technicalSlug}
+							>
+								{campaign.name}
+								{campaign.lifecycle === "archived" ? " (arquivada)" : ""}
+							</option>
+						))}
+					</select>
+				</label>
+				<button type="submit">
+					{selected ? "Trocar campanha" : "Abrir revisão"}
+				</button>
+			</form>
+		</div>
+	);
 }
 
 export default async function NarrativeReviewPage({
@@ -79,30 +151,137 @@ export default async function NarrativeReviewPage({
 }: {
 	searchParams: SearchParams;
 }) {
-	await requireCapability(EDIT_CAPABILITIES.reviewRead, "/edit/revisao");
+	const [params, access] = await Promise.all([searchParams, currentAccess()]);
+	const requestedCampaign = first(params.campanha);
+	const requestedPath = requestedCampaign
+		? reviewHref(requestedCampaign)
+		: "/edit/revisao";
+	if (access.state === "anonymous")
+		redirect(`/entrar?next=${encodeURIComponent(requestedPath)}`);
+	if (access.state === "unavailable")
+		redirect("/conta?acesso=indisponivel");
+	if (!access.context?.profileId) redirect("/conta?acesso=negado");
 
-	const [queue, manageAccess, approvalAccess, params] = await Promise.all([
-		loadCanonReviewQueue(),
-		authorizeCampaignCapabilityServer({
-			action: EDIT_CAPABILITIES.reviewManage,
-			campaignSlug: CAMPAIGN_SLUG,
-		}),
-		authorizeCampaignCapabilityServer({
-			action: EDIT_CAPABILITIES.canonApprove,
-			campaignSlug: CAMPAIGN_SLUG,
-		}),
-		searchParams,
+	const eligible = await readAuthorizedCampaigns(
+		access.context,
+		EDIT_CAPABILITIES.reviewRead,
+		{ includeArchived: true },
+	);
+	if (!eligible.ok) {
+		return (
+			<section
+				className={styles.shell}
+				data-layout-family="workspace"
+				data-layout-role="editorial"
+			>
+				<OperationalPageHeader
+					eyebrow="Edit · Revisão"
+					title="Campanhas indisponíveis"
+				/>
+				<div className={styles.empty} role="status">
+					<p>
+						O diretório autorizado de campanhas não pôde ser consultado com
+						segurança. Nenhum contexto de revisão foi assumido.
+					</p>
+				</div>
+			</section>
+		);
+	}
+
+	if (!eligible.campaigns.length) {
+		return (
+			<section
+				className={styles.shell}
+				data-layout-family="workspace"
+				data-layout-role="editorial"
+			>
+				<OperationalPageHeader
+					eyebrow="Edit · Revisão"
+					title="Nenhuma campanha disponível"
+				/>
+				<div className={styles.empty} role="status">
+					<p>
+						Seu perfil não possui <code>{EDIT_CAPABILITIES.reviewRead}</code>{" "}
+						em nenhuma campanha disponível.
+					</p>
+				</div>
+			</section>
+		);
+	}
+
+	const resultParam = first(params.resultado);
+	const errorParam = first(params.erro);
+	if (!requestedCampaign && eligible.campaigns.length === 1) {
+		redirect(
+			reviewHref(eligible.campaigns[0]!.technicalSlug, {
+				resultado: resultParam,
+				erro: errorParam,
+			}),
+		);
+	}
+
+	const selected = requestedCampaign
+		? eligible.campaigns.find(
+				(campaign) => campaign.technicalSlug === requestedCampaign,
+			) ?? null
+		: null;
+	if (!selected) {
+		return (
+			<section
+				className={styles.shell}
+				data-layout-family="workspace"
+				data-layout-role="editorial"
+			>
+				<OperationalPageHeader
+					eyebrow="Edit · Revisão"
+					title="Escolha a campanha"
+					description={
+						<p>
+							A fila, as fontes e cada decisão permanecem isoladas no contexto
+							de uma única campanha.
+						</p>
+					}
+				/>
+				<CampaignPicker
+					campaigns={eligible.campaigns}
+					invalidSelection={Boolean(requestedCampaign)}
+				/>
+			</section>
+		);
+	}
+
+	const [queue, manageAccess, approvalAccess] = await Promise.all([
+		loadCanonReviewQueue(selected.technicalSlug),
+		Promise.resolve(
+			authorizeCampaignCapability(
+				access.context,
+				EDIT_CAPABILITIES.reviewManage,
+				selected.technicalSlug,
+			),
+		),
+		Promise.resolve(
+			authorizeCampaignCapability(
+				access.context,
+				EDIT_CAPABILITIES.canonApprove,
+				selected.technicalSlug,
+			),
+		),
 	]);
-	const feedback = feedbackMessage(first(params.resultado), first(params.erro));
-	const canManage = manageAccess.ok;
-	const canApprove = approvalAccess.ok;
+	const feedback = feedbackMessage(resultParam, errorParam);
+	const active = selected.lifecycle === "active";
+	const canManage = active && manageAccess.ok;
+	const canApprove = active && approvalAccess.ok;
 	const canDecide = canManage || canApprove;
 
 	return (
-		<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
+		<section
+			className={styles.shell}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
 			<OperationalPageHeader
 				eyebrow="Edit · Revisão"
-				title="Revisão narrativa"
+				title={`Revisão narrativa · ${selected.name}`}
 				description={
 					<p>
 						Compare cada claim com suas fontes antes de decidir. Só a opção de
@@ -112,29 +291,41 @@ export default async function NarrativeReviewPage({
 				}
 			/>
 
+			<CampaignPicker
+				campaigns={eligible.campaigns}
+				selected={selected.technicalSlug}
+			/>
+
 			<aside className={styles.notice}>
-				<strong>Gate humano obrigatório.</strong>
+				<strong>Gate humano obrigatório · {selected.name}.</strong>
 				<p className={styles.muted}>
 					Nada desta tela publica no site ou conecta uma relação do World
 					automaticamente. Provenance, decisão e audience continuam etapas
 					separadas.
 				</p>
-				{!canManage ? (
-					<p className={styles.muted}>
-						A triagem exige <code>narrative.review.manage</code>.
+				{!active ? (
+					<p className={styles.campaignAlert} role="status">
+						Campanha arquivada: leitura histórica permanece disponível, mas
+						novas decisões estão bloqueadas.
 					</p>
 				) : null}
-				{!canApprove ? (
+				{active && !canManage ? (
+					<p className={styles.muted}>
+						A triagem exige <code>narrative.review.manage</code> nesta
+						campanha.
+					</p>
+				) : null}
+				{active && !canApprove ? (
 					<p className={styles.muted}>
 						A criação de cânone exige, separadamente,{" "}
-						<code>narrative.canon.approve</code>.
+						<code>narrative.canon.approve</code> nesta campanha.
 					</p>
 				) : null}
 			</aside>
 
 			{feedback ? (
 				<p className={styles.feedback} role="status">
-					{feedback}
+					<strong>{selected.name}:</strong> {feedback}
 				</p>
 			) : null}
 
@@ -142,15 +333,15 @@ export default async function NarrativeReviewPage({
 				<div className={styles.empty} role="status">
 					<h2>Fila indisponível</h2>
 					<p>
-						Não foi possível consultar candidates e suas fontes agora. Nenhuma
-						decisão foi alterada.
+						Não foi possível consultar candidates e suas fontes nesta campanha.
+						Nenhuma decisão foi alterada.
 					</p>
 				</div>
 			) : (
 				<>
 					<div className={styles.queueHeader}>
 						<div>
-							<h2>Candidatos pendentes</h2>
+							<h2>Candidatos pendentes · {selected.name}</h2>
 							<p className={styles.muted}>
 								Até 200 itens por consulta, em ordem de criação.
 							</p>
@@ -205,7 +396,9 @@ export default async function NarrativeReviewPage({
 																: ""}
 														</p>
 														{source.text ? (
-															<p className={styles.sourceText}>{source.text}</p>
+															<p className={styles.sourceText}>
+																{source.text}
+															</p>
 														) : (
 															<p className={styles.sourceWarning}>
 																Conteúdo da fonte restrito nesta permissão. A
@@ -235,6 +428,11 @@ export default async function NarrativeReviewPage({
 											action={reviewCanonCandidateFormAction}
 											className={styles.form}
 										>
+											<input
+												name="campaignSlug"
+												type="hidden"
+												value={selected.technicalSlug}
+											/>
 											<input
 												name="candidateId"
 												type="hidden"
@@ -299,7 +497,7 @@ export default async function NarrativeReviewPage({
 					) : (
 						<div className={styles.empty}>
 							<h2>Nenhum candidato pendente</h2>
-							<p>A fila humana está limpa para esta campanha.</p>
+							<p>A fila humana está limpa para {selected.name}.</p>
 						</div>
 					)}
 				</>

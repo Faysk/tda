@@ -1,8 +1,8 @@
 # Feature — Perfis editoriais de entities
 
-> Status: preparado; projection publicada pendente
+> Status: projection pública implementada no código; rollout multi-campaign depende do registry/publicação de campaigns
 > Owner: narrative-memory / frontend
-> Última revisão: 2026-09-08
+> Última revisão: 2026-10-01
 
 ## Valor
 
@@ -43,7 +43,7 @@ Ele compõe, conforme disponibilidade/autorização:
 - quests/moments;
 - knowledge autorizado no futuro.
 
-A projection pública real continua pendente. Os shells atuais não publicam fixtures nem promovem conteúdo de teste a canon.
+O repository público compõe somente rows autorizadas (`public_web`) e não promove fixtures nem conteúdo de teste a canon. A publicação multi-campaign continua condicionada ao registry de campaigns e aos gates de release do SHA correspondente.
 
 ## Boundary de campaign
 
@@ -70,7 +70,7 @@ As rotas atuais por tipo continuam válidas como compatibilidade do estado singl
 /quests/[slug]
 ```
 
-No rollout multi-campaign, o canonical específico precisa carregar campaign, por exemplo:
+No código multi-campaign, o canonical específico carrega campaign, por exemplo:
 
 ```text
 /campanhas/[campaign]/personagens/[slug]
@@ -78,9 +78,9 @@ No rollout multi-campaign, o canonical específico precisa carregar campaign, po
 /campanhas/[campaign]/lugares/[slug]
 ```
 
-Os aliases antigos só podem redirecionar quando a resolução for inequívoca; nunca fazem lookup global por slug.
+Os aliases antigos permanecem como compatibilidade da campaign legado e só resolvem por contexto explícito; nunca fazem lookup global por slug. Os catálogos e perfis campaign-scoped existem para `personagens`, `npcs`, `lugares`, `faccoes`, `musicas` e `quests`. Campaign archived/private é rejeitada pelo resolver público; o fallback legado existe apenas para a lacuna de schema anterior ao registry.
 
-A implementação compartilha resolver/model base por `entities.id`/slug em vez de duplicar domínio para cada rota. Tipos sem rota aprovada continuam sem URL inventada.
+A implementação compartilha resolver/model base por `campaign + entities.slug` em vez de duplicar domínio para cada rota. O DTO público qualifica a identidade por campaign e os links de canon/sessão/retrato usam o mesmo campaign scope. Tipos sem rota aprovada continuam sem URL inventada.
 
 ### Pipipi — lore pioneira da issue #99
 
@@ -462,7 +462,7 @@ src/features/lore/
    `- lore-narration-player.tsx
 ```
 
-O repository público permanece deliberadamente vazio até existir projection autorizada. A fixture interna serve testes/component development e não é roteável.
+O repository público recebe campaign explicitamente, resolve `campaign_id` antes de consultar entity e filtra `visibility=public_web`. Canon, sessões e portrait são consultados no mesmo campaign scope; a fixture interna continua restrita a testes/component development e não é roteável.
 
 Validação de suporte em 2026-09-07: `pnpm check` (64 testes unitários), build e 30 E2E passaram localmente com Node 24.20.0/pnpm 12.3.4. O player gera uma faixa WebVTT nativa a partir dos mesmos beats das legendas visíveis. Uma montagem local temporária, removida antes do commit, validou carregamento de dois cues, play/pause, seek, troca de cenas com o mesmo preset, parallax, reduced motion e viewport de 390 px. Essa montagem usou artwork sintético e oito segundos de silêncio: não comprova sincronização/acurácia com narração editorial real nem publicação do slice.
 

@@ -31,13 +31,29 @@ export function loreRouteKindForEntity(
 	return entityRouteKinds[entityType] ?? null;
 }
 
+export function primaryLoreEntityTypeForRoute(
+	routeKind: LoreRouteKind,
+): LoreEntityType {
+	return routeEntityTypes[routeKind][0];
+}
+
+export function loreIndexHref(
+	routeKind: LoreRouteKind,
+	campaignRouteKey?: string,
+): string {
+	return campaignRouteKey
+		? `/campanhas/${encodeURIComponent(campaignRouteKey)}/${routeKind}`
+		: `/${routeKind}`;
+}
+
 export function loreHrefFor(
 	entityType: LoreEntityType,
 	slug: string,
+	campaignRouteKey?: string,
 ): string | null {
 	const routeKind = loreRouteKindForEntity(entityType);
 	if (!routeKind) return null;
-	return `/${routeKind}/${encodeURIComponent(slug)}`;
+	return `${loreIndexHref(routeKind, campaignRouteKey)}/${encodeURIComponent(slug)}`;
 }
 
 export function loreEntityTypesForRoute(

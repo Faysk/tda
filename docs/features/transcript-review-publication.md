@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada; implementação pendente
 > Owner: Edit / processamento local / transcript-sync
-> Última revisão: 2026-09-22
+> Última revisão: 2026-10-01
 > Fonte de verdade: esta spec, ADR-0016, `local-companion/tda_companion`, `src/features/transcript-sync` e contratos do Edit
 
 ## Rollout Production — estado operacional
@@ -75,7 +75,18 @@ ADR-0020/#1133 exigem campaign explícita em qualquer revisão/publicação clou
 - mudar o seletor de campaign não retaggeia intenção pendente;
 - stats/review UI só agrega campaigns quando o contrato explicitamente pedir agregado e a autorização tiver sido resolvida por campaign.
 
-O alvo privado canônico é `/edit/[campaign]/transcricoes`/`/edit/[campaign]/revisao`; `/transcricoes` e `/edit/revisao` permanecem entrypoints de compatibilidade até #1133/#1136.
+O alvo privado canônico continua sendo `/edit/[campaign]/transcricoes`/`/edit/[campaign]/revisao`, coordenado pela navegação de #1136. A entrega #1133 torna os entrypoints de compatibilidade `/transcricoes?campanha=<technical-slug>` e `/edit/revisao?campanha=<technical-slug>` explicitamente campaign-aware:
+
+- sem query, zero campaigns autorizadas produz estado vazio e múltiplas campaigns exigem escolha; uma única opção é canonicalizada para a query explícita;
+- discovery usa somente grants efetivos da capability da superfície; campaign-scoped grant consulta apenas seus slugs e `project/tda` pode cobrir N campaigns sem promover outra capability;
+- UI usa `campaigns.name`; technical slug fica somente na identidade de URL/operação;
+- campaign arquivada pode permanecer legível historicamente, mas decisões novas da Review Board são bloqueadas;
+- fila, fontes, estatísticas, feedback e redirects preservam a campaign escolhida;
+- cada leitura reautoriza server-side e cada decisão envia a campaign identity, reautoriza a capability da decisão e chama o RPC atômico com o mesmo slug;
+- o RPC continua qualificando candidate pela session da campaign, então um candidate de A postado no contexto B não é decidível;
+- trocar a query faz navegação completa e não carrega candidate selecionado/estado descartável da campaign anterior.
+
+A query seleciona intenção, nunca autoridade; slug/hidden input forjado falha fechado.
 ## Objetivo
 
 ### Preservação de legados e listagem — candidato #674
