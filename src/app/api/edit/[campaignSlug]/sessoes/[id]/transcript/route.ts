@@ -1,4 +1,3 @@
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
@@ -28,7 +27,7 @@ function failure(status: number): Response {
 export async function GET(_request: Request, { params }: RouteContext) {
 	const { campaignSlug, id } = await params;
 	if (
-		campaignSlug !== CAMPAIGN_SLUG ||
+		!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(campaignSlug) ||
 		!id ||
 		id.length > 220
 	)
