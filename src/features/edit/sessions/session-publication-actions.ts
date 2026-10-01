@@ -191,6 +191,8 @@ export async function publishSessionEditorialDraftAction(
 				cachePending: invalidateSessionPublicationPaths(
 					request.sessionId,
 					current.sourceSessionId,
+					sessionCampaign.technicalSlug,
+					sessionCampaign.routeKey,
 				),
 			},
 		};
