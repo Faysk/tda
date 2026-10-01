@@ -268,6 +268,10 @@ batch/janelas adaptados a 8 GB de VRAM
 
 `apply_transcription_request` é o entry point preferido. O texto é extraído via decode estruturado do processor. O Forced Aligner usa `AutoModelForTokenClassification`, `prepare_forced_aligner_inputs` e `decode_forced_alignment`.
 
+Resposta estruturada com `transcription=""` é um resultado de reconhecimento vazio, **não uma prova de silêncio**. A partir do runtime Qwen `1.0.13`, o pipeline só aceita esse resultado como intervalo legítimo de zero segmentos quando o PCM inteiro da janela está próximo do piso digital (`peak <= -84 dBFS` e `RMS <= -90 dBFS`). Nesse caso, duração, progresso, checkpoint e identidade da track continuam preservados e o forced aligner não é chamado para aquela janela.
+
+Se o ASR devolver texto vazio e o sinal ultrapassar qualquer um desses limites, o job falha fechado com `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN` e registra somente métricas numéricas sanitizadas da janela. Payload estruturado ausente/malformado permanece `QWEN_ASR_OUTPUT_INVALID`. O pipeline nunca converte energia incerta em silêncio nem fabrica texto para fazer o benchmark passar.
+
 C-16 de `companion-reliability.md` abre uma avaliação futura para um adapter fino sobre o pacote oficial `qwen-asr`; **essa troca não está aprovada por este documento e exige ADR/benchmark antes de substituir o runtime vigente**.
 
 `torch.compile` é candidato de otimização depois da correção funcional; não entra como pré-requisito da primeira inferência real.
@@ -295,19 +299,20 @@ O candidato de decoder #1234 foi **Whisper Runtime 1.1.6**. O pin de PyAV é esp
 
 ### Qwen
 
-Baseline candidata, ainda não declarada suportada:
+Baseline do candidato `1.0.13`:
 
 ```text
 Python 3.12.14
-PyTorch 2.14.0 + cu132
-Transformers 5.17.0
+PyTorch 2.13.0 + cu126
+Transformers 5.18.0
 Accelerate 1.15.0
-CUDA runtime fornecido pelo wheel PyTorch cu132
+CUDA runtime fornecido pelo wheel PyTorch cu126
+driver Windows mínimo 561.17
 ```
 
-O CI comum pode resolver/importar essa stack e verificar que o wheel contém CUDA 13.2, mas não possui GPU física. O runtime Qwen só será declarado suportado após materialização isolada, probe na máquina real e inferência dos dois perfis na RTX 4070 8 GB.
+O CI materializa, empacota e verifica essa stack, mas não substitui o gate físico. O runtime Qwen `1.0.13` só pode virar Stable depois de executar os dois perfis na RTX 4070 8 GB com o Craig real autorizado e registrar receipt sanitizado ligado ao archive/worker exatos.
 
-CUDA 13.x exige driver compatível da família 580 ou superior. O Companion não instala nem altera driver NVIDIA automaticamente.
+O Companion não instala nem altera driver NVIDIA automaticamente. O runtime `1.0.12` permanece o rollback imutável conhecido durante o aceite do `1.0.13`; o mínimo de compatibilidade do Companion continua `1.0.12`. Se o candidato `1.0.13` falhar antes da promoção, ele não é promovido e o Stable `1.0.12` permanece ativo. Se for necessário reverter uma instalação local do candidato, restaurar os bytes verificados do tag imutável `companion-qwen-runtime-v1.0.12` e o `current.json` correspondente; nunca sobrescrever assets ou tags do `1.0.13`.
 
 A distribuição final do runtime Qwen deve permanecer separada do MSI e dos modelos. Antes de decidir entre archive pré-construído e materialização local gerenciada, o CI mede o tamanho real do ambiente PyTorch/Transformers para evitar um pacote desnecessariamente gigantesco.
 
@@ -433,3 +438,8 @@ Só chamar v0.3 de concluído quando:
 - https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution
 - https://learn.microsoft.com/windows/win32/setupapi/run-and-runonce-registry-keys
 - https://github.com/CraigChat/craig
+
+
+### Aceite específico #1236
+
+O rerun físico Qwen-only de 300 s e o formato do receipt sanitizado estão em [docs/companion/acceptance/qwen-empty-window-benchmark.md](../companion/acceptance/qwen-empty-window-benchmark.md).
