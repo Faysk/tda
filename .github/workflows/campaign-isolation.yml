@@ -336,8 +336,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  campaign-isolation-gate:
-    name: campaign-isolation-gate
+  regression-gate:
+    name: campaign-isolation-regression-gate
     if: ${{ always() }}
     needs:
       - preflight
@@ -350,6 +350,36 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Require all exact-SHA isolation suites
+        env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          DOMAIN_RESULT: ${{ needs.domain-contracts.result }}
+          DATABASE_RESULT: ${{ needs.database-contracts.result }}
+          BROWSER_RESULT: ${{ needs.browser-contracts.result }}
+          PROCESSING_RESULT: ${{ needs.processing-contracts.result }}
+          RECEIPT_RESULT: ${{ needs.receipt.result }}
+        run: |
+          set -euo pipefail
+          test "$PREFLIGHT_RESULT" = "success"
+          test "$DOMAIN_RESULT" = "success"
+          test "$DATABASE_RESULT" = "success"
+          test "$BROWSER_RESULT" = "success"
+          test "$PROCESSING_RESULT" = "success"
+          test "$RECEIPT_RESULT" = "success"
+
+  activation-gate:
+    name: campaign-activation-gate
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.require_ready }}
+    needs:
+      - preflight
+      - domain-contracts
+      - database-contracts
+      - browser-contracts
+      - processing-contracts
+      - receipt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require ready exact-SHA activation candidate
         env:
           PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           DOMAIN_RESULT: ${{ needs.domain-contracts.result }}
