@@ -42,12 +42,20 @@ export function isSessionCoverMime(value: unknown): value is SessionCoverMediaMi
 	return value === "image/png" || value === "image/webp";
 }
 
-export function isExistingPublishedSessionCoverReference(value: unknown): boolean {
+export function isExistingPublishedSessionCoverReference(
+	value: unknown,
+	expectedCampaignSlug?: string,
+): boolean {
+	if (
+		expectedCampaignSlug !== undefined &&
+		!isSessionCoverCampaignKey(expectedCampaignSlug)
+	)
+		return false;
 	if (typeof value !== "string") return false;
 	const raw = value.trim();
 	if (!raw) return false;
 	if (raw.startsWith("/assets/sessions/") && !raw.includes("?") && !raw.includes("#"))
-		return true;
+		return expectedCampaignSlug === undefined || expectedCampaignSlug === "yuhara-main";
 	try {
 		const url = new URL(raw);
 		if (
@@ -60,14 +68,24 @@ export function isExistingPublishedSessionCoverReference(value: unknown): boolea
 			return false;
 		if (url.hostname === "media.dnd.faysk.dev") {
 			const match = url.pathname.match(/^\/campaigns\/([^/]+)\/sessions\//u);
-			if (match && isSessionCoverCampaignKey(match[1])) return !url.search;
+			if (match && isSessionCoverCampaignKey(match[1])) {
+				if (
+					expectedCampaignSlug !== undefined &&
+					match[1] !== expectedCampaignSlug
+				)
+					return false;
+				return !url.search;
+			}
 		}
 		if (
 			url.hostname === "dnd.faysk.dev" &&
 			url.pathname.startsWith("/assets/sessions/")
 		)
-			return !url.search;
+			return expectedCampaignSlug === undefined || expectedCampaignSlug === "yuhara-main"
+				? !url.search
+				: false;
 		return (
+			(expectedCampaignSlug === undefined || expectedCampaignSlug === "yuhara-main") &&
 			url.hostname === "dmrqnbdvbkfqzctcerbx.supabase.co" &&
 			url.pathname.startsWith("/storage/v1/object/public/session-images/") &&
 			!url.search
