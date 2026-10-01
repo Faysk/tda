@@ -25,7 +25,7 @@ on:
       - "local-companion/**"
       - "tools/*-db.py"
   push:
-    branches: [main]
+    branches: [main, "codex/epic-1122-multicampaign-completion"]
     paths:
       - ".github/workflows/campaign-isolation.yml"
       - "playwright.campaign-isolation.config.ts"
