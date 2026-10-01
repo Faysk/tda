@@ -147,10 +147,10 @@ export async function requestSessionCoverUploadAction(
 > {
 	if (!worldEntityMediaEnabled())
 		return { ok: false, reason: "media_unavailable" };
-	if (!isSessionCoverUuid(sessionId) || !isSessionCoverIntent(intent))
+	if (!isSessionCoverCampaignKey(campaignSlug) || !isSessionCoverUuid(sessionId) || !isSessionCoverIntent(intent))
 		return { ok: false, reason: "invalid_payload" };
 
-	const authorization = await authorizeSessionCoverTarget(sessionId);
+	const authorization = await authorizeSessionCoverTarget(campaignSlug, sessionId);
 	if (!authorization.ok) return authorization;
 
 	return {
@@ -190,7 +190,7 @@ export async function finalizeSessionCoverUploadAction(
 
 	try {
 		const upload = await finalizeSessionCoverPendingUpload({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug,
 			sessionId,
 			uploadId,
 			expectedSha256: intent.sha256,
@@ -240,7 +240,7 @@ export async function getSessionCoverAssetStatusAction(
 > {
 	if (!worldEntityMediaEnabled())
 		return { ok: false, reason: "media_unavailable" };
-	if (!isSessionCoverUuid(sessionId) || !isSessionCoverUuid(assetId))
+	if (!isSessionCoverCampaignKey(campaignSlug) || !isSessionCoverUuid(sessionId) || !isSessionCoverUuid(assetId))
 		return { ok: false, reason: "invalid_payload" };
 
 	const authorization = await authorizeSessionCoverTarget(sessionId);
@@ -286,7 +286,7 @@ export async function getSessionCoverAssetStatusAction(
 
 	const extension = mimeType === "image/png" ? "png" : "webp";
 	const expectedKey = sessionCoverObjectKey({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug,
 		sessionId,
 		sha256,
 		extension,
