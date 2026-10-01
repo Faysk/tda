@@ -37,7 +37,7 @@ type MockAccessOptions = Readonly<{
 	state?: NavigationState;
 	capabilities?: readonly string[];
 	campaigns?: readonly MockCampaign[];
-	campaignsState?: "first_class" | "legacy_compatibility" | "unavailable";
+	campaignsState?: "first_class" | "unavailable";
 	identity?: Readonly<{
 		displayName: string | null;
 		avatarUrl: string | null;
@@ -516,7 +516,10 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	await expect(
 		toolsSection.getByRole("link", { name: "Permissões", exact: true }),
 	).toHaveCount(0);
-	for (const label of ["Editar sessões", "Processar", "Editar mundo", "Revisão"]) {
+	await expect(
+		toolsSection.getByRole("link", { name: "Editar sessões", exact: true }),
+	).toHaveAttribute("href", "/edit/antes-que-seja-tarde/sessoes");
+	for (const label of ["Processar", "Editar mundo", "Revisão"]) {
 		await expect(
 			toolsSection.getByRole("link", { name: label, exact: true }),
 		).toHaveCount(0);
@@ -527,7 +530,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	await selector.selectOption("yuhara-main");
 	await expect(
 		toolsSection.getByRole("link", { name: "Editar sessões", exact: true }),
-	).toHaveAttribute("href", "/edit/sessoes?campanha=yuhara-main");
+	).toHaveAttribute("href", "/edit/yuhara-main/sessoes");
 	await expect(
 		toolsSection.getByRole("link", { name: "Revisão", exact: true }),
 	).toHaveAttribute("href", "/edit/revisao?campanha=yuhara-main");
