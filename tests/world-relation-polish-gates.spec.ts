@@ -15,6 +15,108 @@ async function closeWorkspaceOverlays(page: Page) {
 	if (await inspectorClose.isVisible().catch(() => false)) await inspectorClose.click();
 }
 
+
+
+test("World relation endpoints stay attached through zoom, pan, resize and reload", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name === "mobile", "Desktop geometry contract.");
+
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
+	await closeWorkspaceOverlays(page);
+
+	const edgeId = "astel-raven-queen";
+	const nodeA = page.locator('[data-world-node="astel"]');
+	const nodeB = page.locator('[data-world-node="raven-queen"]');
+	const edge = page.locator(
+		`.react-flow__viewport [data-world-edge="${edgeId}"][data-edge-anchor]`,
+	);
+	const viewport = page.locator(".react-flow__viewport");
+
+	await expect(nodeA).toBeVisible();
+	await expect(nodeB).toBeVisible();
+	await expect(edge).toBeVisible();
+
+	const outsideDistance = (
+		point: { x: number; y: number },
+		box: Box,
+	): number => {
+		const dx = Math.max(box.x - point.x, 0, point.x - (box.x + box.width));
+		const dy = Math.max(box.y - point.y, 0, point.y - (box.y + box.height));
+		return Math.hypot(dx, dy);
+	};
+
+	const assertAnchored = async () => {
+		const endpoints = await edge.evaluate((element) => {
+			const path = element as SVGPathElement;
+			const matrix = path.getScreenCTM();
+			if (!matrix) return null;
+			const start = path.getPointAtLength(0).matrixTransform(matrix);
+			const end = path.getPointAtLength(path.getTotalLength()).matrixTransform(matrix);
+			return {
+				start: { x: start.x, y: start.y },
+				end: { x: end.x, y: end.y },
+			};
+		});
+		expect(endpoints).not.toBeNull();
+		if (!endpoints) return;
+
+		const [boxA, boxB] = await Promise.all([nodeA.boundingBox(), nodeB.boundingBox()]);
+		expect(boxA).not.toBeNull();
+		expect(boxB).not.toBeNull();
+		if (!boxA || !boxB) return;
+
+		const startA = outsideDistance(endpoints.start, boxA);
+		const startB = outsideDistance(endpoints.start, boxB);
+		const endA = outsideDistance(endpoints.end, boxA);
+		const endB = outsideDistance(endpoints.end, boxB);
+		const tolerance = 24;
+
+		expect(Math.min(startA, startB)).toBeLessThanOrEqual(tolerance);
+		expect(Math.min(endA, endB)).toBeLessThanOrEqual(tolerance);
+		expect(
+			(startA <= startB && endB <= endA) || (startB < startA && endA < endB),
+		).toBe(true);
+	};
+
+	await assertAnchored();
+
+	const transform = () =>
+		viewport.evaluate((element) => (element as HTMLElement).style.transform);
+
+	const beforeZoom = await transform();
+	await page.getByRole("button", { name: "Diminuir zoom" }).click();
+	await expect.poll(transform).not.toBe(beforeZoom);
+	await assertAnchored();
+
+	const zoomedOut = await transform();
+	await page.getByRole("button", { name: "Aumentar zoom" }).click();
+	await expect.poll(transform).not.toBe(zoomedOut);
+	await assertAnchored();
+
+	const canvas = page.getByTestId("world-canvas");
+	const canvasBox = await canvas.boundingBox();
+	expect(canvasBox).not.toBeNull();
+	if (canvasBox) {
+		const startX = canvasBox.x + 52;
+		const startY = canvasBox.y + 52;
+		await page.mouse.move(startX, startY);
+		await page.mouse.down();
+		await page.mouse.move(startX + 48, startY + 36, { steps: 5 });
+		await page.mouse.up();
+		await assertAnchored();
+	}
+
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await assertAnchored();
+
+	await page.reload();
+	await closeWorkspaceOverlays(page);
+	await expect(edge).toBeVisible();
+	await assertAnchored();
+});
+
 test("World relation hover reinforces exactly one path and its two endpoints", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name === "mobile", "Fine-pointer relation hover contract.");
 
