@@ -3,9 +3,9 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 import { sanitizeWorldGraphDraft } from "./graph-contract";
+import { isWorldCampaignSlug } from "./world-campaign";
 
 export type WorldEntityMediaAccessFailure =
 	| "unauthenticated"
@@ -21,18 +21,18 @@ export type AuthorizedWorldEntityMediaTarget = Readonly<{
 	client: SupabaseClient;
 }>;
 
-async function authorizedMediaEditor(): Promise<
+async function authorizedMediaEditor(campaignSlug: string): Promise<
 	| Readonly<{ ok: true; authUserId: string; profileId: string }>
 	| Readonly<{ ok: false; reason: WorldEntityMediaAccessFailure }>
 > {
 	const [contentAccess, layoutAccess] = await Promise.all([
 		authorizeCampaignCapabilityServer({
 			action: EDIT_CAPABILITIES.contentEdit,
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: campaignSlug,
 		}),
 		authorizeCampaignCapabilityServer({
 			action: EDIT_CAPABILITIES.worldLayoutEdit,
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: campaignSlug,
 		}),
 	]);
 	if (!contentAccess.ok) return { ok: false, reason: contentAccess.reason };
@@ -51,13 +51,15 @@ async function authorizedMediaEditor(): Promise<
 }
 
 export async function authorizeWorldEntityMediaTarget(
+	campaignSlug: string,
 	leaseToken: string,
 	entityId: string,
 ): Promise<
 	| Readonly<{ ok: true; target: AuthorizedWorldEntityMediaTarget }>
 	| Readonly<{ ok: false; reason: WorldEntityMediaAccessFailure }>
 > {
-	const authorization = await authorizedMediaEditor();
+	if (!isWorldCampaignSlug(campaignSlug)) return { ok: false, reason: "forbidden" };
+	const authorization = await authorizedMediaEditor(campaignSlug);
 	if (!authorization.ok) return authorization;
 
 	const client = editDataClient();
@@ -66,7 +68,7 @@ export async function authorizeWorldEntityMediaTarget(
 	const { data: campaign, error: campaignError } = await client
 		.from("campaigns")
 		.select("id")
-		.eq("slug", CAMPAIGN_SLUG)
+		.eq("slug", campaignSlug)
 		.maybeSingle();
 	if (campaignError || !campaign?.id) {
 		return { ok: false, reason: "dependency_unavailable" };
