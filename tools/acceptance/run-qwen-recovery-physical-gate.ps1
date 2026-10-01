@@ -311,7 +311,6 @@ function Sanitize-LogRow([object]$Row) {
         level = [string](Get-OptionalPropertyValue $Row "level")
         component = [string](Get-OptionalPropertyValue $Row "component")
         code = [string](Get-OptionalPropertyValue $Row "code")
-        message = [string](Get-OptionalPropertyValue $Row "message")
         context = $context
     }
 }
@@ -547,12 +546,23 @@ function Write-EvidenceManifest([string]$EvidenceRoot) {
 }
 
 function Assert-NoEvidenceLeak([string]$EvidenceRoot, [string]$SecretToken, [string]$PrivatePath) {
-    $privateName = [IO.Path]::GetFileName($PrivatePath)
+    $privateNeedles = [Collections.Generic.List[string]]::new()
+    if ($PrivatePath) {
+        $privateNeedles.Add($PrivatePath)
+        $escapedPrivatePath = $PrivatePath.Replace('\', '\\')
+        if ($escapedPrivatePath -ne $PrivatePath) { $privateNeedles.Add($escapedPrivatePath) }
+        $privateName = [IO.Path]::GetFileName($PrivatePath)
+        if ($privateName) { $privateNeedles.Add($privateName) }
+    }
     foreach ($file in Get-ChildItem -LiteralPath $EvidenceRoot -File -Recurse) {
         if ($file.Extension -notin @(".json", ".txt")) { continue }
         $text = [string](Get-Content -LiteralPath $file.FullName -Raw -ErrorAction SilentlyContinue)
         if ($SecretToken -and $text.Contains($SecretToken)) { Fail-Harness "EVIDENCE_PAIRING_TOKEN_LEAK" }
-        if ($privateName -and $text.Contains($privateName)) { Fail-Harness "EVIDENCE_PRIVATE_FILENAME_LEAK" }
+        foreach ($needle in $privateNeedles) {
+            if ($text.IndexOf($needle, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                Fail-Harness "EVIDENCE_PRIVATE_PATH_LEAK"
+            }
+        }
     }
 }
 
@@ -1065,7 +1075,7 @@ try {
         profile_id = "qwen-fast"
         transcript_sha256 = $resultDigest
         computed_transcript_sha256 = $computedTranscriptDigest
-        marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema")
+        marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema_version")
     })
     Write-Json (Join-Path $EvidenceRoot "qwen-fast-result.json") ([ordered]@{
         status = [string](Get-OptionalPropertyValue $fastFinal "status")
