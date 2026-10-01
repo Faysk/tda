@@ -1858,7 +1858,7 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 			device: nullableText(item.device, 64),
 			computeType: nullableText(item.compute_type, 64),
 			alignment: nullableText(item.alignment, 128),
-			executionLineage,
+			executionLineage: parseExecutionLineage(item.execution_lineage),
 			language: nullableText(item.language, 32),
 			completedAt: nullableIsoDate(item.completed_at),
 			transcriptSha256,
