@@ -412,6 +412,137 @@ def test_strict_qwen_rejects_empty_asr_when_window_has_signal(
     )
 
 
+def test_strict_qwen_recovers_empty_signal_after_trimming_only_digital_edge_silence(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    asr_sample_counts: list[int] = []
+    align_calls: list[str] = []
+
+    audio = [0.0] * 16_000 + [
+        0.1 * math.sin(2.0 * math.pi * 220.0 * index / 16_000.0)
+        for index in range(16_000)
+    ]
+
+    class Asr:
+        def transcribe(self, samples, *, prompt: str):
+            asr_sample_counts.append(len(samples))
+            if len(samples) == 32_000:
+                return "", "Portuguese"
+            assert len(samples) == 16_000
+            return "fala recuperada", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, text: str, _language: str):
+            align_calls.append(text)
+            return [
+                {"text": "fala", "start_time": 1.1, "end_time": 1.3},
+                {"text": "recuperada", "start_time": 1.35, "end_time": 1.8},
+            ]
+
+        def close(self):
+            pass
+
+    def reader(_path: Path):
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=audio)
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -10.0,
+        report=reports.append,
+    )
+
+    assert asr_sample_counts == [32_000, 16_000]
+    assert align_calls == ["fala recuperada"]
+    assert [segment.text for segment in document.tracks[0].segments] == [
+        "fala recuperada"
+    ]
+    assert "qwen_empty_signal_edge_trim_recovery" in document.warnings
+
+    started = next(
+        item
+        for item in reports
+        if item.get("code") == "QWEN_WINDOW_EMPTY_ASR_RETRY_STARTED"
+    )
+    recovered = next(
+        item
+        for item in reports
+        if item.get("code") == "QWEN_WINDOW_EMPTY_ASR_RECOVERED"
+    )
+    for event in (started, recovered):
+        assert event["track"] == 1
+        assert event["window"] == 1
+        assert event["window_start_seconds"] == 0.0
+        assert event["window_end_seconds"] == 2.0
+        assert event["start_seconds"] == 1.0
+        assert event["end_seconds"] == 2.0
+        assert event["sample_count"] == 16_000
+        assert event["peak_dbfs"] > event["silence_peak_threshold_dbfs"]
+    assert not any(
+        item.get("code") == "QWEN_WINDOW_EMPTY_ASR_REJECTED"
+        for item in reports
+    )
+
+
+def test_strict_qwen_edge_trim_retry_still_fails_closed_when_retry_is_empty(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    asr_sample_counts: list[int] = []
+    audio = [0.0] * 16_000 + [0.1, -0.1] * 8_000
+
+    class Asr:
+        def transcribe(self, samples, *, prompt: str):
+            asr_sample_counts.append(len(samples))
+            return "", "Portuguese"
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=lambda _root: (_ for _ in ()).throw(
+                AssertionError("empty retry must fail before alignment")
+            ),
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: (_ for _ in ()).throw(
+                AssertionError("empty retry must fail before aligner creation")
+            ),
+            window_reader=lambda _path: iter(
+                [AudioWindow(index=1, start=0.0, end=2.0, audio=audio)]
+            ),
+            report=reports.append,
+        )
+
+    assert asr_sample_counts == [32_000, 16_000]
+    codes = [item.get("code") for item in reports]
+    assert "QWEN_WINDOW_EMPTY_ASR_RETRY_STARTED" in codes
+    assert "QWEN_WINDOW_EMPTY_ASR_RECOVERED" not in codes
+    assert "QWEN_WINDOW_EMPTY_ASR_REJECTED" in codes
+
+
 def test_strict_qwen_mixed_tracks_keep_silent_timeline_and_voiced_identity(tmp_path: Path):
     package, root = _two_track_package(tmp_path)
     reports: list[dict] = []
