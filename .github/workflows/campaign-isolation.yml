@@ -62,11 +62,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: campaign-isolation-${{ github.event_name }}-${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+  group: campaign-isolation-${{ github.event_name }}-${{ inputs.source_sha || github.sha }}
   cancel-in-progress: true
 
 env:
-  SOURCE_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+  SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
 
 jobs:
   preflight:
