@@ -57,6 +57,7 @@ export function WorldInspectorContent({
 	selected,
 	projection,
 	focus,
+	campaignSlug,
 	worldHref,
 	onSelect,
 	editing,
@@ -64,13 +65,14 @@ export function WorldInspectorContent({
 	selected: WorldNodeDTO;
 	projection: WorldGraphProjection;
 	focus?: WorldNodeDTO;
+	campaignSlug: string;
 	worldHref: string;
 	onSelect: (id: string) => void;
 	editing: boolean;
 }) {
 	const [tab, setTab] = useState<InspectorTab>("overview");
 	const standaloneLore = selected.kind === "entity"
-		? standaloneLoreForEntity(selected.entityType, selected.slug)
+		? standaloneLoreForEntity(campaignSlug, selected.entityType, selected.slug)
 		: null;
 	const relation =
 		focus && selected.id !== focus.id
