@@ -352,7 +352,7 @@ export async function installCompanionFixture(
 						benchmark_reason: benchmarkReason,
 						...(id.startsWith("qwen-")
 							? { runtime_version: qwenRuntimeVersion }
-							: { runtime_version: whisperBenchmarkBlocked ? "1.1.5" : "1.1.6" }),
+							: { runtime_version: whisperBenchmarkBlocked ? "1.1.5" : "1.1.7" }),
 					};
 				});
 				return json(route, {
@@ -956,10 +956,10 @@ export async function installCompanionFixture(
 					schema_version: "tda_execution_lineage_v1",
 					companion_version: "0.3.18",
 					runtime_family: engine === "whisper" ? "whisper" : "qwen",
-					runtime_version: engine === "whisper" ? "1.1.6" : "1.0.12",
+					runtime_version: engine === "whisper" ? "1.1.7" : "1.0.12",
 					runtime_artifact: {
 						runtime_id: engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
-						version: engine === "whisper" ? "1.1.6" : "1.0.12",
+						version: engine === "whisper" ? "1.1.7" : "1.0.12",
 						worker_sha256: "c".repeat(64),
 						archive_sha256: "d".repeat(64),
 					},
