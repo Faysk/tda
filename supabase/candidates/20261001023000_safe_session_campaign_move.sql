@@ -19,6 +19,12 @@ alter table public.session_campaign_move_operations enable row level security;
 revoke all on table public.session_campaign_move_operations from public, anon, authenticated;
 grant select, insert on table public.session_campaign_move_operations to service_role;
 
+-- Earlier local drafts used signatures without actor/source identity in preflight
+-- and without source_session_id in commit. Drop those overloads to keep PostgREST
+-- RPC resolution unambiguous when this candidate is replayed in scratch/dev DBs.
+drop function if exists public.preflight_session_campaign_move(uuid, text, text);
+drop function if exists public.move_session_campaign_atomic(uuid, uuid, uuid, text, text);
+
 create index if not exists session_campaign_move_operations_session_id_idx
   on public.session_campaign_move_operations(session_id);
 
