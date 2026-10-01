@@ -54,6 +54,12 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Multi-campaign — contrato, rotas e rollout](../architecture/multi-campaign.md) | architecture / sessions / identity-access | arquitetura aprovada | 2026-09-30 |
 | [Contexto e limites do sistema](../architecture/system-context.md) | arquitetura | vigente | 2026-09-20 |
 
+## docs/companion/acceptance
+
+| Documento | Owner declarado | Estado declarado | Revisão declarada |
+| --- | --- | --- | --- |
+| [Aceite físico — recovery do Qwen Runtime no Benchmark](../companion/acceptance/qwen-runtime-recovery.md) | Processing / Companion | Não declarado | Não declarado |
+
 ## docs/database
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
@@ -225,4 +231,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-149 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+150 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 24 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
