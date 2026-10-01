@@ -10,6 +10,11 @@ import styles from "./session-list.module.css";
 type ViewMode = "grid" | "list";
 type SortMode = "newest" | "oldest" | "title";
 
+export type SessionCampaignOption = Readonly<{
+	slug: string;
+	name: string;
+}>;
+
 const collator = new Intl.Collator("pt-BR", {
 	sensitivity: "base",
 	numeric: true,
@@ -104,15 +109,22 @@ function Artwork({
 function GridCard({
 	session,
 	latest,
+	showCampaignContext,
 }: {
 	session: SessionArchiveItem;
 	latest: boolean;
+	showCampaignContext: boolean;
 }) {
 	const href = sessionPublicPath(session);
 	const date = formatSessionDate(session.date);
 
 	return (
-		<article className={styles.card} data-session-card="grid">
+		<article
+			className={styles.card}
+			data-session-card="grid"
+			data-session-key={sessionPublicKey(session)}
+			data-campaign-route={session.campaignSlug}
+		>
 			<Link className={styles.cardLink} href={href}>
 				<div className={styles.media}>
 					<Artwork
@@ -129,7 +141,13 @@ function GridCard({
 				</div>
 				<div className={styles.cardBody}>
 					<p className={styles.arc}>
-						{session.campaignName} · {session.arc || "Memória da campanha"}
+						{showCampaignContext ? (
+							<>
+								<span className={styles.campaignMeta}>{session.campaignName}</span>
+								<span aria-hidden="true"> · </span>
+							</>
+						) : null}
+						{session.arc || "Memória da campanha"}
 					</p>
 					<h2 className={styles.cardTitle}>{session.title}</h2>
 					<p className={styles.summary}>
@@ -148,17 +166,31 @@ function GridCard({
 	);
 }
 
-function ListRow({ session }: { session: SessionArchiveItem }) {
+function ListRow({
+	session,
+	showCampaignContext,
+}: {
+	session: SessionArchiveItem;
+	showCampaignContext: boolean;
+}) {
 	const href = sessionPublicPath(session);
 	const date = formatSessionDate(session.date);
 
 	return (
-		<article className={styles.listRow} data-session-card="list">
+		<article
+			className={styles.listRow}
+			data-session-card="list"
+			data-session-key={sessionPublicKey(session)}
+			data-campaign-route={session.campaignSlug}
+		>
 			<div className={styles.sessionCell}>
 				<div className={styles.listThumb} aria-hidden="true">
 					<Artwork session={session} sizes="72px" />
 				</div>
 				<div className={styles.sessionText}>
+					{showCampaignContext ? (
+						<span className={styles.listCampaign}>{session.campaignName}</span>
+					) : null}
 					<Link href={href}>{session.title}</Link>
 					<span className={styles.mobileDate}>
 						{date || "Data não informada"}
@@ -191,9 +223,11 @@ function ListRow({ session }: { session: SessionArchiveItem }) {
 export function SessionList({
 	sessions,
 	showCampaignFilter = false,
+	campaignOptions,
 }: {
 	sessions: readonly SessionArchiveItem[];
 	showCampaignFilter?: boolean;
+	campaignOptions?: readonly SessionCampaignOption[];
 }) {
 	const [query, setQuery] = useState("");
 	const [campaign, setCampaign] = useState("all");
@@ -215,6 +249,9 @@ export function SessionList({
 
 	const campaigns = useMemo(() => {
 		const bySlug = new Map<string, string>();
+		for (const option of campaignOptions ?? []) {
+			if (option.slug && option.name) bySlug.set(option.slug, option.name);
+		}
 		for (const session of sessions) {
 			if (session.campaignSlug && !bySlug.has(session.campaignSlug)) {
 				bySlug.set(session.campaignSlug, session.campaignName);
@@ -223,7 +260,9 @@ export function SessionList({
 		return Array.from(bySlug, ([slug, name]) => ({ slug, name })).sort((a, b) =>
 			collator.compare(a.name, b.name),
 		);
-	}, [sessions]);
+	}, [campaignOptions, sessions]);
+
+	const showCampaignSelect = showCampaignFilter && campaigns.length > 1;
 
 	const visible = useMemo(() => {
 		const needle = normalizeSearch(query.trim());
@@ -250,7 +289,30 @@ export function SessionList({
 
 	return (
 		<div className={styles.archive} data-session-archive>
-			<div className={styles.toolbar} data-session-archive-toolbar>
+			{showCampaignFilter && campaigns.length ? (
+				<nav
+					className={styles.campaignLinks}
+					aria-label="Entrar no arquivo de uma campanha"
+					data-session-campaign-links
+				>
+					<span>Arquivos por campanha</span>
+					<div>
+						{campaigns.map((item) => (
+							<Link
+								key={item.slug}
+								href={`/campanhas/${encodeURIComponent(item.slug)}/sessoes`}
+							>
+								{item.name}
+							</Link>
+						))}
+					</div>
+				</nav>
+			) : null}
+
+			<div
+				className={`${styles.toolbar} ${showCampaignSelect ? styles.toolbarWithCampaign : ""}`}
+				data-session-archive-toolbar
+			>
 				<label className={styles.search}>
 					<span className={styles.srOnly}>Buscar sessões</span>
 					<SearchIcon />
@@ -262,7 +324,7 @@ export function SessionList({
 					/>
 				</label>
 
-				{showCampaignFilter ? (
+				{showCampaignSelect ? (
 					<label className={styles.selectField}>
 						<span className={styles.srOnly}>Filtrar por campanha</span>
 						<select
@@ -355,13 +417,14 @@ export function SessionList({
 								key={sessionPublicKey(session)}
 								session={session}
 								latest={sessionPublicKey(session) === latestKey}
+								showCampaignContext={showCampaignFilter}
 							/>
 						))}
 					</div>
 				) : (
 					<div className={styles.list} data-session-view="list">
 						<div className={styles.listHeader} aria-hidden="true">
-							<span>Sessão</span>
+							<span>{showCampaignFilter ? "Sessão / campanha" : "Sessão"}</span>
 							<span>Arco</span>
 							<span>Data</span>
 							<span>Resumo</span>
@@ -369,7 +432,11 @@ export function SessionList({
 						</div>
 						<div className={styles.listBody}>
 							{visible.map((session) => (
-								<ListRow key={sessionPublicKey(session)} session={session} />
+								<ListRow
+									key={sessionPublicKey(session)}
+									session={session}
+									showCampaignContext={showCampaignFilter}
+								/>
 							))}
 						</div>
 					</div>
