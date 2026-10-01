@@ -13,22 +13,14 @@ export async function GET() {
 			? await readNavigationCampaigns(context)
 			: { mode: "unavailable" as const, campaigns: [] };
 
-	const legacyCapabilities =
-		navigation.mode === "legacy_compatibility"
-			? navigation.campaigns[0]?.capabilities ?? []
-			: [];
-
 	return Response.json(
 		{
 			state: access.state,
-			scope:
-				navigation.mode === "legacy_compatibility"
-					? { type: "campaign", id: navigation.campaigns[0]?.technicalSlug ?? null }
-					: { type: "project", id: "tda" },
+			scope: { type: "project", id: "tda" },
 			...(authenticated
 				? {
 						identity: access.identity,
-						capabilities: legacyCapabilities,
+						capabilities: [],
 						campaignsState: navigation.mode,
 						campaigns: navigation.campaigns,
 					}
