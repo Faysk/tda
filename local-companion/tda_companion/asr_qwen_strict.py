@@ -62,10 +62,7 @@ from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment,
 
 QWEN_WINDOW_OVERLAP_SECONDS = 6.0
 QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
-QWEN_EMPTY_SIGNAL_RETRY_BLOCK_SECONDS = 1.0
-QWEN_EMPTY_SIGNAL_RETRY_MIN_TRIM_SECONDS = 1.0
-QWEN_EMPTY_SIGNAL_RETRY_MAX_TRIM_SECONDS = QWEN_WINDOW_OVERLAP_SECONDS
-QWEN_EMPTY_SIGNAL_RETRY_POLICY = "edge-digital-silence-v1"
+QWEN_SILENCE_POLICY = "pre-asr-near-digital-v1"
 QWEN_ALIGNMENT_POLICY = "strict-overlap-v4"
 QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
 QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
@@ -376,103 +373,6 @@ def _right_context_alignment_window(
     )
 
 
-def _empty_signal_retry_window(
-    window: AudioWindow,
-    *,
-    block_seconds: float = QWEN_EMPTY_SIGNAL_RETRY_BLOCK_SECONDS,
-    sample_rate: int = QWEN_SAMPLE_RATE,
-) -> AudioWindow | None:
-    """Trim only whole edge blocks independently proven near-digital silence.
-
-    This is a single bounded recognition retry for signal-bearing windows whose
-    first ASR decode was empty. Any block containing measurable signal is kept,
-    so quiet/uncertain speech remains fail-closed instead of being discarded.
-    """
-
-    if (
-        block_seconds <= 0
-        or block_seconds > QWEN_WINDOW_OVERLAP_SECONDS
-        or sample_rate != QWEN_SAMPLE_RATE
-    ):
-        raise QwenRuntimeError("QWEN_EMPTY_SIGNAL_RETRY_CONFIG_INVALID")
-    try:
-        import numpy as np
-    except ImportError as exc:
-        raise QwenRuntimeError("QWEN_RUNTIME_NOT_INSTALLED") from exc
-
-    try:
-        audio = np.asarray(window.audio, dtype=np.float32).reshape(-1)
-    except Exception as exc:
-        raise QwenRuntimeError("QWEN_AUDIO_SIGNAL_INVALID") from exc
-    if audio.size <= 0:
-        raise QwenRuntimeError("QWEN_AUDIO_EMPTY")
-
-    block_samples = int(round(block_seconds * sample_rate))
-    minimum_trim_samples = int(
-        round(QWEN_EMPTY_SIGNAL_RETRY_MIN_TRIM_SECONDS * sample_rate)
-    )
-    maximum_trim_samples = int(
-        round(QWEN_EMPTY_SIGNAL_RETRY_MAX_TRIM_SECONDS * sample_rate)
-    )
-    if (
-        block_samples <= 0
-        or minimum_trim_samples <= 0
-        or maximum_trim_samples < minimum_trim_samples
-        or block_samples > maximum_trim_samples
-    ):
-        raise QwenRuntimeError("QWEN_EMPTY_SIGNAL_RETRY_CONFIG_INVALID")
-
-    left = 0
-    right = int(audio.size)
-    while (
-        left + block_samples <= right
-        and left + block_samples <= maximum_trim_samples
-    ):
-        diagnostics = _qwen_window_signal_diagnostics(
-            audio[left : left + block_samples]
-        )
-        if diagnostics["confidently_silent"] is not True:
-            break
-        left += block_samples
-
-    while (
-        right - block_samples >= left
-        and int(audio.size) - (right - block_samples) <= maximum_trim_samples
-    ):
-        diagnostics = _qwen_window_signal_diagnostics(
-            audio[right - block_samples : right]
-        )
-        if diagnostics["confidently_silent"] is not True:
-            break
-        right -= block_samples
-
-    trimmed_samples = left + (int(audio.size) - right)
-    if trimmed_samples < minimum_trim_samples or right <= left:
-        return None
-
-    retry_audio = audio[left:right].copy()
-    retry_diagnostics = _qwen_window_signal_diagnostics(retry_audio)
-    if retry_diagnostics["confidently_silent"] is True:
-        return None
-
-    retry_start = window.start + left / sample_rate
-    retry_end = window.start + right / sample_rate
-    if (
-        not math.isfinite(retry_start)
-        or not math.isfinite(retry_end)
-        or retry_end <= retry_start
-        or retry_start < window.start
-        or retry_end > window.end + 0.001
-    ):
-        raise QwenRuntimeError("QWEN_EMPTY_SIGNAL_RETRY_WINDOW_INVALID")
-    return AudioWindow(
-        index=window.index,
-        start=round(retry_start, 6),
-        end=round(retry_end, 6),
-        audio=retry_audio,
-    )
-
-
 def _strict_alignment_segments(
     track_number: int,
     window: AudioWindow,
@@ -629,6 +529,7 @@ def transcribe_craig_package_qwen_strict(
         "dtype": plan.dtype,
         "alignment": QWEN_FORCED_ALIGNER_MODEL_ID,
         "alignment_policy": QWEN_ALIGNMENT_POLICY,
+        "silence_policy": QWEN_SILENCE_POLICY,
         "empty_signal_retry_policy": QWEN_EMPTY_SIGNAL_RETRY_POLICY,
         "empty_signal_retry_block_seconds": QWEN_EMPTY_SIGNAL_RETRY_BLOCK_SECONDS,
         "empty_signal_retry_min_trim_seconds": QWEN_EMPTY_SIGNAL_RETRY_MIN_TRIM_SECONDS,
@@ -886,72 +787,34 @@ def transcribe_craig_package_qwen_strict(
                         continue
                     if window.index != len(values) + 1:
                         raise QwenRuntimeError("QWEN_TEXT_PREFIX_WINDOW_GAP")
-                    text, language = asr_session.transcribe(window.audio, prompt=prompt)
-                    if not text.strip():
-                        diagnostics = _qwen_window_signal_diagnostics(window.audio)
-                        event = {
-                            "type": "event",
-                            "stage": "transcription",
-                            "track": track.number,
-                            "total_tracks": total_tracks,
-                            "window": window.index,
-                            "completed_window_count": len(values) + 1,
-                            "start_seconds": window.start,
-                            "end_seconds": window.end,
-                            "sample_count": diagnostics["sample_count"],
-                            "peak_dbfs": diagnostics["peak_dbfs"],
-                            "rms_dbfs": diagnostics["rms_dbfs"],
-                            "silence_peak_threshold_dbfs": QWEN_CONFIDENT_SILENCE_PEAK_DBFS,
-                            "silence_rms_threshold_dbfs": QWEN_CONFIDENT_SILENCE_RMS_DBFS,
-                        }
-                        if not diagnostics["confidently_silent"]:
-                            retry_window = _empty_signal_retry_window(window)
-                            if retry_window is None:
-                                report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
-                                raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
-                            retry_diagnostics = _qwen_window_signal_diagnostics(
-                                retry_window.audio
-                            )
-                            retry_event = {
-                                "type": "event",
-                                "stage": "transcription",
-                                "track": track.number,
-                                "total_tracks": total_tracks,
-                                "window": window.index,
-                                "completed_window_count": len(values) + 1,
-                                "window_start_seconds": window.start,
-                                "window_end_seconds": window.end,
-                                "start_seconds": retry_window.start,
-                                "end_seconds": retry_window.end,
-                                "sample_count": retry_diagnostics["sample_count"],
-                                "peak_dbfs": retry_diagnostics["peak_dbfs"],
-                                "rms_dbfs": retry_diagnostics["rms_dbfs"],
-                                "silence_peak_threshold_dbfs": QWEN_CONFIDENT_SILENCE_PEAK_DBFS,
-                                "silence_rms_threshold_dbfs": QWEN_CONFIDENT_SILENCE_RMS_DBFS,
-                            }
-                            report(
-                                {
-                                    **retry_event,
-                                    "code": "QWEN_WINDOW_EMPTY_ASR_RETRY_STARTED",
-                                }
-                            )
-                            retry_text, retry_language = asr_session.transcribe(
-                                retry_window.audio,
-                                prompt=prompt,
-                            )
-                            if not retry_text.strip():
-                                report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
-                                raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
-                            text = retry_text
-                            language = retry_language
-                            report(
-                                {
-                                    **retry_event,
-                                    "code": "QWEN_WINDOW_EMPTY_ASR_RECOVERED",
-                                }
-                            )
-                        else:
-                            report({**event, "code": "QWEN_WINDOW_SILENCE_CONFIRMED"})
+                    diagnostics = _qwen_window_signal_diagnostics(window.audio)
+                    event = {
+                        "type": "event",
+                        "stage": "transcription",
+                        "track": track.number,
+                        "total_tracks": total_tracks,
+                        "window": window.index,
+                        "completed_window_count": len(values) + 1,
+                        "start_seconds": window.start,
+                        "end_seconds": window.end,
+                        "sample_count": diagnostics["sample_count"],
+                        "peak_dbfs": diagnostics["peak_dbfs"],
+                        "rms_dbfs": diagnostics["rms_dbfs"],
+                        "silence_peak_threshold_dbfs": QWEN_CONFIDENT_SILENCE_PEAK_DBFS,
+                        "silence_rms_threshold_dbfs": QWEN_CONFIDENT_SILENCE_RMS_DBFS,
+                    }
+                    if diagnostics["confidently_silent"]:
+                        text = ""
+                        language = profile.language or "Portuguese"
+                        report({**event, "code": "QWEN_WINDOW_SILENCE_CONFIRMED"})
+                    else:
+                        text, language = asr_session.transcribe(
+                            window.audio,
+                            prompt=prompt,
+                        )
+                        if not text.strip():
+                            report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
+                            raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,
