@@ -45,6 +45,45 @@ def default_worker_command() -> list[str]:
     return [sys.executable, "-m", "tda_companion.asr_worker"]
 
 
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value)
+    )
+
+
+def _benchmark_profile_evidence_valid(receipt: dict, profile_id: str) -> bool:
+    lineage = receipt.get("execution_lineage")
+    if not isinstance(lineage, dict) or lineage.get("schema_version") != "tda_execution_lineage_v1":
+        return False
+    expected_family = "whisper" if profile_id.startswith("whisper-") else "qwen"
+    expected_runtime_id = (
+        "whisper-ctranslate2" if expected_family == "whisper" else "qwen3-transformers"
+    )
+    runtime_version = lineage.get("runtime_version")
+    artifact = lineage.get("runtime_artifact")
+    gpu = lineage.get("gpu")
+    device = lineage.get("device")
+    return (
+        receipt.get("profile_id") == profile_id
+        and receipt.get("sample_seconds") == 300.0
+        and lineage.get("runtime_family") == expected_family
+        and isinstance(runtime_version, str)
+        and isinstance(artifact, dict)
+        and artifact.get("runtime_id") == expected_runtime_id
+        and artifact.get("version") == runtime_version
+        and _is_sha256(artifact.get("worker_sha256"))
+        and _is_sha256(artifact.get("archive_sha256"))
+        and isinstance(device, str)
+        and device.casefold().startswith("cuda")
+        and isinstance(gpu, dict)
+        and gpu.get("vendor") == "NVIDIA"
+        and isinstance(gpu.get("model"), str)
+        and bool(str(gpu.get("model")).strip())
+    )
+
+
 class WorkerSupervisor:
     """Supervise one heavy local worker without loading model code into FastAPI."""
 
@@ -595,6 +634,8 @@ class WorkerSupervisor:
             receipt = dict(outcome.payload)
             if receipt.get("schema_version") != "tda_benchmark_profile_v1":
                 raise WorkerProcessError("BENCHMARK_PROFILE_RESULT_INVALID", recoverable=False)
+            if not _benchmark_profile_evidence_valid(receipt, profile_id):
+                raise WorkerProcessError("BENCHMARK_PROFILE_EVIDENCE_INVALID", recoverable=False)
             receipts.append(receipt)
             on_progress(
                 WorkerMessage.create(
