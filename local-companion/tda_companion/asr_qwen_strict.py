@@ -62,6 +62,10 @@ QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
 QWEN_ALIGNMENT_POLICY = "strict-overlap-v4"
 QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
 QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
+# Fail closed for empty model output unless the decoded window is effectively at
+# the digital floor. This is deliberately much stricter than generic VAD: quiet
+# speech/noise must never be silently converted into a zero-segment interval.
+QWEN_EMPTY_SILENCE_MAX_RMS_DBFS = -90.0
 _ALIGNMENT_FAILURE_CLASS = re.compile(r"^[A-Z0-9_]{1,96}$")
 _RUNTIME_VERSION_FIELD = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
 _RUNTIME_WORKER_SHA256_FIELD = re.compile(r"(?:^|;)worker_sha256=([0-9a-f]{64})(?:;|$)")
@@ -778,13 +782,65 @@ def transcribe_craig_package_qwen_strict(
                         continue
                     if window.index != len(values) + 1:
                         raise QwenRuntimeError("QWEN_TEXT_PREFIX_WINDOW_GAP")
-                    text, language = asr_session.transcribe(window.audio, prompt=prompt)
+                    try:
+                        text, language = asr_session.transcribe(
+                            window.audio,
+                            prompt=prompt,
+                        )
+                    except QwenRuntimeError as exc:
+                        if exc.code != "QWEN_ASR_EMPTY_TRANSCRIPT":
+                            raise
+                        # QwenAsrSession historically raised before the strict
+                        # pipeline could distinguish silence from missed
+                        # recognition. Reclassify only this legacy empty-output
+                        # signal using the actual decoded window.
+                        text, language = "", "Portuguese"
+
+                    normalized_text = text.strip()
+                    if not normalized_text:
+                        empty_window_rms_dbfs = float(
+                            energy_reader(window, window.start, window.end)
+                        )
+                        if (
+                            not math.isfinite(empty_window_rms_dbfs)
+                            or empty_window_rms_dbfs > QWEN_EMPTY_SILENCE_MAX_RMS_DBFS
+                        ):
+                            report(
+                                {
+                                    "type": "event",
+                                    "code": "QWEN_ASR_EMPTY_WITH_SIGNAL",
+                                    "stage": "transcription",
+                                    "track": track.number,
+                                    "total_tracks": total_tracks,
+                                    "speaker": track.speaker,
+                                    "window": window.index,
+                                    "window_rms_dbfs": (
+                                        round(empty_window_rms_dbfs, 3)
+                                        if math.isfinite(empty_window_rms_dbfs)
+                                        else None
+                                    ),
+                                }
+                            )
+                            raise QwenRuntimeError("QWEN_ASR_EMPTY_WITH_SIGNAL")
+                        report(
+                            {
+                                "type": "event",
+                                "code": "QWEN_ASR_EMPTY_SILENCE_ACCEPTED",
+                                "stage": "transcription",
+                                "track": track.number,
+                                "total_tracks": total_tracks,
+                                "speaker": track.speaker,
+                                "window": window.index,
+                                "window_rms_dbfs": round(empty_window_rms_dbfs, 3),
+                            }
+                        )
+
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,
                             start=window.start,
                             end=window.end,
-                            text=text.strip(),
+                            text=normalized_text,
                             language=language or "Portuguese",
                         )
                     )
