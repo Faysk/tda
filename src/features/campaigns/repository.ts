@@ -388,6 +388,7 @@ export async function readPublicCampaignDirectory(): Promise<CampaignDirectoryRe
 							routeKey: legacy.campaign.routeKey,
 							name: legacy.campaign.name,
 							description: legacy.campaign.description,
+							coverImage: legacy.campaign.coverImage,
 						},
 					]
 				: [],
