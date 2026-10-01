@@ -8,6 +8,7 @@ import {
 } from "@/features/world-explorer/world-entity-media";
 
 export const CAMPAIGN_COVER_MEDIA_ROLE = "campaign_cover" as const;
+export const CAMPAIGN_COVER_MEDIA_MAX_PIXELS = 64_000_000;
 
 export type CampaignCoverAsset = Readonly<{
 	status: "staged" | "verified_public" | "retired";
