@@ -103,9 +103,9 @@ Rollback nunca reutiliza o número `1.1.5`: se `1.1.7` falhar no aceite, não pr
 
 Toda exceção precisa ser explícita e ter justificativa técnica ou legal. Exceções de dependência runtime devem ser machine-readable no manifest correspondente, vinculadas à versão pinada e rejeitadas automaticamente quando o pin divergir.
 
-### Python/uv preservados durante recovery 0.3.17
+### Python/uv preservados durante os controles 0.3.17–0.3.18
 
-A release de controle **Companion 0.3.17** mantém temporariamente Python `3.12.14` e `uv 0.12.18` embora existam patches estáveis mais novos. O motivo é reproduzibilidade: o trabalho de #1210 adiciona apenas o ciclo de recuperação do Qwen Runtime e não deve reconstruir silenciosamente os runtimes ASR já aceitos fisicamente nem alterar a identidade de releases Stable existentes.
+As releases de controle **Companion 0.3.17 e 0.3.18** mantêm temporariamente Python `3.12.14` e `uv 0.12.18` embora existam patches estáveis mais novos. O motivo é reproduzibilidade: #1210 preserva a base aceita durante a recuperação do Qwen e #1233 muda o contrato/empacotamento do benchmark Whisper sem aproveitar a entrega para trocar silenciosamente o baseline Python/uv. Qualquer rebuild de runtime continua recebendo identidade e versão próprias.
 
 A exceção do **Python** é machine-readable em `local-companion/dependency-freshness-exceptions.json`, separada dos manifests de build ASR para que uma decisão de controle/release não altere um input do pacote Qwen 1.0.12 já aceito fisicamente. A exceção de **uv** já existente continua no manifest Qwen e permanece vinculada exatamente ao pin usado pelos workflows de runtime. Trocar qualquer pin invalida automaticamente a exceção correspondente. A remoção exige uma entrega própria, com runtime versionado novo quando os bytes mudarem, build/packaging completo e gate físico aplicável.
 
