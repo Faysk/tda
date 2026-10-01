@@ -163,8 +163,10 @@ function extractPublicSessionPath(body) {
   return match?.[1] ?? null;
 }
 
-function assertCanonicalRegistry(context, body) {
-  if (String(body ?? "").includes('data-campaign-registry="canonical"')) return;
+function readRegistryMode(context, body) {
+  const html = String(body ?? "");
+  if (html.includes('data-campaign-registry="canonical"')) return "canonical";
+  if (html.includes('data-campaign-registry="legacy"')) return "legacy";
   fail(context, "registry_incompatible", "/campanhas");
 }
 
@@ -283,13 +285,17 @@ export async function runPublicReleaseSmoke({
   });
 
   const directoryBody = await request("/campanhas");
-  assertCanonicalRegistry(context, directoryBody);
+  const registryMode = readRegistryMode(context, directoryBody);
   record(logger, {
     sourceSha: sha,
     phase,
     route: "/campanhas",
     result: "pass",
     at: nowIso(nowImpl),
+    state:
+      registryMode === "canonical"
+        ? "registry_canonical"
+        : "registry_legacy_compat",
   });
 
   const compatibilityBody = await request("/sessoes");
@@ -339,6 +345,7 @@ export async function runPublicReleaseSmoke({
       sourceSha: sha,
       empty: true,
       directoryEmpty,
+      registryMode,
       sessionPath: null,
     };
   }
@@ -372,6 +379,7 @@ export async function runPublicReleaseSmoke({
     sourceSha: sha,
     empty: false,
     directoryEmpty: false,
+    registryMode,
     sessionPath,
   };
 }

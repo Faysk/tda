@@ -157,13 +157,38 @@ test("follows the compatibility redirect and verifies its final canonical destin
   );
 });
 
-test("rejects a legacy or incompatible campaign registry before promotion", async () => {
+test("allows the proven legacy registry compatibility path without treating it as canonical readiness", async () => {
   const fixtures = healthyFixtures();
   fixtures.set(
     "/campanhas",
     response(
       "/campanhas",
-      '<main data-campaign-registry="legacy"><h2>Crônicas da Mesa</h2></main>',
+      '<main data-campaign-registry="legacy"><a href="/campanhas/cronicas-da-mesa/sessoes">Crônicas da Mesa</a></main>',
+    ),
+  );
+  const lines = [];
+
+  const result = await runPublicReleaseSmoke({
+    baseUrl: ORIGIN,
+    sourceSha: SHA,
+    phase: "staged",
+    requestImpl: requester(fixtures),
+    logger: (line) => lines.push(JSON.parse(line)),
+  });
+
+  assert.equal(result.registryMode, "legacy");
+  const directoryResult = lines.find((entry) => entry.route === "/campanhas");
+  assert.equal(directoryResult?.result, "pass");
+  assert.equal(directoryResult?.state, "registry_legacy_compat");
+});
+
+test("rejects a missing or unknown campaign registry state before promotion", async () => {
+  const fixtures = healthyFixtures();
+  fixtures.set(
+    "/campanhas",
+    response(
+      "/campanhas",
+      '<main><a href="/campanhas/cronicas-da-mesa/sessoes">Crônicas da Mesa</a></main>',
     ),
   );
 

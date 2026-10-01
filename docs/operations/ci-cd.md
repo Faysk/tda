@@ -265,7 +265,7 @@ Contrato vigente:
 - `/sessoes` deve seguir redirect e terminar exatamente em `/campanhas/sessoes`;
 - estados conhecidos de indisponibilidade em HTML, mesmo com HTTP 200, bloqueiam a release;
 - arquivo legitimamente vazio é aceito somente pelo estado público explícito de vazio; falha de dependência nunca é tratada como vazio;
-- `/campanhas` precisa declarar `data-campaign-registry="canonical"`; o fallback `legacy` pode manter leitura histórica para usuários, mas não autoriza ativar consumidor dependente do registry novo;
+- `/campanhas` precisa declarar `data-campaign-registry="canonical"` ou o fallback conhecido `legacy`; estado ausente/desconhecido/unavailable bloqueia a release. `legacy` só prova a compatibilidade estreita de #1225 e **não** autoriza ativar consumidor que dependa do registry first-class;
 - quando há sessão publicada, o gate descobre um link público no próprio arquivo e verifica a página final pelos marcadores públicos do reader, sem registrar corpo, resumo ou transcrição;
 - cada resultado registra somente source SHA, fase, rota, resultado e horário UTC, mais código/estado sanitizado quando necessário.
 

@@ -194,7 +194,7 @@ Validar:
 - redirect de `/sessoes` seguido até o destino final exato `/campanhas/sessoes`;
 - nenhum estado conhecido de indisponibilidade disfarçado de HTTP 200;
 - estado vazio somente quando a página declara o vazio público esperado; erro de dependência não conta como vazio;
-- registry de campanhas em modo `canonical` antes do promote. O modo `legacy` é compatibilidade de leitura, não readiness para consumidores do schema novo;
+- registry de campanhas em modo `canonical` ou no fallback conhecido `legacy` antes do promote. Estado ausente/desconhecido/unavailable é bloqueante; `legacy` preserva a compatibilidade estreita de #1225, mas não conta como readiness nem autoriza consumidores que exijam o schema first-class;
 - quando houver sessão pública, descobrir um link no arquivo e validar a página pública final pelos marcadores do reader, sem registrar texto de resumo/transcrição;
 - auth quando alterada;
 - imagens/media URLs consumidas pela superfície;
