@@ -35,6 +35,8 @@ export function NavigationIconGlyph({
 
 	const glyph = (() => {
 		switch (name) {
+			case "campaigns":
+				return <><rect x="4" y="5" width="6" height="6" rx="1" /><rect x="14" y="5" width="6" height="6" rx="1" /><rect x="4" y="15" width="6" height="4" rx="1" /><rect x="14" y="15" width="6" height="4" rx="1" /></>;
 			case "sessions":
 				return <><path d="M6 4.5h12v15H6z" /><path d="M9 8h6M9 12h6M9 16h4" /></>;
 			case "memory":

@@ -41,6 +41,8 @@ describe("canonical Edit tool links", () => {
 
 	it("keeps the World compatibility entrypoint campaign-explicit", () => {
 		expect(editEntrySource).toContain("firstAuthorizedEditDestination");
+		expect(editEntrySource).toContain("readNavigationCampaigns");
+		expect(editEntrySource).toContain("Escolha a campanha");
 		expect(editEntrySource).toContain('redirect("/entrar?next=%2Fedit")');
 		expect(editEntrySource).not.toContain("<nav");
 		expect(editWorldEntrySource).toContain("readEditableWorldCampaigns");

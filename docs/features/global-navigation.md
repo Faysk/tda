@@ -35,7 +35,7 @@ A issue #1082 reorganizou corretamente a informação por **progressive disclosu
 
 Em 2026-09-30, #1188/#1189 evoluem a **composição visual e de acesso** sem desfazer #1082:
 
-- `Explorar` mantém apenas Sessões, Mundo, Lores e Lembra;
+- `Explorar` mantém Campanhas, Sessões, Mundo, Lores e Lembra;
 - `Mundo` continua sendo o único drill-down de taxonomia;
 - `Ferramentas` deixa de exigir uma segunda camada e vira uma seção de launcher no primeiro nível, filtrada por capabilities;
 - conta, aparência e sessão continuam fora do grid de apps;
@@ -62,6 +62,7 @@ A referência de organização é o modelo mental de app launcher do Google: gri
 | grid icon-first + camadas tonais | integrado | #1190 / PR #1193 |
 | scroll/foco/motion de utilitário | integrado | #1191 / PR #1193 |
 | gates do launcher seccionado | ativo | #1192 / PR #1193 / `tests/global-navigation.spec.ts` |
+| navegação campaign-aware + contexto explícito do Edit | candidato | #1136 / PR #1219 |
 
 Merge em `main` não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
@@ -143,7 +144,8 @@ Cor nunca é o único sinal de agrupamento.
 
 | Rótulo | Tipo | Destino |
 | --- | --- | --- |
-| Sessões | link | `/sessoes` |
+| Campanhas | link | `/campanhas` |
+| Sessões | link | `/campanhas/sessoes` |
 | Mundo | disclosure | segunda camada |
 | Lores | link | `/lore` |
 | Lembra | link | `/lembra` |
@@ -183,39 +185,44 @@ A rota concreta recebe `aria-current="page"`.
 
 ## Evolução multi-campaign
 
-O launcher atual ainda aponta para rotas sem campaign em vários destinos. Isso é **compatibilidade do estado de uma campaign**, não contrato final.
+A PR #1219 implementa a camada de navegação de #1136 sobre ADR-0020 na branch de integração #1215. Ela consome o Processamento campaign-aware já integrado por #1128/#1208 e a rota canônica de Edit Sessions já presente no candidato #1129 da mesma integração, incluindo agora as rotas de World/Review integradas em #1130/#1133. Todos os links de ferramenta usam a rota canônica com a campaign selecionada.
 
-Com ADR-0020/#1136:
+Contrato do launcher:
 
-- `Sessões` passa a apontar para o agregado `/campanhas/sessoes`;
-- `Mundo` continua podendo abrir `/mundo` como entrypoint agregado, mas um World específico usa `/campanhas/[campaign]/mundo`;
-- ferramentas privadas resolvem uma campaign autorizada e usam `/edit/[campaign]/...`;
-- se houver mais de uma campaign válida, o launcher não escolhe `yuhara-main` silenciosamente;
-- public route key é apresentação; capability é calculada contra o technical scope/ownership resolvido no servidor;
-- a campaign selecionada deve aparecer com nome suficiente para evitar que o usuário edite o contexto errado;
-- mudança de campaign fecha/atualiza o painel sem carregar capabilities stale da campaign anterior.
+- `Sessões` aponta para o agregado `/campanhas/sessoes`; a compatibilidade `/sessoes` permanece redirect-only;
+- `Campanhas` aponta para `/campanhas`;
+- `Mundo` continua podendo abrir `/mundo` como entrypoint agregado, e o current-state também reconhece `/campanhas/[campaign]/mundo`;
+- a projeção autenticada reutiliza `readAuthorizedCampaigns(...)`, o boundary server-side compartilhado da integração, e calcula capabilities separadamente para cada technical campaign scope;
+- somente campaigns `active` com ao menos uma capability utilizável pelo launcher são enviadas ao browser;
+- se houver mais de uma campaign utilizável, o launcher exige seleção explícita e mostra somente o nome humano;
+- uma rota campaign-scoped ou `?campanha=<technicalSlug>` válido restaura o contexto correspondente; rota/slug não autorizado não inventa fallback;
+- mudança de campaign recalcula os links a partir das capabilities daquela campaign, sem reaproveitar a lista da anterior;
+- falha do registry/discovery fica indisponível e **não** escolhe `yuhara-main` por conveniência; a ativação em Production permanece responsabilidade da epic #1122/#1215 após o gate transversal.
 
-A implementação dessa evolução pertence a #1136 e só substitui os destinos abaixo quando as rotas correspondentes existirem e estiverem gated.
+O entrypoint `/edit` aplica a mesma regra: uma única campaign utilizável pode seguir direto; duas ou mais exigem uma escolha de campaign sem criar uma segunda barra/menu de ferramentas.
+
 ## Ferramentas autorizadas
 
-Ferramentas aparecem diretamente em uma seção própria do launcher e somente quando a projeção privada informa a capability necessária.
+Ferramentas aparecem diretamente em uma seção própria do launcher e somente quando a projeção privada da campaign selecionada informa a capability necessária.
 
-| Ferramenta | Destino | Capability principal para exibição |
-| --- | --- | --- |
-| Transcrições | atual: `/transcricoes`; alvo: `/edit/[campaign]/transcricoes` | `campaign.transcript.read` |
-| Editar sessões | atual: `/edit/sessoes`; alvo: `/edit/[campaign]/sessoes` | `campaign.transcript.read` |
-| Processar | atual: `/edit/processamento`; alvo: `/edit/[campaign]/processamento` | `campaign.local.process` |
-| Editar mundo | atual: `/mundo`; alvo privado: `/edit/[campaign]/mundo` | `campaign.world.layout.edit` |
-| Revisão | atual: `/edit/revisao`; alvo: `/edit/[campaign]/revisao` | `narrative.review.read` |
-| Permissões | atual: `/edit/yuhara-main/permissions`; alvo: `/edit/[campaign]/permissions` | `campaign.permissions.manage` |
+| Ferramenta | Destino seguro nesta slice | Destino canônico futuro | Capability principal |
+| --- | --- | --- | --- |
+| Transcrições | `/transcricoes?campanha=[technicalSlug]` | `/edit/[campaign]/transcricoes` | `campaign.transcript.read` |
+| Editar sessões | `/edit/[technicalSlug]/sessoes` (#1129 no candidato de integração) | já é a rota privada canônica da biblioteca | `campaign.transcript.read` |
+| Processar | `/edit/processamento?campanha=[technicalSlug]` (#1128) | futuro alias canônico `/edit/[campaign]/processamento` | `campaign.local.process` |
+| Editar mundo | `/edit/[campaign]/mundo` | `/edit/[campaign]/mundo` (#1130) | `campaign.world.layout.edit` |
+| Revisão | `/edit/[campaign]/revisao` | `/edit/[campaign]/revisao` (#1133) | `narrative.review.read` |
+| Permissões | `/edit/[campaign]/permissions` | já canônico | `campaign.permissions.manage` |
 
 Regras:
 
 - ferramenta sem capability não aparece;
-- não renderizar placeholders desabilitados;
+- uma ferramenta cuja rota ainda não suporta a campaign selecionada também não aparece; não criar link cross-campaign enganoso;
+- não renderizar placeholders desabilitados no launcher;
 - ordem permanece determinística;
 - presentation filtering não substitui guard server-side;
-- `Editar mundo` compartilha a rota `/mundo`, mas a indicação canônica de página atual permanece com o destino público `Mundo`, evitando duas marcas de `aria-current` para a mesma rota.
+- labels de campaign usam `campaigns.name`; technical slug serve apenas a routing/scope;
+- current-state de `Campanhas` é exato, enquanto `Sessões` reconhece agregado e arquivo campaign-scoped, evitando duas marcas simultâneas de `aria-current`.
 
 ## Conta e preferência
 

@@ -17,6 +17,8 @@ const SAFE_TECHNICAL_SLUG = /^[A-Za-z0-9_-]{1,128}$/u;
 
 export type AuthorizedCampaign = Readonly<{
 	technicalSlug: string;
+	routeKey: string;
+	capabilities: readonly EditCapability[];
 	name: string;
 	lifecycle: CampaignLifecycle;
 }>;
@@ -62,7 +64,7 @@ export function authorizedCampaignGrantScope(
 	return { projectWide: false, campaignSlugs };
 }
 
-function parseCampaign(row: Record<string, unknown>): AuthorizedCampaign | null {
+function parseCampaign(row: Record<string, unknown>): Omit<AuthorizedCampaign, "capabilities"> | null {
 	const technicalSlug =
 		typeof row.slug === "string" && SAFE_TECHNICAL_SLUG.test(row.slug)
 			? row.slug
@@ -73,12 +75,15 @@ function parseCampaign(row: Record<string, unknown>): AuthorizedCampaign | null 
 			: null;
 	if (
 		!technicalSlug ||
+		typeof row.public_slug !== "string" ||
+		!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(row.public_slug) ||
 		!name ||
 		!isCampaignLifecycle(row.lifecycle)
 	)
 		return null;
 	return {
 		technicalSlug,
+		routeKey: row.public_slug,
 		name,
 		lifecycle: row.lifecycle,
 	};
@@ -86,12 +91,17 @@ function parseCampaign(row: Record<string, unknown>): AuthorizedCampaign | null 
 
 export async function readAuthorizedCampaigns(
 	context: EditAccessContext,
-	capability: EditCapability,
+	capability: EditCapability | readonly EditCapability[],
 	options: Readonly<{ includeArchived?: boolean }> = {},
 ): Promise<AuthorizedCampaignsResult> {
 	if (!context.profileId) return { ok: false, reason: "profile_unresolved" };
 
-	const scope = authorizedCampaignGrantScope(context, capability);
+	const requested = typeof capability === "string" ? [capability] : capability;
+	const scopes = requested.map((action) => authorizedCampaignGrantScope(context, action));
+	const scope = {
+		projectWide: scopes.some((item) => item.projectWide),
+		campaignSlugs: [...new Set(scopes.flatMap((item) => item.campaignSlugs))],
+	};
 	if (!scope.projectWide && scope.campaignSlugs.length === 0)
 		return { ok: true, campaigns: [] };
 
@@ -100,7 +110,7 @@ export async function readAuthorizedCampaigns(
 
 	let query = client
 		.from("campaigns")
-		.select("slug,name,lifecycle")
+		.select("slug,public_slug,name,lifecycle")
 		.order("name")
 		.order("slug");
 	if (!options.includeArchived) query = query.eq("lifecycle", "active");
@@ -117,14 +127,10 @@ export async function readAuthorizedCampaigns(
 		const campaign = parseCampaign(raw as Record<string, unknown>);
 		if (!campaign)
 			return { ok: false, reason: "dependency_unavailable" };
-		if (
-			authorizeCampaignCapability(
-				context,
-				capability,
-				campaign.technicalSlug,
-			).ok
-		)
-			campaigns.push(campaign);
+		const capabilities = requested.filter((action) =>
+			authorizeCampaignCapability(context, action, campaign.technicalSlug).ok,
+		);
+		if (capabilities.length) campaigns.push({ ...campaign, capabilities });
 	}
 
 	return { ok: true, campaigns };
