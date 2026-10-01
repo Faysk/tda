@@ -437,6 +437,148 @@ test("broad capability projection exposes the complete authorized tool set on th
 	}
 });
 
+test("public launcher exposes campaign directory and aggregate sessions as canonical destinations", async ({ page }) => {
+	await mockAccess(page);
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
+	await expect(
+		navigation.getByRole("link", { name: "Campanhas", exact: true }),
+	).toHaveAttribute("href", "/campanhas");
+	await expect(
+		navigation.getByRole("link", { name: "Sessões", exact: true }),
+	).toHaveAttribute("href", "/campanhas/sessoes");
+});
+
+test("multi-campaign tool launcher requires explicit context and never renders technical slugs as labels", async ({ page }) => {
+	const longName =
+		"Antes que seja tarde — uma campanha com um nome deliberadamente comprido para validar o seletor";
+	await mockAccess(page, {
+		campaigns: [
+			{
+				technicalSlug: "yuhara-main",
+				routeKey: "cronicas-da-mesa",
+				name: "Crônicas da Mesa",
+				capabilities: allToolCapabilities,
+			},
+			{
+				technicalSlug: "antes-que-seja-tarde",
+				routeKey: "antes-que-seja-tarde",
+				name: longName,
+				capabilities: [
+					"campaign.transcript.read",
+					"campaign.permissions.manage",
+				],
+			},
+		],
+	});
+	await page.setViewportSize({ width: 320, height: 800 });
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	const toolsSection = panel.locator('[data-nav-section="tools"]');
+	const selector = toolsSection.getByLabel("Campanha das ferramentas");
+	await expect(selector).toHaveValue("");
+	await expect(selector.locator("option")).toHaveText([
+		"Escolha uma campanha",
+		"Crônicas da Mesa",
+		longName,
+	]);
+	await expect(toolsSection.getByText("yuhara-main", { exact: true })).toHaveCount(0);
+	await expect(
+		toolsSection.getByText("antes-que-seja-tarde", { exact: true }),
+	).toHaveCount(0);
+	await expect(
+		toolsSection.getByText(
+			"Escolha uma campanha para ver as ferramentas autorizadas.",
+			{ exact: true },
+		),
+	).toBeVisible();
+
+	await selector.focus();
+	await expect(selector).toBeFocused();
+	await selector.selectOption("antes-que-seja-tarde");
+	await expect(
+		toolsSection.getByRole("link", { name: "Transcrições", exact: true }),
+	).toHaveAttribute(
+		"href",
+		"/transcricoes?campanha=antes-que-seja-tarde",
+	);
+	await expect(
+		toolsSection.getByRole("link", { name: "Permissões", exact: true }),
+	).toHaveAttribute("href", "/edit/antes-que-seja-tarde/permissions");
+	for (const label of ["Editar sessões", "Processar", "Editar mundo", "Revisão"]) {
+		await expect(
+			toolsSection.getByRole("link", { name: label, exact: true }),
+		).toHaveCount(0);
+	}
+	await expectNoHorizontalOverflow(page);
+	await expectPanelContained(page);
+
+	await selector.selectOption("yuhara-main");
+	await expect(
+		toolsSection.getByRole("link", { name: "Editar sessões", exact: true }),
+	).toHaveAttribute("href", "/edit/sessoes?campanha=yuhara-main");
+	await expect(
+		toolsSection.getByRole("link", { name: "Revisão", exact: true }),
+	).toHaveAttribute("href", "/edit/revisao?campanha=yuhara-main");
+	await expect(
+		toolsSection.getByRole("link", { name: "Permissões", exact: true }),
+	).toHaveAttribute("href", "/edit/yuhara-main/permissions");
+});
+
+test("campaign-scoped public routes select the matching tool context and keep current-route state unambiguous", async ({ page }) => {
+	await mockAccess(page, {
+		campaigns: [
+			{
+				technicalSlug: "yuhara-main",
+				routeKey: "cronicas-da-mesa",
+				name: "Crônicas da Mesa",
+				capabilities: ["campaign.permissions.manage"],
+			},
+			{
+				technicalSlug: "antes-que-seja-tarde",
+				routeKey: "antes-que-seja-tarde",
+				name: "Antes que seja tarde",
+				capabilities: ["campaign.permissions.manage"],
+			},
+		],
+	});
+	await page.goto("/campanhas/antes-que-seja-tarde/sessoes");
+	const panel = await openGlobalMenu(page);
+	const navigation = panel.getByRole("navigation", { name: "Navegação principal" });
+	await expect(
+		navigation.getByRole("link", { name: "Sessões", exact: true }),
+	).toHaveAttribute("aria-current", "page");
+	await expect(
+		navigation.getByRole("link", { name: "Campanhas", exact: true }),
+	).not.toHaveAttribute("aria-current", "page");
+	const selector = panel.getByLabel("Campanha das ferramentas");
+	await expect(selector).toHaveValue("antes-que-seja-tarde");
+	await expect(
+		panel.getByRole("link", { name: "Permissões", exact: true }),
+	).toHaveAttribute("href", "/edit/antes-que-seja-tarde/permissions");
+});
+
+test("tool launcher never invents an unauthorized sibling campaign", async ({ page }) => {
+	await mockAccess(page, {
+		campaigns: [
+			{
+				technicalSlug: "yuhara-main",
+				routeKey: "cronicas-da-mesa",
+				name: "Crônicas da Mesa",
+				capabilities: ["campaign.permissions.manage"],
+			},
+		],
+	});
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	await expect(panel.getByText("Crônicas da Mesa", { exact: true })).toBeVisible();
+	await expect(panel.getByText("Antes que seja tarde", { exact: true })).toHaveCount(0);
+	await expect(
+		panel.getByRole("link", { name: "Permissões", exact: true }),
+	).toHaveAttribute("href", "/edit/yuhara-main/permissions");
+});
+
 test("anonymous unified panel keeps macro navigation, safe return path and appearance", async ({ page }) => {
 	await mockAccess(page, { state: "anonymous" });
 	await page.goto("/sessoes");
@@ -467,9 +609,17 @@ test("public navigation remains usable while auth projection is pending or unava
 		await authReleased;
 		await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
 			state: "authenticated_linked",
-			scope: { type: "campaign", id: "yuhara-main" },
+			scope: { type: "project", id: "tda" },
 			identity: { displayName: "Pessoa Teste", avatarUrl: null },
-			capabilities: allToolCapabilities,
+			capabilities: [],
+			campaignsState: "first_class",
+			campaigns: [{
+				technicalSlug: "yuhara-main",
+				routeKey: "cronicas-da-mesa",
+				name: "Crônicas da Mesa",
+				lifecycle: "active",
+				capabilities: allToolCapabilities,
+			}],
 		}) });
 	});
 	await page.goto("/");
