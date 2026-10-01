@@ -89,12 +89,26 @@ test("public Sessions keeps archive value in the first viewport and reader measu
 		const archiveGrid = page.locator('[data-session-view="grid"]');
 		const stats = page.locator('dl[aria-label="Resumo público do arquivo"]');
 		const firstCard = page.locator('[data-session-card="grid"]').first();
+		const cardImage = firstCard.locator("img").first();
 		const fallback = firstCard.getByText("TDA", { exact: true });
 		const brand = page.locator(".brand");
 		const account = page.locator(".account-menu-trigger");
 
 		await expect(firstCard).toBeVisible();
-		await expect(fallback).toBeVisible();
+		if ((await cardImage.count()) > 0) {
+			await expect(cardImage).toBeVisible();
+			await expect
+				.poll(() =>
+					cardImage.evaluate((element) => {
+						const image = element as HTMLImageElement;
+						return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
+					}),
+				)
+				.toBe(true);
+			await expect(fallback).toHaveCount(0);
+		} else {
+			await expect(fallback).toBeVisible();
+		}
 		const [
 			titleBox,
 			heroBox,
