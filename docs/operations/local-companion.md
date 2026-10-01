@@ -351,11 +351,11 @@ O rollback:
 
 - aceita somente versão anterior e ainda compatível com o Companion;
 - prefere uma cópia versionada já preservada em `Runtime\whisper\<versão>`;
-- antes de selecionar a cópia preservada, revalida marker, identidade, SHA-256 do worker e metadata seal;
+- antes de selecionar a cópia preservada, revalida marker, identidade, SHA-256 do worker e metadata seal em modo somente leitura; rollback nunca reseala nem reescreve o marker preservado;
 - se a versão não existir localmente, consulta somente o manifest Stable **version-locked** `...?version=X.Y.Z`, valida tag, URL, tamanho e SHA-256 e então instala os bytes exatos;
 - se uma pasta local da versão existir mas estiver corrompida, falha fechado e mantém o runtime atual; não transforma rollback em reparo implícito;
 - troca `current.json` atomicamente e verifica novamente a versão selecionada; falha pós-troca restaura o seletor anterior;
-- é bloqueado se houver job queued/running, preparação de perfil ou manutenção Qwen ativa;
+- é executado pelo Agent sob o mesmo gate de dispatch da fila/preparação e é bloqueado se houver job queued/running, preparação de perfil ou manutenção Qwen ativa; um mutex Windows separado também serializa rollback com update/repair Whisper;
 - preserva `Models`, `Data`, runs e as outras versões do runtime;
 - retorna `previous_version`, `version`, origem (`preserved` ou `download`) e hash do worker.
 
