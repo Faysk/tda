@@ -1,4 +1,3 @@
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { worldEntityMediaEnabled } from "@/features/world-explorer/world-entity-media-server";
 import { authorizeSessionCoverTarget } from "@/features/edit/sessions/session-cover-media-access";
 import {
@@ -79,7 +78,7 @@ export async function PUT(request: Request) {
 			return new Response("Invalid chunk length", { status: 400 });
 
 		await writeSessionCoverPendingUploadChunk({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: access.target.campaignSlug,
 			sessionId,
 			uploadId,
 			sha256,

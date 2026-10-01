@@ -204,3 +204,9 @@ Não foi encontrado um conceito canônico chamado `intent`/`intents` no schema a
 9. Features futuras entram primeiro neste contrato e só depois no schema.
 10. Recursos campaign-owned não usam lookup global por identificador de origem/slug quando campaign participa da identidade.
 11. Rename de nome/public route key não reescreve UUID, technical slug, grants ou keys de storage.
+
+### Campaign media bindings — #1135
+
+`campaign_media_bindings(campaign_id, role, asset_id)` liga semanticamente a capa/card da campaign ao `media_assets` verificado. A FK composta `(campaign_id, asset_id)` impede binding cruzado entre campaigns. Trocar/remover a capa altera somente o ponteiro: objetos imutáveis e registros de asset não são apagados no rollback.
+
+`media_assets.role_hint` inclui `campaign_cover`; keys novas usam `campaigns/{campaigns.slug}/campaign/cover/{sha256}.{ext}`. `public_slug` não participa da identidade de storage.

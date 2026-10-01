@@ -118,9 +118,12 @@ export async function readSessionPublicationContext(
 	};
 }
 
-function normalizeExistingPublicCover(reference: string): string | null {
+function normalizeExistingPublicCover(
+	reference: string,
+	campaignSlug: string,
+): string | null {
 	const raw = reference.trim();
-	if (!isExistingPublishedSessionCoverReference(raw)) return null;
+	if (!isExistingPublishedSessionCoverReference(raw, campaignSlug)) return null;
 	if (raw.startsWith("/assets/sessions/")) return "https://dnd.faysk.dev" + raw;
 	return raw;
 }
@@ -193,7 +196,7 @@ export async function prepareSessionCoverForPublication(input: {
 	campaignSlug: string;
 	coverReference: string;
 }): Promise<string | null> {
-	const existing = normalizeExistingPublicCover(input.coverReference);
+	const existing = normalizeExistingPublicCover(input.coverReference, input.campaignSlug);
 	if (existing) return existing;
 	if (!isSessionCoverUuid(input.coverReference)) return null;
 

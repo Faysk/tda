@@ -310,3 +310,9 @@ Antes de ativar a segunda campaign:
 Sessions/Edit adotou o mesmo boundary explícito de campanha do World: selector/entrypoint em `/edit/sessoes`, rota canônica em `/edit/[technical_slug]/sessoes` e detalhe qualificado por campanha. Nenhum `source_session_id` é tratado como global.
 
 Server Actions de transcript/draft/publication/cover resolvem ou recebem a identidade real da sessão no servidor antes de autorizar; não usam `yuhara-main` como autoridade implícita. A troca de campanha é uma mutation de domínio separada, auditável, idempotente e fail-closed conforme `docs/domains/sessions.md`.
+
+## Media campaign-owned — #1135
+
+Mídia campaign-owned usa duas identidades complementares: `campaigns.id` para ownership relacional e `campaigns.slug` como `campaignMediaKey` técnico/imutável no storage. `public_slug` e nome continuam mutáveis e nunca participam da key R2.
+
+Session cover, World portrait e campaign cover resolvem a campaign no servidor antes de ler/escrever. Bindings de campaign/entity permanecem protegidos por FKs compostas com `campaign_id`. O namespace histórico `campaigns/yuhara-main/` permanece válido sem reescrita de bytes. Standalone lore continua fora de campaign e Lembra continua global com classificação opcional.

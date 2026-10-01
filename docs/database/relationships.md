@@ -236,3 +236,7 @@ Exemplos: família, aliança, dívida, conflito, traição. "Conhece" e "sabe se
 - inferir relation pela coocorrência de duas entities;
 - copiar `campaign_members.role` para novas regras em vez de capability;
 - apagar provenance depois de consolidar resultado.
+
+## Campaign cover media — #1135
+
+`campaign_media_bindings(campaign_id, asset_id)` referencia `media_assets(campaign_id, id)`. A campaign do binding e a campaign do asset precisam ser idênticas no próprio FK; um UUID válido de asset da campaign B não pode ser ligado à campaign A.

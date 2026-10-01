@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada
 > Owner: integrations/media + frontend + operations
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-01
 
 ## Escopo e fonte de verdade
 
@@ -61,7 +61,7 @@ ADR-0020/#1135 exigem que mídia campaign-owned seja endereçada/bindada por ide
 Regras do pipeline:
 
 - não derivar key nova somente de `campaign.name` ou public route key renomeável;
-- namespace/binding físico final deve usar UUID ou technical identity estável definida por #1135;
+- namespace físico usa `campaigns.slug` como `campaignMediaKey` estável; ownership relacional continua em `campaigns.id`;
 - rename público não move nem duplica objetos;
 - banco/manifest/binding registra campaign ownership suficiente para impedir A consumir asset privado de B;
 - staging e finalize reautorizam campaign no servidor; campaign enviada pelo browser é input não confiável;
@@ -69,7 +69,7 @@ Regras do pipeline:
 - mídia global (brand, Lembra global, lore standalone sem vínculo) continua fora de namespace campaign quando seu domínio assim define;
 - vínculo editorial de lore não move bytes automaticamente.
 
-A forma exata dos prefixes e migrations pertence a #1135; esta documentação fixa o invariant e evita que cada feature invente um namespace.
+A implementação de #1135 materializa esses invariants em `src/features/media/campaign-media.ts`, nos pipelines de Session/World e no binding de campaign cover. A migration `20261001131500_campaign_cover_media_scope.sql` adiciona `campaign_cover` e `campaign_media_bindings` sem reescrever objetos existentes. O prefixo legado `campaigns/yuhara-main/...` permanece válido.
 ## Modos de origem no manifest
 
 O manifest compartilhado distingue duas situações que não podem ser confundidas:
@@ -120,6 +120,15 @@ O primeiro consumidor editorial governado é a **capa privada de sessão** (#792
 - upload/finalize/save de draft não promovem mídia nem alteram a sessão pública.
 
 A promoção para o bucket/domínio público continua uma etapa separada e pertence ao commit de publicação da sessão (#793). O asset público anterior permanece válido até que a nova publicação tenha promoção/read-back e commit concluídos.
+
+O Registry também possui **campaign cover/card** governado:
+
+- key imutável `campaigns/{campaignMediaKey}/campaign/cover/{sha256}.{ext}`;
+- a API resolve `campaign_id -> campaigns.slug` no servidor e não aceita namespace escolhido pelo browser;
+- campaign privada pode manter cover somente em staging privado/preview, sem URL pública;
+- campaign pública só recebe binding público depois de staged read-back, promoção imutável, GET público, MIME/bytes/SHA e delivery verificados;
+- troca/remoção altera o binding; não apaga `media_assets` nem objetos R2, preservando rollback/auditoria;
+- leitura pública valida binding + campaign owner + key esperada antes de emitir a URL.
 
 ## Responsabilidades e entrega entre frentes
 

@@ -103,16 +103,24 @@ try:
         repo / "supabase/tests/world_edit_lease_atomic.sql",
         repo / "supabase/tests/world_graph_authoring_atomic.sql",
         repo / "supabase/migrations/20260912214500_world_entity_media_foundation_v2.sql",
+        repo / "supabase/migrations/20260927205500_session_cover_media_scope.sql",
+        repo / "supabase/migrations/20261001131500_campaign_cover_media_scope.sql",
         repo / "supabase/tests/world_entity_media_candidate.sql",
+        repo / "supabase/tests/campaign_cover_media_scope.sql",
     ]
     outputs = [run_sql_file(path).stdout.strip() for path in paths]
-    media_output = outputs[-1]
-    if "WORLD_ENTITY_MEDIA_DATABASE_OK" not in media_output:
-        raise RuntimeError(f"missing media contract receipt: {media_output!r}")
+    world_media_output = outputs[-2]
+    campaign_cover_output = outputs[-1]
+    if "WORLD_ENTITY_MEDIA_DATABASE_OK" not in world_media_output:
+        raise RuntimeError(f"missing media contract receipt: {world_media_output!r}")
+    if "CAMPAIGN_COVER_MEDIA_DATABASE_OK" not in campaign_cover_output:
+        raise RuntimeError(
+            f"missing campaign cover contract receipt: {campaign_cover_output!r}"
+        )
 
     print(
         "WORLD_ENTITY_MEDIA_DATABASE_OK synthetic=true migration=true "
-        "remote_mutation=false"
+        "campaign_cover=true remote_mutation=false"
     )
 finally:
     if started:

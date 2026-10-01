@@ -629,3 +629,7 @@ Ainda não existe contrato aprovado para:
 - intents/intenção como conceito de domínio.
 
 Esses itens devem ser desenhados e documentados antes de nova DDL.
+
+### `campaign_media_bindings`
+
+Owner: campaigns/media. Binding server-only da mídia semântica da campaign. PK `(campaign_id, role)`; FK composta `(campaign_id, asset_id) -> media_assets(campaign_id, id)`; RLS habilitado e browser deny-by-default. Introduzida por `20261001131500_campaign_cover_media_scope.sql`.

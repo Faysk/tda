@@ -1750,3 +1750,7 @@ O candidate adiciona:
 - replay idempotente por `operation_id` e conflito para operação reutilizada com identidade diferente.
 
 A operação não clona conteúdo e não migra dependências parcialmente. Um blocker resulta em zero write. Após commit, cache/delivery são efeitos pós-transação e devem ser revalidados pela aplicação; falha nessa etapa é reportada como pendência de cache, não rollback fictício do banco.
+
+## 20261001131500 — campaign cover media scope
+
+Migration forward-only de #1135: amplia o allowlist de `media_assets` para `campaign_cover`, amplia a regex canônica para `campaigns/{technicalSlug}/campaign/cover/{sha256}.{ext}` e cria `campaign_media_bindings` com RLS/deny-by-default e FK composta campaign+asset. Validada pelo harness sintético `tools/world-entity-media-db.py`; a presença no Git não é prova de rollout remoto.

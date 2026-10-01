@@ -524,3 +524,7 @@ Regras de segurança:
 - browser roles não executam a função diretamente.
 
 O endpoint Web continua autenticado/same-origin. Um target ainda não materializado pode ser representado server-side como `sessionId=null`; somente a confirmação final, dentro do boundary SQL autorizado, pode materializá-lo.
+
+### Campaign media binding (#1135)
+
+`campaign_media_bindings` mantém RLS ligado sem policies para `anon`/`authenticated`; acesso direto do browser é revogado. O runtime server-only usa `service_role` após autorização de domínio e o FK composto revalida ownership da campaign no banco. URLs públicas só são retornadas para assets com read-back e delivery públicos verificados.
