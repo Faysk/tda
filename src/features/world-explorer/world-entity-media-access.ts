@@ -1,7 +1,10 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
+import {
+	authorizeCampaignCapabilityServer,
+	getVerifiedServerIdentity,
+} from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { editDataClient } from "@/integrations/supabase/server";
 import { sanitizeWorldGraphDraft } from "./graph-contract";
@@ -123,6 +126,12 @@ export async function authorizeWorldEntityMediaAsset(
 > {
 	if (!isWorldEntityMediaAssetId(assetId))
 		return { ok: false, reason: "not_found" };
+
+	// Authenticate before resolving asset ownership. Besides keeping the preview
+	// route contract at 401 for anonymous callers, this avoids turning asset
+	// existence into an unauthenticated 404/401 oracle.
+	const identity = await getVerifiedServerIdentity();
+	if (!identity.ok) return identity;
 
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
