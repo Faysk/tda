@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { isCampaignRegistrySchemaGap } from "@/features/campaigns/schema-compatibility";
 import { publishedDataClient } from "@/integrations/supabase/server";
 import type { SessionArchiveItem } from "./archive";
 import {
@@ -15,17 +16,6 @@ const publicMediaColumns = "cover_image_url:metadata->>coverImageUrl,hero_image_
 const campaignColumns = "id,name,slug,public_slug,lifecycle,visibility";
 const columns = `source_session_id,title,session_date,arc,summary_short,${publicMediaColumns},status,campaigns!inner(${campaignColumns})`;
 const legacyColumns = `source_session_id,title,session_date,arc,summary_short,${publicMediaColumns},status,campaigns!inner(id,name,slug)`;
-
-type CampaignRegistryError = Readonly<{ code?: string | null; message?: string | null }>;
-
-function isCampaignRegistrySchemaGap(error: CampaignRegistryError | null | undefined) {
-	if (error?.code !== "PGRST204") return false;
-	const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
-	return (
-		message.includes("campaigns") &&
-		["public_slug", "lifecycle", "visibility"].some((column) => message.includes(column))
-	);
-}
 
 const layoutFixtureSessions = [
 	{ id:"shared-session", campaignId:"fixture-a", campaignSlug:"cronicas-da-mesa", campaignName:"Crônicas da Mesa", campaignTechnicalSlug:"yuhara-main", title:"A memória mais recente do arquivo sintético", date:"2026-09-29", arc:"Contrato visual E2E", summary:"Uma memória sintética curta para validar densidade, filtros e navegação sem tocar em conteúdo privado.", fullSummary:"# Memória mais recente\n\nConteúdo sintético usado somente pelos testes E2E do layout público." },

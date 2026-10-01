@@ -2,7 +2,7 @@
 
 > Status: implementado + transição em andamento
 > Owner: segurança/dados
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-01
 > Fonte: schema/advisors do Supabase `dmrqnbdvbkfqzctcerbx`
 
 ## Modelo mental
@@ -524,3 +524,19 @@ Regras de segurança:
 - browser roles não executam a função diretamente.
 
 O endpoint Web continua autenticado/same-origin. Um target ainda não materializado pode ser representado server-side como `sessionId=null`; somente a confirmação final, dentro do boundary SQL autorizado, pode materializá-lo.
+
+
+## Compatibilidade do campaign registry e boundary público
+
+A compatibilidade introduzida por #1225 não cria uma política de autorização paralela. Ela existe apenas para a janela em que o registry first-class ainda não foi aplicado remotamente.
+
+Regras de segurança:
+
+- fallback só é permitido quando o diagnóstico identifica coluna first-class ausente em `campaigns` (`42703`/`PGRST204`);
+- somente a identidade histórica conhecida `yuhara-main` pode ser projetada nesse modo, sob a rota pública `cronicas-da-mesa`;
+- slugs arbitrários não são enumerados nem resolvidos pelo legado;
+- resultado vazio com schema novo é definitivo para aquela leitura e não abre fallback;
+- quando `lifecycle`/`visibility` existem, somente `active/public` é elegível publicamente;
+- erros de RLS/grant/permissão, transporte ou banco não relacionados não são reclassificados como compatibilidade.
+
+Portanto, o fallback restaura disponibilidade da única campaign pública histórica conhecida sem transformar ausência do registry em bypass para campaigns `private` ou `archived`.

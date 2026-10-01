@@ -236,3 +236,23 @@ Antes de declarar “banco pronto” para uma etapa:
 ### Publicação com CAS (#636, candidata)
 
 Para `20260926220608_transcript_publication_current_cas`: manter publicação desativada durante a troca; identificar scripts que invocam restore/unpublish e migrar da assinatura de seis para sete UUIDs, lendo e congelando o current antes da confirmação. Verificar após migration que a assinatura antiga não existe, anon/authenticated não têm EXECUTE, service_role tem EXECUTE na nova assinatura, e a flag só é reativada com Web compatível e aceites #430. Não executar smoke destrutivo em sessão real. Em falha, desativar publicação e corrigir adiante, preservando revisions e receipts. Não reintroduzir writes sem expectativa como rollback.
+
+
+## Gate operacional — campaign registry first-class
+
+Incidente #1225 demonstrou que **código compatível não prova schema aplicado**. Em 2026-10-01 o app publicado consultava `public_slug/lifecycle/visibility`, enquanto o SQL first-class ainda estava em `supabase/candidates/20260930174200_first_class_campaign_registry.sql` e a última migration remota observada era `20260930163000`.
+
+Para promover o campaign registry:
+
+1. fixar o SHA do app, SQL candidato e migration history observada antes da mudança;
+2. executar os checks scratch/rollback previstos pelo candidate;
+3. promover somente a migration do registry aprovada — nunca todos os arquivos de `candidates` por conveniência;
+4. aplicar conforme este runbook, sem reset e sem reescrever UUIDs existentes;
+5. read-back de `information_schema.columns` para `public.campaigns`;
+6. conferir `yuhara-main` preservada e sua identidade pública/lifecycle/visibility esperados;
+7. conferir que campaigns private/archived não aparecem nas projections públicas;
+8. comparar identidade e contagem das sessões `published` antes/depois e manter qualquer `ready_for_review` fora da publicação;
+9. smoke no domínio canônico para Home, diretório, arquivo agregado/scoped e Mundo;
+10. guardar receipt com SHA exato, migration aplicada e resultados. Só então o estado operacional pode passar de `prepared` para `applied/published`.
+
+Se o gate falhar, o rollback preferido é manter o consumidor compatível e corrigir/promover a migration aditiva de forma controlada. Não apagar dados novos nem mascarar erro de permissão/conectividade como ausência do registry.
