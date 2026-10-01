@@ -1,9 +1,26 @@
 import catalog from "./standalone-catalog.json";
 import { loreRegistrationForSlug } from "./registry";
 
-export function listedStandaloneLores() {
+export type LoreCatalogueEntry = (typeof catalog)[number];
+
+export function loreCatalogueEntries(): readonly LoreCatalogueEntry[] {
+	return catalog;
+}
+
+export function listedLoreCatalogueEntries(): readonly LoreCatalogueEntry[] {
 	return catalog.filter(
 		(lore) => loreRegistrationForSlug(lore.slug)?.listed === true,
+	);
+}
+
+/**
+ * Backward-compatible helper for consumers that specifically need standalone
+ * delivery. The public /lore index uses listedLoreCatalogueEntries so app and
+ * standalone experiences share one curation source.
+ */
+export function listedStandaloneLores(): readonly LoreCatalogueEntry[] {
+	return listedLoreCatalogueEntries().filter(
+		(lore) => loreRegistrationForSlug(lore.slug)?.delivery === "standalone",
 	);
 }
 
@@ -25,7 +42,8 @@ export function standaloneLoreForEntity(
 		}))
 		.find(
 			({ registration }) =>
-				registration?.entityLink?.campaignTechnicalSlug ===
+				registration?.delivery === "standalone" &&
+				registration.entityLink?.campaignTechnicalSlug ===
 					campaignTechnicalSlug &&
 				registration.entityLink.entityType === entityType &&
 				registration.entityLink.entitySlug === slug,
