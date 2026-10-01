@@ -94,6 +94,32 @@ a promoção só continua quando não houver drift nos inputs que alteram os byt
 contrato do componente. Esta exceção não muda a política normal RC → aceite físico →
 Stable das demais releases.
 
+### Whisper Runtime 1.1.7 / Benchmark — #1233
+
+Para o reparo do contrato de benchmark do Whisper:
+
+1. `1.1.5` é histórico imutável. Não sobrescrever tag, release ou archive, mesmo que exista build posterior com o mesmo número.
+2. O candidato corrigido deve usar versão nova (`1.1.7` neste ciclo), source SHA e archive SHA exatos.
+3. O workflow de build precisa passar o smoke do comando de benchmark empacotado; rejeição de protocolo/exit 64 é bloqueante.
+4. Publicar RC não implica Stable. Executar aceite físico do **mesmo archive** no Windows/GPU suportado.
+5. O aceite final deve executar a mesma amostra local de 5 minutos nos quatro perfis e preservar receipts/lineage com runtime worker hash, runtime version e GPU observada, sem publicar áudio/transcrição privada.
+6. Só depois do receipt físico correspondente o workflow governado de promoção pode reutilizar os mesmos bytes como Stable.
+7. Migration deve preservar modelos, caches, jobs/runs e dados locais. O runtime `1.1.5` pode continuar servindo transcrição normal enquanto benchmark permanece bloqueado.
+8. Rollback volta deliberadamente ao último artefato aceito; benchmark fica fail-closed se o runtime anterior não satisfizer o contrato. Uma correção posterior recebe nova versão, nunca rebuild do `1.1.5`.
+
+### Whisper Runtime 1.1.8 / contenção palavra-segmento — #1235
+
+A correção de contenção altera o adapter/worker empacotado e portanto exige uma identidade de runtime nova. O Runtime 1.1.6 de #1234 e o Runtime 1.1.7 de #1233 já foram materializados oficialmente e permanecem imutáveis; o candidato que contém #1235 é **Whisper Runtime 1.1.8**.
+
+1. Não rebuildar, retaggear nem sobrescrever 1.1.6 ou 1.1.7 com os bytes da #1235.
+2. O archive 1.1.8 precisa incorporar a fronteira de decode compatível de #1234 e os smokes sintéticos vigentes.
+3. Antes de promoção, executar `local-companion/packaging/run-whisper-craig-containment-acceptance.ps1` contra o Craig staged autorizado e o `TDARuntime-candidate.json` do **mesmo RC 1.1.8**.
+4. O gate físico executa `whisper-turbo` e `whisper-detailed`, cada um com sample Craig de exatamente 300 s e transcrição integral.
+5. O full precisa produzir `run.json` e `transcript.json`; o SHA do transcript deve corresponder ao manifesto e ambos os arquivos são re-hashados ao final para provar imutabilidade.
+6. O receipt compartilhável `whisper-1235-acceptance.json` registra somente identidade/hashes do runtime, GPU/driver e métricas agregadas. Não registrar áudio, transcript, speaker, source id ou caminhos locais.
+7. Qualquer falha de contenção, duração, ordering, dedup, turns ou integridade aborta a promoção. O contrato `tda_transcript_v1` continua estrito; não clipar/remover palavras nem reescrever run concluído para fazê-lo passar.
+8. Rollback seleciona um runtime Whisper anterior já publicado e compatível, preservando Models/Data/runs. Correção posterior recebe nova versão imutável.
+
 ## 6. Secrets e providers
 
 Antes de operação remota, confirmar o boundary correto:
@@ -199,16 +225,6 @@ Não existe rollback automático destrutivo. Avaliar compatibilidade e migration
 ### Media Storage
 
 Restaurar referência anterior quando necessário. Objetos imutáveis podem permanecer para cache/auditoria/rollback. Não apagar objeto como primeira resposta.
-
-### Runtime Whisper — contenção palavra/segmento (#1235)
-
-Mudança no adapter Whisper faz parte dos bytes do worker e exige versão/tag/asset novos; nunca substituir um archive já publicado sob a mesma versão. Como 1.1.6 já foi materializado para #1234 antes desta mudança, o candidato de #1235 é **Whisper Runtime 1.1.7** e 1.1.6 permanece imutável. O 1.1.7 só pode ser promovido quando o archive exato também incorporar a fronteira de decode compatível (#1234), passar os gates sintéticos e concluir os dois perfis Whisper no sample e na transcrição integral física exigidos por #1235. CI/package sem GPU não substitui esse receipt.
-
-Antes de promover o RC de #1235, executar `local-companion/packaging/run-whisper-craig-containment-acceptance.ps1` contra o Craig staged autorizado e o `TDARuntime-candidate.json` do **mesmo RC 1.1.7**. O receipt sanitizado `whisper-1235-acceptance.json` deve declarar `pass=true`, os dois perfis, sample de 300 s e full, `immutable_runs_verified=true`, runtime/archive/worker hashes e GPU requerida. Não versionar nem anexar qualquer output bruto, transcript, áudio, source id ou path local.
-
-O receipt de aceite deve ligar source SHA, versão do runtime, SHA-256 do archive/worker, Faster-Whisper/CTranslate2/decoder efetivos, GPU/driver, perfil e contagens/tempos agregados. O diagnóstico `WHISPER_SEGMENT_SPAN_WIDENED` pode registrar somente limites/deltas numéricos sanitizados; texto, nomes e paths não entram na evidência publicada.
-
-Rollback seleciona um runtime Whisper anterior **já publicado e compatível** e preserva Models/Data/runs. Não reescrever um run concluído e não relaxar o contrato `tda_transcript_v1` para tornar um artefato novo legível. Se o candidato falhar contenção, duração, ordering, dedup, turns ou integridade de run, abortar a promoção e corrigir por nova versão imutável.
 
 ## 12. Abortar quando
 

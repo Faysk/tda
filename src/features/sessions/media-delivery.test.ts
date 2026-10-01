@@ -88,8 +88,34 @@ describe("R2 public session delivery", () => {
 		).toBe(true);
 	});
 
-	it("rejects embedded credentials and fragments in the model", () => {
+	it("keeps unscoped legacy media exclusive to the legacy campaign", () => {
+		const anotherCampaignRow = {
+			...row,
+			campaigns: {
+				...row.campaigns,
+				id: "campaign-b",
+				slug: "another-campaign",
+				public_slug: "another-campaign",
+				name: "Another Campaign",
+			},
+		};
 		for (const url of [
+			"https://dnd.faysk.dev/assets/sessions/legacy.webp",
+			"https://dmrqnbdvbkfqzctcerbx.supabase.co/storage/v1/object/public/session-images/legacy.webp",
+		]) {
+			expect(
+				toPublishedSession({ ...row, cover_image_url: url })?.coverImage,
+			).toBe(url);
+			expect(
+				toPublishedSession({ ...anotherCampaignRow, cover_image_url: url }),
+			).not.toHaveProperty("coverImage");
+		}
+	});
+
+	it("rejects query credentials and fragments from every public media source", () => {
+		for (const url of [
+			"https://dnd.faysk.dev/assets/sessions/legacy.webp?token=synthetic",
+			"https://dmrqnbdvbkfqzctcerbx.supabase.co/storage/v1/object/public/session-images/legacy.webp?token=synthetic",
 			`${prefix}${key}.webp#private`,
 			`${prefix}${key}.webp`.replace("https://", "https://user:pass@"),
 		]) {
@@ -98,4 +124,5 @@ describe("R2 public session delivery", () => {
 			).not.toHaveProperty("coverImage");
 		}
 	});
+
 });

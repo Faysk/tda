@@ -110,14 +110,18 @@ Publicar session não publica transcript/canon automaticamente e publicar uma ca
 
 ### Media
 
-Mídia campaign-owned usa namespace/binding derivado de identidade imutável da campaign, não de nome ou public route key renomeável.
+Mídia campaign-owned usa duas identidades complementares: `campaigns.id` para ownership/FKs e o technical slug estável `campaigns.slug` como `campaignMediaKey` no namespace R2. `name` e `public_slug` nunca definem object key.
 
-A forma física final é definida por #1135. O requisito deste contrato é:
+#1135 materializa o contrato:
 
-- nenhuma key nova depende somente de `name`;
-- rename de URL pública não move bytes;
-- binding no banco prova campaign ownership;
-- public/private/preview continuam boundaries separados.
+- novas keys ficam sob `campaigns/{campaignMediaKey}/...`; `campaigns/yuhara-main/...` legado continua válido;
+- rename de `name` ou `public_slug` não move nem duplica bytes;
+- `media_assets.campaign_id` e bindings same-campaign impedem referência cruzada A→B;
+- Session cover resolve campaign pela session; World media resolve pelo lease/asset; o browser não escolhe namespace;
+- campaign cover/card usa `campaign_media_bindings` e só aparece publicamente após read-back + public delivery verificados;
+- public/private/preview continuam boundaries separados;
+- rollback troca/remove binding e preserva objetos imutáveis;
+- lore standalone e Lembra global continuam fora desse namespace por contrato do próprio domínio.
 
 ### Lembra — exceção global
 

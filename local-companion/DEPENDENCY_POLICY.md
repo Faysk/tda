@@ -17,7 +17,7 @@ CUDA segue a família suportada pelo Faster-Whisper/CTranslate2. Uma major numer
 
 ## Exceção de decoder Whisper — #1234
 
-O Whisper Runtime 1.1.6 estabeleceu a correção de decoder com **PyAV 18.1.0** enquanto permanece em Faster-Whisper 1.2.1. Como #1235 altera os bytes do adapter/worker depois desse candidato já ter sido empacotado, o candidato corrente avança para **Whisper Runtime 1.1.7** e preserva a mesma exceção de PyAV sem reconstruir 1.1.6. Essa combinação é deliberada: Faster-Whisper 1.2.1 ainda chama `av.open(..., metadata_errors="ignore")`, argumento removido pelo PyAV 19. A exceção é específica do runtime Whisper; o runtime Qwen continua isolado e pode usar PyAV 19.
+O Whisper Runtime 1.1.6 estabeleceu a correção de decoder com **PyAV 18.1.0** enquanto permanece em Faster-Whisper 1.2.1. #1233 depois materializou oficialmente o Runtime 1.1.7 para o contrato de benchmark. Como #1235 altera novamente os bytes do adapter/worker, o candidato corrente avança para **Whisper Runtime 1.1.8** e preserva a mesma exceção de PyAV sem reconstruir 1.1.6 nem 1.1.7. Essa combinação é deliberada: Faster-Whisper 1.2.1 ainda chama `av.open(..., metadata_errors="ignore")`, argumento removido pelo PyAV 19. A exceção é específica do runtime Whisper; o runtime Qwen continua isolado e pode usar PyAV 19.
 
 O build Whisper precisa executar, dentro do executável empacotado, decode CPU real de fixtures PCM WAV e FLAC através de `faster_whisper.audio.decode_audio`. Import/probe isolado não satisfaz este gate. A exceção só pode ser removida depois que uma versão compatível do Faster-Whisper passar esse smoke empacotado e o aceite físico dos dois perfis Whisper no artefato exato.
 

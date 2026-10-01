@@ -443,7 +443,7 @@ New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 $output = [IO.Path]::GetFullPath($OutputRoot)
 
 $runtime = Get-InstalledWhisperCandidate -CandidatePath $candidatePath -Runtime $runtimeRootResolved
-if ([string]$runtime.Version -ne "1.1.7") {
+if ([string]$runtime.Version -ne "1.1.8") {
     throw "WHISPER_1235_RUNTIME_VERSION_REQUIRED"
 }
 

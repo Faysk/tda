@@ -338,9 +338,9 @@ Falhas conhecidas do decoder agora devem sair como código estável `WHISPER_DEC
 
 ## Correção de contenção Whisper — #1235 (2026-10-01)
 
-O candidato 1.1.6 de #1234 já foi materializado pelo workflow de runtime antes da correção de contenção. Como #1235 altera o adapter incluído nos bytes do worker, esses bytes **não** podem voltar a ser publicados como 1.1.6. O candidato de #1235 é **Whisper Runtime 1.1.7**, mantendo o pin de decoder aprovado em #1234 e preservando 1.1.6 como artefato histórico imutável.
+O candidato 1.1.6 de #1234 já foi materializado pelo workflow de runtime antes da correção de contenção, e #1233 materializou oficialmente 1.1.7 para o contrato de benchmark. Como #1235 altera o adapter incluído nos bytes do worker, esses bytes **não** podem voltar a ser publicados como 1.1.6 nem 1.1.7. O candidato de #1235 é **Whisper Runtime 1.1.8**, mantendo o pin de decoder aprovado em #1234 e preservando 1.1.6/1.1.7 como artefatos históricos imutáveis.
 
-O aceite físico de 1.1.7 deve usar o archive/hash exatos do candidato e concluir `whisper-turbo` e `whisper-detailed` no sample e na transcrição integral autorizada. Registrar somente identidade de runtime/GPU e métricas agregadas na evidência publicada; transcript, nomes e paths privados não entram no receipt público.
+O aceite físico de 1.1.8 deve usar o archive/hash exatos do candidato e concluir `whisper-turbo` e `whisper-detailed` no sample e na transcrição integral autorizada. Registrar somente identidade de runtime/GPU e métricas agregadas na evidência publicada; transcript, nomes e paths privados não entram no receipt público.
 
 ### Qwen — janela com ASR vazio (#1236)
 

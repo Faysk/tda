@@ -10,7 +10,7 @@ from .local_state_paths import confined_directory, confined_regular_file
 
 SCHEMA = "tda_profile_preparation_receipt_v1"
 LIMIT = 4096
-FIELDS = ("operation_id", "resumes_operation_id", "source_id", "profile_id", "engine",
+FIELDS = ("operation_id", "resumes_operation_id", "source_id", "profile_id", "engine", "purpose",
           "state", "stage", "sequence", "started_at", "updated_at", "finished_at", "error_code")
 
 
@@ -22,6 +22,7 @@ def validate(value: object) -> dict:
         "source_id": r"craig-[0-9a-f]{64}",
         "profile_id": r"(?:qwen-(?:fast|quality)|whisper-(?:turbo|detailed))",
         "engine": r"(?:qwen3|whisper)",
+        "purpose": r"(?:transcription|benchmark)",
         "state": r"(?:running|completed|failed|interrupted)",
         "stage": r"[a-z_]{1,64}", "error_code": r"[A-Z0-9_]{1,96}",
         "started_at": r"[0-9T:.+Z-]{20,40}", "updated_at": r"[0-9T:.+Z-]{20,40}",
@@ -31,6 +32,8 @@ def validate(value: object) -> dict:
     result = {"schema": SCHEMA}
     for key, pattern in patterns.items():
         raw = value.get(key)
+        if key == "purpose" and raw is None:
+            raw = "transcription"
         if raw is None and key in optional:
             result[key] = None
         elif isinstance(raw, str) and re.fullmatch(pattern, raw):

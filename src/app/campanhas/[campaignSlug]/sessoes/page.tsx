@@ -32,6 +32,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 				resolved.campaign.description ||
 				`Arquivo público de sessões de ${resolved.campaign.name}.`,
 			pathname: `/campanhas/${resolved.campaign.routeKey}/sessoes`,
+			image: resolved.campaign.coverImage
+				? {
+						url: resolved.campaign.coverImage,
+						alt: `Capa da campanha ${resolved.campaign.name}`,
+						verification: "verified-public",
+					}
+				: undefined,
 		});
 	}
 

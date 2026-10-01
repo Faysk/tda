@@ -39,13 +39,6 @@ export async function saveSessionEditorialDraftAction(
 	}
 	const issues = [...validateSessionEditorialDraftInput(input)];
 	const coverReference = input.coverAssetId.trim();
-	if (
-		coverReference &&
-		!isSessionCoverUuid(coverReference) &&
-		!isExistingPublishedSessionCoverReference(coverReference)
-	) {
-		issues.push("cover_asset_unverified");
-	}
 	if (issues.length) {
 		return { ok: false as const, reason: "validation" as const, issues };
 	}
@@ -84,6 +77,21 @@ export async function saveSessionEditorialDraftAction(
 				reason: access.reason,
 				issues: [access.reason],
 			};
+
+		if (
+			coverReference &&
+			!isSessionCoverUuid(coverReference) &&
+			!isExistingPublishedSessionCoverReference(
+				coverReference,
+				sessionCampaign.technicalSlug,
+			)
+		) {
+			return {
+				ok: false as const,
+				reason: "validation" as const,
+				issues: ["cover_asset_unverified"] as const,
+			};
+		}
 
 		if (coverReference && isSessionCoverUuid(coverReference)) {
 			const cover = await getSessionCoverAssetStatusAction(

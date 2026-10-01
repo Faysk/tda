@@ -21,6 +21,9 @@ export type TranscriptionProfileState = {
 	ready: boolean;
 	preparationRequired: boolean;
 	reason: string | null;
+	benchmarkReady?: boolean;
+	benchmarkPreparationRequired?: boolean;
+	benchmarkReason?: string | null;
 	model?: string | null;
 	modelRevision?: string | null;
 	runtimeVersion?: string | null;
@@ -69,6 +72,7 @@ export type PreparationStatus = {
 	sourceId: string | null;
 	profileId: TranscriptionProfileId | null;
 	engine: "whisper" | "qwen3" | null;
+	purpose: "transcription" | "benchmark";
 	stage: string;
 	title: string;
 	detail: string;
@@ -736,12 +740,23 @@ export function parseCapabilities(value: unknown): Capabilities {
 					item.reason === null || item.reason === undefined
 						? null
 						: text(item.reason, 96);
+				const benchmarkReason =
+					item.benchmark_reason === null || item.benchmark_reason === undefined
+						? null
+						: text(item.benchmark_reason, 96);
 				return {
 					id: transcriptionProfile(item.id),
 					engine,
 					ready: boolean(item.ready),
 					preparationRequired: boolean(item.preparation_required),
 					reason,
+					benchmarkReady:
+						item.benchmark_ready === undefined ? false : boolean(item.benchmark_ready),
+					benchmarkPreparationRequired:
+						item.benchmark_preparation_required === undefined
+							? false
+							: boolean(item.benchmark_preparation_required),
+					benchmarkReason,
 					model: nullableText(item.model, 256),
 					modelRevision: nullableText(item.model_revision, 128),
 					runtimeVersion: nullableText(item.runtime_version, 64),
@@ -763,6 +778,9 @@ export function parseCapabilities(value: unknown): Capabilities {
 				ready: true,
 				preparationRequired: false,
 				reason: null,
+				benchmarkReady: false,
+				benchmarkPreparationRequired: false,
+				benchmarkReason: "BENCHMARK_RUNTIME_CONTRACT_REQUIRED",
 			}));
 		}
 
@@ -788,6 +806,9 @@ export function parseCapabilities(value: unknown): Capabilities {
 					ready: false,
 					preparationRequired: false,
 					reason: "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+					benchmarkReady: false,
+					benchmarkPreparationRequired: false,
+					benchmarkReason: "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
 				};
 			}
 			if (!gate) return item;
@@ -870,6 +891,11 @@ export function parsePreparationStatus(value: unknown): PreparationStatus {
 		row.engine === null || row.engine === undefined ? null : text(row.engine, 16);
 	if (engine !== null && engine !== "whisper" && engine !== "qwen3")
 		return invalid();
+	const purpose =
+		row.purpose === null || row.purpose === undefined
+			? "transcription"
+			: text(row.purpose, 16);
+	if (purpose !== "transcription" && purpose !== "benchmark") return invalid();
 	const elapsed =
 		typeof row.elapsed_seconds === "number" &&
 		Number.isFinite(row.elapsed_seconds) &&
@@ -884,6 +910,7 @@ export function parsePreparationStatus(value: unknown): PreparationStatus {
 		sourceId: nullableText(row.source_id, 80),
 		profileId: profile,
 		engine,
+		purpose,
 		stage: text(row.stage, 64),
 		title: text(row.title, 240),
 		detail: row.detail === "" ? "" : text(row.detail, 500),
@@ -2069,6 +2096,17 @@ export function parseBenchmarkResult(
 			item.rtf === null || item.rtf === undefined
 				? null
 				: nonNegativeNumber(item.rtf);
+		const executionLineage = parseExecutionLineage(item.execution_lineage);
+		const expectedRuntimeFamily = engine === "whisper" ? "whisper" : "qwen";
+		if (
+			!executionLineage ||
+			executionLineage.runtimeFamily !== expectedRuntimeFamily ||
+			!executionLineage.runtimeArtifact?.archiveSha256 ||
+			!executionLineage.device?.toLowerCase().startsWith("cuda") ||
+			executionLineage.gpu?.vendor !== "NVIDIA" ||
+			!executionLineage.gpu.model
+		)
+			return invalid();
 		return {
 			profileId: transcriptionProfile(item.profile_id),
 			engine,
