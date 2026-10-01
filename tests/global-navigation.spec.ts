@@ -465,10 +465,13 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 				technicalSlug: "antes-que-seja-tarde",
 				routeKey: "antes-que-seja-tarde",
 				name: longName,
-				capabilities: [
-					"campaign.transcript.read",
-					"campaign.permissions.manage",
-				],
+				capabilities: ["campaign.transcript.read"],
+			},
+			{
+				technicalSlug: "mesa-do-norte",
+				routeKey: "mesa-do-norte",
+				name: "Mesa do Norte",
+				capabilities: ["campaign.transcript.read"],
 			},
 		],
 	});
@@ -482,6 +485,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 		"Escolha uma campanha",
 		"Crônicas da Mesa",
 		longName,
+		"Mesa do Norte",
 	]);
 	await expect(toolsSection.getByText("yuhara-main", { exact: true })).toHaveCount(0);
 	await expect(
@@ -493,9 +497,15 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 			{ exact: true },
 		),
 	).toBeVisible();
+	await expect(
+		panel.getByRole("link", { name: "Lembra", exact: true }),
+	).toHaveAttribute("href", "/lembra");
 
 	await selector.focus();
 	await expect(selector).toBeFocused();
+	expect(
+		await selector.evaluate((element) => element.getBoundingClientRect().height),
+	).toBeGreaterThanOrEqual(44);
 	await selector.selectOption("antes-que-seja-tarde");
 	await expect(
 		toolsSection.getByRole("link", { name: "Transcrições", exact: true }),
@@ -505,7 +515,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	);
 	await expect(
 		toolsSection.getByRole("link", { name: "Permissões", exact: true }),
-	).toHaveAttribute("href", "/edit/antes-que-seja-tarde/permissions");
+	).toHaveCount(0);
 	for (const label of ["Editar sessões", "Processar", "Editar mundo", "Revisão"]) {
 		await expect(
 			toolsSection.getByRole("link", { name: label, exact: true }),
@@ -557,6 +567,65 @@ test("campaign-scoped public routes select the matching tool context and keep cu
 	await expect(
 		panel.getByRole("link", { name: "Permissões", exact: true }),
 	).toHaveAttribute("href", "/edit/antes-que-seja-tarde/permissions");
+});
+
+test("browser history restores the campaign context from scoped public routes", async ({ page }) => {
+	await mockAccess(page, {
+		campaigns: [
+			{
+				technicalSlug: "yuhara-main",
+				routeKey: "cronicas-da-mesa",
+				name: "Crônicas da Mesa",
+				capabilities: ["campaign.permissions.manage"],
+			},
+			{
+				technicalSlug: "antes-que-seja-tarde",
+				routeKey: "antes-que-seja-tarde",
+				name: "Antes que seja tarde",
+				capabilities: ["campaign.permissions.manage"],
+			},
+		],
+	});
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes");
+	await page.goto("/campanhas/antes-que-seja-tarde/sessoes");
+
+	await page.goBack();
+	let panel = await openGlobalMenu(page);
+	await expect(panel.getByLabel("Campanha das ferramentas")).toHaveValue(
+		"yuhara-main",
+	);
+	await page.keyboard.press("Escape");
+
+	await page.goForward();
+	panel = await openGlobalMenu(page);
+	await expect(panel.getByLabel("Campanha das ferramentas")).toHaveValue(
+		"antes-que-seja-tarde",
+	);
+});
+
+test("390 CSS px keeps the campaign launcher usable at the layout equivalent of 200 percent zoom", async ({ page }) => {
+	await mockAccess(page, {
+		campaigns: [
+			{
+				technicalSlug: "yuhara-main",
+				routeKey: "cronicas-da-mesa",
+				name: "Crônicas da Mesa",
+				capabilities: allToolCapabilities,
+			},
+			{
+				technicalSlug: "antes-que-seja-tarde",
+				routeKey: "antes-que-seja-tarde",
+				name: "Antes que seja tarde com um nome bastante comprido",
+				capabilities: ["campaign.transcript.read"],
+			},
+		],
+	});
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/");
+	const panel = await openGlobalMenu(page);
+	await expect(panel.getByLabel("Campanha das ferramentas")).toBeVisible();
+	await expectPanelContained(page);
+	await expectNoHorizontalOverflow(page);
 });
 
 test("tool launcher never invents an unauthorized sibling campaign", async ({ page }) => {
