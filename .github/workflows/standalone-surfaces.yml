@@ -27,6 +27,7 @@ on:
       - "public/lore/yllith/**"
       - "public/diario/astel/**"
       - "tests/standalone-surfaces-ux.spec.ts"
+      - "tests/lore-catalogue-media.spec.ts"
 
 permissions:
   contents: read
