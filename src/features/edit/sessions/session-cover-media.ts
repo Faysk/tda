@@ -56,7 +56,7 @@ export function isExistingPublishedSessionCoverReference(value: unknown): boolea
 			return false;
 		if (
 			url.hostname === "media.dnd.faysk.dev" &&
-			url.pathname.startsWith("/campaigns/yuhara-main/sessions/")
+			/^\/campaigns\/[a-z0-9][a-z0-9-]{0,95}\/sessions\//u.test(url.pathname)
 		)
 			return !url.search;
 		if (
@@ -92,16 +92,23 @@ export function sessionCoverUploadChunkCount(bytes: number): number | null {
 }
 
 export function sessionCoverPreviewUrl(
+	campaignSlug: string,
 	sessionId: string,
 	assetId: string,
 ): string | undefined {
-	if (!isSessionCoverUuid(sessionId) || !isSessionCoverUuid(assetId))
+	if (
+		!CAMPAIGN_SLUG_PATTERN.test(campaignSlug) ||
+		!isSessionCoverUuid(sessionId) ||
+		!isSessionCoverUuid(assetId)
+	)
 		return undefined;
 	return (
 		"/api/edit/session-cover/" +
 		encodeURIComponent(sessionId.toLowerCase()) +
 		"/" +
-		encodeURIComponent(assetId.toLowerCase())
+		encodeURIComponent(assetId.toLowerCase()) +
+		"?campanha=" +
+		encodeURIComponent(campaignSlug)
 	);
 }
 
