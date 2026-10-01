@@ -726,6 +726,14 @@ class SessionDesktopBridge(DesktopBridge):
         except NetworkError as exc:
             raise self._friendly_network_error(exc) from None
 
+    def rollback_whisper_runtime(self, version: str) -> dict[str, object]:
+        if self._agent_preparation_active():
+            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
+        try:
+            return super().rollback_whisper_runtime(version)
+        except NetworkError as exc:
+            raise self._friendly_network_error(exc) from None
+
     def check_qwen_runtime(self) -> dict[str, object]:
         try:
             return super().check_qwen_runtime()
