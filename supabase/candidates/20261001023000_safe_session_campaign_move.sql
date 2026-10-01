@@ -413,6 +413,15 @@ begin
   for update;
 
   if not found then
+    if exists (
+      select 1
+      from public.sessions moved
+      where moved.id = p_session_id
+        and moved.source_session_id = p_source_session_id
+        and moved.campaign_id <> v_source
+    ) then
+      return query select 'conflict'::text, '[]'::jsonb, v_source, v_destination;
+    end if;
     return query select 'not_found'::text, '[]'::jsonb, v_source, v_destination;
     return;
   end if;
