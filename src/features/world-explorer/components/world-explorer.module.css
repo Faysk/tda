@@ -92,6 +92,107 @@
 	flex-wrap: wrap;
 }
 
+
+.campaignContext {
+	position: relative;
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: 7px;
+	padding: 5px 8px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: color-mix(in srgb, var(--ds-surface-elevated) 90%, transparent);
+	font: 620 0.64rem/1.2 var(--ds-font-ui);
+	color: var(--ds-foreground-muted);
+}
+
+.campaignContext > span {
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-size: 0.56rem;
+}
+
+.campaignContext > strong {
+	max-width: min(30vw, 260px);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--ds-foreground);
+}
+
+.campaignContext small {
+	color: var(--ds-foreground-muted);
+}
+
+.campaignContext details {
+	position: relative;
+}
+
+.campaignContext summary {
+	cursor: pointer;
+	color: var(--ds-accent-strong);
+}
+
+.campaignMenu {
+	position: absolute;
+	z-index: 40;
+	top: calc(100% + 8px);
+	right: 0;
+	display: grid;
+	min-width: min(280px, 78vw);
+	padding: 6px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-elevated);
+	box-shadow: var(--ds-shadow-elevated);
+}
+
+.campaignMenu a,
+.campaignMenu span {
+	padding: 9px 10px;
+	border-radius: var(--ds-radius-sm);
+	color: var(--ds-foreground);
+	font: 620 0.72rem/1.3 var(--ds-font-ui);
+	text-decoration: none;
+}
+
+.campaignMenu a:hover,
+.campaignMenu a:focus-visible {
+	background: var(--ds-control-hover);
+	outline: none;
+}
+
+.campaignMenu span[aria-current="page"] {
+	color: var(--ds-accent-strong);
+	background: var(--ds-accent-muted);
+}
+
+.worldEmptyState {
+	display: grid;
+	width: min(720px, calc(100% - 32px));
+	min-height: 70dvh;
+	margin: 0 auto;
+	align-content: center;
+	gap: 10px;
+}
+
+.worldEmptyState h1,
+.worldEmptyState p {
+	margin: 0;
+}
+
+.worldEmptyState h1 {
+	font-family: var(--ds-font-display);
+	font-size: clamp(2rem, 5vw, 3.25rem);
+	color: var(--ds-foreground);
+}
+
+.worldEmptyState > p:last-child {
+	max-width: 54ch;
+	color: var(--ds-foreground-muted);
+}
+
 .demoBadge {
 	flex: 0 0 auto;
 	border: 1px solid var(--ds-control-border);
