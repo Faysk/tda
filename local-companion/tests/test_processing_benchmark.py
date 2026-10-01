@@ -94,7 +94,19 @@ def _profile_receipt(profile_id: str) -> dict:
         "warning_count": 0,
         "execution_lineage": {
             "schema_version": "tda_execution_lineage_v1",
-            "runtime_version": "1.0.0",
+            "runtime_family": "whisper" if engine == "whisper" else "qwen",
+            "runtime_version": "1.1.6" if engine == "whisper" else "1.0.12",
+            "runtime_artifact": {
+                "runtime_id": "whisper-ctranslate2" if engine == "whisper" else "qwen3-transformers",
+                "version": "1.1.6" if engine == "whisper" else "1.0.12",
+                "worker_sha256": "a" * 64,
+                "archive_sha256": "b" * 64,
+            },
+            "device": "cuda:0",
+            "gpu": {
+                "vendor": "NVIDIA",
+                "model": "NVIDIA GeForce RTX 4070 Laptop GPU",
+            },
         },
     }
 
@@ -206,3 +218,30 @@ def test_benchmark_rejects_non_benchmark_profile_result(monkeypatch):
             sample_seconds=300.0,
             on_progress=lambda _message: None,
         )
+
+def test_benchmark_rejects_profile_without_exact_runtime_gpu_evidence(monkeypatch):
+    supervisor = WorkerSupervisor()
+
+    def fake_run_craig(self, *, profile_id, **_kwargs):
+        receipt = _profile_receipt(profile_id)
+        receipt["execution_lineage"]["runtime_artifact"]["archive_sha256"] = None
+        receipt["execution_lineage"]["gpu"] = None
+        return WorkerOutcome(terminal="result", payload=receipt, returncode=0)
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+
+    with pytest.raises(
+        WorkerProcessError,
+        match="BENCHMARK_PROFILE_EVIDENCE_INVALID",
+    ):
+        supervisor.run_benchmark(
+            job_id="benchmark-job",
+            attempt=1,
+            source_id="craig-" + "a" * 64,
+            glossary="",
+            context="",
+            sample_identity_sha256="b" * 64,
+            sample_seconds=300.0,
+            on_progress=lambda _message: None,
+        )
+
