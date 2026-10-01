@@ -37,6 +37,7 @@ from .transcript import (
     TranscriptEngine,
     TranscriptSegment,
     TranscriptTrack,
+    TranscriptValidationError,
     TranscriptWord,
     stats_for_tracks,
 )
@@ -465,6 +466,52 @@ def _segment_from_engine(track_number: int, segment: Any) -> TranscriptSegment:
     )
 
 
+def _normalize_segment_word_containment(
+    segment: TranscriptSegment,
+    *,
+    track_number: int,
+    segment_number: int,
+    report: ProgressCallback,
+) -> TranscriptSegment:
+    """Widen only the parent segment envelope when valid Whisper words exceed it."""
+    try:
+        segment.validate()
+        return segment
+    except TranscriptValidationError as exc:
+        if str(exc) not in {"word:BEFORE_SEGMENT", "word:AFTER_SEGMENT"} or not segment.words:
+            raise
+
+    word_start = min(word.start for word in segment.words)
+    word_end = max(word.end for word in segment.words)
+    normalized = TranscriptSegment(
+        id=segment.id,
+        start=round(min(segment.start, word_start), 3),
+        end=round(max(segment.end, word_end), 3),
+        text=segment.text,
+        words=segment.words,
+        confidence=segment.confidence,
+    )
+
+    # Re-run the canonical validator after widening. Invalid/reversed words,
+    # ordering violations and every non-containment invariant remain fail-closed.
+    normalized.validate()
+    if normalized.start != segment.start or normalized.end != segment.end:
+        report(
+            {
+                "type": "event",
+                "code": "WHISPER_SEGMENT_SPAN_WIDENED",
+                "stage": "transcription",
+                "track": track_number,
+                "segment": segment_number,
+                "start_seconds": segment.start,
+                "end_seconds": segment.end,
+                "relative_start_seconds": round(word_start - segment.start, 6),
+                "relative_end_seconds": round(word_end - segment.end, 6),
+            }
+        )
+    return normalized
+
+
 def _distribution_version(name: str) -> str:
     try:
         return metadata.version(name)
@@ -649,6 +696,12 @@ def transcribe_craig_package(
                     raise WhisperRuntimeError("ASR_CANCELLED")
                 value = _segment_from_engine(track.number, segment)
                 if value.text:
+                    value = _normalize_segment_word_containment(
+                        value,
+                        track_number=track.number,
+                        segment_number=len(segments) + 1,
+                        report=report,
+                    )
                     segments.append(value)
                     now = time.monotonic()
                     if len(segments) == 1 or now - activity_last_at >= 5.0:
