@@ -804,6 +804,7 @@ export function WorldExplorerClient({
 							selected={selected}
 							projection={visibleProjection}
 							focus={focus}
+							campaignSlug={campaignSlug}
 							worldHref={campaignWorldHref}
 							onSelect={setSelectedId}
 							editing={edit.editing}
