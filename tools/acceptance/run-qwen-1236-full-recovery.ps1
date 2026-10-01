@@ -8,14 +8,14 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $Repository = "Faysk/tda"
-$CompanionSourceSha = "bb9b0a96fc30dde1837d9f9d6b5c49467362f9c1"
-$QwenSourceSha = "bb9b0a96fc30dde1837d9f9d6b5c49467362f9c1"
+$CompanionSourceSha = "d3db290b66beb16c5b01637fddb4f9a3ed9de4a7"
+$QwenSourceSha = "d3db290b66beb16c5b01637fddb4f9a3ed9de4a7"
 $CompanionVersion = "0.3.18"
-$CompanionTag = "companion-rc-v0.3.18-bb9b0a96fc30"
-$CompanionPayloadSha256 = "1a22b3fed54518edd046d5ea49cffb14c7530c9038845dcef9bc1dda98c4df0e"
-$QwenRuntimeVersion = "1.0.13"
-$QwenTag = "companion-qwen-runtime-rc-v1.0.13-bb9b0a96fc30"
-$QwenCandidateManifestSha256 = "06ec1a99f64cbe11ef3ba3a07a37f4996e01ba28394467ee3029143d16607a16"
+$CompanionTag = "companion-rc-v0.3.18-d3db290b66be"
+$CompanionPayloadSha256 = "513339dc0c7328e007ee1f3257e118f6ed862b2277489ea1c7bd102175386516"
+$QwenRuntimeVersion = "1.0.14"
+$QwenTag = "companion-qwen-runtime-rc-v1.0.14-d3db290b66be"
+$QwenCandidateManifestSha256 = "9c29b165fddfa212e61cf0c8679444e9cdad1220963ce1fa01bbdb9e61d2deb8"
 $CraigSha256 = "b2ac78347d88b2761e51be38a60aa266933e3b00f30e72c50626fbe599849b1e"
 
 function Fail-Blocked([string]$Code) {
@@ -57,7 +57,7 @@ if (-not (Test-Path -LiteralPath $CompanionExe -PathType Leaf)) {
     Fail-Blocked "QWEN_1236_COMPANION_0_3_18_NOT_INSTALLED"
 }
 if (-not (Test-Path -LiteralPath $QwenRuntimeRoot -PathType Container)) {
-    Fail-Blocked "QWEN_1236_RUNTIME_1_0_13_NOT_INSTALLED"
+    Fail-Blocked "QWEN_1236_RUNTIME_1_0_14_NOT_INSTALLED"
 }
 
 $GateScript = Join-Path $PSScriptRoot "run-qwen-recovery-physical-gate.ps1"

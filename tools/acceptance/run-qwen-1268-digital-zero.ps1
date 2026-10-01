@@ -17,6 +17,7 @@ $RequiredRuntimeVersion = "1.0.14"
 $RequiredSourceSha = "d3db290b66beb16c5b01637fddb4f9a3ed9de4a7"
 $RequiredRuntimeId = "qwen3-transformers"
 $ExpectedCandidateTag = "companion-qwen-runtime-rc-v1.0.14-d3db290b66be"
+$RequiredCandidateManifestSha256 = "9c29b165fddfa212e61cf0c8679444e9cdad1220963ce1fa01bbdb9e61d2deb8"
 $SampleRate = 16000
 
 function Fail-Blocked([string]$Code) {
@@ -223,6 +224,10 @@ try {
 } catch {
     Fail-Blocked "QWEN_1268_CANDIDATE_MANIFEST_NOT_FOUND"
 }
+$candidateManifestSha = Get-Sha256 $candidatePath
+if ($candidateManifestSha -ne $RequiredCandidateManifestSha256) {
+    Fail-Harness "QWEN_1268_CANDIDATE_MANIFEST_HASH_MISMATCH"
+}
 $candidate = Read-Json $candidatePath "QWEN_1268_CANDIDATE_MANIFEST_INVALID"
 if (
     [string]$candidate.schema -ne "tda_runtime_candidate_v1" -or
@@ -358,7 +363,7 @@ try {
             version = $RequiredRuntimeVersion
             source_sha = $RequiredSourceSha
             candidate_tag = $ExpectedCandidateTag
-            candidate_manifest_sha256 = Get-Sha256 $candidatePath
+            candidate_manifest_sha256 = $candidateManifestSha
             runtime_archive_sha256 = [string]$candidate.runtime_archive_sha256
             worker_sha256 = $workerSha
         }
