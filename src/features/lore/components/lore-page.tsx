@@ -143,6 +143,16 @@ export function LorePage({ profile }: LorePageProps) {
 			{routeKind && catalogCopy ? (
 				<nav className={styles.profileContext} aria-label="Contexto de exploração">
 					<PublicLink href="/campanhas">Campanhas</PublicLink>
+					<span aria-hidden="true">›</span>
+					<PublicLink
+						href={
+							profile.campaign
+								? `/campanhas/${encodeURIComponent(profile.campaign.routeKey)}/mundo`
+								: "/mundo"
+						}
+					>
+						Mundo
+					</PublicLink>
 					{profile.campaign ? (
 						<>
 							<span aria-hidden="true">›</span>
