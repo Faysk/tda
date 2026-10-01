@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
 import { SessionShareActions } from "@/components/session-share-actions";
 import { StoryMarkdown } from "@/components/story-markdown";
 import { DisplayTitle, Eyebrow } from "@/components/ui";
+import { resolvePublicCampaignRoute } from "@/features/campaigns/server";
 import { sessionPublicMetadata } from "@/features/sessions/metadata";
 import { formatSessionDate, sessionPublicPath, sessionPublicKey, type PublishedSession } from "@/features/sessions/model";
 import { findPublishedSession, listPublishedSessions, PublishedSessionUnavailableError } from "@/features/sessions/repository";
@@ -14,11 +15,33 @@ import styles from "../../../../sessoes/[id]/page.module.css";
 export const dynamic="force-dynamic";
 type Params={params:Promise<{campaignSlug:string;sessionId:string}>};
 
+const unavailableMetadata: Metadata = {
+	title: "Sessão temporariamente indisponível",
+	description: "Não foi possível consultar esta memória agora.",
+	robots: { index: false, follow: false },
+};
+
 export async function generateMetadata({params}:Params):Promise<Metadata>{
 	const {campaignSlug,sessionId}=await params;
-	const session=await findPublishedSession(campaignSlug,sessionId).catch((error)=>{if(error instanceof PublishedSessionUnavailableError)return null;throw error;});
+	const resolved=await resolvePublicCampaignRoute(campaignSlug).catch(()=>({
+		ok:false,
+		reason:"dependency_unavailable",
+	} as const));
+	if(!resolved.ok){
+		if(resolved.reason==="not_found") notFound();
+		return unavailableMetadata;
+	}
+	const session=await findPublishedSession(resolved.campaign.routeKey,sessionId).catch((error)=>{
+		if(error instanceof PublishedSessionUnavailableError)return undefined;
+		throw error;
+	});
+	if(session===undefined) return unavailableMetadata;
 	if(!session) notFound();
 	return sessionPublicMetadata(session);
+}
+
+function UnavailableSession(){
+	return <section className={styles.unavailable}><div className={styles.unavailableInner}><Eyebrow>Arquivo de sessões</Eyebrow><DisplayTitle className={styles.unavailableTitle}>Esta sessão está temporariamente indisponível.</DisplayTitle></div></section>;
 }
 
 function NavigationCard({
@@ -62,10 +85,23 @@ function NavigationCard({
 
 export default async function CampaignSession({params}:Params){
 	const {campaignSlug,sessionId}=await params;
+	const resolved=await resolvePublicCampaignRoute(campaignSlug).catch(()=>({
+		ok:false,
+		reason:"dependency_unavailable",
+	} as const));
+	if(!resolved.ok){
+		if(resolved.reason==="not_found") notFound();
+		return <UnavailableSession/>;
+	}
+	if(!resolved.canonical){
+		permanentRedirect(
+			`/campanhas/${encodeURIComponent(resolved.campaign.routeKey)}/sessoes/${encodeURIComponent(sessionId)}`,
+		);
+	}
 	let session:PublishedSession|null;
-	try{session=await findPublishedSession(campaignSlug,sessionId);}catch(error){
+	try{session=await findPublishedSession(resolved.campaign.routeKey,sessionId);}catch(error){
 		if(!(error instanceof PublishedSessionUnavailableError)) throw error;
-		return <section className={styles.unavailable}><div className={styles.unavailableInner}><Eyebrow>Arquivo de sessões</Eyebrow><DisplayTitle className={styles.unavailableTitle}>Esta sessão está temporariamente indisponível.</DisplayTitle></div></section>;
+		return <UnavailableSession/>;
 	}
 	if(!session) notFound();
 	const archive=await listPublishedSessions(session.campaignSlug).catch(()=>null);

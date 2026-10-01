@@ -153,6 +153,8 @@ O contrato multi-campaign canônico está em [architecture/multi-campaign](../ar
 - arquivo agregado: `/campanhas/sessoes`;
 - archive específico: `/campanhas/[campaign]/sessoes`;
 - detalhe canônico: `/campanhas/[campaign]/sessoes/[sourceSessionId]`;
+- alias histórico de `public_slug` resolve primeiro a identidade pública da campanha e redireciona **308** para o detalhe canônico, preservando `sourceSessionId`;
+- alias retirado e campaign private/archived falham fechados como rota pública inexistente; indisponibilidade da dependência permanece estado temporário e não vira 404;
 - `/sessoes` torna-se compatibilidade para o agregado;
 - `/sessoes/[sourceSessionId]` só pode resolver o boundary legado explicitamente conhecido e redirecionar; não faz lookup global.
 
