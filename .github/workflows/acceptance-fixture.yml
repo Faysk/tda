@@ -130,15 +130,26 @@ jobs:
           $promotion = Get-Content -LiteralPath ".github/workflows/runtime-promote.yml" -Raw
           foreach ($required in @(
             'Require Whisper #1235 Craig containment acceptance',
-            'tda_whisper_craig_containment_acceptance_v1',
-            'docs/companion/runtime-acceptance',
-            '.whisper-1235.json',
-            'WHISPER_1235_ACCEPTANCE_IDENTITY_MISMATCH',
-            'WHISPER_1235_IMMUTABLE_RUN_REQUIRED',
-            'Whisper-1235-acceptance.json'
+            'tools/acceptance/whisper_1235_receipt.py',
+            '--evidence-root docs/companion/runtime-acceptance',
+            '--retained-output prepared/Whisper-1235-acceptance.json'
           )) {
             if (-not $promotion.Contains($required)) {
               throw "WHISPER_1235_PROMOTION_GATE_MISSING:$required"
+            }
+          }
+
+          $verifier = Get-Content -LiteralPath "tools/acceptance/whisper_1235_receipt.py" -Raw
+          foreach ($required in @(
+            'tda_whisper_craig_containment_acceptance_v1',
+            '.whisper-1235.json',
+            'WHISPER_1235_ACCEPTANCE_IDENTITY_MISMATCH',
+            'WHISPER_1235_IMMUTABLE_RUN_REQUIRED',
+            'WHISPER_1235_ACCEPTANCE_PRIVACY_INVALID',
+            'WHISPER_1235_FULL_TRACK_COUNT_INVALID'
+          )) {
+            if (-not $verifier.Contains($required)) {
+              throw "WHISPER_1235_RECEIPT_VERIFIER_MISSING:$required"
             }
           }
       - name: Unit-test Whisper #1235 promotion evidence
