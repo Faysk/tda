@@ -9,7 +9,8 @@ import type { SessionCoverUploadState } from "./session-cover-editor";
 import { SessionEditWorkspace } from "./session-edit-workspace";
 import workbenchStyles from "../workbench.module.css";
 
-const CAMPAIGN_SLUG = "yuhara-main";\nconst SESSION_ID = "11111111-1111-4111-8111-111111111111";
+const CAMPAIGN_SLUG = "yuhara-main";
+const SESSION_ID = "11111111-1111-4111-8111-111111111111";
 const TRANSCRIPT_REVISION_ID = "22222222-2222-4222-8222-222222222222";
 const TRANSCRIPT_REVISION_ID_2 = "22222222-2222-4222-8222-222222222223";
 const DRAFT_ID = "33333333-3333-4333-8333-333333333333";
