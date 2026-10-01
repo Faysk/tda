@@ -19,7 +19,9 @@ export async function resolveStandaloneLoreCampaignLink(
 	loreSlug: string,
 ): Promise<ResolvedStandaloneLoreCampaignLink | null> {
 	const registration = loreRegistrationForSlug(loreSlug);
-	const technicalSlug = registration?.campaignTechnicalSlug;
+	const technicalSlug =
+		registration?.campaignTechnicalSlug ??
+		registration?.entityLink?.campaignTechnicalSlug;
 	if (!technicalSlug) return null;
 
 	const client = publishedDataClient();

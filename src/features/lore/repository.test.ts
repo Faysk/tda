@@ -197,6 +197,20 @@ describe("campaign-aware public lore repository", () => {
 		).toBe(true);
 	});
 
+	it("returns no profile when the campaign exists but the entity slug is absent", async () => {
+		const calls = setupTableResults({
+			campaigns: [{ data: { id: "campaign-a-id" }, error: null }],
+			entities: [{ data: null, error: null }],
+		});
+		await expect(
+			findPublishedLoreProfile("personagens", "missing", campaignA),
+		).resolves.toBeNull();
+		expect(
+			hasCall(calls, "entities", "eq", ["campaign_id", "campaign-a-id"]),
+		).toBe(true);
+		expect(hasCall(calls, "entities", "eq", ["slug", "missing"])).toBe(true);
+	});
+
 	it("returns no profile when the requested campaign is absent instead of falling back globally", async () => {
 		const calls = setupTableResults({
 			campaigns: [{ data: null, error: null }],

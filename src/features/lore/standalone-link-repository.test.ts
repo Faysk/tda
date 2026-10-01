@@ -123,6 +123,40 @@ describe("standalone lore campaign linkage", () => {
 		});
 	});
 
+	it("uses a campaign-qualified entity link as an explicit campaign binding", async () => {
+		const calls = setupCampaignResults([
+			{
+				data: {
+					id: "legacy-campaign-id",
+					slug: "yuhara-main",
+					name: "Crônicas da Mesa",
+				},
+				error: null,
+			},
+			{
+				data: {
+					public_slug: "cronicas-da-mesa",
+					lifecycle: "active",
+					visibility: "public",
+				},
+				error: null,
+			},
+		]);
+		await expect(resolveStandaloneLoreCampaignLink("astel")).resolves.toEqual({
+			campaignId: "legacy-campaign-id",
+			technicalSlug: "yuhara-main",
+			name: "Crônicas da Mesa",
+			publicCampaign: {
+				routeKey: "cronicas-da-mesa",
+				name: "Crônicas da Mesa",
+			},
+		});
+		expect(calls).toContainEqual({
+			method: "eq",
+			args: ["slug", "yuhara-main"],
+		});
+	});
+
 	it("does not touch storage for an unlinked standalone lore", async () => {
 		await expect(resolveStandaloneLoreCampaignLink("seika")).resolves.toBeNull();
 		expect(mocks.client).not.toHaveBeenCalled();
