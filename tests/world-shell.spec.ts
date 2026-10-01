@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("world surfaces share the desktop contextual universe navigation", async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 1000 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await expect(
 		page.getByRole("navigation", { name: "Explorar o universo da campanha" }).first(),
 	).toBeVisible();
@@ -22,7 +22,7 @@ test("world surfaces share the desktop contextual universe navigation", async ({
 
 test("universe navigation becomes a non-reserving overlay drawer at the 320px minimum", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 800 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await expect(page.getByRole("button", { name: "Explorar universo" })).toBeVisible();
 	const stage = page.getByTestId("world-workspace-stage");
 	const before = await stage.boundingBox();
