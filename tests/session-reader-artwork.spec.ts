@@ -9,7 +9,7 @@ test("session reader renders published cover artwork before hero artwork", async
 	await expect(
 		page.getByRole("heading", {
 			level: 1,
-			name: "A memória mais recente do arquivo sintético",
+			name: "Sessão Sintética de Layout com um título editorial mais longo",
 		}),
 	).toBeVisible();
 });
@@ -34,9 +34,7 @@ test("session reader falls back from cover to published hero without crossing ca
 test("session reader keeps an intentional text hero when no artwork exists", async ({
 	page,
 }) => {
-	await page.goto(
-		"/campanhas/cronicas-da-mesa/sessoes/shared-session",
-	);
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes/shared-session");
 
 	const hero = page.locator("[data-session-reader-hero]");
 	await expect(hero).toHaveAttribute("data-session-artwork-source", "fallback");
@@ -44,7 +42,7 @@ test("session reader keeps an intentional text hero when no artwork exists", asy
 	await expect(
 		page.getByRole("heading", {
 			level: 1,
-			name: "Sessão Sintética de Layout com um título editorial mais longo",
+			name: "A memória mais recente do arquivo sintético",
 		}),
 	).toBeVisible();
 });
