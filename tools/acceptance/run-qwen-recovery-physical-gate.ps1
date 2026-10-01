@@ -238,7 +238,55 @@ function Sanitize-Event([object]$Event) {
     if ($null -eq $Event) { Fail-Product "JOB_EVENT_NULL" }
     $sequence = Get-RequiredProductPropertyValue $Event "seq" "JOB_EVENT_SEQ_MISSING"
     $code = Get-RequiredProductPropertyValue $Event "code" "JOB_EVENT_CODE_MISSING"
-    $allowed = @("stage", "track", "total_tracks", "window", "attempt", "profile_id", "forced", "fence", "reason")
+    $allowed = @(
+        "stage",
+        "track",
+        "total_tracks",
+        "window",
+        "attempt",
+        "profile_id",
+        "forced",
+        "fence",
+        "reason",
+        "completed_window_count",
+        "completed_segment_count",
+        "reused_window_count",
+        "durable_window_count",
+        "track_count",
+        "aligned_reused",
+        "text_reused",
+        "text_compat_reused",
+        "text_prefix_windows_reused",
+        "pending_asr",
+        "duration_ms",
+        "runtime_version",
+        "worker_sha256",
+        "source_runtime_version",
+        "source_signature_sha256",
+        "start_seconds",
+        "end_seconds",
+        "sample_count",
+        "peak_dbfs",
+        "rms_dbfs",
+        "silence_peak_threshold_dbfs",
+        "silence_rms_threshold_dbfs",
+        "failure_class",
+        "context_seconds",
+        "window_start_seconds",
+        "window_end_seconds",
+        "ownership_left_seconds",
+        "ownership_right_seconds",
+        "first_window",
+        "last_window",
+        "aligned_item",
+        "relative_start_seconds",
+        "relative_end_seconds",
+        "overflow_seconds",
+        "previous_end_seconds",
+        "aligned_word_count",
+        "owned_word_count",
+        "count"
+    )
     $data = [ordered]@{}
     $sourceData = Get-OptionalPropertyValue $Event "data"
     if ($null -ne $sourceData) {
