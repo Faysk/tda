@@ -35,7 +35,7 @@ test("home aggregates campaigns with scoped links and readable campaign identity
 	await page.goto("/");
 
 	const campaignName =
-		"Campanha B — nome longo para validar a Home em telas estreitas";
+		"Antes que seja tarde — uma campanha com nome deliberadamente comprido";
 	await expect(page.getByText(campaignName, { exact: true })).toBeVisible();
 
 	const heroLink = page.getByRole("link", {
@@ -43,7 +43,7 @@ test("home aggregates campaigns with scoped links and readable campaign identity
 	});
 	await expect(heroLink).toHaveAttribute(
 		"href",
-		"/campanhas/campanha-b/sessoes/shared-session",
+		"/campanhas/antes-que-seja-tarde/sessoes/shared-session",
 	);
 
 	await expect(
