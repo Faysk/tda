@@ -102,7 +102,7 @@ export async function saveSessionEditorialDraftAction(
 		if (!result.ok) {
 			const remote =
 				result.reason === "conflict"
-					? await readSessionEditorialDraft(input.sessionId)
+					? await readSessionEditorialDraft(input.campaignSlug, input.sessionId)
 					: null;
 			return {
 				ok: false as const,
@@ -112,7 +112,7 @@ export async function saveSessionEditorialDraftAction(
 			};
 		}
 
-		const saved = await readSessionEditorialDraft(input.sessionId);
+		const saved = await readSessionEditorialDraft(input.campaignSlug, input.sessionId);
 		if (!saved || saved.revision !== result.revision)
 			return {
 				ok: false as const,
