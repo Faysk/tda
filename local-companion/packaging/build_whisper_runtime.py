@@ -46,6 +46,29 @@ def _probe_worker(worker: Path) -> dict:
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("WHISPER_RUNTIME_PROBE_TIMEOUT") from exc
 
+def _decode_smoke_worker(worker: Path) -> dict:
+    try:
+        value = json.loads(run(str(worker), "--decode-smoke", timeout=30))
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("WHISPER_RUNTIME_DECODE_SMOKE_TIMEOUT") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("WHISPER_RUNTIME_DECODE_SMOKE_PROTOCOL_INVALID") from exc
+    if value.get("schema") != "tda_whisper_decode_smoke_v1" or value.get("ready") is not True:
+        raise RuntimeError("WHISPER_RUNTIME_DECODE_SMOKE_FAILED")
+    formats = value.get("formats")
+    if not isinstance(formats, dict) or set(formats) != {"wav", "flac"}:
+        raise RuntimeError("WHISPER_RUNTIME_DECODE_SMOKE_FORMATS_INVALID")
+    for name in ("wav", "flac"):
+        item = formats.get(name)
+        if (
+            not isinstance(item, dict)
+            or item.get("sample_rate") != 16_000
+            or item.get("sample_count") != 16_000
+        ):
+            raise RuntimeError(f"WHISPER_RUNTIME_DECODE_SMOKE_SAMPLE_INVALID:{name}")
+    return value
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -204,19 +227,23 @@ def _smoke_worker_benchmark_contract(worker: Path, version: str) -> dict:
     types = [str(item.get("type") or "") for item in messages]
     if "ready" not in types or "error" not in types or "result" in types:
         raise RuntimeError("WHISPER_RUNTIME_BENCHMARK_CONTRACT_NOT_EXERCISED")
+    terminal_error = next(
+        (
+            str(item.get("payload", {}).get("code") or "")
+            for item in messages
+            if item.get("type") == "error" and isinstance(item.get("payload"), dict)
+        ),
+        "",
+    )
+    if terminal_error != "CRAIG_MANIFEST_NOT_FOUND":
+        raise RuntimeError("WHISPER_RUNTIME_BENCHMARK_SOURCE_VALIDATION_FAILED")
     return {
         "ready": True,
         "returncode": result.returncode,
         "message_types": types,
-        "terminal_error": next(
-            (
-                str(item.get("payload", {}).get("code") or "")
-                for item in messages
-                if item.get("type") == "error" and isinstance(item.get("payload"), dict)
-            ),
-            "",
-        ),
+        "terminal_error": terminal_error,
     }
+
 
 
 def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
@@ -245,10 +272,12 @@ def _smoke_installer(archive: Path, version: str, digest: str) -> dict:
             or probe.get("whisper_model_imported") is not True
         ):
             raise RuntimeError("WHISPER_RUNTIME_INSTALLED_PROBE_FAILED")
+        decode_smoke = _decode_smoke_worker(worker)
         bootstrap = _smoke_worker_bootstrap(worker, version)
         benchmark_contract = _smoke_worker_benchmark_contract(worker, version)
         return {
             "probe": probe,
+            "decode_smoke": decode_smoke,
             "bootstrap": bootstrap,
             "benchmark_contract": benchmark_contract,
         }
@@ -305,12 +334,15 @@ def main() -> int:
             or probe.get("whisper_model_imported") is not True
         ):
             raise RuntimeError("WHISPER_RUNTIME_PROBE_NOT_READY")
+        decode_smoke = _decode_smoke_worker(worker)
         bootstrap = _smoke_worker_bootstrap(worker, version)
         benchmark_contract = _smoke_worker_benchmark_contract(worker, version)
         if probe.get("faster_whisper") != packages["faster-whisper"]:
             raise RuntimeError("WHISPER_RUNTIME_FASTER_WHISPER_VERSION_MISMATCH")
         if probe.get("ctranslate2") != packages["ctranslate2"]:
             raise RuntimeError("WHISPER_RUNTIME_CTRANSLATE2_VERSION_MISMATCH")
+        if probe.get("av") != packages["av"]:
+            raise RuntimeError("WHISPER_RUNTIME_PYAV_VERSION_MISMATCH")
         if not probe.get("nvml"):
             raise RuntimeError("WHISPER_RUNTIME_NVML_MISSING")
 
@@ -326,6 +358,7 @@ def main() -> int:
             "packages": packages,
             "gpu": config["gpu"],
             "probe": probe,
+            "decode_smoke": decode_smoke,
             "bootstrap": bootstrap,
             "benchmark_contract": benchmark_contract,
             "required_dlls": list(REQUIRED_DLLS),
@@ -353,6 +386,8 @@ def main() -> int:
                     "archive": str(archive),
                     "sha256": digest,
                     "probe": probe,
+                    "decode_smoke": decode_smoke,
+                    "benchmark_contract": benchmark_contract,
                     "installed_probe": installed_probe,
                     "nvidia_dll_counts": copied_dlls,
                 },
