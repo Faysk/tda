@@ -1,6 +1,5 @@
 import "server-only";
 
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	editDataClient,
 	publishedDataClient,
@@ -26,7 +25,7 @@ function safeDate(value: string | null | undefined): number {
 
 export async function loadWorldPublicationMeta(
 	audience: WorldAudience,
-	campaignSlug = CAMPAIGN_SLUG,
+	campaignSlug: string,
 ): Promise<WorldPublicationMeta | undefined> {
 	const client = audience === "editor" ? editDataClient() : publishedDataClient();
 	if (!client) return undefined;
