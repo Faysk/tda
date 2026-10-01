@@ -81,7 +81,7 @@ export function SessionCampaignMoveControl({
 			);
 			return;
 		}
-		const nextBlockers = "blockers" in result ? result.blockers : [];
+		const nextBlockers: readonly SessionMoveBlocker[] =\n\t\t\t"blockers" in result && result.blockers ? result.blockers : [];
 		setBlockers(nextBlockers);
 		setPhase(nextBlockers.length ? "blocked" : "error");
 		setMessage(
@@ -116,7 +116,7 @@ export function SessionCampaignMoveControl({
 			destinationCampaignSlug: target.technicalSlug,
 		});
 		if (!result.ok) {
-			const nextBlockers = "blockers" in result ? result.blockers : [];
+			const nextBlockers: readonly SessionMoveBlocker[] =\n\t\t\t"blockers" in result && result.blockers ? result.blockers : [];
 			setBlockers(nextBlockers);
 			setPhase(nextBlockers.length ? "blocked" : "error");
 			setMessage(
