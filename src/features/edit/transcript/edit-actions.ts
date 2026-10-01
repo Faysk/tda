@@ -6,7 +6,6 @@ import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	type TranscriptEditRequest,
 	type TranscriptEditSaveResult,
@@ -46,7 +45,7 @@ export async function saveTranscriptRevisionEditsAction(
 		const access = authorizeCampaignCapability(
 			context,
 			EDIT_CAPABILITIES.contentEdit,
-			CAMPAIGN_SLUG,
+			input.campaignSlug,
 		);
 		if (!access.ok)
 			return {
@@ -58,7 +57,7 @@ export async function saveTranscriptRevisionEditsAction(
 		const result = await persistTranscriptRevisionEdits({
 			authUserId: identity.authUserId,
 			actorProfileId: access.profileId,
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: input.campaignSlug,
 			request: input,
 		});
 		if (!result.ok) {
@@ -72,7 +71,7 @@ export async function saveTranscriptRevisionEditsAction(
 		}
 
 		const current = await readTranscriptSnapshot({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: input.campaignSlug,
 			sessionId: input.sessionId,
 		});
 		if (
