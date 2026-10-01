@@ -7,6 +7,7 @@ export type WorldCampaignSwitchOption = Readonly<{
 	key: string;
 	name: string;
 	href: string;
+	current?: boolean;
 }>;
 
 export function isWorldCampaignSlug(value: unknown): value is string {
