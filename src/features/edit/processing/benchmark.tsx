@@ -53,6 +53,10 @@ function needsQwenRuntimeRecovery(profile: TranscriptionProfileState | null): bo
 	);
 }
 
+function requiresQwenRuntimeUpgrade(profile: TranscriptionProfileState | null): boolean {
+	return profile?.reason === "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED";
+}
+
 const BENCHMARK_SAMPLE_SECONDS = 300;
 
 type PendingBenchmark = {
@@ -196,10 +200,11 @@ function ProfileReadiness({
 	profile: TranscriptionProfileState | null;
 	id: (typeof PROFILES)[number];
 }>) {
-	const qwenRuntimeUpgrade = needsQwenRuntimeRecovery(profile);
+	const qwenRuntimeRecovery = needsQwenRuntimeRecovery(profile);
+	const qwenRuntimeUpgrade = requiresQwenRuntimeUpgrade(profile);
 	const state = profile?.ready
 		? "ready"
-		: qwenRuntimeUpgrade
+		: qwenRuntimeRecovery
 			? "blocked"
 			: profile?.preparationRequired
 				? "prepare"
@@ -209,13 +214,15 @@ function ProfileReadiness({
 			? "Pronto"
 			: qwenRuntimeUpgrade
 				? "Runtime Qwen precisa ser atualizado."
-				: profile
+				: qwenRuntimeRecovery
+					? "Runtime Qwen precisa ser verificado."
+					: profile
 					? (profileReadinessCopy(profile) ?? profile.reason ?? "Indisponível")
 					: "Não anunciado pelo Companion";
 	return (
 		<div className={styles.profileRow} data-state={state}>
 			<strong>{LABELS[id]}</strong>
-			<span>{profile?.ready ? "✓" : qwenRuntimeUpgrade ? "!" : profile?.preparationRequired ? "◌" : "!"} {detail}</span>
+			<span>{profile?.ready ? "✓" : qwenRuntimeRecovery ? "!" : profile?.preparationRequired ? "◌" : "!"} {detail}</span>
 			{profile?.reason && !profile.ready ? (
 				<details className={styles.technicalDetail}>
 					<summary>Detalhe técnico</summary>
@@ -761,9 +768,17 @@ export function ProcessingBenchmark({
 			: null;
 
 	const nextActionCopy = qwenRuntimeBlocked
-		? qwenRuntimeCheckSupported
-			? "Atualize o Qwen Runtime para liberar Qwen Fast e Qwen Quality."
-			: "Atualize o Companion para habilitar a recuperação do Qwen Runtime."
+		? !qwenRuntimeCheckSupported
+			? "Atualize o Companion para habilitar a recuperação do Qwen Runtime."
+			: qwenRuntime?.canUpdate
+				? "Atualize o Qwen Runtime para liberar Qwen Fast e Qwen Quality."
+				: qwenRuntime?.stableStatus === "below_minimum"
+					? "A Stable publicada ainda não atende ao mínimo exigido."
+					: qwenRuntime?.stableStatus === "unavailable"
+						? "Verifique novamente a disponibilidade da Stable do Qwen Runtime."
+						: qwenRuntime?.updateAvailable === false
+							? "O runtime não oferece update; abra Diagnóstico para investigar o blocker."
+							: "Verifique o Qwen Runtime para determinar a próxima ação."
 		: !file
 			? "Selecione um ZIP Craig para começar."
 		: fileError
@@ -959,6 +974,13 @@ export function ProcessingBenchmark({
 						{qwenRuntime?.stableStatus === "below_minimum" ? (
 							<p className={styles.notice}>
 								A Stable publicada ainda não atende ao mínimo exigido. A atualização permanece bloqueada para não instalar um runtime incompatível.
+							</p>
+						) : null}
+						{qwenRuntime?.stableStatus === "compatible" &&
+						qwenRuntime.updateAvailable === false &&
+						!qwenRuntime.active ? (
+							<p className={styles.notice}>
+								O runtime instalado já não está abaixo da Stable compatível. Não há update de versão a aplicar; abra Diagnóstico para investigar o blocker restante.
 							</p>
 						) : null}
 						{qwenRuntimeError ? (
