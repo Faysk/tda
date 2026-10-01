@@ -59,6 +59,40 @@ class WhisperRuntimeError(RuntimeError):
         self.code = code
 
 
+def _whisper_decode_error_code(error: BaseException) -> str | None:
+    if isinstance(error, TypeError) and "metadata_errors" in str(error):
+        return "WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE"
+    module = error.__class__.__module__
+    if module == "av.error" or module.startswith("av."):
+        return "WHISPER_AUDIO_DECODE_FAILED"
+    return None
+
+
+def _transcribe_with_decode_boundary(
+    model: Any,
+    source: Path,
+    options: dict[str, Any],
+) -> tuple[Any, Any]:
+    try:
+        segments_iter, info = model.transcribe(str(source), **options)
+    except Exception as exc:
+        code = _whisper_decode_error_code(exc)
+        if code is not None:
+            raise WhisperRuntimeError(code) from exc
+        raise
+
+    def guarded_segments():
+        try:
+            yield from segments_iter
+        except Exception as exc:
+            code = _whisper_decode_error_code(exc)
+            if code is not None:
+                raise WhisperRuntimeError(code) from exc
+            raise
+
+    return guarded_segments(), info
+
+
 def _tree_bytes(root: Path, *, max_entries: int = 50_000) -> int:
     if not root.exists():
         return 0
@@ -641,7 +675,7 @@ def transcribe_craig_package(
         else:
             if model is None:
                 raise WhisperRuntimeError("WHISPER_MODEL_NOT_LOADED")
-            segments_iter, info = model.transcribe(str(source), **options)
+            segments_iter, info = _transcribe_with_decode_boundary(model, source, options)
             segments: list[TranscriptSegment] = []
             activity_last_at = 0.0
             for segment in segments_iter:
