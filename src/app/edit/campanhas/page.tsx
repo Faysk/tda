@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CampaignCoverEditor } from "@/features/campaigns/campaign-cover-editor";
 import { readManageableCampaigns } from "@/features/campaigns/server";
 import {
 	createCampaignAction,
@@ -171,6 +172,12 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 												{campaign.lifecycle === "active" ? "Ativa" : "Arquivada"}
 											</span>
 										</header>
+
+										<CampaignCoverEditor
+											campaignId={campaign.id}
+											campaignName={campaign.name}
+											coverImage={campaign.coverImage}
+										/>
 
 										<form className={styles.form} action={updateCampaignAction}>
 											<input type="hidden" name="id" value={campaign.id} />
