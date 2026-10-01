@@ -26,6 +26,21 @@ async function expectInsideViewport(
 	).toBeLessThanOrEqual(viewportHeight + 1);
 }
 
+async function expectFirstStoryArtworkDecoded(page: Page) {
+	const artwork = page.locator(`${FIRST_STORY} img`).first();
+	await expect(artwork).toBeVisible();
+	await expect
+		.poll(
+			() =>
+				artwork.evaluate((element) => {
+					const image = element as HTMLImageElement;
+					return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
+				}),
+			{ message: "first story artwork should decode before visual acceptance" },
+		)
+		.toBe(true);
+}
+
 test("lore catalogue exposes the first story identity and action in the first viewport", async ({
 	page,
 }, testInfo) => {
@@ -45,6 +60,7 @@ test("lore catalogue exposes the first story identity and action in the first vi
 		await page.evaluate(async () => {
 			await document.fonts.ready;
 		});
+		await expectFirstStoryArtworkDecoded(page);
 
 		const heroTitle = page.getByRole("heading", {
 			level: 1,
@@ -171,6 +187,7 @@ test("lore catalogue visual receipts cover light and dark themes at both accepta
 		await page.evaluate(async () => {
 			await document.fonts.ready;
 		});
+		await expectFirstStoryArtworkDecoded(page);
 		await page.screenshot({
 			path: testInfo.outputPath(`lore-catalog-${receipt.name}.png`),
 			fullPage: false,
