@@ -1,17 +1,14 @@
-import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
-import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	isWorldEntityMediaAssetId,
 	isWorldEntityMediaMime,
 	worldEntityPortraitObjectKey,
 } from "@/features/world-explorer/world-entity-media";
+import { authorizeWorldEntityMediaAsset } from "@/features/world-explorer/world-entity-media-access";
 import { inspectWorldEntityImage } from "@/features/world-explorer/world-entity-media-image";
 import {
 	readWorldEntityMediaObject,
 	worldEntityMediaEnabled,
 } from "@/features/world-explorer/world-entity-media-server";
-import { editDataClient } from "@/integrations/supabase/server";
 
 const PRIVATE_MEDIA_HEADERS = {
 	"Cache-Control": "private, no-store",
@@ -44,34 +41,32 @@ export async function GET(
 	const { assetId } = await params;
 	if (!isWorldEntityMediaAssetId(assetId)) return unavailable();
 
-	const access = await authorizeCampaignCapabilityServer({
-		action: EDIT_CAPABILITIES.contentEdit,
-		campaignSlug: CAMPAIGN_SLUG,
-	});
+	const access = await authorizeWorldEntityMediaAsset(assetId);
 	if (!access.ok) {
-		return unavailable(access.reason === "unauthenticated" ? 401 : 403);
+		const status =
+			access.reason === "unauthenticated"
+				? 401
+				: access.reason === "dependency_unavailable"
+					? 503
+					: access.reason === "not_found"
+						? 404
+						: 403;
+		return unavailable(status);
 	}
 
 	try {
-		const client = editDataClient();
-		if (!client) return unavailable(503);
-		const { data: campaign, error: campaignError } = await client
-			.from("campaigns")
-			.select("id")
-			.eq("slug", CAMPAIGN_SLUG)
-			.maybeSingle();
-		if (campaignError || !campaign?.id) return unavailable(503);
-
+		const { campaignId, campaignTechnicalSlug, client } = access.target;
 		const { data, error } = await client
 			.from("media_assets")
 			.select(
 				"id,status,role_hint,staged_bucket,object_key,sha256,mime_type,byte_size,width,height,read_back_verified",
 			)
-			.eq("campaign_id", campaign.id)
+			.eq("campaign_id", campaignId)
 			.eq("id", assetId)
 			.maybeSingle();
 		if (error) return unavailable(503);
 		if (!data) return unavailable();
+
 		const asset = data as MediaAssetRow;
 		if (
 			asset.status === "retired" ||
@@ -84,15 +79,16 @@ export async function GET(
 			return unavailable();
 		}
 
-		const match = new RegExp(
-			`^campaigns/${CAMPAIGN_SLUG}/entities/([0-9a-f-]{36})/portrait/([a-f0-9]{64})\\.(png|webp)$`,
+		const pattern = new RegExp(
+			`^campaigns/${campaignTechnicalSlug}/entities/([0-9a-f-]{36})/portrait/([a-f0-9]{64})\\.(png|webp)$`,
 			"u",
-		).exec(asset.object_key);
+		);
+		const match = pattern.exec(asset.object_key);
 		if (!match || match[2] !== asset.sha256) return unavailable();
 		const entityId = match[1];
 		const extension = asset.mime_type === "image/png" ? "png" : "webp";
 		const expectedKey = worldEntityPortraitObjectKey({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: campaignTechnicalSlug,
 			entityId,
 			sha256: asset.sha256,
 			extension,
@@ -114,8 +110,7 @@ export async function GET(
 			return unavailable();
 		}
 
-		const body = Uint8Array.from(bytes).buffer;
-		return new Response(body, {
+		return new Response(Uint8Array.from(bytes).buffer, {
 			status: 200,
 			headers: {
 				...PRIVATE_MEDIA_HEADERS,
