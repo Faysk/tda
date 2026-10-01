@@ -24,6 +24,9 @@ from typing import Any, Callable
 
 EXPECTED_RUNTIME_VERSION = "1.0.13"
 SAMPLE_SECONDS = 300.0
+EXPECTED_SOURCE_SHA256 = "b2ac78347d88b2761e51be38a60aa266933e3b00f30e72c50626fbe599849b1e"
+EXPECTED_TRACK_COUNT = 4
+EXPECTED_AUDIO_WORK_SECONDS = SAMPLE_SECONDS * EXPECTED_TRACK_COUNT
 QWEN_PROFILES = ("qwen-fast", "qwen-quality")
 _ERROR = re.compile(r"^[A-Z0-9_]{1,96}$")
 _SOURCE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
@@ -87,6 +90,8 @@ def _default_root() -> Path:
 def _source_binding(source_id: str, sample_seconds: float) -> str:
     if not _SOURCE.fullmatch(source_id):
         raise QwenEmptyWindowAcceptanceError("QWEN_1236_SOURCE_ID_INVALID")
+    if source_id != f"craig-{EXPECTED_SOURCE_SHA256}":
+        raise QwenEmptyWindowAcceptanceError("QWEN_1236_SOURCE_MISMATCH")
     payload = f"tda-qwen-1236-v1\0{source_id}\0{sample_seconds:.3f}".encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
@@ -169,8 +174,15 @@ def _benchmark_payload(payload: object, profile_id: str) -> dict[str, Any]:
         or float(result.get("sample_seconds") or 0.0) != SAMPLE_SECONDS
     ):
         raise QwenEmptyWindowAcceptanceError("QWEN_1236_BENCHMARK_RESULT_INVALID")
-    if int(result.get("track_count") or 0) < 1:
-        raise QwenEmptyWindowAcceptanceError("QWEN_1236_BENCHMARK_RESULT_INVALID")
+    track_count = int(result.get("track_count") or 0)
+    audio_work_seconds = float(result.get("audio_work_seconds") or 0.0)
+    session_duration_seconds = float(result.get("session_duration_seconds") or 0.0)
+    if (
+        track_count != EXPECTED_TRACK_COUNT
+        or abs(audio_work_seconds - EXPECTED_AUDIO_WORK_SECONDS) > 0.001
+        or abs(session_duration_seconds - SAMPLE_SECONDS) > 0.001
+    ):
+        raise QwenEmptyWindowAcceptanceError("QWEN_1236_BENCHMARK_COVERAGE_INVALID")
     return result
 
 
@@ -249,6 +261,7 @@ def run_acceptance(
 ) -> dict[str, Any]:
     if sample_seconds != SAMPLE_SECONDS:
         raise QwenEmptyWindowAcceptanceError("QWEN_1236_SAMPLE_CONTRACT_INVALID")
+    source_binding = _source_binding(source_id, sample_seconds)
 
     runtime = _runtime_receipt(
         runtime_inspector(runtime_root, verify_worker=True),
@@ -309,16 +322,11 @@ def run_acceptance(
             terminal = "error"
 
         classification = _profile_classification(terminal, code, diagnostics)
-        diagnostic_complete = (
-            terminal == "result"
-            or (
-                code == "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"
-                and any(
-                    item.get("code") == "QWEN_WINDOW_EMPTY_ASR_REJECTED"
-                    for item in diagnostics
-                )
-            )
-        )
+        diagnostic_complete = classification in {
+            "confirmed_near_digital_silence",
+            "empty_condition_not_reproduced",
+            "empty_recognition_with_signal",
+        }
         profile_receipts.append(
             {
                 "profile_id": profile_id,
@@ -331,15 +339,23 @@ def run_acceptance(
             }
         )
 
-    completed = all(item["terminal"] == "result" for item in profile_receipts)
+    completed = all(
+        item["terminal"] == "result"
+        and item["classification"]
+        in {"confirmed_near_digital_silence", "empty_condition_not_reproduced"}
+        for item in profile_receipts
+    )
     diagnosed = all(item["diagnostic_complete"] is True for item in profile_receipts)
     receipt = {
         "schema": "tda_qwen_empty_window_acceptance_v1",
         "accepted_at": now().astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
         "issue": 1236,
         "runtime": runtime,
-        "source_binding_sha256": _source_binding(source_id, sample_seconds),
+        "source_sha256": EXPECTED_SOURCE_SHA256,
+        "source_binding_sha256": source_binding,
         "sample_seconds": sample_seconds,
+        "expected_track_count": EXPECTED_TRACK_COUNT,
+        "expected_audio_work_seconds": EXPECTED_AUDIO_WORK_SECONDS,
         "profiles": profile_receipts,
         "physical_gates": gates,
         "candidate_completed_both_profiles": completed,

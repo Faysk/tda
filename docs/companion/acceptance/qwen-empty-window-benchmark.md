@@ -26,11 +26,11 @@ O benchmark normal de quatro perfis não é autoridade para este gate enquanto #
 1. checkout da revisão que contém a correção de #1236;
 2. runtime Qwen candidato exato `1.0.13` instalado localmente;
 3. os gates físicos de `qwen-fast` e `qwen-quality` refeitos para os bytes exatos do `1.0.13`;
-4. Craig original ainda staged em `%LOCALAPPDATA%\TDA\Data\staging`;
+4. Craig original ainda staged em `%LOCALAPPDATA%\TDA\Data\staging`; o gate exige exatamente o source content-addressed por `b2ac78347d88b2761e51be38a60aa266933e3b00f30e72c50626fbe599849b1e`;
 5. nenhum job concorrente usando a GPU/runtime;
 6. ambiente Python do `local-companion` disponível para executar o harness.
 
-O gate falha antes de iniciar ASR se o runtime ativo não for exatamente `1.0.13`, se o worker não bater com seu hash, ou se qualquer physical gate estiver stale.
+O gate falha antes de iniciar ASR se o source não for exatamente o Craig que reproduziu #1236, se o runtime ativo não for exatamente `1.0.13`, se o worker não bater com seu hash, ou se qualquer physical gate estiver stale.
 
 ## Execução
 
@@ -70,6 +70,7 @@ O receipt `tda_qwen_empty_window_acceptance_v1` contém:
 - identidade sanitizada dos physical gates;
 - resultado separado de `qwen-fast` e `qwen-quality`;
 - métricas estruturais do benchmark, sem texto;
+- binding ao SHA-256 sanitizado do Craig original e contrato exato de cobertura: `4` tracks, `300 s` de duração de sessão e `1200 s` de áudio-trabalho por perfil;
 - somente quando houver decode vazio:
   - track/window numéricas;
   - início/fim da janela;
@@ -114,8 +115,8 @@ Falha diferente. Registrar o código e tratar separadamente; não reclassificar 
 
 ## Flags finais
 
-- `candidate_completed_both_profiles=true`: Fast e Quality terminaram os 300 s.
-- `diagnostic_complete=true`: cada perfil terminou ou produziu o diagnóstico explícito esperado para vazio com sinal.
+- `candidate_completed_both_profiles=true`: Fast e Quality terminaram os 300 s sem outcome contraditório e com cobertura exata de 4 tracks / 1200 s de áudio-trabalho.
+- `diagnostic_complete=true`: cada perfil terminou com outcome válido ou produziu o diagnóstico explícito esperado para vazio com sinal; um evento de rejeição seguido indevidamente por resultado terminal continua fail-closed.
 - `stable_promotion_eligible=true`: ambos terminaram e este gate ficou completo.
 
 `stable_promotion_eligible` significa apenas que **o gate de #1236** deixou de bloquear o candidato. Não substitui os demais receipts/gates de release do Companion/Qwen e não autoriza promoção isoladamente.
