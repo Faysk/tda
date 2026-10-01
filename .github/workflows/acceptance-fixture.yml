@@ -141,6 +141,12 @@ jobs:
               throw "WHISPER_1235_PROMOTION_GATE_MISSING:$required"
             }
           }
+      - name: Unit-test Whisper #1235 promotion evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python tools/acceptance/test_whisper_1235_receipt.py
+
       - name: Verify recovery launcher is pinned and transcript-free
         shell: powershell
         run: |
