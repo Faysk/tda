@@ -56,7 +56,7 @@ async function mockAccess(
 		state === "authenticated_linked" ||
 		state === "authenticated_linked_no_grants";
 	const capabilities = options.capabilities ?? [];
-	const campaigns =
+	const campaigns = (
 		options.campaigns ??
 		(authenticated && capabilities.length > 0
 			? [
@@ -68,7 +68,11 @@ async function mockAccess(
 						capabilities,
 					},
 				]
-			: []);
+			: [])
+	).map((campaign) => ({
+		...campaign,
+		lifecycle: campaign.lifecycle ?? ("active" as const),
+	}));
 
 	await page.route("**/api/auth/me", async (route) => {
 		await route.fulfill({
