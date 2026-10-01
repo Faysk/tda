@@ -5,7 +5,19 @@ import { pathToFileURL } from "node:url";
 
 const EXPECTED = {
 	appPages: [
+		"src/app/campanhas/[campaignSlug]/faccoes/[slug]/page.tsx",
+		"src/app/campanhas/[campaignSlug]/faccoes/page.tsx",
+		"src/app/campanhas/[campaignSlug]/lugares/[slug]/page.tsx",
+		"src/app/campanhas/[campaignSlug]/lugares/page.tsx",
 		"src/app/campanhas/[campaignSlug]/mundo/page.tsx",
+		"src/app/campanhas/[campaignSlug]/musicas/[slug]/page.tsx",
+		"src/app/campanhas/[campaignSlug]/musicas/page.tsx",
+		"src/app/campanhas/[campaignSlug]/npcs/[slug]/page.tsx",
+		"src/app/campanhas/[campaignSlug]/npcs/page.tsx",
+		"src/app/campanhas/[campaignSlug]/personagens/[slug]/page.tsx",
+		"src/app/campanhas/[campaignSlug]/personagens/page.tsx",
+		"src/app/campanhas/[campaignSlug]/quests/[slug]/page.tsx",
+		"src/app/campanhas/[campaignSlug]/quests/page.tsx",
 		"src/app/campanhas/[campaignSlug]/sessoes/[sessionId]/page.tsx",
 		"src/app/campanhas/[campaignSlug]/sessoes/page.tsx",
 		"src/app/campanhas/page.tsx",
