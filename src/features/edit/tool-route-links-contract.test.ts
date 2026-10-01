@@ -39,8 +39,10 @@ describe("canonical Edit tool links", () => {
 		expect(permissionsSource).not.toContain('href="/conta"');
 	});
 
-	it("keeps compatibility entrypoints redirect-only", () => {
+	it("keeps compatibility entrypoints free of duplicated navigation chrome", () => {
 		expect(editEntrySource).toContain("firstAuthorizedEditDestination");
+		expect(editEntrySource).toContain("readNavigationCampaigns");
+		expect(editEntrySource).toContain("Escolha a campanha");
 		expect(editEntrySource).toContain('redirect("/entrar?next=%2Fedit")');
 		expect(editEntrySource).not.toContain("<nav");
 		expect(editWorldEntrySource).toContain(
