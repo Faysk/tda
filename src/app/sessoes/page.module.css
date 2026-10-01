@@ -385,6 +385,24 @@
 }
 
 @media (max-width: 700px) {
+	.aggregateHero {
+		min-height: clamp(430px, 54svh, 480px);
+	}
+
+	.aggregateHero .heroInner {
+		gap: 18px;
+		padding-top: 58px;
+		padding-bottom: 52px;
+	}
+
+	.aggregateHero .title {
+		font-size: clamp(2.35rem, 10.5vw, 3.25rem);
+	}
+
+	.aggregateHero .scopeActions {
+		margin-top: 16px;
+	}
+
 	.scopeBreadcrumb {
 		margin-bottom: 14px;
 	}
