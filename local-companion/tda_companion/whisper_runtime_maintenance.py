@@ -16,6 +16,7 @@ from .asr_runtime import (
     whisper_version_root,
 )
 from .asr_runtime_updates import download_whisper_runtime, fetch_whisper_runtime_manifest
+from .installation_lock import InstallationLockError, whisper_runtime_maintenance_lock
 from .runtime_compat import version_tuple, whisper_runtime_version_compatible
 
 
@@ -60,14 +61,11 @@ def _preserved_candidate(path: Path, version: str) -> bool:
         or any(char not in "0123456789abcdef" for char in sealed)
     ):
         return False
-    if sealed != metadata_sha256:
-        # Worker content was already hash-verified above. Metadata-only drift is
-        # safe to reseal before this inactive version becomes selectable.
-        marker["worker_metadata_sha256"] = metadata_sha256
-        try:
-            _atomic_json(marker_path, marker)
-        except OSError:
-            return False
+    # Preserved runtime bytes/metadata are immutable rollback evidence. Legacy
+    # markers without a metadata seal remain verifiable by the worker SHA-256,
+    # but an existing seal must match exactly; rollback never rewrites it.
+    if sealed is not None and sealed != metadata_sha256:
+        return False
     return True
 
 
@@ -99,7 +97,7 @@ def list_whisper_runtime_rollback_candidates(runtime_root: Path) -> list[str]:
 
 def _activate_preserved_runtime(runtime_root: Path, target_version: str, current_version: str) -> dict[str, object]:
     target = whisper_version_root(runtime_root, target_version)
-    if not _valid_recovery_runtime_directory(target, target_version):
+    if not _preserved_candidate(target, target_version):
         raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_TARGET_INVALID")
 
     parent = whisper_root(runtime_root)
@@ -144,7 +142,7 @@ def _activate_preserved_runtime(runtime_root: Path, target_version: str, current
     }
 
 
-def rollback_whisper_runtime(
+def _rollback_whisper_runtime_locked(
     runtime_root: Path,
     cache_root: Path,
     *,
@@ -217,3 +215,24 @@ def rollback_whisper_runtime(
         "source": "download",
         "worker_sha256": installed.get("worker_sha256"),
     }
+
+
+def rollback_whisper_runtime(
+    runtime_root: Path,
+    cache_root: Path,
+    *,
+    target_version: str,
+    prefer_bits: bool = True,
+) -> dict[str, object]:
+    try:
+        with whisper_runtime_maintenance_lock():
+            return _rollback_whisper_runtime_locked(
+                runtime_root,
+                cache_root,
+                target_version=target_version,
+                prefer_bits=prefer_bits,
+            )
+    except InstallationLockError as exc:
+        raise WhisperRuntimeMaintenanceError(
+            "WHISPER_RUNTIME_ROLLBACK_MAINTENANCE_BUSY"
+        ) from exc
