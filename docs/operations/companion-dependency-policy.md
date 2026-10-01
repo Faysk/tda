@@ -65,7 +65,7 @@ O fato de Qwen poder usar CUDA 13.x não autoriza migrar o runtime Whisper para 
 
 ### PyAV no runtime Whisper — #1234
 
-O **Whisper Runtime 1.1.6** fixa `av==18.1.0` embora PyAV 19 seja mais novo. Faster-Whisper 1.2.1 ainda abre mídia com `av.open(..., metadata_errors="ignore")`; PyAV 19 removeu esse argumento e por isso a combinação falha antes da inferência real. A exceção fica machine-readable em `runtime/whisper-windows-x64.json`, vinculada ao pin exato.
+O **Whisper Runtime 1.1.7** fixa `av==18.1.0` embora PyAV 19 seja mais novo. Faster-Whisper 1.2.1 ainda abre mídia com `av.open(..., metadata_errors="ignore")`; PyAV 19 removeu esse argumento e por isso a combinação falha antes da inferência real. A exceção fica machine-readable em `runtime/whisper-windows-x64.json`, vinculada ao pin exato.
 
 Whisper e Qwen permanecem runtimes isolados: esta retenção **não** reduz o PyAV do Qwen, que pode continuar em 19.x conforme seu próprio manifest. O gate de freshness audita pins de cada família separadamente para não converter isolamento de runtime em falso conflito global.
 
@@ -79,11 +79,11 @@ A exceção só pode ser removida quando uma versão posterior do Faster-Whisper
 A prontidão do Whisper possui dois níveis explícitos:
 
 - **transcrição normal:** mantém mínimo `1.1.4`; o runtime imutável `1.1.5` continua válido para jobs normais que já funcionavam;
-- **benchmark:** exige runtime **`>=1.1.6`**, porque esse é o primeiro artefato versionado depois da colisão em que dois builds diferentes foram publicados como `1.1.5`.
+- **benchmark:** exige runtime **`>=1.1.7`**. O `1.1.6` foi consumido pela correção de decoder #1234 e teve RC publicado antes do smoke de benchmark da #1233; reservar `1.1.7` evita uma nova colisão de identidade e garante que o candidato desta correção nasça sob o gate novo.
 
 A versão `1.1.5` nunca deve ser reconstruída, sobrescrita ou republicada com bytes novos. O reparo é sempre uma nova versão imutável. O Companion `0.3.18` anuncia `processing.benchmark.runtime-readiness-v2` e separa `ready` de `benchmark_ready`; consumidores antigos ou respostas sem esse contrato devem falhar fechados para benchmark, sem bloquear transcrição normal.
 
-A preparação iniciada pelo Benchmark usa `purpose=benchmark`. Ela pode reutilizar modelos/cache já íntegros, mas só considera o runtime pronto quando a versão ativa satisfaz o contrato de benchmark. Se a Stable ainda for `1.1.5`, o fluxo pode instalar um RC `1.1.6` publicado e verificado; isso não autoriza promovê-lo a Stable.
+A preparação iniciada pelo Benchmark usa `purpose=benchmark`. Ela pode reutilizar modelos/cache já íntegros, mas só considera o runtime pronto quando a versão ativa satisfaz o contrato de benchmark. Se a Stable ainda for `1.1.5`, o fluxo pode instalar um RC `1.1.7` publicado e verificado; isso não autoriza promovê-lo a Stable.
 
 O build do Whisper executa dois smokes no worker empacotado:
 
@@ -94,11 +94,11 @@ O segundo smoke deve alcançar `ready` e um erro de fonte controlado. `exit 64` 
 
 ### Migração e rollback
 
-A migração preserva `State`, `Data`, `Models` e caches; somente o runtime Whisper recebe uma nova identidade/version directory. O usuário pode continuar transcrevendo com `1.1.5` enquanto o benchmark estiver bloqueado e preparar `1.1.6` quando quiser executar o benchmark.
+A migração preserva `State`, `Data`, `Models` e caches; somente o runtime Whisper recebe uma nova identidade/version directory. O usuário pode continuar transcrevendo com `1.1.5` enquanto o benchmark estiver bloqueado e preparar `1.1.7` quando quiser executar o benchmark.
 
-Antes de promover `1.1.6` a Stable, o **archive/hash/source exatos** do RC precisam de aceite físico no Windows/GPU suportado e o benchmark real de 5 minutos deve completar os quatro perfis com lineage do runtime e GPU. CI e smoke sintético não substituem essa prova.
+Antes de promover `1.1.7` a Stable, o **archive/hash/source exatos** do RC precisam de aceite físico no Windows/GPU suportado e o benchmark real de 5 minutos deve completar os quatro perfis com lineage do runtime e GPU. CI e smoke sintético não substituem essa prova.
 
-Rollback nunca reutiliza o número `1.1.5`: se `1.1.6` falhar no aceite, não promover. Se já houver promoção e surgir regressão, selecionar deliberadamente o artefato Stable anterior conhecido, manter benchmark fail-closed quando o contrato não puder ser satisfeito e corrigir com **nova versão**. Não retaggear, rebuildar ou sobrescrever releases existentes.
+Rollback nunca reutiliza o número `1.1.5`: se `1.1.7` falhar no aceite, não promover. Se já houver promoção e surgir regressão, selecionar deliberadamente o artefato Stable anterior conhecido, manter benchmark fail-closed quando o contrato não puder ser satisfeito e corrigir com **nova versão**. Não retaggear, rebuildar ou sobrescrever releases existentes.
 ## Exceções
 
 Toda exceção precisa ser explícita e ter justificativa técnica ou legal. Exceções de dependência runtime devem ser machine-readable no manifest correspondente, vinculadas à versão pinada e rejeitadas automaticamente quando o pin divergir.
