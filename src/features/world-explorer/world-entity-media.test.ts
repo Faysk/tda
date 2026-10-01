@@ -61,6 +61,24 @@ describe("World entity media contract", () => {
 		).toBeNull();
 	});
 
+	it("keeps identical entity/hash identities isolated by stable campaign key", () => {
+		const campaignA = worldEntityPortraitObjectKey({
+			campaignSlug: "campaign-a",
+			entityId: ENTITY_ID,
+			sha256: SHA256,
+			extension: "webp",
+		});
+		const campaignB = worldEntityPortraitObjectKey({
+			campaignSlug: "campaign-b",
+			entityId: ENTITY_ID,
+			sha256: SHA256,
+			extension: "webp",
+		});
+		expect(campaignA).not.toBe(campaignB);
+		expect(campaignA).toContain("campaigns/campaign-a/");
+		expect(campaignB).toContain("campaigns/campaign-b/");
+	});
+
 	it("keeps browser uploads on unique pending keys instead of canonical portrait keys", () => {
 		expect(
 			worldEntityPortraitPendingObjectKey({

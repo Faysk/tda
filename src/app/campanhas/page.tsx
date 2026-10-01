@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { buildPublicMetadata } from "@/config/public-metadata";
 import { readPublicCampaignDirectory } from "@/features/campaigns/server";
@@ -41,7 +42,18 @@ export default async function CampaignDirectoryPage() {
 				<section className={styles.grid} aria-label="Campanhas públicas">
 					{result.campaigns.map((campaign) => (
 						<article className={styles.card} key={campaign.routeKey}>
-							<div>
+							{campaign.coverImage ? (
+								<div className={styles.cover}>
+									<Image
+										className={styles.coverImage}
+										src={campaign.coverImage}
+										alt={`Capa da campanha ${campaign.name}`}
+										fill
+										sizes="(max-width: 760px) 100vw, 50vw"
+									/>
+								</div>
+							) : null}
+							<div className={styles.cardCopy}>
 								<p className={styles.cardEyebrow}>Campanha</p>
 								<h2>{campaign.name}</h2>
 								<p>

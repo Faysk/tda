@@ -118,9 +118,12 @@ export async function readSessionPublicationContext(
 	};
 }
 
-function normalizeExistingPublicCover(reference: string): string | null {
+function normalizeExistingPublicCover(
+	reference: string,
+	campaignSlug: string,
+): string | null {
 	const raw = reference.trim();
-	if (!isExistingPublishedSessionCoverReference(raw)) return null;
+	if (!isExistingPublishedSessionCoverReference(raw, campaignSlug)) return null;
 	if (raw.startsWith("/assets/sessions/")) return "https://dnd.faysk.dev" + raw;
 	return raw;
 }
@@ -193,7 +196,10 @@ export async function prepareSessionCoverForPublication(input: {
 	campaignSlug: string;
 	coverReference: string;
 }): Promise<string | null> {
-	const existing = normalizeExistingPublicCover(input.coverReference);
+	const existing = normalizeExistingPublicCover(
+		input.coverReference,
+		input.campaignSlug,
+	);
 	if (existing) return existing;
 	if (!isSessionCoverUuid(input.coverReference)) return null;
 
@@ -278,6 +284,7 @@ export async function prepareSessionCoverForPublication(input: {
 
 export async function readCommittedSessionPublication(input: {
 	actorProfileId: string;
+	campaignId: string;
 	request: SessionPublicationRequest;
 }): Promise<
 	| Readonly<{
@@ -318,6 +325,7 @@ export async function readCommittedSessionPublication(input: {
 
 	if (
 		operation.actor_profile_id !== input.actorProfileId ||
+		operation.campaign_id !== input.campaignId ||
 		operation.session_id !== input.request.sessionId ||
 		operation.draft_id !== input.request.draftId ||
 		operation.expected_previous_publication_id !==
@@ -335,6 +343,7 @@ export async function readCommittedSessionPublication(input: {
 		.select("id,version,payload_sha256")
 		.eq("id", publicationId)
 		.eq("session_id", input.request.sessionId)
+		.eq("campaign_id", input.campaignId)
 		.maybeSingle();
 	if (publicationError || !publicationRaw)
 		return { ok: false, reason: "dependency_unavailable" };

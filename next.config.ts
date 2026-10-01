@@ -60,6 +60,13 @@ const config: NextConfig = {
 				protocol: "https",
 				hostname: "media.dnd.faysk.dev",
 				port: "",
+				pathname: "/campaigns/*/campaign/cover/**",
+				search: "",
+			},
+			{
+				protocol: "https",
+				hostname: "media.dnd.faysk.dev",
+				port: "",
 				pathname: "/lore/pipipi/**",
 				search: "",
 			},

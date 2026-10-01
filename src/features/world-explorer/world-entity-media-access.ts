@@ -5,6 +5,7 @@ import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { editDataClient } from "@/integrations/supabase/server";
 import { sanitizeWorldGraphDraft } from "./graph-contract";
+import { isWorldEntityMediaAssetId } from "./world-entity-media";
 import { isWorldCampaignSlug } from "./world-campaign";
 
 export type WorldEntityMediaAccessFailure =
@@ -12,12 +13,15 @@ export type WorldEntityMediaAccessFailure =
 	| "profile_unresolved"
 	| "forbidden"
 	| "dependency_unavailable"
-	| "lease_lost";
+	| "lease_lost"
+	| "not_found";
 
 export type AuthorizedWorldEntityMediaTarget = Readonly<{
 	authUserId: string;
 	profileId: string;
 	campaignId: string;
+	campaignSlug: string;
+	campaignTechnicalSlug: string;
 	client: SupabaseClient;
 }>;
 
@@ -103,6 +107,58 @@ export async function authorizeWorldEntityMediaTarget(
 			authUserId: authorization.authUserId,
 			profileId: authorization.profileId,
 			campaignId: campaign.id,
+			campaignSlug,
+			campaignTechnicalSlug: campaignSlug,
+			client,
+		},
+	};
+}
+
+
+export async function authorizeWorldEntityMediaAsset(
+	assetId: string,
+): Promise<
+	| Readonly<{ ok: true; target: AuthorizedWorldEntityMediaTarget }>
+	| Readonly<{ ok: false; reason: WorldEntityMediaAccessFailure }>
+> {
+	if (!isWorldEntityMediaAssetId(assetId))
+		return { ok: false, reason: "not_found" };
+
+	const client = editDataClient();
+	if (!client) return { ok: false, reason: "dependency_unavailable" };
+
+	const { data: asset, error: assetError } = await client
+		.from("media_assets")
+		.select("id,campaign_id")
+		.eq("id", assetId)
+		.maybeSingle();
+	if (assetError) return { ok: false, reason: "dependency_unavailable" };
+	if (!asset?.id || typeof asset.campaign_id !== "string")
+		return { ok: false, reason: "not_found" };
+
+	const { data: campaign, error: campaignError } = await client
+		.from("campaigns")
+		.select("slug")
+		.eq("id", asset.campaign_id)
+		.maybeSingle();
+	if (campaignError) return { ok: false, reason: "dependency_unavailable" };
+	if (!isWorldCampaignSlug(campaign?.slug))
+		return { ok: false, reason: "dependency_unavailable" };
+
+	const authorization = await authorizeCampaignCapabilityServer({
+		action: EDIT_CAPABILITIES.contentEdit,
+		campaignSlug: campaign.slug,
+	});
+	if (!authorization.ok) return authorization;
+
+	return {
+		ok: true,
+		target: {
+			authUserId: authorization.authUserId,
+			profileId: authorization.profileId,
+			campaignId: asset.campaign_id,
+			campaignSlug: campaign.slug,
+			campaignTechnicalSlug: campaign.slug,
 			client,
 		},
 	};

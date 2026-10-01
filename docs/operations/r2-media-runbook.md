@@ -88,6 +88,14 @@ Para pacotes completos, seguir [ZIP à produção](zip-to-production.md), inclui
 
 404 público não prova sozinho ausência no bucket. Não mascarar falha de origem adicionando um proxy. Mudança de DNS/domínio ou purge só após identificar o caminho afetado.
 
+## Operação multi-campaign
+
+Para mídia campaign-owned nova, confirme antes de escrever que o owner relacional (`campaigns.id`) e o `campaignMediaKey` estável (`campaigns.slug`) pertencem à mesma campaign. Não use `name`, `public_slug`, query string ou header do browser como autoridade de storage.
+
+Session cover resolve o owner pela session; World portrait pelo lease/asset; campaign cover pelo UUID da campaign com autorização do Registry. Um objeto só pode ser exposto publicamente após read-back do staging e GET do domínio público com MIME, bytes e SHA coerentes. Falha de R2/CDN mantém o candidato sem URL pública e permite retry.
+
+Rollback é por referência: restaure/remova o binding ou publication pointer anterior. Não delete objetos imutáveis como parte do rollback. `campaigns/yuhara-main/...` continua suportado; rename de `public_slug` não implica movimentação de bytes.
+
 ## Execução recuperável
 
 Registrar resultado por arquivo a cada fase. Após interrupção, revalidar os objetos já enviados e retomar apenas o que falta; não sobrescrever por nome. Colisão ou hash divergente interrompe o item. Manter fonte, master e referência anterior até o aceite.
