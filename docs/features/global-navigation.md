@@ -62,7 +62,8 @@ A referência de organização é o modelo mental de app launcher do Google: gri
 | grid icon-first + camadas tonais | integrado | #1190 / PR #1193 |
 | scroll/foco/motion de utilitário | integrado | #1191 / PR #1193 |
 | gates do launcher seccionado | ativo | #1192 / PR #1193 / `tests/global-navigation.spec.ts` |
-| navegação campaign-aware + contexto explícito do Edit | candidato | #1136 / PR #1239 |
+| auth-unavailable + descoberta de Lores pelo launcher | ativo no candidato | #1231 / PR #1241 / `tests/auth.spec.ts` + `tests/pipipi-cinematic.spec.ts` |
+| navegação campaign-aware + contexto explícito do Edit | integrado em `main` | #1136 / PR #1239 |
 
 Merge em `main` não prova publicação por si só; produção continua dependendo do pipeline e dos receipts operacionais vigentes.
 
