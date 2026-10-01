@@ -295,8 +295,11 @@ jobs:
           set -euo pipefail
           vercel curl /api/health --deployment "$DEPLOYMENT_URL" > health.json
           vercel curl /api/version --deployment "$DEPLOYMENT_URL" > version.json
-          vercel curl / --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
-          vercel curl /sessoes --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          node tools/ci/public-release-smoke.mjs \
+            --base-url "$DEPLOYMENT_URL" \
+            --source-sha "$SOURCE_SHA" \
+            --phase staged \
+            --transport vercel
           vercel curl /lore/yllith --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/astel --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
@@ -334,6 +337,7 @@ jobs:
           NODE
 
       - name: Promote the tested artifact
+        id: promote
         env:
           DEPLOYMENT_URL: ${{ steps.stage.outputs.url }}
         run: vercel promote "$DEPLOYMENT_URL" --yes --timeout=5m --token="$VERCEL_TOKEN"
@@ -355,8 +359,11 @@ jobs:
             throw new Error("Transcript publication runtime is not enabled in canonical Production");
           }
           NODE
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
-            --output /dev/null "$PRODUCTION_ORIGIN/"
+          node tools/ci/public-release-smoke.mjs \
+            --base-url "$PRODUCTION_ORIGIN" \
+            --source-sha "$SOURCE_SHA" \
+            --phase canonical \
+            --transport http
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
             --output /dev/null "$PRODUCTION_ORIGIN/lore/pipipi"
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
@@ -378,6 +385,25 @@ jobs:
             exit 1
           fi
 
+      - name: Record post-promotion recovery action
+        if: ${{ failure() && steps.promote.outcome == 'success' }}
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          DEPLOYMENT_URL: ${{ steps.stage.outputs.url }}
+        run: |
+          set -euo pipefail
+          RECOVERY_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          {
+            echo "### Production recovery required"
+            echo
+            echo "- Source SHA: \`$SOURCE_SHA\`"
+            echo "- Promoted deployment: $DEPLOYMENT_URL"
+            echo "- Detected at: \`$RECOVERY_AT\`"
+            echo "- Action: follow docs/operations/release-runbook.md#11-rollback and restore the previous healthy application deployment before retrying."
+            echo "- Database and Media Storage remain non-destructive; do not delete or roll them back automatically."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Post-promotion verification failed for $SOURCE_SHA. Recover using docs/operations/release-runbook.md#11-rollback."
       - name: Record tiny release receipt
         shell: bash
         env:
@@ -405,7 +431,7 @@ jobs:
           - Canonical production: $PRODUCTION_ORIGIN
           - Migrations applied: \`$MIGRATIONS\`
           - Changed media publication lifecycle: \`$MEDIA\`
-          - Staged + canonical smoke: PASS
+          - Staged + canonical semantic public smoke: PASS
           EOF
 
           if gh release view "$RELEASE_ID" >/dev/null 2>&1; then
