@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Metadata } from "next";
+import Link from "next/link";
 import { cache } from "react";
 import { buildPublicMetadata } from "@/config/public-metadata";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
@@ -104,6 +105,21 @@ export async function WorldCampaignPage({
 				<p className={styles.eyebrow}>{campaign.name}</p>
 				<h1>Ecos da Jornada</h1>
 				<p>O Mundo desta campanha ainda não possui conteúdo público.</p>
+				{switchOptions.length > 1 ? (
+					<nav className={styles.emptyCampaignSwitch} aria-label="Trocar campanha do Mundo">
+						{switchOptions.map((option) =>
+							option.current ? (
+								<span key={option.key} aria-current="page">
+									{option.name}
+								</span>
+							) : (
+								<Link key={option.key} href={option.href}>
+									Abrir {option.name}
+								</Link>
+							),
+						)}
+					</nav>
+				) : null}
 			</main>
 		);
 	}
