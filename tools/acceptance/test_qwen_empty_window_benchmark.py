@@ -214,6 +214,40 @@ class QwenEmptyWindowAcceptanceTests(unittest.TestCase):
         self.assertEqual(failed["classification"], "empty_recognition_with_signal")
         self.assertNotIn("audio", failed["diagnostics"][0])
 
+    def test_later_unrelated_failure_is_not_misclassified_as_silence(self):
+        supervisor = FakeSupervisor(
+            {
+                "qwen-fast": (
+                    [
+                        {
+                            "code": "QWEN_WINDOW_SILENCE_CONFIRMED",
+                            "stage": "transcription",
+                            "track": 1,
+                            "window": 1,
+                            "completed_window_count": 1,
+                            "start_seconds": 0.0,
+                            "end_seconds": 240.0,
+                            "sample_count": 3_840_000,
+                            "peak_dbfs": -120.0,
+                            "rms_dbfs": -120.0,
+                            "silence_peak_threshold_dbfs": -84.0,
+                            "silence_rms_threshold_dbfs": -90.0,
+                        }
+                    ],
+                    WorkerFailure("QWEN_ALIGNMENT_REQUIRED"),
+                ),
+                "qwen-quality": benchmark("qwen-quality"),
+            }
+        )
+
+        receipt = self.run_acceptance(supervisor)
+
+        failed = receipt["profiles"][0]
+        self.assertEqual(failed["classification"], "other_failure")
+        self.assertEqual(failed["error_code"], "QWEN_ALIGNMENT_REQUIRED")
+        self.assertFalse(failed["diagnostic_complete"])
+        self.assertFalse(receipt["stable_promotion_eligible"])
+
     def test_wrong_runtime_version_fails_before_worker_execution(self):
         supervisor = FakeSupervisor(
             {
