@@ -25,6 +25,7 @@ export async function preflightSessionCampaignMove(
 	const { data, error } = await client.rpc("preflight_session_campaign_move", {
 		p_actor_profile_id: actorProfileId,
 		p_session_id: input.sessionId,
+		p_source_session_id: input.sourceSessionId,
 		p_source_campaign_slug: input.sourceCampaignSlug,
 		p_destination_campaign_slug: input.destinationCampaignSlug,
 	});
@@ -55,6 +56,7 @@ export async function persistSessionCampaignMove(
 		p_operation_id: input.operationId,
 		p_actor_profile_id: actorProfileId,
 		p_session_id: input.sessionId,
+		p_source_session_id: input.sourceSessionId,
 		p_source_campaign_slug: input.sourceCampaignSlug,
 		p_destination_campaign_slug: input.destinationCampaignSlug,
 	});
