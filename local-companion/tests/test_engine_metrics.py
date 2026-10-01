@@ -40,6 +40,16 @@ def test_actual_engines_include_same_prepare_load_boundary(tmp_path, monkeypatch
         clock[0] += seconds
         return result
     package, root = _package(tmp_path)
+    monkeypatch.setattr(
+        qwen,
+        "_qwen_window_signal_diagnostics",
+        lambda _audio: {
+            "sample_count": 320,
+            "peak_dbfs": -20.0,
+            "rms_dbfs": -30.0,
+            "confidently_silent": False,
+        },
+    )
     monkeypatch.setattr(whisper, "prepare_whisper_model", lambda *a, **k: advance(10, tmp_path))
     class Whisper:
         def transcribe(self, *_args, **_kwargs):
