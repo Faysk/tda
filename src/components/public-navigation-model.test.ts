@@ -82,6 +82,10 @@ describe("global navigation model", () => {
 				"Transcrições",
 			],
 			[
+				"/edit/processamento?campanha=antes-que-seja-tarde",
+				"Processar",
+			],
+			[
 				"/edit/antes-que-seja-tarde/permissions",
 				"Permissões",
 			],
