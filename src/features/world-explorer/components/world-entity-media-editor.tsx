@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Progress } from "@/components/ui";
 import { worldEntityMediaAvailabilityAction } from "../world-entity-media-availability-action";
+import { worldEditLeaseStorageKey } from "../world-campaign";
 import {
 	finalizeWorldEntityPortraitUploadAction,
 	requestWorldEntityPortraitUploadAction,
@@ -15,8 +16,6 @@ import {
 } from "../world-entity-media";
 import type { WorldGraphDraftNode, WorldMediaFocalPoint } from "../model";
 import styles from "./world-entity-media-editor.module.css";
-
-const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
 
 type WorldMediaUploadPhase =
 	| "idle"
@@ -64,15 +63,18 @@ function failureMessage(reason: string): string {
 }
 
 export function WorldEntityMediaEditor({
+	campaignSlug,
 	entity,
 	onChange,
 	onFocalPointChange,
 }: {
+	campaignSlug: string;
 	entity: WorldGraphDraftNode;
 	onChange: (assetId: string | null) => void;
 	onFocalPointChange: (focalPoint: WorldMediaFocalPoint) => void;
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
+	const leaseStorageKey = worldEditLeaseStorageKey(campaignSlug);
 	const [available, setAvailable] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [dragging, setDragging] = useState(false);
@@ -106,7 +108,7 @@ export function WorldEntityMediaEditor({
 		setUploadPhase("idle");
 		setUploadedChunks(0);
 		setTotalChunks(0);
-		const leaseToken = window.sessionStorage.getItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		const leaseToken = window.sessionStorage.getItem(leaseStorageKey);
 		if (!leaseToken) {
 			setError("A sessão de edição não está ativa. Reabra Conduzir antes de enviar a imagem.");
 			return;
@@ -133,6 +135,7 @@ export function WorldEntityMediaEditor({
 				bytes: file.size,
 			};
 			const requested = await requestWorldEntityPortraitUploadAction(
+				campaignSlug,
 				leaseToken,
 				entity.id,
 				intent,
@@ -155,6 +158,7 @@ export function WorldEntityMediaEditor({
 					method: "PUT",
 					headers: {
 						"Content-Type": "application/octet-stream",
+						"X-TDA-World-Campaign": campaignSlug,
 						"X-TDA-World-Lease": leaseToken,
 						"X-TDA-World-Entity": entity.id,
 						"X-TDA-Upload-Id": requested.uploadId,
@@ -178,6 +182,7 @@ export function WorldEntityMediaEditor({
 			setUploadPhase("finalizing");
 			setStatus("Validando bytes e registrando o asset…");
 			const finalized = await finalizeWorldEntityPortraitUploadAction(
+				campaignSlug,
 				leaseToken,
 				entity.id,
 				requested.uploadId,
