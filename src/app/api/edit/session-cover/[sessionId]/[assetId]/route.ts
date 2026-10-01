@@ -48,7 +48,7 @@ export async function GET(
 	if (!isSessionCoverUuid(sessionId) || !isSessionCoverUuid(assetId))
 		return unavailable();
 
-	const access = await authorizeSessionCoverTarget(sessionId);
+	const access = await authorizeSessionCoverTarget(CAMPAIGN_SLUG, sessionId);
 	if (!access.ok) {
 		const status =
 			access.reason === "unauthenticated"
