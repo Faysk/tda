@@ -18,7 +18,11 @@ export default async function CampaignDirectoryPage() {
 	const result = await readPublicCampaignDirectory();
 
 	return (
-		<main className={styles.page} data-layout-family="editorial">
+		<main
+			className={styles.page}
+			data-layout-family="editorial"
+			data-campaign-registry={result.ok ? result.registryMode : "unavailable"}
+		>
 			<header className={styles.header}>
 				<p className={styles.eyebrow}>TDA · campanhas</p>
 				<h1>Mesas que viraram memória</h1>
