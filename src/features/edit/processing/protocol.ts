@@ -21,9 +21,9 @@ export type TranscriptionProfileState = {
 	ready: boolean;
 	preparationRequired: boolean;
 	reason: string | null;
-	benchmarkReady: boolean;
-	benchmarkPreparationRequired: boolean;
-	benchmarkReason: string | null;
+	benchmarkReady?: boolean;
+	benchmarkPreparationRequired?: boolean;
+	benchmarkReason?: string | null;
 	model?: string | null;
 	modelRevision?: string | null;
 	runtimeVersion?: string | null;
