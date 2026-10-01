@@ -277,6 +277,45 @@
 	overflow-wrap: anywhere;
 }
 
+.runtimeRecovery {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-width: 0;
+	padding: 10px;
+	border: 1px solid color-mix(in srgb, var(--ds-warning) 42%, var(--ds-border));
+	border-radius: var(--ds-radius-md);
+	background: color-mix(in srgb, var(--ds-canvas-subtle) 90%, var(--ds-warning) 10%);
+}
+
+.runtimeRecoveryCopy {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+}
+
+.runtimeRecoveryCopy strong {
+	color: var(--ds-foreground);
+	font-size: 0.78rem;
+}
+
+.runtimeRecoveryCopy span,
+.runtimeRecoveryCopy small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.runtimeRecoveryCopy small {
+	font-family: var(--ds-font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+}
+
+.runtimeRecovery :global(.ds-action) {
+	flex: 0 0 auto;
+}
+
 .actionBand {
 	display: flex;
 	align-items: center;
@@ -559,6 +598,7 @@
 
 	.actionBand,
 	.preparationStatus,
+	.runtimeRecovery,
 	.activeActions,
 	.qualityNotice {
 		align-items: stretch;
@@ -624,6 +664,7 @@
 
 	.primaryActions,
 	.primaryActions :global(.ds-action),
+	.runtimeRecovery :global(.ds-action),
 	.activeActions,
 	.activeActions :global(.ds-action),
 	.problemCard :global(.ds-action) {
