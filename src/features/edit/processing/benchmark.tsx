@@ -99,6 +99,8 @@ function bridgeMessage(error: unknown, fallback: string): string {
 				"O benchmark precisa de pelo menos 5:00 reais em todas as tracks desta fonte.",
 			BENCHMARK_PROFILES_NOT_READY:
 				"Um ou mais perfis deixaram de estar prontos. Atualize a prontidão antes de tentar novamente.",
+			BENCHMARK_PROFILE_EVIDENCE_INVALID:
+				"Um perfil terminou sem provar o runtime e a GPU usados. O resultado não foi aceito; execute o diagnóstico antes de tentar novamente.",
 			WHISPER_BENCHMARK_RUNTIME_REQUIRED:
 				"O Whisper Runtime instalado transcreve normalmente, mas precisa ser atualizado para executar benchmark.",
 			BENCHMARK_RESOURCE_BUSY:
