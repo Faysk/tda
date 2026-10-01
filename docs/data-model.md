@@ -152,6 +152,14 @@ Regra: **fonte → candidato → revisão → memória/publicação**. Nada deve
 
 Essas tabelas registram pipeline e retenção. O reboot não deve reativar retenção cloud de áudio bruto.
 
+### Mídia campaign-owned
+
+`media_assets.campaign_id` é o owner relacional de assets campaign-owned. A key R2 usa o technical slug estável de `campaigns.slug` como `campaignMediaKey`; `name` e `public_slug` não participam do endereço físico.
+
+`campaign_media_bindings` associa roles semânticas da própria campaign a `media_assets` usando FK composta `(campaign_id, asset_id)`, impedindo binding de asset pertencente a outra campaign. O primeiro role materializado é `cover` → `campaign_cover`. Rebinding/removal não apaga asset nem objeto R2; rollback preserva bytes imutáveis.
+
+Assets públicos exigem evidência de read-back e delivery verificado. Campaign privada pode possuir asset staged sem URL pública. O namespace legado `campaigns/yuhara-main/...` permanece válido e não é reescrito por rename editorial ou de rota pública.
+
 ### Lembra
 
 `lembra_references` continua uma biblioteca visual **global entre usuários autenticados**. A classificação opcional `campaign_id` é metadata de organização:
