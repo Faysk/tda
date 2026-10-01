@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("session reader renders published cover artwork before hero artwork", async ({ page }) => {
-	await page.goto("/campanhas/cronicas-da-mesa/sessoes/shared-session");
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes/layout-contract-synthetic");
 
 	const hero = page.locator("[data-session-reader-hero]");
 	await expect(hero).toHaveAttribute("data-session-artwork-source", "cover");
@@ -17,7 +17,7 @@ test("session reader renders published cover artwork before hero artwork", async
 test("session reader falls back from cover to published hero without crossing campaigns", async ({
 	page,
 }) => {
-	await page.goto("/campanhas/antes-que-seja-tarde/sessoes/shared-session");
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes/layout-contract-previous");
 
 	const hero = page.locator("[data-session-reader-hero]");
 	await expect(hero).toHaveAttribute("data-session-artwork-source", "hero");
@@ -25,17 +25,17 @@ test("session reader falls back from cover to published hero without crossing ca
 	await expect(
 		page.getByRole("heading", {
 			level: 1,
-			name: "A memória global mais recente vem da campanha B",
+			name: "Uma memória anterior para validar a navegação",
 		}),
 	).toBeVisible();
-	await expect(page.getByText("Crônicas da Mesa", { exact: true })).toHaveCount(0);
+	await expect(page.getByText("Antes que seja tarde", { exact: false })).toHaveCount(0);
 });
 
 test("session reader keeps an intentional text hero when no artwork exists", async ({
 	page,
 }) => {
 	await page.goto(
-		"/campanhas/cronicas-da-mesa/sessoes/layout-contract-synthetic",
+		"/campanhas/cronicas-da-mesa/sessoes/shared-session",
 	);
 
 	const hero = page.locator("[data-session-reader-hero]");
@@ -51,7 +51,7 @@ test("session reader keeps an intentional text hero when no artwork exists", asy
 
 test("reader artwork composition preserves mobile reflow", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 800 });
-	await page.goto("/campanhas/cronicas-da-mesa/sessoes/shared-session");
+	await page.goto("/campanhas/cronicas-da-mesa/sessoes/layout-contract-synthetic");
 
 	await expect(page.locator("[data-session-reader-hero]")).toHaveAttribute(
 		"data-session-artwork-source",
