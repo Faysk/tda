@@ -29,7 +29,7 @@ export async function authorizeSessionCoverTarget(
 > {
 	const access = await authorizeCampaignCapabilityServer({
 		action: EDIT_CAPABILITIES.contentEdit,
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug,
 	});
 	if (!access.ok) return access;
 
@@ -40,7 +40,7 @@ export async function authorizeSessionCoverTarget(
 		.from("sessions")
 		.select("id,campaign_id,campaigns!inner(slug)")
 		.eq("id", sessionId)
-		.eq("campaigns.slug", CAMPAIGN_SLUG)
+		.eq("campaigns.slug", campaignSlug)
 		.maybeSingle();
 	if (error) return { ok: false, reason: "dependency_unavailable" };
 	if (!data?.id || !data.campaign_id)
