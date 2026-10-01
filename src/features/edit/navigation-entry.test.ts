@@ -28,7 +28,7 @@ function context(
 describe("legacy /edit compatibility destination", () => {
 	it("keeps the historical redirect priority explicit and campaign-qualified", () => {
 		expect(EDIT_ENTRY_PRIORITY.map((entry) => entry.href)).toEqual([
-			"/edit/sessoes?campanha=yuhara-main",
+			"/edit/yuhara-main/sessoes",
 			"/edit/processamento?campanha=yuhara-main",
 			"/mundo?campanha=yuhara-main",
 			"/edit/revisao?campanha=yuhara-main",
@@ -39,7 +39,7 @@ describe("legacy /edit compatibility destination", () => {
 	it.each([
 		[
 			EDIT_CAPABILITIES.transcriptRead,
-			"/edit/sessoes?campanha=yuhara-main",
+			"/edit/yuhara-main/sessoes",
 		],
 		[
 			EDIT_CAPABILITIES.localProcess,
@@ -65,7 +65,7 @@ describe("legacy /edit compatibility destination", () => {
 				second,
 				now,
 			),
-		).toBe("/transcricoes?campanha=antes-que-seja-tarde");
+		).toBe("/edit/antes-que-seja-tarde/sessoes");
 		expect(
 			firstAuthorizedEditDestination(
 				context([EDIT_CAPABILITIES.permissionsManage], second),
@@ -117,7 +117,7 @@ describe("legacy /edit compatibility destination", () => {
 				"yuhara-main",
 				now,
 			),
-		).toBe("/edit/sessoes?campanha=yuhara-main");
+		).toBe("/edit/yuhara-main/sessoes");
 	});
 
 	it("does not redirect unrelated grants into an unauthorized tool", () => {
