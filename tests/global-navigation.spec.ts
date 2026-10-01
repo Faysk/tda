@@ -58,7 +58,7 @@ async function mockAccess(
 	const capabilities = options.capabilities ?? [];
 	const campaigns =
 		options.campaigns ??
-		(authenticated
+		(authenticated && capabilities.length > 0
 			? [
 					{
 						technicalSlug: "yuhara-main",
