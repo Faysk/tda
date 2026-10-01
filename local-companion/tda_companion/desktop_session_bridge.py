@@ -727,12 +727,8 @@ class SessionDesktopBridge(DesktopBridge):
             raise self._friendly_network_error(exc) from None
 
     def rollback_whisper_runtime(self, version: str) -> dict[str, object]:
-        if self._agent_preparation_active():
-            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_TRANSCRIPTION_PREPARATION")
-        try:
-            return super().rollback_whisper_runtime(version)
-        except NetworkError as exc:
-            raise self._friendly_network_error(exc) from None
+        # The Agent owns the atomic dispatch/preparation/job fence for rollback.
+        return super().rollback_whisper_runtime(version)
 
     def check_qwen_runtime(self) -> dict[str, object]:
         try:
