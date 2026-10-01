@@ -370,11 +370,7 @@ test("lore catalogue covers stay fetchable, canonical and decodable on mobile an
 			expect(assetResponse.headers()["content-type"], assetUrl).toMatch(/^image\//);
 		}
 
-		const pipipiImage = page
-			.locator("article")
-			.filter({ has: page.locator('a[href="/lore/pipipi"]') })
-			.locator("img")
-			.first();
+		const pipipiImage = page.locator('article[data-lore="pipipi"] img').first();
 		await expect(pipipiImage).toBeAttached();
 		const pipipiSource = await pipipiImage.evaluate((node) => {
 			const img = node as HTMLImageElement;
