@@ -256,11 +256,13 @@ test("logs only sanitized SHA, route, result and time metadata, never response b
 
 test("workflow keeps semantic staged smoke before promote and records post-promote recovery", () => {
   const workflow = fs.readFileSync(".github/workflows/production-cd.yml", "utf8");
-  const staged =
-    workflow.indexOf('node tools/ci/public-release-smoke.mjs --base-url "$DEPLOYMENT_URL"');
-  const promote = workflow.indexOf('id: promote');
-  const canonical =
-    workflow.indexOf('node tools/ci/public-release-smoke.mjs --base-url "$PRODUCTION_ORIGIN"');
+  const staged = workflow.search(
+    /node tools\/ci\/public-release-smoke\.mjs[\s\\]+--base-url "\$DEPLOYMENT_URL"/u,
+  );
+  const promote = workflow.indexOf("id: promote");
+  const canonical = workflow.search(
+    /node tools\/ci\/public-release-smoke\.mjs[\s\\]+--base-url "\$PRODUCTION_ORIGIN"/u,
+  );
   const recovery = workflow.indexOf("Record post-promotion recovery action");
 
   assert.ok(staged >= 0, "staged semantic smoke must be wired");
