@@ -407,6 +407,7 @@ export function SessionEditorialE2EFixture({
 						sourceLabel: "Revisão privada sintética · r1",
 					}}
 					editorial={{
+						campaignSlug: "yuhara-main",
 						editable,
 						initial: {
 							...initialDraft,

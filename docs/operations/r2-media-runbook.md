@@ -173,3 +173,12 @@ Verificar:
 - social/crawler quando aplicável.
 
 Rollback preserva a referência anterior e aborta se houver edição concorrente. Upload aditivo não exige apagar o objeto para desfazer o consumo.
+
+
+## 2026-10-01 — live audit and campaign preparation
+
+Read-only inspection confirmed the three expected buckets, active TLS/custom domain for public media, no public custom domains on private/preview, and r2.dev disabled on all three. Lifecycle only aborts incomplete multipart uploads after seven days; it does not expire stored assets. No CORS rules are configured; same-origin session uploads do not require broad bucket CORS.
+
+All 64 existing manifest assets passed anonymous GET, byte length, MIME and SHA-256 verification. `verify-public.mjs` now verifies canonical-r2 entries directly without requiring a retired repository source. This proves existing public delivery, not permission for arbitrary future writes. The release pipeline independently checks private/public bucket access using GitHub-managed credentials.
+
+Campaign cover and scoped session upload contracts are described in [the media pipeline](../integrations/r2/media-pipeline.md). No per-campaign buckets, paid transformations, audio uploads or destructive object moves were introduced.

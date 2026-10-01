@@ -214,7 +214,7 @@ describe("supported Edit session library thumbnails", () => {
 		expect(result).toHaveLength(1);
 		expect(result[0]?.thumbnail).toEqual({
 			kind: "private",
-			src: `/api/edit/session-cover/${sessionId}/${coverId}`,
+			src: `/api/edit/session-cover/${sessionId}/${coverId}?campaign=yuhara-main`,
 		});
 		const sessionSelect = calls.find(
 			(call) => call.table === "sessions" && call.method === "select",

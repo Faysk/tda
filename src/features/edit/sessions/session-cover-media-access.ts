@@ -24,6 +24,7 @@ export type AuthorizedSessionCoverTarget = Readonly<{
 
 export async function authorizeSessionCoverTarget(
 	sessionId: string,
+	expectedCampaignSlug = "yuhara-main",
 ): Promise<
 	| Readonly<{ ok: true; target: AuthorizedSessionCoverTarget }>
 	| Readonly<{ ok: false; reason: SessionCoverMediaAccessFailure }>
@@ -34,7 +35,7 @@ export async function authorizeSessionCoverTarget(
 	} catch {
 		return { ok: false, reason: "dependency_unavailable" };
 	}
-	if (!sessionCampaign || sessionCampaign.lifecycle !== "active")
+	if (!sessionCampaign || sessionCampaign.lifecycle !== "active" || sessionCampaign.technicalSlug !== expectedCampaignSlug)
 		return { ok: false, reason: "not_found" };
 
 	const access = await authorizeCampaignCapabilityServer({

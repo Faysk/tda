@@ -153,3 +153,16 @@ Uma evidência pode ser um relatório gerado anexado à entrega, sem segredos, c
 - [R2: custos e franquias](https://developers.cloudflare.com/r2/pricing/).
 
 Consultar novamente ao mudar integração ou tomar decisão de custo. Franquia gratuita não significa limite automático de gasto.
+
+
+## 2026-10-01 — implemented campaign ownership (#1135)
+
+The immutable `campaigns.slug` is the stable media key. Public route renames and display-name changes do not move bytes. New campaign art uses `campaigns/<technicalSlug>/cover/<sha256>/<filename>`; session and entity art retain their existing subnamespaces. Legacy `yuhara-main` objects remain in place. Standalone lore and global Lembra are unchanged.
+
+Session upload, finalize, status, private preview, draft save and publication reauthorize the real session owner. The browser sends campaign context; a mismatched session/campaign is rejected before storage access. Missing context is supported only for the historical campaign. Public cover references are validated against that same expected technical identity; legacy unscoped URLs are never accepted for another campaign.
+
+Campaign cover preparation uses `tools/media/campaign-cover.mjs`: full PNG/WebP decode, unchanged original bytes, immutable private master, exact master read-back, shared public publisher/read-back and anonymous delivery. It emits a candidate binding containing campaign UUID + immutable technical slug + image evidence. Promotion into `src/config/published-campaign-media.json` is reviewed separately; the directory accepts only the matching two-part identity and verified public evidence. The empty initial registry means no campaign cover was invented or published by this implementation.
+
+Operational invocation uses an isolated local workspace outside Git and explicitly authorized GitHub Environment credentials: `node tools/media/campaign-cover.mjs --publish --source <prepared-image> --workspace <isolated-directory> --campaign-id <uuid> --technical-slug <immutable-key>`. Review the candidate and visual consumer, then promote only metadata. No private bytes or credentials belong in Git. Rollback restores the prior binding without deleting objects.
+
+Synthetic gates exercise same bytes/hash in A/B namespaces, private master read-back, full decode failure, delivery failure, wrong campaign binding and legacy session compatibility. These are automated contract tests, not evidence of a new live cover upload.

@@ -5,6 +5,7 @@ export const CAMPAIGN_VISIBILITIES = ["public", "private"] as const;
 export type CampaignVisibility = (typeof CAMPAIGN_VISIBILITIES)[number];
 
 export type PublicCampaign = Readonly<{
+	cover?: Readonly<{ url: string; width: number; height: number }>;
 	routeKey: string;
 	name: string;
 	description: string | null;

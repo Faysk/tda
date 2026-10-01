@@ -72,3 +72,18 @@ test("public verification remains fail-closed when canonical delivery fails", as
 		/public media verification failed.*HTTP 403/,
 	);
 });
+
+
+test("canonical R2 sources are verified remotely without a repository master", async () => {
+ const { root, bytes } = await fixture();
+ const path = join(root, "media/manifests/example.json");
+ const manifest = JSON.parse(await readFile(path, "utf8"));
+ manifest.schemaVersion = 2;
+ const asset = manifest.assets[0];
+ delete asset.source; delete asset.encoding;
+ Object.assign(asset, { sourceMode: "canonical-r2", publicationReceipt: "docs/media-receipt.md", canonicalVerifiedAt: "2026-10-01T00:00:00Z" });
+ await writeFile(path, JSON.stringify(manifest));
+ const receipt = await verifyPublicAll({ repoRoot: root, attempts: 1, fetchImpl: async () => new Response(bytes, { headers: { "content-type": "image/webp" } }) });
+ assert.equal(receipt.summary.verified, 1);
+ await assert.rejects(verifyPublicAll({ repoRoot: root, attempts: 1, fetchImpl: async () => new Response(Buffer.alloc(bytes.length), { headers: { "content-type": "image/webp" } }) }), /sha256 mismatch/);
+});

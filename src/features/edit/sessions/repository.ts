@@ -100,16 +100,17 @@ function toLibrarySeed(row: SessionRow): SessionLibrarySeed | null {
 	};
 }
 
-function publicThumbnail(reference: string | null): SessionLibraryThumbnail | null {
-	if (!reference || !isExistingPublishedSessionCoverReference(reference)) return null;
+function publicThumbnail(reference: string | null, campaignSlug: string): SessionLibraryThumbnail | null {
+	if (!reference || !isExistingPublishedSessionCoverReference(reference, campaignSlug)) return null;
 	return { src: reference, kind: "public" };
 }
 
 function privateThumbnail(
 	sessionId: string,
 	assetId: string,
+	campaignSlug: string,
 ): SessionLibraryThumbnail | null {
-	const src = sessionCoverPreviewUrl(sessionId, assetId);
+	const src = sessionCoverPreviewUrl(sessionId, assetId, campaignSlug);
 	return src ? { src, kind: "private" } : null;
 }
 
@@ -214,12 +215,12 @@ export async function listEditSessionLibrary(
 			const draftCover = cleanReference(draft.cover_asset_id);
 			if (draftCover && isSessionCoverUuid(draftCover)) {
 				if (readablePrivateAssets.has(draftCover))
-					thumbnail = privateThumbnail(seed.sessionId, draftCover);
+					thumbnail = privateThumbnail(seed.sessionId, draftCover, campaignSlug);
 			} else {
-				thumbnail = publicThumbnail(draftCover);
+				thumbnail = publicThumbnail(draftCover, campaignSlug);
 			}
 		}
-		thumbnail ??= publicThumbnail(seed.publicCoverReference);
+		thumbnail ??= publicThumbnail(seed.publicCoverReference, campaignSlug);
 		return { ...seed.item, thumbnail };
 	});
 }

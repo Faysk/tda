@@ -5,7 +5,6 @@ import {
 	isSessionCoverUuid,
 	sessionCoverObjectKey,
 } from "@/features/edit/sessions/session-cover-media";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { inspectWorldEntityImage } from "@/features/world-explorer/world-entity-media-image";
 import {
 	readWorldEntityMediaObject,
@@ -36,7 +35,7 @@ function unavailable(status = 404): Response {
 }
 
 export async function GET(
-	_request: Request,
+	request: Request,
 	{
 		params,
 	}: {
@@ -48,7 +47,7 @@ export async function GET(
 	if (!isSessionCoverUuid(sessionId) || !isSessionCoverUuid(assetId))
 		return unavailable();
 
-	const access = await authorizeSessionCoverTarget(sessionId);
+	const access = await authorizeSessionCoverTarget(sessionId, new URL(request.url).searchParams.get("campaign") ?? "yuhara-main");
 	if (!access.ok) {
 		const status =
 			access.reason === "unauthenticated"
@@ -88,7 +87,7 @@ export async function GET(
 
 		const extension = asset.mime_type === "image/png" ? "png" : "webp";
 		const expectedKey = sessionCoverObjectKey({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: access.target.campaignSlug,
 			sessionId,
 			sha256: asset.sha256,
 			extension,

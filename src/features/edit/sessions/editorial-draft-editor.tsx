@@ -30,6 +30,7 @@ export type SessionEditorialDraftEditorTransport = Readonly<{
 
 type Props = Readonly<{
 	sessionId: string;
+	campaignSlug: string;
 	initial: SessionEditorialDraft;
 	initialPublication: SessionPublicationState;
 	editable: boolean;
@@ -87,6 +88,7 @@ function fieldCount(value: string): number {
 
 export function SessionEditorialDraftEditor({
 	sessionId,
+	campaignSlug,
 	initial,
 	initialPublication,
 	editable,
@@ -436,6 +438,7 @@ export function SessionEditorialDraftEditor({
 					<div className={draftStyles.coverField}>
 						<span className={styles.fieldLabel}>Capa</span>
 						<CoverEditor
+							campaignSlug={campaignSlug}
 							disabled={!editable}
 							onChange={(coverAssetId) =>
 								setFields((current) => ({ ...current, coverAssetId }))

@@ -104,7 +104,7 @@ export async function verifyPublicAll({
 
 	for (const manifest of manifests) {
 		for (const asset of manifest.assets) {
-			await readAssetBytes(asset);
+			if (asset.sourceMode !== "canonical-r2") await readAssetBytes(asset);
 			const delivery = await verifyPublicDelivery(asset, { fetchImpl, attempts });
 			receipt.assets.push({
 				project: manifest.project,

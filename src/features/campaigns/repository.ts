@@ -1,4 +1,5 @@
 import "server-only";
+import { verifiedCampaignCover } from "./media";
 import { randomUUID } from "node:crypto";
 import { cache } from "react";
 import { LEGACY_CAMPAIGN_NAME, LEGACY_CAMPAIGN_PUBLIC_SLUG, LEGACY_CAMPAIGN_TECHNICAL_SLUG } from "@/features/sessions/model";
@@ -48,6 +49,8 @@ function parsePublicCampaign(row: Record<string, unknown>): PublicCampaign | nul
 		routeKey,
 		name,
 		description: stringOrNull(row.description),
+		...(typeof row.id === "string" && typeof row.slug === "string" && verifiedCampaignCover(row.id, row.slug)
+			? { cover: verifiedCampaignCover(row.id, row.slug) } : {}),
 	};
 }
 
@@ -230,7 +233,7 @@ export async function readPublicCampaignDirectory(): Promise<CampaignDirectoryRe
 
 	const { data, error } = await client
 		.from("campaigns")
-		.select("public_slug,name,description")
+		.select("id,slug,public_slug,name,description")
 		.eq("lifecycle", "active")
 		.eq("visibility", "public")
 		.not("public_slug", "is", null)

@@ -188,6 +188,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 					draft
 						? {
 								editable: canEdit,
+								campaignSlug,
 								initial: draft,
 								initialPublication: {
 									currentPublicationId:

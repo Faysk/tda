@@ -48,6 +48,7 @@ export type SessionCoverUploadState = Readonly<{
 
 type Props = Readonly<{
 	sessionId: string;
+	campaignSlug: string;
 	value: string;
 	disabled?: boolean;
 	onChange: (value: string) => void;
@@ -72,9 +73,9 @@ function formatBytes(bytes: number): string {
 	return `${Math.max(1, Math.round(bytes / 1024))} KiB`;
 }
 
-function safeExistingCoverUrl(value: string): string | undefined {
+function safeExistingCoverUrl(value: string, campaignSlug: string): string | undefined {
 	const raw = value.trim();
-	return isExistingPublishedSessionCoverReference(raw) ? raw : undefined;
+	return isExistingPublishedSessionCoverReference(raw, campaignSlug) ? raw : undefined;
 }
 
 function failureMessage(reason: string): string {
@@ -97,6 +98,7 @@ function failureMessage(reason: string): string {
 
 export function SessionCoverEditor({
 	sessionId,
+	campaignSlug,
 	value,
 	disabled = false,
 	onChange,
@@ -127,8 +129,8 @@ export function SessionCoverEditor({
 
 	const privateAsset = isSessionCoverUuid(value);
 	const previewUrl = privateAsset
-		? sessionCoverPreviewUrl(sessionId, value)
-		: safeExistingCoverUrl(value);
+		? sessionCoverPreviewUrl(sessionId, value, campaignSlug)
+		: safeExistingCoverUrl(value, campaignSlug);
 
 	useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -150,7 +152,7 @@ export function SessionCoverEditor({
 		let active = true;
 		setMetadata(null);
 		if (!privateAsset) return () => {};
-		void getSessionCoverAssetStatusAction(sessionId, value)
+		void getSessionCoverAssetStatusAction(sessionId, value, campaignSlug)
 			.then((result) => {
 				if (!active) return;
 				if (!result.ok) {
@@ -174,7 +176,7 @@ export function SessionCoverEditor({
 		return () => {
 			active = false;
 		};
-	}, [privateAsset, sessionId, value]);
+	}, [privateAsset, sessionId, value, campaignSlug]);
 
 	async function upload(file: File) {
 		if (disabled || busy) return;
@@ -204,7 +206,7 @@ export function SessionCoverEditor({
 			const intent = { sha256, mimeType, bytes: file.size };
 
 			setStatus("Preparando upload privado…");
-			const requested = await requestSessionCoverUploadAction(sessionId, intent);
+			const requested = await requestSessionCoverUploadAction(sessionId, intent, campaignSlug);
 			if (!requested.ok) {
 				reportUploadState({ phase: "error", progress: null });
 				setStatus(null);
@@ -224,6 +226,7 @@ export function SessionCoverEditor({
 					headers: {
 						"Content-Type": "application/octet-stream",
 						"X-TDA-Session": sessionId,
+						"X-TDA-Campaign": campaignSlug,
 						"X-TDA-Upload-Id": requested.uploadId,
 						"X-TDA-Content-SHA256": sha256,
 						"X-TDA-Total-Bytes": String(file.size),
@@ -248,6 +251,7 @@ export function SessionCoverEditor({
 				sessionId,
 				requested.uploadId,
 				intent,
+				campaignSlug,
 			);
 			if (!finalized.ok) {
 				reportUploadState({ phase: "error", progress: null });

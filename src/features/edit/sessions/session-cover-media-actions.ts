@@ -140,6 +140,7 @@ export async function sessionCoverMediaAvailabilityAction(): Promise<boolean> {
 export async function requestSessionCoverUploadAction(
 	sessionId: string,
 	intent: SessionCoverUploadIntent,
+	campaignSlug = "yuhara-main",
 ): Promise<
 	| Readonly<{ ok: true; uploadId: string; chunkBytes: number }>
 	| Readonly<{ ok: false; reason: SessionCoverUploadFailure }>
@@ -149,7 +150,7 @@ export async function requestSessionCoverUploadAction(
 	if (!isSessionCoverUuid(sessionId) || !isSessionCoverIntent(intent))
 		return { ok: false, reason: "invalid_payload" };
 
-	const authorization = await authorizeSessionCoverTarget(sessionId);
+	const authorization = await authorizeSessionCoverTarget(sessionId, campaignSlug);
 	if (!authorization.ok) return authorization;
 
 	return {
@@ -163,6 +164,7 @@ export async function finalizeSessionCoverUploadAction(
 	sessionId: string,
 	uploadId: string,
 	intent: SessionCoverUploadIntent,
+	campaignSlug = "yuhara-main",
 ): Promise<
 	| Readonly<{
 			ok: true;
@@ -184,7 +186,7 @@ export async function finalizeSessionCoverUploadAction(
 	)
 		return { ok: false, reason: "invalid_payload" };
 
-	const authorization = await authorizeSessionCoverTarget(sessionId);
+	const authorization = await authorizeSessionCoverTarget(sessionId, campaignSlug);
 	if (!authorization.ok) return authorization;
 
 	try {
@@ -224,6 +226,7 @@ export async function finalizeSessionCoverUploadAction(
 export async function getSessionCoverAssetStatusAction(
 	sessionId: string,
 	assetId: string,
+	campaignSlug = "yuhara-main",
 ): Promise<
 	| Readonly<{
 			ok: true;
@@ -242,7 +245,7 @@ export async function getSessionCoverAssetStatusAction(
 	if (!isSessionCoverUuid(sessionId) || !isSessionCoverUuid(assetId))
 		return { ok: false, reason: "invalid_payload" };
 
-	const authorization = await authorizeSessionCoverTarget(sessionId);
+	const authorization = await authorizeSessionCoverTarget(sessionId, campaignSlug);
 	if (!authorization.ok) return authorization;
 
 	const { data, error } = await authorization.target.client

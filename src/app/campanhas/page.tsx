@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { buildPublicMetadata } from "@/config/public-metadata";
 import { readPublicCampaignDirectory } from "@/features/campaigns/server";
 import styles from "./page.module.css";
@@ -42,6 +43,7 @@ export default async function CampaignDirectoryPage() {
 					{result.campaigns.map((campaign) => (
 						<article className={styles.card} key={campaign.routeKey}>
 							<div>
+								{campaign.cover ? <Image className={styles.cover} src={campaign.cover.url} width={campaign.cover.width} height={campaign.cover.height} sizes="(max-width: 700px) 100vw, 480px" alt={`Capa de ${campaign.name}`} /> : null}
 								<p className={styles.cardEyebrow}>Campanha</p>
 								<h2>{campaign.name}</h2>
 								<p>

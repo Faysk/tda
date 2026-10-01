@@ -127,3 +127,5 @@
 		padding: 22px;
 	}
 }
+
+.cover { display: block; width: 100%; height: auto; margin-bottom: 20px; border-radius: var(--ds-radius-lg); }

@@ -28,6 +28,7 @@ const config: NextConfig = {
 	poweredByHeader: false,
 	images: {
 		remotePatterns: [
+			{ protocol: "https", hostname: "media.dnd.faysk.dev", port: "", pathname: "/campaigns/*/cover/**", search: "" },
 			{
 				protocol: "https",
 				hostname: "cdn.discordapp.com",

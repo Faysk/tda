@@ -117,8 +117,26 @@ describe("session cover media contract", () => {
 
 	it("binds private preview URL to both session and asset", () => {
 		expect(sessionCoverPreviewUrl(sessionId, uploadId)).toBe(
-			`/api/edit/session-cover/${sessionId}/${uploadId}`,
+			`/api/edit/session-cover/${sessionId}/${uploadId}?campaign=yuhara-main`,
 		);
 		expect(sessionCoverPreviewUrl("wrong", uploadId)).toBeUndefined();
 	});
+});
+
+
+describe("campaign media isolation", () => {
+ it("keeps identical session/hash inputs in distinct campaign namespaces", () => {
+  const input = { sessionId, sha256, extension: "webp" as const };
+  const a = sessionCoverObjectKey({ ...input, campaignSlug: "campaign-a" });
+  const b = sessionCoverObjectKey({ ...input, campaignSlug: "campaign-b" });
+  expect(a).not.toBe(b);
+  const url = "https://media.dnd.faysk.dev/" + b;
+  expect(isExistingPublishedSessionCoverReference(url, "campaign-b")).toBe(true);
+  expect(isExistingPublishedSessionCoverReference(url, "campaign-a")).toBe(false);
+  expect(isExistingPublishedSessionCoverReference("/assets/sessions/legacy.webp", "campaign-b")).toBe(false);
+ });
+ it("binds previews to explicit campaign context", () => {
+  expect(sessionCoverPreviewUrl(sessionId, uploadId, "campaign-b")).toContain("?campaign=campaign-b");
+  expect(sessionCoverPreviewUrl(sessionId, uploadId, "../wrong")).toBeUndefined();
+ });
 });

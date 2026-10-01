@@ -199,3 +199,10 @@ Depois da ativação:
 - archived é usado para desativar operação sem hard delete;
 - public route alias permanece resolvível;
 - correção de schema é forward-only conforme runbook.
+
+
+## 2026-10-01 — delivery candidate
+
+The pre-registry compatibility path now exposes only the known historical campaign when the database specifically reports missing registry columns. Permission errors, timeouts and other schema failures remain unavailable. Registry activation is prepared in the three current-timestamp migrations documented in [migrations](../database/migrations.md); live completion is recorded separately.
+
+Directory cards can consume an optional verified cover projection (URL, dimensions), resolved internally from the campaign UUID and immutable technical key. IDs, grants and operational metadata are not returned in the public projection. The promotion registry starts empty until real artwork passes preparation/read-back, public delivery and visual review.
