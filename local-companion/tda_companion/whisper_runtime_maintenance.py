@@ -34,9 +34,26 @@ def _version(value: object) -> tuple[int, int, int]:
 
 
 def _ready_current_version(runtime_root: Path) -> str:
-    state = inspect_whisper_runtime(runtime_root, verify_worker=True)
-    version = state.get("version")
-    if state.get("status") != "ready" or not isinstance(version, str):
+    # Rollback inspection is deliberately read-only. The normal runtime inspector
+    # may reseal benign metadata drift for an active runtime; recovery must not
+    # mutate versioned evidence while deciding whether it is safe to switch.
+    parent = whisper_root(runtime_root)
+    try:
+        selector = json.loads((parent / "current.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise WhisperRuntimeMaintenanceError(
+            "WHISPER_RUNTIME_ROLLBACK_CURRENT_INVALID"
+        ) from exc
+    version = selector.get("version") if isinstance(selector, dict) else None
+    if (
+        not isinstance(selector, dict)
+        or selector.get("schema") != RUNTIME_SCHEMA
+        or selector.get("runtime_id") != WHISPER_RUNTIME_ID
+        or not isinstance(version, str)
+    ):
+        raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_CURRENT_INVALID")
+    _version(version)
+    if not _preserved_candidate(whisper_version_root(runtime_root, version), version):
         raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_CURRENT_INVALID")
     return version
 
