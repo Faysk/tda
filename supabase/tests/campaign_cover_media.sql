@@ -145,11 +145,37 @@ begin
     raise exception 'same-hash A/B storage namespaces were not preserved';
   end if;
 end;
-$$;
+$;
+
+-- Rollback/replacement is a pointer operation: removing Campaign A's cover
+-- binding must leave its immutable media asset available for audit/rebind.
+delete from public.campaign_media_bindings
+where campaign_id = '11111111-1111-4111-8111-111111111111'
+  and role = 'cover';
+
+do $
+begin
+  if exists (
+    select 1 from public.campaign_media_bindings
+    where campaign_id = '11111111-1111-4111-8111-111111111111'
+      and role = 'cover'
+  ) then
+    raise exception 'campaign cover rollback must remove only the semantic binding';
+  end if;
+
+  if not exists (
+    select 1 from public.media_assets
+    where id = '53535353-5353-4535-8535-535353535353'
+      and campaign_id = '11111111-1111-4111-8111-111111111111'
+  ) then
+    raise exception 'campaign cover rollback unexpectedly deleted the immutable asset';
+  end if;
+end;
+$;
 
 delete from public.campaign_media_bindings;
 delete from public.media_assets;
 delete from public.campaigns
 where id = '52525252-5252-4525-8525-525252525252';
 
-select 'CAMPAIGN_COVER_MEDIA_DATABASE_OK synthetic=true rls=true cross_campaign_binding=true same_hash_namespaces=true';
+select 'CAMPAIGN_COVER_MEDIA_DATABASE_OK synthetic=true rls=true cross_campaign_binding=true same_hash_namespaces=true pointer_rollback=true';
