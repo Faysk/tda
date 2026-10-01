@@ -139,13 +139,6 @@ jobs:
             exit 1
           }
 
-          RC_PREFIX="companion-qwen-runtime-rc-v$RUNTIME_VERSION-"
-          if gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,isDraft,isPrerelease \
-            --jq ".[] | select(.tagName | startswith(\"$RC_PREFIX\")) | .tagName" | grep -q .; then
-            echo "::error::QWEN_RUNTIME_RC_VERSION_ALREADY_PUBLISHED:$RUNTIME_VERSION"
-            exit 1
-          fi
-
           WORKFLOW_STATE="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW" --jq .state)"
           case "$WORKFLOW_STATE" in
             active)
