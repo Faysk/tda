@@ -62,6 +62,20 @@ _ALIGNMENT_DIAGNOSTICS = (
     "aligned_word_count",
     "owned_word_count",
 )
+_QWEN_EMPTY_WINDOW_SIGNAL = (
+    "stage",
+    "track",
+    "total_tracks",
+    "window",
+    "completed_window_count",
+    "start_seconds",
+    "end_seconds",
+    "sample_count",
+    "peak_dbfs",
+    "rms_dbfs",
+    "silence_peak_threshold_dbfs",
+    "silence_rms_threshold_dbfs",
+)
 
 EVENT_SCHEMAS: dict[str, EventSchema] = {
     "ASR_EXECUTION_DEVICE": _schema("stage", "device", "kind", "logical_index", "physical_uuid", "pci_bus_id", required=("stage", "device", "kind")),
@@ -160,6 +174,15 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         *_TRACK, "window", "completed_window_count", "start_seconds", "end_seconds",
         required=("stage", "track", "total_tracks", "speaker", "window"),
     ),
+    "QWEN_WINDOW_SILENCE_CONFIRMED": _schema(
+        *_QWEN_EMPTY_WINDOW_SIGNAL,
+        required=_QWEN_EMPTY_WINDOW_SIGNAL,
+    ),
+    "QWEN_WINDOW_EMPTY_ASR_REJECTED": _schema(
+        *_QWEN_EMPTY_WINDOW_SIGNAL,
+        required=_QWEN_EMPTY_WINDOW_SIGNAL,
+        level="warning",
+    ),
     "ASR_TEXT_CHECKPOINT_SAVED": _schema(
         *_TRACK, required=("stage", "track")
     ),
@@ -219,7 +242,7 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
 _POSITIVE_INT_FIELDS = frozenset(
     {
         "track", "total_tracks", "segment", "attempt",
-        "track_count", "count",
+        "track_count", "count", "sample_count",
     }
 )
 _NONNEGATIVE_INT_FIELDS = frozenset(
@@ -244,6 +267,14 @@ _SIGNED_SECONDS_FIELDS = frozenset({"relative_start_seconds", "relative_end_seco
 _TOKEN_FIELDS = frozenset({"profile", "device", "compute_type"})
 _RUNTIME_FIELDS = frozenset({"runtime_version", "source_runtime_version"})
 _HASH_FIELDS = frozenset({"worker_sha256", "source_signature_sha256"})
+_DBFS_FIELDS = frozenset(
+    {
+        "peak_dbfs",
+        "rms_dbfs",
+        "silence_peak_threshold_dbfs",
+        "silence_rms_threshold_dbfs",
+    }
+)
 
 
 def _safe_text(value: object, maximum: int) -> str | None:
@@ -291,6 +322,11 @@ def _sanitize_field(key: str, value: object) -> Scalar | None:
         if isinstance(value, bool) or not isinstance(value, int):
             return None
         return value if 0 <= value <= _MAX_BYTES else None
+    if key in _DBFS_FIELDS:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        number = float(value)
+        return value if math.isfinite(number) and -240 <= number <= 60 else None
     if key == "duration_ms":
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             return None
