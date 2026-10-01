@@ -462,6 +462,62 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await expect(diagnosticsButton).toBeFocused();
 });
 
+test("Whisper 1.1.5 stays transcription-ready but requires benchmark preparation", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		whisperBenchmarkRuntimeUpgradeRequired: true,
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel).toContainText("2 / 4 perfis prontos para benchmark");
+	await expect(
+		panel.getByText("Whisper Runtime precisa ser atualizado para benchmark."),
+	).toHaveCount(2);
+
+	await chooseZip(panel);
+	await analyze(panel);
+	const prepare = panel.getByRole("button", {
+		name: /Preparar 2 perfis pendentes/u,
+	});
+	await expect(prepare).toBeEnabled();
+	await prepare.click();
+
+	await expect.poll(() => state.preparationPostCount).toBe(2);
+	await expect(panel).toContainText("4 / 4 perfis prontos para benchmark");
+	await expect(
+		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toBeEnabled();
+	expect(state.jobPostCount).toBe(0);
+});
+
+test("benchmark fails closed when Companion lacks the runtime-readiness-v2 contract", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		benchmarkReadinessContract: false,
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel).toContainText("0 / 4 perfis prontos para benchmark");
+	await expect(panel).toContainText(
+		"Atualize o Companion para habilitar o contrato de prontidão do benchmark.",
+	);
+	await chooseZip(panel);
+	await analyze(panel);
+	await expect(
+		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toHaveCount(0);
+	expect(state.preparationPostCount).toBe(0);
+	expect(state.jobPostCount).toBe(0);
+});
+
 test("short Craig sample is rejected during preflight before preparation or queueing", async ({
 	page,
 }) => {

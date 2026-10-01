@@ -1262,4 +1262,41 @@ describe("wire validation", () => {
 			),
 		).toThrow();
 	});
+
+	it("marks benchmark preparation with an explicit purpose without changing normal preparation", async () => {
+		const sourceId = "craig-" + "e".repeat(64);
+		const preparation = {
+			schema: "tda_profile_preparation_v1",
+			state: "running",
+			active: true,
+			operation_id: "d".repeat(32),
+			source_id: sourceId,
+			profile_id: "whisper-turbo",
+			engine: "whisper",
+			stage: "runtime",
+			title: "Preparando runtime…",
+			detail: "",
+			sequence: 1,
+			elapsed_seconds: 0,
+			error_code: null,
+		};
+		const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(preparation));
+		const bridge = new LocalBridge(request);
+		bridge.pair(token);
+
+		await bridge.prepareProfile(sourceId, "whisper-turbo", signal());
+		await bridge.prepareProfile(sourceId, "whisper-turbo", signal(), "benchmark");
+
+		expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({
+			source_id: sourceId,
+			profile_id: "whisper-turbo",
+		});
+		expect(JSON.parse(String(request.mock.calls[1]?.[1]?.body))).toEqual({
+			source_id: sourceId,
+			profile_id: "whisper-turbo",
+			purpose: "benchmark",
+		});
+		bridge.disconnect();
+	});
+
 });
