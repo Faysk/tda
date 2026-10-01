@@ -255,14 +255,28 @@ O staged deployment não recebe tráfego do domínio oficial antes do smoke.
 
 ## Verificação canônica
 
-Após promote:
+O gate de conteúdo público é semântico e roda duas vezes: no deployment staged antes
+do promote e novamente no domínio canônico depois do promote. Ele não transforma
+`/api/health` em health check de banco.
+
+Contrato vigente:
+
+- `/`, `/campanhas`, `/sessoes` e `/campanhas/sessoes` precisam responder com conteúdo utilizável, não apenas HTTP 2xx;
+- `/sessoes` deve seguir redirect e terminar exatamente em `/campanhas/sessoes`;
+- estados conhecidos de indisponibilidade em HTML, mesmo com HTTP 200, bloqueiam a release;
+- arquivo legitimamente vazio é aceito somente pelo estado público explícito de vazio; falha de dependência nunca é tratada como vazio;
+- `/campanhas` precisa declarar `data-campaign-registry="canonical"` ou o fallback conhecido `legacy`; estado ausente/desconhecido/unavailable bloqueia a release. `legacy` só prova a compatibilidade estreita de #1225 e **não** autoriza ativar consumidor que dependa do registry first-class;
+- quando há sessão publicada, o gate descobre um link público no próprio arquivo e verifica a página final pelos marcadores públicos do reader, sem registrar corpo, resumo ou transcrição;
+- cada resultado registra somente source SHA, fase, rota, resultado e horário UTC, mais código/estado sanitizado quando necessário.
+
+Após promote, a verificação continua exigindo:
 
 - `health.ok=true`;
 - `health.environment=production`;
 - `health.commit=<SHA esperado>`;
 - `version.commit=<SHA esperado>`;
 - `version.release=<release esperado>`;
-- raiz responde.
+- smoke semântico público canônico aprovado.
 
 ## Receipt
 
@@ -313,12 +327,18 @@ Secrets condicionais só são exigidos quando seu lifecycle é necessário.
 
 ## Rollback
 
-Rollback da aplicação:
+Falha do smoke semântico **antes** de `vercel promote` aborta a release e deixa o
+alias/domínio oficial no deployment anterior. O staged rejeitado pode ser
+investigado sem mover tráfego.
+
+Se qualquer verificação falhar **depois** de um promote concluído, o workflow
+registra no step summary uma ação de recuperação com source SHA, deployment
+promovido, horário UTC e referência ao runbook. A recuperação da aplicação é:
 
 ```text
 identificar deployment anterior saudável
  -> promover/rollback
- -> verificar canonical health/version
+ -> verificar canonical health/version + smoke semântico público
  -> corrigir em branch
  -> PR main
  -> nova Production
