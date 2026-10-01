@@ -177,12 +177,17 @@ test("aggregate and campaign-scoped session archives expose distinct product sco
 		"href",
 		"/campanhas",
 	);
-	await expect(page.getByText("Crônicas da Mesa", { exact: false }).first()).toBeVisible();
 	await expect(
-		page.getByText(
-			"Antes que seja tarde — uma campanha com nome deliberadamente comprido",
-			{ exact: false },
-		).first(),
+		page.locator('[data-session-card]').filter({ hasText: "Crônicas da Mesa" }).first(),
+	).toBeVisible();
+	await expect(
+		page
+			.locator('[data-session-card]')
+			.filter({
+				hasText:
+					"Antes que seja tarde — uma campanha com nome deliberadamente comprido",
+			})
+			.first(),
 	).toBeVisible();
 
 	await page.goto("/campanhas/cronicas-da-mesa/sessoes");
