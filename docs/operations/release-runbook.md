@@ -94,12 +94,12 @@ a promoção só continua quando não houver drift nos inputs que alteram os byt
 contrato do componente. Esta exceção não muda a política normal RC → aceite físico →
 Stable das demais releases.
 
-### Whisper Runtime 1.1.6 / Benchmark — #1233
+### Whisper Runtime 1.1.7 / Benchmark — #1233
 
 Para o reparo do contrato de benchmark do Whisper:
 
 1. `1.1.5` é histórico imutável. Não sobrescrever tag, release ou archive, mesmo que exista build posterior com o mesmo número.
-2. O candidato corrigido deve usar versão nova (`1.1.6` neste ciclo), source SHA e archive SHA exatos.
+2. O candidato corrigido deve usar versão nova (`1.1.7` neste ciclo), source SHA e archive SHA exatos.
 3. O workflow de build precisa passar o smoke do comando de benchmark empacotado; rejeição de protocolo/exit 64 é bloqueante.
 4. Publicar RC não implica Stable. Executar aceite físico do **mesmo archive** no Windows/GPU suportado.
 5. O aceite final deve executar a mesma amostra local de 5 minutos nos quatro perfis e preservar receipts/lineage com runtime worker hash, runtime version e GPU observada, sem publicar áudio/transcrição privada.
