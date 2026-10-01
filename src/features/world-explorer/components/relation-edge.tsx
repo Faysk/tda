@@ -4,6 +4,7 @@ import {
 	BaseEdge,
 	EdgeLabelRenderer,
 	getBezierPath,
+	ViewportPortal,
 	type EdgeProps,
 	useInternalNode,
 } from "@xyflow/react";
@@ -162,9 +163,10 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 		? STYLE_DASHES[customStyle.lineStyle]
 		: RELATION_DASHES[family];
 
-	// Chrome has been unreliable painting the native React Flow edge SVG in this
-	// composition. Keep the hit target there, but paint the visible curve in the
-	// same transformed layer as labels, which is proven stable in both themes.
+	// Keep the native edge as the interaction target, but paint the visible curve
+	// in React Flow's viewport portal. ViewportPortal shares the exact node/edge
+	// coordinate system and pan/zoom transform; EdgeLabelRenderer is reserved for
+	// the counter-scaled HTML label that intentionally sits above the SVG world.
 	const paintPadding = Math.max(120, routeOffset * 3, Math.abs(bendOffset) + 80);
 	const paintLeft = Math.min(sourceX, targetX) - paintPadding;
 	const paintTop = Math.min(sourceY, targetY) - paintPadding;
@@ -184,7 +186,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 					strokeOpacity: 0,
 				}}
 			/>
-			<EdgeLabelRenderer>
+			<ViewportPortal>
 				<svg
 					viewBox={`${paintLeft} ${paintTop} ${paintWidth} ${paintHeight}`}
 					width={paintWidth}
@@ -197,6 +199,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						pointerEvents: "none",
 					}}
 					aria-hidden="true"
+					data-world-edge-layer="viewport"
 				>
 					{semantic.showHalo ? (
 						<path
@@ -245,6 +248,8 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						/>
 					) : null}
 				</svg>
+			</ViewportPortal>
+			<EdgeLabelRenderer>
 				{item && semantic.showLabel ? (
 					<div
 						className={`${styles.edgeLabel} ${active ? styles.edgeLabelHighlighted : ""}`}
