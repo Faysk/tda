@@ -43,7 +43,7 @@ test("home aggregates campaigns with scoped links and readable campaign identity
 	});
 	await expect(heroLink).toHaveAttribute(
 		"href",
-		"/campanhas/campanha-b/sessoes/shared-session",
+		"/campanhas/antes-que-seja-tarde/sessoes/shared-session",
 	);
 
 	await expect(
