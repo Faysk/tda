@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import zipfile
 from pathlib import Path
 
@@ -218,8 +219,10 @@ def test_preserved_candidate_metadata_drift_fails_without_rewriting_marker(tmp_p
     worker = runtime_root / "whisper" / "1.1.5" / "TDAWhisperWorker.exe"
     marker_before = marker_path.read_bytes()
     stat_before = worker.stat()
-    worker.touch()
-    assert worker.stat().st_mtime_ns != stat_before.st_mtime_ns
+    os.utime(
+        worker,
+        ns=(stat_before.st_atime_ns, stat_before.st_mtime_ns + 1_000_000),
+    )
 
     assert list_whisper_runtime_rollback_candidates(runtime_root) == []
     assert marker_path.read_bytes() == marker_before
@@ -247,18 +250,23 @@ def test_failed_post_switch_verification_restores_previous_selector(
     _install(tmp_path / "old.zip", runtime_root, "1.1.5", b"old-worker")
     _install(tmp_path / "new.zip", runtime_root, "1.1.8", b"new-worker")
 
-    real_inspect = maintenance_module.inspect_whisper_runtime
+    real_ready = maintenance_module._ready_current_version
     calls = 0
 
-    def fail_once_after_switch(root: Path, *, verify_worker: bool = False):
+    def fail_once_after_switch(root: Path):
         nonlocal calls
         calls += 1
-        state = real_inspect(root, verify_worker=verify_worker)
-        if calls == 2 and state.get("version") == "1.1.5":
-            return {"status": "corrupt", "version": "1.1.5", "worker": None}
-        return state
+        if calls == 2:
+            raise WhisperRuntimeMaintenanceError(
+                "WHISPER_RUNTIME_ROLLBACK_CURRENT_INVALID"
+            )
+        return real_ready(root)
 
-    monkeypatch.setattr(maintenance_module, "inspect_whisper_runtime", fail_once_after_switch)
+    monkeypatch.setattr(
+        maintenance_module,
+        "_ready_current_version",
+        fail_once_after_switch,
+    )
 
     with pytest.raises(
         WhisperRuntimeMaintenanceError,
@@ -275,4 +283,4 @@ def test_failed_post_switch_verification_restores_previous_selector(
         (runtime_root / "whisper" / "current.json").read_text(encoding="utf-8")
     )
     assert selector["version"] == "1.1.8"
-    assert real_inspect(runtime_root, verify_worker=True)["version"] == "1.1.8"
+    assert real_ready(runtime_root) == "1.1.8"
