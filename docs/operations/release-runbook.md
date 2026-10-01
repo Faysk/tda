@@ -200,6 +200,14 @@ Não existe rollback automático destrutivo. Avaliar compatibilidade e migration
 
 Restaurar referência anterior quando necessário. Objetos imutáveis podem permanecer para cache/auditoria/rollback. Não apagar objeto como primeira resposta.
 
+### Runtime Whisper — contenção palavra/segmento (#1235)
+
+Mudança no adapter Whisper faz parte dos bytes do worker e exige versão/tag/asset novos; nunca substituir um archive já publicado sob a mesma versão. O candidato só pode ser promovido quando o archive exato também incorporar uma fronteira de decode compatível (#1234), passar os gates sintéticos e concluir os dois perfis Whisper no sample e na transcrição integral física exigidos por #1235. CI/package sem GPU não substitui esse receipt.
+
+O receipt de aceite deve ligar source SHA, versão do runtime, SHA-256 do archive/worker, Faster-Whisper/CTranslate2/decoder efetivos, GPU/driver, perfil e contagens/tempos agregados. O diagnóstico `WHISPER_SEGMENT_SPAN_WIDENED` pode registrar somente limites/deltas numéricos sanitizados; texto, nomes e paths não entram na evidência publicada.
+
+Rollback seleciona um runtime Whisper anterior **já publicado e compatível** e preserva Models/Data/runs. Não reescrever um run concluído e não relaxar o contrato `tda_transcript_v1` para tornar um artefato novo legível. Se o candidato falhar contenção, duração, ordering, dedup, turns ou integridade de run, abortar a promoção e corrigir por nova versão imutável.
+
 ## 12. Abortar quando
 
 - CI do SHA exato está vermelha;
