@@ -1,6 +1,5 @@
 import "server-only";
 
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 import type { SessionEditorialDraft, SessionEditorialDraftInput } from "./editorial-draft-model";
 
@@ -42,6 +41,7 @@ function requiredId(value: unknown): string | null {
 }
 
 export async function readSessionEditorialDraft(
+	campaignSlug: string,
 	sessionId: string,
 ): Promise<SessionEditorialDraft | null> {
 	const client = editDataClient();
