@@ -107,6 +107,8 @@ jobs:
             'contains_source_id = $false',
             'TDA_ASR_RUNTIME_ARTIFACT',
             'runtime_archive_sha256',
+            'WHISPER_1235_RUN_TRANSCRIPT_HASH_MISMATCH',
+            'InitialTranscriptSha256',
             'source_sha = [string]$runtime.Candidate.source_sha',
             'faster_whisper = [string]$runtime.Build.packages."faster-whisper"',
             'ctranslate2 = [string]$runtime.Build.packages.ctranslate2',
