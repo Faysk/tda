@@ -4,9 +4,12 @@ test("World Explorer uses organic bezier geometry for visible relations", async 
 	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
-	const edge = page
-		.locator('.react-flow__edgelabel-renderer [data-world-edge][data-edge-curve="bezier"]')
-		.first();
+	const edgeLayer = page.locator(
+		'.react-flow__viewport svg[data-world-edge-layer="viewport"]',
+	).first();
+	await expect(edgeLayer).toBeVisible();
+
+	const edge = edgeLayer.locator('[data-world-edge][data-edge-curve="bezier"]').first();
 	await expect(edge).toBeVisible();
 
 	const geometry = await edge.evaluate((element) => {
@@ -18,6 +21,7 @@ test("World Explorer uses organic bezier geometry for visible relations", async 
 		};
 	});
 
+	await expect(edgeLayer).toHaveAttribute("data-world-edge-layer", "viewport");
 	expect(geometry.d).toContain("C");
 	expect(geometry.length).toBeGreaterThan(20);
 	expect(geometry.strokeLinecap).toBe("round");
