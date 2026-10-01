@@ -47,7 +47,10 @@ export function queueRetryAvailable(job: LocalJob): boolean {
 	return (
 		(job.status === "failed" || job.status === "interrupted") &&
 		job.error?.recoverable === true &&
-		job.error.code !== "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"
+		!(
+			job.error.code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN" &&
+			job.context?.profileId === "qwen-fast"
+		)
 	);
 }
 
