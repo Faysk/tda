@@ -19,6 +19,7 @@ from tda_companion.asr_whisper import (
 )
 from tda_companion.craig import CraigPackage, CraigPackageError, CraigTrack
 from tda_companion.transcript import TranscriptTrack, TranscriptValidationError
+from tda_companion.transcription_runs import load_run, write_completed_run
 
 
 def _install_whisper_fixture(models_root: Path, profile_id: str = "whisper-turbo") -> Path:
@@ -1016,3 +1017,28 @@ def test_whisper_widened_segment_flows_through_dedup_and_turns(tmp_path: Path):
         and item.get("segment") == 1
         for item in reports
     )
+
+    first_manifest = write_completed_run(
+        package_root,
+        document,
+        job_id="containment-first",
+        attempt=1,
+    )
+    first_root = package_root / "runs" / first_manifest["run_id"]
+    first_transcript = first_root / "transcript.json"
+    first_bytes = first_transcript.read_bytes()
+    verified = load_run(package_root, first_manifest["run_id"], verify_content=True)
+    assert verified["transcript_sha256"] == first_manifest["transcript_sha256"]
+    assert (first_root / "run.json").is_file()
+
+    second_manifest = write_completed_run(
+        package_root,
+        document,
+        job_id="containment-second",
+        attempt=1,
+    )
+    assert second_manifest["run_id"] != first_manifest["run_id"]
+    assert first_transcript.read_bytes() == first_bytes
+    assert load_run(package_root, first_manifest["run_id"], verify_content=True)[
+        "transcript_sha256"
+    ] == first_manifest["transcript_sha256"]
