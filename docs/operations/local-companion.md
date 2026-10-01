@@ -339,7 +339,7 @@ pwsh -File local-companion/packaging/run-whisper-craig-containment-acceptance.ps
   -RuntimeCandidateManifest "<TDARuntime-candidate.json>"
 ```
 
-O único arquivo destinado a compartilhamento é `whisper-1235-acceptance.json`. Ele contém versão/tag/hash do runtime, GPU/driver, contagens e tempos agregados, quantidade de widenings e no máximo 32 exemplos **numéricos** de limites relativos. O harness descarta stderr e mensagens brutas do worker, não grava `source_id`, áudio, transcrição, speaker nem caminhos locais.
+O único arquivo destinado a compartilhamento é `<candidate-tag>.whisper-1235.json`. Ele contém versão/tag/hash do runtime, GPU/driver, contagens e tempos agregados, quantidade de widenings e no máximo 32 exemplos **numéricos** de limites relativos. O harness descarta stderr e mensagens brutas do worker, não grava `source_id`, áudio, transcrição, speaker nem caminhos locais.
 
 Rollback volta para um runtime Whisper anterior já publicado e compatível, preservando Models/Data e sem converter artefatos canônicos. Um rollback não autoriza desabilitar `TranscriptDocument.validate()`, remover palavras, clipar timestamps nem regravar runs imutáveis.
 
