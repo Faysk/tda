@@ -836,3 +836,116 @@ def test_whisper_segment_widening_stays_track_local_before_timeline_offset():
     assert normalized.start == 9.9
     assert flattened[0].start == 51.9
     assert flattened[0].end == 52.5
+
+
+def test_whisper_widened_segment_flows_through_dedup_and_turns(tmp_path: Path):
+    models_root = tmp_path / "Models"
+    _install_whisper_fixture(models_root)
+    package_root = tmp_path / "Data" / "staging" / "containment-pipeline"
+    track_root = package_root / "tracks"
+    track_root.mkdir(parents=True)
+    first_file = track_root / "1-First.flac"
+    second_file = track_root / "2-Second.flac"
+    first_file.write_bytes(b"first")
+    second_file.write_bytes(b"second")
+
+    package = CraigPackage(
+        schema_version="tda_craig_package_v1",
+        source_zip="fixture.zip",
+        source_sha256="a" * 64,
+        recording_id="containment-pipeline",
+        guild=None,
+        channel=None,
+        requester=None,
+        start_time=None,
+        tracks=(
+            CraigTrack(
+                number=1,
+                speaker="First",
+                filename=first_file.name,
+                path=f"tracks/{first_file.name}",
+                size_bytes=first_file.stat().st_size,
+                sha256="b" * 64,
+                identity=None,
+            ),
+            CraigTrack(
+                number=2,
+                speaker="Second",
+                filename=second_file.name,
+                path=f"tracks/{second_file.name}",
+                size_bytes=second_file.stat().st_size,
+                sha256="c" * 64,
+                identity=None,
+            ),
+        ),
+        info_present=False,
+        raw_dat_present=False,
+    )
+
+    class FakeModel:
+        def transcribe(self, path: str, **_options):
+            if path.endswith(first_file.name):
+                words = [
+                    SimpleNamespace(
+                        word=" fixture",
+                        start=0.049,
+                        end=0.9,
+                        probability=0.95,
+                    )
+                ]
+                segment = SimpleNamespace(
+                    id=0,
+                    start=0.1,
+                    end=0.9,
+                    text="fixture",
+                    words=words,
+                )
+            else:
+                words = [
+                    SimpleNamespace(
+                        word=" fixture",
+                        start=0.1,
+                        end=0.9,
+                        probability=0.50,
+                    )
+                ]
+                segment = SimpleNamespace(
+                    id=0,
+                    start=0.1,
+                    end=0.9,
+                    text="fixture",
+                    words=words,
+                )
+            return iter((segment,)), SimpleNamespace(duration=2.0)
+
+    def loader(_path, plan):
+        return FakeModel(), plan.compute_type, False
+
+    reports: list[dict] = []
+    document = transcribe_craig_package(
+        package,
+        package_root,
+        models_root,
+        profile_id="whisper-turbo",
+        cuda_status={"available": True, "supported_compute_types": ["float16"]},
+        model_loader=loader,
+        report=reports.append,
+        checkpoints=False,
+    )
+    document.validate()
+
+    assert document.tracks[0].segments[0].start == 0.049
+    assert document.tracks[0].segments[0].words[0].start == 0.049
+    assert document.tracks[1].segments[0].start == 0.1
+    assert document.stats.segment_count == 2
+    assert document.stats.word_count == 2
+    assert document.stats.deduplicated_segment_count == 1
+    assert len(document.turns) == 1
+    assert document.turns[0].speaker == "First"
+    assert document.turns[0].segments[0].track_number == 1
+    assert any(
+        item.get("code") == "WHISPER_SEGMENT_SPAN_WIDENED"
+        and item.get("track") == 1
+        and item.get("segment") == 1
+        for item in reports
+    )
