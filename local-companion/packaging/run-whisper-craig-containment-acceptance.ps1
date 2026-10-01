@@ -10,6 +10,9 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    throw "WHISPER_1235_POWERSHELL7_REQUIRED"
+}
 
 $Schema = "tda_whisper_craig_containment_acceptance_v1"
 $Profiles = @("whisper-turbo", "whisper-detailed")
@@ -157,6 +160,10 @@ function Invoke-WhisperCraigWorker {
     $start.RedirectStandardInput = $true
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
+    $utf8 = [Text.UTF8Encoding]::new($false)
+    $start.StandardInputEncoding = $utf8
+    $start.StandardOutputEncoding = $utf8
+    $start.StandardErrorEncoding = $utf8
     $start.Environment["TDA_ASR_RUNTIME_FAMILY"] = "whisper"
     $start.Environment["TDA_ASR_RUNTIME_VERSION"] = [string]$Runtime.Version
     $start.Environment["TDA_ASR_RUNTIME_ARTIFACT"] = ([ordered]@{
