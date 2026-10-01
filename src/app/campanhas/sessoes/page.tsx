@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { SessionList } from "@/components/session-list";
 import { buildPublicMetadata } from "@/config/public-metadata";
+import { readPublicCampaignDirectory } from "@/features/campaigns/server";
 import {
 	formatArchiveDate,
 	formatArchiveNumber,
@@ -18,16 +18,30 @@ export const metadata: Metadata = buildPublicMetadata({
 });
 
 export default async function CampaignSessionsArchive() {
-	let sessions: Awaited<ReturnType<typeof listPublishedSessionArchive>> | undefined;
-	try {
-		sessions = await listPublishedSessionArchive();
-	} catch {
-		sessions = undefined;
-	}
+	const [sessionsResult, campaignsResult] = await Promise.allSettled([
+		listPublishedSessionArchive(),
+		readPublicCampaignDirectory(),
+	]);
 
-	const summary = sessions?.length
-		? summarizeSessionArchive(sessions, { qualifyArcsByCampaign: true })
-		: null;
+	const sessions =
+		sessionsResult.status === "fulfilled" ? sessionsResult.value : undefined;
+	const campaignOptions =
+		campaignsResult.status === "fulfilled" && campaignsResult.value.ok
+			? campaignsResult.value.campaigns.map((campaign) => ({
+					slug: campaign.routeKey,
+					name: campaign.name,
+				}))
+			: undefined;
+
+	const summary =
+		Array.isArray(sessions)
+			? summarizeSessionArchive(sessions, { qualifyArcsByCampaign: true })
+			: null;
+	const campaignCount =
+		campaignOptions?.length ??
+		(Array.isArray(sessions)
+			? new Set(sessions.map((session) => session.campaignSlug)).size
+			: 0);
 
 	return (
 		<div
@@ -49,18 +63,10 @@ export default async function CampaignSessionsArchive() {
 							Todas as campanhas
 						</h1>
 						<p>
-							Todas as memórias publicadas do TDA, reunidas em um único
-							arquivo. Use o filtro para entrar em uma campanha sem perder a
-							visão geral.
+							Sessões publicadas de todas as campanhas do TDA, reunidas em um
+							único arquivo. Filtre ou entre em uma campanha específica sem
+							perder a visão geral.
 						</p>
-						<nav
-							className={styles.scopeActions}
-							aria-label="Explorar o arquivo global"
-						>
-							<Link className={styles.scopeAction} href="/campanhas">
-								Ver campanhas
-							</Link>
-						</nav>
 					</header>
 
 					{summary ? (
@@ -69,19 +75,19 @@ export default async function CampaignSessionsArchive() {
 							aria-label="Resumo de todas as campanhas"
 						>
 							<div className={styles.stat}>
-								<dt>memórias publicadas</dt>
+								<dt>campanhas públicas</dt>
+								<dd>{formatArchiveNumber(campaignCount)}</dd>
+							</div>
+							<div className={styles.stat}>
+								<dt>memórias no arquivo global</dt>
 								<dd>{formatArchiveNumber(summary.sessions)}</dd>
 							</div>
 							<div className={styles.stat}>
-								<dt>arcos registrados</dt>
+								<dt>arcos entre campanhas</dt>
 								<dd>{formatArchiveNumber(summary.arcs)}</dd>
 							</div>
 							<div className={styles.stat}>
-								<dt>primeira memória</dt>
-								<dd>{formatArchiveDate(summary.firstDate)}</dd>
-							</div>
-							<div className={styles.stat}>
-								<dt>última memória</dt>
+								<dt>última memória do arquivo</dt>
 								<dd>{formatArchiveDate(summary.latestDate)}</dd>
 							</div>
 						</dl>
@@ -104,7 +110,11 @@ export default async function CampaignSessionsArchive() {
 							Estamos preparando o arquivo de campanhas.
 						</p>
 					) : sessions.length ? (
-						<SessionList sessions={sessions} showCampaignFilter />
+						<SessionList
+							sessions={sessions}
+							showCampaignFilter
+							campaignOptions={campaignOptions}
+						/>
 					) : (
 						<p className={styles.state}>Nenhuma sessão publicada ainda.</p>
 					)}
