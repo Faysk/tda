@@ -255,7 +255,6 @@ def run_acceptance(
     supervisor: object,
     runtime_inspector: Callable[..., dict[str, Any]],
     gate_inspector: Callable[..., dict[str, Any]],
-    expected_runtime_version: str = EXPECTED_RUNTIME_VERSION,
     sample_seconds: float = SAMPLE_SECONDS,
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
 ) -> dict[str, Any]:
@@ -265,7 +264,7 @@ def run_acceptance(
 
     runtime = _runtime_receipt(
         runtime_inspector(runtime_root, verify_worker=True),
-        expected_runtime_version,
+        EXPECTED_RUNTIME_VERSION,
     )
     gates: list[dict[str, Any]] = []
     for profile_id in QWEN_PROFILES:
@@ -400,7 +399,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--confirm", required=True, choices=["RUN"])
     parser.add_argument("--source-id", required=True)
-    parser.add_argument("--expected-runtime-version", default=EXPECTED_RUNTIME_VERSION)
     parser.add_argument("--sample-seconds", type=float, default=SAMPLE_SECONDS)
     parser.add_argument("--tda-root", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
@@ -438,7 +436,6 @@ def main(argv: list[str] | None = None) -> int:
             supervisor=supervisor,
             runtime_inspector=runtime_inspector,
             gate_inspector=gate_inspector,
-            expected_runtime_version=args.expected_runtime_version,
             sample_seconds=args.sample_seconds,
         )
         _write_receipt(output, receipt)
