@@ -403,11 +403,14 @@ export function SessionEditorialE2EFixture({
 			<section aria-label="Workspace editorial privado" data-testid="session-editorial-workspace-frame">
 				<SessionEditWorkspace
 					transcript={{
+						campaignSlug: CAMPAIGN_SLUG,
+						sessionId: SESSION_ID,
 						downloadHref: "/e2e-fixtures/session-editorial/transcript",
 						segments,
 						sourceLabel: "Revisão privada sintética · r1",
 					}}
 					editorial={{
+						campaignSlug: CAMPAIGN_SLUG,
 						editable,
 						initial: {
 							...initialDraft,
