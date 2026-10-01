@@ -166,11 +166,13 @@ function updateType(
 }
 
 export function WorldContentEditor({
+	campaignSlug,
 	draft,
 	selectedId,
 	onDraftChange,
 	onSelect,
 }: {
+	campaignSlug: string;
 	draft: WorldGraphDraft;
 	selectedId: string | null;
 	onDraftChange: (draft: WorldGraphDraft, message?: string) => void;
@@ -215,6 +217,7 @@ export function WorldContentEditor({
 			{section === "entity" ? (
 				selected ? (
 					<EntityEditor
+						campaignSlug={campaignSlug}
 						draft={draft}
 						entityId={selected.id}
 						onChange={onDraftChange}
@@ -373,11 +376,13 @@ export function WorldContentEditor({
 }
 
 function EntityEditor({
+	campaignSlug,
 	draft,
 	entityId,
 	onChange,
 	onArchive,
 }: {
+	campaignSlug: string;
 	draft: WorldGraphDraft;
 	entityId: string;
 	onChange: (draft: WorldGraphDraft, message?: string) => void;
@@ -412,6 +417,7 @@ function EntityEditor({
 				</div>
 			</div>
 			<WorldEntityMediaEditor
+				campaignSlug={campaignSlug}
 				entity={entity}
 				onChange={(assetId) =>
 					onChange(
