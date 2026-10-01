@@ -139,7 +139,7 @@ test("benchmark can recover a Qwen runtime when the installed version is unknown
 	const panel = await openBenchmark(page);
 
 	await expect(panel).toContainText("2 / 4 perfis prontos");
-	await expect(panel.getByText("Runtime Qwen precisa ser atualizado.")).toHaveCount(2);
+	await expect(panel.getByText("Runtime Qwen precisa ser verificado.")).toHaveCount(2);
 	await expect(
 		panel.locator("[data-state='blocked']").filter({ hasText: "Qwen Fast" }),
 	).toBeVisible();
@@ -197,6 +197,35 @@ test("Qwen runtime recovery stays readable and keyboard-operable on mobile", asy
 
 	await expect.poll(() => state.qwenRuntimeUpdatePostCount).toBe(1);
 	await expect(panel).toContainText("4 / 4 perfis prontos");
+});
+
+test("benchmark does not offer a false update when installed runtime already meets the minimum", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkReadyProfiles: ["whisper-turbo", "whisper-detailed"],
+		qwenRuntimeUpgradeRequired: true,
+		qwenRuntimeVersion: "1.0.12",
+		qwenRuntimeStableVersion: "1.0.12",
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+	const recovery = panel.locator("[data-qwen-runtime-recovery='true']");
+
+	await expect.poll(() => state.qwenRuntimeCheckPostCount).toBe(1);
+	await expect(recovery).toContainText("Instalado");
+	await expect(recovery).toContainText("1.0.12");
+	await expect(recovery).toContainText(
+		"O runtime instalado já não está abaixo da Stable compatível.",
+	);
+	await expect(
+		recovery.getByRole("button", { name: "Atualizar Qwen Runtime" }),
+	).toHaveCount(0);
+	await expect(panel).toContainText(
+		"O runtime não oferece update; abra Diagnóstico para investigar o blocker.",
+	);
+	expect(state.qwenRuntimeUpdatePostCount).toBe(0);
 });
 
 test("benchmark fails closed when the Stable Qwen runtime is below the required minimum", async ({
