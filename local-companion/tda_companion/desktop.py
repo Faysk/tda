@@ -29,10 +29,6 @@ from .craig_runtime import load_craig_package
 from .diagnostics import export_diagnostics, run_diagnostics
 from .paths import CompanionPaths
 from .qwen_runtime import inspect_qwen_runtime
-from .qwen_runtime_maintenance import (
-    inspect_qwen_runtime_update,
-    install_qwen_runtime_update,
-)
 from .settings import SettingsStore
 from .startup import set_start_with_windows
 from .updates import download_update, fetch_manifest, update_available
@@ -429,13 +425,64 @@ class DesktopBridge:
             "repaired": repairing,
         }
 
+    def _wait_qwen_runtime_maintenance(
+        self,
+        initial: dict[str, Any],
+        *,
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        value = initial
+        deadline = time.monotonic() + max(0.1, float(timeout_seconds))
+        while value.get("active") is True:
+            if time.monotonic() >= deadline:
+                raise RuntimeError("QWEN_RUNTIME_MAINTENANCE_TIMEOUT")
+            time.sleep(0.5)
+            observed = self.client.get("/qwen-runtime")
+            if not isinstance(observed, dict):
+                raise RuntimeError("QWEN_RUNTIME_MAINTENANCE_INVALID_RESPONSE")
+            value = observed
+        if value.get("state") == "failed":
+            raise RuntimeError(
+                str(value.get("error_code") or "QWEN_RUNTIME_MAINTENANCE_FAILED")
+            )
+        return value
+
+    def _start_or_follow_qwen_runtime(
+        self,
+        mode: str,
+        *,
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        current = self.client.get("/qwen-runtime")
+        if not isinstance(current, dict):
+            raise RuntimeError("QWEN_RUNTIME_MAINTENANCE_INVALID_RESPONSE")
+        if current.get("active") is True:
+            current = self._wait_qwen_runtime_maintenance(
+                current,
+                timeout_seconds=timeout_seconds,
+            )
+            # An in-flight update already satisfies both a check and an update.
+            if current.get("mode") == "update" and current.get("state") == "completed":
+                return current
+
+        endpoint = "/qwen-runtime/check" if mode == "check" else "/qwen-runtime/update"
+        started = self.client.post(endpoint, {})
+        if not isinstance(started, dict):
+            raise RuntimeError("QWEN_RUNTIME_MAINTENANCE_INVALID_RESPONSE")
+        return self._wait_qwen_runtime_maintenance(
+            started,
+            timeout_seconds=timeout_seconds,
+        )
+
     def check_qwen_runtime(self) -> dict[str, Any]:
-        state = inspect_qwen_runtime_update(
-            self.paths.runtime_root,
-            verify_worker=True,
+        state = self._start_or_follow_qwen_runtime(
+            "check",
+            timeout_seconds=30.0,
         )
         if state.get("stable_status") == "unavailable":
-            raise RuntimeError(str(state.get("error_code") or "QWEN_RUNTIME_MANIFEST_UNAVAILABLE"))
+            raise RuntimeError(
+                str(state.get("error_code") or "QWEN_RUNTIME_MANIFEST_UNAVAILABLE")
+            )
         return {
             "status": state.get("installed_status"),
             "current_version": state.get("installed_version")
@@ -450,28 +497,21 @@ class DesktopBridge:
         }
 
     def install_qwen_runtime(self) -> dict[str, Any]:
-        if self._has_active_job():
-            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB")
-        result = install_qwen_runtime_update(
-            self.paths.runtime_root,
-            self.paths.cache_root,
+        # The Agent owns dispatch_gate and is the only process allowed to start
+        # browser/Desktop Qwen maintenance. Routing the Desktop action through
+        # the Agent closes the check-then-claim race where a queued job could
+        # become running after a Desktop-side "no active job" check but before
+        # direct runtime mutation began.
+        result = self._start_or_follow_qwen_runtime(
+            "update",
+            timeout_seconds=2 * 60 * 60,
         )
+        accepted = result.get("mode") == "update" and result.get("state") == "completed"
         return {
-            "accepted": result.get("accepted") is True,
-            "available": result.get("update_available") is True
-            or result.get("accepted") is True,
-            "status": result.get("status"),
-            "version": result.get("version") or result.get("stable_version"),
-            **(
-                {"worker_sha256": result.get("worker_sha256")}
-                if result.get("worker_sha256")
-                else {}
-            ),
-            **(
-                {"repaired": result.get("repaired") is True}
-                if result.get("accepted") is True
-                else {}
-            ),
+            "accepted": accepted,
+            "available": result.get("update_available") is True or accepted,
+            "status": result.get("installed_status"),
+            "version": result.get("installed_version") or result.get("stable_version"),
             "part_count": result.get("stable_part_count"),
         }
 
