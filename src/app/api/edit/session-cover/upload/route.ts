@@ -70,7 +70,7 @@ export async function PUT(request: Request) {
 		}
 	}
 
-	const access = await authorizeSessionCoverTarget(sessionId);
+	const access = await authorizeSessionCoverTarget(CAMPAIGN_SLUG, sessionId);
 	if (!access.ok) return denied(access.reason);
 
 	try {
