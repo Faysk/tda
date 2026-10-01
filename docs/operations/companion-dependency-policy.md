@@ -65,7 +65,7 @@ O fato de Qwen poder usar CUDA 13.x não autoriza migrar o runtime Whisper para 
 
 ### PyAV no runtime Whisper — #1234
 
-O **Whisper Runtime 1.1.6** fixa `av==18.1.0` embora PyAV 19 seja mais novo. Faster-Whisper 1.2.1 ainda abre mídia com `av.open(..., metadata_errors="ignore")`; PyAV 19 removeu esse argumento e por isso a combinação falha antes da inferência real. A exceção fica machine-readable em `runtime/whisper-windows-x64.json`, vinculada ao pin exato.
+O **Whisper Runtime 1.1.6** estabeleceu o pin `av==18.1.0` embora PyAV 19 seja mais novo. Faster-Whisper 1.2.1 ainda abre mídia com `av.open(..., metadata_errors="ignore")`; PyAV 19 removeu esse argumento e por isso a combinação falha antes da inferência real. Como #1235 altera os bytes do adapter/worker depois de 1.1.6 já ter sido empacotado, o candidato corrente é **Whisper Runtime 1.1.7**, mantendo o mesmo pin sem reconstruir 1.1.6. A exceção fica machine-readable em `runtime/whisper-windows-x64.json`, vinculada ao pin exato.
 
 Whisper e Qwen permanecem runtimes isolados: esta retenção **não** reduz o PyAV do Qwen, que pode continuar em 19.x conforme seu próprio manifest. O gate de freshness audita pins de cada família separadamente para não converter isolamento de runtime em falso conflito global.
 
