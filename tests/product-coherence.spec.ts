@@ -29,16 +29,26 @@ type MockCampaign = Readonly<{
 async function mockAccess(
 	page: Page,
 	options: Readonly<{
-		state?: "anonymous" | "authenticated_linked" | "authenticated_linked_no_grants";
+		state?:
+			| "anonymous"
+			| "unavailable"
+			| "authenticated_linked"
+			| "authenticated_linked_no_grants";
 		campaignsState?: "first_class" | "unavailable";
 		campaigns?: readonly MockCampaign[];
 	}> = {},
 ) {
 	const state = options.state ?? "authenticated_linked";
-	const authenticated = state !== "anonymous";
+	const authenticated =
+		state === "authenticated_linked" ||
+		state === "authenticated_linked_no_grants";
+	const campaigns = (options.campaigns ?? []).map((campaign) => ({
+		...campaign,
+		lifecycle: "active" as const,
+	}));
 	await page.route("**/api/auth/me", async (route) => {
 		await route.fulfill({
-			status: 200,
+			status: state === "unavailable" ? 503 : 200,
 			contentType: "application/json",
 			body: JSON.stringify({
 				state,
@@ -48,9 +58,12 @@ async function mockAccess(
 							identity: { displayName: "Acceptance sintético", avatarUrl: null },
 							capabilities: [],
 							campaignsState: options.campaignsState ?? "first_class",
-							campaigns: options.campaigns ?? [],
+							campaigns,
 						}
-					: { campaignsState: "none", campaigns: [] }),
+					: {
+							campaignsState: state === "unavailable" ? "unavailable" : "none",
+							campaigns: [],
+						}),
 			}),
 		});
 	});
@@ -123,8 +136,12 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 	await expect(page.locator("[data-session-card]")).toHaveCount(4);
 	const filter = page.getByLabel("Filtrar por campanha");
 	await expect(filter).toBeVisible();
-	await expect(page.getByText(CAMPAIGN_A.name, { exact: false }).first()).toBeVisible();
-	await expect(page.getByText(CAMPAIGN_B.name, { exact: false }).first()).toBeVisible();
+	await expect(
+		page.locator("[data-session-card]").filter({ hasText: CAMPAIGN_A.name }).first(),
+	).toBeVisible();
+	await expect(
+		page.locator("[data-session-card]").filter({ hasText: CAMPAIGN_B.name }).first(),
+	).toBeVisible();
 
 	await filter.selectOption(CAMPAIGN_B.route);
 	await expect(
@@ -281,11 +298,7 @@ test("[auth/Edit] A+B, A-only, anonymous and unavailable states remain fail-clos
 	await expect(panel.getByText("Ferramentas", { exact: true })).toHaveCount(0);
 
 	await page.unroute("**/api/auth/me");
-	await mockAccess(page, {
-		state: "authenticated_linked",
-		campaignsState: "unavailable",
-		campaigns: [],
-	});
+	await mockAccess(page, { state: "unavailable" });
 	await page.reload();
 	panel = await openGlobalMenu(page);
 	await expect(
