@@ -87,22 +87,13 @@ test("renders the approved Pipipi cinematic structure", async ({ page }) => {
 	expect(unexpectedInfiniteAnimations).toBe(0);
 });
 
-test("makes published cinematic lores discoverable without crowding mobile navigation", async ({ page }, testInfo) => {
+test("makes published cinematic lores discoverable without crowding mobile navigation", async ({ page }) => {
 	await page.goto("/");
-	const primaryNav = page.getByRole("navigation", { name: "Navegação principal" });
-	const navLoresLink = primaryNav.locator("a.lore-nav-link");
-	await expect(navLoresLink).toHaveAttribute("href", "/lore");
-
-	if (testInfo.project.name === "mobile") {
-		await expect(navLoresLink).toBeHidden();
-		const homeLoresLink = page.getByRole("link", { name: /Explorar lores/ });
-		await expect(homeLoresLink).toBeVisible();
-		await expect(homeLoresLink).toHaveAttribute("href", "/lore");
-		await homeLoresLink.click();
-	} else {
-		await expect(navLoresLink).toBeVisible();
-		await navLoresLink.click();
-	}
+ await page.getByRole("button", { name: "Abrir menu global" }).click();
+ const navLoresLink = page.getByRole("link", { name: "Lores", exact: true });
+ await expect(navLoresLink).toBeVisible();
+ await expect(navLoresLink).toHaveAttribute("href", "/lore");
+ await navLoresLink.click();
 
 	await expect(page).toHaveURL(/\/lore$/);
 	await expect(

@@ -333,3 +333,10 @@ A migração para main-only e Production v3 está preservada em:
 - [histórico de deployments](deployments.md).
 
 Esses documentos explicam como chegamos aqui. Não substituem este runbook para comportamento atual.
+
+
+### Gate semântico público (#1226)
+
+`tools/ci/verify-public-content.mjs` valida HTML do artefato staged antes da promoção e repete no domínio canônico depois da identidade de release. Home, diretório e arquivo devem declarar `ready` ou `empty`; `unavailable`, marker ausente, status incorreto, redirect legado incorreto ou detalhe publicado quebrado interrompem a entrega. O estado vazio saudável é permitido, sem mascarar falha de dependência. O health continua liveness, não prova de conteúdo.
+
+O receipt contém apenas paths públicos e estados. Rollback: usar a entrega anterior validada; não desabilitar o gate para publicar HTML indisponível. Falha antes da promoção preserva a referência canônica atual. Nenhum deploy extra é feito para executar esse teste.

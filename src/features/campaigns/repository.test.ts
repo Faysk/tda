@@ -3,10 +3,9 @@ const m = vi.hoisted(() => ({ responses: [] as unknown[], calls: [] as Array<{ta
 vi.mock("server-only", () => ({}));
 vi.mock("@/integrations/supabase/server", () => ({ publishedDataClient: () => ({ from: (table: string) => {
 	const call = { table, filters: [] as unknown[][] }; m.calls.push(call);
-	const q: Record<string, unknown> = {};
+	const q = Promise.resolve(m.responses.shift()) as Promise<unknown> & Record<string, unknown>;
 	for (const name of ["select", "eq", "order", "range", "maybeSingle", "limit", "or", "is", "gt", "not"])
 		q[name] = (...args: unknown[]) => { call.filters.push([name, ...args]); return q; };
-	q.then = (resolve: (value: unknown) => unknown) => Promise.resolve(m.responses.shift()).then(resolve);
 	return q;
 } }) }));
 import { readPublicCampaignDirectory, resolvePublicCampaignRoute } from "./repository";

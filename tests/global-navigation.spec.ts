@@ -505,6 +505,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 		panel.getByRole("link", { name: "Lembra", exact: true }),
 	).toHaveAttribute("href", "/lembra");
 
+	await expectGlobalMenuVisuallySettled(page);
 	await selector.focus();
 	await expect(selector).toBeFocused();
 	expect(
@@ -729,7 +730,8 @@ test("keyboard, outside click and pathname changes dismiss the unified panel", a
 	await page.keyboard.press("Escape");
 	await expect(trigger).toBeFocused();
 	await page.keyboard.press("Space");
-	await page.getByRole("heading", { level: 1 }).click();
+	// The mobile panel overlaps the heading; click the visible outside gutter.
+	await page.mouse.click(2, (page.viewportSize()?.height ?? 800) - 2);
 	await expect(trigger).toHaveAttribute("aria-expanded", "false");
 
 	const panel = await openGlobalMenu(page);
@@ -767,7 +769,8 @@ test("unified panel motion is reversible, inert while closing and unmounts after
 	await expect(panel).toHaveCount(1);
 	await expect(panel).toHaveAttribute("data-state", /opening|open/u);
 
-	await page.getByRole("heading", { level: 1 }).click();
+	// The mobile panel overlaps the heading; click the visible outside gutter.
+	await page.mouse.click(2, (page.viewportSize()?.height ?? 800) - 2);
 	await expect(trigger).toHaveAttribute("aria-expanded", "false");
 	await expect(panel).toHaveAttribute("data-state", "closing");
 	await expect(panel).toHaveCount(0, { timeout: 3_000 });

@@ -105,7 +105,7 @@ test("World campaign switch preserves explicit context across back, forward and 
 
 	await page.getByText("Trocar", { exact: true }).click();
 	const campaignB = page.getByRole("link", {
-		name: "Antes que seja tarde",
+		name: "Antes que seja tarde — uma campanha com nome deliberadamente comprido",
 		exact: true,
 	});
 	await expect(campaignB).toHaveAttribute("href", WORLD_B_PATH);

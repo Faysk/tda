@@ -50,8 +50,9 @@ test("administrative pages disclose no data when access resolution is unavailabl
 	expect(result.status()).toBe(503);
 	expect(await result.json()).toEqual({
 		state: "unavailable",
-		scope: { type: "campaign", id: "yuhara-main" },
-		capabilities: [],
+		scope: { type: "project", id: "tda" },
+		campaignsState: "unavailable",
+		campaigns: [],
 	});
 	expect(result.headers()["cache-control"]).toContain("no-store");
 

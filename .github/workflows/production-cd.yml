@@ -297,6 +297,7 @@ jobs:
           vercel curl /api/version --deployment "$DEPLOYMENT_URL" > version.json
           vercel curl / --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /sessoes --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          node tools/ci/verify-public-content.mjs --deployment "$DEPLOYMENT_URL" > staged-public-content.json
           vercel curl /lore/yllith --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/astel --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
@@ -346,6 +347,7 @@ jobs:
         run: |
           set -euo pipefail
           node tools/ci/verify-production-canonical.mjs
+          node tools/ci/verify-public-content.mjs > canonical-public-content.json
           curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors \
             "$PRODUCTION_ORIGIN/api/health" > canonical-health.json
           node --input-type=module - <<'NODE'

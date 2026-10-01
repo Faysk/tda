@@ -2,31 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	currentAccess: vi.fn(),
+ navigation: vi.fn(),
 }));
 
 vi.mock("@/features/auth/server", () => ({
 	currentAccess: mocks.currentAccess,
 }));
-vi.mock("@/features/edit/access/policy", () => ({
-	EDIT_CAPABILITIES: {
-		transcriptRead: "campaign.transcript.read",
-		localProcess: "campaign.local.process",
-	},
-	authorizeCampaignCapability: (
-		context: { grants: Array<{ action: string }> },
-		action: string,
-	) => ({
-		ok: context.grants.some((grant) => grant.action === action),
-	}),
-}));
-vi.mock("@/features/sessions/model", () => ({
-	CAMPAIGN_SLUG: "yuhara-main",
+vi.mock("@/features/campaigns/navigation", () => ({
+ readNavigationCampaigns: mocks.navigation,
 }));
 
 import { GET } from "./route";
 
 beforeEach(() => {
 	vi.clearAllMocks();
+ mocks.navigation.mockResolvedValue({ mode: "first_class", campaigns: [] });
 	mocks.currentAccess.mockResolvedValue({
 		state: "anonymous",
 		context: null,
@@ -42,7 +32,9 @@ describe("GET /api/auth/me", () => {
 		expect(response.status).toBe(200);
 		expect(body).toEqual({
 			state: "anonymous",
-			scope: { type: "campaign", id: "yuhara-main" },
+			scope: { type: "project", id: "tda" },
+ campaignsState: "none",
+ campaigns: [],
 		});
 		expect(body).not.toHaveProperty("identity");
 		expect(body).not.toHaveProperty("capabilities");
@@ -78,8 +70,10 @@ describe("GET /api/auth/me", () => {
 
 		expect(body).toEqual({
 			state: "authenticated_linked",
-			scope: { type: "campaign", id: "yuhara-main" },
-			capabilities: ["campaign.local.process"],
+			scope: { type: "project", id: "tda" },
+ campaignsState: "first_class",
+ campaigns: [],
+			capabilities: [],
 			identity: {
 				displayName: "Renan",
 				avatarUrl: "https://cdn.discordapp.com/avatars/123/hash.png",
@@ -105,7 +99,9 @@ describe("GET /api/auth/me", () => {
 		const response = await GET();
 		await expect(response.json()).resolves.toEqual({
 			state: "authenticated_unlinked",
-			scope: { type: "campaign", id: "yuhara-main" },
+			scope: { type: "project", id: "tda" },
+ campaignsState: "first_class",
+ campaigns: [],
 			capabilities: [],
 			identity: { displayName: "Corujinha", avatarUrl: null },
 		});
@@ -125,7 +121,9 @@ describe("GET /api/auth/me", () => {
 		const response = await GET();
 		await expect(response.json()).resolves.toEqual({
 			state: "authenticated_linked_no_grants",
-			scope: { type: "campaign", id: "yuhara-main" },
+			scope: { type: "project", id: "tda" },
+ campaignsState: "first_class",
+ campaigns: [],
 			capabilities: [],
 			identity: { displayName: null, avatarUrl: null },
 		});
@@ -144,7 +142,9 @@ describe("GET /api/auth/me", () => {
 		expect(response.status).toBe(503);
 		expect(body).toEqual({
 			state: "unavailable",
-			scope: { type: "campaign", id: "yuhara-main" },
+			scope: { type: "project", id: "tda" },
+ campaignsState: "unavailable",
+ campaigns: [],
 		});
 		expect(body).not.toHaveProperty("identity");
 		expect(body).not.toHaveProperty("capabilities");
