@@ -105,6 +105,12 @@ describe("queue model", () => {
 			error: { code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN", recoverable: true },
 		} satisfies LocalJob;
 		expect(queueRetryAvailable(uncertain)).toBe(false);
+
+		const qualityUncertain = {
+			...uncertain,
+			context: { ...uncertain.context, profileId: "qwen-quality" },
+		} satisfies LocalJob;
+		expect(queueRetryAvailable(qualityUncertain)).toBe(true);
 	});
 
 	test("human presentation helpers stay deterministic", () => {
