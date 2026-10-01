@@ -97,7 +97,7 @@ def discover_published_runtime_rc(
     *,
     client: NetworkClient | None = None,
 ) -> dict[str, Any]:
-    """Resolve the newest published prerelease for the exact compatible runtime version."""
+    """Resolve the single published prerelease for the exact compatible runtime version."""
     if family not in _VERSIONS:
         _raise("RUNTIME_RC_FAMILY_INVALID")
     expected_version = _VERSIONS[family]
@@ -147,8 +147,9 @@ def discover_published_runtime_rc(
 
     if not matches:
         _raise("RUNTIME_RC_RELEASE_NOT_PUBLISHED")
-    matches.sort(key=lambda item: (str(item.get("published_at") or ""), int(item.get("id") or 0)))
-    return matches[-1]
+    if len(matches) > 1:
+        _raise("RUNTIME_RC_RELEASE_VERSION_AMBIGUOUS")
+    return matches[0]
 
 
 def _read_candidate_manifest(
