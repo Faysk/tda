@@ -5,6 +5,7 @@ import {
 	queueFilterCount,
 	queuePrimaryIdentity,
 	queueProfileLabel,
+	queueRetryAvailable,
 	selectQueueJobs,
 } from "./queue-model";
 
@@ -87,6 +88,35 @@ describe("queue model", () => {
 		for (const sort of ["updated", "status", "profile", "session"] as const) {
 			expect(selectQueueJobs(jobs, "all", "", sort)[0]?.id).toBe("run");
 		}
+	});
+
+	test("uncertain Qwen signal does not offer a futile same-profile retry", () => {
+		const retryable = job(
+			"retryable",
+			"failed",
+			"sessao-r",
+			"qwen-fast",
+			"2026-10-01T18:00:00Z",
+		);
+		expect(queueRetryAvailable(retryable)).toBe(true);
+
+		const uncertain = {
+			...retryable,
+			error: { code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN", recoverable: true },
+		} satisfies LocalJob;
+		expect(queueRetryAvailable(uncertain)).toBe(false);
+
+		const qualityUncertain = {
+			...job(
+				"quality-uncertain",
+				"failed",
+				"sessao-r",
+				"qwen-quality",
+				"2026-10-01T18:01:00Z",
+			),
+			error: { code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN", recoverable: true },
+		} satisfies LocalJob;
+		expect(queueRetryAvailable(qualityUncertain)).toBe(true);
 	});
 
 	test("human presentation helpers stay deterministic", () => {
