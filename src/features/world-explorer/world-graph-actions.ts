@@ -269,7 +269,7 @@ export async function publishWorldEditStateAction(
 ): Promise<WorldGraphMutationResult> {
 	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
 	const [contentAccess, layoutAccess] = await Promise.all([
-		contentEditor(),
+		contentEditor(campaignSlug),
 		authorizeCampaignCapabilityServer({
 			action: EDIT_CAPABILITIES.worldLayoutEdit,
 			campaignSlug: campaignSlug,
