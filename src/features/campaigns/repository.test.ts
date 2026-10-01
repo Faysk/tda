@@ -87,6 +87,7 @@ describe("public campaign registry compatibility", () => {
 					routeKey: "cronicas-da-mesa",
 					name: "Crônicas da Mesa",
 					description: "Campanha histórica",
+					coverImage: null,
 				},
 			],
 		});
@@ -113,6 +114,7 @@ describe("public campaign registry compatibility", () => {
 				routeKey: "cronicas-da-mesa",
 				name: "Crônicas da Mesa",
 				description: "Campanha histórica",
+				coverImage: null,
 			},
 			canonical: true,
 		});
