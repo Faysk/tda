@@ -7,6 +7,7 @@ import { StoryMarkdown } from "@/components/story-markdown";
 import { DisplayTitle, Eyebrow } from "@/components/ui";
 import { resolvePublicCampaignRoute } from "@/features/campaigns/server";
 import { sessionPublicMetadata } from "@/features/sessions/metadata";
+import { resolveSessionReaderArtwork } from "@/features/sessions/reader-artwork";
 import { formatSessionDate, sessionPublicPath, type PublishedSession } from "@/features/sessions/model";
 import { findPublishedSession, findPublishedSessionNeighbors, PublishedSessionUnavailableError } from "@/features/sessions/repository";
 import { sessionShareDescription } from "@/features/sessions/share";
@@ -109,8 +110,12 @@ export default async function CampaignSession({params}:Params){
 	const next=neighbors?.next;
 	const date=formatSessionDate(session.date);
 	const story=session.fullSummary||session.summary||"Resumo ainda não disponível.";
+	const artwork=resolveSessionReaderArtwork(session);
+	const heroClassName=artwork.url ? `${styles.hero} ${styles.heroWithArt}` : styles.hero;
 	return <article className={styles.page}>
-		<header className={styles.hero} data-session-reader-hero><div className={styles.heroInner}><div className={styles.content}>
+		<header className={heroClassName} data-session-reader-hero data-session-artwork-source={artwork.source}>
+			{artwork.url ? <><Image className={styles.art} src={artwork.url} alt="" fill sizes="100vw" priority/><div className={styles.overlay} aria-hidden="true"/></> : null}
+			<div className={styles.heroInner}><div className={styles.content}>
 			<Link className={styles.back} href={`/campanhas/${encodeURIComponent(session.campaignSlug)}/sessoes`}>← <span>Arquivo de {session.campaignName}</span></Link>
 			<Eyebrow className={styles.eyebrow}>{session.campaignName} · {session.arc||"Memória da campanha"}</Eyebrow>
 			<DisplayTitle className={styles.title}>{session.title}</DisplayTitle>
