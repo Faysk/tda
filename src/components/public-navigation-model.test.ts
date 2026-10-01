@@ -135,5 +135,18 @@ describe("global navigation model", () => {
 				"/campanhas/sessoes",
 			),
 		).toBeNull();
+		expect(
+			campaignTechnicalSlugFromLocation(
+				[campaigns[0]],
+				"/edit/antes-que-seja-tarde/permissions",
+			),
+		).toBeNull();
+		expect(
+			campaignTechnicalSlugFromLocation(
+				[campaigns[0]],
+				"/transcricoes",
+				"?campanha=antes-que-seja-tarde",
+			),
+		).toBeNull();
 	});
 });
