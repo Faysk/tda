@@ -10,11 +10,7 @@ export type NavigationIdentity = Readonly<{
 	avatarUrl: string | null;
 }>;
 
-export type NavigationCampaignState =
-	| "none"
-	| "first_class"
-	| "legacy_compatibility"
-	| "unavailable";
+export type NavigationCampaignState = "none" | "first_class" | "unavailable";
 
 export type NavigationCampaignProjection = Readonly<{
 	technicalSlug: string;
@@ -69,7 +65,6 @@ function parseCampaignsState(value: unknown): NavigationCampaignState | null {
 	switch (value) {
 		case "none":
 		case "first_class":
-		case "legacy_compatibility":
 		case "unavailable":
 			return value;
 		default:
