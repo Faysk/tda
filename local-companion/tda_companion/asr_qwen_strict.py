@@ -928,9 +928,6 @@ def transcribe_craig_package_qwen_strict(
                                 raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
                             text = retry_text
                             language = retry_language
-                            compatibility_warnings.add(
-                                "qwen_empty_signal_edge_trim_recovery"
-                            )
                             report(
                                 {
                                     **retry_event,
