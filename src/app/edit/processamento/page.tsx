@@ -63,7 +63,7 @@ function CampaignPicker({
 				</p>
 			) : null}
 			{campaigns.length ? (
-				<form className={pageStyles.campaignPicker} method="get">
+				<form className={pageStyles.campaignPicker} method="get" action="/edit/processamento">
 					<label htmlFor="processing-campaign">
 						<span>Campanha</span>
 						<select id="processing-campaign" name="campanha" required defaultValue="">

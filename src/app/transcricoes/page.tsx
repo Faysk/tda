@@ -55,7 +55,7 @@ function CampaignPicker({
 					Nenhuma outra campanha foi escolhida automaticamente.
 				</p>
 			) : null}
-			<form className={styles.campaignPicker} method="get">
+			<form className={styles.campaignPicker} method="get" action="/transcricoes">
 				<label htmlFor="transcripts-campaign">
 					<span>Campanha</span>
 					<select

@@ -115,7 +115,7 @@ function CampaignPicker({
 					Nenhuma campanha alternativa foi escolhida automaticamente.
 				</p>
 			) : null}
-			<form className={styles.campaignPicker} method="get">
+			<form className={styles.campaignPicker} method="get" action="/edit/revisao">
 				<label htmlFor="review-campaign">
 					<span>Campanha</span>
 					<select
