@@ -10,6 +10,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | --- | --- | --- | --- |
 | [Documentação TDA](../README.md) | documentação/arquitetura | vigente | 2026-09-30 |
 | [Arquitetura](../architecture.md) | arquitetura | vigente | 2026-09-30 |
+| [Auditoria de produto, qualidade e eficiência — 01/10/2026](../audit-2026-10-01.md) | produto / qualidade / operação | histórico | 2026-10-01 |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
 | [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-30 |
@@ -231,4 +232,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-150 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+151 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

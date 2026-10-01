@@ -161,6 +161,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 
 ### Governança da própria documentação
 
+- [Auditoria de produto, qualidade e eficiência — 01/10/2026](audit-2026-10-01.md) — fotografia do SHA auditado, evidências, limites e sete issues acionáveis; não substitui os contratos donos.
 - [Documentação viva — política e manutenção](documentation/README.md)
 - [Catálogo completo gerado e lacunas de metadados](documentation/catalog.md)
 - [Retirada do projeto Vercel legado](operations/legacy-retirement.md)
