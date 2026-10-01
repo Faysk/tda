@@ -106,10 +106,11 @@ function publicThumbnail(reference: string | null): SessionLibraryThumbnail | nu
 }
 
 function privateThumbnail(
+	campaignSlug: string,
 	sessionId: string,
 	assetId: string,
 ): SessionLibraryThumbnail | null {
-	const src = sessionCoverPreviewUrl(sessionId, assetId);
+	const src = sessionCoverPreviewUrl(campaignSlug, sessionId, assetId);
 	return src ? { src, kind: "private" } : null;
 }
 
@@ -214,7 +215,7 @@ export async function listEditSessionLibrary(
 			const draftCover = cleanReference(draft.cover_asset_id);
 			if (draftCover && isSessionCoverUuid(draftCover)) {
 				if (readablePrivateAssets.has(draftCover))
-					thumbnail = privateThumbnail(seed.sessionId, draftCover);
+					thumbnail = privateThumbnail(campaignSlug, seed.sessionId, draftCover);
 			} else {
 				thumbnail = publicThumbnail(draftCover);
 			}
