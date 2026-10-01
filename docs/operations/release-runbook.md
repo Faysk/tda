@@ -107,6 +107,20 @@ Para o reparo do contrato de benchmark do Whisper:
 7. Migration deve preservar modelos, caches, jobs/runs e dados locais. O runtime `1.1.5` pode continuar servindo transcrição normal enquanto benchmark permanece bloqueado.
 8. Rollback volta deliberadamente ao último artefato aceito; benchmark fica fail-closed se o runtime anterior não satisfizer o contrato. Uma correção posterior recebe nova versão, nunca rebuild do `1.1.5`.
 
+### Whisper Runtime 1.1.8 / contenção palavra-segmento — #1235
+
+A correção de contenção altera o adapter/worker empacotado e portanto exige uma identidade de runtime nova. O Runtime 1.1.6 de #1234 e o Runtime 1.1.7 de #1233 já foram materializados oficialmente e permanecem imutáveis; o candidato que contém #1235 é **Whisper Runtime 1.1.8**.
+
+1. Não rebuildar, retaggear nem sobrescrever 1.1.6 ou 1.1.7 com os bytes da #1235.
+2. O archive 1.1.8 precisa incorporar a fronteira de decode compatível de #1234 e os smokes sintéticos vigentes.
+3. Antes de promoção, executar `local-companion/packaging/run-whisper-craig-containment-acceptance.ps1` contra o Craig staged autorizado e o `TDARuntime-candidate.json` do **mesmo RC 1.1.8**.
+4. O gate físico executa `whisper-turbo` e `whisper-detailed`, cada um com sample Craig de exatamente 300 s e transcrição integral.
+5. O full precisa produzir `run.json` e `transcript.json`; o SHA do transcript deve corresponder ao manifesto e ambos os arquivos são re-hashados ao final para provar imutabilidade.
+6. O receipt compartilhável usa o nome `<candidate-tag>.whisper-1235.json` e registra somente identidade/hashes do runtime, GPU/driver e métricas agregadas. Não registrar áudio, transcript, speaker, source id ou caminhos locais.
+7. Depois da revisão do receipt sanitizado, copiar esse arquivo para `docs/companion/runtime-acceptance/<candidate-tag>.whisper-1235.json`. O workflow `Runtime Promote Stable` recusa o Whisper 1.1.8 se esse sidecar não corresponder ao mesmo candidate tag, source SHA/tree, workflow run e archive SHA-256; o sidecar é anexado à própria release antes da troca de canal.
+8. Qualquer falha de contenção, duração, ordering, dedup, turns ou integridade aborta a promoção. O contrato `tda_transcript_v1` continua estrito; não clipar/remover palavras nem reescrever run concluído para fazê-lo passar.
+9. Rollback seleciona um runtime Whisper anterior já publicado e compatível, preservando Models/Data/runs. Correção posterior recebe nova versão imutável.
+
 ## 6. Secrets e providers
 
 Antes de operação remota, confirmar o boundary correto:

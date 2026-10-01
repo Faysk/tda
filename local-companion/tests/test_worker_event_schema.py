@@ -293,3 +293,36 @@ def test_registered_recovery_events_cover_the_current_qwen_v4_path():
         "QWEN_ALIGNMENT_WINDOW_RECOVERY_FAILED",
         "QWEN_ALIGNMENT_WINDOW_RECOVERED",
     } <= registered
+
+
+def test_whisper_span_widening_event_keeps_only_sanitized_numeric_boundaries():
+    event = sanitize_worker_event(
+        {
+            "code": "WHISPER_SEGMENT_SPAN_WIDENED",
+            "stage": "transcription",
+            "track": 2,
+            "segment": 3,
+            "start_seconds": 100.2,
+            "end_seconds": 100.8,
+            "relative_start_seconds": -0.051,
+            "relative_end_seconds": 0.051,
+            "text": "private transcript",
+            "path": "C:/private/audio.flac",
+            "speaker": "Private Name",
+        }
+    )
+
+    assert event.code == "WHISPER_SEGMENT_SPAN_WIDENED"
+    assert event.level == "warning"
+    assert event.data == {
+        "stage": "transcription",
+        "track": 2,
+        "segment": 3,
+        "start_seconds": 100.2,
+        "end_seconds": 100.8,
+        "relative_start_seconds": -0.051,
+        "relative_end_seconds": 0.051,
+    }
+    assert event.drift_reason == "unexpected_or_invalid_field"
+    assert event.rejected_field_count == 3
+    assert "private" not in repr(event).lower()
