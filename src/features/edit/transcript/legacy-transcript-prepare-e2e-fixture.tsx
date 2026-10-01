@@ -8,7 +8,7 @@ import type {
 	LegacyTranscriptPrepareResult,
 } from "./legacy-prepare-model";
 
-const SESSION_ID = "11111111-1111-4111-8111-111111111111";
+const CAMPAIGN_SLUG = "yuhara-main";\nconst SESSION_ID = "11111111-1111-4111-8111-111111111111";
 const SNAPSHOT = "a".repeat(64);
 
 export function LegacyTranscriptPrepareE2EFixture() {
