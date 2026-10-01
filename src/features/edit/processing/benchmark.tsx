@@ -37,6 +37,22 @@ const LABELS: Record<(typeof PROFILES)[number], string> = {
 	"qwen-quality": "Qwen Quality",
 };
 
+const QWEN_RUNTIME_RECOVERY_REASONS = new Set([
+	"QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+	"QWEN_RUNTIME_REQUIRED",
+	"QWEN_GATE_RUNTIME_NOT_READY",
+]);
+
+function needsQwenRuntimeRecovery(profile: TranscriptionProfileState | null): boolean {
+	return Boolean(
+		profile &&
+			profile.engine === "qwen3" &&
+			!profile.ready &&
+			profile.reason &&
+			QWEN_RUNTIME_RECOVERY_REASONS.has(profile.reason),
+	);
+}
+
 const BENCHMARK_SAMPLE_SECONDS = 300;
 
 type PendingBenchmark = {
@@ -185,8 +201,7 @@ function ProfileReadiness({
 		: profile?.preparationRequired
 			? "prepare"
 			: "blocked";
-	const qwenRuntimeUpgrade =
-		profile?.reason === "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED";
+	const qwenRuntimeUpgrade = needsQwenRuntimeRecovery(profile);
 	const detail =
 		profile?.ready
 			? "Pronto"
@@ -295,14 +310,10 @@ export function ProcessingBenchmark({
 	const blockedProfiles = profileStates.filter(
 		(item) => item === null || (!item.ready && !item.preparationRequired),
 	);
-	const qwenRuntimeBlocked = profileStates.some(
-		(item) => item?.reason === "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
-	);
+	const qwenRuntimeBlocked = profileStates.some(needsQwenRuntimeRecovery);
 	const qwenInstalledVersionFromProfiles =
 		profileStates.find(
-			(item) =>
-				item?.reason === "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED" &&
-				item.runtimeVersion,
+			(item) => needsQwenRuntimeRecovery(item) && item?.runtimeVersion,
 		)?.runtimeVersion ?? null;
 	const qwenRuntimeCheckSupported =
 		capabilities?.capabilities.includes("runtime.qwen.check") ?? false;
