@@ -128,6 +128,28 @@ export async function verifyPublicContent({
 
 	if (!archive) throw new Error("Campaign session archive was not checked");
 
+	const home = checks.find((check) => check.route === "/");
+	const directory = checks.find((check) => check.route === "/campanhas");
+	if (!home || !directory) {
+		throw new Error("Required public content routes were not checked");
+	}
+	if (directory.state === "empty" && archive.state === "available") {
+		log(
+			`PUBLIC_CONTENT_SMOKE sha=${sourceSha} route=/campanhas result=FAIL at=${timestamp}`,
+		);
+		throw new Error(
+			"Campaign directory is empty while the public session archive contains published sessions",
+		);
+	}
+	if ((home.state === "available") !== (archive.state === "available")) {
+		log(
+			`PUBLIC_CONTENT_SMOKE sha=${sourceSha} route=/ result=FAIL at=${timestamp}`,
+		);
+		throw new Error(
+			`Home/session archive semantic mismatch: home=${home.state} archive=${archive.state}`,
+		);
+	}
+
 	if (archive.state === "available") {
 		const sessionPath = findPublicSessionPath(archive.body);
 		if (!sessionPath) {
@@ -206,11 +228,12 @@ export function createFetchRequest({
 export function createVercelRequest({
 	deploymentUrl,
 	requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+	spawnSyncImpl = spawnSync,
 }) {
 	if (!deploymentUrl) throw new Error("deploymentUrl is required");
 
 	return async (route) => {
-		const command = spawnSync(
+		const command = spawnSyncImpl(
 			"vercel",
 			[
 				"curl",
