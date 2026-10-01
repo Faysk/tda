@@ -14,7 +14,7 @@ async function openPalette(page: Page) {
 }
 
 test("command palette stays out of the public World", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	await expect(page.getByTestId("world-canvas")).toBeVisible();
 	await expect(page.getByRole("button", { name: /Comandos do Mundo/i })).toHaveCount(0);
