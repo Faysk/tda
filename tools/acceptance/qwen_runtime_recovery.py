@@ -295,18 +295,45 @@ def fetch_production_version(origin: str, timeout_seconds: float = 20.0) -> dict
 
 
 def _assert_receipt_privacy(value: Any) -> None:
-    serialized = json.dumps(value, ensure_ascii=False, sort_keys=True).lower()
-    forbidden = (
-        "pairing-token",
+    forbidden_keys = {
         "authorization",
+        "token",
+        "pairing_token",
+        "pairing-token",
+        "path",
+        "local_path",
+        "audio",
+        "audio_sha",
+        "audio_sha256",
+        "transcript",
+        "transcription_text",
+    }
+
+    def visit(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, child in node.items():
+                normalized = str(key).strip().lower()
+                if normalized in forbidden_keys:
+                    raise RecoveryAcceptanceError(
+                        "QWEN_RECOVERY_RECEIPT_PRIVACY_INVALID"
+                    )
+                visit(child)
+            return
+        if isinstance(node, list):
+            for child in node:
+                visit(child)
+
+    visit(value)
+    serialized = json.dumps(value, ensure_ascii=False, sort_keys=True).lower()
+    forbidden_markers = (
+        "pairing-token",
+        "authorization:",
         "bearer ",
         "localappdata",
         "\\users\\",
         "/users/",
-        "transcript",
-        "audio_sha",
     )
-    if any(marker in serialized for marker in forbidden):
+    if any(marker in serialized for marker in forbidden_markers):
         raise RecoveryAcceptanceError("QWEN_RECOVERY_RECEIPT_PRIVACY_INVALID")
 
 
