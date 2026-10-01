@@ -10,6 +10,7 @@ import {
 	saveWorldGraphDraftAction,
 } from "../world-graph-actions";
 import { publishWorldEditLayoutAction } from "../world-edit-actions";
+import { worldEditLeaseStorageKey } from "../world-campaign";
 import { worldPublicationVersionLabel } from "../world-publication";
 import {
 	acquireWorldLayoutSessionAction,
@@ -25,7 +26,6 @@ import {
 	worldPublishFailureMessage,
 } from "./world-edit-session-model";
 
-const WORLD_EDIT_LEASE_STORAGE_KEY = "tda.world.edit.lease.yuhara-main";
 const WORLD_EDIT_HEARTBEAT_MS = 20_000;
 const WORLD_EDIT_DRAFT_DEBOUNCE_MS = 500;
 const WORLD_EDIT_DRAFT_SAFETY_FLUSH_MS = 10_000;
@@ -37,6 +37,7 @@ type LayoutDraftResult = Awaited<ReturnType<typeof saveWorldLayoutSessionDraftAc
 type GraphDraftResult = Awaited<ReturnType<typeof saveWorldGraphDraftAction>>;
 
 type UseWorldEditSessionOptions = Readonly<{
+	campaignSlug: string;
 	canEditLayout: boolean;
 	canEditContent: boolean;
 	canStartEditing: boolean;
@@ -56,6 +57,7 @@ type UpdateLayoutDraftOptions = Readonly<{
 }>;
 
 export function useWorldEditSession({
+	campaignSlug,
 	canEditLayout,
 	canEditContent,
 	canStartEditing,
@@ -66,6 +68,7 @@ export function useWorldEditSession({
 	onEditingStarted,
 	onPublished,
 }: UseWorldEditSessionOptions) {
+	const leaseStorageKey = worldEditLeaseStorageKey(campaignSlug);
 	const [state, setState] = useState<WorldEditState>("view");
 	const [leaseToken, setLeaseToken] = useState<string | null>(null);
 	const [layoutDirty, setLayoutDirty] = useState(false);
@@ -120,15 +123,15 @@ export function useWorldEditSession({
 		draftSafetyTimer.current = null;
 		setState("view");
 		setLeaseToken(null);
-		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		window.sessionStorage.removeItem(leaseStorageKey);
 		setFeedback(worldEditFailureMessage(reason));
-	}, []);
+	}, [leaseStorageKey]);
 
 	useEffect(() => {
 		if (state !== "editing" || !leaseToken) return;
 		let cancelled = false;
 		const heartbeat = window.setInterval(() => {
-			void renewWorldLayoutSessionAction(leaseToken).then((result) => {
+			void renewWorldLayoutSessionAction(campaignSlug, leaseToken).then((result) => {
 				if (cancelled || result.ok) return;
 				if (result.reason === "lease_lost" || result.reason === "forbidden") {
 					markLeaseLost(result.reason);
@@ -141,7 +144,7 @@ export function useWorldEditSession({
 			cancelled = true;
 			window.clearInterval(heartbeat);
 		};
-	}, [state, leaseToken, markLeaseLost]);
+	}, [state, leaseToken, campaignSlug, markLeaseLost]);
 
 	useEffect(
 		() => () => {
@@ -202,7 +205,7 @@ export function useWorldEditSession({
 	): Promise<LayoutDraftResult> {
 		return enqueueSave(async () => {
 			try {
-				return await saveWorldLayoutSessionDraftAction(token, candidate);
+				return await saveWorldLayoutSessionDraftAction(campaignSlug, token, candidate);
 			} catch {
 				return { ok: false, reason: "dependency_unavailable" } as const;
 			}
@@ -215,7 +218,7 @@ export function useWorldEditSession({
 	): Promise<GraphDraftResult> {
 		return enqueueSave(async () => {
 			try {
-				return await saveWorldGraphDraftAction(token, draft);
+				return await saveWorldGraphDraftAction(campaignSlug, token, draft);
 			} catch {
 				return { ok: false, reason: "dependency_unavailable" } as const;
 			}
@@ -358,13 +361,13 @@ export function useWorldEditSession({
 		setBusyNotice(null);
 		setState("acquiring");
 		setFeedback("Obtendo sessão exclusiva de edição…");
-		let token = window.sessionStorage.getItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		let token = window.sessionStorage.getItem(leaseStorageKey);
 		if (!token) {
 			token = crypto.randomUUID();
-			window.sessionStorage.setItem(WORLD_EDIT_LEASE_STORAGE_KEY, token);
+			window.sessionStorage.setItem(leaseStorageKey, token);
 		}
 
-		const result = await acquireWorldLayoutSessionAction(token);
+		const result = await acquireWorldLayoutSessionAction(campaignSlug, token);
 		if (!result.ok) {
 			setState("view");
 			if (result.reason === "busy") {
@@ -376,17 +379,17 @@ export function useWorldEditSession({
 				setFeedback(null);
 				return;
 			}
-			window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+			window.sessionStorage.removeItem(leaseStorageKey);
 			setFeedback(worldEditFailureMessage(result.reason));
 			return;
 		}
 
 		let acquiredGraph: WorldGraphDraft | null = null;
 		if (canEditContent) {
-			const graphResult = await acquireWorldGraphDraftAction(token);
+			const graphResult = await acquireWorldGraphDraftAction(campaignSlug, token);
 			if (!graphResult.ok) {
-				await releaseWorldLayoutSessionAction(token);
-				window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+				await releaseWorldLayoutSessionAction(campaignSlug, token);
+				window.sessionStorage.removeItem(leaseStorageKey);
 				setState("view");
 				setFeedback(worldEditFailureMessage(graphResult.reason));
 				return;
@@ -441,7 +444,7 @@ export function useWorldEditSession({
 	function completePublishedEdit(message: string) {
 		sessionSequence.current += 1;
 		saveFailureRef.current = { layout: null, graph: null };
-		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		window.sessionStorage.removeItem(leaseStorageKey);
 		setLeaseToken(null);
 		setLayoutDirty(false);
 		setGraphDirty(false);
@@ -512,7 +515,7 @@ export function useWorldEditSession({
 			}
 
 			setFeedback("Publicando o Mundo com as visibilidades configuradas…");
-			const publishResult = await publishWorldEditStateAction(leaseToken);
+			const publishResult = await publishWorldEditStateAction(campaignSlug, leaseToken);
 			if (sequence !== sessionSequence.current) return;
 			if (!publishResult.ok) {
 				if (publishResult.reason === "lease_lost" || publishResult.reason === "forbidden") {
@@ -539,7 +542,7 @@ export function useWorldEditSession({
 		}
 
 		setFeedback("Publicando composição para todos…");
-		const publishResult = await publishWorldEditLayoutAction(leaseToken);
+		const publishResult = await publishWorldEditLayoutAction(campaignSlug, leaseToken);
 		if (sequence !== sessionSequence.current) return;
 		if (!publishResult.ok) {
 			if (publishResult.reason === "lease_lost" || publishResult.reason === "forbidden") {
@@ -603,14 +606,14 @@ export function useWorldEditSession({
 		await saveQueue.current;
 		if (sequence !== sessionSequence.current) return;
 		setFeedback("Encerrando a sessão de edição…");
-		const result = await releaseWorldLayoutSessionAction(leaseToken);
+		const result = await releaseWorldLayoutSessionAction(campaignSlug, leaseToken);
 		if (!result.ok) {
 			setFeedback(worldEditFailureMessage(result.reason));
 			return;
 		}
 		sessionSequence.current += 1;
 		saveFailureRef.current = { layout: null, graph: null };
-		window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+		window.sessionStorage.removeItem(leaseStorageKey);
 		setLeaseToken(null);
 		setLayoutDirty(false);
 		setGraphDirty(false);
@@ -695,14 +698,14 @@ export function useWorldEditSession({
 			}
 
 			await saveQueue.current;
-			const result = await discardWorldLayoutSessionAction(leaseToken);
+			const result = await discardWorldLayoutSessionAction(campaignSlug, leaseToken);
 			if (!result.ok) {
 				setFeedback(worldEditFailureMessage(result.reason));
 				return;
 			}
 			sessionSequence.current += 1;
 			saveFailureRef.current = { layout: null, graph: null };
-			window.sessionStorage.removeItem(WORLD_EDIT_LEASE_STORAGE_KEY);
+			window.sessionStorage.removeItem(leaseStorageKey);
 			setLeaseToken(null);
 			setLayoutDirty(false);
 			setGraphDirty(false);
