@@ -22,10 +22,10 @@ NVIDIA_DISTRIBUTIONS = (
     "nvidia-cudnn-cu12",
     "nvidia-cuda-runtime-cu12",
 )
-# Frozen Windows workers can exceed 30s on a cold GitHub runner while
-# extracting/loading native dependencies. Keep the smoke bounded, but align
-# with the 90s packaged-worker budget already used by the Qwen runtime.
-PACKAGED_WORKER_SMOKE_TIMEOUT_SECONDS = 90
+# The real frozen decoder smoke imports PyAV/CTranslate2 and performs WAV+FLAC
+# decode. A cold Windows runner exceeded 30s once, then the exact same source
+# passed on retry. Keep this gate bounded while allowing cold-start headroom.
+DECODE_SMOKE_TIMEOUT_SECONDS = 90
 
 
 def run(
@@ -46,13 +46,13 @@ def run(
 
 def _probe_worker(worker: Path) -> dict:
     try:
-        return json.loads(run(str(worker), "--probe", timeout=PACKAGED_WORKER_SMOKE_TIMEOUT_SECONDS))
+        return json.loads(run(str(worker), "--probe", timeout=30))
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("WHISPER_RUNTIME_PROBE_TIMEOUT") from exc
 
 def _decode_smoke_worker(worker: Path) -> dict:
     try:
-        value = json.loads(run(str(worker), "--decode-smoke", timeout=PACKAGED_WORKER_SMOKE_TIMEOUT_SECONDS))
+        value = json.loads(run(str(worker), "--decode-smoke", timeout=DECODE_SMOKE_TIMEOUT_SECONDS))
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("WHISPER_RUNTIME_DECODE_SMOKE_TIMEOUT") from exc
     except json.JSONDecodeError as exc:
