@@ -13,12 +13,30 @@ import {
 } from "./session-campaign-move-model";
 import styles from "./session-campaign-move.module.css";
 
+type MovePreflightRequest = Parameters<typeof preflightSessionCampaignMoveAction>[0];
+type MoveCommitRequest = Parameters<typeof moveSessionCampaignAction>[0];
+
+export type SessionCampaignMoveTransport = Readonly<{
+	preflight: (
+		request: MovePreflightRequest,
+	) => ReturnType<typeof preflightSessionCampaignMoveAction>;
+	commit: (
+		request: MoveCommitRequest,
+	) => ReturnType<typeof moveSessionCampaignAction>;
+}>;
+
+const DEFAULT_TRANSPORT: SessionCampaignMoveTransport = {
+	preflight: preflightSessionCampaignMoveAction,
+	commit: moveSessionCampaignAction,
+};
+
 type Props = Readonly<{
 	sessionId: string;
 	sourceSessionId: string;
 	sourceCampaignSlug: string;
 	sourceCampaignName: string;
 	destinations: readonly SessionCampaignMoveDestination[];
+	transport?: SessionCampaignMoveTransport;
 }>;
 
 function failureLabel(reason: string): string {
@@ -47,12 +65,14 @@ export function SessionCampaignMovePanel({
 	sourceCampaignSlug,
 	sourceCampaignName,
 	destinations,
+	transport = DEFAULT_TRANSPORT,
 }: Props) {
 	const router = useRouter();
 	const [destination, setDestination] = useState(destinations[0]?.technicalSlug ?? "");
 	const [preview, setPreview] = useState<SessionCampaignMovePreview | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [operationId, setOperationId] = useState<string | null>(null);
+	const [recoveryHref, setRecoveryHref] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
 	const selected = useMemo(
 		() => destinations.find((item) => item.technicalSlug === destination),
@@ -84,8 +104,9 @@ export function SessionCampaignMovePanel({
 		setError(null);
 		setPreview(null);
 		setOperationId(null);
+		setRecoveryHref(null);
 		startTransition(async () => {
-			const result = await preflightSessionCampaignMoveAction(request);
+			const result = await transport.preflight(request);
 			if (!result.ok) {
 				setError(failureLabel(result.reason));
 				return;
@@ -101,7 +122,7 @@ export function SessionCampaignMovePanel({
 		setError(null);
 		startTransition(async () => {
 			try {
-				const result = await moveSessionCampaignAction({
+				const result = await transport.commit({
 					...request,
 					operationId: stableOperationId,
 				});
@@ -111,10 +132,11 @@ export function SessionCampaignMovePanel({
 					return;
 				}
 				if (result.cachePending) {
-					setError(
-						"A mudança foi confirmada no banco, mas alguma revalidação de cache ficou pendente. O destino abaixo é a fonte de verdade.",
-					);
+					setError(null);
+					setRecoveryHref(result.destinationHref);
+					return;
 				}
+				setRecoveryHref(null);
 				router.replace(result.destinationHref);
 				router.refresh();
 			} catch {
@@ -145,6 +167,7 @@ export function SessionCampaignMovePanel({
 							setPreview(null);
 							setError(null);
 							setOperationId(null);
+							setRecoveryHref(null);
 						}}
 						disabled={pending}
 					>
@@ -161,6 +184,25 @@ export function SessionCampaignMovePanel({
 			</div>
 
 			{error ? <p className={styles.error} role="alert">{error}</p> : null}
+
+			{recoveryHref ? (
+				<div className={styles.recovery} role="status">
+					<strong>Commit confirmado.</strong>
+					<span>
+						A sessão já mudou de campanha no banco. A revalidação de cache/delivery
+						 ficou pendente; isso não desfaz o commit.
+					</span>
+					<button
+						type="button"
+						onClick={() => {
+							router.replace(recoveryHref);
+							router.refresh();
+						}}
+					>
+						Abrir destino confirmado
+					</button>
+				</div>
+			) : null}
 
 			{preview ? (
 				<div className={styles.preview} data-status={preview.status}>
@@ -183,7 +225,13 @@ export function SessionCampaignMovePanel({
 					)}
 					{preview.status === "ready" ? (
 						<button type="button" onClick={commitMove} disabled={pending}>
-							{pending ? "Movendo…" : `Confirmar mudança para ${selected?.name ?? "destino"}`}
+							{pending
+								? recoveryHref
+									? "Revalidando…"
+									: "Movendo…"
+								: recoveryHref
+									? "Revalidar caches"
+									: `Confirmar mudança para ${selected?.name ?? "destino"}`}
 						</button>
 					) : null}
 				</div>
