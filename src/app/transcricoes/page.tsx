@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
+import { currentAccess } from "@/features/auth/server";
+import {
+	readAuthorizedCampaigns,
+	type AuthorizedCampaign,
+} from "@/features/campaigns/authorized";
+import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import { TranscriptInventory } from "@/features/transcripts/statistics/inventory";
 import {
 	formatDuration,
@@ -17,59 +23,226 @@ export const metadata: Metadata = {
 	robots: { index: false, follow: false },
 };
 
+type SearchParams = Promise<
+	Readonly<{
+		campanha?: string | string[];
+	}>
+>;
+
+function first(value: string | string[] | undefined) {
+	return Array.isArray(value) ? value[0] : value;
+}
+
+function transcriptsHref(campaignSlug: string) {
+	return `/transcricoes?campanha=${encodeURIComponent(campaignSlug)}`;
+}
+
+function CampaignPicker({
+	campaigns,
+	selected,
+	invalidSelection = false,
+}: Readonly<{
+	campaigns: readonly AuthorizedCampaign[];
+	selected?: string;
+	invalidSelection?: boolean;
+}>) {
+	return (
+		<div className={styles.campaignContext}>
+			{invalidSelection ? (
+				<p className={styles.campaignAlert} role="alert">
+					A campanha pedida não está disponível neste contexto. Ela pode não
+					existir, estar fora do seu acesso ou não estar mais disponível.
+					Nenhuma outra campanha foi escolhida automaticamente.
+				</p>
+			) : null}
+			<form className={styles.campaignPicker} method="get">
+				<label htmlFor="transcripts-campaign">
+					<span>Campanha</span>
+					<select
+						id="transcripts-campaign"
+						name="campanha"
+						required
+						defaultValue={selected ?? ""}
+					>
+						<option value="" disabled>
+							Selecione…
+						</option>
+						{campaigns.map((campaign) => (
+							<option
+								key={campaign.technicalSlug}
+								value={campaign.technicalSlug}
+							>
+								{campaign.name}
+								{campaign.lifecycle === "archived" ? " (arquivada)" : ""}
+							</option>
+						))}
+					</select>
+				</label>
+				<button type="submit">
+					{selected ? "Trocar campanha" : "Abrir transcrições"}
+				</button>
+			</form>
+		</div>
+	);
+}
+
+function AccessState({
+	title,
+	message,
+	href,
+	label,
+}: Readonly<{
+	title: string;
+	message: string;
+	href?: string;
+	label?: string;
+}>) {
+	return (
+		<section
+			className={styles.shell}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader eyebrow="Transcrições" title={title} />
+			<p role="status">{message}</p>
+			{href && label ? <Link href={href}>{label}</Link> : null}
+		</section>
+	);
+}
+
 export default async function TranscriptsPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ campanha?: string | string[] }>;
+	searchParams: SearchParams;
 }) {
 	const params = await searchParams;
-	const campaign =
-		typeof params.campanha === "string" ? params.campanha : CAMPAIGN_SLUG;
-	const result = await getTranscriptStatistics(campaign);
-	if (!result.ok) {
-		const nextPath =
-			campaign === CAMPAIGN_SLUG
-				? "/transcricoes"
-				: "/transcricoes?campanha=" + encodeURIComponent(campaign);
-		const state =
-			result.reason === "dependency_unavailable"
-				? {
-						message:
-							"Não foi possível consultar as transcrições agora. Tente novamente em instantes.",
-						href: "/conta",
-						label: "Minha conta",
-					}
-				: result.reason === "unauthenticated"
-					? {
-							message:
-								"Entre com sua conta do Discord para consultar as transcrições desta campanha.",
-							href: "/entrar?next=" + encodeURIComponent(nextPath),
-							label: "Entrar",
-						}
-					: result.reason === "validation"
-						? {
-								message: "A campanha informada não é válida.",
-								href: "/transcricoes",
-								label: "Voltar às transcrições",
-							}
-						: result.reason === "profile_unresolved"
-							? {
-									message:
-										"Sua conta está autenticada, mas ainda não está vinculada a um perfil com acesso a esta campanha.",
-									href: "/conta",
-									label: "Consultar meu acesso",
-								}
-							: {
-									message:
-										"Sua conta não tem permissão de leitura das transcrições desta campanha.",
-									href: "/conta",
-									label: "Consultar meu acesso",
-								};
+	const requestedCampaign = first(params.campanha);
+	const nextPath = requestedCampaign
+		? transcriptsHref(requestedCampaign)
+		: "/transcricoes";
+	const access = await currentAccess();
+
+	if (access.state === "anonymous") {
 		return (
-			<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
-				<OperationalPageHeader eyebrow="Transcrições" title="Transcrições" />
-				<p role="status">{state.message}</p>
-				<Link href={state.href}>{state.label}</Link>
+			<AccessState
+				title="Transcrições"
+				message="Entre com sua conta do Discord para consultar as transcrições das campanhas disponíveis para o seu perfil."
+				href={"/entrar?next=" + encodeURIComponent(nextPath)}
+				label="Entrar"
+			/>
+		);
+	}
+	if (access.state === "unavailable") {
+		return (
+			<AccessState
+				title="Transcrições indisponíveis"
+				message="Não foi possível verificar seu acesso agora. Nenhuma campanha privada foi consultada."
+				href="/conta"
+				label="Minha conta"
+			/>
+		);
+	}
+	if (!access.context?.profileId) {
+		return (
+			<AccessState
+				title="Acesso não vinculado"
+				message="Sua conta está autenticada, mas ainda não está vinculada a um perfil com acesso a campanhas."
+				href="/conta"
+				label="Consultar meu acesso"
+			/>
+		);
+	}
+
+	const eligible = await readAuthorizedCampaigns(
+		access.context,
+		EDIT_CAPABILITIES.transcriptRead,
+		{ includeArchived: true },
+	);
+	if (!eligible.ok) {
+		return (
+			<AccessState
+				title="Transcrições indisponíveis"
+				message="O diretório autorizado de campanhas não pôde ser consultado com segurança. Nenhum contexto foi assumido."
+				href="/conta"
+				label="Minha conta"
+			/>
+		);
+	}
+
+	if (!eligible.campaigns.length) {
+		return (
+			<AccessState
+				title="Nenhuma campanha disponível"
+				message="Seu perfil não possui acesso de leitura de transcrições em nenhuma campanha disponível."
+				href="/conta"
+				label="Consultar meu acesso"
+			/>
+		);
+	}
+
+	if (!requestedCampaign && eligible.campaigns.length === 1) {
+		redirect(transcriptsHref(eligible.campaigns[0]!.technicalSlug));
+	}
+
+	const selected = requestedCampaign
+		? eligible.campaigns.find(
+				(campaign) => campaign.technicalSlug === requestedCampaign,
+			) ?? null
+		: null;
+
+	if (!selected) {
+		return (
+			<section
+				className={styles.shell}
+				data-layout-family="workspace"
+				data-layout-role="editorial"
+			>
+				<OperationalPageHeader
+					eyebrow="Transcrições"
+					title="Escolha a campanha"
+					description={
+						<p>
+							As estatísticas são privadas e sempre calculadas dentro de uma
+							campanha autorizada.
+						</p>
+					}
+				/>
+				<CampaignPicker
+					campaigns={eligible.campaigns}
+					invalidSelection={Boolean(requestedCampaign)}
+				/>
+			</section>
+		);
+	}
+
+	const result = await getTranscriptStatistics(selected.technicalSlug);
+	if (!result.ok) {
+		const message =
+			result.reason === "dependency_unavailable"
+				? "Não foi possível consultar as transcrições agora. Nenhum resultado parcial foi exibido."
+				: result.reason === "profile_unresolved"
+					? "Seu vínculo de perfil mudou desde a abertura desta página."
+					: result.reason === "validation"
+						? "O contexto de campanha não pôde ser validado."
+						: "Seu acesso a esta campanha mudou desde a abertura da página. Atualize a seleção antes de continuar.";
+		return (
+			<section
+				className={styles.shell}
+				data-layout-family="workspace"
+				data-layout-role="editorial"
+			>
+				<OperationalPageHeader
+					eyebrow="Transcrições"
+					title={selected.name}
+				/>
+				<CampaignPicker
+					campaigns={eligible.campaigns}
+					selected={selected.technicalSlug}
+				/>
+				<p role="status">{message}</p>
+				<p className={styles.accountLink}>
+					<Link href="/conta">Consultar meu acesso</Link>
+				</p>
 			</section>
 		);
 	}
@@ -80,17 +253,33 @@ export default async function TranscriptsPage({
 		totals.durationCoverage < totals.sessions;
 
 	return (
-		<section className={styles.shell} data-layout-family="workspace" data-layout-role="editorial">
+		<section
+			className={styles.shell}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
 			<OperationalPageHeader
 				eyebrow="Transcrições"
-				title={
-					<>
-						Transcrições <span className={styles.campaign}>· {campaign}</span>
-					</>
+				title={selected.name}
+				description={
+					<p>
+						Estatísticas e inventário da campanha selecionada.
+						{selected.lifecycle === "archived"
+							? " Esta campanha está arquivada e permanece disponível para leitura histórica autorizada."
+							: ""}
+					</p>
 				}
 			/>
 
-			<dl className={styles.summaryStrip} aria-label="Resumo das transcrições">
+			<CampaignPicker
+				campaigns={eligible.campaigns}
+				selected={selected.technicalSlug}
+			/>
+
+			<dl
+				className={styles.summaryStrip}
+				aria-label={`Resumo das transcrições — ${selected.name}`}
+			>
 				<div>
 					<dt>Sessões</dt>
 					<dd>{sessions.length}</dd>
