@@ -14,12 +14,17 @@ import {
 
 const PROJECT_SCOPE_ID = "tda";
 const SAFE_TECHNICAL_SLUG = /^[A-Za-z0-9_-]{1,128}$/u;
+const SAFE_ROUTE_KEY = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 export type AuthorizedCampaign = Readonly<{
 	technicalSlug: string;
+	routeKey: string;
 	name: string;
 	lifecycle: CampaignLifecycle;
+	capabilities: readonly EditCapability[];
 }>;
+
+export type AuthorizedCampaignOption = AuthorizedCampaign;
 
 export type AuthorizedCampaignsResult =
 	| Readonly<{ ok: true; campaigns: readonly AuthorizedCampaign[] }>
@@ -37,61 +42,95 @@ function grantActive(grant: EditGrant, now: Date): boolean {
 	return Number.isFinite(endsAt) && endsAt > now.getTime();
 }
 
-export function authorizedCampaignGrantScope(
+export type CampaignGrantScope = Readonly<{
+	projectWide: boolean;
+	campaignSlugs: readonly string[];
+}>;
+
+export function campaignGrantScopeForCapabilities(
 	context: EditAccessContext,
-	capability: EditCapability,
+	capabilities: readonly EditCapability[],
 	now = new Date(),
-): Readonly<{ projectWide: boolean; campaignSlugs: readonly string[] }> {
+): CampaignGrantScope {
+	const wanted = new Set<string>(capabilities);
 	const matching = context.grants.filter(
-		(grant) => grant.action === capability && grantActive(grant, now),
+		(grant) => wanted.has(grant.action) && grantActive(grant, now),
 	);
 	const projectWide = matching.some(
 		(grant) =>
 			grant.scopeType === "project" && grant.scopeId === PROJECT_SCOPE_ID,
 	);
-	if (projectWide) return { projectWide: true, campaignSlugs: [] };
-
-	const campaignSlugs = [
-		...new Set(
-			matching
-				.filter((grant) => grant.scopeType === "campaign")
-				.map((grant) => grant.scopeId)
-				.filter((slug) => SAFE_TECHNICAL_SLUG.test(slug)),
-		),
-	].sort();
-	return { projectWide: false, campaignSlugs };
+	const campaignSlugs = projectWide
+		? []
+		: [
+				...new Set(
+					matching
+						.filter((grant) => grant.scopeType === "campaign")
+						.map((grant) => grant.scopeId)
+						.filter((value) => SAFE_TECHNICAL_SLUG.test(value)),
+				),
+			].sort();
+	return { projectWide, campaignSlugs };
 }
 
-function parseCampaign(row: Record<string, unknown>): AuthorizedCampaign | null {
-	const technicalSlug =
-		typeof row.slug === "string" && SAFE_TECHNICAL_SLUG.test(row.slug)
-			? row.slug
-			: null;
-	const name =
-		typeof row.name === "string" && row.name.trim().length
-			? row.name.trim()
-			: null;
+export function authorizedCampaignGrantScope(
+	context: EditAccessContext,
+	capability: EditCapability,
+	now = new Date(),
+): CampaignGrantScope {
+	return campaignGrantScopeForCapabilities(context, [capability], now);
+}
+
+function text(value: unknown): string | null {
+	return typeof value === "string" && value.trim().length > 0
+		? value.trim()
+		: null;
+}
+
+function parseCampaign(
+	row: Record<string, unknown>,
+	context: EditAccessContext,
+	capabilities: readonly EditCapability[],
+): AuthorizedCampaign | null {
+	const technicalSlug = text(row.slug);
+	const routeKey = text(row.public_slug);
+	const name = text(row.name);
 	if (
 		!technicalSlug ||
+		!routeKey ||
 		!name ||
+		!SAFE_TECHNICAL_SLUG.test(technicalSlug) ||
+		!SAFE_ROUTE_KEY.test(routeKey) ||
 		!isCampaignLifecycle(row.lifecycle)
 	)
 		return null;
+
+	const allowed = capabilities.filter(
+		(capability) =>
+			authorizeCampaignCapability(context, capability, technicalSlug).ok,
+	);
+	if (allowed.length === 0) return null;
 	return {
 		technicalSlug,
+		routeKey,
 		name,
 		lifecycle: row.lifecycle,
+		capabilities: allowed,
 	};
 }
 
 export async function readAuthorizedCampaigns(
 	context: EditAccessContext,
-	capability: EditCapability,
+	capabilityOrCapabilities: EditCapability | readonly EditCapability[],
 	options: Readonly<{ includeArchived?: boolean }> = {},
 ): Promise<AuthorizedCampaignsResult> {
 	if (!context.profileId) return { ok: false, reason: "profile_unresolved" };
+	const capabilities = Array.isArray(capabilityOrCapabilities)
+		? capabilityOrCapabilities
+		: [capabilityOrCapabilities];
+	if (capabilities.length === 0) return { ok: true, campaigns: [] };
 
-	const scope = authorizedCampaignGrantScope(context, capability);
+	const scope = campaignGrantScopeForCapabilities(context, capabilities);
 	if (!scope.projectWide && scope.campaignSlugs.length === 0)
 		return { ok: true, campaigns: [] };
 
@@ -100,7 +139,7 @@ export async function readAuthorizedCampaigns(
 
 	let query = client
 		.from("campaigns")
-		.select("slug,name,lifecycle")
+		.select("slug,public_slug,name,lifecycle")
 		.order("name")
 		.order("slug");
 	if (!options.includeArchived) query = query.eq("lifecycle", "active");
@@ -114,18 +153,45 @@ export async function readAuthorizedCampaigns(
 	for (const raw of data) {
 		if (!raw || typeof raw !== "object" || Array.isArray(raw))
 			return { ok: false, reason: "dependency_unavailable" };
-		const campaign = parseCampaign(raw as Record<string, unknown>);
-		if (!campaign)
-			return { ok: false, reason: "dependency_unavailable" };
-		if (
-			authorizeCampaignCapability(
-				context,
-				capability,
-				campaign.technicalSlug,
-			).ok
-		)
-			campaigns.push(campaign);
+		const campaign = parseCampaign(
+			raw as Record<string, unknown>,
+			context,
+			capabilities,
+		);
+		if (campaign) campaigns.push(campaign);
 	}
-
 	return { ok: true, campaigns };
+}
+
+export async function readAuthorizedCampaignsForCapability(
+	context: EditAccessContext,
+	capability: EditCapability,
+	options: Readonly<{ includeArchived?: boolean }> = {},
+): Promise<AuthorizedCampaignsResult> {
+	return readAuthorizedCampaigns(context, capability, options);
+}
+
+export type AuthorizedCampaignResolution =
+	| Readonly<{ ok: true; campaign: AuthorizedCampaign }>
+	| Readonly<{
+			ok: false;
+			reason: "profile_unresolved" | "forbidden" | "dependency_unavailable";
+	  }>;
+
+export async function resolveAuthorizedCampaign(
+	context: EditAccessContext,
+	capability: EditCapability,
+	technicalSlug: string,
+): Promise<AuthorizedCampaignResolution> {
+	if (!SAFE_TECHNICAL_SLUG.test(technicalSlug))
+		return { ok: false, reason: "forbidden" };
+	const result = await readAuthorizedCampaignsForCapability(context, capability, {
+		includeArchived: true,
+	});
+	if (!result.ok) return result;
+	const campaign =
+		result.campaigns.find((item) => item.technicalSlug === technicalSlug) ?? null;
+	return campaign
+		? { ok: true, campaign }
+		: { ok: false, reason: "forbidden" };
 }
