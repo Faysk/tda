@@ -20,14 +20,16 @@ def test_whisper_1_1_5_remains_valid_for_transcription_but_not_benchmark():
     assert MIN_BENCHMARK_WHISPER_RUNTIME_VERSION == "1.1.7"
     assert whisper_runtime_version_compatible("1.1.5") is True
     assert whisper_runtime_benchmark_compatible("1.1.5") is False
-    assert whisper_runtime_benchmark_compatible("1.1.6") is False\n    assert whisper_runtime_benchmark_compatible("1.1.7") is True
+    assert whisper_runtime_benchmark_compatible("1.1.6") is False
+    assert whisper_runtime_benchmark_compatible("1.1.7") is True
 
 
 @pytest.mark.parametrize(
     ("runtime_version", "benchmark_ready", "benchmark_reason"),
     [
         ("1.1.5", False, "WHISPER_BENCHMARK_RUNTIME_REQUIRED"),
-        ("1.1.6", False, "WHISPER_BENCHMARK_RUNTIME_REQUIRED"),\n        ("1.1.7", True, None),
+        ("1.1.6", False, "WHISPER_BENCHMARK_RUNTIME_REQUIRED"),
+        ("1.1.7", True, None),
     ],
 )
 def test_profile_catalog_separates_transcription_and_benchmark_readiness(
