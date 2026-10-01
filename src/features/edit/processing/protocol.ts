@@ -72,6 +72,7 @@ export type PreparationStatus = {
 	sourceId: string | null;
 	profileId: TranscriptionProfileId | null;
 	engine: "whisper" | "qwen3" | null;
+	purpose: "transcription" | "benchmark";
 	stage: string;
 	title: string;
 	detail: string;
@@ -890,6 +891,11 @@ export function parsePreparationStatus(value: unknown): PreparationStatus {
 		row.engine === null || row.engine === undefined ? null : text(row.engine, 16);
 	if (engine !== null && engine !== "whisper" && engine !== "qwen3")
 		return invalid();
+	const purpose =
+		row.purpose === null || row.purpose === undefined
+			? "transcription"
+			: text(row.purpose, 16);
+	if (purpose !== "transcription" && purpose !== "benchmark") return invalid();
 	const elapsed =
 		typeof row.elapsed_seconds === "number" &&
 		Number.isFinite(row.elapsed_seconds) &&
@@ -904,6 +910,7 @@ export function parsePreparationStatus(value: unknown): PreparationStatus {
 		sourceId: nullableText(row.source_id, 80),
 		profileId: profile,
 		engine,
+		purpose,
 		stage: text(row.stage, 64),
 		title: text(row.title, 240),
 		detail: row.detail === "" ? "" : text(row.detail, 500),
