@@ -1,4 +1,3 @@
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { worldEntityMediaEnabled } from "@/features/world-explorer/world-entity-media-server";
 import { authorizeSessionCoverTarget } from "@/features/edit/sessions/session-cover-media-access";
 import {
@@ -36,6 +35,7 @@ export async function PUT(request: Request) {
 	if (request.headers.get("content-type") !== "application/octet-stream")
 		return new Response("Unsupported media type", { status: 415 });
 
+	const campaignSlug = header(request, "x-tda-campaign");
 	const sessionId = header(request, "x-tda-session");
 	const uploadId = header(request, "x-tda-upload-id");
 	const sha256 = header(request, "x-tda-content-sha256");
@@ -44,6 +44,7 @@ export async function PUT(request: Request) {
 	const chunkCount = sessionCoverUploadChunkCount(totalBytes);
 
 	if (
+		!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(campaignSlug) ||
 		!isSessionCoverUuid(sessionId) ||
 		!isSessionCoverUuid(uploadId) ||
 		!isSessionCoverSha256(sha256) ||
@@ -70,7 +71,7 @@ export async function PUT(request: Request) {
 		}
 	}
 
-	const access = await authorizeSessionCoverTarget(sessionId);
+	const access = await authorizeSessionCoverTarget(campaignSlug, sessionId);
 	if (!access.ok) return denied(access.reason);
 
 	try {
@@ -79,7 +80,7 @@ export async function PUT(request: Request) {
 			return new Response("Invalid chunk length", { status: 400 });
 
 		await writeSessionCoverPendingUploadChunk({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug,
 			sessionId,
 			uploadId,
 			sha256,
