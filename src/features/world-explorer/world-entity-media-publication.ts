@@ -1,8 +1,8 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import type { WorldGraphDraft } from "./model";
+import { isWorldCampaignSlug } from "./world-campaign";
 import {
 	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
 	worldEntityMediaCanBecomePublic,
@@ -82,10 +82,13 @@ function safeAssetForEntity(
 export async function prepareWorldEntityMediaForPublish({
 	client,
 	draft,
+	campaignSlug,
 }: {
 	client: SupabaseClient;
 	draft: WorldGraphDraft;
+	campaignSlug: string;
 }): Promise<PreparedWorldEntityMedia> {
+	if (!isWorldCampaignSlug(campaignSlug)) return { status: "pending", bindings: [] };
 	if (!worldEntityMediaEnabled()) return { status: "unchanged", bindings: [] };
 
 	const requested = draft.nodes
@@ -108,7 +111,7 @@ export async function prepareWorldEntityMediaForPublish({
 	const { data: campaign, error: campaignError } = await client
 		.from("campaigns")
 		.select("id")
-		.eq("slug", CAMPAIGN_SLUG)
+		.eq("slug", campaignSlug)
 		.maybeSingle();
 	if (campaignError || !campaign?.id) {
 		console.error(
@@ -144,7 +147,7 @@ export async function prepareWorldEntityMediaForPublish({
 	for (const binding of requested) {
 		if (!binding.assetId) continue;
 		const asset = assetById.get(binding.assetId);
-		if (!asset || !safeAssetForEntity(asset, CAMPAIGN_SLUG, binding.entityId)) {
+		if (!asset || !safeAssetForEntity(asset, campaignSlug, binding.entityId)) {
 			return { status: "pending", bindings };
 		}
 		if (!worldEntityMediaCanBecomePublic(binding.visibility)) continue;
@@ -162,7 +165,7 @@ export async function prepareWorldEntityMediaForPublish({
 						publicDeliveryVerified: asset.public_delivery_verified,
 						publicVerifiedAt: asset.public_verified_at,
 					},
-					{ campaignSlug: CAMPAIGN_SLUG, entityId: binding.entityId },
+					{ campaignSlug: campaignSlug, entityId: binding.entityId },
 				),
 			);
 		if (alreadyVerified) continue;
@@ -170,7 +173,7 @@ export async function prepareWorldEntityMediaForPublish({
 
 		try {
 			const promoted = await promoteWorldEntityPortrait({
-				campaignSlug: CAMPAIGN_SLUG,
+				campaignSlug: campaignSlug,
 				entityId: binding.entityId,
 				stagedBucket: asset.staged_bucket,
 				objectKey: asset.object_key,
