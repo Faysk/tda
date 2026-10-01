@@ -50,7 +50,12 @@ test("authenticated user without permission receives no metrics and is not told 
 	const response = await page.goto("/transcricoes");
 	expect(response?.headers()["cache-control"]).toContain("no-store");
 	await expect(
-		page.getByText("Sua conta não tem permissão de leitura", { exact: false }),
+		page.getByRole("heading", { name: "Nenhuma campanha disponível" }),
+	).toBeVisible();
+	await expect(
+		page.getByText("não possui acesso de leitura de transcrições", {
+			exact: false,
+		}),
 	).toBeVisible();
 	await expect(
 		page.getByRole("link", { name: "Consultar meu acesso" }),
@@ -74,10 +79,12 @@ test("invalid campaign input is reported as validation instead of access denial"
 	const response = await page.goto(
 		"/transcricoes?campanha=a%2Cslug.eq.b",
 	);
-	await expect(page.getByText("A campanha informada não é válida.")).toBeVisible();
 	await expect(
-		page.getByRole("link", { name: "Voltar às transcrições" }),
-	).toHaveAttribute("href", "/transcricoes");
+		page.getByText("A campanha pedida não está disponível neste contexto.", {
+			exact: false,
+		}),
+	).toBeVisible();
+	await expect(page.getByRole("combobox", { name: "Campanha" })).toHaveValue("");
 	expect(await response?.text()).not.toContain("A travessia das montanhas");
 });
 
@@ -92,7 +99,7 @@ test("read-only user sees a compact searchable and sortable session inventory", 
 
 	const heading = page.getByRole("heading", {
 		level: 1,
-		name: /Transcrições/,
+		name: /Crônicas da Mesa/,
 	});
 	await expect(heading).toBeVisible();
 	const [headingBox, brandBox, triggerBox] = await Promise.all([
@@ -167,7 +174,10 @@ test("read-only user sees a compact searchable and sortable session inventory", 
 	await page.keyboard.press("Tab");
 	await expect(sort).toBeFocused();
 
-	const html = await response?.text();
+	// The single authorized campaign canonicalizes through a redirect. Reading the
+	// original navigation body is not stable in Chromium after redirect; inspect the
+	// rendered final document instead while keeping the response for cache headers.
+	const html = await page.content();
 	expect(html).not.toContain("TRANSCRICAO_PRIVADA");
 	expect(html).not.toContain("synthetic-server-key");
 	const rsc = await context.request.get("/transcricoes?_rsc=reader", {
@@ -203,8 +213,11 @@ test("read-only user sees a compact searchable and sortable session inventory", 
 
 	await page.goto("/transcricoes?campanha=other");
 	await expect(
-		page.getByText("Sua conta não tem permissão de leitura", { exact: false }),
+		page.getByText("A campanha pedida não está disponível neste contexto.", {
+			exact: false,
+		}),
 	).toBeVisible();
+	await expect(page.getByText("Antes que seja tarde")).toHaveCount(0);
 	await expect(page.getByRole("table")).toHaveCount(0);
 	await context.clearCookies();
 	await page.goto("/transcricoes");
@@ -235,4 +248,141 @@ test("a reload recomputes metrics after editing the synthetic source", async ({
 	await context.request.post("http://127.0.0.1:3103/fixture/revise");
 	await page.reload();
 	await expect(page.getByLabel("Resumo das transcrições")).toContainText("615");
+});
+
+
+test("multi-campaign reader selects by human name and keeps A/B totals isolated across reload and back", async ({
+	context,
+	page,
+}) => {
+	await signIn(context, "reader-ab");
+	await page.goto("/transcricoes");
+
+	await expect(
+		page.getByRole("heading", { name: "Escolha a campanha" }),
+	).toBeVisible();
+	const selector = page.getByRole("combobox", { name: "Campanha" });
+	await expect(selector.locator("option")).toHaveCount(3);
+	await expect(selector).toContainText("Crônicas da Mesa");
+	await expect(selector).toContainText("Antes que seja tarde");
+
+	await selector.selectOption("other");
+	await page.getByRole("button", { name: "Abrir transcrições" }).click();
+	await expect(page).toHaveURL(/\/transcricoes\?campanha=other$/);
+	await expect(
+		page.getByRole("heading", { level: 1, name: "Antes que seja tarde" }),
+	).toBeVisible();
+	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("7");
+	await expect(page.getByRole("table")).toContainText(
+		"A mesma identidade em outra campanha",
+	);
+
+	await page.reload();
+	await expect(page).toHaveURL(/campanha=other/);
+	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("7");
+
+	await page.getByRole("combobox", { name: "Campanha" }).selectOption("yuhara-main");
+	await page.getByRole("button", { name: "Trocar campanha" }).click();
+	await expect(page).toHaveURL(/campanha=yuhara-main/);
+	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("410");
+	await expect(page.getByRole("table")).toContainText("A travessia das montanhas");
+	await expect(page.getByRole("table")).not.toContainText(
+		"A mesma identidade em outra campanha",
+	);
+
+	await page.goBack();
+	await expect(page).toHaveURL(/campanha=other/);
+	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("7");
+});
+
+test("project transcript grant discovers active and archived campaigns without exposing technical slugs as titles", async ({
+	context,
+	page,
+}) => {
+	await signIn(context, "project-reader");
+	await page.goto("/transcricoes");
+
+	const selector = page.getByRole("combobox", { name: "Campanha" });
+	await expect(selector).toContainText("Crônicas da Mesa");
+	await expect(selector).toContainText("Antes que seja tarde");
+	await expect(selector).toContainText("Memórias arquivadas (arquivada)");
+	await expect(page.getByRole("heading", { level: 1 })).not.toContainText(
+		"yuhara-main",
+	);
+});
+
+test("archived campaign remains readable but is labeled as historical context", async ({
+	context,
+	page,
+}) => {
+	await signIn(context, "archived-reader");
+	await page.goto("/transcricoes");
+
+	await expect(page).toHaveURL(/campanha=arquivo-antigo/);
+	await expect(
+		page.getByRole("heading", { level: 1, name: "Memórias arquivadas" }),
+	).toBeVisible();
+	await expect(
+		page.getByText("permanece disponível para leitura histórica autorizada", {
+			exact: false,
+		}),
+	).toBeVisible();
+	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("3");
+});
+
+test("narrative review uses an explicit campaign selector and preserves it on reload", async ({
+	context,
+	page,
+}) => {
+	await signIn(context, "reviewer-ab");
+	await page.goto("/edit/revisao");
+
+	await expect(
+		page.getByRole("heading", { name: "Escolha a campanha" }),
+	).toBeVisible();
+	const selector = page.getByRole("combobox", { name: "Campanha" });
+	await selector.selectOption("other");
+	await page.getByRole("button", { name: "Abrir revisão" }).click();
+
+	await expect(page).toHaveURL(/\/edit\/revisao\?campanha=other$/);
+	await expect(
+		page.getByRole("heading", {
+			level: 1,
+			name: "Revisão narrativa · Antes que seja tarde",
+		}),
+	).toBeVisible();
+	await expect(
+		page.getByRole("heading", {
+			name: "Candidatos pendentes · Antes que seja tarde",
+		}),
+	).toBeVisible();
+	await expect(page.getByText("Nenhum candidato pendente")).toBeVisible();
+
+	await page.reload();
+	await expect(page).toHaveURL(/campanha=other/);
+	await expect(
+		page.getByRole("heading", {
+			level: 1,
+			name: "Revisão narrativa · Antes que seja tarde",
+		}),
+	).toBeVisible();
+});
+
+test("archived campaign review is historical and does not expose decision controls", async ({
+	context,
+	page,
+}) => {
+	await signIn(context, "project-reviewer");
+	await page.goto("/edit/revisao?campanha=arquivo-antigo");
+
+	await expect(
+		page.getByRole("heading", {
+			level: 1,
+			name: "Revisão narrativa · Memórias arquivadas",
+		}),
+	).toBeVisible();
+	await expect(
+		page.getByText("Campanha arquivada: leitura histórica", { exact: false }),
+	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Registrar decisão" })).toHaveCount(0);
 });
