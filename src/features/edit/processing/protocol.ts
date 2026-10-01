@@ -1858,7 +1858,7 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 			device: nullableText(item.device, 64),
 			computeType: nullableText(item.compute_type, 64),
 			alignment: nullableText(item.alignment, 128),
-			executionLineage: parseExecutionLineage(item.execution_lineage),
+			executionLineage,
 			language: nullableText(item.language, 32),
 			completedAt: nullableIsoDate(item.completed_at),
 			transcriptSha256,
@@ -2089,6 +2089,17 @@ export function parseBenchmarkResult(
 			item.rtf === null || item.rtf === undefined
 				? null
 				: nonNegativeNumber(item.rtf);
+		const executionLineage = parseExecutionLineage(item.execution_lineage);
+		const expectedRuntimeFamily = engine === "whisper" ? "whisper" : "qwen";
+		if (
+			!executionLineage ||
+			executionLineage.runtimeFamily !== expectedRuntimeFamily ||
+			!executionLineage.runtimeArtifact?.archiveSha256 ||
+			!executionLineage.device?.toLowerCase().startsWith("cuda") ||
+			executionLineage.gpu?.vendor !== "NVIDIA" ||
+			!executionLineage.gpu.model
+		)
+			return invalid();
 		return {
 			profileId: transcriptionProfile(item.profile_id),
 			engine,
