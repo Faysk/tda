@@ -5,7 +5,7 @@ test("World Explorer uses organic bezier geometry for visible relations", async 
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
 	const edge = page
-		.locator('.react-flow__edgelabel-renderer [data-world-edge][data-edge-curve="bezier"]')
+		.locator('.react-flow__edge [data-world-edge][data-edge-curve="bezier"]')
 		.first();
 	await expect(edge).toBeVisible();
 
@@ -21,4 +21,7 @@ test("World Explorer uses organic bezier geometry for visible relations", async 
 	expect(geometry.d).toContain("C");
 	expect(geometry.length).toBeGreaterThan(20);
 	expect(geometry.strokeLinecap).toBe("round");
+	expect(
+		await edge.evaluate((element) => Boolean(element.closest("g.react-flow__edge"))),
+	).toBe(true);
 });

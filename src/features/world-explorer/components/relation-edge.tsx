@@ -162,15 +162,6 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 		? STYLE_DASHES[customStyle.lineStyle]
 		: RELATION_DASHES[family];
 
-	// Chrome has been unreliable painting the native React Flow edge SVG in this
-	// composition. Keep the hit target there, but paint the visible curve in the
-	// same transformed layer as labels, which is proven stable in both themes.
-	const paintPadding = Math.max(120, routeOffset * 3, Math.abs(bendOffset) + 80);
-	const paintLeft = Math.min(sourceX, targetX) - paintPadding;
-	const paintTop = Math.min(sourceY, targetY) - paintPadding;
-	const paintWidth = Math.abs(targetX - sourceX) + paintPadding * 2;
-	const paintHeight = Math.abs(targetY - sourceY) + paintPadding * 2;
-
 	return (
 		<>
 			<BaseEdge
@@ -184,67 +175,58 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 					strokeOpacity: 0,
 				}}
 			/>
+			{semantic.showHalo ? (
+				<path
+					d={path}
+					fill="none"
+					stroke="var(--ds-canvas)"
+					strokeWidth={strokeWidth + 3}
+					strokeOpacity={dimmed ? 0.04 : active ? 0.7 : 0.3}
+					strokeDasharray={dash}
+					vectorEffect="non-scaling-stroke"
+					strokeLinecap="round"
+					pointerEvents="none"
+					data-world-edge-halo={props.id}
+				/>
+			) : null}
+			<path
+				d={path}
+				fill="none"
+				stroke={stroke}
+				strokeWidth={strokeWidth}
+				strokeOpacity={strokeOpacity}
+				strokeDasharray={dash}
+				vectorEffect="non-scaling-stroke"
+				strokeLinecap="round"
+				markerEnd={props.markerEnd}
+				pointerEvents="none"
+				data-family={family}
+				data-edge-curve="bezier"
+				data-edge-anchor={floating ? "floating" : "handle"}
+				data-edge-bend={bendOffset}
+				data-world-edge-active={active ? "true" : "false"}
+				data-world-edge={props.id}
+				data-world-semantic-zoom={semanticZoom}
+			/>
+			{semantic.showMotion && active && !dimmed ? (
+				<path
+					d={path}
+					className={effects.flowMotion}
+					fill="none"
+					stroke={motionStroke}
+					strokeWidth={Math.max(2, Math.min(3.4, baseWidth - 0.2))}
+					strokeOpacity={0.98}
+					strokeDasharray="1 11"
+					strokeDashoffset="0"
+					vectorEffect="non-scaling-stroke"
+					strokeLinecap="round"
+					pointerEvents="none"
+					data-family={family}
+					data-motion-contrast="bright"
+					data-world-edge-motion={props.id}
+				/>
+			) : null}
 			<EdgeLabelRenderer>
-				<svg
-					viewBox={`${paintLeft} ${paintTop} ${paintWidth} ${paintHeight}`}
-					width={paintWidth}
-					height={paintHeight}
-					style={{
-						position: "absolute",
-						left: paintLeft,
-						top: paintTop,
-						overflow: "visible",
-						pointerEvents: "none",
-					}}
-					aria-hidden="true"
-				>
-					{semantic.showHalo ? (
-						<path
-							d={path}
-							fill="none"
-							stroke="var(--ds-canvas)"
-							strokeWidth={strokeWidth + 3}
-							strokeOpacity={dimmed ? 0.04 : active ? 0.7 : 0.3}
-							strokeDasharray={dash}
-							vectorEffect="non-scaling-stroke"
-							strokeLinecap="round"
-						/>
-					) : null}
-					<path
-						d={path}
-						fill="none"
-						stroke={stroke}
-						strokeWidth={strokeWidth}
-						strokeOpacity={strokeOpacity}
-						strokeDasharray={dash}
-						vectorEffect="non-scaling-stroke"
-						strokeLinecap="round"
-						data-family={family}
-						data-edge-curve="bezier"
-						data-edge-anchor={floating ? "floating" : "handle"}
-						data-edge-bend={bendOffset}
-						data-world-edge-active={active ? "true" : "false"}
-						data-world-edge={props.id}
-						data-world-semantic-zoom={semanticZoom}
-					/>
-					{semantic.showMotion && active && !dimmed ? (
-						<path
-							d={path}
-							className={effects.flowMotion}
-							fill="none"
-							stroke={motionStroke}
-							strokeWidth={Math.max(2, Math.min(3.4, baseWidth - 0.2))}
-							strokeOpacity={0.98}
-							strokeDasharray="1 11"
-							strokeDashoffset="0"
-							vectorEffect="non-scaling-stroke"
-							strokeLinecap="round"
-							data-family={family}
-							data-motion-contrast="bright"
-							data-world-edge-motion={props.id}
-						/>
-					) : null}
-				</svg>
 				{item && semantic.showLabel ? (
 					<div
 						className={`${styles.edgeLabel} ${active ? styles.edgeLabelHighlighted : ""}`}
