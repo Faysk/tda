@@ -105,6 +105,10 @@ export function LoreIndexArchive({
 					<nav className={styles.contextNav} aria-label="Contexto de exploração">
 						<Link href="/campanhas">Campanhas</Link>
 						<span aria-hidden="true">›</span>
+						<Link href={`/campanhas/${encodeURIComponent(campaign.routeKey)}/mundo`}>
+							Mundo
+						</Link>
+						<span aria-hidden="true">›</span>
 						<span>{campaign.name}</span>
 						<span aria-hidden="true">›</span>
 						<span aria-current="page">{copy.title}</span>
