@@ -253,8 +253,7 @@ export function AccountMenu() {
 
 	useEffect(() => {
 		if (!projection) return;
-		const applyLocation = () => {
-			const currentPath = window.location.pathname;
+		const applyLocation = (currentPath: string) => {
 			const currentSearch = window.location.search;
 			const fromLocation = campaignTechnicalSlugFromLocation(
 				projection.campaigns,
@@ -282,9 +281,10 @@ export function AccountMenu() {
 				return null;
 			});
 		};
-		applyLocation();
-		window.addEventListener("popstate", applyLocation);
-		return () => window.removeEventListener("popstate", applyLocation);
+		const onPopState = () => applyLocation(window.location.pathname);
+		applyLocation(pathname);
+		window.addEventListener("popstate", onPopState);
+		return () => window.removeEventListener("popstate", onPopState);
 	}, [projection, pathname]);
 
 	useEffect(() => {
