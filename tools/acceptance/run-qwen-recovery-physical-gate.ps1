@@ -238,7 +238,25 @@ function Sanitize-Event([object]$Event) {
     if ($null -eq $Event) { Fail-Product "JOB_EVENT_NULL" }
     $sequence = Get-RequiredProductPropertyValue $Event "seq" "JOB_EVENT_SEQ_MISSING"
     $code = Get-RequiredProductPropertyValue $Event "code" "JOB_EVENT_CODE_MISSING"
-    $allowed = @("stage", "track", "total_tracks", "window", "attempt", "profile_id", "forced", "fence", "reason")
+    $allowed = @(
+        "stage",
+        "track",
+        "total_tracks",
+        "window",
+        "attempt",
+        "profile_id",
+        "forced",
+        "fence",
+        "reason",
+        "completed_window_count",
+        "start_seconds",
+        "end_seconds",
+        "sample_count",
+        "peak_dbfs",
+        "rms_dbfs",
+        "silence_peak_threshold_dbfs",
+        "silence_rms_threshold_dbfs"
+    )
     $data = [ordered]@{}
     $sourceData = Get-OptionalPropertyValue $Event "data"
     if ($null -ne $sourceData) {
