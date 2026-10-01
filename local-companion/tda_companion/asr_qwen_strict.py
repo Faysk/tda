@@ -64,6 +64,7 @@ QWEN_WINDOW_OVERLAP_SECONDS = 6.0
 QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
 QWEN_EMPTY_SIGNAL_RETRY_BLOCK_SECONDS = 1.0
 QWEN_EMPTY_SIGNAL_RETRY_MIN_TRIM_SECONDS = 1.0
+QWEN_EMPTY_SIGNAL_RETRY_MAX_TRIM_SECONDS = QWEN_WINDOW_OVERLAP_SECONDS
 QWEN_EMPTY_SIGNAL_RETRY_POLICY = "edge-digital-silence-v1"
 QWEN_ALIGNMENT_POLICY = "strict-overlap-v4"
 QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
@@ -410,12 +411,23 @@ def _empty_signal_retry_window(
     minimum_trim_samples = int(
         round(QWEN_EMPTY_SIGNAL_RETRY_MIN_TRIM_SECONDS * sample_rate)
     )
-    if block_samples <= 0 or minimum_trim_samples <= 0:
+    maximum_trim_samples = int(
+        round(QWEN_EMPTY_SIGNAL_RETRY_MAX_TRIM_SECONDS * sample_rate)
+    )
+    if (
+        block_samples <= 0
+        or minimum_trim_samples <= 0
+        or maximum_trim_samples < minimum_trim_samples
+        or block_samples > maximum_trim_samples
+    ):
         raise QwenRuntimeError("QWEN_EMPTY_SIGNAL_RETRY_CONFIG_INVALID")
 
     left = 0
     right = int(audio.size)
-    while left + block_samples <= right:
+    while (
+        left + block_samples <= right
+        and left + block_samples <= maximum_trim_samples
+    ):
         diagnostics = _qwen_window_signal_diagnostics(
             audio[left : left + block_samples]
         )
@@ -423,7 +435,10 @@ def _empty_signal_retry_window(
             break
         left += block_samples
 
-    while right - block_samples >= left:
+    while (
+        right - block_samples >= left
+        and int(audio.size) - (right - block_samples) <= maximum_trim_samples
+    ):
         diagnostics = _qwen_window_signal_diagnostics(
             audio[right - block_samples : right]
         )
@@ -617,6 +632,7 @@ def transcribe_craig_package_qwen_strict(
         "empty_signal_retry_policy": QWEN_EMPTY_SIGNAL_RETRY_POLICY,
         "empty_signal_retry_block_seconds": QWEN_EMPTY_SIGNAL_RETRY_BLOCK_SECONDS,
         "empty_signal_retry_min_trim_seconds": QWEN_EMPTY_SIGNAL_RETRY_MIN_TRIM_SECONDS,
+        "empty_signal_retry_max_trim_seconds": QWEN_EMPTY_SIGNAL_RETRY_MAX_TRIM_SECONDS,
         **(
             {"benchmark_sample_seconds": float(sample_seconds)}
             if sample_seconds is not None
