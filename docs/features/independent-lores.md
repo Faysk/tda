@@ -51,6 +51,9 @@ Não listado não significa privado: quem possui a URL pode acessá-la. Esta dec
 - nenhuma exposição de segredos ou material privado;
 - publicação validada separadamente da implementação.
 
+
+No catálogo `/lore`, cada capa listada precisa apontar para mídia publicamente verificável. Consumidores não devem reconstruir paths locais removidos após uma migração para o Media Storage. Para Pipipi, o card e o hero compartilham a mesma referência derivada de `media/manifests/pipipi.json`; o gate de navegador percorre todas as capas listadas em desktop 1920×1080 e mobile 390×844 e exige GET válido, MIME de imagem e decode com dimensões naturais positivas. O objeto canônico de Pipipi continua imutável; corrigir o consumidor não autoriza novo upload.
+
 Acessibilidade e integridade não prescrevem uma estética. Uma abertura cinematográfica pode fazer parte da narrativa; regras do hub administrativo não devem ser usadas para forçar todas as lores ao mesmo formato.
 
 ## Registro por lore e aceite
