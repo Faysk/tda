@@ -3,8 +3,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
+import { resolveEditSessionCampaign } from "./repository";
 
 export type SessionCoverMediaAccessFailure =
 	| "unauthenticated"
@@ -17,6 +17,7 @@ export type AuthorizedSessionCoverTarget = Readonly<{
 	authUserId: string;
 	profileId: string;
 	campaignId: string;
+	campaignSlug: string;
 	sessionId: string;
 	client: SupabaseClient;
 }>;
@@ -27,32 +28,32 @@ export async function authorizeSessionCoverTarget(
 	| Readonly<{ ok: true; target: AuthorizedSessionCoverTarget }>
 	| Readonly<{ ok: false; reason: SessionCoverMediaAccessFailure }>
 > {
+	let sessionCampaign: Awaited<ReturnType<typeof resolveEditSessionCampaign>>;
+	try {
+		sessionCampaign = await resolveEditSessionCampaign(sessionId);
+	} catch {
+		return { ok: false, reason: "dependency_unavailable" };
+	}
+	if (!sessionCampaign || sessionCampaign.lifecycle !== "active")
+		return { ok: false, reason: "not_found" };
+
 	const access = await authorizeCampaignCapabilityServer({
 		action: EDIT_CAPABILITIES.contentEdit,
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: sessionCampaign.technicalSlug,
 	});
 	if (!access.ok) return access;
 
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
 
-	const { data, error } = await client
-		.from("sessions")
-		.select("id,campaign_id,campaigns!inner(slug)")
-		.eq("id", sessionId)
-		.eq("campaigns.slug", CAMPAIGN_SLUG)
-		.maybeSingle();
-	if (error) return { ok: false, reason: "dependency_unavailable" };
-	if (!data?.id || !data.campaign_id)
-		return { ok: false, reason: "not_found" };
-
 	return {
 		ok: true,
 		target: {
 			authUserId: access.authUserId,
 			profileId: access.profileId,
-			campaignId: String(data.campaign_id),
-			sessionId: String(data.id),
+			campaignId: sessionCampaign.campaignId,
+			campaignSlug: sessionCampaign.technicalSlug,
+			sessionId: sessionCampaign.sessionId,
 			client,
 		},
 	};

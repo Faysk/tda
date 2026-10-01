@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { readSessionEditorialDraft } from "./editorial-draft-repository";
+import { resolveEditSessionCampaign } from "./repository";
 import { sessionDraftReadiness } from "./editorial-draft-model";
 import {
 	type SessionPublicationRequest,
@@ -53,9 +53,18 @@ export async function publishSessionEditorialDraftAction(
 			issues,
 		};
 
+	let sessionCampaign: Awaited<ReturnType<typeof resolveEditSessionCampaign>>;
+	try {
+		sessionCampaign = await resolveEditSessionCampaign(request.sessionId);
+	} catch {
+		return { ok: false as const, reason: "dependency_unavailable" as const };
+	}
+	if (!sessionCampaign || sessionCampaign.lifecycle !== "active")
+		return { ok: false as const, reason: "not_found" as const };
+
 	const access = await authorizeCampaignCapabilityServer({
 		action: EDIT_CAPABILITIES.sessionPublish,
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: sessionCampaign.technicalSlug,
 	});
 	if (!access.ok) return { ok: false as const, reason: access.reason };
 
@@ -70,7 +79,7 @@ export async function publishSessionEditorialDraftAction(
 		if (recovered?.ok === false)
 			return { ok: false as const, reason: recovered.reason };
 		if (recovered?.ok) {
-			const current = await readSessionPublicationContext(request.sessionId);
+			const current = await readSessionPublicationContext(request.sessionId, sessionCampaign.technicalSlug);
 			if (!current)
 				return { ok: false as const, reason: "readback_unavailable" as const };
 			const currentlyActive =
@@ -92,7 +101,7 @@ export async function publishSessionEditorialDraftAction(
 			};
 		}
 
-		const draft = await readSessionEditorialDraft(request.sessionId);
+		const draft = await readSessionEditorialDraft(request.sessionId, sessionCampaign.technicalSlug);
 		if (
 			!draft ||
 			!draft.draftId ||
@@ -112,13 +121,14 @@ export async function publishSessionEditorialDraftAction(
 				missing,
 			};
 
-		const context = await readSessionPublicationContext(request.sessionId);
+		const context = await readSessionPublicationContext(request.sessionId, sessionCampaign.technicalSlug);
 		if (!context)
 			return { ok: false as const, reason: "not_found" as const };
 
 		const publicCoverUrl = await prepareSessionCoverForPublication({
 			sessionId: request.sessionId,
 			campaignId: context.campaignId,
+			campaignSlug: sessionCampaign.technicalSlug,
 			coverReference: draft.coverAssetId,
 		});
 		if (!publicCoverUrl)
@@ -126,13 +136,14 @@ export async function publishSessionEditorialDraftAction(
 
 		const committed = await persistSessionPublication({
 			actorProfileId: access.profileId,
+			campaignSlug: sessionCampaign.technicalSlug,
 			request,
 			publicCoverUrl,
 		});
 		if (!committed.ok)
 			return { ok: false as const, reason: committed.reason };
 
-		const current = await readSessionPublicationContext(request.sessionId);
+		const current = await readSessionPublicationContext(request.sessionId, sessionCampaign.technicalSlug);
 		if (!current) {
 			return {
 				ok: false as const,

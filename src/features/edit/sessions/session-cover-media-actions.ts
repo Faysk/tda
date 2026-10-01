@@ -2,7 +2,6 @@
 
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { worldEntityMediaEnabled } from "@/features/world-explorer/world-entity-media-server";
 import { authorizeSessionCoverTarget } from "./session-cover-media-access";
 import {
@@ -190,7 +189,7 @@ export async function finalizeSessionCoverUploadAction(
 
 	try {
 		const upload = await finalizeSessionCoverPendingUpload({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: authorization.target.campaignSlug,
 			sessionId,
 			uploadId,
 			expectedSha256: intent.sha256,
@@ -286,7 +285,7 @@ export async function getSessionCoverAssetStatusAction(
 
 	const extension = mimeType === "image/png" ? "png" : "webp";
 	const expectedKey = sessionCoverObjectKey({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: authorization.target.campaignSlug,
 		sessionId,
 		sha256,
 		extension,

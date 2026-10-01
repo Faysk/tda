@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
 	loadAccess: vi.fn(),
 	persist: vi.fn(),
 	readSegment: vi.fn(),
+	resolveCampaign: vi.fn(),
 }));
 
 vi.mock("@/features/auth/server", () => ({
@@ -13,7 +14,9 @@ vi.mock("@/features/auth/server", () => ({
 vi.mock("@/features/edit/access/repository", () => ({
 	loadEditAccessContext: mocks.loadAccess,
 }));
-vi.mock("@/features/sessions/model", () => ({ CAMPAIGN_SLUG: "yuhara-main" }));
+vi.mock("@/features/edit/sessions/repository", () => ({
+	resolveEditSessionCampaign: mocks.resolveCampaign,
+}));
 vi.mock("../edit/transcript/persistence", () => ({
 	persistTranscriptMutation: mocks.persist,
 }));
@@ -61,6 +64,15 @@ beforeEach(() => {
 				endsAt: null,
 			},
 		],
+	});
+	mocks.resolveCampaign.mockResolvedValue({
+		sessionId: SESSION_ID,
+		sourceSessionId: "synthetic-session",
+		campaignId: "10000000-0000-4000-8000-000000000001",
+		technicalSlug: "yuhara-main",
+		routeKey: "yuhara",
+		campaignName: "Yuhara",
+		lifecycle: "active",
 	});
 	mocks.persist.mockResolvedValue({ status: "updated", revision: 8 });
 	mocks.readSegment.mockResolvedValue({

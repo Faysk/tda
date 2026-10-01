@@ -304,3 +304,9 @@ Antes de ativar a segunda campaign:
 - [Media Pipeline](../integrations/r2/media-pipeline.md)
 - #1122
 - #1137
+
+## Implementação Sessions/Edit — #1129 (2026-10-01)
+
+Sessions/Edit adotou o mesmo boundary explícito de campanha do World: selector/entrypoint em `/edit/sessoes`, rota canônica em `/edit/[technical_slug]/sessoes` e detalhe qualificado por campanha. Nenhum `source_session_id` é tratado como global.
+
+Server Actions de transcript/draft/publication/cover resolvem ou recebem a identidade real da sessão no servidor antes de autorizar; não usam `yuhara-main` como autoridade implícita. A troca de campanha é uma mutation de domínio separada, auditável, idempotente e fail-closed conforme `docs/domains/sessions.md`.

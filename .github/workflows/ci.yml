@@ -105,6 +105,8 @@ jobs:
         run: python tools/campaign-registry-db.py
       - name: Cross-campaign authorization SQL contract
         run: python tools/campaign-authorization-db.py
+      - name: Safe session campaign move SQL contract
+        run: python tools/session-campaign-move-db.py
       - run: python tools/session-publication-db.py
       - run: python tools/world-layout-db.py
       - run: python tools/world-entity-media-db.py

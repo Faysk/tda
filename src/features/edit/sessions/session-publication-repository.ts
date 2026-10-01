@@ -1,7 +1,6 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	WORLD_ENTITY_MEDIA_PUBLIC_BUCKET,
 	WORLD_ENTITY_MEDIA_PUBLIC_ORIGIN,
@@ -68,6 +67,7 @@ function positiveSafeInteger(value: unknown): number | null {
 
 export async function readSessionPublicationContext(
 	sessionId: string,
+	campaignSlug: string,
 ): Promise<SessionPublicationContext | null> {
 	const client = editDataClient();
 	if (!client) throw new Error("Session publication data connection unavailable");
@@ -78,7 +78,7 @@ export async function readSessionPublicationContext(
 			"campaign_id,source_session_id,status,current_session_publication_id,campaigns!inner(slug)",
 		)
 		.eq("id", sessionId)
-		.eq("campaigns.slug", CAMPAIGN_SLUG)
+		.eq("campaigns.slug", campaignSlug)
 		.maybeSingle();
 	if (error) throw new Error("Session publication lookup unavailable");
 	if (!raw) return null;
@@ -128,6 +128,7 @@ function normalizeExistingPublicCover(reference: string): string | null {
 function verifiedPublicCoverUrl(
 	row: CoverAssetRow,
 	sessionId: string,
+	campaignSlug: string,
 ): string | null {
 	const id = requiredId(row.id);
 	const sha256 = isSessionCoverSha256(row.sha256) ? row.sha256 : null;
@@ -154,7 +155,7 @@ function verifiedPublicCoverUrl(
 	}
 	const extension = mimeType === "image/png" ? "png" : "webp";
 	const expectedKey = sessionCoverObjectKey({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug,
 		sessionId,
 		sha256,
 		extension,
@@ -189,6 +190,7 @@ async function coverAsset(
 export async function prepareSessionCoverForPublication(input: {
 	sessionId: string;
 	campaignId: string;
+	campaignSlug: string;
 	coverReference: string;
 }): Promise<string | null> {
 	const existing = normalizeExistingPublicCover(input.coverReference);
@@ -201,7 +203,7 @@ export async function prepareSessionCoverForPublication(input: {
 	if (!asset || asset.role_hint !== "session_cover" || asset.read_back_verified !== true)
 		return null;
 
-	const alreadyPublic = verifiedPublicCoverUrl(asset, input.sessionId);
+	const alreadyPublic = verifiedPublicCoverUrl(asset, input.sessionId, input.campaignSlug);
 	if (alreadyPublic) return alreadyPublic;
 	if (asset.status !== "staged") return null;
 
@@ -224,7 +226,7 @@ export async function prepareSessionCoverForPublication(input: {
 
 	const extension = mimeType === "image/png" ? "png" : "webp";
 	const expectedKey = sessionCoverObjectKey({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: input.campaignSlug,
 		sessionId: input.sessionId,
 		sha256,
 		extension,
@@ -232,7 +234,7 @@ export async function prepareSessionCoverForPublication(input: {
 	if (!expectedKey || asset.object_key !== expectedKey) return null;
 
 	const promoted = await promoteSessionCover({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: input.campaignSlug,
 		sessionId: input.sessionId,
 		stagedBucket: asset.staged_bucket,
 		objectKey: asset.object_key,
@@ -265,12 +267,13 @@ export async function prepareSessionCoverForPublication(input: {
 		return verifiedPublicCoverUrl(
 			updated as unknown as CoverAssetRow,
 			input.sessionId,
+			input.campaignSlug,
 		);
 	}
 
 	// A concurrent retry may have persisted the same immutable promotion first.
 	asset = await coverAsset(client, input.campaignId, input.coverReference);
-	return asset ? verifiedPublicCoverUrl(asset, input.sessionId) : null;
+	return asset ? verifiedPublicCoverUrl(asset, input.sessionId, input.campaignSlug) : null;
 }
 
 export async function readCommittedSessionPublication(input: {
@@ -357,6 +360,7 @@ export async function readCommittedSessionPublication(input: {
 
 export async function persistSessionPublication(input: {
 	actorProfileId: string;
+	campaignSlug: string;
 	request: SessionPublicationRequest;
 	publicCoverUrl: string;
 }) {
@@ -365,7 +369,7 @@ export async function persistSessionPublication(input: {
 
 	const { data, error } = await client.rpc("publish_session_editorial_with_date_atomic", {
 		p_actor_profile_id: input.actorProfileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: input.campaignSlug,
 		p_session_id: input.request.sessionId,
 		p_draft_id: input.request.draftId,
 		p_expected_current_publication_id:
