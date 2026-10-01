@@ -7,14 +7,17 @@ import {
 
 const now = new Date("2026-09-28T00:00:00.000Z");
 
-function context(actions: readonly string[]): EditAccessContext {
+function context(
+	actions: readonly string[],
+	scopeId = "yuhara-main",
+): EditAccessContext {
 	return {
 		authUserId: "auth-user",
 		profileId: "profile-1",
 		grants: actions.map((action) => ({
 			action,
 			scopeType: "campaign",
-			scopeId: "yuhara-main",
+			scopeId,
 			status: "active",
 			startsAt: "2026-01-01T00:00:00.000Z",
 			endsAt: null,
@@ -23,31 +26,61 @@ function context(actions: readonly string[]): EditAccessContext {
 }
 
 describe("legacy /edit compatibility destination", () => {
-	it("keeps the approved redirect priority explicit", () => {
+	it("keeps the historical redirect priority explicit and campaign-qualified", () => {
 		expect(EDIT_ENTRY_PRIORITY.map((entry) => entry.href)).toEqual([
-			"/edit/sessoes",
-			"/edit/processamento",
-			"/mundo",
-			"/edit/revisao",
+			"/edit/sessoes?campanha=yuhara-main",
+			"/edit/processamento?campanha=yuhara-main",
+			"/mundo?campanha=yuhara-main",
+			"/edit/revisao?campanha=yuhara-main",
 			"/edit/yuhara-main/permissions",
 		]);
 	});
 
 	it.each([
-		[EDIT_CAPABILITIES.transcriptRead, "/edit/sessoes"],
-		[EDIT_CAPABILITIES.localProcess, "/edit/processamento"],
-		[EDIT_CAPABILITIES.worldLayoutEdit, "/mundo"],
-		[EDIT_CAPABILITIES.reviewRead, "/edit/revisao"],
+		[
+			EDIT_CAPABILITIES.transcriptRead,
+			"/edit/sessoes?campanha=yuhara-main",
+		],
+		[
+			EDIT_CAPABILITIES.localProcess,
+			"/edit/processamento?campanha=yuhara-main",
+		],
+		[EDIT_CAPABILITIES.worldLayoutEdit, "/mundo?campanha=yuhara-main"],
+		[EDIT_CAPABILITIES.reviewRead, "/edit/revisao?campanha=yuhara-main"],
 		[
 			EDIT_CAPABILITIES.permissionsManage,
 			"/edit/yuhara-main/permissions",
 		],
-	])("routes %s to %s", (capability, href) => {
-		expect(firstAuthorizedEditDestination(context([capability]), now)).toBe(
+	])("routes the historical campaign capability %s to %s", (capability, href) => {
+		expect(firstAuthorizedEditDestination(context([capability]), "yuhara-main", now)).toBe(
 			href,
 		);
 	});
 
+	it("uses only currently campaign-safe destinations for a second campaign", () => {
+		const second = "antes-que-seja-tarde";
+		expect(
+			firstAuthorizedEditDestination(
+				context([EDIT_CAPABILITIES.transcriptRead], second),
+				second,
+				now,
+			),
+		).toBe("/transcricoes?campanha=antes-que-seja-tarde");
+		expect(
+			firstAuthorizedEditDestination(
+				context([EDIT_CAPABILITIES.permissionsManage], second),
+				second,
+				now,
+			),
+		).toBe("/edit/antes-que-seja-tarde/permissions");
+		expect(
+			firstAuthorizedEditDestination(
+				context([EDIT_CAPABILITIES.localProcess], second),
+				second,
+				now,
+			),
+		).toBeNull();
+	});
 
 	it("routes project campaign managers to the registry before campaign-scoped tools", () => {
 		const base = context([EDIT_CAPABILITIES.transcriptRead]);
@@ -67,6 +100,7 @@ describe("legacy /edit compatibility destination", () => {
 						},
 					],
 				},
+				"yuhara-main",
 				now,
 			),
 		).toBe("/edit/campanhas");
@@ -80,15 +114,17 @@ describe("legacy /edit compatibility destination", () => {
 					EDIT_CAPABILITIES.worldLayoutEdit,
 					EDIT_CAPABILITIES.transcriptRead,
 				]),
+				"yuhara-main",
 				now,
 			),
-		).toBe("/edit/sessoes");
+		).toBe("/edit/sessoes?campanha=yuhara-main");
 	});
 
 	it("does not redirect unrelated grants into an unauthorized tool", () => {
 		expect(
 			firstAuthorizedEditDestination(
 				context([EDIT_CAPABILITIES.contentEdit]),
+				"yuhara-main",
 				now,
 			),
 		).toBeNull();
@@ -98,6 +134,7 @@ describe("legacy /edit compatibility destination", () => {
 		expect(
 			firstAuthorizedEditDestination(
 				{ ...context([EDIT_CAPABILITIES.transcriptRead]), profileId: null },
+				"yuhara-main",
 				now,
 			),
 		).toBeNull();
