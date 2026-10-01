@@ -50,6 +50,17 @@ function verify(options: VerifyOptions) {
 }
 
 describe("verifyPublicContent", () => {
+	test("fails closed when the configured target origin is not HTTP(S)", async () => {
+		await expect(
+			verifyPublicContent({
+				sourceSha: "sha",
+				expectedOrigin: "file:///tmp/not-production",
+				request: requester(),
+				log: () => {},
+			}),
+		).rejects.toThrow("expectedOrigin must be an absolute HTTP(S) origin");
+	});
+
 	test("rejects HTTP 200 when the public page renders dependency-unavailable content", async () => {
 		const logs: string[] = [];
 		await expect(
