@@ -18,6 +18,7 @@ export type AuthorizedSessionCoverTarget = Readonly<{
 	profileId: string;
 	campaignId: string;
 	campaignSlug: string;
+	campaignTechnicalSlug: string;
 	sessionId: string;
 	client: SupabaseClient;
 }>;
@@ -53,6 +54,7 @@ export async function authorizeSessionCoverTarget(
 			profileId: access.profileId,
 			campaignId: sessionCampaign.campaignId,
 			campaignSlug: sessionCampaign.technicalSlug,
+			campaignTechnicalSlug: sessionCampaign.technicalSlug,
 			sessionId: sessionCampaign.sessionId,
 			client,
 		},
