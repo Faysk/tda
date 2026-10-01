@@ -102,8 +102,8 @@ describe("curated lore campaign boundary", () => {
 		});
 	});
 
-	it("keeps an unlinked standalone lore completely outside campaign storage lookup", async () => {
-		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toBeNull();
+	it("keeps an unknown lore slug completely outside campaign storage lookup", async () => {
+		await expect(resolveStandaloneLoreCampaignLink("missing-lore")).resolves.toBeNull();
 		expect(mocks.client).not.toHaveBeenCalled();
 	});
 });
