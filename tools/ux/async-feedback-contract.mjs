@@ -135,9 +135,9 @@ assertIncludes("src/app/edit/revisao/page.tsx", [
 	[/pendingLabel="Registrando…"/u, "review decision must expose contextual pending copy"],
 ]);
 
-assertIncludes("src/app/edit/sessoes/page.tsx", [
-	[/from "next\/form"/u, "session filters must use client-side Next Form navigation"],
-	[/pendingLabel="Aplicando…"/u, "session filters must expose local pending feedback"],
+assertIncludes("src/features/edit/sessions/session-library-page.tsx", [
+	[/from "next\\/form"/u, "campaign-scoped session filters must use client-side Next Form navigation"],
+	[/pendingLabel="Aplicando…"/u, "campaign-scoped session filters must expose local pending feedback"],
 ]);
 
 console.log(
