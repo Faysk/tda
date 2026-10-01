@@ -370,6 +370,8 @@ jobs:
             'RUNTIME_DIRECT_WORKER_MISSING',
             'RUNTIME_DIRECT_EXACT_IDENTITY_NOT_READY',
             'RUNTIME_DIRECT_ROLLBACK_FAILED',
+            'acceptance_direct_archive_v1',
+            'companion_rc_installer_v1',
             '"-Automated"',
             'WhisperRuntimeCandidateManifest',
             'QwenRuntimeCandidateManifest',
