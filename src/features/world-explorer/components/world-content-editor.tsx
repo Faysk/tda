@@ -24,11 +24,13 @@ function relationLabel(draft: WorldGraphDraft, relationId: string): string {
 }
 
 export function WorldContentEditor({
+	campaignSlug,
 	draft,
 	selectedId,
 	onDraftChange,
 	onSelect,
 }: {
+	campaignSlug: string;
 	draft: WorldGraphDraft;
 	selectedId: string | null;
 	onDraftChange: (draft: WorldGraphDraft, message?: string) => void;
@@ -75,7 +77,7 @@ export function WorldContentEditor({
 		const validationId = publicationValidationRef.current + 1;
 		publicationValidationRef.current = validationId;
 		setGateMessage("Validando proveniência canônica salva…");
-		void loadWorldRelationProvenanceAction(visibilityChange.id).then((result) => {
+		void loadWorldRelationProvenanceAction(campaignSlug, visibilityChange.id).then((result) => {
 			if (publicationValidationRef.current !== validationId) return;
 			if (!result.ok) {
 				setGateMessage(
@@ -119,6 +121,7 @@ export function WorldContentEditor({
 	return (
 		<>
 			<BaseWorldContentEditor
+				campaignSlug={campaignSlug}
 				draft={draft}
 				selectedId={selectedId}
 				onDraftChange={handleDraftChange}
@@ -158,6 +161,7 @@ export function WorldContentEditor({
 					{selectedProvenanceRelation ? (
 						<WorldRelationProvenanceEditor
 							key={selectedProvenanceRelation.id}
+							campaignSlug={campaignSlug}
 							relationId={selectedProvenanceRelation.id}
 							onPublicationEligibilityChange={IGNORE_PUBLICATION_ELIGIBILITY}
 						/>
