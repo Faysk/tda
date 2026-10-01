@@ -270,7 +270,7 @@ batch/janelas adaptados a 8 GB de VRAM
 
 Resposta estruturada com `transcription=""` é um resultado de reconhecimento vazio, **não uma prova de silêncio**. A partir do runtime Qwen `1.0.13`, o pipeline só aceita esse resultado como intervalo legítimo de zero segmentos quando o PCM inteiro da janela está próximo do piso digital (`peak <= -84 dBFS` e `RMS <= -90 dBFS`). Nesse caso, duração, progresso, checkpoint e identidade da track continuam preservados e o forced aligner não é chamado para aquela janela.
 
-Se o ASR devolver texto vazio e o sinal ultrapassar qualquer um desses limites, o job falha fechado com `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN` e registra somente métricas numéricas sanitizadas da janela. Payload estruturado ausente/malformado permanece `QWEN_ASR_OUTPUT_INVALID`. O pipeline nunca converte energia incerta em silêncio nem fabrica texto para fazer o benchmark passar.
+A classificação de silêncio ocorre **antes da inferência**: se a janela inteira satisfizer simultaneamente os limites conservadores de peak/RMS, o runtime `1.0.14` não chama o modelo Qwen e registra um intervalo válido de zero segmentos com `QWEN_WINDOW_SILENCE_CONFIRMED`. Isso impede que texto alucinado pelo modelo em PCM digital-zero seja aceito como fala. Em janelas com sinal, o perfil selecionado é executado normalmente; se o ASR devolver vazio, o job permanece fail-closed com `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN`. Evidência física no Craig original mostrou que trim/subdivisão/retry do mesmo `qwen-fast` não recupera o trecho problemático de forma confiável, portanto o runtime não esconde retries desse tipo. Para um miss de `qwen-fast`, a recuperação de produto é explícita: reenviar a mesma sessão em `qwen-quality`, produzindo outro job/run com provenance próprio. Payload estruturado ausente/malformado permanece `QWEN_ASR_OUTPUT_INVALID`; o pipeline nunca converte energia incerta em silêncio, não fabrica texto e não mistura modelos dentro do mesmo run.
 
 C-16 de `companion-reliability.md` abre uma avaliação futura para um adapter fino sobre o pacote oficial `qwen-asr`; **essa troca não está aprovada por este documento e exige ADR/benchmark antes de substituir o runtime vigente**.
 
@@ -299,7 +299,7 @@ O candidato de decoder #1234 foi **Whisper Runtime 1.1.6**. O pin de PyAV é esp
 
 ### Qwen
 
-Baseline do candidato `1.0.13`:
+Baseline do candidato `1.0.14`:
 
 ```text
 Python 3.12.14
@@ -310,9 +310,9 @@ CUDA runtime fornecido pelo wheel PyTorch cu126
 driver Windows mínimo 561.17
 ```
 
-O CI materializa, empacota e verifica essa stack, mas não substitui o gate físico. O runtime Qwen `1.0.13` só pode virar Stable depois de executar os dois perfis na RTX 4070 8 GB com o Craig real autorizado e registrar receipt sanitizado ligado ao archive/worker exatos.
+O CI materializa, empacota e verifica essa stack, mas não substitui o gate físico. O runtime Qwen `1.0.14` só pode virar Stable depois de executar os dois perfis na RTX 4070 8 GB com o Craig real autorizado e registrar receipt sanitizado ligado ao archive/worker exatos.
 
-O Companion não instala nem altera driver NVIDIA automaticamente. O runtime `1.0.12` permanece o rollback imutável conhecido durante o aceite do `1.0.13`; o mínimo de compatibilidade do Companion continua `1.0.12`. Se o candidato `1.0.13` falhar antes da promoção, ele não é promovido e o Stable `1.0.12` permanece ativo. Se for necessário reverter uma instalação local do candidato, restaurar os bytes verificados do tag imutável `companion-qwen-runtime-v1.0.12` e o `current.json` correspondente; nunca sobrescrever assets ou tags do `1.0.13`.
+O Companion não instala nem altera driver NVIDIA automaticamente. O runtime `1.0.12` permanece o rollback Stable imutável conhecido durante o aceite do `1.0.14`; o `1.0.13` permanece como candidato rejeitado e também não pode ser sobrescrito. O mínimo de compatibilidade do Companion continua `1.0.12`. Se o candidato `1.0.14` falhar antes da promoção, ele não é promovido e o Stable `1.0.12` permanece ativo. Se for necessário reverter uma instalação local do candidato, restaurar os bytes verificados do tag imutável `companion-qwen-runtime-v1.0.12` e o `current.json` correspondente.
 
 A distribuição final do runtime Qwen deve permanecer separada do MSI e dos modelos. Antes de decidir entre archive pré-construído e materialização local gerenciada, o CI mede o tamanho real do ambiente PyTorch/Transformers para evitar um pacote desnecessariamente gigantesco.
 

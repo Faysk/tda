@@ -19,6 +19,13 @@ from tda_companion.worker_event_schema import sanitize_worker_event
 from tda_companion.qwen_acceptance import QwenPlan
 
 
+class _SignalAudio(str):
+    """Symbolic fixture label that still behaves like signal-bearing PCM."""
+
+    def __iter__(self):
+        return iter((0.1, -0.1, 0.05, -0.05))
+
+
 def _package(tmp_path: Path, *, two_tracks: bool = True) -> tuple[CraigPackage, Path]:
     package_root = tmp_path / "Data" / "staging" / "qwen-fixture"
     tracks_root = package_root / "tracks"
@@ -67,7 +74,7 @@ def _plan(_profile_id: str) -> QwenPlan:
 
 def _window_reader(path: Path):
     marker = 1 if path.name.startswith("1-") else 2
-    yield AudioWindow(index=1, start=0.0, end=2.0, audio=f"track-{marker}")
+    yield AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio(f"track-{marker}"))
 
 
 def _model_prepare(_models_root: Path, profile):
@@ -129,13 +136,25 @@ def test_qwen_empty_window_signal_gate_is_conservative_for_quiet_and_voiced_audi
     assert normal["peak_dbfs"] > quiet["peak_dbfs"]
 
 
+def test_qwen_signal_diagnostics_numpy_hot_path_matches_generic_contract():
+    np = pytest.importorskip("numpy")
+    values = [0.0, 0.1, -0.05, 0.002, -0.003] * 64
+    generic = _qwen_window_signal_diagnostics(values)
+    vectorized = _qwen_window_signal_diagnostics(np.asarray(values, dtype=np.float32))
+
+    assert vectorized["sample_count"] == generic["sample_count"]
+    assert vectorized["confidently_silent"] == generic["confidently_silent"]
+    assert vectorized["peak_dbfs"] == pytest.approx(generic["peak_dbfs"], abs=0.001)
+    assert vectorized["rms_dbfs"] == pytest.approx(generic["rms_dbfs"], abs=0.001)
+
+
 def test_qwen_legacy_confirmed_silence_event_matches_worker_schema_contract(tmp_path: Path):
     package, package_root = _package(tmp_path, two_tracks=False)
     reports: list[dict] = []
 
     class Asr:
         def transcribe(self, _audio, *, prompt: str):
-            return "", "Portuguese"
+            raise AssertionError("confirmed silence must be classified before ASR")
 
         def close(self):
             pass
