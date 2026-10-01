@@ -78,7 +78,7 @@ Nenhuma lore cria uploader, endpoint operacional ou autorização próprios. A r
 | Pipipi | `app` | Sim | Sim, conforme o projeto existente | Preservar política pública atual |
 | Astel / Noah | `standalone` estática, candidato local | Sim, solicitado | Sem novas entidades/relações; ligações editoriais por slug | Canonical próprio; sem copiar o noindex das lores externas |
 | D | `standalone` estática | Não | Binding editorial para `antes-que-seja-tarde`, resolvido somente quando a campaign existir | Não indexar |
-| Seika | Route Handler standalone legado | Não | Não | Não indexar; alinhar runtime em entrega própria se necessário |
+| Seika | Route Handler standalone legado | Sim | Binding editorial para `antes-que-seja-tarde` | Não indexar; alinhar runtime em entrega própria se necessário |
 | Yllith | `standalone` estática planejada | Não | Não | Não indexar |
 
 D e Seika chegaram à produção por estratégias técnicas diferentes. Essa diferença é histórica, não editorial.
@@ -98,7 +98,7 @@ Essas decisões não se inferem umas das outras:
 - **vinculada**: pertence a campanha/universo confirmado;
 - **indexável**: pode entrar em mecanismos de busca.
 
-D e Seika ficam, no estado atual, públicas por URL, não listadas, sem vínculo com a campaign legado/default e não indexáveis. Yllith permanece planejada: quando for publicada, seguirá o mesmo estado editorial de não listada, sem vínculo com a campaign legado/default e não indexável, salvo nova decisão explícita. `noindex` não é controle de acesso; quem souber a URL de uma lore publicada ainda pode abrir a página.
+D permanece pública por URL e não listada até a slice #1286. Seika continua pública e não indexável, mas passa a integrar o catálogo curado com binding editorial explícito para `antes-que-seja-tarde`. Yllith permanece fora do catálogo até #1286. Nenhuma dessas decisões cria entity, canon ou session automaticamente. `noindex` não é controle de acesso; quem souber a URL de uma lore publicada ainda pode abrir a página.
 
 ## Contrato de produção para standalone
 

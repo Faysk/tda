@@ -42,8 +42,8 @@ export const LORE_EDITORIAL_REGISTRY = [
 		campaignTechnicalSlug: "antes-que-seja-tarde", indexable: false, entityLink: null,
 	},
 	{
-		slug: "seika", delivery: "standalone", listed: false,
-		campaignTechnicalSlug: null, indexable: false, entityLink: null,
+		slug: "seika", delivery: "standalone", listed: true,
+		campaignTechnicalSlug: "antes-que-seja-tarde", indexable: false, entityLink: null,
 	},
 	{
 		slug: "yllith", delivery: "standalone", listed: false,

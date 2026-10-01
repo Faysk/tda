@@ -30,14 +30,21 @@ describe("lore editorial registry", () => {
 		});
 	});
 
-	it("keeps unlinked standalone lores campaign-null", () => {
-		expect(loreRegistrationForSlug("seika")?.campaignTechnicalSlug).toBeNull();
+	it("curates Seika under the new campaign without inventing an entity", () => {
+		expect(loreRegistrationForSlug("seika")).toEqual({
+			slug: "seika",
+			delivery: "standalone",
+			listed: true,
+			campaignTechnicalSlug: "antes-que-seja-tarde",
+			indexable: false,
+			entityLink: null,
+		});
 		expect(loreRegistrationForSlug("yllith")?.campaignTechnicalSlug).toBeNull();
 		expect(
 			LORE_EDITORIAL_REGISTRY.filter((lore) => lore.listed).map(
 				(lore) => lore.slug,
 			),
-		).toEqual(["pipipi", "astel", "noah"]);
+		).toEqual(["pipipi", "astel", "noah", "seika"]);
 	});
 
 	it("preserves D standalone canonical and social URL metadata", () => {
