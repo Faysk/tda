@@ -1,5 +1,4 @@
 import "server-only";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	editDataClient,
 	publishedDataClient,
@@ -21,6 +20,7 @@ import type {
 	WorldVisibility,
 } from "./model";
 import { loadWorldEntityPortraitPresentations } from "./world-entity-media-repository";
+import { WORLD_DEMO_CAMPAIGN_SLUG, isWorldCampaignSlug } from "./world-campaign";
 
 
 type EntityRow = {
@@ -144,23 +144,27 @@ function demoWorldDataset(): WorldDemoDataset {
 	return { ...DANDELION_WORLD_DEMO, demo: true };
 }
 
-function unavailableWorldDataset(): WorldDemoDataset {
-	return process.env.TDA_WORLD_DEMO_FALLBACK === "true" ? demoWorldDataset() : EMPTY_WORLD;
+function unavailableWorldDataset(campaignSlug: string): WorldDemoDataset {
+	return process.env.TDA_WORLD_DEMO_FALLBACK === "true" &&
+		campaignSlug === WORLD_DEMO_CAMPAIGN_SLUG
+		? demoWorldDataset()
+		: EMPTY_WORLD;
 }
 
 export async function loadWorldDataset(
 	audience: WorldAudience,
-	campaignSlug = CAMPAIGN_SLUG,
+	campaignSlug: string,
 ): Promise<WorldDemoDataset> {
+	if (!isWorldCampaignSlug(campaignSlug)) return EMPTY_WORLD;
 	// Canonical authoring can be deployed before the public projection is activated.
 	// This prevents a sparse or not-yet-reviewed dataset from replacing the current
 	// demonstrative World merely because the new tables already exist in production.
 	if (audience === "public" && process.env.TDA_WORLD_CANONICAL_ENABLED !== "true") {
-		return demoWorldDataset();
+		return campaignSlug === WORLD_DEMO_CAMPAIGN_SLUG ? demoWorldDataset() : EMPTY_WORLD;
 	}
 
 	const client = audience === "editor" ? editDataClient() : publishedDataClient();
-	if (!client) return unavailableWorldDataset();
+	if (!client) return unavailableWorldDataset(campaignSlug);
 
 	const { data: campaign, error: campaignError } = await client
 		.from("campaigns")
