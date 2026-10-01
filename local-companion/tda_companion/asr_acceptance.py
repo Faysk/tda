@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .asr_models import AsrProfile, get_profile, inspect_model_install
+from .asr_timeline import build_turns, deduplicate_cross_track_segments, flatten_tracks
 from .asr_whisper import (
     WhisperPlan,
     WhisperRuntimeError,
@@ -18,7 +19,10 @@ from .asr_whisper import (
     resolve_whisper_plan,
     whisper_transcribe_options,
     _transcribe_with_decode_boundary,
+    _validated_track_from_engine_segments,
 )
+
+from .transcript import TranscriptValidationError
 
 ACCEPTANCE_SCHEMA = "tda_whisper_gpu_acceptance_v1"
 _MAX_AUDIO_BYTES = 2 * 1024**3
@@ -57,7 +61,10 @@ def _text_hash(segments: list[dict[str, Any]]) -> str:
 def _serialize_segment(segment: Any) -> dict[str, Any]:
     words: list[dict[str, Any]] = []
     for word in getattr(segment, "words", None) or []:
-        text = str(getattr(word, "word", "")).strip()
+        raw_text = getattr(word, "text", None)
+        if raw_text is None:
+            raw_text = getattr(word, "word", "")
+        text = str(raw_text).strip()
         if not text:
             continue
         value: dict[str, Any] = {
@@ -65,9 +72,11 @@ def _serialize_segment(segment: Any) -> dict[str, Any]:
             "start": round(float(getattr(word, "start", 0.0)), 3),
             "end": round(float(getattr(word, "end", 0.0)), 3),
         }
-        probability = getattr(word, "probability", None)
-        if probability is not None:
-            value["confidence"] = round(float(probability), 6)
+        confidence = getattr(word, "confidence", None)
+        if confidence is None:
+            confidence = getattr(word, "probability", None)
+        if confidence is not None:
+            value["confidence"] = round(float(confidence), 6)
         words.append(value)
     return {
         "start": round(float(getattr(segment, "start", 0.0)), 3),
@@ -209,6 +218,7 @@ def run_whisper_gpu_acceptance(
     integrity_checker: Callable[[Path, AsrProfile], dict[str, object]] = _verify_model_integrity,
 ) -> dict[str, Any]:
     source = _validate_audio(audio_path)
+    audio_sha256 = _sha256_file(source)
     profile: AsrProfile = get_profile(profile_id)
     if profile.engine != "whisper":
         raise WhisperAcceptanceError("ACCEPTANCE_WHISPER_PROFILE_REQUIRED")
@@ -252,10 +262,28 @@ def run_whisper_gpu_acceptance(
                 source,
                 whisper_transcribe_options(glossary=glossary, context=context),
             )
-            segments = [_serialize_segment(segment) for segment in segments_iter]
+            track, _segment_count = _validated_track_from_engine_segments(
+                track_number=1,
+                total_tracks=1,
+                speaker="Acceptance",
+                source_filename="acceptance-audio",
+                source_sha256=audio_sha256,
+                timeline_offset_seconds=0.0,
+                identity=None,
+                segments_iter=segments_iter,
+                info=info,
+                sample_seconds=None,
+                report=lambda _item: None,
+                is_cancelled=lambda: False,
+            )
         except WhisperRuntimeError as exc:
             raise WhisperAcceptanceError(exc.code) from exc
-        segments = [segment for segment in segments if segment["text"]]
+        except TranscriptValidationError as exc:
+            raise WhisperAcceptanceError("ACCEPTANCE_TRANSCRIPT_VALIDATION_FAILED") from exc
+        segments = [_serialize_segment(segment) for segment in track.segments]
+        flattened = flatten_tracks((track,))
+        deduplicated, dedup_decisions = deduplicate_cross_track_segments(flattened)
+        turns = build_turns(deduplicated)
         transcription_seconds = max(time.monotonic() - transcription_started, 0.0)
     finally:
         gpu_metrics = monitor.stop()
@@ -296,7 +324,7 @@ def run_whisper_gpu_acceptance(
         "model_content_sha256": model_content_sha256,
         "model_integrity": "sha256-full",
         "language": "pt",
-        "audio_sha256": _sha256_file(source),
+        "audio_sha256": audio_sha256,
         "runtime": _runtime_versions(),
         "cuda": {
             "device_count": int(status.get("device_count") or 0),
@@ -315,6 +343,8 @@ def run_whisper_gpu_acceptance(
             "rtf": round(transcription_seconds / duration_seconds, 6),
             "segment_count": len(segments),
             "word_count": word_count,
+            "turn_count": len(turns),
+            "deduplicated_segment_count": len(dedup_decisions),
             "transcript_sha256": _text_hash(segments),
             "transcript_written": transcript_out is not None,
         },

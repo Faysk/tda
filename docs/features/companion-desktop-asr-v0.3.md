@@ -295,7 +295,7 @@ cuDNN 9
 
 O runtime é empacotado e publicado separadamente do MSI.
 
-O candidato corretivo é **Whisper Runtime 1.1.6**. O pin de PyAV é específico desta família: Faster-Whisper 1.2.1 ainda usa `metadata_errors` em `av.open`, removido no PyAV 19. O build 1.1.6 falha fechado se o worker empacotado não decodificar WAV e FLAC sintéticos pelo decoder real do Faster-Whisper. A Stable 1.1.5 previamente aceita permanece imutável até que os bytes 1.1.6 completem aceite físico; não se reescreve uma versão já distribuída.
+O candidato de decoder #1234 foi **Whisper Runtime 1.1.6**. O pin de PyAV é específico desta família: Faster-Whisper 1.2.1 ainda usa `metadata_errors` em `av.open`, removido no PyAV 19. Esse build falha fechado se o worker empacotado não decodificar WAV e FLAC sintéticos pelo decoder real do Faster-Whisper. O contrato de benchmark de #1233 já materializou oficialmente o Runtime 1.1.7 preservando o mesmo decoder. Como #1235 altera posteriormente os bytes do adapter/worker, o candidato corrente avança para **Whisper Runtime 1.1.8**; 1.1.6 e 1.1.7 permanecem preservados e não são reconstruídos. A Stable 1.1.5 previamente aceita também permanece imutável até que o novo candidato complete aceite físico.
 
 ### Qwen
 

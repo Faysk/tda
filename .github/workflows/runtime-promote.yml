@@ -73,6 +73,16 @@ jobs:
           gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --dir rc-assets
           test -f rc-assets/TDARuntime-candidate.json
 
+      - name: Require Whisper #1235 Craig containment acceptance
+        id: whisper1235
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/acceptance/whisper_1235_receipt.py \
+            --candidate-manifest rc-assets/TDARuntime-candidate.json \
+            --evidence-root docs/companion/runtime-acceptance \
+            --retained-output prepared/Whisper-1235-acceptance.json >> "$GITHUB_OUTPUT"
+
       - name: Verify candidate bytes and physical receipt
         id: evidence
         shell: bash
@@ -208,7 +218,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p evidence-current
-          for NAME in TDARuntime-acceptance.json TDARuntime-promotion.json; do
+          FILES=(TDARuntime-acceptance.json TDARuntime-promotion.json)
+          if [[ -f prepared/Whisper-1235-acceptance.json ]]; then
+            FILES+=(Whisper-1235-acceptance.json)
+          fi
+          for NAME in "${FILES[@]}"; do
             if gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$NAME" --dir evidence-current >/dev/null 2>&1; then
               cmp -s "evidence-current/$NAME" "prepared/$NAME" || { echo "::error::Existing RC evidence $NAME differs"; exit 1; }
             else
@@ -221,10 +235,16 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf evidence-check && mkdir evidence-check
-          gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'TDARuntime-acceptance.json' --pattern 'TDARuntime-promotion.json' --dir evidence-check
+          PATTERNS=(--pattern 'TDARuntime-acceptance.json' --pattern 'TDARuntime-promotion.json')
+          if [[ -f prepared/Whisper-1235-acceptance.json ]]; then
+            PATTERNS+=(--pattern 'Whisper-1235-acceptance.json')
+          fi
+          gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" "${PATTERNS[@]}" --dir evidence-check
           cmp -s evidence-check/TDARuntime-acceptance.json prepared/TDARuntime-acceptance.json
           cmp -s evidence-check/TDARuntime-promotion.json prepared/TDARuntime-promotion.json
+          if [[ -f prepared/Whisper-1235-acceptance.json ]]; then
+            cmp -s evidence-check/Whisper-1235-acceptance.json prepared/Whisper-1235-acceptance.json
+          fi
 
       - name: Promote the same release object and runtime assets to stable
         shell: bash

@@ -82,6 +82,8 @@ def test_acceptance_receipt_proves_cuda_without_leaking_transcript(tmp_path: Pat
     assert receipt["model_revision"]
     assert receipt["model_content_sha256"] == "c" * 64
     assert receipt["model_integrity"] == "sha256-full"
+    assert receipt["inference"]["turn_count"] == 1
+    assert receipt["inference"]["deduplicated_segment_count"] == 0
     serialized = json.dumps(receipt, ensure_ascii=False)
     assert "segredo da mesa" not in serialized
     assert "fake-audio" not in serialized
@@ -188,3 +190,90 @@ def test_acceptance_classifies_lazy_decoder_dependency_failure(tmp_path: Path):
         )
 
     assert "private-session.flac" not in str(exc.value)
+
+
+
+def test_acceptance_uses_canonical_containment_adapter(tmp_path: Path):
+    audio = tmp_path / "sample.flac"
+    audio.write_bytes(b"fake-audio")
+    transcript = tmp_path / "containment.json"
+
+    class _ContainmentModel:
+        def transcribe(self, _path: str, **_options):
+            word = SimpleNamespace(
+                word=" fixture",
+                start=0.049,
+                end=0.4,
+                probability=0.99,
+            )
+            segment = SimpleNamespace(
+                id=0,
+                start=0.1,
+                end=0.5,
+                text="fixture",
+                words=[word],
+            )
+            return iter([segment]), SimpleNamespace(duration=2.0)
+
+    def load_containment(_path: Path, _plan):
+        return _ContainmentModel(), "float16", False
+
+    receipt = run_whisper_gpu_acceptance(
+        audio,
+        tmp_path / "Models",
+        profile_id="whisper-turbo",
+        transcript_out=transcript,
+        cuda_status=_cuda(),
+        prepare_model=_prepare,
+        model_loader=load_containment,
+        monitor_factory=_Monitor,
+        integrity_checker=_integrity,
+    )
+
+    assert receipt["pass"] is True
+    assert receipt["inference"]["segment_count"] == 1
+    assert receipt["inference"]["word_count"] == 1
+    assert receipt["inference"]["turn_count"] == 1
+    payload = json.loads(transcript.read_text(encoding="utf-8"))
+    assert payload["segments"][0]["start"] == 0.049
+    assert payload["segments"][0]["words"][0]["start"] == 0.049
+
+
+def test_acceptance_keeps_non_containment_validation_fail_closed(tmp_path: Path):
+    audio = tmp_path / "sample.flac"
+    audio.write_bytes(b"fake-audio")
+
+    class _InvalidTimestampModel:
+        def transcribe(self, _path: str, **_options):
+            word = SimpleNamespace(
+                word=" fixture",
+                start=0.4,
+                end=0.3,
+                probability=0.99,
+            )
+            segment = SimpleNamespace(
+                id=0,
+                start=0.1,
+                end=0.5,
+                text="fixture",
+                words=[word],
+            )
+            return iter([segment]), SimpleNamespace(duration=2.0)
+
+    def load_invalid(_path: Path, _plan):
+        return _InvalidTimestampModel(), "float16", False
+
+    with pytest.raises(
+        WhisperAcceptanceError,
+        match="^ACCEPTANCE_TRANSCRIPT_VALIDATION_FAILED$",
+    ):
+        run_whisper_gpu_acceptance(
+            audio,
+            tmp_path / "Models",
+            profile_id="whisper-turbo",
+            cuda_status=_cuda(),
+            prepare_model=_prepare,
+            model_loader=load_invalid,
+            monitor_factory=_Monitor,
+            integrity_checker=_integrity,
+        )

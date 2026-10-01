@@ -1,15 +1,16 @@
 [CmdletBinding()]
 param(
     [string]$ResultsRoot = "",
-    [string]$RequireGpuName = "RTX 4070"
+    [string]$RequireGpuName = "RTX 4070",
+    [string]$CraigZip = ""
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$CompanionRcTag = "companion-rc-v0.3.14-74a656021208"
-$WhisperRuntimeRcTag = "companion-whisper-runtime-rc-v1.1.5-2579f7ec7b36"
-$QwenRuntimeRcTag = "companion-qwen-runtime-rc-v1.0.10-19d9b3b64238"
+$CompanionRcTag = "companion-rc-v0.3.18-bb9b0a96fc30"
+$WhisperRuntimeRcTag = "companion-whisper-runtime-rc-v1.1.7-bb9b0a96fc30"
+$QwenRuntimeRcTag = "companion-qwen-runtime-rc-v1.0.13-bb9b0a96fc30"
 
 function Fail([string]$Code) {
     throw [InvalidOperationException]::new($Code)
@@ -57,7 +58,8 @@ foreach ($name in @(
 
 $releaseWideScript = Join-Path $PSScriptRoot "run-final-current-source-acceptance.ps1"
 $qwenRecoveryScript = Join-Path $PSScriptRoot "run-qwen-recovery-physical-gate.ps1"
-foreach ($script in @($releaseWideScript, $qwenRecoveryScript)) {
+$benchmarkScript = Join-Path $PSScriptRoot "run-processing-benchmark-physical-gate.ps1"
+foreach ($script in @($releaseWideScript, $qwenRecoveryScript, $benchmarkScript)) {
     if (-not (Test-Path -LiteralPath $script -PathType Leaf)) {
         Fail "PROCESSING_ACCEPTANCE_SCRIPT_MISSING"
     }
@@ -100,8 +102,9 @@ try {
     $privateRoot = Join-Path $finalRuns[0].FullName "_private"
     $downloadsRoot = Join-Path $privateRoot "downloads"
     $companionPayloadPath = Join-Path $downloadsRoot "TDACompanion-payload-manifest.json"
+    $whisperCandidatePath = Join-Path $downloadsRoot "whisper-runtime-candidate.json"
     $qwenCandidatePath = Join-Path $downloadsRoot "qwen-runtime-candidate.json"
-    foreach ($path in @($companionPayloadPath, $qwenCandidatePath)) {
+    foreach ($path in @($companionPayloadPath, $whisperCandidatePath, $qwenCandidatePath)) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Fail "RELEASE_WIDE_EXACT_RC_HANDOFF_MISSING" }
     }
     $companionPayload = Read-Json $companionPayloadPath "RELEASE_WIDE_COMPANION_PAYLOAD_INVALID"
@@ -127,11 +130,29 @@ try {
         CompanionPayloadManifest = $companionPayloadPath
         QwenRuntimeCandidateManifest = $qwenCandidatePath
         QwenInstalledRuntimeRoot = $qwenInstalledRuntime
+        RequiredQwenRuntimeVersion = [string]$qwenCandidate.version
         RequireGpuName = $RequireGpuName
         OutputRoot = $qwenRecoveryRoot
     }
     & $qwenRecoveryScript @recoveryArgs
     if ($LASTEXITCODE -ne 0) { Fail "QWEN_RECOVERY_ACCEPTANCE_FAILED" }
+
+    $benchmarkReceipt = $null
+    if ($CraigZip) {
+        Write-Host "Phase 3/3: exact-RC real Craig 5-minute four-profile benchmark..." -ForegroundColor Cyan
+        $phase = "real_benchmark_acceptance"
+        $benchmarkRoot = Join-Path $root "real-benchmark"
+        & $benchmarkScript -CraigZip $CraigZip -CompanionPayloadManifest $companionPayloadPath -WhisperRuntimeCandidateManifest $whisperCandidatePath -QwenRuntimeCandidateManifest $qwenCandidatePath -RequireGpuName $RequireGpuName -OutputRoot $benchmarkRoot
+        if ($LASTEXITCODE -ne 0) { Fail "PROCESSING_BENCHMARK_ACCEPTANCE_FAILED" }
+        $benchmarkRuns = @(Get-ChildItem -LiteralPath $benchmarkRoot -Directory -Filter "BENCHMARK-*" | Sort-Object Name)
+        if ($benchmarkRuns.Count -ne 1) { Fail "PROCESSING_BENCHMARK_RECEIPT_HANDOFF_INVALID" }
+        $benchmarkReceipt = Join-Path $benchmarkRuns[0].FullName "PROCESSING-1233-ACCEPTANCE.json"
+        if (-not (Test-Path -LiteralPath $benchmarkReceipt -PathType Leaf)) { Fail "PROCESSING_BENCHMARK_RECEIPT_MISSING" }
+        $benchmarkValue = Read-Json $benchmarkReceipt "PROCESSING_BENCHMARK_RECEIPT_INVALID"
+        if ([string]$benchmarkValue.schema -ne "tda_processing_1233_physical_acceptance_v1" -or $benchmarkValue.pass -ne $true) {
+            Fail "PROCESSING_BENCHMARK_RECEIPT_INVALID"
+        }
+    }
 
     $passed = $true
 } catch {
@@ -156,6 +177,8 @@ try {
         qwen_recovery_input = "generated_synthetic"
         release_wide_results = "release-wide"
         qwen_recovery_results = "qwen-recovery"
+        real_benchmark_requested = (-not [string]::IsNullOrWhiteSpace($CraigZip))
+        real_benchmark_receipt = $(if ($null -ne (Get-Variable benchmarkReceipt -ErrorAction SilentlyContinue) -and $benchmarkReceipt) { "real-benchmark" } else { $null })
         contains_audio = $false
         contains_transcript = $false
         contains_token = $false
