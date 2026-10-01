@@ -30,7 +30,7 @@ O benchmark normal de quatro perfis não é autoridade para este gate enquanto #
 5. nenhum job concorrente usando a GPU/runtime;
 6. ambiente Python do `local-companion` disponível para executar o harness.
 
-O gate falha antes de iniciar ASR se o source não for exatamente o Craig que reproduziu #1236, se o runtime ativo não for exatamente `1.0.13`, se o worker não bater com seu hash, ou se qualquer physical gate estiver stale.
+O gate falha antes de iniciar ASR se o source não for exatamente o Craig que reproduziu #1236, se o runtime ativo não for exatamente `1.0.13`, se o worker não bater com seu hash, ou se qualquer physical gate estiver stale. A versão esperada é parte do contrato versionado do harness e não pode ser sobrescrita por flag de linha de comando; um candidato futuro exige atualização explícita do código/documento.
 
 ## Execução
 
@@ -48,7 +48,6 @@ Opcionalmente, quando o checkout/runtime estiver fora dos defaults:
 uv run --project local-companion python tools/acceptance/qwen_empty_window_benchmark.py `
   --confirm RUN `
   --source-id "<source-id-staged>" `
-  --expected-runtime-version 1.0.13 `
   --sample-seconds 300 `
   --tda-root "$env:LOCALAPPDATA\TDA" `
   --repo-root "<checkout-do-tda>"
