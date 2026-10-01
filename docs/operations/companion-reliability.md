@@ -324,6 +324,18 @@ O corpus autorizado deve conter PT-BR normal/rápido, nomes próprios, D&D, over
 
 Nenhum engine é declarado vencedor apenas por benchmark público. Qwen e Whisper convergem para o mesmo `tda_transcript_v1` e o default só é escolhido após evidência local.
 
+## Correção de decoder Whisper — #1234 (2026-10-01)
+
+O RC `companion-whisper-runtime-rc-v1.1.5-5e38e1e6ff2a` resolveu PyAV 19 transitivamente junto de Faster-Whisper 1.2.1. O worker passava probe/bootstrap, mas decode real falhava porque esse Faster-Whisper ainda envia `metadata_errors` para `av.open`, argumento removido no PyAV 19.
+
+A correção não altera nem reempacota a Stable 1.1.5 já promovida. Um novo runtime **1.1.6** fixa PyAV 18.1.0 e introduz gate empacotado WAV+FLAC antes de produzir candidato. `RC_WHISPER_VERSION` também avança para 1.1.6, portanto descoberta/instalação RC deixa de selecionar o candidato defeituoso 1.1.5 sem declarar toda a família 1.1.5 incompatível.
+
+`MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION` permanece 1.1.4: versões Stable anteriormente aceitas continuam suportadas. A identidade confiável é versão **mais** tag/hash/receipt; número de versão sozinho não autoriza reaproveitar bytes de um RC diferente.
+
+Promoção 1.1.6 continua obedecendo C-13: os mesmos bytes gerados e validados em CI precisam passar aceite físico nos perfis `whisper-turbo` e `whisper-detailed` antes da troca para Stable. Até lá, o caminho de rollback/recuperação continua sendo a Stable aceita anterior; State/Data/Models não são removidos por troca de runtime.
+
+Falhas conhecidas do decoder agora devem sair como código estável `WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE` (ou `WHISPER_AUDIO_DECODE_FAILED` para erro PyAV de mídia), sem caminho ou conteúdo do áudio. Problemas de timestamps/word containment depois da inferência continuam separados em #1235 e não podem ser mascarados por ajuste de VAD/timestamps nesta correção.
+
 ## Definition of Done de uma próxima stable confiável
 
 A próxima stable só pode ser promovida se, **no mesmo MSI/hash publicado**:
