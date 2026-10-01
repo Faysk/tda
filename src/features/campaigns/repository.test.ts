@@ -91,6 +91,7 @@ describe("public campaign registry compatibility", () => {
 
 		await expect(readPublicCampaignDirectory()).resolves.toEqual({
 			ok: true,
+			registryMode: "legacy",
 			campaigns: [
 				{
 					routeKey: "cronicas-da-mesa",
@@ -270,6 +271,7 @@ describe("public campaign registry compatibility", () => {
 
 		await expect(readPublicCampaignDirectory()).resolves.toEqual({
 			ok: true,
+			registryMode: "canonical",
 			campaigns: [],
 		});
 		expect(client.from).toHaveBeenCalledTimes(1);
