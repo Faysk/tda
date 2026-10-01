@@ -42,6 +42,8 @@ def test_whisper_runtime_build_gates_the_packaged_faster_whisper_decoder():
     )
 
     assert '_decode_smoke_worker(worker)' in build
+    assert "DECODE_SMOKE_TIMEOUT_SECONDS = 90" in build
+    assert "timeout=DECODE_SMOKE_TIMEOUT_SECONDS" in build
     assert 'probe.get("av") != packages["av"]' in build
     assert '"--decode-smoke"' in entry
     assert "from faster_whisper.audio import decode_audio" in entry
