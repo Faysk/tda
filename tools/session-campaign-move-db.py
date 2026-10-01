@@ -82,6 +82,13 @@ try:
             break
         time.sleep(.05)
     else:
+        if first.poll() is not None:
+            assert first.stdout is not None and first.stderr is not None
+            raise RuntimeError(
+                "first move writer exited before transaction hold: "
+                + first.stdout.read()
+                + first.stderr.read()
+            )
         raise RuntimeError("first move writer did not hold transaction")
 
     second=launch("set application_name='tda_move_b'; set role service_role; "+call.replace("61000000-0000-4000-8000-000000000012","61000000-0000-4000-8000-000000000013"))
