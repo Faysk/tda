@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$CompanionRcTag = "companion-rc-v0.3.18-bb9b0a96fc30"
+$CompanionRcTag = "companion-rc-v0.3.18-d3db290b66be"
 $WhisperRuntimeRcTag = "companion-whisper-runtime-rc-v1.1.8-ce9fdda3c35e"
 $QwenRuntimeRcTag = "companion-qwen-runtime-rc-v1.0.14-d3db290b66be"
 
