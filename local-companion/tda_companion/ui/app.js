@@ -5,6 +5,7 @@
   let allLogs = [];
   let refreshTimer = null;
   let lastConnectionState = null;
+  let lastWhisperRuntimeCheck = null;
 
   const FRIENDLY_ERRORS = {
     CRAIG_FILE_PICKER_UNAVAILABLE: "O seletor de arquivos do Windows não está disponível.",
@@ -19,6 +20,13 @@
     MAINTENANCE_BLOCKED_BY_TRANSCRIPTION_PREPARATION: "Aguarde a preparação do perfil terminar antes de atualizar ou remover o Companion.",
     RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB: "O runtime não pode ser alterado enquanto há um trabalho em execução.",
     RUNTIME_UPDATE_BLOCKED_BY_TRANSCRIPTION_PREPARATION: "O runtime não pode ser alterado enquanto o Agent prepara um perfil de transcrição.",
+    RUNTIME_ROLLBACK_BLOCKED_BY_RUNNING_JOB: "O rollback do Whisper está bloqueado enquanto há trabalho na fila ou em execução.",
+    RUNTIME_ROLLBACK_BLOCKED_BY_TRANSCRIPTION_PREPARATION: "O rollback do Whisper está bloqueado durante a preparação de um perfil.",
+    RUNTIME_ROLLBACK_BLOCKED_BY_RUNTIME_MAINTENANCE: "O rollback do Whisper está bloqueado enquanto outro runtime está em manutenção.",
+    WHISPER_RUNTIME_ROLLBACK_TARGET_INVALID: "A versão preservada está corrompida ou não corresponde ao marker. O runtime atual foi mantido.",
+    WHISPER_RUNTIME_ROLLBACK_TARGET_NOT_OLDER: "Escolha uma versão Whisper anterior à atualmente ativa.",
+    WHISPER_RUNTIME_ROLLBACK_TARGET_INCOMPATIBLE: "Essa versão Whisper é antiga demais para este Companion.",
+    WHISPER_RUNTIME_ROLLBACK_VERSION_INVALID: "Informe uma versão exata no formato X.Y.Z.",
     QWEN_RUNTIME_UNAVAILABLE: "O runtime Qwen ainda não está disponível.",
     QWEN_RUNTIME_LONG_GATE_REQUIRED: "O runtime Qwen instalado é antigo e precisa ser atualizado.",
     QWEN_CUDA_UNAVAILABLE: "O Qwen não encontrou CUDA disponível nesta máquina.",
@@ -245,6 +253,7 @@
     const detail = $("whisper-runtime-detail");
     const feedback = $("whisper-runtime-feedback");
     const install = $("install-whisper-runtime");
+    const rollback = $("rollback-whisper-runtime");
 
     if (status === "ready") detail.textContent = `Whisper runtime${current ? ` v${current}` : ""} instalado e íntegro.`;
     else if (status === "corrupt") detail.textContent = `Runtime Whisper${current ? ` v${current}` : ""} precisa de reparo.`;
@@ -252,12 +261,14 @@
 
     if (!checkedRemote) {
       install.classList.add("hidden");
+      rollback.classList.add("hidden");
       feedback.textContent = "Runtime isolado; não altera o PATH global.";
       return;
     }
 
     const available = Boolean(result?.available);
     install.classList.toggle("hidden", !available);
+    rollback.classList.toggle("hidden", status !== "ready");
     if (available) {
       install.textContent = status === "ready" ? `Atualizar para ${result.version}` : `Instalar ${result.version}`;
       feedback.textContent = `Pacote verificado · ${formatBytes(result.size)} · v${result.version}`;
@@ -549,6 +560,7 @@
     button.disabled = true;
     try {
       const result = await api.check_whisper_runtime();
+      lastWhisperRuntimeCheck = result;
       renderWhisperRuntime(result, true);
       if (announce) toast(result.available ? `Whisper runtime ${result.version} disponível.` : "Runtime Whisper já está atualizado.");
     } catch (error) {
@@ -570,6 +582,36 @@
       await checkWhisperRuntime(false);
     } catch (error) {
       toast(`O runtime Whisper não foi instalado: ${errorText(error)}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function rollbackWhisperRuntime() {
+    const candidates = Array.isArray(lastWhisperRuntimeCheck?.rollback_versions)
+      ? lastWhisperRuntimeCheck.rollback_versions
+      : [];
+    const suggested = candidates[0] || "";
+    const raw = window.prompt(
+      "Versão Whisper exata para reativar (X.Y.Z). Se os bytes não estiverem preservados, o Companion buscará somente a release Stable dessa versão.",
+      suggested,
+    );
+    if (raw === null) return;
+    const version = raw.trim();
+    if (!/^\d+\.\d+\.\d+$/.test(version)) {
+      toast(errorText("WHISPER_RUNTIME_ROLLBACK_VERSION_INVALID"), true);
+      return;
+    }
+    if (!window.confirm(`Reverter explicitamente o runtime Whisper para v${version}? O runtime atual, modelos, dados e runs serão preservados.`)) return;
+    const button = $("rollback-whisper-runtime");
+    button.disabled = true;
+    try {
+      const result = await api.rollback_whisper_runtime(version);
+      toast(`Whisper revertido de v${result.previous_version} para v${result.version}.`);
+      await refreshSnapshot();
+      await checkWhisperRuntime(false);
+    } catch (error) {
+      toast(`Rollback Whisper não realizado: ${errorText(error)}`, true);
     } finally {
       button.disabled = false;
     }
@@ -736,6 +778,7 @@
     $("setting-close").addEventListener("change", (event) => updateSetting("close_behavior", event.target.value));
     $("check-whisper-runtime").addEventListener("click", () => checkWhisperRuntime(true));
     $("install-whisper-runtime").addEventListener("click", installWhisperRuntime);
+    $("rollback-whisper-runtime").addEventListener("click", rollbackWhisperRuntime);
     $("check-qwen-runtime").addEventListener("click", () => checkQwenRuntime(true));
     $("install-qwen-runtime").addEventListener("click", installQwenRuntime);
     $("check-update").addEventListener("click", () => checkUpdate(true));
