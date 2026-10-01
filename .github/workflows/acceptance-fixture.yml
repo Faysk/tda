@@ -17,7 +17,6 @@ on:
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - "local-companion/packaging/run-physical-acceptance.ps1"
       - "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1"
-      - "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
   push:
     branches: [main]
@@ -35,6 +34,7 @@ on:
       - "tools/acceptance/RUN-final-current-source-acceptance.cmd"
       - "local-companion/packaging/run-installed-acceptance.ps1"
       - "local-companion/packaging/run-physical-acceptance.ps1"
+      - "local-companion/packaging/run-whisper-craig-containment-acceptance.ps1"
       - ".github/workflows/acceptance-fixture.yml"
 
 permissions:
