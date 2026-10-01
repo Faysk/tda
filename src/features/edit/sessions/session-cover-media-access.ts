@@ -3,7 +3,6 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 
 export type SessionCoverMediaAccessFailure =
@@ -22,6 +21,7 @@ export type AuthorizedSessionCoverTarget = Readonly<{
 }>;
 
 export async function authorizeSessionCoverTarget(
+	campaignSlug: string,
 	sessionId: string,
 ): Promise<
 	| Readonly<{ ok: true; target: AuthorizedSessionCoverTarget }>
@@ -29,7 +29,7 @@ export async function authorizeSessionCoverTarget(
 > {
 	const access = await authorizeCampaignCapabilityServer({
 		action: EDIT_CAPABILITIES.contentEdit,
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug,
 	});
 	if (!access.ok) return access;
 
@@ -40,7 +40,7 @@ export async function authorizeSessionCoverTarget(
 		.from("sessions")
 		.select("id,campaign_id,campaigns!inner(slug)")
 		.eq("id", sessionId)
-		.eq("campaigns.slug", CAMPAIGN_SLUG)
+		.eq("campaigns.slug", campaignSlug)
 		.maybeSingle();
 	if (error) return { ok: false, reason: "dependency_unavailable" };
 	if (!data?.id || !data.campaign_id)
