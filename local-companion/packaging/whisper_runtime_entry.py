@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import multiprocessing
+import tempfile
+import wave
 from pathlib import Path
 
 
@@ -17,6 +20,81 @@ def _bootstrap_whisper_runtime():
     if not callable(WhisperModel):
         raise RuntimeError("WHISPER_MODEL_CLASS_INVALID")
     return av, ctranslate2, faster_whisper, WhisperModel
+
+
+def _decode_smoke() -> int:
+    """Decode generated WAV/FLAC through Faster-Whisper without a model or GPU."""
+    schema = "tda_whisper_decode_smoke_v1"
+    sample_rate = 16_000
+    sample_count = sample_rate
+    try:
+        av, _ctranslate2, _faster_whisper, _WhisperModel = _bootstrap_whisper_runtime()
+        import numpy as np
+        from faster_whisper.audio import decode_audio
+
+        timeline = np.arange(sample_count, dtype=np.float64)
+        pcm = (
+            np.sin((2.0 * math.pi * 440.0 * timeline) / sample_rate) * 6_000
+        ).astype(np.int16)
+
+        with tempfile.TemporaryDirectory(prefix="tda-whisper-decode-smoke-") as temp_value:
+            root = Path(temp_value)
+            wav_path = root / "fixture.wav"
+            with wave.open(str(wav_path), "wb") as handle:
+                handle.setnchannels(1)
+                handle.setsampwidth(2)
+                handle.setframerate(sample_rate)
+                handle.writeframes(pcm.tobytes())
+
+            flac_path = root / "fixture.flac"
+            with av.open(str(flac_path), mode="w", format="flac") as container:
+                stream = container.add_stream("flac", rate=sample_rate)
+                frame = av.AudioFrame.from_ndarray(
+                    pcm.reshape(1, -1),
+                    format="s16",
+                    layout="mono",
+                )
+                frame.sample_rate = sample_rate
+                for packet in stream.encode(frame):
+                    container.mux(packet)
+                for packet in stream.encode(None):
+                    container.mux(packet)
+
+            formats: dict[str, dict[str, int]] = {}
+            for name, path in (("wav", wav_path), ("flac", flac_path)):
+                decoded = decode_audio(str(path), sampling_rate=sample_rate)
+                decoded_count = int(decoded.shape[0])
+                if decoded.ndim != 1 or decoded_count != sample_count:
+                    raise RuntimeError("WHISPER_DECODE_SMOKE_SAMPLE_MISMATCH")
+                formats[name] = {
+                    "sample_rate": sample_rate,
+                    "sample_count": decoded_count,
+                }
+
+        print(
+            json.dumps(
+                {"schema": schema, "ready": True, "formats": formats},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            flush=True,
+        )
+        return 0
+    except Exception as exc:
+        code = (
+            "WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE"
+            if isinstance(exc, TypeError) and "metadata_errors" in str(exc)
+            else "WHISPER_DECODE_SMOKE_FAILED"
+        )
+        print(
+            json.dumps(
+                {"schema": schema, "ready": False, "error": code},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            flush=True,
+        )
+        return 66
 
 
 def _probe() -> int:
@@ -209,6 +287,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="TDAWhisperWorker")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--probe", action="store_true")
+    mode.add_argument("--decode-smoke", action="store_true")
     mode.add_argument("--acceptance", action="store_true")
     mode.add_argument("--prepare-model", action="store_true")
     parser.add_argument("--audio", type=Path)
@@ -225,6 +304,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.probe:
         return _probe()
+    if args.decode_smoke:
+        return _decode_smoke()
     if args.acceptance:
         return _acceptance(args)
     if args.prepare_model:
