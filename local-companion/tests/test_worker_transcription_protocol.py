@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import tda_companion.asr_worker as asr_worker
+from tda_companion.asr_whisper import WhisperRuntimeError
 from tda_companion.craig import CraigPackageError
 from tda_companion.worker_protocol import (
     WorkerMessage,
@@ -157,3 +158,73 @@ def test_worker_source_validation_does_not_rehash_staged_tracks(monkeypatch, tmp
     )
     assert emitted[-1][0] == "error"
     assert emitted[-1][1]["code"] == "TEST_STOP_AFTER_SOURCE_VALIDATION"
+
+
+def test_worker_surfaces_whisper_decoder_dependency_error_without_audio_details(
+    monkeypatch,
+    tmp_path: Path,
+):
+    data_root = tmp_path / "Data"
+    models_root = tmp_path / "Models"
+    package_root = data_root / "staging" / "source"
+    package_root.mkdir(parents=True)
+    models_root.mkdir()
+    monkeypatch.setenv("TDA_WORKER_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("TDA_WORKER_MODELS_ROOT", str(models_root))
+
+    package = type(
+        "Package",
+        (),
+        {"tracks": (), "source_sha256": "a" * 64},
+    )()
+    monkeypatch.setattr(
+        asr_worker,
+        "load_craig_package",
+        lambda _root, verify_tracks=False: package,
+    )
+    monkeypatch.setattr(asr_worker, "remove_incomplete_runs", lambda _root: 0)
+    monkeypatch.setattr(asr_worker, "migrate_legacy_transcript", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        asr_worker,
+        "get_profile",
+        lambda _profile_id: type(
+            "Profile",
+            (),
+            {"id": "whisper-turbo", "engine": "whisper"},
+        )(),
+    )
+
+    def fail_decode(*_args, **_kwargs):
+        raise WhisperRuntimeError("WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE")
+
+    monkeypatch.setattr(asr_worker, "transcribe_craig_package", fail_decode)
+
+    emitted: list[tuple[str, dict]] = []
+
+    class Emitter:
+        def emit(self, kind, payload=None):  # noqa: ANN001
+            emitted.append((kind, payload or {}))
+
+    command = WorkerRunCommand(
+        job_id="decode-failure",
+        attempt=1,
+        kind="transcription.craig",
+        payload={
+            "source_id": "source",
+            "profile_id": "whisper-turbo",
+            "glossary": "",
+            "context": "",
+            "cpu": False,
+        },
+    )
+
+    assert asr_worker._run_craig(command, Emitter(), threading.Event()) == 66
+    assert emitted[-1] == (
+        "error",
+        {
+            "code": "WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE",
+            "recoverable": True,
+        },
+    )
+    assert "path" not in emitted[-1][1]
+    assert "audio" not in emitted[-1][1]

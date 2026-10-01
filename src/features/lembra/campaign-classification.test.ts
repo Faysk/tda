@@ -17,6 +17,12 @@ describe("Lembra campaign registry compatibility", () => {
 					"Could not find the 'visibility' column of 'campaigns' in the schema cache",
 			}),
 		).toBe(true);
+		expect(
+			isLembraCampaignRegistryUnavailable({
+				code: "42703",
+				message: "column campaigns.lifecycle does not exist",
+			}),
+		).toBe(true);
 	});
 
 	it("does not hide unrelated database or schema failures", () => {

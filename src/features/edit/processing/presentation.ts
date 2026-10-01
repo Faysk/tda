@@ -118,6 +118,8 @@ export function presentJobError(code: string): string {
 		WHISPER_MODEL_LOAD_FAILED: "O Whisper não conseguiu carregar o modelo local.",
 		WHISPER_MODEL_NOT_LOADED: "O Whisper não manteve o modelo carregado para iniciar a transcrição.",
 		WHISPER_RUNTIME_NOT_INSTALLED: "O runtime Whisper necessário para esta execução não está instalado.",
+		WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE: "O runtime Whisper instalado possui uma combinação incompatível de decoder de áudio. Atualize o runtime Whisper para o candidato compatível e tente novamente; o áudio local não foi alterado.",
+		WHISPER_AUDIO_DECODE_FAILED: "O Whisper não conseguiu decodificar uma das faixas locais. Reimporte a fonte Craig e tente novamente; se persistir, abra Diagnóstico e confira a versão do runtime Whisper.",
 		WHISPER_CUDA_UNAVAILABLE: "O Whisper não encontrou CUDA disponível nesta máquina.",
 		WHISPER_CUDA_COMPUTE_UNSUPPORTED: "A GPU foi detectada, mas o runtime Whisper não oferece um modo de cálculo CUDA compatível.",
 	};

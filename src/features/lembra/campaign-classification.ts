@@ -1,17 +1,12 @@
-export type LembraCampaignRegistryError = Readonly<{
-	code?: string | null;
-	message?: string | null;
-}>;
+import {
+	isCampaignRegistrySchemaGap,
+	type CampaignRegistrySchemaError,
+} from "@/features/campaigns/schema-compatibility";
 
-const REGISTRY_COLUMNS = ["lifecycle", "visibility", "public_slug"] as const;
+export type LembraCampaignRegistryError = CampaignRegistrySchemaError;
 
 export function isLembraCampaignRegistryUnavailable(
 	error: LembraCampaignRegistryError | null | undefined,
 ): boolean {
-	if (error?.code !== "PGRST204") return false;
-	const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
-	return (
-		message.includes("campaigns") &&
-		REGISTRY_COLUMNS.some((column) => message.includes(column))
-	);
+	return isCampaignRegistrySchemaGap(error);
 }

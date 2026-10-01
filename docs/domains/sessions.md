@@ -2,7 +2,7 @@
 
 > Status: implementado
 > Owner: sessions
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-01
 
 ## Objetivo
 
@@ -146,6 +146,19 @@ Não promover para `/sessoes` métricas que pertencem ao leitor privado de trans
 
 O repository público continua server-only e estreito; não deve consultar transcrições ou perfis para enriquecer cards públicos.
 
+### Limites de leitura dos consumidores públicos
+
+O arquivo completo e os consumidores de destaque possuem contratos de leitura diferentes:
+
+- o arquivo público continua usando paginação server-side em lotes de 200 e pode percorrer todas as sessões publicadas quando a própria tela precisa do conjunto completo;
+- a Home usa uma leitura dedicada e ordenada no servidor, limitada a **5 registros de conteúdo**: 1 sessão em destaque + 4 memórias recentes;
+- a ordem limitada da Home preserva `session_date DESC NULLS LAST`, depois campaign pública e `source_session_id`, mantendo determinismo quando duas campanhas compartilham o mesmo source ID;
+- o detalhe busca a sessão atual por `campaign + source_session_id` e resolve anterior/próxima por probes limitados a 1 registro cada; ele não carrega o arquivo inteiro para montar a navegação;
+- datas ausentes permanecem no fim do arquivo e os probes de vizinhança tratam explicitamente a transição entre sessões datadas e sem data;
+- esses limites são de consulta, não um cache global: não introduzem Redis, novo provider, novo tier nem mudança de persistência.
+
+A regressão de performance deve medir separadamente quantidade de requests e registros transferidos. No schema canônico com registry de campanhas disponível, a Home usa 1 request de dados / no máximo 5 registros independentemente de o arquivo possuir 13, 200 ou 1.000 sessões. Enquanto um ambiente ainda exigir o fallback de schema legado, há um probe moderno que retorna erro de compatibilidade e então 1 request de dados legado; portanto são 2 requests HTTP no total, mas continuam no máximo 5 registros de conteúdo transferidos. Para a navegação de detalhe, cada probe individual usa `limit(1)` e somente os vizinhos encontrados são transferidos; a quantidade de probes é constante e não cresce com o tamanho do arquivo.
+
 ## Rotas públicas e compatibilidade
 
 O contrato multi-campaign canônico está em [architecture/multi-campaign](../architecture/multi-campaign.md).
@@ -153,6 +166,8 @@ O contrato multi-campaign canônico está em [architecture/multi-campaign](../ar
 - arquivo agregado: `/campanhas/sessoes`;
 - archive específico: `/campanhas/[campaign]/sessoes`;
 - detalhe canônico: `/campanhas/[campaign]/sessoes/[sourceSessionId]`;
+- alias histórico de `public_slug` resolve primeiro a identidade pública da campanha e redireciona **308** para o detalhe canônico, preservando `sourceSessionId`;
+- alias retirado e campaign private/archived falham fechados como rota pública inexistente; indisponibilidade da dependência permanece estado temporário e não vira 404;
 - `/sessoes` torna-se compatibilidade para o agregado;
 - `/sessoes/[sourceSessionId]` só pode resolver o boundary legado explicitamente conhecido e redirecionar; não faz lookup global.
 
@@ -199,3 +214,17 @@ O primeiro slice é deliberadamente fail-closed: uma sessão sem dependências i
 O commit usa `operation_id` durável, row lock e audit sanitizado. Retry após resposta perdida reaproveita o receipt sem duplicar a mudança. Dois movers concorrentes serializam no row lock; o writer stale recebe conflict.
 
 Depois do commit, a aplicação revalida bibliotecas/detalhes privados e superfícies públicas da origem/destino. Falha de cache/delivery não desfaz o commit já confirmado; o retorno marca `cachePending` para recuperação explícita.
+
+
+## Compatibilidade de leitura pública durante o rollout do registry
+
+O rollout multi-campaign possui uma janela em que o app pode estar mais novo que o schema remoto. Para preservar as sessões já publicadas sem enfraquecer o boundary novo, o repository público usa dual-read estritamente classificado:
+
+- primeiro tenta a projection first-class com campaign `active/public`;
+- somente `42703` ou `PGRST204` que apontem para `public_slug`, `lifecycle` ou `visibility` de `campaigns` autorizam a projection legado;
+- a projection legado consulta exclusivamente o technical slug histórico `yuhara-main` e o apresenta como `cronicas-da-mesa`;
+- outro campaign route não pode ser satisfeito pelo fallback histórico;
+- erros de permissão/transporte/schema não relacionados continuam indisponibilidade, nunca vazio;
+- `status=published` permanece obrigatório nos dois caminhos. `ready_for_review` não é publicado por compatibilidade.
+
+Quando o registry está disponível, o caminho legado não participa da decisão e as regras `lifecycle=active` + `visibility=public` continuam sendo a autoridade de exposição.

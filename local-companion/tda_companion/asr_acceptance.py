@@ -17,6 +17,7 @@ from .asr_whisper import (
     probe_whisper_cuda,
     resolve_whisper_plan,
     whisper_transcribe_options,
+    _transcribe_with_decode_boundary,
 )
 
 ACCEPTANCE_SCHEMA = "tda_whisper_gpu_acceptance_v1"
@@ -245,11 +246,15 @@ def run_whisper_gpu_acceptance(
         load_seconds = max(time.monotonic() - load_started, 0.0)
 
         transcription_started = time.monotonic()
-        segments_iter, info = model.transcribe(
-            str(source),
-            **whisper_transcribe_options(glossary=glossary, context=context),
-        )
-        segments = [_serialize_segment(segment) for segment in segments_iter]
+        try:
+            segments_iter, info = _transcribe_with_decode_boundary(
+                model,
+                source,
+                whisper_transcribe_options(glossary=glossary, context=context),
+            )
+            segments = [_serialize_segment(segment) for segment in segments_iter]
+        except WhisperRuntimeError as exc:
+            raise WhisperAcceptanceError(exc.code) from exc
         segments = [segment for segment in segments if segment["text"]]
         transcription_seconds = max(time.monotonic() - transcription_started, 0.0)
     finally:

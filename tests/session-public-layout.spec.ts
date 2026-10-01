@@ -343,3 +343,88 @@ test("unavailable session state respects the public structural keyline", async (
 		fullPage: true,
 	});
 });
+
+
+test("historical campaign aliases permanently redirect shared session links without crossing campaigns", async ({
+	page,
+}) => {
+	const canonicalPath = "/campanhas/cronicas-da-mesa/sessoes/shared-session";
+	for (const alias of [
+		"cronicas-da-mesa-antiga",
+		"cronicas-da-mesa-intermediaria",
+	]) {
+		const response = await page.request.get(
+			`/campanhas/${alias}/sessoes/shared-session`,
+			{ maxRedirects: 0 },
+		);
+		expect(response.status()).toBe(308);
+		const location = response.headers().location;
+		expect(location).toBeTruthy();
+		expect(new URL(location!, "http://127.0.0.1:3106").pathname).toBe(
+			canonicalPath,
+		);
+	}
+
+	await page.goto("/campanhas/cronicas-da-mesa-antiga/sessoes/shared-session");
+	await expect(page).toHaveURL(new RegExp(`${canonicalPath}$`, "u"));
+	await expect(
+		page.getByRole("heading", {
+			level: 1,
+			name: "A memória mais recente do arquivo sintético",
+		}),
+	).toBeVisible();
+	await expect(
+		page.getByText("A memória global mais recente vem da campanha B", {
+			exact: true,
+		}),
+	).toHaveCount(0);
+
+	const canonicalUrl =
+		"https://dnd.faysk.dev/campanhas/cronicas-da-mesa/sessoes/shared-session";
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+		"href",
+		canonicalUrl,
+	);
+	await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+		"content",
+		canonicalUrl,
+	);
+});
+
+test("retired, private and archived campaign routes fail closed while dependency outages stay unavailable", async ({
+	page,
+}) => {
+	for (const routeKey of [
+		"cronicas-da-mesa-retirada",
+		"fixture-private",
+		"fixture-private-antiga",
+		"fixture-archived",
+		"fixture-archived-antiga",
+	]) {
+		const response = await page.request.get(
+			`/campanhas/${routeKey}/sessoes/shared-session`,
+			{ maxRedirects: 0 },
+		);
+		expect(response.status(), routeKey).toBe(404);
+	}
+
+	const response = await page.goto(
+		"/campanhas/fixture-dependency-unavailable/sessoes/shared-session",
+	);
+	expect(response?.status()).toBe(200);
+	await expect(
+		page.getByRole("heading", {
+			level: 1,
+			name: "Esta sessão está temporariamente indisponível.",
+		}),
+	).toBeVisible();
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+		"content",
+		/noindex/u,
+	);
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+		"content",
+		/nofollow/u,
+	);
+	await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
+});

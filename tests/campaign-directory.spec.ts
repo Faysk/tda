@@ -81,3 +81,55 @@ test("campaign directory remains keyboard reachable and free of horizontal overf
 	);
 	expect(zoomOverflow).toBeLessThanOrEqual(1);
 });
+
+const WORLD_A_PATH = "/campanhas/cronicas-da-mesa/mundo";
+const WORLD_B_PATH = "/campanhas/antes-que-seja-tarde/mundo";
+
+test("World campaign switch preserves explicit context across back, forward and reload", async ({
+	page,
+}) => {
+	await page.goto(WORLD_A_PATH);
+	await expect(
+		page.locator('[data-world-edit-state][data-world-campaign="yuhara-main"]'),
+	).toBeVisible();
+	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
+
+	const navigationClose = page.getByRole("button", {
+		name: "Recolher navegação do mundo",
+	});
+	if (await navigationClose.isVisible().catch(() => false)) {
+		await navigationClose.click();
+	}
+	const campaignSwitch = page.getByText("Trocar", { exact: true });
+	await campaignSwitch.focus();
+	await expect(campaignSwitch).toBeFocused();
+	await page.keyboard.press("Enter");
+	const campaignB = page.getByRole("link", {
+		name: /^Antes que seja tarde/u,
+	});
+	await expect(campaignB).toHaveAttribute("href", WORLD_B_PATH);
+	await campaignB.focus();
+	await expect(campaignB).toBeFocused();
+	await page.keyboard.press("Enter");
+
+	await expect(page).toHaveURL(/\/campanhas\/antes-que-seja-tarde\/mundo$/u);
+	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
+	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
+
+	await page.goBack();
+	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/mundo$/u);
+	await expect(
+		page.locator('[data-world-edit-state][data-world-campaign="yuhara-main"]'),
+	).toBeVisible();
+	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
+
+	await page.goForward();
+	await expect(page).toHaveURL(/\/campanhas\/antes-que-seja-tarde\/mundo$/u);
+	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
+	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
+
+	await page.reload();
+	await expect(page).toHaveURL(/\/campanhas\/antes-que-seja-tarde\/mundo$/u);
+	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
+	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
+});
