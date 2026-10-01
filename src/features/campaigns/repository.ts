@@ -57,6 +57,7 @@ function parsePublicCampaign(
 
 function parseManageableCampaign(
 	row: Record<string, unknown>,
+	coverImage: string | null = null,
 ): ManageableCampaign | null {
 	const id = stringOrNull(row.id);
 	const technicalSlug = stringOrNull(row.slug);
@@ -86,6 +87,7 @@ function parseManageableCampaign(
 		visibility,
 		archivedAt: stringOrNull(row.archived_at),
 		updatedAt,
+		coverImage,
 	};
 }
 
@@ -283,8 +285,37 @@ export async function readCampaignRegistry(): Promise<readonly ManageableCampaig
 		.order("name")
 		.order("slug");
 
-	if (error) return null;
-	return parseCampaignRows(data, parseManageableCampaign);
+	if (error || !Array.isArray(data)) return null;
+	const rows = data as Record<string, unknown>[];
+	const targets = rows
+		.map((row) => {
+			const campaignId = stringOrNull(row.id);
+			const campaignMediaKey = stringOrNull(row.slug);
+			return campaignId && campaignMediaKey
+				? { campaignId, campaignMediaKey }
+				: null;
+		})
+		.filter(
+			(target): target is { campaignId: string; campaignMediaKey: string } =>
+				target !== null,
+		);
+	if (targets.length !== rows.length) return null;
+	try {
+		const covers = await readPublicCampaignCovers(client, targets);
+		const campaigns = rows.map((row, index) =>
+			parseManageableCampaign(
+				row,
+				covers.get(targets[index].campaignId) ?? null,
+			),
+		);
+		return campaigns.every(
+			(campaign): campaign is ManageableCampaign => campaign !== null,
+		)
+			? campaigns
+			: null;
+	} catch {
+		return null;
+	}
 }
 
 export type CampaignCreatePersistenceInput = Readonly<{
