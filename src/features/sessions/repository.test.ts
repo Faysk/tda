@@ -71,7 +71,17 @@ describe("published session registry compatibility", () => {
 				message: 'column campaigns_1.lifecycle does not exist',
 			},
 		});
-		const legacy = queryWith({ data: [legacySession], error: null });
+		const legacy = queryWith({
+			data: [
+				legacySession,
+				{
+					...legacySession,
+					source_session_id: "session-review",
+					status: "ready_for_review",
+				},
+			],
+			error: null,
+		});
 		const client = clientWith(registry, legacy);
 		mocks.publishedDataClient.mockReturnValue(client);
 
