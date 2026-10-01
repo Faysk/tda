@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { SessionList } from "@/components/session-list";
 import { buildPublicMetadata } from "@/config/public-metadata";
@@ -67,6 +69,7 @@ export default async function CampaignSessionsPage({ params }: Props) {
 	let routeKey = campaignSlug;
 	let campaignName = LEGACY_CAMPAIGN_NAME;
 	let campaignDescription: string | null = null;
+	let campaignCoverImage: string | null = null;
 
 	if (resolved.ok) {
 		if (!resolved.canonical) {
@@ -75,6 +78,7 @@ export default async function CampaignSessionsPage({ params }: Props) {
 		routeKey = resolved.campaign.routeKey;
 		campaignName = resolved.campaign.name;
 		campaignDescription = resolved.campaign.description;
+		campaignCoverImage = resolved.campaign.coverImage;
 	} else if (resolved.reason === "not_found") {
 		notFound();
 	} else if (campaignSlug !== LEGACY_CAMPAIGN_PUBLIC_SLUG) {
@@ -110,23 +114,65 @@ export default async function CampaignSessionsPage({ params }: Props) {
 		);
 	}
 
-	if (sessions[0]) {
+	if (!resolved.ok && sessions[0]) {
 		campaignName = sessions[0].campaignName;
 	}
 
 	const summary = summarizeSessionArchive(sessions);
+	const sessionArtwork = sessions.find(
+		(session) => session.coverImage || session.heroImage,
+	);
+	const campaignArtwork =
+		campaignCoverImage ||
+		sessionArtwork?.coverImage ||
+		sessionArtwork?.heroImage ||
+		null;
+	const artworkSource = campaignCoverImage
+		? "campaign-cover"
+		: campaignArtwork
+			? "session-artwork"
+			: "fallback";
+	const campaignPath = `/campanhas/${encodeURIComponent(routeKey)}`;
 
 	return (
 		<div
 			className={styles.page}
 			data-layout-family="editorial"
 			data-layout-role="expansive"
+			data-session-archive-scope="campaign"
+			data-campaign-route={routeKey}
 		>
-			<section className={styles.hero} aria-labelledby="archive-title">
+			<section
+				className={`${styles.hero} ${styles.scopedHero}`}
+				aria-labelledby="archive-title"
+				data-session-archive-hero
+				data-has-artwork={campaignArtwork ? "true" : "false"}
+				data-campaign-artwork-source={artworkSource}
+			>
+				{campaignArtwork ? (
+					<div className={styles.backdrop} aria-hidden="true">
+						<Image
+							className={styles.backdropImage}
+							src={campaignArtwork}
+							alt=""
+							fill
+							sizes="100vw"
+							priority
+						/>
+					</div>
+				) : null}
 				<div className={styles.backdropShade} aria-hidden="true" />
 				<div className={styles.heroInner}>
 					<header className={styles.heroCopy}>
-						<p className={styles.eyebrow}>Arquivo da campanha</p>
+						<nav
+							className={styles.scopeBreadcrumb}
+							aria-label="Contexto da campanha"
+						>
+							<Link href="/campanhas/sessoes">Todas as campanhas</Link>
+							<span aria-hidden="true">›</span>
+							<span aria-current="page">{campaignName}</span>
+						</nav>
+						<p className={styles.eyebrow}>Campanha · arquivo de sessões</p>
 						<h1 className={styles.title} id="archive-title">
 							{campaignName}
 						</h1>
@@ -134,35 +180,72 @@ export default async function CampaignSessionsPage({ params }: Props) {
 							{campaignDescription ||
 								"Sessões e memórias publicadas desta campanha."}
 						</p>
+						<nav
+							className={styles.scopeActions}
+							aria-label={`Explorar ${campaignName}`}
+						>
+							<Link
+								className={styles.scopeAction}
+								href="/campanhas/sessoes"
+							>
+								Arquivo global
+							</Link>
+							<Link
+								className={styles.scopeAction}
+								href={`${campaignPath}/mundo`}
+							>
+								Mundo
+							</Link>
+							<Link
+								className={styles.scopeAction}
+								href={`${campaignPath}/personagens`}
+							>
+								Personagens
+							</Link>
+							<Link
+								className={styles.scopeAction}
+								href={`${campaignPath}/lugares`}
+							>
+								Lugares
+							</Link>
+						</nav>
 					</header>
-					<dl className={styles.stats} aria-label="Resumo público do arquivo">
+
+					<dl
+						className={styles.stats}
+						aria-label={`Resumo da campanha ${campaignName}`}
+					>
 						<div className={styles.stat}>
-							<dt>memórias publicadas</dt>
+							<dt>memórias desta campanha</dt>
 							<dd>{formatArchiveNumber(summary.sessions)}</dd>
 						</div>
 						<div className={styles.stat}>
-							<dt>arcos registrados</dt>
+							<dt>arcos desta campanha</dt>
 							<dd>{formatArchiveNumber(summary.arcs)}</dd>
 						</div>
 						<div className={styles.stat}>
-							<dt>primeira memória</dt>
+							<dt>primeira memória desta campanha</dt>
 							<dd>{formatArchiveDate(summary.firstDate)}</dd>
 						</div>
 						<div className={styles.stat}>
-							<dt>última memória</dt>
+							<dt>última memória desta campanha</dt>
 							<dd>{formatArchiveDate(summary.latestDate)}</dd>
 						</div>
 					</dl>
 				</div>
 			</section>
 
-			<section className={styles.archive} aria-label="Sessões publicadas">
+			<section
+				className={styles.archive}
+				aria-label={`Sessões publicadas de ${campaignName}`}
+			>
 				<div className={styles.archiveRail} data-session-archive-rail>
 					{sessions.length === 0 ? (
 						<div className={styles.state}>
 							<h2>Nenhuma sessão publicada ainda</h2>
 							<p>
-								Quando esta campanha publicar sua primeira memória, ela aparece aqui.
+								Quando esta campanha publicar sua primeira memória, ela
+								aparece aqui.
 							</p>
 						</div>
 					) : (
