@@ -1,0 +1,8 @@
+v2.0.3
+======
+
+- Keeps the v2.0.2 PowerShell scalar/array fix.
+- Patches only the isolated #455 launcher ProductCode regex from the over-escaped form
+  to a valid GUID-with-braces regex.
+- Records original/patched launcher SHA-256 in SEND-THIS/meta/OPERATIONAL-HARNESS-PATCH.txt.
+- Does not modify the repository worktree.

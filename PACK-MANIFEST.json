@@ -1,0 +1,42 @@
+[
+  {
+    "file": "CHANGELOG-v2.0.3.txt",
+    "bytes": 323,
+    "sha256": "7da0ad40de31816595ceea9c6ef1edb9e71b3f357a13307bf30907af2ebe7ac0"
+  },
+  {
+    "file": "EXPECTED-CANDIDATE.txt",
+    "bytes": 535,
+    "sha256": "0e421228d45326b66149eadf0ff451ec5237136ded3fcfd7600ab2224ff9d3e9"
+  },
+  {
+    "file": "README-LEIA-ANTES.txt",
+    "bytes": 5954,
+    "sha256": "1951572c7447eabecbe56a01f0e47aea7def69061f0af7804e3227f284f57f28"
+  },
+  {
+    "file": "RUN-ALL-TDA-ACCEPTANCE.ps1",
+    "bytes": 19008,
+    "sha256": "f3b9d64a629b5b2243ec73b107cf7b7da219c7f6dd3dc21196e3ca1b291f108c"
+  },
+  {
+    "file": "RUN-ME.cmd",
+    "bytes": 447,
+    "sha256": "4f98100b5ab0ffd30faee3435fc5c7672e04672a6a68b6d5b04c623b29df6061"
+  },
+  {
+    "file": "SHOW-TDA-BITS.ps1",
+    "bytes": 499,
+    "sha256": "faf557018bf87e639f3629da3dbbcd10778884d314f2911bb9ba71f2fe5942e3"
+  },
+  {
+    "file": "SHOW-TDA-PROCESSES.ps1",
+    "bytes": 375,
+    "sha256": "a6d005add39e0c12b14daa5b55bdfa161e73d6a00fdc5bfe1aef7435d1c87cb3"
+  },
+  {
+    "file": "START-PORT-8765-BLOCKER.ps1",
+    "bytes": 667,
+    "sha256": "a5d8100a28c1024fa6956283dd87dc1b530ed36db8d0c5182dd89689a36d6478"
+  }
+]

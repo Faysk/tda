@@ -9,3 +9,6 @@ test-results/
 *.tsbuildinfo
 next-env.d.ts
 __pycache__/
+
+# Local acceptance/test artifacts
+packtest/

@@ -1,0 +1,14 @@
+TDA exact physical candidate
+============================
+
+RC: companion-rc-v0.3.14-1585a93235ba
+Source SHA: 1585a93235ba2fe7c2c093ef1683f0beca5d1605
+MSI SHA-256: 83c267ae14f10fda950413cab74394fc7b875225fa0e13f5123c8901f609f8c3
+Payload manifest SHA-256: bc6ac20dbac3e0d9a31ff1cc3ff8a09e8e5b455cb644bcea00fe45f80bd34312
+Candidate manifest SHA-256: 344f4d8f7c8d353699a35bd182edd1c202585affe4d6f69d257d78793bee065e
+
+Operational harness:
+PR #455 head 36c721687d78439670db62dc29b7d99c1da759c3
+
+Expected GPU baseline:
+RTX 4070
