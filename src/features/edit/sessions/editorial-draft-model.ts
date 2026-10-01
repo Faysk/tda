@@ -24,6 +24,7 @@ export type SessionEditorialDraft = Readonly<{
 }>;
 
 export type SessionEditorialDraftInput = Readonly<{
+	campaignSlug: string;
 	sessionId: string;
 	expectedRevision: number;
 	baseTranscriptRevisionId: string;
