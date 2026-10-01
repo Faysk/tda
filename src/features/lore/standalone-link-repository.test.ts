@@ -158,7 +158,7 @@ describe("standalone lore campaign linkage", () => {
 	});
 
 	it("does not touch storage for an unlinked standalone lore", async () => {
-		await expect(resolveStandaloneLoreCampaignLink("seika")).resolves.toBeNull();
+		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toBeNull();
 		expect(mocks.client).not.toHaveBeenCalled();
 	});
 });
