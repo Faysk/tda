@@ -1,4 +1,3 @@
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { authorizeWorldEntityMediaTarget } from "@/features/world-explorer/world-entity-media-access";
 import {
 	WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
@@ -79,7 +78,7 @@ export async function PUT(request: Request) {
 			return new Response("Invalid chunk length", { status: 400 });
 		}
 		await writeWorldEntityPortraitPendingUploadChunk({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: access.target.campaignTechnicalSlug,
 			entityId,
 			uploadId,
 			sha256,
