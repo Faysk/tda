@@ -814,6 +814,33 @@ def test_whisper_segment_adapter_does_not_normalize_invalid_or_reversed_timestam
     assert reports == []
 
 
+
+def test_whisper_segment_widening_does_not_bypass_word_ordering():
+    raw = SimpleNamespace(
+        id=0,
+        start=1.0,
+        end=2.0,
+        text="fixture",
+        words=[
+            SimpleNamespace(word=" first", start=0.9, end=1.4, probability=0.9),
+            SimpleNamespace(word=" second", start=1.2, end=1.6, probability=0.9),
+        ],
+    )
+    segment = asr_whisper._segment_from_engine(1, raw)
+    reports: list[dict] = []
+
+    with pytest.raises(TranscriptValidationError, match="segment:WORDS_OUT_OF_ORDER"):
+        asr_whisper._normalize_segment_word_containment(
+            segment,
+            track_number=1,
+            segment_number=1,
+            report=reports.append,
+        )
+
+    assert reports == []
+
+
+
 def test_whisper_segment_widening_does_not_bypass_track_duration_limit():
     raw = SimpleNamespace(
         id=0,
