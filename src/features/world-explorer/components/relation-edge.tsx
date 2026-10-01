@@ -186,7 +186,6 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 					vectorEffect="non-scaling-stroke"
 					strokeLinecap="round"
 					pointerEvents="none"
-					aria-hidden="true"
 					data-world-edge-halo={props.id}
 				/>
 			) : null}
@@ -201,7 +200,6 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 				strokeLinecap="round"
 				markerEnd={props.markerEnd}
 				pointerEvents="none"
-				aria-hidden="true"
 				data-family={family}
 				data-edge-curve="bezier"
 				data-edge-anchor={floating ? "floating" : "handle"}
@@ -223,7 +221,6 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 					vectorEffect="non-scaling-stroke"
 					strokeLinecap="round"
 					pointerEvents="none"
-					aria-hidden="true"
 					data-family={family}
 					data-motion-contrast="bright"
 					data-world-edge-motion={props.id}
