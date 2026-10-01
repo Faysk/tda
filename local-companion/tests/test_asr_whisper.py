@@ -608,6 +608,46 @@ def test_bind_preloaded_whisper_model_class_rejects_non_callable(monkeypatch):
         asr_whisper.bind_preloaded_whisper_model_class(object())
 
 
+@pytest.mark.parametrize("lazy", [False, True])
+def test_whisper_decode_boundary_maps_removed_pyav_argument_to_sanitized_code(lazy: bool):
+    private_source = Path("C:/private/campaign/secret-session.flac")
+
+    class BrokenDecoderModel:
+        def transcribe(self, _path: str, **_options):
+            error = TypeError("open() got an unexpected keyword argument 'metadata_errors'")
+            if not lazy:
+                raise error
+
+            def segments():
+                raise error
+                yield None
+
+            return segments(), SimpleNamespace(duration=1.0)
+
+    if lazy:
+        segments, _info = asr_whisper._transcribe_with_decode_boundary(
+            BrokenDecoderModel(),
+            private_source,
+            {},
+        )
+        action = lambda: list(segments)
+    else:
+        action = lambda: asr_whisper._transcribe_with_decode_boundary(
+            BrokenDecoderModel(),
+            private_source,
+            {},
+        )
+
+    with pytest.raises(
+        WhisperRuntimeError,
+        match="^WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE$",
+    ) as exc:
+        action()
+
+    assert "secret-session.flac" not in str(exc.value)
+    assert "C:/private" not in str(exc.value)
+
+
 @pytest.mark.parametrize(
     (
         "segment_start",
