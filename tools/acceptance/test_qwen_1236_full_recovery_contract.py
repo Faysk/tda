@@ -51,6 +51,10 @@ class Qwen1236FullRecoveryContractTests(unittest.TestCase):
         self.assertIn('CRAIG_SOURCE_ID_MISMATCH', text)
         self.assertIn('qwen_full_run_structure.py', text)
         self.assertIn('QWEN_1236_FULL_RUN_STRUCTURE_INVALID', text)
+        self.assertIn('Normal qwen-fast worker + bounded cancel', text)
+        self.assertIn('qwen-quality checkpoint -> hard Agent crash -> retry', text)
+        self.assertIn('--profile-id "qwen-quality"', text)
+        self.assertIn('qwen-quality-full-run-structure.json', text)
 
 
 if __name__ == "__main__":
