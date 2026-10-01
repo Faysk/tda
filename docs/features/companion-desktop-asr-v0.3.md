@@ -283,12 +283,15 @@ Baseline atual candidata:
 ```text
 Python 3.12.14
 Faster-Whisper 1.2.1
+PyAV 18.1.0 (compatibilidade de decoder #1234)
 CTranslate2 4.8.2
 CUDA Runtime 12.9
 cuDNN 9
 ```
 
 O runtime é empacotado e publicado separadamente do MSI.
+
+O candidato corretivo é **Whisper Runtime 1.1.6**. O pin de PyAV é específico desta família: Faster-Whisper 1.2.1 ainda usa `metadata_errors` em `av.open`, removido no PyAV 19. O build 1.1.6 falha fechado se o worker empacotado não decodificar WAV e FLAC sintéticos pelo decoder real do Faster-Whisper. A Stable 1.1.5 previamente aceita permanece imutável até que os bytes 1.1.6 completem aceite físico; não se reescreve uma versão já distribuída.
 
 ### Qwen
 
