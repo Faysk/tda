@@ -9,6 +9,7 @@ from .asr_runtime import (
     WHISPER_WORKER_EXE,
     _atomic_json,
     _valid_recovery_runtime_directory,
+    _worker_metadata_sha256,
     inspect_whisper_runtime,
     install_whisper_runtime_archive,
     whisper_root,
@@ -40,20 +41,34 @@ def _ready_current_version(runtime_root: Path) -> str:
 
 
 def _preserved_candidate(path: Path, version: str) -> bool:
-    if path.is_symlink() or not path.is_dir():
+    """Verify inactive runtime identity, worker bytes and metadata before selection."""
+    if not _valid_recovery_runtime_directory(path, version):
         return False
+    marker_path = path / ".tda-runtime.json"
+    worker = path / WHISPER_WORKER_EXE
     try:
-        marker = json.loads((path / ".tda-runtime.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+        metadata_sha256 = _worker_metadata_sha256(worker)
+    except (OSError, json.JSONDecodeError, RuntimeError):
         return False
-    return bool(
-        isinstance(marker, dict)
-        and marker.get("schema") == RUNTIME_SCHEMA
-        and marker.get("runtime_id") == WHISPER_RUNTIME_ID
-        and marker.get("version") == version
-        and marker.get("worker") == WHISPER_WORKER_EXE
-        and isinstance(marker.get("worker_sha256"), str)
-    )
+    if not isinstance(marker, dict):
+        return False
+    sealed = marker.get("worker_metadata_sha256")
+    if sealed is not None and (
+        not isinstance(sealed, str)
+        or len(sealed) != 64
+        or any(char not in "0123456789abcdef" for char in sealed)
+    ):
+        return False
+    if sealed != metadata_sha256:
+        # Worker content was already hash-verified above. Metadata-only drift is
+        # safe to reseal before this inactive version becomes selectable.
+        marker["worker_metadata_sha256"] = metadata_sha256
+        try:
+            _atomic_json(marker_path, marker)
+        except OSError:
+            return False
+    return True
 
 
 def list_whisper_runtime_rollback_candidates(runtime_root: Path) -> list[str]:
@@ -145,7 +160,12 @@ def rollback_whisper_runtime(
         raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_TARGET_INCOMPATIBLE")
 
     target = whisper_version_root(runtime_root, target_version)
-    if _valid_recovery_runtime_directory(target, target_version):
+    if target.exists() or target.is_symlink():
+        if not _preserved_candidate(target, target_version):
+            # Existing but corrupt bytes are never silently repaired as part of
+            # rollback. Keep the current selected runtime untouched and require
+            # an explicit repair/reinstall workflow instead.
+            raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_TARGET_INVALID")
         return _activate_preserved_runtime(runtime_root, target_version, current_version)
 
     manifest = fetch_whisper_runtime_manifest(version=target_version)
@@ -156,14 +176,13 @@ def rollback_whisper_runtime(
         cache_root,
         prefer_bits=prefer_bits,
     )
-    replacing = target.exists() or target.is_symlink()
     try:
         installed = install_whisper_runtime_archive(
             archive,
             runtime_root,
             version=target_version,
             expected_sha256=manifest.sha256,
-            replace_corrupt=replacing,
+            replace_corrupt=False,
         )
     except RuntimeError as exc:
         raise WhisperRuntimeMaintenanceError(
