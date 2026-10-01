@@ -2,7 +2,7 @@
 
 > Status: decisão aprovada; implementação parcial
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-02
 
 ## Objetivo
 
@@ -152,6 +152,6 @@ ADR-0020 aprova múltiplas campaigns, mas o registro de lore continua separando 
 - nome/public route key da campaign não entra na key de mídia da lore por conveniência;
 - catálogo global `/lore` pode continuar curado independentemente de campaign.
 
-A #1286 consolida D, Seika e Yllith sob **Antes que seja tarde** como metadata editorial. O vínculo só se torna badge público quando a campaign também é publicável; isso não muda as URLs canônicas, não cria entity/canon/session e não copia o conteúdo narrativo para o registry.
+As #1285 e #1286 consolidam Seika, D e Yllith sob **Antes que seja tarde** como metadata editorial. O vínculo só se torna badge público quando a campaign também é publicável; isso não muda as URLs canônicas, não cria entity/canon/session e não copia o conteúdo narrativo para o registry.
 
 Multi-jogo/multiuniverso completo continua fora do escopo desta decisão.

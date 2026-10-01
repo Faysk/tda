@@ -26,7 +26,8 @@ describe("Antes que seja tarde lore onboarding sources", () => {
 
 	it("takes D catalogue metadata from the approved public package", () => {
 		const html = file("../../../public/lore/d/index.html");
-		const story = file("../../../public/lore/d/historia-1.md");
+		const stories = [1, 2, 3, 4].map((part) => file(`../../../public/lore/d/historia-${part}.md`));
+		const story = stories[0] ?? "";
 		const entry = loreCatalogueEntries().find((lore) => lore.slug === "d");
 
 		expect(html).toContain("<title>D — Antes que seja tarde</title>");
@@ -34,6 +35,7 @@ describe("Antes que seja tarde lore onboarding sources", () => {
 			'<meta property="og:description" content="D quer encontrar o momento antes do tarde demais." />',
 		);
 		expect(html).toContain(`<meta property="og:image" content="${D_SOCIAL}" />`);
+		for (const source of stories) expect(source.length).toBeGreaterThan(1000);
 		expect(story).toContain("# D.");
 		expect(story).toContain("## Antes que seja tarde demais");
 		expect(entry).toMatchObject({

@@ -72,6 +72,19 @@ Acompanhar o lifecycle completo:
 Falha antes do promote não deve mover o domínio oficial.
 
 
+### Identidade imutável de Runtime RC
+
+A descoberta automática de Runtime RC é fail-closed por versão semântica exata:
+
+1. para a família e versão esperadas, **zero** prereleases publicadas compatíveis significa candidato ainda não publicado;
+2. **exatamente uma** prerelease publicada compatível pode seguir para validação de tag, source, manifesto, assets e SHA-256;
+3. **mais de uma** prerelease publicada para a mesma família e versão é ambígua e deve abortar; publicação/ID mais recente nunca desempata identidade;
+4. drafts, releases que não são prerelease e versões diferentes são ignoradas;
+5. tag/candidate tag, family, version, source SHA, conjunto de assets, tamanhos e digests continuam exatos e fail-closed;
+6. qualquer mudança de source ou bytes do runtime exige **nova versão semântica**. Não reutilizar uma versão já publicada para um RC materialmente diferente.
+
+Isso preserva a identidade imutável do runtime entre descoberta, aceite físico, promoção e rollback. Se houver colisão de versão, corrigir a publicação/versionamento; não introduzir regra de “latest wins”.
+
 ### Exceção versionada de validação em Production — #628
 
 Para a recuperação do Qwen em #628, o proprietário autorizou explicitamente usar
