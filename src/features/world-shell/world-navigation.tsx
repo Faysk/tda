@@ -21,7 +21,7 @@ export function WorldNavigation({
 					<Link
 						key={item.href}
 						className={`${styles.navItem}${current ? ` ${styles.navItemCurrent}` : ""}${compact ? ` ${styles.navItemCompact}` : ""}`}
-						href={item.href}
+						href={item.href === "/mundo" && /^\/campanhas\/[^/]+\/mundo$/.test(pathname) ? pathname : item.href}
 						aria-current={current ? "page" : undefined}
 						aria-label={compact ? item.label : undefined}
 						title={compact ? `${item.label} — ${item.description}` : undefined}

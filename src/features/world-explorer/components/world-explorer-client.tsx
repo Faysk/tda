@@ -712,6 +712,7 @@ export function WorldExplorerClient({
 						onNodeSelect={(node) => {
 							if (authoringUi.state.tool === "create") cancelDirectCreate();
 							setSelectedId(node.id);
+							authoringUi.setInspectorMode("overlay");
 						}}
 						onNodeDragStop={rememberNodePosition}
 						onPaneClick={handleCanvasPaneClick}

@@ -45,5 +45,5 @@ export const WORLD_NAV_ITEMS: readonly WorldNavItem[] = [
 ] as const;
 
 export function worldNavItemIsCurrent(pathname: string, href: string): boolean {
-	return pathname === href || (href !== "/mundo" && pathname.startsWith(`${href}/`));
+	return (href === "/mundo" && /^\/campanhas\/[^/]+\/mundo$/.test(pathname)) || pathname === href || (href !== "/mundo" && pathname.startsWith(`${href}/`));
 }

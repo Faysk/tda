@@ -221,13 +221,13 @@
 
 @media (max-width: 700px) {
 	.hero {
-		min-height: clamp(500px, 64svh, 540px);
+		min-height: clamp(440px, 58svh, 500px);
 	}
 
 	.heroInner {
-		gap: 24px;
+		gap: 16px;
 		padding-top: 76px;
-		padding-bottom: 72px;
+		padding-bottom: 44px;
 	}
 
 	.title {
@@ -270,7 +270,7 @@
 @media (max-width: 390px) {
 	.heroInner {
 		padding-top: 72px;
-		padding-bottom: 68px;
+		padding-bottom: 40px;
 	}
 
 	.stat {

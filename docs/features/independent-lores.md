@@ -83,3 +83,7 @@ Multi-campaign não implica multi-jogo/multiuniverso completo, CMS genérico ou 
 
 - [Arquitetura de entrega das lores](lore-delivery-architecture.md) — padrão `app` vs `standalone`, estado atual e evolução futura.
 - [Do ZIP à produção](../operations/zip-to-production.md) — integrar a experiência aprovada e registrar adaptações.
+
+## Regressão responsiva de 2026-10-01
+
+As colunas móveis de Astel usam trilhas que podem encolher e quebra de palavras nos painéis narrativos. A correção elimina overflow em 320px sem cortar ou reduzir a arte. A matriz de superfícies independentes passou localmente. Os testes Astel/Noah consultam a entrega canônica quando o manifesto declara `canonical-r2`; Yllith verifica favicon publicado e a imagem de alta qualidade efetivamente promovida. Publicação desta correção ainda pendente.

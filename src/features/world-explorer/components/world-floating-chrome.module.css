@@ -526,3 +526,8 @@
 		transition: none;
 	}
 }
+
+@media (max-width: 820px) {
+ .root .viewSurface {height:50px;min-height:50px}
+ .root .viewSurface button {height:44px;min-height:44px}
+}

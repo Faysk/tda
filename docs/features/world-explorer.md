@@ -607,3 +607,9 @@ Avaliar utilidade, não quantidade de edges:
 Um usuário autorizado consegue abrir `/mundo`, compreender a constelação visível da campanha, selecionar e reorganizar nodes localmente, explorar uma vizinhança focada, consultar relações por lista/inspector e navegar para perfis sem depender do grafo como única fonte e sem receber dados fora de sua audience.
 
 A rodada #99 só pode declarar a evolução para dados reais/edição concluída quando houver evidência separada de: dataset revisado e autorizado; projection sem leak; mutation factual server-side com concorrência/erro cobertos; edição de layout diferenciada; CI do SHA; e, se houver publicação, smoke do ambiente deliberadamente publicado.
+
+## Validação integrada de campanhas (2026-10-01)
+
+O contexto e a troca de campanha permanecem visíveis em todas as larguras; o cabeçalho respeita os painéis laterais e não oculta controles interativos em 1920px. O link Ecos da Jornada preserva a rota qualificada atual e seu estado de navegação. Selecionar um nó reabre o inspetor recolhido; os botões Canvas/Lista mantêm alvo de 44px no celular. O canvas continua com largura estável quando painéis são recolhidos.
+
+A regressão exercita troca A/B, histórico/reload, viewport inicial, seleção, filtros e os diferentes níveis de zoom sem exigir rótulos em arestas não selecionadas. Estado: código e build locais; publicação ainda pendente.

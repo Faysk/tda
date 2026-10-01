@@ -252,3 +252,9 @@ button{font:inherit}
     object-fit:scale-down;
   }
 }
+
+/* Let mobile grid tracks shrink to the viewport without cropping the artwork. */
+@media (max-width:800px){
+  .origin,.massacre,.current,.pact{grid-template-columns:minmax(0,1fr)}
+  .story-panel,.massacre-copy,.current-copy,.pact-copy{min-width:0;overflow-wrap:anywhere}
+}

@@ -559,3 +559,7 @@ O produto deve ser bonito quando parado, mas principalmente **bom de usar quando
 The qualified Edit processing, transcript and review entrypoints retain the existing Workspace owners and regional feedback patterns. They validate the technical campaign parameter and reject a conflicting query context before delegating to the authorized page. The layout inventory includes these three pages; aliases do not create a new layout family. The lore catalogue uses a compact introduction so published cards appear sooner, while standalone cinematic pages preserve their composition.
 
 Chrome/Windows visual verification at 320px exposed a 15px horizontal overflow caused by root/body `min-width: 320px` plus a classic vertical scrollbar. Root/body now shrink to available content width; minimum viewport coverage remains 320px. This is not hidden with overflow clipping.
+
+### Arquivo multi-campaign no celular — 2026-10-01
+
+O arquivo público acomoda o filtro adicional de campanha reduzindo espaço vertical do hero, preservando texto, estatísticas e controles de 44px. A primeira sessão permanece na primeira viewport em 320px. Gate local de edição/layout: 22 testes aprovados; implantação ainda pendente.

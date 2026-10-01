@@ -16,6 +16,8 @@ describe("World navigation model", () => {
 
 	it("matches nested typed routes without treating every world route as /mundo", () => {
 		expect(worldNavItemIsCurrent("/mundo", "/mundo")).toBe(true);
+		expect(worldNavItemIsCurrent("/campanhas/campanha-b/mundo", "/mundo")).toBe(true);
+		expect(worldNavItemIsCurrent("/campanhas/campanha-b/sessoes", "/mundo")).toBe(false);
 		expect(worldNavItemIsCurrent("/mundo/qualquer-coisa", "/mundo")).toBe(false);
 		expect(worldNavItemIsCurrent("/personagens/dandelion", "/personagens")).toBe(true);
 		expect(worldNavItemIsCurrent("/npcs/ivory", "/npcs")).toBe(true);
