@@ -369,7 +369,7 @@ export async function persistSessionPublication(input: {
 
 	const { data, error } = await client.rpc("publish_session_editorial_with_date_atomic", {
 		p_actor_profile_id: input.actorProfileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: input.campaignSlug,
 		p_session_id: input.request.sessionId,
 		p_draft_id: input.request.draftId,
 		p_expected_current_publication_id:
