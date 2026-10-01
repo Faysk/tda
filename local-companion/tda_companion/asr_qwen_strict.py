@@ -805,35 +805,7 @@ def transcribe_craig_package_qwen_strict(
                             not math.isfinite(empty_window_rms_dbfs)
                             or empty_window_rms_dbfs > QWEN_EMPTY_SILENCE_MAX_RMS_DBFS
                         ):
-                            report(
-                                {
-                                    "type": "event",
-                                    "code": "QWEN_ASR_EMPTY_WITH_SIGNAL",
-                                    "stage": "transcription",
-                                    "track": track.number,
-                                    "total_tracks": total_tracks,
-                                    "speaker": track.speaker,
-                                    "window": window.index,
-                                    "window_rms_dbfs": (
-                                        round(empty_window_rms_dbfs, 3)
-                                        if math.isfinite(empty_window_rms_dbfs)
-                                        else None
-                                    ),
-                                }
-                            )
                             raise QwenRuntimeError("QWEN_ASR_EMPTY_WITH_SIGNAL")
-                        report(
-                            {
-                                "type": "event",
-                                "code": "QWEN_ASR_EMPTY_SILENCE_ACCEPTED",
-                                "stage": "transcription",
-                                "track": track.number,
-                                "total_tracks": total_tracks,
-                                "speaker": track.speaker,
-                                "window": window.index,
-                                "window_rms_dbfs": round(empty_window_rms_dbfs, 3),
-                            }
-                        )
 
                     values.append(
                         QwenWindowTranscript(
