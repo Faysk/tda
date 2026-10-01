@@ -39,14 +39,14 @@ describe("canonical Edit tool links", () => {
 		expect(permissionsSource).not.toContain('href="/conta"');
 	});
 
-	it("keeps compatibility entrypoints redirect-only", () => {
+	it("keeps the World compatibility entrypoint campaign-explicit", () => {
 		expect(editEntrySource).toContain("firstAuthorizedEditDestination");
 		expect(editEntrySource).toContain('redirect("/entrar?next=%2Fedit")');
 		expect(editEntrySource).not.toContain("<nav");
-		expect(editWorldEntrySource).toContain(
-			'await requireCapability(EDIT_CAPABILITIES.worldLayoutEdit, "/edit/mundo")',
-		);
-		expect(editWorldEntrySource).toContain('redirect("/mundo")');
-		expect(editWorldEntrySource).not.toContain("<nav");
+		expect(editWorldEntrySource).toContain("readEditableWorldCampaigns");
+		expect(editWorldEntrySource).toContain("worldEditCampaignHref");
+		expect(editWorldEntrySource).toContain("Escolha a campanha");
+		expect(editWorldEntrySource).not.toContain('redirect("/mundo")');
+		expect(editWorldEntrySource).not.toContain("CAMPAIGN_SLUG");
 	});
 });
