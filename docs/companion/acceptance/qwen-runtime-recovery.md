@@ -1,7 +1,9 @@
 # Aceite físico — recovery do Qwen Runtime no Benchmark
 
 > Issue: #1210  
+> Status: gate de aceite físico implementado; execução real pendente  
 > Owner: Processing / Companion  
+> Última revisão: 2026-10-01  
 > Escopo: provar em Windows real o ciclo **runtime Qwen incompatível → Stable oficial → readiness 4/4** sem áudio/transcript.
 
 ## Objetivo
