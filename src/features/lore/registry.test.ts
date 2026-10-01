@@ -48,6 +48,14 @@ describe("lore editorial registry", () => {
 		).toEqual(["pipipi", "astel", "noah", "d", "seika", "yllith"]);
 	});
 
+	it("never attributes D or Yllith to Crônicas da Mesa", () => {
+		for (const slug of ["d", "yllith"] as const) {
+			const registration = loreRegistrationForSlug(slug);
+			expect(registration?.campaignTechnicalSlug).toBe("antes-que-seja-tarde");
+			expect(registration?.campaignTechnicalSlug).not.toBe("yuhara-main");
+		}
+	});
+
 	it("preserves D standalone canonical and social URL metadata", () => {
 		const html = readFileSync(
 			new URL("../../../public/lore/d/index.html", import.meta.url),

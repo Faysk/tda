@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada; registry/linkage implementados no código, publicação depende do registry de campaigns
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-02
 
 ## Decisão
 
@@ -75,7 +75,7 @@ A arquitetura multi-campaign agora é aprovada por ADR-0020, mas **lore standalo
 - remover/alterar vínculo não move seus assets automaticamente;
 - listagem em `/lore`, vínculo de campaign e indexação continuam decisões independentes.
 
-A #1286 conclui a decisão editorial para D, Seika e Yllith: as três lores ficam `listed=true`, vinculadas por metadata à campaign `antes-que-seja-tarde`, mantêm canonical próprio em `/lore/<slug>` e não recebem entity, relation, canon ou session por consequência do vínculo.
+A #1285 estabeleceu Seika no catálogo campaign-aware e a #1286 conclui o onboarding curado de D e Yllith. Com as duas entregas, D, Seika e Yllith ficam `listed=true`, vinculadas por metadata à campaign `antes-que-seja-tarde`, mantêm canonical próprio em `/lore/<slug>` e não recebem entity, relation, canon ou session por consequência do vínculo.
 
 ## Futuro fora do escopo
 
