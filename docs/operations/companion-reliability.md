@@ -336,6 +336,12 @@ Promoção 1.1.6 continua obedecendo C-13: os mesmos bytes gerados e validados e
 
 Falhas conhecidas do decoder agora devem sair como código estável `WHISPER_DECODER_DEPENDENCY_INCOMPATIBLE` (ou `WHISPER_AUDIO_DECODE_FAILED` para erro PyAV de mídia), sem caminho ou conteúdo do áudio. Problemas de timestamps/word containment depois da inferência continuam separados em #1235 e não podem ser mascarados por ajuste de VAD/timestamps nesta correção.
 
+## Correção de contenção Whisper — #1235 (2026-10-01)
+
+O candidato 1.1.6 de #1234 já foi materializado pelo workflow de runtime antes da correção de contenção. Como #1235 altera o adapter incluído nos bytes do worker, esses bytes **não** podem voltar a ser publicados como 1.1.6. O candidato de #1235 é **Whisper Runtime 1.1.7**, mantendo o pin de decoder aprovado em #1234 e preservando 1.1.6 como artefato histórico imutável.
+
+O aceite físico de 1.1.7 deve usar o archive/hash exatos do candidato e concluir `whisper-turbo` e `whisper-detailed` no sample e na transcrição integral autorizada. Registrar somente identidade de runtime/GPU e métricas agregadas na evidência publicada; transcript, nomes e paths privados não entram no receipt público.
+
 ## Definition of Done de uma próxima stable confiável
 
 A próxima stable só pode ser promovida se, **no mesmo MSI/hash publicado**:
