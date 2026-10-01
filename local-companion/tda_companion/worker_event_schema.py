@@ -76,6 +76,11 @@ _QWEN_EMPTY_WINDOW_SIGNAL = (
     "silence_peak_threshold_dbfs",
     "silence_rms_threshold_dbfs",
 )
+_QWEN_EMPTY_WINDOW_RETRY = (
+    *_QWEN_EMPTY_WINDOW_SIGNAL,
+    "window_start_seconds",
+    "window_end_seconds",
+)
 
 EVENT_SCHEMAS: dict[str, EventSchema] = {
     "ASR_EXECUTION_DEVICE": _schema("stage", "device", "kind", "logical_index", "physical_uuid", "pci_bus_id", required=("stage", "device", "kind")),
@@ -182,6 +187,15 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         *_QWEN_EMPTY_WINDOW_SIGNAL,
         required=_QWEN_EMPTY_WINDOW_SIGNAL,
         level="warning",
+    ),
+    "QWEN_WINDOW_EMPTY_ASR_RETRY_STARTED": _schema(
+        *_QWEN_EMPTY_WINDOW_RETRY,
+        required=_QWEN_EMPTY_WINDOW_RETRY,
+        level="warning",
+    ),
+    "QWEN_WINDOW_EMPTY_ASR_RECOVERED": _schema(
+        *_QWEN_EMPTY_WINDOW_RETRY,
+        required=_QWEN_EMPTY_WINDOW_RETRY,
     ),
     "ASR_TEXT_CHECKPOINT_SAVED": _schema(
         *_TRACK, required=("stage", "track")
