@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import tda_companion.whisper_runtime_maintenance as maintenance_module
 from tda_companion.asr_runtime import (
     inspect_whisper_runtime,
     install_whisper_runtime_archive,
@@ -207,3 +208,71 @@ def test_candidate_listing_does_not_auto_downgrade_current_runtime(tmp_path: Pat
 
     assert candidates == ["1.1.5"]
     assert inspect_whisper_runtime(runtime_root, verify_worker=True)["version"] == "1.1.8"
+
+
+def test_preserved_candidate_metadata_drift_fails_without_rewriting_marker(tmp_path: Path):
+    runtime_root = tmp_path / "Runtime"
+    _install(tmp_path / "old.zip", runtime_root, "1.1.5", b"old-worker")
+    _install(tmp_path / "new.zip", runtime_root, "1.1.8", b"new-worker")
+    marker_path = runtime_root / "whisper" / "1.1.5" / ".tda-runtime.json"
+    worker = runtime_root / "whisper" / "1.1.5" / "TDAWhisperWorker.exe"
+    marker_before = marker_path.read_bytes()
+    stat_before = worker.stat()
+    worker.touch()
+    assert worker.stat().st_mtime_ns != stat_before.st_mtime_ns
+
+    assert list_whisper_runtime_rollback_candidates(runtime_root) == []
+    assert marker_path.read_bytes() == marker_before
+
+    with pytest.raises(
+        WhisperRuntimeMaintenanceError,
+        match="WHISPER_RUNTIME_ROLLBACK_TARGET_INVALID",
+    ):
+        rollback_whisper_runtime(
+            runtime_root,
+            tmp_path / "Cache",
+            target_version="1.1.5",
+            prefer_bits=False,
+        )
+
+    assert marker_path.read_bytes() == marker_before
+    assert inspect_whisper_runtime(runtime_root, verify_worker=True)["version"] == "1.1.8"
+
+
+def test_failed_post_switch_verification_restores_previous_selector(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    runtime_root = tmp_path / "Runtime"
+    _install(tmp_path / "old.zip", runtime_root, "1.1.5", b"old-worker")
+    _install(tmp_path / "new.zip", runtime_root, "1.1.8", b"new-worker")
+
+    real_inspect = maintenance_module.inspect_whisper_runtime
+    calls = 0
+
+    def fail_once_after_switch(root: Path, *, verify_worker: bool = False):
+        nonlocal calls
+        calls += 1
+        state = real_inspect(root, verify_worker=verify_worker)
+        if calls == 2 and state.get("version") == "1.1.5":
+            return {"status": "corrupt", "version": "1.1.5", "worker": None}
+        return state
+
+    monkeypatch.setattr(maintenance_module, "inspect_whisper_runtime", fail_once_after_switch)
+
+    with pytest.raises(
+        WhisperRuntimeMaintenanceError,
+        match="WHISPER_RUNTIME_ROLLBACK_VERIFY_FAILED",
+    ):
+        rollback_whisper_runtime(
+            runtime_root,
+            tmp_path / "Cache",
+            target_version="1.1.5",
+            prefer_bits=False,
+        )
+
+    selector = json.loads(
+        (runtime_root / "whisper" / "current.json").read_text(encoding="utf-8")
+    )
+    assert selector["version"] == "1.1.8"
+    assert real_inspect(runtime_root, verify_worker=True)["version"] == "1.1.8"
