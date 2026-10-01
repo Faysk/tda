@@ -261,6 +261,22 @@ Antes de ativar a segunda campaign:
 - viewports e keyboard definidos em #1138;
 - receipts sanitizados e vinculados ao SHA candidato.
 
+### Gate executável da #1138
+
+O workflow `.github/workflows/campaign-isolation.yml` é o gate transversal executável. Ele nunca consulta conteúdo narrativo privado nem aplica mutações em Production.
+
+Em PR e em `main`, o workflow:
+
+- fixa e verifica o SHA exato do checkout antes de cada suíte;
+- roda contratos TypeScript de identidade/campaign, PostgreSQL descartável, browser E2E A/B e Companion scratch sem modelos pesados;
+- usa fixtures sintéticos com `source_session_id` colidente entre A/B para provar que rotas, canonical e agregação não confundem campanhas;
+- cobre 320×800, 390×844, 1366×768, 1920×1080, 2560×1440 e equivalente de 200% de zoom;
+- produz `campaign-isolation-receipt.json` sem conteúdo de transcript/canon, registrando SHA, resultados das suítes e blockers de readiness.
+
+A execução manual `workflow_dispatch` recebe `source_sha` e, por padrão, `require_ready=true`. Nesse modo o scanner `tools/ci/campaign-isolation-readiness.mjs` falha fechado enquanto qualquer consumer conhecido ainda depender de campaign global/legada. Remover um blocker exige remover o hardcode no domínio dono; não é permitido silenciar a regra no gate para liberar rollout.
+
+O receipt de PR/main pode existir com `activationReady=false`: isso significa **infraestrutura do gate saudável, rollout ainda bloqueado**. Só um receipt do SHA candidato com todas as suítes `success` e `activationReady=true` satisfaz o gate de ativação da segunda campaign.
+
 ## Ownership das issues filhas
 
 | Issue | Documento dono |
