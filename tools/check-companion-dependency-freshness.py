@@ -214,6 +214,14 @@ def collect() -> tuple[
             raise RuntimeError(f"DIRECT_LOCK_MISMATCH:{name}:{version}:{locked}")
 
     whisper = _runtime_json(WHISPER_RUNTIME, "tda_whisper_runtime_build_v1")
+    _merge_exceptions(
+        exceptions,
+        _read_exceptions(
+            whisper.get("dependency_freshness_exceptions", {}),
+            "whisper-windows-x64.json",
+        ),
+        "whisper-windows-x64.json",
+    )
     python_pin = str(whisper["python"])
     if not PYTHON_312.fullmatch(python_pin):
         raise RuntimeError("WHISPER_RUNTIME_PYTHON_PIN_INVALID")
