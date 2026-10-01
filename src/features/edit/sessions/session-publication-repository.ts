@@ -234,7 +234,7 @@ export async function prepareSessionCoverForPublication(input: {
 	if (!expectedKey || asset.object_key !== expectedKey) return null;
 
 	const promoted = await promoteSessionCover({
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: input.campaignSlug,
 		sessionId: input.sessionId,
 		stagedBucket: asset.staged_bucket,
 		objectKey: asset.object_key,
