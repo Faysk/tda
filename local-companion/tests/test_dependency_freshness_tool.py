@@ -194,11 +194,13 @@ def test_whisper_pyav_compatibility_exception_is_exact_and_runtime_owned():
     tool = _load_tool()
     pins, sources, _python_pin, _lock, exceptions = tool.collect()
 
-    assert pins["av"] == "18.1.0"
-    assert sources["av"] == ["whisper-windows-x64.json", "qwen-windows-x64.json"]
-    assert exceptions["av"]["version"] == pins["av"]
-    assert "Faster-Whisper 1.2.1" in exceptions["av"]["reason"]
-    assert "WAV/FLAC decode smoke" in exceptions["av"]["reason"]
+    assert pins["whisper/av"] == "18.1.0"
+    assert sources["whisper/av"] == ["whisper-windows-x64.json"]
+    assert pins["qwen/av"] == "19.0.0"
+    assert sources["qwen/av"] == ["qwen-windows-x64.json"]
+    assert exceptions["whisper/av"]["version"] == pins["whisper/av"]
+    assert "Faster-Whisper 1.2.1" in exceptions["whisper/av"]["reason"]
+    assert "WAV/FLAC decode smoke" in exceptions["whisper/av"]["reason"]
 
     whisper = json.loads(tool.WHISPER_RUNTIME.read_text(encoding="utf-8"))
     assert whisper["dependency_freshness_exceptions"]["av"]["version"] == "18.1.0"
