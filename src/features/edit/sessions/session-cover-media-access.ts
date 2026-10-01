@@ -3,7 +3,6 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 
 export type SessionCoverMediaAccessFailure =
@@ -22,6 +21,7 @@ export type AuthorizedSessionCoverTarget = Readonly<{
 }>;
 
 export async function authorizeSessionCoverTarget(
+	campaignSlug: string,
 	sessionId: string,
 ): Promise<
 	| Readonly<{ ok: true; target: AuthorizedSessionCoverTarget }>
