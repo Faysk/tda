@@ -227,6 +227,53 @@ class QwenRuntimeRecoveryAcceptanceTests(unittest.TestCase):
                 "1.0.12",
             )
 
+    def test_same_version_repairable_runtime_is_valid_initial_recovery(self):
+        profiles = module._catalog_profiles(
+            capabilities(ready=False, runtime_version="1.0.12")
+        )
+        checked = maintenance(
+            installed_status="corrupt",
+            installed_version="1.0.12",
+            update_available=True,
+            can_update=True,
+        )
+        module._require_initial_block(profiles, checked, "1.0.12")
+        module._require_check_contract(
+            checked,
+            minimum="1.0.12",
+            expected_stable="1.0.12",
+        )
+
+    def test_production_preflight_fails_before_runtime_mutation(self):
+        client = FakeClient(
+            {
+                ("GET", "/health"): [
+                    {
+                        "product_id": "tda-companion",
+                        "api_version": "1",
+                        "service_version": "0.3.17",
+                    }
+                ],
+            }
+        )
+
+        def fail_production(_: str):
+            raise module.RecoveryAcceptanceError(
+                "QWEN_RECOVERY_PRODUCTION_VERSION_UNAVAILABLE"
+            )
+
+        with self.assertRaisesRegex(
+            module.RecoveryAcceptanceError,
+            "QWEN_RECOVERY_PRODUCTION_VERSION_UNAVAILABLE",
+        ):
+            module.run_acceptance(
+                client,
+                expected_companion_version="0.3.17",
+                production_fetcher=fail_production,
+                sleep=lambda _: None,
+            )
+        self.assertEqual(client.calls, [("GET", "/health")])
+
     def test_initial_ready_qwen_cannot_fake_recovery_evidence(self):
         profiles = module._catalog_profiles(
             capabilities(ready=True, runtime_version="1.0.12")
