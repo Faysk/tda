@@ -328,6 +328,19 @@ Esse ajuste é deliberadamente estreito. Timestamp não finito/negativo, palavra
 
 Qualquer release que altere esse adapter muda os bytes do worker e portanto exige **nova versão imutável do Whisper Runtime**. O candidato de #1234 já materializou 1.1.6; por isso #1235 avança para **Whisper Runtime 1.1.7** e preserva 1.1.6, sem sobrescrever nem reconstruir tag/asset existente. A promoção de 1.1.7 permanece bloqueada até a fronteira de decode #1234 estar incorporada nos mesmos bytes e até os dois perfis Whisper completarem sample e transcrição integral no hardware físico autorizado. O receipt publicado registra identidade/hash do runtime, GPU e métricas agregadas; não registra áudio, transcript, speaker ou path privado.
 
+Para o gate físico específico de #1235, usar `local-companion/packaging/run-whisper-craig-containment-acceptance.ps1` com o Craig **já staged localmente**, o `TDARuntime-candidate.json` do RC exato e PowerShell 7. O harness executa, no worker empacotado, `whisper-turbo` e `whisper-detailed` em duas fases cada: benchmark Craig de exatamente 300 s e transcrição integral. O caminho normal `transcription.craig` é usado nas duas fases; o full precisa produzir `run.json` e os manifests já concluídos são re-hashados ao final para detectar mutação posterior.
+
+Exemplo de forma, sem caminhos ou identificadores reais:
+
+```powershell
+pwsh -File local-companion/packaging/run-whisper-craig-containment-acceptance.ps1 `
+  -DataRoot "<TDA-Data-local>" `
+  -SourceId "<source-id-local>" `
+  -RuntimeCandidateManifest "<TDARuntime-candidate.json>"
+```
+
+O único arquivo destinado a compartilhamento é `whisper-1235-acceptance.json`. Ele contém versão/tag/hash do runtime, GPU/driver, contagens e tempos agregados, quantidade de widenings e no máximo 32 exemplos **numéricos** de limites relativos. O harness descarta stderr e mensagens brutas do worker, não grava `source_id`, áudio, transcrição, speaker nem caminhos locais.
+
 Rollback volta para um runtime Whisper anterior já publicado e compatível, preservando Models/Data e sem converter artefatos canônicos. Um rollback não autoriza desabilitar `TranscriptDocument.validate()`, remover palavras, clipar timestamps nem regravar runs imutáveis.
 
 ## ASR Whisper — receita preservada
