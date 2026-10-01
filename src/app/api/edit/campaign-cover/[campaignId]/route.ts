@@ -48,15 +48,19 @@ export async function PUT(
 			{ status: 415 },
 		);
 	}
-	const declaredLength = Number(request.headers.get("content-length"));
-	if (
-		Number.isFinite(declaredLength) &&
-		(declaredLength < 24 || declaredLength > WORLD_ENTITY_MEDIA_MAX_BYTES)
-	) {
-		return Response.json(
-			{ ok: false, reason: "invalid_size" },
-			{ status: 413 },
-		);
+	const declaredLengthHeader = request.headers.get("content-length");
+	if (declaredLengthHeader !== null) {
+		const declaredLength = Number(declaredLengthHeader);
+		if (
+			!Number.isSafeInteger(declaredLength) ||
+			declaredLength < 24 ||
+			declaredLength > WORLD_ENTITY_MEDIA_MAX_BYTES
+		) {
+			return Response.json(
+				{ ok: false, reason: "invalid_size" },
+				{ status: 413 },
+			);
+		}
 	}
 
 	const { campaignId } = await params;
