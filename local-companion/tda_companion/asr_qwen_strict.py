@@ -62,9 +62,10 @@ QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
 QWEN_ALIGNMENT_POLICY = "strict-overlap-v4"
 QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
 QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
-# Fail closed for empty model output unless the decoded window is effectively at
-# the digital floor. This is deliberately much stricter than generic VAD: quiet
-# speech/noise must never be silently converted into a zero-segment interval.
+# #1236: fail closed for empty model output unless the decoded window is
+# effectively at the digital floor. This is deliberately much stricter than
+# generic VAD: quiet speech/noise must never be silently converted into a
+# zero-segment interval.
 QWEN_EMPTY_SILENCE_MAX_RMS_DBFS = -90.0
 _ALIGNMENT_FAILURE_CLASS = re.compile(r"^[A-Z0-9_]{1,96}$")
 _RUNTIME_VERSION_FIELD = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
