@@ -75,7 +75,7 @@ const E2E_CAMPAIGN_ALIASES = [
 	},
 ] as const;
 
-function campaignFixtureEnabled()function campaignFixtureEnabled() {
+function campaignFixtureEnabled() {
 	return process.env.TDA_E2E_FIXTURES === "true";
 }
 
