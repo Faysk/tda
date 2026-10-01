@@ -343,6 +343,24 @@ O único arquivo destinado a compartilhamento é `<candidate-tag>.whisper-1235.j
 
 Rollback volta para um runtime Whisper anterior já publicado e compatível, preservando Models/Data e sem converter artefatos canônicos. Um rollback não autoriza desabilitar `TranscriptDocument.validate()`, remover palavras, clipar timestamps nem regravar runs imutáveis.
 
+### Rollback explícito do Whisper Runtime
+
+O downgrade **nunca** acontece pelo fluxo normal de atualização Stable. Para voltar deliberadamente a um runtime anterior, abra **Companion → Configurações → Runtimes de transcrição → Whisper → Reverter…** e informe a versão semântica exata `X.Y.Z`.
+
+O rollback:
+
+- aceita somente versão anterior e ainda compatível com o Companion;
+- prefere uma cópia versionada já preservada em `Runtime\whisper\<versão>`;
+- antes de selecionar a cópia preservada, revalida marker, identidade, SHA-256 do worker e metadata seal;
+- se a versão não existir localmente, consulta somente o manifest Stable **version-locked** `...?version=X.Y.Z`, valida tag, URL, tamanho e SHA-256 e então instala os bytes exatos;
+- se uma pasta local da versão existir mas estiver corrompida, falha fechado e mantém o runtime atual; não transforma rollback em reparo implícito;
+- troca `current.json` atomicamente e verifica novamente a versão selecionada; falha pós-troca restaura o seletor anterior;
+- é bloqueado se houver job queued/running, preparação de perfil ou manutenção Qwen ativa;
+- preserva `Models`, `Data`, runs e as outras versões do runtime;
+- retorna `previous_version`, `version`, origem (`preserved` ou `download`) e hash do worker.
+
+Depois da troca, reiniciar o Agent/Companion faz a leitura normal de `current.json`; não há estado de rollback mantido apenas em memória.
+
 ## ASR Whisper — receita preservada
 
 Os dois perfis Whisper preservam inicialmente a receita comprovada pelo legado:
