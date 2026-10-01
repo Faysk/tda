@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
 import { ActionLink, StatusPill } from "@/components/ui";
 import { requireCampaignCapability } from "@/features/auth/server";
+import { readAuthorizedCampaignsForCapability } from "@/features/campaigns/authorized";
 import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
@@ -10,6 +11,7 @@ import draftStyles from "@/features/edit/sessions/editorial-draft.module.css";
 import { readSessionEditorialDraft } from "@/features/edit/sessions/editorial-draft-repository";
 import { readSessionPublicationContext } from "@/features/edit/sessions/session-publication-repository";
 import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
+import { SessionCampaignMoveControl } from "@/features/edit/sessions/session-campaign-move-control";
 import { SessionEditWorkspace } from "@/features/edit/sessions/session-edit-workspace";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
 import styles from "@/features/edit/workbench.module.css";
@@ -61,6 +63,20 @@ export async function CampaignSessionDetailPage({
 		EDIT_CAPABILITIES.sessionPublish,
 		campaignSlug,
 	).ok;
+	const editableCampaigns = canEdit
+		? await readAuthorizedCampaignsForCapability(
+				accessContext,
+				EDIT_CAPABILITIES.contentEdit,
+			)
+		: { ok: true as const, campaigns: [] as const };
+	const moveDestinations = editableCampaigns.ok
+		? editableCampaigns.campaigns
+				.filter((candidate) => candidate.technicalSlug !== campaignSlug)
+				.map((candidate) => ({
+					technicalSlug: candidate.technicalSlug,
+					name: candidate.name,
+				}))
+		: [];
 
 	let session: Awaited<ReturnType<typeof findEditSessionBySourceId>>;
 	try {
@@ -138,6 +154,15 @@ export async function CampaignSessionDetailPage({
 				<strong>Privado no Edit</strong>
 				<span>Salvar o draft ou trocar a capa não publica no site.</span>
 			</div>
+			{canEdit ? (
+				<SessionCampaignMoveControl
+					destinations={moveDestinations}
+					sessionId={session.id}
+					sourceCampaignName={campaignName}
+					sourceCampaignSlug={campaignSlug}
+					sourceSessionId={session.sourceSessionId}
+				/>
+			) : null}
 
 			<SessionEditWorkspace
 				transcript={{
