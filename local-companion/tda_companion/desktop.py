@@ -28,12 +28,7 @@ from .craig_ingest import CraigUploadError, ingest_craig_file
 from .craig_runtime import load_craig_package
 from .diagnostics import export_diagnostics, run_diagnostics
 from .paths import CompanionPaths
-from .qwen_runtime import inspect_qwen_runtime, install_qwen_runtime_archive
-from .qwen_runtime_updates import (
-    download_qwen_runtime,
-    fetch_qwen_runtime_manifest,
-    qwen_runtime_update_available,
-)
+from .qwen_runtime import inspect_qwen_runtime
 from .settings import SettingsStore
 from .startup import set_start_with_windows
 from .updates import download_update, fetch_manifest, update_available
@@ -430,65 +425,99 @@ class DesktopBridge:
             "repaired": repairing,
         }
 
+    def _wait_qwen_runtime_maintenance(
+        self,
+        initial: dict[str, Any],
+        *,
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        value = initial
+        deadline = time.monotonic() + max(0.1, float(timeout_seconds))
+        while value.get("active") is True:
+            if time.monotonic() >= deadline:
+                raise RuntimeError("QWEN_RUNTIME_MAINTENANCE_TIMEOUT")
+            time.sleep(0.5)
+            observed = self.client.get("/qwen-runtime")
+            if not isinstance(observed, dict):
+                raise RuntimeError("QWEN_RUNTIME_MAINTENANCE_INVALID_RESPONSE")
+            value = observed
+        if value.get("state") == "failed":
+            raise RuntimeError(
+                str(value.get("error_code") or "QWEN_RUNTIME_MAINTENANCE_FAILED")
+            )
+        return value
+
+    def _start_or_follow_qwen_runtime(
+        self,
+        mode: str,
+        *,
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        current = self.client.get("/qwen-runtime")
+        if not isinstance(current, dict):
+            raise RuntimeError("QWEN_RUNTIME_MAINTENANCE_INVALID_RESPONSE")
+        if current.get("active") is True:
+            current = self._wait_qwen_runtime_maintenance(
+                current,
+                timeout_seconds=timeout_seconds,
+            )
+            # Reattach instead of duplicating an operation that was already in
+            # flight when the Desktop action began. A completed update is also
+            # authoritative enough to satisfy a check.
+            if current.get("state") == "completed" and (
+                current.get("mode") == mode
+                or (mode == "check" and current.get("mode") == "update")
+            ):
+                return current
+
+        endpoint = "/qwen-runtime/check" if mode == "check" else "/qwen-runtime/update"
+        started = self.client.post(endpoint, {})
+        if not isinstance(started, dict):
+            raise RuntimeError("QWEN_RUNTIME_MAINTENANCE_INVALID_RESPONSE")
+        return self._wait_qwen_runtime_maintenance(
+            started,
+            timeout_seconds=timeout_seconds,
+        )
+
     def check_qwen_runtime(self) -> dict[str, Any]:
-        state = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=True)
-        manifest = fetch_qwen_runtime_manifest()
-        current_version = state.get("version") if state.get("status") == "ready" else None
+        state = self._start_or_follow_qwen_runtime(
+            "check",
+            timeout_seconds=30.0,
+        )
+        if state.get("stable_status") == "unavailable":
+            raise RuntimeError(
+                str(state.get("error_code") or "QWEN_RUNTIME_MANIFEST_UNAVAILABLE")
+            )
         return {
-            "status": state.get("status"),
-            "current_version": current_version,
-            "installed_version": state.get("version"),
-            "available": qwen_runtime_update_available(
-                current_version if isinstance(current_version, str) else None,
-                manifest,
-            ),
-            "version": manifest.version,
-            "tag": manifest.tag,
-            "size": manifest.bundle.archive_size,
-            "part_count": len(manifest.bundle.parts),
+            "status": state.get("installed_status"),
+            "current_version": state.get("installed_version")
+            if state.get("installed_status") == "ready"
+            else None,
+            "installed_version": state.get("installed_version"),
+            "available": state.get("update_available") is True,
+            "version": state.get("stable_version"),
+            "tag": state.get("stable_tag"),
+            "size": state.get("stable_size"),
+            "part_count": state.get("stable_part_count"),
         }
 
     def install_qwen_runtime(self) -> dict[str, Any]:
-        if self._has_active_job():
-            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB")
-        state = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=True)
-        manifest = fetch_qwen_runtime_manifest()
-        current_version = state.get("version") if state.get("status") == "ready" else None
-        if not qwen_runtime_update_available(
-            current_version if isinstance(current_version, str) else None,
-            manifest,
-        ):
-            return {
-                "accepted": False,
-                "available": False,
-                "status": state.get("status"),
-                "version": manifest.version,
-            }
-        target = self.paths.runtime_root / "qwen" / manifest.version
-        repairing = bool(
-            (state.get("status") == "corrupt" and state.get("version") == manifest.version)
-            or target.exists()
-            or target.is_symlink()
+        # The Agent owns dispatch_gate and is the only process allowed to start
+        # browser/Desktop Qwen maintenance. Routing the Desktop action through
+        # the Agent closes the check-then-claim race where a queued job could
+        # become running after a Desktop-side "no active job" check but before
+        # direct runtime mutation began.
+        result = self._start_or_follow_qwen_runtime(
+            "update",
+            timeout_seconds=2 * 60 * 60,
         )
-        archive = download_qwen_runtime(manifest, self.paths.cache_root)
-        installed = install_qwen_runtime_archive(
-            archive,
-            self.paths.runtime_root,
-            version=manifest.version,
-            expected_sha256=manifest.bundle.archive_sha256,
-            replace_corrupt=repairing,
-        )
-        verified = inspect_qwen_runtime(self.paths.runtime_root, verify_worker=True)
-        if verified.get("status") != "ready" or verified.get("version") != manifest.version:
-            raise RuntimeError("QWEN_RUNTIME_INSTALL_VERIFY_FAILED")
+        accepted = result.get("accepted") is True
         return {
-            "accepted": True,
-            "available": True,
-            "status": "ready",
-            "version": manifest.version,
-            "worker_sha256": installed["worker_sha256"],
-            "repaired": repairing,
-            "part_count": len(manifest.bundle.parts),
+            "accepted": accepted,
+            "available": result.get("update_available") is True or accepted,
+            "status": result.get("installed_status"),
+            "version": result.get("installed_version") or result.get("stable_version"),
+            "part_count": result.get("stable_part_count"),
         }
 
     def _maintenance_helper(self) -> Path:

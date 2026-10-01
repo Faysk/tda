@@ -1,35 +1,11 @@
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-import tda_companion.desktop as desktop
 from tda_companion.desktop import DesktopBridge
-from tda_companion.qwen_runtime_bundle import QwenRuntimePart, build_qwen_runtime_bundle_manifest
-from tda_companion.qwen_runtime_updates import QwenRuntimeDownloadManifest
-
-
-def _manifest(version: str = "1.2.3") -> QwenRuntimeDownloadManifest:
-    payload = b"runtime"
-    part = QwenRuntimePart(
-        index=1,
-        name=f"TDAQwenRuntime-{version}-windows-x64.zip.part001",
-        size=len(payload),
-        sha256=hashlib.sha256(payload).hexdigest(),
-    )
-    bundle = build_qwen_runtime_bundle_manifest(
-        version=version,
-        archive_sha256=hashlib.sha256(payload).hexdigest(),
-        parts=(part,),
-    )
-    return QwenRuntimeDownloadManifest(
-        version=version,
-        tag=f"companion-qwen-runtime-v{version}",
-        bundle=bundle,
-    )
 
 
 def _bridge(tmp_path: Path) -> DesktopBridge:
@@ -51,116 +27,238 @@ def _bridge(tmp_path: Path) -> DesktopBridge:
     )
 
 
-def test_check_qwen_runtime_reports_download_shape(monkeypatch, tmp_path: Path):
+def _status(
+    *,
+    state: str = "idle",
+    active: bool = False,
+    mode: str | None = None,
+    installed_version: str | None = "1.2.2",
+    stable_status: str = "compatible",
+    stable_version: str | None = "1.2.3",
+    update_available: bool | None = True,
+    accepted: bool | None = None,
+    error_code: str | None = None,
+) -> dict[str, object]:
+    value: dict[str, object] = {
+        "schema": "tda_qwen_runtime_maintenance_v1",
+        "state": state,
+        "active": active,
+        "operation_id": "a" * 32 if mode else None,
+        "mode": mode,
+        "stage": "complete" if not active else "checking",
+        "title": "Qwen Runtime",
+        "detail": "",
+        "sequence": 1,
+        "installed_status": "ready" if installed_version else "missing",
+        "installed_version": installed_version,
+        "minimum_version": "1.0.12",
+        "stable_status": stable_status,
+        "stable_version": stable_version,
+        "stable_tag": (
+            f"companion-qwen-runtime-v{stable_version}"
+            if stable_version
+            else None
+        ),
+        "stable_size": 4096 if stable_version else None,
+        "stable_part_count": 2 if stable_version else None,
+        "update_available": update_available,
+        "can_update": update_available is True,
+        "error_code": error_code,
+    }
+    if accepted is not None:
+        value["accepted"] = accepted
+    return value
+
+
+def test_check_qwen_runtime_routes_through_agent_maintenance_contract(
+    tmp_path: Path,
+):
     bridge = _bridge(tmp_path)
-    manifest = _manifest("1.2.3")
-    monkeypatch.setattr(
-        desktop,
-        "inspect_qwen_runtime",
-        lambda *_args, **_kwargs: {"status": "ready", "version": "1.2.2", "worker": "worker.exe"},
+    get_values = iter(
+        [
+            _status(),
+            _status(
+                state="completed",
+                mode="check",
+                active=False,
+                update_available=True,
+            ),
+        ]
     )
-    monkeypatch.setattr(desktop, "fetch_qwen_runtime_manifest", lambda: manifest)
+    calls: list[tuple[str, str]] = []
+    bridge.client.get = lambda path: (calls.append(("GET", path)), next(get_values))[1]  # type: ignore[method-assign]
+    bridge.client.post = lambda path, body: (  # type: ignore[method-assign]
+        calls.append(("POST", path)),
+        _status(state="running", mode="check", active=True),
+    )[1]
 
     value = bridge.check_qwen_runtime()
-    assert value["status"] == "ready"
-    assert value["current_version"] == "1.2.2"
-    assert value["available"] is True
-    assert value["version"] == "1.2.3"
-    assert value["size"] == manifest.bundle.archive_size
-    assert value["part_count"] == 1
+
+    assert calls == [
+        ("GET", "/qwen-runtime"),
+        ("POST", "/qwen-runtime/check"),
+        ("GET", "/qwen-runtime"),
+    ]
+    assert value == {
+        "status": "ready",
+        "current_version": "1.2.2",
+        "installed_version": "1.2.2",
+        "available": True,
+        "version": "1.2.3",
+        "tag": "companion-qwen-runtime-v1.2.3",
+        "size": 4096,
+        "part_count": 2,
+    }
 
 
-def test_install_qwen_runtime_downloads_installs_and_verifies(monkeypatch, tmp_path: Path):
+def test_check_qwen_runtime_preserves_manifest_failure_as_error(tmp_path: Path):
     bridge = _bridge(tmp_path)
-    bridge._has_active_job = lambda: False  # type: ignore[method-assign]
-    manifest = _manifest()
-    archive = tmp_path / "runtime.zip"
-    archive.write_bytes(b"runtime")
-    states = iter(
+    bridge.client.get = lambda _path: _status()  # type: ignore[method-assign]
+    bridge.client.post = lambda _path, _body: _status(  # type: ignore[method-assign]
+        state="completed",
+        mode="check",
+        stable_status="unavailable",
+        stable_version=None,
+        update_available=None,
+        error_code="NETWORK_UNAVAILABLE",
+    )
+
+    with pytest.raises(RuntimeError, match="NETWORK_UNAVAILABLE"):
+        bridge.check_qwen_runtime()
+
+
+def test_install_qwen_runtime_routes_mutation_through_agent_dispatch_fence(
+    tmp_path: Path,
+):
+    bridge = _bridge(tmp_path)
+    # The old Desktop path performed this non-atomic precheck locally. If it
+    # returns, a queued job can be claimed before mutation begins. It must never
+    # be consulted now; the Agent owns the check + start under dispatch_gate.
+    bridge._has_active_job = lambda: (_ for _ in ()).throw(  # type: ignore[method-assign]
+        AssertionError("Desktop must not use a check-then-mutate runtime fence")
+    )
+    get_values = iter(
         [
-            {"status": "missing", "version": None, "worker": None},
-            {"status": "ready", "version": manifest.version, "worker": "worker.exe"},
+            _status(),
+            _status(
+                state="completed",
+                mode="update",
+                installed_version="1.2.3",
+                update_available=False,
+                accepted=True,
+            ),
         ]
     )
-    monkeypatch.setattr(desktop, "inspect_qwen_runtime", lambda *_args, **_kwargs: next(states))
-    monkeypatch.setattr(desktop, "fetch_qwen_runtime_manifest", lambda: manifest)
-    monkeypatch.setattr(desktop, "download_qwen_runtime", lambda *_args, **_kwargs: archive)
-    calls: dict[str, object] = {}
+    calls: list[tuple[str, str]] = []
+    bridge.client.get = lambda path: (calls.append(("GET", path)), next(get_values))[1]  # type: ignore[method-assign]
+    bridge.client.post = lambda path, body: (  # type: ignore[method-assign]
+        calls.append(("POST", path)),
+        _status(state="running", mode="update", active=True),
+    )[1]
 
-    def fake_install(path, root, **kwargs):
-        calls.update(path=path, root=root, **kwargs)
-        return {"worker_sha256": "a" * 64}
-
-    monkeypatch.setattr(desktop, "install_qwen_runtime_archive", fake_install)
     value = bridge.install_qwen_runtime()
 
-    assert value["accepted"] is True
-    assert value["status"] == "ready"
-    assert value["repaired"] is False
-    assert calls["expected_sha256"] == manifest.bundle.archive_sha256
-    assert calls["replace_corrupt"] is False
+    assert calls == [
+        ("GET", "/qwen-runtime"),
+        ("POST", "/qwen-runtime/update"),
+        ("GET", "/qwen-runtime"),
+    ]
+    assert value == {
+        "accepted": True,
+        "available": True,
+        "status": "ready",
+        "version": "1.2.3",
+        "part_count": 2,
+    }
 
 
-def test_install_qwen_runtime_repairs_same_corrupt_version(monkeypatch, tmp_path: Path):
+def test_install_qwen_runtime_propagates_agent_job_fence(tmp_path: Path):
     bridge = _bridge(tmp_path)
-    bridge._has_active_job = lambda: False  # type: ignore[method-assign]
-    manifest = _manifest()
-    archive = tmp_path / "runtime.zip"
-    archive.write_bytes(b"runtime")
-    states = iter(
-        [
-            {"status": "corrupt", "version": manifest.version, "worker": None},
-            {"status": "ready", "version": manifest.version, "worker": "worker.exe"},
-        ]
-    )
-    monkeypatch.setattr(desktop, "inspect_qwen_runtime", lambda *_args, **_kwargs: next(states))
-    monkeypatch.setattr(desktop, "fetch_qwen_runtime_manifest", lambda: manifest)
-    monkeypatch.setattr(desktop, "download_qwen_runtime", lambda *_args, **_kwargs: archive)
-    calls: dict[str, object] = {}
+    bridge.client.get = lambda _path: _status()  # type: ignore[method-assign]
 
-    def fake_install(_path, _root, **kwargs):
-        calls.update(kwargs)
-        return {"worker_sha256": "b" * 64}
+    def blocked(_path, _body):
+        raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB")
 
-    monkeypatch.setattr(desktop, "install_qwen_runtime_archive", fake_install)
-    value = bridge.install_qwen_runtime()
+    bridge.client.post = blocked  # type: ignore[method-assign]
 
-    assert value["repaired"] is True
-    assert calls["replace_corrupt"] is True
-
-
-def test_install_qwen_runtime_is_blocked_while_job_runs(monkeypatch, tmp_path: Path):
-    bridge = _bridge(tmp_path)
-    bridge._has_active_job = lambda: True  # type: ignore[method-assign]
-    monkeypatch.setattr(
-        desktop,
-        "fetch_qwen_runtime_manifest",
-        lambda: (_ for _ in ()).throw(AssertionError("manifest should not be fetched")),
-    )
     with pytest.raises(RuntimeError, match="RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB"):
         bridge.install_qwen_runtime()
 
 
-def test_install_qwen_runtime_noops_when_current_version_is_ready(monkeypatch, tmp_path: Path):
+def test_install_qwen_runtime_noops_when_agent_reports_current(tmp_path: Path):
     bridge = _bridge(tmp_path)
-    bridge._has_active_job = lambda: False  # type: ignore[method-assign]
-    manifest = _manifest()
-    monkeypatch.setattr(
-        desktop,
-        "inspect_qwen_runtime",
-        lambda *_args, **_kwargs: {"status": "ready", "version": manifest.version, "worker": "worker.exe"},
+    bridge.client.get = lambda _path: _status(  # type: ignore[method-assign]
+        installed_version="1.2.3",
+        stable_version="1.2.3",
+        update_available=False,
     )
-    monkeypatch.setattr(desktop, "fetch_qwen_runtime_manifest", lambda: manifest)
-    monkeypatch.setattr(
-        desktop,
-        "download_qwen_runtime",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("download should not run")),
+    bridge.client.post = lambda _path, _body: _status(  # type: ignore[method-assign]
+        state="completed",
+        mode="update",
+        installed_version="1.2.3",
+        stable_version="1.2.3",
+        update_available=False,
+        accepted=False,
     )
 
     value = bridge.install_qwen_runtime()
+
     assert value == {
         "accepted": False,
         "available": False,
         "status": "ready",
-        "version": manifest.version,
+        "version": "1.2.3",
+        "part_count": 2,
     }
+
+
+def test_desktop_reattaches_to_existing_agent_update_without_duplicate_post(
+    tmp_path: Path,
+):
+    bridge = _bridge(tmp_path)
+    get_values = iter(
+        [
+            _status(state="running", mode="update", active=True),
+            _status(
+                state="completed",
+                mode="update",
+                installed_version="1.2.3",
+                update_available=False,
+                accepted=True,
+            ),
+        ]
+    )
+    posts: list[str] = []
+    bridge.client.get = lambda _path: next(get_values)  # type: ignore[method-assign]
+    bridge.client.post = lambda path, _body: posts.append(path)  # type: ignore[method-assign]
+
+    value = bridge.install_qwen_runtime()
+
+    assert posts == []
+    assert value["accepted"] is True
+    assert value["version"] == "1.2.3"
+
+
+def test_desktop_reattaches_to_existing_agent_check_without_duplicate_post(
+    tmp_path: Path,
+):
+    bridge = _bridge(tmp_path)
+    get_values = iter(
+        [
+            _status(state="running", mode="check", active=True),
+            _status(
+                state="completed",
+                mode="check",
+                update_available=True,
+            ),
+        ]
+    )
+    posts: list[str] = []
+    bridge.client.get = lambda _path: next(get_values)  # type: ignore[method-assign]
+    bridge.client.post = lambda path, _body: posts.append(path)  # type: ignore[method-assign]
+
+    value = bridge.check_qwen_runtime()
+
+    assert posts == []
+    assert value["current_version"] == "1.2.2"
+    assert value["available"] is True

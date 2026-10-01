@@ -11,6 +11,7 @@ import {
 	type JobEvent,
 	type LocalJob,
 	type PreparationStatus,
+	type QwenRuntimeMaintenanceStatus,
 	type TranscriptionProfileState,
 } from "./protocol";
 import { LocalBridge } from "./bridge";
@@ -86,6 +87,12 @@ function bridgeMessage(error: unknown, fallback: string): string {
 				"Há trabalho local ativo. Aguarde a fila ficar livre antes de preparar os perfis.",
 			TRANSCRIPTION_PREPARATION_BLOCKED_BY_RUNNING_JOB:
 				"Espere o trabalho atual terminar antes de preparar outro perfil.",
+			RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB:
+				"Há trabalho local na fila ou em execução. Aguarde terminar antes de atualizar o Qwen Runtime.",
+			QWEN_RUNTIME_UPDATE_BLOCKED_BY_PREPARATION:
+				"Há uma preparação de perfil em andamento. Aguarde terminar antes de atualizar o Qwen Runtime.",
+			QWEN_RUNTIME_MAINTENANCE_BUSY:
+				"Já existe uma manutenção do Qwen Runtime em andamento.",
 			CRAIG_ZIP_REQUIRED: "Escolha um arquivo .zip exportado pelo Craig.",
 			CRAIG_UPLOAD_EMPTY: "O ZIP selecionado está vazio.",
 			CRAIG_ARCHIVE_INVALID: "O ZIP não pôde ser validado como export Craig.",
@@ -178,17 +185,26 @@ function ProfileReadiness({
 		: profile?.preparationRequired
 			? "prepare"
 			: "blocked";
+	const qwenRuntimeUpgrade =
+		profile?.reason === "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED";
 	const detail =
 		profile?.ready
 			? "Pronto"
-			: profile
-				? (profileReadinessCopy(profile) ?? profile.reason ?? "Indisponível")
-				: "Não anunciado pelo Companion";
+			: qwenRuntimeUpgrade
+				? "Runtime Qwen precisa ser atualizado."
+				: profile
+					? (profileReadinessCopy(profile) ?? profile.reason ?? "Indisponível")
+					: "Não anunciado pelo Companion";
 	return (
 		<div className={styles.profileRow} data-state={state}>
 			<strong>{LABELS[id]}</strong>
 			<span>{profile?.ready ? "✓" : profile?.preparationRequired ? "◌" : "!"} {detail}</span>
-			{profile?.reason && !profile.ready ? <small>{profile.reason}</small> : null}
+			{profile?.reason && !profile.ready ? (
+				<details className={styles.technicalDetail}>
+					<summary>Detalhe técnico</summary>
+					<code>{profile.reason}</code>
+				</details>
+			) : null}
 		</div>
 	);
 }
@@ -225,12 +241,17 @@ export function ProcessingBenchmark({
 	const [preparingProfiles, setPreparingProfiles] = useState(false);
 	const [preparationCancelling, setPreparationCancelling] = useState(false);
 	const [preparation, setPreparation] = useState<PreparationStatus | null>(null);
+	const [qwenRuntime, setQwenRuntime] = useState<QwenRuntimeMaintenanceStatus | null>(null);
+	const [qwenRuntimeBusy, setQwenRuntimeBusy] = useState(false);
+	const [qwenRuntimeError, setQwenRuntimeError] = useState<string | null>(null);
+	const qwenRuntimeCheckKey = useRef<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [status, setStatus] = useState<string | null>(null);
 	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
 	const [acceptedJob, setAcceptedJob] = useState<LocalJob | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
 	const request = useRef<AbortController | null>(null);
+	const onRefreshRef = useRef(onRefresh);
 	const pending = useRef<PendingBenchmark | null>(null);
 
 	useEffect(() => {
@@ -274,6 +295,19 @@ export function ProcessingBenchmark({
 	const blockedProfiles = profileStates.filter(
 		(item) => item === null || (!item.ready && !item.preparationRequired),
 	);
+	const qwenRuntimeBlocked = profileStates.some(
+		(item) => item?.reason === "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+	);
+	const qwenInstalledVersionFromProfiles =
+		profileStates.find(
+			(item) =>
+				item?.reason === "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED" &&
+				item.runtimeVersion,
+		)?.runtimeVersion ?? null;
+	const qwenRuntimeCheckSupported =
+		capabilities?.capabilities.includes("runtime.qwen.check") ?? false;
+	const qwenRuntimeUpdateSupported =
+		capabilities?.capabilities.includes("runtime.qwen.update") ?? false;
 	const allProfilesReady = readyCount === PROFILES.length;
 	const fileError = file ? validateCraigFile(file) : null;
 	const sampleEligible =
@@ -319,10 +353,205 @@ export function ProcessingBenchmark({
 
 	useEffect(() => () => request.current?.abort(), []);
 
+	useEffect(() => {
+		onRefreshRef.current = onRefresh;
+	}, [onRefresh]);
+
+	useEffect(() => {
+		if (!connected || !qwenRuntimeBlocked || !qwenRuntimeCheckSupported) {
+			if (!qwenRuntimeBlocked) {
+				qwenRuntimeCheckKey.current = null;
+				setQwenRuntime(null);
+				setQwenRuntimeError(null);
+			}
+			return;
+		}
+		const key = qwenInstalledVersionFromProfiles ?? "unknown";
+		if (qwenRuntimeCheckKey.current === key) return;
+		qwenRuntimeCheckKey.current = key;
+
+		const controller = new AbortController();
+		let disposed = false;
+		setQwenRuntimeBusy(true);
+		setQwenRuntimeError(null);
+		void (async () => {
+			try {
+				const refreshAfterCompletedUpdate = async (
+					observed: QwenRuntimeMaintenanceStatus,
+				) => {
+					if (observed.mode !== "update" || observed.state !== "completed")
+						return false;
+					setQwenRuntime(observed);
+					setStatus("Qwen Runtime atualizado. Recalculando prontidão…");
+					const refreshed = await bridge.capabilities(controller.signal);
+					if (disposed || controller.signal.aborted) return true;
+					setCatalog(refreshed.transcription.catalog);
+					onRefreshRef.current();
+					const qwenReady = ["qwen-fast", "qwen-quality"].every(
+						(id) => refreshed.transcription.catalog.find((item) => item.id === id)?.ready,
+					);
+					setStatus(
+						qwenReady
+							? "Qwen Runtime atualizado. Qwen Fast e Qwen Quality estão prontos."
+							: "Qwen Runtime atualizado. A prontidão foi recalculada; conclua os gates restantes se houver.",
+					);
+					return true;
+				};
+
+				let observed = await bridge.qwenRuntimeStatus(controller.signal);
+				if (disposed || controller.signal.aborted) return;
+				setQwenRuntime(observed);
+
+				if (observed.active) {
+					while (observed.active && !controller.signal.aborted) {
+						await new Promise((resolve) => window.setTimeout(resolve, 650));
+						if (disposed || controller.signal.aborted) return;
+						observed = await bridge.qwenRuntimeStatus(controller.signal);
+						if (disposed || controller.signal.aborted) return;
+						setQwenRuntime(observed);
+					}
+				}
+
+				// The update may finish between the parent's capabilities snapshot and
+				// this status read (or during a Strict Mode remount). Treat an already
+				// terminal update exactly like one we personally observed finishing.
+				if (await refreshAfterCompletedUpdate(observed)) return;
+				if (disposed || controller.signal.aborted) return;
+
+				observed = await bridge.checkQwenRuntime(controller.signal);
+				if (disposed || controller.signal.aborted) return;
+				setQwenRuntime(observed);
+				while (observed.active && !controller.signal.aborted) {
+					await new Promise((resolve) => window.setTimeout(resolve, 650));
+					if (disposed || controller.signal.aborted) return;
+					observed = await bridge.qwenRuntimeStatus(controller.signal);
+					if (disposed || controller.signal.aborted) return;
+					setQwenRuntime(observed);
+				}
+				if (observed.state === "failed") {
+					setQwenRuntimeError(
+						observed.errorCode
+							? `Não foi possível verificar a Stable do Qwen Runtime · ${observed.errorCode}`
+							: "Não foi possível verificar a Stable do Qwen Runtime.",
+					);
+				}
+			} catch (cause) {
+				if (disposed || controller.signal.aborted) return;
+				setQwenRuntimeError(
+					bridgeMessage(cause, "Não foi possível verificar o Qwen Runtime."),
+				);
+			} finally {
+				if (!disposed) setQwenRuntimeBusy(false);
+			}
+		})();
+
+		return () => {
+			disposed = true;
+			controller.abort();
+			// React Strict Mode intentionally mounts, cleans up and remounts effects
+			// in development. Relinquish this attempt's dedupe key so the remount can
+			// resume the Companion operation instead of leaving an active update
+			// without a poller. The next attempt always GETs status before POSTing,
+			// so an already-running maintenance operation is safely reattached.
+			if (qwenRuntimeCheckKey.current === key) {
+				qwenRuntimeCheckKey.current = null;
+			}
+		};
+	}, [
+		bridge,
+		connected,
+		qwenRuntimeBlocked,
+		qwenRuntimeCheckSupported,
+		qwenInstalledVersionFromProfiles,
+	]);
+
 	async function refreshCatalog(signal: AbortSignal) {
 		const refreshed = await bridge.capabilities(signal);
 		setCatalog(refreshed.transcription.catalog);
 		return refreshed;
+	}
+
+	async function pollQwenRuntime(
+		initial: QwenRuntimeMaintenanceStatus,
+		controller: AbortController,
+	) {
+		let observed = initial;
+		setQwenRuntime(observed);
+		while (observed.active && !controller.signal.aborted) {
+			await new Promise((resolve) => window.setTimeout(resolve, 650));
+			if (controller.signal.aborted) return observed;
+			observed = await bridge.qwenRuntimeStatus(controller.signal);
+			setQwenRuntime(observed);
+		}
+		return observed;
+	}
+
+	async function checkQwenRuntime(manual = false) {
+		if (!connected || !qwenRuntimeCheckSupported || qwenRuntimeBusy) return;
+		const controller = new AbortController();
+		setQwenRuntimeBusy(true);
+		setQwenRuntimeError(null);
+		try {
+			const observed = await pollQwenRuntime(
+				await bridge.checkQwenRuntime(controller.signal),
+				controller,
+			);
+			if (observed.state === "failed") {
+				setQwenRuntimeError(
+					observed.errorCode
+						? `Não foi possível verificar a Stable do Qwen Runtime · ${observed.errorCode}`
+						: "Não foi possível verificar a Stable do Qwen Runtime.",
+				);
+			} else if (manual) {
+				setStatus("Estado do Qwen Runtime atualizado.");
+			}
+		} catch (cause) {
+			setQwenRuntimeError(
+				bridgeMessage(cause, "Não foi possível verificar o Qwen Runtime."),
+			);
+		} finally {
+			setQwenRuntimeBusy(false);
+		}
+	}
+
+	async function updateQwenRuntime() {
+		if (!connected || !qwenRuntimeUpdateSupported || qwenRuntimeBusy) return;
+		const controller = new AbortController();
+		setQwenRuntimeBusy(true);
+		setQwenRuntimeError(null);
+		setError(null);
+		try {
+			const observed = await pollQwenRuntime(
+				await bridge.updateQwenRuntime(controller.signal),
+				controller,
+			);
+			if (observed.state === "failed") {
+				setQwenRuntimeError(
+					observed.errorCode
+						? `A atualização do Qwen Runtime falhou · ${observed.errorCode}. Tente novamente ou abra Diagnóstico.`
+						: "A atualização do Qwen Runtime falhou. Tente novamente ou abra Diagnóstico.",
+				);
+				return;
+			}
+			if (observed.state !== "completed") return;
+			setStatus("Qwen Runtime atualizado. Recalculando prontidão…");
+			const refreshed = await refreshCatalog(controller.signal);
+			onRefresh();
+			const qwenReady = ["qwen-fast", "qwen-quality"].every(
+				(id) => refreshed.transcription.catalog.find((item) => item.id === id)?.ready,
+			);
+			setStatus(
+				qwenReady
+					? "Qwen Runtime atualizado. Qwen Fast e Qwen Quality estão prontos."
+					: "Qwen Runtime atualizado. A prontidão foi recalculada; conclua os gates restantes se houver.",
+			);
+		} catch (cause) {
+			setQwenRuntimeError(
+				bridgeMessage(cause, "Não foi possível atualizar o Qwen Runtime."),
+			);
+		} finally {
+			setQwenRuntimeBusy(false);
+		}
 	}
 
 	async function analyzeSource() {
@@ -513,8 +742,12 @@ export function ProcessingBenchmark({
 			? `${LABELS[preparation.profileId]} · ${preparation.title}`
 			: null;
 
-	const nextActionCopy = !file
-		? "Selecione um ZIP Craig para começar."
+	const nextActionCopy = qwenRuntimeBlocked
+		? qwenRuntimeCheckSupported
+			? "Atualize o Qwen Runtime para liberar Qwen Fast e Qwen Quality."
+			: "Atualize o Companion para habilitar a recuperação do Qwen Runtime."
+		: !file
+			? "Selecione um ZIP Craig para começar."
 		: fileError
 			? "Troque o arquivo antes de continuar."
 			: !source
@@ -644,6 +877,103 @@ export function ProcessingBenchmark({
 					</section>
 				</div>
 
+				{qwenRuntimeBlocked ? (
+					<section
+						className={styles.runtimeRecovery}
+						aria-labelledby="benchmark-qwen-runtime-title"
+						data-qwen-runtime-recovery="true"
+					>
+						<div className={styles.runtimeRecoveryHeader}>
+							<div>
+								<span className={styles.eyebrow}>Recuperação do Qwen</span>
+								<h3 id="benchmark-qwen-runtime-title">Runtime incompatível</h3>
+							</div>
+							<StatusPill tone={qwenRuntime?.canUpdate ? "warning" : "neutral"}>
+								{!qwenRuntimeCheckSupported
+									? "Companion antigo"
+									: qwenRuntime?.active
+										? qwenRuntime.mode === "update"
+											? "Atualizando"
+											: "Verificando"
+										: qwenRuntime?.canUpdate
+											? "Atualização disponível"
+											: "Bloqueado"}
+							</StatusPill>
+						</div>
+						<p>
+							Qwen Fast e Qwen Quality compartilham o mesmo runtime. Uma única atualização corrige a base dos dois perfis.
+						</p>
+						<dl className={styles.runtimeFacts}>
+							<div>
+								<dt>Instalado</dt>
+								<dd>{qwenRuntime?.installedVersion ?? qwenInstalledVersionFromProfiles ?? "Não identificado"}</dd>
+							</div>
+							<div>
+								<dt>Necessário</dt>
+								<dd>{qwenRuntime?.minimumVersion ? `≥ ${qwenRuntime.minimumVersion}` : "Verificando…"}</dd>
+							</div>
+							<div>
+								<dt>Stable disponível</dt>
+								<dd>
+									{!qwenRuntimeCheckSupported
+										? "Atualize o Companion"
+										: qwenRuntime?.stableStatus === "compatible"
+											? qwenRuntime.stableVersion
+										: qwenRuntime?.stableStatus === "below_minimum"
+											? `${qwenRuntime.stableVersion ?? "Stable"} · abaixo do mínimo`
+											: qwenRuntime?.stableStatus === "unavailable"
+												? "Não foi possível confirmar"
+												: "Verificando…"}
+								</dd>
+							</div>
+						</dl>
+						{qwenRuntime?.active ? (
+							<p className={styles.runtimeProgress} role="status" aria-live="polite">
+								<strong>{qwenRuntime.title}</strong>
+								<span>{qwenRuntime.detail}</span>
+							</p>
+						) : null}
+						{!qwenRuntimeCheckSupported ? (
+							<p className={styles.notice}>
+								Este Companion detectou o runtime incompatível, mas não anuncia a manutenção segura pela Web. Atualize o Companion antes de tentar reparar o Qwen.
+							</p>
+						) : null}
+						{qwenRuntime?.stableStatus === "below_minimum" ? (
+							<p className={styles.notice}>
+								A Stable publicada ainda não atende ao mínimo exigido. A atualização permanece bloqueada para não instalar um runtime incompatível.
+							</p>
+						) : null}
+						{qwenRuntimeError ? (
+							<p className={styles.error} role="alert">{qwenRuntimeError}</p>
+						) : null}
+						{qwenRuntimeCheckSupported ? (
+						<div className={styles.runtimeActions}>
+							{qwenRuntime?.canUpdate && qwenRuntimeUpdateSupported ? (
+								<Button
+									type="button"
+									variant="primary"
+									disabled={qwenRuntimeBusy || Boolean(active) || preparingProfiles}
+									onClick={() => void updateQwenRuntime()}
+								>
+									{qwenRuntime?.active && qwenRuntime.mode === "update"
+										? "Atualizando Qwen Runtime…"
+										: "Atualizar Qwen Runtime"}
+								</Button>
+							) : (
+								<Button
+									type="button"
+									variant="tertiary"
+									disabled={!qwenRuntimeCheckSupported || qwenRuntimeBusy}
+									onClick={() => void checkQwenRuntime(true)}
+								>
+									{qwenRuntimeBusy ? "Verificando Stable…" : "Verificar novamente"}
+								</Button>
+							)}
+						</div>
+						) : null}
+					</section>
+				) : null}
+
 				<div className={styles.actionBand}>
 					<div className={styles.actionCopy}>
 						<span className={styles.eyebrow}>Próxima ação</span>
@@ -713,7 +1043,7 @@ export function ProcessingBenchmark({
 					</div>
 				) : null}
 
-				{source && blockedProfiles.length > 0 && !allProfilesReady ? (
+				{source && blockedProfiles.length > 0 && !allProfilesReady && !qwenRuntimeBlocked ? (
 					<p className={styles.notice}>
 						Existem perfis não preparáveis neste estado. Veja o motivo em cada linha e
 						atualize o Companion/runtime quando necessário.

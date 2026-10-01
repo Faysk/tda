@@ -18,6 +18,7 @@ import {
 	parseJob,
 	parseJobActivity,
 	parsePreparationStatus,
+	parseQwenRuntimeMaintenanceStatus,
 	record,
 	text,
 	parseJobEventPage,
@@ -687,6 +688,22 @@ export class LocalBridge {
 				},
 			),
 			assemblyId,
+		);
+	}
+
+	async qwenRuntimeStatus(signal: AbortSignal) {
+		return parseQwenRuntimeMaintenanceStatus(
+			await this.json("/qwen-runtime", signal),
+		);
+	}
+	async checkQwenRuntime(signal: AbortSignal) {
+		return parseQwenRuntimeMaintenanceStatus(
+			await this.json("/qwen-runtime/check", signal, {}),
+		);
+	}
+	async updateQwenRuntime(signal: AbortSignal) {
+		return parseQwenRuntimeMaintenanceStatus(
+			await this.json("/qwen-runtime/update", signal, {}),
 		);
 	}
 

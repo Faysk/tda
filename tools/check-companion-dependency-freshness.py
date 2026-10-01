@@ -16,6 +16,7 @@ PYPROJECT = ROOT / "local-companion" / "pyproject.toml"
 TEST_LOCK = ROOT / "local-companion" / "requirements-test.lock"
 WHISPER_RUNTIME = ROOT / "local-companion" / "runtime" / "whisper-windows-x64.json"
 QWEN_RUNTIME = ROOT / "local-companion" / "runtime" / "qwen-windows-x64.json"
+CONTROL_EXCEPTIONS = ROOT / "local-companion" / "dependency-freshness-exceptions.json"
 COMPANION_WORKFLOW = ROOT / ".github" / "workflows" / "companion.yml"
 WHISPER_WORKFLOW = ROOT / ".github" / "workflows" / "whisper-runtime.yml"
 QWEN_WORKFLOW = ROOT / ".github" / "workflows" / "qwen-runtime.yml"
@@ -151,6 +152,40 @@ def _workflow_uv_pin(path: Path) -> str:
     return next(iter(pins))
 
 
+def _read_exceptions(raw: object, source: str) -> dict[str, dict[str, str]]:
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTIONS_INVALID:{source}")
+    parsed: dict[str, dict[str, str]] = {}
+    for raw_name, raw_value in raw.items():
+        name = canonical(str(raw_name))
+        if not isinstance(raw_value, dict):
+            raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTION_INVALID:{source}:{name}")
+        version = raw_value.get("version")
+        reason = raw_value.get("reason")
+        if (
+            not isinstance(version, str)
+            or not version
+            or not isinstance(reason, str)
+            or len(reason.strip()) < 20
+        ):
+            raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTION_INVALID:{source}:{name}")
+        if name in parsed:
+            raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTION_DUPLICATE:{source}:{name}")
+        parsed[name] = {"version": version, "reason": reason.strip()}
+    return parsed
+
+
+def _merge_exceptions(
+    target: dict[str, dict[str, str]],
+    incoming: dict[str, dict[str, str]],
+    source: str,
+) -> None:
+    for name, value in incoming.items():
+        if name in target:
+            raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTION_DUPLICATE:{source}:{name}")
+        target[name] = value
+
+
 def collect() -> tuple[
     dict[str, str],
     dict[str, list[str]],
@@ -187,23 +222,26 @@ def collect() -> tuple[
 
     qwen = _runtime_json(QWEN_RUNTIME, "tda_qwen_runtime_build_v1")
     qwen_python = str(qwen["python"])
-    raw_exceptions = qwen.get("dependency_freshness_exceptions", {})
-    if not isinstance(raw_exceptions, dict):
-        raise RuntimeError("QWEN_RUNTIME_FRESHNESS_EXCEPTIONS_INVALID")
-    for raw_name, raw_value in raw_exceptions.items():
-        name = canonical(str(raw_name))
-        if not isinstance(raw_value, dict):
-            raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTION_INVALID:{name}")
-        version = raw_value.get("version")
-        reason = raw_value.get("reason")
-        if (
-            not isinstance(version, str)
-            or not version
-            or not isinstance(reason, str)
-            or len(reason.strip()) < 20
-        ):
-            raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTION_INVALID:{name}")
-        exceptions[name] = {"version": version, "reason": reason.strip()}
+    _merge_exceptions(
+        exceptions,
+        _read_exceptions(
+            qwen.get("dependency_freshness_exceptions", {}),
+            "qwen-windows-x64.json",
+        ),
+        "qwen-windows-x64.json",
+    )
+    control = _runtime_json(
+        CONTROL_EXCEPTIONS,
+        "tda_companion_dependency_freshness_exceptions_v1",
+    )
+    _merge_exceptions(
+        exceptions,
+        _read_exceptions(
+            control.get("exceptions", {}),
+            "dependency-freshness-exceptions.json",
+        ),
+        "dependency-freshness-exceptions.json",
+    )
     if qwen_python != python_pin:
         raise RuntimeError(f"QWEN_RUNTIME_PYTHON_PIN_MISMATCH:{qwen_python}:{python_pin}")
     torch = qwen.get("torch")
@@ -231,6 +269,12 @@ def collect() -> tuple[
         add_pin(pins, sources, "uv", version, source)
 
     for name, exception in exceptions.items():
+        if name == "python":
+            if python_pin != exception["version"]:
+                raise RuntimeError(
+                    f"DEPENDENCY_FRESHNESS_EXCEPTION_VERSION_MISMATCH:python:{exception['version']}:{python_pin}"
+                )
+            continue
         pinned = pins.get(name)
         if pinned is None:
             raise RuntimeError(f"DEPENDENCY_FRESHNESS_EXCEPTION_ORPHANED:{name}")
@@ -270,9 +314,23 @@ def main() -> int:
             stale.append(f"{name}: pinned {pinned}, latest {latest}")
 
     current_python = latest_python_312()
-    python_state = "current" if python_pin == current_python else "STALE"
+    python_exception = exceptions.get("python")
+    python_excepted = (
+        python_pin != current_python
+        and python_exception is not None
+        and python_exception.get("version") == python_pin
+    )
+    python_state = (
+        "current"
+        if python_pin == current_python
+        else "COMPATIBILITY EXCEPTION"
+        if python_excepted
+        else "STALE"
+    )
     print(f"python: {python_pin} -> {current_python} [{python_state}]")
-    if python_pin != current_python:
+    if python_excepted:
+        print(f"  reason: {python_exception['reason']}")
+    elif python_pin != current_python:
         stale.append(f"python: pinned {python_pin}, latest 3.12 patch {current_python}")
 
     print(f"Transitive test lock: {len(lock)} exact entries; compatibility is owned by the resolver.")

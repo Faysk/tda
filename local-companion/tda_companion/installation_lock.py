@@ -8,6 +8,7 @@ from typing import Iterator
 
 _INSTALLATION_MUTEX = r"Local\Faysk.TDA.Companion.InstallationReconcile"
 _AGENT_BOOTSTRAP_MUTEX = r"Local\Faysk.TDA.Companion.AgentBootstrap"
+_QWEN_RUNTIME_MAINTENANCE_MUTEX = r"Local\Faysk.TDA.Companion.QwenRuntimeMaintenance"
 _WAIT_OBJECT_0 = 0x00000000
 _WAIT_ABANDONED = 0x00000080
 _WAIT_TIMEOUT = 0x00000102
@@ -75,4 +76,15 @@ def agent_bootstrap_lock(timeout_seconds: float = 15.0) -> Iterator[None]:
     parent.
     """
     with _named_lock(_AGENT_BOOTSTRAP_MUTEX, timeout_seconds, "AGENT_BOOTSTRAP_LOCK"):
+        yield
+
+
+@contextmanager
+def qwen_runtime_maintenance_lock(timeout_seconds: float = 0.1) -> Iterator[None]:
+    """Serialize Qwen Runtime mutation across Agent and Desktop processes."""
+    with _named_lock(
+        _QWEN_RUNTIME_MAINTENANCE_MUTEX,
+        timeout_seconds,
+        "QWEN_RUNTIME_MAINTENANCE_LOCK",
+    ):
         yield

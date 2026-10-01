@@ -107,3 +107,84 @@ def test_registry_fetch_fails_closed_after_bounded_retries(monkeypatch):
 
     assert calls == 4
     assert sleeps == [1, 2, 4]
+
+
+def test_python_exception_is_control_plane_metadata_not_qwen_package_input():
+    tool = _load_tool()
+    _pins, _sources, python_pin, _lock, exceptions = tool.collect()
+
+    assert python_pin == "3.12.14"
+    assert exceptions["python"]["version"] == python_pin
+    assert "physically accepted Python 3.12.14" in exceptions["python"]["reason"]
+
+    qwen = json.loads(tool.QWEN_RUNTIME.read_text(encoding="utf-8"))
+    assert "python" not in qwen.get("dependency_freshness_exceptions", {})
+
+    control = json.loads(tool.CONTROL_EXCEPTIONS.read_text(encoding="utf-8"))
+    assert control["schema"] == "tda_companion_dependency_freshness_exceptions_v1"
+    assert control["exceptions"]["python"]["version"] == python_pin
+
+
+def test_duplicate_exception_ownership_fails_closed():
+    tool = _load_tool()
+    target = {
+        "python": {
+            "version": "3.12.14",
+            "reason": "Existing exact compatibility exception with enough detail.",
+        }
+    }
+    with pytest.raises(
+        RuntimeError,
+        match="DEPENDENCY_FRESHNESS_EXCEPTION_DUPLICATE:control:python",
+    ):
+        tool._merge_exceptions(
+            target,
+            {
+                "python": {
+                    "version": "3.12.14",
+                    "reason": "Duplicate exact compatibility exception with enough detail.",
+                }
+            },
+            "control",
+        )
+
+
+def test_python_patch_exception_is_exact_and_machine_readable(monkeypatch, capsys):
+    tool = _load_tool()
+    monkeypatch.setattr(
+        tool,
+        "collect",
+        lambda: (
+            {},
+            {},
+            "3.12.14",
+            {},
+            {
+                "python": {
+                    "version": "3.12.14",
+                    "reason": "Keep the accepted runtime baseline while a separately versioned rebuild validates the newer patch.",
+                }
+            },
+        ),
+    )
+    monkeypatch.setattr(tool, "latest_python_312", lambda: "3.12.15")
+
+    assert tool.main() == 0
+    output = capsys.readouterr().out
+    assert "python: 3.12.14 -> 3.12.15 [COMPATIBILITY EXCEPTION]" in output
+    assert "accepted runtime baseline" in output
+
+
+def test_python_patch_without_exact_exception_fails_closed(monkeypatch, capsys):
+    tool = _load_tool()
+    monkeypatch.setattr(
+        tool,
+        "collect",
+        lambda: ({}, {}, "3.12.14", {}, {}),
+    )
+    monkeypatch.setattr(tool, "latest_python_312", lambda: "3.12.15")
+
+    assert tool.main() == 1
+    captured = capsys.readouterr()
+    assert "python: 3.12.14 -> 3.12.15 [STALE]" in captured.out
+    assert "python: pinned 3.12.14, latest 3.12 patch 3.12.15" in captured.err
