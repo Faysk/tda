@@ -122,6 +122,7 @@ function GridCard({
 		<article
 			className={styles.card}
 			data-session-card="grid"
+			data-session-key={sessionPublicKey(session)}
 			data-campaign-route={session.campaignSlug}
 		>
 			<Link className={styles.cardLink} href={href}>
@@ -179,6 +180,7 @@ function ListRow({
 		<article
 			className={styles.listRow}
 			data-session-card="list"
+			data-session-key={sessionPublicKey(session)}
 			data-campaign-route={session.campaignSlug}
 		>
 			<div className={styles.sessionCell}>
