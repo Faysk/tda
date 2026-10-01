@@ -395,6 +395,8 @@ export async function publishWorldEditStateAction(
 	const preparedMedia = await prepareWorldEntityMediaForPublish({
 		client,
 		draft: publicationDraft,
+		campaignId: campaign.id,
+		campaignTechnicalSlug: CAMPAIGN_SLUG,
 	});
 	if (preparedMedia.status === "pending") {
 		return failPublish("media_pending");
