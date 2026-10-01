@@ -2,7 +2,7 @@
 
 > Status: requisito de release
 > Owner: local-companion / processing
-> Última revisão: 2026-09-11
+> Última revisão: 2026-10-01
 
 ## Regra
 
@@ -63,6 +63,17 @@ Além da descoberta da GPU, o runtime Qwen deve executar uma operação CUDA rea
 
 O fato de Qwen poder usar CUDA 13.x não autoriza migrar o runtime Whisper para CUDA 13 enquanto CTranslate2 não suportar essa família.
 
+### PyAV no runtime Whisper — #1234
+
+O **Whisper Runtime 1.1.6** fixa `av==18.1.0` embora PyAV 19 seja mais novo. Faster-Whisper 1.2.1 ainda abre mídia com `av.open(..., metadata_errors="ignore")`; PyAV 19 removeu esse argumento e por isso a combinação falha antes da inferência real. A exceção fica machine-readable em `runtime/whisper-windows-x64.json`, vinculada ao pin exato.
+
+Whisper e Qwen permanecem runtimes isolados: esta retenção **não** reduz o PyAV do Qwen, que pode continuar em 19.x conforme seu próprio manifest. O gate de freshness audita pins de cada família separadamente para não converter isolamento de runtime em falso conflito global.
+
+Além do probe/import, o build Whisper deve executar no **executável empacotado** um smoke CPU de decode com PCM WAV e FLAC gerados localmente, usando o decoder real `faster_whisper.audio.decode_audio`. O gate valida formato, sample rate e contagem de samples; não carrega modelo e não exige GPU.
+
+A exceção só pode ser removida quando uma versão posterior do Faster-Whisper (ou contrato de decoder equivalente aprovado) aceitar PyAV atual e passar: smoke WAV/FLAC empacotado, suíte do runtime e aceite físico do artefato exato nos perfis `whisper-turbo` e `whisper-detailed`.
+
+
 ## Contrato de benchmark do Whisper — #1233
 
 A prontidão do Whisper possui dois níveis explícitos:
@@ -88,7 +99,6 @@ A migração preserva `State`, `Data`, `Models` e caches; somente o runtime Whis
 Antes de promover `1.1.6` a Stable, o **archive/hash/source exatos** do RC precisam de aceite físico no Windows/GPU suportado e o benchmark real de 5 minutos deve completar os quatro perfis com lineage do runtime e GPU. CI e smoke sintético não substituem essa prova.
 
 Rollback nunca reutiliza o número `1.1.5`: se `1.1.6` falhar no aceite, não promover. Se já houver promoção e surgir regressão, selecionar deliberadamente o artefato Stable anterior conhecido, manter benchmark fail-closed quando o contrato não puder ser satisfeito e corrigir com **nova versão**. Não retaggear, rebuildar ou sobrescrever releases existentes.
-
 ## Exceções
 
 Toda exceção precisa ser explícita e ter justificativa técnica ou legal. Exceções de dependência runtime devem ser machine-readable no manifest correspondente, vinculadas à versão pinada e rejeitadas automaticamente quando o pin divergir.
