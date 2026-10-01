@@ -10,7 +10,6 @@ from .asr_runtime import (
     _atomic_json,
     _valid_recovery_runtime_directory,
     _worker_metadata_sha256,
-    inspect_whisper_runtime,
     install_whisper_runtime_archive,
     whisper_root,
     whisper_version_root,
@@ -86,6 +85,20 @@ def _preserved_candidate(path: Path, version: str) -> bool:
     return True
 
 
+def _verified_worker_sha256(runtime_root: Path, version: str) -> str:
+    marker_path = whisper_version_root(runtime_root, version) / ".tda-runtime.json"
+    try:
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise WhisperRuntimeMaintenanceError(
+            "WHISPER_RUNTIME_ROLLBACK_TARGET_INVALID"
+        ) from exc
+    digest = marker.get("worker_sha256") if isinstance(marker, dict) else None
+    if not isinstance(digest, str) or len(digest) != 64:
+        raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_TARGET_INVALID")
+    return digest
+
+
 def list_whisper_runtime_rollback_candidates(runtime_root: Path) -> list[str]:
     try:
         current = _ready_current_version(runtime_root)
@@ -132,18 +145,18 @@ def _activate_preserved_runtime(runtime_root: Path, target_version: str, current
 
     try:
         _atomic_json(selector, selected)
-        verified = inspect_whisper_runtime(runtime_root, verify_worker=True)
-        if verified.get("status") != "ready" or verified.get("version") != target_version:
+        if _ready_current_version(runtime_root) != target_version:
             raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_VERIFY_FAILED")
+        worker_sha256 = _verified_worker_sha256(runtime_root, target_version)
     except Exception as exc:
         try:
             _atomic_json(selector, previous)
-            restored = inspect_whisper_runtime(runtime_root, verify_worker=True)
+            restored_version = _ready_current_version(runtime_root)
         except Exception as restore_exc:
             raise WhisperRuntimeMaintenanceError(
                 "WHISPER_RUNTIME_ROLLBACK_RESTORE_FAILED"
             ) from restore_exc
-        if restored.get("status") != "ready" or restored.get("version") != current_version:
+        if restored_version != current_version:
             raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_RESTORE_FAILED") from exc
         if isinstance(exc, WhisperRuntimeMaintenanceError):
             raise
@@ -155,7 +168,7 @@ def _activate_preserved_runtime(runtime_root: Path, target_version: str, current
         "version": target_version,
         "previous_version": current_version,
         "source": "preserved",
-        "worker_sha256": verified.get("worker_sha256"),
+        "worker_sha256": worker_sha256,
     }
 
 
@@ -204,8 +217,11 @@ def _rollback_whisper_runtime_locked(
             str(exc) or "WHISPER_RUNTIME_ROLLBACK_INSTALL_FAILED"
         ) from exc
 
-    verified = inspect_whisper_runtime(runtime_root, verify_worker=True)
-    if verified.get("status") != "ready" or verified.get("version") != target_version:
+    try:
+        verified_version = _ready_current_version(runtime_root)
+    except WhisperRuntimeMaintenanceError:
+        verified_version = None
+    if verified_version != target_version:
         parent = whisper_root(runtime_root)
         try:
             _atomic_json(
@@ -216,12 +232,12 @@ def _rollback_whisper_runtime_locked(
                     "version": current_version,
                 },
             )
-            restored = inspect_whisper_runtime(runtime_root, verify_worker=True)
+            restored_version = _ready_current_version(runtime_root)
         except Exception as exc:
             raise WhisperRuntimeMaintenanceError(
                 "WHISPER_RUNTIME_ROLLBACK_RESTORE_FAILED"
             ) from exc
-        if restored.get("status") != "ready" or restored.get("version") != current_version:
+        if restored_version != current_version:
             raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_RESTORE_FAILED")
         raise WhisperRuntimeMaintenanceError("WHISPER_RUNTIME_ROLLBACK_VERIFY_FAILED")
     return {
