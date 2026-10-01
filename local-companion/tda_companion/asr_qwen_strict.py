@@ -26,6 +26,7 @@ from .asr_qwen import (
     QWEN_SAMPLE_RATE,
     QWEN_SEGMENT_GAP_SECONDS,
     QWEN_SEGMENT_MAX_SECONDS,
+    QWEN_SILENCE_POLICY,
     QWEN_WINDOW_SECONDS,
     AlignerSession,
     AsrSession,
@@ -62,7 +63,6 @@ from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment,
 
 QWEN_WINDOW_OVERLAP_SECONDS = 6.0
 QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
-QWEN_SILENCE_POLICY = "pre-asr-near-digital-v1"
 QWEN_ALIGNMENT_POLICY = "strict-overlap-v4"
 QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
 QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
