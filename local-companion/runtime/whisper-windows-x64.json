@@ -6,11 +6,18 @@
   "packages": {
     "faster-whisper": "1.2.1",
     "ctranslate2": "4.8.2",
+    "av": "18.1.0",
     "nvidia-cublas-cu12": "12.9.2.10",
     "nvidia-cudnn-cu12": "9.27.0.42",
     "nvidia-cuda-runtime-cu12": "12.9.79",
     "nvidia-ml-py": "13.615.71",
     "pyinstaller": "6.22.3"
+  },
+  "dependency_freshness_exceptions": {
+    "av": {
+      "version": "18.1.0",
+      "reason": "Faster-Whisper 1.2.1 still calls av.open(..., metadata_errors=\"ignore\"), an argument removed by PyAV 19. Keep PyAV 18.1.0 until a newer Faster-Whisper decoder contract passes the packaged WAV/FLAC decode smoke and physical acceptance with both Whisper profiles."
+    }
   },
   "gpu": {
     "cuda_family": "12.9",
