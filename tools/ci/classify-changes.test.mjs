@@ -113,6 +113,21 @@ test("navigation shell paths activate only the targeted Navigation E2E contract"
 	assert.equal(flags(["src/app/mundo/loading.tsx"]).navigation, true);
 });
 
+test("lore catalogue changes activate Navigation E2E without broadening standalone lore assets", () => {
+	for (const path of [
+		"src/app/lore/page.tsx",
+		"src/app/lore/page.module.css",
+		"tests/lore-catalog-viewport.spec.ts",
+	]) {
+		const result = flags([path]);
+		assert.equal(result.navigation, true, path);
+		assert.equal(result.processing, false, path);
+		assert.equal(result.lembra, false, path);
+		assert.equal(result.sessions, false, path);
+	}
+	assert.equal(flags(["public/lore/yllith/yllith.css"]).navigation, false);
+});
+
 test("Processing Web paths activate the Processing E2E contract", () => {
 	assert.equal(
 		flags(["src/features/edit/processing/bridge.ts"]).processing,
