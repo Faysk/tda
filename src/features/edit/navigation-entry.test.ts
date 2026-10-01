@@ -80,8 +80,20 @@ describe("legacy /edit compatibility destination", () => {
 				now,
 			),
 		).toBe("/edit/processamento?campanha=antes-que-seja-tarde");
-		expect(firstAuthorizedEditDestination(context([EDIT_CAPABILITIES.worldLayoutEdit], second), second, now)).toBe("/edit/antes-que-seja-tarde/mundo");
-		expect(firstAuthorizedEditDestination(context([EDIT_CAPABILITIES.reviewRead], second), second, now)).toBe("/edit/revisao?campanha=antes-que-seja-tarde");
+		expect(
+			firstAuthorizedEditDestination(
+				context([EDIT_CAPABILITIES.worldLayoutEdit], second),
+				second,
+				now,
+			),
+		).toBe("/edit/antes-que-seja-tarde/mundo");
+		expect(
+			firstAuthorizedEditDestination(
+				context([EDIT_CAPABILITIES.reviewRead], second),
+				second,
+				now,
+			),
+		).toBe("/edit/revisao?campanha=antes-que-seja-tarde");
 	});
 
 	it("routes project campaign managers to the registry before campaign-scoped tools", () => {

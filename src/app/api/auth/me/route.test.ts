@@ -102,7 +102,7 @@ describe("GET /api/auth/me", () => {
 		expect(serialized).not.toContain("scopeType");
 	});
 
-	it("fails campaign discovery closed for authenticated unlinked accounts", async () => {
+	it("keeps authenticated unlinked accounts empty without reporting an outage", async () => {
 		const context = {
 			authUserId: "private",
 			profileId: null,
@@ -113,10 +113,6 @@ describe("GET /api/auth/me", () => {
 			identity: { displayName: "Corujinha", avatarUrl: null },
 			context,
 		});
-		mocks.readNavigationCampaigns.mockResolvedValueOnce({
-			mode: "unavailable",
-			campaigns: [],
-		});
 
 		const response = await GET();
 		await expect(response.json()).resolves.toEqual({
@@ -124,7 +120,7 @@ describe("GET /api/auth/me", () => {
 			scope: { type: "project", id: "tda" },
 			capabilities: [],
 			identity: { displayName: "Corujinha", avatarUrl: null },
-			campaignsState: "unavailable",
+			campaignsState: "first_class",
 			campaigns: [],
 		});
 		expect(mocks.readNavigationCampaigns).toHaveBeenCalledWith(context);

@@ -174,7 +174,12 @@ export function locationHasCampaignReference(
 ): boolean {
 	const parts = pathname.split("/");
 	if (parts[1] === "edit" && parts.length >= 4 && parts[2]) return true;
-	if (parts[1] === "campanhas" && parts[2] && parts[2] !== "sessoes" && parts.length >= 4)
+	if (
+		parts[1] === "campanhas" &&
+		parts[2] &&
+		parts[2] !== "sessoes" &&
+		parts.length >= 4
+	)
 		return true;
 	return new URLSearchParams(search).has("campanha");
 }

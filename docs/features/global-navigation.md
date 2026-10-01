@@ -208,7 +208,7 @@ Ferramentas aparecem diretamente em uma seção própria do launcher e somente q
 | Ferramenta | Destino seguro nesta slice | Destino canônico futuro | Capability principal |
 | --- | --- | --- | --- |
 | Transcrições | `/transcricoes?campanha=[technicalSlug]` | `/edit/[campaign]/transcricoes` | `campaign.transcript.read` |
-| Editar sessões | `/edit/[technicalSlug]/sessoes` (#1129 no candidato de integração) | já é a rota privada canônica da biblioteca | `campaign.transcript.read` |
+| Editar sessões | `/edit/[technicalSlug]/sessoes` (#1129) | já é a rota privada canônica da biblioteca | `campaign.transcript.read` |
 | Processar | `/edit/processamento?campanha=[technicalSlug]` (#1128) | futuro alias canônico `/edit/[campaign]/processamento` | `campaign.local.process` |
 | Editar mundo | `/edit/[technicalSlug]/mundo` (#1130) | já canônico | `campaign.world.layout.edit` |
 | Revisão | `/edit/revisao?campanha=[technicalSlug]` (#1133) | futuro alias `/edit/[campaign]/revisao` | `narrative.review.read` |

@@ -256,15 +256,29 @@ export function AccountMenu() {
 		const applyLocation = () => {
 			const currentPath = window.location.pathname;
 			const currentSearch = window.location.search;
-			const fromLocation = campaignTechnicalSlugFromLocation(projection.campaigns, currentPath, currentSearch);
-			const explicitCampaign = locationHasCampaignReference(currentPath, currentSearch);
+			const fromLocation = campaignTechnicalSlugFromLocation(
+				projection.campaigns,
+				currentPath,
+				currentSearch,
+			);
+			const explicitCampaign = locationHasCampaignReference(
+				currentPath,
+				currentSearch,
+			);
 			setActiveCampaignSlug(fromLocation);
 			setReturnPath(currentPath + currentSearch + window.location.hash);
 			setSelectedCampaignSlug((current) => {
 				if (fromLocation) return fromLocation;
 				if (explicitCampaign) return null;
-				if (projection.campaigns.length === 1) return projection.campaigns[0]?.technicalSlug ?? null;
-				if (current && projection.campaigns.some((campaign) => campaign.technicalSlug === current)) return current;
+				if (projection.campaigns.length === 1)
+					return projection.campaigns[0]?.technicalSlug ?? null;
+				if (
+					current &&
+					projection.campaigns.some(
+						(campaign) => campaign.technicalSlug === current,
+					)
+				)
+					return current;
 				return null;
 			});
 		};
@@ -491,7 +505,9 @@ export function AccountMenu() {
 												isCurrentNavigationPath(pathname, item.href)
 											}
 											onNavigate={() => {
-												setActiveCampaignSlug(selectedCampaign.technicalSlug);
+												setActiveCampaignSlug(
+													selectedCampaign.technicalSlug,
+												);
 												closeAfterNavigate();
 											}}
 																/>
