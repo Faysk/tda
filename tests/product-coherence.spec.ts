@@ -298,7 +298,7 @@ test("[auth/Edit] A+B, A-only, anonymous and unavailable states remain fail-clos
 	await expect(panel.getByText("Ferramentas", { exact: true })).toHaveCount(0);
 
 	await page.unroute("**/api/auth/me");
-	await mockAccess(page, { state: "unavailable" });
+	await mockAccess(page, { campaignsState: "unavailable" });
 	await page.reload();
 	panel = await openGlobalMenu(page);
 	await expect(
