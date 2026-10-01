@@ -185,7 +185,7 @@ A rota concreta recebe `aria-current="page"`.
 
 ## Evolução multi-campaign
 
-A PR #1219 implementa a camada de navegação de #1136 sobre ADR-0020 sem antecipar as rotas de domínio ainda pertencentes a #1128/#1129/#1130/#1133.
+A PR #1219 implementa a camada de navegação de #1136 sobre ADR-0020 e consome o Processamento campaign-aware já integrado por #1128/#1208, sem antecipar as rotas ainda pertencentes a #1129/#1130/#1133.
 
 Contrato do launcher:
 
@@ -209,7 +209,7 @@ Ferramentas aparecem diretamente em uma seção própria do launcher e somente q
 | --- | --- | --- | --- |
 | Transcrições | `/transcricoes?campanha=[technicalSlug]` | `/edit/[campaign]/transcricoes` | `campaign.transcript.read` |
 | Editar sessões | legado apenas: `/edit/sessoes?campanha=yuhara-main` | `/edit/[campaign]/sessoes` (#1129) | `campaign.transcript.read` |
-| Processar | legado apenas: `/edit/processamento?campanha=yuhara-main` | `/edit/[campaign]/processamento` (#1128) | `campaign.local.process` |
+| Processar | `/edit/processamento?campanha=[technicalSlug]` (#1128) | futuro alias canônico `/edit/[campaign]/processamento` | `campaign.local.process` |
 | Editar mundo | legado apenas: `/mundo?campanha=yuhara-main` | `/edit/[campaign]/mundo` (#1130) | `campaign.world.layout.edit` |
 | Revisão | legado apenas: `/edit/revisao?campanha=yuhara-main` | `/edit/[campaign]/revisao` (#1133) | `narrative.review.read` |
 | Permissões | `/edit/[campaign]/permissions` | já canônico | `campaign.permissions.manage` |
