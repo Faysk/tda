@@ -409,3 +409,8 @@
 		background: var(--ds-canvas-subtle);
 	}
 }
+
+/* Mobile loading headers already sit below the floating chrome. */
+@media (max-width: 760px) {
+ .workspaceHeader {padding-inline:0;min-width:0}
+}

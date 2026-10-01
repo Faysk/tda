@@ -563,3 +563,5 @@ Chrome/Windows visual verification at 320px exposed a 15px horizontal overflow c
 ### Arquivo multi-campaign no celular — 2026-10-01
 
 O arquivo público acomoda o filtro adicional de campanha reduzindo espaço vertical do hero, preservando texto, estatísticas e controles de 44px. A primeira sessão permanece na primeira viewport em 320px. Gate local de edição/layout: 22 testes aprovados; implantação ainda pendente.
+
+O skeleton da biblioteca no celular também remove a reserva lateral da marca: ele já começa abaixo do chrome. O título de largura previsível não pode empurrar a página durante o carregamento. A regressão verifica o fallback ainda ativo, não somente a tela final.
