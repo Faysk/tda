@@ -242,6 +242,55 @@ export async function findEditSessionBySourceId(
 	return data ? toSession(data as unknown as SessionRow) : null;
 }
 
+export type EditSessionCampaignIdentity = Readonly<{
+	sessionId: string;
+	sourceSessionId: string;
+	campaignId: string;
+	technicalSlug: string;
+	routeKey: string;
+	campaignName: string;
+	lifecycle: "active" | "archived";
+}>;
+
+export async function resolveEditSessionCampaign(
+	sessionId: string,
+): Promise<EditSessionCampaignIdentity | null> {
+	if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(sessionId))
+		return null;
+	const client = dataClientOrThrow();
+	const { data: session, error: sessionError } = await client
+		.from("sessions")
+		.select("id,campaign_id,source_session_id")
+		.eq("id", sessionId)
+		.maybeSingle();
+	if (sessionError) throw new Error("Edit session campaign lookup unavailable");
+	if (!session?.id || !session.campaign_id || !session.source_session_id) return null;
+
+	const { data: campaign, error: campaignError } = await client
+		.from("campaigns")
+		.select("id,slug,public_slug,name,lifecycle")
+		.eq("id", session.campaign_id)
+		.maybeSingle();
+	if (campaignError) throw new Error("Edit campaign identity lookup unavailable");
+	if (
+		!campaign?.id ||
+		typeof campaign.slug !== "string" ||
+		typeof campaign.public_slug !== "string" ||
+		typeof campaign.name !== "string" ||
+		(campaign.lifecycle !== "active" && campaign.lifecycle !== "archived")
+	) return null;
+
+	return {
+		sessionId: String(session.id),
+		sourceSessionId: String(session.source_session_id),
+		campaignId: String(campaign.id),
+		technicalSlug: campaign.slug,
+		routeKey: campaign.public_slug,
+		campaignName: campaign.name,
+		lifecycle: campaign.lifecycle,
+	};
+}
+
 export async function listUnsafeEditSessions(): Promise<EditSessionSummary[]> {
 	const client = unsafeClientOrThrow();
 	const { data, error } = await client

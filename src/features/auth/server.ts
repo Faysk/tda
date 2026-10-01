@@ -116,6 +116,24 @@ export const currentAccess = cache(async () => {
 	}
 });
 
+export async function requireCampaignCapability(
+	capability: EditCapability,
+	campaignSlug: string,
+	returnTo = "/edit",
+) {
+	const access = await currentAccess();
+	if (access.state === "anonymous")
+		redirect(`/entrar?next=${encodeURIComponent(safeReturnPath(returnTo))}`);
+	if (access.state === "unavailable")
+		redirect("/conta?acesso=indisponivel");
+	if (
+		!access.context ||
+		!authorizeCampaignCapability(access.context, capability, campaignSlug).ok
+	)
+		redirect("/conta?acesso=negado");
+	return access.context;
+}
+
 export async function requireCapability(
 	capability: EditCapability,
 	returnTo = "/edit",

@@ -6,9 +6,9 @@ import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { mutateTranscriptSegment } from "./mutation";
 import { persistTranscriptMutation } from "./persistence";
+import { resolveEditSessionCampaign } from "@/features/edit/sessions/repository";
 import { readTranscriptSegment } from "./repository";
 
 export type UpdateTranscriptSegmentActionInput = Readonly<{
@@ -33,10 +33,17 @@ export async function updateTranscriptSegmentAction(
 	}
 
 	try {
+		const sessionCampaign = await resolveEditSessionCampaign(input.sessionId);
+		if (!sessionCampaign || sessionCampaign.lifecycle !== "active")
+			return {
+				ok: false as const,
+				reason: "not_found" as const,
+				issues: ["not_found"] as const,
+			};
 		const result = await mutateTranscriptSegment(
 			{
 				authUserId: identity.authUserId,
-				campaignSlug: CAMPAIGN_SLUG,
+				campaignSlug: sessionCampaign.technicalSlug,
 				sessionId: input.sessionId,
 				segmentId: input.segmentId,
 				expectedRevision: input.expectedRevision,
@@ -120,10 +127,17 @@ export async function reloadTranscriptSegmentAction(
 				issues: ["dependency_unavailable"] as const,
 			};
 		}
+		const sessionCampaign = await resolveEditSessionCampaign(input.sessionId);
+		if (!sessionCampaign)
+			return {
+				ok: false as const,
+				reason: "not_found" as const,
+				issues: ["not_found"] as const,
+			};
 		const access = authorizeCampaignCapability(
 			context,
 			EDIT_CAPABILITIES.transcriptRead,
-			CAMPAIGN_SLUG,
+			sessionCampaign.technicalSlug,
 		);
 		if (!access.ok) {
 			return {
@@ -134,7 +148,7 @@ export async function reloadTranscriptSegmentAction(
 		}
 
 		const segment = await readTranscriptSegment({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: sessionCampaign.technicalSlug,
 			sessionId: input.sessionId,
 			segmentId: input.segmentId,
 		});
