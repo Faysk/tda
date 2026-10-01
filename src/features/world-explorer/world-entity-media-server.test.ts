@@ -147,10 +147,11 @@ describe("governed public image promotion", () => {
 		expect(result.publicUrl).toBe(
 			"https://media.dnd.faysk.dev/" + objectKey,
 		);
-		expect(
-			r2.objects.get(WORLD_ENTITY_MEDIA_PUBLIC_BUCKET + "/" + objectKey)
-				?.bytes,
-		).toEqual(bytes);
+			const stored = r2.objects.get(
+			WORLD_ENTITY_MEDIA_PUBLIC_BUCKET + "/" + objectKey,
+		);
+		expect(stored).toBeDefined();
+		expect(Buffer.from(stored?.bytes ?? [])).toEqual(bytes);
 	});
 
 	it("supports the production private staging bucket without exposing it directly", async () => {
