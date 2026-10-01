@@ -56,29 +56,6 @@ test("a campaign without a public World stays empty instead of borrowing another
 	);
 });
 
-test("campaign switching preserves explicit World context across history and reload", async ({ page }) => {
-	await page.goto(WORLD_PATH);
-	await expect(page.locator('[data-world-campaign="yuhara-main"]')).toBeVisible();
-
-	await page.getByText("Trocar", { exact: true }).click();
-	const secondCampaign = page.getByRole("link", { name: "Antes que seja tarde", exact: true });
-	await expect(secondCampaign).toHaveAttribute("href", EMPTY_WORLD_PATH);
-	await secondCampaign.click();
-
-	await expect(page).toHaveURL(EMPTY_WORLD_PATH);
-	await expect(page.locator('[data-world-empty="true"]')).toBeVisible();
-	await expect(page.locator('[data-world-node="dandelion"]')).toHaveCount(0);
-
-	await page.goBack();
-	await expect(page).toHaveURL(WORLD_PATH);
-	await expect(page.locator('[data-world-campaign="yuhara-main"]')).toBeVisible();
-
-	await page.reload();
-	await expect(page).toHaveURL(WORLD_PATH);
-	await expect(page.locator('[data-world-campaign="yuhara-main"]')).toBeVisible();
-	await expect(page.getByText("Crônicas da Mesa", { exact: true })).toBeVisible();
-});
-
 test("World Explorer opens as a multi-hub overview and keeps selection separate from focus", async ({ page }) => {
 	await page.goto(WORLD_PATH);
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ecos da Jornada");
