@@ -102,7 +102,7 @@ O worker termina com:
 QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN
 ```
 
-e o receipt preserva somente a evidência numérica sanitizada. Esse resultado **não é silêncio**. No runtime `1.0.14`, o strict pipeline pode tentar uma única recuperação no mesmo modelo depois de remover somente blocos inteiros de 1 s nas bordas que também estejam no piso digital pelos mesmos thresholds. O retry não remove sinal e, se reconhecer, o texto real continua sendo alinhado contra a janela original. Sem recuperação segura, `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN` permanece fail-closed.
+e o receipt preserva somente a evidência numérica sanitizada. Esse resultado **não é silêncio**. No runtime `1.0.14`, o strict pipeline pode tentar uma única recuperação no mesmo modelo depois de remover somente blocos inteiros de 1 s nas bordas, limitado aos 6 s de overlap por lado que também estejam no piso digital pelos mesmos thresholds. O retry não remove sinal e, se reconhecer, o texto real continua sendo alinhado contra a janela original. Sem recuperação segura, `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN` permanece fail-closed.
 
 ### `empty_condition_not_reproduced`
 
