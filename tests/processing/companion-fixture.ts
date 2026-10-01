@@ -954,12 +954,25 @@ export async function installCompanionFixture(
 				warning_count: 0,
 				execution_lineage: {
 					schema_version: "tda_execution_lineage_v1",
-					companion_version: "0.3.14",
+					companion_version: "0.3.18",
 					runtime_family: engine === "whisper" ? "whisper" : "qwen",
-					runtime_version: "1.0.12",
-					device: "cuda",
+					runtime_version: engine === "whisper" ? "1.1.6" : "1.0.12",
+					runtime_artifact: {
+						runtime_id: engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
+						version: engine === "whisper" ? "1.1.6" : "1.0.12",
+						worker_sha256: "c".repeat(64),
+						archive_sha256: "d".repeat(64),
+					},
+					device: "cuda:0",
 					compute_type: "float16",
-					gpu: null,
+					gpu: {
+						vendor: "NVIDIA",
+						index: 0,
+						model: "NVIDIA GeForce RTX 4070 Laptop GPU",
+						vram_total_bytes: 8 * 1024 * 1024 * 1024,
+						compute_capability: "8.9",
+						driver_version: "synthetic",
+					},
 				},
 			});
 			return json(route, {
