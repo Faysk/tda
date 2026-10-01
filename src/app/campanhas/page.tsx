@@ -17,7 +17,7 @@ export default async function CampaignDirectoryPage() {
 	const result = await readPublicCampaignDirectory();
 
 	return (
-		<main className={styles.page} data-layout-family="editorial">
+		<main className={styles.page} data-layout-family="editorial" data-public-content-state={!result.ok ? "unavailable" : result.campaigns.length ? "ready" : "empty"}>
 			<header className={styles.header}>
 				<p className={styles.eyebrow}>TDA · campanhas</p>
 				<h1>Mesas que viraram memória</h1>

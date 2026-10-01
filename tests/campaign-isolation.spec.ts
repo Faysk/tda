@@ -52,14 +52,17 @@ test("colliding public session identities stay scoped and canonical", async ({ p
 	).toHaveCount(0);
 });
 
-test("ambiguous legacy detail fails closed instead of guessing a campaign", async ({
-	page,
-}) => {
-	const response = await page.goto(`/sessoes/${SHARED_SESSION}`);
-	expect(response?.status()).toBe(404);
-	await expect(page).toHaveURL(new RegExp(`/sessoes/${SHARED_SESSION}$`, "u"));
-	await expect(page.getByText(CAMPAIGN_A.title)).toHaveCount(0);
-	await expect(page.getByText(CAMPAIGN_B.title)).toHaveCount(0);
+test("legacy detail stays inside the known historical campaign even with colliding IDs", async ({ page }) => {
+ await page.goto(`/sessoes/${SHARED_SESSION}`);
+ await expect(page).toHaveURL(new RegExp(`/campanhas/${CAMPAIGN_A.route}/sessoes/${SHARED_SESSION}$`));
+ await expect(page.getByRole("heading", { level: 1 })).toHaveText(CAMPAIGN_A.title);
+ await expect(page.getByText(CAMPAIGN_B.title)).toHaveCount(0);
+});
+
+test("historical campaign alias redirects the detail before rendering canonical metadata", async ({ page }) => {
+ await page.goto(`/campanhas/yuhara-main/sessoes/${SHARED_SESSION}`);
+ await expect(page).toHaveURL(new RegExp(`/campanhas/${CAMPAIGN_A.route}/sessoes/${SHARED_SESSION}$`));
+ await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`/campanhas/${CAMPAIGN_A.route}/sessoes/${SHARED_SESSION}$`));
 });
 
 test("aggregate archive preserves both colliding sessions and filters by campaign", async ({

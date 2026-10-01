@@ -1,24 +1,41 @@
 import type { Metadata } from "next";
+import { cache } from "react";
+import { resolvePublicCampaignRoute } from "@/features/campaigns/repository";
 import Image from "next/image";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
 import { SessionShareActions } from "@/components/session-share-actions";
 import { StoryMarkdown } from "@/components/story-markdown";
 import { DisplayTitle, Eyebrow } from "@/components/ui";
 import { sessionPublicMetadata } from "@/features/sessions/metadata";
-import { formatSessionDate, sessionPublicPath, sessionPublicKey, type PublishedSession } from "@/features/sessions/model";
-import { findPublishedSession, listPublishedSessions, PublishedSessionUnavailableError } from "@/features/sessions/repository";
+import { formatSessionDate, sessionPublicPath, type PublishedSession } from "@/features/sessions/model";
+import { findPublishedSession, findAdjacentPublishedSessions, PublishedSessionUnavailableError } from "@/features/sessions/repository";
 import { sessionShareDescription } from "@/features/sessions/share";
 import styles from "../../../../sessoes/[id]/page.module.css";
 
 export const dynamic="force-dynamic";
 type Params={params:Promise<{campaignSlug:string;sessionId:string}>};
 
+const readSessionRoute = cache(async (campaignSlug: string, sessionId: string) => {
+ const resolved = await resolvePublicCampaignRoute(campaignSlug);
+ if (!resolved.ok) {
+  if (resolved.reason === "not_found") return null;
+  throw new PublishedSessionUnavailableError();
+ }
+ if (!resolved.canonical) permanentRedirect(`/campanhas/${encodeURIComponent(resolved.campaign.routeKey)}/sessoes/${encodeURIComponent(sessionId)}`);
+ return findPublishedSession(resolved.campaign.routeKey, sessionId);
+});
+
 export async function generateMetadata({params}:Params):Promise<Metadata>{
-	const {campaignSlug,sessionId}=await params;
-	const session=await findPublishedSession(campaignSlug,sessionId).catch((error)=>{if(error instanceof PublishedSessionUnavailableError)return null;throw error;});
-	if(!session) notFound();
-	return sessionPublicMetadata(session);
+ const {campaignSlug,sessionId}=await params;
+ let session: PublishedSession | null;
+ try { session = await readSessionRoute(campaignSlug, sessionId); }
+ catch (error) {
+  if (!(error instanceof PublishedSessionUnavailableError)) throw error;
+  return { title: "Sessão temporariamente indisponível", robots: { index: false } };
+ }
+ if (!session) notFound();
+ return sessionPublicMetadata(session);
 }
 
 function NavigationCard({
@@ -63,18 +80,15 @@ function NavigationCard({
 export default async function CampaignSession({params}:Params){
 	const {campaignSlug,sessionId}=await params;
 	let session:PublishedSession|null;
-	try{session=await findPublishedSession(campaignSlug,sessionId);}catch(error){
+	try{session=await readSessionRoute(campaignSlug,sessionId);}catch(error){
 		if(!(error instanceof PublishedSessionUnavailableError)) throw error;
-		return <section className={styles.unavailable}><div className={styles.unavailableInner}><Eyebrow>Arquivo de sessões</Eyebrow><DisplayTitle className={styles.unavailableTitle}>Esta sessão está temporariamente indisponível.</DisplayTitle></div></section>;
+		return <section className={styles.unavailable} data-public-content-state="unavailable"><div className={styles.unavailableInner}><Eyebrow>Arquivo de sessões</Eyebrow><DisplayTitle className={styles.unavailableTitle}>Esta sessão está temporariamente indisponível.</DisplayTitle></div></section>;
 	}
 	if(!session) notFound();
-	const archive=await listPublishedSessions(session.campaignSlug).catch(()=>null);
-	const currentIndex=archive?.findIndex((item)=>sessionPublicKey(item)===sessionPublicKey(session))??-1;
-	const previous=archive&&currentIndex>=0?archive[currentIndex+1]:undefined;
-	const next=archive&&currentIndex>0?archive[currentIndex-1]:undefined;
+	const {previous, next} = await findAdjacentPublishedSessions(session).catch(() => ({previous: undefined, next: undefined}));
 	const date=formatSessionDate(session.date);
 	const story=session.fullSummary||session.summary||"Resumo ainda não disponível.";
-	return <article className={styles.page}>
+	return <article className={styles.page} data-public-content-state="ready">
 		<header className={styles.hero} data-session-reader-hero><div className={styles.heroInner}><div className={styles.content}>
 			<Link className={styles.back} href={`/campanhas/${encodeURIComponent(session.campaignSlug)}/sessoes`}>← <span>Arquivo de {session.campaignName}</span></Link>
 			<Eyebrow className={styles.eyebrow}>{session.campaignName} · {session.arc||"Memória da campanha"}</Eyebrow>

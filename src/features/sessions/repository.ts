@@ -1,6 +1,8 @@
 import "server-only";
 import { cache } from "react";
+import { isCampaignRegistrySchemaGap } from "@/features/campaigns/schema-compatibility";
 import { publishedDataClient } from "@/integrations/supabase/server";
+import { buildHomeSessionFeed, HOME_RECENT_SESSION_LIMIT } from "./home-feed";
 import type { SessionArchiveItem } from "./archive";
 import {
 	LEGACY_CAMPAIGN_PUBLIC_SLUG,
@@ -15,17 +17,6 @@ const publicMediaColumns = "cover_image_url:metadata->>coverImageUrl,hero_image_
 const campaignColumns = "id,name,slug,public_slug,lifecycle,visibility";
 const columns = `source_session_id,title,session_date,arc,summary_short,${publicMediaColumns},status,campaigns!inner(${campaignColumns})`;
 const legacyColumns = `source_session_id,title,session_date,arc,summary_short,${publicMediaColumns},status,campaigns!inner(id,name,slug)`;
-
-type CampaignRegistryError = Readonly<{ code?: string | null; message?: string | null }>;
-
-function isCampaignRegistrySchemaGap(error: CampaignRegistryError | null | undefined) {
-	if (error?.code !== "PGRST204") return false;
-	const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
-	return (
-		message.includes("campaigns") &&
-		["public_slug", "lifecycle", "visibility"].some((column) => message.includes(column))
-	);
-}
 
 const layoutFixtureSessions = [
 	{ id:"shared-session", campaignId:"fixture-a", campaignSlug:"cronicas-da-mesa", campaignName:"Crônicas da Mesa", campaignTechnicalSlug:"yuhara-main", title:"A memória mais recente do arquivo sintético", date:"2026-09-29", arc:"Contrato visual E2E", summary:"Uma memória sintética curta para validar densidade, filtros e navegação sem tocar em conteúdo privado.", fullSummary:"# Memória mais recente\n\nConteúdo sintético usado somente pelos testes E2E do layout público." },
@@ -44,8 +35,8 @@ function fixtureArchive(campaignSlug?: string) {
 	return layoutFixtureSessions.filter((session) => !campaignSlug || session.campaignSlug === campaignSlug);
 }
 
-async function queryArchive(campaignSlug?: string): Promise<PublishedSession[] | null> {
-	if (layoutFixtureEnabled()) return [...fixtureArchive(campaignSlug)];
+async function queryArchive(campaignSlug?: string, maximum = Number.POSITIVE_INFINITY): Promise<PublishedSession[] | null> {
+	if (layoutFixtureEnabled()) return buildHomeSessionFeed(fixtureArchive(campaignSlug)).ordered.slice(0, maximum);
 	const client = publishedDataClient();
 	if (!client) return null;
 	const result: PublishedSession[] = [];
@@ -53,23 +44,24 @@ async function queryArchive(campaignSlug?: string): Promise<PublishedSession[] |
 		let query = client.from("sessions").select(columns).eq("status", "published")
 			.eq("campaigns.lifecycle", "active").eq("campaigns.visibility", "public")
 			.order("session_date", { ascending:false, nullsFirst:false })
+			.order("campaigns(public_slug)", { ascending:true })
 			.order("source_session_id", { ascending:true })
 			.order("id", { ascending:true })
-			.range(from, from + PAGE_SIZE - 1);
+			.range(from, Math.min(from + PAGE_SIZE, maximum) - 1);
 		if (campaignSlug) query = query.eq("campaigns.public_slug", campaignSlug);
 		const { data, error } = await query;
 		if (error) {
-			if (isCampaignRegistrySchemaGap(error)) return queryLegacyArchive(campaignSlug);
+			if (isCampaignRegistrySchemaGap(error)) return queryLegacyArchive(campaignSlug, maximum);
 			throw new PublishedSessionUnavailableError();
 		}
 		const rows = (data ?? []).flatMap((row) => { const item = toPublishedSession(row); return item ? [item] : []; });
 		result.push(...rows);
-		if ((data ?? []).length < PAGE_SIZE) break;
+		if ((data ?? []).length < PAGE_SIZE || result.length >= maximum) break;
 	}
 	return result;
 }
 
-async function queryLegacyArchive(campaignSlug?: string): Promise<PublishedSession[] | null> {
+async function queryLegacyArchive(campaignSlug?: string, maximum = Number.POSITIVE_INFINITY): Promise<PublishedSession[] | null> {
 	if (campaignSlug && campaignSlug !== LEGACY_CAMPAIGN_PUBLIC_SLUG) return [];
 	const client = publishedDataClient();
 	if (!client) return null;
@@ -80,13 +72,16 @@ async function queryLegacyArchive(campaignSlug?: string): Promise<PublishedSessi
 			.order("session_date",{ascending:false,nullsFirst:false})
 			.order("source_session_id",{ascending:true})
 			.order("id",{ascending:true})
-			.range(from, from + PAGE_SIZE - 1);
+			.range(from, Math.min(from + PAGE_SIZE, maximum) - 1);
 		if (error) throw new PublishedSessionUnavailableError();
 		result.push(...(data ?? []).flatMap((row) => { const item=toLegacyPublishedSession(row); return item?[item]:[]; }));
-		if ((data ?? []).length < PAGE_SIZE) break;
+		if ((data ?? []).length < PAGE_SIZE || result.length >= maximum) break;
 	}
 	return result;
 }
+
+/** Home needs one hero and four recent cards, with the same deterministic ordering. */
+export const listHomePublishedSessions = cache(async () => queryArchive(undefined, HOME_RECENT_SESSION_LIMIT + 1));
 
 export async function listPublishedSessions(campaignSlug?: string): Promise<PublishedSession[] | null> {
 	return queryArchive(campaignSlug);
@@ -120,15 +115,48 @@ export const findPublishedSession = cache(async (campaignSlug: string, id: strin
 	return data ? toPublishedSession(data,true) : null;
 });
 
-export const findLegacyPublishedSession = cache(async (id:string) => {
-	if (!id || id.length>220) return null;
-	if (layoutFixtureEnabled()) {
-		const matches=layoutFixtureSessions.filter((session)=>session.id===id);
-		if (matches.length === 0) throw new PublishedSessionUnavailableError();
-		return matches.length===1 && matches[0]?.campaignTechnicalSlug===LEGACY_CAMPAIGN_TECHNICAL_SLUG ? matches[0] : null;
-	}
-	const archive=await queryArchive();
-	if (!archive) throw new PublishedSessionUnavailableError();
-	const matches=archive.filter((session)=>session.id===id);
-	return matches.length===1 && matches[0]?.campaignTechnicalSlug===LEGACY_CAMPAIGN_TECHNICAL_SLUG ? matches[0] : null;
-});
+export const findLegacyPublishedSession = cache(async (id: string) =>
+ findPublishedSession(LEGACY_CAMPAIGN_PUBLIC_SLUG, id),
+);
+
+function filterLiteral(value: string): string {
+ return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+/** Keyset neighbors: at most one row in each direction, including undated sessions. */
+export async function findAdjacentPublishedSessions(session: PublishedSession) {
+ if (layoutFixtureEnabled()) {
+  const ordered = buildHomeSessionFeed(fixtureArchive(session.campaignSlug)).ordered;
+  const index = ordered.findIndex((item) => item.id === session.id);
+  return { previous: index >= 0 ? ordered[index + 1] : undefined, next: index > 0 ? ordered[index - 1] : undefined };
+ }
+ const client = publishedDataClient();
+ if (!client) throw new PublishedSessionUnavailableError();
+ const read = async (direction: "previous" | "next", legacy = false): Promise<PublishedSession | undefined> => {
+  const previous = direction === "previous";
+  let query = client.from("sessions").select(legacy ? legacyColumns : columns).eq("status", "published");
+  query = legacy
+   ? query.eq("campaigns.slug", LEGACY_CAMPAIGN_TECHNICAL_SLUG)
+   : query.eq("campaigns.public_slug", session.campaignSlug).eq("campaigns.lifecycle", "active").eq("campaigns.visibility", "public");
+  const id = filterLiteral(session.id);
+  const cmp = previous ? "gt" : "lt";
+  if (session.date) {
+   const date = filterLiteral(session.date);
+   query = query.or(`session_date.${previous ? "lt" : "gt"}.${date},and(session_date.eq.${date},source_session_id.${cmp}.${id})${previous ? ",session_date.is.null" : ""}`);
+  } else {
+   query = previous
+    ? query.is("session_date", null).gt("source_session_id", session.id)
+    : query.or(`session_date.not.is.null,and(session_date.is.null,source_session_id.lt.${id})`);
+  }
+  const {data, error} = await query.order("session_date", { ascending: !previous, nullsFirst: !previous })
+   .order("source_session_id", { ascending: previous }).order("id", { ascending: previous }).limit(1);
+  if (error) {
+   if (!legacy && session.campaignSlug === LEGACY_CAMPAIGN_PUBLIC_SLUG && isCampaignRegistrySchemaGap(error)) return read(direction, true);
+   throw new PublishedSessionUnavailableError();
+  }
+  const row = data?.[0];
+  return row ? (legacy ? toLegacyPublishedSession(row) : toPublishedSession(row)) ?? undefined : undefined;
+ };
+ const [previous, next] = await Promise.all([read("previous"), read("next")]);
+ return { previous, next };
+}

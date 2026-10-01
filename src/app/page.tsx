@@ -13,7 +13,7 @@ import {
 	sessionPublicPath,
 	type PublishedSession,
 } from "@/features/sessions/model";
-import { listPublishedSessions } from "@/features/sessions/repository";
+import { listHomePublishedSessions } from "@/features/sessions/repository";
 import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ const homeDescription =
 
 const readHomePublishedSessions = cache(async () => {
 	try {
-		return await listPublishedSessions();
+		return await listHomePublishedSessions();
 	} catch {
 		return undefined;
 	}
@@ -109,7 +109,7 @@ export default async function Home() {
 	const latestDate = latest ? formatSessionDate(latest.date) : "";
 
 	return (
-		<div className={styles.home} data-home-surface="cinematic" data-layout-family="cinematic" data-layout-role="expansive">
+		<div className={styles.home} data-home-surface="cinematic" data-public-content-state={sessions == null ? "unavailable" : sessions.length ? "ready" : "empty"} data-layout-family="cinematic" data-layout-role="expansive">
 			<section className={styles.hero} aria-labelledby="home-title">
 				{latest ? (
 					<div className={styles.heroBackdrop} aria-hidden="true">

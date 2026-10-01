@@ -199,3 +199,12 @@ O primeiro slice é deliberadamente fail-closed: uma sessão sem dependências i
 O commit usa `operation_id` durável, row lock e audit sanitizado. Retry após resposta perdida reaproveita o receipt sem duplicar a mudança. Dois movers concorrentes serializam no row lock; o writer stale recebe conflict.
 
 Depois do commit, a aplicação revalida bibliotecas/detalhes privados e superfícies públicas da origem/destino. Falha de cache/delivery não desfaz o commit já confirmado; o retorno marca `cachePending` para recuperação explícita.
+
+
+## Recuperação e leitura pública — auditoria 2026-10-01
+
+- Enquanto a migration aditiva do registry não existe, somente a campaign histórica `yuhara-main` pode ser lida como pública. A compatibilidade é restrita aos erros PostgreSQL `42703` / PostgREST `PGRST204` nos três campos do registry; erros de permissão, credencial ou timeout continuam indisponibilidade. Com registry presente, lifecycle/visibility são obrigatórios.
+- O resolver público aplica aliases antes da leitura/canonical do detalhe e só aceita owners ativos/públicos. Indisponibilidade não vira 404. O link legado `/sessoes/[id]` consulta exclusivamente a campaign histórica, sem busca global.
+- Home busca no máximo cinco projeções resumidas, ordenadas por data decrescente, public slug e source ID. O leitor busca no máximo um vizinho de cada lado na mesma campaign, incluindo desempate e datas nulas. Arquivo completo continua paginado para os filtros globais.
+- As páginas públicas expõem `data-public-content-state` com `ready`, `empty` ou `unavailable` para o gate semântico da entrega, sem detalhes internos de banco.
+- Evidência candidata: testes de repositories com schema legado, alias, owner privado/arquivado, falhas reais e limites de consultas. Publicação e read-back remoto são etapas separadas.
