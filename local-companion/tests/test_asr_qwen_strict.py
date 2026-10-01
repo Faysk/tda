@@ -29,6 +29,13 @@ from tda_companion.qwen_acceptance import QwenPlan
 from tda_companion.transcript import TranscriptWord
 
 
+class _SignalAudio(str):
+    """Symbolic fixture label that still behaves like signal-bearing PCM."""
+
+    def __iter__(self):
+        return iter((0.1, -0.1, 0.05, -0.05))
+
+
 def _package(tmp_path: Path) -> tuple[CraigPackage, Path]:
     root = tmp_path / "Data" / "staging" / "strict"
     tracks = root / "tracks"
@@ -116,8 +123,8 @@ def _aligner_prepare(_models_root: Path):
 
 def _two_windows(_path: Path):
     stride = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
-    yield AudioWindow(index=1, start=0.0, end=QWEN_WINDOW_SECONDS, audio="w1")
-    yield AudioWindow(index=2, start=stride, end=stride + 46.0, audio="w2")
+    yield AudioWindow(index=1, start=0.0, end=QWEN_WINDOW_SECONDS, audio=_SignalAudio("w1"))
+    yield AudioWindow(index=2, start=stride, end=stride + 46.0, audio=_SignalAudio("w2"))
 
 
 def test_qwen_checkpoint_pipeline_revision_is_explicit():
@@ -647,7 +654,7 @@ def test_alignment_failure_event_allowlists_diagnostic_metadata(
             asr_session_factory=lambda _root, _plan: Asr(),
             aligner_session_factory=lambda _root, _plan: Aligner(),
             window_reader=lambda _path: iter(
-                (AudioWindow(index=1, start=0.0, end=2.0, audio="window"),)
+                (AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio("window")),)
             ),
             energy_reader=lambda *_args: -12.0,
             report=reports.append,
@@ -693,7 +700,7 @@ def test_strict_qwen_reports_alignment_window_context_for_vram_failure(tmp_path:
             asr_session_factory=lambda _root, _plan: Asr(),
             aligner_session_factory=lambda _root, _plan: OomAligner(),
             window_reader=lambda _path: iter(
-                (AudioWindow(index=1, start=0.0, end=2.0, audio="window"),)
+                (AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio("window")),)
             ),
             energy_reader=lambda *_args: -12.0,
             report=reports.append,
@@ -841,7 +848,7 @@ def test_strict_qwen_reuses_prealignment_text_after_aligner_failure(tmp_path: Pa
     second_reports: list[dict] = []
 
     def reader(path: Path):
-        yield AudioWindow(index=1, start=0.0, end=2.0, audio=path.name)
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio(path.name))
 
     class Asr:
         def transcribe(self, audio, *, prompt: str):
@@ -946,7 +953,7 @@ def test_strict_qwen_reuses_1_0_10_text_checkpoint_after_1_0_11_alignment_upgrad
     second_reports: list[dict] = []
 
     def reader(_path: Path):
-        yield AudioWindow(index=1, start=0.0, end=2.0, audio="window")
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio("window"))
 
     class Asr:
         def transcribe(self, _audio, *, prompt: str):
@@ -1050,7 +1057,7 @@ def test_strict_qwen_cancel_after_text_save_preserves_reusable_checkpoint(tmp_pa
     asr_calls = 0
 
     def reader(_path: Path):
-        yield AudioWindow(index=1, start=0.0, end=2.0, audio="window")
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio("window"))
 
     class Asr:
         def transcribe(self, _audio, *, prompt: str):
@@ -1119,7 +1126,7 @@ def test_strict_qwen_crash_before_alignment_preserves_reusable_checkpoint(tmp_pa
     asr_calls = 0
 
     def reader(_path: Path):
-        yield AudioWindow(index=1, start=0.0, end=2.0, audio="window")
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio("window"))
 
     class Asr:
         def transcribe(self, _audio, *, prompt: str):
@@ -1181,7 +1188,7 @@ def test_strict_qwen_refuses_text_reuse_if_staged_track_bytes_changed(tmp_path: 
     package, root = _two_track_package(tmp_path)
 
     def reader(path: Path):
-        yield AudioWindow(index=1, start=0.0, end=2.0, audio=path.name)
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio(path.name))
 
     class Asr:
         def transcribe(self, audio, *, prompt: str):
@@ -1242,7 +1249,7 @@ def test_strict_qwen_corrupt_text_checkpoint_retranscribes_only_that_track(
     asr_calls = 0
 
     def reader(path: Path):
-        yield AudioWindow(index=1, start=0.0, end=2.0, audio=path.name)
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio(path.name))
 
     class Asr:
         def transcribe(self, audio, *, prompt: str):
@@ -1295,7 +1302,7 @@ def test_strict_qwen_corrupt_text_checkpoint_retranscribes_only_that_track(
     ),
 )
 def test_strict_alignment_preserves_actionable_runtime_failures(runtime_code: str):
-    window = AudioWindow(index=7, start=0.0, end=60.0, audio="window")
+    window = AudioWindow(index=7, start=0.0, end=60.0, audio=_SignalAudio("window"))
     pending = QwenWindowTranscript(
         index=7,
         start=0.0,
@@ -1357,7 +1364,7 @@ def test_strict_alignment_classifies_failures_without_transcript_payload(
     aligned,
     failure_class: str,
 ):
-    window = AudioWindow(index=42, start=0.0, end=60.0, audio="window")
+    window = AudioWindow(index=42, start=0.0, end=60.0, audio=_SignalAudio("window"))
     pending = QwenWindowTranscript(
         index=42,
         start=0.0,
@@ -1388,7 +1395,7 @@ def test_strict_alignment_classifies_failures_without_transcript_payload(
 
 
 def test_strict_alignment_ignores_only_non_owned_trailing_overflow():
-    window = AudioWindow(index=1, start=0.0, end=60.0, audio="window")
+    window = AudioWindow(index=1, start=0.0, end=60.0, audio=_SignalAudio("window"))
     pending = QwenWindowTranscript(
         index=1,
         start=0.0,
@@ -1422,7 +1429,7 @@ def test_strict_alignment_ignores_only_non_owned_trailing_overflow():
 
 
 def test_strict_alignment_does_not_hide_empty_text_as_safe_neighbor_overflow():
-    window = AudioWindow(index=87, start=0.0, end=60.0, audio="window")
+    window = AudioWindow(index=87, start=0.0, end=60.0, audio=_SignalAudio("window"))
     pending = QwenWindowTranscript(
         index=87,
         start=0.0,
@@ -1454,7 +1461,7 @@ def test_strict_alignment_does_not_hide_empty_text_as_safe_neighbor_overflow():
 
 
 def test_strict_alignment_ignores_neighbor_owned_overflow_that_crosses_ownership_boundary():
-    window = AudioWindow(index=88, start=0.0, end=60.0, audio="window")
+    window = AudioWindow(index=88, start=0.0, end=60.0, audio=_SignalAudio("window"))
     pending = QwenWindowTranscript(
         index=88,
         start=0.0,
@@ -1491,8 +1498,8 @@ def test_strict_alignment_ignores_neighbor_owned_overflow_that_crosses_ownership
 
 
 def test_crossing_overlap_word_is_owned_exactly_once_by_adjacent_window():
-    first_window = AudioWindow(index=1, start=0.0, end=60.0, audio="w1")
-    second_window = AudioWindow(index=2, start=54.0, end=100.0, audio="w2")
+    first_window = AudioWindow(index=1, start=0.0, end=60.0, audio=_SignalAudio("w1"))
+    second_window = AudioWindow(index=2, start=54.0, end=100.0, audio=_SignalAudio("w2"))
     first_pending = QwenWindowTranscript(
         index=1,
         start=0.0,
@@ -1557,7 +1564,7 @@ def test_crossing_overlap_word_is_owned_exactly_once_by_adjacent_window():
 
 
 def test_strict_alignment_keeps_owned_overflow_fail_closed():
-    window = AudioWindow(index=89, start=0.0, end=60.0, audio="window")
+    window = AudioWindow(index=89, start=0.0, end=60.0, audio=_SignalAudio("window"))
     pending = QwenWindowTranscript(
         index=89,
         start=0.0,
@@ -1622,8 +1629,8 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(
     def reader(_path: Path):
         nonlocal reads
         reads += 1
-        yield AudioWindow(index=1, start=0.0, end=2.0, audio=f"pass-{reads}-one")
-        yield AudioWindow(index=2, start=1.5, end=3.0, audio=f"pass-{reads}-two")
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio(f"pass-{reads}-one"))
+        yield AudioWindow(index=2, start=1.5, end=3.0, audio=_SignalAudio(f"pass-{reads}-two"))
 
     class Asr:
         def transcribe(self, audio, *, prompt: str):
@@ -1707,7 +1714,7 @@ def test_strict_qwen_checkpoint_reuse_skips_model_and_only_replays_energy(
     def reader(_path: Path):
         nonlocal reads
         reads += 1
-        yield AudioWindow(index=1, start=0.0, end=2.0, audio=f"pass-{reads}")
+        yield AudioWindow(index=1, start=0.0, end=2.0, audio=_SignalAudio(f"pass-{reads}"))
 
     class Asr:
         def transcribe(self, _audio, *, prompt: str):
@@ -1857,7 +1864,7 @@ def test_owned_overflow_retries_once_with_bounded_right_context_without_repeat_a
             index=window.index,
             start=window.start,
             end=window.end + QWEN_WINDOW_OVERLAP_SECONDS,
-            audio="w1+right",
+            audio=_SignalAudio("w1+right"),
         )
 
     document = transcribe_craig_package_qwen_strict(
@@ -1931,7 +1938,7 @@ def test_owned_overflow_recovery_stays_fail_closed_when_extended_alignment_is_in
             index=window.index,
             start=window.start,
             end=window.end + QWEN_WINDOW_OVERLAP_SECONDS,
-            audio="w1+right",
+            audio=_SignalAudio("w1+right"),
         )
 
     with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED") as caught:
@@ -2025,7 +2032,7 @@ def test_owned_overflow_on_last_window_never_uses_right_context_recovery(
     reports: list[dict] = []
 
     def one_window(_path: Path):
-        yield AudioWindow(index=1, start=0.0, end=60.0, audio="last")
+        yield AudioWindow(index=1, start=0.0, end=60.0, audio=_SignalAudio("last"))
 
     class Asr:
         def transcribe(self, _audio, *, prompt: str):
