@@ -217,6 +217,16 @@ def _require_initial_block(
             for version in catalog_versions
             if version is not None
         )
+    else:
+        runtime_blockers = {
+            "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
+            "QWEN_RUNTIME_REQUIRED",
+            "QWEN_GATE_RUNTIME_NOT_READY",
+        }
+        reasons = {_nullable_text(profile.get("reason")) for profile in profiles.values()}
+        reasons.discard(None)
+        stale = bool(reasons) and reasons <= runtime_blockers
+
     if not stale:
         raise RecoveryAcceptanceError("QWEN_RECOVERY_INITIAL_BLOCK_NOT_REPRODUCED")
 
