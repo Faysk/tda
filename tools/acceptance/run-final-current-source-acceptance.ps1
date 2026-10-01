@@ -287,6 +287,156 @@ function Test-Runtime([object]$Candidate) {
   } catch { $false }
 }
 
+function Write-AtomicJson([string]$Path,[object]$Value) {
+  $parent=Split-Path -Parent $Path
+  if($parent){New-Item -ItemType Directory -Force -Path $parent | Out-Null}
+  $temporary="$Path.$([Guid]::NewGuid().ToString("N")).partial"
+  try {
+    $Value | ConvertTo-Json -Depth 32 -Compress | Set-Content -LiteralPath $temporary -Encoding UTF8 -NoNewline
+    Move-Item -LiteralPath $temporary -Destination $Path -Force
+  } finally {
+    Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+  }
+}
+
+function Install-WhisperRuntimeArchiveForAcceptance([object]$Candidate,[string]$AssetsRoot) {
+  if([string]$Candidate.family -ne "whisper" -or [string]$Candidate.runtime_id -ne "whisper-ctranslate2"){
+    throw "RUNTIME_DIRECT_WHISPER_CANDIDATE_INVALID"
+  }
+  $version=[string]$Candidate.version
+  if($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$' -or [Version]$version -lt [Version]"1.1.7"){
+    throw "RUNTIME_DIRECT_WHISPER_VERSION_INVALID"
+  }
+  $expectedArchive=[string]$Candidate.runtime_archive_sha256
+  if($expectedArchive -notmatch '^[a-f0-9]{64}$'){throw "RUNTIME_DIRECT_ARCHIVE_HASH_INVALID"}
+
+  $expectedName="TDAWhisperRuntime-$version-windows-x64.zip"
+  $archiveRows=@(@($Candidate.assets) | Where-Object { [string]$_.name -eq $expectedName })
+  if($archiveRows.Count -ne 1 -or [string]$archiveRows[0].sha256 -ne $expectedArchive){
+    throw "RUNTIME_DIRECT_ARCHIVE_IDENTITY_MISMATCH"
+  }
+  $archive=Join-Path $AssetsRoot $expectedName
+  if(-not(Test-Path -LiteralPath $archive -PathType Leaf)){throw "RUNTIME_DIRECT_ARCHIVE_MISSING"}
+  if((Get-Sha256 $archive) -ne $expectedArchive){throw "RUNTIME_DIRECT_ARCHIVE_HASH_MISMATCH"}
+
+  $runtimeRoot=Join-Path $env:LOCALAPPDATA "TDA\Runtime\whisper"
+  $target=Join-Path $runtimeRoot $version
+  $current=Join-Path $runtimeRoot "current.json"
+  if(Test-Runtime $Candidate){Write-Host "whisper exact runtime already ready." -ForegroundColor Green;return}
+
+  New-Item -ItemType Directory -Force -Path $runtimeRoot | Out-Null
+  $suffix=[Guid]::NewGuid().ToString("N")
+  $staging=Join-Path $runtimeRoot ".$version-$suffix.partial"
+  $backupTarget=Join-Path $runtimeRoot ".$version-$suffix.acceptance-backup"
+  $backupCurrent=Join-Path $runtimeRoot ".current-$suffix.acceptance-backup.json"
+  $targetBackedUp=$false
+  $currentBackedUp=$false
+  $targetPromoted=$false
+  $currentWritten=$false
+
+  try {
+    New-Item -ItemType Directory -Path $staging | Out-Null
+    Add-Type -AssemblyName System.IO.Compression
+    $stream=[IO.File]::OpenRead($archive)
+    try {
+      $zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Read,$false)
+      try {
+        $entries=@($zip.Entries | Where-Object { -not [string]::IsNullOrEmpty($_.Name) })
+        if($entries.Count -lt 1 -or $entries.Count -gt 4096){throw "RUNTIME_DIRECT_ARCHIVE_ENTRY_LIMIT"}
+        [Int64]$total=0
+        $seen=@{}
+        $stagingFull=[IO.Path]::GetFullPath($staging)
+        $prefix=$stagingFull.TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar
+
+        foreach($entry in $entries){
+          $name=([string]$entry.FullName).Replace("\","/")
+          $parts=@($name.Split("/"))
+          if(
+            [string]::IsNullOrWhiteSpace($name) -or
+            $name.StartsWith("/") -or
+            $name -match '^[A-Za-z]:' -or
+            @($parts | Where-Object { $_ -in @("",".","..") }).Count -gt 0
+          ){throw "RUNTIME_DIRECT_ARCHIVE_PATH_INVALID"}
+
+          $mode=(([Int64]$entry.ExternalAttributes -shr 16) -band 0xffff)
+          if(($mode -band 0xf000) -eq 0xa000){throw "RUNTIME_DIRECT_ARCHIVE_SYMLINK"}
+
+          $key=$name.ToLowerInvariant()
+          if($seen.ContainsKey($key)){throw "RUNTIME_DIRECT_ARCHIVE_DUPLICATE"}
+          $seen[$key]=$true
+          if([Int64]$entry.Length -lt 0){throw "RUNTIME_DIRECT_ARCHIVE_SIZE_INVALID"}
+          $total += [Int64]$entry.Length
+          if($total -gt (4L*1024L*1024L*1024L)){throw "RUNTIME_DIRECT_ARCHIVE_SIZE_LIMIT"}
+
+          $relative=$name.Replace("/",[string][IO.Path]::DirectorySeparatorChar)
+          $destination=[IO.Path]::GetFullPath((Join-Path $staging $relative))
+          if(-not $destination.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)){
+            throw "RUNTIME_DIRECT_ARCHIVE_PATH_INVALID"
+          }
+          $parent=Split-Path -Parent $destination
+          if($parent){New-Item -ItemType Directory -Force -Path $parent | Out-Null}
+
+          $input=$entry.Open()
+          try {
+            $output=[IO.File]::Open($destination,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+            try {$input.CopyTo($output)} finally {$output.Dispose()}
+          } finally {$input.Dispose()}
+          if((Get-Item -LiteralPath $destination).Length -ne [Int64]$entry.Length){
+            throw "RUNTIME_DIRECT_ARCHIVE_SIZE_MISMATCH"
+          }
+        }
+      } finally {$zip.Dispose()}
+    } finally {$stream.Dispose()}
+
+    $worker=Join-Path $staging "TDAWhisperWorker.exe"
+    if(-not(Test-Path -LiteralPath $worker -PathType Leaf)){throw "RUNTIME_DIRECT_WORKER_MISSING"}
+    $workerSha=Get-Sha256 $worker
+    Write-AtomicJson (Join-Path $staging ".tda-runtime.json") ([ordered]@{
+      schema="tda_asr_runtime_v1"
+      runtime_id="whisper-ctranslate2"
+      version=$version
+      worker="TDAWhisperWorker.exe"
+      worker_sha256=$workerSha
+      archive_sha256=$expectedArchive
+    })
+
+    if(Test-Path -LiteralPath $target){
+      Move-Item -LiteralPath $target -Destination $backupTarget
+      $targetBackedUp=$true
+    }
+    if(Test-Path -LiteralPath $current -PathType Leaf){
+      Move-Item -LiteralPath $current -Destination $backupCurrent
+      $currentBackedUp=$true
+    }
+    Move-Item -LiteralPath $staging -Destination $target
+    $targetPromoted=$true
+    Write-AtomicJson $current ([ordered]@{
+      schema="tda_asr_runtime_v1"
+      runtime_id="whisper-ctranslate2"
+      version=$version
+    })
+    $currentWritten=$true
+
+    if(-not(Test-Runtime $Candidate)){throw "RUNTIME_DIRECT_EXACT_IDENTITY_NOT_READY"}
+    if($targetBackedUp -and (Test-Path -LiteralPath $backupTarget)){Remove-Item -LiteralPath $backupTarget -Recurse -Force}
+    if($currentBackedUp -and (Test-Path -LiteralPath $backupCurrent)){Remove-Item -LiteralPath $backupCurrent -Force}
+    Write-Host "whisper exact runtime sideloaded for acceptance: $version" -ForegroundColor Green
+  } catch {
+    try {
+      if($currentWritten -and (Test-Path -LiteralPath $current)){Remove-Item -LiteralPath $current -Force}
+      if($currentBackedUp -and (Test-Path -LiteralPath $backupCurrent)){Move-Item -LiteralPath $backupCurrent -Destination $current}
+      if($targetPromoted -and (Test-Path -LiteralPath $target)){Remove-Item -LiteralPath $target -Recurse -Force}
+      if($targetBackedUp -and (Test-Path -LiteralPath $backupTarget)){Move-Item -LiteralPath $backupTarget -Destination $target}
+      if(Test-Path -LiteralPath $staging){Remove-Item -LiteralPath $staging -Recurse -Force}
+    } catch {
+      throw "RUNTIME_DIRECT_ROLLBACK_FAILED:whisper"
+    }
+    throw
+  } finally {
+    if(Test-Path -LiteralPath $staging){Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue}
+  }
+}
+
 function New-OuterZip([string]$Root,[string]$Destination,[string[]]$Names) {
   Add-Type -AssemblyName System.IO.Compression
   if(Test-Path $Destination){Remove-Item $Destination -Force}
@@ -315,6 +465,11 @@ function Install-Runtime([string]$Exe,[object]$Candidate,[object]$Release,[strin
     $name=[string]$row.name
     [void]$names.Add($name)
     [void](Download-Asset $Release $name (Join-Path $assetsRoot $name) $family ([string]$row.sha256))
+  }
+  if($family -eq "whisper"){
+    Install-WhisperRuntimeArchiveForAcceptance $Candidate $assetsRoot
+    if(-not(Test-Runtime $Candidate)){throw "RUNTIME_DIRECT_EXACT_IDENTITY_NOT_READY:whisper"}
+    return
   }
   $outer=Join-Path $Root "$family-actions-artifact.zip"
   New-OuterZip $assetsRoot $outer $names.ToArray()
