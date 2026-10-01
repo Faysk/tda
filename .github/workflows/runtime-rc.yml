@@ -96,6 +96,7 @@ jobs:
               RUNTIME_PATHS=(
                 ".github/workflows/whisper-runtime.yml"
                 "local-companion/runtime/**"
+                ":(exclude)local-companion/runtime/qwen-windows-x64.json"
                 "local-companion/packaging/build_whisper_runtime.py"
                 "local-companion/packaging/runtime_bootstrap_smoke.py"
                 "local-companion/packaging/whisper_runtime_entry.py"
