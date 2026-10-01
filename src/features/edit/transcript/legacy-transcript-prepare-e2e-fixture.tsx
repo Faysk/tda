@@ -8,6 +8,7 @@ import type {
 	LegacyTranscriptPrepareResult,
 } from "./legacy-prepare-model";
 
+const CAMPAIGN_SLUG = "yuhara-main";
 const SESSION_ID = "11111111-1111-4111-8111-111111111111";
 const SNAPSHOT = "a".repeat(64);
 
@@ -76,6 +77,7 @@ export function LegacyTranscriptPrepareE2EFixture() {
 			<div data-testid="legacy-attempt-ids">{attemptIds.join("|")}</div>
 			<LegacyTranscriptPrepare
 				action={action}
+				campaignSlug={CAMPAIGN_SLUG}
 				editable
 				segmentCount={2}
 				sessionId={SESSION_ID}
