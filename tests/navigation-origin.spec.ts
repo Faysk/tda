@@ -12,7 +12,7 @@ test("public navigation preserves the current origin", async ({ page }) => {
 	await archiveLink.click();
 
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-		"As histórias até aqui",
+		"Todas as campanhas",
 	);
 	expect(new URL(page.url()).origin).toBe(origin);
 	expect(new URL(page.url()).pathname).toBe("/campanhas/sessoes");
