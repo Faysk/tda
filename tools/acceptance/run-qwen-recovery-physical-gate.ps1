@@ -977,29 +977,29 @@ try {
         Copy-Item -LiteralPath $gate -Destination (Join-Path $EvidenceRoot "physical-gate-$profileId.json") -Force
     }
 
-    Write-Host "Normal qwen-quality worker + bounded cancel..." -ForegroundColor Cyan
-    $quality = Submit-Transcription $SourceId "qwen-quality"
-    $QualityJobId = [string](Get-OptionalPropertyValue $quality "id")
-    if (-not $QualityJobId) { Fail-Product "QWEN_QUALITY_JOB_ID_MISSING" }
-    [void](Wait-ForEvent $QualityJobId "QWEN_WINDOW_TRANSCRIBED" $null 1800)
-    $cancelStarted = [DateTimeOffset]::UtcNow
-    [void](Invoke-AgentJson "POST" "/jobs/$QualityJobId/cancel")
-    $qualityTerminal = Wait-Terminal $QualityJobId @("cancelled") 30
-    $cancelSeconds = ([DateTimeOffset]::UtcNow - $cancelStarted).TotalSeconds
-    Wait-QwenWorkersGone $ScratchRoot 20
-    Write-Json (Join-Path $EvidenceRoot "qwen-quality-cancel.json") ([ordered]@{
-        job = Sanitize-Job $qualityTerminal
-        cancel_settle_seconds = [Math]::Round($cancelSeconds, 3)
-    })
-    Save-JobEvidence $QualityJobId "qwen-quality" $EvidenceRoot
-
-    Write-Host "qwen-fast checkpoint -> hard Agent crash -> retry..." -ForegroundColor Cyan
+    Write-Host "Normal qwen-fast worker + bounded cancel..." -ForegroundColor Cyan
     $fast = Submit-Transcription $SourceId "qwen-fast"
     $FastJobId = [string](Get-OptionalPropertyValue $fast "id")
     if (-not $FastJobId) { Fail-Product "QWEN_FAST_JOB_ID_MISSING" }
-    [void](Wait-ForEvent $FastJobId "ASR_TEXT_CHECKPOINT_SAVED" ([Nullable[int]]1) 1800)
-    [void](Capture-Events $FastJobId)
-    $preCrash = @(Capture-Events $FastJobId)
+    [void](Wait-ForEvent $FastJobId "QWEN_WINDOW_TRANSCRIBED" $null 1800)
+    $cancelStarted = [DateTimeOffset]::UtcNow
+    [void](Invoke-AgentJson "POST" "/jobs/$FastJobId/cancel")
+    $fastTerminal = Wait-Terminal $FastJobId @("cancelled") 30
+    $cancelSeconds = ([DateTimeOffset]::UtcNow - $cancelStarted).TotalSeconds
+    Wait-QwenWorkersGone $ScratchRoot 20
+    Write-Json (Join-Path $EvidenceRoot "qwen-fast-cancel.json") ([ordered]@{
+        job = Sanitize-Job $fastTerminal
+        cancel_settle_seconds = [Math]::Round($cancelSeconds, 3)
+    })
+    Save-JobEvidence $FastJobId "qwen-fast" $EvidenceRoot
+
+    Write-Host "qwen-quality checkpoint -> hard Agent crash -> retry..." -ForegroundColor Cyan
+    $quality = Submit-Transcription $SourceId "qwen-quality"
+    $QualityJobId = [string](Get-OptionalPropertyValue $quality "id")
+    if (-not $QualityJobId) { Fail-Product "QWEN_QUALITY_JOB_ID_MISSING" }
+    [void](Wait-ForEvent $QualityJobId "ASR_TEXT_CHECKPOINT_SAVED" ([Nullable[int]]1) 1800)
+    [void](Capture-Events $QualityJobId)
+    $preCrash = @(Capture-Events $QualityJobId)
     $preCrashMaxSeq = Get-MaxEventSequence $preCrash
     if ($preCrashMaxSeq -le 0) { Fail-Harness "PRECRASH_EVENT_SEQUENCE_INVALID" }
     $persistedTracks = @($preCrash | Where-Object { [string](Get-OptionalPropertyValue $_ "code") -eq "ASR_TEXT_CHECKPOINT_SAVED" } | ForEach-Object {
@@ -1009,7 +1009,7 @@ try {
         [int]$trackValue
     } | Sort-Object -Unique)
     if (1 -notin $persistedTracks) { Fail-Product "TRACK1_TEXT_CHECKPOINT_NOT_DURABLE" }
-    Write-Json (Join-Path $EvidenceRoot "qwen-fast-precrash.json") ([ordered]@{ max_seq = $preCrashMaxSeq; persisted_tracks = $persistedTracks; job = Sanitize-Job (Get-Job $FastJobId) })
+    Write-Json (Join-Path $EvidenceRoot "qwen-quality-precrash.json") ([ordered]@{ max_seq = $preCrashMaxSeq; persisted_tracks = $persistedTracks; job = Sanitize-Job (Get-Job $QualityJobId) })
 
     $crashedPid = [int]$AgentProcess.Id
     Stop-ProcessTree $crashedPid
@@ -1029,8 +1029,8 @@ try {
     $recoveredDeadline = [DateTimeOffset]::UtcNow.AddSeconds(60)
     $interrupted = $null
     while ([DateTimeOffset]::UtcNow -lt $recoveredDeadline) {
-        $candidate = Get-Job $FastJobId
-        [void](Capture-Events $FastJobId)
+        $candidate = Get-Job $QualityJobId
+        [void](Capture-Events $QualityJobId)
         $candidateStatus = [string](Get-RequiredProductPropertyValue $candidate "status" "RECOVERY_JOB_STATUS_MISSING")
         if ($candidateStatus -eq "interrupted") { $interrupted = $candidate; break }
         if ($candidateStatus -in @("succeeded", "failed", "cancelled")) { Fail-Product "RECOVERY_TERMINAL_UNEXPECTED:$candidateStatus" }
@@ -1043,22 +1043,22 @@ try {
     if ($null -eq $interruptedError -or $interruptedCode -ne "PROCESS_INTERRUPTED" -or $interruptedRecoverable -ne $true) {
         Fail-Product "PROCESS_INTERRUPTED_CONTRACT_INVALID"
     }
-    Write-Json (Join-Path $EvidenceRoot "qwen-fast-interrupted.json") (Sanitize-Job $interrupted)
+    Write-Json (Join-Path $EvidenceRoot "qwen-quality-interrupted.json") (Sanitize-Job $interrupted)
 
-    [void](Invoke-AgentJson "POST" "/jobs/$FastJobId/retry")
-    $fastFinal = Wait-Terminal $FastJobId @("succeeded") 3600
-    $allFastEvents = @(Capture-Events $FastJobId)
-    $retryEvents = @(Assert-RetryCheckpointEvidence $allFastEvents $preCrashMaxSeq $persistedTracks)
+    [void](Invoke-AgentJson "POST" "/jobs/$QualityJobId/retry")
+    $qualityFinal = Wait-Terminal $QualityJobId @("succeeded") 3600
+    $allQualityEvents = @(Capture-Events $QualityJobId)
+    $retryEvents = @(Assert-RetryCheckpointEvidence $allQualityEvents $preCrashMaxSeq $persistedTracks)
 
-    $result = Invoke-AgentJson "GET" "/jobs/$FastJobId/result"
+    $result = Invoke-AgentJson "GET" "/jobs/$QualityJobId/result"
     $transcription = Get-OptionalPropertyValue $result "transcription"
-    if ($null -eq $transcription) { Fail-Product "QWEN_FAST_RESULT_TRANSCRIPTION_MISSING" }
+    if ($null -eq $transcription) { Fail-Product "QWEN_QUALITY_RESULT_TRANSCRIPTION_MISSING" }
     $runId = [string](Get-OptionalPropertyValue $transcription "run_id")
     $resultDigest = [string](Get-OptionalPropertyValue $transcription "sha256")
     if ($runId -eq "" -or $resultDigest -notmatch '^[a-f0-9]{64}$') {
-        Fail-Product "QWEN_FAST_RESULT_INVALID"
+        Fail-Product "QWEN_QUALITY_RESULT_INVALID"
     }
-    if ($runId -notmatch '^[A-Za-z0-9_-]{1,160}$') { Fail-Product "QWEN_FAST_RUN_ID_INVALID" }
+    if ($runId -notmatch '^[A-Za-z0-9_-]{1,160}$') { Fail-Product "QWEN_QUALITY_RUN_ID_INVALID" }
     $packageRoot = Join-Path $env:LOCALAPPDATA ("TDA\Data\staging\" + $SourceId)
     $runRoot = Join-Path (Join-Path $packageRoot "runs") $runId
     $runMarkerPath = Join-Path $runRoot "run.json"
@@ -1066,18 +1066,18 @@ try {
     if (-not (Test-Path -LiteralPath $runMarkerPath -PathType Leaf)) { Fail-Product "IMMUTABLE_RUN_MARKER_MISSING" }
     if (-not (Test-Path -LiteralPath $runTranscriptPath -PathType Leaf)) { Fail-Product "IMMUTABLE_RUN_TRANSCRIPT_MISSING" }
     $runMarker = Read-Json $runMarkerPath "IMMUTABLE_RUN_MARKER_INVALID"
-    $finalAttempt = Get-RequiredProductPropertyValue $fastFinal "attempt" "QWEN_FAST_FINAL_ATTEMPT_MISSING"
+    $finalAttempt = Get-RequiredProductPropertyValue $qualityFinal "attempt" "QWEN_QUALITY_FINAL_ATTEMPT_MISSING"
     $markerAttempt = Get-OptionalPropertyValue $runMarker "attempt"
     if (
         [string](Get-OptionalPropertyValue $runMarker "run_id") -ne $runId -or
-        [string](Get-OptionalPropertyValue $runMarker "job_id") -ne $FastJobId -or
+        [string](Get-OptionalPropertyValue $runMarker "job_id") -ne $QualityJobId -or
         $null -eq $markerAttempt -or
         [int]$markerAttempt -ne [int]$finalAttempt
     ) {
         Fail-Product "IMMUTABLE_RUN_IDENTITY_MISMATCH"
     }
     if (
-        [string](Get-OptionalPropertyValue $runMarker "profile_id") -ne "qwen-fast" -or
+        [string](Get-OptionalPropertyValue $runMarker "profile_id") -ne "qwen-quality" -or
         [string](Get-OptionalPropertyValue $runMarker "transcript_sha256") -ne $resultDigest
     ) {
         Fail-Product "IMMUTABLE_RUN_MANIFEST_MISMATCH"
@@ -1091,15 +1091,15 @@ try {
         $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
         $validator = Join-Path $PSScriptRoot "qwen_full_run_structure.py"
         if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) { Fail-Harness "QWEN_1236_STRUCTURE_VALIDATOR_MISSING" }
-        $structureReceiptPath = Join-Path $EvidenceRoot "qwen-fast-full-run-structure.json"
+        $structureReceiptPath = Join-Path $EvidenceRoot "qwen-quality-full-run-structure.json"
         & $uvCommand.Source run --project (Join-Path $repoRoot "local-companion") python $validator `
             --transcript $runTranscriptPath `
             --run-marker $runMarkerPath `
             --source-id $SourceId `
             --expected-source-sha256 $ExpectedCraigSha256 `
-            --job-id $FastJobId `
+            --job-id $QualityJobId `
             --attempt ([string][int]$finalAttempt) `
-            --profile-id "qwen-fast" `
+            --profile-id "qwen-quality" `
             --expected-track-count ([string][int]$craigTrackCount) `
             --repo-root $repoRoot `
             --output $structureReceiptPath
@@ -1118,21 +1118,21 @@ try {
     Write-Json (Join-Path $EvidenceRoot "immutable-run-validation.json") ([ordered]@{
         marker = "run.json"
         run_id = $runId
-        job_id = $FastJobId
+        job_id = $QualityJobId
         attempt = [int]$finalAttempt
-        profile_id = "qwen-fast"
+        profile_id = "qwen-quality"
         transcript_sha256 = $resultDigest
         computed_transcript_sha256 = $computedTranscriptDigest
         marker_schema = [string](Get-OptionalPropertyValue $runMarker "schema_version")
     })
-    Write-Json (Join-Path $EvidenceRoot "qwen-fast-result.json") ([ordered]@{
-        status = [string](Get-OptionalPropertyValue $fastFinal "status")
+    Write-Json (Join-Path $EvidenceRoot "qwen-quality-result.json") ([ordered]@{
+        status = [string](Get-OptionalPropertyValue $qualityFinal "status")
         attempt = [int]$finalAttempt
         persisted_tracks_before_crash = $persistedTracks
         run_id = $runId
         transcript_sha256 = $resultDigest
     })
-    Save-JobEvidence $FastJobId "qwen-fast" $EvidenceRoot
+    Save-JobEvidence $QualityJobId "qwen-quality" $EvidenceRoot
     Save-Logs $EvidenceRoot
 
     $Verdict = "PASS"
