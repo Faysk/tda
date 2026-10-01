@@ -9,7 +9,7 @@ async function closeWorkspaceOverlays(page: Page) {
 
 test("World floating chrome owns the canvas controls without changing their contracts", async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	const chrome = page.getByTestId("world-floating-chrome");
 	await expect(chrome).toBeVisible();
@@ -95,7 +95,7 @@ test("World floating chrome owns the canvas controls without changing their cont
 
 test("World floating chrome remains touch-safe and contained on mobile", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	const chrome = page.getByTestId("world-floating-chrome");
 	await expect(chrome).toBeVisible();
@@ -118,7 +118,7 @@ test("World floating chrome remains touch-safe and contained on mobile", async (
 
 test("World floating chrome stays usable at the 320x800 minimum viewport", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 800 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	const chrome = page.getByTestId("world-floating-chrome");
 	await expect(chrome).toBeVisible();

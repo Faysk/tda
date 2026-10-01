@@ -2,7 +2,6 @@
 
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import {
 	WORLD_ENTITY_MEDIA_MAX_BYTES,
 	WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
@@ -12,6 +11,7 @@ import {
 	isWorldEntityMediaSha256,
 } from "./world-entity-media";
 import { authorizeWorldEntityMediaTarget } from "./world-entity-media-access";
+import { isWorldCampaignSlug } from "./world-campaign";
 import {
 	finalizeWorldEntityPortraitPendingUpload,
 	type VerifiedWorldEntityUpload,
@@ -164,12 +164,14 @@ async function persistVerifiedAsset({
 }
 
 export async function requestWorldEntityPortraitUploadAction(
+	campaignSlug: string,
 	leaseToken: string,
 	entityId: string,
 	intent: WorldEntityPortraitUploadIntent,
 ): Promise<RequestWorldEntityPortraitUploadResult> {
 	if (!worldEntityMediaEnabled()) return { ok: false, reason: "media_unavailable" };
 	if (
+		!isWorldCampaignSlug(campaignSlug) ||
 		!isWorldEntityMediaAssetId(leaseToken) ||
 		!isWorldEntityMediaAssetId(entityId) ||
 		!validIntent(intent)
@@ -177,7 +179,7 @@ export async function requestWorldEntityPortraitUploadAction(
 		return { ok: false, reason: "invalid_payload" };
 	}
 
-	const authorization = await authorizeWorldEntityMediaTarget(leaseToken, entityId);
+	const authorization = await authorizeWorldEntityMediaTarget(campaignSlug, leaseToken, entityId);
 	if (!authorization.ok) return authorization;
 
 	return {
@@ -188,6 +190,7 @@ export async function requestWorldEntityPortraitUploadAction(
 }
 
 export async function finalizeWorldEntityPortraitUploadAction(
+	campaignSlug: string,
 	leaseToken: string,
 	entityId: string,
 	uploadId: string,
@@ -195,6 +198,7 @@ export async function finalizeWorldEntityPortraitUploadAction(
 ): Promise<FinalizeWorldEntityPortraitUploadResult> {
 	if (!worldEntityMediaEnabled()) return { ok: false, reason: "media_unavailable" };
 	if (
+		!isWorldCampaignSlug(campaignSlug) ||
 		!isWorldEntityMediaAssetId(leaseToken) ||
 		!isWorldEntityMediaAssetId(entityId) ||
 		!isWorldEntityMediaAssetId(uploadId) ||
@@ -203,13 +207,13 @@ export async function finalizeWorldEntityPortraitUploadAction(
 		return { ok: false, reason: "invalid_payload" };
 	}
 
-	const authorization = await authorizeWorldEntityMediaTarget(leaseToken, entityId);
+	const authorization = await authorizeWorldEntityMediaTarget(campaignSlug, leaseToken, entityId);
 	if (!authorization.ok) return authorization;
 	const { client, campaignId, profileId } = authorization.target;
 
 	try {
 		const upload = await finalizeWorldEntityPortraitPendingUpload({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: campaignSlug,
 			entityId,
 			uploadId,
 			expectedSha256: intent.sha256,

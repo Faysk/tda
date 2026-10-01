@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("World inspector presents authorized context without inventing unavailable lore", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await page.locator('[data-world-node="dandelion"]').click();
 
 	await expect(
@@ -32,7 +32,7 @@ test("World inspector presents authorized context without inventing unavailable 
 
 test("World contextual inspector stays usable as the mobile sheet", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await page.locator('[data-world-node="dandelion"]').click();
 
 	const inspector = page.getByRole("complementary");

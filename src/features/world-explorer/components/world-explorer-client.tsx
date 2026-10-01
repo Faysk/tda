@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
 	useEffect,
@@ -28,6 +29,7 @@ import {
 	projectionWithWorldDraft,
 	useWorldExplorerView,
 } from "../hooks/use-world-explorer-view";
+import type { WorldCampaignSwitchOption } from "../world-campaign";
 import type {
 	WorldEntityType,
 	WorldGraphProjection,
@@ -124,10 +126,18 @@ function layoutCandidateFor(
 
 export function WorldExplorerClient({
 	projection,
+	campaignSlug,
+	campaignName,
+	campaignWorldHref,
+	campaignSwitchOptions,
 	canEditLayout = false,
 	canEditContent = false,
 }: {
 	projection: WorldGraphProjection;
+	campaignSlug: string;
+	campaignName: string;
+	campaignWorldHref: string;
+	campaignSwitchOptions: readonly WorldCampaignSwitchOption[];
 	canEditLayout?: boolean;
 	canEditContent?: boolean;
 }) {
@@ -143,6 +153,7 @@ export function WorldExplorerClient({
 	const authoringUi = useWorldAuthoringUi();
 
 	const edit = useWorldEditSession({
+		campaignSlug,
 		canEditLayout,
 		canEditContent,
 		canStartEditing: projection.mode === "overview",
@@ -187,7 +198,7 @@ export function WorldExplorerClient({
 		graphDraft: edit.graphDraft,
 	});
 
-	const cameraScopeKey = `${workingProjection.mode}:${filter}:${relationFilter}:${query.trim().toLocaleLowerCase("pt-BR")}`;
+	const cameraScopeKey = `${campaignSlug}:${workingProjection.mode}:${filter}:${relationFilter}:${query.trim().toLocaleLowerCase("pt-BR")}`;
 	const authoringActive = edit.editing;
 	const authoringPanelVisible =
 		canEditContent && edit.state === "editing" && edit.graphDraft !== null;
@@ -610,6 +621,7 @@ export function WorldExplorerClient({
 					"--world-inspector-width": `${authoringUi.state.inspectorWidth}px`,
 				} as CSSProperties
 			}
+			data-world-campaign={campaignSlug}
 			data-world-edit-state={edit.state}
 			data-world-content-edit={canEditContent ? "enabled" : "disabled"}
 			data-world-authoring-active={authoringActive ? "true" : "false"}
@@ -634,6 +646,32 @@ export function WorldExplorerClient({
 						</div>
 					</div>
 					<div className={styles.headerActions}>
+						<div className={styles.campaignContext}>
+							<span>Campanha</span>
+							<strong>{campaignName}</strong>
+							{campaignSwitchOptions.length > 1 ? (
+								authoringActive ? (
+									<small>Finalize Conduzir para trocar</small>
+								) : (
+									<details>
+										<summary>Trocar</summary>
+										<div className={styles.campaignMenu}>
+											{campaignSwitchOptions.map((option) =>
+												option.current ? (
+													<span key={option.key} aria-current="page">
+														{option.name}
+													</span>
+												) : (
+													<Link key={option.key} href={option.href}>
+														{option.name}
+													</Link>
+												),
+											)}
+										</div>
+									</details>
+								)
+							) : null}
+						</div>
 						{workingProjection.demo ? (
 							<span className={styles.demoBadge}>Demo · não canônico</span>
 						) : null}
@@ -749,6 +787,7 @@ export function WorldExplorerClient({
 				{!authoringUi.inspectorCollapsed ? (
 					authoringPanelVisible && edit.graphDraft ? (
 						<WorldContentEditor
+							campaignSlug={campaignSlug}
 							draft={edit.graphDraft}
 							selectedId={selectedId}
 							onDraftChange={edit.updateGraphDraft}
@@ -765,6 +804,8 @@ export function WorldExplorerClient({
 							selected={selected}
 							projection={visibleProjection}
 							focus={focus}
+							campaignSlug={campaignSlug}
+							worldHref={campaignWorldHref}
 							onSelect={setSelectedId}
 							editing={edit.editing}
 						/>

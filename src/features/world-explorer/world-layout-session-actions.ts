@@ -3,10 +3,10 @@
 import { authorizeCampaignCapabilityServer, getVerifiedServerIdentity } from "@/features/auth/server";
 import { loadEditAccessContext } from "@/features/edit/access/repository";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 import { WORLD_LAYOUT_COORDINATE_LIMIT } from "./layout-contract";
 import type { WorldLayoutProjection } from "./model";
+import { isWorldCampaignSlug } from "./world-campaign";
 
 const UUID_PATTERN =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -78,10 +78,10 @@ function sanitizeLoosePositions(value: unknown): WorldLayoutProjection["position
 	return positions;
 }
 
-async function layoutEditor() {
+async function layoutEditor(campaignSlug: string) {
 	return authorizeCampaignCapabilityServer({
 		action: EDIT_CAPABILITIES.worldLayoutEdit,
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: campaignSlug,
 	});
 }
 
@@ -99,17 +99,18 @@ async function verifiedProfile() {
 }
 
 export async function acquireWorldLayoutSessionAction(
+	campaignSlug: string,
 	leaseToken: string,
 ): Promise<AcquireWorldLayoutSessionResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
-	const access = await layoutEditor();
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	const access = await layoutEditor(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
 	const { data, error } = await client.rpc("acquire_world_edit_lease_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
@@ -157,17 +158,18 @@ export async function acquireWorldLayoutSessionAction(
 }
 
 export async function renewWorldLayoutSessionAction(
+	campaignSlug: string,
 	leaseToken: string,
 ): Promise<WorldLayoutSessionResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
-	const access = await layoutEditor();
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	const access = await layoutEditor(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
 	const { data, error } = await client.rpc("renew_world_edit_lease_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
@@ -184,22 +186,23 @@ export async function renewWorldLayoutSessionAction(
 }
 
 export async function saveWorldLayoutSessionDraftAction(
+	campaignSlug: string,
 	leaseToken: string,
 	candidate: WorldLayoutProjection,
 ): Promise<WorldLayoutSessionResult> {
-	if (!UUID_PATTERN.test(leaseToken) || candidate.schemaVersion !== 1 || candidate.view !== "overview") {
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken) || candidate.schemaVersion !== 1 || candidate.view !== "overview") {
 		return { ok: false, reason: "invalid_payload" };
 	}
 	const positions = sanitizeLoosePositions(candidate.positions);
 	if (!positions) return { ok: false, reason: "invalid_payload" };
-	const access = await layoutEditor();
+	const access = await layoutEditor(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
 	const { data, error } = await client.rpc("save_world_edit_layout_draft_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 		p_positions: positions,
 	});
@@ -224,9 +227,10 @@ export async function saveWorldLayoutSessionDraftAction(
 }
 
 export async function releaseWorldLayoutSessionAction(
+	campaignSlug: string,
 	leaseToken: string,
 ): Promise<WorldLayoutSessionResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
 	const profile = await verifiedProfile();
 	if (!profile.ok) return { ok: false, reason: profile.reason };
 	const client = editDataClient();
@@ -234,7 +238,7 @@ export async function releaseWorldLayoutSessionAction(
 	const { data, error } = await client.rpc("release_world_edit_lease_atomic", {
 		p_auth_user_id: profile.authUserId,
 		p_actor_profile_id: profile.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
@@ -248,9 +252,10 @@ export async function releaseWorldLayoutSessionAction(
 
 
 export async function discardWorldLayoutSessionAction(
+	campaignSlug: string,
 	leaseToken: string,
 ): Promise<WorldLayoutSessionResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
 	const profile = await verifiedProfile();
 	if (!profile.ok) return { ok: false, reason: profile.reason };
 	const client = editDataClient();
@@ -258,7 +263,7 @@ export async function discardWorldLayoutSessionAction(
 	const { data, error } = await client.rpc("discard_world_edit_lease_atomic", {
 		p_auth_user_id: profile.authUserId,
 		p_actor_profile_id: profile.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {

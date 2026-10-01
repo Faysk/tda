@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
 import { evidenceBackedRelationIds } from "./canonical-publication-contract";
+import { isWorldCampaignSlug } from "./world-campaign";
 import { sanitizeWorldGraphDraft } from "./graph-contract";
 import type { WorldGraphDraft } from "./model";
 import { worldEntityMediaDraftHasIntent } from "./world-entity-media-intent";
@@ -67,10 +67,10 @@ function safeMediaStatus(value: unknown): "saved" | "unchanged" | undefined {
 	return value === "saved" || value === "unchanged" ? value : undefined;
 }
 
-async function contentEditor() {
+async function contentEditor(campaignSlug: string) {
 	return authorizeCampaignCapabilityServer({
 		action: EDIT_CAPABILITIES.contentEdit,
-		campaignSlug: CAMPAIGN_SLUG,
+		campaignSlug: campaignSlug,
 	});
 }
 
@@ -181,10 +181,11 @@ async function confirmedGraphPublishReceipt(input: {
 
 
 export async function acquireWorldGraphDraftAction(
+	campaignSlug: string,
 	leaseToken: string,
 ): Promise<AcquireWorldGraphDraftResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
-	const access = await contentEditor();
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	const access = await contentEditor(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
@@ -192,7 +193,7 @@ export async function acquireWorldGraphDraftAction(
 	const { data, error } = await client.rpc("acquire_world_graph_draft_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 	});
 	if (error || !data || typeof data !== "object" || Array.isArray(data)) {
@@ -204,7 +205,7 @@ export async function acquireWorldGraphDraftAction(
 		const draft = sanitizeWorldGraphDraft(payload.draftGraph);
 		if (!draft) return { ok: false, reason: "dependency_unavailable" };
 		try {
-			const hydratedDraft = await hydrateWorldGraphDraftMedia(client, CAMPAIGN_SLUG, draft);
+			const hydratedDraft = await hydrateWorldGraphDraftMedia(client, campaignSlug, draft);
 			return { ok: true, draft: hydratedDraft, expiresAt: safeString(payload.expiresAt) };
 		} catch (mediaError) {
 			console.error(
@@ -221,13 +222,14 @@ export async function acquireWorldGraphDraftAction(
 }
 
 export async function saveWorldGraphDraftAction(
+	campaignSlug: string,
 	leaseToken: string,
 	draftCandidate: WorldGraphDraft,
 ): Promise<WorldGraphMutationResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
 	const draft = sanitizeWorldGraphDraft(draftCandidate);
 	if (!draft) return { ok: false, reason: "invalid_payload" };
-	const access = await contentEditor();
+	const access = await contentEditor(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
@@ -235,7 +237,7 @@ export async function saveWorldGraphDraftAction(
 	const { data, error } = await client.rpc("save_world_graph_draft_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 		p_draft: draft,
 	});
@@ -262,14 +264,15 @@ export async function saveWorldGraphDraftAction(
 }
 
 export async function publishWorldEditStateAction(
+	campaignSlug: string,
 	leaseToken: string,
 ): Promise<WorldGraphMutationResult> {
-	if (!UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(leaseToken)) return { ok: false, reason: "invalid_payload" };
 	const [contentAccess, layoutAccess] = await Promise.all([
-		contentEditor(),
+		contentEditor(campaignSlug),
 		authorizeCampaignCapabilityServer({
 			action: EDIT_CAPABILITIES.worldLayoutEdit,
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: campaignSlug,
 		}),
 	]);
 	if (!contentAccess.ok) return { ok: false, reason: contentAccess.reason };
@@ -290,7 +293,7 @@ export async function publishWorldEditStateAction(
 	const { data: campaign, error: campaignError } = await client
 		.from("campaigns")
 		.select("id")
-		.eq("slug", CAMPAIGN_SLUG)
+		.eq("slug", campaignSlug)
 		.maybeSingle();
 	if (campaignError || !campaign?.id) {
 		if (campaignError) console.error("World publication campaign lookup failed", campaignError.message);
@@ -329,6 +332,7 @@ export async function publishWorldEditStateAction(
 			leaseToken,
 		});
 		if (receipt?.ok) {
+			revalidatePath(`/edit/${campaignSlug}/mundo`);
 			revalidatePath("/mundo");
 			return receipt;
 		}
@@ -395,6 +399,7 @@ export async function publishWorldEditStateAction(
 	const preparedMedia = await prepareWorldEntityMediaForPublish({
 		client,
 		draft: publicationDraft,
+		campaignSlug,
 	});
 	if (preparedMedia.status === "pending") {
 		return failPublish("media_pending");
@@ -403,7 +408,7 @@ export async function publishWorldEditStateAction(
 	const rpcArgs = {
 		p_auth_user_id: contentAccess.authUserId,
 		p_actor_profile_id: contentAccess.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_lease_token: leaseToken,
 	};
 	const { data, error } = mediaEnabled
@@ -421,6 +426,7 @@ export async function publishWorldEditStateAction(
 			leaseToken,
 		});
 		if (receipt?.ok) {
+			revalidatePath(`/edit/${campaignSlug}/mundo`);
 			revalidatePath("/mundo");
 			return receipt;
 		}
@@ -442,7 +448,8 @@ export async function publishWorldEditStateAction(
 			layoutRevision,
 		});
 		const mediaStatus = safeMediaStatus(payload.mediaStatus);
-		revalidatePath("/mundo");
+		revalidatePath(`/edit/${campaignSlug}/mundo`);
+			revalidatePath("/mundo");
 		return {
 			ok: true,
 			status: mediaStatus === "saved" ? "saved" : payload.status,
@@ -462,6 +469,7 @@ export async function publishWorldEditStateAction(
 			leaseToken,
 		});
 		if (receipt?.ok) {
+			revalidatePath(`/edit/${campaignSlug}/mundo`);
 			revalidatePath("/mundo");
 			return receipt;
 		}

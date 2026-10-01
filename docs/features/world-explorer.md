@@ -172,6 +172,21 @@ Invariantes:
 - audience filtering acontece antes do browser em cada campaign.
 
 O caminho público atual `/mundo` continua entrypoint agregado/compatível. O alvo específico é `/campanhas/[campaign]/mundo`; edição privada usa `/edit/[campaign]/mundo`. A implementação não pode usar `yuhara-main` como fallback silencioso quando mais de uma campaign estiver ativa.
+## Implementação multi-campanha — #1130 (2026-10-01)
+
+O World Explorer deixou de depender de campaign implícita no boundary Web:
+
+- `/mundo` é entrypoint/seleção e **não escolhe silenciosamente uma campaign** quando há mais de uma pública;
+- `/campanhas/[public_slug]/mundo` é a rota pública canônica e resolve server-side para o `slug` técnico;
+- `/edit/[technical_slug]/mundo` é a rota privada de authoring e lista/troca somente campaigns cobertas por `campaign.world.layout.edit`;
+- projection, layout publicado, revision metadata, lease, graph draft, provenance, publish e upload/finalização de portrait recebem campaign explicitamente;
+- server actions reautorizam a campaign recebida; URL, header, sessionStorage e estado React são apenas intenção do cliente;
+- lease browser e câmera usam namespace por campaign, e a árvore cliente é remontada ao trocar de campaign para não reaproveitar seleção/draft transitório;
+- pending media recebe campaign no header e no namespace de staging, e o servidor valida lease + entity dentro da mesma campaign antes de aceitar bytes;
+- o demo legado só pode representar `yuhara-main`; uma segunda campaign sem Mundo público recebe estado vazio, nunca dados de fallback de outra mesa.
+
+O nome/public slug continuam sendo apresentação/roteamento. UUID e `slug` técnico permanecem identidades internas/autorizativas conforme [multi-campaign.md](../architecture/multi-campaign.md).
+
 ## Rotas
 
 ### Canônica atual / transição

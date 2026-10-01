@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { authorizeCampaignCapabilityServer } from "@/features/auth/server";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { editDataClient } from "@/integrations/supabase/server";
+import { isWorldCampaignSlug } from "./world-campaign";
 
 const UUID_PATTERN =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -56,15 +56,15 @@ function safeSourceCount(value: unknown): number | undefined {
 		: undefined;
 }
 
-async function provenanceManager() {
+async function provenanceManager(campaignSlug: string) {
 	const [contentAccess, canonAccess] = await Promise.all([
 		authorizeCampaignCapabilityServer({
 			action: EDIT_CAPABILITIES.contentEdit,
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: campaignSlug,
 		}),
 		authorizeCampaignCapabilityServer({
 			action: EDIT_CAPABILITIES.canonApprove,
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug: campaignSlug,
 		}),
 	]);
 	if (!contentAccess.ok) return contentAccess;
@@ -83,10 +83,11 @@ async function provenanceManager() {
 }
 
 export async function loadWorldRelationProvenanceAction(
+	campaignSlug: string,
 	relationId: string,
 ): Promise<LoadWorldRelationProvenanceResult> {
-	if (!UUID_PATTERN.test(relationId)) return { ok: false, reason: "invalid_payload" };
-	const access = await provenanceManager();
+	if (!isWorldCampaignSlug(campaignSlug) || !UUID_PATTERN.test(relationId)) return { ok: false, reason: "invalid_payload" };
+	const access = await provenanceManager(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
@@ -94,7 +95,7 @@ export async function loadWorldRelationProvenanceAction(
 	const { data: campaign, error: campaignError } = await client
 		.from("campaigns")
 		.select("id")
-		.eq("slug", CAMPAIGN_SLUG)
+		.eq("slug", campaignSlug)
 		.maybeSingle();
 	if (campaignError || !campaign?.id) {
 		if (campaignError) console.error("World relation provenance campaign lookup failed", campaignError.message);
@@ -154,10 +155,12 @@ export async function loadWorldRelationProvenanceAction(
 }
 
 export async function replaceWorldRelationProvenanceAction(
+	campaignSlug: string,
 	relationId: string,
 	canonEntryIds: readonly string[],
 ): Promise<ReplaceWorldRelationProvenanceResult> {
 	if (
+		!isWorldCampaignSlug(campaignSlug) ||
 		!UUID_PATTERN.test(relationId) ||
 		!Array.isArray(canonEntryIds) ||
 		canonEntryIds.length > MAX_RELATION_CANON_SOURCES ||
@@ -166,7 +169,7 @@ export async function replaceWorldRelationProvenanceAction(
 		return { ok: false, reason: "invalid_payload" };
 	}
 	const uniqueCanonEntryIds = [...new Set(canonEntryIds)];
-	const access = await provenanceManager();
+	const access = await provenanceManager(campaignSlug);
 	if (!access.ok) return { ok: false, reason: access.reason };
 	const client = editDataClient();
 	if (!client) return { ok: false, reason: "dependency_unavailable" };
@@ -174,7 +177,7 @@ export async function replaceWorldRelationProvenanceAction(
 	const { data, error } = await client.rpc("replace_world_relation_sources_atomic", {
 		p_auth_user_id: access.authUserId,
 		p_actor_profile_id: access.profileId,
-		p_campaign_slug: CAMPAIGN_SLUG,
+		p_campaign_slug: campaignSlug,
 		p_relation_id: relationId,
 		p_canon_entry_ids: uniqueCanonEntryIds,
 	});
@@ -187,6 +190,7 @@ export async function replaceWorldRelationProvenanceAction(
 	if (payload.ok === true && (payload.status === "saved" || payload.status === "unchanged")) {
 		const sourceCount = safeSourceCount(payload.sourceCount);
 		if (sourceCount === undefined) return { ok: false, reason: "dependency_unavailable" };
+		revalidatePath(`/edit/${campaignSlug}/mundo`);
 		revalidatePath("/mundo");
 		return { ok: true, status: payload.status, sourceCount };
 	}

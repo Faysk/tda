@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("World Explorer uses organic bezier geometry for visible relations", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 
 	const edge = page

@@ -19,7 +19,7 @@ test("World Explorer exposes the graph immediately while desktop chrome overlays
 	page,
 }) => {
 	await page.setViewportSize({ width: 1366, height: 768 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	await expect(
 		page.getByRole("heading", { level: 1, name: "Ecos da Jornada", exact: true }),
@@ -71,7 +71,7 @@ test("World Explorer keeps mobile navigation, controls and inspector sheet touch
 	page,
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	const workspace = page.getByTestId("world-workspace");
 	await expect(workspace).toHaveAttribute("data-world-navigation", "closed");

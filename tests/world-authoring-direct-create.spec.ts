@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("direct create controls stay out of the public World", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	await expect(page.getByTestId("world-canvas")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Novo elemento" })).toHaveCount(0);

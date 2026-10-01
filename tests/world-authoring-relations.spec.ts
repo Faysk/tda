@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("relation authoring stays unavailable in the public World", async ({ page }) => {
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 	const canvas = page.getByTestId("world-canvas");
 	await expect(canvas).toBeVisible();

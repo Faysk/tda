@@ -1,8 +1,8 @@
 import "server-only";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { publishedDataClient } from "@/integrations/supabase/server";
 import { sanitizeWorldLayoutProjection } from "./layout-contract";
 import type { WorldGraphProjection, WorldLayoutProjection } from "./model";
+import { isWorldCampaignSlug } from "./world-campaign";
 
 type LayoutRow = {
 	schema_version?: unknown;
@@ -39,14 +39,15 @@ function parseLayoutRow(
 async function loadLayout(
 	client: DataClient | null,
 	projection: Pick<WorldGraphProjection, "mode" | "nodes">,
+	campaignSlug: string,
 ): Promise<WorldLayoutProjection | undefined> {
-	if (!client || projection.mode !== "overview") return undefined;
+	if (!client || projection.mode !== "overview" || !isWorldCampaignSlug(campaignSlug)) return undefined;
 
 	const { data, error } = await client
 		.from("world_layout_snapshots")
 		.select("schema_version,view_name,revision,positions,campaigns!inner(slug)")
 		.eq("view_name", "overview")
-		.eq("campaigns.slug", CAMPAIGN_SLUG)
+		.eq("campaigns.slug", campaignSlug)
 		.maybeSingle();
 
 	if (error) {
@@ -59,6 +60,7 @@ async function loadLayout(
 
 export async function loadPublishedWorldLayout(
 	projection: Pick<WorldGraphProjection, "mode" | "nodes">,
+	campaignSlug: string,
 ): Promise<WorldLayoutProjection | undefined> {
-	return loadLayout(publishedDataClient(), projection);
+	return loadLayout(publishedDataClient(), projection, campaignSlug);
 }

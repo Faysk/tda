@@ -5,7 +5,7 @@ test("mobile navigation is modal, touch-safe and restores focus when closed by i
 }, testInfo) => {
 	test.skip(testInfo.project.name !== "mobile", "Mobile modal semantics contract.");
 
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	const trigger = page.getByRole("button", { name: "Explorar universo" });
 	const stage = page.getByTestId("world-workspace-stage");
 
@@ -38,7 +38,7 @@ test("mobile focus containment releases when viewport crosses to desktop", async
 }, testInfo) => {
 	test.skip(testInfo.project.name !== "mobile", "Responsive focus lifecycle contract.");
 
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	const trigger = page.getByRole("button", { name: "Explorar universo" });
 	await trigger.click();
 
@@ -67,7 +67,7 @@ test("mobile focus containment releases when viewport crosses to desktop", async
 test("desktop navigation remains non-modal", async ({ page }, testInfo) => {
 	test.skip(testInfo.project.name === "mobile", "Desktop navigation semantics contract.");
 
-	await page.goto("/mundo");
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	const navigation = page.getByTestId("world-workspace-navigation");
 	const stage = page.getByTestId("world-workspace-stage");
 

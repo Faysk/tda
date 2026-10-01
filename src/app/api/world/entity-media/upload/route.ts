@@ -1,5 +1,5 @@
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
 import { authorizeWorldEntityMediaTarget } from "@/features/world-explorer/world-entity-media-access";
+import { isWorldCampaignSlug } from "@/features/world-explorer/world-campaign";
 import {
 	WORLD_ENTITY_MEDIA_UPLOAD_CHUNK_BYTES,
 	isWorldEntityMediaAssetId,
@@ -37,6 +37,7 @@ export async function PUT(request: Request) {
 		return new Response("Unsupported media type", { status: 415 });
 	}
 
+	const campaignSlug = exactHeader(request, "x-tda-world-campaign");
 	const leaseToken = exactHeader(request, "x-tda-world-lease");
 	const entityId = exactHeader(request, "x-tda-world-entity");
 	const uploadId = exactHeader(request, "x-tda-upload-id");
@@ -46,6 +47,7 @@ export async function PUT(request: Request) {
 	const chunkCount = worldEntityMediaUploadChunkCount(totalBytes);
 
 	if (
+		!isWorldCampaignSlug(campaignSlug) ||
 		!isWorldEntityMediaAssetId(leaseToken) ||
 		!isWorldEntityMediaAssetId(entityId) ||
 		!isWorldEntityMediaAssetId(uploadId) ||
@@ -70,7 +72,7 @@ export async function PUT(request: Request) {
 		return new Response("Invalid chunk length", { status: 400 });
 	}
 
-	const access = await authorizeWorldEntityMediaTarget(leaseToken, entityId);
+	const access = await authorizeWorldEntityMediaTarget(campaignSlug, leaseToken, entityId);
 	if (!access.ok) return denied(access.reason);
 
 	try {
@@ -79,7 +81,7 @@ export async function PUT(request: Request) {
 			return new Response("Invalid chunk length", { status: 400 });
 		}
 		await writeWorldEntityPortraitPendingUploadChunk({
-			campaignSlug: CAMPAIGN_SLUG,
+			campaignSlug,
 			entityId,
 			uploadId,
 			sha256,

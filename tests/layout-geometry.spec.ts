@@ -13,6 +13,7 @@ type StructuralMeasurement = Readonly<{
 }>;
 
 const LEMBRA_SEARCH = "Buscar título, descrição, autor ou data...";
+const WORLD_WORKSPACE_PATH = "/campanhas/cronicas-da-mesa/mundo";
 
 async function expectNoHorizontalOverflow(page: Page) {
 	expect(
@@ -213,7 +214,7 @@ test("canonical page-family and width-role declarations cover representative sur
 		{ path: "/lore", family: "editorial", role: "expansive" },
 		{ path: "/personagens", family: "editorial", role: "editorial" },
 		{ path: "/diario", family: "editorial", role: "expansive" },
-		{ path: "/mundo", family: "workspace", role: "expansive" },
+		{ path: WORLD_WORKSPACE_PATH, family: "workspace", role: "expansive" },
 		{
 			path: "/e2e-fixtures/account-overview?state=linked",
 			family: "editorial",
@@ -264,7 +265,7 @@ test("corner chrome never becomes a full-width spacer on representative surfaces
 	page,
 }) => {
 	await page.setViewportSize({ width: 1366, height: 768 });
-	for (const path of ["/", "/sessoes", "/lembra", "/mundo"]) {
+	for (const path of ["/", "/sessoes", "/lembra", WORLD_WORKSPACE_PATH]) {
 		await page.goto(path);
 		const geometry = await page.evaluate(() => {
 			const header = document.querySelector<HTMLElement>(".site-header");
@@ -298,7 +299,7 @@ test("geometry reflows at 320px, 390px and the 200% zoom proxy", async ({
 		{ width: 683, height: 384 },
 	]) {
 		await page.setViewportSize(viewport);
-		for (const path of ["/", "/sessoes", "/lembra", "/mundo"]) {
+		for (const path of ["/", "/sessoes", "/lembra", WORLD_WORKSPACE_PATH]) {
 			await page.goto(path);
 			await expectNoHorizontalOverflow(page);
 			const root = page.locator("[data-layout-family][data-layout-role]").first();
@@ -313,5 +314,5 @@ test("visual receipts expose shared keylines and corner safe areas", async ({
 	await captureReceipt(page, testInfo, "/", "home");
 	await captureReceipt(page, testInfo, "/sessoes", "sessoes");
 	await captureReceipt(page, testInfo, "/lembra", "lembra");
-	await captureReceipt(page, testInfo, "/mundo", "workbench");
+	await captureReceipt(page, testInfo, WORLD_WORKSPACE_PATH, "workbench");
 });
