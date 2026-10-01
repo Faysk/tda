@@ -1333,6 +1333,13 @@ jobs:
             "RELEASE_WIDE_EXACT_RC_HANDOFF_MISSING",
             "RELEASE_WIDE_ACCEPTANCE_FAILED",
             "QWEN_RECOVERY_ACCEPTANCE_FAILED",
+            "Get-DirectoryFingerprint",
+            "RELEASE_WIDE_DATA_PRESERVATION_EVIDENCE_INVALID",
+            "QWEN_RECOVERY_TRANSCRIPTION_RETRY_EVIDENCE_INVALID",
+            "normal_transcription_retry_verified",
+            "persisted_checkpoint_reuse_verified",
+            "existing_craig_survives_agent_loss",
+            "existing_model_data_preserved",
             "PROCESSING FINAL ACCEPTANCE: PASS"
           )) {
             if (-not $processing.Contains($required)) {
