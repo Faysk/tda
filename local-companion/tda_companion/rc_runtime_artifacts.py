@@ -119,7 +119,7 @@ def _one(root: Path, pattern: str, code: str) -> Path:
     return matches[0]
 
 
-def _install_whisper(root: Path, runtime_root: Path) -> dict[str, object]:
+def _install_whisper(\n    root: Path, runtime_root: Path, *, expected_version: str = RC_WHISPER_VERSION\n) -> dict[str, object]:
     archive = _one(root, "TDAWhisperRuntime-*-windows-x64.zip", "RC_WHISPER_ARCHIVE_AMBIGUOUS")
     match = _WHISPER_ARCHIVE.fullmatch(archive.name)
     if not match:
@@ -168,7 +168,7 @@ def _install_whisper(root: Path, runtime_root: Path) -> dict[str, object]:
     }
 
 
-def _install_qwen(root: Path, runtime_root: Path, cache_root: Path) -> dict[str, object]:
+def _install_qwen(\n    root: Path,\n    runtime_root: Path,\n    cache_root: Path,\n    *,\n    expected_version: str = RC_QWEN_VERSION,\n) -> dict[str, object]:
     manifest_path = _one(root, "TDAQwenRuntimeBundle-*-windows-x64.json", "RC_QWEN_BUNDLE_AMBIGUOUS")
     match = _QWEN_BUNDLE.fullmatch(manifest_path.name)
     if not match:
