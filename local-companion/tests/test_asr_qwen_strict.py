@@ -483,9 +483,11 @@ def test_quality_empty_full_window_recovers_with_two_bounded_in_window_halves(
     )
 
     assert calls == 3
-    assert [segment.text for segment in document.tracks[0].segments] == [
-        "primeira segunda"
-    ]
+    assert [
+        word.text
+        for segment in document.tracks[0].segments
+        for word in segment.words
+    ] == ["primeira", "segunda"]
     codes = [item.get("code") for item in reports]
     assert codes.count("QWEN_WINDOW_EMPTY_ASR_REJECTED") == 1
     assert codes.count("QWEN_EMPTY_WINDOW_RECOVERY_STARTED") == 1
