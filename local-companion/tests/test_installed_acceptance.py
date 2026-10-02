@@ -131,3 +131,18 @@ def test_invalid_bits_evidence_fails_before_candidate_validation(tmp_path: Path)
             destination=tmp_path / "receipt.json",
             bits_evidence=bits,
         )
+
+
+def test_automated_profile_preparation_waits_for_qwen_runtime_maintenance():
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "packaging"
+        / "run-installed-acceptance.ps1"
+    ).read_text(encoding="utf-8")
+    assert "function Wait-QwenRuntimeMaintenanceIdle" in script
+    assert 'Invoke-AgentJson "GET" "/qwen-runtime"' in script
+    assert "QWEN_RUNTIME_MAINTENANCE_SETTLE_TIMEOUT" in script
+    call = '[void](Wait-QwenRuntimeMaintenanceIdle)'
+    prepare = 'Invoke-AgentJson "POST" "/preparation"'
+    assert call in script
+    assert script.index(call) < script.index(prepare)

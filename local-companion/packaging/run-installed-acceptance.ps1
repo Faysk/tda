@@ -145,6 +145,21 @@ function Get-ReadyProfileIds {
     return @($capabilities.transcription.profiles | ForEach-Object { [string]$_ })
 }
 
+function Wait-QwenRuntimeMaintenanceIdle([int]$TimeoutSeconds = 180) {
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $status = Invoke-AgentJson "GET" "/qwen-runtime"
+        if ([string]$status.schema -ne "tda_qwen_runtime_maintenance_v1") {
+            throw "QWEN_RUNTIME_MAINTENANCE_STATUS_INVALID"
+        }
+        if ($status.active -ne $true) {
+            return $status
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    throw "QWEN_RUNTIME_MAINTENANCE_SETTLE_TIMEOUT"
+}
+
 function Ensure-AutomatedProfilesReady([string]$SourceId) {
     $profiles = @("whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality")
     foreach ($profileId in $profiles) {
@@ -154,6 +169,7 @@ function Ensure-AutomatedProfilesReady([string]$SourceId) {
             continue
         }
 
+        [void](Wait-QwenRuntimeMaintenanceIdle)
         Write-Host "Preparing profile automatically: $profileId" -ForegroundColor Cyan
         $started = Invoke-AgentJson "POST" "/preparation" @{
             source_id = $SourceId

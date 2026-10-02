@@ -12,11 +12,11 @@ class Qwen1236FullRecoveryContractTests(unittest.TestCase):
     def test_wrapper_is_locked_to_exact_candidate_and_private_source_hash(self):
         text = WRAPPER.read_text(encoding="utf-8")
         self.assertIn(
-            '$CompanionSourceSha = "d3db290b66beb16c5b01637fddb4f9a3ed9de4a7"',
+            '$CompanionSourceSha = "450d3af5b571c29e680803dea15f21673e2b7159"',
             text,
         )
         self.assertIn(
-            '$QwenSourceSha = "d3db290b66beb16c5b01637fddb4f9a3ed9de4a7"',
+            '$QwenSourceSha = "450d3af5b571c29e680803dea15f21673e2b7159"',
             text,
         )
         self.assertNotIn("$CandidateSourceSha", text)
@@ -29,11 +29,11 @@ class Qwen1236FullRecoveryContractTests(unittest.TestCase):
             text,
         )
         for value in (
-            'd3db290b66beb16c5b01637fddb4f9a3ed9de4a7',
-            'companion-rc-v0.3.18-d3db290b66be',
-            'companion-qwen-runtime-rc-v1.0.14-d3db290b66be',
-            '513339dc0c7328e007ee1f3257e118f6ed862b2277489ea1c7bd102175386516',
-            '9c29b165fddfa212e61cf0c8679444e9cdad1220963ce1fa01bbdb9e61d2deb8',
+            '450d3af5b571c29e680803dea15f21673e2b7159',
+            'companion-rc-v0.3.18-450d3af5b571',
+            'companion-qwen-runtime-rc-v1.0.15-450d3af5b571',
+            '55e30116948c4509ca0259c168ac086b25722074909cc5863b313923ca342f58',
+            '1d67c7f2e38e8e53c6e9d0021368fa043dec94a40c8001f4ead5d6d2f33cd267',
             'b2ac78347d88b2761e51be38a60aa266933e3b00f30e72c50626fbe599849b1e',
             'RequiredCompanionVersion = $CompanionVersion',
             'RequiredQwenRuntimeVersion = $QwenRuntimeVersion',
