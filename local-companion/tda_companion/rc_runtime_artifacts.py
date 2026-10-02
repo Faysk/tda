@@ -119,13 +119,18 @@ def _one(root: Path, pattern: str, code: str) -> Path:
     return matches[0]
 
 
-def _install_whisper(root: Path, runtime_root: Path) -> dict[str, object]:
+def _install_whisper(
+    root: Path,
+    runtime_root: Path,
+    *,
+    expected_version: str = RC_WHISPER_VERSION,
+) -> dict[str, object]:
     archive = _one(root, "TDAWhisperRuntime-*-windows-x64.zip", "RC_WHISPER_ARCHIVE_AMBIGUOUS")
     match = _WHISPER_ARCHIVE.fullmatch(archive.name)
     if not match:
         raise RcRuntimeArtifactError("RC_WHISPER_ARCHIVE_NAME_INVALID")
     version = match.group(1)
-    if version != RC_WHISPER_VERSION:
+    if version != expected_version:
         raise RcRuntimeArtifactError("RC_WHISPER_VERSION_MISMATCH")
     digest_file = archive.with_name(archive.name + ".sha256")
     try:
@@ -168,7 +173,13 @@ def _install_whisper(root: Path, runtime_root: Path) -> dict[str, object]:
     }
 
 
-def _install_qwen(root: Path, runtime_root: Path, cache_root: Path) -> dict[str, object]:
+def _install_qwen(
+    root: Path,
+    runtime_root: Path,
+    cache_root: Path,
+    *,
+    expected_version: str = RC_QWEN_VERSION,
+) -> dict[str, object]:
     manifest_path = _one(root, "TDAQwenRuntimeBundle-*-windows-x64.json", "RC_QWEN_BUNDLE_AMBIGUOUS")
     match = _QWEN_BUNDLE.fullmatch(manifest_path.name)
     if not match:
@@ -179,7 +190,7 @@ def _install_qwen(root: Path, runtime_root: Path, cache_root: Path) -> dict[str,
     except Exception as exc:
         raise RcRuntimeArtifactError("RC_QWEN_BUNDLE_INVALID") from exc
     version = match.group(1)
-    if version != RC_QWEN_VERSION:
+    if version != expected_version:
         raise RcRuntimeArtifactError("RC_QWEN_VERSION_MISMATCH")
     if manifest.version != version or manifest.runtime_id != "qwen3-transformers":
         raise RcRuntimeArtifactError("RC_QWEN_BUNDLE_IDENTITY_MISMATCH")
@@ -248,6 +259,7 @@ def install_runtime_candidate(
     *,
     runtime_root: Path,
     cache_root: Path,
+    expected_version: str | None = None,
 ) -> dict[str, object]:
     """Install the exact files attached to a formal runtime RC release."""
     try:
@@ -263,19 +275,30 @@ def install_runtime_candidate(
     family = candidate.get("family")
     version = candidate.get("version")
     if family == "whisper":
-        if version != RC_WHISPER_VERSION:
+        pinned_version = expected_version or RC_WHISPER_VERSION
+        if version != pinned_version:
             raise RcRuntimeArtifactError("RC_WHISPER_VERSION_MISMATCH")
     elif family == "qwen":
-        if version != RC_QWEN_VERSION:
+        pinned_version = expected_version or RC_QWEN_VERSION
+        if version != pinned_version:
             raise RcRuntimeArtifactError("RC_QWEN_VERSION_MISMATCH")
     else:
         raise RcRuntimeArtifactError("RC_RUNTIME_FAMILY_INVALID")
     runtime_root.resolve().mkdir(parents=True, exist_ok=True)
     cache_root.resolve().mkdir(parents=True, exist_ok=True)
     if family == "whisper":
-        result = _install_whisper(assets_root.resolve(), runtime_root.resolve())
+        result = _install_whisper(
+            assets_root.resolve(),
+            runtime_root.resolve(),
+            expected_version=str(version),
+        )
     else:
-        result = _install_qwen(assets_root.resolve(), runtime_root.resolve(), cache_root.resolve())
+        result = _install_qwen(
+            assets_root.resolve(),
+            runtime_root.resolve(),
+            cache_root.resolve(),
+            expected_version=str(version),
+        )
     archive_sha = result.get("archive_sha256")
     if result.get("reused") is not True and archive_sha != candidate.get("runtime_archive_sha256"):
         raise RcRuntimeArtifactError("RC_RUNTIME_INSTALLED_ARCHIVE_MISMATCH")
@@ -298,6 +321,7 @@ def _parser() -> argparse.ArgumentParser:
     install.add_argument("--assets-root", type=Path, required=True)
     install.add_argument("--runtime-root", type=Path, required=True)
     install.add_argument("--cache-root", type=Path, required=True)
+    install.add_argument("--expected-version")
     return parser
 
 
@@ -308,6 +332,7 @@ def main(argv: list[str] | None = None) -> int:
         args.assets_root,
         runtime_root=args.runtime_root,
         cache_root=args.cache_root,
+        expected_version=args.expected_version,
     )
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0

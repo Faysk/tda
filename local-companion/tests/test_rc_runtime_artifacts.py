@@ -12,6 +12,7 @@ from tda_companion.rc_runtime_artifacts import (
     RC_WHISPER_VERSION,
     RcRuntimeArtifactError,
     install_rc_runtime_artifact,
+    install_runtime_candidate,
 )
 
 
@@ -212,3 +213,61 @@ def test_rejects_unknown_runtime_family(tmp_path: Path) -> None:
             runtime_root=tmp_path / "Runtime",
             cache_root=tmp_path / "Cache",
         )
+
+
+def test_install_runtime_candidate_requires_current_version_by_default_but_allows_explicit_historical_version(
+    tmp_path: Path,
+) -> None:
+    version = "1.1.8"
+    runtime = tmp_path / f"TDAWhisperRuntime-{version}-windows-x64.zip"
+    runtime_bytes = _runtime_zip(runtime, "TDAWhisperWorker.exe")
+    digest = _sha256(runtime_bytes)
+    (tmp_path / f"{runtime.name}.sha256").write_text(
+        f"{digest}  {runtime.name}", encoding="ascii"
+    )
+    candidate = {
+        "schema": "tda_runtime_candidate_v1",
+        "family": "whisper",
+        "runtime_id": "whisper-ctranslate2",
+        "platform": "windows-x64",
+        "version": version,
+        "candidate_tag": "companion-whisper-runtime-rc-v1.1.8-aaaaaaaaaaaa",
+        "stable_tag": "companion-whisper-runtime-v1.1.8",
+        "source_sha": "a" * 40,
+        "source_tree_sha": "b" * 40,
+        "runtime_archive": runtime.name,
+        "runtime_archive_sha256": digest,
+        "runtime_archive_size": len(runtime_bytes),
+        "assets": [
+            {
+                "name": runtime.name,
+                "size": len(runtime_bytes),
+                "sha256": digest,
+            },
+            {
+                "name": f"{runtime.name}.sha256",
+                "size": (tmp_path / f"{runtime.name}.sha256").stat().st_size,
+                "sha256": _artifact_sha(tmp_path / f"{runtime.name}.sha256"),
+            },
+        ],
+    }
+    candidate_path = tmp_path / "TDARuntime-candidate.json"
+    candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
+
+    with pytest.raises(RcRuntimeArtifactError, match="RC_WHISPER_VERSION_MISMATCH"):
+        install_runtime_candidate(
+            candidate_path,
+            tmp_path,
+            runtime_root=tmp_path / "Runtime-default",
+            cache_root=tmp_path / "Cache-default",
+        )
+
+    result = install_runtime_candidate(
+        candidate_path,
+        tmp_path,
+        runtime_root=tmp_path / "Runtime-explicit",
+        cache_root=tmp_path / "Cache-explicit",
+        expected_version=version,
+    )
+    assert result["status"] == "ready"
+    assert result["version"] == version
