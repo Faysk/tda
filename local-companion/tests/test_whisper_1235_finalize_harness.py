@@ -46,3 +46,9 @@ def test_whisper_1235_finalize_python_launcher_detection_does_not_match_python_e
 
     assert '$command.Name -in @("py.exe", "py")' in text
     assert '$command.Name -like "py*"' not in text
+
+
+def test_whisper_1235_finalize_pins_historical_candidate_version_explicitly():
+    text = HARNESS.read_text(encoding="utf-8")
+
+    assert '"--expected-version", $CandidateVersion' in text
