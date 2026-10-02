@@ -256,7 +256,8 @@ try {
         "--candidate-manifest", $candidatePath,
         "--assets-root", $assetRoot,
         "--runtime-root", $runtime,
-        "--cache-root", (Join-Path $working "install-cache")
+        "--cache-root", (Join-Path $working "install-cache"),
+        "--expected-version", $CandidateVersion
     ) "WHISPER_1235_RUNTIME_INSTALL_FAILED"
 
     $worker = Join-Path (Join-Path (Join-Path $runtime "whisper") $CandidateVersion) "TDAWhisperWorker.exe"
