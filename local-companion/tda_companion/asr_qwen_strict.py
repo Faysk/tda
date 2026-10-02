@@ -373,6 +373,121 @@ def _right_context_alignment_window(
     )
 
 
+def _recover_quality_empty_window_with_subwindows(
+    window: AudioWindow,
+    asr_session: AsrSession,
+    *,
+    profile_id: str,
+    profile_language: str | None,
+    prompt: str,
+    report: ProgressCallback,
+    track_number: int,
+    total_tracks: int,
+) -> tuple[str, str] | None:
+    """Retry one signal-bearing full Quality window as two bounded in-window halves.
+
+    Recovery is deliberately limited to qwen-quality and to canonical full
+    windows. It never borrows neighboring audio, so the recovered text keeps the
+    original window's provenance/ownership. Each half is independently fenced
+    for near-digital silence; any signal-bearing half that still returns empty
+    keeps the job fail-closed.
+    """
+    if profile_id != "qwen-quality" or not math.isclose(
+        window.end - window.start,
+        QWEN_WINDOW_SECONDS,
+        abs_tol=0.001,
+    ):
+        return None
+    audio = window.audio
+    try:
+        sample_count = len(audio)
+    except TypeError:
+        return None
+    if sample_count < 2:
+        return None
+    midpoint = int(sample_count // 2)
+    if midpoint <= 0 or midpoint >= sample_count:
+        return None
+
+    report(
+        {
+            "type": "event",
+            "code": "QWEN_EMPTY_WINDOW_RECOVERY_STARTED",
+            "stage": "transcription",
+            "track": track_number,
+            "total_tracks": total_tracks,
+            "window": window.index,
+            "profile_id": profile_id,
+            "count": 2,
+            "start_seconds": window.start,
+            "end_seconds": window.end,
+        }
+    )
+
+    recovered: list[str] = []
+    language = profile_language or "Portuguese"
+    for subwindow_index, piece in enumerate((audio[:midpoint], audio[midpoint:]), start=1):
+        diagnostics = _qwen_window_signal_diagnostics(piece)
+        if diagnostics["confidently_silent"]:
+            continue
+        text, detected_language = asr_session.transcribe(piece, prompt=prompt)
+        text = text.strip()
+        if not text:
+            report(
+                {
+                    "type": "event",
+                    "code": "QWEN_EMPTY_WINDOW_RECOVERY_FAILED",
+                    "stage": "transcription",
+                    "track": track_number,
+                    "total_tracks": total_tracks,
+                    "window": window.index,
+                    "profile_id": profile_id,
+                    "count": 2,
+                    "attempt": subwindow_index,
+                    "start_seconds": window.start,
+                    "end_seconds": window.end,
+                }
+            )
+            return None
+        recovered.append(text)
+        if detected_language:
+            language = detected_language
+
+    text = " ".join(recovered).strip()
+    if not text:
+        report(
+            {
+                "type": "event",
+                "code": "QWEN_EMPTY_WINDOW_RECOVERY_FAILED",
+                "stage": "transcription",
+                "track": track_number,
+                "total_tracks": total_tracks,
+                "window": window.index,
+                "profile_id": profile_id,
+                "count": 2,
+                "start_seconds": window.start,
+                "end_seconds": window.end,
+            }
+        )
+        return None
+
+    report(
+        {
+            "type": "event",
+            "code": "QWEN_EMPTY_WINDOW_RECOVERED",
+            "stage": "transcription",
+            "track": track_number,
+            "total_tracks": total_tracks,
+            "window": window.index,
+            "profile_id": profile_id,
+            "count": 2,
+            "start_seconds": window.start,
+            "end_seconds": window.end,
+        }
+    )
+    return text, language
+
+
 def _strict_alignment_segments(
     track_number: int,
     window: AudioWindow,
@@ -810,7 +925,19 @@ def transcribe_craig_package_qwen_strict(
                         )
                         if not text.strip():
                             report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
-                            raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+                            recovered = _recover_quality_empty_window_with_subwindows(
+                                window,
+                                asr_session,
+                                profile_id=profile.id,
+                                profile_language=profile.language,
+                                prompt=prompt,
+                                report=report,
+                                track_number=track.number,
+                                total_tracks=total_tracks,
+                            )
+                            if recovered is None:
+                                raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+                            text, language = recovered
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,
