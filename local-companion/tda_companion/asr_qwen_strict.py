@@ -398,16 +398,15 @@ def _recover_quality_empty_window_with_subwindows(
         abs_tol=0.001,
     ):
         return None
+    audio = window.audio
     try:
-        import numpy as np
-    except ImportError as exc:
-        raise QwenRuntimeError("QWEN_RUNTIME_NOT_INSTALLED") from exc
-
-    audio = np.asarray(window.audio, dtype=np.float32).reshape(-1)
-    if audio.size < 2:
+        sample_count = len(audio)
+    except TypeError:
         return None
-    midpoint = int(audio.size // 2)
-    if midpoint <= 0 or midpoint >= int(audio.size):
+    if sample_count < 2:
+        return None
+    midpoint = int(sample_count // 2)
+    if midpoint <= 0 or midpoint >= sample_count:
         return None
 
     report(
