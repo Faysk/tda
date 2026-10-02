@@ -417,7 +417,7 @@ def _recover_quality_empty_window_with_subwindows(
             "track": track_number,
             "total_tracks": total_tracks,
             "window": window.index,
-            "profile_id": profile_id,
+            "profile": profile_id,
             "count": 2,
             "start_seconds": window.start,
             "end_seconds": window.end,
@@ -441,7 +441,7 @@ def _recover_quality_empty_window_with_subwindows(
                     "track": track_number,
                     "total_tracks": total_tracks,
                     "window": window.index,
-                    "profile_id": profile_id,
+                    "profile": profile_id,
                     "count": 2,
                     "attempt": subwindow_index,
                     "start_seconds": window.start,
@@ -463,7 +463,7 @@ def _recover_quality_empty_window_with_subwindows(
                 "track": track_number,
                 "total_tracks": total_tracks,
                 "window": window.index,
-                "profile_id": profile_id,
+                "profile": profile_id,
                 "count": 2,
                 "start_seconds": window.start,
                 "end_seconds": window.end,
@@ -479,7 +479,7 @@ def _recover_quality_empty_window_with_subwindows(
             "track": track_number,
             "total_tracks": total_tracks,
             "window": window.index,
-            "profile_id": profile_id,
+            "profile": profile_id,
             "count": 2,
             "start_seconds": window.start,
             "end_seconds": window.end,
@@ -1110,9 +1110,45 @@ def transcribe_craig_package_qwen_strict(
                             "alignment_failure_class",
                             "QWEN_ALIGNMENT_REQUIRED",
                         )
+                        diagnostics = getattr(exc, "alignment_diagnostics", {})
+                        window_duration = max(window.end - window.start, 0.0)
+                        relative_start = (
+                            diagnostics.get("relative_start_seconds")
+                            if isinstance(diagnostics, dict)
+                            else None
+                        )
+                        relative_end = (
+                            diagnostics.get("relative_end_seconds")
+                            if isinstance(diagnostics, dict)
+                            else None
+                        )
+                        bounded_outside_window = (
+                            failure_class == "QWEN_ALIGNMENT_TIMESTAMP_OUTSIDE_WINDOW"
+                            and isinstance(relative_start, (int, float))
+                            and not isinstance(relative_start, bool)
+                            and isinstance(relative_end, (int, float))
+                            and not isinstance(relative_end, bool)
+                            and math.isfinite(float(relative_start))
+                            and math.isfinite(float(relative_end))
+                            and float(relative_start) > window_duration + 0.25
+                            and float(relative_start)
+                            <= window_duration + QWEN_WINDOW_OVERLAP_SECONDS + 0.25
+                            and float(relative_end) >= float(relative_start)
+                            and float(relative_end)
+                            <= window_duration + QWEN_WINDOW_OVERLAP_SECONDS + 0.25
+                        )
                         recoverable_owned_overflow = (
                             exc.code == "QWEN_ALIGNMENT_REQUIRED"
-                            and failure_class == "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"
+                            and failure_class
+                            in {
+                                "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW",
+                                "QWEN_ALIGNMENT_TIMESTAMP_OUTSIDE_WINDOW",
+                            }
+                            and (
+                                failure_class
+                                == "QWEN_ALIGNMENT_TIMESTAMP_OWNED_OVERFLOW"
+                                or bounded_outside_window
+                            )
                             and not last_window
                             and next_window is not None
                         )

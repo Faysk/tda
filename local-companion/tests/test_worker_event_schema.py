@@ -139,6 +139,44 @@ def test_qwen_empty_window_signal_events_keep_only_bounded_numeric_evidence():
 
 
 
+
+def test_qwen_empty_window_recovery_events_preserve_safe_profile_metadata():
+    started = sanitize_worker_event(
+        {
+            "code": "QWEN_EMPTY_WINDOW_RECOVERY_STARTED",
+            "stage": "transcription",
+            "track": 2,
+            "total_tracks": 4,
+            "window": 217,
+            "profile": "qwen-quality",
+            "count": 2,
+            "start_seconds": 11664.0,
+            "end_seconds": 11724.0,
+            "text": "private transcript",
+        }
+    )
+    assert started.code == "QWEN_EMPTY_WINDOW_RECOVERY_STARTED"
+    assert started.data["profile"] == "qwen-quality"
+    assert started.data["count"] == 2
+    assert "text" not in started.data
+
+    recovered = sanitize_worker_event(
+        {
+            "code": "QWEN_EMPTY_WINDOW_RECOVERED",
+            "stage": "transcription",
+            "track": 2,
+            "total_tracks": 4,
+            "window": 217,
+            "profile": "qwen-quality",
+            "count": 2,
+            "start_seconds": 11664.0,
+            "end_seconds": 11724.0,
+        }
+    )
+    assert recovered.code == "QWEN_EMPTY_WINDOW_RECOVERED"
+    assert recovered.drift_reason is None
+
+
 def test_unknown_or_malformed_event_code_never_persists_raw_code_or_payload():
     for payload in (
         {"code": "PRIVATE_WORDS_FROM_TRANSCRIPT", "detail": "segredo"},
