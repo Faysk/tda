@@ -2071,3 +2071,155 @@ def test_owned_overflow_on_last_window_never_uses_right_context_recovery(
     codes = [item.get("code") for item in reports]
     assert "QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED" not in codes
     assert codes.count("QWEN_ALIGNMENT_WINDOW_FAILED") == 1
+
+def test_quality_empty_signal_recovery_bisects_once_inside_original_window(
+    tmp_path: Path,
+):
+    from array import array
+
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    calls: list[int] = []
+    audio = array("f", [0.1, -0.1]) * 480_000
+
+    class Asr:
+        def transcribe(self, value, *, prompt: str):
+            calls.append(len(value))
+            if len(calls) == 1:
+                return "", "Portuguese"
+            if len(calls) == 2:
+                return "primeira", "Portuguese"
+            if len(calls) == 3:
+                return "segunda", "Portuguese"
+            raise AssertionError("recovery must be bounded to exactly two subwindows")
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, value, text: str, language: str):
+            assert len(value) == 960_000
+            assert text == "primeira segunda"
+            assert language == "Portuguese"
+            return [
+                {"text": "primeira", "start_time": 10.0, "end_time": 10.5},
+                {"text": "segunda", "start_time": 40.0, "end_time": 40.5},
+            ]
+
+        def close(self):
+            pass
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-quality",
+        checkpoints=False,
+        plan_resolver=lambda _profile_id: QwenPlan(
+            profile_id="qwen-quality",
+            device="cuda",
+            dtype="bfloat16",
+            compute_capability="8.9",
+        ),
+        model_prepare=lambda _models_root, _profile: Path("model"),
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
+        ),
+        energy_reader=lambda *_args: -20.0,
+        report=reports.append,
+    )
+
+    assert calls == [960_000, 480_000, 480_000]
+    assert document.stats.word_count == 2
+    assert [segment.text for segment in document.tracks[0].segments] == [
+        "primeira",
+        "segunda",
+    ]
+    assert any(
+        item.get("code") == "QWEN_WINDOW_EMPTY_ASR_REJECTED"
+        for item in reports
+    )
+    assert any(
+        item.get("code") == "QWEN_EMPTY_SIGNAL_RECOVERY_STARTED"
+        and item.get("count") == 2
+        for item in reports
+    )
+    assert any(
+        item.get("code") == "QWEN_EMPTY_SIGNAL_RECOVERED"
+        and item.get("count") == 2
+        for item in reports
+    )
+    assert not any(
+        item.get("code") == "QWEN_EMPTY_SIGNAL_RECOVERY_FAILED"
+        for item in reports
+    )
+
+
+def test_quality_empty_signal_recovery_stays_fail_closed_if_half_is_empty(
+    tmp_path: Path,
+):
+    from array import array
+
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    calls: list[int] = []
+    audio = array("f", [0.1, -0.1]) * 480_000
+
+    class Asr:
+        def transcribe(self, value, *, prompt: str):
+            calls.append(len(value))
+            if len(calls) == 1:
+                return "", "Portuguese"
+            if len(calls) == 2:
+                return "primeira", "Portuguese"
+            if len(calls) == 3:
+                return "", "Portuguese"
+            raise AssertionError("recovery must not recurse")
+
+        def close(self):
+            pass
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-quality",
+            checkpoints=False,
+            plan_resolver=lambda _profile_id: QwenPlan(
+                profile_id="qwen-quality",
+                device="cuda",
+                dtype="bfloat16",
+                compute_capability="8.9",
+            ),
+            model_prepare=lambda _models_root, _profile: Path("model"),
+            aligner_prepare=lambda _root: (_ for _ in ()).throw(
+                AssertionError("failed recovery must stop before alignment")
+            ),
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: (_ for _ in ()).throw(
+                AssertionError("failed recovery must stop before aligner creation")
+            ),
+            window_reader=lambda _path: iter(
+                [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
+            ),
+            report=reports.append,
+        )
+
+    assert calls == [960_000, 480_000, 480_000]
+    assert any(
+        item.get("code") == "QWEN_EMPTY_SIGNAL_RECOVERY_STARTED"
+        for item in reports
+    )
+    assert any(
+        item.get("code") == "QWEN_EMPTY_SIGNAL_RECOVERY_FAILED"
+        for item in reports
+    )
+    assert not any(
+        item.get("code") == "QWEN_EMPTY_SIGNAL_RECOVERED"
+        for item in reports
+    )
+

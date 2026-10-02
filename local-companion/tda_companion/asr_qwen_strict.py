@@ -63,6 +63,7 @@ from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment,
 
 QWEN_WINDOW_OVERLAP_SECONDS = 6.0
 QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
+QWEN_QUALITY_EMPTY_SIGNAL_RECOVERY_PARTS = 2
 QWEN_ALIGNMENT_POLICY = "strict-overlap-v4"
 QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
 QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
@@ -371,6 +372,97 @@ def _right_context_alignment_window(
         end=window.end + context_seconds,
         audio=audio,
     )
+
+
+def _audio_slice_copy(audio: Any, first: int, last: int) -> Any | None:
+    if first < 0 or last <= first:
+        return None
+    try:
+        piece = audio[first:last]
+    except Exception:
+        return None
+    size = getattr(piece, "size", None)
+    if size is None:
+        try:
+            size = len(piece)
+        except Exception:
+            return None
+    if int(size) != last - first:
+        return None
+    copier = getattr(piece, "copy", None)
+    if callable(copier):
+        try:
+            return copier()
+        except Exception:
+            return None
+    try:
+        return piece[:]
+    except Exception:
+        return None
+
+
+def _recover_quality_empty_signal_window(
+    window: AudioWindow,
+    asr_session: AsrSession,
+    *,
+    prompt: str,
+    default_language: str,
+    is_cancelled: CancelCallback,
+) -> tuple[str, str] | None:
+    """Retry one signal-bearing quality window as two bounded in-window halves.
+
+    The retry deliberately stays inside the original ownership interval. This
+    avoids importing neighboring speech into the canonical window, keeps the
+    existing text-checkpoint shape valid, and gives the forced aligner the same
+    60-second timeline it would have received without recovery.
+    """
+
+    duration = window.end - window.start
+    if not math.isclose(duration, QWEN_WINDOW_SECONDS, abs_tol=0.001):
+        return None
+
+    expected_samples = int(round(QWEN_WINDOW_SECONDS * QWEN_SAMPLE_RATE))
+    sample_count = getattr(window.audio, "size", None)
+    if sample_count is None:
+        try:
+            sample_count = len(window.audio)
+        except Exception:
+            return None
+    if int(sample_count) != expected_samples:
+        return None
+
+    split = expected_samples // QWEN_QUALITY_EMPTY_SIGNAL_RECOVERY_PARTS
+    if split <= 0 or split * QWEN_QUALITY_EMPTY_SIGNAL_RECOVERY_PARTS != expected_samples:
+        return None
+
+    texts: list[str] = []
+    languages: list[str] = []
+    for part_index in range(QWEN_QUALITY_EMPTY_SIGNAL_RECOVERY_PARTS):
+        if is_cancelled():
+            raise QwenRuntimeError("ASR_CANCELLED")
+        first = part_index * split
+        last = first + split
+        audio = _audio_slice_copy(window.audio, first, last)
+        if audio is None:
+            return None
+        diagnostics = _qwen_window_signal_diagnostics(audio)
+        if diagnostics["confidently_silent"]:
+            continue
+        text, language = asr_session.transcribe(audio, prompt=prompt)
+        normalized = text.strip()
+        if not normalized:
+            return None
+        texts.append(normalized)
+        languages.append((language or default_language).strip() or default_language)
+
+    combined = " ".join(texts).strip()
+    if not combined:
+        return None
+
+    normalized_languages = {value.casefold() for value in languages if value}
+    if len(normalized_languages) > 1:
+        return None
+    return combined, (languages[0] if languages else default_language)
 
 
 def _strict_alignment_segments(
@@ -810,7 +902,52 @@ def transcribe_craig_package_qwen_strict(
                         )
                         if not text.strip():
                             report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
-                            raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+                            recovered = None
+                            if profile.id == "qwen-quality":
+                                report(
+                                    {
+                                        "type": "event",
+                                        "code": "QWEN_EMPTY_SIGNAL_RECOVERY_STARTED",
+                                        "stage": "transcription",
+                                        "track": track.number,
+                                        "total_tracks": total_tracks,
+                                        "window": window.index,
+                                        "count": QWEN_QUALITY_EMPTY_SIGNAL_RECOVERY_PARTS,
+                                    }
+                                )
+                                recovered = _recover_quality_empty_signal_window(
+                                    window,
+                                    asr_session,
+                                    prompt=prompt,
+                                    default_language=profile.language or "Portuguese",
+                                    is_cancelled=is_cancelled,
+                                )
+                            if recovered is None:
+                                if profile.id == "qwen-quality":
+                                    report(
+                                        {
+                                            "type": "event",
+                                            "code": "QWEN_EMPTY_SIGNAL_RECOVERY_FAILED",
+                                            "stage": "transcription",
+                                            "track": track.number,
+                                            "total_tracks": total_tracks,
+                                            "window": window.index,
+                                            "count": QWEN_QUALITY_EMPTY_SIGNAL_RECOVERY_PARTS,
+                                        }
+                                    )
+                                raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+                            text, language = recovered
+                            report(
+                                {
+                                    "type": "event",
+                                    "code": "QWEN_EMPTY_SIGNAL_RECOVERED",
+                                    "stage": "transcription",
+                                    "track": track.number,
+                                    "total_tracks": total_tracks,
+                                    "window": window.index,
+                                    "count": QWEN_QUALITY_EMPTY_SIGNAL_RECOVERY_PARTS,
+                                }
+                            )
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,

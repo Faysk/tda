@@ -326,3 +326,42 @@ def test_whisper_span_widening_event_keeps_only_sanitized_numeric_boundaries():
     assert event.drift_reason == "unexpected_or_invalid_field"
     assert event.rejected_field_count == 3
     assert "private" not in repr(event).lower()
+
+def test_qwen_empty_signal_recovery_events_are_registered_and_sanitized():
+    registered = registered_worker_event_codes()
+    assert {
+        "QWEN_EMPTY_SIGNAL_RECOVERY_STARTED",
+        "QWEN_EMPTY_SIGNAL_RECOVERY_FAILED",
+        "QWEN_EMPTY_SIGNAL_RECOVERED",
+    } <= registered
+
+    for code, expected_level in (
+        ("QWEN_EMPTY_SIGNAL_RECOVERY_STARTED", "info"),
+        ("QWEN_EMPTY_SIGNAL_RECOVERY_FAILED", "warning"),
+        ("QWEN_EMPTY_SIGNAL_RECOVERED", "info"),
+    ):
+        event = sanitize_worker_event(
+            {
+                "code": code,
+                "stage": "transcription",
+                "track": 2,
+                "total_tracks": 4,
+                "window": 217,
+                "count": 2,
+                "text": "must not survive",
+                "path": "C:/private/audio.flac",
+            }
+        )
+        assert event.code == code
+        assert event.level == expected_level
+        assert event.data == {
+            "stage": "transcription",
+            "track": 2,
+            "total_tracks": 4,
+            "window": 217,
+            "count": 2,
+        }
+        assert event.drift_reason == "unexpected_or_invalid_field"
+        assert "text" not in event.data
+        assert "path" not in event.data
+
