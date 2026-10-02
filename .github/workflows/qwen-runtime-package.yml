@@ -1,8 +1,8 @@
 name: Qwen Runtime Package
-# #1236 release refresh: emit a fresh main-push Qwen 1.0.14 package and dispatch Runtime RC explicitly after the verified package succeeds.
+# #1236 release refresh: emit a fresh main-push Qwen 1.0.15 package and dispatch Runtime RC explicitly after the verified package succeeds.
 # #489 exact-source refresh: keep the physical-promotion runtime build bound to current main.
 # #557 Runtime RC drift fencing mirrors this workflow's runtime inputs; keep the policy coverage aligned.
-# #1236/#1268 physical-validation refresh: bind the Qwen 1.0.14 pre-ASR silence safety + signal-bearing fail-closed candidate to its exact main source.
+# #1236/#1268 physical-validation refresh: bind the Qwen 1.0.15 pre-ASR silence safety + signal-bearing fail-closed candidate to its exact main source.
 
 on:
   workflow_dispatch:
