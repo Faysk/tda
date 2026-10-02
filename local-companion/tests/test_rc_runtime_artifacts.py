@@ -12,6 +12,7 @@ from tda_companion.rc_runtime_artifacts import (
     RC_WHISPER_VERSION,
     RcRuntimeArtifactError,
     install_rc_runtime_artifact,
+    install_runtime_candidate,
 )
 
 
@@ -230,7 +231,7 @@ def test_install_runtime_candidate_requires_current_version_by_default_but_allow
         "runtime_id": "whisper-ctranslate2",
         "platform": "windows-x64",
         "version": version,
-        "candidate_tag": "companion-whisper-runtime-rc-v1.1.8-example000000",
+        "candidate_tag": "companion-whisper-runtime-rc-v1.1.8-aaaaaaaaaaaa",
         "stable_tag": "companion-whisper-runtime-v1.1.8",
         "source_sha": "a" * 40,
         "source_tree_sha": "b" * 40,
