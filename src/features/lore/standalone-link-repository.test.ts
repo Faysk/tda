@@ -157,8 +157,8 @@ describe("standalone lore campaign linkage", () => {
 		});
 	});
 
-	it("does not touch storage for an unlinked standalone lore", async () => {
-		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toBeNull();
+	it("does not touch storage for an unknown or unlinked lore slug", async () => {
+		await expect(resolveStandaloneLoreCampaignLink("missing-lore")).resolves.toBeNull();
 		expect(mocks.client).not.toHaveBeenCalled();
 	});
 });

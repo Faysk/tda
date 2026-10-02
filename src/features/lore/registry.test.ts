@@ -6,11 +6,11 @@ import {
 } from "./registry";
 
 describe("lore editorial registry", () => {
-	it("links D editorially without listing it or inventing an entity", () => {
+	it("curates D under Antes que seja tarde without inventing an entity", () => {
 		expect(loreRegistrationForSlug("d")).toEqual({
 			slug: "d",
 			delivery: "standalone",
-			listed: false,
+			listed: true,
 			campaignTechnicalSlug: "antes-que-seja-tarde",
 			indexable: false,
 			entityLink: null,
@@ -30,21 +30,30 @@ describe("lore editorial registry", () => {
 		});
 	});
 
-	it("curates Seika under the new campaign without inventing an entity", () => {
-		expect(loreRegistrationForSlug("seika")).toEqual({
-			slug: "seika",
-			delivery: "standalone",
-			listed: true,
-			campaignTechnicalSlug: "antes-que-seja-tarde",
-			indexable: false,
-			entityLink: null,
-		});
-		expect(loreRegistrationForSlug("yllith")?.campaignTechnicalSlug).toBeNull();
+	it("curates Seika and Yllith under the new campaign without inventing entities", () => {
+		for (const slug of ["seika", "yllith"] as const) {
+			expect(loreRegistrationForSlug(slug)).toEqual({
+				slug,
+				delivery: "standalone",
+				listed: true,
+				campaignTechnicalSlug: "antes-que-seja-tarde",
+				indexable: false,
+				entityLink: null,
+			});
+		}
 		expect(
 			LORE_EDITORIAL_REGISTRY.filter((lore) => lore.listed).map(
 				(lore) => lore.slug,
 			),
-		).toEqual(["pipipi", "astel", "noah", "seika"]);
+		).toEqual(["pipipi", "astel", "noah", "d", "seika", "yllith"]);
+	});
+
+	it("never attributes D or Yllith to Crônicas da Mesa", () => {
+		for (const slug of ["d", "yllith"] as const) {
+			const registration = loreRegistrationForSlug(slug);
+			expect(registration?.campaignTechnicalSlug).toBe("antes-que-seja-tarde");
+			expect(registration?.campaignTechnicalSlug).not.toBe("yuhara-main");
+		}
 	});
 
 	it("preserves D standalone canonical and social URL metadata", () => {
