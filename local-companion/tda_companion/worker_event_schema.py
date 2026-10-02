@@ -192,6 +192,19 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         required=_QWEN_EMPTY_WINDOW_SIGNAL,
         level="warning",
     ),
+    "QWEN_EMPTY_SIGNAL_RECOVERY_STARTED": _schema(
+        "stage", "track", "total_tracks", "window", "count",
+        required=("stage", "track", "total_tracks", "window", "count"),
+    ),
+    "QWEN_EMPTY_SIGNAL_RECOVERY_FAILED": _schema(
+        "stage", "track", "total_tracks", "window", "count",
+        required=("stage", "track", "total_tracks", "window", "count"),
+        level="warning",
+    ),
+    "QWEN_EMPTY_SIGNAL_RECOVERED": _schema(
+        "stage", "track", "total_tracks", "window", "count",
+        required=("stage", "track", "total_tracks", "window", "count"),
+    ),
     "ASR_TEXT_CHECKPOINT_SAVED": _schema(
         *_TRACK, required=("stage", "track")
     ),
