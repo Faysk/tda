@@ -14,11 +14,11 @@ class ProcessingFinalAcceptanceContractTests(unittest.TestCase):
 
     def test_uses_post_fix_companion_and_qwen_candidates(self):
         self.assertIn(
-            '$CompanionRcTag = "companion-rc-v0.3.18-d3db290b66be"',
+            '$CompanionRcTag = "companion-rc-v0.3.18-450d3af5b571"',
             self.text,
         )
         self.assertIn(
-            '$QwenRuntimeRcTag = "companion-qwen-runtime-rc-v1.0.14-d3db290b66be"',
+            '$QwenRuntimeRcTag = "companion-qwen-runtime-rc-v1.0.15-450d3af5b571"',
             self.text,
         )
         self.assertNotIn(
