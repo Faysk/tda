@@ -39,3 +39,10 @@ def test_whisper_1235_finalize_harness_does_not_rebuild_or_promote_runtime():
     assert "gh release edit" not in text
     assert "runtime-promote.yml" not in text
     assert "Stable promotion must reuse the same RC release object." in text
+
+
+def test_whisper_1235_finalize_python_launcher_detection_does_not_match_python_exe():
+    text = HARNESS.read_text(encoding="utf-8")
+
+    assert '$command.Name -in @("py.exe", "py")' in text
+    assert '$command.Name -like "py*"' not in text
