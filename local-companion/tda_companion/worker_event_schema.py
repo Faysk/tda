@@ -204,6 +204,22 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
     "TRACK_ENERGY_STARTED": _schema(
         *_TRACK, required=("stage", "track", "total_tracks", "speaker")
     ),
+    "QWEN_EMPTY_WINDOW_RECOVERY_STARTED": _schema(
+        "stage", "track", "total_tracks", "window", "profile_id", "count",
+        "start_seconds", "end_seconds",
+        required=("stage", "track", "total_tracks", "window", "profile_id", "count"),
+    ),
+    "QWEN_EMPTY_WINDOW_RECOVERY_FAILED": _schema(
+        "stage", "track", "total_tracks", "window", "profile_id", "count",
+        "attempt", "start_seconds", "end_seconds",
+        required=("stage", "track", "total_tracks", "window", "profile_id", "count"),
+        level="warning",
+    ),
+    "QWEN_EMPTY_WINDOW_RECOVERED": _schema(
+        "stage", "track", "total_tracks", "window", "profile_id", "count",
+        "start_seconds", "end_seconds",
+        required=("stage", "track", "total_tracks", "window", "profile_id", "count"),
+    ),
     "QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED": _schema(
         "stage", "track", "window", "failure_class", "context_seconds",
         required=("stage", "track", "window", "failure_class", "context_seconds"),
