@@ -98,7 +98,7 @@ function Get-PythonCommand {
     foreach ($name in @("python.exe", "python", "py.exe", "py")) {
         $command = Get-Command $name -ErrorAction SilentlyContinue
         if ($null -ne $command) {
-            $prefix = if ($command.Name -like "py*") { @("-3") } else { @() }
+            $prefix = if ($command.Name -in @("py.exe", "py")) { @("-3") } else { @() }
             return [pscustomobject]@{
                 Path = $command.Source
                 Prefix = $prefix
