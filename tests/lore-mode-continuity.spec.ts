@@ -242,10 +242,12 @@ test("keyboard can switch both modes while preserving switch focus and state", a
 		await expectModeSemantics(toggle, true);
 		await expect(page.locator("#reading-view")).toBeVisible();
 		await expect(toggle).toBeFocused();
+		await expect(toggle).not.toHaveAttribute("aria-busy", "true");
 
 		await toggle.press("Space");
 		await expectModeSemantics(toggle, false);
 		await expect(toggle).toBeFocused();
+		await expect(toggle).not.toHaveAttribute("aria-busy", "true");
 	}
 });
 
