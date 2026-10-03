@@ -9,6 +9,7 @@ export default defineConfig({
 		"product-coherence-interactions.spec.ts",
 		"product-coherence-regressions.spec.ts",
 		"account-campaign-context.spec.ts",
+		"lore-mode-continuity.spec.ts",
 		"layout-geometry.spec.ts",
 		"world-relation-polish-gates.spec.ts",
 		"world-edge-anchor-geometry.spec.ts",
