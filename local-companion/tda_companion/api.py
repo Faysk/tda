@@ -6,13 +6,14 @@ import os
 import re
 import threading
 import time
+import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Callable, Literal
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import VERSION
@@ -27,6 +28,13 @@ from .attempt_fence import (
     read_attempt_outcome,
 )
 from .browser_session import BrowserSessionManager
+from .benchmark_evidence import (
+    BenchmarkEvidenceError,
+    derived_artifact,
+    public_bundle_summary,
+    transcript_snapshot,
+    write_private_evidence_zip,
+)
 from .craig import CraigPackageError
 from .craig_ingest import (
     recover_interrupted_craig_repairs,
@@ -89,6 +97,11 @@ TRANSCRIPTION_TEXT_MAX_CHARS = 1200
 _BROWSER_JOB_PATH = re.compile(
     r"^/api/v1/jobs/[A-Za-z0-9_-]{1,128}(?:/(?:cancel|retry|delete|events|result))?$"
 )
+_BROWSER_BENCHMARK_PATH = re.compile(
+    r"^/api/v1/benchmarks/benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}"
+    r"(?:/profiles/(?:whisper-(?:turbo|detailed)|qwen-(?:fast|quality))"
+    r"/(?:snapshot|artifacts/(?:json|txt|vtt|srt))|/export\\.zip)?$"
+)
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
     r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/derive|participants|intent))?$"
@@ -125,6 +138,8 @@ def _browser_route_allowed(method: str, path: str) -> bool:
                 "/api/v1/jobs",
             })
         )
+    if _BROWSER_BENCHMARK_PATH.fullmatch(path) is not None:
+        return method == "GET"
     if _BROWSER_SESSION_WORKSPACE_PATH.fullmatch(path) is not None:
         return method in {"GET", "POST"}
     if _BROWSER_SESSION_ASSEMBLY_PATH.fullmatch(path) is not None:
@@ -1122,6 +1137,9 @@ def create_app(
                                 job_id=job_id,
                                 attempt=attempt,
                                 source_id=body["source_id"],
+                                source_sha256=body["source_sha256"],
+                                track_count=int(body["track_count"]),
+                                audio_work_seconds=float(body["audio_work_seconds"]),
                                 glossary=body.get("glossary", ""),
                                 context=body.get("context", ""),
                                 sample_identity_sha256=body["sample_identity_sha256"],
@@ -1140,6 +1158,10 @@ def create_app(
                                 payload.get("schema_version") != "tda_processing_benchmark_v1"
                                 or payload.get("kind") != "benchmark.craig"
                                 or payload.get("source_id") != body["source_id"]
+                                or not isinstance(payload.get("benchmark_id"), str)
+                                or not isinstance(payload.get("artifact_bundle"), dict)
+                                or payload["artifact_bundle"].get("benchmark_id")
+                                != payload.get("benchmark_id")
                                 or payload.get("sample_identity_sha256")
                                 != body["sample_identity_sha256"]
                                 or payload.get("sample_seconds") != body["sample_seconds"]
@@ -1496,6 +1518,13 @@ def create_app(
     async def missing(_, exc):
         return error("JOB_NOT_FOUND", 404)
 
+    @app.exception_handler(BenchmarkEvidenceError)
+    async def benchmark_evidence_error(_, exc: BenchmarkEvidenceError):
+        code = str(exc)
+        status = 404 if code in {"BENCHMARK_NOT_FOUND", "BENCHMARK_PROFILE_NOT_FOUND"} else 409
+        safe_code = code if re.fullmatch(r"[A-Z0-9_]{1,96}", code) else "BENCHMARK_EVIDENCE_INVALID"
+        return error(safe_code, status, False)
+
     @app.exception_handler(RequestValidationError)
     async def invalid(_, exc):
         return error("INVALID_REQUEST", 422)
@@ -1548,6 +1577,7 @@ def create_app(
             "transcription.runs.catalog",
             "processing.benchmark",
             "processing.benchmark.runtime-readiness-v2",
+            "processing.benchmark.evidence-v1",
             "system.telemetry",
             "worker.subprocess",
             "transcription.prepare",
@@ -2325,6 +2355,7 @@ def create_app(
                     ),
                     profiles=list(_BENCHMARK_PROFILES),
                     prepared=True,
+                    source_sha256=package.source_sha256,
                 )
                 value = store.submit(idempotency_key, payload)
         else:
