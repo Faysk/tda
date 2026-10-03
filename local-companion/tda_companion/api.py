@@ -115,7 +115,7 @@ _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
 _BROWSER_BENCHMARK_PATH = re.compile(
     r"^/api/v1/benchmarks/benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}"
     r"(?:/profiles/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)"
-    r"/(?:transcript|snapshot|artifacts/(?:json|txt|txt-plain|vtt|srt))|/export\\.zip)?$"
+    r"/(?:transcript|snapshot|artifacts/(?:json|txt|txt-plain|vtt|srt))|/export\.zip)?$"
 )
 
 
