@@ -1197,7 +1197,7 @@ test("account overview keeps synthetic identity and access usable across the lay
 		{
 			query: "no-grants",
 			status: "Vinculada · sem permissões",
-			body: "Nenhuma permissão efetiva nesta campanha.",
+			body: "Nenhuma permissão efetiva disponível para esta conta.",
 		},
 	]) {
 		await page.goto(`/e2e-fixtures/account-overview?state=${state.query}`);
