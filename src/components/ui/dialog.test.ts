@@ -27,6 +27,7 @@ describe("Dialog", () => {
 		);
 
 		expect(html).toContain("<dialog");
+		expect(html).toContain('aria-modal="true"');
 		expect(html).toContain("aria-labelledby=");
 		expect(html).toContain("aria-describedby=");
 		expect(html).toContain("Descartar rascunho?");
