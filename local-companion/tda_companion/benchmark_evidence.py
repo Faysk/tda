@@ -458,6 +458,8 @@ def commit_bundle(
     sample_seconds: float,
     track_count: int,
     audio_work_seconds: float,
+    context: str = "",
+    glossary: str = "",
     profiles: Sequence[str] = CANONICAL_PROFILES,
 ) -> dict[str, Any]:
     if tuple(profiles) != CANONICAL_PROFILES:
@@ -492,14 +494,38 @@ def commit_bundle(
         ):
             raise BenchmarkEvidenceError("BENCHMARK_PROFILE_BINDING_MISMATCH")
         profile_raw = (root / "profiles" / profile_id / "profile.json").read_bytes()
+        transcript = manifest["artifacts"]["transcript.json"]
+        metrics = manifest["artifacts"]["metrics.json"]
+        events = manifest["artifacts"]["events.jsonl"]
         profile_entries.append(
             {
                 "profile_id": profile_id,
+                "profile_manifest": {
+                    "path": f"profiles/{profile_id}/profile.json",
+                    "sha256": _sha_bytes(profile_raw),
+                    "size_bytes": len(profile_raw),
+                },
+                "transcript": {
+                    "path": f"profiles/{profile_id}/transcript.json",
+                    "sha256": transcript["sha256"],
+                    "size_bytes": transcript["size_bytes"],
+                },
+                "metrics": {
+                    "path": f"profiles/{profile_id}/metrics.json",
+                    "sha256": metrics["sha256"],
+                    "size_bytes": metrics["size_bytes"],
+                },
+                "events": {
+                    "path": f"profiles/{profile_id}/events.jsonl",
+                    "sha256": events["sha256"],
+                    "size_bytes": events["size_bytes"],
+                },
+                # Additive aliases keep the first evidence-v1 physical receipt compatible.
                 "profile_manifest_sha256": _sha_bytes(profile_raw),
                 "profile_manifest_size_bytes": len(profile_raw),
-                "transcript_sha256": manifest["artifacts"]["transcript.json"]["sha256"],
-                "metrics_sha256": manifest["artifacts"]["metrics.json"]["sha256"],
-                "events_sha256": manifest["artifacts"]["events.jsonl"]["sha256"],
+                "transcript_sha256": transcript["sha256"],
+                "metrics_sha256": metrics["sha256"],
+                "events_sha256": events["sha256"],
             }
         )
 
@@ -515,7 +541,13 @@ def commit_bundle(
         "sample_seconds": 300.0,
         "track_count": track_count,
         "audio_work_seconds": round(float(audio_work_seconds), 3),
+        "context_sha256": _sha_text(context),
+        "context_length": len(context),
+        "glossary_sha256": _sha_text(glossary),
+        "glossary_length": len(glossary),
         "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v2_evidence",
+        "profile_order": list(CANONICAL_PROFILES),
+        "status": "completed",
         "profiles": profile_entries,
         "committed_at": utc_now(),
     }
@@ -541,7 +573,12 @@ def load_bundle(
     if len(raw) > _MAX_JSON_BYTES:
         raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_TOO_LARGE")
     value = _json(raw, "BENCHMARK_MANIFEST")
-    if value.get("schema_version") != BUNDLE_SCHEMA or value.get("benchmark_id") != benchmark_id:
+    if (
+        value.get("schema_version") != BUNDLE_SCHEMA
+        or value.get("benchmark_id") != benchmark_id
+        or value.get("status") != "completed"
+        or value.get("profile_order") != list(CANONICAL_PROFILES)
+    ):
         raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_MISMATCH")
     profiles = value.get("profiles")
     if not isinstance(profiles, list) or [item.get("profile_id") for item in profiles if isinstance(item, dict)] != list(CANONICAL_PROFILES):
@@ -549,12 +586,15 @@ def load_bundle(
     for entry in profiles:
         profile_id = str(entry["profile_id"])
         profile_path = root / "profiles" / profile_id / "profile.json"
+        profile_descriptor = entry.get("profile_manifest")
+        if (
+            not isinstance(profile_descriptor, dict)
+            or profile_descriptor.get("path") != f"profiles/{profile_id}/profile.json"
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_PATH_MISMATCH")
         profile_raw = _read_verified(
             profile_path,
-            {
-                "sha256": entry.get("profile_manifest_sha256"),
-                "size_bytes": entry.get("profile_manifest_size_bytes"),
-            },
+            profile_descriptor,
             "BENCHMARK_PROFILE_MANIFEST",
         )
         profile = _json(profile_raw, "BENCHMARK_PROFILE_MANIFEST")
@@ -563,6 +603,26 @@ def load_bundle(
         if verify_artifacts:
             _load_profile_manifest(package_root, benchmark_id, profile_id, verify_artifacts=True)
     return value
+
+
+def bundle_descriptor(package_root: Path, benchmark_id: str) -> dict[str, Any]:
+    manifest = load_bundle(package_root, benchmark_id, verify_artifacts=True)
+    root = bundle_root(package_root, benchmark_id)
+    manifest_raw = (root / "benchmark.json").read_bytes()
+    total_size = len(manifest_raw)
+    for entry in manifest["profiles"]:
+        for name in ("profile_manifest", "transcript", "metrics", "events"):
+            descriptor = entry.get(name)
+            if isinstance(descriptor, dict):
+                total_size += int(descriptor.get("size_bytes", 0))
+    return {
+        "benchmark_id": benchmark_id,
+        "schema_version": BUNDLE_SCHEMA,
+        "manifest_sha256": _sha_bytes(manifest_raw),
+        "manifest_size_bytes": len(manifest_raw),
+        "bundle_size_bytes": total_size,
+        "profile_count": len(CANONICAL_PROFILES),
+    }
 
 
 def load_profile_transcript(package_root: Path, benchmark_id: str, profile_id: str) -> TranscriptDocument:
