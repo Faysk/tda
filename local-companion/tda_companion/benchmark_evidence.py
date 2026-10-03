@@ -22,6 +22,8 @@ PROFILE_SCHEMA = "tda_benchmark_profile_artifact_v1"
 METRICS_SCHEMA = "tda_benchmark_metrics_v1"
 EVENT_SCHEMA = "tda_benchmark_event_v1"
 TELEMETRY_SCHEMA = "tda_benchmark_telemetry_v1"
+TELEMETRY_SAMPLE_SCHEMA = "tda_benchmark_telemetry_sample_v1"
+FAILED_DIAGNOSTICS_SCHEMA = "tda_benchmark_failed_profile_v1"
 EXPORT_SCHEMA = "tda_benchmark_private_export_v1"
 PROFILES = ("whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality")
 _BENCHMARK_ID = re.compile(r"^benchmark-[0-9a-f]{32}$")
@@ -384,6 +386,26 @@ def _validated_event_row(
     return row
 
 
+def _event_jsonl(
+    events: Iterable[Mapping[str, Any]],
+    *,
+    benchmark_id: str,
+    profile_id: str,
+) -> bytes:
+    rows = [
+        _validated_event_row(row, benchmark_id=benchmark_id, profile_id=profile_id)
+        for row in events
+    ]
+    if not rows or len(rows) > _MAX_EVENTS:
+        raise BenchmarkEvidenceError("BENCHMARK_EVENT_COUNT_INVALID")
+    if any(right["seq"] <= left["seq"] for left, right in zip(rows, rows[1:])):
+        raise BenchmarkEvidenceError("BENCHMARK_EVENT_SEQUENCE_INVALID")
+    payload = b"".join(_canonical_json(row) + b"\n" for row in rows)
+    if len(payload) > _MAX_JSONL_BYTES:
+        raise BenchmarkEvidenceError("BENCHMARK_EVENT_SIZE_INVALID")
+    return payload
+
+
 def write_profile_events(
     data_root: Path,
     benchmark_id: str,
@@ -393,15 +415,11 @@ def write_profile_events(
     destination = profile_root(data_root, benchmark_id, profile_id)
     if not (destination / "profile.json").is_file():
         raise BenchmarkEvidenceError("BENCHMARK_PROFILE_UNCOMMITTED")
-    rows = [
-        _validated_event_row(row, benchmark_id=benchmark_id, profile_id=profile_id)
-        for row in events
-    ]
-    if not rows or len(rows) > _MAX_EVENTS:
-        raise BenchmarkEvidenceError("BENCHMARK_EVENT_COUNT_INVALID")
-    payload = b"".join(_canonical_json(row) + b"\n" for row in rows)
-    if len(payload) > _MAX_JSONL_BYTES:
-        raise BenchmarkEvidenceError("BENCHMARK_EVENT_SIZE_INVALID")
+    payload = _event_jsonl(
+        events,
+        benchmark_id=benchmark_id,
+        profile_id=profile_id,
+    )
     path = destination / "events.jsonl"
     if path.exists():
         raise BenchmarkEvidenceError("BENCHMARK_EVENTS_ALREADY_COMMITTED")
@@ -435,10 +453,12 @@ def normalize_telemetry_samples(
     *,
     lineage: Mapping[str, Any],
     interval_ms: int,
+    elapsed_ms: int | None = None,
 ) -> dict[str, Any]:
     rows = list(samples)[:_MAX_TELEMETRY_SAMPLES]
     expected_gpu = lineage.get("gpu") if isinstance(lineage.get("gpu"), dict) else {}
     expected_uuid = expected_gpu.get("uuid")
+    expected_pci = expected_gpu.get("pci_bus_id")
     expected_model = expected_gpu.get("model")
     output: list[dict[str, Any]] = []
     for index, sample in enumerate(rows):
@@ -452,8 +472,17 @@ def normalize_telemetry_samples(
             if expected_uuid and gpu.get("uuid") == expected_uuid:
                 selected = gpu
                 break
-            if selected is None and expected_model and gpu.get("name") == expected_model:
+            if expected_pci and gpu.get("pci_bus_id") == expected_pci:
                 selected = gpu
+                break
+        if selected is None and not expected_uuid and not expected_pci and expected_model:
+            model_matches = [
+                gpu
+                for gpu in gpus
+                if isinstance(gpu, dict) and gpu.get("name") == expected_model
+            ]
+            if len(model_matches) == 1:
+                selected = model_matches[0]
         output.append({
             "seq": index,
             "sampled_at": str(sample.get("sampled_at") or "")[:128],
@@ -466,7 +495,11 @@ def normalize_telemetry_samples(
             "gpu_temperature_c": selected.get("temperature_c") if selected else None,
             "gpu_power_w": selected.get("power_w") if selected else None,
         })
-    expected_samples = max(len(output), 1)
+    expected_samples = (
+        max(1, math.ceil(max(0, elapsed_ms) / interval_ms))
+        if elapsed_ms is not None and interval_ms > 0
+        else max(len(output), 1)
+    )
     gpu_present = sum(1 for row in output if row["gpu_utilization_percent"] is not None)
     aggregates = {
         "cpu_avg_percent": _metric((row["cpu_utilization_percent"] for row in output), "avg"),
@@ -484,17 +517,66 @@ def normalize_telemetry_samples(
         "schema_version": TELEMETRY_SCHEMA,
         "sampler": "psutil+nvml_best_effort_v1",
         "interval_ms": interval_ms,
+        "sampling_mode": "daemon_thread_outside_engine_processing_timer_v1",
         "captured_samples": len(output),
         "expected_samples": expected_samples,
-        "coverage": round(gpu_present / expected_samples, 6),
+        "coverage": round(min(len(output), expected_samples) / expected_samples, 6),
+        "gpu_sample_coverage": round(min(gpu_present, expected_samples) / expected_samples, 6),
         "missing_reason": None if output else "sampler_unavailable",
         "selected_gpu": {
             "uuid": expected_uuid,
+            "pci_bus_id": expected_pci,
             "model": expected_model,
         },
         "aggregates": aggregates,
         "samples": output,
     }
+
+
+def _telemetry_jsonl(
+    telemetry: Mapping[str, Any],
+    *,
+    benchmark_id: str,
+    job_id: str,
+    attempt: int,
+    profile_id: str,
+    sample_identity_sha256: str,
+) -> bytes:
+    samples = telemetry.get("samples")
+    if not isinstance(samples, list) or len(samples) > _MAX_TELEMETRY_SAMPLES:
+        raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_SAMPLES_INVALID")
+    summary = {
+        key: value
+        for key, value in telemetry.items()
+        if key != "samples"
+    }
+    summary.update({
+        "record_type": "summary",
+        "benchmark_id": benchmark_id,
+        "job_id": job_id,
+        "attempt": attempt,
+        "profile_id": profile_id,
+        "sample_identity_sha256": sample_identity_sha256,
+    })
+    rows = [_canonical_json(summary)]
+    for sample in samples:
+        if not isinstance(sample, dict):
+            raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_SAMPLE_INVALID")
+        row = {
+            "schema_version": TELEMETRY_SAMPLE_SCHEMA,
+            "record_type": "sample",
+            "benchmark_id": benchmark_id,
+            "job_id": job_id,
+            "attempt": attempt,
+            "profile_id": profile_id,
+            "sample_identity_sha256": sample_identity_sha256,
+            **sample,
+        }
+        rows.append(_canonical_json(row))
+    payload = b"\n".join(rows) + b"\n"
+    if len(payload) > _MAX_JSONL_BYTES:
+        raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_SIZE_INVALID")
+    return payload
 
 
 def write_profile_telemetry(
@@ -504,13 +586,97 @@ def write_profile_telemetry(
     telemetry: Mapping[str, Any],
 ) -> dict[str, Any]:
     destination = profile_root(data_root, benchmark_id, profile_id)
-    if not (destination / "profile.json").is_file():
-        raise BenchmarkEvidenceError("BENCHMARK_PROFILE_UNCOMMITTED")
-    path = destination / "telemetry.json"
+    profile = _read_json(destination / "profile.json")
+    if (
+        profile.get("benchmark_id") != benchmark_id
+        or profile.get("profile_id") != profile_id
+        or not isinstance(profile.get("job_id"), str)
+        or isinstance(profile.get("attempt"), bool)
+        or not isinstance(profile.get("attempt"), int)
+        or not isinstance(profile.get("sample_identity_sha256"), str)
+    ):
+        raise BenchmarkEvidenceError("BENCHMARK_PROFILE_MANIFEST_INVALID")
+    path = destination / "telemetry.jsonl"
     if path.exists():
         raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_ALREADY_COMMITTED")
-    _write_json(path, telemetry)
-    return _descriptor(path)
+    payload = _telemetry_jsonl(
+        telemetry,
+        benchmark_id=benchmark_id,
+        job_id=profile["job_id"],
+        attempt=profile["attempt"],
+        profile_id=profile_id,
+        sample_identity_sha256=profile["sample_identity_sha256"],
+    )
+    atomic_write(path, payload)
+    return _descriptor(path, maximum=_MAX_JSONL_BYTES)
+
+
+def telemetry_summary_from_bytes(payload: bytes) -> dict[str, Any]:
+    first = payload.splitlines()[0] if payload else b""
+    try:
+        value = json.loads(first)
+    except (UnicodeDecodeError, json.JSONDecodeError, IndexError) as exc:
+        raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_JSONL_INVALID") from exc
+    if not isinstance(value, dict) or value.get("schema_version") != TELEMETRY_SCHEMA:
+        raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_JSONL_INVALID")
+    return value
+
+
+def write_failed_profile_diagnostics(
+    data_root: Path,
+    *,
+    benchmark_id: str,
+    job_id: str,
+    attempt: int,
+    profile_id: str,
+    sample_identity_sha256: str,
+    terminal: str,
+    failure_payload: Mapping[str, Any],
+    events: Iterable[Mapping[str, Any]],
+    telemetry: Mapping[str, Any],
+) -> dict[str, Any]:
+    if terminal not in {"cancelled", "error"}:
+        raise BenchmarkEvidenceError("BENCHMARK_FAILURE_TERMINAL_INVALID")
+    root = benchmark_root(data_root, benchmark_id)
+    destination = root / "partial" / profile_id / f"attempt-{attempt:04d}"
+    _check_owned_tree(root, destination)
+    marker = destination / "failure.json"
+    if marker.exists():
+        raise BenchmarkEvidenceError("BENCHMARK_FAILURE_ALREADY_COMMITTED")
+    destination.mkdir(parents=True, exist_ok=True)
+    event_payload = _event_jsonl(
+        events,
+        benchmark_id=benchmark_id,
+        profile_id=profile_id,
+    )
+    telemetry_payload = _telemetry_jsonl(
+        telemetry,
+        benchmark_id=benchmark_id,
+        job_id=job_id,
+        attempt=attempt,
+        profile_id=profile_id,
+        sample_identity_sha256=sample_identity_sha256,
+    )
+    atomic_write(destination / "events.jsonl", event_payload)
+    atomic_write(destination / "telemetry.jsonl", telemetry_payload)
+    code = failure_payload.get("code")
+    stage = failure_payload.get("stage")
+    failure = {
+        "schema_version": FAILED_DIAGNOSTICS_SCHEMA,
+        "benchmark_id": benchmark_id,
+        "job_id": job_id,
+        "attempt": attempt,
+        "profile_id": profile_id,
+        "sample_identity_sha256": sample_identity_sha256,
+        "terminal": terminal,
+        "code": code if isinstance(code, str) and re.fullmatch(r"[A-Z0-9_]{1,96}", code) else None,
+        "stage": stage if isinstance(stage, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", stage) else None,
+        "events": _descriptor(destination / "events.jsonl", maximum=_MAX_JSONL_BYTES),
+        "telemetry": _descriptor(destination / "telemetry.jsonl", maximum=_MAX_JSONL_BYTES),
+        "completed_at": utc_now(),
+    }
+    _write_json(marker, failure)
+    return failure
 
 
 def finalize_bundle(
@@ -557,10 +723,10 @@ def finalize_bundle(
             ("transcript.json", _MAX_JSON_BYTES),
             ("metrics.json", _MAX_JSON_BYTES),
             ("events.jsonl", _MAX_JSONL_BYTES),
-            ("telemetry.json", _MAX_JSON_BYTES),
+            ("telemetry.jsonl", _MAX_JSONL_BYTES),
         ):
             path = destination / filename
-            if filename == "telemetry.json" and not path.exists():
+            if filename == "telemetry.jsonl" and not path.exists():
                 continue
             if not path.is_file():
                 raise BenchmarkEvidenceError("BENCHMARK_PROFILE_ARTIFACT_MISSING")
@@ -782,7 +948,7 @@ def private_export_zip(data_root: Path, benchmark_id: str) -> bytes:
                     if artifact == "telemetry" and str(exc) == "BENCHMARK_ARTIFACT_UNAVAILABLE":
                         continue
                     raise
-                suffix = "jsonl" if artifact == "events" else "json"
+                suffix = "jsonl" if artifact in {"events", "telemetry"} else "json"
                 add(f"{base}/{artifact}.{suffix}", payload)
             add(f"{base}/transcript.txt", transcript_to_txt(document).encode("utf-8"))
             add(f"{base}/transcript.vtt", transcript_to_vtt(document).encode("utf-8"))
