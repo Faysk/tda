@@ -64,8 +64,8 @@ from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment,
 QWEN_WINDOW_OVERLAP_SECONDS = 6.0
 QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
 QWEN_ALIGNMENT_POLICY = "strict-overlap-v5"
-QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v4"
-QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
+QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
+QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
 _ALIGNMENT_FAILURE_CLASS = re.compile(r"^[A-Z0-9_]{1,96}$")
 _RUNTIME_VERSION_FIELD = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
 _RUNTIME_WORKER_SHA256_FIELD = re.compile(r"(?:^|;)worker_sha256=([0-9a-f]{64})(?:;|$)")
