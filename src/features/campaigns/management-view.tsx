@@ -154,11 +154,11 @@ export function CampaignManagementView({
 										conteúdo continuam sendo adicionados separadamente.
 									</p>
 								</div>
-								{createFeedback ? (
+								{createHasError && createFeedback ? (
 									<p
 										id="campaign-create-feedback"
 										className={styles.feedback}
-										role={feedback.error ? "alert" : "status"}
+										role="alert"
 									>
 										{createFeedback}
 									</p>
