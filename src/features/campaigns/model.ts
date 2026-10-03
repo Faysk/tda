@@ -25,6 +25,14 @@ export type ManageableCampaign = Readonly<{
 	hasCoverBinding: boolean;
 }>;
 
+export type CampaignCreateInput = Readonly<{
+	name: string;
+	technicalSlug: string;
+	routeKey: string;
+	description: string;
+	visibility: string;
+}>;
+
 export type CampaignMutationFailure =
 	| "unauthenticated"
 	| "profile_unresolved"
