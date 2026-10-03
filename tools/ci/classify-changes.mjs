@@ -23,6 +23,7 @@ const EXACT = {
 		"tests/auth.spec.ts",
 		"tests/pipipi-cinematic.spec.ts",
 		"tests/campaign-directory.spec.ts",
+		"tests/campaign-picker.spec.ts",
 		"tests/global-loading.spec.ts",
 		"tests/d-lore-reading-mode.spec.ts",
 		"tests/route-loading.spec.ts",

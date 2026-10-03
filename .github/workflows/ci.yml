@@ -337,6 +337,12 @@ jobs:
           tests/campaign-directory.spec.ts
           tests/campaign-management.spec.ts
           --project=desktop-1080p
+      - name: Shared campaign picker browser contract
+        run: >-
+          pnpm exec playwright test
+          tests/campaign-picker.spec.ts
+          --project=desktop-1080p
+          --project=mobile
       - name: Lore catalogue first-viewport contracts
         run: >-
           pnpm exec playwright test

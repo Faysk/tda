@@ -3,7 +3,7 @@
 > Status: registry first-class ativo; diretório público em operação
 > Owner: campaigns / public navigation / Edit
 > Última revisão: 2026-10-03
-> Issues: #1122, #1124, #1281, #1322, #1327
+> Issues: #1122, #1124, #1281, #1320, #1322, #1327
 
 ## Objetivo
 
@@ -131,6 +131,30 @@ Public route key:
 - é normalizado antes de validar;
 - colisão com canonical/alias falha fechada;
 - rename depende do recorder de alias definido no candidate de registry.
+
+## Seleção compartilhada e entrada de gestão
+
+#1320 define um padrão visual reutilizável sem criar um singleton global de campaign nem um segundo registry.
+
+Primitives:
+
+- `CampaignPicker` recebe uma projection já autorizada/preparada pelo consumidor e cuida de seleção, estado archived, `Geral` opcional e ações contextuais;
+- `CampaignRoutePicker` adiciona navegação de rota com dois comportamentos explícitos: troca imediata ou seleção confirmada;
+- nenhum dos componentes consulta Supabase, grants ou registry diretamente.
+
+O `value` é opaco para o componente. UUID, technical slug e public route key continuam identidades distintas e só o domínio dono constrói o adapter e o `href`. Não existe conversão implícita entre elas.
+
+`Geral` é opt-in. Ações de criar/gerir são semanticamente separadas das options e só são projetadas quando a superfície já verificou a capability correspondente. A presença da ação no browser é apenas apresentação: toda mutation continua reautorizando no boundary server-side.
+
+Durante troca de rota, o controle anuncia navegação em andamento e bloqueia nova interação até o novo contexto assumir. Consumidores podem manter semânticas diferentes quando isso é intencional: Processamento e Sessões podem trocar contexto diretamente; Transcrições pode exigir confirmação antes de aplicar a seleção.
+
+Campaign arquivada sempre recebe rótulo textual. Cada domínio decide se ela permanece selecionável para leitura histórica ou fica desabilitada como novo destino operacional.
+
+Estados 0/1/N e falha de discovery pertencem ao consumidor, que conhece sua elegibilidade. O shared picker nunca escolhe silenciosamente uma campaign por ordem do banco nem inventa fallback técnico.
+
+A entrada administrativa canônica permanece `/edit/campanhas`. Quando um consumidor fornece `next`, o retorno é validado por `safeReturnPath`; criação, edição e lifecycle preservam essa intenção quando segura. Formulários/rascunhos locais que não podem sobreviver à navegação devem manter a gestão secundária ou pedir confirmação antes de sair.
+
+Consumidores migrados incrementalmente neste slice: entrada/workspace de Processamento, Transcrições e biblioteca Edit de Sessões. Novos domínios devem reutilizar as primitives e fornecer sua própria projection autorizada.
 
 ## Edit — `/edit/campanhas`
 

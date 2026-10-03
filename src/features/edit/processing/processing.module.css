@@ -2279,3 +2279,15 @@
 		width: 100%;
 	}
 }
+
+
+.campaignNavigationGuard {
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.campaignNavigationGuard:disabled {
+	opacity: 0.72;
+}
