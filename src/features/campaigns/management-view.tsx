@@ -305,7 +305,12 @@ export function CampaignManagementView({
 											data-campaign-id={campaign.id}
 										>
 											<div className={styles.itemOverview}>
-												<div className={styles.thumbnail} aria-hidden="true">
+												<div
+													className={styles.thumbnail}
+													aria-hidden="true"
+													data-campaign-thumbnail
+													data-has-cover={campaign.coverImage ? "true" : "false"}
+												>
 													{campaign.coverImage ? (
 														<Image
 															src={campaign.coverImage}
