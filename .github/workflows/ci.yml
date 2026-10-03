@@ -480,6 +480,11 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: uv venv --python 3.12.14
       - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - name: Benchmark evidence and ASR quality synthetic gate
+        run: >-
+          .venv/bin/python -m pytest -q
+          local-companion/tests/test_benchmark_evidence_quality_gate.py
+          local-companion/tests/test_processing_benchmark.py
       - name: Browser contract E2E
         run: pnpm test:processing
       - name: Responsive UX matrix
