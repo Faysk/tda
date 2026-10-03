@@ -5,13 +5,13 @@ import { useState } from "react";
 import styles from "./access.module.css";
 
 function accountInitials(displayName: string | null) {
-	const initials = (displayName ?? "")
-		.trim()
-		.split(/\s+/u)
-		.filter(Boolean)
-		.slice(0, 2)
-		.map((part) => part.at(0)?.toUpperCase() ?? "")
-		.join("");
+	const parts = (displayName ?? "").trim().split(/\s+/u).filter(Boolean);
+	const selected =
+		parts.length <= 1 ? parts : [parts[0], parts.at(-1) ?? ""];
+	const initials = selected
+		.map((part) => Array.from(part)[0] ?? "")
+		.join("")
+		.toLocaleUpperCase("pt-BR");
 	return initials || "TDA";
 }
 
