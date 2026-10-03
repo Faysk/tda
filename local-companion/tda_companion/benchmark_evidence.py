@@ -727,8 +727,43 @@ def load_bundle(
             "BENCHMARK_PROFILE_MANIFEST",
         )
         profile = _json(profile_raw, "BENCHMARK_PROFILE_MANIFEST")
-        if profile.get("benchmark_id") != benchmark_id or profile.get("profile_id") != profile_id:
+        if (
+            profile.get("benchmark_id") != benchmark_id
+            or profile.get("profile_id") != profile_id
+            or profile.get("job_id") != value.get("job_id")
+            or profile.get("attempt") != value.get("attempt")
+            or profile.get("sample_identity_sha256") != value.get("sample_identity_sha256")
+        ):
             raise BenchmarkEvidenceError("BENCHMARK_PROFILE_MANIFEST_MISMATCH")
+        artifacts = profile.get("artifacts")
+        if not isinstance(artifacts, dict):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_ARTIFACTS_INVALID")
+        for top_name, filename in (
+            ("transcript", "transcript.json"),
+            ("metrics", "metrics.json"),
+            ("events", "events.jsonl"),
+        ):
+            top_descriptor = entry.get(top_name)
+            profile_descriptor = artifacts.get(filename)
+            if (
+                not isinstance(top_descriptor, dict)
+                or not isinstance(profile_descriptor, dict)
+                or top_descriptor.get("path") != f"profiles/{profile_id}/{filename}"
+                or top_descriptor.get("sha256") != profile_descriptor.get("sha256")
+                or top_descriptor.get("size_bytes") != profile_descriptor.get("size_bytes")
+            ):
+                raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_DESCRIPTOR_MISMATCH")
+        top_telemetry = entry.get("telemetry")
+        profile_telemetry = artifacts.get("telemetry.jsonl")
+        if (top_telemetry is None) != (profile_telemetry is None):
+            raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_DESCRIPTOR_MISMATCH")
+        if isinstance(top_telemetry, dict) and isinstance(profile_telemetry, dict):
+            if (
+                top_telemetry.get("path") != f"profiles/{profile_id}/telemetry.jsonl"
+                or top_telemetry.get("sha256") != profile_telemetry.get("sha256")
+                or top_telemetry.get("size_bytes") != profile_telemetry.get("size_bytes")
+            ):
+                raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_DESCRIPTOR_MISMATCH")
         if verify_artifacts:
             _load_profile_manifest(package_root, benchmark_id, profile_id, verify_artifacts=True)
     return value
