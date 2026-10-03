@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getLembraIdentity } from "@/features/lembra/access";
+import { loadEditAccessContext } from "@/features/edit/access/repository";
 import { LembraExperience } from "@/features/lembra/components/lembra-experience";
 import {
 	loadLembraCampaignClassifications,
@@ -30,7 +31,10 @@ export default async function LembraPage() {
 		redirect("/conta?acesso=indisponivel");
 	}
 
-	const campaigns = await loadLembraCampaignClassifications();
+	const context = await loadEditAccessContext(access.identity.authUserId);
+	if (!context) redirect("/conta?acesso=indisponivel");
+
+	const campaigns = await loadLembraCampaignClassifications(context);
 	const [references, favoriteIds] = await Promise.all([
 		loadLembraReferences(access.identity.authUserId, campaigns),
 		loadLembraFavoriteIds(access.identity.authUserId),
