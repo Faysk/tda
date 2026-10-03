@@ -12,6 +12,13 @@ from pathlib import Path
 from typing import Callable
 
 from .asr_runtime import inspect_whisper_runtime
+from .benchmark_evidence import (
+    BenchmarkEvidenceError,
+    benchmark_event_row,
+    benchmark_id_for,
+    commit_profile_artifact,
+    finalize_bundle,
+)
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import inspect_qwen_runtime
 from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
@@ -477,6 +484,8 @@ class WorkerSupervisor:
         context: str,
         cpu: bool,
         benchmark_sample_seconds: float | None = None,
+        benchmark_id: str | None = None,
+        sample_identity_sha256: str | None = None,
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
@@ -498,6 +507,8 @@ class WorkerSupervisor:
                     {
                         "benchmark_mode": True,
                         "benchmark_sample_seconds": benchmark_sample_seconds,
+                        "benchmark_id": benchmark_id,
+                        "sample_identity_sha256": sample_identity_sha256,
                     }
                     if benchmark_sample_seconds is not None
                     else {}
@@ -594,6 +605,9 @@ class WorkerSupervisor:
         job_id: str,
         attempt: int,
         source_id: str,
+        source_sha256: str,
+        track_count: int,
+        audio_work_seconds: float,
         glossary: str,
         context: str,
         sample_identity_sha256: str,
@@ -602,13 +616,17 @@ class WorkerSupervisor:
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> WorkerOutcome:
+        if self.data_root is None:
+            raise WorkerProcessError("WORKER_ASR_ROOTS_UNCONFIGURED")
         profiles = (
             "whisper-turbo",
             "whisper-detailed",
             "qwen-fast",
             "qwen-quality",
         )
+        benchmark_id = benchmark_id_for(job_id, attempt)
         receipts: list[dict] = []
+        profile_manifests: list[dict] = []
         for index, profile_id in enumerate(profiles, start=1):
             if is_cancelled is not None and is_cancelled():
                 return WorkerOutcome(
@@ -616,6 +634,22 @@ class WorkerSupervisor:
                     payload={"stage": "benchmark", "forced": False},
                     returncode=0,
                 )
+            captured_events: list[dict] = []
+
+            def capture_message(message: WorkerMessage) -> None:
+                captured_events.append(
+                    benchmark_event_row(
+                        benchmark_id=benchmark_id,
+                        attempt=attempt,
+                        profile_id=profile_id,
+                        seq=message.seq,
+                        event_type=message.type,
+                        payload=message.payload,
+                    )
+                )
+                if on_event is not None and message.type != "progress":
+                    on_event(message)
+
             outcome = self.run_craig(
                 job_id=job_id,
                 attempt=attempt,
@@ -625,8 +659,10 @@ class WorkerSupervisor:
                 context=context,
                 cpu=False,
                 benchmark_sample_seconds=sample_seconds,
-                on_progress=lambda _message: None,
-                on_event=on_event,
+                benchmark_id=benchmark_id,
+                sample_identity_sha256=sample_identity_sha256,
+                on_progress=capture_message,
+                on_event=capture_message,
                 is_cancelled=is_cancelled,
             )
             if outcome.terminal != "result":
@@ -636,7 +672,41 @@ class WorkerSupervisor:
                 raise WorkerProcessError("BENCHMARK_PROFILE_RESULT_INVALID", recoverable=False)
             if not _benchmark_profile_evidence_valid(receipt, profile_id):
                 raise WorkerProcessError("BENCHMARK_PROFILE_EVIDENCE_INVALID", recoverable=False)
+            if (
+                receipt.get("benchmark_id") != benchmark_id
+                or receipt.get("sample_identity_sha256") != sample_identity_sha256
+            ):
+                raise WorkerProcessError("BENCHMARK_PROFILE_ARTIFACT_INVALID", recoverable=False)
+            captured_events.append(
+                benchmark_event_row(
+                    benchmark_id=benchmark_id,
+                    attempt=attempt,
+                    profile_id=profile_id,
+                    seq=(captured_events[-1]["seq"] + 1) if captured_events else 0,
+                    event_type="result",
+                    payload={
+                        "profile_id": profile_id,
+                        "transcript_sha256": receipt.get("transcript_sha256"),
+                        "metrics_sha256": receipt.get("metrics_sha256"),
+                    },
+                )
+            )
+            try:
+                profile_manifest = commit_profile_artifact(
+                    self.data_root,
+                    benchmark_id=benchmark_id,
+                    job_id=job_id,
+                    attempt=attempt,
+                    source_id=source_id,
+                    sample_identity_sha256=sample_identity_sha256,
+                    sample_seconds=sample_seconds,
+                    profile_receipt=receipt,
+                    event_rows=captured_events,
+                )
+            except BenchmarkEvidenceError as exc:
+                raise WorkerProcessError(str(exc), recoverable=False) from None
             receipts.append(receipt)
+            profile_manifests.append(profile_manifest)
             on_progress(
                 WorkerMessage.create(
                     job_id=job_id,
@@ -651,15 +721,42 @@ class WorkerSupervisor:
                     },
                 )
             )
+        try:
+            bundle = finalize_bundle(
+                self.data_root,
+                benchmark_id=benchmark_id,
+                job_id=job_id,
+                attempt=attempt,
+                source_id=source_id,
+                source_sha256=source_sha256,
+                sample_identity_sha256=sample_identity_sha256,
+                sample_seconds=sample_seconds,
+                track_count=track_count,
+                audio_work_seconds=audio_work_seconds,
+                context=context,
+                glossary=glossary,
+                profile_manifests=profile_manifests,
+            )
+        except BenchmarkEvidenceError as exc:
+            raise WorkerProcessError(str(exc), recoverable=False) from None
         return WorkerOutcome(
             terminal="result",
             payload={
                 "schema_version": "tda_processing_benchmark_v1",
                 "kind": "benchmark.craig",
+                "benchmark_id": benchmark_id,
                 "source_id": source_id,
                 "sample_identity_sha256": sample_identity_sha256,
                 "sample_seconds": sample_seconds,
                 "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                "artifact_bundle": {
+                    "schema_version": "tda_benchmark_artifacts_v1",
+                    "benchmark_id": benchmark_id,
+                    "manifest_sha256": bundle["manifest_sha256"],
+                    "manifest_size_bytes": bundle["manifest_size_bytes"],
+                    "bundle_size_bytes": bundle["bundle_size_bytes"],
+                    "profile_count": len(profiles),
+                },
                 "profiles": receipts,
             },
             returncode=0,
