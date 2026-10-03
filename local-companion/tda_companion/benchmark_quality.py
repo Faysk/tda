@@ -461,6 +461,20 @@ def _turn_track(document: TranscriptDocument, turn: TranscriptTurn) -> int | Non
     return next(iter(numbers)) if len(numbers) == 1 else None
 
 
+def _hypothesis_timing_provenance(document: TranscriptDocument) -> dict[str, Any]:
+    segments = [segment for track in document.tracks for segment in track.segments]
+    word_aligned = bool(segments) and all(
+        bool(segment.words)
+        and normalize_text(" ".join(word.text for word in segment.words)) == normalize_text(segment.text)
+        for segment in segments
+    )
+    return {
+        "timestamp_granularity": "word_aligned" if word_aligned else "segment_aligned",
+        "alignment_backend": document.engine.alignment,
+        "warning_count": len(document.warnings),
+    }
+
+
 def _timing_metrics(reference_tracks: Sequence[Mapping[str, Any]], document: TranscriptDocument) -> dict[str, Any] | None:
     if not all(isinstance(track.get("turns"), list) for track in reference_tracks):
         return None
@@ -481,27 +495,36 @@ def _timing_metrics(reference_tracks: Sequence[Mapping[str, Any]], document: Tra
     start_errors: list[float] = []
     end_errors: list[float] = []
     overlap_tp = overlap_fp = overlap_fn = 0
+    reference_turn_count = sum(len(track.get("turns", [])) for track in reference_tracks)
+    hypothesis_turn_count = sum(len(values) for values in hypotheses.values())
+    used_hypotheses = 0
     for track in reference_tracks:
         number = int(track["track_number"])
         available = list(enumerate(hypotheses.get(number, [])))
         used: set[int] = set()
         for ref in track.get("turns", []):
-            best: tuple[float, int, dict[str, Any]] | None = None
+            candidates: list[tuple[int, float, int, dict[str, Any]]] = []
             for index, hyp in available:
                 if index in used:
                     continue
                 intersection = max(0.0, min(float(ref["end"]), hyp["end"]) - max(float(ref["start"]), hyp["start"]))
                 union = max(float(ref["end"]), hyp["end"]) - min(float(ref["start"]), hyp["start"])
                 iou = intersection / union if union > 0 else 0.0
-                if iou >= 0.1 and (best is None or iou > best[0]):
-                    best = (iou, index, hyp)
-            if best is None:
+                if iou >= 0.1:
+                    candidates.append((
+                        1 if str(ref["speaker"]) == str(hyp["speaker"]) else 0,
+                        iou,
+                        index,
+                        hyp,
+                    ))
+            if not candidates:
                 unmatched += 1
                 if ref.get("overlaps_other_speaker"):
                     overlap_fn += 1
                 continue
-            _, index, hyp = best
+            _, _, index, hyp = max(candidates, key=lambda item: (item[0], item[1], -item[2]))
             used.add(index)
+            used_hypotheses += 1
             matched += 1
             speaker_correct += int(str(ref["speaker"]) == str(hyp["speaker"]))
             start_errors.append(abs(float(ref["start"]) - float(hyp["start"])))
@@ -514,19 +537,28 @@ def _timing_metrics(reference_tracks: Sequence[Mapping[str, Any]], document: Tra
                 overlap_fp += 1
             elif ref_overlap:
                 overlap_fn += 1
+        overlap_fp += sum(
+            1
+            for index, hyp in available
+            if index not in used and bool(hyp.get("overlaps_other_speaker"))
+        )
     boundary = start_errors + end_errors
+
     def percentile(values: list[float], fraction: float) -> float | None:
         if not values:
             return None
         ordered = sorted(values)
         index = max(0, min(len(ordered) - 1, math.ceil(len(ordered) * fraction) - 1))
         return round(ordered[index], 6)
+
     precision = overlap_tp / (overlap_tp + overlap_fp) if overlap_tp + overlap_fp else None
     recall = overlap_tp / (overlap_tp + overlap_fn) if overlap_tp + overlap_fn else None
     f1 = 2 * precision * recall / (precision + recall) if precision is not None and recall is not None and precision + recall else None
     return {
         "matched_turns": matched,
         "unmatched_reference_turns": unmatched,
+        "unmatched_hypothesis_turns": max(0, hypothesis_turn_count - used_hypotheses),
+        "turn_coverage": round(matched / reference_turn_count, 8) if reference_turn_count else None,
         "speaker_accuracy": round(speaker_correct / matched, 8) if matched else None,
         "start_mae_seconds": round(sum(start_errors) / len(start_errors), 6) if start_errors else None,
         "end_mae_seconds": round(sum(end_errors) / len(end_errors), 6) if end_errors else None,
@@ -535,8 +567,8 @@ def _timing_metrics(reference_tracks: Sequence[Mapping[str, Any]], document: Tra
         "overlap_precision": round(precision, 8) if precision is not None else None,
         "overlap_recall": round(recall, 8) if recall is not None else None,
         "overlap_f1": round(f1, 8) if f1 is not None else None,
+        "hypothesis_timing": _hypothesis_timing_provenance(document),
     }
-
 
 def compute_quality_receipts(
     data_root: Path,
