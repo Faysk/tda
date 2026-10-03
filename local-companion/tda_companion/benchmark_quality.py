@@ -15,6 +15,7 @@ from .benchmark_evidence import (
     BenchmarkEvidenceError,
     PROFILES,
     benchmark_root,
+    bundle_manifest_sha256,
     load_bundle,
     utc_now,
     verified_profile_bytes,
@@ -544,6 +545,9 @@ def compute_quality_receipts(
     reference: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     manifest = load_bundle(data_root, benchmark_id)
+    manifest_sha256 = bundle_manifest_sha256(data_root, benchmark_id)
+    normalization = normalization_contract()
+    normalization_sha256 = _digest(_canonical(normalization))
     root = benchmark_root(data_root, benchmark_id)
     ref = dict(reference) if reference is not None else _current_reference(root)
     if ref is None:
@@ -598,6 +602,7 @@ def compute_quality_receipts(
             "schema_version": QUALITY_SCHEMA,
             "metric_implementation": METRIC_IMPLEMENTATION,
             "benchmark_id": benchmark_id,
+            "benchmark_manifest_sha256": manifest_sha256,
             "profile_id": profile_id,
             "sample_identity_sha256": manifest["sample_identity_sha256"],
             "transcript_sha256": transcript_sha,
@@ -605,7 +610,8 @@ def compute_quality_receipts(
             "reference_sha256": reference_sha,
             "reference_payload_sha256": ref["payload_sha256"],
             "reference_capability": ref["capability"],
-            "normalization": normalization_contract(),
+            "normalization": normalization,
+            "normalization_sha256": normalization_sha256,
             "overall": {
                 "aggregation": "micro",
                 "reference_words": ref_words_total,
@@ -622,7 +628,6 @@ def compute_quality_receipts(
             "per_track": per_track,
             "term_fidelity": _term_fidelity(reference_text, hypothesis_text, terms),
             "timing": _timing_metrics(reference_tracks, document) if ref["capability"] == "timed_turns" else None,
-            "computed_at": utc_now(),
         }
         encoded = _canonical(receipt)
         atomic_write(quality_dir / f"{profile_id}.json", encoded)
