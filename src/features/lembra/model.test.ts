@@ -7,6 +7,7 @@ import {
 	lembraReferenceObjectKey,
 	lembraUploadChunkCount,
 	validLembraCampaignId,
+	validLembraCampaignUpdateIntent,
 	validLembraDescription,
 	validLembraTitle,
 	validLembraUpdatedAt,
@@ -119,6 +120,14 @@ describe("Lembra persistence model", () => {
 		expect(validLembraCampaignId(null)).toBe(true);
 		expect(validLembraCampaignId(referenceId)).toBe(true);
 		expect(validLembraCampaignId("campaign-a")).toBe(false);
+		expect(validLembraCampaignUpdateIntent({ kind: "preserve" })).toBe(true);
+		expect(validLembraCampaignUpdateIntent({ kind: "clear" })).toBe(true);
+		expect(
+			validLembraCampaignUpdateIntent({ kind: "set", campaignId: referenceId }),
+		).toBe(true);
+		expect(
+			validLembraCampaignUpdateIntent({ kind: "set", campaignId: "campaign-a" }),
+		).toBe(false);
 		expect(validLembraUpdatedAt("2026-09-30T15:12:13.123Z")).toBe(true);
 		expect(validLembraUpdatedAt("2026-09-30 15:12:13.123+00")).toBe(true);
 		expect(validLembraUpdatedAt("not-a-date")).toBe(false);
