@@ -30,6 +30,11 @@ const CAMPAIGNS: readonly LembraCampaignClassification[] = [
 		name: "Campanha Arquivada",
 		lifecycle: "archived",
 	},
+	{
+		id: "66666666-6666-4666-8666-666666666666",
+		name: "Expedição pelos Confins do Reino das Estrelas Cadentes",
+		lifecycle: "active",
+	},
 ];
 
 const REFERENCES: readonly LembraReference[] = [
@@ -60,6 +65,20 @@ const REFERENCES: readonly LembraReference[] = [
 		height: 12,
 		mine: false,
 		campaign: CAMPAIGNS[0],
+	},
+	{
+		id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+		title: "Confins",
+		description: "Referência com campanha de nome longo para validar mobile",
+		author: "Fixture",
+		authorAuthUserId: "fixture",
+		createdAt: "2026-09-30T09:00:00.000Z",
+		updatedAt: "2026-09-30T09:00:00.000Z",
+		imageUrl: IMAGE,
+		width: 16,
+		height: 12,
+		mine: false,
+		campaign: CAMPAIGNS[3],
 	},
 	{
 		id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
