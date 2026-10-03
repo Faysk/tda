@@ -35,7 +35,7 @@ describe("canonical Edit session route contract", () => {
 
 	it("keeps the legacy deep link as a campaign chooser instead of a global source lookup", () => {
 		expect(legacyEntrySource).toContain("readEditableSessionCampaigns");
-		expect(legacyEntrySource).toContain("não é usado como");
+		expect(legacyEntrySource).toContain("editSessionDetailHref(");
 		expect(legacyEntrySource).not.toContain("findEditSessionBySourceId");
 	});
 });

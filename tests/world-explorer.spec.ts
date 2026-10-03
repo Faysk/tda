@@ -132,6 +132,29 @@ test("World Explorer paints relation strokes in the same visible layer as edge l
 	expect(paint.insideNativeEdgeLayer).toBe(false);
 });
 
+test("World inspector prioritizes useful connections and keeps map metadata progressive", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto(WORLD_PATH);
+	await page.locator('[data-world-node="astel"]').click();
+
+	const overview = page.locator('[data-inspector-tab="overview"]');
+	await expect(overview).toBeVisible();
+	await expect(overview.getByRole("heading", { level: 3, name: "Conexões em destaque" })).toBeVisible();
+	await expect(overview.getByRole("button", { name: /Selecionar .+; relação / }).first()).toBeVisible();
+
+	const details = overview.locator("details").filter({ hasText: "Detalhes do mapa" });
+	await expect(details).not.toHaveAttribute("open", "");
+	await details.locator("summary").click();
+	await expect(details).toHaveAttribute("open", "");
+
+	const relationChip = details.locator("button[data-family]").first();
+	await expect(relationChip.locator("strong")).not.toHaveText("");
+	await expect(relationChip.locator("span")).not.toHaveText("");
+
+	await expect(page.getByText("active", { exact: true })).toHaveCount(0);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
 test("World Explorer inspector traverses visible connections without changing focus", async ({ page }) => {
 	await page.goto(WORLD_PATH);
 	await page.locator('[data-world-node="astel"]').click();

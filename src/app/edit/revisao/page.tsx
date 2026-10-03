@@ -283,14 +283,11 @@ export default async function NarrativeReviewPage({
 		>
 			<OperationalPageHeader
 				eyebrow="Edit · Revisão"
-				title={`Revisão narrativa · ${selected.name}`}
+				title="Revisão narrativa"
 				description={
-					<p>
-						Compare cada claim com suas fontes antes de decidir. Só a opção de
-						cânone cria uma entrada <code>review_only</code>; as demais
-						classificam o candidate sem publicar conteúdo.
-					</p>
+					<p>Compare cada candidato com suas fontes antes de registrar uma decisão.</p>
 				}
+				meta={selected.name}
 			/>
 
 			<CampaignPicker

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { CampaignCoverEditor } from "@/features/campaigns/campaign-cover-editor";
 import { readManageableCampaigns } from "@/features/campaigns/server";
 import {
@@ -62,20 +63,21 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 	const feedback = feedbackText(status, error);
 
 	return (
-		<main className={styles.page}>
-			<header className={styles.header}>
-				<div>
-					<p className={styles.eyebrow}>Edit · campanhas</p>
-					<h1>Campaign Registry</h1>
-					<p>
-						Identidade, apresentação pública e lifecycle. O slug técnico nasce
-						estável e não muda quando o nome editorial mudar.
-					</p>
-				</div>
-				<Link className={styles.publicLink} href="/campanhas">
-					Ver diretório público
-				</Link>
-			</header>
+		<main
+			className={styles.page}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit · Campanhas"
+				title="Campanhas"
+				description={<p>Crie, organize e gerencie as campanhas do TDA.</p>}
+				meta={
+					<Link className={styles.publicLink} href="/campanhas">
+						Ver diretório público
+					</Link>
+				}
+			/>
 
 			{feedback ? (
 				<p className={styles.feedback} role={error ? "alert" : "status"}>
@@ -93,16 +95,18 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 				</section>
 			) : (
 				<>
-					<section className={styles.create} aria-labelledby="create-campaign">
-						<div>
-							<p className={styles.eyebrow}>Nova identidade</p>
-							<h2 id="create-campaign">Criar campanha</h2>
-							<p>
-								A criação registra somente a raiz da campanha. Não cria sessões,
-								entidades, membros nem canon automaticamente.
-							</p>
-						</div>
-						<form className={styles.form} action={createCampaignAction}>
+					<details className={styles.createDisclosure} id="nova-campanha">
+						<summary>Nova campanha</summary>
+						<section className={styles.create} aria-labelledby="create-campaign">
+							<div>
+								<p className={styles.eyebrow}>Nova identidade</p>
+								<h2 id="create-campaign">Criar campanha</h2>
+								<p>
+									A criação registra somente a raiz da campanha. Não cria sessões,
+									entidades, membros nem canon automaticamente.
+								</p>
+							</div>
+							<form className={styles.form} action={createCampaignAction}>
 							{returnTo ? (
 								<input type="hidden" name="returnTo" value={returnTo} />
 							) : null}
@@ -141,11 +145,12 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 								<span>Descrição pública curta</span>
 								<textarea name="description" maxLength={600} rows={3} />
 							</label>
-							<button className={styles.primary} type="submit">
-								Criar campanha
-							</button>
-						</form>
-					</section>
+								<button className={styles.primary} type="submit">
+									Criar campanha
+								</button>
+							</form>
+						</section>
+					</details>
 
 					<section className={styles.registry} aria-labelledby="campaign-registry-list">
 						<div className={styles.registryHeading}>

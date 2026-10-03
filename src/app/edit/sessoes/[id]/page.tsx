@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { currentAccess } from "@/features/auth/server";
 import {
 	editSessionDetailHref,
@@ -33,12 +34,17 @@ export default async function LegacyEditSessionEntry({ params }: Props) {
 	const eligible = await readEditableSessionCampaigns(access.context);
 	if (!eligible.ok) {
 		return (
-			<section className={styles.locked} role="status">
-				<h1>Campanhas indisponíveis</h1>
-				<p className={styles.muted}>
-					A sessão não foi procurada globalmente porque a identidade de origem
-					pode se repetir entre campanhas.
-				</p>
+			<section
+				className={styles.locked}
+				data-layout-family="workspace"
+				data-layout-role="editorial"
+				role="status"
+			>
+				<OperationalPageHeader
+					eyebrow="Edit · Sessão"
+					title="Campanhas indisponíveis"
+					description={<p>Não foi possível consultar as campanhas agora.</p>}
+				/>
 			</section>
 		);
 	}
@@ -50,20 +56,19 @@ export default async function LegacyEditSessionEntry({ params }: Props) {
 		);
 
 	return (
-		<section className={styles.shell}>
-			<header className={styles.pageHeader}>
-				<div>
-					<p className={styles.libraryEyebrow}>TDA / EDIT / SESSÃO</p>
-					<h1 className={styles.pageTitle}>Escolha a campanha</h1>
-					<p className={styles.muted}>
-						O identificador <code>{sourceSessionId}</code> não é usado como
-						lookup global. Escolha o contexto autorizado primeiro.
-					</p>
-				</div>
-			</header>
+		<section
+			className={[styles.shell, styles.libraryShell].join(" ")}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit · Sessão"
+				title="Escolha a campanha"
+				description={<p>Escolha o contexto antes de abrir esta sessão.</p>}
+			/>
 			<div className={styles.libraryList}>
 				{eligible.campaigns.map((campaign) => (
-					<article className={styles.libraryRow} key={campaign.id}>
+					<article className={[styles.libraryRow, styles.campaignChoiceRow].join(" ")} key={campaign.id}>
 						<div className={styles.libraryPrimary}>
 							<h2 className={styles.sessionTitle}>{campaign.name}</h2>
 						</div>
@@ -79,6 +84,13 @@ export default async function LegacyEditSessionEntry({ params }: Props) {
 					</article>
 				))}
 			</div>
+			<details className={styles.libraryGuidance}>
+				<summary>Sobre esta escolha</summary>
+				<p>
+					O identificador <code>{sourceSessionId}</code> pode existir em mais de
+					uma campanha, por isso a busca não é global.
+				</p>
+			</details>
 		</section>
 	);
 }
