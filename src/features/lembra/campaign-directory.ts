@@ -1,6 +1,6 @@
 import "server-only";
 
-import { readAuthorizedCampaigns } from "@/features/campaigns/authorized";
+import { readAuthorizedCampaignClassifications } from "@/features/campaigns/authorized";
 import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import { loadEditAccessContext } from "@/features/edit/access/repository";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
@@ -31,18 +31,14 @@ export async function loadLembraCampaignContext(
 		}
 		canManageCampaigns = canManageCampaignRegistry(context);
 
-		const discovered = await readAuthorizedCampaigns(
+		const discovered = await readAuthorizedCampaignClassifications(
 			context,
 			EDIT_CAPABILITIES.campaignEditAccess,
 			{ includeArchived: true },
 		);
 		if (discovered.ok) {
 			for (const campaign of discovered.campaigns) {
-				byId.set(campaign.id, {
-					id: campaign.id,
-					name: campaign.name,
-					lifecycle: campaign.lifecycle,
-				});
+				byId.set(campaign.id, campaign);
 			}
 		}
 	} catch {
