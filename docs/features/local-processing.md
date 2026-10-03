@@ -51,9 +51,13 @@ não cria run publicável e não escolhe vencedor. Sem referência humana, quali
 permanece explicitamente não medida. Este benchmark não substitui o aceite físico
 de release definido em #478.
 Desde #1233, prontidão de transcrição e prontidão de benchmark são contratos
-separados. Whisper Runtime 1.1.5 permanece aceito para transcrição normal, mas não
-pode ser anunciado como pronto para benchmark; o primeiro runtime que satisfaz o
-contrato de benchmark publicado sob este gate é 1.1.7. O 1.1.6 foi reservado pela correção de decoder #1234 antes deste gate e não é usado como prova de aceite da #1233. O Companion 0.3.18 anuncia a capability
+separados. Whisper Runtime 1.1.5 permanece aceito para transcrição normal, e 1.1.7
+foi o primeiro runtime a satisfazer o gate de execução/métricas do benchmark. Com
+#1413, o contrato atual também exige que o worker congelado persista a evidência
+textual imutável: por isso `benchmark_ready` exige Whisper >=1.1.10 e Qwen >=1.0.18.
+Runtimes anteriores continuam compatíveis com transcrição normal quando atendem
+seus mínimos gerais, mas não podem ser anunciados como prontos para o Benchmark
+atual. O Companion 0.3.18 anuncia a capability
 `processing.benchmark.runtime-readiness-v2` e publica `benchmark_ready` separado
 de `ready`. Cliente sem essa capability falha fechado para benchmark, sem bloquear
 transcrição normal. A preparação iniciada por esta tab envia `purpose=benchmark`
