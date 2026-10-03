@@ -399,6 +399,23 @@ Antes de escolher um default definitivo, rodar os quatro perfis sobre áudio rea
 
 Medir qualidade textual, nomes, erro temporal p50/p95 em pontos anotados, preservação de overlap, falso dedup, elapsed, RTF, pico de VRAM, uso GPU e recoverability/checkpoints.
 
+A instrumentação de #1414 preserva a parte factual de performance e diagnóstico por
+perfil dentro do mesmo bundle local de #1413. `metrics.json` mantém o timing
+`engine_processing_v1` completo; `events.jsonl` registra o protocolo sanitizado já
+validado pelo supervisor; `telemetry.jsonl`, quando disponível, amostra recursos em
+aproximadamente 1 Hz e calcula agregados de GPU/VRAM/CPU/RAM. O vínculo de GPU usa
+identidade física (UUID/PCI), evitando atribuir amostras da placa errada quando CUDA
+remapeia ordinais. Sensor ausente é `null`/cobertura parcial, nunca zero fabricado e
+nunca motivo para reprovar o ASR.
+
+Os três artefatos ficam em
+`Data/benchmarks/<benchmark-id>/profiles/<profile>/`. O `benchmark.json` final
+hash-binda `metrics.json`, `events.jsonl` e, quando existente,
+`telemetry.jsonl` além do transcript/profile manifest; alteração posterior falha
+fechado na leitura do bundle. A captura não fatia `companion.log`, não persiste
+environment/PATH/cwd/cmdline, hostname/usuário, tokens/cookies, paths locais, áudio
+ou texto de transcrição e não transforma benchmark em run editorial.
+
 ## Ordem de estabilização
 
 A ordem original de implementação permanece como histórico da construção, mas a estabilização vigente segue:
