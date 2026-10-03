@@ -36,6 +36,9 @@ test("completed evidence reopens four-profile lab without turning it into Result
 
 	const compare = panel.getByRole("button", { name: "Comparar transcripts" });
 	await expect(compare).toBeEnabled();
+	expect(
+		state.requests.some((item) => item.path.includes("/transcript")),
+	).toBe(false);
 	await compare.click();
 
 	await expect(panel.getByRole("tab", { name: "Texto" })).toHaveAttribute(
