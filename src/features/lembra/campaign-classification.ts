@@ -91,10 +91,11 @@ export function resolveLembraCampaignMutation(
 		input.currentCampaign,
 	);
 
-	// A hidden classification is never rewritten from a browser intent. This keeps
-	// title/description edits safe after revocation and prevents UUID probing from
-	// becoming a way to clear or move a classification the viewer cannot discover.
+	// A hidden classification is never rewritten from a browser intent. Metadata-only
+	// edits may explicitly preserve it; clear/set attempts fail closed so a stale UI
+	// cannot mutate a campaign after discovery was revoked.
 	if (currentProjection.campaignRestricted) {
+		if (input.intent.kind !== "preserve") return { ok: false };
 		return {
 			ok: true,
 			campaignId: input.currentCampaignId,
