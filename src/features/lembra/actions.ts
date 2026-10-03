@@ -5,17 +5,19 @@ import { getLembraIdentity } from "./access";
 import {
 	LEMBRA_UPLOAD_CHUNK_BYTES,
 	isLembraUuid,
+	type LembraCampaignMutationIntent,
 	type LembraReference,
 	type LembraUploadIntent,
-	validLembraCampaignId,
+	validLembraCampaignMutationIntent,
 	validLembraDescription,
 	validLembraTitle,
 	validLembraUpdatedAt,
 	validLembraUploadIntent,
 } from "./model";
+import { resolveLembraCampaignMutation } from "./campaign-classification";
 import {
 	insertLembraReference,
-	loadLembraCampaignClassification,
+	loadLembraCampaignClassifications,
 	loadLembraReferenceRow,
 	presentLembraRow,
 	retireLembraReference,
@@ -75,22 +77,23 @@ function sameUpload(
 
 async function resolveCampaignSelection(
 	client: ReturnType<typeof lembraDataClient>,
-	campaignId: string | null,
-	options: Readonly<{
-		allowArchivedCurrent?: string | null;
-	}> = {},
+	currentCampaignId: string | null,
+	intent: LembraCampaignMutationIntent,
 ) {
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
-	if (campaignId === null) return { ok: true as const, campaign: null };
-	const campaign = await loadLembraCampaignClassification(client, campaignId);
-	if (!campaign) return { ok: false as const, reason: "invalid_payload" as const };
-	if (
-		campaign.lifecycle === "archived" &&
-		options.allowArchivedCurrent !== campaign.id
-	) {
-		return { ok: false as const, reason: "invalid_payload" as const };
-	}
-	return { ok: true as const, campaign };
+	const campaigns = await loadLembraCampaignClassifications(client);
+	const currentCampaign = currentCampaignId
+		? campaigns.find((campaign) => campaign.id === currentCampaignId) ?? null
+		: null;
+	const resolution = resolveLembraCampaignMutation({
+		currentCampaignId,
+		currentCampaign,
+		intent,
+		discoverableCampaigns: campaigns,
+	});
+	return resolution.ok
+		? resolution
+		: { ok: false as const, reason: "invalid_payload" as const };
 }
 
 export async function requestLembraUploadAction(
@@ -120,7 +123,7 @@ export async function finalizeLembraUploadAction(
 	intent: LembraUploadIntent,
 	titleInput: string,
 	descriptionInput: string,
-	campaignIdInput: string | null,
+	campaignIntentInput: LembraCampaignMutationIntent,
 ): Promise<LembraReferenceResult> {
 	if (!lembraPersistenceEnabled()) {
 		return { ok: false, reason: "media_unavailable" };
@@ -131,7 +134,8 @@ export async function finalizeLembraUploadAction(
 		!validLembraUploadIntent(intent) ||
 		!validLembraTitle(titleInput) ||
 		!validLembraDescription(descriptionInput) ||
-		!validLembraCampaignId(campaignIdInput)
+		!validLembraCampaignMutationIntent(campaignIntentInput) ||
+		campaignIntentInput.kind === "preserve"
 	) {
 		return { ok: false, reason: "invalid_payload" };
 	}
@@ -146,7 +150,11 @@ export async function finalizeLembraUploadAction(
 	const description = descriptionInput.trim();
 
 	try {
-		const campaignResult = await resolveCampaignSelection(client, campaignIdInput);
+		const campaignResult = await resolveCampaignSelection(
+			client,
+			null,
+			campaignIntentInput,
+		);
 		if (!campaignResult.ok) return campaignResult;
 
 		const upload = await finalizeLembraPendingUpload({
@@ -164,7 +172,7 @@ export async function finalizeLembraUploadAction(
 				existing.created_by_auth_user_id !== access.identity.authUserId ||
 				existing.title !== title ||
 				existing.description !== description ||
-				existing.campaign_id !== campaignIdInput
+				existing.campaign_id !== campaignResult.campaignId
 			) {
 				return { ok: false, reason: "conflict" };
 			}
@@ -191,7 +199,7 @@ export async function finalizeLembraUploadAction(
 			height: upload.height,
 			authUserId: access.identity.authUserId,
 			authorName: access.identity.displayName,
-			campaignId: campaignIdInput,
+			campaignId: campaignResult.campaignId,
 		});
 		const reference = presentLembraRow(
 			row,
@@ -214,7 +222,7 @@ export async function updateLembraReferenceAction(
 	referenceId: string,
 	titleInput: string,
 	descriptionInput: string,
-	campaignIdInput: string | null,
+	campaignIntentInput: LembraCampaignMutationIntent,
 	expectedUpdatedAt: string,
 ): Promise<LembraReferenceResult> {
 	if (
@@ -222,7 +230,7 @@ export async function updateLembraReferenceAction(
 		!isLembraUuid(referenceId) ||
 		!validLembraTitle(titleInput) ||
 		!validLembraDescription(descriptionInput) ||
-		!validLembraCampaignId(campaignIdInput) ||
+		!validLembraCampaignMutationIntent(campaignIntentInput) ||
 		!validLembraUpdatedAt(expectedUpdatedAt)
 	) {
 		return {
@@ -245,9 +253,11 @@ export async function updateLembraReferenceAction(
 			return { ok: false, reason: "conflict" };
 		}
 
-		const campaignResult = await resolveCampaignSelection(client, campaignIdInput, {
-			allowArchivedCurrent: current.campaign_id,
-		});
+		const campaignResult = await resolveCampaignSelection(
+			client,
+			current.campaign_id,
+			campaignIntentInput,
+		);
 		if (!campaignResult.ok) return campaignResult;
 
 		const row = await updateLembraReferenceMetadata(
@@ -255,7 +265,7 @@ export async function updateLembraReferenceAction(
 			referenceId,
 			titleInput.trim(),
 			descriptionInput.trim(),
-			campaignIdInput,
+			campaignResult.campaignId,
 			expectedUpdatedAt,
 		);
 		if (!row) return { ok: false, reason: "conflict" };
