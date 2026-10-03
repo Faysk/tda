@@ -103,7 +103,21 @@ describe("Lembra privacy-safe campaign classification", () => {
 		).toEqual({ campaign: null, campaignRestricted: true });
 	});
 
-	it("preserves a hidden binding across clear or set attempts and after revocation", () => {
+	it("preserves a hidden binding only for explicit metadata-only preserve intent", () => {
+		expect(
+			resolveLembraCampaignMutation({
+				currentCampaignId: privateCampaign.id,
+				currentCampaign: null,
+				intent: { kind: "preserve" },
+				discoverableCampaigns: [publicCampaign],
+			}),
+		).toEqual({
+			ok: true,
+			campaignId: privateCampaign.id,
+			campaign: null,
+			campaignRestricted: true,
+		});
+
 		for (const intent of [
 			{ kind: "clear" as const },
 			{ kind: "set" as const, campaignId: publicCampaign.id },
@@ -115,12 +129,7 @@ describe("Lembra privacy-safe campaign classification", () => {
 					intent,
 					discoverableCampaigns: [publicCampaign],
 				}),
-			).toEqual({
-				ok: true,
-				campaignId: privateCampaign.id,
-				campaign: null,
-				campaignRestricted: true,
-			});
+			).toEqual({ ok: false });
 		}
 	});
 
