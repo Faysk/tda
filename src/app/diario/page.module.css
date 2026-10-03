@@ -141,3 +141,37 @@
 		font-size: 1.5rem;
 	}
 }
+
+
+.bookEntry {
+	display: grid;
+	gap: 0.65rem;
+}
+
+.contextLinks {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.65rem 1rem;
+	padding-inline: clamp(28px, 2.6vw, 40px);
+	font: 600 0.78rem / 1.5 var(--ds-font-ui);
+}
+
+.contextLinks a {
+	color: var(--ds-foreground-muted);
+	text-underline-offset: 0.2em;
+}
+
+.contextLinks a:hover {
+	color: var(--ds-accent);
+}
+
+.contextLinks a:focus-visible {
+	outline: 2px solid var(--ds-accent);
+	outline-offset: 3px;
+}
+
+@media (max-width: 650px) {
+	.contextLinks {
+		padding-inline: 20px;
+	}
+}
