@@ -1173,7 +1173,10 @@ def create_app(
                                 != body["sample_identity_sha256"]
                                 or payload.get("sample_seconds") != body["sample_seconds"]
                                 or payload.get("execution_mode")
-                                != "prepared_artifacts_fresh_worker_per_profile_v1"
+                                not in {
+                                    "prepared_artifacts_fresh_worker_per_profile_v1",
+                                    "prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2",
+                                }
                                 or not isinstance(payload.get("profiles"), list)
                                 or len(payload["profiles"]) != len(_BENCHMARK_PROFILES)
                                 or [item.get("profile_id") for item in payload["profiles"]]
