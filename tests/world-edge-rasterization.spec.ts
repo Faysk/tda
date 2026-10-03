@@ -123,14 +123,23 @@ async function closeWorkspaceOverlays(page: Page) {
 	if (await inspectorClose.isVisible().catch(() => false)) await inspectorClose.click();
 }
 
-async function zoomToDetail(page: Page) {
+async function zoomToTier(page: Page, target: "atlas" | "region" | "detail") {
 	const canvas = page.getByTestId("world-canvas");
 	const zoomIn = page.getByRole("button", { name: "Aumentar zoom" });
-	for (let attempt = 0; attempt < 10; attempt += 1) {
-		if ((await canvas.getAttribute("data-world-semantic-zoom")) === "detail") return;
-		await zoomIn.click();
+	const zoomOut = page.getByRole("button", { name: "Diminuir zoom" });
+	const order = { atlas: 0, region: 1, detail: 2 } as const;
+
+	for (let attempt = 0; attempt < 12; attempt += 1) {
+		const current = (await canvas.getAttribute("data-world-semantic-zoom")) as
+			| "atlas"
+			| "region"
+			| "detail"
+			| null;
+		if (current === target) return;
+		if (!current || order[current] < order[target]) await zoomIn.click();
+		else await zoomOut.click();
 	}
-	await expect(canvas).toHaveAttribute("data-world-semantic-zoom", "detail");
+	await expect(canvas).toHaveAttribute("data-world-semantic-zoom", target);
 }
 
 async function edgePaintInfo(page: Page, edgeId: string): Promise<EdgePaintInfo> {
@@ -235,12 +244,18 @@ test("public World rasterizes neutral solid, dashed and dotted relations through
 	await page.setViewportSize({ width: 1366, height: 768 });
 	await page.goto("/e2e-fixtures/world-edge-rasterization/public");
 	await closeWorkspaceOverlays(page);
-	await expect(page.locator('[data-world-node="stress-hub-a"]')).toBeVisible();
-	await zoomToDetail(page);
+	await expect(page.locator('[data-world-node="raster-a"]')).toBeVisible();
+	await zoomToTier(page, "detail");
 
-	await expectRelationRasterized(page, "stress-hub-a-spoke-1");
-	await expectRelationRasterized(page, "stress-hub-a-spoke-3");
-	await expectRelationRasterized(page, "stress-hub-a-spoke-5");
+	await expectRelationRasterized(page, "raster-solid-directed");
+	await expectRelationRasterized(page, "raster-dashed-directed");
+	await expectRelationRasterized(page, "raster-dotted-directed");
+
+	await zoomToTier(page, "region");
+	await expectRelationRasterized(page, "raster-solid-directed");
+	await zoomToTier(page, "atlas");
+	await expectRelationRasterized(page, "raster-solid-directed");
+	await zoomToTier(page, "detail");
 
 	const canvas = page.getByTestId("world-canvas");
 	const box = await canvas.boundingBox();
@@ -251,15 +266,15 @@ test("public World rasterizes neutral solid, dashed and dotted relations through
 		await page.mouse.move(box.x + box.width * 0.62, box.y + box.height * 0.56, { steps: 5 });
 		await page.mouse.up();
 	}
-	await expectRelationRasterized(page, "stress-hub-a-spoke-1");
+	await expectRelationRasterized(page, "raster-solid-directed");
 
 	await page.setViewportSize({ width: 1920, height: 1080 });
-	await expectRelationRasterized(page, "stress-hub-a-spoke-3");
+	await expectRelationRasterized(page, "raster-dashed-directed");
 
 	await page.reload();
 	await closeWorkspaceOverlays(page);
-	await zoomToDetail(page);
-	await expectRelationRasterized(page, "stress-hub-a-spoke-5");
+	await zoomToTier(page, "detail");
+	await expectRelationRasterized(page, "raster-dotted-directed");
 
 	const receipt = testInfo.outputPath("world-edge-raster-public-dark.png");
 	await page.screenshot({ path: receipt, animations: "disabled" });
@@ -273,25 +288,25 @@ test("Edit World rasterizes highlighted relations, arrows and survives workspace
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await page.goto("/e2e-fixtures/world-edge-rasterization/edit");
 	await closeWorkspaceOverlays(page);
-	await zoomToDetail(page);
+	await zoomToTier(page, "detail");
 
-	await page.locator('[data-world-node="stress-hub-a"]').click();
-	await expect(page.locator('[data-world-edge="stress-hub-a-spoke-1"]')).toHaveAttribute(
+	await page.locator('[data-world-node="raster-a"]').click();
+	await expect(page.locator('[data-world-edge="raster-solid-directed"]')).toHaveAttribute(
 		"data-world-edge-active",
 		"true",
 	);
-	await expect(page.locator('[data-world-edge-label="stress-hub-a-spoke-1"]')).toBeVisible();
-	await expectRelationRasterized(page, "stress-hub-a-spoke-1", 10);
-	await expectDirectedMarkerRasterized(page, "stress-hub-a-spoke-1");
+	await expect(page.locator('[data-world-edge-label="raster-solid-directed"]')).toBeVisible();
+	await expectRelationRasterized(page, "raster-solid-directed", 10);
+	await expectDirectedMarkerRasterized(page, "raster-solid-directed");
 
 	await page.getByRole("button", { name: "Explorar universo" }).click();
-	await expectRelationRasterized(page, "stress-hub-a-spoke-1", 10);
+	await expectRelationRasterized(page, "raster-solid-directed", 10);
 	await page.getByRole("button", { name: "Recolher navegação do mundo" }).click();
 
 	await page.getByRole("button", { name: "Abrir painel de detalhes" }).click();
-	await expectRelationRasterized(page, "stress-hub-a-spoke-1", 10);
+	await expectRelationRasterized(page, "raster-solid-directed", 10);
 	await page.getByRole("button", { name: "Recolher painel de detalhes" }).click();
-	await expectRelationRasterized(page, "stress-hub-a-spoke-1", 10);
+	await expectRelationRasterized(page, "raster-solid-directed", 10);
 
 	const receipt = testInfo.outputPath("world-edge-raster-edit-light.png");
 	await page.screenshot({ path: receipt, animations: "disabled" });
