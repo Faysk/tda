@@ -41,6 +41,18 @@ const E2E_LORE_CAMPAIGN_LINKS: Readonly<
 		},
 	},
 	seika: null,
+	d: {
+		campaignId: "fixture-b-private",
+		technicalSlug: "antes-que-seja-tarde",
+		name: "Passos Retomados",
+		publicCampaign: null,
+	},
+	yllith: {
+		campaignId: "fixture-b-private",
+		technicalSlug: "antes-que-seja-tarde",
+		name: "Passos Retomados",
+		publicCampaign: null,
+	},
 };
 
 function loreFixtureEnabled() {

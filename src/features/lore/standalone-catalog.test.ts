@@ -15,11 +15,15 @@ describe("editorial lore catalogue", () => {
 			"noah",
 			"pipipi",
 			"seika",
+			"d",
+			"yllith",
 		]);
 		expect(listedStandaloneLores().map((lore) => lore.slug)).toEqual([
 			"astel",
 			"noah",
 			"seika",
+			"d",
+			"yllith",
 		]);
 	});
 
