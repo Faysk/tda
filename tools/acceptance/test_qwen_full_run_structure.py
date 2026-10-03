@@ -193,6 +193,36 @@ class QwenFullRunStructureTests(unittest.TestCase):
                     expected_profile_id="qwen-unknown",
                 )
 
+    def test_cli_uses_distinct_exit_code_for_harness_contract_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            exit_code = module.main(
+                [
+                    "--transcript",
+                    str(root / "missing-transcript.json"),
+                    "--run-marker",
+                    str(root / "missing-run.json"),
+                    "--source-id",
+                    "craig-" + SOURCE_SHA,
+                    "--expected-source-sha256",
+                    SOURCE_SHA,
+                    "--job-id",
+                    "job",
+                    "--attempt",
+                    "2",
+                    "--profile-id",
+                    "qwen-unknown",
+                    "--expected-track-count",
+                    "4",
+                    "--repo-root",
+                    str(Path(__file__).resolve().parents[2]),
+                    "--output",
+                    str(root / "receipt.json"),
+                ]
+            )
+
+        self.assertEqual(exit_code, 3)
+
     def test_source_mismatch_fails_closed(self):
         value = transcript()
         value["source_sha256"] = "a" * 64
