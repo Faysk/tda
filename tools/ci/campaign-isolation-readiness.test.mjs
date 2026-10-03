@@ -31,6 +31,7 @@ const requiredFiles = [
 	"src/features/world-explorer/world-entity-media-actions.ts",
 	"src/features/edit/sessions/session-cover-media.ts",
 	"src/features/sessions/model.ts",
+	"src/features/auth/account-overview.tsx",
 	"src/app/edit/[campaignSlug]/processamento/page.tsx",
 	"src/app/edit/[campaignSlug]/transcricoes/page.tsx",
 	"src/app/edit/[campaignSlug]/revisao/page.tsx",
@@ -114,6 +115,27 @@ test("SAFE_CAMPAIGN_SLUG validators are not mistaken for implicit global campaig
 		assert.equal(
 			result.blockers.some((blocker) => blocker.issue === 1133),
 			false,
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("account regression is a blocker when the legacy campaign constant returns", () => {
+	const root = fixture({
+		"src/features/auth/account-overview.tsx":
+			'import { CAMPAIGN_SLUG } from "@/features/sessions/model";\nexport const campaign = CAMPAIGN_SLUG;\n',
+	});
+	try {
+		const result = scanCampaignIsolationReadiness(root);
+		const account = result.blockers.find((blocker) => blocker.issue === 1330);
+		assert.ok(account);
+		assert.ok(
+			account.matches.some(
+				(match) =>
+					match.path === "src/features/auth/account-overview.tsx" &&
+					match.reason === "forbidden_global_campaign_dependency",
+			),
 		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
