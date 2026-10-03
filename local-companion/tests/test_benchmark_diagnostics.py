@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+import tda_companion.benchmark_diagnostics as benchmark_diagnostics_module
+from tda_companion.atomic_storage import AtomicStorageError
 from tda_companion.benchmark_diagnostics import (
     BenchmarkProfileDiagnostics,
     build_worker_benchmark_diagnostics,
@@ -387,6 +389,69 @@ def test_optional_telemetry_failure_never_fails_completed_profile(tmp_path):
     assert metrics["telemetry"]["captured_samples"] == 0
     assert metrics["telemetry"]["missing_reason"] == "sampler_unavailable"
     assert not (diagnostics.profile_root / "telemetry.jsonl").exists()
+
+
+def test_ambiguous_atomic_diagnostic_writes_confirm_matching_bytes(monkeypatch, tmp_path):
+    def ambiguous_write(path, payload):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        raise AtomicStorageError("namespace_sync", True)
+
+    monkeypatch.setattr(benchmark_diagnostics_module, "atomic_write", ambiguous_write)
+    diagnostics = _diagnostics(tmp_path)
+    diagnostics.record_telemetry_snapshot(
+        {
+            "cpu": {"utilization_percent": 10.0},
+            "memory": {"used_bytes": 100, "percent": 20.0},
+            "gpus": [],
+        },
+        relative_ms=0,
+    )
+    diagnostics.observe_message(_message(0, "ready", {"kind": "transcription.craig"}))
+    diagnostics.observe_message(_message(1, "result", _receipt()))
+    diagnostics.finalize(
+        status="completed",
+        receipt=_receipt(),
+        worker_diagnostics=_worker_diagnostics(),
+    )
+
+    assert (diagnostics.profile_root / "metrics.json").is_file()
+    assert (diagnostics.profile_root / "events.jsonl").is_file()
+    assert (diagnostics.profile_root / "telemetry.jsonl").is_file()
+
+
+def test_unconfirmed_optional_telemetry_is_removed_instead_of_bound(monkeypatch, tmp_path):
+    real_atomic_write = benchmark_diagnostics_module.atomic_write
+
+    def fail_telemetry(path, payload):
+        if path.name == "telemetry.jsonl":
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"unconfirmed")
+            raise AtomicStorageError("namespace_sync", True)
+        return real_atomic_write(path, payload)
+
+    monkeypatch.setattr(benchmark_diagnostics_module, "atomic_write", fail_telemetry)
+    diagnostics = _diagnostics(tmp_path)
+    diagnostics.record_telemetry_snapshot(
+        {
+            "cpu": {"utilization_percent": 10.0},
+            "memory": {"used_bytes": 100, "percent": 20.0},
+            "gpus": [],
+        },
+        relative_ms=0,
+    )
+    diagnostics.observe_message(_message(0, "ready", {"kind": "transcription.craig"}))
+    diagnostics.observe_message(_message(1, "result", _receipt()))
+    diagnostics.finalize(
+        status="completed",
+        receipt=_receipt(),
+        worker_diagnostics=_worker_diagnostics(),
+    )
+
+    metrics = json.loads((diagnostics.profile_root / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["telemetry"]["missing_reason"] == "telemetry_write_failed"
+    assert not (diagnostics.profile_root / "telemetry.jsonl").exists()
+    assert metrics["artifacts"]["telemetry"] is None
 
 
 def test_failed_profile_keeps_sanitized_diagnostics_without_quality_artifact(tmp_path):
