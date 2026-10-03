@@ -472,7 +472,7 @@ test("session arc filters share normalized identity without crossing campaign bo
 
 	await scoped.getByRole("button", { name: "Limpar filtros" }).click();
 	await expect(scoped.locator('[data-session-card="list"]')).toHaveCount(6);
-	await scoped.getByRole("combobox", { name: "Ordenar por" }).selectOption("title");
+	await scoped.getByLabel("Ordenar por").selectOption("title");
 	await expect(scoped.locator('[data-session-card="list"]')).toHaveCount(6);
 
 	const aggregate = page.locator(
