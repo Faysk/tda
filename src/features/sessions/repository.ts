@@ -40,6 +40,23 @@ type NeighborQueryResult = Readonly<{
 	error: CampaignRegistryError | null;
 }>;
 
+const longLayoutSummary = [
+	"# Sessão longa sintética",
+	...Array.from({ length: 16 }, (_, index) => {
+		const chapter = index + 1;
+		return [
+			`## Capítulo ${chapter}`,
+			`Trecho sintético do capítulo ${chapter}, sem conteúdo narrativo real.`,
+			`### Ponto de referência ${chapter}`,
+			"Texto adicional para exercitar navegação, foco e links profundos.",
+		].join("\n\n");
+	}),
+	"## Capítulo repetido",
+	"Primeira ocorrência com título repetido.",
+	"## Capítulo repetido",
+	"Segunda ocorrência para provar IDs sem colisão.",
+].join("\n\n");
+
 const layoutFixtureSessions = [
 	{
 		id: "shared-session",
@@ -84,6 +101,20 @@ const layoutFixtureSessions = [
 			"Resumo público sintético usado somente para validar a composição da página de sessão e o ritmo do arquivo.",
 		fullSummary:
 			"# Memória sintética\n\nEste conteúdo existe apenas no ambiente E2E e não representa fatos da campanha.\n\n## Continuidade\n\nO artigo mantém texto suficiente para exercitar a largura de leitura e o fluxo editorial sem acessar dados privados.\n\nA composição precisa continuar confortável com parágrafos, subtítulos e navegação entre memórias.",
+		coverImage: "/og/default",
+	},
+	{
+		id: "layout-contract-long",
+		campaignId: "fixture-a",
+		campaignSlug: "cronicas-da-mesa",
+		campaignName: "Crônicas da Mesa",
+		campaignTechnicalSlug: "yuhara-main",
+		title: "Sessão longa sintética para navegação por seções",
+		date: "2026-09-23",
+		arc: "Contrato visual E2E",
+		summary:
+			"Fixture pública sintética para validar índice progressivo, deep links e retorno sem usar conteúdo real.",
+		fullSummary: longLayoutSummary,
 		coverImage: "/og/default",
 	},
 	{
