@@ -1,4 +1,5 @@
 export const EDIT_CAPABILITIES = {
+	campaignEditAccess: "campaign.edit.access",
 	localProcess: "campaign.local.process",
 	activityBarksManage: "campaign.processing.barks.manage",
 	transcriptRead: "campaign.transcript.read",
