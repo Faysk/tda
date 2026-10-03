@@ -246,6 +246,16 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         "stage", "track", "window", "count",
         required=("stage", "track", "window", "count"),
     ),
+    "QWEN_TRACK_SEGMENTS_REORDERED": _schema(
+        "stage", "track", "total_tracks", "count",
+        required=("stage", "track", "total_tracks", "count"),
+        level="warning",
+    ),
+    "QWEN_TRACK_VALIDATION_FAILED": _schema(
+        "stage", "track", "total_tracks", "failure_class",
+        required=("stage", "track", "total_tracks", "failure_class"),
+        level="error",
+    ),
     "SOURCE_VALIDATED": _schema(
         "stage", "track_count", required=("stage", "track_count")
     ),
