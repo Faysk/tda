@@ -5,6 +5,7 @@ import {
 import {
 	BridgeError,
 	type LocalReview,
+	type BenchmarkReferenceTrack,
 	type CraigBenchmarkInput,
 	type CraigTranscriptionInput,
 	type LocalReviewSegment,
@@ -12,6 +13,9 @@ import {
 	identifier,
 	LOCAL_API,
 	parseBenchmarkResult,
+	parseBenchmarkTranscript,
+	parseBenchmarkReference,
+	parseBenchmarkQualitySummary,
 	parseCapabilities,
 	parseCraigSource,
 	parseHealth,
@@ -240,6 +244,76 @@ export class LocalBridge {
 				error instanceof BridgeError &&
 				error.code === "unauthorized" &&
 				!publicRequest &&
+				pairingMode === "browser" &&
+				!signal.aborted
+			) {
+				await this.bootstrap(signal);
+				timedOut = false;
+				return await requestOnce();
+			}
+			if (error instanceof BridgeError) throw error;
+			throw new BridgeError(timedOut ? "timeout" : "unreachable");
+		}
+	}
+
+	private async binary(
+		path: string,
+		signal: AbortSignal,
+		maxBytes = 96 * 1024 * 1024,
+	) {
+		let timedOut = false;
+		const requestOnce = async () => {
+			const timeout = AbortSignal.timeout(30_000);
+			try {
+				const response = await this.request(`${LOCAL_API}${path}`, {
+					method: "GET",
+					headers: {
+						Accept: "application/zip",
+						Authorization: `Bearer ${this.token()}`,
+					},
+					mode: "cors",
+					credentials: "omit",
+					redirect: "error",
+					cache: "no-store",
+					referrerPolicy: "no-referrer",
+					signal: AbortSignal.any([signal, timeout]),
+				});
+				if (!response.ok) {
+					await this.responseJson(response, 1024 * 1024);
+					throw new BridgeError("service_error");
+				}
+				const reader = response.body?.getReader();
+				if (!reader) throw new BridgeError("invalid_response");
+				const chunks: Uint8Array[] = [];
+				let size = 0;
+				try {
+					while (true) {
+						const { done, value } = await reader.read();
+						if (done) break;
+						size += value.byteLength;
+						if (size > maxBytes) {
+							await reader.cancel();
+							throw new BridgeError("invalid_response");
+						}
+						chunks.push(value);
+					}
+				} finally {
+					reader.releaseLock();
+				}
+				return new Blob(chunks, {
+					type: response.headers.get("content-type") ?? "application/octet-stream",
+				});
+			} catch (error) {
+				if (timeout.aborted && !signal.aborted) timedOut = true;
+				throw error;
+			}
+		};
+		try {
+			return await requestOnce();
+		} catch (error) {
+			if (
+				error instanceof BridgeError &&
+				error.code === "unauthorized" &&
 				pairingMode === "browser" &&
 				!signal.aborted
 			) {
@@ -894,6 +968,69 @@ export class LocalBridge {
 		return parseBenchmarkResult(
 			await this.json(`/jobs/${identifier(id)}/result`, signal),
 			id,
+		);
+	}
+	async benchmarkTranscript(
+		benchmarkId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		signal: AbortSignal,
+	) {
+		return parseBenchmarkTranscript(
+			await this.reviewJson(
+				`/benchmarks/${identifier(benchmarkId)}/profiles/${profileId}/transcript`,
+				signal,
+			),
+			profileId,
+		);
+	}
+	async benchmarkReference(benchmarkId: string, signal: AbortSignal) {
+		return parseBenchmarkReference(
+			await this.reviewJson(
+				`/benchmarks/${identifier(benchmarkId)}/reference`,
+				signal,
+			),
+		);
+	}
+	async saveBenchmarkReference(
+		benchmarkId: string,
+		input: Readonly<{
+			expectedRevision: number;
+			provenance: "manual" | "imported" | "profile_seed";
+			seedProfileId: CraigTranscriptionInput["profileId"] | null;
+			tracks: readonly BenchmarkReferenceTrack[];
+			terms?: readonly string[];
+		}>,
+		signal: AbortSignal,
+	) {
+		await this.reviewJson(
+			`/benchmarks/${identifier(benchmarkId)}/reference`,
+			signal,
+			{
+				expected_revision: input.expectedRevision,
+				provenance: input.provenance,
+				seed_profile_id: input.seedProfileId,
+				tracks: input.tracks.map((track) => ({
+					track_number: track.trackNumber,
+					speaker: track.speaker,
+					text: track.text,
+				})),
+				terms: input.terms ?? [],
+			},
+		);
+		return this.benchmarkQuality(benchmarkId, signal);
+	}
+	async benchmarkQuality(benchmarkId: string, signal: AbortSignal) {
+		return parseBenchmarkQualitySummary(
+			await this.reviewJson(
+				`/benchmarks/${identifier(benchmarkId)}/quality`,
+				signal,
+			),
+		);
+	}
+	async benchmarkExport(benchmarkId: string, signal: AbortSignal) {
+		return this.binary(
+			`/benchmarks/${identifier(benchmarkId)}/export`,
+			signal,
 		);
 	}
 	async result(id: string, signal: AbortSignal) {
