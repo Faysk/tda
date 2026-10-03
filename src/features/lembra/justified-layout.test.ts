@@ -26,6 +26,7 @@ function reference(
 		height,
 		mine: true,
 		campaign: null,
+		campaignRestricted: false,
 	};
 }
 
