@@ -403,6 +403,33 @@ export type BenchmarkTranscript = {
 	trackCount: number;
 };
 
+export type BenchmarkProfileMetrics = {
+	profileId: TranscriptionProfileId;
+	processingSeconds: number;
+	rtf: number | null;
+	stageSeconds: Readonly<Record<string, number>>;
+	freshAudioWorkSeconds: number;
+	reusedAudioWorkSeconds: number;
+	executionLineage: LocalExecutionLineage | null;
+};
+
+export type BenchmarkProfileTelemetry = {
+	coverage: number;
+	capturedSamples: number;
+	aggregates: {
+		cpuAvgPercent: number | null;
+		cpuP95Percent: number | null;
+		ramPeakBytes: number | null;
+		gpuUtilizationAvgPercent: number | null;
+		gpuUtilizationP95Percent: number | null;
+		gpuUtilizationPeakPercent: number | null;
+		vramPeakBytes: number | null;
+		temperatureMaxC: number | null;
+		powerAvgW: number | null;
+		powerPeakW: number | null;
+	};
+};
+
 export type BenchmarkReferenceTrack = {
 	trackNumber: number;
 	speaker: string | null;
@@ -2308,6 +2335,52 @@ export function parseBenchmarkTranscript(
 		sourceSha256: sha256(row.source_sha256),
 		segments,
 		trackCount: tracks.length,
+	};
+}
+
+export function parseBenchmarkProfileMetrics(value: unknown): BenchmarkProfileMetrics {
+	const row = record(value);
+	if (row.schema_version !== "tda_benchmark_metrics_v1") return invalid();
+	const processing = record(row.processing_metrics);
+	if (processing.version !== PROCESSING_TIMING_VERSION) return invalid();
+	const stageRaw = record(processing.stage_seconds);
+	const stageSeconds: Record<string, number> = {};
+	for (const [key, raw] of Object.entries(stageRaw)) {
+		if (!/^[a-z0-9_]{1,64}$/u.test(key)) return invalid();
+		stageSeconds[key] = nonNegativeNumber(raw);
+	}
+	return {
+		profileId: transcriptionProfile(row.profile_id),
+		processingSeconds: nonNegativeNumber(row.processing_seconds),
+		rtf: nullableMetric(row.rtf),
+		stageSeconds,
+		freshAudioWorkSeconds: nonNegativeNumber(processing.fresh_audio_work_seconds),
+		reusedAudioWorkSeconds: nonNegativeNumber(processing.reused_audio_work_seconds),
+		executionLineage: parseExecutionLineage(row.execution_lineage),
+	};
+}
+
+export function parseBenchmarkProfileTelemetry(value: unknown): BenchmarkProfileTelemetry {
+	const row = record(value);
+	if (row.schema_version !== "tda_benchmark_telemetry_v1") return invalid();
+	const aggregates = record(row.aggregates);
+	const coverage = nonNegativeNumber(row.coverage);
+	if (coverage > 1) return invalid();
+	return {
+		coverage,
+		capturedSamples: nonNegativeInteger(row.captured_samples),
+		aggregates: {
+			cpuAvgPercent: nullableMetric(aggregates.cpu_avg_percent),
+			cpuP95Percent: nullableMetric(aggregates.cpu_p95_percent),
+			ramPeakBytes: nullableMetric(aggregates.ram_peak_bytes),
+			gpuUtilizationAvgPercent: nullableMetric(aggregates.gpu_utilization_avg_percent),
+			gpuUtilizationP95Percent: nullableMetric(aggregates.gpu_utilization_p95_percent),
+			gpuUtilizationPeakPercent: nullableMetric(aggregates.gpu_utilization_peak_percent),
+			vramPeakBytes: nullableMetric(aggregates.vram_peak_bytes),
+			temperatureMaxC: nullableMetric(aggregates.temperature_max_c),
+			powerAvgW: nullableMetric(aggregates.power_avg_w),
+			powerPeakW: nullableMetric(aggregates.power_peak_w),
+		},
 	};
 }
 
