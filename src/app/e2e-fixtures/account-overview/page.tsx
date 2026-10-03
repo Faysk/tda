@@ -16,6 +16,14 @@ const allGrants = Object.values(EDIT_CAPABILITIES).map((action) => ({
 	endsAt: null,
 }));
 
+const fixtureCampaigns = [
+	{
+		technicalSlug: "yuhara-main",
+		name: "Crônicas da Mesa",
+		lifecycle: "active" as const,
+	},
+];
+
 function syntheticAccess(state: string | undefined): AccountOverviewAccess {
 	if (state === "anonymous") {
 		return { state: "anonymous", context: null, identity: null };
@@ -69,6 +77,12 @@ export default async function AccountOverviewE2EFixture({
 			access={syntheticAccess(query.state)}
 			accessNotice={null}
 			authEnabled={true}
+			campaigns={
+				query.state === "unavailable" ? null :
+				query.state === "anonymous" || query.state === "unlinked" || query.state === "no-grants"
+					? []
+					: fixtureCampaigns
+			}
 		/>
 	);
 }
