@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { LocalBridge } from "./bridge";
-import { processingStageLabels } from "./engine-metrics";
+import { processingStageLabels, type EngineProcessingMetrics } from "./engine-metrics";
 import {
 	compareRunPerformanceSemantics,
 	compareRunSegments,
@@ -721,14 +721,14 @@ export function BenchmarkEvidenceWorkspace({
 														<td>
 															{formatSeconds(
 																left.stats.processingMetrics?.stageSeconds[
-																	stage as keyof typeof left.stats.processingMetrics.stageSeconds
+																	stage as keyof EngineProcessingMetrics["stageSeconds"]
 																] ?? null,
 															)}
 														</td>
 														<td>
 															{formatSeconds(
 																right.stats.processingMetrics?.stageSeconds[
-																	stage as keyof typeof right.stats.processingMetrics.stageSeconds
+																	stage as keyof EngineProcessingMetrics["stageSeconds"]
 																] ?? null,
 															)}
 														</td>
