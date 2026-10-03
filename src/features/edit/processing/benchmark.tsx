@@ -141,6 +141,9 @@ function ResultCard({
 	onFiles: () => void;
 	onExport: () => void;
 }>) {
+	const gpu = result.profiles
+		.map((profile) => profile.executionLineage?.gpu?.model)
+		.find(Boolean);
 	return (
 		<article className={styles.resultCard}>
 			<header className={styles.resultHeader}>
@@ -155,54 +158,14 @@ function ResultCard({
 					Sample SHA {result.sampleIdentitySha256.slice(0, 12)}…
 				</span>
 				<span>{result.trackCount} tracks</span>
-				<span>{formatSeconds(result.audioWorkSeconds)} de trabalho de áudio</span>
-				<span>{result.prepared ? "Artefatos preparados" : "Preparação desconhecida"}</span>
-				<span>Worker novo por perfil · model load incluído</span>
-			</div>
-			<div className={styles.tableWrap}>
-				<table>
-					<thead>
-						<tr>
-							<th>Perfil</th>
-							<th>Tempo</th>
-							<th>RTF</th>
-							<th>× realtime</th>
-							<th>Palavras</th>
-							<th>Segmentos</th>
-							<th>Avisos</th>
-							<th>Runtime / compute</th>
-						</tr>
-					</thead>
-					<tbody>
-						{result.profiles.map((profile) => (
-							<tr key={profile.profileId}>
-								<th scope="row">{LABELS[profile.profileId]}</th>
-								<td>{formatSeconds(profile.processingSeconds)}</td>
-								<td>{profile.rtf === null ? "—" : profile.rtf.toFixed(3)}</td>
-								<td>{formatRealtime(profile.rtf)}</td>
-								<td>{profile.wordCount}</td>
-								<td>{profile.segmentCount}</td>
-								<td>{profile.warningCount}</td>
-								<td>
-									{[
-										profile.executionLineage?.runtimeVersion,
-										profile.computeType,
-										profile.executionLineage?.gpu?.model,
-									]
-										.filter(Boolean)
-										.join(" · ") || "—"}
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
-			<div className={styles.qualityNotice}>
-				<strong>Qualidade não medida.</strong>
+				<span>{gpu ?? "GPU não registrada"}</span>
+				<span>4/4 perfis</span>
 				<span>
-					Este benchmark compara performance. Sem transcrição humana de referência,
-					WER/omissões/inserções não são calculados e nenhum perfil recebe vencedor automático.
+					{result.artifacts
+						? `bundle ${formatBytes(result.artifacts.bundleSizeBytes)} · evidência preservada`
+						: "receipt performance-only · transcrições não preservadas"}
 				</span>
+				<span>Qualidade: sem referência humana</span>
 			</div>
 			{result.artifacts ? (
 				<div className={styles.activeActions}>
@@ -218,10 +181,58 @@ function ResultCard({
 				</div>
 			) : (
 				<p className={styles.loading}>
-					Receipt anterior ao contrato de evidências: métricas preservadas, sem
-					transcripts persistidos para comparação/exportação.
+					Artefatos de transcrição não preservados nesta execução. As métricas do
+					receipt continuam disponíveis abaixo.
 				</p>
 			)}
+			<details className={styles.resultDetails}>
+				<summary>Métricas dos quatro perfis</summary>
+				<div className={styles.tableWrap}>
+					<table>
+						<thead>
+							<tr>
+								<th>Perfil</th>
+								<th>Tempo</th>
+								<th>RTF</th>
+								<th>× realtime</th>
+								<th>Palavras</th>
+								<th>Segmentos</th>
+								<th>Avisos</th>
+								<th>Runtime / compute</th>
+							</tr>
+						</thead>
+						<tbody>
+							{result.profiles.map((profile) => (
+								<tr key={profile.profileId}>
+									<th scope="row">{LABELS[profile.profileId]}</th>
+									<td>{formatSeconds(profile.processingSeconds)}</td>
+									<td>{profile.rtf === null ? "—" : profile.rtf.toFixed(3)}</td>
+									<td>{formatRealtime(profile.rtf)}</td>
+									<td>{profile.wordCount}</td>
+									<td>{profile.segmentCount}</td>
+									<td>{profile.warningCount}</td>
+									<td>
+										{[
+											profile.executionLineage?.runtimeVersion,
+											profile.computeType,
+											profile.executionLineage?.gpu?.model,
+										]
+											.filter(Boolean)
+											.join(" · ") || "—"}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+				<div className={styles.qualityNotice}>
+					<strong>Qualidade não medida.</strong>
+					<span>
+						Sem transcrição humana de referência, WER/omissões/inserções não são
+						calculados e nenhum perfil recebe vencedor automático.
+					</span>
+				</div>
+			</details>
 		</article>
 	);
 }
