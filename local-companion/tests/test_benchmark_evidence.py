@@ -820,6 +820,35 @@ def test_telemetry_without_sampler_is_explicit_and_null_safe():
     assert telemetry["aggregates"]["vram_peak_bytes"] is None
 
 
+def test_telemetry_missing_nvml_fields_remains_explicitly_null():
+    telemetry = normalize_telemetry_samples(
+        [
+            {
+                "sampled_at": "2026-10-03T00:00:01Z",
+                "cpu": {},
+                "memory": {},
+                "gpus": [
+                    {
+                        "uuid": "GPU-test",
+                        "pci_bus_id": "0000:01:00.0",
+                        "name": "Synthetic GPU",
+                    }
+                ],
+            }
+        ],
+        lineage=_lineage("whisper-turbo"),
+        interval_ms=1000,
+        elapsed_ms=1000,
+    )
+    assert telemetry["captured_samples"] == 1
+    assert telemetry["coverage"] == 1.0
+    assert telemetry["aggregates"]["gpu_utilization_avg_percent"] is None
+    assert telemetry["aggregates"]["gpu_utilization_peak_percent"] is None
+    assert telemetry["aggregates"]["vram_peak_bytes"] is None
+    assert telemetry["aggregates"]["temperature_max_c"] is None
+    assert telemetry["aggregates"]["power_peak_w"] is None
+
+
 def test_telemetry_jsonl_records_sampling_semantics_coverage_and_exact_gpu(tmp_path: Path):
     benchmark_id, _ = _complete_bundle(tmp_path)
     payload = verified_profile_bytes(tmp_path, benchmark_id, "whisper-turbo", "telemetry")
@@ -908,6 +937,43 @@ def test_benchmark_event_sink_drops_speaker_paths_tokens_and_transcript_like_ext
     assert "super-secret" not in encoded
     assert "frase privada" not in encoded
     assert "session.flac" not in encoded
+
+
+def test_event_gate_bounds_count_and_payload_size():
+    benchmark_id = benchmark_id_for("benchmark-event-bounds", 1)
+    base = {
+        "schema_version": "tda_benchmark_event_v1",
+        "at": "2026-10-03T00:00:00.000Z",
+        "relative_ms": 0,
+        "benchmark_id": benchmark_id,
+        "attempt": 1,
+        "profile_id": "qwen-fast",
+        "sample_identity_sha256": "d" * 64,
+        "type": "event",
+        "stage": "transcription",
+        "code": "TRACK_STARTED",
+        "data": {},
+    }
+    too_many = [{**base, "seq": index} for index in range(20_001)]
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_EVENT_COUNT_INVALID"):
+        benchmark_evidence._event_jsonl(
+            too_many,
+            benchmark_id=benchmark_id,
+            profile_id="qwen-fast",
+            required_terminal="result",
+        )
+
+    allowed_keys = sorted(benchmark_evidence._BENCHMARK_EVENT_DATA_FIELDS)
+    oversized_data = {key: "x" * 256 for key in allowed_keys if key not in {"stage"}}
+    with pytest.raises(
+        BenchmarkEvidenceError,
+        match="BENCHMARK_EVENT_DATA_TOO_LARGE|BENCHMARK_EVENT_INVALID",
+    ):
+        benchmark_evidence._validated_event_row(
+            {**base, "seq": 1, "data": oversized_data},
+            benchmark_id=benchmark_id,
+            profile_id="qwen-fast",
+        )
 
 
 def test_event_sink_rejects_non_monotonic_sequence(tmp_path: Path):
@@ -1059,6 +1125,62 @@ def test_queue_cleanup_does_not_delete_committed_benchmark_evidence(tmp_path: Pa
     assert manifest["job_id"] == job["id"]
     assert manifest["attempt"] == claim[1]
     assert len(manifest["profiles"]) == 4
+
+
+def test_benchmark_api_rejects_unauthorized_wrong_ids_and_corrupt_artifacts(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    benchmark_id, _ = _complete_bundle(data_root)
+    token = "t" * 43
+    origin = "https://dnd.faysk.dev"
+    headers = {"Authorization": f"Bearer {token}", "Origin": origin}
+    app = create_app(
+        data_root,
+        token,
+        {origin},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        unauthorized = client.get(f"/api/v1/benchmarks/{benchmark_id}")
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["error"]["code"] == "UNAUTHORIZED"
+
+        missing = client.get(
+            f"/api/v1/benchmarks/benchmark-{'0' * 32}",
+            headers=headers,
+        )
+        assert missing.status_code == 409
+        assert missing.json()["error"]["code"] == "BENCHMARK_ARTIFACT_UNAVAILABLE"
+
+        wrong_profile = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/profiles/not-a-profile/transcript",
+            headers=headers,
+        )
+        assert wrong_profile.status_code == 422
+        assert wrong_profile.json()["error"]["code"] == "INVALID_REQUEST"
+
+        transcript_path = (
+            data_root
+            / "benchmarks"
+            / benchmark_id
+            / "profiles"
+            / "qwen-fast"
+            / "transcript.json"
+        )
+        payload = json.loads(transcript_path.read_text(encoding="utf-8"))
+        payload["tracks"][0]["segments"][0]["text"] = "tampered"
+        transcript_path.write_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        corrupt = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/profiles/qwen-fast/transcript",
+            headers=headers,
+        )
+        assert corrupt.status_code == 409
+        assert corrupt.json()["error"]["code"] == "BENCHMARK_ARTIFACT_INTEGRITY_FAILED"
 
 
 def test_authenticated_benchmark_api_reopens_verified_evidence_and_quality(tmp_path: Path):
