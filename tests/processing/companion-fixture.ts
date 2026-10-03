@@ -229,7 +229,7 @@ export async function installCompanionFixture(
 		options.benchmarkReadyProfiles ??
 			(options.profileReady ? [...benchmarkProfileIds] : []),
 	);
-	let qwenRuntimeVersion = options.qwenRuntimeVersion === undefined ? "1.0.12" : options.qwenRuntimeVersion;
+	let qwenRuntimeVersion = options.qwenRuntimeVersion === undefined ? (options.benchmarkProfiles ? "1.0.18" : "1.0.12") : options.qwenRuntimeVersion;
 	const qwenStableVersion = options.qwenRuntimeStableVersion ?? "1.0.12";
 	let qwenMaintenanceSequence = 0;
 	let qwenRuntimeRecoveredFromInitialUpdate = false;
@@ -802,8 +802,10 @@ export async function installCompanionFixture(
 					benchmarkPrepared.add(preparationProfile);
 					if (preparationProfile.startsWith("whisper-"))
 						options.whisperBenchmarkRuntimeUpgradeRequired = false;
-					if (preparationProfile.startsWith("qwen-"))
+					if (preparationProfile.startsWith("qwen-")) {
 						options.qwenBenchmarkRuntimeUpgradeRequired = false;
+						qwenRuntimeVersion = "1.0.18";
+					}
 				} else prepared = true;
 			}
 			return json(route, {
