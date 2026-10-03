@@ -91,6 +91,71 @@ test("create and edit stay contextual and keyboard operable", async ({ page }) =
 	).toBeVisible();
 });
 
+test("create, update, archive and reactivate keep the manager journey local", async ({
+	page,
+}) => {
+	await page.goto(FIXTURE);
+
+	const create = page.locator("[data-campaign-create]");
+	await create.locator(":scope > summary").click();
+	await create.getByLabel("Nome").fill("Campanha Nova");
+	await create.getByLabel("Quem pode ver").selectOption("private");
+	await create.getByLabel("Apresentação").fill("Uma campanha sintética para o journey E2E.");
+	await create.getByLabel("Endereço público").fill("campanha-nova");
+	await create.getByRole("button", { name: "Criar campanha" }).click();
+	await expect(page).toHaveURL(/status=criada/u);
+	await expect(
+		page.getByRole("status").filter({ hasText: "Campanha criada" }),
+	).toBeVisible();
+
+	let first = page.locator("[data-campaign-management-item]").first();
+	await expect(first.locator("[data-campaign-thumbnail]")).toHaveAttribute(
+		"data-has-cover",
+		"false",
+	);
+
+	await first.locator("[data-campaign-editor] > summary").click();
+	await first.getByLabel("Nome").fill("Destino Sem Fim revisado");
+	await first.getByRole("button", { name: "Salvar alterações" }).click();
+	await expect(page).toHaveURL(/status=atualizada/u);
+	await expect(
+		page.getByRole("status").filter({ hasText: "Alterações salvas" }),
+	).toBeVisible();
+
+	first = page.locator("[data-campaign-management-item]").first();
+	await first.locator("[data-campaign-editor] > summary").click();
+	await first.getByText("Mais ações", { exact: true }).click();
+	const archiveConfirm = first.locator("[data-campaign-archive-confirm]");
+	await archiveConfirm.locator(":scope > summary").click();
+	await archiveConfirm
+		.getByRole("button", { name: "Confirmar arquivamento" })
+		.click();
+	await expect(page).toHaveURL(/status=arquivada/u);
+	await expect(page).toHaveURL(new RegExp(`arquivada=${DESTINO_ID}`, "u"));
+	await expect(
+		page.locator("[data-campaign-management-item]").first().getByText("Arquivada", {
+			exact: true,
+		}),
+	).toBeVisible();
+	await expect(
+		page.getByRole("status").filter({ hasText: "Campanha arquivada" }),
+	).toBeVisible();
+
+	first = page.locator("[data-campaign-management-item]").first();
+	await first.locator("[data-campaign-editor] > summary").click();
+	await first.getByText("Mais ações", { exact: true }).click();
+	await first.getByRole("button", { name: "Reativar campanha" }).click();
+	await expect(page).toHaveURL(/status=reativada/u);
+	await expect(
+		page.locator("[data-campaign-management-item]").first().getByText("Ativa", {
+			exact: true,
+		}),
+	).toBeVisible();
+	await expect(
+		page.getByRole("status").filter({ hasText: "Campanha reativada" }),
+	).toBeVisible();
+});
+
 test("manager keeps feedback next to the operation that needs attention", async ({
 	page,
 }) => {
