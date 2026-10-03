@@ -8,17 +8,22 @@ import {
 } from "@/features/edit/access/policy";
 import { editDataClient } from "@/integrations/supabase/server";
 import {
+	isCampaignId,
 	isCampaignLifecycle,
+	isCampaignVisibility,
 	type CampaignLifecycle,
+	type CampaignVisibility,
 } from "./model";
 
 const PROJECT_SCOPE_ID = "tda";
 const SAFE_TECHNICAL_SLUG = /^[A-Za-z0-9_-]{1,128}$/u;
 
 export type AuthorizedCampaign = Readonly<{
+	id: string;
 	technicalSlug: string;
 	name: string;
 	lifecycle: CampaignLifecycle;
+	visibility: CampaignVisibility;
 }>;
 
 export type AuthorizedCampaignsResult =
@@ -63,6 +68,7 @@ export function authorizedCampaignGrantScope(
 }
 
 function parseCampaign(row: Record<string, unknown>): AuthorizedCampaign | null {
+	const id = typeof row.id === "string" && isCampaignId(row.id) ? row.id : null;
 	const technicalSlug =
 		typeof row.slug === "string" && SAFE_TECHNICAL_SLUG.test(row.slug)
 			? row.slug
@@ -72,15 +78,19 @@ function parseCampaign(row: Record<string, unknown>): AuthorizedCampaign | null 
 			? row.name.trim()
 			: null;
 	if (
+		!id ||
 		!technicalSlug ||
 		!name ||
-		!isCampaignLifecycle(row.lifecycle)
+		!isCampaignLifecycle(row.lifecycle) ||
+		!isCampaignVisibility(row.visibility)
 	)
 		return null;
 	return {
+		id,
 		technicalSlug,
 		name,
 		lifecycle: row.lifecycle,
+		visibility: row.visibility,
 	};
 }
 
@@ -100,7 +110,7 @@ export async function readAuthorizedCampaigns(
 
 	let query = client
 		.from("campaigns")
-		.select("slug,name,lifecycle")
+		.select("id,slug,name,lifecycle,visibility")
 		.order("name")
 		.order("slug");
 	if (!options.includeArchived) query = query.eq("lifecycle", "active");
