@@ -12,6 +12,16 @@ from pathlib import Path
 from typing import Callable
 
 from .asr_runtime import inspect_whisper_runtime
+from .benchmark_evidence import (
+    BenchmarkEvidenceError,
+    benchmark_id_for,
+    finalize_bundle,
+    normalize_telemetry_samples,
+    sanitize_benchmark_message,
+    write_profile_events,
+    write_profile_telemetry,
+)
+from .telemetry import SystemTelemetry
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import inspect_qwen_runtime
 from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
@@ -477,6 +487,8 @@ class WorkerSupervisor:
         context: str,
         cpu: bool,
         benchmark_sample_seconds: float | None = None,
+        benchmark_id: str | None = None,
+        benchmark_sample_identity_sha256: str | None = None,
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
@@ -498,6 +510,8 @@ class WorkerSupervisor:
                     {
                         "benchmark_mode": True,
                         "benchmark_sample_seconds": benchmark_sample_seconds,
+                        "benchmark_id": benchmark_id,
+                        "benchmark_sample_identity_sha256": benchmark_sample_identity_sha256,
                     }
                     if benchmark_sample_seconds is not None
                     else {}
@@ -602,33 +616,98 @@ class WorkerSupervisor:
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> WorkerOutcome:
+        if self.data_root is None:
+            raise WorkerProcessError("WORKER_ASR_ROOTS_UNCONFIGURED")
         profiles = (
             "whisper-turbo",
             "whisper-detailed",
             "qwen-fast",
             "qwen-quality",
         )
+        benchmark_id = benchmark_id_for(job_id, attempt)
         receipts: list[dict] = []
         for index, profile_id in enumerate(profiles, start=1):
             if is_cancelled is not None and is_cancelled():
                 return WorkerOutcome(
                     terminal="cancelled",
-                    payload={"stage": "benchmark", "forced": False},
+                    payload={"stage": "benchmark", "forced": False, "benchmark_id": benchmark_id},
                     returncode=0,
                 )
-            outcome = self.run_craig(
+
+            profile_started = time.monotonic()
+            evidence_events: list[dict] = []
+            telemetry_samples: list[dict] = []
+            telemetry_stop = threading.Event()
+
+            def capture(message: WorkerMessage) -> None:
+                row = sanitize_benchmark_message(
+                    message,
+                    benchmark_id=benchmark_id,
+                    profile_id=profile_id,
+                    sample_identity_sha256=sample_identity_sha256,
+                    relative_ms=round((time.monotonic() - profile_started) * 1000),
+                )
+                if row is not None and len(evidence_events) < 20_000:
+                    evidence_events.append(row)
+
+            def capture_event(message: WorkerMessage) -> None:
+                capture(message)
+                if on_event is not None:
+                    on_event(message)
+
+            def capture_progress(message: WorkerMessage) -> None:
+                capture(message)
+
+            def sample_telemetry() -> None:
+                try:
+                    sampler = SystemTelemetry()
+                except Exception:
+                    return
+                while not telemetry_stop.is_set() and len(telemetry_samples) < 2_000:
+                    try:
+                        value = sampler.snapshot()
+                        if isinstance(value, dict):
+                            telemetry_samples.append(value)
+                    except Exception:
+                        pass
+                    telemetry_stop.wait(1.0)
+
+            sampler_thread = threading.Thread(
+                target=sample_telemetry,
+                name=f"tda-benchmark-telemetry-{profile_id}",
+                daemon=True,
+            )
+            sampler_thread.start()
+            try:
+                outcome = self.run_craig(
+                    job_id=job_id,
+                    attempt=attempt,
+                    source_id=source_id,
+                    profile_id=profile_id,
+                    glossary=glossary,
+                    context=context,
+                    cpu=False,
+                    benchmark_sample_seconds=sample_seconds,
+                    benchmark_id=benchmark_id,
+                    benchmark_sample_identity_sha256=sample_identity_sha256,
+                    on_progress=capture_progress,
+                    on_event=capture_event,
+                    is_cancelled=is_cancelled,
+                )
+            finally:
+                telemetry_stop.set()
+                sampler_thread.join(timeout=2.0)
+
+            terminal_seq = max((int(row.get("seq", -1)) for row in evidence_events), default=-1) + 1
+            terminal_message = WorkerMessage.create(
                 job_id=job_id,
                 attempt=attempt,
-                source_id=source_id,
-                profile_id=profile_id,
-                glossary=glossary,
-                context=context,
-                cpu=False,
-                benchmark_sample_seconds=sample_seconds,
-                on_progress=lambda _message: None,
-                on_event=on_event,
-                is_cancelled=is_cancelled,
+                seq=terminal_seq,
+                type=outcome.terminal if outcome.terminal in {"result", "cancelled"} else "error",
+                payload=outcome.payload if isinstance(outcome.payload, dict) else {},
             )
+            capture(terminal_message)
+
             if outcome.terminal != "result":
                 return outcome
             receipt = dict(outcome.payload)
@@ -636,6 +715,30 @@ class WorkerSupervisor:
                 raise WorkerProcessError("BENCHMARK_PROFILE_RESULT_INVALID", recoverable=False)
             if not _benchmark_profile_evidence_valid(receipt, profile_id):
                 raise WorkerProcessError("BENCHMARK_PROFILE_EVIDENCE_INVALID", recoverable=False)
+            if receipt.get("benchmark_id") != benchmark_id or receipt.get("transcript_sha256") is None:
+                raise WorkerProcessError("BENCHMARK_PROFILE_ARTIFACT_INVALID", recoverable=False)
+
+            try:
+                write_profile_events(
+                    self.data_root,
+                    benchmark_id,
+                    profile_id,
+                    evidence_events,
+                )
+                telemetry = normalize_telemetry_samples(
+                    telemetry_samples,
+                    lineage=receipt["execution_lineage"],
+                    interval_ms=1000,
+                )
+                write_profile_telemetry(
+                    self.data_root,
+                    benchmark_id,
+                    profile_id,
+                    telemetry,
+                )
+            except BenchmarkEvidenceError as exc:
+                raise WorkerProcessError(str(exc), recoverable=False) from exc
+
             receipts.append(receipt)
             on_progress(
                 WorkerMessage.create(
@@ -651,6 +754,22 @@ class WorkerSupervisor:
                     },
                 )
             )
+
+        try:
+            bundle = finalize_bundle(
+                self.data_root,
+                benchmark_id=benchmark_id,
+                job_id=job_id,
+                attempt=attempt,
+                source_id=source_id,
+                sample_identity_sha256=sample_identity_sha256,
+                sample_seconds=sample_seconds,
+                context=context,
+                glossary=glossary,
+                execution_mode="prepared_artifacts_fresh_worker_per_profile_v1",
+            )
+        except BenchmarkEvidenceError as exc:
+            raise WorkerProcessError(str(exc), recoverable=False) from exc
         return WorkerOutcome(
             terminal="result",
             payload={
@@ -661,7 +780,7 @@ class WorkerSupervisor:
                 "sample_seconds": sample_seconds,
                 "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
                 "profiles": receipts,
+                **bundle,
             },
             returncode=0,
         )
-
