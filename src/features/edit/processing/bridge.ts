@@ -976,7 +976,7 @@ export class LocalBridge {
 	async benchmarkArtifact(
 		benchmarkId: string,
 		profileId: CraigTranscriptionInput["profileId"],
-		format: "json" | "txt" | "vtt" | "srt",
+		format: "json" | "txt" | "txt-plain" | "vtt" | "srt",
 		signal: AbortSignal,
 	) {
 		const id = benchmarkIdentifier(benchmarkId);
