@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CampaignRoutePicker } from "@/features/campaigns/campaign-route-picker";
 import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import { readEligibleProcessingCampaigns } from "@/features/campaigns/processing";
 import { currentAccess } from "@/features/auth/server";
@@ -35,7 +35,7 @@ function queryValue(
 	return typeof value === "string" ? value : null;
 }
 
-function CampaignPicker({
+function ProcessingCampaignEntry({
 	campaigns,
 	invalidSelection,
 	campaignCreated,
@@ -46,57 +46,50 @@ function CampaignPicker({
 	campaignCreated: boolean;
 	canManageCampaigns: boolean;
 }>) {
+	const manageHref = canManageCampaigns
+		? "/edit/campanhas?next=%2Fedit%2Fprocessamento"
+		: undefined;
+
 	return (
 		<section className={pageStyles.campaignGate} aria-labelledby="processing-campaign-title">
 			<p className={pageStyles.eyebrow}>Edit · processamento</p>
-			<h1 id="processing-campaign-title">Escolha a campanha</h1>
+			<h1 id="processing-campaign-title">Onde vamos trabalhar?</h1>
 			<p>
-				Cada processamento, recovery e handoff pertence a uma campanha
-				explícita. A seleção abaixo só mostra campanhas ativas para as quais
-				seu perfil possui a capability de processamento local.
+				Escolha a campanha deste processamento. A campanha só é aplicada quando
+				você abrir o workspace; nenhum contexto é escolhido silenciosamente.
 			</p>
 			{invalidSelection ? (
 				<p className={pageStyles.campaignAlert} role="alert">
 					{campaignCreated
-						? "A campanha foi criada, mas seu perfil ainda não possui campaign.local.process nela. A identidade foi preservada e nenhuma permissão foi concedida automaticamente."
+						? "A campanha foi criada, mas seu perfil ainda não possui acesso de processamento nela. A identidade foi preservada e nenhuma permissão foi concedida automaticamente."
 						: "A campanha pedida não está disponível ou você não possui acesso a ela. Nenhuma outra campanha foi escolhida automaticamente."}
 				</p>
 			) : null}
 			{campaigns.length ? (
-				<form className={pageStyles.campaignPicker} method="get">
-					<label htmlFor="processing-campaign">
-						<span>Campanha</span>
-						<select id="processing-campaign" name="campanha" required defaultValue="">
-							<option value="" disabled>
-								Selecione…
-							</option>
-							{campaigns.map((campaign) => (
-								<option key={campaign.technicalSlug} value={campaign.technicalSlug}>
-									{campaign.name}
-								</option>
-							))}
-						</select>
-					</label>
-					<button type="submit">Abrir processamento</button>
-				</form>
+				<CampaignRoutePicker
+					ariaLabel="Campanha do processamento"
+					label="Campanha"
+					behavior="confirmed"
+					confirmLabel="Abrir processamento"
+					pendingLabel="Abrindo processamento…"
+					value=""
+					options={campaigns.map((campaign) => ({
+						value: campaign.technicalSlug,
+						label: campaign.name,
+						lifecycle: "active" as const,
+						href: processingCampaignHref(campaign.technicalSlug),
+					}))}
+					canManage={canManageCampaigns}
+					manageHref={manageHref}
+				/>
 			) : (
 				<div className={pageStyles.campaignEmpty} role="status">
 					<strong>Nenhuma campanha ativa disponível para processamento.</strong>
 					<span>
-						Seu perfil não possui uma campaign ativa com
-						{" "}
-						<code>{EDIT_CAPABILITIES.localProcess}</code>.
+						Seu perfil não possui uma campanha ativa elegível para processamento local.
 					</span>
 				</div>
 			)}
-			{canManageCampaigns ? (
-				<Link
-					className={pageStyles.campaignManageLink}
-					href="/edit/campanhas?next=%2Fedit%2Fprocessamento"
-				>
-					Criar ou gerir campanhas
-				</Link>
-			) : null}
 		</section>
 	);
 }
@@ -143,7 +136,7 @@ export default async function ProcessingPage({ searchParams }: Props) {
 
 	if (!selected) {
 		return (
-			<CampaignPicker
+			<ProcessingCampaignEntry
 				campaigns={eligible.campaigns}
 				invalidSelection={Boolean(requestedCampaign)}
 				campaignCreated={campaignCreated}
@@ -181,6 +174,7 @@ export default async function ProcessingPage({ searchParams }: Props) {
 				publicationEnabled={publicationEnabled}
 				activityBarksManage={activityBarksManage}
 				activityPackScope={`${access.context.profileId}:${selected.technicalSlug}`}
+				canManageCampaigns={canManageCampaigns}
 			/>
 		</section>
 	);
