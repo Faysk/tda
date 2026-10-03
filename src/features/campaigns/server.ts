@@ -6,6 +6,7 @@ import {
 	normalizeCampaignDescription,
 	normalizeCampaignName,
 	normalizeCampaignRouteKey,
+	type CampaignCreateInput,
 	type CampaignMutationResult,
 	type CampaignVisibility,
 } from "./model";
@@ -46,6 +47,14 @@ async function resolveManager() {
 	return { ok: true, context } as const;
 }
 
+export async function canCurrentUserManageCampaigns(): Promise<boolean> {
+	try {
+		return (await resolveManager()).ok;
+	} catch {
+		return false;
+	}
+}
+
 export async function readManageableCampaigns(): Promise<CampaignManagementReadResult> {
 	try {
 		const manager = await resolveManager();
@@ -63,13 +72,9 @@ function parseVisibility(value: FormDataEntryValue | null): CampaignVisibility |
 	return value === "public" || value === "private" ? value : null;
 }
 
-export async function createCampaign(input: {
-	name: string;
-	technicalSlug: string;
-	routeKey: string;
-	description: string;
-	visibility: string;
-}): Promise<CampaignMutationResult> {
+export async function createCampaign(
+	input: CampaignCreateInput,
+): Promise<CampaignMutationResult> {
 	try {
 		const manager = await resolveManager();
 		if (!manager.ok) return manager;
