@@ -84,6 +84,49 @@ test("Lembra campaign classification stays optional, filterable and non-authorit
 });
 
 
+
+test("Lembra returns to Geral and cancels campaign creation without changing the upload draft", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "cancel-safe-draft.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const composer = page
+		.getByRole("dialog")
+		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
+	await composer.getByLabel("Nome").fill("Rascunho cancelável");
+	await composer.getByLabel("Descrição").fill("Nada daqui pode sumir ao cancelar.");
+	const preview = composer.getByAltText("Preview da referência selecionada");
+	const previewUrl = await preview.getAttribute("src");
+	const campaignPicker = composer.getByRole("button", { name: "Campanha da referência" });
+
+	await campaignPicker.click();
+	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
+	await expect(campaignPicker).toContainText("Campanha Pública B");
+
+	await campaignPicker.click();
+	await page.getByRole("option", { name: "Geral", exact: true }).click();
+	await expect(campaignPicker).toContainText("Geral");
+
+	const createTrigger = composer.getByRole("button", { name: "Nova campanha" });
+	await createTrigger.click();
+	const createDialog = page.getByRole("dialog", { name: "Criar campanha" });
+	await createDialog.getByLabel("Nome").fill("Campanha descartada");
+	await createDialog.getByLabel("Slug técnico").fill("campanha-descartada");
+	await createDialog.getByLabel("Rota pública").fill("campanha-descartada");
+	await createDialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+
+	await expect(createDialog).not.toBeVisible();
+	await expect(composer).toBeVisible();
+	await expect(composer.getByLabel("Nome")).toHaveValue("Rascunho cancelável");
+	await expect(composer.getByLabel("Descrição")).toHaveValue("Nada daqui pode sumir ao cancelar.");
+	await expect(preview).toHaveAttribute("src", previewUrl ?? "");
+	await expect(campaignPicker).toContainText("Geral");
+	await expect(createTrigger).toBeFocused();
+});
+
 test("Lembra creates a public campaign in context without losing the upload draft", async ({ page }) => {
 	await page.goto("/e2e-fixtures/lembra-campaigns");
 	await page.locator('input[type="file"]').setInputFiles({
