@@ -1795,17 +1795,19 @@ Gate sintético:
 
 Rollout é expand/replace forward-only: aplicar #1123 antes, promover #1134 em migration nova de timestamp corrente após revisão, executar scratch no SHA exato, read-back de funções/grants e advisors. Nenhuma mutation de Production é executada por este candidate.
 
-## Candidate #1129 — safe session campaign move — 2026-10-01
+## Promoção #1426/#1129 — safe session campaign move — 2026-10-04
 
-`20261001030000_session_campaign_move` permanece em `supabase/candidates/` e **não está autorizado para Production**. Depende dos contratos candidatos #1123 (registry) e #1134 (authorization).
+`20261004133000_session_campaign_move` é a migration deployable atual, promovida a partir do candidate scratch `20261001030000_session_campaign_move` após a ativação dos contratos #1123 (registry) e #1134 (authorization). O candidate histórico permanece em `supabase/candidates/` somente como evidência e não deve ser aplicado diretamente.
 
-O candidate adiciona:
+A migration adiciona:
 - preflight server-only que revalida identidade da sessão, actor/profile, capabilities na origem e no destino, lifecycle e colisão de `source_session_id`;
 - bloqueios explícitos para publicação ativa, revisions/drafts, cover/media referenciada, participant→entity, provenance e grants session-scoped quando esses domínios ainda não possuem migração transacional segura;
 - commit atômico com row lock, reexecução do preflight sob lock, troca de `sessions.campaign_id`, `audit_log` sanitizado e receipt em `session_campaign_move_operations`;
 - replay idempotente por `operation_id` e conflito para operação reutilizada com identidade diferente.
 
 A operação não clona conteúdo e não migra dependências parcialmente. Um blocker resulta em zero write. Após commit, cache/delivery são efeitos pós-transação e devem ser revalidados pela aplicação; falha nessa etapa é reportada como pendência de cache, não rollback fictício do banco.
+
+**Rollout:** o arquivo em Git não prova aplicação remota. O Production CD deve aplicar/verificar a migration, seguido de read-back das duas RPCs, receipt table, RLS/grants e migration history. A UI do Edit consulta readiness server-side e mantém o move indisponível quando esse boundary não está presente.
 
 
 ## Ativação canônica — registry first-class de campaigns
