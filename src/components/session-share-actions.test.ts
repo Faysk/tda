@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { copyUrlToClipboard } from "./session-share-actions";
+import { copyUrlToClipboard, sessionSharePublicUrl } from "./session-share-actions";
+
+describe("sessionSharePublicUrl", () => {
+	it("builds the canonical public route without query or fragment input", () => {
+		expect(
+			sessionSharePublicUrl("/campanhas/cronicas-da-mesa/sessoes/sessao-1"),
+		).toBe("https://dnd.faysk.dev/campanhas/cronicas-da-mesa/sessoes/sessao-1");
+	});
+});
 
 describe("copyUrlToClipboard", () => {
 	it("copies the public URL when Clipboard API is available", async () => {
