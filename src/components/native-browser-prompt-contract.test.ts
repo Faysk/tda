@@ -6,7 +6,8 @@ const sources = [
 	new URL("../features/world-explorer/hooks/use-world-edit-session.ts", import.meta.url),
 ];
 
-// Issue #1356 scope guard: shared World discard and session sharing stay inside project UI.\ndescribe("native browser prompt contract for #1356", () => {
+// Issue #1356 scope guard: shared World discard and session sharing stay inside project UI.
+describe("native browser prompt contract for #1356", () => {
 	it("keeps world discard and session sharing inside project UI", () => {
 		for (const source of sources) {
 			const text = readFileSync(source, "utf8");
