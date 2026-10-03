@@ -8,6 +8,15 @@ from tda_companion.worker_protocol import WorkerProtocolError, WorkerRunCommand
 from tda_companion.worker_supervisor import WorkerOutcome, WorkerProcessError, WorkerSupervisor
 
 
+_SAMPLE_DESCRIPTOR = {
+    "schema": "tda_benchmark_sample_v1",
+    "source_sha256": "a" * 64,
+    "start_seconds": 0.0,
+    "end_seconds": 300.0,
+    "tracks": [{"number": 1, "sha256": "b" * 64}],
+}
+
+
 def test_benchmark_idempotency_reuses_ambiguous_retry_but_allows_a_new_deliberate_run(tmp_path):
     store = Store(tmp_path)
     body = {
@@ -178,6 +187,7 @@ def test_benchmark_runs_canonical_profiles_in_order_and_emits_profile_progress(
         context="",
         sample_identity_sha256="b" * 64,
         sample_seconds=300.0,
+        sample_descriptor=_SAMPLE_DESCRIPTOR,
         on_progress=lambda message: progress.append(message.payload["completed"]),
     )
 
@@ -232,6 +242,7 @@ def test_benchmark_stops_without_complete_receipt_on_cancel(
         context="",
         sample_identity_sha256="b" * 64,
         sample_seconds=300.0,
+        sample_descriptor=_SAMPLE_DESCRIPTOR,
         on_progress=lambda _message: None,
     )
 
