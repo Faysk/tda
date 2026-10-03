@@ -43,12 +43,35 @@ visível sem barra nem mensagem de erro. `updated_at` não é tratado como
 heartbeat. Métricas persistidas são rotuladas como **Último resultado concluído**
 e ficam ocultas enquanto outro job está ativo. Elapsed continua indisponível
 até um timestamp autoritativo persistido ser exposto pelo contrato (#603).
-Benchmark é uma tab funcional para comparação exploratória local: usa a mesma
+Benchmark é uma tab funcional para comparação e qualidade local: usa a mesma
 source Craig e o mesmo corte temporal de 0–300 s nos quatro perfis, executados
-sequencialmente com artefatos já preparados. O receipt é sanitizado e registra a
-identidade da amostra, lineage e métricas factuais; não contém transcript/áudio,
-não cria run publicável e não escolhe vencedor. Sem referência humana, qualidade
-permanece explicitamente não medida. Este benchmark não substitui o aceite físico
+sequencialmente com artefatos já preparados. A partir do contrato de #1412, cada
+execução bem-sucedida preserva um bundle local imutável em
+`Data/benchmarks/<benchmark-id>/`, com `benchmark.json` escrito por último e um
+subdiretório por perfil contendo o `tda_transcript_v1` canônico, métricas,
+eventos sanitizados e telemetria JSONL quando disponível. Hash, tamanho,
+source/sample identity, profile e lineage são revalidados na leitura; corrupção,
+path escape, symlink/junction ou identidade divergente falham fechados. Apagar o
+job da fila não apaga o bundle. Nenhum áudio é copiado para essa árvore e o
+Benchmark continua fora dos Results editoriais/publicáveis.
+
+O receipt da fila permanece pequeno e metadata-only. Transcripts privados só são
+lidos por endpoints tipados e ações explícitas da tab Benchmark. A Web pode
+comparar qualquer par entre Whisper Turbo, Whisper Detailed, Qwen Fast e Qwen
+Quality nas visões Texto, Timing, Performance e Execução, reutilizando o mesmo
+contrato temporal do comparador de runs. TXT/VTT/SRT são derivações sob demanda do
+JSON canônico; o ZIP de evidência é privado/local e não contém áudio.
+
+Sem referência humana, qualidade permanece explicitamente **não medida**: não há
+WER/CER, score composto ou vencedor automático. Uma referência salva usa revisões
+imutáveis/CAS com normalização versionada (NFC, casefold Unicode, whitespace
+colapsado, pontuação explícita e diacríticos preservados). Ela habilita WER/CER
+micro e por track, contagens S/D/I e fidelidade de termos; métricas de timing,
+speaker e overlap só aparecem quando a própria referência possui anotações
+temporais. Telemetria usa amostragem assíncrona versionada e não altera
+`engine_processing_v1`; cobertura ausente ou parcial continua explícita. Falha ou
+cancelamento pode preservar diagnóstico parcial sanitizado, mas nunca produz
+bundle concluído nem quality receipt. Este Benchmark não substitui o aceite físico
 de release definido em #478.
 Desde #1233, prontidão de transcrição e prontidão de benchmark são contratos
 separados. Whisper Runtime 1.1.5 permanece aceito para transcrição normal, mas não
