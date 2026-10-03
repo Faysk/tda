@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { StatusPill } from "@/components/ui";
+import { Button, Dialog, StatusPill } from "@/components/ui";
 import {
 	PERMISSION_LABELS,
 	type PermissionPerson,
@@ -32,6 +32,26 @@ function directActiveRoleIds(person: PermissionPerson) {
 		.filter((role) => role.scopeType === "campaign" && role.active)
 		.map((role) => role.roleId);
 }
+
+type PermissionChange =
+	| Readonly<{ operation: "grant"; roleId: string }>
+	| Readonly<{
+			operation: "revoke";
+			roleId: string;
+			assignmentId: string;
+	  }>;
+
+type PermissionConfirmation = Readonly<{
+	targetProfileId: string;
+	expectedRevision: number;
+	targetName: string;
+	changes: readonly PermissionChange[];
+	sensitive: boolean;
+	selfRevoke: boolean;
+	grantedRoleNames: readonly string[];
+	revokedRoleNames: readonly string[];
+}>;
+
 
 function mutationMessage(reason: string) {
 	const messages: Record<string, string> = {
@@ -69,6 +89,8 @@ export function PermissionsDirectoryView({
 	const [reason, setReason] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [feedback, setFeedback] = useState<string | null>(null);
+	const [pendingConfirmation, setPendingConfirmation] =
+		useState<PermissionConfirmation | null>(null);
 	const [showHistory, setShowHistory] = useState(false);
 	const searchRef = useRef<HTMLInputElement>(null);
 
@@ -111,7 +133,7 @@ export function PermissionsDirectoryView({
 	}
 
 	function closeManage() {
-		if (busy) return;
+		if (busy || pendingConfirmation) return;
 		setSelectedId(null);
 		setSelectedRoleIds([]);
 		setReason("");
@@ -130,15 +152,69 @@ export function PermissionsDirectoryView({
 		return false;
 	}
 
-	async function applyChanges() {
-		if (!selected || busy) return;
+	async function executeChanges(plan: PermissionConfirmation) {
+		if (busy) return;
+		setBusy(true);
+		setFeedback(null);
+		const operationId = crypto.randomUUID();
+		try {
+			const response = await fetch(
+				`/api/edit/${encodeURIComponent(directory.campaign.slug)}/permissions`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						targetProfileId: plan.targetProfileId,
+						expectedRevision: plan.expectedRevision,
+						changes: plan.changes,
+						operationId,
+						reason,
+						confirmSensitive: plan.sensitive,
+						confirmSelfRevoke: plan.selfRevoke,
+					}),
+				},
+			);
+			const payload = await response.json().catch(() => null);
+			if (response.ok && payload?.ok && payload.value) {
+				setDirectory(payload.value);
+				setFeedback(
+					payload.status === "replayed"
+						? "Operação já aplicada anteriormente; estado confirmado."
+						: "Acesso atualizado e confirmado pelo servidor.",
+				);
+				setPendingConfirmation(null);
+				setSelectedId(null);
+				setSelectedRoleIds([]);
+				return;
+			}
+
+			if (
+				payload?.reason === "conflict" ||
+				payload?.reason === "assignment_not_active" ||
+				payload?.reason === "duplicate"
+			) {
+				await refreshDirectory();
+				setPendingConfirmation(null);
+			}
+			setFeedback(mutationMessage(payload?.reason ?? "dependency_unavailable"));
+		} catch {
+			setFeedback(
+				"A resposta da alteração não pôde ser confirmada. Revise o mesmo resumo antes de tentar novamente para evitar duplicidade.",
+			);
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	function applyChanges() {
+		if (!selected || busy || pendingConfirmation) return;
 		const current = new Map(
 			selected.roles
 				.filter((role) => role.scopeType === "campaign" && role.active)
 				.map((role) => [role.roleId, role]),
 		);
 		const wanted = new Set(selectedRoleIds);
-		const changes = [
+		const changes: PermissionChange[] = [
 			...directory.roles
 				.filter((role) => wanted.has(role.id) && !current.has(role.id))
 				.map((role) => ({ operation: "grant" as const, roleId: role.id })),
@@ -164,69 +240,34 @@ export function PermissionsDirectoryView({
 		const selfRevoke =
 			selected.isCurrentActor &&
 			changes.some((change) => change.operation === "revoke");
+		const plan: PermissionConfirmation = {
+			targetProfileId: selected.id,
+			expectedRevision: selected.revision,
+			targetName: selected.displayName,
+			changes,
+			sensitive,
+			selfRevoke,
+			grantedRoleNames: changes
+				.filter((change) => change.operation === "grant")
+				.map(
+					(change) =>
+						directory.roles.find((role) => role.id === change.roleId)?.name ??
+						change.roleId,
+				),
+			revokedRoleNames: changes
+				.filter((change) => change.operation === "revoke")
+				.map(
+					(change) =>
+						directory.roles.find((role) => role.id === change.roleId)?.name ??
+						change.roleId,
+				),
+		};
 
-		if (
-			sensitive &&
-			!window.confirm(
-				"Esta mudança altera administração, publicação ou aprovação de cânone. Confirma a alteração de autoridade?",
-			)
-		)
+		if (sensitive || selfRevoke) {
+			setPendingConfirmation(plan);
 			return;
-		if (
-			selfRevoke &&
-			!window.confirm(
-				"Você está removendo uma função da própria conta. Confirma que deseja continuar?",
-			)
-		)
-			return;
-
-		setBusy(true);
-		setFeedback(null);
-		const operationId = crypto.randomUUID();
-		try {
-			const response = await fetch(
-				`/api/edit/${encodeURIComponent(directory.campaign.slug)}/permissions`,
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						targetProfileId: selected.id,
-						expectedRevision: selected.revision,
-						changes,
-						operationId,
-						reason,
-						confirmSensitive: sensitive,
-						confirmSelfRevoke: selfRevoke,
-					}),
-				},
-			);
-			const payload = await response.json().catch(() => null);
-			if (response.ok && payload?.ok && payload.value) {
-				setDirectory(payload.value);
-				setFeedback(
-					payload.status === "replayed"
-						? "Operação já aplicada anteriormente; estado confirmado."
-						: "Acesso atualizado e confirmado pelo servidor.",
-				);
-				setSelectedId(null);
-				setSelectedRoleIds([]);
-				return;
-			}
-
-			if (
-				payload?.reason === "conflict" ||
-				payload?.reason === "assignment_not_active" ||
-				payload?.reason === "duplicate"
-			)
-				await refreshDirectory();
-			setFeedback(mutationMessage(payload?.reason ?? "dependency_unavailable"));
-		} catch {
-			setFeedback(
-				"A resposta da alteração não pôde ser confirmada. Atualize a página antes de repetir para evitar duplicidade.",
-			);
-		} finally {
-			setBusy(false);
 		}
+		void executeChanges(plan);
 	}
 
 	const adminCount = directory.people.filter((person) =>
@@ -571,6 +612,82 @@ export function PermissionsDirectoryView({
 					</aside>
 				</div>
 			) : null}
+
+			<Dialog
+				open={pendingConfirmation !== null}
+				title="Confirmar mudança de acesso?"
+				description={
+					pendingConfirmation ? (
+						<p>
+							Revise exatamente o que será alterado para{" "}
+							<strong>{pendingConfirmation.targetName}</strong> em{" "}
+							<strong>{directory.campaign.name}</strong>.
+						</p>
+					) : undefined
+				}
+				onClose={() => {
+					if (!busy) setPendingConfirmation(null);
+				}}
+				actions={
+					pendingConfirmation ? (
+					<>
+						<Button
+							data-dialog-initial-focus
+							variant="secondary"
+							disabled={busy}
+							onClick={() => setPendingConfirmation(null)}
+						>
+							Continuar editando
+						</Button>
+						<Button
+							variant="primary"
+							pending={busy}
+							pendingLabel="Aplicando…"
+							onClick={() => void executeChanges(pendingConfirmation)}
+						>
+							Aplicar mudanças
+						</Button>
+					</>
+					) : null
+				}
+			>
+				{pendingConfirmation ? (
+					<>
+						{pendingConfirmation.grantedRoleNames.length ? (
+							<section>
+								<strong>Conceder</strong>
+								<ul>
+									{pendingConfirmation.grantedRoleNames.map((name) => (
+										<li key={`grant:${name}`}>{name}</li>
+									))}
+								</ul>
+							</section>
+						) : null}
+						{pendingConfirmation.revokedRoleNames.length ? (
+							<section>
+								<strong>Remover</strong>
+								<ul>
+									{pendingConfirmation.revokedRoleNames.map((name) => (
+										<li key={`revoke:${name}`}>{name}</li>
+									))}
+								</ul>
+							</section>
+						) : null}
+						{pendingConfirmation.sensitive ? (
+							<p>
+								Esta mudança afeta administração, publicação ou aprovação de cânone.
+							</p>
+						) : null}
+						{pendingConfirmation.selfRevoke ? (
+							<p>
+								Você está removendo uma função da própria conta. O servidor ainda
+								protegerá o último administrador e as demais regras de autoridade.
+							</p>
+						) : null}
+						{feedback ? <p role="status">{feedback}</p> : null}
+					</>
+				) : null}
+			</Dialog>
 		</>
 	);
 }
