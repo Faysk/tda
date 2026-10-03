@@ -1,0 +1,66 @@
+.root {
+	display: grid;
+	gap: 7px;
+	min-width: 0;
+	font-family: var(--ds-font-ui);
+}
+
+.label {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	font-weight: 750;
+	letter-spacing: 0.035em;
+}
+
+.select {
+	min-width: 0;
+}
+
+.helper,
+.pending {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.76rem;
+	line-height: 1.45;
+}
+
+.pending {
+	color: var(--ds-foreground-soft);
+	font-weight: 650;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.route {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: end;
+	gap: 10px;
+	min-width: 0;
+}
+
+.commit {
+	min-width: max-content;
+}
+
+@media (max-width: 560px) {
+	.route {
+		grid-template-columns: 1fr;
+	}
+
+	.commit {
+		width: 100%;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.root,
+	.route {
+		scroll-behavior: auto;
+	}
+}
