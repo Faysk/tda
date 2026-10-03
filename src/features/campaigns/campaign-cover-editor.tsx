@@ -10,11 +10,13 @@ const MAX_BYTES = 8 * 1024 * 1024;
 export function CampaignCoverEditor({
 	campaignId,
 	campaignName,
+	campaignVisibility,
 	coverImage,
 	hasCoverBinding,
 }: {
 	campaignId: string;
 	campaignName: string;
+	campaignVisibility: "public" | "private";
 	coverImage: string | null;
 	hasCoverBinding: boolean;
 }) {
@@ -108,13 +110,21 @@ export function CampaignCoverEditor({
 						src={coverImage}
 						alt={`Capa atual de ${campaignName}`}
 						fill
-						sizes="(max-width: 760px) 100vw, 320px"
+						sizes="(max-width: 760px) 100vw, 230px"
 					/>
 				) : (
 					<span>Sem capa pública verificada</span>
 				)}
 			</div>
 			<div className={styles.coverControls}>
+				<p
+					className={styles.coverPrivacy}
+					data-visibility={campaignVisibility}
+				>
+					{campaignVisibility === "public"
+						? "Esta campanha está pública. Uma capa promovida e verificada pode aparecer nas superfícies públicas."
+						: "Esta campanha está privada. O upload não torna a campanha pública; publicação de mídia continua dependendo de promoção verificada e da visibilidade salva."}
+				</p>
 				<label>
 					<span>Capa/card · PNG ou WebP · até 8 MiB</span>
 					<input
