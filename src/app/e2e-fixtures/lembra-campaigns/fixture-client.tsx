@@ -32,11 +32,6 @@ const CAMPAIGNS: readonly LembraCampaignClassification[] = [
 	},
 ];
 
-const PRIVATE_CAMPAIGN: LembraCampaignClassification = {
-	id: "66666666-6666-4666-8666-666666666666",
-	name: "Passos Retomados",
-	lifecycle: "active",
-};
 
 let latestCreatedCampaign: ManageableCampaign | null = null;
 
@@ -82,20 +77,6 @@ const REFERENCES: readonly LembraReference[] = [
 		height: 12,
 		mine: false,
 		campaign: CAMPAIGNS[2],
-	},
-	{
-		id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-		title: "Referência privada global",
-		description: "Continua na biblioteca mesmo sem discovery da classificação.",
-		author: "Fixture",
-		authorAuthUserId: "fixture",
-		createdAt: "2026-09-30T09:00:00.000Z",
-		updatedAt: "2026-09-30T09:00:00.000Z",
-		imageUrl: IMAGE,
-		width: 16,
-		height: 12,
-		mine: false,
-		campaign: PRIVATE_CAMPAIGN,
 	},
 ];
 
@@ -143,19 +124,18 @@ async function syntheticCampaignCreateAction(
 export function LembraCampaignFixtureClient({
 	canManageCampaigns,
 	canDiscoverPrivateCampaigns,
+	privateCampaign,
+	privateReference,
 }: Readonly<{
 	canManageCampaigns: boolean;
 	canDiscoverPrivateCampaigns: boolean;
+	privateCampaign: LembraCampaignClassification | null;
+	privateReference: LembraReference;
 }>) {
-	const visibleCampaigns = canDiscoverPrivateCampaigns
-		? [...CAMPAIGNS, PRIVATE_CAMPAIGN]
+	const visibleCampaigns = privateCampaign
+		? [...CAMPAIGNS, privateCampaign]
 		: [...CAMPAIGNS];
-	const visibleReferences = REFERENCES.map((reference) =>
-		reference.campaign?.id === PRIVATE_CAMPAIGN.id &&
-		!canDiscoverPrivateCampaigns
-			? { ...reference, campaign: null }
-			: reference,
-	);
+	const visibleReferences = [...REFERENCES, privateReference];
 
 	async function syntheticCampaignProjectionAction() {
 		await Promise.resolve();
