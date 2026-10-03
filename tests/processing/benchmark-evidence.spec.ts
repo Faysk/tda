@@ -39,6 +39,8 @@ test("completed evidence reopens four-profile lab without turning it into Result
 	expect(
 		state.requests.some((item) => item.path.includes("/transcript")),
 	).toBe(false);
+	await expect(panel.getByText("Olá mundo da taverna")).toHaveCount(0);
+	await expect(panel.getByText("Olá mundo na taverna")).toHaveCount(0);
 	await compare.click();
 
 	await expect(panel.getByRole("tab", { name: "Texto" })).toHaveAttribute(
@@ -50,8 +52,13 @@ test("completed evidence reopens four-profile lab without turning it into Result
 	await expect(panel.getByText("Olá mundo na taverna")).toBeVisible();
 	await expect(panel.getByText(/Diferença 1 de/u)).toBeVisible();
 	await panel.getByLabel("Filtrar track").selectOption("1");
-	await panel.getByRole("button", { name: "Próxima diferença" }).click();
+	const nextDifference = panel.getByRole("button", { name: "Próxima diferença" });
+	await nextDifference.focus();
+	await page.keyboard.press("Enter");
 	await expect(panel.locator('[data-current="true"]')).toBeFocused();
+	await expect(panel.locator('[aria-live="polite"]')).toContainText(
+		/Diferença \d+ de \d+/u,
+	);
 	await panel.getByLabel("Tempo inicial em segundos").fill("0");
 	await panel.getByLabel("Tempo final em segundos").fill("60");
 	expect(
@@ -85,6 +92,29 @@ test("completed evidence reopens four-profile lab without turning it into Result
 		clientWidth: document.documentElement.clientWidth,
 	}));
 	expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+});
+
+
+test("corrupted benchmark evidence fails closed without rendering stale transcript content", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkEvidence: true,
+		benchmarkCorruptProfile: "whisper-turbo",
+		profileReady: true,
+		initialJobs: [fixtureBenchmarkJob("succeeded")],
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await panel.getByRole("button", { name: "Comparar transcripts" }).click();
+	const alert = panel.getByRole("alert");
+	await expect(alert).toBeVisible();
+	await expect(alert).not.toBeEmpty();
+	await expect(panel.getByText("Olá mundo da taverna")).toHaveCount(0);
+	await expect(panel.getByText("Olá mundo na taverna")).toHaveCount(0);
+	await expect(panel.getByText(/regiões diferentes/u)).toHaveCount(0);
 });
 
 test("human reference is explicit, revisioned and unlocks objective quality only after save", async ({
