@@ -324,7 +324,47 @@ def test_all_current_literal_worker_event_codes_are_registered():
     assert literal_codes <= registered_worker_event_codes()
 
 
-def test_registered_recovery_events_cover_the_current_qwen_v4_path():
+
+
+def test_qwen_track_order_events_keep_only_safe_structural_metadata():
+    reordered = sanitize_worker_event(
+        {
+            "code": "QWEN_TRACK_SEGMENTS_REORDERED",
+            "stage": "alignment",
+            "track": 2,
+            "total_tracks": 4,
+            "count": 2,
+            "text": "private transcript",
+            "path": "C:/private/audio.flac",
+        }
+    )
+    assert reordered.code == "QWEN_TRACK_SEGMENTS_REORDERED"
+    assert reordered.level == "warning"
+    assert reordered.data == {
+        "stage": "alignment",
+        "track": 2,
+        "total_tracks": 4,
+        "count": 2,
+    }
+    assert reordered.drift_reason == "unexpected_or_invalid_field"
+
+    failed = sanitize_worker_event(
+        {
+            "code": "QWEN_TRACK_VALIDATION_FAILED",
+            "stage": "alignment",
+            "track": 2,
+            "total_tracks": 4,
+            "failure_class": "QWEN_TRACK_SEGMENTS_OUT_OF_ORDER",
+            "detail": "private transcript",
+        }
+    )
+    assert failed.code == "QWEN_TRACK_VALIDATION_FAILED"
+    assert failed.level == "error"
+    assert failed.data["failure_class"] == "QWEN_TRACK_SEGMENTS_OUT_OF_ORDER"
+    assert "detail" not in failed.data
+
+
+def test_registered_recovery_events_cover_the_current_qwen_v5_path():
     registered = registered_worker_event_codes()
     assert {
         "QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED",
