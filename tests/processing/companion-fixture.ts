@@ -948,7 +948,7 @@ export async function installCompanionFixture(
 					"qwen-quality",
 				],
 				bundle_size_bytes: 65536,
-				formats: ["json", "txt", "vtt", "srt"],
+				formats: ["json", "txt", "txt-plain", "vtt", "srt"],
 				quality_reference_status: "none",
 				telemetry_available: false,
 				integrity: "verified",
