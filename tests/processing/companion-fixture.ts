@@ -200,7 +200,7 @@ function fixtureBenchmarkTranscript(profileId: string): Record<string, unknown> 
 				number: 2,
 				speaker: "Bob",
 				timeline_offset_seconds: 0,
-				segments: [{ id: "s2", start: 20, end: 22, text: "segundo texto" }],
+				segments: [{ id: "s2", start: 20, end: 22, text: changed ? "segundo texto extra" : "segundo texto" }],
 			},
 		],
 	};
@@ -1147,6 +1147,22 @@ export async function installCompanionFixture(
 					},
 				],
 			});
+		}
+		if (options.benchmarkEvidence && path === "/benchmarks/benchmark-evidence-1/export") {
+			return route.fulfill({ status: 200, body: "PK synthetic-private-benchmark", contentType: "application/zip", headers: { "content-disposition": 'attachment; filename="tda-benchmark-benchmark-evidence-1.zip"' } });
+		}
+		if (options.benchmarkEvidence && /^\/benchmarks\/benchmark-evidence-1\/profiles\/(whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)\/transcript\.(json|txt|vtt|srt)$/u.test(path)) {
+			const parts = path.split("/");
+			const profileId = parts[4];
+			const extension = path.split(".").at(-1);
+			const body = extension === "json"
+				? JSON.stringify(fixtureBenchmarkTranscript(profileId))
+				: extension === "vtt"
+					? "WEBVTT\\n\\n00:00:10.000 --> 00:00:12.000\\nAlice: olá mundo\\n"
+					: extension === "srt"
+						? "1\\n00:00:10,000 --> 00:00:12,000\\nAlice: olá mundo\\n"
+						: "Alice\\nolá mundo\\n";
+			return route.fulfill({ status: 200, body, contentType: extension === "json" ? "application/json" : "text/plain" });
 		}
 		if (options.benchmarkEvidence && /^\/benchmarks\/benchmark-evidence-1\/profiles\/(whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)\/transcript$/u.test(path)) {
 			const profileId = path.split("/")[4];
