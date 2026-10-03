@@ -156,7 +156,7 @@ def test_bundle_is_verified_and_snapshot_is_lazy_readable(tmp_path):
     summary = public_bundle_summary(data_root, benchmark_id)
     assert summary["integrity"] == "verified"
     assert summary["profile_order"] == list(PROFILES)
-    assert summary["formats"] == ["json", "txt", "vtt", "srt"]
+    assert summary["formats"] == ["json", "txt", "txt-plain", "vtt", "srt"]
 
     snapshot = transcript_snapshot(data_root, benchmark_id, "qwen-fast")
     assert snapshot["sample_identity_sha256"] == "c" * 64
@@ -164,10 +164,16 @@ def test_bundle_is_verified_and_snapshot_is_lazy_readable(tmp_path):
     assert snapshot["segments"][0]["timing_precision"] == "segment"
 
     txt, txt_type, _ = derived_artifact(data_root, benchmark_id, "qwen-fast", "txt")
+    plain, plain_type, _ = derived_artifact(
+        data_root, benchmark_id, "qwen-fast", "txt-plain"
+    )
     vtt, vtt_type, _ = derived_artifact(data_root, benchmark_id, "qwen-fast", "vtt")
     srt, srt_type, _ = derived_artifact(data_root, benchmark_id, "qwen-fast", "srt")
     assert b"[00:00:01.000] Alice" in txt
     assert txt_type.startswith("text/plain")
+    assert b"[00:00:01.000]" not in plain
+    assert plain.startswith(b"Alice\nfala de qwen-fast")
+    assert plain_type.startswith("text/plain")
     assert vtt.startswith(b"WEBVTT\n")
     assert b"00:00:01.000 --> 00:00:02.500" in vtt
     assert vtt_type.startswith("text/vtt")
