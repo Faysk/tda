@@ -36,6 +36,7 @@ type Props = Readonly<{
 	sourceCampaignSlug: string;
 	sourceCampaignName: string;
 	destinations: readonly SessionCampaignMoveDestination[];
+	available?: boolean;
 	transport?: SessionCampaignMoveTransport;
 }>;
 
@@ -54,6 +55,8 @@ function failureLabel(reason: string): string {
 			return "A sessão ou uma das campanhas não está mais disponível.";
 		case "validation":
 			return "Os dados da mudança ficaram inválidos. Recarregue e tente novamente.";
+		case "dependency_unavailable":
+			return "A mudança de campanha está temporariamente indisponível neste ambiente.";
 		default:
 			return "Não foi possível confirmar a mudança agora. Nenhuma alteração parcial deve ser assumida.";
 	}
@@ -65,6 +68,7 @@ export function SessionCampaignMovePanel({
 	sourceCampaignSlug,
 	sourceCampaignName,
 	destinations,
+	available = true,
 	transport = DEFAULT_TRANSPORT,
 }: Props) {
 	const router = useRouter();
@@ -85,13 +89,31 @@ export function SessionCampaignMovePanel({
 
 	if (!destinations.length) {
 		return (
-			<section className={styles.panel} aria-labelledby="session-move-title">
+			<section className={styles.panel} aria-labelledby="session-move-title" data-testid="session-campaign-move-panel">
 				<div>
 					<p className={styles.eyebrow}>Campanha atual</p>
 					<h2 id="session-move-title">{sourceCampaignName}</h2>
 				</div>
 				<p className={styles.muted}>
 					Não há outra campanha ativa em que você possua leitura da transcrição e edição de conteúdo.
+				</p>
+			</section>
+		);
+	}
+
+	if (!available) {
+		return (
+			<section
+				className={styles.panel}
+				aria-labelledby="session-move-title"
+				data-testid="session-campaign-move-panel"
+			>
+				<div>
+					<p className={styles.eyebrow}>Campanha atual</p>
+					<h2 id="session-move-title">{sourceCampaignName}</h2>
+				</div>
+				<p className={styles.muted} role="status">
+					Mover campanha está temporariamente indisponível neste ambiente.
 				</p>
 			</section>
 		);
