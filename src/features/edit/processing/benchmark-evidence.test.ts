@@ -36,8 +36,8 @@ function lineage(profileId: TranscriptionProfileId) {
 		execution_device: {
 			kind: "cuda",
 			logical_index: 0,
-			physical_uuid: "GPU-SYNTHETIC",
-			pci_bus_id: "0000:01:00.0",
+			physical_uuid: "GPU-12345678-1234-1234-1234-123456789abc",
+			pci_bus_id: "00000000:01:00.0",
 		},
 		gpu: {
 			vendor: "NVIDIA",
