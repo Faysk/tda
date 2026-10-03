@@ -378,14 +378,47 @@ def write_profile_artifact(
     if _SHA256.fullmatch(sample_identity_sha256) is None or sample_seconds != 300.0:
         raise BenchmarkEvidenceError("BENCHMARK_SAMPLE_IDENTITY_INVALID")
     document.validate()
+    _validate_transcript_paths(document)
     destination = profile_root(data_root, benchmark_id, profile_id)
-    if (destination / "profile.json").exists():
-        raise BenchmarkEvidenceError("BENCHMARK_PROFILE_ALREADY_COMMITTED")
+    marker = destination / "profile.json"
+    if marker.exists():
+        existing = _read_json(marker)
+        if (
+            existing.get("schema_version") != PROFILE_SCHEMA
+            or existing.get("benchmark_id") != benchmark_id
+            or existing.get("job_id") != job_id
+            or existing.get("attempt") != attempt
+            or existing.get("profile_id") != profile_id
+            or existing.get("source_sha256") != document.source_sha256.lower()
+            or existing.get("sample_identity_sha256") != sample_identity_sha256
+            or existing.get("sample_seconds") != sample_seconds
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_ALREADY_EXISTS")
+        transcript_path = destination / "transcript.json"
+        transcript_descriptor = existing.get("transcript")
+        if not isinstance(transcript_descriptor, dict):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_MANIFEST_INVALID")
+        digest, size, payload = _sha256_file(transcript_path, _MAX_JSON_BYTES)
+        if (
+            digest != transcript_descriptor.get("sha256")
+            or size != transcript_descriptor.get("size_bytes")
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_TRANSCRIPT_MISMATCH")
+        try:
+            persisted = TranscriptDocument.from_dict(json.loads(payload))
+        except (UnicodeDecodeError, json.JSONDecodeError, TranscriptValidationError) as exc:
+            raise BenchmarkEvidenceError("BENCHMARK_TRANSCRIPT_INVALID") from exc
+        if _semantic_document_sha256(persisted) != _semantic_document_sha256(document):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_TRANSCRIPT_MISMATCH")
+        return existing
     destination.mkdir(parents=True, exist_ok=True)
     _check_owned_tree(benchmark_root(data_root, benchmark_id), destination)
     try:
         transcript_path = destination / "transcript.json"
-        document.write_atomic(transcript_path)
+        transcript_payload = _canonical_json(document.as_dict())
+        if len(transcript_payload) > _MAX_JSON_BYTES:
+            raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_SIZE_INVALID")
+        _atomic_bytes(transcript_path, transcript_payload)
         transcript = _descriptor(transcript_path)
         processing = document.stats.processing_metrics
         if not isinstance(processing, dict) or processing.get("version") != "engine_processing_v1":
