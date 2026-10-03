@@ -45,7 +45,7 @@ export const WORLD_NAV_ITEMS: readonly WorldNavItem[] = [
 ] as const;
 
 const CAMPAIGN_WORLD_SECTION =
-	/^\/campanhas\/([^/]+)\/(?:mundo|personagens|npcs|lugares|faccoes|musicas)(?:\/|$)/u;
+	/^\/campanhas\/([^/]+)\/(?:mundo|personagens|npcs|lugares|faccoes|musicas|quests)(?:\/|$)/u;
 
 export function worldNavHrefForPathname(pathname: string, href: string): string {
 	const campaignMatch = pathname.match(CAMPAIGN_WORLD_SECTION);
