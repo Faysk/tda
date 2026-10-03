@@ -104,21 +104,17 @@ describe("authorized campaign discovery scope", () => {
 
 
 function campaignQuery(result: Readonly<{ data: unknown; error: unknown }>) {
-	const query: Record<string, unknown> = {};
-	for (const method of ["select", "order", "eq", "in"]) {
-		query[method] = vi.fn(() => query);
-	}
-	// biome-ignore lint/suspicious/noThenProperty: Supabase query mocks are intentionally thenable to match the client contract.
-	query.then = (
-		resolve: (value: Readonly<{ data: unknown; error: unknown }>) => unknown,
-		reject: (reason: unknown) => unknown,
-	) => Promise.resolve(result).then(resolve, reject);
-	return query as {
+	const query = Promise.resolve(result) as Promise<typeof result> & {
 		select: ReturnType<typeof vi.fn>;
 		order: ReturnType<typeof vi.fn>;
 		eq: ReturnType<typeof vi.fn>;
 		in: ReturnType<typeof vi.fn>;
 	};
+	query.select = vi.fn(() => query);
+	query.order = vi.fn(() => query);
+	query.eq = vi.fn(() => query);
+	query.in = vi.fn(() => query);
+	return query;
 }
 
 describe("authorized campaign access directory", () => {
