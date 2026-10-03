@@ -25,7 +25,7 @@ test("critical negative matrix is complete and backed by runnable semantic evide
 		"session_move_incompatible_dependencies",
 		"stale_world_publish",
 	]);
-	assert.equal(matrix.surfaceCoverageCount, 10);
+	assert.equal(matrix.surfaceCoverageCount, 11);
 	assert.deepEqual(matrix.duplicateIds, []);
 	assert.deepEqual(matrix.missingEvidence, []);
 	assert.deepEqual(matrix.missingAnchors, []);
