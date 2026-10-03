@@ -300,6 +300,65 @@ def sanitize_benchmark_message(
     return row
 
 
+def _validated_event_row(
+    raw: Mapping[str, Any],
+    *,
+    benchmark_id: str,
+    profile_id: str,
+) -> dict[str, Any]:
+    allowed = {
+        "schema_version",
+        "seq",
+        "at",
+        "relative_ms",
+        "benchmark_id",
+        "attempt",
+        "profile_id",
+        "sample_identity_sha256",
+        "type",
+        "stage",
+        "code",
+        "data",
+    }
+    row = dict(raw)
+    if set(row) != allowed:
+        raise BenchmarkEvidenceError("BENCHMARK_EVENT_FIELDS_INVALID")
+    if (
+        row.get("schema_version") != EVENT_SCHEMA
+        or row.get("benchmark_id") != benchmark_id
+        or row.get("profile_id") != profile_id
+        or isinstance(row.get("seq"), bool)
+        or not isinstance(row.get("seq"), int)
+        or row["seq"] < 0
+        or isinstance(row.get("relative_ms"), bool)
+        or not isinstance(row.get("relative_ms"), int)
+        or row["relative_ms"] < 0
+        or isinstance(row.get("attempt"), bool)
+        or not isinstance(row.get("attempt"), int)
+        or row["attempt"] < 1
+        or not isinstance(row.get("at"), str)
+        or len(row["at"]) > 128
+        or not isinstance(row.get("sample_identity_sha256"), str)
+        or _SHA256.fullmatch(row["sample_identity_sha256"]) is None
+        or row.get("type") not in {"ready", "stage", "progress", "event", "result", "cancelled", "error"}
+        or (row.get("stage") is not None and (
+            not isinstance(row["stage"], str)
+            or re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", row["stage"]) is None
+        ))
+        or (row.get("code") is not None and (
+            not isinstance(row["code"], str)
+            or re.fullmatch(r"[A-Z0-9_]{1,96}", row["code"]) is None
+        ))
+        or not isinstance(row.get("data"), dict)
+        or any(key not in {"track", "total_tracks", "window", "start_seconds", "end_seconds", "duration_seconds", "completed", "total", "unit", "stage", "code"} for key in row["data"])
+    ):
+        raise BenchmarkEvidenceError("BENCHMARK_EVENT_INVALID")
+    encoded_data = _canonical_json(row["data"])
+    if len(encoded_data) > 4096:
+        raise BenchmarkEvidenceError("BENCHMARK_EVENT_DATA_TOO_LARGE")
+    return row
+
+
 def write_profile_events(
     data_root: Path,
     benchmark_id: str,
@@ -309,7 +368,10 @@ def write_profile_events(
     destination = profile_root(data_root, benchmark_id, profile_id)
     if not (destination / "profile.json").is_file():
         raise BenchmarkEvidenceError("BENCHMARK_PROFILE_UNCOMMITTED")
-    rows = [dict(row) for row in events]
+    rows = [
+        _validated_event_row(row, benchmark_id=benchmark_id, profile_id=profile_id)
+        for row in events
+    ]
     if not rows or len(rows) > _MAX_EVENTS:
         raise BenchmarkEvidenceError("BENCHMARK_EVENT_COUNT_INVALID")
     payload = b"".join(_canonical_json(row) + b"\n" for row in rows)
@@ -643,12 +705,10 @@ def transcript_to_vtt(document: TranscriptDocument) -> str:
         secs, ms = divmod(rest, 1000)
         return f"{hours:02d}:{minutes:02d}:{secs:02d}.{ms:03d}"
     output = ["WEBVTT", ""]
-    previous_end = 0.0
     for start, end, speaker, text in rows:
-        start = max(start, previous_end if start < previous_end and end >= previous_end else start)
+        start = max(0.0, start)
         end = max(start, end)
         output.extend([f"{stamp(start)} --> {stamp(end)}", f"{speaker}: {text}", ""])
-        previous_end = max(previous_end, end)
     return "\n".join(output)
 
 
