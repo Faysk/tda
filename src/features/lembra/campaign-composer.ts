@@ -53,3 +53,43 @@ export function reconcileCreatedLembraCampaign(
 		message: "Campanha criada e selecionada.",
 	};
 }
+
+
+export function reconcileProjectedLembraCampaign(
+	currentCampaigns: readonly LembraCampaignClassification[],
+	currentCampaignId: string | null,
+	created: ManageableCampaign,
+	discoverableCampaigns: readonly LembraCampaignClassification[],
+): ReconciledLembraCampaign {
+	const projected = sortCampaigns(discoverableCampaigns);
+	const createdProjection = projected.find((campaign) => campaign.id === created.id);
+	const preservedCurrent = currentCampaignId
+		? projected.some((campaign) => campaign.id === currentCampaignId)
+			? currentCampaignId
+			: null
+		: null;
+
+	if (!createdProjection) {
+		return {
+			campaigns: projected,
+			campaignId: preservedCurrent,
+			message:
+				"A campanha foi criada, mas ainda não está disponível para classificação no Lembra.",
+		};
+	}
+
+	if (createdProjection.lifecycle !== "active") {
+		return {
+			campaigns: projected,
+			campaignId: preservedCurrent,
+			message:
+				"A campanha foi criada, mas não está ativa para classificar novas referências.",
+		};
+	}
+
+	return {
+		campaigns: projected,
+		campaignId: createdProjection.id,
+		message: "Campanha criada e selecionada.",
+	};
+}
