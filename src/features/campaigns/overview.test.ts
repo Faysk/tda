@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { campaignOverviewNarrativeLinksFromEntityTypes } from "./overview";
+import { campaignOverviewNarrativeLinksFromEntityTypes } from "./overview-presentation";
 
 describe("campaignOverviewNarrativeLinksFromEntityTypes", () => {
 	it("projects only supported public narrative categories in stable order", () => {
