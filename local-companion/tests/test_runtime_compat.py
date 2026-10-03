@@ -27,6 +27,9 @@ def test_companion_rejects_pre_recovery_qwen_and_requires_1_0_12():
     assert qwen_runtime_version_compatible("1.0.11") is False
     assert qwen_runtime_version_compatible("1.0.12") is True
     assert qwen_runtime_version_compatible("1.0.13") is True
+    # #1236 final acceptance: the post-recovery ordering worker is an explicit
+    # compatible immutable runtime identity, not a same-version byte replacement.
+    assert qwen_runtime_version_compatible("1.0.17") is True
 
 
 def test_current_runtime_builds_are_not_older_than_companion_minimums():
