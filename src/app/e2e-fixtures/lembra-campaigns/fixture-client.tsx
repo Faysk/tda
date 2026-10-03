@@ -32,6 +32,13 @@ const CAMPAIGNS: readonly LembraCampaignClassification[] = [
 	},
 ];
 
+
+const PRIVATE_CAMPAIGN: LembraCampaignClassification = {
+	id: "66666666-6666-4666-8666-666666666666",
+	name: "Passos Retomados",
+	lifecycle: "active",
+};
+
 let latestCreatedCampaign: ManageableCampaign | null = null;
 
 const REFERENCES: readonly LembraReference[] = [
@@ -76,7 +83,22 @@ const REFERENCES: readonly LembraReference[] = [
 		height: 12,
 		mine: false,
 		campaign: CAMPAIGNS[2],
+	},,
+	{
+		id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+		title: "Referência privada global",
+		description: "Continua na biblioteca mesmo sem discovery da classificação.",
+		author: "Fixture",
+		authorAuthUserId: "fixture",
+		createdAt: "2026-09-30T09:00:00.000Z",
+		updatedAt: "2026-09-30T09:00:00.000Z",
+		imageUrl: IMAGE,
+		width: 16,
+		height: 12,
+		mine: false,
+		campaign: PRIVATE_CAMPAIGN,
 	},
+
 ];
 
 function createdCampaign(input: CampaignCreateInput): ManageableCampaign {
@@ -120,28 +142,46 @@ async function syntheticCampaignCreateAction(
 	return { ok: true, campaign: latestCreatedCampaign };
 }
 
-async function syntheticCampaignProjectionAction() {
-	await Promise.resolve();
-	const projected = latestCreatedCampaign
-		? [
-				...CAMPAIGNS,
-				{
-					id: latestCreatedCampaign.id,
-					name: latestCreatedCampaign.name,
-					lifecycle: latestCreatedCampaign.lifecycle,
-				},
-			]
-		: CAMPAIGNS;
-	return { ok: true as const, campaigns: projected };
-}
-
 export function LembraCampaignFixtureClient({
 	canManageCampaigns,
-}: Readonly<{ canManageCampaigns: boolean }>) {
+	canDiscoverPrivateCampaigns,
+}: Readonly<{
+	canManageCampaigns: boolean;
+	canDiscoverPrivateCampaigns: boolean;
+}>) {
+	const visibleCampaigns = canDiscoverPrivateCampaigns
+		? [...CAMPAIGNS, PRIVATE_CAMPAIGN]
+		: [...CAMPAIGNS];
+	const visibleReferences = REFERENCES.map((reference) =>
+		reference.campaign?.id === PRIVATE_CAMPAIGN.id &&
+		!canDiscoverPrivateCampaigns
+			? { ...reference, campaign: null }
+			: reference,
+	);
+
+	async function syntheticCampaignProjectionAction() {
+		await Promise.resolve();
+		const createdIsVisible =
+			latestCreatedCampaign &&
+			(latestCreatedCampaign.visibility === "public" ||
+				canDiscoverPrivateCampaigns);
+		const projected = createdIsVisible
+			? [
+					...visibleCampaigns,
+					{
+						id: latestCreatedCampaign.id,
+						name: latestCreatedCampaign.name,
+						lifecycle: latestCreatedCampaign.lifecycle,
+					},
+				]
+			: visibleCampaigns;
+		return { ok: true as const, campaigns: projected };
+	}
+
 	return (
 		<LembraExperience
-			initialReferences={REFERENCES}
-			initialCampaigns={CAMPAIGNS}
+			initialReferences={visibleReferences}
+			initialCampaigns={visibleCampaigns}
 			canManageCampaigns={canManageCampaigns}
 			campaignCreateAction={syntheticCampaignCreateAction}
 			campaignProjectionAction={syntheticCampaignProjectionAction}
