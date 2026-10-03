@@ -246,8 +246,8 @@ async function installCompletedRunCatalog(
 	);
 }
 
-test("troca de campaign com trabalho autoritativo exige confirmação e não retaggeia o job", async ({ page }) => {
-	await installCompanionFixture(page, {
+test("troca de campaign usa diálogo integrado e nunca retaggeia job existente", async ({ page }, testInfo) => {
+	const state = await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
 		initialJobs: [fixtureJob("running")],
@@ -260,11 +260,11 @@ test("troca de campaign com trabalho autoritativo exige confirmação e não ret
 	});
 	await expect(selector).toContainText("Crônicas da Mesa");
 
-	page.once("dialog", async (dialog) => {
-		expect(dialog.type()).toBe("confirm");
-		expect(dialog.message()).toContain("mantêm a campanha original");
-		await dialog.dismiss();
+	let nativeDialogs = 0;
+	page.on("dialog", () => {
+		nativeDialogs += 1;
 	});
+
 	await selector.click();
 	const alternateCampaign = page
 		.getByRole("option")
@@ -273,8 +273,49 @@ test("troca de campaign com trabalho autoritativo exige confirmação e não ret
 	await expect(alternateCampaign).toBeVisible();
 	await alternateCampaign.click();
 
+	const dialog = page.getByRole("dialog", { name: "Trocar de campanha?" });
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toContainText("Crônicas da Mesa → Antes que seja tarde");
+	await expect(dialog).toContainText(
+		"Trabalhos já criados continuam vinculados à campanha original",
+	);
+	await expect(
+		dialog.getByRole("button", { name: "Continuar nesta campanha" }),
+	).toBeFocused();
+	await page.screenshot({
+		path: testInfo.outputPath("issue-1354-campaign-switch-dialog.png"),
+		fullPage: true,
+	});
+
+	await page.keyboard.press("Escape");
+	await expect(dialog).not.toBeVisible();
+	await expect(selector).toBeFocused();
 	await expect(selector).toContainText("Crônicas da Mesa");
-	await expect(page).toHaveURL("/");
+	expect(nativeDialogs).toBe(0);
+	expect(state.job?.context?.campaign_id).toBe("yuhara-main");
+
+	await page.route("**/edit/antes-que-seja-tarde/processamento", (route) =>
+		route.fulfill({
+			status: 200,
+			contentType: "text/html",
+			body: "<!doctype html><title>campaign switched</title>",
+		}),
+	);
+	await selector.click();
+	await page.getByRole("option").filter({ hasNotText: "Crônicas da Mesa" }).first().click();
+	await expect(dialog).toBeVisible();
+	await dialog.getByRole("button", { name: "Trocar campanha" }).click();
+	await page.waitForURL("**/edit/antes-que-seja-tarde/processamento");
+
+	expect(nativeDialogs).toBe(0);
+	expect(state.job?.context?.campaign_id).toBe("yuhara-main");
+	expect(
+		state.requests.filter(
+			(request) =>
+				request.method !== "GET" &&
+				(request.path.includes("/jobs/") || request.path.includes("/campaign")),
+		),
+	).toHaveLength(0);
 });
 
 test("workspace não expõe nem oferece ações para jobs de outra campaign", async ({
