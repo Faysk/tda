@@ -42,6 +42,11 @@ export type LembraUploadIntent = Readonly<{
 	bytes: number;
 }>;
 
+export type LembraCampaignUpdateIntent =
+	| Readonly<{ kind: "preserve" }>
+	| Readonly<{ kind: "clear" }>
+	| Readonly<{ kind: "set"; campaignId: string }>;
+
 export function isLembraUuid(value: unknown): value is string {
 	return typeof value === "string" && UUID_PATTERN.test(value);
 }
@@ -172,6 +177,17 @@ export function validLembraAuthorName(value: unknown): value is string {
 
 export function validLembraCampaignId(value: unknown): value is string | null {
 	return value === null || isLembraUuid(value);
+}
+
+export function validLembraCampaignUpdateIntent(
+	value: unknown,
+): value is LembraCampaignUpdateIntent {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const intent = value as { kind?: unknown; campaignId?: unknown };
+	if (intent.kind === "preserve" || intent.kind === "clear") {
+		return intent.campaignId === undefined;
+	}
+	return intent.kind === "set" && isLembraUuid(intent.campaignId);
 }
 
 export function validLembraUpdatedAt(value: unknown): value is string {
