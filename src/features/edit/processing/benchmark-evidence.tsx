@@ -45,6 +45,26 @@ function formatTime(value: number): string {
 	return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
 }
 
+function formatDelta(value: number): string {
+	const sign = value > 0 ? "+" : value < 0 ? "−" : "±";
+	return `${sign}${Math.abs(value * 1000).toFixed(0)} ms`;
+}
+
+function segmentTimelineBounds(
+	segments: readonly {
+		start: number;
+		end: number;
+		timelineStart?: number;
+		timelineEnd?: number;
+	}[],
+): { start: number; end: number } | null {
+	if (!segments.length) return null;
+	return {
+		start: Math.min(...segments.map((segment) => segment.timelineStart ?? segment.start)),
+		end: Math.max(...segments.map((segment) => segment.timelineEnd ?? segment.end)),
+	};
+}
+
 function formatBytes(value: number): string {
 	if (!Number.isFinite(value) || value <= 0) return "—";
 	if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(2)} GiB`;
@@ -323,9 +343,16 @@ export function BenchmarkEvidenceWorkspace({
 				differenceIndexes.length;
 			const regionIndex = differenceIndexes[next]!;
 			requestAnimationFrame(() => {
-				document
-					.getElementById(`benchmark-region-${regionIndex}`)
-					?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+				const element = document.getElementById(`benchmark-region-${regionIndex}`);
+				if (!element) return;
+				element.focus({ preventScroll: true });
+				const reducedMotion = window.matchMedia(
+					"(prefers-reduced-motion: reduce)",
+				).matches;
+				element.scrollIntoView({
+					block: "nearest",
+					behavior: reducedMotion ? "auto" : "smooth",
+				});
 			});
 			return next;
 		});
@@ -423,7 +450,13 @@ export function BenchmarkEvidenceWorkspace({
 						</h2>
 						<p>
 							Mesma amostra {result.sampleIdentitySha256.slice(0, 12)}… ·{" "}
-							{formatBytes(manifest?.bundleSizeBytes ?? artifacts.bundleSizeBytes)}
+							{formatBytes(manifest?.bundleSizeBytes ?? artifacts.bundleSizeBytes)} ·{" "}
+							{manifest?.integrity === "verified"
+								? "integridade verificada"
+								: "verificando integridade"} ·{" "}
+							{manifest?.qualityReferenceStatus === "none"
+								? "sem referência humana"
+								: "referência disponível"}
 						</p>
 					</div>
 					<div className={styles.actions}>
@@ -615,6 +648,7 @@ export function BenchmarkEvidenceWorkspace({
 														className={styles.region}
 														data-kind={region.kind}
 														data-active={index === activeRegionIndex}
+														tabIndex={-1}
 													>
 														<div className={styles.regionHeader}>
 															<strong>
@@ -625,6 +659,17 @@ export function BenchmarkEvidenceWorkspace({
 																{formatTime(region.sessionStart)} → {formatTime(region.sessionEnd)}
 															</span>
 														</div>
+														{tab === "timing" ? (() => {
+															const leftBounds = segmentTimelineBounds(region.left);
+															const rightBounds = segmentTimelineBounds(region.right);
+															return (
+																<p className={styles.timingDelta}>
+																	{leftBounds && rightBounds
+																		? `Δ início ${formatDelta(rightBounds.start - leftBounds.start)} · Δ fim ${formatDelta(rightBounds.end - leftBounds.end)}`
+																		: "Região presente em apenas um dos lados; delta A/B não é aplicável."}
+																</p>
+															);
+														})() : null}
 														<div className={styles.columns}>
 															<div className={styles.column}>
 																<strong>A · {LABELS[leftProfile]}</strong>
@@ -633,11 +678,17 @@ export function BenchmarkEvidenceWorkspace({
 																		? region.left.map((segment) => segment.speaker).join(" · ")
 																		: "ausente"}
 																</small>
-																{tab === "timing" ? (
-																	<small>
-																		Precisão {precisionFor(left, leftIds)} · alinhamento {left.alignment}
-																	</small>
-																) : null}
+																{tab === "timing" ? (() => {
+																	const bounds = segmentTimelineBounds(region.left);
+																	return (
+																		<small>
+																			{bounds
+																				? `${formatTime(bounds.start)} → ${formatTime(bounds.end)} · `
+																				: ""}
+																			Precisão {precisionFor(left, leftIds)} · alinhamento {left.alignment} · {left.warnings.length} aviso{left.warnings.length === 1 ? "" : "s"}
+																		</small>
+																	);
+																})() : null}
 																<p>{region.leftText || "∅"}</p>
 															</div>
 															<div className={styles.column}>
@@ -647,11 +698,17 @@ export function BenchmarkEvidenceWorkspace({
 																		? region.right.map((segment) => segment.speaker).join(" · ")
 																		: "ausente"}
 																</small>
-																{tab === "timing" ? (
-																	<small>
-																		Precisão {precisionFor(right, rightIds)} · alinhamento {right.alignment}
-																	</small>
-																) : null}
+																{tab === "timing" ? (() => {
+																	const bounds = segmentTimelineBounds(region.right);
+																	return (
+																		<small>
+																			{bounds
+																				? `${formatTime(bounds.start)} → ${formatTime(bounds.end)} · `
+																				: ""}
+																			Precisão {precisionFor(right, rightIds)} · alinhamento {right.alignment} · {right.warnings.length} aviso{right.warnings.length === 1 ? "" : "s"}
+																		</small>
+																	);
+																})() : null}
 																<p>{region.rightText || "∅"}</p>
 															</div>
 														</div>
@@ -687,6 +744,8 @@ export function BenchmarkEvidenceWorkspace({
 													<th>Áudio</th>
 													<th>Palavras</th>
 													<th>Segmentos</th>
+													<th>Turnos</th>
+													<th>Tracks</th>
 													<th>Avisos</th>
 												</tr>
 											</thead>
@@ -699,6 +758,8 @@ export function BenchmarkEvidenceWorkspace({
 														<td>{formatSeconds(snapshot.stats.audioWorkSeconds)}</td>
 														<td>{snapshot.stats.wordCount ?? "—"}</td>
 														<td>{snapshot.stats.segmentCount ?? "—"}</td>
+														<td>{snapshot.stats.turnCount ?? "—"}</td>
+														<td>{snapshot.stats.trackCount ?? "—"}</td>
 														<td>{snapshot.stats.warningCount ?? "—"}</td>
 													</tr>
 												))}
@@ -752,6 +813,7 @@ export function BenchmarkEvidenceWorkspace({
 												<th>Perfil</th>
 												<th>Modelo / revisão</th>
 												<th>Runtime</th>
+												<th>Companion</th>
 												<th>Compute</th>
 												<th>Alinhamento</th>
 												<th>GPU / dispositivo</th>
@@ -771,10 +833,17 @@ export function BenchmarkEvidenceWorkspace({
 														{snapshot.executionLineage?.runtimeFamily ?? "—"}{" "}
 														{snapshot.executionLineage?.runtimeVersion ?? ""}
 													</td>
+													<td>{snapshot.executionLineage?.companionVersion ?? "—"}</td>
 													<td>{snapshot.computeType ?? snapshot.device}</td>
 													<td>{snapshot.alignment}</td>
 													<td>
 														{snapshot.executionLineage?.gpu?.model ?? snapshot.device}
+														{snapshot.executionLineage?.executionDevice?.physicalUuid
+															? ` · ${snapshot.executionLineage.executionDevice.physicalUuid}`
+															: ""}
+														{snapshot.executionLineage?.executionDevice?.pciBusId
+															? ` · PCI ${snapshot.executionLineage.executionDevice.pciBusId}`
+															: ""}
 													</td>
 													<td className={styles.hash}>
 														{snapshot.executionLineage?.runtimeArtifact?.archiveSha256 ?? "—"}
