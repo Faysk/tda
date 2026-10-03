@@ -189,15 +189,14 @@ export function RecoverableActionForm({
 		if (inFlightRef.current) return;
 		const form = event.currentTarget;
 		const formData = new FormData(form);
-		const openDisclosures = Array.from(
-			form.closest("details")
-				? form.parentElement?.closest("details")
-					? form
-							.closest("details")
-							?.parentElement?.querySelectorAll<HTMLDetailsElement>("details[open]") ?? []
-					: [form.closest("details") as HTMLDetailsElement]
-				: [],
-		).filter((details) => details.contains(form));
+		const openDisclosures: HTMLDetailsElement[] = [];
+		let ancestor = form.parentElement;
+		while (ancestor) {
+			if (ancestor instanceof HTMLDetailsElement && ancestor.open) {
+				openDisclosures.push(ancestor);
+			}
+			ancestor = ancestor.parentElement;
+		}
 		for (const details of openDisclosures) details.open = false;
 
 		inFlightRef.current = true;
