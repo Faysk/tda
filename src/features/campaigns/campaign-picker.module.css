@@ -57,3 +57,76 @@
 		gap: 4px 12px;
 	}
 }
+
+
+.status {
+	min-height: 1.15em;
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	line-height: 1.45;
+}
+
+.route {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+}
+
+.routeLabel {
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	font-weight: 750;
+	letter-spacing: 0.035em;
+	text-transform: uppercase;
+}
+
+.routeRow {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: start;
+	gap: 10px;
+	min-width: 0;
+}
+
+.confirm {
+	min-height: 44px;
+	padding: 0 14px;
+	border: 1px solid var(--ds-action-primary-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-action-primary-bg);
+	color: var(--ds-action-primary-foreground);
+	font: 750 0.75rem/1.2 var(--ds-font-ui);
+	cursor: pointer;
+}
+
+.confirm:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+
+.confirm:disabled {
+	cursor: wait;
+	opacity: 0.55;
+}
+
+.routeStatus {
+	min-height: 1.15em;
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	line-height: 1.45;
+}
+
+@media (max-width: 520px) {
+	.routeRow {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.confirm {
+		width: 100%;
+	}
+}
