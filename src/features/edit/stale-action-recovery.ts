@@ -27,6 +27,11 @@ function errorFragments(value: unknown, depth = 0): string[] {
 	return fragments;
 }
 
+export function isNextRedirectSignal(error: unknown): boolean {
+	const message = errorFragments(error).join(" \n");
+	return /(?:^|\n)NEXT_REDIRECT(?:;|$)/u.test(message);
+}
+
 export function isStaleServerActionError(error: unknown): boolean {
 	const message = errorFragments(error).join(" \n");
 	return [
