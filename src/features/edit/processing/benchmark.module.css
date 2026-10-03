@@ -48,6 +48,89 @@
 .activeCard p,
 .qualityNotice span,
 .notice,
+.evidencePanel {
+	display: grid;
+	gap: 12px;
+	padding-top: 10px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.evidenceHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-width: 0;
+}
+
+.evidenceHeader > div {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
+.evidenceHeader > div > span,
+.evidenceSummary,
+.referenceTrack > span,
+.evidenceActions label > span,
+.evidenceHeader label > span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+	line-height: 1.45;
+}
+
+.evidenceActions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: end;
+	gap: 8px;
+}
+
+.evidenceActions label,
+.evidenceHeader label,
+.referenceTrack {
+	display: grid;
+	gap: 4px;
+	min-width: 0;
+}
+
+.evidenceActions select,
+.evidenceHeader select,
+.referenceTrack textarea {
+	min-height: 34px;
+	padding: 6px 8px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-control-background, var(--ds-surface));
+	color: var(--ds-foreground);
+	font: inherit;
+}
+
+.evidenceActions select:focus-visible,
+.evidenceHeader select:focus-visible,
+.referenceTrack textarea:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.evidenceSummary {
+	margin: 0;
+}
+
+.referenceEditor {
+	display: grid;
+	gap: 9px;
+	padding-top: 10px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.referenceTrack textarea {
+	width: 100%;
+	min-height: 86px;
+	resize: vertical;
+	line-height: 1.45;
+}
+
 .empty,
 .loading {
 	color: var(--ds-foreground-muted);
@@ -672,7 +755,8 @@
 	.preparationStatus,
 	.activeActions,
 	.qualityNotice,
-	.runtimeRecoveryHeader {
+	.runtimeRecoveryHeader,
+	.evidenceHeader {
 		align-items: stretch;
 		flex-direction: column;
 	}
@@ -736,6 +820,8 @@
 
 	.primaryActions,
 	.primaryActions :global(.ds-action),
+	.evidenceActions,
+	.evidenceActions :global(.ds-action),
 	.runtimeActions,
 	.runtimeActions :global(.ds-action),
 	.activeActions,
