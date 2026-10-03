@@ -3,6 +3,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ActionLink, Button } from "@/components/ui";
 import type { EditAccessContext } from "@/features/edit/access/policy";
 import type { CampaignLifecycle } from "@/features/campaigns/model";
+import { AccountCampaignPicker } from "./account-campaign-picker";
 import {
 	campaignSpecificAccountCapabilityGroups,
 	projectAccountCapabilityGroups,
@@ -136,11 +137,15 @@ export function AccountOverview({
 	accessNotice,
 	authEnabled,
 	campaigns,
+	selectedCampaignSlug,
+	requestedCampaignUnavailable,
 }: Readonly<{
 	access: AccountOverviewAccess;
 	accessNotice: string | null;
 	authEnabled: boolean;
 	campaigns: readonly AccountCampaignContext[] | null;
+	selectedCampaignSlug: string | null;
+	requestedCampaignUnavailable: boolean;
 }>) {
 	const authenticated =
 		access.state === "authenticated_unlinked" ||
@@ -162,6 +167,10 @@ export function AccountOverview({
 					)
 				: [],
 		})) ?? null;
+	const selectedCampaign =
+		campaignContexts?.find(
+			(campaign) => campaign.technicalSlug === selectedCampaignSlug,
+		) ?? null;
 	const stateContent = ACCOUNT_STATE_CONTENT[access.state];
 
 	const linkDescription = profileId
@@ -277,39 +286,83 @@ export function AccountOverview({
 							Não foi possível carregar os contextos de campanha agora. Isso não significa
 							que suas permissões foram removidas.
 						</p>
-					) : campaignContexts.length > 0 ? (
-						<div className={styles.campaignAccessList}>
-							{campaignContexts.map((campaign) => (
-								<details key={campaign.technicalSlug} className={styles.accessContext}>
-									<summary className={styles.campaignContextSummary}>
-										<span>
-											<span className={styles.contextEyebrow}>Campanha</span>
-											<strong>{campaign.name}</strong>
-										</span>
-										<span className={styles.contextScopeLabel}>
-											{campaign.lifecycle === "archived" ? "Arquivada" : "Ativa"}
-										</span>
-									</summary>
-									<div className={styles.campaignContextBody}>
-										<p className={styles.sectionHint}>
-											O acesso efetivo combina a autoridade do projeto acima com
-											permissões específicas desta campanha.
-										</p>
-										{campaign.capabilityGroups.length > 0 ? (
-											<CapabilityGroups groups={campaign.capabilityGroups} />
-										) : (
-											<p className={styles.emptyState}>
-												Nenhuma permissão adicional específica desta campanha.
-											</p>
-										)}
-										<TechnicalCapabilities
-											groups={campaign.capabilityGroups}
-											scope={`campaign/${campaign.technicalSlug}`}
-										/>
-									</div>
-								</details>
-							))}
-						</div>
+					) : campaignContexts.length > 1 ? (
+						<>
+							<AccountCampaignPicker
+								value={selectedCampaign?.technicalSlug ?? ""}
+								options={campaignContexts.map((campaign) => ({
+									value: campaign.technicalSlug,
+									label: campaign.name,
+									lifecycle: campaign.lifecycle,
+								}))}
+							/>
+							{requestedCampaignUnavailable ? (
+								<p className={styles.notice} role="status">
+									A campanha solicitada não está disponível para esta conta. Escolha um
+									contexto autorizado.
+								</p>
+							) : null}
+						</>
+					) : null}
+
+					{selectedCampaign ? (
+						<details className={styles.accessContext} open>
+							<summary className={styles.campaignContextSummary}>
+								<span>
+									<span className={styles.contextEyebrow}>Campanha</span>
+									<strong>{selectedCampaign.name}</strong>
+								</span>
+								<span className={styles.contextScopeLabel}>
+									{selectedCampaign.lifecycle === "archived" ? "Arquivada" : "Ativa"}
+								</span>
+							</summary>
+							<div className={styles.campaignContextBody}>
+								<p className={styles.sectionHint}>
+									O acesso efetivo combina a autoridade do projeto acima com permissões
+									específicas desta campanha.
+								</p>
+								{selectedCampaign.capabilityGroups.length > 0 ? (
+									<CapabilityGroups groups={selectedCampaign.capabilityGroups} />
+								) : (
+									<p className={styles.emptyState}>
+										Nenhuma permissão adicional específica desta campanha.
+									</p>
+								)}
+								<TechnicalCapabilities
+									groups={selectedCampaign.capabilityGroups}
+									scope={`campaign/${selectedCampaign.technicalSlug}`}
+								/>
+							</div>
+						</details>
+					) : campaignContexts.length > 1 ? (
+						<p className={styles.emptyState}>
+							Escolha uma campanha para ver as permissões específicas desse contexto.
+						</p>
+					) : campaignContexts.length === 1 ? (
+						<details className={styles.accessContext} open>
+							<summary className={styles.campaignContextSummary}>
+								<span>
+									<span className={styles.contextEyebrow}>Campanha</span>
+									<strong>{campaignContexts[0].name}</strong>
+								</span>
+								<span className={styles.contextScopeLabel}>
+									{campaignContexts[0].lifecycle === "archived" ? "Arquivada" : "Ativa"}
+								</span>
+							</summary>
+							<div className={styles.campaignContextBody}>
+								{campaignContexts[0].capabilityGroups.length > 0 ? (
+									<CapabilityGroups groups={campaignContexts[0].capabilityGroups} />
+								) : (
+									<p className={styles.emptyState}>
+										Nenhuma permissão adicional específica desta campanha.
+									</p>
+								)}
+								<TechnicalCapabilities
+									groups={campaignContexts[0].capabilityGroups}
+									scope={`campaign/${campaignContexts[0].technicalSlug}`}
+								/>
+							</div>
+						</details>
 					) : projectCapabilityGroups.length === 0 ? (
 						<p className={styles.emptyState}>
 							{access.state === "authenticated_unlinked"
