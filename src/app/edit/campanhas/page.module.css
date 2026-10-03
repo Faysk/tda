@@ -740,3 +740,33 @@ textarea:focus-visible {
 		align-items: center;
 	}
 }
+
+
+.headerActions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 12px;
+}
+
+.returnLink {
+	color: var(--ds-foreground-soft);
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.returnLink:hover {
+	text-decoration: underline;
+}
+
+.returnLink:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+	.headerActions {
+		justify-content: flex-start;
+	}
+}
