@@ -58,6 +58,15 @@ export function WorldCommandPaletteE2EFixture() {
 		<div>
 			<WorldCommandPaletteTrigger enabled onOpen={() => setOpen(true)} />
 			<output data-testid="world-command-palette-action">{lastAction}</output>
+			<Button
+				data-testid="world-discard-trigger"
+				onClick={() => {
+					setDiscardOpen(true);
+					setLastAction("discard:requested");
+				}}
+			>
+				Descartar rascunho fixture
+			</Button>
 			<WorldCommandPalette
 				open={open}
 				context={CONTEXT}
