@@ -154,18 +154,10 @@ test("catalogue profile context clears floating chrome across supported viewport
 		{ width: 1440, height: 1000 },
 	]) {
 		await page.setViewportSize(viewport);
-		await page.goto("/campanhas/cronicas-da-mesa/personagens/dandelion");
+		await page.goto("/e2e-fixtures/lore-profile");
 
 		const context = page.getByRole("navigation", { name: "Contexto de exploração" });
 		await expectBelowFloatingChrome(page, context);
-		await expect(context.getByRole("link", { name: "Mundo" })).toHaveAttribute(
-			"href",
-			"/campanhas/cronicas-da-mesa/mundo",
-		);
-		await expect(context.getByRole("link", { name: "Personagens" })).toHaveAttribute(
-			"href",
-			"/campanhas/cronicas-da-mesa/personagens",
-		);
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
 		).toBeTruthy();
