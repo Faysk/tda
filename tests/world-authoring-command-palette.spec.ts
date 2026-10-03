@@ -111,14 +111,14 @@ test("command palette remains usable at the frozen authoring viewports", async (
 });
 
 
+
 test("world discard uses the project dialog and Escape cancels without confirmation", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto(FIXTURE_PATH);
-	const { trigger, combobox } = await openPalette(page);
+	const trigger = page.getByTestId("world-discard-trigger");
 
-	await combobox.fill("Descartar");
-	await expect(page.getByRole("option", { name: /Descartar/i })).toHaveCount(1);
-	await combobox.press("Enter");
+	await trigger.focus();
+	await trigger.click();
 
 	const discardDialog = page.getByRole("dialog", { name: "Descartar rascunho?" });
 	const safeAction = page.getByRole("button", { name: "Continuar editando" });
@@ -133,12 +133,10 @@ test("world discard uses the project dialog and Escape cancels without confirmat
 	await expect(page.getByTestId("world-command-palette-action")).toHaveText("discard:cancelled");
 	await expect(trigger).toBeFocused();
 
-	await openPalette(page);
-	const retryCombobox = page.getByRole("combobox", { name: "Buscar comandos ou elementos" });
-	await retryCombobox.fill("Descartar");
-	await retryCombobox.press("Enter");
+	await trigger.click();
 	await expect(discardDialog).toBeVisible();
 	await page.getByRole("button", { name: "Descartar rascunho" }).click();
 	await expect(discardDialog).toHaveCount(0);
 	await expect(page.getByTestId("world-command-palette-action")).toHaveText("discard:confirmed");
+	await expect(trigger).toBeFocused();
 });
