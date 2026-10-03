@@ -1,0 +1,60 @@
+.root {
+	display: grid;
+	gap: 8px;
+}
+
+.field {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+}
+
+.label {
+	color: var(--ds-foreground-soft);
+	font-size: 0.78rem;
+	font-weight: 700;
+}
+
+.hint {
+	color: var(--ds-foreground-muted);
+	font-size: 0.76rem;
+	line-height: 1.35;
+}
+
+.actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px 12px;
+}
+
+.manage {
+	color: var(--ds-foreground-soft);
+	font-size: 0.78rem;
+	font-weight: 700;
+	text-decoration: none;
+	text-underline-offset: 0.18em;
+}
+
+.manage:hover {
+	color: var(--ds-foreground);
+	text-decoration: underline;
+}
+
+.manage:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+	border-radius: 4px;
+}
+
+.srOnly {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
