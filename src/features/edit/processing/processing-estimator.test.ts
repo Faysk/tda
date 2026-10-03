@@ -137,6 +137,7 @@ function benchmark(
 		trackCount: 1,
 		audioWorkSeconds: 300,
 		prepared: true,
+		artifacts: null,
 		profiles: [
 			{
 				profileId: "qwen-quality",
