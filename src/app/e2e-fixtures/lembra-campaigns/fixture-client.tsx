@@ -139,20 +139,19 @@ export function LembraCampaignFixtureClient({
 
 	async function syntheticCampaignProjectionAction() {
 		await Promise.resolve();
-		const createdIsVisible =
-			latestCreatedCampaign &&
-			(latestCreatedCampaign.visibility === "public" ||
-				canDiscoverPrivateCampaigns);
-		const projected = createdIsVisible
-			? [
-					...visibleCampaigns,
-					{
-						id: latestCreatedCampaign.id,
-						name: latestCreatedCampaign.name,
-						lifecycle: latestCreatedCampaign.lifecycle,
-					},
-				]
-			: visibleCampaigns;
+		const created = latestCreatedCampaign;
+		const projected =
+			created &&
+			(created.visibility === "public" || canDiscoverPrivateCampaigns)
+				? [
+						...visibleCampaigns,
+						{
+							id: created.id,
+							name: created.name,
+							lifecycle: created.lifecycle,
+						},
+					]
+				: visibleCampaigns;
 		return { ok: true as const, campaigns: projected };
 	}
 
