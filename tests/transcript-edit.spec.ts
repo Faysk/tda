@@ -186,6 +186,15 @@ test("stale current preserves draft and remote reload requires integrated confir
 	await expect(
 		page.getByRole("heading", { name: "Transcript Edit E2E" }),
 	).toBeVisible();
+	await expect(
+		page.getByText("Revisão privada sintética · r2", { exact: true }),
+	).toBeVisible();
+	await expect(
+		page.getByText("Fala sintética 2 da sessão longa. · atualização remota r2", {
+			exact: true,
+		}),
+	).toBeVisible();
+	await page.getByRole("button", { name: "Editar transcrição" }).click();
 	await expect(page.getByText("Nenhuma alteração", { exact: true })).toBeVisible();
 	expect(nativeDialogs).toBe(0);
 });
