@@ -591,6 +591,35 @@ def load_profile_metrics(package_root: Path, benchmark_id: str, profile_id: str)
     return value
 
 
+def load_profile_events(package_root: Path, benchmark_id: str, profile_id: str) -> list[dict[str, Any]]:
+    load_bundle(package_root, benchmark_id, verify_artifacts=False)
+    manifest = _load_profile_manifest(package_root, benchmark_id, profile_id, verify_artifacts=False)
+    raw = _read_verified(
+        _profile_root(package_root, benchmark_id, profile_id) / "events.jsonl",
+        manifest["artifacts"]["events.jsonl"],
+        "BENCHMARK_EVENTS",
+    )
+    if len(raw) > _MAX_EVENT_FILE_BYTES:
+        raise BenchmarkEvidenceError("BENCHMARK_EVENT_FILE_LIMIT")
+    rows: list[dict[str, Any]] = []
+    for line in raw.splitlines():
+        if not line:
+            continue
+        if len(line) > _MAX_EVENT_BYTES:
+            raise BenchmarkEvidenceError("BENCHMARK_EVENT_TOO_LARGE")
+        value = _json(line, "BENCHMARK_EVENT")
+        if (
+            value.get("schema_version") != EVENT_SCHEMA
+            or value.get("benchmark_id") != benchmark_id
+            or value.get("profile_id") != profile_id
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_EVENT_MISMATCH")
+        rows.append(value)
+        if len(rows) > _MAX_EVENTS:
+            raise BenchmarkEvidenceError("BENCHMARK_EVENT_COUNT_LIMIT")
+    return rows
+
+
 def transcript_text(document: TranscriptDocument, *, timestamps: bool = True) -> str:
     document.validate()
     lines: list[str] = []
