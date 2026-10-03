@@ -409,11 +409,12 @@ test("recovery separates a previous Companion outage from current readiness with
 		page.getByText(/Selecione novamente os ZIPs para retomar sem mover ou duplicar/u),
 	).toBeVisible();
 
-	const technical = page
-		.locator("details")
+	const technicalSummary = page
+		.locator("details > summary")
 		.filter({ hasText: "Detalhes técnicos" })
 		.first();
-	await technical.locator("summary").click();
+	await technicalSummary.click();
+	const technical = technicalSummary.locator("..");
 
 	offline = true;
 	await technical.getByRole("button", { name: "Atualizar", exact: true }).click();
