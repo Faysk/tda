@@ -96,7 +96,7 @@ test("representative public surfaces remain clear at the 200% zoom-equivalent vi
 	}
 });
 
-test("Lore and Diário share the structural keyline and intentionally use wide viewports", async ({
+test("Lore grid and Diário preserve the structural keyline while using distinct content widths", async ({
 	page,
 }) => {
 	for (const viewport of [
@@ -113,18 +113,20 @@ test("Lore and Diário share the structural keyline and intentionally use wide v
 				name: "Histórias que ganharam outro palco.",
 			})
 			.boundingBox();
-		const loreCard = await page
-			.locator('section[aria-label="Lores publicadas"] article')
+		const loreArchive = await page
+			.locator("[data-lore-catalogue-mode]")
 			.first()
 			.boundingBox();
+		const loreCard = await page.locator("article[data-lore]").first().boundingBox();
 		expect(loreHeading).not.toBeNull();
+		expect(loreArchive).not.toBeNull();
 		expect(loreCard).not.toBeNull();
-		if (loreHeading && loreCard) {
+		if (loreHeading && loreArchive && loreCard) {
 			expect(Math.abs(loreHeading.x - loreKeyline.x)).toBeLessThanOrEqual(2);
 			expect(Math.abs(loreCard.x - loreKeyline.x)).toBeLessThanOrEqual(2);
-			expect(loreCard.width).toBeGreaterThanOrEqual(
-				loreKeyline.contentWidth - 3,
-			);
+			expect(loreArchive.width).toBeGreaterThanOrEqual(loreKeyline.contentWidth);
+			expect(loreCard.width).toBeGreaterThanOrEqual(300);
+			expect(loreCard.width).toBeLessThan(loreKeyline.contentWidth / 2);
 		}
 
 		await page.goto("/diario");

@@ -229,3 +229,164 @@ test("lore catalogue visual receipts cover light and dark themes at both accepta
 		});
 	}
 });
+
+
+test("lore catalogue exposes multiple stories early and every card is keyboard reachable", async ({
+	page,
+}) => {
+	const listedLoreSlugs = ["astel", "noah", "pipipi", "seika", "d", "yllith"] as const;
+	for (const scenario of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+		{ width: 683, height: 384 },
+		{ width: 1366, height: 768 },
+	] as const) {
+		await page.setViewportSize(scenario);
+		await page.goto("/lore");
+
+		const cards = page.locator("article[data-lore]");
+		await expect(cards).toHaveCount(listedLoreSlugs.length);
+		const first = await cards.nth(0).boundingBox();
+		const second = await cards.nth(1).boundingBox();
+		expect(first).not.toBeNull();
+		expect(second).not.toBeNull();
+		expect(first?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(460);
+
+		if (scenario.width === 320 || scenario.width === 390 || scenario.width >= 1000) {
+			expect(
+				second?.y ?? Number.POSITIVE_INFINITY,
+				`${scenario.width}px: another story should be discoverable before the first viewport ends`,
+			).toBeLessThan(scenario.height);
+		}
+
+		for (const slug of listedLoreSlugs) {
+			await expect(
+				page.locator(`article[data-lore="${slug}"]`).getByRole("heading"),
+			).toBeVisible();
+		}
+		await expectNoHorizontalOverflow(page);
+	}
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/lore");
+	const expectedHrefs = new Set<string>(
+		listedLoreSlugs.map((slug) => `/lore/${slug}`),
+	);
+	const reachedHrefs = new Set<string>();
+	for (let step = 0; step < 40 && reachedHrefs.size < expectedHrefs.size; step += 1) {
+		await page.keyboard.press("Tab");
+		const href = await page.evaluate(() =>
+			document.activeElement instanceof HTMLAnchorElement
+				? document.activeElement.getAttribute("href")
+				: null,
+		);
+		if (href && expectedHrefs.has(href)) reachedHrefs.add(href);
+	}
+	expect([...reachedHrefs].sort()).toEqual([...expectedHrefs].sort());
+});
+
+test("lore catalogue grid remains useful with one, four and many stories", async ({
+	page,
+}) => {
+	const totalStories = 6;
+	await page.setViewportSize({ width: 1366, height: 768 });
+
+	for (const visibleCount of [1, 4, totalStories]) {
+		await page.goto("/lore");
+		const cards = page.locator("article[data-lore]");
+		await expect(cards).toHaveCount(totalStories);
+		await cards.evaluateAll((nodes, count) => {
+			nodes.forEach((node, index) => {
+				(node as HTMLElement).hidden = index >= count;
+			});
+		}, visibleCount);
+
+		const visibleCards = page.locator("article[data-lore]:visible");
+		await expect(visibleCards).toHaveCount(visibleCount);
+		const boxes = await visibleCards.evaluateAll((nodes) =>
+			nodes.map((node) => {
+				const box = node.getBoundingClientRect();
+				return { x: box.x, width: box.width, height: box.height };
+			}),
+		);
+		expect(boxes.every((box) => box.width >= 300 && box.height <= 460)).toBe(true);
+		if (visibleCount === 1) {
+			expect(boxes[0]?.width ?? 0).toBeGreaterThan(600);
+		} else {
+			expect(new Set(boxes.map((box) => Math.round(box.x))).size).toBeGreaterThan(1);
+		}
+		await expectNoHorizontalOverflow(page);
+	}
+
+	await page.goto("/lore");
+	await expect(page.locator('[data-lore-catalogue-mode="flat"]')).toHaveCount(1);
+	await expect(page.locator('[data-lore-catalogue-mode="grouped"]')).toHaveCount(0);
+});
+
+test("long lore catalogue labels and titles reflow without hiding the action", async ({
+	page,
+}) => {
+	for (const scenario of [
+		{ width: 320, height: 800 },
+		{ width: 1366, height: 768 },
+	] as const) {
+		await page.setViewportSize(scenario);
+		await page.goto("/lore");
+		const card = page.locator("article[data-lore]").first();
+		const label = card.locator("span").first();
+		const heading = card.getByRole("heading");
+		await label.evaluate((node) => {
+			node.textContent =
+				"CampanhaComNomeEditorialExtremamenteLongoSemEspacos · PersonagemComNomeMuitoLongo";
+		});
+		await heading.evaluate((node) => {
+			node.textContent =
+				"UmaHistoriaComTituloExtremamenteLongoSemEspacosQuePrecisaContinuarLegivel";
+		});
+
+		await expect(heading).toBeVisible();
+		await expect(card.getByText("Começar a história")).toBeVisible();
+		await expectNoHorizontalOverflow(page);
+
+		const [cardBox, labelBox, headingBox] = await Promise.all([
+			card.boundingBox(),
+			label.boundingBox(),
+			heading.boundingBox(),
+		]);
+		expect(cardBox).not.toBeNull();
+		expect(labelBox).not.toBeNull();
+		expect(headingBox).not.toBeNull();
+		if (cardBox && labelBox && headingBox) {
+			expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(
+				cardBox.x + cardBox.width + 1,
+			);
+			expect(headingBox.x + headingBox.width).toBeLessThanOrEqual(
+				cardBox.x + cardBox.width + 1,
+			);
+		}
+	}
+});
+
+
+test("lore catalogue primary story action works with mouse and touch", async ({
+	page,
+	browser,
+}) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/lore");
+	await page.locator('article[data-lore="astel"] a[href="/lore/astel"]').click();
+	await expect(page).toHaveURL(/\/lore\/astel$/u);
+
+	const context = await browser.newContext({
+		viewport: { width: 390, height: 844 },
+		hasTouch: true,
+		isMobile: true,
+	});
+	const touchPage = await context.newPage();
+	await touchPage.goto("/lore");
+	await touchPage
+		.locator('article[data-lore="astel"] a[href="/lore/astel"]')
+		.tap();
+	await expect(touchPage).toHaveURL(/\/lore\/astel$/u);
+	await context.close();
+});
