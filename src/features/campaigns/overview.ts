@@ -1,7 +1,7 @@
 import "server-only";
 
-import { publishedDataClient } from "@/integrations/supabase/server";
 import type { LoreRouteKind } from "@/features/lore/model";
+import { publishedDataClient } from "@/integrations/supabase/server";
 
 export type CampaignOverviewNarrativeLink = Readonly<{
 	routeKind: LoreRouteKind;
