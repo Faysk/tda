@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .atomic_storage import AtomicStorageError, atomic_write
+from .attempt_fence import AttemptFenceError, claim_attempt_outcome
 from .transcript import TranscriptDocument, TranscriptValidationError
 
 BUNDLE_SCHEMA_VERSION = "tda_benchmark_bundle_v1"
@@ -98,6 +99,22 @@ def benchmark_root(data_root: Path, benchmark_id: str) -> Path:
     if result.parent != parent:
         raise BenchmarkBundleError("BENCHMARK_PATH_INVALID")
     return result
+
+
+def claim_benchmark_outcome(
+    data_root: Path,
+    job_id: str,
+    attempt: int,
+    decision: str,
+) -> str:
+    benchmark_id = benchmark_id_for(job_id, attempt)
+    root = benchmark_root(data_root, benchmark_id)
+    root.parent.mkdir(parents=True, exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True)
+    try:
+        return claim_attempt_outcome(root, job_id, attempt, decision)  # type: ignore[arg-type]
+    except AttemptFenceError as exc:
+        raise BenchmarkBundleError(str(exc)) from exc
 
 
 def _profile_root(data_root: Path, benchmark_id: str, profile_id: str) -> Path:
@@ -907,5 +924,13 @@ def finalize_benchmark_bundle(
         "profiles": artifacts,
         "completed_at": utc_now(),
     }
+    winner = claim_benchmark_outcome(
+        data_root,
+        job_id,
+        attempt,
+        "commit",
+    )
+    if winner != "commit":
+        raise BenchmarkBundleError("BENCHMARK_ATTEMPT_CANCELLED")
     _atomic_json(manifest_path, manifest)
     return load_benchmark_bundle(data_root, benchmark_id)
