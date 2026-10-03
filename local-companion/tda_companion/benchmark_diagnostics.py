@@ -11,7 +11,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from .atomic_storage import AtomicStorageError, atomic_write
+from .atomic_storage import AtomicStorageError, atomic_write, confirm_existing_file
 from .benchmark_bundles import (
     BenchmarkBundleError,
     benchmark_id_for,
@@ -131,6 +131,21 @@ def _canonical_json_line(value: Any) -> bytes:
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _atomic_diagnostic_write(path: Path, payload: bytes, error_code: str) -> None:
+    try:
+        atomic_write(path, payload)
+        return
+    except AtomicStorageError as exc:
+        if not exc.ambiguous or not path.is_file():
+            raise BenchmarkDiagnosticsError(error_code) from exc
+    try:
+        if path.stat().st_size != len(payload) or path.read_bytes() != payload:
+            raise BenchmarkDiagnosticsError(error_code)
+        confirm_existing_file(path)
+    except (OSError, AtomicStorageError) as exc:
+        raise BenchmarkDiagnosticsError(error_code) from exc
 
 
 def _bounded_config_text(value: object, maximum: int = 256) -> str | None:
@@ -1041,22 +1056,27 @@ class BenchmarkProfileDiagnostics:
                 telemetry_summary["truncated"] = True
             else:
                 try:
-                    atomic_write(self.profile_root / "telemetry.jsonl", telemetry_payload)
+                    _atomic_diagnostic_write(
+                        self.profile_root / "telemetry.jsonl",
+                        telemetry_payload,
+                        "BENCHMARK_TELEMETRY_WRITE_FAILED",
+                    )
                     telemetry_receipt = {
                         "artifact": "telemetry.jsonl",
                         "sha256": _sha256_bytes(telemetry_payload),
                         "size_bytes": len(telemetry_payload),
                     }
-                except AtomicStorageError:
+                except BenchmarkDiagnosticsError:
                     telemetry_summary["missing_reason"] = "telemetry_write_failed"
 
         events_payload = b"".join(_canonical_json_line(row) for row in self._events)
         if len(events_payload) > MAX_EVENT_BYTES + MAX_EVENT_ROW_BYTES:
             raise BenchmarkDiagnosticsError("BENCHMARK_EVENTS_LIMIT_EXCEEDED")
-        try:
-            atomic_write(self.profile_root / "events.jsonl", events_payload)
-        except AtomicStorageError as exc:
-            raise BenchmarkDiagnosticsError("BENCHMARK_EVENTS_WRITE_FAILED") from exc
+        _atomic_diagnostic_write(
+            self.profile_root / "events.jsonl",
+            events_payload,
+            "BENCHMARK_EVENTS_WRITE_FAILED",
+        )
 
         metrics = self._metrics(
             status=status,
@@ -1077,10 +1097,11 @@ class BenchmarkProfileDiagnostics:
             "telemetry": telemetry_receipt,
         }
         metrics_payload = _canonical_json(metrics)
-        try:
-            atomic_write(metrics_path, metrics_payload)
-        except AtomicStorageError as exc:
-            raise BenchmarkDiagnosticsError("BENCHMARK_METRICS_WRITE_FAILED") from exc
+        _atomic_diagnostic_write(
+            metrics_path,
+            metrics_payload,
+            "BENCHMARK_METRICS_WRITE_FAILED",
+        )
 
         return {
             "benchmark_id": self.benchmark_id,
