@@ -1548,7 +1548,14 @@ export function LembraExperience({
 													]
 													: activeCampaignOptions
 											}
-											onChange={(value) => setEditCampaignId(value || null)}
+											onChange={(value) => {
+												setEditCampaignId(value || null);
+												setEditCampaignMutation(
+													value
+														? { kind: "set", campaignId: value }
+														: { kind: "clear" },
+												);
+											}}
 											ariaLabel="Campanha da referência"
 										/>
 									</div>
