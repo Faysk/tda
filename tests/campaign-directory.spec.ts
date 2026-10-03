@@ -432,7 +432,7 @@ test("canonical campaign root keeps public context, useful actions and verified 
 		"href",
 		"/campanhas/cronicas-da-mesa/personagens",
 	);
-	await expect(root.getByRole("link", { name: "Lugares", exact: true })).toHaveAttribute(
+	await expect(root.getByRole("link", { name: /^Lugares\b/u })).toHaveAttribute(
 		"href",
 		"/campanhas/cronicas-da-mesa/lugares",
 	);
@@ -477,7 +477,7 @@ test("campaign roots never inherit a sibling highlight or narrative availability
 	);
 	await expect(root.getByText("A memória mais recente do arquivo sintético")).toHaveCount(0);
 	await expect(root.getByRole("link", { name: "Personagens" })).toHaveCount(0);
-	await expect(root.getByRole("link", { name: "Lugares", exact: true })).toHaveCount(0);
+	await expect(root.getByRole("link", { name: /^Lugares\b/u })).toHaveCount(0);
 	await expect(root).toContainText(
 		"Nenhum outro arquivo narrativo público foi vinculado a esta campanha ainda.",
 	);
