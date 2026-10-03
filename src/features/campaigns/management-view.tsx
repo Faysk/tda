@@ -557,37 +557,71 @@ export function CampaignManagementView({
 																		<p>
 																			{campaign.lifecycle === "active"
 																				? "Arquivar mantém links e referências históricas, mas impede o uso normal desta campanha como novo destino."
-																				: "Esta campanha está arquivada. Reativar restaura o lifecycle ativo sem recriar identidade ou referências."}
+																				: "Esta campanha está arquivada. Reativar restaura o estado ativo sem recriar identidade ou referências."}
 																		</p>
-																		<form action={lifecycleAction}>
-																			<input
-																				type="hidden"
-																				name="id"
-																				value={campaign.id}
-																			/>
-																			<input
-																				type="hidden"
-																				name="expectedUpdatedAt"
-																				value={campaign.updatedAt}
-																			/>
-																			<input
-																				type="hidden"
-																				name="lifecycle"
-																				value={
-																					campaign.lifecycle === "active"
-																						? "archived"
-																						: "active"
-																				}
-																			/>
-																			<button
-																				className={styles.tertiary}
-																				type="submit"
+																		{campaign.lifecycle === "active" ? (
+																			<details
+																				className={styles.confirmAction}
+																				data-campaign-archive-confirm
 																			>
-																				{campaign.lifecycle === "active"
-																					? "Arquivar campanha"
-																					: "Reativar campanha"}
-																			</button>
-																		</form>
+																				<summary className={styles.tertiary}>
+																					Arquivar campanha
+																				</summary>
+																				<div className={styles.confirmPanel}>
+																					<p>
+																						Confirme o arquivamento. Esta ação não apaga a
+																						campanha nem seus links e referências históricas.
+																					</p>
+																					<form action={lifecycleAction}>
+																						<input
+																							type="hidden"
+																							name="id"
+																							value={campaign.id}
+																						/>
+																						<input
+																							type="hidden"
+																							name="expectedUpdatedAt"
+																							value={campaign.updatedAt}
+																						/>
+																						<input
+																							type="hidden"
+																							name="lifecycle"
+																							value="archived"
+																						/>
+																						<button
+																							className={styles.tertiary}
+																							type="submit"
+																						>
+																							Confirmar arquivamento
+																						</button>
+																					</form>
+																				</div>
+																			</details>
+																		) : (
+																			<form action={lifecycleAction}>
+																				<input
+																					type="hidden"
+																					name="id"
+																					value={campaign.id}
+																				/>
+																				<input
+																					type="hidden"
+																					name="expectedUpdatedAt"
+																					value={campaign.updatedAt}
+																				/>
+																				<input
+																					type="hidden"
+																					name="lifecycle"
+																					value="active"
+																				/>
+																				<button
+																					className={styles.tertiary}
+																					type="submit"
+																				>
+																					Reativar campanha
+																				</button>
+																			</form>
+																		)}
 																	</div>
 																</details>
 															</div>
