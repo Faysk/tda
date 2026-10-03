@@ -638,4 +638,36 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	await refresh.click();
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
 	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false })).toBeVisible();
+});test("benchmark evidence journey compares transcripts and adds human-reference quality without a winner shortcut", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		benchmarkEvidence: true,
+		initialJobs: [fixtureBenchmarkJob("succeeded")],
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel.getByText("Evidência imutável")).toBeVisible();
+	await expect(panel.getByText("Qualidade não medida.")).toBeVisible();
+	await expect(panel.getByText(/Nenhum vencedor automático/u)).toBeVisible();
+
+	await panel.getByRole("button", { name: "Comparar por track e tempo" }).click();
+	await expect(panel.getByText(/regiões · .* diferentes/u)).toBeVisible();
+
+	await panel.getByRole("button", { name: "Usar como rascunho" }).click();
+	await expect(panel.getByText(/Rascunho criado/u)).toBeVisible();
+	const firstTrack = panel.locator("textarea").first();
+	await expect(firstTrack).toHaveValue(/olá mundo/u);
+	await firstTrack.fill("olá mundo revisado por humano");
+	await panel.getByRole("button", { name: "Salvar referência e recalcular" }).click();
+
+	await expect(panel.getByText(/Referência r1 salva/u)).toBeVisible();
+	await expect(panel.getByRole("columnheader", { name: "WER" })).toBeVisible();
+	await expect(panel.getByRole("columnheader", { name: "CER" })).toBeVisible();
+	await expect(panel.getByText("N/A · referência sem timing").first()).toBeVisible();
+	await expect(panel.getByText(/Nenhum vencedor automático/u)).toBeVisible();
 });
+
