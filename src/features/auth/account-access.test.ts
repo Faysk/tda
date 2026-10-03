@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { EDIT_CAPABILITIES, type EditAccessContext } from "@/features/edit/access/policy";
 import {
 	ACCOUNT_CAPABILITY_GROUPS,
+	effectiveAccountCampaignCapabilityGroups,
 	effectiveAccountCapabilityGroups,
+	effectiveAccountProjectCapabilityGroups,
+	explicitAccountCampaignSlugsForCapability,
+	hasAnyActiveAccountGrant,
 } from "./account-access";
 
 const NOW = new Date("2026-09-28T00:00:00Z");
@@ -98,5 +102,84 @@ describe("account effective capability projection", () => {
 				expect(Object.values(EDIT_CAPABILITIES)).toContain(item.capability);
 			}
 		}
+	});
+});
+
+
+describe("account scoped capability projection", () => {
+	it("keeps campaign A and B independent instead of inheriting a historical singleton", () => {
+		const access = context([
+			activeGrant(EDIT_CAPABILITIES.transcriptRead, { scopeId: "campaign-a" }),
+			activeGrant(EDIT_CAPABILITIES.worldLayoutEdit, { scopeId: "campaign-b" }),
+		]);
+
+		expect(
+			visibleCapabilities(
+				effectiveAccountCampaignCapabilityGroups(access, "campaign-a", NOW),
+			),
+		).toEqual([EDIT_CAPABILITIES.transcriptRead]);
+		expect(
+			visibleCapabilities(
+				effectiveAccountCampaignCapabilityGroups(access, "campaign-b", NOW),
+			),
+		).toEqual([EDIT_CAPABILITIES.worldLayoutEdit]);
+		expect(
+			effectiveAccountCampaignCapabilityGroups(access, "yuhara-main", NOW),
+		).toEqual([]);
+	});
+
+	it("separates project-wide authority and does not duplicate it in campaign-specific groups", () => {
+		const access = context([
+			activeGrant(EDIT_CAPABILITIES.transcriptRead, {
+				scopeType: "project",
+				scopeId: "tda",
+			}),
+			activeGrant(EDIT_CAPABILITIES.transcriptRead, { scopeId: "campaign-a" }),
+			activeGrant(EDIT_CAPABILITIES.contentEdit, { scopeId: "campaign-a" }),
+		]);
+
+		expect(
+			visibleCapabilities(effectiveAccountProjectCapabilityGroups(access, NOW)),
+		).toEqual([EDIT_CAPABILITIES.transcriptRead]);
+		expect(
+			visibleCapabilities(
+				effectiveAccountCampaignCapabilityGroups(access, "campaign-a", NOW),
+			),
+		).toEqual([EDIT_CAPABILITIES.contentEdit]);
+		expect(
+			explicitAccountCampaignSlugsForCapability(
+				access,
+				EDIT_CAPABILITIES.transcriptRead,
+				NOW,
+			),
+		).toEqual([]);
+	});
+
+	it("reflects revocation and expiry without turning stale grants into effective access", () => {
+		const access = context([
+			activeGrant(EDIT_CAPABILITIES.contentEdit, {
+				scopeId: "campaign-a",
+				status: "revoked",
+			}),
+			activeGrant(EDIT_CAPABILITIES.transcriptRead, {
+				scopeId: "campaign-b",
+				endsAt: "2026-09-27T23:59:59Z",
+			}),
+		]);
+
+		expect(hasAnyActiveAccountGrant(access, NOW)).toBe(false);
+		expect(
+			effectiveAccountCampaignCapabilityGroups(access, "campaign-a", NOW),
+		).toEqual([]);
+		expect(
+			effectiveAccountCampaignCapabilityGroups(access, "campaign-b", NOW),
+		).toEqual([]);
+	});
+
+	it("recognizes an active grant outside the legacy campaign when deriving linked state", () => {
+		const access = context([
+			activeGrant(EDIT_CAPABILITIES.contentEdit, { scopeId: "campaign-b" }),
+		]);
+		expect(hasAnyActiveAccountGrant(access, NOW)).toBe(true);
 	});
 });

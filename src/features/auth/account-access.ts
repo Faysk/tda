@@ -3,6 +3,7 @@ import {
 	EDIT_CAPABILITIES,
 	type EditAccessContext,
 	type EditCapability,
+	type EditGrant,
 } from "@/features/edit/access/policy";
 
 export type AccountCapabilityItem = Readonly<{
@@ -71,6 +72,135 @@ export const ACCOUNT_CAPABILITY_GROUPS: readonly AccountCapabilityGroup[] = [
 	},
 ];
 
+export const ACCOUNT_CAPABILITIES = ACCOUNT_CAPABILITY_GROUPS.flatMap((group) =>
+	group.items.map((item) => item.capability),
+);
+
+const PROJECT_SCOPE_ID = "tda";
+const SAFE_CAMPAIGN_SLUG = /^[A-Za-z0-9_-]{1,128}$/u;
+
+function grantActive(grant: EditGrant, now: Date): boolean {
+	if (grant.status !== "active") return false;
+	const startsAt = Date.parse(grant.startsAt);
+	if (!Number.isFinite(startsAt) || startsAt > now.getTime()) return false;
+	if (!grant.endsAt) return true;
+	const endsAt = Date.parse(grant.endsAt);
+	return Number.isFinite(endsAt) && endsAt > now.getTime();
+}
+
+function hasExactScopeCapability(
+	context: EditAccessContext,
+	capability: EditCapability,
+	scopeType: "project" | "campaign",
+	scopeId: string,
+	now: Date,
+): boolean {
+	if (!context.profileId) return false;
+	return context.grants.some(
+		(grant) =>
+			grant.action === capability &&
+			grant.scopeType === scopeType &&
+			grant.scopeId === scopeId &&
+			grantActive(grant, now),
+	);
+}
+
+function exactScopeGroups(
+	context: EditAccessContext,
+	scopeType: "project" | "campaign",
+	scopeId: string,
+	now: Date,
+): readonly AccountCapabilityGroup[] {
+	return ACCOUNT_CAPABILITY_GROUPS.map((group) => ({
+		...group,
+		items: group.items.filter((item) =>
+			hasExactScopeCapability(
+				context,
+				item.capability,
+				scopeType,
+				scopeId,
+				now,
+			),
+		),
+	})).filter((group) => group.items.length > 0);
+}
+
+export function effectiveAccountProjectCapabilityGroups(
+	context: EditAccessContext,
+	now = new Date(),
+): readonly AccountCapabilityGroup[] {
+	return exactScopeGroups(context, "project", PROJECT_SCOPE_ID, now);
+}
+
+export function effectiveAccountCampaignCapabilityGroups(
+	context: EditAccessContext,
+	campaignSlug: string,
+	now = new Date(),
+): readonly AccountCapabilityGroup[] {
+	const projectCapabilities = new Set(
+		effectiveAccountProjectCapabilityGroups(context, now).flatMap((group) =>
+			group.items.map((item) => item.capability),
+		),
+	);
+	return exactScopeGroups(context, "campaign", campaignSlug, now)
+		.map((group) => ({
+			...group,
+			items: group.items.filter(
+				(item) => !projectCapabilities.has(item.capability),
+			),
+		}))
+		.filter((group) => group.items.length > 0);
+}
+
+export function explicitAccountCampaignSlugsForCapability(
+	context: EditAccessContext,
+	capability: EditCapability,
+	now = new Date(),
+): readonly string[] {
+	if (
+		hasExactScopeCapability(
+			context,
+			capability,
+			"project",
+			PROJECT_SCOPE_ID,
+			now,
+		)
+	)
+		return [];
+
+	return [
+		...new Set(
+			context.grants
+				.filter(
+					(grant) =>
+						grant.action === capability &&
+						grant.scopeType === "campaign" &&
+						SAFE_CAMPAIGN_SLUG.test(grant.scopeId) &&
+						grantActive(grant, now),
+				)
+				.map((grant) => grant.scopeId),
+		),
+	].sort();
+}
+
+export function hasAnyActiveAccountGrant(
+	context: EditAccessContext,
+	now = new Date(),
+): boolean {
+	if (!context.profileId) return false;
+	return context.grants.some(
+		(grant) =>
+			grantActive(grant, now) &&
+			((grant.scopeType === "project" && grant.scopeId === PROJECT_SCOPE_ID) ||
+				(grant.scopeType === "campaign" &&
+					SAFE_CAMPAIGN_SLUG.test(grant.scopeId))),
+	);
+}
+
+/**
+ * Compatibility helper for callers that already have an explicit campaign
+ * context. New account UI should use the project/campaign split above.
+ */
 export function effectiveAccountCapabilityGroups(
 	context: EditAccessContext,
 	campaignSlug: string,

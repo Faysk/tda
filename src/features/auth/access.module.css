@@ -222,10 +222,123 @@
 	align-items: start;
 }
 
-.accountRail,
-.permissionGroups {
+.accountRail {
 	display: grid;
 	gap: 1.5rem;
+}
+
+.permissionGroups {
+	display: grid;
+	gap: 0.5rem;
+}
+
+.accessScopeBlock {
+	display: grid;
+	gap: 0.9rem;
+	padding: 1rem 0;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.accessScopeBlock + .accessScopeBlock {
+	margin-top: 0.35rem;
+}
+
+.accessScopeHeading {
+	display: flex;
+	min-width: 0;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.accessScopeHeading > div {
+	min-width: 0;
+}
+
+.accessScopeHeading h3 {
+	margin: 0;
+	font-family: var(--ds-font-ui);
+	font-size: 0.9rem;
+	font-weight: 760;
+	overflow-wrap: anywhere;
+}
+
+.accessScopeHeading p {
+	max-width: 54rem;
+	margin: 0.35rem 0 0;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.78rem;
+	line-height: 1.5;
+}
+
+.scopeState {
+	flex: 0 0 auto;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	font-weight: 700;
+}
+
+.permissionGroupDetails {
+	border-bottom: 1px solid var(--ds-border-subtle);
+	font-family: var(--ds-font-ui);
+}
+
+.permissionGroupDetails summary {
+	display: flex;
+	min-height: 42px;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.55rem 0;
+	cursor: pointer;
+	list-style-position: inside;
+}
+
+.permissionGroupDetails summary > span {
+	min-width: 0;
+	color: var(--ds-foreground);
+	font-size: 0.82rem;
+	font-weight: 720;
+	overflow-wrap: anywhere;
+}
+
+.permissionGroupDetails summary > small {
+	flex: 0 0 auto;
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+	font-weight: 650;
+}
+
+.permissionGroupDetails summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.permissionGroupDetails ul {
+	display: grid;
+	margin: 0;
+	padding: 0 0 0.55rem;
+	list-style: none;
+}
+
+.permissionGroupDetails li {
+	padding: 0.45rem 0 0.45rem 1rem;
+	color: var(--ds-foreground-soft);
+	font-size: 0.8rem;
+	line-height: 1.4;
+}
+
+.accessUnavailable {
+	margin: 0 0 1rem;
+	padding: 0.8rem 0;
+	border-top: 1px solid var(--ds-border-subtle);
+	border-bottom: 1px solid var(--ds-border-subtle);
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.8rem;
+	line-height: 1.55;
 }
 
 .accountSection,
