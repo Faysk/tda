@@ -1067,6 +1067,13 @@ class BenchmarkProfileDiagnostics:
                         "size_bytes": len(telemetry_payload),
                     }
                 except BenchmarkDiagnosticsError:
+                    telemetry_path = self.profile_root / "telemetry.jsonl"
+                    try:
+                        telemetry_path.unlink(missing_ok=True)
+                    except OSError as exc:
+                        raise BenchmarkDiagnosticsError(
+                            "BENCHMARK_TELEMETRY_CLEANUP_FAILED"
+                        ) from exc
                     telemetry_summary["missing_reason"] = "telemetry_write_failed"
 
         events_payload = b"".join(_canonical_json_line(row) for row in self._events)
