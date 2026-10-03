@@ -494,6 +494,7 @@ jobs:
             test-results/**/live-log-urgent-bypass.png
             test-results/**/live-log-caught-up.png
             test-results/**/live-log-reduced-motion.png
+            test-results/**/companion-maintenance-dialog-after.png
           if-no-files-found: error
           retention-days: 30
       - name: Scratch Companion integration

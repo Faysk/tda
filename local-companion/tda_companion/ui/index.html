@@ -231,6 +231,70 @@
     </main>
   </div>
 
+  <dialog
+    class="maintenance-dialog"
+    id="maintenance-dialog"
+    aria-modal="true"
+    aria-labelledby="maintenance-dialog-title"
+    aria-describedby="maintenance-dialog-description"
+  >
+    <form class="maintenance-dialog-panel" id="maintenance-dialog-form" novalidate>
+      <header class="maintenance-dialog-header">
+        <span class="maintenance-dialog-kicker">Manutenção local</span>
+        <h2 id="maintenance-dialog-title">Confirmar operação</h2>
+        <p id="maintenance-dialog-description"></p>
+      </header>
+
+      <div class="maintenance-dialog-body">
+        <div class="maintenance-version-summary hidden" id="maintenance-dialog-version-summary">
+          <div><span>Versão atual</span><strong id="maintenance-dialog-current-version">—</strong></div>
+          <div><span>Destino</span><strong id="maintenance-dialog-target-version">—</strong></div>
+        </div>
+
+        <fieldset class="maintenance-local-versions hidden" id="maintenance-dialog-local-versions">
+          <legend>Versões locais verificadas</legend>
+          <div class="maintenance-version-options" id="maintenance-dialog-version-options"></div>
+        </fieldset>
+
+        <label class="maintenance-field hidden" id="maintenance-dialog-version-field">
+          <span>Versão Whisper exata</span>
+          <input
+            id="maintenance-dialog-version"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="maintenance-dialog-version-help maintenance-dialog-error"
+            placeholder="1.1.5"
+          />
+          <small id="maintenance-dialog-version-help">Use o formato X.Y.Z. O Companion valida novamente a release e os hashes antes da troca.</small>
+        </label>
+
+        <label class="maintenance-field maintenance-danger-field hidden" id="maintenance-dialog-danger-field">
+          <span>Confirmação de remoção completa</span>
+          <input
+            id="maintenance-dialog-danger"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="maintenance-dialog-danger-help maintenance-dialog-error"
+            placeholder="REMOVER"
+          />
+          <small id="maintenance-dialog-danger-help">Digite <b>REMOVER</b> para liberar a ação destrutiva.</small>
+        </label>
+
+        <div class="maintenance-dialog-effect" id="maintenance-dialog-effect"></div>
+        <div class="maintenance-dialog-status hidden" id="maintenance-dialog-status" role="status" aria-live="polite"></div>
+        <div class="maintenance-dialog-error hidden" id="maintenance-dialog-error" role="alert" aria-live="assertive"></div>
+      </div>
+
+      <footer class="maintenance-dialog-actions">
+        <button type="button" id="maintenance-dialog-cancel" data-dialog-initial-focus>Cancelar</button>
+        <button type="submit" class="primary" id="maintenance-dialog-confirm">Confirmar</button>
+      </footer>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="./app.js"></script>
 </body>
