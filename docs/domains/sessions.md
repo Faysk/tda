@@ -2,7 +2,7 @@
 
 > Status: implementado
 > Owner: sessions
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-03
 
 ## Objetivo
 
@@ -174,6 +174,12 @@ O contrato multi-campaign canônico está em [architecture/multi-campaign](../ar
 - `/sessoes/[sourceSessionId]` só pode resolver o boundary legado explicitamente conhecido e redirecionar; não faz lookup global.
 
 O legado por fragmentos `#/sessao/{sourceSessionId}` e `#/sessao/{sourceSessionId}/resumo` continua compatível somente pela mesma regra: a ponte não pode escolher campaign por coincidência de source ID.
+
+### Navegação em resumos públicos longos
+
+O leitor público deriva âncoras estáveis dos headings já publicados, sem alterar o texto editorial. Títulos repetidos recebem sufixos determinísticos para impedir colisões; o heading da própria sessão, quando repetido como primeiro H1 do Markdown, continua oculto do corpo e não entra no índice.
+
+A navegação “Nesta sessão” só aparece quando o resumo possui seções suficientes para justificar o controle. Em documentos extensos, o índice usa seleção compacta em vez de despejar dezenas ou centenas de links na primeira viewport; a seção observada atualiza o controle, deep links preservam o fragmento no histórico e o destino recebe foco após navegação. Headings usam `scroll-margin` para não ficar escondidos sob o chrome flutuante. Sessões curtas permanecem sem índice adicional.
 
 ## Invariantes
 
