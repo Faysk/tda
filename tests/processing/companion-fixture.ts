@@ -66,6 +66,7 @@ export type CompanionFixtureOptions = {
 	benchmarkPreparationFailureProfile?: string | null;
 	benchmarkReadinessContract?: boolean;
 	whisperBenchmarkRuntimeUpgradeRequired?: boolean;
+	qwenBenchmarkRuntimeUpgradeRequired?: boolean;
 	reviewEnabled?: boolean;
 	additionalCapabilities?: readonly string[];
 	qwenRuntimeVersion?: string | null;
@@ -228,7 +229,7 @@ export async function installCompanionFixture(
 		options.benchmarkReadyProfiles ??
 			(options.profileReady ? [...benchmarkProfileIds] : []),
 	);
-	let qwenRuntimeVersion = options.qwenRuntimeVersion === undefined ? "1.0.12" : options.qwenRuntimeVersion;
+	let qwenRuntimeVersion = options.qwenRuntimeVersion === undefined ? "1.0.18" : options.qwenRuntimeVersion;
 	const qwenStableVersion = options.qwenRuntimeStableVersion ?? "1.0.12";
 	let qwenMaintenanceSequence = 0;
 	let qwenRuntimeRecoveredFromInitialUpdate = false;
@@ -327,15 +328,21 @@ export async function installCompanionFixture(
 					const whisperBenchmarkBlocked =
 						options.whisperBenchmarkRuntimeUpgradeRequired === true &&
 						id.startsWith("whisper-");
+					const qwenBenchmarkBlocked =
+						options.qwenBenchmarkRuntimeUpgradeRequired === true &&
+						id.startsWith("qwen-");
 					const ready = qwenRuntimeBlocked ? false : benchmarkPrepared.has(id);
-					const benchmarkReady = ready && !whisperBenchmarkBlocked;
+					const benchmarkReady =
+						ready && !whisperBenchmarkBlocked && !qwenBenchmarkBlocked;
 					const benchmarkReason = benchmarkReady
 						? null
 						: qwenRuntimeBlocked
 							? "QWEN_RUNTIME_REQUIRED"
 							: whisperBenchmarkBlocked
 								? "WHISPER_BENCHMARK_RUNTIME_REQUIRED"
-								: "BENCHMARK_PROFILE_PREPARATION_REQUIRED";
+								: qwenBenchmarkBlocked
+									? "QWEN_BENCHMARK_RUNTIME_REQUIRED"
+									: "BENCHMARK_PROFILE_PREPARATION_REQUIRED";
 					return {
 						id,
 						engine: id.startsWith("qwen-") ? "qwen3" : "whisper",
@@ -352,7 +359,7 @@ export async function installCompanionFixture(
 						benchmark_reason: benchmarkReason,
 						...(id.startsWith("qwen-")
 							? { runtime_version: qwenRuntimeVersion }
-							: { runtime_version: whisperBenchmarkBlocked ? "1.1.5" : "1.1.7" }),
+							: { runtime_version: whisperBenchmarkBlocked ? "1.1.9" : "1.1.10" }),
 					};
 				});
 				return json(route, {
@@ -795,6 +802,8 @@ export async function installCompanionFixture(
 					benchmarkPrepared.add(preparationProfile);
 					if (preparationProfile.startsWith("whisper-"))
 						options.whisperBenchmarkRuntimeUpgradeRequired = false;
+					if (preparationProfile.startsWith("qwen-"))
+						options.qwenBenchmarkRuntimeUpgradeRequired = false;
 				} else prepared = true;
 			}
 			return json(route, {
