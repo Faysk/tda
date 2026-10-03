@@ -1115,6 +1115,39 @@ export async function installCompanionFixture(
 				return json(route, { error: { code: "BENCHMARK_REFERENCE_NOT_FOUND", recoverable: false } }, 404);
 			return json(route, { profiles: fixtureBenchmarkQuality(benchmarkReferenceRevision) });
 		}
+		if (options.benchmarkEvidence && /^\/benchmarks\/benchmark-evidence-1\/profiles\/(whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)\/metrics$/u.test(path)) {
+			const profileId = path.split("/")[4];
+			return json(route, {
+				schema_version: "tda_benchmark_metrics_v1",
+				benchmark_id: "benchmark-evidence-1",
+				profile_id: profileId,
+				total_processing_seconds: 31.25,
+				stage_seconds: { model_load: 4.25, transcription: 25.5, consolidation: 1.5 },
+				warning_count: 0,
+				warnings: [],
+				telemetry: { available: false, captured_samples: 0, missing_reason: "SAMPLER_NOT_AVAILABLE" },
+			});
+		}
+		if (options.benchmarkEvidence && /^\/benchmarks\/benchmark-evidence-1\/profiles\/(whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)\/events$/u.test(path)) {
+			const profileId = path.split("/")[4];
+			return json(route, {
+				schema_version: "tda_benchmark_diagnostics_v1",
+				benchmark_id: "benchmark-evidence-1",
+				profile_id: profileId,
+				events: [
+					{
+						schema_version: "tda_benchmark_event_v1", seq: 1, relative_ms: 10,
+						benchmark_id: "benchmark-evidence-1", attempt: 1, profile_id: profileId,
+						type: "stage", stage: "transcription", code: null, data: { track: 1 },
+					},
+					{
+						schema_version: "tda_benchmark_event_v1", seq: 2, relative_ms: 20,
+						benchmark_id: "benchmark-evidence-1", attempt: 1, profile_id: profileId,
+						type: "terminal", stage: "result_prepare", code: "BENCHMARK_PROFILE_COMPLETED", data: {},
+					},
+				],
+			});
+		}
 		if (options.benchmarkEvidence && /^\/benchmarks\/benchmark-evidence-1\/profiles\/(whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)\/transcript$/u.test(path)) {
 			const profileId = path.split("/")[4];
 			return json(route, fixtureBenchmarkTranscript(profileId));
