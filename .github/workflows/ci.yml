@@ -497,6 +497,16 @@ jobs:
             test-results/**/companion-maintenance-dialog-after.png
           if-no-files-found: error
           retention-days: 30
+      - name: Upload issue 1354 processing visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: issue-1354-processing-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/issue-1354-campaign-switch-dialog.png
+            test-results/**/issue-1354-dirty-review-discard-dialog.png
+          if-no-files-found: error
+          retention-days: 30
       - name: Scratch Companion integration
         run: pnpm test:processing:integration
         env:
@@ -729,6 +739,16 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - name: Transcript edit browser contract
         run: pnpm exec playwright test --config playwright.transcript-edit.config.ts
+      - name: Upload issue 1354 transcript visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: issue-1354-transcript-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/issue-1354-transcript-dirty-navigation-dialog.png
+            test-results/**/issue-1354-transcript-remote-reload-dialog.png
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload sanitized transcript edit failure artifacts
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
