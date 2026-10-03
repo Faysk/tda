@@ -37,6 +37,14 @@ class BenchmarkQualityError(RuntimeError):
     pass
 
 
+def _is_reparse(path: Path) -> bool:
+    try:
+        attrs = getattr(path.stat(follow_symlinks=False), "st_file_attributes", 0)
+    except (OSError, TypeError):
+        return False
+    return bool(attrs & 0x400)
+
+
 def _canonical(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
@@ -249,7 +257,7 @@ def _assert_regular_owned_file(root: Path, path: Path) -> None:
     current = root_abs
     for part in path_abs.relative_to(root_abs).parts:
         current = current / part
-        if current.exists() and current.is_symlink():
+        if current.exists() and (current.is_symlink() or _is_reparse(current)):
             raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_REPARSE_REJECTED")
     if path.exists() and not path.is_file():
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_INVALID")
@@ -352,7 +360,7 @@ def save_reference(
     if len(encoded) > _MAX_REFERENCE_BYTES:
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_SIZE_INVALID")
     reference_dir = root / "reference"
-    if reference_dir.exists() and reference_dir.is_symlink():
+    if reference_dir.exists() and (reference_dir.is_symlink() or _is_reparse(reference_dir)):
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_REPARSE_REJECTED")
     reference_dir.mkdir(parents=True, exist_ok=True)
     path = reference_dir / f"reference-{revision:06d}.json"
@@ -557,10 +565,10 @@ def compute_quality_receipts(
     reference_text = " ".join(reference_by_track[number] for number in sorted(reference_by_track))
     reference_sha = _digest(_canonical(ref))
     quality_root = root / "quality"
-    if quality_root.exists() and quality_root.is_symlink():
+    if quality_root.exists() and (quality_root.is_symlink() or _is_reparse(quality_root)):
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_REPARSE_REJECTED")
     quality_dir = quality_root / f"reference-{int(ref['revision']):06d}"
-    if quality_dir.exists() and quality_dir.is_symlink():
+    if quality_dir.exists() and (quality_dir.is_symlink() or _is_reparse(quality_dir)):
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_REPARSE_REJECTED")
     quality_dir.mkdir(parents=True, exist_ok=True)
     receipts: list[dict[str, Any]] = []
