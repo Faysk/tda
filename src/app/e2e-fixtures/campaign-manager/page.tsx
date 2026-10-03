@@ -4,6 +4,11 @@ import {
 	type CampaignManagerFeedback,
 } from "@/features/campaigns/management-view";
 import type { ManageableCampaign } from "@/features/campaigns/model";
+import {
+	fixtureCreateCampaignAction,
+	fixtureLifecycleAction,
+	fixtureUpdateCampaignAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -61,18 +66,26 @@ function queryValue(
 	return typeof value === "string" ? value : null;
 }
 
-async function fixtureCampaignAction(_formData: FormData) {
-	"use server";
-}
-
 export default async function CampaignManagerFixture({ searchParams }: Props) {
 	if (process.env.TDA_E2E_FIXTURES !== "true") notFound();
 
 	const params = await searchParams;
 	const state = queryValue(params, "state");
 	const longName = queryValue(params, "long") === "1";
+	const archivedId = queryValue(params, "arquivada");
 	let campaigns =
 		state === "zero" ? [] : state === "one" ? [CAMPAIGNS[0]] : [...CAMPAIGNS];
+	if (archivedId) {
+		campaigns = campaigns.map((campaign) =>
+			campaign.id === archivedId
+				? {
+						...campaign,
+						lifecycle: "archived" as const,
+						archivedAt: "2026-10-03T00:03:00.000Z",
+					}
+				: campaign,
+		);
+	}
 	if (longName && campaigns.length) {
 		campaigns = campaigns.map((campaign, index) =>
 			index === 0
@@ -96,9 +109,9 @@ export default async function CampaignManagerFixture({ searchParams }: Props) {
 			campaigns={campaigns}
 			feedback={feedback}
 			returnTo={null}
-			createAction={fixtureCampaignAction}
-			updateAction={fixtureCampaignAction}
-			lifecycleAction={fixtureCampaignAction}
+			createAction={fixtureCreateCampaignAction}
+			updateAction={fixtureUpdateCampaignAction}
+			lifecycleAction={fixtureLifecycleAction}
 		/>
 	);
 }
