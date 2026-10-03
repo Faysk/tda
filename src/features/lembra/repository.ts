@@ -2,7 +2,11 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { lembraDataClient } from "@/integrations/supabase/server";
-import { isLembraCampaignRegistryUnavailable } from "./campaign-classification";
+import {
+	canDiscoverLembraCampaign,
+	isLembraCampaignRegistryUnavailable,
+} from "./campaign-classification";
+import type { EditAccessContext } from "@/features/edit/access/policy";
 import {
 	isLembraMediaMime,
 	isLembraUuid,
@@ -36,7 +40,7 @@ export type LembraReferenceRow = Readonly<{
 const SELECT_COLUMNS =
 	"id,title,description,status,staged_bucket,object_key,sha256,mime_type,byte_size,width,height,read_back_verified,created_by_auth_user_id,created_by_name,created_at,updated_at,retired_at,campaign_id";
 
-const CAMPAIGN_SELECT_COLUMNS = "id,name,lifecycle";
+const CAMPAIGN_SELECT_COLUMNS = "id,slug,name,lifecycle,visibility";
 
 function positiveInteger(value: number | string): number | null {
 	const number = Number(value);
@@ -87,6 +91,7 @@ export function presentLembraRow(
 }
 
 export async function loadLembraCampaignClassifications(
+	context: EditAccessContext,
 	client: SupabaseClient | null = lembraDataClient(),
 ): Promise<LembraCampaignClassification[]> {
 	if (!client) throw new Error("lembra_data_unavailable");
@@ -94,7 +99,6 @@ export async function loadLembraCampaignClassifications(
 	const { data, error } = await client
 		.from("campaigns")
 		.select(CAMPAIGN_SELECT_COLUMNS)
-		.eq("visibility", "public")
 		.order("name", { ascending: true })
 		.order("id", { ascending: true });
 	if (error) {
@@ -105,9 +109,13 @@ export async function loadLembraCampaignClassifications(
 	return (data ?? []).flatMap((row) => {
 		if (
 			!isLembraUuid(row.id) ||
+			typeof row.slug !== "string" ||
 			typeof row.name !== "string" ||
 			!row.name.trim() ||
-			(row.lifecycle !== "active" && row.lifecycle !== "archived")
+			(row.lifecycle !== "active" && row.lifecycle !== "archived") ||
+			(row.visibility !== "public" && row.visibility !== "private") ||
+			(row.visibility === "private" &&
+				!canDiscoverLembraCampaign(context, row.slug))
 		) {
 			return [];
 		}
@@ -122,13 +130,13 @@ export async function loadLembraCampaignClassifications(
 export async function loadLembraCampaignClassification(
 	client: SupabaseClient,
 	campaignId: string,
+	context: EditAccessContext,
 ): Promise<LembraCampaignClassification | null> {
 	if (!isLembraUuid(campaignId)) return null;
 	const { data, error } = await client
 		.from("campaigns")
 		.select(CAMPAIGN_SELECT_COLUMNS)
 		.eq("id", campaignId)
-		.eq("visibility", "public")
 		.maybeSingle();
 	if (error) {
 		if (isLembraCampaignRegistryUnavailable(error)) return null;
@@ -137,9 +145,13 @@ export async function loadLembraCampaignClassification(
 	if (
 		!data ||
 		!isLembraUuid(data.id) ||
+		typeof data.slug !== "string" ||
 		typeof data.name !== "string" ||
 		!data.name.trim() ||
-		(data.lifecycle !== "active" && data.lifecycle !== "archived")
+		(data.lifecycle !== "active" && data.lifecycle !== "archived") ||
+		(data.visibility !== "public" && data.visibility !== "private") ||
+		(data.visibility === "private" &&
+			!canDiscoverLembraCampaign(context, data.slug))
 	) {
 		return null;
 	}
@@ -167,7 +179,10 @@ export async function loadLembraReferences(
 			.limit(1000),
 		campaigns
 			? Promise.resolve([...campaigns])
-			: loadLembraCampaignClassifications(client),
+			: loadLembraCampaignClassifications(
+				{ authUserId: viewerAuthUserId, profileId: null, grants: [] },
+				client,
+			),
 	]);
 	if (referenceResult.error) {
 		throw new Error(`lembra_reference_lookup:${referenceResult.error.message}`);
