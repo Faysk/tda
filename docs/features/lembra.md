@@ -80,7 +80,12 @@ O composer pede:
 - **Descrição** — opcional;
 - **Campanha** — opcional, com `Geral` como ausência explícita de classificação.
 
-Autor e data são automáticos. Somente campaigns **ativas e públicas** podem receber uma nova classificação nesta entrega. Uma referência já classificada em campaign arquivada continua legível/editável e pode permanecer nela ou voltar para `Geral`; campaign arquivada não aparece como destino novo. Campaign privada não é enumerada nem aceita por UUID enquanto #1134 não definir discovery/membership multi-campaign com segurança.
+Autor e data são automáticos. Destinos novos incluem campaigns **ativas** da
+projection segura do viewer: públicas elegíveis e privadas que a policy
+`campaign.edit.access` permite descobrir. Campaign arquivada pode aparecer para
+preservar contexto histórico, mas fica desabilitada como novo destino. `Geral`
+continua first-class. A lista é filtrada no servidor; o browser nunca recebe o
+registry privado bruto nem grants.
 
 Ao publicar, o feedback visual acompanha estados reais sem expandir o composer:
 
@@ -196,7 +201,18 @@ lembra_favorites
 
 `campaign_id = null` significa **Geral / sem campaign**. Referências existentes permanecem `null` na migração; nenhuma é empurrada para `yuhara-main` por suposição. A FK usa `ON DELETE SET NULL`, portanto a remoção administrativa de uma campaign degrada a classificação para Geral sem apagar a referência.
 
-Classificação não altera acesso, autoria, favoritos, R2 key, bucket ou bytes. Usuário autenticado continua vendo a biblioteca compartilhada mesmo sem membership/grant da **campaign pública** classificada. O nome exibido é metadata de organização do Lembra; slug técnico não é apresentado. Campaigns privadas ficam fora do catálogo/selector desta entrega para que o service role não vire um oracle de discovery antes de #1134. Enquanto o registry first-class ainda não estiver aplicado no banco, a classificação degrada deliberadamente para `Geral`: a galeria continua disponível, o selector não enumera campaigns e payload forjado com `campaign_id` é recusado.
+Classificação não altera acesso, autoria, favoritos, R2 key, bucket ou bytes. A
+biblioteca continua global para usuários autenticados. O nome da campaign é metadata
+de organização; technical slug e route key não são apresentados no Lembra.
+
+Private classification usa **indistinguibilidade client-side**: se o viewer não pode
+descobrir a campaign, o DTO não envia UUID, nome, lifecycle, slug ou route key e a
+referência é apresentada sem metadata de campaign. O vínculo continua no banco.
+Edição comum envia intenção `preserve`, portanto title/description não apagam a
+classification invisível. `clear` ou `set` que substitua um vínculo existente
+exige que o ator consiga descobrir o vínculo atual, e o target de `set` é
+revalidado novamente no servidor. UUID forjado, revoke ou target archived falham
+fechado.
 
 `created_by_name` é um snapshot produzido pelo servidor a partir da identidade autenticada para exibição/busca. O browser nunca fornece autoria.
 
@@ -257,7 +273,8 @@ Qualquer usuário autenticado pode:
 - criar referência;
 - alterar nome;
 - alterar descrição;
-- atribuir/remover classificação opcional de campaign;
+- atribuir/remover classificação opcional de campaign quando a campaign atual e o
+  target forem descobíveis conforme a policy;
 - remover referência;
 - favoritar/desfavoritar.
 
@@ -298,7 +315,10 @@ A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-
 - [ ] filtro por `Todas | Geral | campaign` combina com Meus itens/Favoritos/período;
 - [ ] referência legacy permanece em Geral;
 - [ ] campaign arquivada não quebra referência existente e não é destino novo;
-- [ ] usuário sem membership da campaign continua sob a regra global autenticada do Lembra;
+- [ ] usuário sem discovery da campaign continua sob a regra global autenticada do Lembra sem receber metadata privada;
+- [ ] edição de title/description preserva classification privada invisível;
+- [ ] `Geral` remove classification somente por intenção explícita e autorizada;
+- [ ] private campaign autorizada pode ser filtrada/classificada; outsider não recebe nome/UUID;
 - [ ] atribuir/remover campaign não muda `object_key` nem bytes R2;
 - [ ] atualização concorrente falha com conflito, sem lost update;
 - [ ] filtro por período e ordenação continuam funcionando;
@@ -346,19 +366,20 @@ A simplicidade é requisito, não ausência de funcionalidade.
 4. confirmar R2 private acessível pelo runtime server-side;
 5. confirmar secrets server-side no runtime;
 6. ativar `TDA_LEMBRA_ENABLED=true`;
-7. smoke autenticado com dois usuários:
-   - A publica em Geral e em uma campaign ativa;
-   - B vê ambas mesmo sem membership da campaign classificada;
-   - B filtra Geral/campaign e edita classificação;
-   - A vê atualização;
-   - B favorita para si;
-   - A não recebe favorito de B;
-   - referência em campaign arquivada continua legível;
-   - A/B removem;
-   - reload preserva estado correto;
-8. validar que troca de classificação preserva o mesmo `object_key`;
-9. validar conflito concorrente de metadata;
-10. validar caso negativo de campaign forjada, upload inválido e sessão anônima.
+7. smoke autenticado com campaigns A pública, B privada ativa e C privada arquivada:
+   - viewer autorizado vê A+B; outsider vê somente A;
+   - referência em B continua global, mas outsider não recebe metadata de B;
+   - outsider edita title/description e o vínculo B permanece no banco;
+   - forged clear/set do outsider falha fechado;
+   - viewer autorizado move B para Geral;
+   - C histórica permanece legível para quem pode descobri-la, sem virar novo target;
+   - filtros/busca do outsider não revelam B/C;
+   - favoritos continuam per-user e independentes de classification;
+8. validar criação contextual: cancel/error/success preservam File, preview, título,
+   descrição e seleção; auto-select só acontece depois de refresh da projection;
+9. validar que troca de classificação preserva o mesmo `object_key`;
+10. validar conflito concorrente de metadata, revoke e campaign UUID forjada;
+11. validar upload inválido e sessão anônima.
 
 ## Referências
 
