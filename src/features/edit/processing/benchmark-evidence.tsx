@@ -455,9 +455,9 @@ export function BenchmarkEvidenceWorkspace({
 						<p>
 							Mesma amostra {result.sampleIdentitySha256.slice(0, 12)}… ·{" "}
 							{formatBytes(manifest?.bundleSizeBytes ?? artifacts.bundleSizeBytes)} ·{" "}
-							{manifest?.integrity === "verified"
-								? "integridade verificada"
-								: "verificando integridade"} ·{" "}
+							{manifest?.integrity === "manifest_verified"
+								? "manifesto verificado · transcript hash ao abrir"
+								: "verificando manifesto"} ·{" "}
 							{manifest?.qualityReferenceStatus === "none"
 								? "sem referência humana"
 								: "referência disponível"}
