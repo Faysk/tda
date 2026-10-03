@@ -2,7 +2,7 @@
 
 > Status: persistência compartilhada em Production; galeria justified responsiva rastreada na #738
 > Owner: frontend / integrations-media / identity-access
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-03
 > Fonte de verdade: este contrato, `docs/design-system/`, `docs/architecture.md` e o boundary de Media Storage
 
 ## Objetivo
@@ -80,7 +80,17 @@ O composer pede:
 - **Descrição** — opcional;
 - **Campanha** — opcional, com `Geral` como ausência explícita de classificação.
 
-Autor e data são automáticos. Somente campaigns **ativas e públicas** podem receber uma nova classificação nesta entrega. Uma referência já classificada em campaign arquivada continua legível/editável e pode permanecer nela ou voltar para `Geral`; campaign arquivada não aparece como destino novo. Campaign privada não é enumerada nem aceita por UUID enquanto #1134 não definir discovery/membership multi-campaign com segurança.
+Autor e data são automáticos. Campaigns **ativas e públicas** continuam disponíveis para qualquer usuário autenticado. Campaigns **privadas** entram no seletor somente quando a projection server-side confirma `campaign.edit.access` efetivo para aquele ator e escopo, reutilizando o boundary first-class de discovery de #1134/#1204. Campaign arquivada discoverable pode continuar aparecendo como classificação histórica existente, mas nunca como destino novo.
+
+A classificação privada usa **redaction por indistinguibilidade total**: se o ator não pode descobrir a campaign, o browser recebe a referência com `campaign: null`, exatamente como uma referência sem classificação. Nenhum UUID, nome humano, route key, technical slug, visibility, metadata, grant ou marker de “campanha oculta” é enviado ao cliente. Busca, filtro, contagem e viewer operam somente sobre essa projection redigida.
+
+Edição separa explicitamente a intenção de classificação:
+
+- `preserve` — padrão ao abrir o editor; não escreve `campaign_id`;
+- `set(uuid)` — reautoriza o alvo no server action antes do write;
+- `clear` — remove a classificação somente quando a classificação atual é discoverable pelo ator. Se a classificação corrente ficar invisível por revogação/aba stale, tanto `clear` quanto `set` degradam para `preserve`; a edição textual continua, mas o vínculo oculto não é apagado nem substituído.
+
+Assim, editar nome/descrição de uma referência ligada a uma campaign privada invisível preserva o vínculo server-side. UUID privado forjado, grant revogado ou aba stale falham fechado na próxima mutation sem transformar o Lembra em oracle de campanhas.
 
 Ao publicar, o feedback visual acompanha estados reais sem expandir o composer:
 
