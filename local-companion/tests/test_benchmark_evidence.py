@@ -75,30 +75,37 @@ def _lineage(profile: str) -> dict:
 
 
 def _document(profile: str, text: str, source_sha: str = "a" * 64) -> TranscriptDocument:
-    word = TranscriptWord(text=text.split()[0], start=1.0, end=1.2, confidence=0.99)
-    segment = TranscriptSegment(
-        id="1-0",
-        start=1.0,
-        end=2.0,
-        text=text,
-        words=(word,),
-    )
+    if text:
+        word = TranscriptWord(text=text.split()[0], start=1.0, end=1.2, confidence=0.99)
+        segment = TranscriptSegment(
+            id="1-0",
+            start=1.0,
+            end=2.0,
+            text=text,
+            words=(word,),
+        )
+        segments = (segment,)
+        turns = (
+            TranscriptTurn(
+                id="turn-1",
+                speaker="Alice",
+                start=1.0,
+                end=2.0,
+                text=text,
+                segments=(TranscriptSegmentRef(track_number=1, segment_id="1-0"),),
+                overlaps_other_speaker=False,
+            ),
+        )
+    else:
+        segments = ()
+        turns = ()
     track = TranscriptTrack(
         number=1,
         speaker="Alice",
         source_filename="1-Alice.flac",
         source_sha256="b" * 64,
         duration_seconds=300.0,
-        segments=(segment,),
-    )
-    turn = TranscriptTurn(
-        id="turn-1",
-        speaker="Alice",
-        start=1.0,
-        end=2.0,
-        text=text,
-        segments=(TranscriptSegmentRef(track_number=1, segment_id="1-0"),),
-        overlaps_other_speaker=False,
+        segments=segments,
     )
     timer = EngineMeasurement(lambda _event: None, clock=lambda: 10.0)
     processing = timer.finish((track,))
@@ -122,10 +129,8 @@ def _document(profile: str, text: str, source_sha: str = "a" * 64) -> Transcript
         ),
         tracks=(track,),
         stats=stats,
-        turns=(turn,),
+        turns=turns,
     )
-
-
 def _complete_bundle(
     tmp_path: Path,
     texts: dict[str, str] | None = None,
@@ -356,6 +361,8 @@ def test_reference_metrics_use_versioned_unicode_normalization_and_micro_wer(tmp
     assert by_profile["qwen-quality"]["overall"]["deletions"] == 1
     assert by_profile["qwen-quality"]["overall"]["wer_normalized"] == 0.5
     assert normalize_text("  OLÁ…   Mundo! ") == "olá mundo"
+    assert normalize_text("ação") == normalize_text("ac\u0327a\u0303o")
+    assert normalize_text("d'Artagnan-meio") == "d'artagnan-meio"
     assert normalize_text("ação") != normalize_text("acao")
 
 
@@ -364,7 +371,7 @@ def test_quality_receipts_bind_exact_manifest_and_are_deterministic_with_wer_ove
         "whisper-turbo": "ação",
         "whisper-detailed": "ação",
         "qwen-fast": "ação extra extra extra",
-        "qwen-quality": "acao",
+        "qwen-quality": "",
     }
     benchmark_id, _ = _complete_bundle(tmp_path, texts)
     save_reference(
@@ -396,8 +403,43 @@ def test_quality_receipts_bind_exact_manifest_and_are_deterministic_with_wer_ove
 
     assert by_profile["qwen-fast"]["overall"]["insertions"] == 3
     assert by_profile["qwen-fast"]["overall"]["wer_normalized"] == 3.0
+    assert by_profile["qwen-quality"]["overall"]["deletions"] == 1
     assert by_profile["qwen-quality"]["overall"]["wer_normalized"] == 1.0
-    assert by_profile["qwen-quality"]["overall"]["cer_normalized"] == 0.5
+    assert by_profile["qwen-quality"]["overall"]["cer_normalized"] == 1.0
+
+
+def test_term_fidelity_counts_only_terms_present_in_the_human_reference(tmp_path: Path):
+    benchmark_id, _ = _complete_bundle(
+        tmp_path,
+        {
+            "whisper-turbo": "Valyndra Valyndra",
+            "whisper-detailed": "Valyndra Valyndra",
+            "qwen-fast": "Valyndra Valindra",
+            "qwen-quality": "Valyndra Valyndra",
+        },
+    )
+    save_reference(
+        tmp_path,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [{"track_number": 1, "speaker": "Alice", "text": "Valyndra Valyndra"}],
+            "terms": ["Valyndra", "Ausente"],
+        },
+    )
+    by_profile = {
+        item["profile_id"]: item
+        for item in quality_summary(tmp_path, benchmark_id)["profiles"]
+    }
+    fidelity = by_profile["qwen-fast"]["term_fidelity"]
+    assert fidelity is not None
+    assert fidelity["reference_occurrences"] == 2
+    assert fidelity["hypothesis_occurrences"] == 1
+    assert fidelity["correct_occurrences"] == 1
+    assert fidelity["recall"] == 0.5
+    assert fidelity["precision"] == 1.0
 
 
 def test_level_two_reference_exposes_timing_speaker_overlap_and_provenance(tmp_path: Path):
