@@ -41,6 +41,14 @@ describe("permissions human presentation", () => {
 		expect(value).not.toContain("Legacy English description");
 	});
 
+	it("keeps project campaign management human-readable instead of exposing the raw capability", () => {
+		const value = humanRoleDescription(
+			role({ actions: ["project.campaigns.manage"] }),
+		);
+		expect(value).toContain("Gerenciar campanhas do projeto");
+		expect(value).not.toContain("project.campaigns.manage");
+	});
+
 	it("preserves custom human role names instead of guessing a translation", () => {
 		expect(
 			humanRoleName(
