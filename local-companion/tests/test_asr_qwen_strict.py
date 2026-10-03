@@ -1834,7 +1834,7 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(
     # decodes each track only for ASR + alignment instead of a third energy pass.
     assert reads == 2
     assert align_calls == ["pass-2-one", "pass-2-two"]
-    assert "strict-overlap-v4" in document.engine.alignment
+    assert "strict-overlap-v5" in document.engine.alignment
     assert document.warnings == ()
 
 
@@ -2111,6 +2111,135 @@ def test_bounded_outside_window_alignment_retries_with_real_right_context(
         for word in segment.words
     ]
     assert words == ["owned", "after"]
+
+
+
+
+def test_right_context_recovery_reorders_adjacent_overlap_segments_by_time(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    align_calls: list[str] = []
+
+    def reader(_path: Path):
+        yield AudioWindow(index=1, start=0.0, end=60.0, audio=_SignalAudio("w1"))
+        yield AudioWindow(index=2, start=54.0, end=114.0, audio=_SignalAudio("w2"))
+        yield AudioWindow(index=3, start=108.0, end=154.0, audio=_SignalAudio("w3"))
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            return f"text {audio}", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, audio, _text: str, _language: str):
+            align_calls.append(audio)
+            if audio == "w1":
+                # Midpoint 56.95 belongs to window 1 (< 57.0), but this word
+                # starts slightly after the recovered word from window 2.
+                return [
+                    {"text": "left", "start_time": 56.9, "end_time": 57.0},
+                ]
+            if audio == "w2":
+                return [
+                    {"text": "trigger", "start_time": 60.32, "end_time": 60.32},
+                ]
+            if audio == "w2+right":
+                # Absolute span 56.8-57.6, midpoint 57.2 belongs to window 2.
+                # Appending by window index yields segment starts 56.9 then 56.8,
+                # which violates TranscriptTrack order unless canonicalized.
+                return [
+                    {"text": "recovered", "start_time": 2.8, "end_time": 3.6},
+                ]
+            if audio == "w3":
+                return [
+                    {"text": "after", "start_time": 4.0, "end_time": 5.0},
+                ]
+            raise AssertionError(f"unexpected alignment audio: {audio}")
+
+        def close(self):
+            pass
+
+    def right_context(window: AudioWindow, next_window: AudioWindow):
+        assert window.index == 2
+        assert next_window.index == 3
+        return AudioWindow(
+            index=window.index,
+            start=window.start,
+            end=window.end + QWEN_WINDOW_OVERLAP_SECONDS,
+            audio=_SignalAudio("w2+right"),
+        )
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -12.0,
+        right_context_builder=right_context,
+        report=reports.append,
+    )
+
+    assert align_calls == ["w1", "w2", "w2+right", "w3"]
+    starts = [
+        segment.start
+        for track in document.tracks
+        for segment in track.segments
+    ]
+    assert starts == sorted(starts)
+    assert [
+        word.text
+        for track in document.tracks
+        for segment in track.segments
+        for word in segment.words
+    ] == ["recovered", "left", "after"]
+
+    reordered = [
+        item
+        for item in reports
+        if item.get("code") == "QWEN_TRACK_SEGMENTS_REORDERED"
+    ]
+    assert reordered == [
+        {
+            "type": "event",
+            "code": "QWEN_TRACK_SEGMENTS_REORDERED",
+            "stage": "alignment",
+            "track": 1,
+            "total_tracks": 1,
+            "count": 2,
+        }
+    ]
+    assert not any(
+        item.get("code") == "QWEN_TRACK_VALIDATION_FAILED"
+        for item in reports
+    )
+
+
+def test_track_validation_failure_class_is_sanitized():
+    from tda_companion.transcript import TranscriptValidationError
+
+    assert (
+        asr_qwen_strict._track_validation_failure_class(
+            TranscriptValidationError("track.segments:OUT_OF_ORDER")
+        )
+        == "QWEN_TRACK_SEGMENTS_OUT_OF_ORDER"
+    )
+    assert (
+        asr_qwen_strict._track_validation_failure_class(
+            TranscriptValidationError("private-or-unknown-detail")
+        )
+        == "QWEN_TRACK_VALIDATION_FAILED"
+    )
 
 
 def test_far_outside_window_alignment_remains_terminal_without_context_retry(
