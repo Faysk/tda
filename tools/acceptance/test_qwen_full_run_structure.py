@@ -18,7 +18,7 @@ SPEC.loader.exec_module(module)
 SOURCE_SHA = "b2ac78347d88b2761e51be38a60aa266933e3b00f30e72c50626fbe599849b1e"
 
 
-def transcript() -> dict:
+def transcript(*, profile_id: str = "qwen-fast") -> dict:
     tracks = []
     for number in range(1, 5):
         tracks.append(
@@ -55,7 +55,7 @@ def transcript() -> dict:
         "engine": {
             "engine": "qwen3",
             "model": "synthetic",
-            "profile": "qwen-fast",
+            "profile": profile_id,
             "device": "cuda",
             "compute_type": "bfloat16",
             "alignment": "synthetic",
@@ -96,7 +96,7 @@ class QwenFullRunStructureTests(unittest.TestCase):
             "source_sha256": SOURCE_SHA,
             "job_id": "job",
             "attempt": attempt,
-            "profile_id": "qwen-fast",
+            "profile_id": value["engine"]["profile"],
             "engine": "qwen3",
             "model": "synthetic",
             "model_revision": "deadbeef",
@@ -121,7 +121,13 @@ class QwenFullRunStructureTests(unittest.TestCase):
         marker_path.write_text(json.dumps(marker, sort_keys=True), encoding="utf-8")
         return transcript_path, marker_path
 
-    def validate(self, transcript_path: Path, marker_path: Path):
+    def validate(
+        self,
+        transcript_path: Path,
+        marker_path: Path,
+        *,
+        profile_id: str = "qwen-fast",
+    ):
         return module.validate_full_run(
             transcript_path=transcript_path,
             run_marker_path=marker_path,
@@ -129,7 +135,7 @@ class QwenFullRunStructureTests(unittest.TestCase):
             expected_source_sha256=SOURCE_SHA,
             job_id="job",
             attempt=2,
-            expected_profile_id="qwen-fast",
+            expected_profile_id=profile_id,
             expected_track_count=4,
             repo_root=Path(__file__).resolve().parents[2],
         )
@@ -149,6 +155,36 @@ class QwenFullRunStructureTests(unittest.TestCase):
         self.assertNotIn("speaker-", serialized)
         self.assertFalse(receipt["contains_transcript"])
         self.assertFalse(receipt["contains_paths"])
+
+    def test_qwen_quality_profile_matches_physical_gate_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript_path, marker_path = self.write_fixture(
+                root,
+                transcript(profile_id="qwen-quality"),
+            )
+            receipt = self.validate(
+                transcript_path,
+                marker_path,
+                profile_id="qwen-quality",
+            )
+
+        self.assertEqual(receipt["profile_id"], "qwen-quality")
+        self.assertTrue(receipt["immutable_run_verified"])
+
+    def test_unknown_profile_is_harness_configuration_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript_path, marker_path = self.write_fixture(root, transcript())
+            with self.assertRaisesRegex(
+                module.QwenFullRunConfigurationError,
+                "QWEN_1236_FULL_RUN_PROFILE_INVALID",
+            ):
+                self.validate(
+                    transcript_path,
+                    marker_path,
+                    profile_id="qwen-experimental",
+                )
 
     def test_source_mismatch_fails_closed(self):
         value = transcript()
