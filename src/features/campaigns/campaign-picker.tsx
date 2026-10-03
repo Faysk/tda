@@ -1,7 +1,7 @@
 "use client";
 
 import type { Ref } from "react";
-import { Select, type SelectOption } from "@/components/ui";
+import { Select, type SelectOption } from "@/components/ui/select";
 import styles from "./campaign-picker.module.css";
 
 export type CampaignPickerOption = Readonly<{
