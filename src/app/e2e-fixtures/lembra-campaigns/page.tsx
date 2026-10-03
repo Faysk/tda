@@ -26,6 +26,11 @@ const CAMPAIGNS: readonly LembraCampaignClassification[] = [
 		name: "Campanha Arquivada",
 		lifecycle: "archived",
 	},
+	{
+		id: "44444444-4444-4444-8444-444444444444",
+		name: "Campanha Privada Descoberta",
+		lifecycle: "active",
+	},
 ];
 
 const REFERENCES: readonly LembraReference[] = [
@@ -42,6 +47,7 @@ const REFERENCES: readonly LembraReference[] = [
 		height: 12,
 		mine: true,
 		campaign: null,
+		campaignRestricted: false,
 	},
 	{
 		id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -56,6 +62,7 @@ const REFERENCES: readonly LembraReference[] = [
 		height: 12,
 		mine: false,
 		campaign: CAMPAIGNS[0],
+		campaignRestricted: false,
 	},
 	{
 		id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
@@ -70,6 +77,37 @@ const REFERENCES: readonly LembraReference[] = [
 		height: 12,
 		mine: false,
 		campaign: CAMPAIGNS[2],
+		campaignRestricted: false,
+	},
+	{
+		id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+		title: "Privada visível",
+		description: "Referência de uma campanha privada que este ator pode descobrir",
+		author: "Fixture",
+		authorAuthUserId: "fixture",
+		createdAt: "2026-09-30T09:00:00.000Z",
+		updatedAt: "2026-09-30T09:00:00.000Z",
+		imageUrl: IMAGE,
+		width: 16,
+		height: 12,
+		mine: false,
+		campaign: CAMPAIGNS[3],
+		campaignRestricted: false,
+	},
+	{
+		id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+		title: "Vínculo protegido",
+		description: "Referência global cujo vínculo de campanha não é descobrível por este ator",
+		author: "Fixture",
+		authorAuthUserId: "fixture",
+		createdAt: "2026-09-30T08:00:00.000Z",
+		updatedAt: "2026-09-30T08:00:00.000Z",
+		imageUrl: IMAGE,
+		width: 16,
+		height: 12,
+		mine: false,
+		campaign: null,
+		campaignRestricted: true,
 	},
 ];
 
