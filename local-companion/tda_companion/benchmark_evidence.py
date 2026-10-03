@@ -228,7 +228,7 @@ def transcript_snapshot(data_root: Path, benchmark_id: str, profile_id: str) -> 
         "source_id": bundle["source_id"],
         "source_sha256": bundle["source_sha256"],
         "profile_id": profile_id,
-        "engine": document.engine.engine,
+        "engine": "whisper" if profile_id.startswith("whisper-") else "qwen3",
         "model": document.engine.model,
         "model_revision": document.engine.model_revision,
         "device": document.engine.device,
