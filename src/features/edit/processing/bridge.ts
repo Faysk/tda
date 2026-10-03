@@ -42,6 +42,8 @@ import {
 	serializedJsonBody,
 } from "./request-budget";
 import {
+	parseBenchmarkEvents,
+	parseBenchmarkMetrics,
 	parseBenchmarkQuality,
 	parseBenchmarkReference,
 	parseBenchmarkTranscript,
@@ -963,6 +965,28 @@ export class LocalBridge {
 			id,
 		);
 	}
+	async benchmarkDiagnostics(
+		benchmarkId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		signal: AbortSignal,
+	) {
+		const [metrics, events] = await Promise.all([
+			this.reviewJson(
+				`/benchmarks/${identifier(benchmarkId)}/profiles/${profileId}/metrics`,
+				signal,
+			),
+			this.reviewJson(
+				`/benchmarks/${identifier(benchmarkId)}/profiles/${profileId}/events`,
+				signal,
+			),
+		]);
+		const parsedMetrics = parseBenchmarkMetrics(metrics);
+		const parsedEvents = parseBenchmarkEvents(events);
+		if (parsedMetrics.profileId !== profileId || parsedEvents.profileId !== profileId)
+			throw new BridgeError("invalid_response");
+		return { profileId, metrics: parsedMetrics, events: parsedEvents.events };
+	}
+
 	async benchmarkTranscript(
 		benchmarkId: string,
 		profileId: CraigTranscriptionInput["profileId"],
