@@ -54,14 +54,10 @@
     const targetY = window.scrollY + rect.top + rect.height * progress - offset;
 
     const top = Math.max(0, Math.round(targetY));
-    const scroller = document.scrollingElement || document.documentElement;
-    if (scroller) {
-      // Keep the continuity jump deterministic. "auto" can still inherit
-      // CSS scroll-behavior:smooth and briefly expose the wrong chapter.
-      scroller.scrollTop = top;
-    } else {
-      window.scrollTo(0, top);
-    }
+    // "auto" can inherit CSS scroll-behavior:smooth. The mode transition
+    // already owns the visual animation, so continuity restoration must be
+    // immediate and land on the mapped chapter before focus is restored.
+    window.scrollTo({ top, behavior: "instant" });
 
     return target;
   }

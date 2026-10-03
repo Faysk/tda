@@ -51,9 +51,10 @@ async function scrollSectionToProgress(
 				rect.top +
 				rect.height * requestedProgress -
 				anchorOffset;
-			const scroller = document.scrollingElement || document.documentElement;
-			if (scroller) scroller.scrollTop = Math.max(0, targetY);
-			else window.scrollTo(0, Math.max(0, targetY));
+			window.scrollTo({
+				top: Math.max(0, targetY),
+				behavior: "instant",
+			});
 		},
 		{ anchorOffset: ANCHOR_OFFSET, requestedProgress: progress },
 	);
