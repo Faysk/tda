@@ -178,7 +178,11 @@ export function SessionCampaignMovePanel({
 	}
 
 	return (
-		<section className={styles.panel} aria-labelledby="session-move-title">
+		<section
+			className={styles.panel}
+			aria-labelledby="session-move-title"
+			data-testid="session-campaign-move-panel"
+		>
 			<div className={styles.heading}>
 				<div>
 					<p className={styles.eyebrow}>Campanha atual</p>
