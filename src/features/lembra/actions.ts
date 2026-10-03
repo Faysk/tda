@@ -2,12 +2,17 @@
 
 import { randomUUID } from "node:crypto";
 import { getLembraIdentity } from "./access";
+import { resolveDiscoverableLembraCampaign } from "./campaign-discovery";
+import { concealUndiscoverableLembraReclassification } from "./classification-mutation";
 import {
 	LEMBRA_UPLOAD_CHUNK_BYTES,
 	isLembraUuid,
+	type LembraCampaignClassification,
+	type LembraCampaignMutationIntent,
 	type LembraReference,
 	type LembraUploadIntent,
 	validLembraCampaignId,
+	validLembraCampaignMutationIntent,
 	validLembraDescription,
 	validLembraTitle,
 	validLembraUpdatedAt,
@@ -15,7 +20,6 @@ import {
 } from "./model";
 import {
 	insertLembraReference,
-	loadLembraCampaignClassification,
 	loadLembraReferenceRow,
 	presentLembraRow,
 	retireLembraReference,
@@ -82,7 +86,10 @@ async function resolveCampaignSelection(
 ) {
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
 	if (campaignId === null) return { ok: true as const, campaign: null };
-	const campaign = await loadLembraCampaignClassification(client, campaignId);
+	const campaign = await resolveDiscoverableLembraCampaign(
+		client,
+		campaignId,
+	);
 	if (!campaign) return { ok: false as const, reason: "invalid_payload" as const };
 	if (
 		campaign.lifecycle === "archived" &&
@@ -146,7 +153,10 @@ export async function finalizeLembraUploadAction(
 	const description = descriptionInput.trim();
 
 	try {
-		const campaignResult = await resolveCampaignSelection(client, campaignIdInput);
+		const campaignResult = await resolveCampaignSelection(
+			client,
+			campaignIdInput,
+		);
 		if (!campaignResult.ok) return campaignResult;
 
 		const upload = await finalizeLembraPendingUpload({
@@ -214,7 +224,7 @@ export async function updateLembraReferenceAction(
 	referenceId: string,
 	titleInput: string,
 	descriptionInput: string,
-	campaignIdInput: string | null,
+	classificationInput: LembraCampaignMutationIntent,
 	expectedUpdatedAt: string,
 ): Promise<LembraReferenceResult> {
 	if (
@@ -222,7 +232,7 @@ export async function updateLembraReferenceAction(
 		!isLembraUuid(referenceId) ||
 		!validLembraTitle(titleInput) ||
 		!validLembraDescription(descriptionInput) ||
-		!validLembraCampaignId(campaignIdInput) ||
+		!validLembraCampaignMutationIntent(classificationInput) ||
 		!validLembraUpdatedAt(expectedUpdatedAt)
 	) {
 		return {
@@ -245,24 +255,56 @@ export async function updateLembraReferenceAction(
 			return { ok: false, reason: "conflict" };
 		}
 
-		const campaignResult = await resolveCampaignSelection(client, campaignIdInput, {
-			allowArchivedCurrent: current.campaign_id,
-		});
-		if (!campaignResult.ok) return campaignResult;
+		const currentCampaign = current.campaign_id
+			? await resolveDiscoverableLembraCampaign(
+					client,
+					current.campaign_id,
+				)
+			: null;
+		let campaign: LembraCampaignClassification | null = null;
+		let effectiveClassification = classificationInput;
+
+		if (classificationInput.kind === "preserve") {
+			campaign = currentCampaign;
+		} else if (classificationInput.kind === "clear") {
+			effectiveClassification =
+				concealUndiscoverableLembraReclassification(
+					classificationInput,
+					current.campaign_id,
+					currentCampaign !== null,
+				);
+		} else {
+			const campaignResult = await resolveCampaignSelection(
+				client,
+				classificationInput.campaignId,
+				{ allowArchivedCurrent: current.campaign_id },
+			);
+			if (!campaignResult.ok) return campaignResult;
+
+			effectiveClassification =
+				concealUndiscoverableLembraReclassification(
+					classificationInput,
+					current.campaign_id,
+					currentCampaign !== null,
+				);
+			if (effectiveClassification.kind === "set") {
+				campaign = campaignResult.campaign;
+			}
+		}
 
 		const row = await updateLembraReferenceMetadata(
 			client,
 			referenceId,
 			titleInput.trim(),
 			descriptionInput.trim(),
-			campaignIdInput,
+			effectiveClassification,
 			expectedUpdatedAt,
 		);
 		if (!row) return { ok: false, reason: "conflict" };
 		const reference = presentLembraRow(
 			row,
 			access.identity.authUserId,
-			campaignResult.campaign,
+			campaign,
 		);
 		return reference
 			? { ok: true, reference }
