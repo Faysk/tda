@@ -145,7 +145,21 @@ def _complete_bundle(
     job_id: str = "benchmark-test",
     attempt: int = 1,
 ):
-    sample_sha = "c" * 64
+    sample_descriptor = {
+        "schema": "tda_benchmark_sample_v1",
+        "source_sha256": "a" * 64,
+        "start_seconds": 0.0,
+        "end_seconds": 300.0,
+        "tracks": [{"number": 1, "sha256": "b" * 64}],
+    }
+    sample_sha = hashlib.sha256(
+        json.dumps(
+            sample_descriptor,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
     benchmark_id = benchmark_id_for(job_id, attempt)
     for profile in PROFILES:
         doc = _document(profile, (texts or {}).get(profile, f"texto {profile}"))
@@ -230,6 +244,7 @@ def _complete_bundle(
         source_id="craig-" + "a" * 64,
         sample_identity_sha256=sample_sha,
         sample_seconds=300.0,
+        sample_descriptor=sample_descriptor,
         context="private context",
         glossary="Valyndra",
         execution_mode="prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2",
