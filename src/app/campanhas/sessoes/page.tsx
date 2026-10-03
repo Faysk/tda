@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { SessionList } from "@/components/session-list";
 import { buildPublicMetadata } from "@/config/public-metadata";
 import { readPublicCampaignDirectory } from "@/features/campaigns/server";
@@ -42,6 +43,14 @@ export default async function CampaignSessionsArchive() {
 		(Array.isArray(sessions)
 			? new Set(sessions.map((session) => session.campaignSlug)).size
 			: 0);
+	const latestSession = Array.isArray(sessions) ? sessions[0] : undefined;
+	const aggregateArtwork =
+		latestSession?.heroImage || latestSession?.coverImage || null;
+	const aggregateArtworkSource = latestSession?.heroImage
+		? "hero"
+		: latestSession?.coverImage
+			? "cover"
+			: "fallback";
 
 	return (
 		<div
@@ -54,7 +63,20 @@ export default async function CampaignSessionsArchive() {
 				className={`${styles.hero} ${styles.aggregateHero}`}
 				aria-labelledby="archive-title"
 				data-session-archive-hero
+				data-session-archive-artwork-source={aggregateArtworkSource}
 			>
+				{aggregateArtwork ? (
+					<div className={styles.backdrop} aria-hidden="true">
+						<Image
+							className={styles.backdropImage}
+							src={aggregateArtwork}
+							alt=""
+							fill
+							sizes="100vw"
+							priority
+						/>
+					</div>
+				) : null}
 				<div className={styles.backdropShade} aria-hidden="true" />
 				<div className={styles.heroInner}>
 					<header className={styles.heroCopy}>

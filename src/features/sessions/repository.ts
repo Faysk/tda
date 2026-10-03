@@ -121,9 +121,9 @@ class CampaignRegistrySchemaGapError extends Error {
 }
 
 function fixtureArchive(campaignSlug?: string) {
-	return layoutFixtureSessions.filter(
-		(session) => !campaignSlug || session.campaignSlug === campaignSlug,
-	);
+	return [...layoutFixtureSessions]
+		.filter((session) => !campaignSlug || session.campaignSlug === campaignSlug)
+		.sort(compareHomeSessions);
 }
 
 function firstPublishedSession(

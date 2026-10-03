@@ -154,10 +154,23 @@
 }
 
 .emptyState {
+	display: grid;
+	gap: 8px;
 	margin: 22px 0 0;
 	padding-block: 18px;
 	border-block: 1px solid var(--ds-border);
 	color: var(--ds-foreground-muted);
+	line-height: 1.5;
+}
+
+.emptyState strong {
+	color: var(--ds-foreground);
+}
+
+.emptyState a {
+	width: fit-content;
+	color: var(--ds-link);
+	font-weight: 700;
 }
 
 .accountLink {

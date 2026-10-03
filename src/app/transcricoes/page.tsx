@@ -7,11 +7,15 @@ import {
 	readAuthorizedCampaigns,
 	type AuthorizedCampaign,
 } from "@/features/campaigns/authorized";
-import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
+import {
+	authorizeCampaignCapability,
+	EDIT_CAPABILITIES,
+} from "@/features/edit/access/policy";
 import { TranscriptInventory } from "@/features/transcripts/statistics/inventory";
 import {
 	formatDuration,
 	formatWords,
+	transcriptCoverageState,
 } from "@/features/transcripts/statistics/model";
 import { getTranscriptStatistics } from "@/features/transcripts/statistics/server";
 import styles from "./page.module.css";
@@ -248,9 +252,13 @@ export default async function TranscriptsPage({
 	}
 
 	const { sessions, totals } = result.value;
-	const coverageIncomplete =
-		totals.wordCoverage < totals.sessions ||
-		totals.durationCoverage < totals.sessions;
+	const hasInventory = sessions.length > 0;
+	const coverageState = transcriptCoverageState(totals);
+	const canProcess = authorizeCampaignCapability(
+		access.context,
+		EDIT_CAPABILITIES.localProcess,
+		selected.technicalSlug,
+	).ok;
 
 	return (
 		<section
@@ -302,7 +310,11 @@ export default async function TranscriptsPage({
 			</dl>
 
 			<div className={styles.metricRow}>
-				{coverageIncomplete ? (
+				{coverageState === "empty" ? (
+					<p role="status" className={styles.coverageNotice}>
+						Sem sessões no inventário: ainda não há cobertura para avaliar.
+					</p>
+				) : coverageState === "incomplete" ? (
 					<p role="status" className={styles.coverageNotice}>
 						Cobertura incompleta: ausência de dados não significa zero.
 					</p>
@@ -319,12 +331,28 @@ export default async function TranscriptsPage({
 				</details>
 			</div>
 
-			{sessions.length ? (
+			{hasInventory ? (
 				<TranscriptInventory sessions={sessions} />
 			) : (
-				<p className={styles.emptyState}>
-					Nenhuma sessão disponível nesta campanha.
-				</p>
+				<div className={styles.emptyState} role="status">
+					<strong>Nenhuma transcrição nesta campanha ainda.</strong>
+					<span>
+						O inventário está vazio; isso não significa cobertura completa nem
+						ausência definitiva de sessões.
+					</span>
+					{canProcess ? (
+						<Link
+							href={`/edit/${encodeURIComponent(selected.technicalSlug)}/processamento`}
+						>
+							Abrir processamento
+						</Link>
+					) : (
+						<span>
+							Quando uma transcrição autorizada estiver disponível, ela aparecerá
+							aqui.
+						</span>
+					)}
+				</div>
 			)}
 
 			<p className={styles.accountLink}>
