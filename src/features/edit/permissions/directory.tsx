@@ -4,7 +4,9 @@ import { useMemo, useRef, useState } from "react";
 import { Button, Dialog, StatusPill } from "@/components/ui";
 import {
 	PERMISSION_LABELS,
+	type PermissionAssignment,
 	type PermissionPerson,
+	type PermissionRoleDefinition,
 	type PermissionsDirectory,
 } from "./model";
 import styles from "./permissions.module.css";
@@ -31,6 +33,36 @@ function directActiveRoleIds(person: PermissionPerson) {
 	return person.roles
 		.filter((role) => role.scopeType === "campaign" && role.active)
 		.map((role) => role.roleId);
+}
+
+const SYSTEM_ROLE_NAMES: Readonly<Record<string, string>> = {
+	"billing observer": "Observador de custos",
+	"campaign dm": "Mestre da campanha",
+	"campaign editor": "Editor da campanha",
+	"campaign player": "Jogador da campanha",
+	"platform owner": "Administrador da plataforma",
+};
+
+function humanRoleName(role: Pick<PermissionAssignment, "name" | "slug"> | Pick<PermissionRoleDefinition, "name" | "slug">) {
+	const key = role.name.trim().toLocaleLowerCase("en-US");
+	return SYSTEM_ROLE_NAMES[key] ?? role.name;
+}
+
+function humanRoleDescription(role: PermissionRoleDefinition) {
+	const labels = [...new Set(role.actions.map((action) => PERMISSION_LABELS[action] ?? action))];
+	if (!labels.length) return "Esta função não adiciona ações operacionais listadas.";
+	const visible = labels.slice(0, 4);
+	return `Permite: ${visible.join("; ")}${labels.length > visible.length ? `; e mais ${labels.length - visible.length}` : "."}`;
+}
+
+function visibleRoles(person: PermissionPerson) {
+	const roles = new Map<string, PermissionAssignment>();
+	for (const role of person.roles) {
+		if (!role.active) continue;
+		const key = `${role.scopeType}:${role.roleId}`;
+		if (!roles.has(key)) roles.set(key, role);
+	}
+	return [...roles.values()];
 }
 
 type PermissionChange =
@@ -255,15 +287,17 @@ export function PermissionsDirectoryView({
 				.filter((change) => change.operation === "grant")
 				.map(
 					(change) =>
-						directory.roles.find((role) => role.id === change.roleId)?.name ??
-						change.roleId,
+						((role) => role ? humanRoleName(role) : change.roleId)(
+							directory.roles.find((role) => role.id === change.roleId),
+						),
 				),
 			revokedRoleNames: changes
 				.filter((change) => change.operation === "revoke")
 				.map(
 					(change) =>
-						directory.roles.find((role) => role.id === change.roleId)?.name ??
-						change.roleId,
+						((role) => role ? humanRoleName(role) : change.roleId)(
+							directory.roles.find((role) => role.id === change.roleId),
+						),
 				),
 		};
 
@@ -364,7 +398,7 @@ export function PermissionsDirectoryView({
 						<option value="all">Todas</option>
 						{directory.roles.map((role) => (
 							<option value={role.id} key={role.id}>
-								{role.name}
+								{humanRoleName(role)}
 							</option>
 						))}
 					</select>
@@ -408,7 +442,7 @@ export function PermissionsDirectoryView({
 						</thead>
 						<tbody>
 							{people.map((person) => {
-								const activeRoles = person.roles.filter((role) => role.active);
+								const activeRoles = visibleRoles(person);
 								return (
 									<tr key={person.id}>
 										<td data-label="Pessoa">
@@ -425,14 +459,28 @@ export function PermissionsDirectoryView({
 											{activeRoles.length
 												? activeRoles.map((role) => (
 														<span className={styles.roleChip} key={role.id}>
-															{role.name}
-															{role.scopeType === "project" ? " · herdada" : ""}
+															{humanRoleName(role)}
+															{role.scopeType === "project" ? " · herdada do projeto" : " · campanha"}
 														</span>
 													))
 												: "Nenhuma"}
 										</td>
 										<td data-label="Acesso">
-											{accessSummary(person)}
+											<div className={styles.accessSummary}>
+												<span>{accessSummary(person)}</span>
+												{person.verifiedEditAccess.length > 2 ? (
+													<details>
+														<summary>Ver todos os acessos ({person.verifiedEditAccess.length})</summary>
+														<ul>
+															{person.verifiedEditAccess.map((capability) => (
+																<li key={capability.action}>
+																	{PERMISSION_LABELS[capability.action] ?? capability.action}
+																</li>
+															))}
+														</ul>
+													</details>
+												) : null}
+											</div>
 										</td>
 										<td data-label="Conta">
 											{person.authLinked ? "Vinculada" : "Sem vínculo"}
@@ -459,7 +507,7 @@ export function PermissionsDirectoryView({
 								<li key={event.id}>
 									<strong>{event.actorDisplayName}</strong>{" "}
 									{event.operation === "grant" ? "concedeu" : "revogou"}{" "}
-									<strong>{event.roleName}</strong> para/de{" "}
+									<strong>{SYSTEM_ROLE_NAMES[event.roleName.trim().toLocaleLowerCase("en-US")] ?? event.roleName}</strong> para/de{" "}
 									<strong>{event.targetDisplayName}</strong>
 									<time dateTime={event.createdAt}>
 										{dateLabel(event.createdAt)} UTC
@@ -479,11 +527,11 @@ export function PermissionsDirectoryView({
 				<div className={styles.roleGrid}>
 					{directory.roles.map((role) => (
 						<article key={role.id}>
-							<h3>{role.name}</h3>
-							<p>{role.description}</p>
+							<h3>{humanRoleName(role)}</h3>
+							<p>{humanRoleDescription(role)}</p>
 							<p className={styles.muted}>
 								{role.peopleCount} pessoa{role.peopleCount === 1 ? "" : "s"} ·{" "}
-								{role.isSystem ? "Sistema" : "Custom"}
+								{role.isSystem ? "Sistema" : "Personalizada"}
 							</p>
 							<ul>
 								{role.actions.map((action) => (
@@ -562,8 +610,8 @@ export function PermissionsDirectoryView({
 												}
 											/>
 											<span>
-												<strong>{role.name}</strong>
-												<small>{role.description}</small>
+												<strong>{humanRoleName(role)}</strong>
+												<small>{humanRoleDescription(role)}</small>
 												{disabled && role.delegationReason ? (
 													<small>{role.delegationReason}</small>
 												) : null}
@@ -576,7 +624,7 @@ export function PermissionsDirectoryView({
 								<div className={styles.inherited}>
 									<h4>Herdadas do projeto · somente leitura</h4>
 									{selectedInherited.map((role) => (
-										<p key={role.id}>{role.name}</p>
+										<p key={role.id}>{humanRoleName(role)}</p>
 									))}
 								</div>
 							) : null}
