@@ -41,6 +41,14 @@ Estado editorial definido para o momento:
 
 Não listado não significa privado: quem possui a URL pode acessá-la. Esta decisão não impõe autenticação nem `noindex`; políticas de mecanismos de busca e sitemap são escolhas separadas, não inferidas da ausência de um card em `/lore`. A política de indexação desejada para D, Seika, Yllith e futuras standalone externas está registrada separadamente na arquitetura de entrega.
 
+## Catálogo público e densidade
+
+O catálogo `/lore` é uma superfície de descoberta, não uma sequência de heroes individuais. Os cards mantêm arte, personagem/título, contexto editorial permitido, descrição curta e ação principal sempre visíveis, mas usam uma grade responsiva com densidade suficiente para o visitante perceber outras histórias cedo. A experiência cinematográfica continua dentro de cada lore.
+
+A composição deve continuar útil com 1, 4 ou muitas entradas: uma única história pode aproveitar mais largura sem voltar a ocupar quase toda a altura da viewport; com mais entradas a grade ganha colunas conforme houver espaço. Capa ausente usa fallback neutro do TDA em vez de quebrar o layout ou inventar artwork. Nomes e títulos longos podem quebrar linha sem criar overflow. Links ocupam todo o card, preservam foco visível e seguem alcançáveis por teclado.
+
+Agrupamento ou filtro por campanha só pode usar vínculos resolvidos para campaigns públicas. No estado atual, com apenas uma campaign pública representada, o catálogo deliberadamente não cria filtro ou agrupamento vazio; lores independentes ou ligadas a campaign privada continuam descobríveis sem badge público. Se um filtro de campanha passar a existir, a entrada na lore e o retorno devem preservar o contexto do catálogo; não se inventa vínculo ou query apenas para habilitar esse comportamento.
+
 ## Contratos compartilhados que permanecem
 
 - texto oficial e ordem narrativa aprovados, sem inventar fatos;
