@@ -234,7 +234,7 @@ test("aggregate and campaign-scoped session archives expose distinct product sco
 	);
 	await expect(page.locator("[data-session-archive-hero]")).toHaveAttribute(
 		"data-campaign-artwork-source",
-		"session-artwork",
+		"campaign-cover",
 	);
 	await expect(page.locator('[data-session-card]')).toHaveCount(3);
 	await expect(
