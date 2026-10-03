@@ -78,6 +78,7 @@ export function useWorldEditSession({
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [busyNotice, setBusyNotice] = useState<string | null>(null);
 	const [terminalAction, setTerminalAction] = useState<WorldTerminalAction | null>(null);
+	const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
 	const terminalActionRef = useRef<WorldTerminalAction | null>(null);
 	const layoutDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const graphDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -123,6 +124,7 @@ export function useWorldEditSession({
 		draftSafetyTimer.current = null;
 		setState("view");
 		setLeaseToken(null);
+		setDiscardConfirmationOpen(false);
 		window.sessionStorage.removeItem(leaseStorageKey);
 		setFeedback(worldEditFailureMessage(reason));
 	}, [leaseStorageKey]);
@@ -446,6 +448,7 @@ export function useWorldEditSession({
 		saveFailureRef.current = { layout: null, graph: null };
 		window.sessionStorage.removeItem(leaseStorageKey);
 		setLeaseToken(null);
+		setDiscardConfirmationOpen(false);
 		setLayoutDirty(false);
 		setGraphDirty(false);
 		graphDraftRef.current = null;
@@ -646,12 +649,22 @@ export function useWorldEditSession({
 		}
 	}
 
-	async function discard() {
+	function discard() {
 		if (!leaseToken || state !== "editing" || terminalActionRef.current !== null) return;
-		const confirmed = window.confirm(
-			"Descartar este rascunho? O Mundo publicado será mantido. Uma cópia de recuperação ficará registrada para auditoria, mas esta sessão será encerrada.",
-		);
-		if (!confirmed) return;
+		setDiscardConfirmationOpen(true);
+	}
+
+	function cancelDiscard() {
+		if (terminalActionRef.current !== null) return;
+		setDiscardConfirmationOpen(false);
+	}
+
+	async function confirmDiscard() {
+		if (!leaseToken || state !== "editing" || terminalActionRef.current !== null) {
+			setDiscardConfirmationOpen(false);
+			return;
+		}
+		setDiscardConfirmationOpen(false);
 		if (!beginTerminalAction("discard")) return;
 
 		try {
@@ -726,6 +739,7 @@ export function useWorldEditSession({
 		editing,
 		busy,
 		terminalAction,
+		discardConfirmationOpen,
 		hasChanges,
 		graphDraft,
 		feedback,
@@ -734,6 +748,8 @@ export function useWorldEditSession({
 		publish,
 		finish,
 		discard,
+		cancelDiscard,
+		confirmDiscard,
 		updateLayoutDraft,
 		updateGraphDraft,
 		reportFailure: (reason: string) => setFeedback(worldEditFailureMessage(reason)),
