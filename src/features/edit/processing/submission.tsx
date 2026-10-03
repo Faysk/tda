@@ -314,7 +314,12 @@ export function ProcessingSubmission({
 				}
 			} catch (cause) {
 				if (!stopped && !controller.signal.aborted) {
-					setCapabilityError(messageFor(cause instanceof BridgeError ? cause.code : "service_error"));
+					setRecoveryNotice(null);
+					setCapabilityError(
+						messageFor(
+							cause instanceof BridgeError ? cause.code : "service_error",
+						),
+					);
 				}
 			} finally {
 				reading = false;
