@@ -3,11 +3,17 @@
 import { randomUUID } from "node:crypto";
 import { getLembraIdentity } from "./access";
 import {
+	loadLembraCampaignContext,
+	resolveLembraCampaignSelection,
+} from "./campaign-directory";
+import {
 	LEMBRA_UPLOAD_CHUNK_BYTES,
 	isLembraUuid,
+	type LembraCampaignMutationIntent,
 	type LembraReference,
 	type LembraUploadIntent,
 	validLembraCampaignId,
+	validLembraCampaignMutationIntent,
 	validLembraDescription,
 	validLembraTitle,
 	validLembraUpdatedAt,
@@ -15,7 +21,6 @@ import {
 } from "./model";
 import {
 	insertLembraReference,
-	loadLembraCampaignClassification,
 	loadLembraReferenceRow,
 	presentLembraRow,
 	retireLembraReference,
@@ -74,15 +79,14 @@ function sameUpload(
 }
 
 async function resolveCampaignSelection(
-	client: ReturnType<typeof lembraDataClient>,
+	authUserId: string,
 	campaignId: string | null,
 	options: Readonly<{
 		allowArchivedCurrent?: string | null;
 	}> = {},
 ) {
-	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
 	if (campaignId === null) return { ok: true as const, campaign: null };
-	const campaign = await loadLembraCampaignClassification(client, campaignId);
+	const campaign = await resolveLembraCampaignSelection(authUserId, campaignId);
 	if (!campaign) return { ok: false as const, reason: "invalid_payload" as const };
 	if (
 		campaign.lifecycle === "archived" &&
@@ -91,6 +95,20 @@ async function resolveCampaignSelection(
 		return { ok: false as const, reason: "invalid_payload" as const };
 	}
 	return { ok: true as const, campaign };
+}
+
+export async function refreshLembraCampaignClassificationsAction() {
+	if (!lembraPersistenceEnabled()) {
+		return { ok: false as const, reason: "media_unavailable" as const };
+	}
+	const access = await getLembraIdentity();
+	if (!access.ok) return access;
+	try {
+		const context = await loadLembraCampaignContext(access.identity.authUserId);
+		return { ok: true as const, campaigns: context.campaigns };
+	} catch {
+		return { ok: false as const, reason: "dependency_unavailable" as const };
+	}
 }
 
 export async function requestLembraUploadAction(
@@ -146,7 +164,10 @@ export async function finalizeLembraUploadAction(
 	const description = descriptionInput.trim();
 
 	try {
-		const campaignResult = await resolveCampaignSelection(client, campaignIdInput);
+		const campaignResult = await resolveCampaignSelection(
+			access.identity.authUserId,
+			campaignIdInput,
+		);
 		if (!campaignResult.ok) return campaignResult;
 
 		const upload = await finalizeLembraPendingUpload({
@@ -214,7 +235,7 @@ export async function updateLembraReferenceAction(
 	referenceId: string,
 	titleInput: string,
 	descriptionInput: string,
-	campaignIdInput: string | null,
+	campaignIntentInput: LembraCampaignMutationIntent,
 	expectedUpdatedAt: string,
 ): Promise<LembraReferenceResult> {
 	if (
@@ -222,7 +243,7 @@ export async function updateLembraReferenceAction(
 		!isLembraUuid(referenceId) ||
 		!validLembraTitle(titleInput) ||
 		!validLembraDescription(descriptionInput) ||
-		!validLembraCampaignId(campaignIdInput) ||
+		!validLembraCampaignMutationIntent(campaignIntentInput) ||
 		!validLembraUpdatedAt(expectedUpdatedAt)
 	) {
 		return {
@@ -245,17 +266,35 @@ export async function updateLembraReferenceAction(
 			return { ok: false, reason: "conflict" };
 		}
 
-		const campaignResult = await resolveCampaignSelection(client, campaignIdInput, {
-			allowArchivedCurrent: current.campaign_id,
-		});
-		if (!campaignResult.ok) return campaignResult;
+		let campaignId = current.campaign_id;
+		let campaign = null;
+		if (campaignIntentInput.mode === "clear") {
+			campaignId = null;
+		} else if (campaignIntentInput.mode === "set") {
+			const campaignResult = await resolveCampaignSelection(
+				access.identity.authUserId,
+				campaignIntentInput.campaignId,
+				{ allowArchivedCurrent: current.campaign_id },
+			);
+			if (!campaignResult.ok) return campaignResult;
+			campaignId = campaignIntentInput.campaignId;
+			campaign = campaignResult.campaign;
+		} else if (campaignId) {
+			// Preserve hidden classifications without revealing their existence.
+			// When the actor may discover the current campaign, keep the friendly
+			// projection in the mutation response as well.
+			campaign = await resolveLembraCampaignSelection(
+				access.identity.authUserId,
+				campaignId,
+			);
+		}
 
 		const row = await updateLembraReferenceMetadata(
 			client,
 			referenceId,
 			titleInput.trim(),
 			descriptionInput.trim(),
-			campaignIdInput,
+			campaignId,
 			expectedUpdatedAt,
 		);
 		if (!row) return { ok: false, reason: "conflict" };
