@@ -19,6 +19,7 @@ from .craig_runtime import load_craig_package
 from .execution_device import reset_execution_device
 from .execution_lineage import capture_execution_lineage
 from .engine_metrics import fresh_calibration_sample
+from .benchmark_evidence import BenchmarkEvidenceError, write_profile_artifact
 from .transcript import TranscriptValidationError
 from .transcription_runs import (
     TranscriptionRunError,
@@ -163,6 +164,12 @@ def _run_craig(
             if benchmark_mode
             else None
         )
+        benchmark_id = str(command.payload.get("benchmark_id") or "") if benchmark_mode else ""
+        benchmark_sample_identity = (
+            str(command.payload.get("benchmark_sample_identity_sha256") or "")
+            if benchmark_mode
+            else ""
+        )
         staging_root = (data_root / "staging").resolve()
         package_root = (staging_root / source_id).resolve()
         if package_root.parent != staging_root:
@@ -271,6 +278,20 @@ def _run_craig(
                 raise TranscriptionRunError("BENCHMARK_FRESH_PROCESSING_METRICS_REQUIRED")
             benchmark_metrics = stats.processing_metrics
             lineage = capture_execution_lineage(document)
+            try:
+                profile_artifact = write_profile_artifact(
+                    data_root,
+                    document,
+                    benchmark_id=benchmark_id,
+                    job_id=command.job_id,
+                    attempt=command.attempt,
+                    profile_id=profile.id,
+                    sample_identity_sha256=benchmark_sample_identity,
+                    sample_seconds=float(benchmark_sample_seconds),
+                    execution_lineage=lineage,
+                )
+            except BenchmarkEvidenceError as exc:
+                raise TranscriptionRunError(str(exc)) from exc
             heartbeat_stop.set()
             heartbeat_thread.join(timeout=1.0)
             emitter.emit(
@@ -296,6 +317,10 @@ def _run_craig(
                     "track_count": stats.track_count,
                     "warning_count": len(document.warnings),
                     "execution_lineage": lineage,
+                    "benchmark_id": benchmark_id,
+                    "transcript_sha256": profile_artifact["transcript"]["sha256"],
+                    "transcript_size_bytes": profile_artifact["transcript"]["size_bytes"],
+                    "artifact_available": True,
                 },
             )
             return 0
