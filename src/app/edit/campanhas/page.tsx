@@ -136,7 +136,6 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 										required
 										maxLength={120}
 										autoComplete="off"
-										autoFocus
 									/>
 								</label>
 								<label>
