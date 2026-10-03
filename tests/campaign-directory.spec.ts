@@ -40,7 +40,7 @@ test("public campaign directory exposes only the synthetic public projection", a
 		"href",
 		"/campanhas/antes-que-seja-tarde",
 	);
-	const sessionShortcuts = page.getByRole("link", { name: "Sessões", exact: true });
+	const sessionShortcuts = cards.getByRole("link", { name: "Sessões", exact: true });
 	await expect(sessionShortcuts).toHaveCount(2);
 	await expect(sessionShortcuts.nth(0)).toHaveAttribute(
 		"href",
