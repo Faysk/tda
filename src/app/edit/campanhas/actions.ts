@@ -23,8 +23,8 @@ function redirectWithResult(
 	>,
 ): never {
 	if (result.ok) {
-		revalidatePath("/campanhas");
-		revalidatePath("/edit/campanhas");
+		// Campaign identity is also projected by the shared root navigation.
+		revalidatePath("/", "layout");
 		redirect(`/edit/campanhas?status=${status}`);
 	}
 	redirect(
@@ -45,8 +45,7 @@ export async function createCampaignAction(formData: FormData) {
 	if (result.ok) {
 		const returnTo = safeReturnPath(text(formData, "returnTo"));
 		if (returnTo === "/edit/processamento") {
-			revalidatePath("/campanhas");
-			revalidatePath("/edit/campanhas");
+			revalidatePath("/", "layout");
 			redirect(
 				`/edit/processamento?campanha=${encodeURIComponent(result.campaign.technicalSlug)}&campanhaCriada=1`,
 			);

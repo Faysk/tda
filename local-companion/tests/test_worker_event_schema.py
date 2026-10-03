@@ -139,6 +139,44 @@ def test_qwen_empty_window_signal_events_keep_only_bounded_numeric_evidence():
 
 
 
+
+def test_qwen_empty_window_recovery_events_preserve_safe_profile_metadata():
+    started = sanitize_worker_event(
+        {
+            "code": "QWEN_EMPTY_WINDOW_RECOVERY_STARTED",
+            "stage": "transcription",
+            "track": 2,
+            "total_tracks": 4,
+            "window": 217,
+            "profile": "qwen-quality",
+            "count": 2,
+            "start_seconds": 11664.0,
+            "end_seconds": 11724.0,
+            "text": "private transcript",
+        }
+    )
+    assert started.code == "QWEN_EMPTY_WINDOW_RECOVERY_STARTED"
+    assert started.data["profile"] == "qwen-quality"
+    assert started.data["count"] == 2
+    assert "text" not in started.data
+
+    recovered = sanitize_worker_event(
+        {
+            "code": "QWEN_EMPTY_WINDOW_RECOVERED",
+            "stage": "transcription",
+            "track": 2,
+            "total_tracks": 4,
+            "window": 217,
+            "profile": "qwen-quality",
+            "count": 2,
+            "start_seconds": 11664.0,
+            "end_seconds": 11724.0,
+        }
+    )
+    assert recovered.code == "QWEN_EMPTY_WINDOW_RECOVERED"
+    assert recovered.drift_reason is None
+
+
 def test_unknown_or_malformed_event_code_never_persists_raw_code_or_payload():
     for payload in (
         {"code": "PRIVATE_WORDS_FROM_TRANSCRIPT", "detail": "segredo"},
@@ -286,7 +324,47 @@ def test_all_current_literal_worker_event_codes_are_registered():
     assert literal_codes <= registered_worker_event_codes()
 
 
-def test_registered_recovery_events_cover_the_current_qwen_v4_path():
+
+
+def test_qwen_track_order_events_keep_only_safe_structural_metadata():
+    reordered = sanitize_worker_event(
+        {
+            "code": "QWEN_TRACK_SEGMENTS_REORDERED",
+            "stage": "alignment",
+            "track": 2,
+            "total_tracks": 4,
+            "count": 2,
+            "text": "private transcript",
+            "path": "C:/private/audio.flac",
+        }
+    )
+    assert reordered.code == "QWEN_TRACK_SEGMENTS_REORDERED"
+    assert reordered.level == "warning"
+    assert reordered.data == {
+        "stage": "alignment",
+        "track": 2,
+        "total_tracks": 4,
+        "count": 2,
+    }
+    assert reordered.drift_reason == "unexpected_or_invalid_field"
+
+    failed = sanitize_worker_event(
+        {
+            "code": "QWEN_TRACK_VALIDATION_FAILED",
+            "stage": "alignment",
+            "track": 2,
+            "total_tracks": 4,
+            "failure_class": "QWEN_TRACK_SEGMENTS_OUT_OF_ORDER",
+            "detail": "private transcript",
+        }
+    )
+    assert failed.code == "QWEN_TRACK_VALIDATION_FAILED"
+    assert failed.level == "error"
+    assert failed.data["failure_class"] == "QWEN_TRACK_SEGMENTS_OUT_OF_ORDER"
+    assert "detail" not in failed.data
+
+
+def test_registered_recovery_events_cover_the_current_qwen_v5_path():
     registered = registered_worker_event_codes()
     assert {
         "QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED",

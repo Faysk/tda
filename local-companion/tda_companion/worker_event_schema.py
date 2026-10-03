@@ -204,6 +204,22 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
     "TRACK_ENERGY_STARTED": _schema(
         *_TRACK, required=("stage", "track", "total_tracks", "speaker")
     ),
+    "QWEN_EMPTY_WINDOW_RECOVERY_STARTED": _schema(
+        "stage", "track", "total_tracks", "window", "profile", "count",
+        "start_seconds", "end_seconds",
+        required=("stage", "track", "total_tracks", "window", "profile", "count"),
+    ),
+    "QWEN_EMPTY_WINDOW_RECOVERY_FAILED": _schema(
+        "stage", "track", "total_tracks", "window", "profile", "count",
+        "attempt", "start_seconds", "end_seconds",
+        required=("stage", "track", "total_tracks", "window", "profile", "count"),
+        level="warning",
+    ),
+    "QWEN_EMPTY_WINDOW_RECOVERED": _schema(
+        "stage", "track", "total_tracks", "window", "profile", "count",
+        "start_seconds", "end_seconds",
+        required=("stage", "track", "total_tracks", "window", "profile", "count"),
+    ),
     "QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED": _schema(
         "stage", "track", "window", "failure_class", "context_seconds",
         required=("stage", "track", "window", "failure_class", "context_seconds"),
@@ -229,6 +245,16 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
     "QWEN_ALIGNMENT_TRAILING_OVERFLOW_IGNORED": _schema(
         "stage", "track", "window", "count",
         required=("stage", "track", "window", "count"),
+    ),
+    "QWEN_TRACK_SEGMENTS_REORDERED": _schema(
+        "stage", "track", "total_tracks", "count",
+        required=("stage", "track", "total_tracks", "count"),
+        level="warning",
+    ),
+    "QWEN_TRACK_VALIDATION_FAILED": _schema(
+        "stage", "track", "total_tracks", "failure_class",
+        required=("stage", "track", "total_tracks", "failure_class"),
+        level="error",
     ),
     "SOURCE_VALIDATED": _schema(
         "stage", "track_count", required=("stage", "track_count")

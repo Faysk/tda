@@ -90,10 +90,10 @@ try:
     started = True
 
     registry_migration = (
-        repo / "supabase/migrations/20261001204500_activate_first_class_campaign_registry.sql"
+        repo / "supabase/migrations/20261001204525_activate_first_class_campaign_registry.sql"
     )
     authorization_migration = (
-        repo / "supabase/migrations/20261001205000_harden_campaign_discovery_authorization.sql"
+        repo / "supabase/migrations/20261001204532_harden_campaign_discovery_authorization.sql"
     )
     paths = [
         repo / "supabase/tests/campaign_registry_fixture.sql",

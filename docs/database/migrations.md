@@ -1878,3 +1878,17 @@ A migration:
 
 A UI pública usa copy neutra quando a descrição editorial está ausente e deriva
 última memória/arte somente da projection pública de sessões.
+
+## 2026-10-03 — campaign registry recovery (#1325 / #1326)
+
+The remote SQL was inspected on `dmrqnbdvbkfqzctcerbx`. These applied migrations are now named by their actual remote versions (local SQL bytes preserved):
+
+- `20261001204525_activate_first_class_campaign_registry` (formerly `20261001204500`).
+- `20261001204532_harden_campaign_discovery_authorization` (formerly `20261001205000`).
+- `20261001215014_cleanup_legacy_campaign_public_description` (formerly `20261001211000`).
+
+The first two match the recorded remote statements after newline normalization. The cleanup statement matches after removing the two local explanatory comments. No remote history repair or SQL replay is needed. The reconciliation manifest pins the existing Git blobs.
+
+New additive migration `20261003011729_restore_campaign_registry_revision` repairs the real legacy schema, which lacks `campaigns.updated_at` although the management SELECT and compare-and-set updates require it. It backfills from `created_at`, makes the column non-null with a default, and advances it monotonically in a trigger on every update. No UUID, technical/public slug, visibility, membership, transcript or media changes.
+
+Consumers: campaign management, cover editor concurrency and navigation discovery. Recovery: retain the additive column/trigger while rolling back the application; never drop the token from a running consumer. Scratch validation starts without the column, replays the migration and proves successful/stale updates. Remote application and live verification remain separate release steps.

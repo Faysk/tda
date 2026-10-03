@@ -98,7 +98,7 @@ function Get-PythonCommand {
     foreach ($name in @("python.exe", "python", "py.exe", "py")) {
         $command = Get-Command $name -ErrorAction SilentlyContinue
         if ($null -ne $command) {
-            $prefix = if ($command.Name -like "py*") { @("-3") } else { @() }
+            $prefix = if ($command.Name -in @("py.exe", "py")) { @("-3") } else { @() }
             return [pscustomobject]@{
                 Path = $command.Source
                 Prefix = $prefix
@@ -256,7 +256,8 @@ try {
         "--candidate-manifest", $candidatePath,
         "--assets-root", $assetRoot,
         "--runtime-root", $runtime,
-        "--cache-root", (Join-Path $working "install-cache")
+        "--cache-root", (Join-Path $working "install-cache"),
+        "--expected-version", $CandidateVersion
     ) "WHISPER_1235_RUNTIME_INSTALL_FAILED"
 
     $worker = Join-Path (Join-Path (Join-Path $runtime "whisper") $CandidateVersion) "TDAWhisperWorker.exe"

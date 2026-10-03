@@ -419,6 +419,141 @@ def test_strict_qwen_rejects_empty_asr_when_window_has_signal(
     )
 
 
+
+def test_quality_empty_full_window_recovers_with_two_bounded_in_window_halves(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    calls = 0
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                assert len(audio) == 320
+                return "", "Portuguese"
+            assert len(audio) == 160
+            return ("primeira" if calls == 2 else "segunda"), "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, text: str, _language: str):
+            assert text == "primeira segunda"
+            return [
+                {"text": "primeira", "start_time": 10.0, "end_time": 11.0},
+                {"text": "segunda", "start_time": 40.0, "end_time": 41.0},
+            ]
+
+        def close(self):
+            pass
+
+    def quality_plan(_profile_id: str) -> QwenPlan:
+        return QwenPlan(
+            profile_id="qwen-quality",
+            device="cuda",
+            dtype="bfloat16",
+            compute_capability="8.9",
+        )
+
+    def quality_model_prepare(_models_root: Path, profile):
+        assert profile == get_profile("qwen-quality")
+        return Path("quality-model")
+
+    audio = [0.1, -0.1] * 160
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-quality",
+        checkpoints=False,
+        plan_resolver=quality_plan,
+        model_prepare=quality_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
+        ),
+        energy_reader=lambda *_args: -12.0,
+        report=reports.append,
+    )
+
+    assert calls == 3
+    assert [
+        word.text
+        for segment in document.tracks[0].segments
+        for word in segment.words
+    ] == ["primeira", "segunda"]
+    codes = [item.get("code") for item in reports]
+    assert codes.count("QWEN_WINDOW_EMPTY_ASR_REJECTED") == 1
+    assert codes.count("QWEN_EMPTY_WINDOW_RECOVERY_STARTED") == 1
+    assert codes.count("QWEN_EMPTY_WINDOW_RECOVERED") == 1
+    assert "QWEN_EMPTY_WINDOW_RECOVERY_FAILED" not in codes
+
+
+def test_quality_empty_full_window_recovery_remains_fail_closed_when_half_is_empty(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    calls = 0
+
+    class Asr:
+        def transcribe(self, _audio, *, prompt: str):
+            nonlocal calls
+            calls += 1
+            return "", "Portuguese"
+
+        def close(self):
+            pass
+
+    def quality_plan(_profile_id: str) -> QwenPlan:
+        return QwenPlan(
+            profile_id="qwen-quality",
+            device="cuda",
+            dtype="bfloat16",
+            compute_capability="8.9",
+        )
+
+    def quality_model_prepare(_models_root: Path, profile):
+        assert profile == get_profile("qwen-quality")
+        return Path("quality-model")
+
+    audio = [0.1, -0.1] * 160
+    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-quality",
+            checkpoints=False,
+            plan_resolver=quality_plan,
+            model_prepare=quality_model_prepare,
+            aligner_prepare=lambda _root: (_ for _ in ()).throw(
+                AssertionError("failed subwindow recovery must stop before alignment")
+            ),
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda *_args: (_ for _ in ()).throw(
+                AssertionError("failed subwindow recovery must stop before aligner creation")
+            ),
+            window_reader=lambda _path: iter(
+                [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
+            ),
+            report=reports.append,
+        )
+
+    assert calls == 2
+    codes = [item.get("code") for item in reports]
+    assert codes.count("QWEN_WINDOW_EMPTY_ASR_REJECTED") == 1
+    assert codes.count("QWEN_EMPTY_WINDOW_RECOVERY_STARTED") == 1
+    assert codes.count("QWEN_EMPTY_WINDOW_RECOVERY_FAILED") == 1
+    assert "QWEN_EMPTY_WINDOW_RECOVERED" not in codes
+
+
 def test_strict_qwen_mixed_tracks_keep_silent_timeline_and_voiced_identity(tmp_path: Path):
     package, root = _two_track_package(tmp_path)
     reports: list[dict] = []
@@ -1699,7 +1834,7 @@ def test_strict_qwen_replays_windows_in_lockstep_not_full_track_dict(
     # decodes each track only for ASR + alignment instead of a third energy pass.
     assert reads == 2
     assert align_calls == ["pass-2-one", "pass-2-two"]
-    assert "strict-overlap-v4" in document.engine.alignment
+    assert "strict-overlap-v5" in document.engine.alignment
     assert document.warnings == ()
 
 
@@ -1898,6 +2033,272 @@ def test_owned_overflow_retries_once_with_bounded_right_context_without_repeat_a
         for word in segment.words
     ]
     assert words == ["owned", "after"]
+
+
+
+
+def test_bounded_outside_window_alignment_retries_with_real_right_context(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    align_calls: list[str] = []
+    builder_calls: list[tuple[int, int]] = []
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            return f"text {audio}", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, audio, _text: str, _language: str):
+            align_calls.append(audio)
+            if audio == "w1":
+                return [
+                    {"text": "owned", "start_time": 10.0, "end_time": 11.0},
+                    {"text": "boundary", "start_time": 60.32, "end_time": 60.32},
+                ]
+            if audio == "w1+right":
+                return [
+                    {"text": "owned", "start_time": 10.0, "end_time": 11.0},
+                    {"text": "boundary", "start_time": 60.32, "end_time": 60.6},
+                ]
+            if audio == "w2":
+                return [{"text": "after", "start_time": 10.0, "end_time": 11.0}]
+            raise AssertionError(f"unexpected alignment audio: {audio}")
+
+        def close(self):
+            pass
+
+    def right_context(window: AudioWindow, next_window: AudioWindow):
+        builder_calls.append((window.index, next_window.index))
+        return AudioWindow(
+            index=window.index,
+            start=window.start,
+            end=window.end + QWEN_WINDOW_OVERLAP_SECONDS,
+            audio=_SignalAudio("w1+right"),
+        )
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=_two_windows,
+        energy_reader=lambda *_args: -12.0,
+        right_context_builder=right_context,
+        report=reports.append,
+    )
+
+    assert align_calls == ["w1", "w1+right", "w2"]
+    assert builder_calls == [(1, 2)]
+    codes = [item.get("code") for item in reports]
+    assert codes.count("QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED") == 1
+    assert codes.count("QWEN_ALIGNMENT_WINDOW_RECOVERED") == 1
+    assert "QWEN_ALIGNMENT_WINDOW_FAILED" not in codes
+    words = [
+        word.text
+        for track in document.tracks
+        for segment in track.segments
+        for word in segment.words
+    ]
+    assert words == ["owned", "after"]
+
+
+
+
+def test_right_context_recovery_reorders_adjacent_overlap_segments_by_time(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    align_calls: list[str] = []
+
+    def reader(_path: Path):
+        yield AudioWindow(index=1, start=0.0, end=60.0, audio=_SignalAudio("w1"))
+        yield AudioWindow(index=2, start=54.0, end=114.0, audio=_SignalAudio("w2"))
+        yield AudioWindow(index=3, start=108.0, end=154.0, audio=_SignalAudio("w3"))
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            return f"text {audio}", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, audio, _text: str, _language: str):
+            align_calls.append(audio)
+            if audio == "w1":
+                # Midpoint 56.95 belongs to window 1 (< 57.0), but this word
+                # starts slightly after the recovered word from window 2.
+                return [
+                    {"text": "left", "start_time": 56.9, "end_time": 57.0},
+                ]
+            if audio == "w2":
+                return [
+                    {"text": "trigger", "start_time": 60.32, "end_time": 60.32},
+                ]
+            if audio == "w2+right":
+                # Absolute span 56.8-57.6, midpoint 57.2 belongs to window 2.
+                # Appending by window index yields segment starts 56.9 then 56.8,
+                # which violates TranscriptTrack order unless canonicalized.
+                return [
+                    {"text": "recovered", "start_time": 2.8, "end_time": 3.6},
+                ]
+            if audio == "w3":
+                return [
+                    {"text": "after", "start_time": 4.0, "end_time": 5.0},
+                ]
+            raise AssertionError(f"unexpected alignment audio: {audio}")
+
+        def close(self):
+            pass
+
+    def right_context(window: AudioWindow, next_window: AudioWindow):
+        assert window.index == 2
+        assert next_window.index == 3
+        return AudioWindow(
+            index=window.index,
+            start=window.start,
+            end=window.end + QWEN_WINDOW_OVERLAP_SECONDS,
+            audio=_SignalAudio("w2+right"),
+        )
+
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=reader,
+        energy_reader=lambda *_args: -12.0,
+        right_context_builder=right_context,
+        report=reports.append,
+    )
+
+    assert align_calls == ["w1", "w2", "w2+right", "w3"]
+    starts = [
+        segment.start
+        for track in document.tracks
+        for segment in track.segments
+    ]
+    assert starts == sorted(starts)
+    assert [
+        word.text
+        for track in document.tracks
+        for segment in track.segments
+        for word in segment.words
+    ] == ["recovered", "left", "after"]
+
+    reordered = [
+        item
+        for item in reports
+        if item.get("code") == "QWEN_TRACK_SEGMENTS_REORDERED"
+    ]
+    assert reordered == [
+        {
+            "type": "event",
+            "code": "QWEN_TRACK_SEGMENTS_REORDERED",
+            "stage": "alignment",
+            "track": 1,
+            "total_tracks": 1,
+            "count": 2,
+        }
+    ]
+    assert not any(
+        item.get("code") == "QWEN_TRACK_VALIDATION_FAILED"
+        for item in reports
+    )
+
+
+def test_track_validation_failure_class_is_sanitized():
+    from tda_companion.transcript import TranscriptValidationError
+
+    assert (
+        asr_qwen_strict._track_validation_failure_class(
+            TranscriptValidationError("track.segments:OUT_OF_ORDER")
+        )
+        == "QWEN_TRACK_SEGMENTS_OUT_OF_ORDER"
+    )
+    assert (
+        asr_qwen_strict._track_validation_failure_class(
+            TranscriptValidationError("private-or-unknown-detail")
+        )
+        == "QWEN_TRACK_VALIDATION_FAILED"
+    )
+
+
+def test_far_outside_window_alignment_remains_terminal_without_context_retry(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    builder_called = False
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            return f"text {audio}", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, audio, _text: str, _language: str):
+            if audio == "w1":
+                return [
+                    {"text": "owned", "start_time": 10.0, "end_time": 11.0},
+                    {"text": "far", "start_time": 67.0, "end_time": 67.5},
+                ]
+            raise AssertionError("second window must not be reached")
+
+        def close(self):
+            pass
+
+    def forbidden_builder(*_args):
+        nonlocal builder_called
+        builder_called = True
+        raise AssertionError("far outside-window timestamps must not request context")
+
+    with pytest.raises(QwenRuntimeError, match="QWEN_ALIGNMENT_REQUIRED") as caught:
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=_aligner_prepare,
+            asr_session_factory=lambda _root, _plan: Asr(),
+            aligner_session_factory=lambda _root, _plan: Aligner(),
+            window_reader=_two_windows,
+            energy_reader=lambda *_args: -12.0,
+            right_context_builder=forbidden_builder,
+            report=reports.append,
+        )
+
+    assert builder_called is False
+    assert (
+        caught.value.alignment_failure_class
+        == "QWEN_ALIGNMENT_TIMESTAMP_OUTSIDE_WINDOW"
+    )
+    codes = [item.get("code") for item in reports]
+    assert "QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED" not in codes
+    assert codes.count("QWEN_ALIGNMENT_WINDOW_FAILED") == 1
 
 
 def test_owned_overflow_recovery_stays_fail_closed_when_extended_alignment_is_invalid(

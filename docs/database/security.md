@@ -540,3 +540,7 @@ Regras de segurança:
 - erros de RLS/grant/permissão, transporte ou banco não relacionados não são reclassificados como compatibilidade.
 
 Portanto, o fallback restaura disponibilidade da única campaign pública histórica conhecida sem transformar ausência do registry em bypass para campaigns `private` ou `archived`.
+
+## Campaign registry revision recovery — #1326
+
+`advance_campaign_registry_revision()` is a trigger-only SECURITY INVOKER function with fixed `pg_catalog, public` search path. PUBLIC/anon/authenticated direct execution is revoked. It advances only `campaigns.updated_at`; existing table grants, RLS and application capability checks remain authoritative. The migration does not grant campaign access or change discovery. The revision prevents stale management edits from overwriting a newer edit, including same-transaction writes and clients with a regressed clock.

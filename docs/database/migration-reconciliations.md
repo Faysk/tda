@@ -57,3 +57,7 @@ O gate falha fechado se encontrar uma entrada remota com timestamp igual ou post
 - não usar `--include-all` para contornar candidatos/histórico sem um runbook deliberado;
 - não usar `migration repair` no CD para mascarar ausência local de history legado ou drift TDA;
 - rollback de aplicação não edita migration history para fingir que uma DDL nunca existiu.
+
+## 2026-10-03 — registry migration provenance
+
+For #1325, read-only `schema_migrations.statements` inspection confirmed the mappings recorded in `supabase/migration-reconciliations.json`: registry 20261001204500 -> 20261001204525, authorization 20261001205000 -> 20261001204532, description cleanup 20261001211000 -> 20261001215014. All local Git blobs remain unchanged. The cleanup differs only by local explanatory comments; its single UPDATE is identical. The first two SQL bodies match after newline normalization. The release gate remains enabled. No remote history was rewritten.

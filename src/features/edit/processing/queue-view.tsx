@@ -19,6 +19,7 @@ import {
 	queueFilters,
 	queuePrimaryIdentity,
 	queueProfileLabel,
+	queueRetryAvailable,
 	queueSortOptions,
 	queueSupportingIdentity,
 	selectQueueJobs,
@@ -399,8 +400,7 @@ export function ProcessingQueueView({
 																: "Cancelar trabalho"}
 														</Button>
 													) : null}
-													{["failed", "interrupted"].includes(job.status) &&
-													job.error?.recoverable ? (
+													{queueRetryAvailable(job) ? (
 														<Button
 															size="sm"
 															disabled={pending === "retry"}

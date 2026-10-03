@@ -8,9 +8,9 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$CompanionRcTag = "companion-rc-v0.3.18-bb9b0a96fc30"
+$CompanionRcTag = "companion-rc-v0.3.18-450d3af5b571"
 $WhisperRuntimeRcTag = "companion-whisper-runtime-rc-v1.1.8-ce9fdda3c35e"
-$QwenRuntimeRcTag = "companion-qwen-runtime-rc-v1.0.13-bb9b0a96fc30"
+$QwenRuntimeRcTag = "companion-qwen-runtime-rc-v1.0.15-450d3af5b571"
 
 function Fail([string]$Code) {
     throw [InvalidOperationException]::new($Code)
@@ -25,6 +25,10 @@ function Write-Json([string]$Path, [object]$Value) {
 function Read-Json([string]$Path, [string]$Code) {
     try { return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 64 }
     catch { Fail $Code }
+}
+
+function Get-Sha256([string]$Path) {
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
 function Get-OptionalPropertyValue([object]$Object, [string]$Name) {
@@ -82,6 +86,23 @@ foreach ($name in @(
     $modelFingerprintsBefore[$name] = Get-DirectoryFingerprint $modelRoot
 }
 
+$CraigResolved = ""
+$CraigSha256 = ""
+if ($CraigZip) {
+    try {
+        $CraigResolved = (Resolve-Path -LiteralPath $CraigZip -ErrorAction Stop).Path
+    } catch {
+        Fail "CRAIG_ZIP_NOT_FOUND"
+    }
+    if ([IO.Path]::GetExtension($CraigResolved).ToLowerInvariant() -ne ".zip") {
+        Fail "CRAIG_ZIP_REQUIRED"
+    }
+    $CraigSha256 = Get-Sha256 $CraigResolved
+    $CraigZip = $CraigResolved
+}
+
+$phaseCount = $(if ($CraigZip) { 3 } else { 2 })
+
 $releaseWideScript = Join-Path $PSScriptRoot "run-final-current-source-acceptance.ps1"
 $qwenRecoveryScript = Join-Path $PSScriptRoot "run-qwen-recovery-physical-gate.ps1"
 $benchmarkScript = Join-Path $PSScriptRoot "run-processing-benchmark-physical-gate.ps1"
@@ -108,7 +129,7 @@ $failureCode = $null
 try {
     Write-Host "TDA PROCESSING FINAL ACCEPTANCE - ONE COMMAND" -ForegroundColor Cyan
 
-    Write-Host "Phase 1/2: installed + four-profile release acceptance..." -ForegroundColor Cyan
+    Write-Host ("Phase 1/{0}: installed + four-profile release acceptance..." -f $phaseCount) -ForegroundColor Cyan
     $phase = "release_wide_acceptance"
     $releaseArgs = @{
         CompanionRcTag = $CompanionRcTag
@@ -167,16 +188,21 @@ try {
     if (-not (Test-Path -LiteralPath $qwenInstalledRuntime -PathType Container)) { Fail "RELEASE_WIDE_QWEN_RUNTIME_MISSING" }
     $releaseSourceTree = [string]$companionPayload.source_tree_sha
 
-    Write-Host "Phase 2/2: exact-RC normal-Agent Qwen crash/retry recovery..." -ForegroundColor Cyan
+    Write-Host ("Phase 2/{0}: exact-RC normal-Agent Qwen crash/retry recovery..." -f $phaseCount) -ForegroundColor Cyan
     $phase = "qwen_recovery_acceptance"
     $recoveryArgs = @{
         CompanionExePath = $companionExe
         CompanionPayloadManifest = $companionPayloadPath
         QwenRuntimeCandidateManifest = $qwenCandidatePath
         QwenInstalledRuntimeRoot = $qwenInstalledRuntime
+        RequiredCompanionVersion = [string]$companionPayload.version
         RequiredQwenRuntimeVersion = [string]$qwenCandidate.version
         RequireGpuName = $RequireGpuName
         OutputRoot = $qwenRecoveryRoot
+    }
+    if ($CraigZip) {
+        $recoveryArgs.CraigZip = $CraigZip
+        $recoveryArgs.ExpectedCraigSha256 = $CraigSha256
     }
     & $qwenRecoveryScript @recoveryArgs
     if ($LASTEXITCODE -ne 0) { Fail "QWEN_RECOVERY_ACCEPTANCE_FAILED" }
@@ -211,7 +237,7 @@ try {
 
     $benchmarkReceipt = $null
     if ($CraigZip) {
-        Write-Host "Phase 3/3: exact-RC real Craig 5-minute four-profile benchmark..." -ForegroundColor Cyan
+        Write-Host ("Phase 3/{0}: exact-RC real Craig 5-minute four-profile benchmark..." -f $phaseCount) -ForegroundColor Cyan
         $phase = "real_benchmark_acceptance"
         $benchmarkRoot = Join-Path $root "real-benchmark"
         & $benchmarkScript -CraigZip $CraigZip -CompanionPayloadManifest $companionPayloadPath -WhisperRuntimeCandidateManifest $whisperCandidatePath -QwenRuntimeCandidateManifest $qwenCandidatePath -RequireGpuName $RequireGpuName -OutputRoot $benchmarkRoot
