@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { canonicalPublicUrl } from "@/config/site";
 import styles from "./session-share-actions.module.css";
@@ -35,6 +35,8 @@ export function SessionShareActions({ title, description }: Props) {
 	const [status, setStatus] = useState("");
 	const [manualCopyUrl, setManualCopyUrl] = useState<string | null>(null);
 	const manualInputRef = useRef<HTMLInputElement>(null);
+	const manualLabelId = useId();
+	const manualInputId = useId();
 
 	useEffect(() => {
 		if (!manualCopyUrl) return;
@@ -97,13 +99,13 @@ export function SessionShareActions({ title, description }: Props) {
 				{status}
 			</p>
 			{manualCopyUrl ? (
-				<div className={styles.manualCopy} role="group" aria-labelledby="session-copy-label">
-					<label id="session-copy-label" className={styles.manualLabel} htmlFor="session-copy-url">
+				<div className={styles.manualCopy} role="group" aria-labelledby={manualLabelId}>
+					<label id={manualLabelId} className={styles.manualLabel} htmlFor={manualInputId}>
 						Link público da sessão
 					</label>
 					<input
 						ref={manualInputRef}
-						id="session-copy-url"
+						id={manualInputId}
 						className={styles.manualInput}
 						readOnly
 						value={manualCopyUrl}
