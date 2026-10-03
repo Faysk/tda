@@ -74,6 +74,28 @@ beforeEach(() => {
 });
 
 describe("account campaign access discovery", () => {
+	it("resolves a campaign-A-only grant without inventing campaign B", async () => {
+		const result = await readAccountCampaignAccess(
+			context([grant(EDIT_CAPABILITIES.transcriptRead, "campaign-a")]),
+		);
+		expect(result).toMatchObject({
+			status: "ready",
+			campaigns: [{ technicalSlug: "campaign-a", name: "Campanha A" }],
+		});
+		expect(JSON.stringify(result)).not.toContain("campaign-b");
+	});
+
+	it("resolves a campaign-B-only grant without inheriting campaign A", async () => {
+		const result = await readAccountCampaignAccess(
+			context([grant(EDIT_CAPABILITIES.worldLayoutEdit, "campaign-b")]),
+		);
+		expect(result).toMatchObject({
+			status: "ready",
+			campaigns: [{ technicalSlug: "campaign-b", name: "Campanha B" }],
+		});
+		expect(JSON.stringify(result)).not.toContain("campaign-a");
+	});
+
 	it("resolves A-only and B-only grants into explicit human campaign contexts", async () => {
 		const result = await readAccountCampaignAccess(
 			context([
