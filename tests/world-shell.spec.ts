@@ -39,9 +39,10 @@ test("world surfaces share campaign-scoped desktop contextual navigation", async
 	await charactersLink.click();
 	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/personagens$/);
 	await expect(page.getByRole("heading", { level: 1, name: "Personagens" })).toBeVisible();
-	await expect(page.getByRole("link", { name: /Personagens/ }).first()).toHaveAttribute(
-		"aria-current",
-		"page",
+	const context = page.getByRole("navigation", { name: "Contexto de exploração" });
+	await expect(context.getByRole("link", { name: "Mundo" })).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/mundo",
 	);
 });
 
