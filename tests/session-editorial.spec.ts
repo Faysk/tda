@@ -362,6 +362,22 @@ test("session campaign move preflight keeps blockers actionable on keyboard and 
 	).toBeTruthy();
 });
 
+test("campaign move fails closed before the backend contract is available", async ({
+	page,
+}) => {
+	await page.goto("/e2e-fixtures/session-editorial?moveBackend=unavailable");
+
+	await expect(
+		page.getByText("Mover campanha está temporariamente indisponível neste ambiente.", {
+			exact: true,
+		}),
+	).toBeVisible();
+	await expect(page.getByLabel("Mover para outra campanha")).toHaveCount(0);
+	await expect(
+		page.getByRole("button", { name: "Pré-validar mudança" }),
+	).toHaveCount(0);
+});
+
 test("lost move response reuses operation id and recovers cache without hiding committed state", async ({
 	page,
 }) => {
@@ -452,10 +468,26 @@ test("desktop transcript owns its scroll while the editorial action bar remains 
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.goto("/e2e-fixtures/session-editorial");
 
-	const frame = page.getByTestId("session-editorial-workspace-frame");
-	await frame.evaluate((element) => {
-		(element as HTMLElement).style.height = "560px";
+	await page.getByTestId("session-editorial-failure-controls").evaluate((element) => {
+		(element as HTMLElement).style.display = "none";
 	});
+	const shell = page.getByTestId("session-editorial-route-shell");
+	const frame = page.getByTestId("session-editorial-workspace-frame");
+	const movePanel = page.getByTestId("session-campaign-move-panel");
+	const [shellBox, frameBox, moveBox] = await Promise.all([
+		shell.boundingBox(),
+		frame.boundingBox(),
+		movePanel.boundingBox(),
+	]);
+	expect(shellBox).not.toBeNull();
+	expect(frameBox).not.toBeNull();
+	expect(moveBox).not.toBeNull();
+	if (shellBox && frameBox && moveBox) {
+		expect(shellBox.height).toBeLessThanOrEqual(901);
+		expect(moveBox.height).toBeLessThan(220);
+		expect(frameBox.height).toBeGreaterThan(360);
+		expect(frameBox.y + 1).toBeGreaterThanOrEqual(moveBox.y + moveBox.height);
+	}
 	const transcript = page.getByRole("region", { name: "Transcrição da sessão" });
 	const editorial = page.getByRole("region", { name: "Edição editorial da sessão" });
 	await expect(transcript).toBeVisible();
@@ -536,12 +568,9 @@ test("session workbench floating-shell receipts cover desktop, mobile and zoom",
 		await page.getByTestId("session-editorial-failure-controls").evaluate((element) => {
 			(element as HTMLElement).style.display = "none";
 		});
+		const shell = page.getByTestId("session-editorial-route-shell");
 		const frame = page.getByTestId("session-editorial-workspace-frame");
-		if (receipt.viewport.width > 980) {
-			await frame.evaluate((element, height) => {
-				(element as HTMLElement).style.height = `${height}px`;
-			}, Math.max(420, receipt.viewport.height - 230));
-		}
+		const movePanel = page.getByTestId("session-campaign-move-panel");
 
 		const transcript = page.getByRole("region", { name: "Transcrição da sessão" });
 		const editorial = page.getByRole("region", { name: "Edição editorial da sessão" });
@@ -555,6 +584,20 @@ test("session workbench floating-shell receipts cover desktop, mobile and zoom",
 		).toBeTruthy();
 
 		if (receipt.viewport.width > 980) {
+			const [shellBox, frameBox, moveBox] = await Promise.all([
+				shell.boundingBox(),
+				frame.boundingBox(),
+				movePanel.boundingBox(),
+			]);
+			expect(shellBox).not.toBeNull();
+			expect(frameBox).not.toBeNull();
+			expect(moveBox).not.toBeNull();
+			if (shellBox && frameBox && moveBox) {
+				expect(shellBox.height).toBeLessThanOrEqual(receipt.viewport.height + 1);
+				expect(moveBox.height).toBeLessThan(220);
+				expect(frameBox.height).toBeGreaterThan(240);
+				expect(frameBox.y + 1).toBeGreaterThanOrEqual(moveBox.y + moveBox.height);
+			}
 			await expect(editorial).toBeVisible();
 			expect(
 				await transcript.evaluate(
