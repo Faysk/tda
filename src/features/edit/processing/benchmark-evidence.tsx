@@ -261,6 +261,7 @@ export function BenchmarkEvidenceLab({
 	const [metrics, setMetrics] = useState<ProfileMap<BenchmarkProfileMetrics>>({});
 	const [telemetry, setTelemetry] = useState<ProfileMap<BenchmarkProfileTelemetry>>({});
 	const [quality, setQuality] = useState<BenchmarkQualitySummary | null>(null);
+	const [qualityLoaded, setQualityLoaded] = useState(false);
 	const [reference, setReference] = useState<BenchmarkReference | null>(null);
 	const [draft, setDraft] = useState<BenchmarkReferenceTrack[]>([]);
 	const [referenceOpen, setReferenceOpen] = useState(false);
@@ -297,6 +298,33 @@ export function BenchmarkEvidenceLab({
 	}
 
 	useEffect(() => {
+		if (!benchmarkId || !evidenceReady) {
+			setQuality(null);
+			setQualityLoaded(true);
+			return;
+		}
+		const controller = new AbortController();
+		setQualityLoaded(false);
+		void bridge
+			.benchmarkQuality(benchmarkId, controller.signal)
+			.then((value) => {
+				if (!controller.signal.aborted) setQuality(value);
+			})
+			.catch((cause) => {
+				if (!controller.signal.aborted)
+					setError(
+						cause instanceof Error
+							? cause.message
+							: "Não foi possível verificar o status de qualidade deste benchmark.",
+					);
+			})
+			.finally(() => {
+				if (!controller.signal.aborted) setQualityLoaded(true);
+			});
+		return () => controller.abort();
+	}, [benchmarkId, evidenceReady, bridge]);
+
+useEffect(() => {
 		if (!open || !benchmarkId || !evidenceReady) return;
 		const controller = new AbortController();
 		setBusy(true);
@@ -307,14 +335,13 @@ export function BenchmarkEvidenceLab({
 					loadProfile(left, controller.signal),
 					loadProfile(right, controller.signal),
 				]);
-				const [referenceValue, qualityValue] = await Promise.all([
-					bridge.benchmarkReference(benchmarkId, controller.signal),
-					bridge.benchmarkQuality(benchmarkId, controller.signal),
-				]);
+				const qualityValue = await bridge.benchmarkQuality(
+					benchmarkId,
+					controller.signal,
+				);
 				if (controller.signal.aborted) return;
-				setReference(referenceValue);
 				setQuality(qualityValue);
-				if (referenceValue && draft.length === 0) setDraft(referenceValue.tracks.slice());
+				setQualityLoaded(true);
 			} catch (cause) {
 				if (!controller.signal.aborted)
 					setError(
@@ -363,6 +390,40 @@ export function BenchmarkEvidenceLab({
 			setReferenceOpen(true);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Não foi possível criar o rascunho da referência.");
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	async function openReferenceEditor() {
+		if (!benchmarkId) return;
+		if (reference) {
+			setDraft(reference.tracks.slice());
+			setSeedProfile(reference.seedProfileId);
+			setReferenceOpen(true);
+			return;
+		}
+		if (!quality?.reference) {
+			await seedReferenceFrom(left);
+			return;
+		}
+		const controller = new AbortController();
+		setBusy(true);
+		setError(null);
+		try {
+			const value = await bridge.benchmarkReference(benchmarkId, controller.signal);
+			if (!value)
+				throw new Error("A referência indicada pelo receipt não está disponível.");
+			setReference(value);
+			setDraft(value.tracks.slice());
+			setSeedProfile(value.seedProfileId);
+			setReferenceOpen(true);
+		} catch (cause) {
+			setError(
+				cause instanceof Error
+					? cause.message
+					: "Não foi possível abrir a referência humana.",
+			);
 		} finally {
 			setBusy(false);
 		}
@@ -454,13 +515,11 @@ export function BenchmarkEvidenceLab({
 					type="button"
 					variant="tertiary"
 					disabled={busy}
-					onClick={() =>
-						reference
-							? (setDraft(reference.tracks.slice()), setReferenceOpen(true))
-							: void seedReferenceFrom(left)
-					}
+					onClick={() => void openReferenceEditor()}
 				>
-					{reference ? `Editar referência · r${reference.revision}` : "Criar referência humana"}
+					{quality?.reference
+						? `Editar referência · r${quality.reference.revision}`
+						: "Criar referência humana"}
 				</Button>
 			</div>
 			<div className={styles.evidenceFacts}>
@@ -573,7 +632,9 @@ export function BenchmarkEvidenceLab({
 				</section>
 			) : null}
 
-			{quality?.qualityMeasured ? (
+			{!qualityLoaded ? (
+				<p className={styles.notice}>Verificando referência e métricas locais…</p>
+			) : quality?.qualityMeasured ? (
 				<section className={styles.quality} aria-label="Qualidade contra referência humana">
 					<header>
 						<strong>Qualidade medida · referência r{quality.reference?.revision}</strong>
