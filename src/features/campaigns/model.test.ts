@@ -4,6 +4,7 @@ import {
 	normalizeCampaignDescription,
 	normalizeCampaignName,
 	normalizeCampaignRouteKey,
+	suggestCampaignRouteKey,
 } from "./model";
 
 describe("campaign input contract", () => {
@@ -30,6 +31,15 @@ describe("campaign input contract", () => {
 		expect(normalizeCampaignRouteKey(" Cronicas-da-Mesa ")).toBeNull();
 		expect(normalizeCampaignRouteKey("crônicas-da-mesa")).toBeNull();
 		expect(normalizeCampaignRouteKey("dois--hifens")).toBeNull();
+	});
+
+	it("suggests stable lowercase route keys from human campaign names", () => {
+		expect(suggestCampaignRouteKey("Destino Sem Fim")).toBe("destino-sem-fim");
+		expect(suggestCampaignRouteKey("Passos Retomados")).toBe("passos-retomados");
+		expect(suggestCampaignRouteKey("Crônicas da Mesa")).toBe(
+			"cronicas-da-mesa",
+		);
+		expect(suggestCampaignRouteKey("🔥")).toBe("nova-campanha");
 	});
 
 	it("accepts only UUID identities for mutation targets", () => {
