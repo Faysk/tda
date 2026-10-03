@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { LocalBridge } from "./bridge";
+import { processingStageLabels } from "./engine-metrics";
 import {
 	compareRunPerformanceSemantics,
 	compareRunSegments,
@@ -704,6 +705,42 @@ export function BenchmarkEvidenceWorkspace({
 											</tbody>
 										</table>
 									</div>
+									<div className={styles.tableWrap}>
+										<table>
+											<thead>
+												<tr>
+													<th>Stage</th>
+													<th>{LABELS[leftProfile]}</th>
+													<th>{LABELS[rightProfile]}</th>
+												</tr>
+											</thead>
+											<tbody>
+												{Object.keys(processingStageLabels).map((stage) => (
+													<tr key={stage}>
+														<th>{processingStageLabels[stage] ?? stage}</th>
+														<td>
+															{formatSeconds(
+																left.stats.processingMetrics?.stageSeconds[
+																	stage as keyof typeof left.stats.processingMetrics.stageSeconds
+																] ?? null,
+															)}
+														</td>
+														<td>
+															{formatSeconds(
+																right.stats.processingMetrics?.stageSeconds[
+																	stage as keyof typeof right.stats.processingMetrics.stageSeconds
+																] ?? null,
+															)}
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</table>
+									</div>
+									<p className={styles.muted}>
+										VRAM pico/média: indisponível neste bundle quando a telemetria
+										não foi coletada pelo contrato local; nenhum valor é inferido.
+									</p>
 								</>
 							) : null}
 
@@ -716,8 +753,10 @@ export function BenchmarkEvidenceWorkspace({
 												<th>Modelo / revisão</th>
 												<th>Runtime</th>
 												<th>Compute</th>
+												<th>Alinhamento</th>
 												<th>GPU / dispositivo</th>
-												<th>Runtime SHA</th>
+												<th>Archive SHA-256</th>
+												<th>Worker SHA-256</th>
 											</tr>
 										</thead>
 										<tbody>
@@ -733,11 +772,15 @@ export function BenchmarkEvidenceWorkspace({
 														{snapshot.executionLineage?.runtimeVersion ?? ""}
 													</td>
 													<td>{snapshot.computeType ?? snapshot.device}</td>
+													<td>{snapshot.alignment}</td>
 													<td>
 														{snapshot.executionLineage?.gpu?.model ?? snapshot.device}
 													</td>
-													<td>
-														{snapshot.executionLineage?.runtimeArtifact?.archiveSha256?.slice(0, 12) ?? "—"}
+													<td className={styles.hash}>
+														{snapshot.executionLineage?.runtimeArtifact?.archiveSha256 ?? "—"}
+													</td>
+													<td className={styles.hash}>
+														{snapshot.executionLineage?.runtimeArtifact?.workerSha256 ?? "—"}
 													</td>
 												</tr>
 											))}
