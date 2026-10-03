@@ -1,8 +1,8 @@
-import Image from "next/image";
 import { OperationalPageHeader } from "@/components/operational-page-header";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ActionLink, Button } from "@/components/ui";
 import type { EditAccessContext } from "@/features/edit/access/policy";
+import { AccountIdentityAvatar } from "./account-identity-avatar";
 import type { AccountCampaignAccess } from "./account-campaign-access";
 import { AccountCampaignPicker } from "./account-campaign-picker";
 import styles from "./access.module.css";
@@ -51,17 +51,6 @@ const ACCOUNT_STATE_CONTENT = {
 			"Seu perfil TDA está vinculado. O acesso abaixo identifica a campanha consultada e de onde cada permissão vem.",
 	},
 } as const;
-
-function accountInitials(displayName: string | null) {
-	const initials = (displayName ?? "")
-		.trim()
-		.split(/\s+/u)
-		.filter(Boolean)
-		.slice(0, 2)
-		.map((part) => part.at(0)?.toUpperCase() ?? "")
-		.join("");
-	return initials || "TDA";
-}
 
 function campaignScopeSummary(
 	projectCapabilityCount: number,
@@ -135,13 +124,7 @@ export function AccountOverview({
 			) : null}
 
 			<header className={styles.accountIdentityHeader}>
-				<span className={styles.accountIdentityAvatar} aria-hidden="true">
-					{avatarUrl ? (
-						<Image src={avatarUrl} alt="" width={64} height={64} sizes="64px" />
-					) : (
-						<span>{accountInitials(displayName)}</span>
-					)}
-				</span>
+				<AccountIdentityAvatar avatarUrl={avatarUrl} displayName={displayName} />
 				<div className={styles.accountIdentityCopy}>
 					<strong>
 						{displayName ?? (authenticated ? "Conta do Discord" : "Visitante")}

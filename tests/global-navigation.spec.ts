@@ -1172,6 +1172,180 @@ test("desktop and mobile unified navigation receipts are captured from synthetic
 	}
 });
 
+test("broken global avatar keeps a stable accessible trigger across navigation, reload and viewport matrix", async ({ page }) => {
+	const identity = {
+		displayName:
+			"Pessoa Sintética Com Nome Deliberadamente Muito Longo Para Reflow do Avatar",
+		avatarUrl: "/e2e-fixtures/avatar-missing.png",
+	};
+
+	await mockAccess(page, { identity });
+
+	for (const viewport of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+		{ width: 683, height: 384 },
+		{ width: 1366, height: 768 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/");
+
+		const trigger = page.getByRole("button", { name: "Abrir menu global" });
+		await expect(page.locator(".account-avatar-initials")).toHaveText("PA");
+		await expect(page.locator(".account-avatar-image")).toHaveCount(0);
+		const before = await trigger.boundingBox();
+		expect(before).not.toBeNull();
+		if (before) {
+			expect(before.width).toBeGreaterThanOrEqual(44);
+			expect(before.height).toBeGreaterThanOrEqual(44);
+		}
+
+		await trigger.focus();
+		await expect(trigger).toBeFocused();
+		await trigger.press("Enter");
+		await expect(trigger).toHaveAttribute("aria-expanded", "true");
+		const panel = page.getByRole("region", {
+			name: "Navegação, conta e aparência",
+		});
+		await expect(panel).toBeVisible();
+		await expect(panel.getByText(identity.displayName, { exact: true })).toBeVisible();
+		await panel.getByRole("link", { name: "Campanhas", exact: true }).click();
+		await expect(page).toHaveURL(/\/campanhas$/);
+		await expect(trigger).toHaveAttribute("aria-expanded", "false");
+		await expect(page.locator(".account-avatar-initials")).toHaveText("PA");
+
+		const afterNavigation = await trigger.boundingBox();
+		expect(afterNavigation).not.toBeNull();
+		if (before && afterNavigation) {
+			expect(Math.abs(afterNavigation.width - before.width)).toBeLessThanOrEqual(1);
+			expect(Math.abs(afterNavigation.height - before.height)).toBeLessThanOrEqual(1);
+		}
+
+		await page.reload();
+		await expect(page.locator(".account-avatar-initials")).toHaveText("PA");
+		await expect(page.locator(".account-avatar-image")).toHaveCount(0);
+		const afterReload = await trigger.boundingBox();
+		expect(afterReload).not.toBeNull();
+		if (before && afterReload) {
+			expect(Math.abs(afterReload.width - before.width)).toBeLessThanOrEqual(1);
+			expect(Math.abs(afterReload.height - before.height)).toBeLessThanOrEqual(1);
+		}
+		await expectNoHorizontalOverflow(page);
+	}
+});
+
+test("broken avatar trigger remains operable through a touch interaction", async ({ browser }, testInfo) => {
+	const baseURL = testInfo.project.use.baseURL;
+	expect(typeof baseURL).toBe("string");
+	if (typeof baseURL !== "string") return;
+
+	const context = await browser.newContext({
+		baseURL,
+		hasTouch: true,
+		viewport: { width: 390, height: 844 },
+	});
+	const page = await context.newPage();
+	try {
+		await mockAccess(page, {
+			identity: {
+				displayName: "Pessoa Sintética",
+				avatarUrl: "/e2e-fixtures/avatar-missing.png",
+			},
+		});
+		await page.goto("/");
+		const trigger = page.getByRole("button", { name: "Abrir menu global" });
+		await expect(page.locator(".account-avatar-initials")).toHaveText("PS");
+		await trigger.tap();
+		await expect(trigger).toHaveAttribute("aria-expanded", "true");
+		await expect(
+			page.getByRole("region", { name: "Navegação, conta e aparência" }),
+		).toBeVisible();
+	} finally {
+		await context.close();
+	}
+});
+
+test("account identity avatar handles valid, missing and failed sources without layout shift", async ({ page }) => {
+	await page.route("**/_next/image**", async (route) => {
+		const requestUrl = new URL(route.request().url());
+		if (requestUrl.searchParams.get("url") === "/e2e-fixtures/avatar-valid.png") {
+			await route.fulfill({
+				status: 200,
+				contentType: "image/svg+xml",
+				body: '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" fill="#777"/></svg>',
+			});
+			return;
+		}
+		await route.continue();
+	});
+
+	for (const viewport of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+		{ width: 683, height: 384 },
+		{ width: 1366, height: 768 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/e2e-fixtures/account-overview?avatar=broken&name=long");
+		const avatar = page.locator("[data-account-avatar-state]");
+		await expect(avatar).toHaveAttribute(
+			"data-account-avatar-state",
+			"fallback-error",
+		);
+		await expect(
+			avatar.locator('[data-account-avatar-fallback="true"]'),
+		).toHaveText("PA");
+		const failedBox = await avatar.boundingBox();
+		expect(failedBox).not.toBeNull();
+		const expectedSize = viewport.width <= 420 ? 56 : 64;
+		if (failedBox) {
+			expect(Math.abs(failedBox.width - expectedSize)).toBeLessThanOrEqual(1);
+			expect(Math.abs(failedBox.height - expectedSize)).toBeLessThanOrEqual(1);
+		}
+		await expectNoHorizontalOverflow(page);
+
+		await page.reload();
+		await expect(avatar).toHaveAttribute(
+			"data-account-avatar-state",
+			"fallback-error",
+		);
+		const reloadBox = await avatar.boundingBox();
+		expect(reloadBox).not.toBeNull();
+		if (failedBox && reloadBox) {
+			expect(Math.abs(reloadBox.width - failedBox.width)).toBeLessThanOrEqual(1);
+			expect(Math.abs(reloadBox.height - failedBox.height)).toBeLessThanOrEqual(1);
+		}
+	}
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/e2e-fixtures/account-overview");
+	const missingAvatar = page.locator("[data-account-avatar-state]");
+	await expect(missingAvatar).toHaveAttribute(
+		"data-account-avatar-state",
+		"fallback-missing",
+	);
+	await expect(
+		missingAvatar.locator('[data-account-avatar-fallback="true"]'),
+	).toHaveText("PS");
+
+	await page.goto("/e2e-fixtures/account-overview?avatar=valid");
+	const validAvatar = page.locator("[data-account-avatar-state]");
+	await expect(validAvatar).toHaveAttribute("data-account-avatar-state", "image");
+	const image = validAvatar.locator("img");
+	await expect(image).toBeVisible();
+	await expect(image).toHaveAttribute(
+		"sizes",
+		"(max-width: 420px) 56px, 64px",
+	);
+	expect(await image.getAttribute("srcset")).toBeTruthy();
+	expect(
+		await image.evaluate((element) => getComputedStyle(element).objectFit),
+	).toBe("cover");
+	expect(
+		await validAvatar.evaluate((element) => getComputedStyle(element).overflow),
+	).toBe("hidden");
+});
+
 test("account overview keeps synthetic identity and access usable across the layout matrix", async ({
 	page,
 	context,
