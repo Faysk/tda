@@ -1,7 +1,6 @@
 import { createElement, Fragment } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Button } from "./button";
 import { Dialog } from "./dialog";
 
 describe("Dialog", () => {
@@ -9,8 +8,12 @@ describe("Dialog", () => {
 		const actions = createElement(
 			Fragment,
 			null,
-			createElement(Button, { "data-dialog-initial-focus": true }, "Cancelar"),
-			createElement(Button, { variant: "tertiary" }, "Descartar rascunho"),
+			createElement(
+				"button",
+				{ type: "button", "data-dialog-initial-focus": "true" },
+				"Cancelar",
+			),
+			createElement("button", { type: "button" }, "Descartar rascunho"),
 		);
 		const html = renderToStaticMarkup(
 			createElement(
