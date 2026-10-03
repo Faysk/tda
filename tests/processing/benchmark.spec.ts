@@ -654,8 +654,26 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	await expect(panel.getByText("Qualidade não medida.")).toBeVisible();
 	await expect(panel.getByText(/Nenhum vencedor automático/u)).toBeVisible();
 
+	await panel.getByLabel("com").selectOption("qwen-fast");
 	await panel.getByRole("button", { name: "Comparar por track e tempo" }).click();
-	await expect(panel.getByText(/regiões · .* diferentes/u)).toBeVisible();
+	await expect(panel.getByText(/regiões · 2 diferentes/u)).toBeVisible();
+	await expect(panel.getByText("1 / 2")).toBeVisible();
+	await panel.getByRole("button", { name: "Próxima" }).click();
+	await expect(panel.getByText("2 / 2")).toBeVisible();
+	await panel.getByLabel("Track").last().selectOption("1");
+	await expect(panel.getByText("1 / 1")).toBeVisible();
+	await panel.getByLabel("Início da comparação em segundos").fill("9");
+	await panel.getByLabel("Fim da comparação em segundos").fill("13");
+	await expect(panel.getByText(/Track 1 · 10\.00–12\.00s/u)).toBeVisible();
+
+	for (const name of ["JSON", "TXT", "WebVTT", "SRT", "Exportar ZIP privado"]) {
+		const downloadPromise = page.waitForEvent("download");
+		await panel.getByRole("button", { name }).click();
+		const download = await downloadPromise;
+		await expect.poll(() => download.suggestedFilename().length).toBeGreaterThan(0);
+	}
+	await expect(panel.getByText(/conteúdo privado local/u)).toBeVisible();
+
 	await panel.getByRole("button", { name: "Carregar diagnóstico persistido" }).click();
 	await expect(panel.getByText(/2 eventos sanitizados/u)).toBeVisible();
 	await expect(panel.getByText(/BENCHMARK_PROFILE_COMPLETED/u)).toBeVisible();
