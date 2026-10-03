@@ -134,6 +134,28 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _document_payload(document: TranscriptDocument) -> bytes:
+    document.validate()
+    return json.dumps(
+        document.as_dict(),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _validate_transcript_paths(document: TranscriptDocument) -> None:
+    for track in document.tracks:
+        source_filename = track.source_filename
+        if (
+            Path(source_filename).is_absolute()
+            or "/" in source_filename
+            or "\\" in source_filename
+            or "\x00" in source_filename
+        ):
+            raise BenchmarkBundleError("BENCHMARK_TRANSCRIPT_PATH_INVALID")
+
+
 def _atomic_json(path: Path, value: dict[str, Any]) -> None:
     payload = json.dumps(
         value,
@@ -340,6 +362,9 @@ def _profile_manifest_metadata(
         or manifest.get("sample_seconds") != BENCHMARK_SAMPLE_SECONDS
     ):
         raise BenchmarkBundleError("BENCHMARK_PROFILE_MANIFEST_INVALID")
+    source_id = manifest.get("source_id")
+    if not isinstance(source_id, str) or _SOURCE_ID.fullmatch(source_id) is None:
+        raise BenchmarkBundleError("BENCHMARK_PROFILE_MANIFEST_INVALID")
     _sha256_value(manifest.get("source_sha256"), "BENCHMARK_PROFILE_MANIFEST_INVALID")
     _sha256_value(
         manifest.get("sample_identity_sha256"),
@@ -387,6 +412,8 @@ def write_benchmark_profile(
     execution_lineage: dict[str, Any],
 ) -> dict[str, Any]:
     document.validate()
+    _validate_transcript_paths(document)
+    document_payload = _document_payload(document)
     benchmark_id = benchmark_id_for(job_id, attempt)
     profile_id = document.engine.profile
     if profile_id not in BENCHMARK_PROFILES:
@@ -426,6 +453,7 @@ def write_benchmark_profile(
         if (
             len(transcript_payload) != current["transcript_size_bytes"]
             or hashlib.sha256(transcript_payload).hexdigest() != current["transcript_sha256"]
+            or hashlib.sha256(document_payload).hexdigest() != current["transcript_sha256"]
         ):
             raise BenchmarkBundleError("BENCHMARK_PROFILE_TRANSCRIPT_MISMATCH")
         try:
@@ -452,9 +480,9 @@ def write_benchmark_profile(
     destination.mkdir(parents=False, exist_ok=False)
     try:
         transcript_path = destination / "transcript.json"
-        document.write_atomic(transcript_path)
-        transcript_sha256 = _sha256_file(transcript_path)
-        transcript_size_bytes = transcript_path.stat().st_size
+        atomic_write(transcript_path, document_payload)
+        transcript_sha256 = hashlib.sha256(document_payload).hexdigest()
+        transcript_size_bytes = len(document_payload)
         manifest = {
             "schema_version": PROFILE_ARTIFACT_SCHEMA_VERSION,
             "benchmark_id": benchmark_id,
