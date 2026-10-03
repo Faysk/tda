@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from tda_companion.benchmark_bundles import benchmark_id_for
 from tda_companion.store import Store
 from tda_companion.worker_protocol import WorkerProtocolError, WorkerRunCommand
 from tda_companion.worker_supervisor import WorkerOutcome, WorkerProcessError, WorkerSupervisor
@@ -75,6 +76,11 @@ def _profile_receipt(profile_id: str) -> dict:
     return {
         "kind": "benchmark.profile",
         "schema_version": "tda_benchmark_profile_v1",
+        "benchmark_id": benchmark_id_for("benchmark-job", 1),
+        "sample_identity_sha256": "b" * 64,
+        "transcript_sha256": "c" * 64,
+        "transcript_size_bytes": 4096,
+        "artifact_available": True,
         "profile_id": profile_id,
         "engine": engine,
         "model": "model",
