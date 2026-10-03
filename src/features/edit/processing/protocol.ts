@@ -383,6 +383,8 @@ export type BenchmarkResult = {
 	sampleIdentitySha256: string;
 	sampleSeconds: number;
 	executionMode: "prepared_artifacts_fresh_worker_per_profile_v1";
+	benchmarkId: string | null;
+	evidenceSchemaVersion: "tda_benchmark_bundle_v1" | null;
 	trackCount: number;
 	audioWorkSeconds: number;
 	prepared: boolean;
@@ -2139,6 +2141,17 @@ export function parseBenchmarkResult(
 	];
 	if (parsed.some((item, index) => item.profileId !== expected[index]))
 		return invalid();
+	const benchmarkId =
+		row.benchmark_id === null || row.benchmark_id === undefined
+			? null
+			: identifier(row.benchmark_id);
+	const evidenceSchemaVersion =
+		row.evidence_schema_version === null || row.evidence_schema_version === undefined
+			? null
+			: row.evidence_schema_version === "tda_benchmark_bundle_v1"
+				? "tda_benchmark_bundle_v1" as const
+				: invalid();
+	if ((benchmarkId === null) !== (evidenceSchemaVersion === null)) return invalid();
 	return {
 		schemaVersion: "tda_processing_benchmark_v1",
 		jobId,
@@ -2151,6 +2164,8 @@ export function parseBenchmarkResult(
 			row.execution_mode === "prepared_artifacts_fresh_worker_per_profile_v1"
 				? row.execution_mode
 				: invalid(),
+		benchmarkId,
+		evidenceSchemaVersion,
 		trackCount: nonNegativeInteger(row.track_count),
 		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
 		prepared: boolean(row.prepared),
