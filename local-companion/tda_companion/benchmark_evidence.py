@@ -481,6 +481,12 @@ def commit_bundle(
             profile_id,
             verify_artifacts=True,
         )
+        if (
+            manifest.get("job_id") != job_id
+            or manifest.get("attempt") != attempt
+            or manifest.get("sample_identity_sha256") != sample_identity_sha256
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_BINDING_MISMATCH")
         profile_raw = (root / "profiles" / profile_id / "profile.json").read_bytes()
         profile_entries.append(
             {
