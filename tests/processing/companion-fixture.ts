@@ -937,7 +937,7 @@ export async function installCompanionFixture(
 			path === "/benchmarks/benchmark-benchmark-job-1-a1"
 		) {
 			return json(route, {
-				schema_version: "tda_benchmark_artifacts_v1",
+				schema_version: "tda_benchmark_bundle_v1",
 				benchmark_id: "benchmark-benchmark-job-1-a1",
 				sample_identity_sha256: "b".repeat(64),
 				source_id: CRAIG_SOURCE_ID,
@@ -1166,6 +1166,15 @@ export async function installCompanionFixture(
 						driver_version: "synthetic",
 					},
 				},
+				...(options.benchmarkEvidence
+					? {
+							benchmark_id: "benchmark-benchmark-job-1-a1",
+							sample_identity_sha256: "b".repeat(64),
+							transcript_sha256: "f".repeat(64),
+							transcript_size_bytes: 2048,
+							artifact_available: true,
+						}
+					: {}),
 			});
 			return json(route, {
 				schema_version: "tda_processing_benchmark_v1",
@@ -1182,14 +1191,9 @@ export async function installCompanionFixture(
 				prepared: true,
 				...(options.benchmarkEvidence
 					? {
-							artifact_bundle: {
-								schema_version: "tda_benchmark_artifacts_v1",
-								benchmark_id: "benchmark-benchmark-job-1-a1",
-								manifest_sha256: "e".repeat(64),
-								manifest_size_bytes: 4096,
-								bundle_size_bytes: 65536,
-								profile_count: 4,
-							},
+							benchmark_id: "benchmark-benchmark-job-1-a1",
+							bundle_manifest_sha256: "e".repeat(64),
+							bundle_size_bytes: 65536,
 						}
 					: {}),
 				profiles: [

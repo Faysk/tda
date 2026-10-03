@@ -50,7 +50,7 @@ function lineage(profileId: TranscriptionProfileId) {
 	};
 }
 
-function profileReceipt(profileId: TranscriptionProfileId) {
+function profileReceipt(profileId: TranscriptionProfileId, withEvidence = false) {
 	const whisper = profileId.startsWith("whisper-");
 	return {
 		schema_version: "tda_benchmark_profile_v1",
@@ -72,10 +72,19 @@ function profileReceipt(profileId: TranscriptionProfileId) {
 		track_count: 1,
 		warning_count: 0,
 		execution_lineage: lineage(profileId),
+		...(withEvidence
+			? {
+					benchmark_id: "benchmark-job-1-a1",
+					sample_identity_sha256: "a".repeat(64),
+					transcript_sha256: "f".repeat(64),
+					transcript_size_bytes: 2048,
+					artifact_available: true,
+				}
+			: {}),
 	};
 }
 
-function benchmarkResult(artifactBundle?: Record<string, unknown>) {
+function benchmarkResult(withEvidence = false) {
 	return {
 		schema_version: "tda_processing_benchmark_v1",
 		kind: "benchmark.craig",
@@ -89,8 +98,14 @@ function benchmarkResult(artifactBundle?: Record<string, unknown>) {
 		track_count: 1,
 		audio_work_seconds: 300,
 		prepared: true,
-		...(artifactBundle ? { artifact_bundle: artifactBundle } : {}),
-		profiles: profiles.map(profileReceipt),
+		...(withEvidence
+			? {
+					benchmark_id: "benchmark-job-1-a1",
+					bundle_manifest_sha256: "c".repeat(64),
+					bundle_size_bytes: 4096,
+				}
+			: {}),
+		profiles: profiles.map((profileId) => profileReceipt(profileId, withEvidence)),
 	};
 }
 
@@ -165,42 +180,31 @@ function snapshot(profileId: TranscriptionProfileId, text: string, start = 0) {
 describe("benchmark evidence contract", () => {
 	it("keeps historical receipts valid without invented artifacts", () => {
 		const parsed = parseBenchmarkResult(benchmarkResult(), "job-1");
-		expect(parsed.artifacts).toBeNull();
-		expect(parsed.profiles).toHaveLength(4);
+		expect(parsed.benchmarkId).toBeNull();
+		expect(parsed.bundleManifestSha256).toBeNull();
+		expect(parsed.profiles.every((profile) => !profile.artifactAvailable)).toBe(true);
 	});
 
 	it("accepts an immutable evidence pointer on new receipts", () => {
-		const parsed = parseBenchmarkResult(
-			benchmarkResult({
-				schema_version: "tda_benchmark_artifacts_v1",
-				benchmark_id: "benchmark-job-1-a1",
-				manifest_sha256: "c".repeat(64),
-				manifest_size_bytes: 1024,
-				bundle_size_bytes: 4096,
-				profile_count: 4,
-			}),
-			"job-1",
-		);
-		expect(parsed.artifacts).toMatchObject({
+		const parsed = parseBenchmarkResult(benchmarkResult(true), "job-1");
+		expect(parsed).toMatchObject({
 			benchmarkId: "benchmark-job-1-a1",
-			profileCount: 4,
+			bundleManifestSha256: "c".repeat(64),
+			bundleSizeBytes: 4096,
 		});
+		expect(parsed.profiles.every((profile) => profile.artifactAvailable)).toBe(true);
 	});
 
 	it("parses a verified bundle summary and all four profile formats", () => {
 		expect(
 			parseBenchmarkEvidenceSummary(
 				{
-					schema_version: "tda_benchmark_artifacts_v1",
+					schema_version: "tda_benchmark_bundle_v1",
 					benchmark_id: "benchmark-job-1-a1",
 					sample_identity_sha256: "a".repeat(64),
 					source_id: "source-1",
 					profile_order: profiles,
 					bundle_size_bytes: 4096,
-					formats: ["json", "txt", "txt-plain", "vtt", "srt"],
-					quality_reference_status: "none",
-					telemetry_available: false,
-					integrity: "verified",
 				},
 				"benchmark-job-1-a1",
 			),

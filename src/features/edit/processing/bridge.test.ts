@@ -107,9 +107,97 @@ describe("processing benchmark contract", () => {
 		]);
 		expect(result.sampleSeconds).toBe(300);
 		expect(result.profiles.every((item) => item.processingTimingVersion === "engine_processing_v1")).toBe(true);
-		expect(JSON.stringify(result)).not.toContain("transcript");
+		expect(result.benchmarkId).toBeNull();
+		expect(result.bundleManifestSha256).toBeNull();
+		expect(result.bundleSizeBytes).toBeNull();
+		expect(result.profiles.every((item) => !item.artifactAvailable && item.transcriptSha256 === null)).toBe(true);
 		expect(result.profiles.every((item) => item.executionLineage?.runtimeArtifact?.archiveSha256 === "d".repeat(64))).toBe(true);
 		expect(result.profiles.every((item) => item.executionLineage?.gpu?.model === "NVIDIA GeForce RTX 4070 Laptop GPU")).toBe(true);
+	});
+
+	it("parses additive immutable transcript bundle identities while keeping content lazy", () => {
+		const benchmarkId = "benchmark-benchmark-job-a1";
+		const sampleIdentity = "b".repeat(64);
+		const profile = (profileId: string, engine: "whisper" | "qwen3") => ({
+			kind: "benchmark.profile",
+			schema_version: "tda_benchmark_profile_v1",
+			benchmark_id: benchmarkId,
+			sample_identity_sha256: sampleIdentity,
+			transcript_sha256: "e".repeat(64),
+			transcript_size_bytes: 4096,
+			artifact_available: true,
+			profile_id: profileId,
+			engine,
+			model: "model",
+			model_revision: "revision",
+			device: "cuda",
+			compute_type: "float16",
+			alignment: "native",
+			sample_seconds: 300,
+			audio_work_seconds: 300,
+			session_duration_seconds: 300,
+			processing_timing_version: "engine_processing_v1",
+			processing_seconds: 30,
+			rtf: 0.1,
+			word_count: 10,
+			segment_count: 2,
+			track_count: 1,
+			warning_count: 0,
+			execution_lineage: {
+				schema_version: "tda_execution_lineage_v1",
+				companion_version: "0.3.18",
+				runtime_family: engine === "whisper" ? "whisper" : "qwen",
+				runtime_version: engine === "whisper" ? "1.1.7" : "1.0.12",
+				runtime_artifact: {
+					runtime_id: engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
+					version: engine === "whisper" ? "1.1.7" : "1.0.12",
+					worker_sha256: "c".repeat(64),
+					archive_sha256: "d".repeat(64),
+				},
+				device: "cuda:0",
+				compute_type: "float16",
+				gpu: {
+					vendor: "NVIDIA",
+					index: 0,
+					model: "Synthetic GPU",
+					vram_total_bytes: 8 * 1024 * 1024 * 1024,
+					compute_capability: "8.9",
+					driver_version: "synthetic",
+				},
+			},
+		});
+		const result = parseBenchmarkResult(
+			{
+				schema_version: "tda_processing_benchmark_v1",
+				kind: "benchmark.craig",
+				job_id: "benchmark-job",
+				source_id: "craig-" + "a".repeat(64),
+				campaign_id: "benchmark-local",
+				session_id: "benchmark-local",
+				sample_identity_sha256: sampleIdentity,
+				sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				track_count: 1,
+				audio_work_seconds: 300,
+				prepared: true,
+				benchmark_id: benchmarkId,
+				bundle_manifest_sha256: "f".repeat(64),
+				bundle_size_bytes: 16384,
+				profiles: [
+					profile("whisper-turbo", "whisper"),
+					profile("whisper-detailed", "whisper"),
+					profile("qwen-fast", "qwen3"),
+					profile("qwen-quality", "qwen3"),
+				],
+			},
+			"benchmark-job",
+		);
+		expect(result.benchmarkId).toBe(benchmarkId);
+		expect(result.bundleManifestSha256).toBe("f".repeat(64));
+		expect(result.bundleSizeBytes).toBe(16384);
+		expect(result.profiles.every((item) => item.artifactAvailable)).toBe(true);
+		expect(result.profiles.every((item) => item.transcriptSha256 === "e".repeat(64))).toBe(true);
+		expect(JSON.stringify(result)).not.toContain("segments\":");
 	});
 
 	it("rejects benchmark receipts without exact runtime and GPU evidence", () => {

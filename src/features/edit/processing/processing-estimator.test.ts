@@ -137,7 +137,9 @@ function benchmark(
 		trackCount: 1,
 		audioWorkSeconds: 300,
 		prepared: true,
-		artifacts: null,
+		benchmarkId: null,
+		bundleManifestSha256: null,
+		bundleSizeBytes: null,
 		profiles: [
 			{
 				profileId: "qwen-quality",
@@ -158,6 +160,9 @@ function benchmark(
 				trackCount: 1,
 				warningCount: 0,
 				executionLineage: lineage,
+				transcriptSha256: null,
+				transcriptSizeBytes: null,
+				artifactAvailable: false,
 				...overrides,
 			},
 		],

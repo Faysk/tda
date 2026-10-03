@@ -46,24 +46,10 @@ até um timestamp autoritativo persistido ser exposto pelo contrato (#603).
 Benchmark é uma tab funcional para comparação exploratória local: usa a mesma
 source Craig e o mesmo corte temporal de 0–300 s nos quatro perfis, executados
 sequencialmente com artefatos já preparados. O receipt é sanitizado e registra a
-identidade da amostra, lineage e métricas factuais; não embute transcript nem
-áudio e não cria run publicável. Benchmarks novos também fecham um bundle local
-imutável `tda_benchmark_bundle_v1`: cada perfil preserva o `tda_transcript_v1`
-canônico, métricas e eventos sanitizados sob hash SHA-256, enquanto TXT/VTT/SRT
-são derivados somente na leitura/exportação. `benchmark.json` é o commit marker
-do conjunto 4/4; bundle parcial ou com hash divergente falha fechado e não aparece
-como evidência consumível. Receipts históricos sem esse ponteiro continuam
-legíveis, apenas sem comparação/exportação retrospectiva. A Web busca transcripts
-somente quando o operador abre a comparação e reutiliza o alinhamento
-segmentation-aware de Results; nenhum desses artefatos vira publicação editorial.
-
-A exportação privada é gerada pelo Agent local, usa nomes determinísticos sem o
-nome original do arquivo de origem e inclui transcripts, métricas e eventos dos
-quatro perfis, nunca áudio. JSON é o canônico; TXT, WebVTT e SRT são derivados
-determinísticos. Sem referência humana, qualidade permanece explicitamente não
-medida: a UI não inventa WER, não atribui omissões/inserções como ground truth e
-não escolhe vencedor. Este benchmark não substitui o aceite físico de release
-definido em #478.
+identidade da amostra, lineage e métricas factuais; não contém transcript/áudio,
+não cria run publicável e não escolhe vencedor. Sem referência humana, qualidade
+permanece explicitamente não medida. Este benchmark não substitui o aceite físico
+de release definido em #478.
 Desde #1233, prontidão de transcrição e prontidão de benchmark são contratos
 separados. Whisper Runtime 1.1.5 permanece aceito para transcrição normal, mas não
 pode ser anunciado como pronto para benchmark; o primeiro runtime que satisfaz o
@@ -75,6 +61,25 @@ e pode atualizar apenas o runtime necessário, preservando modelos, caches e dad
 Um benchmark só conclui quando cada um dos quatro receipts carrega lineage sanitizada com
 o runtime artifact selado (worker/archive SHA-256) e a GPU NVIDIA efetivamente casada com
 a execução; evidência ausente ou parcial falha fechado e não vira resultado comparável.
+
+A evidência textual do benchmark é local, imutável e separada dos runs editoriais. Cada
+perfil concluído persiste o próprio `tda_transcript_v1` canônico e um
+`tda_benchmark_profile_artifact_v1` sob `Data/benchmarks/<benchmark-id>/profiles/`.
+Somente depois dos quatro perfis verificados o Agent grava `benchmark.json`
+(`tda_benchmark_bundle_v1`) como commit marker final. O bundle registra hashes/tamanhos,
+sample 0–300 s, lineage, métricas e somente hash + comprimento de contexto/glossário; não
+duplica áudio Craig, não cria `staging/.../runs`, compatibility mirror, review,
+publicação ou sync cloud. Limpar a fila não remove o bundle. Retry forma outro
+`benchmark-id`; replay idempotente da mesma tentativa só reutiliza bytes já validados.
+
+O receipt `tda_processing_benchmark_v1` continua pequeno: referências aditivas
+(`benchmark_id`, hash/tamanho do bundle e SHA/tamanho do transcript por perfil) apontam
+para conteúdo carregado sob demanda em
+`GET /api/v1/benchmarks/<benchmark-id>` e
+`GET /api/v1/benchmarks/<benchmark-id>/profiles/<profile>/transcript`. Esses endpoints
+são privados, origin/session-bound no browser e verificam o artefato solicitado antes de
+devolver texto. Receipts históricos sem `benchmark_id` continuam válidos como
+performance-only e nunca têm transcript reconstruído por inferência.
 
 Validação deste comportamento: `tests/processing/panel.spec.ts` cobre progresso
 zero, ausência de denominador e a separação entre job ativo e métricas de run

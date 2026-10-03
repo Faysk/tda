@@ -144,6 +144,10 @@ function ResultCard({
 	const gpu = result.profiles
 		.map((profile) => profile.executionLineage?.gpu?.model)
 		.find(Boolean);
+	const hasEvidence =
+		result.benchmarkId !== null &&
+		result.bundleSizeBytes !== null &&
+		result.profiles.every((profile) => profile.artifactAvailable);
 	return (
 		<article className={styles.resultCard}>
 			<header className={styles.resultHeader}>
@@ -161,13 +165,13 @@ function ResultCard({
 				<span>{gpu ?? "GPU não registrada"}</span>
 				<span>4/4 perfis</span>
 				<span>
-					{result.artifacts
-						? `bundle ${formatSubmissionBytes(result.artifacts.bundleSizeBytes)} · evidência preservada`
+					{hasEvidence
+						? `bundle ${formatSubmissionBytes(result.bundleSizeBytes ?? 0)} · evidência preservada`
 						: "receipt performance-only · transcrições não preservadas"}
 				</span>
 				<span>Qualidade: sem referência humana</span>
 			</div>
-			{result.artifacts ? (
+			{hasEvidence ? (
 				<div className={styles.activeActions}>
 					<Button size="sm" variant="secondary" onClick={onCompare}>
 						Comparar transcrições

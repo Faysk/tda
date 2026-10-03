@@ -372,15 +372,9 @@ export type BenchmarkProfileResult = {
 	trackCount: number;
 	warningCount: number;
 	executionLineage: LocalExecutionLineage | null;
-};
-
-export type BenchmarkArtifactBundle = {
-	schemaVersion: "tda_benchmark_artifacts_v1";
-	benchmarkId: string;
-	manifestSha256: string;
-	manifestSizeBytes: number;
-	bundleSizeBytes: number;
-	profileCount: 4;
+	transcriptSha256: string | null;
+	transcriptSizeBytes: number | null;
+	artifactAvailable: boolean;
 };
 
 export type BenchmarkResult = {
@@ -395,12 +389,14 @@ export type BenchmarkResult = {
 	trackCount: number;
 	audioWorkSeconds: number;
 	prepared: boolean;
-	artifacts: BenchmarkArtifactBundle | null;
+	benchmarkId: string | null;
+	bundleManifestSha256: string | null;
+	bundleSizeBytes: number | null;
 	profiles: readonly BenchmarkProfileResult[];
 };
 
 export type BenchmarkEvidenceSummary = {
-	schemaVersion: "tda_benchmark_artifacts_v1";
+	schemaVersion: "tda_benchmark_bundle_v1";
 	benchmarkId: string;
 	sampleIdentitySha256: string;
 	sourceId: string;
@@ -2138,6 +2134,21 @@ export function parseBenchmarkResult(
 	if (row.kind !== "benchmark.craig") return invalid();
 	const sampleSeconds = nonNegativeNumber(row.sample_seconds);
 	if (sampleSeconds !== 300) return invalid();
+	const bundleFieldsPresent =
+		row.benchmark_id !== undefined ||
+		row.bundle_manifest_sha256 !== undefined ||
+		row.bundle_size_bytes !== undefined;
+	let benchmarkId: string | null = null;
+	let bundleManifestSha256: string | null = null;
+	let bundleSizeBytes: number | null = null;
+	if (bundleFieldsPresent) {
+		benchmarkId = text(row.benchmark_id, 196);
+		if (!/^benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}$/u.test(benchmarkId))
+			return invalid();
+		bundleManifestSha256 = sha256(row.bundle_manifest_sha256);
+		bundleSizeBytes = nonNegativeInteger(row.bundle_size_bytes);
+		if (bundleSizeBytes <= 0) return invalid();
+	}
 	const profiles = row.profiles;
 	if (!Array.isArray(profiles) || profiles.length !== 4) return invalid();
 	const parsed = profiles.map((raw): BenchmarkProfileResult => {
@@ -2160,6 +2171,28 @@ export function parseBenchmarkResult(
 			!executionLineage.gpu.model
 		)
 			return invalid();
+		let transcriptSha256: string | null = null;
+		let transcriptSizeBytes: number | null = null;
+		let artifactAvailable = false;
+		const profileArtifactFieldsPresent =
+			item.artifact_available !== undefined ||
+			item.transcript_sha256 !== undefined ||
+			item.transcript_size_bytes !== undefined ||
+			item.benchmark_id !== undefined;
+		if (bundleFieldsPresent) {
+			if (
+				item.artifact_available !== true ||
+				item.benchmark_id !== benchmarkId ||
+				item.sample_identity_sha256 !== row.sample_identity_sha256
+			)
+				return invalid();
+			transcriptSha256 = sha256(item.transcript_sha256);
+			transcriptSizeBytes = nonNegativeInteger(item.transcript_size_bytes);
+			if (transcriptSizeBytes <= 0) return invalid();
+			artifactAvailable = true;
+		} else if (profileArtifactFieldsPresent) {
+			return invalid();
+		}
 		return {
 			profileId: transcriptionProfile(item.profile_id),
 			engine,
@@ -2181,7 +2214,10 @@ export function parseBenchmarkResult(
 			segmentCount: nonNegativeInteger(item.segment_count),
 			trackCount: nonNegativeInteger(item.track_count),
 			warningCount: nonNegativeInteger(item.warning_count),
-			executionLineage: parseExecutionLineage(item.execution_lineage),
+			executionLineage,
+			transcriptSha256,
+			transcriptSizeBytes,
+			artifactAvailable,
 		};
 	});
 	const expected: readonly TranscriptionProfileId[] = [
@@ -2207,24 +2243,9 @@ export function parseBenchmarkResult(
 		trackCount: nonNegativeInteger(row.track_count),
 		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
 		prepared: boolean(row.prepared),
-		artifacts:
-			row.artifact_bundle === undefined || row.artifact_bundle === null
-				? null
-				: (() => {
-						const artifacts = record(row.artifact_bundle);
-						if (artifacts.schema_version !== "tda_benchmark_artifacts_v1")
-							return invalid();
-						const profileCount = nonNegativeInteger(artifacts.profile_count);
-						if (profileCount !== 4) return invalid();
-						return {
-							schemaVersion: "tda_benchmark_artifacts_v1" as const,
-							benchmarkId: benchmarkIdentifier(artifacts.benchmark_id),
-							manifestSha256: sha256(artifacts.manifest_sha256),
-							manifestSizeBytes: nonNegativeInteger(artifacts.manifest_size_bytes),
-							bundleSizeBytes: nonNegativeInteger(artifacts.bundle_size_bytes),
-							profileCount: 4 as const,
-						};
-					})(),
+		benchmarkId,
+		bundleManifestSha256,
+		bundleSizeBytes,
 		profiles: parsed,
 	};
 }
@@ -2234,7 +2255,7 @@ export function parseBenchmarkEvidenceSummary(
 	expectedBenchmarkId: string,
 ): BenchmarkEvidenceSummary {
 	const row = record(value);
-	if (row.schema_version !== "tda_benchmark_artifacts_v1") return invalid();
+	if (row.schema_version !== "tda_benchmark_bundle_v1") return invalid();
 	const benchmarkId = benchmarkIdentifier(row.benchmark_id);
 	if (benchmarkId !== benchmarkIdentifier(expectedBenchmarkId)) return invalid();
 	if (!Array.isArray(row.profile_order) || row.profile_order.length !== 4)
@@ -2248,26 +2269,16 @@ export function parseBenchmarkEvidenceSummary(
 	];
 	if (profileOrder.some((item, index) => item !== expected[index]))
 		return invalid();
-	if (!Array.isArray(row.formats) || row.formats.length < 3 || row.formats.length > 5)
-		return invalid();
-	const formats = row.formats.map((format) => {
-		if (!["json", "txt", "txt-plain", "vtt", "srt"].includes(String(format)))
-			return invalid();
-		return format as "json" | "txt" | "txt-plain" | "vtt" | "srt";
-	});
-	if (new Set(formats).size !== formats.length) return invalid();
-	if (row.quality_reference_status !== "none" || row.integrity !== "verified")
-		return invalid();
 	return {
-		schemaVersion: "tda_benchmark_artifacts_v1",
+		schemaVersion: "tda_benchmark_bundle_v1",
 		benchmarkId,
 		sampleIdentitySha256: sha256(row.sample_identity_sha256),
 		sourceId: identifier(row.source_id),
 		profileOrder,
 		bundleSizeBytes: nonNegativeInteger(row.bundle_size_bytes),
-		formats,
+		formats: ["json", "txt", "txt-plain", "vtt", "srt"],
 		qualityReferenceStatus: "none",
-		telemetryAvailable: boolean(row.telemetry_available),
+		telemetryAvailable: false,
 		integrity: "verified",
 	};
 }

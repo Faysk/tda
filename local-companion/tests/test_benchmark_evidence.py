@@ -1,60 +1,100 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import zipfile
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from tda_companion.benchmark_bundles import (
+    BENCHMARK_PROFILES,
+    benchmark_id_for,
+    benchmark_sample_descriptor,
+    benchmark_sample_identity,
+    benchmark_root,
+    finalize_benchmark_bundle,
+    write_benchmark_profile,
+)
 from tda_companion.benchmark_evidence import (
     BenchmarkEvidenceError,
-    benchmark_event_row,
-    benchmark_id_for,
-    commit_profile_artifact,
     derived_artifact,
-    finalize_bundle,
     public_bundle_summary,
     transcript_snapshot,
     write_private_evidence_zip,
-    write_profile_payload,
 )
 from tda_companion.transcript import (
     TranscriptDocument,
     TranscriptEngine,
     TranscriptSegment,
     TranscriptTrack,
+    TranscriptWord,
     stats_for_tracks,
 )
 
-
-PROFILES = (
-    "whisper-turbo",
-    "whisper-detailed",
-    "qwen-fast",
-    "qwen-quality",
-)
+SOURCE_SHA = "b" * 64
+SOURCE_ID = "craig-" + SOURCE_SHA
+TRACK_SHA = "a" * 64
 
 
-def document(profile_id: str, source_sha256: str) -> TranscriptDocument:
+def _package():
+    return SimpleNamespace(
+        source_sha256=SOURCE_SHA,
+        tracks=(SimpleNamespace(number=1, sha256=TRACK_SHA),),
+    )
+
+
+def _metrics() -> dict:
+    return {
+        "version": "engine_processing_v1",
+        "stage_seconds": {
+            "runtime_validation": 0.0,
+            "checkpoint_scan": 0.0,
+            "model_prepare": 0.0,
+            "model_load": 0.0,
+            "transcription": 30.0,
+            "alignment_and_energy": 0.0,
+            "consolidation": 0.0,
+        },
+        "total_processing_seconds": 30.0,
+        "external_preparation_included": False,
+        "total_tracks": 1,
+        "fresh_asr_tracks": 1,
+        "text_checkpoint_reused_tracks": 0,
+        "completed_checkpoint_reused_tracks": 0,
+        "fresh_audio_work_seconds": 300.0,
+        "reused_audio_work_seconds": 0.0,
+        "fresh_calibration_eligible": True,
+    }
+
+
+def _document(profile_id: str) -> TranscriptDocument:
+    word = TranscriptWord(
+        text="Olá, Cête!",
+        start=1.0,
+        end=1.4,
+        confidence=0.99,
+    )
+    segment = TranscriptSegment(
+        id=f"{profile_id}-segment",
+        start=1.0,
+        end=2.5,
+        text=f"Olá, Cête! fala de {profile_id}",
+        words=(word,),
+    )
     track = TranscriptTrack(
         number=1,
         speaker="Alice",
         source_filename="private-source-name.flac",
-        source_sha256="b" * 64,
+        source_sha256=TRACK_SHA,
         duration_seconds=300.0,
-        timeline_offset_seconds=0.0,
-        segments=(
-            TranscriptSegment(
-                id=f"{profile_id}-segment",
-                start=1.0,
-                end=2.5,
-                text=f"fala de {profile_id}",
-            ),
-        ),
+        segments=(segment,),
     )
-    engine = "whisper" if profile_id.startswith("whisper-") else "qwen3"
+    engine = "faster-whisper" if profile_id.startswith("whisper-") else "qwen3"
     return TranscriptDocument(
         recording_id="fixture",
-        source_sha256=source_sha256,
+        source_sha256=SOURCE_SHA,
         language="pt",
         engine=TranscriptEngine(
             engine=engine,
@@ -63,116 +103,124 @@ def document(profile_id: str, source_sha256: str) -> TranscriptDocument:
             device="cuda",
             compute_type="float16",
             alignment="native",
+            model_revision="test-revision",
         ),
         tracks=(track,),
-        stats=stats_for_tracks((track,), processing_seconds=10.0),
+        stats=stats_for_tracks(
+            (track,),
+            processing_seconds=30.0,
+            processing_metrics=_metrics(),
+        ),
+        warnings=("ALIGNMENT_FALLBACK:test",) if profile_id == "qwen-fast" else (),
         created_at="2026-10-03T12:00:00.000Z",
     )
 
 
-def commit_bundle(tmp_path):
-    data_root = tmp_path / "Data"
-    data_root.mkdir()
-    job_id = "fixture-job"
-    attempt = 1
-    benchmark_id = benchmark_id_for(job_id, attempt)
-    source_sha256 = "a" * 64
-    sample_identity = "c" * 64
-    manifests = []
+def _lineage(profile_id: str) -> dict:
+    family = "whisper" if profile_id.startswith("whisper-") else "qwen"
+    return {
+        "schema_version": "tda_execution_lineage_v1",
+        "companion_version": "0.3.18",
+        "runtime_family": family,
+        "runtime_version": "1.0.0",
+        "runtime_artifact": {
+            "runtime_id": "whisper-ctranslate2" if family == "whisper" else "qwen3-transformers",
+            "version": "1.0.0",
+            "worker_sha256": "c" * 64,
+            "archive_sha256": "d" * 64,
+        },
+        "device": "cuda:0",
+        "compute_type": "float16",
+        "gpu": {
+            "vendor": "NVIDIA",
+            "index": 0,
+            "model": "Synthetic GPU",
+            "vram_total_bytes": 8 * 1024**3,
+            "compute_capability": "8.9",
+            "driver_version": "synthetic",
+        },
+    }
 
-    for index, profile_id in enumerate(PROFILES):
-        doc = document(profile_id, source_sha256)
-        lineage = {
-            "schema_version": "tda_execution_lineage_v1",
-            "runtime_family": "whisper" if profile_id.startswith("whisper-") else "qwen",
-            "runtime_version": "fixture",
-            "device": "cuda",
-            "gpu": {"vendor": "NVIDIA", "model": "Synthetic GPU"},
-        }
-        artifact = write_profile_payload(
+
+def _commit_bundle(data_root: Path, job_id: str = "benchmark-job", attempt: int = 1) -> dict:
+    package = _package()
+    identity = benchmark_sample_identity(package)
+    receipts: list[dict] = []
+    for profile_id in BENCHMARK_PROFILES:
+        artifact = write_benchmark_profile(
             data_root,
-            doc,
-            benchmark_id=benchmark_id,
+            _document(profile_id),
             job_id=job_id,
             attempt=attempt,
-            source_id="source-fixture",
-            sample_identity_sha256=sample_identity,
+            source_id=SOURCE_ID,
+            sample_identity_sha256=identity,
             sample_seconds=300.0,
-            execution_lineage=lineage,
+            execution_lineage=_lineage(profile_id),
         )
-        receipt = {
-            "profile_id": profile_id,
-            "execution_lineage": lineage,
-            **artifact,
-        }
-        manifests.append(
-            commit_profile_artifact(
-                data_root,
-                benchmark_id=benchmark_id,
-                job_id=job_id,
-                attempt=attempt,
-                source_id="source-fixture",
-                sample_identity_sha256=sample_identity,
-                sample_seconds=300.0,
-                profile_receipt=receipt,
-                event_rows=(
-                    benchmark_event_row(
-                        benchmark_id=benchmark_id,
-                        attempt=attempt,
-                        profile_id=profile_id,
-                        seq=index,
-                        event_type="stage",
-                        payload={
-                            "stage": "transcription",
-                            "path": "C:/private/source.flac",
-                            "text": "private transcript text",
-                        },
-                    ),
-                ),
-            )
+        receipts.append(
+            {
+                "profile_id": profile_id,
+                "benchmark_id": artifact["benchmark_id"],
+                "sample_identity_sha256": identity,
+                "transcript_sha256": artifact["transcript_sha256"],
+                "transcript_size_bytes": artifact["transcript_size_bytes"],
+                "artifact_available": True,
+                "execution_lineage": _lineage(profile_id),
+            }
         )
-
-    finalize_bundle(
+    return finalize_benchmark_bundle(
         data_root,
-        benchmark_id=benchmark_id,
         job_id=job_id,
         attempt=attempt,
-        source_id="source-fixture",
-        source_sha256=source_sha256,
-        sample_identity_sha256=sample_identity,
+        source_id=SOURCE_ID,
+        source_sha256=SOURCE_SHA,
+        sample=benchmark_sample_descriptor(package),
+        sample_identity_sha256=identity,
         sample_seconds=300.0,
         track_count=1,
         audio_work_seconds=300.0,
         context="contexto privado",
         glossary="glossário privado",
-        profile_manifests=manifests,
+        profile_receipts=receipts,
     )
-    return data_root, benchmark_id
 
 
-def test_bundle_is_verified_and_snapshot_is_lazy_readable(tmp_path):
-    data_root, benchmark_id = commit_bundle(tmp_path)
+def test_snapshot_and_derived_formats_read_only_from_canonical_bundle(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    bundle = _commit_bundle(data_root)
+    benchmark_id = bundle["benchmark_id"]
 
     summary = public_bundle_summary(data_root, benchmark_id)
     assert summary["integrity"] == "verified"
-    assert summary["profile_order"] == list(PROFILES)
+    assert summary["profile_order"] == list(BENCHMARK_PROFILES)
     assert summary["formats"] == ["json", "txt", "txt-plain", "vtt", "srt"]
 
     snapshot = transcript_snapshot(data_root, benchmark_id, "qwen-fast")
-    assert snapshot["sample_identity_sha256"] == "c" * 64
-    assert snapshot["segments"][0]["text"] == "fala de qwen-fast"
-    assert snapshot["segments"][0]["timing_precision"] == "segment"
+    assert snapshot["sample_identity_sha256"] == bundle["sample_identity_sha256"]
+    assert snapshot["segments"][0]["text"].startswith("Olá, Cête!")
+    assert snapshot["segments"][0]["timing_precision"] == "word"
 
+    json_bytes, json_type, _ = derived_artifact(
+        data_root, benchmark_id, "qwen-fast", "json"
+    )
     txt, txt_type, _ = derived_artifact(data_root, benchmark_id, "qwen-fast", "txt")
     plain, plain_type, _ = derived_artifact(
         data_root, benchmark_id, "qwen-fast", "txt-plain"
     )
     vtt, vtt_type, _ = derived_artifact(data_root, benchmark_id, "qwen-fast", "vtt")
     srt, srt_type, _ = derived_artifact(data_root, benchmark_id, "qwen-fast", "srt")
+
+    assert hashlib.sha256(json_bytes).hexdigest() == next(
+        entry["transcript"]["sha256"]
+        for entry in bundle["profiles"]
+        if entry["profile_id"] == "qwen-fast"
+    )
+    assert json_type.startswith("application/json")
     assert b"[00:00:01.000] Alice" in txt
     assert txt_type.startswith("text/plain")
     assert b"[00:00:01.000]" not in plain
-    assert plain.startswith(b"Alice\nfala de qwen-fast")
+    assert plain.startswith("Alice\nOlá, Cête!".encode())
     assert plain_type.startswith("text/plain")
     assert vtt.startswith(b"WEBVTT\n")
     assert b"00:00:01.000 --> 00:00:02.500" in vtt
@@ -181,8 +229,11 @@ def test_bundle_is_verified_and_snapshot_is_lazy_readable(tmp_path):
     assert srt_type.startswith("application/x-subrip")
 
 
-def test_private_zip_is_deterministic_named_and_contains_no_audio(tmp_path):
-    data_root, benchmark_id = commit_bundle(tmp_path)
+def test_private_zip_is_deterministic_exact_and_contains_no_audio(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    bundle = _commit_bundle(data_root)
+    benchmark_id = bundle["benchmark_id"]
     first = tmp_path / "first.zip"
     second = tmp_path / "second.zip"
 
@@ -194,7 +245,7 @@ def test_private_zip_is_deterministic_named_and_contains_no_audio(tmp_path):
         names = archive.namelist()
         prefix = f"TDA-Benchmark-{benchmark_id}"
         expected = {f"{prefix}/benchmark.json"}
-        for profile_id in PROFILES:
+        for profile_id in BENCHMARK_PROFILES:
             base = f"{prefix}/profiles/{profile_id}"
             expected.update(
                 {
@@ -208,27 +259,60 @@ def test_private_zip_is_deterministic_named_and_contains_no_audio(tmp_path):
                 }
             )
         assert set(names) == expected
-        assert not any(name.lower().endswith((".flac", ".wav", ".mp3", ".ogg")) for name in names)
+        assert not any(
+            name.lower().endswith((".flac", ".wav", ".mp3", ".ogg"))
+            for name in names
+        )
         assert not any("private-source-name" in name for name in names)
-        events_name = next(name for name in names if name.endswith("/profiles/qwen-fast/events.jsonl"))
-        events = archive.read(events_name).decode("utf-8")
-        assert "C:/private/source.flac" not in events
-        assert "private transcript text" not in events
+
+        metrics = json.loads(
+            archive.read(
+                f"{prefix}/profiles/qwen-fast/metrics.json"
+            )
+        )
+        assert metrics["measurement_mode"] == "canonical_bundle_derived_v1"
+        assert metrics["processing_metrics"]["version"] == "engine_processing_v1"
+
+        events = archive.read(
+            f"{prefix}/profiles/qwen-fast/events.jsonl"
+        ).decode("utf-8")
+        assert "PROFILE_EVIDENCE_COMMITTED" in events
+        assert "ALIGNMENT_FALLBACK" in events
+        assert "glossário privado" not in events
+        assert "contexto privado" not in events
 
 
-def test_bundle_fails_closed_after_canonical_transcript_tampering(tmp_path):
-    data_root, benchmark_id = commit_bundle(tmp_path)
+def test_corrupted_canonical_transcript_fails_closed_on_read_and_export(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    bundle = _commit_bundle(data_root, job_id="corrupt-job")
+    benchmark_id = bundle["benchmark_id"]
     transcript = (
-        data_root
-        / "benchmarks"
-        / benchmark_id
+        benchmark_root(data_root, benchmark_id)
         / "profiles"
         / "qwen-fast"
         / "transcript.json"
     )
-    value = json.loads(transcript.read_text(encoding="utf-8"))
-    value["tracks"][0]["segments"][0]["text"] = "tampered"
-    transcript.write_text(json.dumps(value), encoding="utf-8")
+    payload = bytearray(transcript.read_bytes())
+    payload[-2] ^= 1
+    transcript.write_bytes(payload)
 
-    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_ARTIFACT_INTEGRITY_FAILED"):
-        public_bundle_summary(data_root, benchmark_id)
+    with pytest.raises(
+        BenchmarkEvidenceError,
+        match="BENCHMARK_PROFILE_TRANSCRIPT_MISMATCH|BENCHMARK_PROFILE_TRANSCRIPT_INVALID",
+    ):
+        transcript_snapshot(data_root, benchmark_id, "qwen-fast")
+
+    with pytest.raises(BenchmarkEvidenceError):
+        write_private_evidence_zip(data_root, benchmark_id, tmp_path / "bad.zip")
+
+
+def test_second_attempt_has_distinct_export_identity(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    first = _commit_bundle(data_root, job_id="retry-job", attempt=1)
+    second = _commit_bundle(data_root, job_id="retry-job", attempt=2)
+
+    assert first["benchmark_id"] == benchmark_id_for("retry-job", 1)
+    assert second["benchmark_id"] == benchmark_id_for("retry-job", 2)
+    assert first["benchmark_id"] != second["benchmark_id"]
