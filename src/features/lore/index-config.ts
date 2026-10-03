@@ -31,7 +31,7 @@ export const LORE_INDEX_COPY: Record<LoreRouteKind, LoreIndexCopy> = {
 			"Perfis públicos dos personagens jogáveis da campanha, reunidos em um mesmo arquivo.",
 		emptyTitle: "Nenhum personagem publicado ainda.",
 		emptyDescription:
-			"Quando um perfil for aprovado para a web, ele passa a aparecer aqui.",
+			"Quando houver um perfil público nesta campanha, ele aparece aqui.",
 		visualKind: "portrait",
 	},
 	npcs: {
@@ -42,7 +42,7 @@ export const LORE_INDEX_COPY: Record<LoreRouteKind, LoreIndexCopy> = {
 			"Perfis públicos das pessoas que cruzaram o caminho da campanha e ganharam espaço na história.",
 		emptyTitle: "Nenhum NPC publicado ainda.",
 		emptyDescription:
-			"Este arquivo só mostra perfis explicitamente aprovados para publicação pública.",
+			"As pessoas desta campanha aparecem aqui quando seus perfis estiverem disponíveis para leitura.",
 		visualKind: "portrait",
 	},
 	lugares: {
@@ -53,7 +53,7 @@ export const LORE_INDEX_COPY: Record<LoreRouteKind, LoreIndexCopy> = {
 			"Territórios, cidades e destinos publicados que fazem parte das memórias da campanha.",
 		emptyTitle: "Nenhum lugar publicado ainda.",
 		emptyDescription:
-			"Os lugares aparecem aqui conforme recebem uma projection pública aprovada.",
+			"Os lugares desta campanha aparecem aqui quando estiverem disponíveis para explorar.",
 		visualKind: "landscape",
 	},
 	faccoes: {
@@ -64,7 +64,7 @@ export const LORE_INDEX_COPY: Record<LoreRouteKind, LoreIndexCopy> = {
 			"Facções publicadas que ajudam a explicar alianças, conflitos e movimentos do mundo.",
 		emptyTitle: "Nenhuma facção publicada ainda.",
 		emptyDescription:
-			"Somente grupos com visibilidade pública explícita entram neste arquivo.",
+			"As facções desta campanha aparecem aqui quando houver um perfil público para elas.",
 		visualKind: "emblem",
 	},
 	musicas: {
@@ -75,7 +75,7 @@ export const LORE_INDEX_COPY: Record<LoreRouteKind, LoreIndexCopy> = {
 			"Músicas publicadas ligadas às memórias e momentos da campanha.",
 		emptyTitle: "Nenhuma música publicada ainda.",
 		emptyDescription:
-			"Quando uma música ganhar publicação própria, ela poderá ser explorada por aqui.",
+			"As músicas desta campanha aparecem aqui quando estiverem disponíveis para ouvir e explorar.",
 		visualKind: "music",
 	},
 	quests: {
@@ -86,7 +86,7 @@ export const LORE_INDEX_COPY: Record<LoreRouteKind, LoreIndexCopy> = {
 			"Quests publicadas e autorizadas para navegação no arquivo da campanha.",
 		emptyTitle: "Nenhuma quest publicada ainda.",
 		emptyDescription:
-			"O arquivo permanece vazio até existir conteúdo explicitamente autorizado para a web.",
+			"As quests desta campanha aparecem aqui quando houver algo publicado para acompanhar.",
 		visualKind: "quest",
 	},
 };

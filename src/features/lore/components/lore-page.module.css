@@ -344,7 +344,7 @@ a.card:focus-visible {
 
 @media (max-width: 620px) {
 	.profileContext {
-		top: 80px;
+		top: var(--world-profile-context-top, 80px);
 		left: 16px;
 		max-width: calc(100% - 32px);
 	}

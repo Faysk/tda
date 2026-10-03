@@ -330,6 +330,7 @@ jobs:
           tests/layout-receipts.spec.ts
           tests/foundation.spec.ts
           tests/navigation-origin.spec.ts
+          tests/world-shell.spec.ts
           tests/world-catalogs.spec.ts
           tests/system-states.spec.ts
           tests/session-public-layout.spec.ts

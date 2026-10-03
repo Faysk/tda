@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { WORLD_NAV_ITEMS, worldNavItemIsCurrent } from "./navigation-model";
+import {
+	WORLD_NAV_ITEMS,
+	worldNavHrefForPathname,
+	worldNavItemIsCurrent,
+} from "./navigation-model";
 
 describe("World navigation model", () => {
 	it("keeps the workspace entry canonical and unique", () => {
@@ -20,5 +24,47 @@ describe("World navigation model", () => {
 		expect(worldNavItemIsCurrent("/personagens/dandelion", "/personagens")).toBe(true);
 		expect(worldNavItemIsCurrent("/npcs/ivory", "/npcs")).toBe(true);
 		expect(worldNavItemIsCurrent("/lugares/euclix", "/lugares")).toBe(true);
+	});
+
+	it("preserves campaign scope for canonical World catalogue and profile routes", () => {
+		expect(
+			worldNavHrefForPathname("/campanhas/cronicas-da-mesa/mundo", "/mundo"),
+		).toBe("/campanhas/cronicas-da-mesa/mundo");
+		expect(
+			worldNavHrefForPathname(
+				"/campanhas/cronicas-da-mesa/personagens/dandelion",
+				"/personagens",
+			),
+		).toBe("/campanhas/cronicas-da-mesa/personagens");
+		expect(
+			worldNavHrefForPathname("/personagens/dandelion", "/personagens"),
+		).toBe("/personagens");
+		expect(
+			worldNavHrefForPathname(
+				"/campanhas/cronicas-da-mesa/quests/a-coroa",
+				"/lugares",
+			),
+		).toBe("/campanhas/cronicas-da-mesa/lugares");
+	});
+
+	it("marks campaign-scoped navigation without making nested World paths current", () => {
+		expect(
+			worldNavItemIsCurrent(
+				"/campanhas/cronicas-da-mesa/mundo",
+				"/campanhas/cronicas-da-mesa/mundo",
+			),
+		).toBe(true);
+		expect(
+			worldNavItemIsCurrent(
+				"/campanhas/cronicas-da-mesa/mundo/qualquer-coisa",
+				"/campanhas/cronicas-da-mesa/mundo",
+			),
+		).toBe(false);
+		expect(
+			worldNavItemIsCurrent(
+				"/campanhas/cronicas-da-mesa/personagens/dandelion",
+				"/campanhas/cronicas-da-mesa/personagens",
+			),
+		).toBe(true);
 	});
 });

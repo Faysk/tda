@@ -15,6 +15,7 @@
 .workspace {
 	--world-workspace-navigation-width: clamp(224px, 15.5vw, 270px);
 	--world-workspace-top-offset: 0px;
+	--world-workspace-chrome-clearance: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	position: relative;
 	display: block;
 	width: 100%;
@@ -68,7 +69,7 @@
 	height: 100%;
 	min-height: 0;
 	flex-direction: column;
-	padding: calc(var(--site-chrome-panel-top, 66px) + 8px) 15px 18px;
+	padding: var(--world-workspace-chrome-clearance) 15px 18px;
 	overflow-y: auto;
 	overscroll-behavior: contain;
 }
@@ -168,7 +169,7 @@
 	}
 
 	.navigationToggle {
-		top: calc(var(--site-chrome-panel-top, 66px) + 8px);
+		top: var(--world-workspace-chrome-clearance);
 		left: 0;
 		width: 44px;
 		height: 44px;

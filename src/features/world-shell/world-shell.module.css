@@ -1,5 +1,6 @@
 .shell {
 	--world-shell-rail: clamp(214px, 15.5vw, 258px);
+	--world-shell-chrome-clearance: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	position: relative;
 	display: grid;
 	grid-template-columns: var(--world-shell-rail) minmax(0, 1fr);
@@ -31,7 +32,7 @@
 	min-height: 100dvh;
 	max-height: 100dvh;
 	flex-direction: column;
-	padding: clamp(24px, 2.3vw, 34px) 16px 20px;
+	padding: var(--world-shell-chrome-clearance) 16px 20px;
 	overflow-y: auto;
 }
 
@@ -350,13 +351,19 @@
 		display: none;
 	}
 
+	.content {
+		--world-catalog-hero-top: 28px;
+		--world-profile-context-top: 16px;
+	}
+
 	.mobileBar {
 		display: flex;
 		min-height: 58px;
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
-		padding: 8px var(--ds-page-gutter, clamp(16px, 4vw, 28px));
+		padding: var(--world-shell-chrome-clearance)
+			var(--ds-page-gutter, clamp(16px, 4vw, 28px)) 8px;
 		border-bottom: 1px solid var(--ds-border-subtle);
 		background: color-mix(in srgb, var(--ds-surface-elevated) 94%, transparent);
 		backdrop-filter: blur(14px);
