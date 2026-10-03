@@ -490,6 +490,15 @@ def test_progress_volume_is_bounded_and_auditable(tmp_path):
     diagnostics = _diagnostics(tmp_path)
     diagnostics.observe_message(_message(0, "ready", {"kind": "transcription.craig"}))
     started = time.perf_counter()
+    for sample in range(315):
+        diagnostics.record_telemetry_snapshot(
+            {
+                "cpu": {"utilization_percent": 25.0},
+                "memory": {"used_bytes": 1024, "percent": 10.0},
+                "gpus": [],
+            },
+            relative_ms=sample * 1000,
+        )
     for seq in range(1, 2001):
         diagnostics.observe_message(
             _message(
@@ -518,8 +527,9 @@ def test_progress_volume_is_bounded_and_auditable(tmp_path):
     assert aggregate["data"]["last_worker_seq"] == 2000
     assert len(events) <= 3
     assert (diagnostics.profile_root / "events.jsonl").stat().st_size < 32 * 1024
-    # 1.5 s is 0.5% of the fixed 300 s benchmark window and intentionally leaves
-    # generous CI headroom for this no-model instrumentation microbenchmark.
+    # The synthetic no-model fixture includes 315 telemetry insertions plus 2,000
+    # protocol observations. 1.5 s is 0.5% of the fixed 300 s benchmark window and
+    # intentionally leaves generous CI headroom without measuring model/GPU work.
     assert capture_seconds < 1.5
 
 
