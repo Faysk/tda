@@ -1197,7 +1197,7 @@ test("account overview keeps synthetic identity and access usable across the lay
 		{
 			query: "no-grants",
 			status: "Vinculada · sem permissões",
-			body: "Nenhuma permissão efetiva nesta campanha.",
+			body: "Nenhuma permissão efetiva encontrada.",
 		},
 	]) {
 		await page.goto(`/e2e-fixtures/account-overview?state=${state.query}`);
@@ -1224,20 +1224,41 @@ test("account overview keeps synthetic identity and access usable across the lay
 		const profileId = page.getByText("profile-tda-synthetic-927", { exact: true });
 		await expect(profileId).toBeHidden();
 		await expect(
-			page.getByRole("heading", { name: "Acesso nesta campanha", exact: true }),
+			page.getByRole("heading", { name: "Acesso efetivo", exact: true }),
 		).toBeVisible();
 		await expect(page.getByRole("heading", { name: "Vínculo TDA", exact: true })).toBeVisible();
 		await expect(page.getByRole("heading", { name: "Aparência", exact: true })).toBeVisible();
+		const campaignSummary = page.getByText("Crônicas da Mesa", { exact: true });
+		await expect(campaignSummary).toBeVisible();
+		await expect(page.getByText("Gerenciar permissões", { exact: true }).first()).toBeHidden();
+		await campaignSummary.click();
+		await page.getByText("Administração", { exact: true }).click();
 		await expect(page.getByText("Gerenciar permissões", { exact: true }).first()).toBeVisible();
 		const technicalCapability = page.getByText("campaign.permissions.manage", { exact: true });
 		await expect(technicalCapability).toBeHidden();
 		await page.getByText("Detalhes técnicos do acesso", { exact: true }).click();
 		await expect(technicalCapability).toBeVisible();
-		await expect(page.getByText("campaign/yuhara-main", { exact: true })).toHaveCount(0);
+		await expect(page.getByText("campaign/yuhara-main", { exact: true })).toBeVisible();
 		await expect(page.getByRole("link", { name: "Ver histórias públicas" })).toHaveCount(0);
 		await expect(page.locator('main a[href^="/edit"], main a[href="/transcricoes"]')).toHaveCount(0);
 		await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
 		await expect(page.locator('form[action="/auth/logout"]')).toHaveAttribute("method", "post");
+		await expectNoHorizontalOverflow(page);
+	}
+
+	for (const viewport of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/e2e-fixtures/account-overview?state=multi");
+		await expect(page.getByText("Crônicas da Mesa", { exact: true })).toBeVisible();
+		await expect(
+			page.getByText(
+				"A Campanha Sintética Com Nome Deliberadamente Muito Longo Para Validar Reflow",
+				{ exact: true },
+			),
+		).toBeVisible();
 		await expectNoHorizontalOverflow(page);
 	}
 
