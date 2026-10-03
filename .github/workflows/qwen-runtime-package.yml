@@ -129,7 +129,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Restore Runtime RC only for the #1236 Qwen 1.0.18 candidate
+      - name: Restore Runtime RC for the #1413 Qwen 1.0.18 Benchmark evidence candidate
         shell: bash
         run: |
           set -euo pipefail
