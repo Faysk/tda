@@ -340,6 +340,11 @@ test("Lembra contextual campaign dialogs reflow at 320px and a 200%-equivalent v
 test("Lembra fully redacts undiscoverable private classifications", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/e2e-fixtures/lembra-campaigns-restricted");
+	const initialHtml = await page.content();
+	expect(initialHtml).not.toContain("Campanha Privada B");
+	expect(initialHtml).not.toContain("Campanha Privada C");
+	expect(initialHtml).not.toContain("22222222-2222-4222-8222-222222222222");
+	expect(initialHtml).not.toContain("33333333-3333-4333-8333-333333333333");
 
 	const campaignFilter = page.getByRole("button", { name: "Filtrar por campanha" });
 	await campaignFilter.click();
