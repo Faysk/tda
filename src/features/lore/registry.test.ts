@@ -6,11 +6,11 @@ import {
 } from "./registry";
 
 describe("lore editorial registry", () => {
-	it("links D editorially without listing it or inventing an entity", () => {
+	it("curates D under Passos Retomados without inventing an entity", () => {
 		expect(loreRegistrationForSlug("d")).toEqual({
 			slug: "d",
 			delivery: "standalone",
-			listed: false,
+			listed: true,
 			campaignTechnicalSlug: "antes-que-seja-tarde",
 			indexable: false,
 			entityLink: null,
@@ -39,12 +39,12 @@ describe("lore editorial registry", () => {
 			indexable: false,
 			entityLink: null,
 		});
-		expect(loreRegistrationForSlug("yllith")?.campaignTechnicalSlug).toBeNull();
+		expect(loreRegistrationForSlug("yllith")?.campaignTechnicalSlug).toBe("antes-que-seja-tarde");
 		expect(
 			LORE_EDITORIAL_REGISTRY.filter((lore) => lore.listed).map(
 				(lore) => lore.slug,
 			),
-		).toEqual(["pipipi", "astel", "noah", "seika"]);
+		).toEqual(["pipipi", "astel", "noah", "d", "seika", "yllith"]);
 	});
 
 	it("preserves D standalone canonical and social URL metadata", () => {
