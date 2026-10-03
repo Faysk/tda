@@ -3,6 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StoryMarkdown } from "@/components/story-markdown";
+import {
+	clearStaleActionRecovery,
+	isStaleServerActionError,
+	persistStaleActionRecovery,
+	readStaleActionRecovery,
+} from "@/features/edit/stale-action-recovery";
 import { formatSessionDate } from "@/features/sessions/model";
 import styles from "@/features/edit/workbench.module.css";
 import draftStyles from "./editorial-draft.module.css";
@@ -85,6 +91,33 @@ function fieldCount(value: string): number {
 	return sessionDraftScalarLength(value) ?? Number.POSITIVE_INFINITY;
 }
 
+const RECOVERABLE_FIELD_KEYS = [
+	"coverAssetId",
+	"arc",
+	"title",
+	"shortDescription",
+	"fullSummary",
+	"sessionDate",
+] as const satisfies readonly (keyof Fields)[];
+
+function changedFields(current: Fields, baseline: Fields): Partial<Fields> {
+	const patch: Partial<Record<keyof Fields, string>> = {};
+	for (const key of RECOVERABLE_FIELD_KEYS) {
+		if (current[key] !== baseline[key]) patch[key] = current[key];
+	}
+	return patch;
+}
+
+function validRecoveredFields(value: unknown): Partial<Fields> | null {
+	if (!value || typeof value !== "object") return null;
+	const source = value as Record<string, unknown>;
+	const patch: Partial<Record<keyof Fields, string>> = {};
+	for (const key of RECOVERABLE_FIELD_KEYS) {
+		if (typeof source[key] === "string") patch[key] = source[key];
+	}
+	return Object.keys(patch).length ? patch : null;
+}
+
 export function SessionEditorialDraftEditor({
 	sessionId,
 	initial,
@@ -115,6 +148,7 @@ export function SessionEditorialDraftEditor({
 		"idle" | "saving" | "saved" | "error" | "conflict"
 	>("idle");
 	const [message, setMessage] = useState<string | null>(null);
+	const [staleRecovery, setStaleRecovery] = useState<"idle" | "stale" | "restored">("idle");
 	const [remote, setRemote] = useState<SessionEditorialDraft | null>(null);
 	const [currentPublicationId, setCurrentPublicationId] = useState<string | null>(
 		initialPublication.currentPublicationId,
@@ -138,6 +172,7 @@ export function SessionEditorialDraftEditor({
 	const publicationDialogRef = useRef<HTMLDialogElement>(null);
 	const publicationDialogTitleRef = useRef<HTMLElement>(null);
 	const publicationTriggerRef = useRef<HTMLButtonElement>(null);
+	const recoveryKey = `session-editor:${sessionId}:${surface}`;
 	const dirty = !sameFields(fields, baseline);
 	const missing = useMemo(
 		() =>
@@ -184,6 +219,15 @@ export function SessionEditorialDraftEditor({
 	}, [initial.currentTranscriptRevisionId]);
 
 	useEffect(() => {
+		const recovered = validRecoveredFields(
+			readStaleActionRecovery<Partial<Fields>>(recoveryKey),
+		);
+		if (!recovered) return;
+		setFields((current) => ({ ...current, ...recovered }));
+		setStaleRecovery("restored");
+	}, [recoveryKey]);
+
+	useEffect(() => {
 		setCurrentPublicationId(initialPublication.currentPublicationId);
 		setCurrentPublicationVersion(initialPublication.currentVersion);
 	}, [
@@ -217,7 +261,27 @@ export function SessionEditorialDraftEditor({
 			setMessage("Há um campo fora dos limites do contrato. Nada foi truncado nem salvo.");
 			return;
 		}
-		const result = await saveDraft(input);
+		let result: Awaited<ReturnType<typeof saveSessionEditorialDraftAction>>;
+		try {
+			result = await saveDraft(input);
+			clearStaleActionRecovery(recoveryKey);
+			setStaleRecovery("idle");
+		} catch (error) {
+			if (isStaleServerActionError(error)) {
+				persistStaleActionRecovery(recoveryKey, changedFields(fields, baseline));
+				setStaleRecovery("stale");
+				setPhase("error");
+				setMessage(
+					"O TDA foi atualizado enquanto esta tela estava aberta. Esta ação antiga não foi executada e nenhum retry automático foi feito.",
+				);
+				return;
+			}
+			setPhase("error");
+			setMessage(
+				"Não foi possível confirmar o save. Sua working copy continua nesta tela; confira o estado atual antes de tentar novamente.",
+			);
+			return;
+		}
 		if (!result.ok) {
 			if (result.reason === "conflict" && result.remote) {
 				setPhase("conflict");
@@ -755,6 +819,27 @@ export function SessionEditorialDraftEditor({
 						{" "}
 						· Ctrl/⌘+S salva; nenhum atalho publica.
 					</small>
+
+					{staleRecovery === "restored" ? (
+						<small className={styles.muted} role="status">
+							{" "}· Rascunho recuperado após atualização. Revise antes de salvar.
+						</small>
+					) : null}
+					{staleRecovery === "stale" ? (
+						<button
+							className={draftStyles.controlButton}
+							onClick={() => {
+								persistStaleActionRecovery(
+									recoveryKey,
+									changedFields(fields, baseline),
+								);
+								window.location.reload();
+							}}
+							type="button"
+						>
+							Atualizar e recuperar rascunho
+						</button>
+					) : null}
 				</div>
 
 				{publishMessage && !publishIntent ? (
