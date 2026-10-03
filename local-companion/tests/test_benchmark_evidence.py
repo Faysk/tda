@@ -32,7 +32,9 @@ from tda_companion.transcript import (
     TranscriptDocument,
     TranscriptEngine,
     TranscriptSegment,
+    TranscriptSegmentRef,
     TranscriptTrack,
+    TranscriptTurn,
     TranscriptWord,
     stats_for_tracks,
 )
@@ -89,6 +91,15 @@ def _document(profile: str, text: str, source_sha: str = "a" * 64) -> Transcript
         duration_seconds=300.0,
         segments=(segment,),
     )
+    turn = TranscriptTurn(
+        id="turn-1",
+        speaker="Alice",
+        start=1.0,
+        end=2.0,
+        text=text,
+        segments=(TranscriptSegmentRef(track_number=1, segment_id="1-0"),),
+        overlaps_other_speaker=False,
+    )
     timer = EngineMeasurement(lambda _event: None, clock=lambda: 10.0)
     processing = timer.finish((track,))
     stats = stats_for_tracks(
@@ -111,6 +122,7 @@ def _document(profile: str, text: str, source_sha: str = "a" * 64) -> Transcript
         ),
         tracks=(track,),
         stats=stats,
+        turns=(turn,),
     )
 
 
@@ -369,6 +381,50 @@ def test_quality_receipts_bind_exact_manifest_and_are_deterministic_with_wer_ove
     assert by_profile["qwen-fast"]["overall"]["wer_normalized"] == 3.0
     assert by_profile["qwen-quality"]["overall"]["wer_normalized"] == 1.0
     assert by_profile["qwen-quality"]["overall"]["cer_normalized"] == 0.5
+
+
+def test_level_two_reference_exposes_timing_speaker_overlap_and_provenance(tmp_path: Path):
+    benchmark_id, _ = _complete_bundle(tmp_path, {profile: "Olá mundo" for profile in PROFILES})
+    save_reference(
+        tmp_path,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [
+                {
+                    "track_number": 1,
+                    "speaker": "Alice",
+                    "text": "Olá mundo",
+                    "turns": [
+                        {
+                            "start": 1.1,
+                            "end": 2.2,
+                            "speaker": "Bob",
+                            "text": "Olá mundo",
+                            "overlaps_other_speaker": True,
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+
+    summary = quality_summary(tmp_path, benchmark_id)
+    assert summary["reference"]["capability"] == "timed_turns"
+    timing = summary["profiles"][0]["timing"]
+    assert timing is not None
+    assert timing["matched_turns"] == 1
+    assert timing["unmatched_reference_turns"] == 0
+    assert timing["unmatched_hypothesis_turns"] == 0
+    assert timing["turn_coverage"] == 1.0
+    assert timing["speaker_accuracy"] == 0.0
+    assert timing["start_mae_seconds"] == pytest.approx(0.1)
+    assert timing["end_mae_seconds"] == pytest.approx(0.2)
+    assert timing["overlap_recall"] == 0.0
+    assert timing["hypothesis_timing"]["alignment_backend"] == "native"
+    assert timing["hypothesis_timing"]["timestamp_granularity"] == "segment_aligned"
 
 
 def test_reference_is_cas_versioned_and_quality_receipt_contains_no_reference_text(tmp_path: Path):
