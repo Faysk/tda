@@ -16,12 +16,18 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _SOURCE_ID = re.compile(r"^craig-([0-9a-f]{64})$")
 _MAX_TRANSCRIPT_BYTES = 512 * 1024 * 1024
 _MAX_MANIFEST_BYTES = 256 * 1024
+_SUPPORTED_QWEN_PROFILES = frozenset({"qwen-fast", "qwen-quality"})
+_HARNESS_EXIT_CODE = 3
 
 
 class QwenFullRunStructureError(RuntimeError):
     def __init__(self, code: str):
         super().__init__(code)
         self.code = code
+
+
+class QwenFullRunHarnessError(QwenFullRunStructureError):
+    """Acceptance harness/configuration error, not a product structure failure."""
 
 
 def _sha256_file(path: Path) -> str:
@@ -53,12 +59,12 @@ def _json_file(path: Path, *, maximum: int, code: str) -> dict[str, Any]:
 def _load_transcript_type(repo_root: Path):
     package_root = (repo_root / "local-companion").resolve()
     if not package_root.is_dir():
-        raise QwenFullRunStructureError("QWEN_1236_REPOSITORY_LAYOUT_INVALID")
+        raise QwenFullRunHarnessError("QWEN_1236_REPOSITORY_LAYOUT_INVALID")
     sys.path.insert(0, str(package_root))
     try:
         from tda_companion.transcript import TranscriptDocument, TranscriptValidationError
     except Exception as exc:
-        raise QwenFullRunStructureError("QWEN_1236_TRANSCRIPT_VALIDATOR_IMPORT_FAILED") from exc
+        raise QwenFullRunHarnessError("QWEN_1236_TRANSCRIPT_VALIDATOR_IMPORT_FAILED") from exc
     return TranscriptDocument, TranscriptValidationError
 
 
@@ -80,10 +86,10 @@ def validate_full_run(
         raise QwenFullRunStructureError("QWEN_1236_FULL_RUN_SOURCE_MISMATCH")
     if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt < 2:
         raise QwenFullRunStructureError("QWEN_1236_FULL_RUN_RETRY_ATTEMPT_INVALID")
-    if expected_profile_id != "qwen-fast":
-        raise QwenFullRunStructureError("QWEN_1236_FULL_RUN_PROFILE_INVALID")
+    if expected_profile_id not in _SUPPORTED_QWEN_PROFILES:
+        raise QwenFullRunHarnessError("QWEN_1236_FULL_RUN_EXPECTED_PROFILE_INVALID")
     if expected_track_count != 4:
-        raise QwenFullRunStructureError("QWEN_1236_FULL_RUN_TRACK_CONTRACT_INVALID")
+        raise QwenFullRunHarnessError("QWEN_1236_FULL_RUN_TRACK_CONTRACT_INVALID")
 
     raw_transcript = _json_file(transcript_path, maximum=_MAX_TRANSCRIPT_BYTES, code="QWEN_1236_FULL_RUN_TRANSCRIPT")
     run_marker = _json_file(run_marker_path, maximum=_MAX_MANIFEST_BYTES, code="QWEN_1236_FULL_RUN_MARKER")
@@ -215,6 +221,9 @@ def main(argv: list[str] | None = None) -> int:
         _write_json(args.output.resolve(), receipt)
         print("QWEN_1236_FULL_RUN_STRUCTURE_OK")
         return 0
+    except QwenFullRunHarnessError as exc:
+        print(exc.code, file=sys.stderr)
+        return _HARNESS_EXIT_CODE
     except QwenFullRunStructureError as exc:
         print(exc.code, file=sys.stderr)
         return 2
