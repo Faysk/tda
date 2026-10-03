@@ -171,6 +171,9 @@ export function AccountOverview({
 		campaignContexts?.find(
 			(campaign) => campaign.technicalSlug === selectedCampaignSlug,
 		) ?? null;
+	const campaignContextCount = campaignContexts?.length ?? 0;
+	const singleCampaign =
+		campaignContextCount === 1 && campaignContexts ? campaignContexts[0] : null;
 	const stateContent = ACCOUNT_STATE_CONTENT[access.state];
 
 	const linkDescription = profileId
@@ -286,7 +289,7 @@ export function AccountOverview({
 							Não foi possível carregar os contextos de campanha agora. Isso não significa
 							que suas permissões foram removidas.
 						</p>
-					) : campaignContexts.length > 1 ? (
+					) : campaignContextCount > 1 ? (
 						<>
 							<AccountCampaignPicker
 								value={selectedCampaign?.technicalSlug ?? ""}
@@ -334,32 +337,32 @@ export function AccountOverview({
 								/>
 							</div>
 						</details>
-					) : campaignContexts.length > 1 ? (
+					) : campaignContextCount > 1 ? (
 						<p className={styles.emptyState}>
 							Escolha uma campanha para ver as permissões específicas desse contexto.
 						</p>
-					) : campaignContexts.length === 1 ? (
+					) : singleCampaign ? (
 						<details className={styles.accessContext} open>
 							<summary className={styles.campaignContextSummary}>
 								<span>
 									<span className={styles.contextEyebrow}>Campanha</span>
-									<strong>{campaignContexts[0].name}</strong>
+									<strong>{singleCampaign.name}</strong>
 								</span>
 								<span className={styles.contextScopeLabel}>
-									{campaignContexts[0].lifecycle === "archived" ? "Arquivada" : "Ativa"}
+									{singleCampaign.lifecycle === "archived" ? "Arquivada" : "Ativa"}
 								</span>
 							</summary>
 							<div className={styles.campaignContextBody}>
-								{campaignContexts[0].capabilityGroups.length > 0 ? (
-									<CapabilityGroups groups={campaignContexts[0].capabilityGroups} />
+								{singleCampaign.capabilityGroups.length > 0 ? (
+									<CapabilityGroups groups={singleCampaign.capabilityGroups} />
 								) : (
 									<p className={styles.emptyState}>
 										Nenhuma permissão adicional específica desta campanha.
 									</p>
 								)}
 								<TechnicalCapabilities
-									groups={campaignContexts[0].capabilityGroups}
-									scope={`campaign/${campaignContexts[0].technicalSlug}`}
+									groups={singleCampaign.capabilityGroups}
+									scope={`campaign/${singleCampaign.technicalSlug}`}
 								/>
 							</div>
 						</details>
