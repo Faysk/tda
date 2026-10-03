@@ -7,6 +7,7 @@ import {
 	lembraReferenceObjectKey,
 	lembraUploadChunkCount,
 	validLembraCampaignId,
+	validLembraCampaignMutationIntent,
 	validLembraDescription,
 	validLembraTitle,
 	validLembraUpdatedAt,
@@ -113,6 +114,26 @@ describe("Lembra persistence model", () => {
 		expect(validLembraTitle("x".repeat(121))).toBe(false);
 		expect(validLembraDescription("x".repeat(320))).toBe(true);
 		expect(validLembraDescription("x".repeat(321))).toBe(false);
+	});
+
+	it("accepts only explicit preserve, clear and set classification intents", () => {
+		expect(validLembraCampaignMutationIntent({ kind: "preserve" })).toBe(true);
+		expect(validLembraCampaignMutationIntent({ kind: "clear" })).toBe(true);
+		expect(
+			validLembraCampaignMutationIntent({
+				kind: "set",
+				campaignId: referenceId,
+			}),
+		).toBe(true);
+		expect(
+			validLembraCampaignMutationIntent({ kind: "set", campaignId: "campaign-a" }),
+		).toBe(false);
+		expect(
+			validLembraCampaignMutationIntent({
+				kind: "preserve",
+				campaignId: referenceId,
+			}),
+		).toBe(false);
 	});
 
 	it("accepts nullable campaign classification and database timestamps", () => {
