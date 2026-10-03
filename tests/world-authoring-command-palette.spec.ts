@@ -110,8 +110,6 @@ test("command palette remains usable at the frozen authoring viewports", async (
 	}
 });
 
-
-
 test("world discard uses the project dialog and Escape cancels without confirmation", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto(FIXTURE_PATH);
@@ -135,7 +133,7 @@ test("world discard uses the project dialog and Escape cancels without confirmat
 
 	await trigger.click();
 	await expect(discardDialog).toBeVisible();
-	await page.getByRole("button", { name: "Descartar rascunho" }).click();
+	await discardDialog.getByRole("button", { name: "Descartar rascunho", exact: true }).click();
 	await expect(discardDialog).toHaveCount(0);
 	await expect(page.getByTestId("world-command-palette-action")).toHaveText("discard:confirmed");
 	await expect(trigger).toBeFocused();
