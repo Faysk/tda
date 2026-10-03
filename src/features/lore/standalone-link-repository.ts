@@ -41,6 +41,8 @@ const E2E_LORE_CAMPAIGN_LINKS: Readonly<
 		},
 	},
 	seika: null,
+	d: null,
+	yllith: null,
 };
 
 function loreFixtureEnabled() {
