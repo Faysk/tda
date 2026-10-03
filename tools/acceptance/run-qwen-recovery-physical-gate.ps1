@@ -1106,7 +1106,9 @@ try {
             --expected-track-count ([string][int]$craigTrackCount) `
             --repo-root $repoRoot `
             --output $structureReceiptPath
-        if ($LASTEXITCODE -ne 0) { Fail-Product "QWEN_1236_FULL_RUN_STRUCTURE_INVALID" }
+        $structureValidatorExitCode = $LASTEXITCODE
+        if ($structureValidatorExitCode -eq 3) { Fail-Harness "QWEN_1236_FULL_RUN_STRUCTURE_VALIDATOR_CONTRACT_INVALID" }
+        if ($structureValidatorExitCode -ne 0) { Fail-Product "QWEN_1236_FULL_RUN_STRUCTURE_INVALID" }
         $structureReceipt = Read-Json $structureReceiptPath "QWEN_1236_FULL_RUN_STRUCTURE_RECEIPT_INVALID"
         if (
             [string](Get-OptionalPropertyValue $structureReceipt "schema") -ne "tda_qwen_1236_full_run_structure_v1" -or
