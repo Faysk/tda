@@ -462,6 +462,61 @@ def test_bundle_rejects_transcript_corruption_and_wrong_profile_lookup(tmp_path:
         read_benchmark_transcript(data_root, benchmark_id, "whisper-turbo")
 
 
+def test_exact_transcript_read_rejects_internally_rehashed_malformed_schema(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    bundle = _finalize(data_root, job_id="malformed-transcript")
+    benchmark_id = bundle["benchmark_id"]
+    root = benchmark_root(data_root, benchmark_id)
+    profile_id = "qwen-fast"
+    transcript_path = root / "profiles" / profile_id / "transcript.json"
+    profile_path = root / "profiles" / profile_id / "profile.json"
+    top_path = root / "benchmark.json"
+
+    transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+    transcript["schema_version"] = "malformed_transcript_schema"
+    transcript_bytes = json.dumps(
+        transcript,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    transcript_path.write_bytes(transcript_bytes)
+    transcript_sha = hashlib.sha256(transcript_bytes).hexdigest()
+
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    profile["transcript"]["sha256"] = transcript_sha
+    profile["transcript"]["size_bytes"] = len(transcript_bytes)
+    profile_bytes = json.dumps(
+        profile,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    profile_path.write_bytes(profile_bytes)
+
+    top = json.loads(top_path.read_text(encoding="utf-8"))
+    entry = next(item for item in top["profiles"] if item["profile_id"] == profile_id)
+    entry["transcript"]["sha256"] = transcript_sha
+    entry["transcript"]["size_bytes"] = len(transcript_bytes)
+    entry["profile_manifest"]["sha256"] = hashlib.sha256(profile_bytes).hexdigest()
+    entry["profile_manifest"]["size_bytes"] = len(profile_bytes)
+    top_path.write_bytes(
+        json.dumps(
+            top,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+
+    # Metadata stays lazy: the malformed transcript body is not parsed until the
+    # exact profile content is explicitly requested.
+    assert load_benchmark_bundle(data_root, benchmark_id)["status"] == "completed"
+    with pytest.raises(BenchmarkBundleError, match="BENCHMARK_PROFILE_TRANSCRIPT_INVALID"):
+        read_benchmark_transcript(data_root, benchmark_id, profile_id)
+
+
 def test_bundle_rejects_manifest_tampering_and_path_traversal(tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
