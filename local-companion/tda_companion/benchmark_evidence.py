@@ -138,7 +138,7 @@ def _junction(path: Path) -> bool:
 
 
 def _reject_link(path: Path, code: str) -> None:
-    if path.exists() and (path.is_symlink() or _junction(path)):
+    if path.is_symlink() or _junction(path):
         raise BenchmarkEvidenceError(code)
 
 
@@ -374,6 +374,8 @@ def write_profile_artifact(
     profile_id = str(receipt.get("profile_id"))
     root = _profile_root(package_root, benchmark_id, profile_id)
     root.mkdir(parents=True, exist_ok=True)
+    if (root / "profile.json").exists():
+        raise BenchmarkEvidenceError("BENCHMARK_PROFILE_ALREADY_COMMITTED")
 
     transcript_payload = _canonical(document.as_dict())
     transcript_meta = _write_bytes(root / "transcript.json", transcript_payload)
@@ -473,6 +475,8 @@ def commit_bundle(
         raise BenchmarkEvidenceError("BENCHMARK_AUDIO_WORK_INVALID")
 
     root = bundle_root(package_root, benchmark_id)
+    if (root / "benchmark.json").exists():
+        raise BenchmarkEvidenceError("BENCHMARK_ALREADY_COMMITTED")
     profile_entries: list[dict[str, Any]] = []
     for profile_id in CANONICAL_PROFILES:
         manifest = _load_profile_manifest(
