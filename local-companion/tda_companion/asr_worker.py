@@ -12,6 +12,12 @@ from pathlib import Path
 from typing import BinaryIO, Callable, TextIO
 
 from .asr_models import ModelRegistryError, get_profile
+from .benchmark_evidence import (
+    benchmark_id_for,
+    sample_identity_for_package,
+    sanitize_benchmark_event,
+    write_profile_artifact,
+)
 from .attempt_fence import AttemptFenceError, claim_attempt_outcome
 from .asr_whisper import WhisperRuntimeError, transcribe_craig_package
 from .craig import CraigPackageError
@@ -163,6 +169,27 @@ def _run_craig(
             if benchmark_mode
             else None
         )
+        benchmark_id = benchmark_id_for(command.job_id, command.attempt) if benchmark_mode else None
+        benchmark_event_started = time.monotonic()
+        benchmark_event_seq = 0
+        benchmark_events: list[dict] = []
+
+        def capture_benchmark_event(event_type: str, payload: dict) -> None:
+            nonlocal benchmark_event_seq
+            if not benchmark_mode or benchmark_id is None:
+                return
+            benchmark_event_seq += 1
+            benchmark_events.append(
+                sanitize_benchmark_event(
+                    {"type": event_type, **payload},
+                    benchmark_id=benchmark_id,
+                    profile_id=str(command.payload["profile_id"]),
+                    attempt=command.attempt,
+                    seq=benchmark_event_seq,
+                    relative_ms=max(0, round((time.monotonic() - benchmark_event_started) * 1000)),
+                )
+            )
+
         staging_root = (data_root / "staging").resolve()
         package_root = (staging_root / source_id).resolve()
         if package_root.parent != staging_root:
@@ -212,6 +239,8 @@ def _run_craig(
         def report(value: dict) -> None:
             event_type = value.get("type")
             payload = {key: item for key, item in value.items() if key != "type"}
+            if event_type in {"stage", "progress", "event"}:
+                capture_benchmark_event(str(event_type), payload)
             if event_type == "stage":
                 emitter.emit("stage", payload)
             elif event_type == "progress":
@@ -271,33 +300,59 @@ def _run_craig(
                 raise TranscriptionRunError("BENCHMARK_FRESH_PROCESSING_METRICS_REQUIRED")
             benchmark_metrics = stats.processing_metrics
             lineage = capture_execution_lineage(document)
+            if benchmark_id is None or benchmark_sample_seconds is None:
+                raise TranscriptionRunError("BENCHMARK_IDENTITY_INVALID")
+            sample_identity_sha256 = sample_identity_for_package(
+                package,
+                sample_seconds=benchmark_sample_seconds,
+            )
+            receipt = {
+                "kind": "benchmark.profile",
+                "schema_version": "tda_benchmark_profile_v1",
+                "profile_id": profile.id,
+                "engine": document.engine.engine,
+                "model": document.engine.model,
+                "model_revision": document.engine.model_revision,
+                "device": document.engine.device,
+                "compute_type": document.engine.compute_type,
+                "alignment": document.engine.alignment,
+                "sample_seconds": benchmark_sample_seconds,
+                "audio_work_seconds": benchmark_metrics["fresh_audio_work_seconds"],
+                "session_duration_seconds": stats.session_duration_seconds,
+                "processing_timing_version": benchmark_metrics["version"],
+                "processing_seconds": benchmark_metrics["total_processing_seconds"],
+                "rtf": benchmark_rtf,
+                "word_count": stats.word_count,
+                "segment_count": stats.segment_count,
+                "track_count": stats.track_count,
+                "warning_count": len(document.warnings),
+                "execution_lineage": lineage,
+            }
+            capture_benchmark_event(
+                "terminal",
+                {"code": "BENCHMARK_PROFILE_COMPLETED", "stage": "result_prepare"},
+            )
+            artifact = write_profile_artifact(
+                package_root,
+                benchmark_id=benchmark_id,
+                job_id=command.job_id,
+                attempt=command.attempt,
+                sample_identity_sha256=sample_identity_sha256,
+                document=document,
+                receipt=receipt,
+                context=str(command.payload.get("context") or ""),
+                glossary=str(command.payload.get("glossary") or ""),
+                events=benchmark_events,
+            )
+            receipt["benchmark_id"] = benchmark_id
+            receipt["profile_artifact"] = {
+                "schema_version": artifact["schema_version"],
+                "profile_manifest_sha256": artifact["profile_manifest"]["sha256"],
+                "profile_manifest_size_bytes": artifact["profile_manifest"]["size_bytes"],
+            }
             heartbeat_stop.set()
             heartbeat_thread.join(timeout=1.0)
-            emitter.emit(
-                "result",
-                {
-                    "kind": "benchmark.profile",
-                    "schema_version": "tda_benchmark_profile_v1",
-                    "profile_id": profile.id,
-                    "engine": document.engine.engine,
-                    "model": document.engine.model,
-                    "model_revision": document.engine.model_revision,
-                    "device": document.engine.device,
-                    "compute_type": document.engine.compute_type,
-                    "alignment": document.engine.alignment,
-                    "sample_seconds": benchmark_sample_seconds,
-                    "audio_work_seconds": benchmark_metrics["fresh_audio_work_seconds"],
-                    "session_duration_seconds": stats.session_duration_seconds,
-                    "processing_timing_version": benchmark_metrics["version"],
-                    "processing_seconds": benchmark_metrics["total_processing_seconds"],
-                    "rtf": benchmark_rtf,
-                    "word_count": stats.word_count,
-                    "segment_count": stats.segment_count,
-                    "track_count": stats.track_count,
-                    "warning_count": len(document.warnings),
-                    "execution_lineage": lineage,
-                },
-            )
+            emitter.emit("result", receipt)
             return 0
 
         def reserve_run_commit() -> None:
