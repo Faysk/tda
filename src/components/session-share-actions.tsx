@@ -68,6 +68,7 @@ export function SessionShareActions({ title, description }: Props) {
 	const share = async () => {
 		const url = currentCanonicalUrl();
 		setManualCopyUrl(null);
+		setStatus("");
 		if (navigator.share) {
 			try {
 				await navigator.share({ title, text: description, url });
