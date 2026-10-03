@@ -128,9 +128,11 @@ test("manager distinguishes zero, one and many campaigns with human status label
 	await expect(page.getByText("Ativa", { exact: true })).toBeVisible();
 
 	await page.goto(FIXTURE);
-	await expect(page.locator("[data-campaign-management-item]")).toHaveCount(3);
-	await expect(page.getByText("Privada", { exact: true })).toHaveCount(2);
-	await expect(page.getByText("Arquivada", { exact: true })).toBeVisible();
+	const items = page.locator("[data-campaign-management-item]");
+	await expect(items).toHaveCount(3);
+	await expect(items.nth(0).getByText("Pública", { exact: true }).first()).toBeVisible();
+	await expect(items.nth(1).getByText("Privada", { exact: true }).first()).toBeVisible();
+	await expect(items.nth(2).getByText("Arquivada", { exact: true })).toBeVisible();
 });
 
 test("long names reflow without horizontal overflow on mobile and zoom-equivalent viewports", async ({
