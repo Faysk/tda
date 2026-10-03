@@ -679,6 +679,8 @@ class WorkerSupervisor:
                 daemon=True,
             )
             sampler_thread.start()
+            raised: WorkerProcessError | None = None
+            outcome: WorkerOutcome | None = None
             try:
                 outcome = self.run_craig(
                     job_id=job_id,
@@ -695,21 +697,60 @@ class WorkerSupervisor:
                     on_event=capture_event,
                     is_cancelled=is_cancelled,
                 )
+            except WorkerProcessError as exc:
+                raised = exc
             finally:
                 telemetry_stop.set()
                 sampler_thread.join(timeout=2.0)
 
             terminal_seq = max((int(row.get("seq", -1)) for row in evidence_events), default=-1) + 1
+            terminal_payload = (
+                outcome.payload
+                if outcome is not None and isinstance(outcome.payload, dict)
+                else {
+                    "code": raised.code if raised is not None else "WORKER_EXECUTION_FAILED",
+                    "stage": "benchmark_worker_launch",
+                }
+            )
+            terminal_type = (
+                outcome.terminal
+                if outcome is not None and outcome.terminal in {"result", "cancelled"}
+                else "error"
+            )
             terminal_message = WorkerMessage.create(
                 job_id=job_id,
                 attempt=attempt,
                 seq=terminal_seq,
-                type=outcome.terminal if outcome.terminal in {"result", "cancelled"} else "error",
-                payload=outcome.payload if isinstance(outcome.payload, dict) else {},
+                type=terminal_type,
+                payload=terminal_payload,
             )
             capture(terminal_message)
 
             profile_elapsed_ms = max(0, round((time.monotonic() - profile_started) * 1000))
+            if raised is not None:
+                try:
+                    telemetry = normalize_telemetry_samples(
+                        telemetry_samples,
+                        lineage={},
+                        interval_ms=1000,
+                        elapsed_ms=profile_elapsed_ms,
+                    )
+                    write_failed_profile_diagnostics(
+                        self.data_root,
+                        benchmark_id=benchmark_id,
+                        job_id=job_id,
+                        attempt=attempt,
+                        profile_id=profile_id,
+                        sample_identity_sha256=sample_identity_sha256,
+                        terminal="error",
+                        failure_payload=terminal_payload,
+                        events=evidence_events,
+                        telemetry=telemetry,
+                    )
+                except BenchmarkEvidenceError as exc:
+                    raise WorkerProcessError(str(exc), recoverable=False) from exc
+                raise raised
+            assert outcome is not None
             if outcome.terminal != "result":
                 try:
                     telemetry = normalize_telemetry_samples(
