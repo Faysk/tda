@@ -474,7 +474,7 @@ Segurança:
 
 A migration no Git não prova rollout remoto. Confirmar migration history e grants somente via Production CD governado.
 
-## Session campaign move — candidate #1129
+## Session campaign move — deployable #1426/#1129
 
 | RPC/helper | Consumer | Security / grants | Contract |
 | --- | --- | --- | --- |
@@ -483,7 +483,7 @@ A migration no Git não prova rollout remoto. Confirmar migration history e gran
 | `session_campaign_move_blockers(uuid,uuid)` | RPCs acima | `service_role` only | Inventaria dependências que ainda impedem move seguro. |
 | `session_campaign_move_dependency_count(text,text,uuid)` | helper interno | `service_role` only | Conta dependências em tabelas opcionais do domínio sem expor conteúdo. |
 
-Todos os quatro permanecem candidatos scratch-only enquanto `20261001030000_session_campaign_move.sql` não for promovido deliberadamente.
+Os quatro RPC/helpers são versionados pela migration deployable `20261004133000_session_campaign_move.sql`. O snapshot `20261001030000_session_campaign_move.sql` permanece somente em `supabase/candidates/`. Aplicação remota e grants só são considerados ativos após receipt do Production CD e read-back do schema.
 
 ## Campaign revision trigger — #1326
 
