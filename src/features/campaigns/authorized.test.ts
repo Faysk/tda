@@ -108,6 +108,7 @@ function campaignQuery(result: Readonly<{ data: unknown; error: unknown }>) {
 	for (const method of ["select", "order", "eq", "in"]) {
 		query[method] = vi.fn(() => query);
 	}
+	// biome-ignore lint/suspicious/noThenProperty: Supabase query mocks are intentionally thenable to match the client contract.
 	query.then = (
 		resolve: (value: Readonly<{ data: unknown; error: unknown }>) => unknown,
 		reject: (reason: unknown) => unknown,
