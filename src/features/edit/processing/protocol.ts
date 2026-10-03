@@ -406,7 +406,7 @@ export type BenchmarkEvidenceSummary = {
 	sourceId: string;
 	profileOrder: readonly TranscriptionProfileId[];
 	bundleSizeBytes: number;
-	formats: readonly ("json" | "txt" | "vtt" | "srt")[];
+	formats: readonly ("json" | "txt" | "txt-plain" | "vtt" | "srt")[];
 	qualityReferenceStatus: "none";
 	telemetryAvailable: boolean;
 	integrity: "verified";
@@ -2248,11 +2248,12 @@ export function parseBenchmarkEvidenceSummary(
 	];
 	if (profileOrder.some((item, index) => item !== expected[index]))
 		return invalid();
-	if (!Array.isArray(row.formats) || row.formats.length < 3 || row.formats.length > 4)
+	if (!Array.isArray(row.formats) || row.formats.length < 3 || row.formats.length > 5)
 		return invalid();
 	const formats = row.formats.map((format) => {
-		if (!["json", "txt", "vtt", "srt"].includes(String(format))) return invalid();
-		return format as "json" | "txt" | "vtt" | "srt";
+		if (!["json", "txt", "txt-plain", "vtt", "srt"].includes(String(format)))
+			return invalid();
+		return format as "json" | "txt" | "txt-plain" | "vtt" | "srt";
 	});
 	if (new Set(formats).size !== formats.length) return invalid();
 	if (row.quality_reference_status !== "none" || row.integrity !== "verified")
