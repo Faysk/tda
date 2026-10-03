@@ -65,7 +65,7 @@ import {
 
 const legacyRow = {
 	slug: "yuhara-main",
-	name: "Crônicas da Mesa",
+	name: "Destino Sem Fim",
 	description: "Campanha histórica",
 };
 
@@ -95,7 +95,7 @@ describe("public campaign registry compatibility", () => {
 			campaigns: [
 				{
 					routeKey: "cronicas-da-mesa",
-					name: "Crônicas da Mesa",
+					name: "Destino Sem Fim",
 					description: "Campanha histórica",
 					coverImage: null,
 				},
@@ -122,7 +122,7 @@ describe("public campaign registry compatibility", () => {
 			campaign: {
 				technicalSlug: "yuhara-main",
 				routeKey: "cronicas-da-mesa",
-				name: "Crônicas da Mesa",
+				name: "Destino Sem Fim",
 				description: "Campanha histórica",
 				coverImage: null,
 			},
