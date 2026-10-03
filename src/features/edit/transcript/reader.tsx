@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui";
+import { Button, Dialog } from "@/components/ui";
 import { saveTranscriptRevisionEditsAction } from "./edit-actions";
 import {
 	type TranscriptEditRequest,
@@ -27,6 +27,11 @@ type WorkingEdit = Readonly<{
 }>;
 
 type SavePhase = "idle" | "saving" | "saved" | "conflict" | "error";
+
+type ReaderConfirmation =
+	| { action: "discard_all" }
+	| { action: "navigate"; href: string; label: string }
+	| { action: "reload_remote" };
 
 export type TranscriptReaderSaveAction = typeof saveTranscriptRevisionEditsAction;
 
@@ -89,7 +94,9 @@ export function TranscriptReader({
 	const [savePhase, setSavePhase] = useState<SavePhase>("idle");
 	const [saveMessage, setSaveMessage] = useState("");
 	const [remoteRevisionNumber, setRemoteRevisionNumber] = useState<number | null>(null);
+	const [confirmation, setConfirmation] = useState<ReaderConfirmation | null>(null);
 	const pendingOperation = useRef<{ id: string; signature: string } | null>(null);
+	const allowUnload = useRef(false);
 
 	const [query, setQuery] = useState("");
 	const [matchCursor, setMatchCursor] = useState(-1);
@@ -236,14 +243,36 @@ export function TranscriptReader({
 		setSaveMessage("");
 	}
 
-	function discardAll() {
-		if (dirty && !window.confirm("Descartar todas as alterações não salvas da transcrição?"))
-			return;
+	function resetWorkingCopy() {
 		setWorking({});
 		setActiveEditId(null);
 		setSavePhase("idle");
 		setSaveMessage("");
 		pendingOperation.current = null;
+	}
+
+	function discardAll() {
+		if (dirty) {
+			setConfirmation({ action: "discard_all" });
+			return;
+		}
+		resetWorkingCopy();
+	}
+
+	function confirmReaderAction() {
+		const choice = confirmation;
+		if (!choice) return;
+		setConfirmation(null);
+		if (choice.action === "discard_all") {
+			resetWorkingCopy();
+			return;
+		}
+		if (choice.action === "navigate") {
+			router.push(choice.href);
+			return;
+		}
+		allowUnload.current = true;
+		window.location.reload();
 	}
 
 	function buildRequest(): TranscriptEditRequest | null {
@@ -388,6 +417,7 @@ export function TranscriptReader({
 	useEffect(() => {
 		if (!dirty) return;
 		const beforeUnload = (event: BeforeUnloadEvent) => {
+			if (allowUnload.current) return;
 			event.preventDefault();
 			event.returnValue = "";
 		};
@@ -397,10 +427,15 @@ export function TranscriptReader({
 			const anchor = target.closest("a");
 			if (!anchor || anchor.dataset.transcriptSafeNavigation === "true") return;
 			if (anchor.target === "_blank" || anchor.href === window.location.href) return;
-			if (!window.confirm("Você tem alterações não salvas na transcrição. Sair mesmo assim?")) {
-				event.preventDefault();
-				event.stopPropagation();
-			}
+			const destination = new URL(anchor.href, window.location.href);
+			if (destination.origin !== window.location.origin) return;
+			event.preventDefault();
+			event.stopPropagation();
+			setConfirmation({
+				action: "navigate",
+				href: `${destination.pathname}${destination.search}${destination.hash}`,
+				label: anchor.textContent?.trim() || "destino selecionado",
+			});
 		};
 		window.addEventListener("beforeunload", beforeUnload);
 		document.addEventListener("click", protectInternalNavigation, true);
@@ -439,7 +474,47 @@ export function TranscriptReader({
 	}, [baseline, matchCursor, matches, normalizedQuery, visibleCount]);
 
 	return (
-		<section
+		<>
+			{confirmation ? (
+				<Dialog
+					open
+					title={
+						confirmation.action === "discard_all"
+							? "Descartar alterações?"
+							: confirmation.action === "reload_remote"
+								? "Recarregar versão mais recente?"
+								: "Sair da transcrição?"
+					}
+					description={`Sessão ${sessionId ?? sourceLabel} · revisão ${currentRevisionNumber ? `r${currentRevisionNumber}` : "atual"} · ${dirtyCount.toLocaleString("pt-BR")} alteração(ões) não salvas.`}
+					onClose={() => setConfirmation(null)}
+					actions={
+					<>
+						<Button
+							data-dialog-initial-focus="true"
+							onClick={() => setConfirmation(null)}
+						>
+							Continuar editando
+						</Button>
+						<Button variant="primary" onClick={confirmReaderAction}>
+							{confirmation.action === "discard_all"
+								? "Descartar alterações"
+								: confirmation.action === "reload_remote"
+									? "Descartar e recarregar"
+									: "Descartar e sair"}
+						</Button>
+					</>
+				}
+				>
+					<p>
+						{confirmation.action === "navigate"
+							? `Destino: ${confirmation.label}. A navegação interna só continua se você descartar esta working copy.`
+							: confirmation.action === "reload_remote"
+								? "A working copy local será descartada antes de carregar a revisão remota mais recente."
+								: "Somente as alterações ainda não salvas desta working copy serão descartadas; a revisão salva permanece intacta."}
+					</p>
+				</Dialog>
+			) : null}
+			<section
 			className={styles.reader}
 			aria-label="Leitor e editor de transcrição"
 		>
@@ -566,13 +641,11 @@ export function TranscriptReader({
 									size="sm"
 									variant="tertiary"
 									onClick={() => {
-										if (
-											!dirty ||
-											window.confirm(
-												"Recarregar a revisão mais recente e descartar esta working copy?",
-											)
-										)
-											window.location.reload();
+										if (dirty) {
+											setConfirmation({ action: "reload_remote" });
+											return;
+										}
+										window.location.reload();
 									}}
 								>
 									Recarregar versão mais recente
@@ -729,6 +802,7 @@ export function TranscriptReader({
 					somente leitura. Ctrl/⌘+S salva a working copy inteira.
 				</p>
 			) : null}
-		</section>
+			</section>
+		</>
 	);
 }
