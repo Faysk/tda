@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button, Dialog } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import {
 	useEffect,
@@ -565,6 +566,7 @@ export function WorldExplorerClient({
 	useEffect(() => {
 		if (!authoringActive) return;
 		function handleShortcut(event: KeyboardEvent) {
+			if (edit.discardConfirmationOpen) return;
 			if (event.key === "Escape" && connectionActive && !isTypingTarget(event.target)) {
 				event.preventDefault();
 				setRelationCandidate(null);
@@ -592,6 +594,7 @@ export function WorldExplorerClient({
 		authoringUi.state.commandPaletteOpen,
 		authoringUi.setCommandPaletteOpen,
 		authoringUi.setTool,
+		edit.discardConfirmationOpen,
 	]);
 
 	const conductor = canEditLayout && projection.mode === "overview" ? (
@@ -858,6 +861,38 @@ export function WorldExplorerClient({
 				onCommand={executeWorldCommand}
 				onSelectEntity={selectEntityFromPalette}
 			/>
+
+			<Dialog
+				open={edit.discardConfirmationOpen}
+				title="Descartar rascunho?"
+				description={
+					<p>
+						O Mundo publicado será preservado. Esta sessão de edição será encerrada
+						somente depois de registrar a recuperação necessária.
+					</p>
+				}
+				onClose={edit.cancelDiscard}
+				actions={
+					<>
+						<Button data-dialog-initial-focus variant="secondary" onClick={edit.cancelDiscard}>
+							Continuar editando
+						</Button>
+						<Button
+							variant="tertiary"
+							pending={edit.terminalAction === "discard"}
+							pendingLabel="Descartando…"
+							onClick={() => void edit.confirmDiscard()}
+						>
+							Descartar rascunho
+						</Button>
+					</>
+				}
+			>
+				<p>
+					Uma cópia final de recuperação fica registrada para auditoria antes do
+					descarte. Cancelar não altera o rascunho, a lease nem o conteúdo publicado.
+				</p>
+			</Dialog>
 		</div>
 	);
 }

@@ -43,3 +43,52 @@
 		flex-basis: 100%;
 	}
 }
+
+.manualCopy {
+	display: grid;
+	gap: 8px;
+	flex: 1 1 100%;
+	padding: 14px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-elevated);
+}
+
+.manualLabel {
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+	font-size: 0.8rem;
+	font-weight: 650;
+}
+
+.manualInput {
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	padding: 9px 10px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+	font-size: 0.8rem;
+}
+
+.manualInput:focus-visible {
+	outline: 2px solid var(--ds-accent);
+	outline-offset: 2px;
+}
+
+.manualHelp {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.75rem;
+	line-height: 1.45;
+}
+
+.manualActions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}

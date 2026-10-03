@@ -1,4 +1,5 @@
 export { ActionLink, Button, actionStyles } from "./action";
+export { Dialog } from "./dialog";
 export { FormSubmitButton } from "./form-submit-button";
 export type { ActionSize, ActionVariant, ButtonProps } from "./action";
 export type { FormSubmitButtonProps } from "./form-submit-button";
