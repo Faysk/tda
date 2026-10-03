@@ -1,22 +1,22 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { OperationalPageHeader } from "@/components/operational-page-header";
 import { safeReturnPath } from "@/features/auth/config";
-import { CampaignCoverEditor } from "@/features/campaigns/campaign-cover-editor";
+import {
+	CampaignManagementView,
+	type CampaignManagerFeedback,
+} from "@/features/campaigns/management-view";
 import { readManageableCampaigns } from "@/features/campaigns/server";
 import {
 	createCampaignAction,
 	setCampaignLifecycleAction,
 	updateCampaignAction,
 } from "./actions";
-import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
 	title: "Campanhas · Edit",
-	description: "Gestão autorizada das identidades de campanha do TDA.",
+	description: "Crie, organize e gerencie as campanhas do TDA.",
 };
 
 type Props = {
@@ -38,17 +38,6 @@ function validatedReturnPath(value: string | null): string | null {
 	return safe;
 }
 
-function feedbackText(status: string | null, error: string | null) {
-	if (status === "criada") return "Campanha criada e relida com identidade estável.";
-	if (status === "atualizada") return "Campanha atualizada.";
-	if (status === "arquivada") return "Campanha arquivada sem apagar referências históricas.";
-	if (status === "reativada") return "Campanha reativada.";
-	if (error === "conflict") return "A campanha mudou ou a rota já está em uso. Recarregue e tente novamente.";
-	if (error === "validation") return "Revise os campos informados. Slugs usam apenas minúsculas, números e hífens.";
-	if (error === "dependency_unavailable") return "O registry de campanhas está temporariamente indisponível.";
-	return error ? "Não foi possível concluir a operação." : null;
-}
-
 export default async function CampaignManagementPage({ searchParams }: Props) {
 	const [params, result] = await Promise.all([
 		searchParams,
@@ -62,225 +51,22 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 			redirect("/conta?acesso=negado");
 	}
 
-	const status = queryValue(params, "status");
-	const error = queryValue(params, "erro");
+	const feedback: CampaignManagerFeedback = {
+		status: queryValue(params, "status"),
+		error: queryValue(params, "erro"),
+		field: queryValue(params, "campo"),
+		campaignId: queryValue(params, "campanha"),
+	};
 	const returnTo = validatedReturnPath(queryValue(params, "next"));
-	const feedback = feedbackText(status, error);
 
 	return (
-		<main
-			className={styles.page}
-			data-layout-family="workspace"
-			data-layout-role="editorial"
-		>
-			<OperationalPageHeader
-				eyebrow="Edit · Campanhas"
-				title="Campanhas"
-				description={<p>Crie, organize e gerencie as campanhas do TDA.</p>}
-				meta={
-					<div className={styles.headerActions}>
-						{returnTo ? (
-							<Link className={styles.returnLink} href={returnTo}>
-								Voltar à ferramenta
-							</Link>
-						) : null}
-						<Link className={styles.publicLink} href="/campanhas">
-							Ver diretório público
-						</Link>
-					</div>
-				}
-			/>
-
-			{feedback ? (
-				<p className={styles.feedback} role={error ? "alert" : "status"}>
-					{feedback}
-				</p>
-			) : null}
-
-			{!result.ok ? (
-				<section className={styles.state} role="status">
-					<h2>Registry indisponível</h2>
-					<p>
-						A autenticação foi verificada, mas o schema multi-campanha ainda não
-						pôde ser lido. Nenhuma alteração foi tentada.
-					</p>
-				</section>
-			) : (
-				<>
-					<details className={styles.createDisclosure} id="nova-campanha">
-						<summary>Nova campanha</summary>
-						<section className={styles.create} aria-labelledby="create-campaign">
-							<div>
-								<p className={styles.eyebrow}>Nova identidade</p>
-								<h2 id="create-campaign">Criar campanha</h2>
-								<p>
-									A criação registra somente a raiz da campanha. Não cria sessões,
-									entidades, membros nem canon automaticamente.
-								</p>
-							</div>
-							<form className={styles.form} action={createCampaignAction}>
-							{returnTo ? (
-								<input type="hidden" name="returnTo" value={returnTo} />
-							) : null}
-							<label>
-								<span>Nome</span>
-								<input name="name" required maxLength={120} autoComplete="off" />
-							</label>
-							<label>
-								<span>Slug técnico</span>
-								<input
-									name="technicalSlug"
-									required
-									pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-									maxLength={80}
-									autoComplete="off"
-								/>
-							</label>
-							<label>
-								<span>Rota pública</span>
-								<input
-									name="routeKey"
-									required
-									pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-									maxLength={80}
-									autoComplete="off"
-								/>
-							</label>
-							<label>
-								<span>Visibilidade inicial</span>
-								<select name="visibility" defaultValue="private">
-									<option value="private">Privada</option>
-									<option value="public">Pública</option>
-								</select>
-							</label>
-							<label className={styles.full}>
-								<span>Descrição pública curta</span>
-								<textarea name="description" maxLength={600} rows={3} />
-							</label>
-								<button className={styles.primary} type="submit">
-									Criar campanha
-								</button>
-							</form>
-						</section>
-					</details>
-
-					<section className={styles.registry} aria-labelledby="campaign-registry-list">
-						<div className={styles.registryHeading}>
-							<h2 id="campaign-registry-list">Campanhas administráveis</h2>
-							<span>{result.campaigns.length}</span>
-						</div>
-						{result.campaigns.length === 0 ? (
-							<p className={styles.state}>Nenhuma campanha registrada.</p>
-						) : (
-							<div className={styles.list}>
-								{result.campaigns.map((campaign) => (
-									<article className={styles.item} key={campaign.id}>
-										<header className={styles.itemHeader}>
-											<div>
-												<p className={styles.technical}>
-													{campaign.technicalSlug}
-												</p>
-												<h3>{campaign.name}</h3>
-											</div>
-											<span
-												className={styles.badge}
-												data-state={campaign.lifecycle}
-											>
-												{campaign.lifecycle === "active" ? "Ativa" : "Arquivada"}
-											</span>
-										</header>
-
-										<CampaignCoverEditor
-											campaignId={campaign.id}
-											campaignName={campaign.name}
-											coverImage={campaign.coverImage}
-											hasCoverBinding={campaign.hasCoverBinding}
-										/>
-
-										<form className={styles.form} action={updateCampaignAction}>
-											{returnTo ? (
-												<input type="hidden" name="returnTo" value={returnTo} />
-											) : null}
-											<input type="hidden" name="id" value={campaign.id} />
-											<input
-												type="hidden"
-												name="expectedUpdatedAt"
-												value={campaign.updatedAt}
-											/>
-											<label>
-												<span>Nome</span>
-												<input
-													name="name"
-													defaultValue={campaign.name}
-													required
-													maxLength={120}
-												/>
-											</label>
-											<label>
-												<span>Rota pública</span>
-												<input
-													name="routeKey"
-													defaultValue={campaign.routeKey}
-													required
-													pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-													maxLength={80}
-												/>
-											</label>
-											<label>
-												<span>Visibilidade</span>
-												<select
-													name="visibility"
-													defaultValue={campaign.visibility}
-												>
-													<option value="private">Privada</option>
-													<option value="public">Pública</option>
-												</select>
-											</label>
-											<label className={styles.full}>
-												<span>Descrição</span>
-												<textarea
-													name="description"
-													defaultValue={campaign.description ?? ""}
-													maxLength={600}
-													rows={3}
-												/>
-											</label>
-											<button className={styles.secondary} type="submit">
-												Salvar alterações
-											</button>
-										</form>
-
-										<form
-											className={styles.lifecycle}
-											action={setCampaignLifecycleAction}
-										>
-											{returnTo ? (
-												<input type="hidden" name="returnTo" value={returnTo} />
-											) : null}
-											<input type="hidden" name="id" value={campaign.id} />
-											<input
-												type="hidden"
-												name="expectedUpdatedAt"
-												value={campaign.updatedAt}
-											/>
-											<input
-												type="hidden"
-												name="lifecycle"
-												value={
-													campaign.lifecycle === "active" ? "archived" : "active"
-												}
-											/>
-											<button className={styles.tertiary} type="submit">
-												{campaign.lifecycle === "active" ? "Arquivar" : "Reativar"}
-											</button>
-										</form>
-									</article>
-								))}
-							</div>
-						)}
-					</section>
-				</>
-			)}
-		</main>
+		<CampaignManagementView
+			campaigns={result.ok ? result.campaigns : null}
+			feedback={feedback}
+			returnTo={returnTo}
+			createAction={createCampaignAction}
+			updateAction={updateCampaignAction}
+			lifecycleAction={setCampaignLifecycleAction}
+		/>
 	);
 }

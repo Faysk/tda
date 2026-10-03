@@ -17,11 +17,120 @@ function fulfillJson(
 		status,
 		headers: {
 			"Access-Control-Allow-Origin": UI_ORIGIN,
+			"Access-Control-Allow-Headers":
+				"Authorization, Content-Type, Idempotency-Key",
+			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify(value),
 	});
 }
+
+async function installRecoveredPendingSession(
+	page: import("@playwright/test").Page,
+) {
+	const workspace = {
+		schema_version: "tda_session_workspace_v1",
+		campaign_id: "yuhara-main",
+		session_id: "sessao-42",
+		revision: 1,
+		ordering_mode: "attachment",
+		created_at: "2026-10-03T03:00:00.000Z",
+		updated_at: "2026-10-03T03:00:00.000Z",
+		parts: [
+			{
+				part_id: "1".repeat(32),
+				source_id: CRAIG_SOURCE_ID,
+				ordinal: 0,
+				selected_run_id: null,
+				source_state: "ready",
+				timeline_mode: "automatic",
+				session_offset_seconds: 0,
+				trim_start_seconds: 0,
+				trim_end_seconds: null,
+				gap_confirmed: false,
+				overlap_resolution: null,
+				overlap_boundary_seconds: null,
+				source_start_time: null,
+				source_start_confidence: "missing",
+				source_start_utc: null,
+				source_duration_seconds: 300,
+				effective_start_seconds: 0,
+				effective_end_seconds: 300,
+				relation_to_previous: "first",
+				relation_seconds: null,
+				overlap_resolution_valid: true,
+				created_at: "2026-10-03T03:00:00.000Z",
+				updated_at: "2026-10-03T03:00:00.000Z",
+			},
+		],
+		timeline: {
+			policy_version: "tda_session_timeline_v1",
+			segment_boundary_policy: "segment_start_owner_v1",
+			fingerprint_sha256: "2".repeat(64),
+			state: "ready",
+			all_sources_trusted: false,
+			automatic_order_available: false,
+			gap_count: 0,
+			overlap_count: 0,
+			order_conflict_count: 0,
+			unresolved_overlap_count: 0,
+			unconfirmed_gap_count: 0,
+		},
+	};
+	await page.route(
+		`${LOCAL_API}/session-workspaces/yuhara-main/sessao-42`,
+		(route) => fulfillJson(route, workspace),
+	);
+	await page.route(
+		`${LOCAL_API}/session-workspaces/yuhara-main/sessao-42/participants`,
+		(route) =>
+			fulfillJson(route, {
+				schema_version: "tda_session_participant_mapping_v1",
+				policy: "strong_discord_or_manual_v1",
+				campaign_id: "yuhara-main",
+				session_id: "sessao-42",
+				workspace_revision: 1,
+				mapping_sha256: "3".repeat(64),
+				approval_blocked: false,
+				observations: [],
+				participants: [],
+				conflicts: [],
+				manual_assignments: [],
+			}),
+	);
+	await page.route(
+		`${LOCAL_API}/session-workspaces/yuhara-main/sessao-42/assemblies`,
+		(route) =>
+			fulfillJson(route, {
+				schema_version: "tda_session_assemblies_v1",
+				campaign_id: "yuhara-main",
+				session_id: "sessao-42",
+				assemblies: [],
+			}),
+	);
+	await page.route(`${LOCAL_API}/sources/${CRAIG_SOURCE_ID}/runs`, (route) =>
+		fulfillJson(route, {
+			schema_version: "tda_transcription_runs_v1",
+			source_id: CRAIG_SOURCE_ID,
+			runs: [],
+		}),
+	);
+	await page.route(
+		/^http:\/\/127\.0\.0\.1:8765\/api\/v1\/jobs(?:\?.*)?$/u,
+		(route) =>
+			fulfillJson(route, {
+				schema_version: "tda_job_page_v1",
+				scope: "all",
+				jobs: [],
+				has_more: false,
+				next_cursor: null,
+				total_matching: 0,
+				counts: {},
+			}),
+	);
+}
+
 
 async function installCompletedRunCatalog(
 	page: import("@playwright/test").Page,
@@ -286,6 +395,115 @@ test("sessão browser expirada é renovada automaticamente", async ({ page }) =>
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
 	).toBe(true);
 });
+
+test("recovery separates a previous Companion outage from current readiness without duplicating the alert", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.addInitScript(() => {
+		window.localStorage.setItem(
+			"tda.processing.session-composer.recovery.v2:yuhara-main",
+			"sessao-42",
+		);
+	});
+	await installCompanionFixture(page, {
+		profileReady: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+		additionalCapabilities: [
+			"transcription.session-workspace",
+			"transcription.session-intent",
+			"transcription.session-timeline",
+			"transcription.session-participants",
+			"transcription.session-assembly",
+			"transcription.session-assembly.review",
+		],
+	});
+	await installRecoveredPendingSession(page);
+
+	let offline = false;
+	await page.route(`${LOCAL_API}/**`, (route) =>
+		offline ? route.abort("failed") : route.fallback(),
+	);
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	const sessionProgress = page
+		.locator("[data-session-intent='true']")
+		.getByText("0/1 concluída", { exact: true });
+	await expect(sessionProgress).toBeVisible();
+	await expect(
+		page.getByText("A sessão foi recuperada do Companion.", { exact: true }),
+	).toBeVisible();
+	await expect(
+		page.getByText(/Selecione novamente os ZIPs para retomar sem mover ou duplicar/u),
+	).toBeVisible();
+
+	const technicalSummary = page
+		.locator("details > summary")
+		.filter({ hasText: "Detalhes técnicos" })
+		.first();
+	await technicalSummary.click();
+	const technical = technicalSummary.locator("..");
+
+	offline = true;
+	await technical.getByRole("button", { name: "Atualizar", exact: true }).click();
+
+	const previousOutage = page.getByRole("alert").filter({
+		hasText: "O Companion ficou indisponível. O workspace persistido foi preservado.",
+	});
+	await expect(previousOutage).toHaveCount(1);
+	await expect(
+		page.locator("[data-processing-recovery-history='true']"),
+	).toHaveCount(0);
+	await expect(sessionProgress).toBeVisible();
+
+	offline = false;
+	await page.evaluate(() => {
+		document.dispatchEvent(new Event("visibilitychange"));
+	});
+
+	const history = page.locator("[data-processing-recovery-history='true']");
+	await expect(history).toBeVisible();
+	await expect(history).toContainText(
+		"Na tentativa anterior, o Companion ficou indisponível.",
+	);
+	await expect(history).toContainText(
+		"só gravações com execução confirmada contam como concluídas",
+	);
+	await expect(history).toContainText(
+		"Se o ZIP original não estiver selecionado, escolha o mesmo arquivo para retomar.",
+	);
+	await expect(previousOutage).toHaveCount(0);
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(sessionProgress).toBeVisible();
+
+	await technical.getByRole("button", { name: "Atualizar", exact: true }).click();
+	await expect(
+		page.getByText("Composer da sessão recarregado.", { exact: true }).first(),
+	).toBeVisible();
+
+	for (const width of [390, 320]) {
+		await page.setViewportSize({ width, height: 844 });
+		await expect(history).toBeVisible();
+		expect(
+			await page.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+			),
+		).toBe(true);
+		await expect(sessionProgress).toBeVisible();
+	}
+
+	offline = true;
+	await page.evaluate(() => {
+		document.dispatchEvent(new Event("visibilitychange"));
+	});
+	await expect(history).toHaveCount(0);
+	await expect(
+		page.getByRole("alert").filter({
+			hasText: "Não foi possível alcançar o Companion local.",
+		}),
+	).toHaveCount(1);
+});
+
 
 test("cancelamento exige confirmação e converge para cancelled", async ({ page }) => {
 	const state = await installCompanionFixture(page, {

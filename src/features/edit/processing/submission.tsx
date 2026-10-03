@@ -3,6 +3,7 @@
 import {
 	type DragEvent,
 	type FormEvent,
+	useCallback,
 	useEffect,
 	useMemo,
 	useRef,
@@ -76,6 +77,16 @@ import {
 } from "./submission-model";
 import styles from "./submission.module.css";
 const QWEN_RUNTIME_UPGRADE_REASON = "QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED";
+
+type AvailabilityFailure = "timeout" | "unreachable";
+
+function recoveredAvailabilityNotice(code: AvailabilityFailure): string {
+	const incident =
+		code === "timeout"
+			? "o Companion demorou demais para responder"
+			: "o Companion ficou indisponível";
+	return `Na tentativa anterior, ${incident}. O estado já salvo foi preservado. Agora o Companion está respondendo novamente. A reconexão não altera o progresso: só gravações com execução confirmada contam como concluídas. Se o ZIP original não estiver selecionado, escolha o mesmo arquivo para retomar.`;
+}
 
 function messageFor(code: string): string {
 	return {
@@ -229,6 +240,7 @@ export function ProcessingSubmission({
 	const [status, setStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [capabilityError, setCapabilityError] = useState<string | null>(null);
+	const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
 	const [preparation, setPreparation] = useState<PreparationStatus | null>(null);
 	const [preparationCancelling, setPreparationCancelling] = useState(false);
 	const [qwenReleaseAvailability, setQwenReleaseAvailability] = useState<
@@ -236,7 +248,22 @@ export function ProcessingSubmission({
 	>(null);
 	const request = useRef<AbortController | null>(null);
 	const fallbackPending = useRef<SessionComposerPendingSubmission | null>(null);
+	const historicalAvailabilityFailure = useRef<{
+		code: AvailabilityFailure;
+		message: string;
+	} | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
+
+	const handleChildError = useCallback(
+		(message: string, availabilityFailure?: AvailabilityFailure) => {
+			historicalAvailabilityFailure.current = availabilityFailure
+				? { code: availabilityFailure, message }
+				: null;
+			setRecoveryNotice(null);
+			setError(message);
+		},
+		[],
+	);
 
 	useEffect(() => {
 		return () => request.current?.abort();
@@ -248,6 +275,7 @@ export function ProcessingSubmission({
 			setCapabilities(null);
 			setProfile("");
 			setCapabilityError(null);
+			setRecoveryNotice(null);
 			return;
 		}
 
@@ -274,9 +302,24 @@ export function ProcessingSubmission({
 						}));
 				setProfile((current) => chooseSubmissionProfile(current, profileStates));
 				setCapabilityError(null);
+				const recoveredFailure = historicalAvailabilityFailure.current;
+				if (recoveredFailure) {
+					historicalAvailabilityFailure.current = null;
+					setError((current) =>
+						current === recoveredFailure.message ? null : current,
+					);
+					setRecoveryNotice(
+						recoveredAvailabilityNotice(recoveredFailure.code),
+					);
+				}
 			} catch (cause) {
 				if (!stopped && !controller.signal.aborted) {
-					setCapabilityError(messageFor(cause instanceof BridgeError ? cause.code : "service_error"));
+					setRecoveryNotice(null);
+					setCapabilityError(
+						messageFor(
+							cause instanceof BridgeError ? cause.code : "service_error",
+						),
+					);
 				}
 			} finally {
 				reading = false;
@@ -445,6 +488,8 @@ export function ProcessingSubmission({
 		if (!nextFiles.length || busy || intentRequest) return;
 		setStatus(null);
 		setError(null);
+		setRecoveryNotice(null);
+		historicalAvailabilityFailure.current = null;
 		setFiles((current) => {
 			const next = appendCraigFiles(current, nextFiles);
 			if (!sessionId) {
@@ -1215,7 +1260,7 @@ export function ProcessingSubmission({
 							setGlossary(restored.glossary);
 						}}
 						onStatus={setStatus}
-						onError={setError}
+						onError={handleChildError}
 						onOpenTechnical={() => setTechnicalOpen(true)}
 					/>
 					{composerActive ? (
@@ -1249,7 +1294,7 @@ export function ProcessingSubmission({
 									setSessionId((current) => current || value)
 								}
 								onStatus={setStatus}
-								onError={setError}
+								onError={handleChildError}
 							/>
 						</details>
 					) : null}
@@ -1283,6 +1328,15 @@ export function ProcessingSubmission({
 				</div>
 			) : null}
 
+			{recoveryNotice ? (
+				<div
+					className={styles.notice}
+					role="status"
+					data-processing-recovery-history="true"
+				>
+					<strong>Conexão recuperada.</strong> {recoveryNotice}
+				</div>
+			) : null}
 			{status ? <p className={styles.status} role="status">{status}</p> : null}
 			{capabilityError && capabilities ? <p className={styles.inlineError} role="alert">{capabilityError}</p> : null}
 			{error ? <p className={styles.inlineError} role="alert">{error}</p> : null}
