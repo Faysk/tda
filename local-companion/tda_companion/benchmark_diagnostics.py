@@ -42,7 +42,7 @@ MAX_TELEMETRY_BYTES = 2 * 1024 * 1024
 
 _STABLE_CODE = re.compile(r"^[A-Z0-9_]{1,96}$")
 _SAFE_TOKEN = re.compile(r"^[A-Za-z0-9_.:+-]{1,160}$")
-_SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,196}$")
+_SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _PACKAGE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 _SPAM_EVENT_CODES = {
     "MODEL_DOWNLOAD_PROGRESS",
@@ -434,6 +434,8 @@ class BenchmarkProfileDiagnostics:
     ):
         if not _SAFE_ID.fullmatch(profile_id):
             raise BenchmarkDiagnosticsError("BENCHMARK_DIAGNOSTICS_PROFILE_INVALID")
+        if not isinstance(source_id, str) or not _SAFE_ID.fullmatch(source_id):
+            raise BenchmarkDiagnosticsError("BENCHMARK_DIAGNOSTICS_SOURCE_INVALID")
         if (
             isinstance(sample_seconds, bool)
             or not isinstance(sample_seconds, (int, float))
