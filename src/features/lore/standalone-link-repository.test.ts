@@ -190,6 +190,8 @@ describe("standalone lore campaign linkage", () => {
 			publicCampaign: { routeKey: "antes-que-seja-tarde" },
 		});
 		await expect(resolveStandaloneLoreCampaignLink("seika")).resolves.toBeNull();
+		await expect(resolveStandaloneLoreCampaignLink("d")).resolves.toBeNull();
+		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toBeNull();
 		expect(mocks.client).not.toHaveBeenCalled();
 	});
 
