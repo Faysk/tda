@@ -14,6 +14,7 @@ const EXPECTED = {
 		"src/app/campanhas/[campaignSlug]/musicas/page.tsx",
 		"src/app/campanhas/[campaignSlug]/npcs/[slug]/page.tsx",
 		"src/app/campanhas/[campaignSlug]/npcs/page.tsx",
+		"src/app/campanhas/[campaignSlug]/page.tsx",
 		"src/app/campanhas/[campaignSlug]/personagens/[slug]/page.tsx",
 		"src/app/campanhas/[campaignSlug]/personagens/page.tsx",
 		"src/app/campanhas/[campaignSlug]/quests/[slug]/page.tsx",
