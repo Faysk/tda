@@ -165,6 +165,64 @@ def _hash_private_text(value: str) -> dict[str, Any]:
     return {"sha256": _sha256(payload), "length": len(value), "utf8_bytes": len(payload)}
 
 
+def _manifest_payload_sha256(manifest: Mapping[str, Any]) -> str:
+    payload = dict(manifest)
+    payload.pop("manifest_payload_sha256", None)
+    return _sha256(_canonical_json(payload))
+
+
+def _read_bundle_manifest(data_root: Path, benchmark_id: str) -> dict[str, Any]:
+    root = benchmark_root(data_root, benchmark_id)
+    manifest = _read_json(root / "benchmark.json")
+    profiles = manifest.get("profiles")
+    sample = manifest.get("sample")
+    source_sha256 = manifest.get("source_sha256")
+    source_id = manifest.get("source_id")
+    sample_identity = manifest.get("sample_identity_sha256")
+    integrity = manifest.get("manifest_payload_sha256")
+    attempt = manifest.get("attempt")
+    sample_seconds = manifest.get("sample_seconds")
+    if (
+        manifest.get("schema_version") != BUNDLE_SCHEMA
+        or manifest.get("status") != "completed"
+        or manifest.get("benchmark_id") != benchmark_id
+        or manifest.get("profile_order") != list(PROFILES)
+        or not isinstance(manifest.get("job_id"), str)
+        or not manifest["job_id"]
+        or isinstance(attempt, bool)
+        or not isinstance(attempt, int)
+        or attempt < 1
+        or not isinstance(source_sha256, str)
+        or _SHA256.fullmatch(source_sha256) is None
+        or source_id != f"craig-{source_sha256}"
+        or not isinstance(sample_identity, str)
+        or _SHA256.fullmatch(sample_identity) is None
+        or isinstance(sample_seconds, bool)
+        or not isinstance(sample_seconds, (int, float))
+        or float(sample_seconds) != 300.0
+        or not isinstance(sample, dict)
+        or sample.get("start_seconds") != 0.0
+        or sample.get("end_seconds") != sample_seconds
+        or not isinstance(profiles, list)
+        or [item.get("profile_id") for item in profiles if isinstance(item, dict)] != list(PROFILES)
+        or not isinstance(integrity, str)
+        or _SHA256.fullmatch(integrity) is None
+    ):
+        raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
+    if _manifest_payload_sha256(manifest) != integrity:
+        raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INTEGRITY_FAILED")
+    return manifest
+
+
+def bundle_manifest_sha256(data_root: Path, benchmark_id: str) -> str:
+    _read_bundle_manifest(data_root, benchmark_id)
+    digest, _, _ = _sha256_file(
+        benchmark_root(data_root, benchmark_id) / "benchmark.json",
+        _MAX_JSON_BYTES,
+    )
+    return digest
+
+
 def write_profile_artifact(
     data_root: Path,
     document: TranscriptDocument,
@@ -744,6 +802,8 @@ def finalize_bundle(
         if transcript.source_sha256.lower() != source_sha256 or transcript.engine.profile != profile_id:
             raise BenchmarkEvidenceError("BENCHMARK_TRANSCRIPT_IDENTITY_MISMATCH")
         profile_entries.append({"profile_id": profile_id, "artifacts": artifacts})
+    if source_id != f"craig-{source_sha256}":
+        raise BenchmarkEvidenceError("BENCHMARK_SOURCE_IDENTITY_MISMATCH")
     manifest = {
         "schema_version": BUNDLE_SCHEMA,
         "status": "completed",
@@ -762,6 +822,7 @@ def finalize_bundle(
         "profiles": profile_entries,
         "completed_at": utc_now(),
     }
+    manifest["manifest_payload_sha256"] = _manifest_payload_sha256(manifest)
     _write_json(root / "benchmark.json", manifest)
     descriptor = _descriptor(root / "benchmark.json")
     total_size += int(descriptor["size_bytes"])
@@ -782,19 +843,8 @@ def finalize_bundle(
 
 def load_bundle(data_root: Path, benchmark_id: str) -> dict[str, Any]:
     root = benchmark_root(data_root, benchmark_id)
-    manifest_path = root / "benchmark.json"
-    manifest = _read_json(manifest_path)
-    if (
-        manifest.get("schema_version") != BUNDLE_SCHEMA
-        or manifest.get("status") != "completed"
-        or manifest.get("benchmark_id") != benchmark_id
-        or manifest.get("profile_order") != list(PROFILES)
-    ):
-        raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
-    profiles = manifest.get("profiles")
-    if not isinstance(profiles, list) or [item.get("profile_id") for item in profiles if isinstance(item, dict)] != list(PROFILES):
-        raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
-    for item in profiles:
+    manifest = _read_bundle_manifest(data_root, benchmark_id)
+    for item in manifest["profiles"]:
         if not isinstance(item, dict):
             raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
         profile_id = item["profile_id"]
@@ -813,6 +863,36 @@ def load_bundle(data_root: Path, benchmark_id: str) -> dict[str, Any]:
             digest, size, _ = _sha256_file(path, maximum)
             if digest != descriptor.get("sha256") or size != descriptor.get("size_bytes"):
                 raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_INTEGRITY_FAILED")
+
+        profile_payload = verified_profile_bytes(data_root, benchmark_id, profile_id, "profile")
+        try:
+            profile_manifest = json.loads(profile_payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_MANIFEST_INVALID") from exc
+        if (
+            not isinstance(profile_manifest, dict)
+            or profile_manifest.get("schema_version") != PROFILE_SCHEMA
+            or profile_manifest.get("benchmark_id") != benchmark_id
+            or profile_manifest.get("profile_id") != profile_id
+            or profile_manifest.get("job_id") != manifest["job_id"]
+            or profile_manifest.get("attempt") != manifest["attempt"]
+            or profile_manifest.get("source_sha256") != manifest["source_sha256"]
+            or profile_manifest.get("sample_identity_sha256") != manifest["sample_identity_sha256"]
+            or profile_manifest.get("sample_seconds") != manifest["sample_seconds"]
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_MANIFEST_INVALID")
+        for key in ("transcript", "metrics"):
+            internal = profile_manifest.get(key)
+            external = artifacts.get(key)
+            if (
+                not isinstance(internal, dict)
+                or not isinstance(external, dict)
+                or internal.get("artifact") != external.get("artifact")
+                or internal.get("sha256") != external.get("sha256")
+                or internal.get("size_bytes") != external.get("size_bytes")
+            ):
+                raise BenchmarkEvidenceError("BENCHMARK_PROFILE_MANIFEST_INVALID")
+
         transcript_bytes = verified_profile_bytes(data_root, benchmark_id, profile_id, "transcript")
         try:
             document = TranscriptDocument.from_dict(json.loads(transcript_bytes))
@@ -821,8 +901,6 @@ def load_bundle(data_root: Path, benchmark_id: str) -> dict[str, Any]:
         if document.source_sha256.lower() != manifest.get("source_sha256") or document.engine.profile != profile_id:
             raise BenchmarkEvidenceError("BENCHMARK_TRANSCRIPT_IDENTITY_MISMATCH")
     return manifest
-
-
 def _profile_entry(manifest: Mapping[str, Any], profile_id: str) -> Mapping[str, Any]:
     if profile_id not in PROFILES:
         raise BenchmarkEvidenceError("BENCHMARK_PROFILE_INVALID")
@@ -840,7 +918,7 @@ def verified_profile_bytes(
 ) -> bytes:
     if artifact not in {"profile", "transcript", "metrics", "events", "telemetry"}:
         raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_INVALID")
-    manifest = _read_json(benchmark_root(data_root, benchmark_id) / "benchmark.json")
+    manifest = _read_bundle_manifest(data_root, benchmark_id)
     item = _profile_entry(manifest, profile_id)
     artifacts = item.get("artifacts")
     if not isinstance(artifacts, dict) or artifact not in artifacts:
