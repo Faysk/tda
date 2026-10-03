@@ -3,16 +3,10 @@ import {
 	parseStoryMarkdown,
 	type StoryBlock,
 } from "@/features/sessions/story-markdown";
-
-function normalizeHeading(value: string) {
-	return value
-		.replace(/\*\*(.*?)\*\*/g, "$1")
-		.replace(/\*(.*?)\*/g, "$1")
-		.replace(/_(.*?)_/g, "$1")
-		.replace(/`(.*?)`/g, "$1")
-		.trim()
-		.toLocaleLowerCase("pt-BR");
-}
+import {
+	normalizeStoryHeading,
+	storyOutlineFromBlocks,
+} from "@/features/sessions/story-outline";
 
 function renderInline(source: string): ReactNode[] {
 	const parts = source.split(
@@ -48,27 +42,36 @@ function keyedListItems(items: readonly string[]) {
 
 function StoryHeading({
 	block,
+	id,
 }: {
 	block: Extract<StoryBlock, { type: "heading" }>;
+	id?: string;
 }) {
 	const content = renderInline(block.text);
+	const props = id ? { id, tabIndex: -1, "data-story-section": true } : {};
 	switch (block.level) {
 		case 1:
-			return <h2>{content}</h2>;
+			return <h2 {...props}>{content}</h2>;
 		case 2:
-			return <h3>{content}</h3>;
+			return <h3 {...props}>{content}</h3>;
 		case 3:
-			return <h4>{content}</h4>;
+			return <h4 {...props}>{content}</h4>;
 		case 4:
-			return <h5>{content}</h5>;
+			return <h5 {...props}>{content}</h5>;
 		default:
-			return <h6>{content}</h6>;
+			return <h6 {...props}>{content}</h6>;
 	}
 }
 
 export function StoryMarkdown({ source, title }: { source: string; title: string }) {
 	const blocks = parseStoryMarkdown(source);
-	const normalizedTitle = normalizeHeading(title);
+	const normalizedTitle = normalizeStoryHeading(title);
+	const outlineByBlock = new Map(
+		storyOutlineFromBlocks(blocks, title).map((entry) => [
+			entry.blockIndex,
+			entry.id,
+		]),
+	);
 
 	return (
 		<div className="story-content">
@@ -78,14 +81,14 @@ export function StoryMarkdown({ source, title }: { source: string; title: string
 					index === 0 &&
 					block.type === "heading" &&
 					block.level === 1 &&
-					normalizeHeading(block.text) === normalizedTitle
+					normalizeStoryHeading(block.text) === normalizedTitle
 				) {
 					return null;
 				}
 
 				switch (block.type) {
 					case "heading":
-						return <StoryHeading block={block} key={key} />;
+						return <StoryHeading block={block} id={outlineByBlock.get(index)} key={key} />;
 					case "paragraph":
 						return <p key={key}>{renderInline(block.text)}</p>;
 					case "quote":
