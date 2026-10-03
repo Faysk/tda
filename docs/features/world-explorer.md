@@ -178,6 +178,7 @@ O World Explorer deixou de depender de campaign implícita no boundary Web:
 
 - `/mundo` é entrypoint/seleção e **não escolhe silenciosamente uma campaign** quando há mais de uma pública;
 - `/campanhas/[public_slug]/mundo` é a rota pública canônica e resolve server-side para o `slug` técnico;
+- dentro das rotas canônicas de uma campaign, a navegação entre Mundo, catálogos e perfis preserva o mesmo `public_slug`; aliases legados sem prefixo permanecem apenas como compatibilidade e não devem arrancar o usuário do contexto canônico;
 - `/edit/[technical_slug]/mundo` é a rota privada de authoring e lista/troca somente campaigns cobertas por `campaign.world.layout.edit`;
 - projection, layout publicado, revision metadata, lease, graph draft, provenance, publish e upload/finalização de portrait recebem campaign explicitamente;
 - server actions reautorizam a campaign recebida; URL, header, sessionStorage e estado React são apenas intenção do cliente;
@@ -523,6 +524,21 @@ Contrato:
 - relation list é alternativa natural;
 - controles essenciais têm alvos adequados;
 - viewport não cria overflow horizontal no mínimo suportado.
+
+## Chrome compartilhado em catálogos e perfis
+
+O header global do TDA é flutuante e não reserva altura no fluxo da página. Catálogos e perfis do Mundo, portanto, devem reservar essa área no próprio shell consumidor em vez de adicionar padding global à Home ou a outras superfícies.
+
+Contrato:
+
+- usar `--site-chrome-panel-top` como origem comum para a reserva vertical de marca/conta;
+- sidebar expandida ou recolhida começa abaixo da hit area da marca;
+- no mobile, `Explorar universo` e o rótulo da categoria começam abaixo das hit areas de marca e avatar;
+- o workspace de canvas e o shell dos catálogos derivam a mesma clearance, sem comprimir o canvas nem empurrar a Home;
+- quando o shell já reservou o chrome no fluxo mobile, hero/breadcrumb interno pode reduzir sua própria reserva para não somar espaço duas vezes;
+- nenhum controle clicável pode ficar sob a área clicável de outro controle global.
+
+Estados vazios/indisponíveis dos catálogos usam linguagem de leitor, não termos de implementação. A recuperação primária volta ao Mundo da mesma campaign; explorar outras campanhas é ação secundária. Isso não altera audience nem transforma conteúdo não publicado em público.
 
 ## Empty/loading/error
 

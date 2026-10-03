@@ -44,6 +44,17 @@ export const WORLD_NAV_ITEMS: readonly WorldNavItem[] = [
 	},
 ] as const;
 
+const CAMPAIGN_WORLD_SECTION =
+	/^\/campanhas\/([^/]+)\/(?:mundo|personagens|npcs|lugares|faccoes|musicas|quests)(?:\/|$)/u;
+
+export function worldNavHrefForPathname(pathname: string, href: string): string {
+	const campaignMatch = pathname.match(CAMPAIGN_WORLD_SECTION);
+	if (!campaignMatch) return href;
+	return `/campanhas/${campaignMatch[1]}${href}`;
+}
+
 export function worldNavItemIsCurrent(pathname: string, href: string): boolean {
-	return pathname === href || (href !== "/mundo" && pathname.startsWith(`${href}/`));
+	if (pathname === href) return true;
+	const worldHref = href === "/mundo" || href.endsWith("/mundo");
+	return !worldHref && pathname.startsWith(`${href}/`);
 }
