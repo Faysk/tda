@@ -79,10 +79,7 @@ test("create and edit stay contextual and keyboard operable", async ({ page }) =
 		first.getByText(/Esta campanha está pública/u),
 	).toBeVisible();
 
-	const moreActions = first.locator("details").filter({
-		has: page.getByText("Mais ações", { exact: true }),
-	});
-	await moreActions.locator(":scope > summary").click();
+	await first.getByText("Mais ações", { exact: true }).click();
 	const archiveConfirm = first.locator("[data-campaign-archive-confirm]");
 	await expect(archiveConfirm.getByRole("button", { name: "Confirmar arquivamento" })).toBeHidden();
 	const archiveSummary = archiveConfirm.locator(":scope > summary");
