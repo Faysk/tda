@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import styles from "@/app/edit/campanhas/page.module.css";
 import { CampaignCoverEditor } from "./campaign-cover-editor";
 import type { ManageableCampaign } from "./model";
@@ -103,17 +104,22 @@ export function CampaignManagementView({
 	const createHasError = feedback.campaignId === null && Boolean(feedback.error);
 
 	return (
-		<main className={styles.page} data-campaign-manager>
-			<header className={styles.header}>
-				<div>
-					<p className={styles.eyebrow}>Edit</p>
-					<h1>Campanhas</h1>
-					<p>Crie, organize e gerencie as campanhas do TDA.</p>
-				</div>
-				<Link className={styles.publicLink} href="/campanhas">
-					Ver diretório público
-				</Link>
-			</header>
+		<main
+			className={styles.page}
+			data-campaign-manager
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit · Campanhas"
+				title="Campanhas"
+				description={<p>Crie, organize e gerencie as campanhas do TDA.</p>}
+				meta={
+					<Link className={styles.publicLink} href="/campanhas">
+						Ver diretório público
+					</Link>
+				}
+			/>
 
 			{campaigns === null ? (
 				<section className={styles.state} role="status">
