@@ -51,6 +51,7 @@ export function LembraCampaignPicker({
 	const nameRef = useRef<HTMLInputElement>(null);
 	const technicalTouched = useRef(false);
 	const routeTouched = useRef(false);
+	const [mounted, setMounted] = useState(false);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState("");
@@ -65,6 +66,10 @@ export function LembraCampaignPicker({
 		label: campaign.name,
 		lifecycle: campaign.lifecycle,
 	}));
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
 
 	useEffect(() => {
 		const dialog = dialogRef.current;
@@ -168,7 +173,7 @@ export function LembraCampaignPicker({
 				onCreate={openCreate}
 				canManage={canManageCampaigns}
 			/>
-			{typeof document !== "undefined"
+			{mounted
 				? createPortal(
 						<dialog
 							ref={dialogRef}
