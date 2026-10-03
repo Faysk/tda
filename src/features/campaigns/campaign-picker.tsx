@@ -88,6 +88,7 @@ export function CampaignPicker({
 	return (
 		<div
 			className={className ? `${styles.root} ${className}` : styles.root}
+			data-pending={pending ? "true" : "false"}
 			aria-busy={pending || undefined}
 		>
 			<Select
@@ -121,6 +122,8 @@ export function CampaignPicker({
 							target="_blank"
 							rel="noreferrer"
 							aria-label="Gerenciar campanhas (abre em nova aba)"
+							aria-disabled={busy || undefined}
+							onClick={busy ? (event) => event.preventDefault() : undefined}
 						>
 							Gerenciar campanhas
 							<span className={styles.external} aria-hidden="true">
