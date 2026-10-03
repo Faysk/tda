@@ -15,6 +15,7 @@ import {
 	type TranscriptionProfileState,
 } from "./protocol";
 import { LocalBridge } from "./bridge";
+import { BenchmarkEvidenceLab } from "./benchmark-evidence";
 import { presentJobEvent, stageLabels } from "./presentation";
 import {
 	formatSubmissionBytes,
@@ -129,7 +130,10 @@ function bridgeMessage(error: unknown, fallback: string): string {
 	);
 }
 
-function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
+function ResultCard({
+	result,
+	bridge,
+}: Readonly<{ result: BenchmarkResult; bridge: LocalBridge }>) {
 	return (
 		<article className={styles.resultCard}>
 			<header className={styles.resultHeader}>
@@ -186,13 +190,16 @@ function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
 					</tbody>
 				</table>
 			</div>
-			<div className={styles.qualityNotice}>
-				<strong>Qualidade não medida.</strong>
-				<span>
-					Este benchmark compara performance. Sem transcrição humana de referência,
-					WER/omissões/inserções não são calculados e nenhum perfil recebe vencedor automático.
-				</span>
-			</div>
+			{result.benchmarkId === null ? (
+				<div className={styles.qualityNotice}>
+					<strong>Qualidade não medida.</strong>
+					<span>
+						Este receipt é anterior ao bundle de evidência. Sem referência humana,
+						WER/omissões/inserções não são calculados e nenhum perfil recebe vencedor automático.
+					</span>
+				</div>
+			) : null}
+			<BenchmarkEvidenceLab result={result} bridge={bridge} />
 		</article>
 	);
 }
@@ -1243,7 +1250,7 @@ export function ProcessingBenchmark({
 				{latestCompleted.length ? (
 					latestCompleted.slice(0, 10).map((job) =>
 						results[job.id] ? (
-							<ResultCard key={job.id} result={results[job.id]!} />
+							<ResultCard key={job.id} result={results[job.id]!} bridge={bridge} />
 						) : (
 							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>
 						),
