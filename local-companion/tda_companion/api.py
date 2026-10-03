@@ -118,7 +118,7 @@ _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
 _BROWSER_BENCHMARK_PATH = re.compile(
     r"^/api/v1/benchmarks/[A-Za-z0-9_-]{1,128}"
     r"(?:/(?:export|reference|quality|profiles/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)/"
-    r"(?:transcript|transcript\.txt|transcript\.vtt|transcript\.srt|metrics|events)))?$"
+    r"(?:transcript|transcript\.json|transcript\.txt|transcript\.vtt|transcript\.srt|metrics|events)))?$"
 )
 
 
@@ -2585,6 +2585,22 @@ def create_app(
             return load_profile_transcript(package_root, benchmark_id, profile_id).as_dict()
         except BenchmarkEvidenceError:
             return error("BENCHMARK_PROFILE_ARTIFACT_UNAVAILABLE", 409)
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/transcript.json")
+    def benchmark_transcript_json(benchmark_id: str, profile_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            document = load_profile_transcript(package_root, benchmark_id, profile_id)
+        except BenchmarkEvidenceError:
+            return error("BENCHMARK_PROFILE_ARTIFACT_UNAVAILABLE", 409)
+        return Response(
+            json.dumps(document.as_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{profile_id}.json"'},
+        )
 
     @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/transcript.txt")
     def benchmark_transcript_txt(benchmark_id: str, profile_id: str):
