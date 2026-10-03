@@ -42,6 +42,7 @@ type PermissionChange =
 	  }>;
 
 type PermissionConfirmation = Readonly<{
+	operationId: string;
 	targetProfileId: string;
 	expectedRevision: number;
 	targetName: string;
@@ -93,6 +94,7 @@ export function PermissionsDirectoryView({
 		useState<PermissionConfirmation | null>(null);
 	const [showHistory, setShowHistory] = useState(false);
 	const searchRef = useRef<HTMLInputElement>(null);
+	const mutationInFlightRef = useRef(false);
 
 	const selected = directory.people.find((person) => person.id === selectedId) ?? null;
 
@@ -153,10 +155,10 @@ export function PermissionsDirectoryView({
 	}
 
 	async function executeChanges(plan: PermissionConfirmation) {
-		if (busy) return;
+		if (busy || mutationInFlightRef.current) return;
+		mutationInFlightRef.current = true;
 		setBusy(true);
 		setFeedback(null);
-		const operationId = crypto.randomUUID();
 		try {
 			const response = await fetch(
 				`/api/edit/${encodeURIComponent(directory.campaign.slug)}/permissions`,
@@ -167,7 +169,7 @@ export function PermissionsDirectoryView({
 						targetProfileId: plan.targetProfileId,
 						expectedRevision: plan.expectedRevision,
 						changes: plan.changes,
-						operationId,
+						operationId: plan.operationId,
 						reason,
 						confirmSensitive: plan.sensitive,
 						confirmSelfRevoke: plan.selfRevoke,
@@ -202,6 +204,7 @@ export function PermissionsDirectoryView({
 				"A resposta da alteração não pôde ser confirmada. Revise o mesmo resumo antes de tentar novamente para evitar duplicidade.",
 			);
 		} finally {
+			mutationInFlightRef.current = false;
 			setBusy(false);
 		}
 	}
@@ -241,6 +244,7 @@ export function PermissionsDirectoryView({
 			selected.isCurrentActor &&
 			changes.some((change) => change.operation === "revoke");
 		const plan: PermissionConfirmation = {
+			operationId: crypto.randomUUID(),
 			targetProfileId: selected.id,
 			expectedRevision: selected.revision,
 			targetName: selected.displayName,
