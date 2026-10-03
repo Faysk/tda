@@ -18,9 +18,7 @@ test("account separates project-wide authority from explicit campaign access", a
 	).toBeVisible();
 	await expect(page.getByText("campaign/campaign-a", { exact: true })).not.toBeVisible();
 
-	const campaignA = page
-		.locator("section")
-		.filter({ has: page.getByRole("heading", { level: 3, name: "Campanha A" }) });
+	const campaignA = page.locator('[data-account-campaign="campaign-a"]');
 	const transcriptGroup = campaignA.getByText("Transcrições e processamento", {
 		exact: true,
 	});
