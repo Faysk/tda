@@ -360,7 +360,7 @@ export function BenchmarkEvidenceWorkspace({
 
 	async function downloadArtifact(
 		profileId: TranscriptionProfileId,
-		format: "json" | "txt" | "vtt" | "srt",
+		format: "json" | "txt" | "txt-plain" | "vtt" | "srt",
 	) {
 		if (!artifacts) return;
 		const key = `${profileId}:${format}`;
@@ -877,7 +877,7 @@ export function BenchmarkEvidenceWorkspace({
 							<div className={styles.fileRow} key={profileId}>
 								<strong>{LABELS[profileId]}</strong>
 								<div className={styles.fileActions}>
-									{(["json", "txt", "vtt", "srt"] as const).map((format) => (
+									{(["json", "txt", "txt-plain", "vtt", "srt"] as const).map((format) => (
 										<Button
 											key={format}
 											size="sm"
@@ -885,7 +885,7 @@ export function BenchmarkEvidenceWorkspace({
 											pending={busy === `${profileId}:${format}`}
 											onClick={() => void downloadArtifact(profileId, format)}
 										>
-											{format.toUpperCase()}
+											{format === "txt-plain" ? "TXT simples" : format.toUpperCase()}
 										</Button>
 									))}
 								</div>
