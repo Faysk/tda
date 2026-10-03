@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { useGlobalLoadingFlag } from "@/components/global-loading";
 import { Button, DisplayTitle } from "@/components/ui";
+import { isStaleServerActionError } from "@/features/edit/stale-action-recovery";
 import styles from "./system-state.module.css";
 
-export default function ErrorPage({ reset }: { reset: () => void }) {
+export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
 	const [retrying, setRetrying] = useState(false);
+	const staleAction = isStaleServerActionError(error);
 	useGlobalLoadingFlag(retrying);
 
 	return (
@@ -21,11 +23,14 @@ export default function ErrorPage({ reset }: { reset: () => void }) {
 		>
 			<div className={styles.content}>
 				<DisplayTitle id="system-error-title">
-					Não foi possível abrir esta história.
+					{staleAction
+						? "O TDA foi atualizado."
+						: "Não foi possível abrir esta história."}
 				</DisplayTitle>
 				<p className={styles.copy}>
-					Algo interrompeu o carregamento desta página. Você pode tentar
-					novamente sem sair daqui.
+					{staleAction
+						? "Esta página ficou aberta durante uma nova publicação. Atualize a tela antes de tentar a ação novamente."
+						: "Algo interrompeu o carregamento desta página. Você pode tentar novamente sem sair daqui."}
 				</p>
 				<div className={styles.actions}>
 					<Button
@@ -34,10 +39,20 @@ export default function ErrorPage({ reset }: { reset: () => void }) {
 						disabled={retrying}
 						onClick={() => {
 							setRetrying(true);
+							if (staleAction) {
+								window.location.reload();
+								return;
+							}
 							reset();
 						}}
 					>
-						{retrying ? "Tentando novamente…" : "Tentar novamente"}
+						{retrying
+							? staleAction
+								? "Atualizando…"
+								: "Tentando novamente…"
+							: staleAction
+								? "Atualizar página"
+								: "Tentar novamente"}
 					</Button>
 				</div>
 			</div>
