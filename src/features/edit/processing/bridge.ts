@@ -42,6 +42,12 @@ import {
 	serializedJsonBody,
 } from "./request-budget";
 import {
+	parseBenchmarkQuality,
+	parseBenchmarkReference,
+	parseBenchmarkTranscript,
+	type BenchmarkReferenceTrack,
+} from "./benchmark-evidence";
+import {
 	parseSessionAssembly,
 	parseSessionAssemblyList,
 	parseSessionAssemblyReviewSummary,
@@ -281,6 +287,67 @@ export class LocalBridge {
 					signal: AbortSignal.any([signal, timeout]),
 				});
 				return await this.responseJson(response, LOCAL_REVIEW_BODY_MAX_BYTES);
+			} catch (error) {
+				if (timeout.aborted && !signal.aborted) timedOut = true;
+				throw error;
+			}
+		};
+		try {
+			return await requestOnce();
+		} catch (error) {
+			if (
+				error instanceof BridgeError &&
+				error.code === "unauthorized" &&
+				pairingMode === "browser" &&
+				!signal.aborted
+			) {
+				await this.bootstrap(signal);
+				timedOut = false;
+				return await requestOnce();
+			}
+			if (error instanceof BridgeError) throw error;
+			throw new BridgeError(timedOut ? "timeout" : "unreachable");
+		}
+	}
+
+	private async binary(
+		path: string,
+		signal: AbortSignal,
+		maxBytes = 128 * 1024 * 1024,
+	) {
+		let timedOut = false;
+		const requestOnce = async () => {
+			const timeout = AbortSignal.timeout(30_000);
+			try {
+				const response = await this.request(`${LOCAL_API}${path}`, {
+					method: "GET",
+					headers: { Authorization: `Bearer ${this.token()}` },
+					mode: "cors",
+					credentials: "omit",
+					redirect: "error",
+					cache: "no-store",
+					referrerPolicy: "no-referrer",
+					signal: AbortSignal.any([signal, timeout]),
+				});
+				if (!response.ok) {
+					let value: unknown = null;
+					try {
+						value = await response.json();
+					} catch {}
+					throw mapStatus(response.status, sanitizedServerCode(value));
+				}
+				const declared = response.headers.get("content-length");
+				if (declared && Number(declared) > maxBytes)
+					throw new BridgeError("payload_too_large");
+				const bytes = await response.arrayBuffer();
+				if (bytes.byteLength > maxBytes)
+					throw new BridgeError("payload_too_large");
+				return {
+					blob: new Blob([bytes], {
+						type: response.headers.get("content-type") ?? "application/octet-stream",
+					}),
+					contentDisposition: response.headers.get("content-disposition"),
+				};
 			} catch (error) {
 				if (timeout.aborted && !signal.aborted) timedOut = true;
 				throw error;
@@ -895,6 +962,93 @@ export class LocalBridge {
 			await this.json(`/jobs/${identifier(id)}/result`, signal),
 			id,
 		);
+	}
+	async benchmarkTranscript(
+		benchmarkId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		signal: AbortSignal,
+	) {
+		return parseBenchmarkTranscript(
+			await this.reviewJson(
+				`/benchmarks/${identifier(benchmarkId)}/profiles/${profileId}/transcript`,
+				signal,
+			),
+		);
+	}
+
+	async benchmarkReference(benchmarkId: string, signal: AbortSignal) {
+		return parseBenchmarkReference(
+			await this.reviewJson(`/benchmarks/${identifier(benchmarkId)}/reference`, signal),
+		);
+	}
+
+	async saveBenchmarkReference(
+		benchmarkId: string,
+		input: Readonly<{
+			sampleIdentitySha256: string;
+			tracks: readonly BenchmarkReferenceTrack[];
+			provenance: "manual" | "imported" | "derived_from_profile";
+			seedProfileId?: CraigTranscriptionInput["profileId"] | null;
+			expectedRevision?: number | null;
+			terms?: readonly string[];
+		}>,
+		signal: AbortSignal,
+	) {
+		const value = record(
+			await this.reviewJson(
+				`/benchmarks/${identifier(benchmarkId)}/reference`,
+				signal,
+				{
+					sample_identity_sha256: input.sampleIdentitySha256,
+					tracks: input.tracks.map((track) => ({
+						track_number: track.trackNumber,
+						speaker: track.speaker,
+						text: track.text,
+						...(track.turns
+							? {
+								turns: track.turns.map((turn) => ({
+									start: turn.start,
+									end: turn.end,
+									text: turn.text,
+									speaker: turn.speaker,
+									overlaps_other_speaker: turn.overlapsOtherSpeaker,
+								})),
+							}
+							: {}),
+					})),
+					provenance: input.provenance,
+					seed_profile_id: input.seedProfileId ?? null,
+					expected_revision: input.expectedRevision ?? null,
+					terms: [...(input.terms ?? [])],
+				},
+			),
+		);
+		return {
+			reference: parseBenchmarkReference(value.reference),
+			quality: parseBenchmarkQuality(value.quality),
+		};
+	}
+
+	async benchmarkQuality(benchmarkId: string, signal: AbortSignal) {
+		return parseBenchmarkQuality(
+			await this.reviewJson(`/benchmarks/${identifier(benchmarkId)}/quality`, signal),
+		);
+	}
+
+	async benchmarkArtifact(
+		benchmarkId: string,
+		kind:
+			| "export"
+			| `${CraigTranscriptionInput["profileId"]}/transcript.txt`
+			| `${CraigTranscriptionInput["profileId"]}/transcript.vtt`
+			| `${CraigTranscriptionInput["profileId"]}/transcript.srt`,
+		signal: AbortSignal,
+	) {
+		const path =
+			kind === "export"
+				? `/benchmarks/${identifier(benchmarkId)}/export`
+				: `/benchmarks/${identifier(benchmarkId)}/profiles/${kind}`;
+		return this.binary(path, signal);
 	}
 	async result(id: string, signal: AbortSignal) {
 		return parseResultSummary(
