@@ -48,6 +48,13 @@ test("completed evidence reopens four-profile lab without turning it into Result
 		"true",
 	);
 	await expect(panel.getByText(/regiões diferentes/u)).toBeVisible();
+	const leftSelector = panel.getByLabel("Esquerda");
+	await leftSelector.focus();
+	await page.keyboard.press("ArrowDown");
+	await expect(leftSelector).toHaveValue("whisper-detailed");
+	await page.keyboard.press("ArrowUp");
+	await expect(leftSelector).toHaveValue("whisper-turbo");
+	await expect(panel.locator('[data-kind]').first().locator("header")).not.toBeEmpty();
 	await expect(panel.getByText("Olá mundo da taverna")).toBeVisible();
 	await expect(panel.getByText("Olá mundo na taverna")).toBeVisible();
 	await expect(panel.getByText(/Diferença 1 de/u)).toBeVisible();
