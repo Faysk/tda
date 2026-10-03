@@ -1178,6 +1178,80 @@
 	background: var(--ds-canvas-subtle);
 }
 
+.unboundRecovery {
+	display: grid;
+	gap: 8px;
+	padding: 11px 12px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface-subtle);
+}
+
+.unboundRecoveryHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.unboundRecoveryHeader > div {
+	display: grid;
+	gap: 2px;
+}
+
+.unboundRecoveryHeader span,
+.unboundRecovery p,
+.unboundRecoveryList span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.4;
+}
+
+.unboundRecoveryHeader h2,
+.unboundRecovery p {
+	margin: 0;
+}
+
+.unboundRecoveryHeader h2 {
+	font-family: var(--ds-font-ui);
+	font-size: 0.9rem;
+}
+
+.unboundRecoveryHeader > strong {
+	font-variant-numeric: tabular-nums;
+}
+
+.unboundRecoveryList {
+	display: grid;
+	gap: 0;
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid var(--ds-border-subtle);
+	list-style: none;
+}
+
+.unboundRecoveryList li {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 12px;
+	padding-block: 8px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.unboundRecoveryList li > div {
+	display: grid;
+	min-width: 0;
+	gap: 2px;
+}
+
+.unboundRecoveryList li > div > strong,
+.unboundRecoveryList li > div > span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .resultsSync {
 	padding: 10px 0 0;
 	border: 0;
@@ -1392,6 +1466,13 @@
 }
 
 @media (max-width: 520px) {
+	.unboundRecoveryList li {
+		grid-template-columns: 1fr;
+	}
+
+	.unboundRecoveryList :global(.ds-action) {
+		width: 100%;
+	}
 	.queueScope {
 		align-items: flex-start;
 		flex-direction: column;
