@@ -111,8 +111,17 @@ test("Lembra keeps the image draft while contextual campaign creation opens, fai
 		.filter({ has: page.getByRole("heading", { name: "Nova campanha" }) });
 	await expect(campaignDialog).toBeVisible();
 	await campaignDialog.getByLabel("Nome").fill("Campanha sem autoridade");
+	await page.route("**/e2e-fixtures/lembra-campaigns", async (route) => {
+		if (route.request().method() === "POST") {
+			await route.abort("failed");
+			return;
+		}
+		await route.continue();
+	});
 	await campaignDialog.getByRole("button", { name: "Criar campanha", exact: true }).click();
-	await expect(campaignDialog.getByRole("alert")).toBeVisible();
+	await expect(campaignDialog.getByRole("alert")).toContainText(
+		"Não foi possível criar a campanha agora.",
+	);
 
 	await expect(composer.getByLabel("Nome")).toHaveValue("Mapa que não pode sumir");
 	await expect(composer.getByLabel("Descrição")).toHaveValue(
