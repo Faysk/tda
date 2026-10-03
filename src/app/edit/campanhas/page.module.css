@@ -45,14 +45,28 @@
 	line-height: 1.55;
 }
 
-.publicLink {
+.headerActions {
+	display: flex;
 	flex: 0 0 auto;
+	align-items: center;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 12px;
+}
+
+.publicLink,
+.returnLink {
 	color: var(--ds-accent-strong);
 	font-weight: 700;
 	text-decoration: none;
 }
 
+.returnLink {
+	color: var(--ds-foreground-soft);
+}
+
 .publicLink:focus-visible,
+.returnLink:focus-visible,
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
@@ -317,7 +331,12 @@ textarea:focus-visible {
 		grid-column: auto;
 	}
 
-	.publicLink {
+	.headerActions {
+		justify-content: flex-start;
+	}
+
+	.publicLink,
+	.returnLink {
 		width: fit-content;
 	}
 
