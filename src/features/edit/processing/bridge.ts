@@ -302,7 +302,13 @@ export class LocalBridge {
 				} finally {
 					reader.releaseLock();
 				}
-				return new Blob(chunks, {
+				const merged = new Uint8Array(size);
+				let offset = 0;
+				for (const chunk of chunks) {
+					merged.set(chunk, offset);
+					offset += chunk.byteLength;
+				}
+				return new Blob([merged.buffer], {
 					type: response.headers.get("content-type") ?? "application/octet-stream",
 				});
 			} catch (error) {
