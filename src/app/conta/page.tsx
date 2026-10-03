@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { ACCOUNT_CAPABILITIES } from "@/features/auth/account-access";
 import { AccountOverview } from "@/features/auth/account-overview";
+import { readAuthorizedCampaignsForCapabilities } from "@/features/campaigns/authorized";
 import { authConfig } from "@/features/auth/config";
 import { currentAccess } from "@/features/auth/server";
 
@@ -15,6 +17,13 @@ export default async function AccountPage({
 }) {
 	const query = await searchParams;
 	const access = await currentAccess();
+	const campaignAccess =
+		access.context?.profileId
+			? await readAuthorizedCampaignsForCapabilities(
+					access.context,
+					ACCOUNT_CAPABILITIES,
+				)
+			: { ok: true as const, campaigns: [] };
 	const accessNotice =
 		query.acesso === "negado"
 			? "Sua conta não tem acesso à área que você tentou abrir. Use o menu global para navegar para outro espaço ou fale com a pessoa responsável pela campanha."
@@ -27,6 +36,7 @@ export default async function AccountPage({
 			access={access}
 			accessNotice={accessNotice}
 			authEnabled={Boolean(authConfig())}
+			campaigns={campaignAccess.ok ? campaignAccess.campaigns : null}
 		/>
 	);
 }

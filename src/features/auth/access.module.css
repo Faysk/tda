@@ -508,3 +508,109 @@
 		width: 100%;
 	}
 }
+
+
+.accessContext {
+	min-width: 0;
+	margin-top: 1rem;
+	padding: 1rem 0;
+	border-top: 1px solid var(--ds-border-subtle);
+	font-family: var(--ds-font-ui);
+}
+
+.accessContextHeading,
+.campaignContextSummary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.accessContextHeading h3,
+.campaignContextSummary strong {
+	margin: 0;
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-ui);
+	font-size: 0.92rem;
+	font-weight: 760;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.contextEyebrow {
+	display: block;
+	margin-bottom: 0.2rem;
+	color: var(--ds-foreground-muted);
+	font-size: 0.68rem;
+	font-weight: 760;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.contextScopeLabel,
+.permissionCount {
+	flex: 0 0 auto;
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+	font-weight: 700;
+}
+
+.campaignAccessList {
+	display: grid;
+	gap: 0.25rem;
+}
+
+.campaignContextSummary {
+	cursor: pointer;
+	list-style-position: outside;
+}
+
+.campaignContextSummary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 4px;
+}
+
+.campaignContextBody {
+	padding: 0.85rem 0 0 1rem;
+}
+
+.permissionGroup {
+	gap: 0;
+}
+
+.permissionGroup summary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 0.7rem 0;
+	border-bottom: 1px solid var(--ds-border-subtle);
+	color: var(--ds-foreground-muted);
+	font-size: 0.8rem;
+	font-weight: 750;
+	cursor: pointer;
+}
+
+.permissionGroup summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+
+.permissionGroup[open] summary {
+	color: var(--ds-foreground);
+}
+
+.permissionGroup ul {
+	padding-left: 0.75rem;
+}
+
+@media (max-width: 420px) {
+	.accessContextHeading,
+	.campaignContextSummary {
+		align-items: flex-start;
+	}
+
+	.campaignContextBody {
+		padding-left: 0;
+	}
+}
