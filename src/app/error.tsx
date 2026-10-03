@@ -6,7 +6,7 @@ import { Button, DisplayTitle } from "@/components/ui";
 import { isStaleServerActionError } from "@/features/edit/stale-action-recovery";
 import styles from "./system-state.module.css";
 
-export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function ErrorPage({ error, reset }: { error?: Error & { digest?: string }; reset: () => void }) {
 	const [retrying, setRetrying] = useState(false);
 	const staleAction = isStaleServerActionError(error);
 	useGlobalLoadingFlag(retrying);
