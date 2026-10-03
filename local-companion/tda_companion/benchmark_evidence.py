@@ -13,7 +13,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from .atomic_storage import AtomicStorageError, atomic_write
+from .atomic_storage import AtomicStorageError, atomic_write, confirm_existing_file
+from .benchmark_bundles import (
+    BenchmarkBundleError,
+    benchmark_id_for as core_benchmark_id_for,
+    benchmark_sample_identity_from_descriptor,
+    claim_benchmark_outcome,
+    load_benchmark_bundle as load_legacy_bundle,
+    read_benchmark_transcript as read_legacy_transcript,
+)
 from .transcript import TranscriptDocument, TranscriptValidationError
 from .worker_event_schema import sanitize_worker_event
 
@@ -26,7 +34,9 @@ TELEMETRY_SAMPLE_SCHEMA = "tda_benchmark_telemetry_sample_v1"
 FAILED_DIAGNOSTICS_SCHEMA = "tda_benchmark_failed_profile_v1"
 EXPORT_SCHEMA = "tda_benchmark_private_export_v1"
 PROFILES = ("whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality")
-_BENCHMARK_ID = re.compile(r"^benchmark-[0-9a-f]{32}$")
+_BENCHMARK_ID = re.compile(
+    r"^(?:benchmark-[0-9a-f]{32}|benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5})$"
+)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MAX_JSON_BYTES = 16 * 1024 * 1024
 _MAX_JSONL_BYTES = 8 * 1024 * 1024
@@ -70,11 +80,10 @@ def utc_now() -> str:
 
 
 def benchmark_id_for(job_id: str, attempt: int) -> str:
-    if not isinstance(job_id, str) or not job_id or isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
-        raise BenchmarkEvidenceError("BENCHMARK_ID_INPUT_INVALID")
-    digest = hashlib.sha256(f"{job_id}:{attempt}".encode("utf-8")).hexdigest()[:32]
-    return f"benchmark-{digest}"
-
+    try:
+        return core_benchmark_id_for(job_id, attempt)
+    except BenchmarkBundleError as exc:
+        raise BenchmarkEvidenceError(str(exc)) from exc
 
 def _canonical_json(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -187,11 +196,96 @@ def _read_json(path: Path, *, maximum: int = _MAX_JSON_BYTES) -> dict[str, Any]:
     return value
 
 
+def _atomic_bytes(path: Path, payload: bytes) -> None:
+    try:
+        atomic_write(path, payload)
+        return
+    except AtomicStorageError as exc:
+        if not exc.ambiguous or not path.is_file() or path.is_symlink() or _is_reparse(path):
+            raise
+    try:
+        if path.stat().st_size != len(payload):
+            raise BenchmarkEvidenceError("BENCHMARK_ATOMIC_WRITE_MISMATCH")
+        if _sha256_file(path, max(len(payload), 1))[0] != _sha256(payload):
+            raise BenchmarkEvidenceError("BENCHMARK_ATOMIC_WRITE_MISMATCH")
+        confirm_existing_file(path)
+    except (OSError, AtomicStorageError) as exc:
+        raise BenchmarkEvidenceError("BENCHMARK_ATOMIC_WRITE_UNCONFIRMED") from exc
+
+
 def _write_json(path: Path, value: Mapping[str, Any]) -> None:
     payload = _canonical_json(dict(value))
     if len(payload) > _MAX_JSON_BYTES:
         raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_SIZE_INVALID")
-    atomic_write(path, payload)
+    _atomic_bytes(path, payload)
+
+
+def _semantic_document_sha256(document: TranscriptDocument) -> str:
+    value = document.as_dict()
+    value.pop("created_at", None)
+    return _sha256(_canonical_json(value))
+
+
+def _validate_transcript_paths(document: TranscriptDocument) -> None:
+    for track in document.tracks:
+        filename = track.source_filename
+        if (
+            Path(filename).is_absolute()
+            or "/" in filename
+            or "\\" in filename
+            or "\0" in filename
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_TRANSCRIPT_PATH_INVALID")
+
+
+def _validate_sample_descriptor(
+    descriptor: Mapping[str, Any],
+    *,
+    source_sha256: str,
+    sample_seconds: float,
+    sample_identity_sha256: str,
+) -> dict[str, Any]:
+    try:
+        normalized = {
+            "schema": descriptor.get("schema"),
+            "source_sha256": descriptor.get("source_sha256"),
+            "start_seconds": descriptor.get("start_seconds"),
+            "end_seconds": descriptor.get("end_seconds"),
+            "tracks": [dict(item) for item in descriptor.get("tracks", [])],
+        }
+    except (TypeError, ValueError) as exc:
+        raise BenchmarkEvidenceError("BENCHMARK_SAMPLE_DESCRIPTOR_INVALID") from exc
+    tracks = normalized["tracks"]
+    seen: set[int] = set()
+    if (
+        normalized["schema"] != "tda_benchmark_sample_v1"
+        or normalized["source_sha256"] != source_sha256
+        or normalized["start_seconds"] != 0.0
+        or normalized["end_seconds"] != sample_seconds
+        or not isinstance(tracks, list)
+        or not tracks
+    ):
+        raise BenchmarkEvidenceError("BENCHMARK_SAMPLE_DESCRIPTOR_INVALID")
+    for item in tracks:
+        number = item.get("number")
+        digest = item.get("sha256")
+        if (
+            isinstance(number, bool)
+            or not isinstance(number, int)
+            or number < 1
+            or number in seen
+            or not isinstance(digest, str)
+            or _SHA256.fullmatch(digest) is None
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_SAMPLE_DESCRIPTOR_INVALID")
+        seen.add(number)
+    try:
+        expected = benchmark_sample_identity_from_descriptor(normalized)
+    except BenchmarkBundleError as exc:
+        raise BenchmarkEvidenceError(str(exc)) from exc
+    if expected != sample_identity_sha256:
+        raise BenchmarkEvidenceError("BENCHMARK_SAMPLE_IDENTITY_MISMATCH")
+    return normalized
 
 
 def _hash_private_text(value: str) -> dict[str, Any]:
