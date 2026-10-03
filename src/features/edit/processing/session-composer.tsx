@@ -57,7 +57,10 @@ type Props = Readonly<{
 	onActiveChange?: (active: boolean) => void;
 	onRestoreSessionId?: (sessionId: string) => void;
 	onStatus?: (message: string) => void;
-	onError?: (message: string) => void;
+	onError?: (
+		message: string,
+		availabilityFailure?: "timeout" | "unreachable",
+	) => void;
 }>;
 
 function validSessionId(value: string): boolean {
@@ -197,8 +200,13 @@ export function SessionRecordingComposer({
 	const fail = useCallback(
 		(cause: unknown) => {
 			const message = errorMessage(cause);
+			const availabilityFailure =
+				cause instanceof BridgeError &&
+				(cause.code === "timeout" || cause.code === "unreachable")
+					? cause.code
+					: undefined;
 			setLocalError(message);
-			onError?.(message);
+			onError?.(message, availabilityFailure);
 		},
 		[onError],
 	);
@@ -1172,7 +1180,9 @@ export function SessionRecordingComposer({
 				</p>
 			)}
 
-			{localError ? <p className={styles.error} role="alert">{localError}</p> : null}
+			{localError && !onError ? (
+				<p className={styles.error} role="alert">{localError}</p>
+			) : null}
 			<p className={styles.live} role="status" aria-live="polite" aria-atomic="true">
 				{live}
 			</p>
