@@ -14,6 +14,8 @@ import {
 	LOCAL_API,
 	parseBenchmarkResult,
 	parseBenchmarkTranscript,
+	parseBenchmarkProfileMetrics,
+	parseBenchmarkProfileTelemetry,
 	parseBenchmarkReference,
 	parseBenchmarkQualitySummary,
 	parseCapabilities,
@@ -981,6 +983,30 @@ export class LocalBridge {
 				signal,
 			),
 			profileId,
+		);
+	}
+	async benchmarkProfileMetrics(
+		benchmarkId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		signal: AbortSignal,
+	) {
+		return parseBenchmarkProfileMetrics(
+			await this.reviewJson(
+				`/benchmarks/${identifier(benchmarkId)}/profiles/${profileId}/metrics`,
+				signal,
+			),
+		);
+	}
+	async benchmarkProfileTelemetry(
+		benchmarkId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		signal: AbortSignal,
+	) {
+		return parseBenchmarkProfileTelemetry(
+			await this.reviewJson(
+				`/benchmarks/${identifier(benchmarkId)}/profiles/${profileId}/telemetry`,
+				signal,
+			),
 		);
 	}
 	async benchmarkReference(benchmarkId: string, signal: AbortSignal) {
