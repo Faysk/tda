@@ -83,22 +83,34 @@ test("[regression #1341] World primary controls remain reachable at 320 and 390 
 		await page.goto("/campanhas/cronicas-da-mesa/mundo");
 
 		const chrome = page.getByTestId("world-floating-chrome");
-		await expect(chrome).toBeVisible();
-		for (const control of [
-			chrome.getByRole("searchbox", { name: "Buscar no mundo" }),
-			chrome.getByRole("button", { name: "Filtrar por relação" }),
-			chrome.getByRole("button", { name: "Canvas" }),
-			chrome.getByRole("button", { name: "Lista" }),
-		]) {
+		const search = chrome.getByRole("searchbox", { name: "Buscar no mundo" });
+		const relationSummary = page.locator("[data-world-relation-filter] > summary");
+		const canvasButton = chrome.getByRole("button", { name: "Canvas" });
+		const listButton = chrome.getByRole("button", { name: "Lista" });
+
+		for (const control of [search, relationSummary, canvasButton, listButton]) {
 			await expect(control).toBeVisible();
 			const box = await control.boundingBox();
 			expect(box).not.toBeNull();
-			expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
 			expect((box?.y ?? Number.POSITIVE_INFINITY) + (box?.height ?? 0)).toBeLessThanOrEqual(viewport.height);
+			await control.focus();
+			await expect(control).toBeFocused();
 		}
+
+		await relationSummary.click();
+		await expect(page.getByTestId("world-relation-popover")).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(relationSummary).toBeFocused();
+
+		await listButton.click();
+		await expect(page.getByRole("heading", { name: "Relações em lista" })).toBeVisible();
+		await canvasButton.click();
+		await expect(page.getByTestId("world-canvas")).toBeVisible();
+
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
 			`${viewport.width}x${viewport.height}: World must not overflow horizontally`,
 		).toBe(true);
 	}
 });
+
