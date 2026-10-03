@@ -191,7 +191,7 @@ export function BenchmarkEvidenceWorkspace({
 	useEffect(() => {
 		setMode(initialMode);
 		setExportOpen(promptExport);
-	}, [initialMode, promptExport, result.jobId]);
+	}, [initialMode, promptExport]);
 
 	useEffect(() => {
 		if (!artifacts) return;
