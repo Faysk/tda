@@ -339,7 +339,7 @@
       dialog.querySelectorAll(
         'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
       ),
-    ).filter((node) => !node.hidden && !node.classList?.contains("hidden"));
+    ).filter((node) => !node.hidden && !node.classList?.contains("hidden") && !node.closest?.(".hidden"));
   }
 
   function handleMaintenanceDialogKeydown(event) {
