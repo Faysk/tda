@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import BinaryIO, Callable, TextIO
 
 from .asr_models import ModelRegistryError, get_profile
+from .benchmark_evidence import BenchmarkEvidenceError, write_profile_payload
 from .attempt_fence import AttemptFenceError, claim_attempt_outcome
 from .asr_whisper import WhisperRuntimeError, transcribe_craig_package
 from .craig import CraigPackageError
@@ -271,6 +272,21 @@ def _run_craig(
                 raise TranscriptionRunError("BENCHMARK_FRESH_PROCESSING_METRICS_REQUIRED")
             benchmark_metrics = stats.processing_metrics
             lineage = capture_execution_lineage(document)
+            benchmark_id = str(command.payload.get("benchmark_id") or "")
+            sample_identity_sha256 = str(
+                command.payload.get("sample_identity_sha256") or ""
+            )
+            artifact = write_profile_payload(
+                data_root,
+                document,
+                benchmark_id=benchmark_id,
+                job_id=command.job_id,
+                attempt=command.attempt,
+                source_id=source_id,
+                sample_identity_sha256=sample_identity_sha256,
+                sample_seconds=float(benchmark_sample_seconds),
+                execution_lineage=lineage,
+            )
             heartbeat_stop.set()
             heartbeat_thread.join(timeout=1.0)
             emitter.emit(
@@ -278,6 +294,8 @@ def _run_craig(
                 {
                     "kind": "benchmark.profile",
                     "schema_version": "tda_benchmark_profile_v1",
+                    "benchmark_id": benchmark_id,
+                    "sample_identity_sha256": sample_identity_sha256,
                     "profile_id": profile.id,
                     "engine": document.engine.engine,
                     "model": document.engine.model,
@@ -296,6 +314,7 @@ def _run_craig(
                     "track_count": stats.track_count,
                     "warning_count": len(document.warnings),
                     "execution_lineage": lineage,
+                    **artifact,
                 },
             )
             return 0
@@ -403,7 +422,7 @@ def _run_craig(
             {"code": "TRANSCRIPT_VALIDATION_FAILED", "recoverable": False},
         )
         return 66
-    except (ModelRegistryError, CraigPackageError, TranscriptionRunError) as exc:
+    except (ModelRegistryError, CraigPackageError, TranscriptionRunError, BenchmarkEvidenceError) as exc:
         heartbeat_stop.set()
         heartbeat_thread.join(timeout=1.0)
         emitter.emit("error", {"code": _stable_error_code(exc), "recoverable": False})
