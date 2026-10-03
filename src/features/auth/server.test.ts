@@ -104,6 +104,84 @@ describe("verified identity and authorization", () => {
 			"authenticated_linked_no_grants",
 		);
 	});
+	it("does not pin linked account state to the historical campaign", async () => {
+		mocks.load.mockResolvedValueOnce({
+			authUserId: "verified",
+			profileId: "profile",
+			grants: [
+				{
+					action: "campaign.content.edit",
+					scopeType: "campaign",
+					scopeId: "campaign-b",
+					status: "active",
+					startsAt: "2020-01-01",
+					endsAt: null,
+				},
+			],
+		});
+		expect((await currentAccess()).state).toBe("authenticated_linked");
+	});
+
+	it("reflects a revoked known capability as no effective account access", async () => {
+		mocks.load.mockResolvedValueOnce({
+			authUserId: "verified",
+			profileId: "profile",
+			grants: [
+				{
+					action: "campaign.content.edit",
+					scopeType: "campaign",
+					scopeId: "campaign-b",
+					status: "revoked",
+					startsAt: "2020-01-01",
+					endsAt: null,
+				},
+			],
+		});
+		expect((await currentAccess()).state).toBe(
+			"authenticated_linked_no_grants",
+		);
+	});
+
+	it("does not treat an unknown campaign capability as effective account access", async () => {
+		mocks.load.mockResolvedValueOnce({
+			authUserId: "verified",
+			profileId: "profile",
+			grants: [
+				{
+					action: "campaign.legacy.unknown",
+					scopeType: "campaign",
+					scopeId: "campaign-b",
+					status: "active",
+					startsAt: "2020-01-01",
+					endsAt: null,
+				},
+			],
+		});
+		expect((await currentAccess()).state).toBe(
+			"authenticated_linked_no_grants",
+		);
+	});
+
+	it("does not treat an unrelated project grant as TDA access", async () => {
+		mocks.load.mockResolvedValueOnce({
+			authUserId: "verified",
+			profileId: "profile",
+			grants: [
+				{
+					action: "project.monitor.read",
+					scopeType: "project",
+					scopeId: "other-project",
+					status: "active",
+					startsAt: "2020-01-01",
+					endsAt: null,
+				},
+			],
+		});
+		expect((await currentAccess()).state).toBe(
+			"authenticated_linked_no_grants",
+		);
+	});
+
 	it("routes unavailable checks separately from forbidden access", async () => {
 		mocks.getUser.mockRejectedValueOnce(new Error("timeout"));
 		await expect(requireCapability(input.action, "/edit")).rejects.toThrow(
@@ -115,10 +193,21 @@ describe("verified identity and authorization", () => {
 	});
 	it("routes authenticated users without the capability to access denied", async () => {
 		await expect(requireCapability(input.action, "/edit")).rejects.toThrow(
-			"redirect:/conta?acesso=negado",
+			"redirect:/conta?acesso=negado&retorno=%2Fedit",
 		);
-		expect(mocks.redirect).toHaveBeenCalledWith("/conta?acesso=negado");
+		expect(mocks.redirect).toHaveBeenCalledWith(
+			"/conta?acesso=negado&retorno=%2Fedit",
+		);
 	});
+	it("sanitizes an unsafe denied return target before exposing it to the account page", async () => {
+		await expect(requireCapability(input.action, "//evil.test")).rejects.toThrow(
+			"redirect:/conta?acesso=negado&retorno=%2Fconta",
+		);
+		expect(mocks.redirect).toHaveBeenCalledWith(
+			"/conta?acesso=negado&retorno=%2Fconta",
+		);
+	});
+
 	it("allows exact active capability and rejects other campaign", async () => {
 		mocks.load.mockResolvedValue({
 			authUserId: "verified",

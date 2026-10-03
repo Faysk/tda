@@ -3,6 +3,7 @@ import { EDIT_CAPABILITIES, type EditAccessContext } from "@/features/edit/acces
 import {
 	ACCOUNT_CAPABILITY_GROUPS,
 	effectiveAccountCapabilityGroups,
+	effectiveAccountCapabilityScope,
 } from "./account-access";
 
 const NOW = new Date("2026-09-28T00:00:00Z");
@@ -98,5 +99,72 @@ describe("account effective capability projection", () => {
 				expect(Object.values(EDIT_CAPABILITIES)).toContain(item.capability);
 			}
 		}
+	});
+});
+
+
+describe("account campaign scope presentation", () => {
+	it("keeps A-only and B-only campaign grants isolated", () => {
+		const access = context([
+			activeGrant(EDIT_CAPABILITIES.contentEdit, { scopeId: "campaign-a" }),
+			activeGrant(EDIT_CAPABILITIES.transcriptRead, { scopeId: "campaign-b" }),
+		]);
+		expect(
+			visibleCapabilities(
+				effectiveAccountCapabilityGroups(access, "campaign-a", NOW),
+			),
+		).toEqual([EDIT_CAPABILITIES.contentEdit]);
+		expect(
+			visibleCapabilities(
+				effectiveAccountCapabilityGroups(access, "campaign-b", NOW),
+			),
+		).toEqual([EDIT_CAPABILITIES.transcriptRead]);
+	});
+
+	it("labels direct campaign and inherited project authority separately", () => {
+		const direct = activeGrant(EDIT_CAPABILITIES.contentEdit, {
+			scopeId: "campaign-a",
+		});
+		const inherited = activeGrant(EDIT_CAPABILITIES.transcriptRead, {
+			scopeType: "project",
+			scopeId: "tda",
+		});
+		const access = context([direct, inherited]);
+		expect(
+			effectiveAccountCapabilityScope(
+				access,
+				EDIT_CAPABILITIES.contentEdit,
+				"campaign-a",
+				NOW,
+			),
+		).toBe("campaign");
+		expect(
+			effectiveAccountCapabilityScope(
+				access,
+				EDIT_CAPABILITIES.transcriptRead,
+				"campaign-b",
+				NOW,
+			),
+		).toBe("project");
+	});
+
+	it("shows project authority when duplicate direct and project grants cover the same capability", () => {
+		const access = context([
+			activeGrant(EDIT_CAPABILITIES.permissionsManage, {
+				scopeId: "campaign-a",
+			}),
+			activeGrant(EDIT_CAPABILITIES.permissionsManage, {
+				scopeType: "project",
+				scopeId: "tda",
+			}),
+		]);
+		expect(
+			effectiveAccountCapabilityScope(
+				access,
+				EDIT_CAPABILITIES.permissionsManage,
+				"campaign-a",
+				NOW,
+			),
+		).toBe("project");
 	});
 });
