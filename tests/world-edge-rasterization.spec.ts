@@ -216,11 +216,11 @@ async function expectDirectedMarkerRasterized(page: Page, edgeId: string) {
 	const clip = { x: endpoint.x, y: endpoint.y, width: 30, height: 30 };
 	const withMarker = await page.screenshot({ clip, animations: "disabled" });
 	await edge.evaluate((element) => {
-		(element as SVGPathElement).style.markerEnd = "none";
+		(element as SVGPathElement).style.setProperty("marker-end", "none");
 	});
 	const withoutMarker = await page.screenshot({ clip, animations: "disabled" });
 	await edge.evaluate((element) => {
-		(element as SVGPathElement).style.markerEnd = "";
+		(element as SVGPathElement).style.removeProperty("marker-end");
 	});
 	expect(
 		changedPixelCount(withMarker, withoutMarker),
