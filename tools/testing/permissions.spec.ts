@@ -377,9 +377,10 @@ test("confirmation blocks duplicate submit and cannot close while the mutation i
 	});
 	await confirmButton.click();
 	await firstSeen;
-	await expect(confirmButton).toBeDisabled();
+	const pendingButton = confirmation.getByRole("button", { name: "Aplicando…" });
+	await expect(pendingButton).toBeDisabled();
 
-	await confirmButton.dispatchEvent("click");
+	await pendingButton.dispatchEvent("click");
 	await page.keyboard.press("Escape");
 	await expect(confirmation).toBeVisible();
 	expect(postBodies).toHaveLength(1);
