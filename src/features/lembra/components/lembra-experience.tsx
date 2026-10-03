@@ -913,13 +913,21 @@ export function LembraExperience({
 			return;
 		}
 
+		const originalCampaignId = selectedReference.campaign?.id ?? null;
+		const campaignUpdate =
+			editCampaignId === originalCampaignId
+				? ({ kind: "preserve" } as const)
+				: editCampaignId
+					? ({ kind: "set", campaignId: editCampaignId } as const)
+					: ({ kind: "clear" } as const);
+
 		setSaving(true);
 		try {
 			const result = await updateLembraReferenceAction(
 				selectedReference.id,
 				title,
 				description,
-				editCampaignId,
+				campaignUpdate,
 				selectedReference.updatedAt,
 			);
 			if (!result.ok) {
