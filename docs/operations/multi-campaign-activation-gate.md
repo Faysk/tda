@@ -2,7 +2,7 @@
 
 > Status: operational gate for #1138 and product-coherence acceptance #1288
 > Owner: testing / identity-access / operations
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-03
 
 ## Purpose
 
@@ -123,6 +123,55 @@ fallback with no image element; any declared artwork must decode successfully,
 so a broken asset is not silently treated as an expected missing image.
 
 Workflow and browser/receipt artifacts remain synthetic and are named with the
-exact source SHA. The JSON receipt records #1288's semantic and geometry specs
-plus the tested viewport contract. No Production mutation or private narrative
-read is part of this acceptance.
+exact source SHA. The JSON receipt records #1288's semantic, interaction and
+geometry specs plus the tested viewport contract. No Production mutation or
+private narrative read is part of this acceptance.
+
+### Interaction matrix added after the 2026-10-03 UX audit
+
+The quick gate must exercise interaction state, not merely open routes. The
+synthetic browser contract therefore also covers:
+
+- opening the global menu, entering the World drilldown and returning with the
+  Back control while verifying focus restoration;
+- explicit campaign selection followed by navigation and browser Back, proving
+  that route context wins over a stale tool selection;
+- keyboard Escape returning focus to the global-menu trigger;
+- zero, one and many authorized campaign contexts, including a deliberately long
+  campaign name;
+- reachability of the final menu control in a short viewport;
+- 320x720, 390x844, 1366x768 and the governed 683x384 200%-zoom proxy;
+- recorded bounding boxes/clipping state for interactive targets together with
+  sanitized screenshots. These files are uploaded as exact-SHA CI artifacts.
+
+The interaction measurements are product evidence, not a replacement for
+surface-specific functional assertions. A passing menu/layout measurement must
+not be used to claim that a World edge is visibly painted, an empty transcript
+inventory is semantically correct, or a Lembra picker is readable.
+
+### Known product blockers for complete #1288 acceptance
+
+The semantic/interaction harness is integrated independently from product fixes.
+As of the 2026-10-03 audit, complete product-coherence acceptance still depends
+on the owning issues below being resolved and then encoded as regression
+assertions:
+
+- #1327 campaign root is a useful canonical hub;
+- #1328 session arc filter identity/counts are coherent;
+- #1329 World/entity shells do not let global chrome intercept local controls;
+- #1330 account permissions name the campaign context;
+- #1333 non-narrative headers keep actions/content reachable early;
+- #1340 published World relation strokes are visibly painted, not merely present
+  in the DOM;
+- #1341 World toolbar/canvas controls remain reachable on small viewports;
+- #1344 an empty transcript inventory does not report false complete coverage;
+- #1346 Lembra campaign/sort choices remain readable on mobile.
+
+#1349 (avatar rendering) and #1350 (scroll lock) are investigation issues. They
+only become required regression cases after a reproducible failing sequence is
+confirmed; absence of reproduction must not be rewritten as a pass.
+
+The synthetic gate also does not replace the release contract: the exact
+published SHA still needs `/api/version` evidence and real, non-mutating
+post-release interaction checks. Writing flows, R2 upload/read-back and ASR
+quality retain their own domain gates.

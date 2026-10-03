@@ -6,6 +6,7 @@ export default defineConfig({
 		"campaign-isolation.spec.ts",
 		"campaign-directory.spec.ts",
 		"product-coherence.spec.ts",
+		"product-coherence-interactions.spec.ts",
 		"world-edge-anchor-geometry.spec.ts",
 	],
 	workers: 1,
