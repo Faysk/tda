@@ -12,9 +12,18 @@ import {
 	type LocalJob,
 	type PreparationStatus,
 	type QwenRuntimeMaintenanceStatus,
+	type TranscriptionProfileId,
 	type TranscriptionProfileState,
 } from "./protocol";
 import { LocalBridge } from "./bridge";
+import {
+	benchmarkTranscriptSegments,
+	referenceTracksFromTranscript,
+	type BenchmarkQualityResponse,
+	type BenchmarkReferenceTrack,
+	type BenchmarkTranscript,
+} from "./benchmark-evidence";
+import { compareRunSegments, summarizeRunComparison } from "./run-comparison";
 import { presentJobEvent, stageLabels } from "./presentation";
 import {
 	formatSubmissionBytes,
@@ -129,7 +138,263 @@ function bridgeMessage(error: unknown, fallback: string): string {
 	);
 }
 
-function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
+function percent(value: number | null): string {
+	return value === null ? "—" : `${(value * 100).toFixed(2)}%`;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+	const url = URL.createObjectURL(blob);
+	try {
+		const anchor = document.createElement("a");
+		anchor.href = url;
+		anchor.download = filename;
+		anchor.rel = "noopener";
+		anchor.click();
+	} finally {
+		URL.revokeObjectURL(url);
+	}
+}
+
+function BenchmarkEvidencePanel({
+	result,
+	bridge,
+}: Readonly<{ result: BenchmarkResult; bridge: LocalBridge }>) {
+	const benchmarkId = result.benchmarkId;
+	const [leftProfile, setLeftProfile] = useState<TranscriptionProfileId>("whisper-turbo");
+	const [rightProfile, setRightProfile] = useState<TranscriptionProfileId>("qwen-quality");
+	const [transcripts, setTranscripts] = useState<Partial<Record<TranscriptionProfileId, BenchmarkTranscript>>>({});
+	const [comparison, setComparison] = useState<ReturnType<typeof summarizeRunComparison> | null>(null);
+	const [quality, setQuality] = useState<BenchmarkQualityResponse>({});
+	const [referenceTracks, setReferenceTracks] = useState<BenchmarkReferenceTrack[] | null>(null);
+	const [referenceRevision, setReferenceRevision] = useState<number | null>(null);
+	const [seedProfile, setSeedProfile] = useState<TranscriptionProfileId>("qwen-quality");
+	const [busy, setBusy] = useState(false);
+	const [message, setMessage] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (!benchmarkId) return;
+		const controller = new AbortController();
+		void (async () => {
+			try {
+				const reference = await bridge.benchmarkReference(benchmarkId, controller.signal);
+				setReferenceTracks(reference.tracks.map((track) => ({ ...track })));
+				setReferenceRevision(reference.revision);
+				setQuality(await bridge.benchmarkQuality(benchmarkId, controller.signal));
+			} catch (error) {
+				if (
+					error instanceof BridgeError &&
+					error.serverCode === "BENCHMARK_REFERENCE_NOT_FOUND"
+				) {
+					setReferenceTracks(null);
+					setReferenceRevision(null);
+					return;
+				}
+				if (!controller.signal.aborted) setMessage(bridgeMessage(error, "Não foi possível carregar a evidência do benchmark."));
+			}
+		})();
+		return () => controller.abort();
+	}, [benchmarkId, bridge]);
+
+	if (!benchmarkId || result.evidenceSchemaVersion !== "tda_benchmark_bundle_v1") {
+		return (
+			<div className={styles.qualityNotice}>
+				<strong>Qualidade não medida.</strong>
+				<span>Este receipt é anterior ao bundle de evidência. Nenhum vencedor automático é inferido.</span>
+			</div>
+		);
+	}
+
+	const loadTranscript = async (profileId: TranscriptionProfileId, signal: AbortSignal) => {
+		const cached = transcripts[profileId];
+		if (cached) return cached;
+		const loaded = await bridge.benchmarkTranscript(benchmarkId, profileId, signal);
+		setTranscripts((current) => ({ ...current, [profileId]: loaded }));
+		return loaded;
+	};
+
+	const compare = async () => {
+		setBusy(true);
+		setMessage(null);
+		const controller = new AbortController();
+		try {
+			const [left, right] = await Promise.all([
+				loadTranscript(leftProfile, controller.signal),
+				loadTranscript(rightProfile, controller.signal),
+			]);
+			const regions = compareRunSegments(
+				benchmarkTranscriptSegments(left),
+				benchmarkTranscriptSegments(right),
+			);
+			setComparison(summarizeRunComparison(regions));
+		} catch (error) {
+			setMessage(bridgeMessage(error, "Não foi possível comparar as transcrições."));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const seedReference = async () => {
+		setBusy(true);
+		setMessage(null);
+		const controller = new AbortController();
+		try {
+			const transcript = await loadTranscript(seedProfile, controller.signal);
+			setReferenceTracks(referenceTracksFromTranscript(transcript));
+			setMessage("Rascunho criado a partir do perfil. Revise o texto humano antes de salvar.");
+		} catch (error) {
+			setMessage(bridgeMessage(error, "Não foi possível criar o rascunho da referência."));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const saveReference = async () => {
+		if (!referenceTracks) return;
+		setBusy(true);
+		setMessage(null);
+		const controller = new AbortController();
+		try {
+			const saved = await bridge.saveBenchmarkReference(
+				benchmarkId,
+				{
+					sampleIdentitySha256: result.sampleIdentitySha256,
+					tracks: referenceTracks,
+					provenance: referenceRevision === null ? "derived_from_profile" : "manual",
+					seedProfileId: referenceRevision === null ? seedProfile : null,
+					expectedRevision: referenceRevision ?? 0,
+				},
+				controller.signal,
+			);
+			setReferenceRevision(saved.reference.revision);
+			setReferenceTracks(saved.reference.tracks.map((track) => ({ ...track })));
+			setQuality(saved.quality);
+			setMessage(`Referência r${saved.reference.revision} salva. WER/CER recalculados para os quatro perfis.`);
+		} catch (error) {
+			setMessage(bridgeMessage(error, "Não foi possível salvar a referência humana."));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const exportArtifact = async (
+		kind: "export" | `${TranscriptionProfileId}/transcript.txt` | `${TranscriptionProfileId}/transcript.vtt`,
+		filename: string,
+	) => {
+		setBusy(true);
+		setMessage(null);
+		const controller = new AbortController();
+		try {
+			const artifact = await bridge.benchmarkArtifact(benchmarkId, kind, controller.signal);
+			downloadBlob(artifact.blob, filename);
+		} catch (error) {
+			setMessage(bridgeMessage(error, "Não foi possível exportar a evidência."));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	return (
+		<section className={styles.evidencePanel} aria-label="Evidência e qualidade do benchmark">
+			<div className={styles.evidenceHeader}>
+				<div>
+					<strong>Evidência imutável</strong>
+					<span>Bundle {benchmarkId.slice(0, 20)}… · transcripts privados locais</span>
+				</div>
+				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void exportArtifact("export", `tda-benchmark-${benchmarkId}.zip`)}>
+					Exportar ZIP privado
+				</Button>
+			</div>
+
+			<div className={styles.evidenceActions}>
+				<label>
+					<span>Comparar</span>
+					<select value={leftProfile} onChange={(event) => setLeftProfile(event.target.value as TranscriptionProfileId)}>
+						{PROFILES.map((id) => <option key={id} value={id}>{LABELS[id]}</option>)}
+					</select>
+				</label>
+				<label>
+					<span>com</span>
+					<select value={rightProfile} onChange={(event) => setRightProfile(event.target.value as TranscriptionProfileId)}>
+						{PROFILES.map((id) => <option key={id} value={id}>{LABELS[id]}</option>)}
+					</select>
+				</label>
+				<Button type="button" variant="secondary" disabled={busy || leftProfile === rightProfile} onClick={() => void compare()}>
+					Comparar por track e tempo
+				</Button>
+			</div>
+			{comparison ? (
+				<p className={styles.evidenceSummary}>
+					{comparison.totalRegions} regiões · {comparison.differentRegions} diferentes · {comparison.speakerChangedRegions} com mudança de speaker.
+				</p>
+			) : null}
+
+			<div className={styles.evidenceActions}>
+				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void exportArtifact(`${leftProfile}/transcript.txt`, `${leftProfile}.txt`)}>TXT</Button>
+				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void exportArtifact(`${leftProfile}/transcript.vtt`, `${leftProfile}.vtt`)}>WebVTT</Button>
+			</div>
+
+			<div className={styles.referenceEditor}>
+				<div className={styles.evidenceHeader}>
+					<div>
+						<strong>Referência humana {referenceRevision === null ? "não criada" : `· r${referenceRevision}`}</strong>
+						<span>O perfil escolhido só inicia o rascunho; depois disso o texto é referência humana revisável.</span>
+					</div>
+					<label>
+						<span>Rascunho</span>
+						<select value={seedProfile} onChange={(event) => setSeedProfile(event.target.value as TranscriptionProfileId)}>
+							{PROFILES.map((id) => <option key={id} value={id}>{LABELS[id]}</option>)}
+						</select>
+					</label>
+					<Button type="button" variant="tertiary" disabled={busy} onClick={() => void seedReference()}>Usar como rascunho</Button>
+				</div>
+				{referenceTracks?.map((track, index) => (
+					<label key={track.trackNumber} className={styles.referenceTrack}>
+						<span>Track {track.trackNumber} · {track.speaker}</span>
+						<textarea
+							value={track.text}
+							onChange={(event) => setReferenceTracks((current) => current?.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item) ?? null)}
+							rows={4}
+						/>
+					</label>
+				))}
+				{referenceTracks ? (
+					<Button type="button" disabled={busy} onClick={() => void saveReference()}>Salvar referência e recalcular</Button>
+				) : null}
+			</div>
+
+			{Object.keys(quality).length ? (
+				<div className={styles.tableWrap}>
+					<table>
+						<thead><tr><th>Perfil</th><th>WER</th><th>CER</th><th>S</th><th>D</th><th>I</th><th>Timing</th></tr></thead>
+						<tbody>
+							{PROFILES.map((profileId) => {
+								const item = quality[profileId];
+								return item ? (
+									<tr key={profileId}>
+										<th scope="row">{LABELS[profileId]}</th>
+										<td>{percent(item.micro.werNormalized)}</td>
+										<td>{percent(item.micro.cerNormalized)}</td>
+										<td>{item.micro.substitutions}</td><td>{item.micro.deletions}</td><td>{item.micro.insertions}</td>
+										<td>{item.timed ? percent(item.timed.turnCoverage) : "N/A · referência sem timing"}</td>
+									</tr>
+								) : null;
+							})}
+						</tbody>
+					</table>
+					<p className={styles.evidenceSummary}>Normalização versionada; métricas indisponíveis permanecem N/A. Nenhum vencedor automático é calculado.</p>
+				</div>
+			) : (
+				<div className={styles.qualityNotice}>
+					<strong>Qualidade não medida.</strong>
+					<span>Crie e revise uma referência humana para habilitar WER/CER. Performance continua separada de qualidade.</span>
+				</div>
+			)}
+			{message ? <p className={styles.evidenceSummary} role="status">{message}</p> : null}
+		</section>
+	);
+}
+
+function ResultCard({ result, bridge }: Readonly<{ result: BenchmarkResult; bridge: LocalBridge }>) {
 	return (
 		<article className={styles.resultCard}>
 			<header className={styles.resultHeader}>
@@ -140,9 +405,7 @@ function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
 				<StatusPill tone="success">Concluído</StatusPill>
 			</header>
 			<div className={styles.receiptFacts}>
-				<span title={result.sampleIdentitySha256}>
-					Sample SHA {result.sampleIdentitySha256.slice(0, 12)}…
-				</span>
+				<span title={result.sampleIdentitySha256}>Sample SHA {result.sampleIdentitySha256.slice(0, 12)}…</span>
 				<span>{result.trackCount} tracks</span>
 				<span>{formatSeconds(result.audioWorkSeconds)} de trabalho de áudio</span>
 				<span>{result.prepared ? "Artefatos preparados" : "Preparação desconhecida"}</span>
@@ -150,18 +413,7 @@ function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
 			</div>
 			<div className={styles.tableWrap}>
 				<table>
-					<thead>
-						<tr>
-							<th>Perfil</th>
-							<th>Tempo</th>
-							<th>RTF</th>
-							<th>× realtime</th>
-							<th>Palavras</th>
-							<th>Segmentos</th>
-							<th>Avisos</th>
-							<th>Runtime / compute</th>
-						</tr>
-					</thead>
+					<thead><tr><th>Perfil</th><th>Tempo</th><th>RTF</th><th>× realtime</th><th>Palavras</th><th>Segmentos</th><th>Avisos</th><th>Runtime / compute</th></tr></thead>
 					<tbody>
 						{result.profiles.map((profile) => (
 							<tr key={profile.profileId}>
@@ -169,30 +421,14 @@ function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
 								<td>{formatSeconds(profile.processingSeconds)}</td>
 								<td>{profile.rtf === null ? "—" : profile.rtf.toFixed(3)}</td>
 								<td>{formatRealtime(profile.rtf)}</td>
-								<td>{profile.wordCount}</td>
-								<td>{profile.segmentCount}</td>
-								<td>{profile.warningCount}</td>
-								<td>
-									{[
-										profile.executionLineage?.runtimeVersion,
-										profile.computeType,
-										profile.executionLineage?.gpu?.model,
-									]
-										.filter(Boolean)
-										.join(" · ") || "—"}
-								</td>
+								<td>{profile.wordCount}</td><td>{profile.segmentCount}</td><td>{profile.warningCount}</td>
+								<td>{[profile.executionLineage?.runtimeVersion, profile.computeType, profile.executionLineage?.gpu?.model].filter(Boolean).join(" · ") || "—"}</td>
 							</tr>
 						))}
 					</tbody>
 				</table>
 			</div>
-			<div className={styles.qualityNotice}>
-				<strong>Qualidade não medida.</strong>
-				<span>
-					Este benchmark compara performance. Sem transcrição humana de referência,
-					WER/omissões/inserções não são calculados e nenhum perfil recebe vencedor automático.
-				</span>
-			</div>
+			<BenchmarkEvidencePanel result={result} bridge={bridge} />
 		</article>
 	);
 }
@@ -1243,7 +1479,7 @@ export function ProcessingBenchmark({
 				{latestCompleted.length ? (
 					latestCompleted.slice(0, 10).map((job) =>
 						results[job.id] ? (
-							<ResultCard key={job.id} result={results[job.id]!} />
+							<ResultCard key={job.id} result={results[job.id]!} bridge={bridge} />
 						) : (
 							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>
 						),
