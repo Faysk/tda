@@ -96,7 +96,10 @@ type Props = Readonly<{
 	onRestoreSessionId?: (sessionId: string) => void;
 	onRestoreIntent?: (intent: SessionTranscriptionIntent) => void;
 	onStatus?: (message: string) => void;
-	onError?: (\n\t\tmessage: string,\n\t\tavailabilityFailure?: "timeout" | "unreachable",\n\t) => void;
+	onError?: (
+		message: string,
+		availabilityFailure?: "timeout" | "unreachable",
+	) => void;
 	onOpenTechnical?: () => void;
 }>;
 
