@@ -81,7 +81,7 @@ jobs:
         run: |
           command -v xvfb-run >/dev/null
           xvfb-run -a pnpm exec playwright test tests/lore-catalogue-media.spec.ts --project=desktop-1080p --headed
-      - name: Wait for canonical Production SHA
+      - name: Wait for canonical Production to contain source SHA
         if: ${{ github.event_name == 'push' }}
         shell: bash
         env:
@@ -91,13 +91,24 @@ jobs:
           set -euo pipefail
           for attempt in $(seq 1 72); do
             body="$(curl -fsS --max-time 15 "$PRODUCTION_ORIGIN/api/version" || true)"
-            if [[ "$body" == *"$SOURCE_SHA"* ]]; then
-              echo "Canonical Production is serving $SOURCE_SHA"
+            production_sha="$(printf '%s' "$body" | sed -n 's/.*"commit":"\([0-9a-f]\{40\}\)".*/\1/p')"
+
+            if [[ "$production_sha" == "$SOURCE_SHA" ]]; then
+              echo "Canonical Production is serving exact source SHA $SOURCE_SHA"
               exit 0
             fi
+
+            if [[ -n "$production_sha" ]]; then
+              git fetch --quiet --no-tags --filter=blob:none origin "$production_sha"
+              if git merge-base --is-ancestor "$SOURCE_SHA" "$production_sha"; then
+                echo "Canonical Production $production_sha contains source SHA $SOURCE_SHA"
+                exit 0
+              fi
+            fi
+
             sleep 10
           done
-          echo "::error::Canonical Production did not reach $SOURCE_SHA within the verification window"
+          echo "::error::Canonical Production did not reach or contain $SOURCE_SHA within the verification window"
           exit 1
       - name: Canonical Production lore catalogue media gate
         if: ${{ github.event_name == 'push' }}
