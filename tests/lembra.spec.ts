@@ -940,7 +940,7 @@ test("Lembra viewer releases modal focus and document scrolling after Escape", a
 		await page.goto("/e2e-fixtures/lembra-campaigns");
 
 		const opener = page.getByRole("button", { name: "Histórica", exact: true });
-		await opener.scrollIntoViewIfNeeded();
+		await expect(opener).toBeVisible();
 		await opener.click();
 
 		const viewer = page.getByRole("dialog");
