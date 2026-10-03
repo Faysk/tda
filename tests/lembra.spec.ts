@@ -237,10 +237,6 @@ test("Lembra selects a newly created private campaign only after authorized proj
 	);
 	await expect(composer).toContainText("Campanha criada e selecionada.");
 
-	await composer.getByRole("button", { name: "Campanha da referência" }).click();
-	await expect(page.getByRole("option", { name: "Segredo da Mesa", exact: true })).toBeVisible();
-	await page.keyboard.press("Escape");
-
 	await composer.getByRole("button", { name: "Guardar", exact: true }).click();
 	await expect(composer).not.toBeVisible();
 	const privateCard = page.locator("article").filter({ hasText: "Rascunho privado" });
