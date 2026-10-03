@@ -395,7 +395,11 @@ Qwen e Whisper convergem para o mesmo `tda_transcript_v1`, contendo engine metad
 
 Antes de escolher um default definitivo, rodar os quatro perfis sobre áudio real revisado do TDA, incluindo PT-BR normal, fala rápida, nomes próprios, termos de D&D, overlaps, bleed, ruído, eco e risada.
 
-Medir qualidade textual, nomes, erro temporal p50/p95 em pontos anotados, preservação de overlap, falso dedup, elapsed, RTF, pico de VRAM, uso GPU e recoverability/checkpoints.
+O benchmark operacional preserva evidência local separada dos runs publicáveis. Cada tentativa concluída materializa `Data/benchmarks/<benchmark-id>` somente depois de fechar os quatro perfis: `benchmark.json` é o commit marker do bundle, cada perfil mantém `profile.json`, o `tda_transcript_v1` canônico, métricas e eventos sanitizados, todos vinculados por tamanho e SHA-256. Bundle parcial, symlink inesperado, hash divergente ou transcript incompatível falha fechado. Receipts antigos sem ponteiro de evidência permanecem válidos como métricas históricas, mas não ganham transcript retroativamente.
+
+A API loopback expõe apenas leitura autenticada para metadata verificada, snapshot de comparação e derivados JSON/TXT/VTT/SRT. O ZIP privado é montado pelo Agent sob demanda e não inclui áudio. Nomes de download são derivados do `benchmark_id`/perfil, nunca do filename privado da fonte. Esses artefatos continuam locais: não criam Result, revisão, publicação ou sync cloud por consequência do benchmark.
+
+Medir qualidade textual, nomes, erro temporal p50/p95 em pontos anotados, preservação de overlap, falso dedup, elapsed, RTF, pico de VRAM, uso GPU e recoverability/checkpoints. Sem uma referência humana aprovada, a UI pode comparar diferenças factuais e performance, mas não deve calcular WER nem declarar vencedor.
 
 ## Ordem de estabilização
 
