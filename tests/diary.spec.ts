@@ -10,9 +10,9 @@ test("diary archive opens the standalone book and remembers reading", async ({
 	await expect(
 		page.getByRole("heading", { name: "Diários", exact: true }),
 	).toBeVisible();
-	await page
-		.getByRole("link", { name: /Astel Nightshade.*Diário de Astel/ })
-		.click();
+	const astelCard = page.locator('[data-diary="astel"]');
+	await expect(astelCard.getByRole("heading", { name: "Diário de Astel" })).toBeVisible();
+	await astelCard.getByRole("link", { name: /Abrir o diário/ }).click();
 	await expect(page).toHaveURL(/\/diario\/astel$/);
 	await expect(page.locator(".site-header")).toHaveCount(0);
 	await page.getByRole("button", { name: "Abrir Diário de Astel" }).click();
@@ -150,4 +150,41 @@ test("continuous reading works without JavaScript and retains all paragraphs", a
 		).toEqual(paragraphs);
 	}
 	await context.close();
+});
+
+
+test("diary catalogue exposes verified public campaign and lore context without leaking technical identity", async ({
+	page,
+}) => {
+	for (const viewport of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+		{ width: 683, height: 384 },
+		{ width: 1366, height: 768 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/diario");
+
+		const card = page.locator('[data-diary="astel"]');
+		await expect(card).toHaveAttribute("data-diary-campaign", "cronicas-da-mesa");
+		const campaign = card.getByRole("link", { name: /Campanha · Crônicas da Mesa/ });
+		await expect(campaign).toHaveAttribute("href", "/campanhas/cronicas-da-mesa");
+		await expect(card.getByRole("link", { name: "Conhecer a lore" })).toHaveAttribute(
+			"href",
+			"/lore/astel",
+		);
+		await expect(card.getByRole("link", { name: /Abrir o diário/ })).toHaveAttribute(
+			"href",
+			"/diario/astel",
+		);
+		await expect(page.locator("body")).not.toContainText("yuhara-main");
+		expect(
+			await page.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+			),
+		).toBe(true);
+
+		await campaign.focus();
+		await expect(campaign).toBeFocused();
+	}
 });
