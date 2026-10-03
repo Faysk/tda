@@ -678,6 +678,13 @@ export function ProcessingPanel({
 	function cancelCampaignSwitch() {
 		setCampaignSwitch(null);
 		setCampaignSelection(campaignId);
+		requestAnimationFrame(() => {
+			document
+				.querySelector<HTMLButtonElement>(
+					'button[aria-label="Trocar campanha do processamento"]',
+				)
+				?.focus();
+		});
 	}
 
 	function confirmCampaignSwitch() {
