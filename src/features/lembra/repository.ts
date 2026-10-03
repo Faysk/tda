@@ -1,8 +1,13 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { serverAuthClient } from "@/features/auth/server";
 import { lembraDataClient } from "@/integrations/supabase/server";
-import { isLembraCampaignRegistryUnavailable } from "./campaign-classification";
+import {
+	isLembraCampaignRegistryUnavailable,
+	mergeLembraCampaignClassifications,
+	projectLembraCampaignClassification,
+} from "./campaign-classification";
 import {
 	isLembraMediaMime,
 	isLembraUuid,
@@ -70,6 +75,11 @@ export function presentLembraRow(
 	const imageUrl = lembraImageUrl(row.id);
 	if (!imageUrl) return null;
 
+	const classification = projectLembraCampaignClassification(
+		row.campaign_id,
+		campaign,
+	);
+
 	return {
 		id: row.id,
 		title: row.title,
@@ -82,7 +92,7 @@ export function presentLembraRow(
 		width: row.width,
 		height: row.height,
 		mine: row.created_by_auth_user_id === viewerAuthUserId,
-		campaign,
+		...classification,
 	};
 }
 
@@ -91,7 +101,7 @@ export async function loadLembraCampaignClassifications(
 ): Promise<LembraCampaignClassification[]> {
 	if (!client) throw new Error("lembra_data_unavailable");
 
-	const { data, error } = await client
+	const { data: publicData, error } = await client
 		.from("campaigns")
 		.select(CAMPAIGN_SELECT_COLUMNS)
 		.eq("visibility", "public")
@@ -102,21 +112,18 @@ export async function loadLembraCampaignClassifications(
 		throw new Error(`lembra_campaign_lookup:${error.message}`);
 	}
 
-	return (data ?? []).flatMap((row) => {
-		if (
-			!isLembraUuid(row.id) ||
-			typeof row.name !== "string" ||
-			!row.name.trim() ||
-			(row.lifecycle !== "active" && row.lifecycle !== "archived")
-		) {
-			return [];
+	let discoverableData: unknown = [];
+	try {
+		const viewerClient = await serverAuthClient();
+		if (viewerClient) {
+			const discoverable = await viewerClient.rpc("campaign_edit_directory");
+			if (!discoverable.error) discoverableData = discoverable.data;
 		}
-		return [{
-			id: row.id,
-			name: row.name.trim(),
-			lifecycle: row.lifecycle,
-		} satisfies LembraCampaignClassification];
-	});
+	} catch {
+		// Private discovery fails closed. Public classifications remain available.
+	}
+
+	return mergeLembraCampaignClassifications(publicData ?? [], discoverableData);
 }
 
 export async function loadLembraCampaignClassification(
@@ -124,30 +131,8 @@ export async function loadLembraCampaignClassification(
 	campaignId: string,
 ): Promise<LembraCampaignClassification | null> {
 	if (!isLembraUuid(campaignId)) return null;
-	const { data, error } = await client
-		.from("campaigns")
-		.select(CAMPAIGN_SELECT_COLUMNS)
-		.eq("id", campaignId)
-		.eq("visibility", "public")
-		.maybeSingle();
-	if (error) {
-		if (isLembraCampaignRegistryUnavailable(error)) return null;
-		throw new Error(`lembra_campaign_lookup:${error.message}`);
-	}
-	if (
-		!data ||
-		!isLembraUuid(data.id) ||
-		typeof data.name !== "string" ||
-		!data.name.trim() ||
-		(data.lifecycle !== "active" && data.lifecycle !== "archived")
-	) {
-		return null;
-	}
-	return {
-		id: data.id,
-		name: data.name.trim(),
-		lifecycle: data.lifecycle,
-	};
+	const campaigns = await loadLembraCampaignClassifications(client);
+	return campaigns.find((campaign) => campaign.id === campaignId) ?? null;
 }
 
 export async function loadLembraReferences(
