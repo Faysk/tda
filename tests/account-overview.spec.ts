@@ -23,7 +23,11 @@ test("account separates project-wide authority from explicit campaign access", a
 		exact: true,
 	});
 	await transcriptGroup.click();
-	await expect(campaignA.getByText("Ler transcrições", { exact: true })).toBeVisible();
+	await expect(
+		campaignA
+			.locator("[data-account-permission-groups]")
+			.getByText("Ler transcrições", { exact: true }),
+	).toBeVisible();
 
 	const technical = campaignA.getByText("Detalhes técnicos do acesso", {
 		exact: true,
