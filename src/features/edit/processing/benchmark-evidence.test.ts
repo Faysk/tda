@@ -231,6 +231,34 @@ describe("benchmark evidence contract", () => {
 		expect(compareRunPerformanceSemantics(left, right).status).toBe("comparable");
 	});
 
+	it("accepts every distinct pair in the four-profile comparison matrix", () => {
+		const parsed = Object.fromEntries(
+			profiles.map((profileId) => [
+				profileId,
+				parseBenchmarkTranscriptSnapshot(
+					snapshot(profileId, `texto ${profileId}`),
+					"benchmark-job-1-a1",
+					profileId,
+				),
+			]),
+		) as Record<TranscriptionProfileId, ReturnType<typeof parseBenchmarkTranscriptSnapshot>>;
+
+		let pairs = 0;
+		for (let leftIndex = 0; leftIndex < profiles.length; leftIndex += 1) {
+			for (
+				let rightIndex = leftIndex + 1;
+				rightIndex < profiles.length;
+				rightIndex += 1
+			) {
+				const left = parsed[profiles[leftIndex]!]!;
+				const right = parsed[profiles[rightIndex]!]!;
+				expect(compareRunSegments(left.segments, right.segments)).toHaveLength(1);
+				pairs += 1;
+			}
+		}
+		expect(pairs).toBe(6);
+	});
+
 	it("keeps identical benchmark transcript text equal across different segmentation ids", () => {
 		const left = parseBenchmarkTranscriptSnapshot(
 			snapshot("whisper-turbo", "mesma fala"),
