@@ -9,6 +9,7 @@ import {
 import {
 	LEMBRA_UPLOAD_CHUNK_BYTES,
 	isLembraUuid,
+	type LembraCampaignClassification,
 	type LembraCampaignMutationIntent,
 	type LembraReference,
 	type LembraUploadIntent,
@@ -267,7 +268,22 @@ export async function updateLembraReferenceAction(
 		}
 
 		let campaignId = current.campaign_id;
-		let campaign = null;
+		let campaign: LembraCampaignClassification | null = null;
+
+		// A hidden current classification may be preserved while the global Lembra
+		// reference is edited, but it cannot be cleared or replaced by a caller that
+		// cannot discover it. This keeps "Geral" from becoming a forged delete signal.
+		let visibleCurrent: LembraCampaignClassification | null = null;
+		if (campaignId) {
+			visibleCurrent = await resolveLembraCampaignSelection(
+				access.identity.authUserId,
+				campaignId,
+			);
+			if (campaignIntentInput.mode !== "preserve" && !visibleCurrent) {
+				return { ok: false, reason: "invalid_payload" };
+			}
+		}
+
 		if (campaignIntentInput.mode === "clear") {
 			campaignId = null;
 		} else if (campaignIntentInput.mode === "set") {
@@ -279,14 +295,9 @@ export async function updateLembraReferenceAction(
 			if (!campaignResult.ok) return campaignResult;
 			campaignId = campaignIntentInput.campaignId;
 			campaign = campaignResult.campaign;
-		} else if (campaignId) {
+		} else {
 			// Preserve hidden classifications without revealing their existence.
-			// When the actor may discover the current campaign, keep the friendly
-			// projection in the mutation response as well.
-			campaign = await resolveLembraCampaignSelection(
-				access.identity.authUserId,
-				campaignId,
-			);
+			campaign = visibleCurrent;
 		}
 
 		const row = await updateLembraReferenceMetadata(
