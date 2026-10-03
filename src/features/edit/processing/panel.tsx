@@ -9,6 +9,7 @@ import {
 } from "react";
 import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { StatusPill } from "@/components/ui/status";
 import { CampaignPicker } from "@/features/campaigns/campaign-picker";
 import { ProcessingBenchmark } from "./benchmark";
@@ -65,6 +66,15 @@ import styles from "./processing.module.css";
 type Confirmation =
 	| { id: string; action: "cancel" | "retry" | "delete" }
 	| { action: "resume" };
+
+type CampaignSwitchConfirmation = Readonly<{
+	targetId: string;
+	targetName: string;
+	hasDraft: boolean;
+	hasActiveWork: boolean;
+	hasMutation: boolean;
+	hasUncertainSubmission: boolean;
+}>;
 
 type ProcessingView = "overview" | "queue" | "results" | "benchmark" | "diagnostics";
 
@@ -350,6 +360,7 @@ export function ProcessingPanel({
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
 	const [campaignSelection, setCampaignSelection] = useState(campaignId);
 	const [campaignNavigationPending, setCampaignNavigationPending] = useState(false);
+	const [campaignSwitch, setCampaignSwitch] = useState<CampaignSwitchConfirmation | null>(null);
 	const diagnosticOpener = useRef<HTMLElement | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
@@ -630,30 +641,52 @@ export function ProcessingPanel({
 			setCampaignSelection(campaignId);
 			return;
 		}
-		if (!campaignOptions.some((campaign) => campaign.technicalSlug === nextCampaignId)) {
+		const target = campaignOptions.find(
+			(campaign) => campaign.technicalSlug === nextCampaignId,
+		);
+		if (!target) {
 			setCampaignSelection(campaignId);
 			return;
 		}
 		const authoritativeWork = campaignJobs.some((job) =>
 			["queued", "running"].includes(job.status),
 		);
+		const hasMutation = Boolean(state.mutation);
+		const hasUncertainSubmission = Boolean(state.uncertainSubmission);
 		const needsConfirmation =
 			submissionDraftActive ||
 			authoritativeWork ||
-			Boolean(state.mutation) ||
-			Boolean(state.uncertainSubmission);
-		if (
-			needsConfirmation &&
-			!window.confirm(
-				"Trocar de campanha descarta apenas o formulário local desta tela. Trabalhos já enfileirados ou em execução mantêm a campanha original. Deseja continuar?",
-			)
-		) {
-			setCampaignSelection(campaignId);
+			hasMutation ||
+			hasUncertainSubmission;
+		if (needsConfirmation) {
+			setCampaignSwitch({
+				targetId: nextCampaignId,
+				targetName: target.name,
+				hasDraft: submissionDraftActive,
+				hasActiveWork: authoritativeWork,
+				hasMutation,
+				hasUncertainSubmission,
+			});
 			return;
 		}
 		setCampaignNavigationPending(true);
 		requestAnimationFrame(() => {
 			window.location.assign(processingCampaignHref(nextCampaignId));
+		});
+	}
+
+	function cancelCampaignSwitch() {
+		setCampaignSwitch(null);
+		setCampaignSelection(campaignId);
+	}
+
+	function confirmCampaignSwitch() {
+		const target = campaignSwitch;
+		if (!target || campaignNavigationPending) return;
+		setCampaignSwitch(null);
+		setCampaignNavigationPending(true);
+		requestAnimationFrame(() => {
+			window.location.assign(processingCampaignHref(target.targetId));
 		});
 	}
 
@@ -1563,6 +1596,46 @@ export function ProcessingPanel({
 					setConfirmation({ id: job.id, action: "cancel" })
 				}
 			/>
+
+
+			<Dialog
+				open={campaignSwitch !== null}
+				title="Trocar de campanha?"
+				description={
+					campaignSwitch
+						? `${campaignName} → ${campaignSwitch.targetName}. O formulário local desta tela será descartado.`
+						: undefined
+				}
+				onClose={cancelCampaignSwitch}
+				actions={
+					<>
+						<Button data-dialog-initial-focus="true" onClick={cancelCampaignSwitch}>
+							Continuar nesta campanha
+						</Button>
+						<Button
+							variant="primary"
+							disabled={campaignNavigationPending}
+							onClick={confirmCampaignSwitch}
+						>
+							{campaignNavigationPending ? "Trocando campanha…" : "Trocar campanha"}
+						</Button>
+					</>
+				}
+			>
+				{campaignSwitch ? (
+					<details>
+						<summary>O que será preservado?</summary>
+						<p>
+							Trabalhos já criados continuam vinculados à campanha original; a troca
+							não reatribui jobs, runs ou tentativas existentes.
+						</p>
+						{campaignSwitch.hasActiveWork ? <p>Há trabalho enfileirado ou em execução nesta campanha.</p> : null}
+						{campaignSwitch.hasMutation ? <p>Há uma operação local em andamento.</p> : null}
+						{campaignSwitch.hasUncertainSubmission ? <p>Há uma submissão cuja confirmação ainda é incerta.</p> : null}
+						{campaignSwitch.hasDraft ? <p>O formulário local ainda contém dados não enviados.</p> : null}
+					</details>
+				) : null}
+			</Dialog>
 
 			<dialog
 				ref={dialog}
