@@ -41,6 +41,16 @@ test.describe("shared campaign picker", () => {
 		await expect(page).toHaveURL(/selected=long/);
 	});
 
+	for (const colorScheme of ["light", "dark"] as const) {
+		test(`remains readable in ${colorScheme} theme`, async ({ page }) => {
+			await page.setViewportSize({ width: 390, height: 844 });
+			await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+			await page.goto("/e2e-fixtures/campaign-picker?scenario=many&mode=confirmed");
+			await expect(page.getByRole("button", { name: "Campanha de teste" })).toBeVisible();
+			await expect(page.getByRole("link", { name: /Gerenciar campanhas/ })).toBeVisible();
+		});
+	}
+
 	for (const viewport of [
 		{ width: 320, height: 760 },
 		{ width: 390, height: 844 },
