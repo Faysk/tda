@@ -115,6 +115,7 @@ function snapshot(profileId: TranscriptionProfileId, text: string, start = 0) {
 			processing_seconds: 30,
 			processing_metrics: {
 				version: "engine_processing_v1",
+				external_preparation_included: false,
 				stage_seconds: {
 					runtime_validation: 1,
 					checkpoint_scan: 1,
