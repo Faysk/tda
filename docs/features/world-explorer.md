@@ -607,3 +607,16 @@ Avaliar utilidade, não quantidade de edges:
 Um usuário autorizado consegue abrir `/mundo`, compreender a constelação visível da campanha, selecionar e reorganizar nodes localmente, explorar uma vizinhança focada, consultar relações por lista/inspector e navegar para perfis sem depender do grafo como única fonte e sem receber dados fora de sua audience.
 
 A rodada #99 só pode declarar a evolução para dados reais/edição concluída quando houver evidência separada de: dataset revisado e autorizado; projection sem leak; mutation factual server-side com concorrência/erro cobertos; edição de layout diferenciada; CI do SHA; e, se houver publicação, smoke do ambiente deliberadamente publicado.
+
+
+### Paint order for spatial relations
+
+The published canvas keeps visual neighborhoods as background context only. The
+viewport portal used by those regions must stay below the SVG edge layer; relation
+strokes stay below nodes, while relation labels render above both. This ordering
+is part of the browser acceptance contract because a valid SVG `path` in the DOM
+does not prove that a user can actually trace the relation on screen.
+
+The regression gate checks selected edges from two nodes with browser geometry,
+`isPointInStroke()`, computed paint properties, explicit layer order and a
+screenshot receipt. Layout positions remain unchanged by this presentation rule.

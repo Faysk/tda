@@ -491,6 +491,22 @@
 	box-shadow: inset 0 0 96px color-mix(in srgb, var(--ds-ambient-cool) 72%, transparent);
 }
 
+.canvas :global(.react-flow__viewport-portal) {
+	z-index: 0;
+}
+
+.canvas :global(.react-flow__edges) {
+	z-index: 1;
+}
+
+.canvas :global(.react-flow__nodes) {
+	z-index: 2;
+}
+
+.canvas :global(.react-flow__edgelabel-renderer) {
+	z-index: 3;
+}
+
 .canvas :global(.react-flow__controls),
 .canvas :global(.react-flow__minimap) {
 	box-shadow: 0 8px 22px color-mix(in srgb, var(--ds-canvas) 34%, transparent);
