@@ -2525,4 +2525,73 @@ def create_app(
             raise Conflict("RESULT_ARTIFACT_MISMATCH")
         return value
 
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}")
+    def benchmark_evidence_summary(benchmark_id: str):
+        return public_bundle_summary(data_root, benchmark_id)
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/snapshot")
+    def benchmark_profile_snapshot(benchmark_id: str, profile_id: str):
+        return transcript_snapshot(data_root, benchmark_id, profile_id)
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/artifacts/{format_name}")
+    def benchmark_profile_artifact(
+        benchmark_id: str,
+        profile_id: str,
+        format_name: Literal["json", "txt", "vtt", "srt"],
+    ):
+        payload, media_type, artifact_name = derived_artifact(
+            data_root,
+            benchmark_id,
+            profile_id,
+            format_name,
+        )
+        filename = f"TDA-Benchmark-{benchmark_id}-{profile_id}-{artifact_name}"
+        return Response(
+            content=payload,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/export.zip")
+    def benchmark_private_evidence_export(benchmark_id: str):
+        export_root = resolved_cache_root / "benchmark-exports"
+        export_root.mkdir(parents=True, exist_ok=True)
+        handle = tempfile.NamedTemporaryFile(
+            prefix="tda-benchmark-",
+            suffix=".zip",
+            dir=export_root,
+            delete=False,
+        )
+        path = Path(handle.name)
+        handle.close()
+        try:
+            write_private_evidence_zip(data_root, benchmark_id, path)
+        except BaseException:
+            path.unlink(missing_ok=True)
+            raise
+
+        def stream_archive():
+            try:
+                with path.open("rb") as source:
+                    while chunk := source.read(1024 * 1024):
+                        yield chunk
+            finally:
+                path.unlink(missing_ok=True)
+
+        filename = f"TDA-Benchmark-{benchmark_id}-private-evidence.zip"
+        return StreamingResponse(
+            stream_archive(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
     return app
