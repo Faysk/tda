@@ -398,7 +398,10 @@ test("recovery separates a previous Companion outage from current readiness with
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("0/1 concluída", { exact: true })).toBeVisible();
+	const sessionProgress = page
+		.locator("[data-session-intent='true']")
+		.getByText("0/1 concluída", { exact: true });
+	await expect(sessionProgress).toBeVisible();
 	await expect(
 		page.getByText("A sessão foi recuperada do Companion.", { exact: true }),
 	).toBeVisible();
@@ -422,7 +425,7 @@ test("recovery separates a previous Companion outage from current readiness with
 	await expect(
 		page.locator("[data-processing-recovery-history='true']"),
 	).toHaveCount(0);
-	await expect(page.getByText("0/1 concluída", { exact: true })).toBeVisible();
+	await expect(sessionProgress).toBeVisible();
 
 	offline = false;
 	await page.evaluate(() => {
@@ -442,7 +445,7 @@ test("recovery separates a previous Companion outage from current readiness with
 	);
 	await expect(previousOutage).toHaveCount(0);
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("0/1 concluída", { exact: true })).toBeVisible();
+	await expect(sessionProgress).toBeVisible();
 
 	await technical.getByRole("button", { name: "Atualizar", exact: true }).click();
 	await expect(
@@ -457,7 +460,7 @@ test("recovery separates a previous Companion outage from current readiness with
 				() => document.documentElement.scrollWidth <= window.innerWidth + 1,
 			),
 		).toBe(true);
-		await expect(page.getByText("0/1 concluída", { exact: true })).toBeVisible();
+		await expect(sessionProgress).toBeVisible();
 	}
 
 	offline = true;
