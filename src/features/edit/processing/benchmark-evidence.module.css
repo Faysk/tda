@@ -1,0 +1,337 @@
+.lab {
+	display: grid;
+	gap: 10px;
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid var(--ds-border-subtle);
+	font-family: var(--ds-font-ui);
+}
+
+.actions,
+.evidenceFacts,
+.summary,
+.pair,
+.tabs {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+}
+
+.evidenceFacts,
+.summary {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+}
+
+.legacy,
+.notice,
+.empty,
+.warning,
+.error {
+	display: grid;
+	gap: 3px;
+	font-size: 0.75rem;
+	line-height: 1.5;
+}
+
+.legacy,
+.notice,
+.empty {
+	color: var(--ds-foreground-muted);
+}
+
+.legacy strong {
+	color: var(--ds-foreground-soft);
+}
+
+.warning {
+	color: var(--ds-warning);
+}
+
+.error {
+	color: var(--ds-danger);
+}
+
+.workspace,
+.referenceEditor,
+.quality {
+	display: grid;
+	gap: 12px;
+	padding-top: 12px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.pair label,
+.terms,
+.referenceTracks label {
+	display: grid;
+	gap: 5px;
+	min-width: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+}
+
+.pair select,
+.terms input,
+.referenceTracks textarea {
+	min-height: 36px;
+	padding: 7px 9px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-control-background);
+	color: var(--ds-foreground);
+	font: inherit;
+}
+
+.pair select:focus-visible,
+.terms input:focus-visible,
+.referenceTracks textarea:focus-visible,
+.tabs button:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.tabs {
+	gap: 4px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.tabs button {
+	padding: 7px 9px;
+	border: 0;
+	border-bottom: 2px solid transparent;
+	background: transparent;
+	color: var(--ds-foreground-muted);
+	font: inherit;
+	font-size: 0.72rem;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.tabs button[aria-selected="true"] {
+	border-bottom-color: var(--ds-accent);
+	color: var(--ds-foreground);
+}
+
+.diffList {
+	display: grid;
+	gap: 0;
+	border-block: 1px solid var(--ds-border-subtle);
+}
+
+.diffRow {
+	display: grid;
+	gap: 7px;
+	padding: 9px 0;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.diffRow:first-child {
+	border-top: 0;
+}
+
+.diffRow header {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 10px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.67rem;
+}
+
+.diffRow header strong {
+	color: var(--ds-foreground-soft);
+}
+
+.diffRow header em {
+	color: var(--ds-warning);
+	font-style: normal;
+}
+
+.diffColumns,
+.profileColumns {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.diffColumns p {
+	margin: 0;
+	min-width: 0;
+	color: var(--ds-foreground-soft);
+	font-size: 0.74rem;
+	line-height: 1.55;
+	overflow-wrap: anywhere;
+}
+
+.timingFacts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 14px;
+	color: var(--ds-foreground-soft);
+	font-size: 0.72rem;
+}
+
+.profileColumns > section {
+	min-width: 0;
+	padding-right: 12px;
+	border-right: 1px solid var(--ds-border-subtle);
+}
+
+.profileColumns > section:last-child {
+	padding-right: 0;
+	border-right: 0;
+}
+
+.profileColumns dl {
+	display: grid;
+	margin: 8px 0 0;
+}
+
+.profileColumns dl div {
+	display: grid;
+	grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1.2fr);
+	gap: 10px;
+	padding: 5px 0;
+	border-top: 1px solid var(--ds-border-subtle);
+	font-size: 0.7rem;
+}
+
+.profileColumns dt {
+	color: var(--ds-foreground-muted);
+}
+
+.profileColumns dd {
+	margin: 0;
+	color: var(--ds-foreground-soft);
+	overflow-wrap: anywhere;
+}
+
+.profileColumns details {
+	margin-top: 8px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+}
+
+.profileColumns ul {
+	display: grid;
+	gap: 3px;
+	padding: 0;
+	list-style: none;
+}
+
+.profileColumns li {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.referenceEditor header,
+.quality header {
+	display: flex;
+	align-items: start;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.referenceEditor header > div,
+.quality header {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+}
+
+.referenceEditor header > div {
+	display: grid;
+	gap: 2px;
+}
+
+.referenceEditor header strong,
+.quality header strong {
+	color: var(--ds-foreground);
+	font-size: 0.82rem;
+}
+
+.referenceEditor p {
+	margin: 0;
+	max-width: 85ch;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.5;
+}
+
+.referenceTracks {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.referenceTracks textarea {
+	min-height: 130px;
+	resize: vertical;
+	line-height: 1.5;
+}
+
+.tableWrap {
+	min-width: 0;
+	overflow-x: auto;
+}
+
+.tableWrap table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.7rem;
+}
+
+.tableWrap th,
+.tableWrap td {
+	padding: 7px 8px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+	text-align: left;
+	white-space: nowrap;
+}
+
+.tableWrap th {
+	color: var(--ds-foreground-muted);
+	font-weight: 700;
+}
+
+.tableWrap tbody th {
+	color: var(--ds-foreground-soft);
+}
+
+@media (max-width: 760px) {
+	.diffColumns,
+	.profileColumns,
+	.referenceTracks {
+		grid-template-columns: 1fr;
+	}
+
+	.profileColumns > section {
+		padding-right: 0;
+		padding-bottom: 10px;
+		border-right: 0;
+		border-bottom: 1px solid var(--ds-border-subtle);
+	}
+
+	.profileColumns > section:last-child {
+		border-bottom: 0;
+	}
+
+	.actions :global(.ds-action) {
+		flex: 1 1 150px;
+	}
+
+	.pair label {
+		flex: 1 1 130px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.lab *,
+	.lab *::before,
+	.lab *::after {
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+	}
+}
