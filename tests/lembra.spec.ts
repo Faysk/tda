@@ -113,7 +113,7 @@ test("Lembra creates a public campaign in context without losing the upload draf
 	await createDialog.getByLabel("Nome").fill("Aurora Pública");
 	await createDialog.getByLabel("Slug técnico").fill("aurora-publica");
 	await createDialog.getByLabel("Rota pública").fill("aurora-publica");
-	await createDialog.getByLabel("Descrição pública curta").fill("Campanha criada dentro do Lembra.");
+	await createDialog.getByLabel("Descrição").fill("Campanha criada dentro do Lembra.");
 	await createDialog.getByRole("button", { name: "Criar e voltar" }).click();
 
 	await expect(createDialog).not.toBeVisible();
