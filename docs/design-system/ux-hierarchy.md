@@ -2,7 +2,7 @@
 
 > Status: canônico
 > Owner: design-system / frontend
-> Última revisão: 2026-09-29
+> Última revisão: 2026-10-03
 > Fonte: diretriz geral fornecida pelo usuário e incorporada ao reboot em 2026-09-11
 
 Esta diretriz vale para **todo o projeto TDA — Tem Dado Aqui**: Home, Sessões, Mundo, Personagens, Lores, Cinematics, Grafo, autenticação, conta, Edit, processamento, ferramentas administrativas e futuras superfícies.
@@ -105,6 +105,19 @@ Em Personagens, deve encontrar personagens.
 Em Processamento, deve enxergar o processamento.
 
 Em Edit, deve começar a editar.
+
+### Cabeçalhos operacionais compactos
+
+Ferramentas, seletores, listagens e estados operacionais devem reutilizar o padrão compartilhado `OperationalPageHeader` quando a superfície não possuir uma razão narrativa para um hero próprio.
+
+- manter um `h1` semântico e curto; em uso comum, a escala permanece dentro da faixa geral de 32–48 px;
+- descrição é opcional e deve caber em uma frase útil; explicações de contrato, recovery, provenance ou implementação ficam em ajuda contextual/progressive disclosure;
+- campanha, contagem e estado podem aparecer como metadata secundária sem competir com o título e a ação principal;
+- o cabeçalho comum deve permanecer compacto e adaptável, com alvo orientativo de 96–160 px, nunca altura fixa que corte nomes longos ou reflow;
+- em 1366×768, 390×844, no mínimo automatizado de 320×800 e no proxy governado de 200% (683×384), a primeira viewport precisa conter conteúdo, controle ou ação útil além do cabeçalho;
+- Home, sessões/lore com composição narrativa e workspaces cujo canvas é o próprio conteúdo não recebem compactação cega; a função da superfície continua definindo a hierarquia.
+
+Os gates de navegador devem verificar título, primeira ação/conteúdo útil, overflow horizontal, teclado e temas claro/escuro, além dos estados vazios, loading e erro exercitados pelo shell correspondente.
 
 ---
 

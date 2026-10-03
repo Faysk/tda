@@ -135,9 +135,7 @@
 .accountShell {
 	width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 	max-width: none;
-	margin-block:
-		max(clamp(2rem, 5vw, 4.5rem), calc(var(--site-chrome-panel-top, 66px) + 12px))
-		clamp(2rem, 5vw, 4.5rem);
+	margin-block: 14px clamp(2rem, 5vw, 4.5rem);
 	padding: 0;
 	border: 0;
 	border-radius: 0;

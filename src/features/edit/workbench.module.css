@@ -117,13 +117,6 @@
 	background: var(--ds-surface);
 }
 
-.locked h1 {
-	margin: 8px 0 12px;
-	font-family: var(--ds-font-display);
-	font-size: clamp(2rem, 6vw, 4rem);
-	font-weight: 500;
-}
-
 .toolbar {
 	justify-content: space-between;
 	padding: 12px;
@@ -324,13 +317,18 @@
 }
 
 
-.libraryEyebrow {
-	margin: 18px 0 0;
-	color: var(--ds-foreground-muted);
-	font-size: 0.72rem;
-	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+.libraryShell {
+	padding-top: 14px;
+}
+
+.libraryHeaderMeta {
+	display: grid;
+	gap: 2px;
+	font-variant-numeric: tabular-nums;
+}
+
+.libraryHeaderMeta strong {
+	color: var(--ds-foreground);
 }
 
 .libraryIntro {
@@ -530,6 +528,18 @@
 }
 
 @media (max-width: 720px) {
+	.campaignChoiceRow {
+		grid-template-columns: 1fr;
+	}
+
+	.campaignChoiceRow .libraryOpen {
+		grid-column: 1;
+	}
+
+	.libraryHeaderMeta {
+		gap: 3px;
+	}
+
 	.libraryFilters {
 		grid-template-columns: 1fr;
 	}
@@ -611,14 +621,9 @@
 	font-size: 0.78rem;
 }
 
-.libraryTitle {
-	font-size: clamp(1.8rem, 3vw, 2.7rem);
-	line-height: 1;
-}
-
 .libraryGuidance {
 	max-width: 760px;
-	margin-top: 8px;
+	margin: 2px 0 16px;
 	color: var(--ds-foreground-muted);
 	font-size: 0.8rem;
 	line-height: 1.45;
@@ -678,6 +683,10 @@
 	border-bottom: 0;
 }
 
+.campaignChoiceRow {
+	grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .libraryThumbnail {
 	width: 88px;
 }
@@ -721,6 +730,10 @@
 	.libraryRow {
 		grid-template-columns: 76px minmax(0, 1fr);
 		padding: 8px 0;
+	}
+
+	.libraryRow.campaignChoiceRow {
+		grid-template-columns: 1fr;
 	}
 
 	.libraryThumbnail {

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { currentAccess } from "@/features/auth/server";
 import { readEditableWorldCampaigns } from "@/features/campaigns/world";
+import styles from "@/features/edit/workbench.module.css";
 import { worldEditCampaignHref } from "@/features/world-explorer/world-campaign";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +23,16 @@ export default async function EditWorldCompatibilityPage() {
 	const eligible = await readEditableWorldCampaigns(access.context);
 	if (!eligible.ok) {
 		return (
-			<main>
-				<h1>Campanhas indisponíveis</h1>
-				<p>Nenhum contexto do Mundo foi assumido automaticamente.</p>
+			<main
+				className={[styles.shell, styles.libraryShell].join(" ")}
+				data-layout-family="workspace"
+				data-layout-role="editorial"
+			>
+				<OperationalPageHeader
+					eyebrow="Edit · Mundo"
+					title="Campanhas indisponíveis"
+					description={<p>Não foi possível consultar as campanhas agora.</p>}
+				/>
 			</main>
 		);
 	}
@@ -33,21 +42,37 @@ export default async function EditWorldCompatibilityPage() {
 	}
 
 	return (
-		<main>
-			<h1>Escolha a campanha</h1>
-			<p>O authoring do Mundo é isolado por campanha.</p>
+		<main
+			className={[styles.shell, styles.libraryShell].join(" ")}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit · Mundo"
+				title="Escolha a campanha"
+				description={<p>Abra o editor do Mundo no contexto certo.</p>}
+			/>
 			{eligible.campaigns.length ? (
-				<ul>
+				<div className={styles.libraryList}>
 					{eligible.campaigns.map((campaign) => (
-						<li key={campaign.technicalSlug}>
-							<Link href={worldEditCampaignHref(campaign.technicalSlug)}>
-								{campaign.name}
+						<article className={[styles.libraryRow, styles.campaignChoiceRow].join(" ")} key={campaign.technicalSlug}>
+							<div className={styles.libraryPrimary}>
+								<h2 className={styles.sessionTitle}>{campaign.name}</h2>
+							</div>
+							<Link
+								className={styles.libraryOpen}
+								href={worldEditCampaignHref(campaign.technicalSlug)}
+							>
+								Abrir Mundo
 							</Link>
-						</li>
+						</article>
 					))}
-				</ul>
+				</div>
 			) : (
-				<p>Seu perfil não possui uma campanha ativa com edição de layout do Mundo.</p>
+				<div className={styles.empty}>
+					<h2>Nenhuma campanha autorizada</h2>
+					<p>Seu perfil não possui acesso de edição do Mundo em campanha ativa.</p>
+				</div>
 			)}
 		</main>
 	);

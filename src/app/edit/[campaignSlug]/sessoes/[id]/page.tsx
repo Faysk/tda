@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { ActionLink, StatusPill } from "@/components/ui";
 import { requireCampaignCapability } from "@/features/auth/server";
@@ -29,9 +30,15 @@ type PageProps = Readonly<{
 
 function UnavailableTranscript({ backHref }: { backHref: string }) {
 	return (
-		<section className={styles.locked}>
-			<div className={styles.muted}>TDA / EDIT / TRANSCRIÇÃO</div>
-			<h1>Transcrição indisponível</h1>
+		<section
+			className={styles.locked}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit · Transcrição"
+				title="Transcrição indisponível"
+			/>
 			<p className={styles.muted}>
 				A fonte privada atual não pôde ser lida com integridade. Nenhum fallback
 				foi aplicado.
