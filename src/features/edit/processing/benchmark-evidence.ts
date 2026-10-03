@@ -313,6 +313,104 @@ export function parseBenchmarkQuality(value: unknown): BenchmarkQualityResponse 
 	return result;
 }
 
+export type BenchmarkMetrics = {
+	profileId: TranscriptionProfileId;
+	totalProcessingSeconds: number;
+	stageSeconds: Readonly<Record<string, number>>;
+	warningCount: number;
+	warnings: readonly string[];
+	telemetry: {
+		available: boolean;
+		capturedSamples: number;
+		missingReason: string | null;
+	};
+};
+
+export type BenchmarkDiagnosticEvent = {
+	seq: number;
+	relativeMs: number;
+	type: string;
+	stage: string | null;
+	code: string | null;
+	data: Readonly<Record<string, string | number | boolean | null>>;
+};
+
+export type BenchmarkDiagnostics = {
+	profileId: TranscriptionProfileId;
+	metrics: BenchmarkMetrics;
+	events: readonly BenchmarkDiagnosticEvent[];
+};
+
+export function parseBenchmarkMetrics(value: unknown): BenchmarkMetrics {
+	const row = record(value);
+	if (row.schema_version !== "tda_benchmark_metrics_v1") return invalid();
+	const stages = record(row.stage_seconds);
+	const stageSeconds: Record<string, number> = {};
+	for (const [key, raw] of Object.entries(stages)) {
+		if (!/^[a-z0-9_-]{1,64}$/u.test(key)) return invalid();
+		stageSeconds[key] = number(raw);
+	}
+	if (!Array.isArray(row.warnings) || typeof row.telemetry !== "object" || row.telemetry === null)
+		return invalid();
+	const telemetry = record(row.telemetry);
+	if (typeof telemetry.available !== "boolean") return invalid();
+	return {
+		profileId: profile(row.profile_id),
+		totalProcessingSeconds: number(row.total_processing_seconds),
+		stageSeconds,
+		warningCount: integer(row.warning_count),
+		warnings: row.warnings.map((item) => text(item, 256)),
+		telemetry: {
+			available: telemetry.available,
+			capturedSamples: integer(telemetry.captured_samples),
+			missingReason:
+				telemetry.missing_reason === null || telemetry.missing_reason === undefined
+					? null
+					: text(telemetry.missing_reason, 96),
+		},
+	};
+}
+
+export function parseBenchmarkEvents(value: unknown): {
+	profileId: TranscriptionProfileId;
+	events: readonly BenchmarkDiagnosticEvent[];
+} {
+	const row = record(value);
+	if (row.schema_version !== "tda_benchmark_diagnostics_v1" || !Array.isArray(row.events))
+		return invalid();
+	const profileId = profile(row.profile_id);
+	if (row.events.length > 20_000) return invalid();
+	return {
+		profileId,
+		events: row.events.map((raw) => {
+			const item = record(raw);
+			if (item.schema_version !== "tda_benchmark_event_v1") return invalid();
+			if (profile(item.profile_id) !== profileId) return invalid();
+			const dataRow = record(item.data);
+			const data: Record<string, string | number | boolean | null> = {};
+			for (const [key, rawValue] of Object.entries(dataRow)) {
+				if (!/^[a-z0-9_-]{1,64}$/u.test(key)) return invalid();
+				if (
+					rawValue !== null &&
+					typeof rawValue !== "string" &&
+					typeof rawValue !== "number" &&
+					typeof rawValue !== "boolean"
+				)
+					return invalid();
+				data[key] = rawValue as string | number | boolean | null;
+			}
+			return {
+				seq: integer(item.seq),
+				relativeMs: integer(item.relative_ms),
+				type: text(item.type, 32),
+				stage: item.stage === null ? null : text(item.stage, 64),
+				code: item.code === null ? null : text(item.code, 96),
+				data,
+			};
+		}),
+	};
+}
+
 export function referenceTracksFromTranscript(
 	transcript: BenchmarkTranscript,
 ): BenchmarkReferenceTrack[] {
