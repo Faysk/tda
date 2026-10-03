@@ -1,15 +1,10 @@
 import { describe, expect, it } from "vitest";
-import {
-	recordingVariantSourceIds,
-} from "./session-composer-model";
+import { recordingVariantSourceIds } from "./session-composer-model";
 import {
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
 } from "./session-composer-storage";
-import type {
-	LocalSourceSummary,
-	SessionWorkspace,
-} from "./protocol";
+import type { LocalSourceSummary, SessionWorkspace } from "./protocol";
 
 class MemoryStorage implements Storage {
 	private values = new Map<string, string>();
@@ -141,25 +136,21 @@ describe("session composer recovery invariants", () => {
 	});
 
 	it("treats different bytes with the same recording identity as a variant requiring a decision", () => {
+		const sourceASummary: LocalSourceSummary = {
+			sourceId: sourceA,
+			sourceSha256: "a".repeat(64),
+			recordingId: "craig-recording-42",
+			trackCount: 2,
+		};
+		const sourceBSummary: LocalSourceSummary = {
+			sourceId: sourceB,
+			sourceSha256: "b".repeat(64),
+			recordingId: "craig-recording-42",
+			trackCount: 2,
+		};
 		const sources = new Map<string, LocalSourceSummary>([
-			[
-				sourceA,
-				{
-					sourceId: sourceA,
-					sourceSha256: "a".repeat(64),
-					recordingId: "craig-recording-42",
-					trackCount: 2,
-				},
-			],
-			[
-				sourceB,
-				{
-					sourceId: sourceB,
-					sourceSha256: "b".repeat(64),
-					recordingId: "craig-recording-42",
-					trackCount: 2,
-				},
-			],
+			[sourceA, sourceASummary],
+			[sourceB, sourceBSummary],
 		]);
 
 		expect(
@@ -167,7 +158,7 @@ describe("session composer recovery invariants", () => {
 		).toEqual([sourceA]);
 
 		sources.set(sourceB, {
-			...sources.get(sourceB)!,
+			...sourceBSummary,
 			recordingId: "craig-recording-other",
 		});
 		expect(
