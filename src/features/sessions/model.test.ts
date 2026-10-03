@@ -13,7 +13,7 @@ const row = {
 	hero_image_url:
 		"https://dmrqnbdvbkfqzctcerbx.supabase.co/storage/v1/object/public/session-images/yuhara-main/example/hero.webp",
 	status: "published",
-	campaigns: { id: "campaign-a", slug: "yuhara-main", public_slug: "cronicas-da-mesa", name: "Crônicas da Mesa", lifecycle: "active", visibility: "public" },
+	campaigns: { id: "campaign-a", slug: "yuhara-main", public_slug: "cronicas-da-mesa", name: "Destino Sem Fim", lifecycle: "active", visibility: "public" },
 	transcript: "PRIVATE",
 	metadata: { secret: "PRIVATE" },
 };
@@ -34,7 +34,7 @@ describe("public session boundary", () => {
 
 	it("only returns approved fields", () => {
 		const result = toPublishedSession(row);
-		expect(result).toMatchObject({ campaignSlug: "cronicas-da-mesa", campaignName: "Crônicas da Mesa" });
+		expect(result).toMatchObject({ campaignSlug: "cronicas-da-mesa", campaignName: "Destino Sem Fim" });
 		expect(result).not.toHaveProperty("metadata");
 		expect(result).not.toHaveProperty("transcript");
 		expect(result).not.toHaveProperty("fullSummary");
@@ -61,7 +61,7 @@ describe("public session boundary", () => {
 				id: "campaign-b",
 				slug: "antes-que-seja-tarde",
 				public_slug: "antes-que-seja-tarde",
-				name: "Antes que Seja Tarde",
+				name: "Passos Retomados",
 			},
 			cover_image_url:
 				"https://media.dnd.faysk.dev/campaigns/antes-que-seja-tarde/sessions/session-1/card.webp",
