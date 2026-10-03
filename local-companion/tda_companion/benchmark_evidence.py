@@ -109,6 +109,29 @@ def benchmark_id_for(job_id: str, attempt: int) -> str:
     return f"benchmark-{digest}"
 
 
+def sample_identity_for_package(package: Any, *, sample_seconds: float = 300.0) -> str:
+    if sample_seconds != 300.0:
+        raise BenchmarkEvidenceError("BENCHMARK_SAMPLE_INVALID")
+    source_sha256 = _sha(getattr(package, "source_sha256", None), "BENCHMARK_SOURCE_HASH_INVALID")
+    tracks = getattr(package, "tracks", None)
+    if not isinstance(tracks, (tuple, list)) or not tracks:
+        raise BenchmarkEvidenceError("BENCHMARK_TRACKS_INVALID")
+    payload = {
+        "schema": "tda_benchmark_sample_v1",
+        "source_sha256": source_sha256,
+        "start_seconds": 0.0,
+        "end_seconds": 300.0,
+        "tracks": [
+            {
+                "number": int(getattr(track, "number")),
+                "sha256": _sha(getattr(track, "sha256", None), "BENCHMARK_TRACK_HASH_INVALID"),
+            }
+            for track in tracks
+        ],
+    }
+    return _sha_bytes(_canonical(payload))
+
+
 def _junction(path: Path) -> bool:
     checker = getattr(path, "is_junction", None)
     return bool(checker()) if callable(checker) else False
