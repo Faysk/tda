@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	isLembraCampaignRegistryUnavailable,
+	lembraCampaignMutationFromSelection,
 	resolveLembraCampaignMutation,
 } from "./campaign-classification";
 
@@ -143,5 +144,38 @@ describe("Lembra privacy-safe campaign mutation", () => {
 				{ kind: "set", campaignId: archivedPrivate.id },
 			),
 		).toEqual({ ok: false, reason: "forbidden" });
+	});
+});
+
+
+describe("Lembra visible selection intent", () => {
+	it("keeps an unchanged visible selection as preserve", () => {
+		expect(lembraCampaignMutationFromSelection(null, null)).toEqual({
+			kind: "preserve",
+		});
+		expect(
+			lembraCampaignMutationFromSelection(
+				"33333333-3333-4333-8333-333333333333",
+				"33333333-3333-4333-8333-333333333333",
+			),
+		).toEqual({ kind: "preserve" });
+	});
+
+	it("emits clear or set only for an actual visible selection change", () => {
+		expect(
+			lembraCampaignMutationFromSelection(
+				"11111111-1111-4111-8111-111111111111",
+				null,
+			),
+		).toEqual({ kind: "clear" });
+		expect(
+			lembraCampaignMutationFromSelection(
+				null,
+				"22222222-2222-4222-8222-222222222222",
+			),
+		).toEqual({
+			kind: "set",
+			campaignId: "22222222-2222-4222-8222-222222222222",
+		});
 	});
 });
