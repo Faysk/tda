@@ -11,7 +11,9 @@ PROTOCOL_VERSION = "tda_worker_v1"
 MAX_LINE_BYTES = 64 * 1024
 JOB_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 SOURCE_ID_PATTERN = JOB_ID_PATTERN
-BENCHMARK_ID_PATTERN = re.compile(r"^benchmark-[0-9a-f]{32}$")
+BENCHMARK_ID_PATTERN = re.compile(
+    r"^benchmark-(?:[0-9a-f]{32}|[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5})$"
+)
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 ASR_PROFILE_IDS = frozenset({"whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"})
 OUTPUT_TYPES = frozenset({"ready", "heartbeat", "stage", "progress", "event", "result", "cancelled", "error"})
