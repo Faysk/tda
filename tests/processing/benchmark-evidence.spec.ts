@@ -45,6 +45,12 @@ test("completed evidence reopens four-profile lab without turning it into Result
 	await expect(panel.getByText(/regiões diferentes/u)).toBeVisible();
 	await expect(panel.getByText("Olá mundo da taverna")).toBeVisible();
 	await expect(panel.getByText("Olá mundo na taverna")).toBeVisible();
+	await expect(panel.getByText(/Diferença 1 de/u)).toBeVisible();
+	await panel.getByLabel("Filtrar track").selectOption("1");
+	await panel.getByRole("button", { name: "Próxima diferença" }).click();
+	await expect(panel.locator('[data-current="true"]')).toBeFocused();
+	await panel.getByLabel("Tempo inicial em segundos").fill("0");
+	await panel.getByLabel("Tempo final em segundos").fill("60");
 	expect(
 		state.requests.some((item) =>
 			item.path.includes(
@@ -105,6 +111,29 @@ test("human reference is explicit, revisioned and unlocks objective quality only
 	await expect(
 		panel.getByRole("button", { name: "Editar referência · r1" }),
 	).toBeVisible();
+});
+
+test("private export requires an explicit transcript-content disclosure", async ({ page }) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkEvidence: true,
+		profileReady: true,
+		initialJobs: [fixtureBenchmarkJob("succeeded")],
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel.getByText("Arquivos / evidências")).toBeVisible();
+	await panel.getByRole("button", { name: "Exportar evidência ZIP" }).click();
+	await expect(panel.getByRole("group", { name: "Confirmar exportação privada" })).toContainText(
+		"quatro transcripts completos",
+	);
+	expect(state.requests.some((item) => item.path.endsWith("/export"))).toBe(false);
+
+	await panel.getByRole("button", { name: "Baixar ZIP privado" }).click();
+	await expect.poll(
+		() => state.requests.some((item) => item.path.endsWith("/export")),
+	).toBe(true);
 });
 
 test("legacy benchmark receipts stay readable without fabricated evidence", async ({
