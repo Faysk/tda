@@ -366,3 +366,27 @@ test("long lore catalogue labels and titles reflow without hiding the action", a
 		}
 	}
 });
+
+
+test("lore catalogue primary story action works with mouse and touch", async ({
+	page,
+	browser,
+}) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/lore");
+	await page.locator('article[data-lore="astel"] a[href="/lore/astel"]').click();
+	await expect(page).toHaveURL(/\/lore\/astel$/u);
+
+	const context = await browser.newContext({
+		viewport: { width: 390, height: 844 },
+		hasTouch: true,
+		isMobile: true,
+	});
+	const touchPage = await context.newPage();
+	await touchPage.goto("/lore");
+	await touchPage
+		.locator('article[data-lore="astel"] a[href="/lore/astel"]')
+		.tap();
+	await expect(touchPage).toHaveURL(/\/lore\/astel$/u);
+	await context.close();
+});
