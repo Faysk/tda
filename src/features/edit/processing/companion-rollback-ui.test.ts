@@ -388,18 +388,16 @@ describe("Companion maintenance dialogs", () => {
 		);
 		expect(harness.get("maintenance-dialog-confirm").disabled).toBe(false);
 
-		let resolveRestart: ((value: boolean) => void) | null = null;
-		harness.spies.restartAgent.mockImplementationOnce(
-			() =>
-				new Promise<boolean>((resolve) => {
-					resolveRestart = resolve;
-				}),
-		);
+		let releaseRestart = (_value: boolean) => undefined;
+		const pendingRestart = new Promise<boolean>((resolve) => {
+			releaseRestart = resolve;
+		});
+		harness.spies.restartAgent.mockImplementationOnce(() => pendingRestart);
 		const firstSubmit = harness.submit();
 		await Promise.resolve();
 		const duplicateSubmit = harness.submit();
 		expect(harness.spies.restartAgent).toHaveBeenCalledTimes(2);
-		resolveRestart?.(true);
+		releaseRestart(true);
 		await Promise.all([firstSubmit, duplicateSubmit]);
 		expect(harness.spies.restartAgent).toHaveBeenCalledTimes(2);
 		expect(harness.get("maintenance-dialog").open).toBe(false);
