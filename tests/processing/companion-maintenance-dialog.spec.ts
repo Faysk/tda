@@ -94,15 +94,25 @@ test("captures the integrated Companion rollback dialog with accessible browser 
 	await page.keyboard.press("Shift+Tab");
 	await expect(page.getByRole("button", { name: "Reverter Whisper" })).toBeFocused();
 
+	const viewport = page.viewportSize();
+	const bounds = await dialog.boundingBox();
+	expect(viewport).not.toBeNull();
+	expect(bounds).not.toBeNull();
+	expect(bounds?.x ?? -1).toBeGreaterThanOrEqual(0);
+	expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(
+		(viewport?.width ?? 0) + 1,
+	);
 	expect(
-		await page.evaluate(
-			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+		await dialog.evaluate(
+			(node) => node.scrollWidth <= node.clientWidth + 1,
 		),
 	).toBe(true);
+	await page.getByRole("button", { name: "Reverter Whisper" }).scrollIntoViewIfNeeded();
+	await expect(page.getByRole("button", { name: "Reverter Whisper" })).toBeVisible();
 
 	await page.screenshot({
 		path: testInfo.outputPath("companion-maintenance-dialog-after.png"),
-		fullPage: true,
+		fullPage: false,
 	});
 
 	await page.keyboard.press("Escape");
