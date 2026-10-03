@@ -8,11 +8,11 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Callable, Literal
+from typing import Any, Annotated, Callable, Literal
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import VERSION
@@ -27,6 +27,18 @@ from .attempt_fence import (
     read_attempt_outcome,
 )
 from .browser_session import BrowserSessionManager
+from .benchmark_evidence import (
+    BenchmarkEvidenceError,
+    load_bundle as load_benchmark_bundle,
+    private_export_zip,
+    verified_profile_bytes,
+)
+from .benchmark_quality import (
+    BenchmarkQualityError,
+    quality_summary as benchmark_quality_summary,
+    reference_private as benchmark_reference_private,
+    save_reference as save_benchmark_reference,
+)
 from .craig import CraigPackageError
 from .craig_ingest import (
     recover_interrupted_craig_repairs,
@@ -89,6 +101,11 @@ TRANSCRIPTION_TEXT_MAX_CHARS = 1200
 _BROWSER_JOB_PATH = re.compile(
     r"^/api/v1/jobs/[A-Za-z0-9_-]{1,128}(?:/(?:cancel|retry|delete|events|result))?$"
 )
+_BROWSER_BENCHMARK_PATH = re.compile(
+    r"^/api/v1/benchmarks/benchmark-[0-9a-f]{32}"
+    r"(?:/profiles/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)/(?:transcript|metrics|events|telemetry)"
+    r"|/export|/reference|/quality)?$"
+)
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
     r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/derive|participants|intent))?$"
@@ -125,6 +142,8 @@ def _browser_route_allowed(method: str, path: str) -> bool:
                 "/api/v1/jobs",
             })
         )
+    if _BROWSER_BENCHMARK_PATH.fullmatch(path) is not None:
+        return method == "GET" or (method == "POST" and path.endswith("/reference"))
     if _BROWSER_SESSION_WORKSPACE_PATH.fullmatch(path) is not None:
         return method in {"GET", "POST"}
     if _BROWSER_SESSION_ASSEMBLY_PATH.fullmatch(path) is not None:
@@ -157,6 +176,15 @@ class CraigBenchmarkJobRequest(BaseModel):
     source_id: str = Field(pattern=_ID_PATTERN)
     glossary: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
     context: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
+
+
+class BenchmarkReferenceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    expected_revision: int = Field(ge=0, le=1_000_000)
+    provenance: Literal["manual", "imported", "profile_seed"] = "manual"
+    seed_profile_id: Literal["whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"] | None = None
+    tracks: list[dict[str, Any]]
+    terms: list[str] = Field(default_factory=list)
 
 
 class CraigTranscriptionJobRequest(BaseModel):
@@ -1149,6 +1177,13 @@ def create_app(
                                 or len(payload["profiles"]) != len(_BENCHMARK_PROFILES)
                                 or [item.get("profile_id") for item in payload["profiles"]]
                                 != list(_BENCHMARK_PROFILES)
+                                or not isinstance(payload.get("benchmark_id"), str)
+                                or re.fullmatch(r"benchmark-[0-9a-f]{32}", payload["benchmark_id"]) is None
+                                or not isinstance(payload.get("bundle_manifest_sha256"), str)
+                                or _SHA256_PATTERN.fullmatch(payload["bundle_manifest_sha256"]) is None
+                                or isinstance(payload.get("bundle_size_bytes"), bool)
+                                or not isinstance(payload.get("bundle_size_bytes"), int)
+                                or payload["bundle_size_bytes"] < 1
                             ):
                                 raise WorkerProcessError(
                                     "BENCHMARK_RESULT_INVALID",
@@ -1472,9 +1507,15 @@ def create_app(
                 response = error("JSON_REQUIRED", 415)
             else:
                 body_bytes = bytearray()
+                body_limit = (
+                    8 * 1024 * 1024
+                    if _BROWSER_BENCHMARK_PATH.fullmatch(request.url.path) is not None
+                    and request.url.path.endswith("/reference")
+                    else LOCAL_JSON_BODY_MAX_BYTES
+                )
                 async for chunk in request.stream():
                     body_bytes.extend(chunk)
-                    if len(body_bytes) > LOCAL_JSON_BODY_MAX_BYTES:
+                    if len(body_bytes) > body_limit:
                         response = error("BODY_TOO_LARGE", 413)
                         break
                 if response is None:
@@ -1548,6 +1589,8 @@ def create_app(
             "transcription.runs.catalog",
             "processing.benchmark",
             "processing.benchmark.runtime-readiness-v2",
+            "processing.benchmark.evidence-v1",
+            "processing.benchmark.reference-v1",
             "system.telemetry",
             "worker.subprocess",
             "transcription.prepare",
@@ -2331,6 +2374,66 @@ def create_app(
             value = store.submit(idempotency_key, payload)
         worker_wake.set()
         return value
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}")
+    def benchmark_manifest(benchmark_id: str):
+        try:
+            return load_benchmark_bundle(data_root, benchmark_id)
+        except BenchmarkEvidenceError as exc:
+            return error(str(exc), 409, False)
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/{artifact}")
+    def benchmark_profile_artifact(
+        benchmark_id: str,
+        profile_id: Literal["whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"],
+        artifact: Literal["transcript", "metrics", "events", "telemetry"],
+    ):
+        try:
+            payload = verified_profile_bytes(data_root, benchmark_id, profile_id, artifact)
+        except BenchmarkEvidenceError as exc:
+            return error(str(exc), 409, False)
+        media_type = "application/x-ndjson" if artifact == "events" else "application/json"
+        return Response(content=payload, media_type=media_type, headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/export")
+    def benchmark_export(benchmark_id: str):
+        try:
+            payload = private_export_zip(data_root, benchmark_id)
+        except (BenchmarkEvidenceError, BenchmarkQualityError) as exc:
+            return error(str(exc), 409, False)
+        return Response(
+            content=payload,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="TDA-Benchmark-{benchmark_id}.zip"',
+                "Cache-Control": "no-store",
+            },
+        )
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/reference")
+    def benchmark_reference(benchmark_id: str):
+        try:
+            value = benchmark_reference_private(data_root, benchmark_id)
+        except (BenchmarkEvidenceError, BenchmarkQualityError) as exc:
+            return error(str(exc), 409, False)
+        return {"reference": value}
+
+    @app.post("/api/v1/benchmarks/{benchmark_id}/reference")
+    def benchmark_reference_save(benchmark_id: str, body: BenchmarkReferenceRequest):
+        try:
+            return save_benchmark_reference(data_root, benchmark_id, body.model_dump())
+        except BenchmarkQualityError as exc:
+            code = str(exc)
+            return error(code, 409 if code.endswith("CONFLICT") else 422, False)
+        except BenchmarkEvidenceError as exc:
+            return error(str(exc), 409, False)
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/quality")
+    def benchmark_quality(benchmark_id: str):
+        try:
+            return benchmark_quality_summary(data_root, benchmark_id)
+        except (BenchmarkEvidenceError, BenchmarkQualityError) as exc:
+            return error(str(exc), 409, False)
 
     @app.get("/api/v1/jobs/{job_id}")
     def job(job_id: str):
