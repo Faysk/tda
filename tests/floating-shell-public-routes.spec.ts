@@ -123,12 +123,10 @@ test("Lore grid and Diário preserve the structural keyline while using distinct
 		expect(loreCard).not.toBeNull();
 		if (loreHeading && loreArchive && loreCard) {
 			expect(Math.abs(loreHeading.x - loreKeyline.x)).toBeLessThanOrEqual(2);
-			expect(Math.abs(loreArchive.x - loreKeyline.x)).toBeLessThanOrEqual(2);
-			expect(loreArchive.width).toBeGreaterThanOrEqual(
-				loreKeyline.contentWidth - 3,
-			);
+			expect(Math.abs(loreCard.x - loreKeyline.x)).toBeLessThanOrEqual(2);
+			expect(loreArchive.width).toBeGreaterThanOrEqual(loreKeyline.contentWidth);
 			expect(loreCard.width).toBeGreaterThanOrEqual(300);
-			expect(loreCard.width).toBeLessThan(loreArchive.width / 2);
+			expect(loreCard.width).toBeLessThan(loreKeyline.contentWidth / 2);
 		}
 
 		await page.goto("/diario");
