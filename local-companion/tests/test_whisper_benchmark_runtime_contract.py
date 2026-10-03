@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 import tda_companion.profile_preparation as preparation
+from tda_companion.benchmark_evidence import benchmark_id_for
 import tda_companion.worker_supervisor as supervisor_module
 from tda_companion.runtime_compat import (
     MIN_BENCHMARK_WHISPER_RUNTIME_VERSION,
@@ -166,5 +167,7 @@ def test_supervisor_blocks_old_whisper_before_benchmark_worker_launch(
             context="",
             cpu=False,
             benchmark_sample_seconds=300.0,
+            benchmark_id=benchmark_id_for("benchmark-whisper-old-runtime", 1),
+            benchmark_sample_identity_sha256="e" * 64,
             on_progress=lambda _message: None,
         )
