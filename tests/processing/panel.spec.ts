@@ -292,7 +292,7 @@ test("troca de campaign usa diálogo integrado e nunca retaggeia job existente",
 	await expect(selector).toBeFocused();
 	await expect(selector).toContainText("Crônicas da Mesa");
 	expect(nativeDialogs).toBe(0);
-	expect(state.job?.context?.campaign_id).toBe("yuhara-main");
+	expect((state.job?.context as { campaign_id?: string } | undefined)?.campaign_id).toBe("yuhara-main");
 
 	await page.route("**/edit/antes-que-seja-tarde/processamento", (route) =>
 		route.fulfill({
@@ -308,7 +308,7 @@ test("troca de campaign usa diálogo integrado e nunca retaggeia job existente",
 	await page.waitForURL("**/edit/antes-que-seja-tarde/processamento");
 
 	expect(nativeDialogs).toBe(0);
-	expect(state.job?.context?.campaign_id).toBe("yuhara-main");
+	expect((state.job?.context as { campaign_id?: string } | undefined)?.campaign_id).toBe("yuhara-main");
 	expect(
 		state.requests.filter(
 			(request) =>
