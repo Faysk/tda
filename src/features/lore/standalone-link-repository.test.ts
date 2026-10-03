@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ client: vi.fn() }));
 
@@ -34,6 +34,10 @@ function setupCampaignResults(results: TableResult[]) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+});
+
+afterEach(() => {
+	vi.unstubAllEnvs();
 });
 
 describe("standalone lore campaign linkage", () => {
@@ -161,4 +165,19 @@ describe("standalone lore campaign linkage", () => {
 		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toBeNull();
 		expect(mocks.client).not.toHaveBeenCalled();
 	});
+	it("uses synthetic A/B and standalone lore context without touching storage", async () => {
+		vi.stubEnv("TDA_E2E_FIXTURES", "true");
+
+		await expect(resolveStandaloneLoreCampaignLink("astel")).resolves.toMatchObject({
+			technicalSlug: "yuhara-main",
+			publicCampaign: { routeKey: "cronicas-da-mesa" },
+		});
+		await expect(resolveStandaloneLoreCampaignLink("pipipi")).resolves.toMatchObject({
+			technicalSlug: "antes-que-seja-tarde",
+			publicCampaign: { routeKey: "antes-que-seja-tarde" },
+		});
+		await expect(resolveStandaloneLoreCampaignLink("seika")).resolves.toBeNull();
+		expect(mocks.client).not.toHaveBeenCalled();
+	});
+
 });

@@ -7,15 +7,23 @@ on:
       - "playwright.campaign-isolation.config.ts"
       - "tests/campaign-isolation.spec.ts"
       - "tests/campaign-directory.spec.ts"
+      - "tests/product-coherence.spec.ts"
+      - "tests/world-edge-anchor-geometry.spec.ts"
+      - "tests/global-navigation.spec.ts"
       - "tools/ci/campaign-isolation-*.mjs"
       - "tools/ci/campaign-staging-smoke*.mjs"
       - "src/app/page.tsx"
       - "src/app/campanhas/**"
+      - "src/app/lore/**"
       - "src/app/sessoes/**"
       - "src/app/mundo/**"
       - "src/app/transcricoes/**"
       - "src/app/edit/**"
       - "src/components/public-navigation-model.ts"
+      - "src/components/account-menu*"
+      - "src/components/navigation-auth*"
+      - "src/components/public-nav*"
+      - "src/components/session-list*"
       - "src/features/campaigns/**"
       - "src/features/sessions/**"
       - "src/features/edit/**"
@@ -38,15 +46,23 @@ on:
       - "playwright.campaign-isolation.config.ts"
       - "tests/campaign-isolation.spec.ts"
       - "tests/campaign-directory.spec.ts"
+      - "tests/product-coherence.spec.ts"
+      - "tests/world-edge-anchor-geometry.spec.ts"
+      - "tests/global-navigation.spec.ts"
       - "tools/ci/campaign-isolation-*.mjs"
       - "tools/ci/campaign-staging-smoke*.mjs"
       - "src/app/page.tsx"
       - "src/app/campanhas/**"
+      - "src/app/lore/**"
       - "src/app/sessoes/**"
       - "src/app/mundo/**"
       - "src/app/transcricoes/**"
       - "src/app/edit/**"
       - "src/components/public-navigation-model.ts"
+      - "src/components/account-menu*"
+      - "src/components/navigation-auth*"
+      - "src/components/public-nav*"
+      - "src/components/session-list*"
       - "src/features/campaigns/**"
       - "src/features/sessions/**"
       - "src/features/edit/**"
@@ -272,7 +288,7 @@ jobs:
           TDA_READ_PUBLISHED_DATA: "false"
           TDA_EDIT_UNSAFE: "false"
       - run: pnpm exec playwright install --with-deps chromium
-      - name: A/B public routing, canonical, collision and geometry matrix
+      - name: A/B product coherence, public routing and World geometry
         run: pnpm exec playwright test --config playwright.campaign-isolation.config.ts
       - name: Multi-campaign selector, mobile navigation and forbidden sibling context
         run: >-
@@ -285,7 +301,7 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: campaign-browser-failures-${{ github.run_id }}-${{ github.run_attempt }}
+          name: campaign-browser-failures-${{ env.SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             test-results/**/test-failed-*.png
             test-results/**/error-context.md
@@ -457,7 +473,7 @@ jobs:
           const readiness = JSON.parse(readFileSync("readiness.json", "utf8"));
           const matrix = JSON.parse(readFileSync("matrix.json", "utf8"));
           const receipt = {
-            schema: "tda.campaign-isolation-gate.v2",
+            schema: "tda.campaign-isolation-gate.v3",
             sourceSha: process.env.SOURCE_SHA,
             pullRequestHeadSha: process.env.PR_HEAD_SHA || null,
             runId: process.env.GITHUB_RUN_ID,
@@ -466,6 +482,13 @@ jobs:
             synthetic: true,
             containsPrivateNarrativeData: false,
             productionMutation: false,
+            productCoherence: {
+              issue: 1288,
+              semanticSpec: "tests/product-coherence.spec.ts",
+              worldGeometrySpec: "tests/world-edge-anchor-geometry.spec.ts",
+              requiredViewports: ["390x844", "1366x768", "683x384-200%-proxy"],
+              surfaces: ["home", "campaign-directory", "aggregate-sessions", "scoped-sessions", "session-reader", "lore", "world", "authenticated-edit-navigation"],
+            },
             activationReady: readiness.ready,
             negativeCaseCount: matrix.negativeCaseCount,
             negativeCaseIds: matrix.negativeCaseIds,
@@ -496,7 +519,7 @@ jobs:
       - name: Upload sanitized exact-SHA receipt
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: campaign-isolation-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          name: campaign-isolation-receipt-${{ env.SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: campaign-isolation-receipt.json
           if-no-files-found: error
           retention-days: 30

@@ -14,7 +14,12 @@ test("public campaign directory exposes only the synthetic public projection", a
 	);
 	await expect(
 		cards.first().locator("[data-campaign-artwork-source]"),
-	).toHaveAttribute("data-campaign-artwork-source", "fallback");
+	).toHaveAttribute("data-campaign-artwork-source", "campaign-cover");
+	await expect(
+		cards.nth(1).locator("[data-campaign-artwork-source]"),
+	).toHaveAttribute("data-campaign-artwork-source", "latest-session-hero");
+	await expect(page.getByText("Fixture privada", { exact: true })).toHaveCount(0);
+	await expect(page.getByText("Fixture arquivada", { exact: true })).toHaveCount(0);
 	const firstCardBox = await cards.first().boundingBox();
 	expect(firstCardBox).not.toBeNull();
 	expect(firstCardBox?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(600);

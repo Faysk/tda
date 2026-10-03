@@ -1,6 +1,6 @@
 # Multi-campaign activation gate
 
-> Status: operational gate for #1138
+> Status: operational gate for #1138 and product-coherence acceptance #1288
 > Owner: testing / identity-access / operations
 > Última revisão: 2026-10-01
 
@@ -91,3 +91,38 @@ show all of the following for the deployed candidate:
 Do not restore Edit tools by falling back to `yuhara-main` client-side. If the
 registry read fails, navigation must remain fail-closed until the database
 contract is healthy.
+
+
+## Product-coherence acceptance (#1288)
+
+The browser slice also runs a small semantic A/B acceptance over the actual public
+routes and authenticated navigation. It complements the isolation matrix instead
+of duplicating it.
+
+Synthetic browser state is intentionally publishable-only:
+
+- campaign A is active/public, has its own cover, published sessions and World
+  relations;
+- campaign B is active/public, has no campaign cover and exercises fallback to
+  artwork from its newest published session;
+- private/archived fixture campaigns carry artwork but must never appear in the
+  public directory;
+- Lore resolves an A-linked item, a B-linked item and one explicitly unlinked
+  curated item without consulting Production storage;
+- authenticated projections cover A+B, A-only, anonymous, dependency-unavailable
+  and no-campaign/no-grant states.
+
+The fast acceptance asserts semantics, URLs, campaign labels, artwork decoding,
+fail-closed capability projection and absence of cross-campaign World state.
+`tests/world-edge-anchor-geometry.spec.ts` remains the numeric pan/zoom/resize/
+reload relation-anchor contract and is reused by the same Playwright config.
+
+The governed quick layout matrix is 390x844, 1366x768 and 683x384 (the project
+proxy for 200% browser zoom). Expected missing artwork must render an intentional
+fallback with no image element; any declared artwork must decode successfully,
+so a broken asset is not silently treated as an expected missing image.
+
+Workflow and browser/receipt artifacts remain synthetic and are named with the
+exact source SHA. The JSON receipt records #1288's semantic and geometry specs
+plus the tested viewport contract. No Production mutation or private narrative
+read is part of this acceptance.

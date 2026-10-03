@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { LORE_EDITORIAL_REGISTRY } from "./registry";
 import {
@@ -54,4 +55,32 @@ describe("editorial lore catalogue", () => {
 		expect(standaloneLoreForEntity("yuhara-main", "pc", "Noah Wood")).toBeNull();
 		expect(standaloneLoreForEntity(undefined, "pc", "astel")).toBeNull();
 	});
+	it("requires every curated catalogue entry to have a public route", () => {
+		const curated = LORE_EDITORIAL_REGISTRY.filter((lore) => lore.listed)
+			.map((lore) => lore.slug)
+			.sort();
+		const listed = listedLoreCatalogueEntries()
+			.map((lore) => lore.slug)
+			.sort();
+
+		expect(listed).toEqual(curated);
+		expect(
+			loreCatalogueEntries()
+				.map((lore) => lore.slug)
+				.filter((slug, index, all) => all.indexOf(slug) !== index),
+		).toEqual([]);
+
+		for (const slug of curated) {
+			const routeCandidates = [
+				new URL(`../../app/lore/${slug}/page.tsx`, import.meta.url),
+				new URL(`../../app/lore/${slug}/route.ts`, import.meta.url),
+				new URL(`../../../public/lore/${slug}/index.html`, import.meta.url),
+			];
+			expect(
+				routeCandidates.some((candidate) => existsSync(candidate)),
+				`curated lore ${slug} must have a public route`,
+			).toBe(true);
+		}
+	});
+
 });

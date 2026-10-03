@@ -10,6 +10,43 @@ export type ResolvedStandaloneLoreCampaignLink = Readonly<{
 	publicCampaign: Readonly<{ routeKey: string; name: string }> | null;
 }>;
 
+const E2E_LORE_CAMPAIGN_LINKS: Readonly<
+	Record<string, ResolvedStandaloneLoreCampaignLink | null>
+> = {
+	astel: {
+		campaignId: "fixture-a",
+		technicalSlug: "yuhara-main",
+		name: "Crônicas da Mesa",
+		publicCampaign: {
+			routeKey: "cronicas-da-mesa",
+			name: "Crônicas da Mesa",
+		},
+	},
+	noah: {
+		campaignId: "fixture-a",
+		technicalSlug: "yuhara-main",
+		name: "Crônicas da Mesa",
+		publicCampaign: {
+			routeKey: "cronicas-da-mesa",
+			name: "Crônicas da Mesa",
+		},
+	},
+	pipipi: {
+		campaignId: "fixture-b",
+		technicalSlug: "antes-que-seja-tarde",
+		name: "Antes que seja tarde — uma campanha com nome deliberadamente comprido",
+		publicCampaign: {
+			routeKey: "antes-que-seja-tarde",
+			name: "Antes que seja tarde — uma campanha com nome deliberadamente comprido",
+		},
+	},
+	seika: null,
+};
+
+function loreFixtureEnabled() {
+	return process.env.TDA_E2E_FIXTURES === "true";
+}
+
 /**
  * Resolves an explicit editorial campaign binding only after the campaign exists.
  * Missing/legacy schema state fails closed to "unresolved"; no "unknown campaign"
@@ -18,6 +55,13 @@ export type ResolvedStandaloneLoreCampaignLink = Readonly<{
 export async function resolveStandaloneLoreCampaignLink(
 	loreSlug: string,
 ): Promise<ResolvedStandaloneLoreCampaignLink | null> {
+	if (
+		loreFixtureEnabled() &&
+		Object.prototype.hasOwnProperty.call(E2E_LORE_CAMPAIGN_LINKS, loreSlug)
+	) {
+		return E2E_LORE_CAMPAIGN_LINKS[loreSlug] ?? null;
+	}
+
 	const registration = loreRegistrationForSlug(loreSlug);
 	const technicalSlug =
 		registration?.campaignTechnicalSlug ??
