@@ -9,10 +9,26 @@ export type SessionArchiveSummary = Readonly<{
 	latestDate: string;
 }>;
 
+export type SessionArcIdentityOptions = Readonly<{
+	qualifyByCampaign?: boolean;
+}>;
+
+export type SessionArcOption = Readonly<{
+	identity: string;
+	label: string;
+	normalizedArc: string;
+	campaignSlug: string;
+	campaignName: string;
+}>;
+
 const numberFormatter = new Intl.NumberFormat("pt-BR");
 const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
 	month: "short",
 	timeZone: "UTC",
+});
+const arcCollator = new Intl.Collator("pt-BR", {
+	sensitivity: "base",
+	numeric: true,
 });
 
 function archiveDateParts(value: string) {
@@ -28,6 +44,51 @@ function archiveDateParts(value: string) {
 		return null;
 	}
 	return { date, day, year };
+}
+
+export function normalizeSessionArcIdentity(value: string) {
+	return value.trim().normalize("NFC").toLocaleLowerCase("pt-BR");
+}
+
+export function sessionArcIdentity(
+	session: Pick<SessionArchiveItem, "arc" | "campaignSlug">,
+	options: SessionArcIdentityOptions = {},
+) {
+	const normalizedArc = normalizeSessionArcIdentity(session.arc);
+	if (!normalizedArc) return "";
+	return options.qualifyByCampaign
+		? JSON.stringify([session.campaignSlug, normalizedArc])
+		: normalizedArc;
+}
+
+export function listSessionArcOptions(
+	sessions: readonly SessionArchiveItem[],
+	options: SessionArcIdentityOptions = {},
+): readonly SessionArcOption[] {
+	const byIdentity = new Map<string, SessionArcOption>();
+
+	for (const session of sessions) {
+		const label = session.arc.trim();
+		const normalizedArc = normalizeSessionArcIdentity(label);
+		if (!normalizedArc) continue;
+
+		const identity = sessionArcIdentity(session, options);
+		if (byIdentity.has(identity)) continue;
+
+		byIdentity.set(identity, {
+			identity,
+			label,
+			normalizedArc,
+			campaignSlug: session.campaignSlug,
+			campaignName: session.campaignName,
+		});
+	}
+
+	return Array.from(byIdentity.values()).sort(
+		(a, b) =>
+			arcCollator.compare(a.label, b.label) ||
+			arcCollator.compare(a.campaignName, b.campaignName),
+	);
 }
 
 export function formatArchiveNumber(value: number) {
@@ -49,11 +110,10 @@ export function summarizeSessionArchive(
 	const dates: string[] = [];
 
 	for (const session of sessions) {
-		const arc = session.arc.trim();
-		if (arc) {
-			const normalizedArc = arc.toLocaleLowerCase("pt-BR");
-			arcs.add(options.qualifyArcsByCampaign ? `${session.campaignSlug}:${normalizedArc}` : normalizedArc);
-		}
+		const arcIdentity = sessionArcIdentity(session, {
+			qualifyByCampaign: options.qualifyArcsByCampaign,
+		});
+		if (arcIdentity) arcs.add(arcIdentity);
 		if (archiveDateParts(session.date)) dates.push(session.date);
 	}
 

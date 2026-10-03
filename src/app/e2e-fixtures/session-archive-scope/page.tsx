@@ -46,6 +46,90 @@ const OTHER_CAMPAIGN_SESSIONS: readonly SessionArchiveItem[] = [
 	},
 ];
 
+const ARC_IDENTITY_SCOPED_SESSIONS: readonly SessionArchiveItem[] = [
+	{
+		id: "fixture-arc-upper",
+		campaignId: "fixture-only-campaign-id",
+		campaignSlug: CAMPAIGN_A.slug,
+		campaignName: CAMPAIGN_A.name,
+		campaignTechnicalSlug: CAMPAIGN_A.slug,
+		title: "Valcinzento em caixa alta",
+		date: "2026-10-04",
+		arc: "VALCINZENTO E O CORAÇÃO-RAIZ",
+		summary: "Variação sintética em caixa alta.",
+	},
+	{
+		id: "fixture-arc-title",
+		campaignId: "fixture-only-campaign-id",
+		campaignSlug: CAMPAIGN_A.slug,
+		campaignName: CAMPAIGN_A.name,
+		campaignTechnicalSlug: CAMPAIGN_A.slug,
+		title: "Valcinzento editorial",
+		date: "2026-10-03",
+		arc: "Valcinzento e o Coração-Raiz",
+		summary: "Variação sintética em grafia editorial.",
+	},
+	{
+		id: "fixture-arc-trim",
+		campaignId: "fixture-only-campaign-id",
+		campaignSlug: CAMPAIGN_A.slug,
+		campaignName: CAMPAIGN_A.name,
+		campaignTechnicalSlug: CAMPAIGN_A.slug,
+		title: "Valcinzento com espaços externos",
+		date: "2026-10-02",
+		arc: "  Valcinzento e o Coração-Raiz  ",
+		summary: "Variação sintética com trim necessário.",
+	},
+	{
+		id: "fixture-arc-unicode",
+		campaignId: "fixture-only-campaign-id",
+		campaignSlug: CAMPAIGN_A.slug,
+		campaignName: CAMPAIGN_A.name,
+		campaignTechnicalSlug: CAMPAIGN_A.slug,
+		title: "Valcinzento em Unicode decomposto",
+		date: "2026-10-01",
+		arc: "Valcinzento e o Coração-Raiz",
+		summary: "Variação sintética com Unicode canonicamente equivalente.",
+	},
+	{
+		id: "fixture-arc-thalindra",
+		campaignId: "fixture-only-campaign-id",
+		campaignSlug: CAMPAIGN_A.slug,
+		campaignName: CAMPAIGN_A.name,
+		campaignTechnicalSlug: CAMPAIGN_A.slug,
+		title: "Thalindra permanece distinta",
+		date: "2026-09-30",
+		arc: "Thalindra",
+		summary: "Nome sintético que não pode sofrer fuzzy merge.",
+	},
+	{
+		id: "fixture-arc-talindra",
+		campaignId: "fixture-only-campaign-id",
+		campaignSlug: CAMPAIGN_A.slug,
+		campaignName: CAMPAIGN_A.name,
+		campaignTechnicalSlug: CAMPAIGN_A.slug,
+		title: "Talindra permanece distinta",
+		date: "2026-09-29",
+		arc: "Talindra",
+		summary: "Outro nome sintético que continua distinto.",
+	},
+];
+
+const ARC_IDENTITY_AGGREGATE_SESSIONS: readonly SessionArchiveItem[] = [
+	...ARC_IDENTITY_SCOPED_SESSIONS,
+	{
+		id: "fixture-arc-other-campaign",
+		campaignId: "fixture-with-content-id",
+		campaignSlug: CAMPAIGN_B.slug,
+		campaignName: CAMPAIGN_B.name,
+		campaignTechnicalSlug: CAMPAIGN_B.slug,
+		title: "Valcinzento na segunda campanha",
+		date: "2026-10-05",
+		arc: "Valcinzento e o Coração-Raiz",
+		summary: "Mesmo título de arco, outra identidade de campanha.",
+	},
+];
+
 export default function SessionArchiveScopeFixture() {
 	if (process.env.TDA_E2E_FIXTURES !== "true") notFound();
 
@@ -64,6 +148,20 @@ export default function SessionArchiveScopeFixture() {
 				<h2>Campanha vazia ao lado de outra com conteúdo</h2>
 				<SessionList
 					sessions={OTHER_CAMPAIGN_SESSIONS}
+					showCampaignFilter
+					campaignOptions={[CAMPAIGN_A, CAMPAIGN_B]}
+				/>
+			</section>
+
+			<section data-session-scope-fixture="arc-identity-scoped">
+				<h2>Identidade normalizada de arco em uma campanha</h2>
+				<SessionList sessions={ARC_IDENTITY_SCOPED_SESSIONS} />
+			</section>
+
+			<section data-session-scope-fixture="arc-identity-aggregate">
+				<h2>Identidade de arco qualificada por campanha</h2>
+				<SessionList
+					sessions={ARC_IDENTITY_AGGREGATE_SESSIONS}
 					showCampaignFilter
 					campaignOptions={[CAMPAIGN_A, CAMPAIGN_B]}
 				/>

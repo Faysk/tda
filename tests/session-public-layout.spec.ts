@@ -442,3 +442,96 @@ test("retired, private and archived campaign routes fail closed while dependency
 	);
 	await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
 });
+
+test("session arc filters share normalized identity without crossing campaign boundaries", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/e2e-fixtures/session-archive-scope");
+
+	const scoped = page.locator(
+		'[data-session-scope-fixture="arc-identity-scoped"]',
+	);
+	const scopedArc = scoped.getByRole("combobox", { name: "Filtrar por arco" });
+
+	await expect(scopedArc.locator("option")).toHaveCount(4);
+	expect(
+		(await scopedArc.locator("option").allTextContents()).filter((label) =>
+			label.toLocaleLowerCase("pt-BR").includes("valcinzento"),
+		),
+	).toHaveLength(1);
+
+	await scopedArc.selectOption({ label: "VALCINZENTO E O CORAÇÃO-RAIZ" });
+	await expect(scoped.locator('[data-session-card="grid"]')).toHaveCount(4);
+	await expect(scoped.locator("[data-session-archive-results] strong")).toHaveText(
+		"4",
+	);
+
+	await scoped.getByRole("button", { name: "Visualização em lista" }).click();
+	await expect(scoped.locator('[data-session-card="list"]')).toHaveCount(4);
+
+	await scoped.getByRole("button", { name: "Limpar filtros" }).click();
+	await expect(scoped.locator('[data-session-card="list"]')).toHaveCount(6);
+	await scoped.getByLabel("Ordenar por").selectOption("title");
+	await expect(scoped.locator('[data-session-card="list"]')).toHaveCount(6);
+
+	const aggregate = page.locator(
+		'[data-session-scope-fixture="arc-identity-aggregate"]',
+	);
+	const aggregateCampaign = aggregate.getByRole("combobox", {
+		name: "Filtrar por campanha",
+	});
+	const aggregateArc = aggregate.getByRole("combobox", {
+		name: "Filtrar por arco",
+	});
+	const aggregateArcLabels = await aggregateArc.locator("option").allTextContents();
+
+	const aggregateValcinzentoLabels = aggregateArcLabels.filter((label) =>
+		label.toLocaleLowerCase("pt-BR").includes("valcinzento"),
+	);
+	expect(aggregateValcinzentoLabels).toHaveLength(2);
+	expect(aggregateValcinzentoLabels).toEqual(
+		expect.arrayContaining([
+			"VALCINZENTO E O CORAÇÃO-RAIZ — Campanha Única de Teste",
+			"Valcinzento e o Coração-Raiz — Campanha com Conteúdo",
+		]),
+	);
+
+	await aggregateArc.selectOption({
+		label: "VALCINZENTO E O CORAÇÃO-RAIZ — Campanha Única de Teste",
+	});
+	await expect(aggregate.locator('[data-session-card="grid"]')).toHaveCount(4);
+
+	await aggregateCampaign.selectOption("fixture-with-content");
+	await expect(aggregate.locator('[data-session-card="grid"]')).toHaveCount(1);
+	await expect(aggregateArc.locator("option")).toHaveCount(2);
+	await aggregateArc.selectOption({ label: "Valcinzento e o Coração-Raiz" });
+	await expect(aggregate.locator('[data-session-card="grid"]')).toHaveCount(1);
+
+	await aggregateCampaign.selectOption("fixture-only-campaign");
+	await expect(aggregate.locator('[data-session-card="grid"]')).toHaveCount(6);
+	await expect(aggregateArc.locator("option")).toHaveCount(4);
+	await aggregateArc.selectOption({ label: "VALCINZENTO E O CORAÇÃO-RAIZ" });
+	await expect(aggregate.locator('[data-session-card="grid"]')).toHaveCount(4);
+
+	await page.reload();
+	const reloadedScoped = page.locator(
+		'[data-session-scope-fixture="arc-identity-scoped"]',
+	);
+	await expect(reloadedScoped.locator('[data-session-card="grid"]')).toHaveCount(6);
+	expect(
+		(
+			await reloadedScoped
+				.getByRole("combobox", { name: "Filtrar por arco" })
+				.locator("option")
+				.allTextContents()
+		).filter((label) => label.toLocaleLowerCase("pt-BR").includes("valcinzento")),
+	).toHaveLength(1);
+
+	await page.goto("/e2e-fixtures/session-archive-scope?history-probe=1");
+	await page.goBack();
+	await expect(
+		page.locator('[data-session-scope-fixture="arc-identity-scoped"]'),
+	).toBeVisible();
+});
+
