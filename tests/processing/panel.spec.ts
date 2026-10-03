@@ -523,7 +523,7 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 	expect(
 		state.requests.filter((request) => request.path.endsWith("/cancel")),
 	).toHaveLength(0);
-	await page.getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
+	await page.getByRole("dialog").getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
 
 	await expect
 		.poll(() => state.job?.status)
@@ -561,7 +561,7 @@ test("ações locais e refresh não emitem loading global dentro da workspace", 
 	await expect(page.getByRole("button", { name: "Atualizando…" })).toBeVisible();
 
 	await page.getByRole("button", { name: "Cancelar trabalho" }).first().click();
-	await page.getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
+	await page.getByRole("dialog").getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
 
 	await expect.poll(() => state.job?.status).toBe("cancelled");
 	expect(
@@ -592,7 +592,7 @@ test("refresh atrasado mantém ação do job clicável e não regride o estado n
 
 	await cancel.click();
 	await expect(page.getByRole("dialog")).toContainText("craig-job-1");
-	await page.getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
+	await page.getByRole("dialog").getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
 
 	await expect.poll(() => state.job?.status).toBe("cancelled");
 	await page.getByRole("tab", { name: "Fila" }).click();
