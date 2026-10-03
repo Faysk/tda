@@ -923,6 +923,16 @@ test("Overview hides prior run facts during execution and shows them after compl
 							turn_count: 1,
 							warning_count: 0,
 						},
+						publication_target: {
+							schema_version: "tda_publication_target_v1",
+							campaign_slug: "yuhara-main",
+							source_session_id: "sessao-42",
+							job_id: "job-completed-1",
+							attempt: 1,
+							source_id: CRAIG_SOURCE_ID,
+							run_id: "run-completed-1",
+							transcript_sha256: "b".repeat(64),
+						},
 						execution_lineage: {
 							schema_version: "tda_execution_lineage_v1",
 							device: "cuda",
