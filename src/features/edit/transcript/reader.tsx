@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui";
+import { Button, Dialog } from "@/components/ui";
 import { saveTranscriptRevisionEditsAction } from "./edit-actions";
 import {
 	type TranscriptEditRequest,
@@ -27,6 +27,11 @@ type WorkingEdit = Readonly<{
 }>;
 
 type SavePhase = "idle" | "saving" | "saved" | "conflict" | "error";
+
+type ReaderConfirmation =
+	| Readonly<{ kind: "discard-all" }>
+	| Readonly<{ kind: "navigate"; href: string }>
+	| Readonly<{ kind: "reload-latest" }>;
 
 export type TranscriptReaderSaveAction = typeof saveTranscriptRevisionEditsAction;
 
@@ -89,6 +94,7 @@ export function TranscriptReader({
 	const [savePhase, setSavePhase] = useState<SavePhase>("idle");
 	const [saveMessage, setSaveMessage] = useState("");
 	const [remoteRevisionNumber, setRemoteRevisionNumber] = useState<number | null>(null);
+	const [confirmation, setConfirmation] = useState<ReaderConfirmation | null>(null);
 	const pendingOperation = useRef<{ id: string; signature: string } | null>(null);
 
 	const [query, setQuery] = useState("");
@@ -236,14 +242,32 @@ export function TranscriptReader({
 		setSaveMessage("");
 	}
 
-	function discardAll() {
-		if (dirty && !window.confirm("Descartar todas as alterações não salvas da transcrição?"))
-			return;
+	function performDiscardAll() {
 		setWorking({});
 		setActiveEditId(null);
 		setSavePhase("idle");
 		setSaveMessage("");
 		pendingOperation.current = null;
+	}
+
+	function discardAll() {
+		if (!dirty) return;
+		setConfirmation({ kind: "discard-all" });
+	}
+
+	function confirmPendingAction() {
+		const pending = confirmation;
+		if (!pending) return;
+		setConfirmation(null);
+		if (pending.kind === "discard-all") {
+			performDiscardAll();
+			return;
+		}
+		if (pending.kind === "reload-latest") {
+			window.location.reload();
+			return;
+		}
+		window.location.assign(pending.href);
 	}
 
 	function buildRequest(): TranscriptEditRequest | null {
@@ -392,15 +416,25 @@ export function TranscriptReader({
 			event.returnValue = "";
 		};
 		const protectInternalNavigation = (event: MouseEvent) => {
+			if (
+				event.defaultPrevented ||
+				event.button !== 0 ||
+				event.metaKey ||
+				event.ctrlKey ||
+				event.shiftKey ||
+				event.altKey
+			)
+				return;
 			const target = event.target;
 			if (!(target instanceof Element)) return;
 			const anchor = target.closest("a");
 			if (!anchor || anchor.dataset.transcriptSafeNavigation === "true") return;
 			if (anchor.target === "_blank" || anchor.href === window.location.href) return;
-			if (!window.confirm("Você tem alterações não salvas na transcrição. Sair mesmo assim?")) {
-				event.preventDefault();
-				event.stopPropagation();
-			}
+			const destination = new URL(anchor.href, window.location.href);
+			if (destination.origin !== window.location.origin) return;
+			event.preventDefault();
+			event.stopPropagation();
+			setConfirmation({ kind: "navigate", href: destination.href });
 		};
 		window.addEventListener("beforeunload", beforeUnload);
 		document.addEventListener("click", protectInternalNavigation, true);
@@ -443,6 +477,55 @@ export function TranscriptReader({
 			className={styles.reader}
 			aria-label="Leitor e editor de transcrição"
 		>
+			<Dialog
+				open={confirmation !== null}
+				title={
+					confirmation?.kind === "navigate"
+						? "Sair com alterações não salvas?"
+						: confirmation?.kind === "reload-latest"
+							? "Carregar a revisão mais recente?"
+							: "Descartar alterações da transcrição?"
+				}
+				description={
+					<p>
+						<strong>{dirtyCount.toLocaleString("pt-BR")}</strong>{" "}
+						alteração(ões) desta working copy ainda não foram salvas.
+					</p>
+				}
+				onClose={() => setConfirmation(null)}
+				actions={
+					<>
+						<Button
+							data-dialog-initial-focus
+							variant="secondary"
+							onClick={() => setConfirmation(null)}
+						>
+							Continuar editando
+						</Button>
+						<Button variant="secondary" onClick={confirmPendingAction}>
+							{confirmation?.kind === "navigate"
+								? "Descartar e sair"
+								: confirmation?.kind === "reload-latest"
+									? "Descartar e recarregar"
+									: "Descartar alterações"}
+						</Button>
+					</>
+				}
+			>
+				{confirmation?.kind === "reload-latest" ? (
+					<p>
+						A revisão atual do servidor será recarregada. Seu rascunho local
+						continua preservado até você confirmar esta ação.
+					</p>
+				) : confirmation?.kind === "navigate" ? (
+					<p>
+						A navegação interna só continuará depois da confirmação. Nenhuma revisão
+						será salva ou publicada automaticamente.
+					</p>
+				) : (
+					<p>A versão já salva no servidor não será alterada.</p>
+				)}
+			</Dialog>
 			<div className={styles.toolbar}>
 				<div className={styles.source}>
 					<strong>Fonte da leitura</strong>
@@ -566,13 +649,11 @@ export function TranscriptReader({
 									size="sm"
 									variant="tertiary"
 									onClick={() => {
-										if (
-											!dirty ||
-											window.confirm(
-												"Recarregar a revisão mais recente e descartar esta working copy?",
-											)
-										)
+										if (!dirty) {
 											window.location.reload();
+											return;
+										}
+										setConfirmation({ kind: "reload-latest" });
 									}}
 								>
 									Recarregar versão mais recente
