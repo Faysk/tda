@@ -67,6 +67,42 @@ test("completed runs compare locally with source and time filters before an expl
 	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toHaveCount(0);
 });
 
+test("dirty local review uses the integrated discard dialog and closes exactly once", async ({ page }, testInfo) => {
+	await page.goto("/?review-contracts");
+	await page.getByRole("button", { name: /^Editar / }).first().click();
+	await page.getByRole("textbox", { name: /^Texto em / }).first().fill("Rascunho local preservado");
+	await expect(page.getByText("Alterações não salvas neste draft.")).toBeVisible();
+	await expect(page.getByTestId("close-count")).toHaveText("0");
+
+	let nativeDialogs = 0;
+	page.on("dialog", () => {
+		nativeDialogs += 1;
+	});
+	const back = page.getByRole("button", { name: "← Resultados" });
+	await back.click();
+
+	const dialog = page.getByRole("dialog", { name: "Descartar alterações da revisão?" });
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toContainText("Revisão whisper-detailed · draft r1");
+	await expect(dialog.getByRole("button", { name: "Continuar editando" })).toBeFocused();
+	await page.screenshot({
+		path: testInfo.outputPath("dirty-review-discard-dialog.png"),
+		fullPage: true,
+	});
+	await page.keyboard.press("Escape");
+
+	await expect(dialog).not.toBeVisible();
+	await expect(back).toBeFocused();
+	await expect(page.getByTestId("close-count")).toHaveText("0");
+	await expect(page.getByText("Alterações não salvas neste draft.")).toBeVisible();
+	expect(nativeDialogs).toBe(0);
+
+	await back.click();
+	await dialog.getByRole("button", { name: "Descartar e voltar" }).click();
+	await expect(page.getByTestId("close-count")).toHaveText("1");
+	expect(nativeDialogs).toBe(0);
+});
+
 test("base advances through save, review, approval and handoff without a free status picker", async ({ page }) => {
 	await page.goto("/?review-contracts&ephemeral");
 	await expect(page.getByText("Visualização da base. Nenhuma revisão foi salva.")).toBeVisible();
@@ -326,16 +362,20 @@ test("lost publication recovers after reload without a second write or transcrip
  // as recovery, never as a fresh enabled "Preparar sessão" action.
  await expect(page.getByRole("button", { name: "Preparar sessão" })).toBeDisabled();
  await expect(page.getByRole("button", { name: "Abandonar handoff anterior" })).toBeVisible();
- let abandonmentMessage = "";
- page.once("dialog", async dialog => {
-  abandonmentMessage = dialog.message();
-  await dialog.dismiss();
- });
- await page.getByRole("button", { name: "Abandonar handoff anterior" }).click();
- expect(abandonmentMessage).toContain("O handoff privado anterior pode já ter sido concluído.");
- expect(abandonmentMessage).toContain("outra revisão privada");
- expect(abandonmentMessage).toContain("Nada é publicado no site por esta ação.");
- expect(abandonmentMessage).not.toContain("A publicação anterior pode ter sido concluída");
+ let nativeDialogs = 0;
+ page.on("dialog", () => { nativeDialogs += 1; });
+ const abandonTrigger = page.getByRole("button", { name: "Abandonar handoff anterior" });
+ await abandonTrigger.click();
+ const abandonmentDialog = page.getByRole("dialog").filter({ hasText: "Abandonar recuperação do handoff?" });
+ await expect(abandonmentDialog).toBeVisible();
+ await expect(abandonmentDialog).toContainText("O handoff privado anterior pode já ter sido concluído.");
+ await expect(abandonmentDialog).toContainText("outra revisão privada");
+ await expect(abandonmentDialog).toContainText("Nada é publicado no site por esta ação");
+ await expect(abandonmentDialog.getByRole("button", { name: "Manter recuperação" })).toBeFocused();
+ await page.keyboard.press("Escape");
+ await expect(abandonmentDialog).not.toBeVisible();
+ await expect(abandonTrigger).toBeFocused();
+ expect(nativeDialogs).toBe(0);
  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(1);
  readable = true;
  await page.reload();
