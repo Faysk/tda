@@ -26,7 +26,12 @@ from tda_companion.benchmark_evidence import (
     write_failed_profile_diagnostics,
     write_profile_telemetry,
 )
-from tda_companion.benchmark_quality import normalize_text, quality_summary, save_reference
+from tda_companion.benchmark_quality import (
+    BenchmarkQualityError,
+    normalize_text,
+    quality_summary,
+    save_reference,
+)
 from tda_companion.engine_metrics import EngineMeasurement
 from tda_companion.store import Store
 from tda_companion.worker_protocol import WorkerMessage
@@ -672,6 +677,132 @@ def test_reference_is_cas_versioned_and_quality_receipt_contains_no_reference_te
     assert first["revision"] == 1
     assert "SEGREDO HUMANO" not in quality
     assert "1-Alice.flac" not in quality
+
+
+def _rewrite_current_reference(tmp_path: Path, benchmark_id: str, mutate) -> None:
+    root = tmp_path / "benchmarks" / benchmark_id / "reference"
+    pointer_path = root / "current.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    reference_path = root / f"reference-{pointer['revision']:06d}.json"
+    reference = json.loads(reference_path.read_text(encoding="utf-8"))
+    mutate(reference)
+    encoded = json.dumps(
+        reference,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    reference_path.write_bytes(encoded)
+    pointer["reference_sha256"] = hashlib.sha256(encoded).hexdigest()
+    pointer_path.write_text(
+        json.dumps(pointer, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize("mutation", ["sample", "normalization"])
+def test_reference_identity_and_normalization_mismatch_cannot_score(
+    tmp_path: Path,
+    mutation: str,
+):
+    benchmark_id, _ = _complete_bundle(tmp_path)
+    save_reference(
+        tmp_path,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [{"track_number": 1, "speaker": "Alice", "text": "texto"}],
+        },
+    )
+
+    def mutate(reference):
+        if mutation == "sample":
+            reference["sample_identity_sha256"] = "0" * 64
+        else:
+            reference["normalization"]["schema_version"] = "tda_text_normalization_evil"
+
+    _rewrite_current_reference(tmp_path, benchmark_id, mutate)
+    with pytest.raises(BenchmarkQualityError, match="BENCHMARK_REFERENCE_IDENTITY_MISMATCH"):
+        quality_summary(tmp_path, benchmark_id)
+
+
+def test_quality_micro_aggregation_handles_missing_reference_track_deterministically(
+    tmp_path: Path,
+):
+    texts = {profile: "um dois" for profile in PROFILES}
+    benchmark_id, _ = _complete_bundle(tmp_path, texts)
+    save_reference(
+        tmp_path,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [
+                {"track_number": 1, "speaker": "Alice", "text": "um dois"},
+                {"track_number": 2, "speaker": "Bob", "text": "tres"},
+            ],
+        },
+    )
+    quality = quality_summary(tmp_path, benchmark_id)
+    for profile in quality["profiles"]:
+        assert [row["track_number"] for row in profile["per_track"]] == [1, 2]
+        assert profile["per_track"][0]["wer_normalized"] == 0.0
+        assert profile["per_track"][1]["deletions"] == 1
+        assert profile["overall"]["aggregation"] == "micro"
+        assert profile["overall"]["reference_words"] == 3
+        assert profile["overall"]["deletions"] == 1
+        assert profile["overall"]["wer_normalized"] == pytest.approx(1 / 3, abs=1e-8)
+
+
+def test_reference_seed_profile_never_changes_scoring_algorithm(tmp_path: Path):
+    texts = {profile: "Olá mundo" for profile in PROFILES}
+    first_id, _ = _complete_bundle(tmp_path / "first", texts, job_id="seed-first")
+    second_id, _ = _complete_bundle(tmp_path / "second", texts, job_id="seed-second")
+    request = {
+        "expected_revision": 0,
+        "provenance": "profile_seed",
+        "tracks": [{"track_number": 1, "speaker": "Alice", "text": "Olá mundo"}],
+    }
+    save_reference(
+        tmp_path / "first",
+        first_id,
+        {**request, "seed_profile_id": "qwen-fast"},
+    )
+    save_reference(
+        tmp_path / "second",
+        second_id,
+        {**request, "seed_profile_id": "whisper-turbo"},
+    )
+    first = quality_summary(tmp_path / "first", first_id)
+    second = quality_summary(tmp_path / "second", second_id)
+    first_metrics = [
+        (item["profile_id"], item["overall"], item["term_fidelity"], item["timing"])
+        for item in first["profiles"]
+    ]
+    second_metrics = [
+        (item["profile_id"], item["overall"], item["term_fidelity"], item["timing"])
+        for item in second["profiles"]
+    ]
+    assert first_metrics == second_metrics
+
+
+def test_telemetry_without_sampler_is_explicit_and_null_safe():
+    telemetry = normalize_telemetry_samples(
+        [],
+        lineage=_lineage("whisper-turbo"),
+        interval_ms=1000,
+        elapsed_ms=5000,
+    )
+    assert telemetry["expected_samples"] == 5
+    assert telemetry["captured_samples"] == 0
+    assert telemetry["coverage"] == 0.0
+    assert telemetry["samples"] == []
+    assert telemetry["aggregates"]["cpu_avg_percent"] is None
+    assert telemetry["aggregates"]["gpu_utilization_peak_percent"] is None
+    assert telemetry["aggregates"]["vram_peak_bytes"] is None
 
 
 def test_telemetry_jsonl_records_sampling_semantics_coverage_and_exact_gpu(tmp_path: Path):
