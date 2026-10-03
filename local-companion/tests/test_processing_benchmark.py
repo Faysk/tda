@@ -197,7 +197,7 @@ def test_benchmark_runs_canonical_profiles_in_order_and_emits_profile_progress(
     ]
 
 
-@pytest.mark.parametrize("cancel_on", [1, 2, 3])
+@pytest.mark.parametrize("cancel_on", [1, 2, 3, 4])
 def test_benchmark_stops_without_complete_receipt_on_cancel(
     monkeypatch,
     tmp_path,
