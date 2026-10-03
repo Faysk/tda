@@ -372,6 +372,9 @@ export type BenchmarkProfileResult = {
 	trackCount: number;
 	warningCount: number;
 	executionLineage: LocalExecutionLineage | null;
+	transcriptSha256: string | null;
+	transcriptSizeBytes: number | null;
+	artifactAvailable: boolean;
 };
 
 export type BenchmarkResult = {
@@ -386,7 +389,80 @@ export type BenchmarkResult = {
 	trackCount: number;
 	audioWorkSeconds: number;
 	prepared: boolean;
+	benchmarkId: string | null;
+	bundleManifestSha256: string | null;
+	bundleSizeBytes: number | null;
 	profiles: readonly BenchmarkProfileResult[];
+};
+
+export type BenchmarkTranscript = {
+	schemaVersion: "tda_benchmark_transcript_view_v1";
+	profileId: TranscriptionProfileId;
+	sourceSha256: string;
+	segments: readonly LocalReviewSegment[];
+	trackCount: number;
+};
+
+export type BenchmarkReferenceTrack = {
+	trackNumber: number;
+	speaker: string | null;
+	text: string;
+};
+
+export type BenchmarkReference = {
+	revision: number;
+	provenance: "manual" | "imported" | "profile_seed";
+	seedProfileId: TranscriptionProfileId | null;
+	capability: "text" | "timed_turns";
+	tracks: readonly BenchmarkReferenceTrack[];
+};
+
+export type BenchmarkQualityProfile = {
+	profileId: TranscriptionProfileId;
+	overall: {
+		referenceWords: number;
+		hypothesisWords: number;
+		substitutions: number;
+		deletions: number;
+		insertions: number;
+		werNormalized: number | null;
+		referenceCharacters: number;
+		hypothesisCharacters: number;
+		characterEdits: number;
+		cerNormalized: number | null;
+	};
+	timing: {
+		matchedTurns: number;
+		speakerAccuracy: number | null;
+		startMaeSeconds: number | null;
+		endMaeSeconds: number | null;
+		boundaryP50Seconds: number | null;
+		boundaryP95Seconds: number | null;
+		overlapPrecision: number | null;
+		overlapRecall: number | null;
+		overlapF1: number | null;
+	} | null;
+	termFidelity: {
+		referenceOccurrences: number;
+		hypothesisOccurrences: number;
+		correctOccurrences: number;
+		missedOccurrences: number;
+		extraOccurrences: number;
+		recall: number | null;
+		precision: number | null;
+	} | null;
+};
+
+export type BenchmarkQualitySummary = {
+	benchmarkId: string;
+	qualityMeasured: boolean;
+	reference: {
+		revision: number;
+		capability: "text" | "timed_turns";
+		provenance: "manual" | "imported" | "profile_seed";
+		seedProfileId: TranscriptionProfileId | null;
+	} | null;
+	profiles: readonly BenchmarkQualityProfile[];
 };
 
 export type ResultSummary = {
@@ -2129,6 +2205,19 @@ export function parseBenchmarkResult(
 			trackCount: nonNegativeInteger(item.track_count),
 			warningCount: nonNegativeInteger(item.warning_count),
 			executionLineage: parseExecutionLineage(item.execution_lineage),
+			transcriptSha256:
+				item.transcript_sha256 === undefined || item.transcript_sha256 === null
+					? null
+					: sha256(item.transcript_sha256),
+			transcriptSizeBytes:
+				item.transcript_size_bytes === undefined ||
+				item.transcript_size_bytes === null
+					? null
+					: nonNegativeInteger(item.transcript_size_bytes),
+			artifactAvailable:
+				item.artifact_available === undefined
+					? false
+					: boolean(item.artifact_available),
 		};
 	});
 	const expected: readonly TranscriptionProfileId[] = [
@@ -2154,7 +2243,204 @@ export function parseBenchmarkResult(
 		trackCount: nonNegativeInteger(row.track_count),
 		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
 		prepared: boolean(row.prepared),
+		benchmarkId:
+			row.benchmark_id === undefined || row.benchmark_id === null
+				? null
+				: /^benchmark-[0-9a-f]{32}$/u.test(text(row.benchmark_id, 64))
+					? text(row.benchmark_id, 64)
+					: invalid(),
+		bundleManifestSha256:
+			row.bundle_manifest_sha256 === undefined ||
+			row.bundle_manifest_sha256 === null
+				? null
+				: sha256(row.bundle_manifest_sha256),
+		bundleSizeBytes:
+			row.bundle_size_bytes === undefined || row.bundle_size_bytes === null
+				? null
+				: nonNegativeInteger(row.bundle_size_bytes),
 		profiles: parsed,
+	};
+}
+
+export function parseBenchmarkTranscript(
+	value: unknown,
+	expectedProfileId: TranscriptionProfileId,
+): BenchmarkTranscript {
+	const row = record(value);
+	if (row.schema_version !== "tda_transcript_v1") return invalid();
+	const engine = record(row.engine);
+	if (transcriptionProfile(engine.profile) !== expectedProfileId) return invalid();
+	const tracks = row.tracks;
+	if (!Array.isArray(tracks) || tracks.length > 256) return invalid();
+	const segments: LocalReviewSegment[] = [];
+	for (const rawTrack of tracks) {
+		const track = record(rawTrack);
+		const trackNumber = nonNegativeInteger(track.number);
+		if (trackNumber < 1) return invalid();
+		const speaker = text(track.speaker, 160);
+		const offset =
+			track.timeline_offset_seconds === undefined
+				? 0
+				: nonNegativeNumber(track.timeline_offset_seconds);
+		if (!Array.isArray(track.segments) || track.segments.length > 500_000)
+			return invalid();
+		for (const rawSegment of track.segments) {
+			const segment = record(rawSegment);
+			const start = nonNegativeNumber(segment.start);
+			const end = nonNegativeNumber(segment.end);
+			if (end < start) return invalid();
+			segments.push({
+				trackNumber,
+				segmentId: text(segment.id, 256),
+				start,
+				end,
+				timelineStart: start + offset,
+				timelineEnd: end + offset,
+				text: text(segment.text, 100_000),
+				speaker,
+				reviewed: false,
+			});
+		}
+	}
+	return {
+		schemaVersion: "tda_benchmark_transcript_view_v1",
+		profileId: expectedProfileId,
+		sourceSha256: sha256(row.source_sha256),
+		segments,
+		trackCount: tracks.length,
+	};
+}
+
+export function parseBenchmarkReference(value: unknown): BenchmarkReference | null {
+	const envelope = record(value);
+	const raw = envelope.reference;
+	if (raw === null) return null;
+	const row = record(raw);
+	if (row.schema_version !== "tda_benchmark_reference_v1") return invalid();
+	const payload = record(row.payload);
+	if (!Array.isArray(payload.tracks) || payload.tracks.length > 256) return invalid();
+	const tracks = payload.tracks.map((rawTrack): BenchmarkReferenceTrack => {
+		const track = record(rawTrack);
+		const trackNumber = nonNegativeInteger(track.track_number);
+		if (trackNumber < 1) return invalid();
+		return {
+			trackNumber,
+			speaker: nullableText(track.speaker, 160),
+			text: text(track.text, 2_000_000),
+		};
+	});
+	const capability = text(row.capability, 32);
+	if (capability !== "text" && capability !== "timed_turns") return invalid();
+	const provenance = text(row.provenance, 32);
+	if (!["manual", "imported", "profile_seed"].includes(provenance)) return invalid();
+	return {
+		revision: nonNegativeInteger(row.revision),
+		provenance: provenance as BenchmarkReference["provenance"],
+		seedProfileId:
+			row.seed_profile_id === null || row.seed_profile_id === undefined
+				? null
+				: transcriptionProfile(row.seed_profile_id),
+		capability,
+		tracks,
+	};
+}
+
+function nullableMetric(value: unknown): number | null {
+	return value === null || value === undefined ? null : nonNegativeNumber(value);
+}
+
+export function parseBenchmarkQualitySummary(value: unknown): BenchmarkQualitySummary {
+	const row = record(value);
+	if (row.schema_version !== "tda_benchmark_quality_summary_v1") return invalid();
+	const referenceRaw = row.reference;
+	const reference =
+		referenceRaw === null
+			? null
+			: (() => {
+					const ref = record(referenceRaw);
+					const capability = text(ref.capability, 32);
+					const provenance = text(ref.provenance, 32);
+					if (
+						(capability !== "text" && capability !== "timed_turns") ||
+						!["manual", "imported", "profile_seed"].includes(provenance)
+					)
+						return invalid();
+					return {
+						revision: nonNegativeInteger(ref.revision),
+						capability,
+						provenance: provenance as
+							| "manual"
+							| "imported"
+							| "profile_seed",
+						seedProfileId:
+							ref.seed_profile_id === null || ref.seed_profile_id === undefined
+								? null
+								: transcriptionProfile(ref.seed_profile_id),
+					};
+				})();
+	if (!Array.isArray(row.profiles) || row.profiles.length > 4) return invalid();
+	const profiles = row.profiles.map((rawProfile): BenchmarkQualityProfile => {
+		const profile = record(rawProfile);
+		const overall = record(profile.overall);
+		const timingRaw = profile.timing;
+		const termRaw = profile.term_fidelity;
+		const timing =
+			timingRaw === null || timingRaw === undefined
+				? null
+				: (() => {
+						const item = record(timingRaw);
+						return {
+							matchedTurns: nonNegativeInteger(item.matched_turns),
+							speakerAccuracy: nullableMetric(item.speaker_accuracy),
+							startMaeSeconds: nullableMetric(item.start_mae_seconds),
+							endMaeSeconds: nullableMetric(item.end_mae_seconds),
+							boundaryP50Seconds: nullableMetric(item.boundary_p50_seconds),
+							boundaryP95Seconds: nullableMetric(item.boundary_p95_seconds),
+							overlapPrecision: nullableMetric(item.overlap_precision),
+							overlapRecall: nullableMetric(item.overlap_recall),
+							overlapF1: nullableMetric(item.overlap_f1),
+						};
+					})();
+		const termFidelity =
+			termRaw === null || termRaw === undefined
+				? null
+				: (() => {
+						const item = record(termRaw);
+						return {
+							referenceOccurrences: nonNegativeInteger(item.reference_occurrences),
+							hypothesisOccurrences: nonNegativeInteger(item.hypothesis_occurrences),
+							correctOccurrences: nonNegativeInteger(item.correct_occurrences),
+							missedOccurrences: nonNegativeInteger(item.missed_occurrences),
+							extraOccurrences: nonNegativeInteger(item.extra_occurrences),
+							recall: nullableMetric(item.recall),
+							precision: nullableMetric(item.precision),
+						};
+					})();
+		return {
+			profileId: transcriptionProfile(profile.profile_id),
+			overall: {
+				referenceWords: nonNegativeInteger(overall.reference_words),
+				hypothesisWords: nonNegativeInteger(overall.hypothesis_words),
+				substitutions: nonNegativeInteger(overall.substitutions),
+				deletions: nonNegativeInteger(overall.deletions),
+				insertions: nonNegativeInteger(overall.insertions),
+				werNormalized: nullableMetric(overall.wer_normalized),
+				referenceCharacters: nonNegativeInteger(overall.reference_characters),
+				hypothesisCharacters: nonNegativeInteger(overall.hypothesis_characters),
+				characterEdits: nonNegativeInteger(overall.character_edits),
+				cerNormalized: nullableMetric(overall.cer_normalized),
+			},
+			timing,
+			termFidelity,
+		};
+	});
+	return {
+		benchmarkId: /^benchmark-[0-9a-f]{32}$/u.test(text(row.benchmark_id, 64))
+			? text(row.benchmark_id, 64)
+			: invalid(),
+		qualityMeasured: boolean(row.quality_measured),
+		reference,
+		profiles,
 	};
 }
 
