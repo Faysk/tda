@@ -132,7 +132,7 @@ export default async function CampaignDirectoryPage() {
 										</div>
 									) : null}
 
-													<div className={styles.cardFooter}>
+									<div className={styles.cardFooter}>
 										{countLabel ? (
 											<span className={styles.count}>{countLabel}</span>
 										) : (
