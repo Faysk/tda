@@ -189,12 +189,24 @@ export function RecoverableActionForm({
 		if (inFlightRef.current) return;
 		const form = event.currentTarget;
 		const formData = new FormData(form);
+		const openDisclosures = Array.from(
+			form.closest("details")
+				? form.parentElement?.closest("details")
+					? form
+							.closest("details")
+							?.parentElement?.querySelectorAll<HTMLDetailsElement>("details[open]") ?? []
+					: [form.closest("details") as HTMLDetailsElement]
+				: [],
+		).filter((details) => details.contains(form));
+		for (const details of openDisclosures) details.open = false;
+
 		inFlightRef.current = true;
 		setState("idle");
 		try {
 			await serverAction(formData);
 			clearStaleActionRecovery(recoveryKey);
 		} catch (error) {
+			for (const details of openDisclosures) details.open = true;
 			if (isStaleServerActionError(error)) {
 				persistStaleActionRecovery(recoveryKey, captureDirtyFormPatch(form));
 				setState("stale");
