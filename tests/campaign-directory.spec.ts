@@ -248,7 +248,7 @@ test("aggregate and campaign-scoped session archives expose distinct product sco
 	);
 	await expect(page.locator("[data-session-archive-hero]")).toHaveAttribute(
 		"data-campaign-artwork-source",
-		"session-artwork",
+		"campaign-cover",
 	);
 	await expect(page.locator('[data-session-card]')).toHaveCount(3);
 	await expect(
@@ -419,7 +419,7 @@ test("canonical campaign root keeps public context, useful actions and verified 
 	const root = page.locator('[data-campaign-root][data-campaign-route="cronicas-da-mesa"]');
 	await expect(root).toBeVisible();
 	await expect(root.getByRole("heading", { level: 1 })).toHaveText("Crônicas da Mesa");
-	await expect(root).toHaveAttribute("data-campaign-artwork-source", "session-artwork");
+	await expect(root).toHaveAttribute("data-campaign-artwork-source", "campaign-cover");
 	await expect(root.getByRole("link", { name: "Ver sessões" })).toHaveAttribute(
 		"href",
 		"/campanhas/cronicas-da-mesa/sessoes",
@@ -471,7 +471,7 @@ test("campaign roots never inherit a sibling highlight or narrative availability
 	await expect(root.getByRole("heading", { level: 1 })).toHaveText(
 		"Antes que seja tarde — uma campanha com nome deliberadamente comprido",
 	);
-	await expect(root).toHaveAttribute("data-campaign-artwork-source", "fallback");
+	await expect(root).toHaveAttribute("data-campaign-artwork-source", "session-artwork");
 	await expect(root.locator('[data-campaign-latest-session="shared-session"]')).toContainText(
 		"A memória global mais recente vem da campanha B",
 	);
@@ -497,13 +497,24 @@ test("campaign root aliases canonicalize while private, archived and unknown rou
 	for (const [path, secret] of [
 		["/campanhas/fixture-private", "Fixture privada"],
 		["/campanhas/fixture-archived", "Fixture arquivada"],
-		["/campanhas/nao-existe", "nao-existe"],
 	] as const) {
 		const response = await page.request.get(path, { maxRedirects: 0 });
 		expect(response.status(), path).toBe(404);
 		const body = await response.text();
 		expect(body, path).not.toContain(secret);
+		expect(body, path).toContain("Campanha pública do TDA.");
+		expect(body, path).toContain("noindex, nofollow");
 	}
+
+	const unknown = await page.request.get("/campanhas/nao-existe", {
+		maxRedirects: 0,
+	});
+	expect(unknown.status()).toBe(404);
+	const unknownBody = await unknown.text();
+	expect(unknownBody).toContain("Campanha pública do TDA.");
+	expect(unknownBody).toContain("noindex, nofollow");
+	expect(unknownBody).not.toContain("Fixture privada");
+	expect(unknownBody).not.toContain("Fixture arquivada");
 });
 
 test("campaign root keeps first actions reachable without horizontal overflow on narrow and zoom-equivalent viewports", async ({
