@@ -88,12 +88,15 @@ try:
     )
     started = True
 
-    migration = repo / "supabase/migrations/20261001204500_activate_first_class_campaign_registry.sql"
+    migration = repo / "supabase/migrations/20261001204525_activate_first_class_campaign_registry.sql"
     paths = [
         repo / "supabase/tests/campaign_registry_fixture.sql",
         migration,
         migration,
         repo / "supabase/tests/campaign_registry.sql",
+        repo / "supabase/migrations/20261003011729_restore_campaign_registry_revision.sql",
+        repo / "supabase/migrations/20261003011729_restore_campaign_registry_revision.sql",
+        repo / "supabase/tests/campaign_registry_revision.sql",
     ]
     output_parts: list[str] = []
     for path in paths:
