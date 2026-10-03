@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { PublicLink as Link } from "@/components/public-link";
 import { buildPublicMetadata } from "@/config/public-metadata";
+import { normalizedCatalogueCover } from "@/features/lore/catalogue-presentation";
 import {
 	listedLoreCatalogueEntries,
 	type LoreCatalogueEntry,
@@ -26,20 +27,28 @@ type CatalogueCard = Readonly<{
 
 function LoreCard({ card }: { card: CatalogueCard }) {
 	const { lore, campaign } = card;
+	const cover = normalizedCatalogueCover(lore.cover);
 	return (
 		<article
 			className={styles.card}
 			data-lore={lore.slug}
 			data-lore-campaign={campaign?.routeKey ?? "standalone"}
+			data-lore-cover={cover ? "artwork" : "fallback"}
 		>
-			<Image
-				className={styles.cardBackground}
-				src={lore.cover}
-				alt=""
-				fill
-				unoptimized
-				sizes={loreCardSizes}
-			/>
+			{cover ? (
+				<Image
+					className={styles.cardBackground}
+					src={cover}
+					alt=""
+					fill
+					unoptimized
+					sizes={loreCardSizes}
+				/>
+			) : (
+				<div className={styles.cardFallback} aria-hidden="true">
+					<span>TDA</span>
+				</div>
+			)}
 			<div className={styles.cardShade} aria-hidden="true" />
 			<Link className={styles.cardLink} href={`/lore/${lore.slug}`}>
 				<div className={styles.cardCopy}>
