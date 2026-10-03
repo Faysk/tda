@@ -129,9 +129,11 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 	page,
 }) => {
 	await page.goto("/campanhas/sessoes");
-	await expect(page.getByText("Arquivo de campanhas", { exact: true })).toBeVisible();
+	await expect(page.locator('[data-session-archive-scope="aggregate"]')).toBeVisible();
+	await expect(page.getByText("Arquivo global", { exact: true })).toBeVisible();
+	await expect(page.getByRole("heading", { level: 1, name: "Todas as campanhas" })).toBeVisible();
 	await expect(
-		page.getByText("Sessões publicadas de todas as campanhas públicas", { exact: false }),
+		page.getByRole("region", { name: "Sessões publicadas de todas as campanhas" }),
 	).toBeVisible();
 	await expect(page.locator("[data-session-card]")).toHaveCount(4);
 	const filter = page.getByLabel("Filtrar por campanha");
@@ -152,7 +154,8 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 	).toHaveCount(0);
 
 	await page.goto(`/campanhas/${CAMPAIGN_A.route}/sessoes`);
-	await expect(page.getByText("Arquivo da campanha", { exact: true })).toBeVisible();
+	await expect(page.locator('[data-session-archive-scope="campaign"]')).toBeVisible();
+	await expect(page.getByText("Campanha · arquivo de sessões", { exact: true })).toBeVisible();
 	await expect(page.getByRole("heading", { level: 1, name: CAMPAIGN_A.name })).toBeVisible();
 	await expect(page.getByLabel("Filtrar por campanha")).toHaveCount(0);
 	await expect(page.locator("[data-session-card]")).toHaveCount(3);

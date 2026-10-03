@@ -168,9 +168,11 @@ export default async function CampaignSessionsPage({ params }: Props) {
 							className={styles.scopeBreadcrumb}
 							aria-label="Contexto da campanha"
 						>
-							<Link href="/campanhas/sessoes">Todas as campanhas</Link>
+							<Link href="/campanhas">Campanhas</Link>
 							<span aria-hidden="true">›</span>
-							<span aria-current="page">{campaignName}</span>
+							<Link href={campaignPath}>{campaignName}</Link>
+							<span aria-hidden="true">›</span>
+							<span aria-current="page">Sessões</span>
 						</nav>
 						<p className={styles.eyebrow}>Campanha · arquivo de sessões</p>
 						<h1 className={styles.title} id="archive-title">
