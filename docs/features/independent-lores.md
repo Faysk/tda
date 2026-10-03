@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada; registry/linkage implementados no código, publicação depende do registry de campaigns
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-03
 
 ## Decisão
 
@@ -32,9 +32,9 @@ Estado editorial definido para o momento:
 | --- | --- | --- |
 | Pipipi | Preservar entrada existente | Não inferir novos vínculos desta decisão |
 | Astel e Noah | Listar; inclusão explicitamente solicitada, preparada localmente | Ligações editoriais por slug de personagem, sem criar dados narrativos |
-| D | Não listar; acesso pela URL própria | Binding editorial explícito para `antes-que-seja-tarde`; resolve somente quando a campaign existir, sem criar entity/canon/session |
+| D | Listar no catálogo curado | Binding editorial explícito para `antes-que-seja-tarde` (display atual `Passos Retomados`); não cria entity/canon/session |
 | Seika | Listar no catálogo curado | Binding editorial para `antes-que-seja-tarde`; não cria entity/canon/session |
-| Yllith | Não listar; acesso pela URL própria quando publicada | Não faz parte da campanha principal |
+| Yllith | Listar no catálogo curado | Binding editorial explícito para `antes-que-seja-tarde` (display atual `Passos Retomados`); não cria entity/canon/session |
 | Futuras lores independentes | Não listar automaticamente; inclusão exige escolha editorial | Não assumir vínculo |
 
 `/lore` permanece um catálogo curado do site, sujeito ao seu Design System. As páginas individuais têm liberdade visual. A presença de um arquivo em uma pasta não é critério de inclusão no catálogo.
@@ -58,11 +58,22 @@ Acessibilidade e integridade não prescrevem uma estética. Uma abertura cinemat
 O documento dono de cada lore registra: slug/URL, fonte oficial, responsável, identidade visual/referência aprovada, vínculo narrativo conhecido ou ausente, decisão de listagem, assets/manifesto e evidência da publicação. São requisitos documentais; não introduzem schema ou nova plataforma nesta entrega.
 
 - [ ] Página funciona por acesso direto, sem depender do catálogo ou da presença de uma campaign vinculada.
-- [ ] Listagem corresponde à decisão editorial vigente; Seika aparece no catálogo curado, enquanto D/Yllith permanecem fora até a slice #1286.
+- [ ] Listagem corresponde à decisão editorial vigente; Seika, D e Yllith aparecem no catálogo curado conforme #1285/#1286.
 - [ ] Identidade visual da própria lore foi avaliada.
 - [ ] Imagens carregam, decodificam e preservam proporções e detalhes nas superfícies reais.
 - [ ] Preview do link representa a página individual.
 - [ ] Estilos e scripts não afetam outras rotas.
+
+## Curadoria #1286 — D e Yllith
+
+A decisão de 2026-10-03 torna **D** e **Yllith** descobríveis em `/lore` sem reescrever narrativa, mover mídia, criar entidades ou mudar seus canonicals. A campaign vinculada permanece privada; por isso o catálogo público mostra somente metadata que já pertence às próprias lores e **não** publica badge, route key ou nome de campaign enquanto a projection pública da campaign não autorizar isso.
+
+Fontes aprovadas reutilizadas:
+
+- **D** — slug/canonical `/lore/d`; experiência em `public/lore/d/index.html`; fonte narrativa versionada em `public/lore/d/historia-1.md` a `historia-4.md`; card social/cover já referenciado pela página em `https://media.dnd.faysk.dev/lore/d/30f853af30136239f0559cfe6e300949f6be1c0667cd4bd866e8c458eff01052/d-completo.png`; favicon com receipt em `media/manifests/d-ui.json`.
+- **Yllith** — slug/canonical `/lore/yllith`; experiência em `public/lore/yllith/index.html`; fonte narrativa versionada em `public/lore/yllith/historia.md`; social/cover `https://media.dnd.faysk.dev/lore/yllith/b9858046c31ddc338fafe822b8c6132d4b4a4383c5f11b7b6e536943f8509f48/social-yllith.jpg`; mídia canônica registrada em `media/manifests/yllith-recovered-batch-1.json` e favicon em `media/manifests/yllith-ui.json`.
+
+O vínculo editorial dos dois usa a chave técnica estável `antes-que-seja-tarde`. O nome humano é resolvido da campaign persistida e, no estado aprovado desta entrega, é **Passos Retomados**. Como a campaign está privada, `resolveStandaloneLoreCampaignLink` mantém o vínculo interno mas devolve `publicCampaign = null`; o card não expõe nome, slug público ou technical slug da campaign. D e Yllith continuam `indexable=false`/noindex mesmo estando listados no arquivo do TDA. O gate de catálogo faz GET e decode das covers canônicas em mobile e desktop, portanto referência quebrada bloqueia a entrega.
 
 ## Multi-campaign
 
@@ -75,7 +86,7 @@ A arquitetura multi-campaign agora é aprovada por ADR-0020, mas **lore standalo
 - remover/alterar vínculo não move seus assets automaticamente;
 - listagem em `/lore`, vínculo de campaign e indexação continuam decisões independentes.
 
-A #1131 registra a decisão editorial de D em `src/features/lore/registry.ts`, mas o vínculo só resolve quando a campaign `antes-que-seja-tarde` existir no registry persistido. D continua `listed=false`, mantém canonical `/lore/d` e não recebe entity, relation, canon ou session por consequência do vínculo.
+A #1131 estabeleceu o contrato de vínculo; a #1286 conclui a curadoria de D e Yllith no registry. D, Seika e Yllith usam `antes-que-seja-tarde` somente como identidade técnica estável da campaign **Passos Retomados**. D/Yllith ficam `listed=true` sem mudar `/lore/d` ou `/lore/yllith`, continuam não indexáveis e não recebem entity, relation, canon ou session por consequência do vínculo. Enquanto a campaign permanecer privada, o catálogo não publica badge nem rota dela.
 
 ## Futuro fora do escopo
 
