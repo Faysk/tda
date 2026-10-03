@@ -43,12 +43,13 @@
 
 .archive {
 	display: grid;
-	gap: clamp(24px, 2.2vw, 40px);
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+	gap: clamp(16px, 1.5vw, 24px);
 }
 
 .card {
 	position: relative;
-	min-height: min(68svh, 720px);
+	min-height: clamp(300px, 33vw, 440px);
 	overflow: hidden;
 	border: 1px solid var(--ds-border-subtle);
 	border-radius: clamp(26px, 4vw, 52px);
@@ -65,6 +66,20 @@
 	transition: transform 700ms var(--ds-ease-soft);
 }
 
+.cardFallback {
+	position: absolute;
+	inset: 0;
+	z-index: -3;
+	display: grid;
+	place-items: center;
+	background:
+		radial-gradient(circle at 70% 24%, rgba(242, 200, 121, 0.18), transparent 32%),
+		linear-gradient(145deg, #20150f, #0c0908);
+	color: rgba(255, 250, 241, 0.2);
+	font: 600 clamp(3rem, 8vw, 6rem) / 1 var(--ds-font-display);
+	letter-spacing: 0.08em;
+}
+
 .cardShade {
 	position: absolute;
 	inset: 0;
@@ -78,7 +93,7 @@
 	display: flex;
 	min-height: inherit;
 	align-items: end;
-	padding: clamp(24px, 4vw, 60px);
+	padding: clamp(20px, 2.4vw, 34px);
 	color: #fffaf1;
 	text-decoration: none;
 }
@@ -100,20 +115,26 @@
 	font: 800 0.7rem/1.2 var(--ds-font-ui);
 	letter-spacing: 0.18em;
 	text-transform: uppercase;
+	overflow-wrap: anywhere;
 }
 
 .cardCopy h2 {
 	margin: 0;
-	font: 600 clamp(2.5rem, 5vw, 5.4rem) / 0.92 var(--ds-font-display);
+	font: 600 clamp(1.9rem, 2.7vw, 3.15rem) / 0.98 var(--ds-font-display);
 	letter-spacing: -0.05em;
+	overflow-wrap: anywhere;
 	text-wrap: balance;
 }
 
 .cardCopy p {
+	display: -webkit-box;
+	overflow: hidden;
 	max-width: 54ch;
-	margin: 18px 0 0;
+	margin: 14px 0 0;
 	color: rgba(255, 250, 241, 0.82);
-	font: 400 clamp(0.98rem, 1.2vw, 1.08rem) / 1.6 var(--ds-font-body);
+	font: 400 clamp(0.92rem, 1vw, 1.02rem) / 1.55 var(--ds-font-body);
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
 }
 
 .action {
@@ -152,8 +173,8 @@
 	}
 
 	.card {
-		min-height: min(62svh, 560px);
-		border-radius: 28px;
+		min-height: min(54svh, 430px);
+		border-radius: 24px;
 	}
 
 	.cardBackground {
@@ -173,8 +194,8 @@
 	}
 
 	.cardCopy h2 {
-		font-size: clamp(2.25rem, 10.5vw, 3.5rem);
-		line-height: 0.94;
+		font-size: clamp(1.9rem, 9vw, 2.8rem);
+		line-height: 0.98;
 	}
 
 	.cardCopy p {
