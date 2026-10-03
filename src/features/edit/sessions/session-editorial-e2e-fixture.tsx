@@ -339,9 +339,13 @@ export function SessionEditorialE2EFixture({
 	}, []);
 
 	const moveTransport = useMemo<SessionCampaignMoveTransport>(() => ({
-		preflight: async (request) => ({
-			ok: true as const,
-			preview: request.destinationCampaignSlug === "campanha-bloqueada"
+		preflight: async (request) => {
+			if (request.destinationCampaignSlug === "campanha-indisponivel") {
+				return { ok: false as const, reason: "dependency_unavailable" as const };
+			}
+			return {
+				ok: true as const,
+				preview: request.destinationCampaignSlug === "campanha-bloqueada"
 				? {
 					status: "blocked" as const,
 					sessionId: request.sessionId,
@@ -368,7 +372,8 @@ export function SessionEditorialE2EFixture({
 						"cache_revalidation_required",
 					],
 				},
-		}),
+			};
+		},
 		commit: async (request) => {
 			const attempt = (moveAttemptsRef.current.get(request.operationId) ?? 0) + 1;
 			moveAttemptsRef.current.set(request.operationId, attempt);
@@ -447,6 +452,11 @@ export function SessionEditorialE2EFixture({
 							technicalSlug: "campanha-bloqueada",
 							routeKey: "campanha-bloqueada",
 							name: "Campanha bloqueada",
+						},
+						{
+							technicalSlug: "campanha-indisponivel",
+							routeKey: "campanha-indisponivel",
+							name: "Campanha indisponível",
 						},
 					]}
 					transport={moveTransport}
