@@ -13,6 +13,7 @@ from typing import Callable
 
 from .asr_runtime import inspect_whisper_runtime
 from .benchmark_bundles import BENCHMARK_PROFILES, benchmark_id_for
+from .benchmark_diagnostics import BenchmarkDiagnosticsError, BenchmarkProfileDiagnostics
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import inspect_qwen_runtime
 from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
@@ -188,6 +189,7 @@ class WorkerSupervisor:
         *,
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
+        on_message: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
         process_command: list[str] | None = None,
         environment_overrides: dict[str, str] | None = None,
@@ -379,12 +381,14 @@ class WorkerSupervisor:
                         "WORKER_READY_REQUIRED",
                         recoverable=False,
                     )
+                if message.type == "ready" and ready:
+                    raise WorkerProcessError(
+                        "WORKER_READY_REPLAY",
+                        recoverable=False,
+                    )
+                if on_message is not None:
+                    on_message(message)
                 if message.type == "ready":
-                    if ready:
-                        raise WorkerProcessError(
-                            "WORKER_READY_REPLAY",
-                            recoverable=False,
-                        )
                     ready = True
                     if on_event is not None:
                         on_event(message)
@@ -493,6 +497,8 @@ class WorkerSupervisor:
         benchmark_sample_seconds: float | None = None,
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
+        on_message: Callable[[WorkerMessage], object] | None = None,
+        on_runtime_artifact: Callable[[dict | None], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> WorkerOutcome:
         if self.data_root is None or self.models_root is None:
@@ -530,6 +536,7 @@ class WorkerSupervisor:
 
         runtime_command = None
         runtime_environment: dict[str, str] | None = None
+        runtime_artifact_identity: dict | None = None
         if profile_id.startswith("whisper-"):
             if self.runtime_root is None:
                 raise WorkerProcessError("WHISPER_RUNTIME_UNCONFIGURED")
@@ -548,6 +555,7 @@ class WorkerSupervisor:
             artifact = runtime_artifact(state, family="whisper", version=worker.parent.name)
             if artifact is None:
                 raise WorkerProcessError("ASR_RUNTIME_IDENTITY_INVALID")
+            runtime_artifact_identity = artifact
             runtime_command = [str(worker)]
             runtime_environment = {
                 "TDA_ASR_RUNTIME_FAMILY": "whisper",
@@ -579,6 +587,7 @@ class WorkerSupervisor:
             artifact = runtime_artifact(state, family="qwen", version=worker.parent.name)
             if artifact is None or artifact != gate.get("runtime_artifact"):
                 raise WorkerProcessError("ASR_RUNTIME_IDENTITY_INVALID")
+            runtime_artifact_identity = artifact
             runtime_command = [str(worker)]
             runtime_environment = {
                 "TDA_ASR_RUNTIME_FAMILY": "qwen",
@@ -593,10 +602,25 @@ class WorkerSupervisor:
                 returncode=0,
             )
 
+        if on_runtime_artifact is not None:
+            on_runtime_artifact(runtime_artifact_identity)
+
+        # Preserve compatibility with tests/specialized supervisors that override
+        # the historical _run_command signature. The message observer is opt-in.
+        if on_message is None:
+            return self._run_command(
+                worker_command,
+                on_progress=on_progress,
+                on_event=on_event,
+                is_cancelled=is_cancelled,
+                process_command=runtime_command,
+                environment_overrides=runtime_environment,
+            )
         return self._run_command(
             worker_command,
             on_progress=on_progress,
             on_event=on_event,
+            on_message=on_message,
             is_cancelled=is_cancelled,
             process_command=runtime_command,
             environment_overrides=runtime_environment,
@@ -626,23 +650,98 @@ class WorkerSupervisor:
                     payload={"stage": "benchmark", "forced": False},
                     returncode=0,
                 )
-            outcome = self.run_craig(
-                job_id=job_id,
-                attempt=attempt,
-                source_id=source_id,
-                profile_id=profile_id,
-                glossary=glossary,
-                context=context,
-                cpu=False,
-                benchmark_sample_seconds=sample_seconds,
-                on_progress=lambda _message: None,
-                on_event=on_event,
-                is_cancelled=is_cancelled,
+
+            diagnostics = (
+                BenchmarkProfileDiagnostics(
+                    data_root=self.data_root,
+                    job_id=job_id,
+                    attempt=attempt,
+                    source_id=source_id,
+                    profile_id=profile_id,
+                    sample_identity_sha256=sample_identity_sha256,
+                    sample_seconds=sample_seconds,
+                    context=context,
+                    glossary=glossary,
+                )
+                if self.data_root is not None
+                else None
             )
+            if diagnostics is not None:
+                diagnostics.start()
+
+            try:
+                outcome = self.run_craig(
+                    job_id=job_id,
+                    attempt=attempt,
+                    source_id=source_id,
+                    profile_id=profile_id,
+                    glossary=glossary,
+                    context=context,
+                    cpu=False,
+                    benchmark_sample_seconds=sample_seconds,
+                    on_progress=lambda _message: None,
+                    on_event=on_event,
+                    on_message=diagnostics.observe_message if diagnostics is not None else None,
+                    on_runtime_artifact=(
+                        diagnostics.bind_runtime_artifact if diagnostics is not None else None
+                    ),
+                    is_cancelled=is_cancelled,
+                )
+            except BenchmarkDiagnosticsError as exc:
+                if diagnostics is not None:
+                    try:
+                        diagnostics.finalize(status="failed", error_code=exc.code)
+                    except BenchmarkDiagnosticsError:
+                        pass
+                raise WorkerProcessError(exc.code, recoverable=False) from exc
+            except WorkerProcessError as exc:
+                if diagnostics is not None:
+                    try:
+                        diagnostics.finalize(status="failed", error_code=exc.code)
+                    except BenchmarkDiagnosticsError as diagnostics_exc:
+                        raise WorkerProcessError(
+                            diagnostics_exc.code,
+                            recoverable=False,
+                        ) from exc
+                raise
+            except Exception:
+                if diagnostics is not None:
+                    try:
+                        diagnostics.finalize(
+                            status="failed",
+                            error_code="BENCHMARK_PROFILE_SUPERVISOR_FAILED",
+                        )
+                    except BenchmarkDiagnosticsError:
+                        pass
+                raise
+
             if outcome.terminal != "result":
+                if diagnostics is not None:
+                    status = "cancelled" if outcome.terminal == "cancelled" else "failed"
+                    diagnostics.finalize(
+                        status=status,
+                        error_code=(
+                            "PROFILE_CANCELLED"
+                            if status == "cancelled"
+                            else "BENCHMARK_PROFILE_SUPERVISOR_FAILED"
+                        ),
+                    )
                 return outcome
+
             receipt = dict(outcome.payload)
+            worker_diagnostics = receipt.pop("benchmark_diagnostics", None)
             if receipt.get("schema_version") != "tda_benchmark_profile_v1":
+                if diagnostics is not None:
+                    diagnostics.record_supervisor_terminal(
+                        status="failed",
+                        code="BENCHMARK_PROFILE_RESULT_INVALID",
+                        recoverable=False,
+                    )
+                    diagnostics.finalize(
+                        status="failed",
+                        receipt=receipt,
+                        error_code="BENCHMARK_PROFILE_RESULT_INVALID",
+                    )
                 raise WorkerProcessError("BENCHMARK_PROFILE_RESULT_INVALID", recoverable=False)
             if not _benchmark_profile_evidence_valid(
                 receipt,
@@ -650,7 +749,29 @@ class WorkerSupervisor:
                 benchmark_id=benchmark_id,
                 sample_identity_sha256=sample_identity_sha256,
             ):
+                if diagnostics is not None:
+                    diagnostics.record_supervisor_terminal(
+                        status="failed",
+                        code="BENCHMARK_PROFILE_EVIDENCE_INVALID",
+                        recoverable=False,
+                    )
+                    diagnostics.finalize(
+                        status="failed",
+                        receipt=receipt,
+                        error_code="BENCHMARK_PROFILE_EVIDENCE_INVALID",
+                    )
                 raise WorkerProcessError("BENCHMARK_PROFILE_EVIDENCE_INVALID", recoverable=False)
+
+            if diagnostics is not None:
+                try:
+                    diagnostics.finalize(
+                        status="completed",
+                        receipt=receipt,
+                        worker_diagnostics=worker_diagnostics,
+                    )
+                except BenchmarkDiagnosticsError as exc:
+                    raise WorkerProcessError(exc.code, recoverable=False) from exc
+
             receipts.append(receipt)
             on_progress(
                 WorkerMessage.create(
@@ -680,4 +801,3 @@ class WorkerSupervisor:
             },
             returncode=0,
         )
-
