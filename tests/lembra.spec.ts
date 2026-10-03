@@ -58,6 +58,35 @@ async function addReference(
 }
 
 
+test("Lembra private campaign projection is visible only to an authorized viewer", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns");
+
+	const privateCard = page.locator("article").filter({ hasText: "Referência privada global" });
+	await expect(privateCard).toContainText("Passos Retomados");
+	const campaignFilter = page.getByRole("button", { name: "Filtrar por campanha" });
+	await campaignFilter.click();
+	await expect(page.getByRole("option", { name: "Passos Retomados", exact: true })).toBeVisible();
+	await page.keyboard.press("Escape");
+
+	await page.goto("/e2e-fixtures/lembra-campaigns?private=0");
+	const outsiderCard = page.locator("article").filter({ hasText: "Referência privada global" });
+	await expect(outsiderCard).toBeVisible();
+	await expect(outsiderCard).not.toContainText("Passos Retomados");
+
+	const rawHtml = await page.content();
+	expect(rawHtml).not.toContain("Passos Retomados");
+	expect(rawHtml).not.toContain("66666666-6666-4666-8666-666666666666");
+
+	const outsiderFilter = page.getByRole("button", { name: "Filtrar por campanha" });
+	await outsiderFilter.click();
+	await expect(page.getByRole("option", { name: "Passos Retomados", exact: true })).toHaveCount(0);
+	await page.keyboard.press("Escape");
+
+	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
+	await search.fill("passos retomados");
+	await expect(outsiderCard).toHaveCount(0);
+});
+
 test("Lembra campaign classification stays optional, filterable and non-authoritative", async ({ page }) => {
 	await page.goto("/e2e-fixtures/lembra-campaigns");
 
@@ -239,7 +268,7 @@ test("Lembra creates a public campaign in context without losing the upload draf
 	await expect(card).toContainText("Aurora Pública · Por Você");
 });
 
-test("Lembra keeps the prior selection and draft when a new campaign is private", async ({ page }) => {
+test("Lembra selects a newly created private campaign only after authorized projection confirms it", async ({ page }) => {
 	await page.goto("/e2e-fixtures/lembra-campaigns");
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "private-draft.png",
@@ -252,8 +281,6 @@ test("Lembra keeps the prior selection and draft when a new campaign is private"
 		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
 	await composer.getByLabel("Nome").fill("Rascunho privado");
 	await composer.getByLabel("Descrição").fill("Seleção anterior precisa continuar.");
-	await composer.getByRole("button", { name: "Campanha da referência" }).click();
-	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
 	const preview = composer.getByAltText("Preview da referência selecionada");
 	const previewUrl = await preview.getAttribute("src");
 
@@ -270,15 +297,33 @@ test("Lembra keeps the prior selection and draft when a new campaign is private"
 	await expect(composer.getByLabel("Descrição")).toHaveValue("Seleção anterior precisa continuar.");
 	await expect(preview).toHaveAttribute("src", previewUrl ?? "");
 	await expect(composer.getByRole("button", { name: "Campanha da referência" })).toContainText(
-		"Campanha Pública B",
+		"Segredo da Mesa",
 	);
-	await expect(composer).toContainText(
-		"A campanha foi criada como privada e não aparece como classificação do Lembra.",
-	);
+	await expect(composer).toContainText("Campanha criada e selecionada.");
 
-	await composer.getByRole("button", { name: "Campanha da referência" }).click();
-	await expect(page.getByRole("option", { name: "Segredo da Mesa", exact: true })).toHaveCount(0);
-	await page.keyboard.press("Escape");
+	await composer.getByRole("button", { name: "Guardar", exact: true }).click();
+	await expect(composer).not.toBeVisible();
+	const privateCard = page.locator("article").filter({ hasText: "Rascunho privado" });
+	await expect(privateCard).toContainText("Segredo da Mesa · Por Você");
+
+	const campaignFilter = page.getByRole("button", { name: "Filtrar por campanha" });
+	await campaignFilter.click();
+	await page.getByRole("option", { name: "Segredo da Mesa", exact: true }).click();
+	await expect(privateCard).toBeVisible();
+
+	await page.getByRole("button", { name: "Limpar filtros" }).click();
+	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
+	await search.fill("segredo da mesa");
+	await expect(privateCard).toBeVisible();
+	await page.getByRole("button", { name: "Limpar filtros" }).click();
+
+	await page.getByRole("button", { name: "Rascunho privado", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	await viewer.getByRole("button", { name: "Editar", exact: true }).click();
+	await viewer.getByRole("button", { name: "Campanha da referência" }).click();
+	await page.getByRole("option", { name: "Geral", exact: true }).click();
+	await viewer.getByRole("button", { name: "Salvar", exact: true }).click();
+	await expect(viewer).toContainText("Geral");
 });
 
 test("Lembra campaign creation keeps the overlay open on conflict or dependency failure", async ({ page }) => {

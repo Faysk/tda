@@ -34,6 +34,7 @@ async function installCompletedRunCatalog(
 				engine?: string;
 				model?: string;
 				transcriptSha256?: string;
+				publicationTarget?: string | null;
 		  }> = 1,
 ) {
 	const options =
@@ -111,6 +112,25 @@ async function installCompletedRunCatalog(
 						device: "cuda",
 						gpu: { model: "Synthetic GPU", vram_total_bytes: 8589934592 },
 					},
+					publication_target:
+						options.publicationTarget === null
+							? null
+							: {
+									schema_version: "tda_publication_target_v1",
+									campaign_slug: options.publicationTarget ?? "yuhara-main",
+									source_session_id: "sessao-42",
+									job_id: `job-results-${String(index + 1).padStart(2, "0")}`,
+									attempt: 1,
+									source_id: CRAIG_SOURCE_ID,
+									run_id:
+										index === 0 && options.runId
+											? options.runId
+											: `run-results-${String(index + 1).padStart(2, "0")}`,
+									transcript_sha256:
+										index === 0 && options.transcriptSha256
+											? options.transcriptSha256
+											: (index % 16).toString(16).repeat(64),
+								},
 				};
 			}),
 		}),
@@ -903,6 +923,16 @@ test("Overview hides prior run facts during execution and shows them after compl
 							turn_count: 1,
 							warning_count: 0,
 						},
+						publication_target: {
+							schema_version: "tda_publication_target_v1",
+							campaign_slug: "yuhara-main",
+							source_session_id: "sessao-42",
+							job_id: "job-completed-1",
+							attempt: 1,
+							source_id: CRAIG_SOURCE_ID,
+							run_id: "run-completed-1",
+							transcript_sha256: "b".repeat(64),
+						},
 						execution_lineage: {
 							schema_version: "tda_execution_lineage_v1",
 							device: "cuda",
@@ -1060,6 +1090,52 @@ test("idle Full HD keeps the essential composer and recent result in one viewpor
 
 
 
+
+test("unbound local runs stay in recovery and do not become campaign metrics", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+	});
+	await installCompletedRunCatalog(page, { publicationTarget: null });
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+
+	await expect(page.getByLabel("Métricas do último resultado concluído")).toHaveCount(0);
+
+	await page.getByRole("tab", { name: "Resultados" }).click();
+	const recovery = page.locator('[data-unbound-local-runs="true"]');
+	await expect(recovery).toBeVisible();
+	await expect(
+		recovery.getByRole("heading", {
+			name: "Resultados locais sem campanha confirmada",
+		}),
+	).toBeVisible();
+	await expect(recovery).toContainText(
+		"não contam como resultados de Crônicas da Mesa",
+	);
+	await expect(recovery.getByRole("button", { name: "Revisar resultado" })).toBeVisible();
+});
+
+test("run targeted to another campaign is excluded from the active campaign results", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+		serviceVersion: "0.3.16",
+		advanceJobs: false,
+	});
+	await installCompletedRunCatalog(page, {
+		publicationTarget: "antes-que-seja-tarde",
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await expect(page.getByLabel("Métricas do último resultado concluído")).toHaveCount(0);
+
+	await page.getByRole("tab", { name: "Resultados" }).click();
+	await expect(page.locator('[data-unbound-local-runs="true"]')).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Revisar resultado" })).toHaveCount(0);
+});
 
 test("Stable 0.3.15 hides completed-run deletion while Results remains usable", async ({ page }) => {
 	await installCompanionFixture(page, {

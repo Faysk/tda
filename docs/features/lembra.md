@@ -80,7 +80,7 @@ O composer pede:
 - **Descrição** — opcional;
 - **Campanha** — opcional, com `Geral` como ausência explícita de classificação.
 
-Autor e data são automáticos. Somente campaigns **ativas e públicas** podem receber uma nova classificação nesta entrega. Uma referência já classificada em campaign arquivada continua legível/editável e pode permanecer nela ou voltar para `Geral`; campaign arquivada não aparece como destino novo. Campaign privada não é enumerada nem aceita por UUID enquanto #1134 não definir discovery/membership multi-campaign com segurança.
+Autor e data são automáticos. O seletor recebe uma projection server-side mínima `{ id, name, lifecycle }`: campaigns públicas e campaigns privadas que o usuário atual pode descobrir pela capability exata `campaign.edit.access`. Campaign ativa dessa projection pode receber nova classificação; campaign arquivada autorizada continua legível/editável historicamente, mas não aparece como destino novo. UUID forjado ou campaign privada fora da projection falha fechado.
 
 Ao publicar, o feedback visual acompanha estados reais sem expandir o composer:
 
@@ -196,7 +196,7 @@ lembra_favorites
 
 `campaign_id = null` significa **Geral / sem campaign**. Referências existentes permanecem `null` na migração; nenhuma é empurrada para `yuhara-main` por suposição. A FK usa `ON DELETE SET NULL`, portanto a remoção administrativa de uma campaign degrada a classificação para Geral sem apagar a referência.
 
-Classificação não altera acesso, autoria, favoritos, R2 key, bucket ou bytes. Usuário autenticado continua vendo a biblioteca compartilhada mesmo sem membership/grant da **campaign pública** classificada. O nome exibido é metadata de organização do Lembra; slug técnico não é apresentado. Campaigns privadas ficam fora do catálogo/selector desta entrega para que o service role não vire um oracle de discovery antes de #1134. Enquanto o registry first-class ainda não estiver aplicado no banco, a classificação degrada deliberadamente para `Geral`: a galeria continua disponível, o selector não enumera campaigns e payload forjado com `campaign_id` é recusado.
+Classificação não altera acesso, autoria, favoritos, R2 key, bucket ou bytes. Usuário autenticado continua vendo a biblioteca compartilhada mesmo sem membership/grant da campaign classificada; discovery só governa **metadata de classificação**, não o acesso ao item. O browser recebe apenas `id`, nome humano e lifecycle das campaigns autorizadas; technical slug, route key, grants e metadata privada não entram no DTO do Lembra. Para um usuário sem discovery, uma classificação privada existente é deliberadamente indistinguível de `Geral` na projection e nunca participa de busca/filtro. Editar apenas título/descrição usa intenção `preserve` e mantém o vínculo escondido no servidor; `clear` ou `set(uuid)` exigem reautorização server-side na hora da mutation. Enquanto o registry first-class ainda não estiver aplicado no banco, a classificação degrada deliberadamente para `Geral`: a galeria continua disponível, o selector não enumera campaigns e payload forjado com `campaign_id` é recusado.
 
 `created_by_name` é um snapshot produzido pelo servidor a partir da identidade autenticada para exibição/busca. O browser nunca fornece autoria.
 
@@ -297,7 +297,11 @@ A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-
 - [ ] busca por nome/descrição/autor/campaign/data continua funcionando;
 - [ ] filtro por `Todas | Geral | campaign` combina com Meus itens/Favoritos/período;
 - [ ] referência legacy permanece em Geral;
-- [ ] campaign arquivada não quebra referência existente e não é destino novo;
+- [ ] campaign arquivada autorizada não quebra referência existente e não é destino novo;
+- [ ] campaign privada descobrível aparece por nome para o ator autorizado, sem expor slug técnico/route key/grants;
+- [ ] campaign privada não autorizada é indistinguível de Geral na projection, não entra em busca/filtro e não vaza por mutation;
+- [ ] editar metadata com intenção `preserve` mantém uma classificação escondida; `clear`/`set` não permitem remover ou tomar controle sem discovery;
+- [ ] revogação entre render e submit é respeitada porque a mutation recarrega a projection autorizada;
 - [ ] usuário sem membership da campaign continua sob a regra global autenticada do Lembra;
 - [ ] atribuir/remover campaign não muda `object_key` nem bytes R2;
 - [ ] atualização concorrente falha com conflito, sem lost update;
@@ -347,9 +351,10 @@ A simplicidade é requisito, não ausência de funcionalidade.
 5. confirmar secrets server-side no runtime;
 6. ativar `TDA_LEMBRA_ENABLED=true`;
 7. smoke autenticado com dois usuários:
-   - A publica em Geral e em uma campaign ativa;
-   - B vê ambas mesmo sem membership da campaign classificada;
-   - B filtra Geral/campaign e edita classificação;
+   - A publica em Geral, em uma campaign pública ativa e em uma privada que possa descobrir;
+   - B vê todos os itens da biblioteca mesmo sem membership da campaign classificada, mas não recebe metadata de campaign privada sem discovery;
+   - A filtra/busca pelo nome da campaign privada autorizada e edita classificação;
+   - B edita título/descrição de item com classificação privada escondida sem apagar o vínculo; tentativa direta de clear/set falha fechado;
    - A vê atualização;
    - B favorita para si;
    - A não recebe favorito de B;
