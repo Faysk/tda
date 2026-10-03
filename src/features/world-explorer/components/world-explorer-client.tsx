@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button, Dialog } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import {
 	useEffect,
@@ -858,6 +859,38 @@ export function WorldExplorerClient({
 				onCommand={executeWorldCommand}
 				onSelectEntity={selectEntityFromPalette}
 			/>
+
+			<Dialog
+				open={edit.discardConfirmationOpen}
+				title="Descartar rascunho?"
+				description={
+					<p>
+						O Mundo publicado será preservado. Esta sessão de edição será encerrada
+						somente depois de registrar a recuperação necessária.
+					</p>
+				}
+				onClose={edit.cancelDiscard}
+				actions={
+					<>
+						<Button data-dialog-initial-focus onClick={edit.cancelDiscard}>
+							Continuar editando
+						</Button>
+						<Button
+							variant="primary"
+							pending={edit.terminalAction === "discard"}
+							pendingLabel="Descartando…"
+							onClick={() => void edit.confirmDiscard()}
+						>
+							Descartar rascunho
+						</Button>
+					</>
+				}
+			>
+				<p>
+					Uma cópia final de recuperação fica registrada para auditoria antes do
+					descarte. Cancelar não altera o rascunho, a lease nem o conteúdo publicado.
+				</p>
+			</Dialog>
 		</div>
 	);
 }
