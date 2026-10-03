@@ -24,6 +24,27 @@ const fixtureCampaigns = [
 	},
 ];
 
+const multiCampaigns = [
+	...fixtureCampaigns,
+	{
+		technicalSlug: "campaign-b",
+		name: "A Campanha Sintética Com Nome Deliberadamente Muito Longo Para Validar Reflow",
+		lifecycle: "active" as const,
+	},
+];
+
+const multiCampaignGrants = [
+	...allGrants,
+	{
+		action: EDIT_CAPABILITIES.contentEdit,
+		scopeType: "campaign",
+		scopeId: "campaign-b",
+		status: "active",
+		startsAt: "2026-01-01T00:00:00Z",
+		endsAt: null,
+	},
+];
+
 function syntheticAccess(state: string | undefined): AccountOverviewAccess {
 	if (state === "anonymous") {
 		return { state: "anonymous", context: null, identity: null };
@@ -59,7 +80,7 @@ function syntheticAccess(state: string | undefined): AccountOverviewAccess {
 		context: {
 			authUserId: "auth-synthetic-never-rendered",
 			profileId: "profile-tda-synthetic-927",
-			grants: allGrants,
+			grants: state === "multi" ? multiCampaignGrants : allGrants,
 		},
 	};
 }
@@ -78,10 +99,15 @@ export default async function AccountOverviewE2EFixture({
 			accessNotice={null}
 			authEnabled={true}
 			campaigns={
-				query.state === "unavailable" ? null :
-				query.state === "anonymous" || query.state === "unlinked" || query.state === "no-grants"
-					? []
-					: fixtureCampaigns
+				query.state === "unavailable"
+					? null
+					: query.state === "anonymous" ||
+						query.state === "unlinked" ||
+						query.state === "no-grants"
+						? []
+						: query.state === "multi"
+							? multiCampaigns
+							: fixtureCampaigns
 			}
 		/>
 	);
