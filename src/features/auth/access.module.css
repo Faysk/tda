@@ -614,3 +614,8 @@
 		padding-left: 0;
 	}
 }
+
+.accessContext .permissionGroups {
+	gap: 0.25rem;
+	margin-top: 0.75rem;
+}

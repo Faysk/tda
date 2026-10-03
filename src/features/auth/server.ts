@@ -5,7 +5,6 @@ import { cache } from "react";
 import { loadEditAccessContext } from "@/features/edit/access/repository";
 import {
 	authorizeCampaignCapability,
-	EDIT_CAPABILITIES,
 	type EditCapability,
 } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
