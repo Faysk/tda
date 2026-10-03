@@ -264,7 +264,7 @@
 
 
 .campaignControl {
-	min-width: 154px;
+	min-width: 220px;
 	min-height: 46px;
 	display: grid;
 	align-items: center;
@@ -281,20 +281,34 @@
 }
 
 .campaignSelect {
-	min-width: 152px;
+	min-width: 218px;
 }
 
 .campaignSelect > button {
+	height: auto;
 	min-height: 44px;
-	padding-inline: 11px;
+	padding: 7px 11px;
 	font-size: 0.8rem;
 	font-weight: 500;
+}
+
+.campaignSelect > button > span,
+.campaignSelect > [role="listbox"] [role="option"] > span {
+	overflow: visible;
+	text-overflow: clip;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .campaignSelect > [role="listbox"] {
 	right: 0;
 	left: 0;
-	min-width: max(100%, 220px);
+	min-width: max(100%, 280px);
+}
+
+.campaignSelect > [role="listbox"] [role="option"] {
+	height: auto;
+	min-height: 44px;
 }
 
 .sortControl:focus-within {
@@ -1424,6 +1438,25 @@
 		min-width: 104px;
 	}
 
+	.campaignSelect > button {
+		height: auto;
+		min-height: 44px;
+		padding-block: 7px;
+	}
+
+	.campaignSelect > button > span,
+	.campaignSelect > [role="listbox"] [role="option"] > span {
+		overflow: visible;
+		text-overflow: clip;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+
+	.campaignSelect > [role="listbox"] [role="option"] {
+		height: auto;
+		min-height: 44px;
+	}
+
 	.viewerDialog {
 		width: calc(100vw - 16px);
 		height: calc(100dvh - 16px);
@@ -1619,11 +1652,7 @@
 @media (max-width: 520px) {
 	.toolbar {
 		display: grid;
-		grid-template-columns:
-			minmax(0, 1.2fr)
-			minmax(0, 0.85fr)
-			minmax(0, 0.95fr)
-			44px;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
 	}
 
 	.searchBox {
@@ -1631,15 +1660,29 @@
 		min-width: 0;
 	}
 
-	.campaignControl,
-	.dateFilter,
-	.sortControl {
+	.campaignControl {
+		grid-column: 1 / -1;
+		min-width: 0;
+	}
+
+	.dateFilter {
+		grid-column: 1;
 		min-width: 0;
 	}
 
 	.sortControl {
+		grid-column: 2;
+		min-width: 0;
 		grid-template-columns: minmax(0, 1fr);
 		padding-inline: 6px;
+	}
+
+	.addButton {
+		grid-column: 3;
+		flex: 0 0 44px;
+		width: 44px;
+		padding-inline: 0;
+		justify-content: center;
 	}
 
 	.dateIcon,
@@ -1649,17 +1692,12 @@
 
 	.dateSummary,
 	.dateSummaryActive {
+		width: 100%;
 		min-width: 0;
+		justify-content: center;
 		padding-inline: 8px;
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-
-	.addButton {
-		flex: 0 0 44px;
-		width: 44px;
-		padding-inline: 0;
-		justify-content: center;
 	}
 
 	.addButtonLabel {
@@ -1674,20 +1712,24 @@
 		border: 0;
 	}
 
-	.dateSummary,
-	.dateSummaryActive {
-		width: 100%;
-		justify-content: center;
-	}
-
-	.sortControl {
-		min-width: 0;
-	}
-
 	.campaignSelect,
 	.sortSelect {
 		width: 100%;
 		min-width: 0;
+	}
+
+	.campaignSelect > button {
+		height: auto;
+		min-height: 44px;
+		padding-block: 7px;
+	}
+
+	.campaignSelect > button > span,
+	.campaignSelect > [role="listbox"] [role="option"] > span {
+		overflow: visible;
+		text-overflow: clip;
+		white-space: normal;
+		overflow-wrap: anywhere;
 	}
 
 	.campaignSelect > [role="listbox"],
@@ -1697,8 +1739,9 @@
 		min-width: 100%;
 	}
 
-	.addButton {
-		justify-content: center;
+	.campaignSelect > [role="listbox"] [role="option"] {
+		height: auto;
+		min-height: 44px;
 	}
 }
 
