@@ -9,6 +9,7 @@ import {
 } from "react";
 import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { StatusPill } from "@/components/ui/status";
 import { CampaignPicker } from "@/features/campaigns/campaign-picker";
 import { ProcessingBenchmark } from "./benchmark";
@@ -349,6 +350,7 @@ export function ProcessingPanel({
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
 	const [campaignSelection, setCampaignSelection] = useState(campaignId);
+	const [campaignSwitchTarget, setCampaignSwitchTarget] = useState<string | null>(null);
 	const [campaignNavigationPending, setCampaignNavigationPending] = useState(false);
 	const diagnosticOpener = useRef<HTMLElement | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
@@ -642,18 +644,28 @@ export function ProcessingPanel({
 			authoritativeWork ||
 			Boolean(state.mutation) ||
 			Boolean(state.uncertainSubmission);
-		if (
-			needsConfirmation &&
-			!window.confirm(
-				"Trocar de campanha descarta apenas o formulário local desta tela. Trabalhos já enfileirados ou em execução mantêm a campanha original. Deseja continuar?",
-			)
-		) {
-			setCampaignSelection(campaignId);
+		if (needsConfirmation) {
+			setCampaignSwitchTarget(nextCampaignId);
 			return;
 		}
 		setCampaignNavigationPending(true);
 		requestAnimationFrame(() => {
 			window.location.assign(processingCampaignHref(nextCampaignId));
+		});
+	}
+
+	function cancelCampaignSwitch() {
+		setCampaignSwitchTarget(null);
+		setCampaignSelection(campaignId);
+	}
+
+	function confirmCampaignSwitch() {
+		const target = campaignSwitchTarget;
+		if (!target) return;
+		setCampaignSwitchTarget(null);
+		setCampaignNavigationPending(true);
+		requestAnimationFrame(() => {
+			window.location.assign(processingCampaignHref(target));
 		});
 	}
 
@@ -1525,6 +1537,48 @@ export function ProcessingPanel({
 				</section>
 			)}
 
+
+			<Dialog
+				open={campaignSwitchTarget !== null}
+				title="Trocar de campanha?"
+				description={
+					<p>
+						Você está saindo de <strong>{campaignName}</strong> para{" "}
+						<strong>
+							{campaignOptions.find(
+								(campaign) => campaign.technicalSlug === campaignSwitchTarget,
+							)?.name ?? campaignSwitchTarget}
+						</strong>.
+					</p>
+				}
+				onClose={cancelCampaignSwitch}
+				actions={
+					<>
+						<Button
+							data-dialog-initial-focus
+							variant="secondary"
+							onClick={cancelCampaignSwitch}
+						>
+							Continuar nesta campanha
+						</Button>
+						<Button variant="primary" onClick={confirmCampaignSwitch}>
+							Trocar campanha
+						</Button>
+					</>
+				}
+			>
+				<p>
+					Somente o formulário local ainda não enviado desta tela será descartado.
+					Trabalhos já enfileirados ou em execução continuam associados à campanha
+					original. Nenhum job será reatribuído.
+				</p>
+				{state.uncertainSubmission ? (
+					<p>
+						Há uma submissão sem confirmação final. Confira a fila da campanha atual
+						antes de repetir qualquer envio.
+					</p>
+				) : null}
+			</Dialog>
 
 			<JobDiagnosticsInspector
 				open={diagnosticInspectorJobId !== null}
