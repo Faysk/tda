@@ -53,7 +53,7 @@ try:
       repo/"supabase/tests/campaign_authorization_fixture.sql",
       repo/"supabase/candidates/20260930191500_harden_campaign_discovery_authorization.sql",
       repo/"supabase/tests/session_campaign_move_fixture.sql",
-      repo/"supabase/candidates/20261001030000_session_campaign_move.sql",
+      repo/"supabase/migrations/20261004133000_session_campaign_move.sql",
       repo/"supabase/tests/session_campaign_move.sql",
     ]
     output=[]
