@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada; registry/linkage implementados no código, publicação depende do registry de campaigns
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-03
 
 ## Decisão
 
@@ -52,6 +52,27 @@ Não listado não significa privado: quem possui a URL pode acessá-la. Esta dec
 - publicação validada separadamente da implementação.
 
 Acessibilidade e integridade não prescrevem uma estética. Uma abertura cinematográfica pode fazer parte da narrativa; regras do hub administrativo não devem ser usadas para forçar todas as lores ao mesmo formato.
+
+## Baseline comportamental Cinemático ⇄ Leitura
+
+A lore de **D** em `/lore/d` é a baseline aprovada para o comportamento de alternância entre apresentação Cinemática e Leitura. Isso **não** transforma cores, tipografia, arte, composição ou ritmo visual de D em template para outras histórias. A identidade continua pertencendo a cada lore.
+
+O exemplo reutilizável pequeno vive em `public/lore/shared/view-mode-continuity.js`. D e Yllith consomem o mesmo contrato de continuidade sem compartilhar CSS ou direção de arte. Novas lores podem reutilizar o helper ou implementar comportamento equivalente, desde que preservem os invariantes abaixo.
+
+### Invariantes da troca de modo
+
+- o modo padrão é uma decisão explícita por lore; D e Yllith iniciam em **Cinemático**;
+- preferência de modo não é global nem persistida por acidente. Um hint descartável pode usar `sessionStorage`, mas não representa preferência do usuário;
+- o controle de troca é explícito, acessível por teclado/touch, possui nome/estado perceptíveis e recupera o foco depois da transição;
+- a troca preserva o capítulo correspondente **e a posição relativa aproximada dentro dele**, em vez de voltar ao topo da história;
+- Leitura mantém a fonte narrativa integral aprovada; Cinemático pode adaptar composição e ritmo, nunca reescrever o cânone;
+- `prefers-reduced-motion: reduce` remove transições não essenciais sem perder conteúdo, navegação ou a troca de modo;
+- quando a página foi aberta a partir do catálogo `/lore` na mesma origem, o link de retorno preserva a query (`search`) do catálogo. Acesso direto continua retornando simplesmente a `/lore`; isso permite preservar filtros de campanha presentes ou futuros sem criar um contrato de query específico dentro da lore;
+- mídia editorial continua no Media Storage/R2, com masters, proporção, qualidade e carregamento controlados pelo pipeline existente.
+
+### Aceite mínimo para uma nova lore com os dois modos
+
+O receipt deve provar o round-trip **Leitura → Cinemático → Leitura** (ou o inverso, conforme modo padrão) no meio da história, verificando capítulo, posição aproximada, texto e foco. Cobrir teclado e touch, 320 px, 390 px, desktop, proxy determinístico de 200% zoom e reduced motion. Screenshots ajudam a comparar composição, mas não substituem asserções de texto, foco, overflow, estado do switch e continuidade narrativa.
 
 ## Registro por lore e aceite
 

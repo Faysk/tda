@@ -1,9 +1,22 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+
+const yllithUiManifest = JSON.parse(
+	readFileSync(new URL("../media/manifests/yllith-ui.json", import.meta.url), "utf8"),
+) as {
+	publicOrigin: string;
+	namespace: string;
+	assets: Array<{ file: string; sha256: string }>;
+};
+
+const yllithFavicon = yllithUiManifest.assets.find((asset) => asset.file === "favicon.svg");
+if (!yllithFavicon) throw new Error("Yllith favicon manifest asset is missing");
+const YLLITH_FAVICON_URL = `${yllithUiManifest.publicOrigin}/${yllithUiManifest.namespace}/${yllithFavicon.sha256}/${yllithFavicon.file}`;
 
 const SOCIAL =
 	"https://media.dnd.faysk.dev/lore/yllith/b9858046c31ddc338fafe822b8c6132d4b4a4383c5f11b7b6e536943f8509f48/social-yllith.jpg";
 const HERO =
-	"https://media.dnd.faysk.dev/lore/yllith/77ec8886af074c15310ec9f078c530d24d9fbe29cb1ff12fe9ab27b8b031538f/yllith.webp";
+	"https://media.dnd.faysk.dev/lore/yllith/384d17c645ce923a5fc1bb6526bb213d50f9e5c4ea0a6e90e8320d6aa33cc73f/yllith-hq.png";
 
 test("Yllith is a direct-only standalone lore with cinematic and reading modes", async ({ page, request }) => {
 	test.setTimeout(120000);
@@ -15,8 +28,9 @@ test("Yllith is a direct-only standalone lore with cinematic and reading modes",
 	expect(response.headers()["x-robots-tag"]).toContain("noindex");
 
 	await page.goto("/lore/yllith");
-	await expect(page.locator("h1").first()).toContainText("conquistar");
-	await expect(page.locator('link[rel~="icon"]')).toHaveAttribute("href", "favicon.svg");
+	await expect(page.locator(".hero h1")).toHaveText("Yllith.");
+	await expect(page.locator(".hero-pretitle")).toContainText("Nascida para conquistar");
+	await expect(page.locator('link[rel~="icon"]')).toHaveAttribute("href", YLLITH_FAVICON_URL);
 	await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
 		"content",
 		"noindex,nofollow,noarchive,noimageindex",
@@ -31,6 +45,22 @@ test("Yllith is a direct-only standalone lore with cinematic and reading modes",
 	await expect(hero).toBeVisible();
 	await expect(hero).toHaveAttribute("src", HERO);
 	await expect.poll(() => hero.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+
+	const mediaContract = await page.locator('main[data-lore-view="cinematic"] img').evaluateAll(
+		(images) =>
+			images.map((image) => ({
+				src: (image as HTMLImageElement).currentSrc || (image as HTMLImageElement).src,
+				className: image.className,
+				loading: (image as HTMLImageElement).loading,
+			})),
+	);
+	expect(mediaContract.length).toBeGreaterThan(1);
+	for (const image of mediaContract) {
+		expect(new URL(image.src).hostname).toBe("media.dnd.faysk.dev");
+		if (!String(image.className).includes("hero-character")) {
+			expect(image.loading).toBe("lazy");
+		}
+	}
 
 	const toggle = page.locator("#loreModeToggle");
 	await expect(toggle).toHaveAttribute("aria-checked", "false");
@@ -62,7 +92,7 @@ test("Yllith exposes the approved full reading source and favicon", async ({ req
 	expect(text).toContain("Sequoia Vermelha fica para trás");
 	expect(text).toContain("Uma matilha não nasce quando alguém manda");
 
-	const favicon = await request.get("/lore/yllith/favicon.svg");
+	const favicon = await request.get(YLLITH_FAVICON_URL);
 	expect(favicon.ok()).toBeTruthy();
-	expect(await favicon.text()).toContain('aria-label="Yllith"');
+	expect(favicon.headers()["content-type"]).toContain("image/svg+xml");
 });

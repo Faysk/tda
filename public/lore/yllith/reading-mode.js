@@ -10,6 +10,7 @@
   const navigation = document.querySelector('#readingNavigation');
   const hint = document.querySelector('#modeHint');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const continuity = window.TDALoreModeContinuity;
 
   if (!toggle || !cinematicView || !readingView || !content || !navigation) return;
 
@@ -305,22 +306,25 @@
     element?.scrollIntoView({ block: 'start', behavior: 'auto' });
   }
 
-  function swapView(nextMode, entry) {
+  function swapView(nextMode, entry, snapshot) {
     if (nextMode === 'reading') {
       for (const element of cinematicTargets) element.hidden = true;
       readingView.hidden = false;
       readingView.removeAttribute('aria-hidden');
       setToggleState('reading');
-      jumpTo(document.getElementById(entry.reading) || readingView.querySelector('#reading-top'));
+      currentMode = 'reading';
+      const restored = snapshot && continuity?.restoreMappedLocation(snapshot, 'reading', { offset: 110 });
+      if (!restored) jumpTo(document.getElementById(entry.reading) || readingView.querySelector('#reading-top'));
       updateReadingProgress();
     } else {
       readingView.hidden = true;
       readingView.setAttribute('aria-hidden', 'true');
       for (const element of cinematicTargets) element.hidden = false;
       setToggleState('cinematic');
-      jumpTo(document.querySelector(entry.cinematic) || cinematicView);
+      currentMode = 'cinematic';
+      const restored = snapshot && continuity?.restoreMappedLocation(snapshot, 'cinematic', { offset: 110 });
+      if (!restored) jumpTo(document.querySelector(entry.cinematic) || cinematicView);
     }
-    currentMode = nextMode;
   }
 
   async function changeMode(nextMode) {
@@ -328,16 +332,17 @@
     hideModeHint();
     body.classList.add('is-switching');
     toggle.setAttribute('aria-busy', 'true');
+    const snapshot = continuity?.captureMappedLocation(storyMap, currentMode, { offset: 110 }) ?? null;
 
     try {
       if (nextMode === 'reading') await mountReading();
       const entry = currentMode === 'cinematic' ? nearestCinematicEntry() : nearestReadingEntry();
 
       if (!reduceMotion.matches && document.startViewTransition) {
-        const transition = document.startViewTransition(() => swapView(nextMode, entry));
+        const transition = document.startViewTransition(() => swapView(nextMode, entry, snapshot));
         await transition.finished;
       } else {
-        swapView(nextMode, entry);
+        swapView(nextMode, entry, snapshot);
       }
     } catch (error) {
       console.error(error);
@@ -422,4 +427,5 @@
   }, { once: true });
 
   setToggleState('cinematic');
+  continuity?.preserveCatalogReturn(document.querySelector('.tda-return'));
 })();

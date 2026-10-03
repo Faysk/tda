@@ -2,7 +2,7 @@
 
 > Status: modelo manual; não é schema de importador implementado
 > Owner: frontend / integrations/media / operations
-> Última revisão: 2026-09-12
+> Última revisão: 2026-10-03
 
 Copiar para o documento da entrega e preencher com evidências reais. Campos vazios continuam pendentes. Procedimento: [ZIP à produção](../operations/zip-to-production.md).
 
@@ -15,6 +15,10 @@ Copiar para o documento da entrega e preencher com evidências reais. Campos vaz
 - Listar em `/lore`: sim/não, decisão:
 - Campanha/universo: confirmado ou sem vínculo:
 - Referência visual aprovada:
+- Baseline comportamental Cinemático/Leitura (quando aplicável): D / outra / não aplicável:
+- Modo padrão e decisão de persistência (nenhuma / sessão / outra, com motivo):
+- Fonte narrativa única e mapa de capítulos entre os modos:
+- Comportamento de retorno ao catálogo/contexto de campanha:
 - Fontes externas, dependências e restrições conhecidas:
 - Título / descrição / arte social:
 - Responsável por mídia / integração / release:
@@ -62,6 +66,10 @@ Exemplo de campos de manifesto, **somente modelo**; substituir placeholders e ad
 - [ ] Todos os objetos necessários conferidos por download e decode.
 - [ ] HTML/CSS/JS integrados; diferenças do original registradas.
 - [ ] Desktop/mobile, galeria, navegação, falhas e movimento reduzido conferidos.
+- [ ] Quando houver Cinemático/Leitura: round-trip no meio da história preserva capítulo, posição aproximada, texto e foco.
+- [ ] Switch de modo validado por teclado e touch em 320 px, 390 px, desktop e proxy de 200% zoom; estado/nome acessíveis e sem overflow.
+- [ ] Modo padrão/persistência conferidos em reload e nova navegação; nenhuma preferência global foi criada por acidente.
+- [ ] Retorno ao catálogo preserva a query/filtro da navegação de origem quando aplicável, sem aceitar redirect externo.
 - [ ] Checks/build/testes requeridos concluídos; skips documentados.
 - [ ] PR Preview revisada e integrada.
 - [ ] PR main revisada e integrada; SHA exato identificado.
@@ -76,6 +84,22 @@ Exemplo de campos de manifesto, **somente modelo**; substituir placeholders e ad
 - URL efetiva e resolução de cada cena:
 - Peso inicial / carregamento tardio / limites conhecidos:
 - Aprovação visual / data:
+
+## Recibo de modos de lore
+
+Preencher somente quando a entrega possui Cinemático e Leitura.
+
+- Implementação/helper usado:
+- Modo padrão:
+- Persistência deliberada:
+- Capítulos/âncoras exercitados no round-trip:
+- Resultado Leitura → Cinemático → Leitura (capítulo / posição / foco):
+- Teclado / touch:
+- 320 px / 390 px / desktop / 200% zoom:
+- Reduced motion:
+- Texto integral comparado à fonte aprovada:
+- Retorno ao catálogo com contexto preservado:
+- Diferenças visuais deliberadas em relação ao D:
 
 ## Recibo de release
 
