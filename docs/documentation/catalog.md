@@ -139,7 +139,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | arquitetura aprovada; registry/linkage implementados no código, publicação depende do registry de campaigns | 2026-10-01 |
 | [Feature/conceito — Intents / intenção](../features/intents.md) | não atribuído | **não definido / não encontrado como conceito canônico** | 2026-09-06 |
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-19 |
-| [Lembra — biblioteca compartilhada de referências visuais](../features/lembra.md) | frontend / integrations-media / identity-access | persistência compartilhada em Production; galeria justified responsiva rastreada na #738 | 2026-09-30 |
+| [Lembra — biblioteca compartilhada de referências visuais](../features/lembra.md) | frontend / integrations-media / identity-access | persistência compartilhada em Production; galeria justified responsiva rastreada na #738 | 2026-10-03 |
 | [Feature — Modo sessão ao vivo](../features/live-session.md) | sessions/live | histórico/planejado; fora das entregas imediatas | 2026-09-06 |
 | [Processamento local no Edit](../features/local-processing.md) | Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro | ASR local implementado; arquitetura de runs/revisão/publicação aprovada; sync cloud ainda desativado | 2026-09-28 |
 | [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md) | narrative-memory / frontend / produto | decisão aprovada; implementação parcial | 2026-10-01 |
