@@ -190,3 +190,11 @@ Cobertura esperada:
 - ausência de overflow horizontal.
 
 A migration deve passar `check-migrations`, CI e Production CD antes de considerar a feature publicada. Merge isolado não prova aplicação remota.
+
+## Master do projeto — configuração autorizada em 2026-10-03
+
+O proprietário confirmou explicitamente que sua conta deve ter acesso completo como master, incluindo campanhas futuras, e controlar os demais usuários por esta console. A configuração usa assignments existentes em `project/tda`, sem bypass por nome de usuário ou mudança das role definitions.
+
+À única conta master verificada foram acrescentados `campaign_dm`, `site_editor`, `transcript_viewer`, `local_operator` e `audio_operator` em project/tda; `platform_owner` e `site_permissions_owner` já existiam. A união cobre todas as capabilities atuais do catálogo. As cinco atribuições e seus IDs foram auditados atomicamente com source `authorized-project-master-bootstrap`; nenhuma outra conta foi alterada. Não significa concessão automática de novos papéis a futuros usuários ou criação de memberships por inferência.
+
+A console mostra esses grants como herdados. O master concede/revoga os acessos das outras pessoas por campanha. A retirada de um grant herdado exige operação project-level deliberada; a console de campanha não deve fingir que o revogou localmente. O bootstrap é configuração operacional única, não uma rotina que reatribui grants revogados.
