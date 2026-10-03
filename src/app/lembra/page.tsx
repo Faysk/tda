@@ -31,7 +31,7 @@ export default async function LembraPage() {
 		redirect("/conta?acesso=indisponivel");
 	}
 
-	const campaignsPromise = loadLembraCampaignClassifications();
+	const campaignsPromise = loadLembraCampaignClassifications(access.identity.authUserId);
 	const favoriteIdsPromise = loadLembraFavoriteIds(access.identity.authUserId);
 	const canManageCampaignsPromise = canCurrentUserManageCampaigns();
 	const campaigns = await campaignsPromise;

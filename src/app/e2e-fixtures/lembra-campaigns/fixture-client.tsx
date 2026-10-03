@@ -31,11 +31,14 @@ const CAMPAIGNS: readonly LembraCampaignClassification[] = [
 		lifecycle: "archived",
 	},
 	{
-		id: "66666666-6666-4666-8666-666666666666",
+		id: "77777777-7777-4777-8777-777777777777",
 		name: "Expedição pelos Confins do Reino das Estrelas Cadentes",
 		lifecycle: "active",
 	},
 ];
+
+
+let latestCreatedCampaign: ManageableCampaign | null = null;
 
 const REFERENCES: readonly LembraReference[] = [
 	{
@@ -67,13 +70,13 @@ const REFERENCES: readonly LembraReference[] = [
 		campaign: CAMPAIGNS[0],
 	},
 	{
-		id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+		id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
 		title: "Confins",
 		description: "Referência com campanha de nome longo para validar mobile",
 		author: "Fixture",
 		authorAuthUserId: "fixture",
-		createdAt: "2026-09-30T09:00:00.000Z",
-		updatedAt: "2026-09-30T09:00:00.000Z",
+		createdAt: "2026-09-30T09:30:00.000Z",
+		updatedAt: "2026-09-30T09:30:00.000Z",
 		imageUrl: IMAGE,
 		width: 16,
 		height: 12,
@@ -133,18 +136,51 @@ async function syntheticCampaignCreateAction(
 		return { ok: false, reason: "validation", field: "visibility" };
 	}
 
-	return { ok: true, campaign: createdCampaign(input) };
+	latestCreatedCampaign = createdCampaign(input);
+	return { ok: true, campaign: latestCreatedCampaign };
 }
 
 export function LembraCampaignFixtureClient({
 	canManageCampaigns,
-}: Readonly<{ canManageCampaigns: boolean }>) {
+	canDiscoverPrivateCampaigns,
+	privateCampaign,
+	privateReference,
+}: Readonly<{
+	canManageCampaigns: boolean;
+	canDiscoverPrivateCampaigns: boolean;
+	privateCampaign: LembraCampaignClassification | null;
+	privateReference: LembraReference;
+}>) {
+	const visibleCampaigns = privateCampaign
+		? [...CAMPAIGNS, privateCampaign]
+		: [...CAMPAIGNS];
+	const visibleReferences = [...REFERENCES, privateReference];
+
+	async function syntheticCampaignProjectionAction() {
+		await Promise.resolve();
+		const created = latestCreatedCampaign;
+		const projected =
+			created &&
+			(created.visibility === "public" || canDiscoverPrivateCampaigns)
+				? [
+						...visibleCampaigns,
+						{
+							id: created.id,
+							name: created.name,
+							lifecycle: created.lifecycle,
+						},
+					]
+				: visibleCampaigns;
+		return { ok: true as const, campaigns: projected };
+	}
+
 	return (
 		<LembraExperience
-			initialReferences={REFERENCES}
-			initialCampaigns={CAMPAIGNS}
+			initialReferences={visibleReferences}
+			initialCampaigns={visibleCampaigns}
 			canManageCampaigns={canManageCampaigns}
 			campaignCreateAction={syntheticCampaignCreateAction}
+			campaignProjectionAction={syntheticCampaignProjectionAction}
 		/>
 	);
 }

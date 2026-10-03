@@ -19,6 +19,7 @@ import {
 import type { ManageableCampaign } from "@/features/campaigns/model";
 import {
 	finalizeLembraUploadAction,
+	refreshLembraCampaignClassificationsAction,
 	retireLembraReferenceAction,
 	setLembraFavoriteAction,
 	updateLembraReferenceAction,
@@ -28,11 +29,13 @@ import {
 	LEMBRA_MAX_BYTES,
 	isLembraMediaMime,
 	type LembraCampaignClassification,
+	type LembraCampaignMutation,
 	type LembraMediaMime,
 	type LembraReference,
 	type LembraUploadIntent,
 } from "../model";
 import { reconcileCreatedLembraCampaign } from "../campaign-composer";
+import { lembraCampaignMutationFromSelection } from "../campaign-classification";
 import {
 	hasLembraDateFilter,
 	isWithinLembraDateRange,
@@ -58,6 +61,7 @@ type LembraExperienceProps = Readonly<{
 	persistenceEnabled?: boolean;
 	canManageCampaigns?: boolean;
 	campaignCreateAction?: typeof createCampaignRegistryAction;
+	campaignProjectionAction?: typeof refreshLembraCampaignClassificationsAction;
 }>;
 
 type ReferenceDraft = Readonly<{
@@ -274,6 +278,8 @@ function mutationMessage(reason: string) {
 			return "Essa referência não existe mais.";
 		case "conflict":
 			return "Essa alteração entrou em conflito. Tente novamente.";
+		case "forbidden":
+			return "Essa campanha não está disponível para esta ação.";
 		default:
 			return "Não foi possível concluir essa ação agora.";
 	}
@@ -303,6 +309,7 @@ export function LembraExperience({
 	persistenceEnabled = false,
 	canManageCampaigns = false,
 	campaignCreateAction = createCampaignRegistryAction,
+	campaignProjectionAction = refreshLembraCampaignClassificationsAction,
 }: LembraExperienceProps) {
 	const [references, setReferences] = useState<LembraReference[]>(() => [
 		...initialReferences,
@@ -334,6 +341,8 @@ export function LembraExperience({
 	const [editTitle, setEditTitle] = useState("");
 	const [editDescription, setEditDescription] = useState("");
 	const [editCampaignId, setEditCampaignId] = useState<string | null>(null);
+	const [editCampaignMutation, setEditCampaignMutation] =
+		useState<LembraCampaignMutation>({ kind: "preserve" });
 	const [galleryWidth, setGalleryWidth] = useState(0);
 	const [campaignCreateOpen, setCampaignCreateOpen] = useState(false);
 
@@ -671,6 +680,7 @@ export function LembraExperience({
 		setEditTitle("");
 		setEditDescription("");
 		setEditCampaignId(null);
+		setEditCampaignMutation({ kind: "preserve" });
 		setSelectedId(null);
 	}, []);
 
@@ -701,6 +711,7 @@ export function LembraExperience({
 			setEditTitle("");
 			setEditDescription("");
 			setEditCampaignId(null);
+			setEditCampaignMutation({ kind: "preserve" });
 			setSelectedId(visibleReferences[nextIndex].id);
 		},
 		[selectedId, visibleReferences],
@@ -739,12 +750,19 @@ export function LembraExperience({
 		setCampaignCreateOpen(true);
 	}
 
-	function handleCampaignCreated(campaign: ManageableCampaign) {
+	async function handleCampaignCreated(campaign: ManageableCampaign) {
 		if (!draft) return;
+		const projection = await campaignProjectionAction();
+		if (!projection.ok) {
+			setMessage(
+				"A campanha foi criada, mas não foi possível confirmar agora se ela pode classificar referências.",
+			);
+			return;
+		}
 		const reconciled = reconcileCreatedLembraCampaign(
-			campaigns,
+			projection.campaigns,
 			draft.campaignId,
-			campaign,
+			campaign.id,
 		);
 		setCampaigns([...reconciled.campaigns]);
 		setDraft((current) =>
@@ -925,6 +943,7 @@ export function LembraExperience({
 		setEditTitle(reference.title);
 		setEditDescription(reference.description);
 		setEditCampaignId(reference.campaign?.id ?? null);
+		setEditCampaignMutation({ kind: "preserve" });
 		setEditing(true);
 	}
 
@@ -933,6 +952,7 @@ export function LembraExperience({
 		setEditTitle("");
 		setEditDescription("");
 		setEditCampaignId(null);
+		setEditCampaignMutation({ kind: "preserve" });
 	}
 
 	async function saveReferenceEdit(event: FormEvent<HTMLFormElement>) {
@@ -952,9 +972,13 @@ export function LembraExperience({
 								title,
 								description,
 								updatedAt,
-								campaign: editCampaignId
-									? campaignById.get(editCampaignId) ?? item.campaign
-									: null,
+								campaign:
+									editCampaignMutation.kind === "preserve"
+										? item.campaign
+										: editCampaignMutation.kind === "clear"
+											? null
+											: campaignById.get(editCampaignMutation.campaignId) ??
+												item.campaign,
 							}
 						: item,
 				),
@@ -970,7 +994,7 @@ export function LembraExperience({
 				selectedReference.id,
 				title,
 				description,
-				editCampaignId,
+				editCampaignMutation,
 				selectedReference.updatedAt,
 			);
 			if (!result.ok) {
@@ -1525,7 +1549,16 @@ export function LembraExperience({
 													]
 													: activeCampaignOptions
 											}
-											onChange={(value) => setEditCampaignId(value || null)}
+											onChange={(value) => {
+												const nextCampaignId = value || null;
+												setEditCampaignId(nextCampaignId);
+												setEditCampaignMutation(
+													lembraCampaignMutationFromSelection(
+														selectedReference.campaign?.id ?? null,
+														nextCampaignId,
+													),
+												);
+											}}
 											ariaLabel="Campanha da referência"
 										/>
 									</div>

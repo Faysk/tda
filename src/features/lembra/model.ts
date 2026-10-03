@@ -21,6 +21,11 @@ export type LembraCampaignClassification = Readonly<{
 	lifecycle: "active" | "archived";
 }>;
 
+export type LembraCampaignMutation =
+	| Readonly<{ kind: "preserve" }>
+	| Readonly<{ kind: "clear" }>
+	| Readonly<{ kind: "set"; campaignId: string }>;
+
 export type LembraReference = Readonly<{
 	id: string;
 	title: string;
@@ -172,6 +177,21 @@ export function validLembraAuthorName(value: unknown): value is string {
 
 export function validLembraCampaignId(value: unknown): value is string | null {
 	return value === null || isLembraUuid(value);
+}
+
+export function validLembraCampaignMutation(
+	value: unknown,
+): value is LembraCampaignMutation {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const candidate = value as Record<string, unknown>;
+	if (candidate.kind === "preserve" || candidate.kind === "clear") {
+		return Object.keys(candidate).length === 1;
+	}
+	return (
+		candidate.kind === "set" &&
+		Object.keys(candidate).length === 2 &&
+		isLembraUuid(candidate.campaignId)
+	);
 }
 
 export function validLembraUpdatedAt(value: unknown): value is string {
