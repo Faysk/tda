@@ -8,6 +8,8 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { AnimatedProgress } from "@/components/ui/animated-progress";
+import { CampaignRoutePicker } from "@/features/campaigns/campaign-picker";
+import { campaignManagementHref } from "@/features/campaigns/entrypoints";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import { ProcessingBenchmark } from "./benchmark";
@@ -316,15 +318,15 @@ function eventTrackContext(
 
 export function ProcessingPanel({
 	campaignId,
-	campaignName,
 	campaignOptions,
+	canManageCampaigns = false,
 	publicationEnabled = false,
 	activityBarksManage = false,
 	activityPackScope = null,
 }: Readonly<{
 	campaignId: string;
-	campaignName: string;
 	campaignOptions: readonly ProcessingCampaignOption[];
+	canManageCampaigns?: boolean;
 	publicationEnabled?: boolean;
 	activityBarksManage?: boolean;
 	activityPackScope?: string | null;
@@ -345,7 +347,6 @@ export function ProcessingPanel({
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
-	const [campaignSelection, setCampaignSelection] = useState(campaignId);
 	const diagnosticOpener = useRef<HTMLElement | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
@@ -620,35 +621,6 @@ export function ProcessingPanel({
 		});
 	}
 
-	function switchCampaign(nextCampaignId: string) {
-		if (nextCampaignId === campaignId) {
-			setCampaignSelection(campaignId);
-			return;
-		}
-		if (!campaignOptions.some((campaign) => campaign.technicalSlug === nextCampaignId)) {
-			setCampaignSelection(campaignId);
-			return;
-		}
-		const authoritativeWork = campaignJobs.some((job) =>
-			["queued", "running"].includes(job.status),
-		);
-		const needsConfirmation =
-			submissionDraftActive ||
-			authoritativeWork ||
-			Boolean(state.mutation) ||
-			Boolean(state.uncertainSubmission);
-		if (
-			needsConfirmation &&
-			!window.confirm(
-				"Trocar de campanha descarta apenas o formulário local desta tela. Trabalhos já enfileirados ou em execução mantêm a campanha original. Deseja continuar?",
-			)
-		) {
-			setCampaignSelection(campaignId);
-			return;
-		}
-		window.location.assign(processingCampaignHref(nextCampaignId));
-	}
-
 	function selectViewFromKeyboard(
 		event: ReactKeyboardEvent<HTMLButtonElement>,
 		index: number,
@@ -675,29 +647,41 @@ export function ProcessingPanel({
 
 	return (
 		<div className={styles.panel} data-global-loading="off">
-			<section className={styles.campaignContext} aria-label="Campanha do processamento">
-				<div>
-					<span>Campanha</span>
-					<strong>{campaignName}</strong>
-				</div>
-				<label>
-					<span className={styles.visuallyHidden}>Trocar campanha</span>
-					<select
-						value={campaignSelection}
-						onChange={(event) => {
-							const next = event.target.value;
-							setCampaignSelection(next);
-							switchCampaign(next);
-						}}
-					>
-						{campaignOptions.map((campaign) => (
-							<option key={campaign.technicalSlug} value={campaign.technicalSlug}>
-								{campaign.name}
-							</option>
-						))}
-					</select>
-				</label>
-			</section>
+			<CampaignRoutePicker
+				ariaLabel="Campanha do processamento"
+				behavior="immediate"
+				currentValue={campaignId}
+				manageAction={
+					canManageCampaigns
+						? {
+								label: "Gerir campanhas",
+								href: campaignManagementHref(processingCampaignHref(campaignId)),
+							}
+						: undefined
+				}
+				onBeforeNavigate={() => {
+					const authoritativeWork = campaignJobs.some((job) =>
+						["queued", "running"].includes(job.status),
+					);
+					const needsConfirmation =
+						submissionDraftActive ||
+						authoritativeWork ||
+						Boolean(state.mutation) ||
+						Boolean(state.uncertainSubmission);
+					return (
+						!needsConfirmation ||
+						window.confirm(
+							"Trocar de campanha descarta apenas o formulário local desta tela. Trabalhos já enfileirados ou em execução mantêm a campanha original. Deseja continuar?",
+						)
+					);
+				}}
+				options={campaignOptions.map((campaign) => ({
+					value: campaign.technicalSlug,
+					label: campaign.name,
+					lifecycle: "active" as const,
+					href: processingCampaignHref(campaign.technicalSlug),
+				}))}
+			/>
 			<div className={styles.processingHeader}>
 				<div
 					className={styles.processingTabs}
