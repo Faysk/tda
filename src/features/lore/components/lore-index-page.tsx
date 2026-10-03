@@ -79,6 +79,21 @@ function ArchiveCard({
 	);
 }
 
+function ArchiveRecoveryActions({ campaign }: { campaign: LoreCampaignContext }) {
+	const worldHref = `/campanhas/${encodeURIComponent(campaign.routeKey)}/mundo`;
+
+	return (
+		<div className={styles.stateActions}>
+			<Link className={styles.statePrimaryAction} href={worldHref}>
+				Voltar ao Mundo da campanha
+			</Link>
+			<Link className={styles.stateSecondaryAction} href="/campanhas">
+				Explorar outras campanhas
+			</Link>
+		</div>
+	);
+}
+
 export function LoreIndexArchive({
 	routeKind,
 	campaign,
@@ -135,14 +150,16 @@ export function LoreIndexArchive({
 				aria-label={`Arquivo de ${copy.title.toLocaleLowerCase("pt-BR")} de ${campaign.name}`}
 			>
 				{items === undefined ? (
-					<div className={styles.state} role="status">
-						<strong>Não foi possível abrir este arquivo agora.</strong>
-						<span>Tente novamente em instantes.</span>
+					<div className={styles.state}>
+						<strong role="status">Não foi possível abrir este arquivo agora.</strong>
+						<span>Você pode voltar ao Mundo da campanha e tentar novamente mais tarde.</span>
+						<ArchiveRecoveryActions campaign={campaign} />
 					</div>
 				) : items === null ? (
 					<div className={styles.state}>
-						<strong>Arquivo ainda não conectado.</strong>
-						<span>A estrutura já está pronta para receber conteúdo público autorizado.</span>
+						<strong>Este arquivo ainda não está disponível.</strong>
+						<span>Continue explorando o Mundo da campanha enquanto ele não tem conteúdo por aqui.</span>
+						<ArchiveRecoveryActions campaign={campaign} />
 					</div>
 				) : items.length ? (
 					<div className={styles.grid}>
@@ -158,7 +175,7 @@ export function LoreIndexArchive({
 					<div className={styles.state}>
 						<strong>{copy.emptyTitle}</strong>
 						<span>{copy.emptyDescription}</span>
-						<Link href="/campanhas">Explorar outras campanhas</Link>
+						<ArchiveRecoveryActions campaign={campaign} />
 					</div>
 				)}
 			</section>

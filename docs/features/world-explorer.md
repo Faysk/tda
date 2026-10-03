@@ -524,6 +524,21 @@ Contrato:
 - controles essenciais têm alvos adequados;
 - viewport não cria overflow horizontal no mínimo suportado.
 
+## Chrome compartilhado em catálogos e perfis
+
+O header global do TDA é flutuante e não reserva altura no fluxo da página. Catálogos e perfis do Mundo, portanto, devem reservar essa área no próprio shell consumidor em vez de adicionar padding global à Home ou a outras superfícies.
+
+Contrato:
+
+- usar `--site-chrome-panel-top` como origem comum para a reserva vertical de marca/conta;
+- sidebar expandida ou recolhida começa abaixo da hit area da marca;
+- no mobile, `Explorar universo` e o rótulo da categoria começam abaixo das hit areas de marca e avatar;
+- o workspace de canvas e o shell dos catálogos derivam a mesma clearance, sem comprimir o canvas nem empurrar a Home;
+- quando o shell já reservou o chrome no fluxo mobile, hero/breadcrumb interno pode reduzir sua própria reserva para não somar espaço duas vezes;
+- nenhum controle clicável pode ficar sob a área clicável de outro controle global.
+
+Estados vazios/indisponíveis dos catálogos usam linguagem de leitor, não termos de implementação. A recuperação primária volta ao Mundo da mesma campaign; explorar outras campanhas é ação secundária. Isso não altera audience nem transforma conteúdo não publicado em público.
+
 ## Empty/loading/error
 
 ### Sem relações
