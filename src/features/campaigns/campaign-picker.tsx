@@ -74,7 +74,7 @@ export function CampaignPicker<T extends string>({
 				{hint ? <small className={styles.hint}>{hint}</small> : null}
 			</div>
 			{canCreate || canManage ? (
-				<div className={styles.actions} aria-label="Ações de campanha">
+				<div className={styles.actions} role="group" aria-label="Ações de campanha">
 					{canCreate && onCreate ? (
 						<Button
 							type="button"
