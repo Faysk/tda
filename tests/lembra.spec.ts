@@ -211,6 +211,30 @@ test("Lembra selects a newly created private campaign only after authorized proj
 	await composer.getByRole("button", { name: "Campanha da referência" }).click();
 	await expect(page.getByRole("option", { name: "Segredo da Mesa", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
+
+	await composer.getByRole("button", { name: "Guardar", exact: true }).click();
+	await expect(composer).not.toBeVisible();
+	const privateCard = page.locator("article").filter({ hasText: "Rascunho privado" });
+	await expect(privateCard).toContainText("Segredo da Mesa · Por Você");
+
+	const campaignFilter = page.getByRole("button", { name: "Filtrar por campanha" });
+	await campaignFilter.click();
+	await page.getByRole("option", { name: "Segredo da Mesa", exact: true }).click();
+	await expect(privateCard).toBeVisible();
+
+	await page.getByRole("button", { name: "Limpar filtros" }).click();
+	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
+	await search.fill("segredo da mesa");
+	await expect(privateCard).toBeVisible();
+	await page.getByRole("button", { name: "Limpar filtros" }).click();
+
+	await page.getByRole("button", { name: "Rascunho privado", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	await viewer.getByRole("button", { name: "Editar", exact: true }).click();
+	await viewer.getByRole("button", { name: "Campanha da referência" }).click();
+	await page.getByRole("option", { name: "Geral", exact: true }).click();
+	await viewer.getByRole("button", { name: "Salvar", exact: true }).click();
+	await expect(viewer).toContainText("Geral");
 });
 
 test("Lembra campaign creation keeps the overlay open on conflict or dependency failure", async ({ page }) => {
