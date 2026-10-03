@@ -36,7 +36,6 @@ export function SessionShareActions({ title, description }: Props) {
 	const [manualCopyUrl, setManualCopyUrl] = useState<string | null>(null);
 	const [copyPending, setCopyPending] = useState(false);
 	const manualInputRef = useRef<HTMLInputElement>(null);
-	const manualLabelId = useId();
 	const manualInputId = useId();
 	const manualHelpId = useId();
 
@@ -48,7 +47,9 @@ export function SessionShareActions({ title, description }: Props) {
 
 	const showManualCopy = (url: string) => {
 		setManualCopyUrl(url);
-		setStatus("Não foi possível copiar automaticamente. O link público está pronto para cópia manual.");
+		setStatus(
+			"Não foi possível copiar automaticamente. O link público está pronto para cópia manual.",
+		);
 	};
 
 	const retryCopy = async () => {
@@ -108,17 +109,20 @@ export function SessionShareActions({ title, description }: Props) {
 	return (
 		<fieldset className={styles.actions}>
 			<legend className={styles.legend}>Compartilhar esta sessão</legend>
-			<Button variant="secondary" pending={copyPending} pendingLabel="Compartilhando…" onClick={share}>
+			<Button
+				variant="secondary"
+				pending={copyPending}
+				pendingLabel="Compartilhando…"
+				onClick={share}
+			>
 				Compartilhar sessão
 			</Button>
 			<p className={styles.status} aria-live="polite">
 				{status}
 			</p>
 			{manualCopyUrl ? (
-				<div className={styles.manualCopy} role="group" aria-labelledby={manualLabelId}>
-					<label id={manualLabelId} className={styles.manualLabel} htmlFor={manualInputId}>
-						Link público da sessão
-					</label>
+				<fieldset className={styles.manualCopy}>
+					<legend className={styles.manualLabel}>Link público da sessão</legend>
 					<input
 						ref={manualInputRef}
 						id={manualInputId}
@@ -132,7 +136,13 @@ export function SessionShareActions({ title, description }: Props) {
 						Use Tentar copiar novamente ou selecione o endereço e copie manualmente.
 					</p>
 					<div className={styles.manualActions}>
-						<Button size="sm" variant="secondary" pending={copyPending} pendingLabel="Copiando…" onClick={retryCopy}>
+						<Button
+							size="sm"
+							variant="secondary"
+							pending={copyPending}
+							pendingLabel="Copiando…"
+							onClick={retryCopy}
+						>
 							Tentar copiar
 						</Button>
 						<Button
@@ -146,7 +156,7 @@ export function SessionShareActions({ title, description }: Props) {
 							Fechar
 						</Button>
 					</div>
-				</div>
+				</fieldset>
 			) : null}
 		</fieldset>
 	);
