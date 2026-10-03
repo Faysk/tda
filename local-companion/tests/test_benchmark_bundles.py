@@ -7,8 +7,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
 
 import tda_companion.benchmark_bundles as bundles
+from tda_companion.api import create_app
 from tda_companion.benchmark_bundles import (
     BENCHMARK_PROFILES,
     BUNDLE_SCHEMA_VERSION,
@@ -431,3 +433,55 @@ def test_queue_row_deletion_does_not_remove_completed_bundle(tmp_path: Path):
 
     reloaded = load_benchmark_bundle(data_root, bundle["benchmark_id"])
     assert reloaded["bundle_manifest_sha256"] == bundle["bundle_manifest_sha256"]
+
+
+
+def test_benchmark_content_endpoints_are_authenticated_lazy_and_profile_scoped(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    bundle = _finalize(data_root)
+    benchmark_id = bundle["benchmark_id"]
+    token = "s" * 43
+    origin = "https://panel.example"
+    app = create_app(data_root, token, {origin}, run_worker=False)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        unauthorized = client.get(f"/api/v1/benchmarks/{benchmark_id}")
+        assert unauthorized.status_code == 401
+
+        session_response = client.post(
+            "/api/v1/session",
+            headers={"Origin": origin, "Content-Type": "application/json"},
+            json={},
+        )
+        assert session_response.status_code == 200
+        browser_token = session_response.json()["token"]
+        headers = {
+            "Origin": origin,
+            "Authorization": f"Bearer {browser_token}",
+        }
+
+        metadata = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}",
+            headers=headers,
+        )
+        assert metadata.status_code == 200
+        assert metadata.json()["bundle_manifest_sha256"] == bundle["bundle_manifest_sha256"]
+        assert "Alice" not in metadata.text
+        assert "segments" not in metadata.text
+
+        qwen = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/profiles/qwen-fast/transcript",
+            headers=headers,
+        )
+        assert qwen.status_code == 200
+        assert qwen.headers["cache-control"] == "no-store"
+        assert qwen.json()["engine"]["profile"] == "qwen-fast"
+
+        whisper = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/profiles/whisper-turbo/transcript",
+            headers=headers,
+        )
+        assert whisper.status_code == 200
+        assert whisper.json()["engine"]["profile"] == "whisper-turbo"
+        assert qwen.content != whisper.content
