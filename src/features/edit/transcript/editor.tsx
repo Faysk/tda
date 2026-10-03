@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui";
+import { Button, Dialog } from "@/components/ui";
 import {
 	reloadTranscriptSegmentAction,
 	updateTranscriptSegmentAction,
@@ -124,6 +124,7 @@ function SegmentEditor({
 	const [revision, setRevision] = useState(initial.revision);
 	const [reloadingCurrent, setReloadingCurrent] = useState(false);
 	const [reconciliationError, setReconciliationError] = useState<string | null>(null);
+	const [confirmRemoteDiscard, setConfirmRemoteDiscard] = useState(false);
 	const textRef = useRef<HTMLTextAreaElement>(null);
 	const speakerRef = useRef<HTMLInputElement>(null);
 	const dirty = isTranscriptEditorDirty(editor);
@@ -279,6 +280,45 @@ function SegmentEditor({
 				</label>
 			</div>
 
+			<Dialog
+				open={confirmRemoteDiscard && editor.conflictRemote !== null}
+				title="Descartar meu rascunho local?"
+				description={
+					<p>
+						A versão atual do servidor substituirá a working copy desta fala. A
+						mudança só acontece depois desta confirmação.
+					</p>
+				}
+				onClose={() => setConfirmRemoteDiscard(false)}
+				actions={
+					<>
+						<Button
+							data-dialog-initial-focus
+							variant="secondary"
+							onClick={() => setConfirmRemoteDiscard(false)}
+						>
+							Manter meu rascunho
+						</Button>
+						<Button
+							variant="secondary"
+							onClick={() => {
+								setReconciliationError(null);
+								setEditor((current) => acceptTranscriptConflictRemote(current));
+								setConfirmRemoteDiscard(false);
+							}}
+						>
+							Usar versão do servidor
+						</Button>
+					</>
+				}
+			>
+				{editor.conflictRemote ? (
+					<p>
+						Servidor: <strong>{editor.conflictRemote.speaker}</strong> · revision{" "}
+						<strong>{revision}</strong>. Seu rascunho continua intacto se você cancelar.
+					</p>
+				) : null}
+			</Dialog>
 			<div className={styles.segmentMain}>
 				<label className={styles.fieldLabel}>
 					Texto
@@ -343,15 +383,7 @@ function SegmentEditor({
 										Reaplicar meu rascunho
 									</Button>
 									<Button
-										onClick={() => {
-											if (
-												!window.confirm(
-													"Descartar seu rascunho local e usar a versão atual do servidor?",
-												)
-											) return;
-											setReconciliationError(null);
-											setEditor((current) => acceptTranscriptConflictRemote(current));
-										}}
+										onClick={() => setConfirmRemoteDiscard(true)}
 										variant="tertiary"
 									>
 										Descartar meu rascunho
