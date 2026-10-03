@@ -166,7 +166,21 @@ def _complete_bundle(
                     "stage": None,
                     "code": "WORKER_READY",
                     "data": {},
-                }
+                },
+                {
+                    "schema_version": "tda_benchmark_event_v1",
+                    "seq": 1,
+                    "at": "2026-10-03T00:00:01.000Z",
+                    "relative_ms": 1000,
+                    "benchmark_id": benchmark_id,
+                    "attempt": attempt,
+                    "profile_id": profile,
+                    "sample_identity_sha256": sample_sha,
+                    "type": "result",
+                    "stage": None,
+                    "code": "WORKER_RESULT",
+                    "data": {},
+                },
             ],
         )
         telemetry = normalize_telemetry_samples(
@@ -217,6 +231,9 @@ def test_completed_bundle_is_hash_bound_queue_independent_and_contains_no_audio(
 
     assert manifest["schema_version"] == "tda_benchmark_bundle_v1"
     assert manifest["profile_order"] == list(PROFILES)
+    assert manifest["track_count"] == 1
+    assert manifest["audio_work_seconds"] == 300.0
+    assert len(manifest["manifest_payload_sha256"]) == 64
     assert manifest["context"]["sha256"] == hashlib.sha256(b"private context").hexdigest()
     assert "private context" not in json.dumps(manifest)
     assert receipt["bundle_size_bytes"] > 0
@@ -579,6 +596,44 @@ def test_event_sink_rejects_non_monotonic_sequence(tmp_path: Path):
             benchmark_id,
             profile,
             [{**base, "seq": 2}, {**base, "seq": 2}],
+        )
+
+
+def test_completed_profile_events_require_a_result_terminal_marker(tmp_path: Path):
+    benchmark_id = benchmark_id_for("benchmark-terminal", 1)
+    profile = "qwen-fast"
+    write_profile_artifact(
+        tmp_path,
+        _document(profile, "texto"),
+        benchmark_id=benchmark_id,
+        job_id="benchmark-terminal",
+        attempt=1,
+        profile_id=profile,
+        sample_identity_sha256="d" * 64,
+        sample_seconds=300.0,
+        execution_lineage=_lineage(profile),
+    )
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_EVENT_TERMINAL_INVALID"):
+        write_profile_events(
+            tmp_path,
+            benchmark_id,
+            profile,
+            [
+                {
+                    "schema_version": "tda_benchmark_event_v1",
+                    "seq": 0,
+                    "at": "2026-10-03T00:00:00.000Z",
+                    "relative_ms": 0,
+                    "benchmark_id": benchmark_id,
+                    "attempt": 1,
+                    "profile_id": profile,
+                    "sample_identity_sha256": "d" * 64,
+                    "type": "ready",
+                    "stage": None,
+                    "code": "WORKER_READY",
+                    "data": {},
+                }
+            ],
         )
 
 
