@@ -165,6 +165,7 @@ def _profile_receipts(data_root: Path, job_id: str, attempt: int, count: int = 4
                 "transcript_sha256": artifact["transcript_sha256"],
                 "transcript_size_bytes": artifact["transcript_size_bytes"],
                 "artifact_available": True,
+                "execution_lineage": _lineage(profile_id),
             }
         )
     return receipts
@@ -278,6 +279,81 @@ def test_profile_commit_failure_cleans_non_ambiguous_partial_artifact(tmp_path: 
         / "profiles"
         / "whisper-turbo"
     ).exists()
+
+
+def test_crash_before_top_manifest_preserves_profiles_but_not_completed_bundle(
+    tmp_path: Path,
+    monkeypatch,
+):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    package = _package()
+    receipts = _profile_receipts(data_root, "top-crash-job", 1)
+    real_atomic_json = bundles._atomic_json
+
+    def crash_top(path, value):
+        if path.name == "benchmark.json":
+            raise OSError("synthetic crash before top commit")
+        return real_atomic_json(path, value)
+
+    monkeypatch.setattr(bundles, "_atomic_json", crash_top)
+    with pytest.raises(OSError, match="synthetic crash"):
+        finalize_benchmark_bundle(
+            data_root,
+            job_id="top-crash-job",
+            attempt=1,
+            source_id=SOURCE_ID,
+            source_sha256=SOURCE_SHA,
+            sample=benchmark_sample_descriptor(package),
+            sample_identity_sha256=benchmark_sample_identity(package),
+            sample_seconds=300.0,
+            track_count=1,
+            audio_work_seconds=300.0,
+            context="",
+            glossary="",
+            profile_receipts=receipts,
+        )
+
+    root = benchmark_root(data_root, benchmark_id_for("top-crash-job", 1))
+    assert not (root / "benchmark.json").exists()
+    assert all(
+        (root / "profiles" / profile_id / "profile.json").is_file()
+        for profile_id in BENCHMARK_PROFILES
+    )
+
+
+def test_corrupted_profile_bytes_cannot_be_sealed_by_top_manifest(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    package = _package()
+    receipts = _profile_receipts(data_root, "corrupt-before-finalize", 1)
+    root = benchmark_root(
+        data_root,
+        benchmark_id_for("corrupt-before-finalize", 1),
+    )
+    transcript = root / "profiles" / "qwen-fast" / "transcript.json"
+    payload = bytearray(transcript.read_bytes())
+    payload[-2] = payload[-2] ^ 1
+    transcript.write_bytes(payload)
+
+    with pytest.raises(BenchmarkBundleError, match="BENCHMARK_BUNDLE_ARTIFACT_MISMATCH"):
+        finalize_benchmark_bundle(
+            data_root,
+            job_id="corrupt-before-finalize",
+            attempt=1,
+            source_id=SOURCE_ID,
+            source_sha256=SOURCE_SHA,
+            sample=benchmark_sample_descriptor(package),
+            sample_identity_sha256=benchmark_sample_identity(package),
+            sample_seconds=300.0,
+            track_count=1,
+            audio_work_seconds=300.0,
+            context="",
+            glossary="",
+            profile_receipts=receipts,
+        )
+
+    assert not (root / "benchmark.json").exists()
 
 
 def test_same_attempt_replay_is_idempotent_but_different_transcript_is_rejected(tmp_path: Path):
