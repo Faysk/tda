@@ -104,20 +104,6 @@ const layoutFixtureSessions = [
 		coverImage: "/og/default",
 	},
 	{
-		id: "layout-contract-long",
-		campaignId: "fixture-a",
-		campaignSlug: "cronicas-da-mesa",
-		campaignName: "Crônicas da Mesa",
-		campaignTechnicalSlug: "yuhara-main",
-		title: "Sessão longa sintética para navegação por seções",
-		date: "2026-09-23",
-		arc: "Contrato visual E2E",
-		summary:
-			"Fixture pública sintética para validar índice progressivo, deep links e retorno sem usar conteúdo real.",
-		fullSummary: longLayoutSummary,
-		coverImage: "/og/default",
-	},
-	{
 		id: "layout-contract-previous",
 		campaignId: "fixture-a",
 		campaignSlug: "cronicas-da-mesa",
@@ -131,6 +117,26 @@ const layoutFixtureSessions = [
 		fullSummary: "# Memória anterior\n\nConteúdo sintético.",
 		heroImage: "/og/default",
 	},
+] as const satisfies readonly PublishedSession[];
+
+const longLayoutFixtureSession = {
+	id: "layout-contract-long",
+	campaignId: "fixture-a",
+	campaignSlug: "cronicas-da-mesa",
+	campaignName: "Crônicas da Mesa",
+	campaignTechnicalSlug: "yuhara-main",
+	title: "Sessão longa sintética para navegação por seções",
+	date: "2026-09-23",
+	arc: "Contrato visual E2E",
+	summary:
+		"Fixture pública sintética para validar índice progressivo, deep links e retorno sem usar conteúdo real.",
+	fullSummary: longLayoutSummary,
+	coverImage: "/og/default",
+} as const satisfies PublishedSession;
+
+const layoutFixtureDetailSessions = [
+	...layoutFixtureSessions,
+	longLayoutFixtureSession,
 ] as const satisfies readonly PublishedSession[];
 
 function layoutFixtureEnabled() {
@@ -484,8 +490,9 @@ export const findPublishedSession = cache(
 
 		if (layoutFixtureEnabled()) {
 			return (
-				fixtureArchive(campaignSlug).find(
-					(session) => session.id === id,
+				layoutFixtureDetailSessions.find(
+					(session) =>
+						session.campaignSlug === campaignSlug && session.id === id,
 				) ?? null
 			);
 		}
@@ -543,9 +550,14 @@ export async function findPublishedSessionNeighbors(
 	session: PublishedSession,
 ): Promise<PublishedSessionNeighbors> {
 	if (layoutFixtureEnabled()) {
-		const archive = [...fixtureArchive(session.campaignSlug)].sort(
-			compareHomeSessions,
-		);
+		const fixtureSource =
+			session.id === longLayoutFixtureSession.id &&
+			session.campaignSlug === longLayoutFixtureSession.campaignSlug
+				? layoutFixtureDetailSessions.filter(
+						(item) => item.campaignSlug === session.campaignSlug,
+					)
+				: fixtureArchive(session.campaignSlug);
+		const archive = [...fixtureSource].sort(compareHomeSessions);
 		const currentIndex = archive.findIndex(
 			(item) => item.id === session.id,
 		);
@@ -584,7 +596,7 @@ export const findLegacyPublishedSession = cache(async (id: string) => {
 	if (!id || id.length > 220) return null;
 
 	if (layoutFixtureEnabled()) {
-		const matches = layoutFixtureSessions.filter(
+		const matches = layoutFixtureDetailSessions.filter(
 			(session) => session.id === id,
 		);
 		if (matches.length === 0) {
