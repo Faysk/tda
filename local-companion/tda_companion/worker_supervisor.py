@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Callable
 
 from .asr_runtime import inspect_whisper_runtime
+from .benchmark_evidence import benchmark_id_for, commit_bundle, load_bundle
+from .craig_runtime import load_craig_package
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import inspect_qwen_runtime
 from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
@@ -651,6 +653,24 @@ class WorkerSupervisor:
                     },
                 )
             )
+        benchmark_id = benchmark_id_for(job_id, attempt)
+        bundle = None
+        if self.data_root is not None:
+            package_root = (self.data_root / "staging" / source_id).resolve()
+            package = load_craig_package(package_root, verify_tracks=False)
+            bundle = commit_bundle(
+                package_root,
+                benchmark_id=benchmark_id,
+                source_id=source_id,
+                source_sha256=package.source_sha256,
+                job_id=job_id,
+                attempt=attempt,
+                sample_identity_sha256=sample_identity_sha256,
+                sample_seconds=sample_seconds,
+                track_count=len(package.tracks),
+                audio_work_seconds=sample_seconds * len(package.tracks),
+            )
+            load_bundle(package_root, benchmark_id, verify_artifacts=True)
         return WorkerOutcome(
             terminal="result",
             payload={
@@ -660,6 +680,8 @@ class WorkerSupervisor:
                 "sample_identity_sha256": sample_identity_sha256,
                 "sample_seconds": sample_seconds,
                 "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                "benchmark_id": benchmark_id if bundle is not None else None,
+                "evidence_schema_version": bundle["schema_version"] if bundle is not None else None,
                 "profiles": receipts,
             },
             returncode=0,
