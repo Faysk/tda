@@ -129,9 +129,17 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 	page,
 }) => {
 	await page.goto("/campanhas/sessoes");
-	await expect(page.getByText("Arquivo de campanhas", { exact: true })).toBeVisible();
+	const aggregateHero = page.locator("[data-session-archive-hero]");
+	await expect(aggregateHero).toHaveAttribute(
+		"data-session-archive-artwork-source",
+		"hero",
+	);
+	await expectDecodedImage(aggregateHero, "aggregate latest-session hero");
+	await expect(page.locator('[data-session-archive-scope="aggregate"]')).toBeVisible();
+	await expect(page.getByText("Arquivo global", { exact: true })).toBeVisible();
+	await expect(page.getByRole("heading", { level: 1, name: "Todas as campanhas" })).toBeVisible();
 	await expect(
-		page.getByText("Sessões publicadas de todas as campanhas públicas", { exact: false }),
+		page.getByRole("region", { name: "Sessões publicadas de todas as campanhas" }),
 	).toBeVisible();
 	await expect(page.locator("[data-session-card]")).toHaveCount(4);
 	const filter = page.getByLabel("Filtrar por campanha");
@@ -152,7 +160,8 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 	).toHaveCount(0);
 
 	await page.goto(`/campanhas/${CAMPAIGN_A.route}/sessoes`);
-	await expect(page.getByText("Arquivo da campanha", { exact: true })).toBeVisible();
+	await expect(page.locator('[data-session-archive-scope="campaign"]')).toBeVisible();
+	await expect(page.getByText("Campanha · arquivo de sessões", { exact: true })).toBeVisible();
 	await expect(page.getByRole("heading", { level: 1, name: CAMPAIGN_A.name })).toBeVisible();
 	await expect(page.getByLabel("Filtrar por campanha")).toHaveCount(0);
 	await expect(page.locator("[data-session-card]")).toHaveCount(3);
@@ -241,6 +250,43 @@ test("[world] campaign B cannot inherit A nodes, edges or restored layout state"
 	await page.goto(`/campanhas/${CAMPAIGN_A.route}/mundo`);
 	await expect(page.locator('[data-world-node="dandelion"]')).toBeVisible();
 	await expect(page.locator('[data-world-edge="astel-raven-queen"]')).toBeVisible();
+});
+
+test("[world catalogue shell] mobile chrome cannot steal the universe navigation target", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/personagens");
+
+	const trigger = page.getByRole("button", { name: "Explorar universo" });
+	await expect(trigger).toBeVisible();
+	const [brandBox, accountBox, triggerBox] = await Promise.all([
+		page.locator(".brand").boundingBox(),
+		page.locator(".account-menu-trigger").boundingBox(),
+		trigger.boundingBox(),
+	]);
+	expect(brandBox).not.toBeNull();
+	expect(accountBox).not.toBeNull();
+	expect(triggerBox).not.toBeNull();
+	const chromeBottom = Math.max(
+		(brandBox?.y ?? 0) + (brandBox?.height ?? 0),
+		(accountBox?.y ?? 0) + (accountBox?.height ?? 0),
+	);
+	expect(triggerBox?.y ?? -1, "universe trigger must clear floating chrome").toBeGreaterThanOrEqual(
+		chromeBottom + 4,
+	);
+
+	const initialUrl = page.url();
+	await trigger.click();
+	await expect(
+		page.getByRole("dialog", { name: "Navegação do universo da campanha" }),
+	).toBeVisible();
+	expect(page.url(), "opening universe navigation must not activate the Home brand link").toBe(
+		initialUrl,
+	);
+	await expect(
+		page.getByRole("link", { name: /Voltar ao início/u }).last(),
+	).toBeVisible();
 });
 
 test("[auth/Edit] A+B, A-only, anonymous and unavailable states remain fail-closed and distinguishable", async ({
@@ -338,6 +384,7 @@ test("[reflow] fast acceptance covers 390px, 1366px and the governed 200% proxy 
 			"/campanhas/sessoes",
 			`/campanhas/${CAMPAIGN_A.route}/sessoes`,
 			"/lore",
+			"/personagens",
 		]) {
 			await page.goto(route);
 			await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
