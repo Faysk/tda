@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 from .asr_runtime import inspect_whisper_runtime
-from .benchmark_evidence import benchmark_id_for, commit_bundle, load_bundle
+from .benchmark_evidence import benchmark_id_for, bundle_descriptor, commit_bundle, load_bundle
 from .craig_runtime import load_craig_package
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import inspect_qwen_runtime
@@ -669,8 +669,11 @@ class WorkerSupervisor:
                 sample_seconds=sample_seconds,
                 track_count=len(package.tracks),
                 audio_work_seconds=sample_seconds * len(package.tracks),
+                context=context,
+                glossary=glossary,
             )
             load_bundle(package_root, benchmark_id, verify_artifacts=True)
+            descriptor = bundle_descriptor(package_root, benchmark_id)
         return WorkerOutcome(
             terminal="result",
             payload={
@@ -682,6 +685,9 @@ class WorkerSupervisor:
                 "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
                 "benchmark_id": benchmark_id if bundle is not None else None,
                 "evidence_schema_version": bundle["schema_version"] if bundle is not None else None,
+                "bundle_manifest_sha256": descriptor["manifest_sha256"] if bundle is not None else None,
+                "bundle_manifest_size_bytes": descriptor["manifest_size_bytes"] if bundle is not None else None,
+                "bundle_size_bytes": descriptor["bundle_size_bytes"] if bundle is not None else None,
                 "profiles": receipts,
             },
             returncode=0,
