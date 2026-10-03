@@ -106,9 +106,12 @@ describe("CampaignPicker", () => {
 				ariaLabel="Campanha"
 				pending
 				pendingLabel="Trocando campanha…"
+				canManage
 			/>,
 		);
+		expect(html).toContain('data-pending="true"');
 		expect(html).toContain('aria-busy="true"');
+		expect(html).toContain('aria-disabled="true"');
 		expect(html).toContain("disabled");
 		expect(html).toContain("Trocando campanha…");
 		expect(html).toContain('aria-live="polite"');
