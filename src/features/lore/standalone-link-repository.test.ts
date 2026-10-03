@@ -48,7 +48,7 @@ describe("standalone lore campaign linkage", () => {
 				data: {
 					id: "campaign-d-id",
 					slug: "antes-que-seja-tarde",
-					name: "Antes que seja tarde",
+					name: "Passos Retomados",
 				},
 				error: null,
 			},
@@ -64,7 +64,7 @@ describe("standalone lore campaign linkage", () => {
 		await expect(resolveStandaloneLoreCampaignLink("d")).resolves.toEqual({
 			campaignId: "campaign-d-id",
 			technicalSlug: "antes-que-seja-tarde",
-			name: "Antes que seja tarde",
+			name: "Passos Retomados",
 			publicCampaign: null,
 		});
 		expect(calls).toContainEqual({
@@ -79,7 +79,7 @@ describe("standalone lore campaign linkage", () => {
 				data: {
 					id: "campaign-d-id",
 					slug: "antes-que-seja-tarde",
-					name: "Antes que seja tarde",
+					name: "Passos Retomados",
 				},
 				error: null,
 			},
@@ -95,10 +95,10 @@ describe("standalone lore campaign linkage", () => {
 		await expect(resolveStandaloneLoreCampaignLink("d")).resolves.toEqual({
 			campaignId: "campaign-d-id",
 			technicalSlug: "antes-que-seja-tarde",
-			name: "Antes que seja tarde",
+			name: "Passos Retomados",
 			publicCampaign: {
 				routeKey: "antes-que-seja-tarde",
-				name: "Antes que seja tarde",
+				name: "Passos Retomados",
 			},
 		});
 	});
@@ -109,7 +109,7 @@ describe("standalone lore campaign linkage", () => {
 				data: {
 					id: "campaign-d-id",
 					slug: "antes-que-seja-tarde",
-					name: "Antes que seja tarde",
+					name: "Passos Retomados",
 				},
 				error: null,
 			},
@@ -118,7 +118,7 @@ describe("standalone lore campaign linkage", () => {
 		await expect(resolveStandaloneLoreCampaignLink("d")).resolves.toEqual({
 			campaignId: "campaign-d-id",
 			technicalSlug: "antes-que-seja-tarde",
-			name: "Antes que seja tarde",
+			name: "Passos Retomados",
 			publicCampaign: null,
 		});
 	});
@@ -129,7 +129,7 @@ describe("standalone lore campaign linkage", () => {
 				data: {
 					id: "legacy-campaign-id",
 					slug: "yuhara-main",
-					name: "Crônicas da Mesa",
+					name: "Destino Sem Fim",
 				},
 				error: null,
 			},
@@ -145,10 +145,10 @@ describe("standalone lore campaign linkage", () => {
 		await expect(resolveStandaloneLoreCampaignLink("astel")).resolves.toEqual({
 			campaignId: "legacy-campaign-id",
 			technicalSlug: "yuhara-main",
-			name: "Crônicas da Mesa",
+			name: "Destino Sem Fim",
 			publicCampaign: {
 				routeKey: "cronicas-da-mesa",
-				name: "Crônicas da Mesa",
+				name: "Destino Sem Fim",
 			},
 		});
 		expect(calls).toContainEqual({
@@ -157,8 +157,8 @@ describe("standalone lore campaign linkage", () => {
 		});
 	});
 
-	it("does not touch storage for an unlinked standalone lore", async () => {
-		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toBeNull();
+	it("does not touch storage for an unknown or unlinked lore slug", async () => {
+		await expect(resolveStandaloneLoreCampaignLink("missing-lore")).resolves.toBeNull();
 		expect(mocks.client).not.toHaveBeenCalled();
 	});
 });
