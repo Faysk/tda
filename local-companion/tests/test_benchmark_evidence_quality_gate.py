@@ -10,12 +10,14 @@ from tda_companion.benchmark_evidence import (
     CANONICAL_PROFILES,
     BenchmarkEvidenceError,
     benchmark_id_for,
+    bundle_descriptor,
     commit_bundle,
     deterministic_private_zip,
     load_bundle,
     load_profile_transcript,
     remove_incomplete_bundles,
     sanitize_benchmark_event,
+    summarize_telemetry,
     transcript_srt,
     transcript_text,
     transcript_vtt,
@@ -437,3 +439,249 @@ def test_shareable_quality_receipt_does_not_include_reference_or_transcript_text
     assert "Olá mundo" not in encoded
     # Term identifiers are hashed in the shareable receipt.
     assert '"term_sha256"' in encoded
+
+
+
+def _rewrite_json(path, mutate):
+    value = json.loads(path.read_text(encoding="utf-8"))
+    mutate(value)
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+
+def test_bundle_manifest_is_completed_provenance_bound_and_exposes_controlled_descriptors(tmp_path):
+    package, benchmark_id = _write_complete_bundle(tmp_path)
+    manifest = load_bundle(package, benchmark_id)
+    descriptor = bundle_descriptor(package, benchmark_id)
+    assert manifest["status"] == "completed"
+    assert manifest["profile_order"] == list(CANONICAL_PROFILES)
+    assert manifest["context_sha256"] == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    assert manifest["glossary_sha256"] == manifest["context_sha256"]
+    assert descriptor["manifest_sha256"]
+    assert descriptor["bundle_size_bytes"] > descriptor["manifest_size_bytes"]
+    for entry in manifest["profiles"]:
+        profile_id = entry["profile_id"]
+        assert entry["profile_manifest"]["path"] == f"profiles/{profile_id}/profile.json"
+        assert entry["transcript"]["path"] == f"profiles/{profile_id}/transcript.json"
+        assert entry["metrics"]["path"] == f"profiles/{profile_id}/metrics.json"
+        assert entry["events"]["path"] == f"profiles/{profile_id}/events.jsonl"
+        assert entry["transcript"]["size_bytes"] > 0
+
+
+@pytest.mark.parametrize(
+    ("mutation", "code"),
+    [
+        (lambda value: value.__setitem__("status", "partial"), "BENCHMARK_MANIFEST_MISMATCH"),
+        (
+            lambda value: value.__setitem__("sample_identity_sha256", "f" * 64),
+            "BENCHMARK_PROFILE_MANIFEST_MISMATCH",
+        ),
+        (
+            lambda value: value["profiles"][0].__setitem__("profile_id", "qwen-fast"),
+            "BENCHMARK_PROFILE_SET_INVALID",
+        ),
+        (
+            lambda value: value["profiles"][0]["transcript"].__setitem__(
+                "size_bytes", value["profiles"][0]["transcript"]["size_bytes"] + 1
+            ),
+            "BENCHMARK_ARTIFACT_DESCRIPTOR_MISMATCH",
+        ),
+        (
+            lambda value: value["profiles"][0]["transcript"].__setitem__("path", "../escape.json"),
+            "BENCHMARK_ARTIFACT_DESCRIPTOR_MISMATCH",
+        ),
+    ],
+)
+def test_top_level_manifest_mutations_fail_closed(tmp_path, mutation, code):
+    package, benchmark_id = _write_complete_bundle(tmp_path)
+    path = package / "benchmarks" / benchmark_id / "benchmark.json"
+    _rewrite_json(path, mutation)
+    with pytest.raises(BenchmarkEvidenceError, match=code):
+        load_bundle(package, benchmark_id)
+
+
+def test_profile_manifest_mutation_fails_top_level_hash_verification(tmp_path):
+    package, benchmark_id = _write_complete_bundle(tmp_path)
+    path = package / "benchmarks" / benchmark_id / "profiles" / "qwen-quality" / "profile.json"
+    _rewrite_json(path, lambda value: value.__setitem__("sample_identity_sha256", "f" * 64))
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_PROFILE_MANIFEST_HASH_MISMATCH"):
+        load_bundle(package, benchmark_id)
+
+
+def test_committed_profiles_and_bundle_cannot_be_overwritten(tmp_path):
+    package, benchmark_id = _write_complete_bundle(tmp_path)
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_PROFILE_ALREADY_COMMITTED"):
+        write_profile_artifact(
+            package,
+            benchmark_id=benchmark_id,
+            job_id=JOB_ID,
+            attempt=ATTEMPT,
+            sample_identity_sha256=SAMPLE_SHA,
+            document=_document("qwen-quality", "outro"),
+            receipt=_receipt("qwen-quality"),
+            context="",
+            glossary="",
+        )
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_ALREADY_COMMITTED"):
+        commit_bundle(
+            package,
+            benchmark_id=benchmark_id,
+            source_id="craig-" + SOURCE_SHA,
+            source_sha256=SOURCE_SHA,
+            job_id=JOB_ID,
+            attempt=ATTEMPT,
+            sample_identity_sha256=SAMPLE_SHA,
+            sample_seconds=300.0,
+            track_count=1,
+            audio_work_seconds=300.0,
+        )
+
+
+def test_partial_profile_matrix_never_has_a_completed_bundle(tmp_path):
+    for count in range(4):
+        package = tmp_path / f"partial-{count}" / "staging" / ("craig-" + SOURCE_SHA)
+        package.mkdir(parents=True)
+        benchmark_id = benchmark_id_for(f"{JOB_ID}-{count}", ATTEMPT)
+        for profile_id in CANONICAL_PROFILES[:count]:
+            write_profile_artifact(
+                package,
+                benchmark_id=benchmark_id,
+                job_id=f"{JOB_ID}-{count}",
+                attempt=ATTEMPT,
+                sample_identity_sha256=SAMPLE_SHA,
+                document=_document(profile_id, profile_id),
+                receipt=_receipt(profile_id),
+                context="",
+                glossary="",
+            )
+        with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_INCOMPLETE"):
+            load_bundle(package, benchmark_id)
+
+
+def test_path_traversal_and_symlink_root_fail_closed(tmp_path):
+    package = tmp_path / "staging" / ("craig-" + SOURCE_SHA)
+    package.mkdir(parents=True)
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_ID_INVALID"):
+        load_bundle(package, "../escape")
+    link = tmp_path / "linked-package"
+    try:
+        link.symlink_to(package, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this runner")
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_PACKAGE_ROOT_UNSAFE"):
+        load_bundle(link, "benchmark-safe")
+
+
+def test_benchmark_id_changes_per_deliberate_attempt_and_is_stable_within_attempt():
+    assert benchmark_id_for(JOB_ID, 1) == benchmark_id_for(JOB_ID, 1)
+    assert benchmark_id_for(JOB_ID, 1) != benchmark_id_for(JOB_ID, 2)
+
+
+def test_telemetry_summary_handles_unavailable_partial_complete_and_wrong_gpu():
+    unavailable = summarize_telemetry(
+        [],
+        interval_ms=1000,
+        expected_samples=3,
+        expected_gpu_identity="GPU-1",
+    )
+    assert unavailable["captured_samples"] == 0
+    assert unavailable["coverage"] == 0
+    assert unavailable["missing_reason"] == "SAMPLER_NOT_AVAILABLE"
+    assert unavailable["vram_peak_bytes"] is None
+
+    partial = summarize_telemetry(
+        [
+            {
+                "relative_ms": 0,
+                "gpu_identity": "GPU-1",
+                "gpu_utilization_percent": 50,
+                "vram_used_bytes": 100,
+                "vram_total_bytes": 1000,
+                "cpu_utilization_percent": 10,
+                "ram_used_bytes": 200,
+            },
+            {
+                "relative_ms": 1000,
+                "gpu_identity": "GPU-1",
+                "gpu_utilization_percent": 90,
+                "vram_used_bytes": 300,
+                "vram_total_bytes": 1000,
+                "cpu_utilization_percent": 30,
+                "ram_used_bytes": 250,
+                "temperature_c": 70,
+                "power_w": 120,
+            },
+        ],
+        interval_ms=1000,
+        expected_samples=4,
+        expected_gpu_identity="GPU-1",
+    )
+    assert partial["coverage"] == 0.5
+    assert partial["vram_peak_bytes"] == 300
+    assert partial["gpu_utilization_average_percent"] == 70
+    assert partial["gpu_utilization_p95_percent"] == 90
+    assert partial["ram_peak_bytes"] == 250
+    assert partial["temperature_max_c"] == 70
+    assert partial["power_peak_w"] == 120
+
+    complete = summarize_telemetry(
+        [
+            {"relative_ms": 0, "gpu_identity": "GPU-1", "gpu_utilization_percent": 1},
+            {"relative_ms": 1000, "gpu_identity": "GPU-1", "gpu_utilization_percent": 2},
+        ],
+        interval_ms=1000,
+        expected_samples=2,
+        expected_gpu_identity="GPU-1",
+    )
+    assert complete["coverage"] == 1.0
+
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_TELEMETRY_GPU_MISMATCH"):
+        summarize_telemetry(
+            [{"relative_ms": 0, "gpu_identity": "GPU-2"}],
+            interval_ms=1000,
+            expected_samples=1,
+            expected_gpu_identity="GPU-1",
+        )
+
+
+def test_telemetry_rejects_sampling_time_reversal_and_private_gpu_identity():
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_TELEMETRY_TIME_INVALID"):
+        summarize_telemetry(
+            [{"relative_ms": 1000}, {"relative_ms": 500}],
+            interval_ms=1000,
+            expected_samples=2,
+        )
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_TELEMETRY_GPU_INVALID"):
+        summarize_telemetry(
+            [{"relative_ms": 0, "gpu_identity": "C:\\Users\\Alice\\gpu"}],
+            interval_ms=1000,
+            expected_samples=1,
+        )
+
+
+def test_normalization_known_edge_cases_and_mismatch_fail_closed(tmp_path):
+    assert normalize_text("  OLÁ\t\nMUNDO!!! ") == "olá mundo"
+    assert normalize_text("d’Artagnan") == "d'artagnan"
+    assert normalize_text("Porto‑Alegre") == "porto-alegre"
+    assert normalize_text("ação") == normalize_text("ação")
+    assert score_text("um dois", "")["wer_normalized"] == 1.0
+
+    package, benchmark_id = _write_complete_bundle(tmp_path)
+    create_reference_revision(
+        package,
+        benchmark_id,
+        sample_identity_sha256=SAMPLE_SHA,
+        tracks=[{"track_number": 1, "speaker": "Amos", "text": "Olá mundo"}],
+    )
+    pointer = package / "benchmarks" / benchmark_id / "reference" / "current.json"
+    current = json.loads(pointer.read_text(encoding="utf-8"))
+    reference_path = pointer.parent / current["artifact"]
+    _rewrite_json(
+        reference_path,
+        lambda value: value.__setitem__("normalization_version", "tda_asr_text_normalization_v0"),
+    )
+    # The payload hash no longer matches even before the scorer can accept stale semantics.
+    with pytest.raises(BenchmarkQualityError, match="REFERENCE_HASH_MISMATCH"):
+        score_profile(package, benchmark_id, "qwen-quality")
