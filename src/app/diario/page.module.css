@@ -58,16 +58,15 @@
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface);
 	color: var(--ds-foreground);
-	text-decoration: none;
+	transition:
+		background-color 160ms ease,
+		border-color 160ms ease;
 }
 
-.book:hover {
+.book:hover,
+.book:focus-within {
+	border-color: var(--ds-control-border);
 	background: var(--ds-surface-hover);
-}
-
-.book:focus-visible {
-	outline: 2px solid var(--ds-accent);
-	outline-offset: 5px;
 }
 
 .spine {
@@ -94,6 +93,50 @@
 	margin: 0 0 12px;
 }
 
+.context {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 14px;
+}
+
+.contextLink {
+	display: inline-flex;
+	min-height: 36px;
+	align-items: center;
+	max-width: 100%;
+	padding: 7px 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: 999px;
+	color: var(--ds-foreground-soft);
+	font-family: var(--ds-font-ui);
+	font-size: 0.76rem;
+	font-weight: 650;
+	line-height: 1.25;
+	overflow-wrap: anywhere;
+}
+
+.contextLink:hover {
+	border-color: var(--ds-control-border);
+	color: var(--ds-foreground);
+}
+
+.contextLink:focus-visible,
+.action:focus-visible {
+	outline: 2px solid var(--ds-accent);
+	outline-offset: 3px;
+}
+
+.empty {
+	max-width: 58ch;
+	margin: 0;
+	padding: 28px 0;
+	border-top: 1px solid var(--ds-border);
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	line-height: 1.6;
+}
+
 .action {
 	display: inline-flex;
 	align-items: center;
@@ -104,6 +147,7 @@
 	font-size: 0.84rem;
 	font-weight: 650;
 	white-space: nowrap;
+	text-decoration: none;
 }
 
 @media (max-width: 900px) {
@@ -139,5 +183,11 @@
 
 	.book h2 {
 		font-size: 1.5rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.book {
+		transition: none;
 	}
 }
