@@ -116,6 +116,19 @@ async function installRecoveredPendingSession(
 			runs: [],
 		}),
 	);
+	await page.route(
+		/^http:\/\/127\\.0\\.0\\.1:8765\/api\/v1\/jobs(?:\\?.*)?$/u,
+		(route) =>
+			fulfillJson(route, {
+				schema_version: "tda_job_page_v1",
+				scope: "all",
+				jobs: [],
+				has_more: false,
+				next_cursor: null,
+				total_matching: 0,
+				counts: {},
+			}),
+	);
 }
 
 async function installCompletedRunCatalog(
