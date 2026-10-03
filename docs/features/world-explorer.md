@@ -178,6 +178,7 @@ O World Explorer deixou de depender de campaign implícita no boundary Web:
 
 - `/mundo` é entrypoint/seleção e **não escolhe silenciosamente uma campaign** quando há mais de uma pública;
 - `/campanhas/[public_slug]/mundo` é a rota pública canônica e resolve server-side para o `slug` técnico;
+- dentro das rotas canônicas de uma campaign, a navegação entre Mundo, catálogos e perfis preserva o mesmo `public_slug`; aliases legados sem prefixo permanecem apenas como compatibilidade e não devem arrancar o usuário do contexto canônico;
 - `/edit/[technical_slug]/mundo` é a rota privada de authoring e lista/troca somente campaigns cobertas por `campaign.world.layout.edit`;
 - projection, layout publicado, revision metadata, lease, graph draft, provenance, publish e upload/finalização de portrait recebem campaign explicitamente;
 - server actions reautorizam a campaign recebida; URL, header, sessionStorage e estado React são apenas intenção do cliente;
