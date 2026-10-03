@@ -17,6 +17,9 @@ function fulfillJson(
 		status,
 		headers: {
 			"Access-Control-Allow-Origin": UI_ORIGIN,
+			"Access-Control-Allow-Headers":
+				"Authorization, Content-Type, Idempotency-Key",
+			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify(value),
