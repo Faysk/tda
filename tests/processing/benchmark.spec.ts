@@ -656,6 +656,10 @@ test("completed benchmark loads a comparable receipt while failed history remain
 
 	await panel.getByRole("button", { name: "Comparar por track e tempo" }).click();
 	await expect(panel.getByText(/regiões · .* diferentes/u)).toBeVisible();
+	await panel.getByRole("button", { name: "Carregar diagnóstico persistido" }).click();
+	await expect(panel.getByText(/2 eventos sanitizados/u)).toBeVisible();
+	await expect(panel.getByText(/BENCHMARK_PROFILE_COMPLETED/u)).toBeVisible();
+	await expect(panel).not.toContainText("C:\\Users\\");
 
 	await panel.getByRole("button", { name: "Usar como rascunho" }).click();
 	await expect(panel.getByText(/Rascunho criado/u)).toBeVisible();
