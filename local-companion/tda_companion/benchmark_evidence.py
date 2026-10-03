@@ -348,10 +348,46 @@ def _read_bundle_manifest(data_root: Path, benchmark_id: str) -> dict[str, Any]:
         raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
     if _manifest_payload_sha256(manifest) != integrity:
         raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INTEGRITY_FAILED")
+    normalized_sample = _validate_sample_descriptor(
+        sample,
+        source_sha256=source_sha256,
+        sample_seconds=float(sample_seconds),
+        sample_identity_sha256=sample_identity,
+    )
+    if track_count != len(normalized_sample["tracks"]):
+        raise BenchmarkEvidenceError("BENCHMARK_SAMPLE_TRACK_COUNT_MISMATCH")
+    if not math.isclose(
+        float(audio_work_seconds),
+        float(sample_seconds) * track_count,
+        abs_tol=0.001,
+    ):
+        raise BenchmarkEvidenceError("BENCHMARK_SAMPLE_AUDIO_WORK_MISMATCH")
+    if manifest.get("execution_mode") not in {
+        "prepared_artifacts_fresh_worker_per_profile_v1",
+        "prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2",
+    }:
+        raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
     return manifest
 
 
+def _legacy_bundle(data_root: Path, benchmark_id: str) -> dict[str, Any]:
+    try:
+        return load_legacy_bundle(data_root, benchmark_id)
+    except BenchmarkBundleError as exc:
+        raise BenchmarkEvidenceError(str(exc)) from exc
+
+
+def _bundle_is_legacy(data_root: Path, benchmark_id: str) -> bool:
+    manifest = _read_json(benchmark_root(data_root, benchmark_id) / "benchmark.json")
+    return "manifest_payload_sha256" not in manifest
+
+
 def bundle_manifest_sha256(data_root: Path, benchmark_id: str) -> str:
+    if _bundle_is_legacy(data_root, benchmark_id):
+        value = _legacy_bundle(data_root, benchmark_id).get("bundle_manifest_sha256")
+        if not isinstance(value, str) or _SHA256.fullmatch(value) is None:
+            raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
+        return value
     _read_bundle_manifest(data_root, benchmark_id)
     digest, _, _ = _sha256_file(
         benchmark_root(data_root, benchmark_id) / "benchmark.json",
@@ -1099,6 +1135,8 @@ def finalize_bundle(
 
 def load_bundle(data_root: Path, benchmark_id: str) -> dict[str, Any]:
     root = benchmark_root(data_root, benchmark_id)
+    if _bundle_is_legacy(data_root, benchmark_id):
+        return _legacy_bundle(data_root, benchmark_id)
     manifest = _read_bundle_manifest(data_root, benchmark_id)
     for item in manifest["profiles"]:
         if not isinstance(item, dict):
@@ -1202,6 +1240,33 @@ def verified_profile_bytes(
 ) -> bytes:
     if artifact not in {"profile", "transcript", "metrics", "events", "telemetry"}:
         raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_INVALID")
+    if _bundle_is_legacy(data_root, benchmark_id):
+        if artifact == "transcript":
+            try:
+                return read_legacy_transcript(data_root, benchmark_id, profile_id)
+            except BenchmarkBundleError as exc:
+                raise BenchmarkEvidenceError(str(exc)) from exc
+        if artifact == "profile":
+            bundle = _legacy_bundle(data_root, benchmark_id)
+            entry = next(
+                (
+                    item
+                    for item in bundle.get("profiles", [])
+                    if isinstance(item, dict) and item.get("profile_id") == profile_id
+                ),
+                None,
+            )
+            if not isinstance(entry, dict):
+                raise BenchmarkEvidenceError("BENCHMARK_PROFILE_NOT_FOUND")
+            descriptor = entry.get("profile_manifest")
+            if not isinstance(descriptor, dict):
+                raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_UNAVAILABLE")
+            path = profile_root(data_root, benchmark_id, profile_id) / "profile.json"
+            digest, size, payload = _sha256_file(path, _MAX_JSON_BYTES)
+            if digest != descriptor.get("sha256") or size != descriptor.get("size_bytes"):
+                raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_INTEGRITY_FAILED")
+            return payload
+        raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_UNAVAILABLE")
     manifest = _read_bundle_manifest(data_root, benchmark_id)
     item = _profile_entry(manifest, profile_id)
     artifacts = item.get("artifacts")
