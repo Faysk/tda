@@ -340,6 +340,22 @@
 	min-width: calc(100% + 37px);
 }
 
+.sortSelect > [role="listbox"] [role="option"] {
+	grid-template-columns: minmax(0, 1fr) auto;
+	height: auto;
+	min-height: 44px;
+}
+
+.sortSelect > [role="listbox"] [role="option"] > span {
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	overflow: visible;
+	text-overflow: clip;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
 .resultsBar {
 	display: flex;
 	min-height: 34px;
@@ -1740,11 +1756,18 @@
 		overflow-wrap: anywhere;
 	}
 
-	.campaignSelect > [role="listbox"],
-	.sortSelect > [role="listbox"] {
+	.campaignSelect > [role="listbox"] {
 		right: 0;
 		left: 0;
 		min-width: 100%;
+	}
+
+	.sortSelect > [role="listbox"] {
+		right: 0;
+		left: auto;
+		width: max(100%, 168px);
+		min-width: 0;
+		max-width: calc(100vw - 2 * var(--ds-page-gutter, 16px));
 	}
 
 	.campaignSelect > [role="listbox"] [role="option"] {
