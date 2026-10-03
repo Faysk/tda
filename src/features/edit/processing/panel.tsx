@@ -9,6 +9,7 @@ import {
 } from "react";
 import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { StatusPill } from "@/components/ui/status";
 import { ProcessingBenchmark } from "./benchmark";
 import { CompanionDownload } from "./companion-download";
@@ -63,7 +64,16 @@ import styles from "./processing.module.css";
 
 type Confirmation =
 	| { id: string; action: "cancel" | "retry" | "delete" }
-	| { action: "resume" };
+	| { action: "resume" }
+	| {
+			 action: "switch_campaign";
+			 targetId: string;
+			 targetName: string;
+			 hasDraft: boolean;
+			 hasActiveWork: boolean;
+			 hasMutation: boolean;
+			 hasUncertainSubmission: boolean;
+	  };
 
 type ProcessingView = "overview" | "queue" | "results" | "benchmark" | "diagnostics";
 
@@ -346,8 +356,8 @@ export function ProcessingPanel({
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
 	const [campaignSelection, setCampaignSelection] = useState(campaignId);
+	const campaignSelectorRef = useRef<HTMLSelectElement>(null);
 	const diagnosticOpener = useRef<HTMLElement | null>(null);
-	const dialog = useRef<HTMLDialogElement>(null);
 
 	useEffect(() => {
 		void controller.connect();
@@ -376,11 +386,6 @@ export function ProcessingPanel({
 			document.removeEventListener("visibilitychange", visible);
 		};
 	}, [controller, state.connection, state.jobs, state.mutation]);
-	useEffect(() => {
-		if (confirmation) dialog.current?.showModal();
-		else dialog.current?.close();
-	}, [confirmation]);
-
 	const connected = state.connection === "connected";
 	const campaignJobs = state.jobs.filter(
 		(job) =>
@@ -512,10 +517,23 @@ export function ProcessingPanel({
 		return () => window.clearInterval(timer);
 	}, [activeJobClockKey]);
 
+	function dismissConfirmation() {
+		const restoreCampaignFocus = confirmation?.action === "switch_campaign";
+		if (restoreCampaignFocus) setCampaignSelection(campaignId);
+		setConfirmation(null);
+		if (restoreCampaignFocus) {
+			window.requestAnimationFrame(() => campaignSelectorRef.current?.focus());
+		}
+	}
+
 	async function confirm() {
 		const choice = confirmation;
 		setConfirmation(null);
 		if (!choice) return;
+		if (choice.action === "switch_campaign") {
+			window.location.assign(processingCampaignHref(choice.targetId));
+			return;
+		}
 		if (choice.action === "resume") await controller.lifecycle("resume");
 		else if (choice.action === "delete") await controller.deleteJob(choice.id);
 		else {
@@ -626,25 +644,33 @@ export function ProcessingPanel({
 			setCampaignSelection(campaignId);
 			return;
 		}
-		if (!campaignOptions.some((campaign) => campaign.technicalSlug === nextCampaignId)) {
+		const target = campaignOptions.find(
+			(campaign) => campaign.technicalSlug === nextCampaignId,
+		);
+		if (!target) {
 			setCampaignSelection(campaignId);
 			return;
 		}
 		const authoritativeWork = campaignJobs.some((job) =>
 			["queued", "running"].includes(job.status),
 		);
+		const hasMutation = Boolean(state.mutation);
+		const hasUncertainSubmission = Boolean(state.uncertainSubmission);
 		const needsConfirmation =
 			submissionDraftActive ||
 			authoritativeWork ||
-			Boolean(state.mutation) ||
-			Boolean(state.uncertainSubmission);
-		if (
-			needsConfirmation &&
-			!window.confirm(
-				"Trocar de campanha descarta apenas o formulário local desta tela. Trabalhos já enfileirados ou em execução mantêm a campanha original. Deseja continuar?",
-			)
-		) {
-			setCampaignSelection(campaignId);
+			hasMutation ||
+			hasUncertainSubmission;
+		if (needsConfirmation) {
+			setConfirmation({
+				action: "switch_campaign",
+				targetId: nextCampaignId,
+				targetName: target.name,
+				hasDraft: submissionDraftActive,
+				hasActiveWork: authoritativeWork,
+				hasMutation,
+				hasUncertainSubmission,
+			});
 			return;
 		}
 		window.location.assign(processingCampaignHref(nextCampaignId));
@@ -684,6 +710,7 @@ export function ProcessingPanel({
 				<label>
 					<span className={styles.visuallyHidden}>Trocar campanha</span>
 					<select
+						ref={campaignSelectorRef}
 						value={campaignSelection}
 						onChange={(event) => {
 							const next = event.target.value;
@@ -1539,43 +1566,73 @@ export function ProcessingPanel({
 				}
 			/>
 
-			<dialog
-				ref={dialog}
-				className={styles.dialog}
-				onCancel={(event) => {
-					event.preventDefault();
-					setConfirmation(null);
-				}}
-			>
-				{confirmation ? (
-					<>
-						<h2>
-							{confirmation.action === "resume"
+			{confirmation ? (
+				<Dialog
+					open
+					title={
+						confirmation.action === "switch_campaign"
+							? "Trocar de campanha?"
+							: confirmation.action === "resume"
 								? "Retomar a fila local?"
 								: confirmation.action === "cancel"
 									? "Cancelar este trabalho?"
 									: confirmation.action === "delete"
 										? "Excluir este trabalho?"
-										: "Repetir este trabalho?"}
-						</h2>
-						<p>
-							{confirmation.action === "resume"
+										: "Repetir este trabalho?"
+					}
+					description={
+						confirmation.action === "switch_campaign"
+							? `${campaignName} → ${confirmation.targetName}. O formulário local desta tela será descartado.`
+							: confirmation.action === "resume"
 								? "O serviço poderá iniciar os trabalhos que aguardam na fila."
 								: confirmation.action === "cancel"
 									? `O cancelamento será enviado ao trabalho ${confirmation.id}.`
 									: confirmation.action === "delete"
-										? `O trabalho ${confirmation.id}, seus eventos e a referência de resultado na fila serão excluídos. As transcrições em Resultados, revisões, modelos, sessão Craig e checkpoints serão preservados.`
-										: `Uma nova tentativa será criada para ${confirmation.id}; checkpoints compatíveis serão reutilizados quando disponíveis, sem prometer retomada exata de toda etapa.`}
-						</p>
-						<div className={styles.dialogActions}>
-							<Button onClick={() => setConfirmation(null)}>Voltar</Button>
-							<Button variant="primary" onClick={() => void confirm()}>
-								{confirmation.action === "delete" ? "Excluir" : "Confirmar"}
-							</Button>
-						</div>
+										? `O trabalho ${confirmation.id}, seus eventos e a referência de resultado na fila serão excluídos.`
+										: `Uma nova tentativa será criada para ${confirmation.id}.`
+					}
+					onClose={dismissConfirmation}
+					actions={
+					<>
+						<Button
+							data-dialog-initial-focus="true"
+							onClick={dismissConfirmation}
+						>
+							Cancelar
+						</Button>
+						<Button variant="primary" onClick={() => void confirm()}>
+							{confirmation.action === "switch_campaign"
+								? "Trocar campanha"
+								: confirmation.action === "resume"
+									? "Retomar fila"
+									: confirmation.action === "cancel"
+										? "Cancelar trabalho"
+										: confirmation.action === "delete"
+											? "Excluir trabalho"
+											: "Repetir trabalho"}
+						</Button>
 					</>
-				) : null}
-			</dialog>
+				}
+				>
+					{confirmation.action === "switch_campaign" ? (
+						<details>
+							<summary>O que será preservado?</summary>
+							<p>
+								Trabalhos já criados continuam vinculados à campanha original; a troca
+								não reatribui jobs, runs ou tentativas existentes.
+							</p>
+							{confirmation.hasActiveWork ? <p>Há trabalho enfileirado ou em execução nesta campanha.</p> : null}
+							{confirmation.hasMutation ? <p>Há uma operação local em andamento.</p> : null}
+							{confirmation.hasUncertainSubmission ? <p>Há uma submissão cuja confirmação ainda é incerta.</p> : null}
+							{confirmation.hasDraft ? <p>O formulário local ainda contém dados não enviados.</p> : null}
+						</details>
+					) : confirmation.action === "delete" ? (
+						<p>Transcrições em Resultados, revisões, modelos, sessão Craig e checkpoints serão preservados.</p>
+					) : confirmation.action === "retry" ? (
+						<p>Checkpoints compatíveis serão reutilizados quando disponíveis, sem prometer retomada exata de toda etapa.</p>
+					) : null}
+				</Dialog>
+			) : null}
 		</div>
 	);
 }

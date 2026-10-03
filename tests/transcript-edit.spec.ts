@@ -91,22 +91,43 @@ test("copies the visible working speaker with the immutable timestamp and restor
 
 test("revert removes dirty state and dirty navigation requires explicit confirmation", async ({
 	page,
-}) => {
+}, testInfo) => {
 	await openFresh(page);
 	const first = await editFirst(page, "Mudança descartável");
 	await first.getByRole("button", { name: "Reverter" }).click();
 	await expect(page.getByText("Nenhuma alteração", { exact: true })).toBeVisible();
 
 	await editFirst(page, "Working copy protegida");
-	page.once("dialog", async (dialog) => {
-		expect(dialog.message()).toContain("alterações não salvas");
-		await dialog.dismiss();
+	let nativeDialogs = 0;
+	page.on("dialog", () => {
+		nativeDialogs += 1;
 	});
-	await page.getByRole("link", { name: "Sair da fixture" }).click();
+	const exitLink = page.getByRole("link", { name: "Sair da fixture" });
+	await exitLink.click();
+	const leaveDialog = page.getByRole("dialog", { name: "Sair da transcrição?" });
+	await expect(leaveDialog).toBeVisible();
+	await expect(leaveDialog).toContainText("1 alteração(ões) não salvas");
+	await expect(
+		leaveDialog.getByRole("button", { name: "Continuar editando" }),
+	).toBeFocused();
+	await page.screenshot({
+		path: testInfo.outputPath("transcript-dirty-navigation-dialog.png"),
+		fullPage: true,
+	});
+	await page.keyboard.press("Escape");
+	await expect(leaveDialog).not.toBeVisible();
+	await expect(exitLink).toBeFocused();
 	await expect(page).toHaveURL(/\/e2e-fixtures\/transcript-edit/u);
 	await expect(
 		page.getByText("Working copy protegida", { exact: true }),
 	).toBeVisible();
+	expect(nativeDialogs).toBe(0);
+
+	await exitLink.click();
+	await expect(leaveDialog).toBeVisible();
+	await leaveDialog.getByRole("button", { name: "Descartar e sair" }).click();
+	await expect(page).toHaveURL(/\/$/u);
+	expect(nativeDialogs).toBe(0);
 });
 
 test("stale current preserves the working copy and never retries blindly", async ({

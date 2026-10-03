@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui";
+import { Button, Dialog } from "@/components/ui";
 import {
 	reloadTranscriptSegmentAction,
 	updateTranscriptSegmentAction,
@@ -124,6 +124,7 @@ function SegmentEditor({
 	const [revision, setRevision] = useState(initial.revision);
 	const [reloadingCurrent, setReloadingCurrent] = useState(false);
 	const [reconciliationError, setReconciliationError] = useState<string | null>(null);
+	const [discardRemoteConfirmation, setDiscardRemoteConfirmation] = useState(false);
 	const textRef = useRef<HTMLTextAreaElement>(null);
 	const speakerRef = useRef<HTMLInputElement>(null);
 	const dirty = isTranscriptEditorDirty(editor);
@@ -343,19 +344,42 @@ function SegmentEditor({
 										Reaplicar meu rascunho
 									</Button>
 									<Button
-										onClick={() => {
-											if (
-												!window.confirm(
-													"Descartar seu rascunho local e usar a versão atual do servidor?",
-												)
-											) return;
-											setReconciliationError(null);
-											setEditor((current) => acceptTranscriptConflictRemote(current));
-										}}
+										onClick={() => setDiscardRemoteConfirmation(true)}
 										variant="tertiary"
 									>
 										Descartar meu rascunho
 									</Button>
+									<Dialog
+										open={discardRemoteConfirmation}
+										title="Usar a versão do servidor?"
+										description={`Sessão ${sessionId} · fala ${position} · revisão remota ${revision}.`}
+										onClose={() => setDiscardRemoteConfirmation(false)}
+										actions={
+											<>
+												<Button
+													data-dialog-initial-focus="true"
+													onClick={() => setDiscardRemoteConfirmation(false)}
+												>
+													Continuar editando
+												</Button>
+												<Button
+													variant="primary"
+													onClick={() => {
+														setDiscardRemoteConfirmation(false);
+														setReconciliationError(null);
+														setEditor((current) => acceptTranscriptConflictRemote(current));
+													}}
+												>
+													Usar versão do servidor
+												</Button>
+											</>
+										}
+									>
+										<p>
+											Seu rascunho local desta fala será descartado. A versão remota carregada
+											continuará sendo a base e nenhuma mutação é enviada por esta confirmação.
+										</p>
+									</Dialog>
 								</div>
 							</>
 						) : (

@@ -259,15 +259,24 @@ test("troca de campaign com trabalho autoritativo exige confirmação e não ret
 	await expect(selector).toHaveValue("yuhara-main");
 	await expect(page.getByText("Crônicas da Mesa", { exact: true }).first()).toBeVisible();
 
-	page.once("dialog", async (dialog) => {
-		expect(dialog.type()).toBe("confirm");
-		expect(dialog.message()).toContain("mantêm a campanha original");
-		await dialog.dismiss();
+	let nativeDialogs = 0;
+	page.on("dialog", () => {
+		nativeDialogs += 1;
 	});
 	await selector.selectOption("antes-que-seja-tarde");
 
+	const campaignDialog = page.getByRole("dialog").filter({ hasText: "Trocar de campanha?" });
+	await expect(campaignDialog).toBeVisible();
+	await expect(campaignDialog).toContainText("Crônicas da Mesa → Antes que seja tarde");
+	await expect(campaignDialog).toContainText("Trabalhos já criados continuam vinculados à campanha original");
+	await expect(campaignDialog.getByRole("button", { name: "Cancelar", exact: true })).toBeFocused();
+	await page.keyboard.press("Escape");
+
+	await expect(campaignDialog).not.toBeVisible();
 	await expect(selector).toHaveValue("yuhara-main");
+	await expect(selector).toBeFocused();
 	await expect(page).toHaveURL("/");
+	expect(nativeDialogs).toBe(0);
 });
 
 test("workspace não expõe nem oferece ações para jobs de outra campaign", async ({
@@ -514,7 +523,7 @@ test("cancelamento exige confirmação e converge para cancelled", async ({ page
 	expect(
 		state.requests.filter((request) => request.path.endsWith("/cancel")),
 	).toHaveLength(0);
-	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+	await page.getByRole("dialog").getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
 
 	await expect
 		.poll(() => state.job?.status)
@@ -552,7 +561,7 @@ test("ações locais e refresh não emitem loading global dentro da workspace", 
 	await expect(page.getByRole("button", { name: "Atualizando…" })).toBeVisible();
 
 	await page.getByRole("button", { name: "Cancelar trabalho" }).first().click();
-	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+	await page.getByRole("dialog").getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
 
 	await expect.poll(() => state.job?.status).toBe("cancelled");
 	expect(
@@ -583,7 +592,7 @@ test("refresh atrasado mantém ação do job clicável e não regride o estado n
 
 	await cancel.click();
 	await expect(page.getByRole("dialog")).toContainText("craig-job-1");
-	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+	await page.getByRole("dialog").getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
 
 	await expect.poll(() => state.job?.status).toBe("cancelled");
 	await page.getByRole("tab", { name: "Fila" }).click();
@@ -934,7 +943,7 @@ test("falha recuperável cria nova tentativa somente após confirmação", async
 		.getByRole("dialog")
 		.filter({ hasText: "checkpoints compatíveis serão reutilizados quando disponíveis" });
 	await expect(retryDialog).toBeVisible();
-	await retryDialog.getByRole("button", { name: "Confirmar", exact: true }).click();
+	await retryDialog.getByRole("button", { name: "Repetir trabalho", exact: true }).click();
 
 	await expect
 		.poll(() => state.job?.attempt)
@@ -967,7 +976,7 @@ test("fila pausada continua distinta de falha e pode ser retomada", async ({ pag
 
 	await page.getByRole("button", { name: "Retomar novas execuções" }).click();
 	await expect(page.getByRole("dialog")).toContainText("iniciar os trabalhos");
-	await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+	await page.getByRole("button", { name: "Retomar fila", exact: true }).click();
 
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 	expect(
