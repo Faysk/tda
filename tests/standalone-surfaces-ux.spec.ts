@@ -279,16 +279,22 @@ for (const surface of surfaces) {
 	});
 }
 
-test("standalone catalogs keep published entries discoverable and private lores direct-only", async ({
+test("standalone catalog keeps curated lores discoverable without exposing a private campaign", async ({
 	page,
 }, testInfo) => {
 	test.skip(testInfo.project.name !== "desktop-1080p");
 
 	await page.goto("/lore");
-	await expect(page.locator('a[href="/lore/astel"]')).toBeVisible();
-	await expect(page.locator('a[href="/lore/noah"]')).toBeVisible();
-	await expect(page.locator('a[href="/lore/d"]')).toHaveCount(0);
-	await expect(page.locator('a[href="/lore/yllith"]')).toHaveCount(0);
+	for (const slug of ["astel", "noah", "d", "yllith"]) {
+		await expect(page.locator(`a[href="/lore/${slug}"]`)).toBeVisible();
+	}
+	for (const slug of ["d", "yllith"]) {
+		const card = page.locator(`article[data-lore="${slug}"]`);
+		await expect(card).toHaveAttribute("data-lore-campaign", "standalone");
+		await expect(card).not.toContainText("Passos Retomados");
+		await expect(card).not.toContainText("antes-que-seja-tarde");
+		await expect(card).not.toContainText("Destino Sem Fim");
+	}
 
 	await page.goto("/diario");
 	await expect(page.locator('a[href="/diario/astel"]')).toBeVisible();
