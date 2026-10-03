@@ -30,6 +30,7 @@ from tda_companion.benchmark_evidence import (
 from tda_companion.benchmark_bundles import (
     benchmark_sample_descriptor as legacy_sample_descriptor,
     benchmark_sample_identity as legacy_sample_identity,
+    claim_benchmark_outcome,
     finalize_benchmark_bundle as finalize_legacy_bundle,
     write_benchmark_profile as write_legacy_profile,
 )
@@ -152,6 +153,7 @@ def _complete_bundle(
     *,
     job_id: str = "benchmark-test",
     attempt: int = 1,
+    cancel_before_finalize: bool = False,
 ):
     sample_descriptor = {
         "schema": "tda_benchmark_sample_v1",
@@ -243,6 +245,9 @@ def _complete_bundle(
         )
         assert "SECRET" not in json.dumps(telemetry)
         write_profile_telemetry(tmp_path, benchmark_id, profile, telemetry)
+
+    if cancel_before_finalize:
+        assert claim_benchmark_outcome(tmp_path, job_id, attempt, "cancel") == "cancel"
 
     bundle = finalize_bundle(
         tmp_path,
@@ -348,6 +353,17 @@ def test_merged_1419_bundle_stays_readable_comparable_and_exportable(tmp_path: P
         qwen_vtt = next(name for name in names if name.endswith("/profiles/qwen-fast/transcript.vtt"))
         assert exported.read(qwen_vtt).startswith(b"WEBVTT")
         assert b"texto qwen-fast" in exported.read(qwen_vtt)
+
+
+def test_cancel_fence_prevents_enhanced_bundle_commit(tmp_path: Path):
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_ATTEMPT_CANCELLED"):
+        _complete_bundle(tmp_path, job_id="cancel-enhanced", cancel_before_finalize=True)
+    root = tmp_path / "benchmarks" / benchmark_id_for("cancel-enhanced", 1)
+    assert not (root / "benchmark.json").exists()
+    assert all(
+        (root / "profiles" / profile / "profile.json").is_file()
+        for profile in PROFILES
+    )
 
 
 def test_completed_bundle_is_hash_bound_queue_independent_and_contains_no_audio(tmp_path: Path):
