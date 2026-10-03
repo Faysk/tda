@@ -186,7 +186,7 @@ test("governed console shows people, human access, filters and technical details
 
 	const roleCatalog = page.getByText(/Funções disponíveis/);
 	await roleCatalog.click();
-	await expect(page.getByText("Sistema", { exact: true }).first()).toBeVisible();
+	await expect(page.getByText("Leitura sintética", { exact: true }).first()).toBeVisible();
 
 	expect(
 		await page.evaluate(
