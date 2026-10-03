@@ -62,6 +62,7 @@ export type CompanionFixtureOptions = {
 	profileReady?: boolean;
 	benchmarkProfiles?: boolean;
 	benchmarkEvidence?: boolean;
+	benchmarkCorruptProfile?: "whisper-turbo" | "whisper-detailed" | "qwen-fast" | "qwen-quality";
 	benchmarkReadyProfiles?: string[];
 	benchmarkMinimumTrackDurationSeconds?: number | null;
 	benchmarkSubmitError?: string | null;
@@ -1032,6 +1033,18 @@ export async function installCompanionFixture(
 			);
 			const engine = profileId.startsWith("whisper-") ? "whisper" : "qwen";
 			if (artifact === "transcript") {
+				if (options.benchmarkCorruptProfile === profileId) {
+					return json(
+						route,
+						{
+							error: {
+								code: "BENCHMARK_ARTIFACT_INTEGRITY_FAILED",
+								recoverable: false,
+							},
+						},
+						409,
+					);
+				}
 				const textByProfile: Record<string, string> = {
 					"whisper-turbo": "Olá mundo da taverna",
 					"whisper-detailed": "Olá cruel mundo da taverna",
