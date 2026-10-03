@@ -395,6 +395,216 @@ function Assert-BenchmarkResult(
     return $sanitized.ToArray()
 }
 
+function Assert-BenchmarkEvidence([string]$Token, [object]$Result, [string]$JobId) {
+    $benchmarkId = [string](Get-OptionalPropertyValue $Result "benchmark_id")
+    $evidenceSchema = [string](Get-OptionalPropertyValue $Result "evidence_schema_version")
+    if ($benchmarkId -notmatch '^benchmark-[a-f0-9]{24}if ($PSVersionTable.PSVersion -lt [Version]"7.4") { Fail "BENCHMARK_POWERSHELL_7_4_REQUIRED" }
+if (-not $env:LOCALAPPDATA) { Fail "BENCHMARK_LOCALAPPDATA_NOT_FOUND" }
+if ($null -eq (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) { Fail "BENCHMARK_NVIDIA_SMI_REQUIRED" }
+
+$craig = (Resolve-Path -LiteralPath $CraigZip -ErrorAction Stop).Path
+if ([IO.Path]::GetExtension($craig).ToLowerInvariant() -ne ".zip") { Fail "BENCHMARK_CRAIG_ZIP_REQUIRED" }
+$payloadPath = (Resolve-Path -LiteralPath $CompanionPayloadManifest -ErrorAction Stop).Path
+$whisperCandidatePath = (Resolve-Path -LiteralPath $WhisperRuntimeCandidateManifest -ErrorAction Stop).Path
+$qwenCandidatePath = (Resolve-Path -LiteralPath $QwenRuntimeCandidateManifest -ErrorAction Stop).Path
+
+$payload = Read-Json $payloadPath "BENCHMARK_COMPANION_PAYLOAD_INVALID"
+$whisperCandidate = Read-Json $whisperCandidatePath "BENCHMARK_WHISPER_CANDIDATE_INVALID"
+$qwenCandidate = Read-Json $qwenCandidatePath "BENCHMARK_QWEN_CANDIDATE_INVALID"
+if (
+    [string](Get-OptionalPropertyValue $payload "schema") -ne "tda_companion_payload_v1" -or
+    [string](Get-OptionalPropertyValue $payload "version") -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$' -or
+    [string](Get-OptionalPropertyValue $payload "source_sha") -notmatch '^[a-f0-9]{40}$' -or
+    [string](Get-OptionalPropertyValue $payload "source_tree_sha") -notmatch '^[a-f0-9]{40}$'
+) { Fail "BENCHMARK_COMPANION_PAYLOAD_IDENTITY_INVALID" }
+
+Assert-RuntimeCandidateCompatibility $whisperCandidate "whisper" ([Version]"1.1.7")
+Assert-RuntimeCandidateCompatibility $qwenCandidate "qwen" ([Version]"1.0.13")
+
+$gpuRows = @(& nvidia-smi --query-gpu=name,driver_version --format=csv,noheader,nounits 2>$null)
+if ($LASTEXITCODE -ne 0) { Fail "BENCHMARK_NVIDIA_SMI_FAILED" }
+$gpuRow = @($gpuRows | Where-Object { $_ -like "*$RequireGpuName*" } | Select-Object -First 1)
+if ($gpuRow.Count -ne 1) { Fail "BENCHMARK_REQUIRED_GPU_NOT_FOUND" }
+
+$whisperInstalled = Assert-RuntimeCurrent $whisperCandidate "whisper" "whisper-ctranslate2" "TDAWhisperWorker.exe"
+$qwenInstalled = Assert-RuntimeCurrent $qwenCandidate "qwen" "qwen3-transformers" "TDAQwenWorker.exe"
+
+$version = [string](Get-OptionalPropertyValue $payload "version")
+$exe = Join-Path $env:LOCALAPPDATA ("TDA\Companion\versions\" + $version + "\TDACompanion.exe")
+if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { Fail "BENCHMARK_COMPANION_EXE_MISSING" }
+
+$health = Get-AgentHealth
+if ($null -ne $health -and [string](Get-OptionalPropertyValue $health "service_version") -ne $version) {
+    Fail "BENCHMARK_DIFFERENT_AGENT_ALREADY_BOUND"
+}
+if ($null -eq $health) {
+    Start-Process $exe -ArgumentList @("--agent", "--startup", "--port", [string]$Port) | Out-Null
+}
+$health = Wait-ExactAgent $version 60
+if ($null -eq $health) { Fail "BENCHMARK_AGENT_NOT_READY" }
+
+$token = New-BrowserSession
+$stamp = [DateTimeOffset]::UtcNow.ToString("yyyyMMdd-HHmmss")
+if (-not $OutputRoot) {
+    $OutputRoot = Join-Path ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))) "TDA-PROCESSING-1233-RESULTS"
+}
+$root = Join-Path ([IO.Path]::GetFullPath($OutputRoot)) ("BENCHMARK-" + $stamp)
+New-Item -ItemType Directory -Force -Path $root | Out-Null
+$receiptPath = Join-Path $root "PROCESSING-1233-ACCEPTANCE.json"
+
+$passed = $false
+$failure = $null
+try {
+    Assert-NoActiveWork $token
+    $uploaded = Upload-Craig $token $craig
+    $sourceId = [string](Get-OptionalPropertyValue $uploaded "source_id")
+    $trackCount = Get-OptionalPropertyValue $uploaded "track_count"
+    if ($sourceId -notmatch '^craig-[a-f0-9]{64}$' -or $null -eq $trackCount -or [int]$trackCount -lt 1) {
+        Fail "BENCHMARK_CRAIG_INGEST_INVALID"
+    }
+
+    foreach ($profileId in $RequiredProfiles) {
+        Write-Host ("Preparing benchmark profile: " + $profileId) -ForegroundColor Cyan
+        [void](Ensure-BenchmarkReady $token $sourceId $profileId)
+    }
+
+    Write-Host "Submitting the real 5-minute four-profile benchmark..." -ForegroundColor Cyan
+    $job = Submit-Benchmark $token $sourceId
+    $jobId = [string](Get-OptionalPropertyValue $job "id")
+    if ([string]::IsNullOrWhiteSpace($jobId)) { Fail "BENCHMARK_JOB_ID_MISSING" }
+    [void](Wait-Benchmark $token $jobId)
+    $result = Invoke-AgentJson $token "GET" "/jobs/$jobId/result"
+    $profiles = Assert-BenchmarkResult $result $jobId $whisperCandidate $qwenCandidate
+    $evidence = Assert-BenchmarkEvidence $token $result $jobId
+
+    Write-Json $receiptPath ([ordered]@{
+        schema = $ReceiptSchema
+        pass = $true
+        accepted_at = [DateTimeOffset]::UtcNow.ToString("o")
+        source = [ordered]@{
+            repository_source_sha = [string](Get-OptionalPropertyValue $payload "source_sha")
+            repository_source_tree_sha = [string](Get-OptionalPropertyValue $payload "source_tree_sha")
+            sample_seconds = 300
+            track_count = [int]$trackCount
+        }
+        companion = [ordered]@{
+            version = $version
+        }
+        runtimes = [ordered]@{
+            whisper = $whisperInstalled
+            qwen = $qwenInstalled
+        }
+        profiles = $profiles
+        evidence = $evidence
+        contains_audio = $false
+        contains_transcript = $false
+        contains_token = $false
+        contains_paths = $false
+        contains_local_paths = $false
+    })
+    $passed = $true
+} catch {
+    $failure = [string]$_.Exception.Message
+    if ($failure -notmatch '^[A-Z0-9_.:-]{1,220}$') { $failure = "BENCHMARK_ACCEPTANCE_FAILED" }
+    Write-Json $receiptPath ([ordered]@{
+        schema = $ReceiptSchema
+        pass = $false
+        accepted_at = [DateTimeOffset]::UtcNow.ToString("o")
+        error_code = $failure
+        source = [ordered]@{
+            repository_source_sha = [string](Get-OptionalPropertyValue $payload "source_sha")
+            repository_source_tree_sha = [string](Get-OptionalPropertyValue $payload "source_tree_sha")
+            sample_seconds = 300
+        }
+        contains_audio = $false
+        contains_transcript = $false
+        contains_token = $false
+        contains_paths = $false
+        contains_local_paths = $false
+    })
+    Write-Host ("PROCESSING #1233 BENCHMARK FAILED: " + $failure) -ForegroundColor Red
+}
+
+Write-Host ("Sanitized benchmark receipt: " + $receiptPath) -ForegroundColor Cyan
+if ($passed) {
+    Write-Host "PROCESSING #1233 BENCHMARK: PASS" -ForegroundColor Green
+    exit 0
+}
+exit 1
+ -or $evidenceSchema -ne "tda_benchmark_bundle_v1") {
+        Fail "BENCHMARK_EVIDENCE_IDENTITY_INVALID"
+    }
+
+    $manifest = Invoke-AgentJson $Token "GET" ("/benchmarks/" + $benchmarkId)
+    if (
+        [string](Get-OptionalPropertyValue $manifest "schema_version") -ne "tda_benchmark_bundle_v1" -or
+        [string](Get-OptionalPropertyValue $manifest "benchmark_id") -ne $benchmarkId -or
+        [string](Get-OptionalPropertyValue $manifest "job_id") -ne $JobId -or
+        [string](Get-OptionalPropertyValue $manifest "source_id") -ne [string](Get-OptionalPropertyValue $Result "source_id") -or
+        [string](Get-OptionalPropertyValue $manifest "sample_identity_sha256") -ne [string](Get-OptionalPropertyValue $Result "sample_identity_sha256")
+    ) { Fail "BENCHMARK_EVIDENCE_MANIFEST_INVALID" }
+
+    $manifestProfiles = @((Get-OptionalPropertyValue $manifest "profiles"))
+    if ($manifestProfiles.Count -ne $RequiredProfiles.Count) { Fail "BENCHMARK_EVIDENCE_PROFILE_COUNT_INVALID" }
+    $sanitized = [Collections.Generic.List[object]]::new()
+
+    for ($i = 0; $i -lt $RequiredProfiles.Count; $i++) {
+        $profileId = $RequiredProfiles[$i]
+        $entry = $manifestProfiles[$i]
+        if ([string](Get-OptionalPropertyValue $entry "profile_id") -ne $profileId) {
+            Fail ("BENCHMARK_EVIDENCE_PROFILE_ORDER_INVALID:" + $profileId)
+        }
+        foreach ($hashName in @("profile_manifest_sha256", "transcript_sha256", "metrics_sha256", "events_sha256")) {
+            Assert-Sha256 ([string](Get-OptionalPropertyValue $entry $hashName)) ("BENCHMARK_EVIDENCE_HASH_INVALID:" + $profileId + ":" + $hashName)
+        }
+
+        # Read private artifacts only in memory. Never copy transcript/event payloads into the sanitized receipt.
+        $transcript = Invoke-AgentJson $Token "GET" ("/benchmarks/" + $benchmarkId + "/profiles/" + $profileId + "/transcript") 30
+        $engine = Get-OptionalPropertyValue $transcript "engine"
+        if (
+            [string](Get-OptionalPropertyValue $transcript "schema_version") -ne "tda_transcript_v1" -or
+            [string](Get-OptionalPropertyValue $transcript "source_sha256") -ne [string](Get-OptionalPropertyValue $manifest "source_sha256") -or
+            [string](Get-OptionalPropertyValue $engine "profile") -ne $profileId
+        ) { Fail ("BENCHMARK_EVIDENCE_TRANSCRIPT_INVALID:" + $profileId) }
+
+        $metrics = Invoke-AgentJson $Token "GET" ("/benchmarks/" + $benchmarkId + "/profiles/" + $profileId + "/metrics") 30
+        if (
+            [string](Get-OptionalPropertyValue $metrics "schema_version") -ne "tda_benchmark_metrics_v1" -or
+            [string](Get-OptionalPropertyValue $metrics "benchmark_id") -ne $benchmarkId -or
+            [string](Get-OptionalPropertyValue $metrics "profile_id") -ne $profileId -or
+            [string](Get-OptionalPropertyValue $metrics "processing_timing_version") -ne "engine_processing_v1"
+        ) { Fail ("BENCHMARK_EVIDENCE_METRICS_INVALID:" + $profileId) }
+
+        $diagnostics = Invoke-AgentJson $Token "GET" ("/benchmarks/" + $benchmarkId + "/profiles/" + $profileId + "/events") 30
+        $events = @((Get-OptionalPropertyValue $diagnostics "events"))
+        if (
+            [string](Get-OptionalPropertyValue $diagnostics "schema_version") -ne "tda_benchmark_diagnostics_v1" -or
+            [string](Get-OptionalPropertyValue $diagnostics "benchmark_id") -ne $benchmarkId -or
+            [string](Get-OptionalPropertyValue $diagnostics "profile_id") -ne $profileId -or
+            $events.Count -lt 1
+        ) { Fail ("BENCHMARK_EVIDENCE_EVENTS_INVALID:" + $profileId) }
+
+        $sanitized.Add([ordered]@{
+            profile_id = $profileId
+            profile_manifest_sha256 = [string](Get-OptionalPropertyValue $entry "profile_manifest_sha256")
+            transcript_sha256 = [string](Get-OptionalPropertyValue $entry "transcript_sha256")
+            metrics_sha256 = [string](Get-OptionalPropertyValue $entry "metrics_sha256")
+            events_sha256 = [string](Get-OptionalPropertyValue $entry "events_sha256")
+            event_count = $events.Count
+            warning_count = [int](Get-OptionalPropertyValue $metrics "warning_count")
+        })
+    }
+
+    return [ordered]@{
+        schema_version = "tda_benchmark_bundle_v1"
+        benchmark_id = $benchmarkId
+        sample_identity_sha256 = [string](Get-OptionalPropertyValue $manifest "sample_identity_sha256")
+        profiles = $sanitized.ToArray()
+        private_artifacts_verified_in_memory = $true
+        private_artifacts_written_to_receipt = $false
+    }
+}
+
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { Fail "BENCHMARK_WINDOWS_REQUIRED" }
 if ($PSVersionTable.PSVersion -lt [Version]"7.4") { Fail "BENCHMARK_POWERSHELL_7_4_REQUIRED" }
 if (-not $env:LOCALAPPDATA) { Fail "BENCHMARK_LOCALAPPDATA_NOT_FOUND" }
