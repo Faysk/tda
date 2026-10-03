@@ -674,7 +674,9 @@ test("Lembra justifies desktop rows and becomes single-column at 320px", async (
 	const mobileToolbarHeight = await page
 		.getByPlaceholder("Buscar título, descrição, autor ou data...")
 		.evaluate((input) => input.parentElement?.parentElement?.getBoundingClientRect().height ?? 999);
-	expect(mobileToolbarHeight).toBeLessThanOrEqual(120);
+	expect(mobileToolbarHeight).toBeLessThanOrEqual(180);
+	await expect(page.getByRole("button", { name: "Filtrar por campanha" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Ordenar referências" })).toBeVisible();
 
 	const cards = page.locator("article");
 	const first = await cards.nth(0).boundingBox();
