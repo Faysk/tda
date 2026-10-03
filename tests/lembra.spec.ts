@@ -83,6 +83,236 @@ test("Lembra campaign classification stays optional, filterable and non-authorit
 	).toContainText("Campanha Pública B");
 });
 
+
+
+test("Lembra returns to Geral and cancels campaign creation without changing the upload draft", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "cancel-safe-draft.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const composer = page
+		.getByRole("dialog")
+		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
+	await composer.getByLabel("Nome").fill("Rascunho cancelável");
+	await composer.getByLabel("Descrição").fill("Nada daqui pode sumir ao cancelar.");
+	const preview = composer.getByAltText("Preview da referência selecionada");
+	const previewUrl = await preview.getAttribute("src");
+	const campaignPicker = composer.getByRole("button", { name: "Campanha da referência" });
+
+	await campaignPicker.click();
+	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
+	await expect(campaignPicker).toContainText("Campanha Pública B");
+
+	await campaignPicker.click();
+	await page.getByRole("option", { name: "Geral", exact: true }).click();
+	await expect(campaignPicker).toContainText("Geral");
+
+	const createTrigger = composer.getByRole("button", { name: "Nova campanha" });
+	await createTrigger.click();
+	const createDialog = page.getByRole("dialog", { name: "Criar campanha" });
+	await createDialog.getByLabel("Nome").fill("Campanha descartada");
+	await createDialog.getByLabel("Slug técnico").fill("campanha-descartada");
+	await createDialog.getByLabel("Rota pública").fill("campanha-descartada");
+	await createDialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+
+	await expect(createDialog).not.toBeVisible();
+	await expect(composer).toBeVisible();
+	await expect(composer.getByLabel("Nome")).toHaveValue("Rascunho cancelável");
+	await expect(composer.getByLabel("Descrição")).toHaveValue("Nada daqui pode sumir ao cancelar.");
+	await expect(preview).toHaveAttribute("src", previewUrl ?? "");
+	await expect(campaignPicker).toContainText("Geral");
+	await expect(createTrigger).toBeFocused();
+});
+
+test("Lembra creates a public campaign in context without losing the upload draft", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "draft-preservado.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const composer = page
+		.getByRole("dialog")
+		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
+	await composer.getByLabel("Nome").fill("Rascunho preservado");
+	await composer.getByLabel("Descrição").fill("Não pode sumir no abre e fecha.");
+	const preview = composer.getByAltText("Preview da referência selecionada");
+	const previewUrl = await preview.getAttribute("src");
+
+	const createTrigger = composer.getByRole("button", { name: "Nova campanha" });
+	await expect(createTrigger).toBeVisible();
+	const manageLink = composer.getByRole("link", { name: /Gerenciar campanhas/ });
+	await expect(manageLink).toHaveAttribute("target", "_blank");
+	await expect(manageLink).toHaveAttribute("href", "/edit/campanhas");
+
+	await createTrigger.click();
+	const createDialog = page.getByRole("dialog", { name: "Criar campanha" });
+	await expect(createDialog).toBeVisible();
+	await expect(createDialog.getByLabel("Nome")).toBeFocused();
+	await createDialog.getByLabel("Nome").fill("Aurora Pública");
+	await createDialog.getByLabel("Slug técnico").fill("aurora-publica");
+	await createDialog.getByLabel("Rota pública").fill("aurora-publica");
+	await createDialog.getByLabel("Descrição").fill("Campanha criada dentro do Lembra.");
+	await createDialog.getByRole("button", { name: "Criar e voltar" }).click();
+
+	await expect(createDialog).not.toBeVisible();
+	await expect(composer).toBeVisible();
+	await expect(composer.getByLabel("Nome")).toHaveValue("Rascunho preservado");
+	await expect(composer.getByLabel("Descrição")).toHaveValue("Não pode sumir no abre e fecha.");
+	await expect(preview).toHaveAttribute("src", previewUrl ?? "");
+	await expect(composer.getByRole("button", { name: "Campanha da referência" })).toContainText(
+		"Aurora Pública",
+	);
+	await expect(composer).toContainText("Campanha criada e selecionada.");
+
+	await composer.getByRole("button", { name: "Guardar", exact: true }).click();
+	await expect(composer).not.toBeVisible();
+	const card = page.locator("article").filter({ hasText: "Rascunho preservado" });
+	await expect(card).toContainText("Aurora Pública · Por Você");
+});
+
+test("Lembra keeps the prior selection and draft when a new campaign is private", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "private-draft.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const composer = page
+		.getByRole("dialog")
+		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
+	await composer.getByLabel("Nome").fill("Rascunho privado");
+	await composer.getByLabel("Descrição").fill("Seleção anterior precisa continuar.");
+	await composer.getByRole("button", { name: "Campanha da referência" }).click();
+	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
+	const preview = composer.getByAltText("Preview da referência selecionada");
+	const previewUrl = await preview.getAttribute("src");
+
+	await composer.getByRole("button", { name: "Nova campanha" }).click();
+	const createDialog = page.getByRole("dialog", { name: "Criar campanha" });
+	await createDialog.getByLabel("Nome").fill("Segredo da Mesa");
+	await createDialog.getByLabel("Slug técnico").fill("segredo-da-mesa");
+	await createDialog.getByLabel("Rota pública").fill("segredo-da-mesa");
+	await createDialog.getByLabel("Visibilidade inicial").selectOption("private");
+	await createDialog.getByRole("button", { name: "Criar e voltar" }).click();
+
+	await expect(createDialog).not.toBeVisible();
+	await expect(composer.getByLabel("Nome")).toHaveValue("Rascunho privado");
+	await expect(composer.getByLabel("Descrição")).toHaveValue("Seleção anterior precisa continuar.");
+	await expect(preview).toHaveAttribute("src", previewUrl ?? "");
+	await expect(composer.getByRole("button", { name: "Campanha da referência" })).toContainText(
+		"Campanha Pública B",
+	);
+	await expect(composer).toContainText(
+		"A campanha foi criada como privada e não aparece como classificação do Lembra.",
+	);
+
+	await composer.getByRole("button", { name: "Campanha da referência" }).click();
+	await expect(page.getByRole("option", { name: "Segredo da Mesa", exact: true })).toHaveCount(0);
+	await page.keyboard.press("Escape");
+});
+
+test("Lembra campaign creation keeps the overlay open on conflict or dependency failure", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "error-draft.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const composer = page
+		.getByRole("dialog")
+		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
+	await composer.getByLabel("Nome").fill("Rascunho ainda aqui");
+	const previewUrl = await composer
+		.getByAltText("Preview da referência selecionada")
+		.getAttribute("src");
+	const createTrigger = composer.getByRole("button", { name: "Nova campanha" });
+	await createTrigger.click();
+
+	const createDialog = page.getByRole("dialog", { name: "Criar campanha" });
+	await createDialog.getByLabel("Nome").fill("X");
+	await createDialog.getByLabel("Slug técnico").fill("valid-campaign");
+	await createDialog.getByLabel("Rota pública").fill("valid-campaign");
+	await createDialog.getByRole("button", { name: "Criar e voltar" }).click();
+	await expect(createDialog.getByLabel("Nome")).toHaveAttribute("aria-invalid", "true");
+	await expect(createDialog.getByText("Informe um nome entre 2 e 120 caracteres.")).toBeVisible();
+
+	await createDialog.getByLabel("Nome").fill("Campanha em conflito");
+	await createDialog.getByLabel("Slug técnico").fill("existing-campaign");
+	await createDialog.getByLabel("Rota pública").fill("existing-campaign");
+	await createDialog.getByRole("button", { name: "Criar e voltar" }).click();
+	await expect(createDialog).toBeVisible();
+	await expect(createDialog.getByRole("alert")).toContainText("Já existe uma campanha");
+
+	await createDialog.getByLabel("Slug técnico").fill("dependency-down");
+	await createDialog.getByLabel("Rota pública").fill("dependency-down");
+	await createDialog.getByRole("button", { name: "Criar e voltar" }).click();
+	await expect(createDialog).toBeVisible();
+	await expect(createDialog.getByRole("alert")).toContainText("temporariamente indisponível");
+
+	await page.keyboard.press("Escape");
+	await expect(createDialog).not.toBeVisible();
+	await expect(composer).toBeVisible();
+	await expect(composer.getByLabel("Nome")).toHaveValue("Rascunho ainda aqui");
+	await expect(composer.getByAltText("Preview da referência selecionada")).toHaveAttribute(
+		"src",
+		previewUrl ?? "",
+	);
+	await expect(createTrigger).toBeFocused();
+});
+
+test("Lembra hides campaign management entrypoints without project capability", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns?manage=0");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "sem-capability.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const composer = page
+		.getByRole("dialog")
+		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
+	await expect(composer.getByRole("button", { name: "Nova campanha" })).toHaveCount(0);
+	await expect(composer.getByRole("link", { name: /Gerenciar campanhas/ })).toHaveCount(0);
+	await composer.getByRole("button", { name: "Campanha da referência" }).click();
+	await page.getByRole("option", { name: "Crônicas da Mesa", exact: true }).click();
+	await expect(composer.getByRole("button", { name: "Campanha da referência" })).toContainText(
+		"Crônicas da Mesa",
+	);
+});
+
+test("Lembra contextual campaign dialogs reflow at 320px and a 200%-equivalent viewport", async ({ page }) => {
+	await page.setViewportSize({ width: 320, height: 760 });
+	await page.goto("/e2e-fixtures/lembra-campaigns");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "mobile-draft.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const composer = page
+		.getByRole("dialog")
+		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
+	await composer.getByRole("button", { name: "Nova campanha" }).click();
+	await expect(page.getByRole("dialog", { name: "Criar campanha" })).toBeVisible();
+
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+	).toBe(true);
+
+	await page.setViewportSize({ width: 683, height: 384 });
+	await expect(page.getByRole("dialog", { name: "Criar campanha" })).toBeVisible();
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+	).toBe(true);
+});
+
 test("Lembra stays dense, searchable and usable from keyboard", async ({ page }) => {
 	await page.goto("/lembra");
 
