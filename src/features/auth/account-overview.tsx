@@ -131,7 +131,10 @@ function CampaignAccessBlock({
 	campaign,
 }: Readonly<{ campaign: AccountCampaignAccess }>) {
 	return (
-		<section className={styles.accessScopeBlock}>
+		<section
+			className={styles.accessScopeBlock}
+			data-account-campaign={campaign.technicalSlug}
+		>
 			<div className={styles.accessScopeHeading}>
 				<div>
 					<h3>{campaign.name}</h3>
@@ -285,7 +288,10 @@ export function AccountOverview({
 					) : null}
 
 					{projectCapabilityGroups.length > 0 ? (
-						<section className={styles.accessScopeBlock}>
+						<section
+							className={styles.accessScopeBlock}
+							data-account-scope="project"
+						>
 							<div className={styles.accessScopeHeading}>
 								<div>
 									<h3>Autoridade do projeto</h3>
