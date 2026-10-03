@@ -293,7 +293,7 @@ test("old build action preserves draft across reload and never mutates before ex
 	});
 	await page.getByRole("button", { name: "Salvar fixture" }).click();
 
-	await expect(page.getByRole("alert")).toContainText(
+	await expect(page.locator("[data-stale-action-recovery]")).toContainText(
 		"O TDA foi atualizado enquanto esta tela estava aberta",
 	);
 	await expect(title).toHaveValue("Rascunho do build A");
