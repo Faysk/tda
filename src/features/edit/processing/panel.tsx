@@ -31,6 +31,7 @@ import { ProcessingController } from "./controller";
 import { JobDiagnosticsInspector } from "./job-diagnostics-inspector";
 import { LocalReviewWorkspace } from "./local-review";
 import { serializeLocalRunKey } from "./local-run-key";
+import { localRunMatchesCampaign, scopeLocalRunsToCampaign } from "./run-campaign-scope";
 import { SessionAssemblyResults } from "./session-assembly-results";
 import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
@@ -390,10 +391,9 @@ export function ProcessingPanel({
 		(job) =>
 			job.kind === "benchmark.craig" || job.context?.campaignId === campaignId,
 	);
-	const campaignRuns = state.localRuns.filter(
-		(run) =>
-			run.publicationTarget === null ||
-			run.publicationTarget.campaignSlug === campaignId,
+	const { campaignRuns, recoveryRuns } = scopeLocalRunsToCampaign(
+		state.localRuns,
+		campaignId,
 	);
 	const resultJob =
 		state.result === null
@@ -537,6 +537,20 @@ export function ProcessingPanel({
 		if (next === "results") void controller.refresh("results");
 	}
 
+	async function openRecoveryRun(sourceId: string, runId: string): Promise<boolean> {
+		setResultOpenError(null);
+		await controller.openLocalReview(sourceId, runId);
+		const opened = controller.snapshot().localReview;
+		if (opened?.sourceId === sourceId && opened.runId === runId) {
+			setView("results");
+			return true;
+		}
+		setResultOpenError(
+			"O resultado local foi preservado, mas a revisão de recuperação não pôde ser aberta. Atualize os resultados ou consulte o diagnóstico.",
+		);
+		return false;
+	}
+
 	async function openJobResult(job: LocalJob): Promise<string | null> {
 		setResultOpenError(null);
 		const result = await controller.result(job.id);
@@ -553,12 +567,11 @@ export function ProcessingPanel({
 			setResultOpenError(message);
 			return message;
 		}
+
 		const found = controller
 			.snapshot()
-			.localRuns.some(
+			.localRuns.find(
 				(run) =>
-					(run.publicationTarget === null ||
-						run.publicationTarget.campaignSlug === campaignId) &&
 					run.sourceId === result.sourceId &&
 					run.runId === result.runId &&
 					(!result.transcriptSha256 ||
@@ -567,6 +580,20 @@ export function ProcessingPanel({
 		if (!found) {
 			const message =
 				"O resultado foi validado, mas o run correspondente não pôde ser confirmado na biblioteca local. Atualize os resultados ou consulte o diagnóstico.";
+			setResultOpenError(message);
+			return message;
+		}
+
+		if (found.publicationTarget === null) {
+			const opened = await openRecoveryRun(found.sourceId, found.runId);
+			return opened
+				? null
+				: "O resultado local está sem vínculo de campanha e a recuperação não pôde ser aberta.";
+		}
+
+		if (!localRunMatchesCampaign(found, campaignId)) {
+			const message =
+				"O run concluído está vinculado a outra campanha. Ele foi preservado e não será apresentado como resultado desta campanha.";
 			setResultOpenError(message);
 			return message;
 		}
@@ -1173,6 +1200,50 @@ export function ProcessingPanel({
 								campaignId={campaignId}
 								capabilities={state.capabilities.capabilities}
 							/>
+						) : null}
+						{!state.localReview && recoveryRuns.length ? (
+							<section
+								className={styles.unboundRecovery}
+								aria-labelledby="unbound-results-title"
+								data-unbound-run-recovery="true"
+							>
+								<div className={styles.unboundRecoveryHeader}>
+									<div>
+										<span>Recuperação local</span>
+										<h2 id="unbound-results-title">Resultados sem campanha confirmada</h2>
+									</div>
+									<strong>{recoveryRuns.length}</strong>
+								</div>
+								<p>
+									Estes runs antigos não possuem um destino de campanha verificável no
+									catálogo local. Eles não contam como resultados de{" "}
+									<strong>{campaignName}</strong> e não recebem a campanha atual por
+									inferência.
+								</p>
+								<ul className={styles.unboundRecoveryList}>
+									{recoveryRuns.map((run) => (
+										<li key={serializeLocalRunKey({ sourceId: run.sourceId, runId: run.runId })}>
+											<div>
+												<strong>{run.profileId}</strong>
+												<span>
+													{run.completedAt
+														? new Date(run.completedAt).toLocaleString("pt-BR")
+														: "data indisponível"}{" "}
+													· run {run.runId.slice(0, 12)}…
+												</span>
+											</div>
+											<Button
+												size="sm"
+												variant="secondary"
+												disabled={state.localReviewBusy}
+												onClick={() => void openRecoveryRun(run.sourceId, run.runId)}
+											>
+												Abrir recuperação
+											</Button>
+										</li>
+									))}
+								</ul>
+							</section>
 						) : null}
 						<LocalReviewWorkspace
 							runs={campaignRuns}
