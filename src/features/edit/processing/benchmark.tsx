@@ -162,7 +162,7 @@ function ResultCard({
 				<span>4/4 perfis</span>
 				<span>
 					{result.artifacts
-						? `bundle ${formatBytes(result.artifacts.bundleSizeBytes)} · evidência preservada`
+						? `bundle ${formatSubmissionBytes(result.artifacts.bundleSizeBytes)} · evidência preservada`
 						: "receipt performance-only · transcrições não preservadas"}
 				</span>
 				<span>Qualidade: sem referência humana</span>
