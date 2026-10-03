@@ -1686,7 +1686,7 @@ def create_app(
                     target_version=body.version,
                 )
             except WhisperRuntimeMaintenanceError as exc:
-                return error(str(exc), 409, True)
+                return error("WHISPER_RUNTIME_ROLLBACK_FAILED", 409, True)
             except NetworkError as exc:
                 return error(exc.code, 503, True)
         worker_wake.set()
