@@ -193,6 +193,13 @@ test("Lembra campaign creation keeps the overlay open on conflict or dependency 
 	await createTrigger.click();
 
 	const createDialog = page.getByRole("dialog", { name: "Criar campanha" });
+	await createDialog.getByLabel("Nome").fill("X");
+	await createDialog.getByLabel("Slug técnico").fill("valid-campaign");
+	await createDialog.getByLabel("Rota pública").fill("valid-campaign");
+	await createDialog.getByRole("button", { name: "Criar e voltar" }).click();
+	await expect(createDialog.getByLabel("Nome")).toHaveAttribute("aria-invalid", "true");
+	await expect(createDialog.getByText("Informe um nome entre 2 e 120 caracteres.")).toBeVisible();
+
 	await createDialog.getByLabel("Nome").fill("Campanha em conflito");
 	await createDialog.getByLabel("Slug técnico").fill("existing-campaign");
 	await createDialog.getByLabel("Rota pública").fill("existing-campaign");
