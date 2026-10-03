@@ -468,7 +468,7 @@ export function PermissionsDirectoryView({
 										<td data-label="Acesso">
 											<div className={styles.accessSummary}>
 												<span>{accessSummary(person)}</span>
-												{person.verifiedEditAccess.length > 2 ? (
+												{person.verifiedEditAccess.length > 0 ? (
 													<details>
 														<summary>Ver todos os acessos ({person.verifiedEditAccess.length})</summary>
 														<ul>
