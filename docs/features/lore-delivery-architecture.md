@@ -2,7 +2,7 @@
 
 > Status: decisão aprovada; implementação parcial
 > Owner: narrative-memory / frontend / produto
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-03
 
 ## Objetivo
 
@@ -118,6 +118,12 @@ Além da identidade específica de cada personagem, novas standalone devem procu
 - nenhum vínculo automático com catálogo, campanha, grafo ou entidades.
 
 O comportamento Cinemático/Leitura pode ser consistente entre lores sem compartilhar a mesma estética. O controle pertence visualmente à identidade de cada personagem.
+
+### Continuidade compartilhada sem identidade compartilhada
+
+D é a referência de comportamento para a troca Cinemático/Leitura. O helper `public/lore/shared/view-mode-continuity.js` captura o capítulo ativo e a posição relativa, restaura esse ponto no modo correspondente e preserva o retorno ao catálogo quando a navegação veio de `/lore` na mesma origem. D e Yllith são as duas integrações de referência.
+
+O helper não fornece estilos, markup narrativo, paleta, tipografia, artwork, parser de conteúdo ou decisão editorial. Cada lore continua dona dessas escolhas. O modo inicial e qualquer persistência precisam ser declarados pela própria entrega; não existe preferência global de modo no TDA.
 
 ## Registro central leve
 

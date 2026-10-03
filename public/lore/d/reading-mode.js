@@ -7,6 +7,7 @@ const cinematicView = document.querySelector('[data-lore-view="cinematic"]');
 const modeStatus = document.querySelector('#lore-mode-status');
 const modeHint = document.querySelector('#mode-hint');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const continuity = window.TDALoreModeContinuity;
 let readingView = null;
 let readingMarkdownPromise = null;
 let readingPromise = null;
@@ -150,14 +151,16 @@ function setToggleState(mode) {
   const reading=mode==='reading'; body.dataset.loreMode=mode; modeToggle.setAttribute('aria-checked',String(reading)); modeToggle.setAttribute('aria-label',reading?'Ativar modo Cinemático':'Ativar modo Leitura'); modeToggle.title=reading?'Modo Leitura — trocar para Cinemático':'Modo Cinemático — trocar para Leitura'; if(modeStatus) modeStatus.textContent=reading?'Modo Leitura ativo.':'Modo Cinemático ativo.';
 }
 function jumpTo(element){ if(!element)return; element.scrollIntoView({block:'start',behavior:'auto'}); }
-function swapView(nextMode,entry){ if(nextMode==='reading'){cinematicView.hidden=true;readingView.hidden=false;setToggleState('reading');jumpTo(document.getElementById(entry.reading)||readingView.querySelector('#reading-top'));updateReadingProgress();}else{readingView.hidden=true;cinematicView.hidden=false;setToggleState('cinematic');jumpTo(document.querySelector(entry.cinematic)||cinematicView);}currentMode=nextMode; }
+function swapView(nextMode,entry,snapshot){ if(nextMode==='reading'){cinematicView.hidden=true;readingView.hidden=false;setToggleState('reading');currentMode='reading';const restored=snapshot&&continuity?.restoreMappedLocation(snapshot,'reading',{offset:110});if(!restored)jumpTo(document.getElementById(entry.reading)||readingView.querySelector('#reading-top'));updateReadingProgress();}else{readingView.hidden=true;cinematicView.hidden=false;setToggleState('cinematic');currentMode='cinematic';const restored=snapshot&&continuity?.restoreMappedLocation(snapshot,'cinematic',{offset:110});if(!restored)jumpTo(document.querySelector(entry.cinematic)||cinematicView);} }
 async function changeMode(nextMode) {
   if(nextMode===currentMode||body.classList.contains('is-switching'))return; hideModeHint(); body.classList.add('is-switching'); modeToggle.setAttribute('aria-busy','true');
-  try { if(nextMode==='reading') await ensureReadingView(); const entry=currentMode==='cinematic'?nearestCinematicEntry():nearestReadingEntry(); if(!reduceMotion.matches&&document.startViewTransition){const transition=document.startViewTransition(()=>swapView(nextMode,entry));await transition.finished;}else swapView(nextMode,entry); }
+  const snapshot=continuity?.captureMappedLocation(storyMap,currentMode,{offset:110})??null;
+  try { if(nextMode==='reading') await ensureReadingView(); const entry=currentMode==='cinematic'?nearestCinematicEntry():nearestReadingEntry(); if(!reduceMotion.matches&&document.startViewTransition){const transition=document.startViewTransition(()=>swapView(nextMode,entry,snapshot));await transition.finished;}else swapView(nextMode,entry,snapshot); }
   catch(error){console.error(error);if(modeStatus) modeStatus.textContent='Não foi possível abrir o modo Leitura.';}
   finally{body.classList.remove('is-switching');modeToggle.removeAttribute('aria-busy');modeToggle.focus({preventScroll:true});}
 }
 modeToggle.addEventListener('click',()=>changeMode(currentMode==='cinematic'?'reading':'cinematic')); setToggleState('cinematic');
+continuity?.preserveCatalogReturn(document.querySelector('.tda-return'));
 document.querySelector('.brand').addEventListener('click',(event)=>{event.preventDefault();window.scrollTo({top:0,behavior:reduceMotion.matches?'auto':'smooth'});});
 
 function setupReadingNavigation(view) {

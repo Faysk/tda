@@ -11,8 +11,11 @@ on:
       - "public/lore/noah/**"
       - "public/lore/d/**"
       - "public/lore/yllith/**"
+      - "public/lore/shared/**"
       - "public/diario/astel/**"
       - "tests/standalone-surfaces-ux.spec.ts"
+      - "tests/lore-mode-continuity.spec.ts"
+      - "tests/yllith-lore.spec.ts"
       - "tests/lore-catalogue-media.spec.ts"
   push:
     branches: [main]
@@ -25,8 +28,11 @@ on:
       - "public/lore/noah/**"
       - "public/lore/d/**"
       - "public/lore/yllith/**"
+      - "public/lore/shared/**"
       - "public/diario/astel/**"
       - "tests/standalone-surfaces-ux.spec.ts"
+      - "tests/lore-mode-continuity.spec.ts"
+      - "tests/yllith-lore.spec.ts"
       - "tests/lore-catalogue-media.spec.ts"
 
 permissions:
@@ -62,6 +68,14 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - name: Standalone Lore and Diário UX matrix
         run: pnpm exec playwright test tests/standalone-surfaces-ux.spec.ts --project=desktop-1080p
+      - name: Cinematic and reading continuity contracts
+        run: >-
+          pnpm exec playwright test
+          tests/d-lore-reading-mode.spec.ts
+          tests/yllith-lore.spec.ts
+          tests/lore-mode-continuity.spec.ts
+          --project=desktop-1080p
+          --project=mobile
       - name: Lore catalogue canonical media gate
         shell: bash
         run: |
@@ -98,7 +112,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: standalone-surfaces-receipts-${{ github.run_id }}-${{ github.run_attempt }}
-          path: test-results/**/standalone-*.png
+          path: |
+            test-results/**/standalone-*.png
+            test-results/**/lore-mode-*.png
           if-no-files-found: error
           retention-days: 30
       - name: Upload standalone failure artifacts
