@@ -17,6 +17,15 @@ create table if not exists public.session_campaign_move_operations (
     check (source_campaign_id <> destination_campaign_id)
 );
 
+create index if not exists session_campaign_move_operations_session_id_idx
+  on public.session_campaign_move_operations(session_id);
+create index if not exists session_campaign_move_operations_source_campaign_id_idx
+  on public.session_campaign_move_operations(source_campaign_id);
+create index if not exists session_campaign_move_operations_destination_campaign_id_idx
+  on public.session_campaign_move_operations(destination_campaign_id);
+create index if not exists session_campaign_move_operations_actor_profile_id_idx
+  on public.session_campaign_move_operations(actor_profile_id);
+
 alter table public.session_campaign_move_operations enable row level security;
 revoke all on table public.session_campaign_move_operations from public, anon, authenticated;
 grant select, insert on table public.session_campaign_move_operations to service_role;
