@@ -365,8 +365,20 @@ test("aggregate controls preserve campaign-qualified identity and scoped control
 		),
 	).toBeVisible();
 
-	await page.getByLabel("Filtrar por arco").selectOption("Contrato visual E2E");
-	await expect(page.locator('[data-session-card="grid"]')).toHaveCount(4);
+	const aggregateArc = page.getByLabel("Filtrar por arco");
+	const contractArcOptions = (await aggregateArc.locator("option").allTextContents()).filter(
+		(label) => label.includes("Contrato visual E2E"),
+	);
+	expect(contractArcOptions).toEqual(
+		expect.arrayContaining([
+			"Contrato visual E2E — Crônicas da Mesa",
+			"Contrato visual E2E — Antes que seja tarde — uma campanha com nome deliberadamente comprido",
+		]),
+	);
+	expect(contractArcOptions).toHaveLength(2);
+
+	await aggregateArc.selectOption({ label: "Contrato visual E2E — Crônicas da Mesa" });
+	await expect(page.locator('[data-session-card="grid"]')).toHaveCount(3);
 
 	await page
 		.getByLabel("Filtrar por campanha")
