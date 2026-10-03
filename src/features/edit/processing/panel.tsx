@@ -395,9 +395,10 @@ export function ProcessingPanel({
 			job.kind === "benchmark.craig" || job.context?.campaignId === campaignId,
 	);
 	const campaignRuns = state.localRuns.filter(
-		(run) =>
-			run.publicationTarget === null ||
-			run.publicationTarget.campaignSlug === campaignId,
+		(run) => run.publicationTarget?.campaignSlug === campaignId,
+	);
+	const unboundRuns = state.localRuns.filter(
+		(run) => run.publicationTarget === null,
 	);
 	const resultJob =
 		state.result === null
@@ -1198,6 +1199,55 @@ export function ProcessingPanel({
 								campaignId={campaignId}
 								capabilities={state.capabilities.capabilities}
 							/>
+						) : null}
+						{unboundRuns.length ? (
+							<section
+								className={styles.unboundRecovery}
+								aria-labelledby="unbound-local-runs-title"
+								data-unbound-local-runs="true"
+							>
+								<div className={styles.sectionHeading}>
+									<div>
+										<h2 id="unbound-local-runs-title">
+											Resultados locais sem campanha confirmada
+										</h2>
+										<p>
+											Estes runs antigos continuam preservados, mas não contam como
+											resultados de {campaignName}. Confirme a origem antes de reparar o
+											destino; a campanha aberta nunca é usada como fallback.
+										</p>
+									</div>
+									<span>{unboundRuns.length}</span>
+								</div>
+								<LocalReviewWorkspace
+									runs={unboundRuns}
+									hasMore={false}
+									onLoadMore={controller.loadMoreRuns}
+									focusRunKey={resultFocus?.key ?? null}
+									focusRunRequestId={resultFocus?.requestId ?? 0}
+									review={state.localReview}
+									busy={state.localReviewBusy}
+									error={state.localReviewError}
+									publicationEnabled={publicationEnabled}
+									comparisonEnabled={state.capabilities?.capabilities.includes("transcription.review.base") === true}
+									onOpen={(sourceId, runId) =>
+										controller.openLocalReview(sourceId, runId)
+									}
+									onLoadSnapshot={(sourceId, runId) =>
+										controller.loadLocalReviewSnapshot(sourceId, runId)
+									}
+									onDeleteRun={canDeleteRuns ? controller.deleteLocalRun : undefined}
+									onLoadLatest={controller.loadLatestLocalReview}
+									onRepairTarget={state.capabilities?.capabilities.includes("transcription.target.repair") ? controller.repairPublicationTarget : undefined}
+									onSave={(revision, status, segments) =>
+										controller.saveLocalReview(revision, status, segments)
+									}
+									onClose={controller.closeLocalReview}
+									onPublish={(review, operationId, expectedCurrentRevisionId, profileScope) =>
+										publishApprovedLocalReview(review, operationId, expectedCurrentRevisionId, fetch, profileScope)
+									}
+								/>
+							</section>
 						) : null}
 						<LocalReviewWorkspace
 							runs={campaignRuns}

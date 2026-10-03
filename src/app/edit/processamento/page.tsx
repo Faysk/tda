@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { CampaignRoutePicker } from "@/features/campaigns/campaign-route-picker";
 import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import { readEligibleProcessingCampaigns } from "@/features/campaigns/processing";
@@ -51,13 +52,21 @@ function ProcessingCampaignEntry({
 		: undefined;
 
 	return (
-		<section className={pageStyles.campaignGate} aria-labelledby="processing-campaign-title">
-			<p className={pageStyles.eyebrow}>Edit · processamento</p>
-			<h1 id="processing-campaign-title">Onde vamos trabalhar?</h1>
-			<p>
-				Escolha a campanha deste processamento. A campanha só é aplicada quando
-				você abrir o workspace; nenhum contexto é escolhido silenciosamente.
-			</p>
+		<section
+			className={pageStyles.campaignGate}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit · Processamento"
+				title="Onde vamos trabalhar?"
+				description={
+					<p>
+						Escolha a campanha. O contexto só muda quando você abrir o
+						processamento.
+					</p>
+				}
+			/>
 			{invalidSelection ? (
 				<p className={pageStyles.campaignAlert} role="alert">
 					{campaignCreated
@@ -108,15 +117,20 @@ export default async function ProcessingPage({ searchParams }: Props) {
 		return (
 			<section
 				className={pageStyles.campaignGate}
-				aria-labelledby="processing-campaign-unavailable"
+				data-layout-family="workspace"
+				data-layout-role="editorial"
 				role="status"
 			>
-				<p className={pageStyles.eyebrow}>Edit · processamento</p>
-				<h1 id="processing-campaign-unavailable">Campanhas indisponíveis</h1>
-				<p>
-					A sessão está autenticada, mas o registry de campanhas não pôde ser
-					consultado com segurança. Nenhum contexto de processamento foi assumido.
-				</p>
+				<OperationalPageHeader
+					eyebrow="Edit · Processamento"
+					title="Campanhas indisponíveis"
+					description={
+						<p>
+							Não foi possível consultar as campanhas agora. Nenhum contexto
+							foi assumido.
+						</p>
+					}
+				/>
 			</section>
 		);
 	}

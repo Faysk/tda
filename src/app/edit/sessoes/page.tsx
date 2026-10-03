@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { currentAccess } from "@/features/auth/server";
 import {
 	editSessionLibraryHref,
@@ -25,13 +26,17 @@ export default async function EditSessionsEntryPage() {
 	const eligible = await readEditableSessionCampaigns(access.context);
 	if (!eligible.ok) {
 		return (
-			<section className={styles.locked} role="status">
-				<div className={styles.muted}>TDA / EDIT / SESSÕES</div>
-				<h1>Campanhas indisponíveis</h1>
-				<p className={styles.muted}>
-					O diretório autorizado não pôde ser consultado. Nenhuma campanha foi
-					escolhida por fallback.
-				</p>
+			<section
+				className={styles.locked}
+				data-layout-family="workspace"
+				data-layout-role="editorial"
+				role="status"
+			>
+				<OperationalPageHeader
+					eyebrow="Edit · Sessões"
+					title="Campanhas indisponíveis"
+					description={<p>Não foi possível consultar as campanhas agora.</p>}
+				/>
 			</section>
 		);
 	}
@@ -40,23 +45,20 @@ export default async function EditSessionsEntryPage() {
 	if (onlyCampaign) redirect(editSessionLibraryHref(onlyCampaign.technicalSlug));
 
 	return (
-		<section className={styles.shell}>
-			<header className={styles.pageHeader}>
-				<div>
-					<p className={styles.libraryEyebrow}>TDA / EDIT / SESSÕES</p>
-					<h1 className={[styles.pageTitle, styles.libraryTitle].join(" ")}>
-						Escolha a campanha
-					</h1>
-					<p className={styles.muted}>
-						A biblioteca editorial é isolada por campanha. Nenhuma mesa é
-						assumida silenciosamente quando existem várias opções.
-					</p>
-				</div>
-			</header>
+		<section
+			className={[styles.shell, styles.libraryShell].join(" ")}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit · Sessões"
+				title="Escolha a campanha"
+				description={<p>Abra a biblioteca editorial da campanha certa.</p>}
+			/>
 			{eligible.campaigns.length ? (
 				<div className={styles.libraryList}>
 					{eligible.campaigns.map((campaign) => (
-						<article className={styles.libraryRow} key={campaign.id}>
+						<article className={[styles.libraryRow, styles.campaignChoiceRow].join(" ")} key={campaign.id}>
 							<div className={styles.libraryPrimary}>
 								<h2 className={styles.sessionTitle}>{campaign.name}</h2>
 								<div className={styles.librarySecondary}>

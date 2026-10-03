@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Form from "next/form";
 import { notFound } from "next/navigation";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { FormSubmitButton, StatusPill } from "@/components/ui";
 import { requireCampaignCapability } from "@/features/auth/server";
@@ -57,9 +58,15 @@ function parseFilters(params: Awaited<SearchParams>): SessionLibraryFilters {
 
 function ErrorState({ retryHref }: { retryHref: string }) {
 	return (
-		<section className={styles.locked}>
-			<div className={styles.muted}>TDA / EDIT / SESSÕES</div>
-			<h1>Sessões indisponíveis</h1>
+		<section
+			className={styles.locked}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit · Sessões"
+				title="Sessões indisponíveis"
+			/>
 			<p className={styles.muted}>
 				Não foi possível consultar a biblioteca editorial agora. Tente novamente
 				sem assumir que a lista está vazia.
@@ -121,28 +128,27 @@ export default async function EditSessionsPage({
 		filters.sort !== "date-desc";
 
 	return (
-		<section className={styles.shell}>
-			<header className={styles.pageHeader}>
-				<div>
-					<p className={styles.libraryEyebrow}>TDA / EDIT / SESSÕES</p>
-					<p className={styles.muted}>
-						{campaign.name}{campaign.lifecycle === "archived" ? " · arquivada" : ""}
-					</p>
-					<h1 className={[styles.pageTitle, styles.libraryTitle].join(" ")}>Biblioteca editorial</h1>
-					<details className={styles.libraryGuidance}>
-						<summary>Sobre esta biblioteca</summary>
-						<p>
-							Área privada para continuar o trabalho das sessões preparadas. O
-							estado <strong>Publicado</strong> se refere à sessão no site; a
-							transcrição continua privada no Edit.
-						</p>
-					</details>
-				</div>
-				<div className={styles.libraryCount} role="status" aria-live="polite">
-					<strong>{visible.length.toLocaleString("pt-BR")}</strong> de{" "}
-					{sessions.length.toLocaleString("pt-BR")} sessões
-				</div>
-			</header>
+		<section
+			className={[styles.shell, styles.libraryShell].join(" ")}
+			data-layout-family="workspace"
+			data-layout-role="expansive"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit · Sessões"
+				title="Biblioteca editorial"
+				meta={
+					<div className={styles.libraryHeaderMeta} role="status" aria-live="polite">
+						<span>
+							{campaign.name}
+							{campaign.lifecycle === "archived" ? " · arquivada" : ""}
+						</span>
+						<span>
+							<strong>{visible.length.toLocaleString("pt-BR")}</strong> de{" "}
+							{sessions.length.toLocaleString("pt-BR")} sessões
+						</span>
+					</div>
+				}
+			/>
 
 			<div className={styles.libraryFilters}>
 				<SessionCampaignSwitcher
@@ -224,6 +230,15 @@ export default async function EditSessionsPage({
 					{hasFilters ? <Link href={returnTo}>Limpar filtros</Link> : null}
 				</div>
 			</Form>
+
+			<details className={styles.libraryGuidance}>
+				<summary>Sobre esta biblioteca</summary>
+				<p>
+					Área privada para continuar o trabalho das sessões preparadas. O
+					estado <strong>Publicado</strong> se refere à sessão no site; a
+					transcrição continua privada no Edit.
+				</p>
+			</details>
 
 			{sessions.length === 0 ? (
 				<div className={styles.empty}>

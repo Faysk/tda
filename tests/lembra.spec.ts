@@ -10,6 +10,34 @@ const PNG_10X20 = Buffer.from(
 	"base64",
 );
 
+const LONG_CAMPAIGN = "Expedição pelos Confins do Reino das Estrelas Cadentes";
+
+async function expectReadableControlText(
+	locator: import("@playwright/test").Locator,
+	viewportWidth: number,
+) {
+	const metrics = await locator.evaluate((element) => {
+		const target = element.querySelector("span") ?? element;
+		const box = target.getBoundingClientRect();
+		const style = getComputedStyle(target);
+		return {
+			left: box.left,
+			right: box.right,
+			scrollWidth: target.scrollWidth,
+			clientWidth: target.clientWidth,
+			scrollHeight: target.scrollHeight,
+			clientHeight: target.clientHeight,
+			whiteSpace: style.whiteSpace,
+			textOverflow: style.textOverflow,
+		};
+	});
+	expect(metrics.left).toBeGreaterThanOrEqual(-1);
+	expect(metrics.right).toBeLessThanOrEqual(viewportWidth + 1);
+	expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+	expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
+	return metrics;
+}
+
 async function addReference(
 	page: import("@playwright/test").Page,
 	title: string,
@@ -84,6 +112,42 @@ test("Lembra campaign classification stays optional, filterable and non-authorit
 });
 
 
+
+
+test("Lembra keeps campaign identity and sort choices readable across mobile and zoom reflow", async ({ page }, testInfo) => {
+	for (const viewport of [
+		{ width: 320, height: 760 },
+		{ width: 390, height: 844 },
+		{ width: 683, height: 384 },
+		{ width: 1366, height: 768 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/e2e-fixtures/lembra-campaigns");
+		const campaignFilter = page.getByRole("button", { name: "Filtrar por campanha" });
+		await campaignFilter.click();
+		const longOption = page.getByRole("option", { name: LONG_CAMPAIGN, exact: true });
+		await expect(longOption).toBeVisible();
+		await expectReadableControlText(longOption, viewport.width);
+		await longOption.click();
+		await expect(campaignFilter).toContainText(LONG_CAMPAIGN);
+		const active = await expectReadableControlText(campaignFilter, viewport.width);
+		expect(active.whiteSpace).not.toBe("nowrap");
+		await expect(page.getByRole("button", { name: "Confins", exact: true })).toBeVisible();
+		const sort = page.getByRole("button", { name: "Ordenar referências" });
+		await sort.click();
+		for (const label of ["Mais recentes", "Mais antigas", "Nome", "Autor"]) {
+			const option = page.getByRole("option", { name: label, exact: true });
+			await expect(option).toBeVisible();
+			await expectReadableControlText(option, viewport.width);
+		}
+		await page.keyboard.press("Escape");
+		await expect(sort).toBeFocused();
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+		const receipt = testInfo.outputPath(`lembra-filter-${viewport.width}x${viewport.height}.png`);
+		await page.screenshot({ path: receipt, fullPage: false });
+		await testInfo.attach(`lembra-filter-${viewport.width}x${viewport.height}`, { path: receipt, contentType: "image/png" });
+	}
+});
 
 test("Lembra returns to Geral and cancels campaign creation without changing the upload draft", async ({ page }) => {
 	await page.goto("/e2e-fixtures/lembra-campaigns");
@@ -565,7 +629,9 @@ test("Lembra justifies desktop rows and becomes single-column at 320px", async (
 	const mobileToolbarHeight = await page
 		.getByPlaceholder("Buscar título, descrição, autor ou data...")
 		.evaluate((input) => input.parentElement?.parentElement?.getBoundingClientRect().height ?? 999);
-	expect(mobileToolbarHeight).toBeLessThanOrEqual(120);
+	expect(mobileToolbarHeight).toBeLessThanOrEqual(180);
+	await expect(page.getByRole("button", { name: "Filtrar por campanha" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Ordenar referências" })).toBeVisible();
 
 	const cards = page.locator("article");
 	const first = await cards.nth(0).boundingBox();

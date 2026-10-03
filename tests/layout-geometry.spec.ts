@@ -316,3 +316,101 @@ test("visual receipts expose shared keylines and corner safe areas", async ({
 	await captureReceipt(page, testInfo, "/lembra", "lembra");
 	await captureReceipt(page, testInfo, WORLD_WORKSPACE_PATH, "workbench");
 });
+
+
+test("operational headers keep useful work in the first viewport across governed reflow sizes", async ({
+	page,
+}, testInfo) => {
+	const surfaces = [
+		{ key: "selector", title: "Escolha a campanha" },
+		{ key: "library", title: "Biblioteca editorial" },
+		{ key: "campaigns", title: "Campanhas" },
+		{ key: "account", title: "Conta e acesso" },
+	] as const;
+	const viewports = [
+		{ width: 1366, height: 768, label: "1366x768", theme: "dark" },
+		{ width: 390, height: 844, label: "390x844", theme: "light" },
+		{ width: 320, height: 800, label: "320x800", theme: "dark" },
+		{ width: 683, height: 384, label: "200-percent-proxy", theme: "light" },
+	] as const;
+
+	for (const viewport of viewports) {
+		await page.setViewportSize(viewport);
+		for (const surface of surfaces) {
+			await page.goto(
+				`/e2e-fixtures/operational-header?surface=${surface.key}`,
+			);
+			await page.evaluate(
+				(theme) => localStorage.setItem("tda-theme", theme),
+				viewport.theme,
+			);
+			await page.reload();
+
+			await expect(page.locator("html")).toHaveAttribute(
+				"data-theme",
+				viewport.theme,
+			);
+			const header = page.locator('[data-operational-page-header="true"]');
+			const title = page.getByRole("heading", {
+				level: 1,
+				name: surface.title,
+			});
+			const useful = page.locator('[data-first-useful="true"]').first();
+			await expect(header).toBeVisible();
+			await expect(title).toBeVisible();
+			await expect(useful).toBeVisible();
+
+			const [headerBox, usefulBox, titleSize] = await Promise.all([
+				header.boundingBox(),
+				useful.boundingBox(),
+				title.evaluate((element) =>
+					Number.parseFloat(getComputedStyle(element).fontSize),
+				),
+			]);
+			expect(headerBox, `${surface.key} ${viewport.label}: header box`).not.toBeNull();
+			expect(usefulBox, `${surface.key} ${viewport.label}: useful box`).not.toBeNull();
+			if (!headerBox || !usefulBox) continue;
+
+			expect(
+				headerBox.height,
+				`${surface.key} ${viewport.label}: compact header height`,
+			).toBeLessThanOrEqual(160);
+			expect(
+				titleSize,
+				`${surface.key} ${viewport.label}: operational title size`,
+			).toBeLessThanOrEqual(48);
+			expect(
+				usefulBox.y,
+				`${surface.key} ${viewport.label}: first useful content/action above fold`,
+			).toBeLessThan(viewport.height);
+			await expectNoHorizontalOverflow(page);
+
+			const keyboardTarget = page.locator('[data-keyboard-target="true"]').first();
+			await expect(keyboardTarget).toBeVisible();
+			await page.evaluate(() => {
+				(document.activeElement as HTMLElement | null)?.blur();
+			});
+			let reached = false;
+			for (let press = 0; press < 24; press += 1) {
+				await page.keyboard.press("Tab");
+				reached = await keyboardTarget.evaluate(
+					(element) => element === document.activeElement,
+				);
+				if (reached) break;
+			}
+			expect(
+				reached,
+				`${surface.key} ${viewport.label}: primary control is keyboard reachable`,
+			).toBeTruthy();
+
+			if (viewport.width === 1366 || viewport.width === 390) {
+				await page.screenshot({
+					path: testInfo.outputPath(
+						`operational-header-${surface.key}-${viewport.label}.png`,
+					),
+					fullPage: false,
+				});
+			}
+		}
+	}
+});

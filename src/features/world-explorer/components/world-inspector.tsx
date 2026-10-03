@@ -53,6 +53,16 @@ function prominenceLabel(node: WorldNodeDTO): string | null {
 	}
 }
 
+function statusLabel(status: string | null | undefined): string | null {
+	if (!status) return null;
+	return {
+		active: "Ativo",
+		published: "Publicado",
+		archived: "Arquivado",
+		draft: "Rascunho",
+	}[status] ?? null;
+}
+
 export function WorldInspectorContent({
 	selected,
 	projection,
@@ -87,6 +97,7 @@ export function WorldInspectorContent({
 		visibleRelationHighlights,
 	} = context;
 	const prominence = prominenceLabel(selected);
+	const status = statusLabel(selected.status);
 	const tabs: Array<{ id: InspectorTab; label: string; count?: number }> = [
 		{ id: "overview", label: "Visão geral" },
 		{ id: "relations", label: "Laços", count: connections.length },
@@ -98,7 +109,11 @@ export function WorldInspectorContent({
 	return (
 		<>
 			<section className={inspectorStyles.identityCard} aria-labelledby={`world-inspector-${selected.id}`}>
-				<div className={inspectorStyles.identityMedia} aria-hidden="true">
+				<div
+					className={inspectorStyles.identityMedia}
+					data-has-image={selected.imageUrl ? "true" : "false"}
+					aria-hidden="true"
+				>
 					{selected.imageUrl ? (
 						<Image
 							className={inspectorStyles.identityImage}
@@ -123,7 +138,7 @@ export function WorldInspectorContent({
 						<p className={inspectorStyles.identitySubtitle}>{selected.subtitle}</p>
 					) : null}
 					<div className={inspectorStyles.identityBadges}>
-						{selected.status ? <span>{selected.status}</span> : null}
+						{status ? <span>{status}</span> : null}
 						{prominence ? <span>{prominence}</span> : null}
 						{selected.id === projection.focusId ? <span>Foco atual</span> : null}
 					</div>
@@ -170,54 +185,62 @@ export function WorldInspectorContent({
 						<p className={inspectorStyles.summaryCopy}>
 							{selected.summary?.trim()
 								? selected.summary
-								: "Este recorte não traz um resumo narrativo público. Use os laços visíveis para percorrer o contexto disponível sem alterar o foco da URL."}
+								: "Sem resumo narrativo público neste recorte."}
 						</p>
 					</div>
 
-					<dl className={inspectorStyles.summaryStats}>
-						<div>
-							<dt>Laços</dt>
-							<dd>{connections.length}</dd>
-						</div>
-						<div>
-							<dt>Personagens</dt>
-							<dd>{characterConnections.length}</dd>
-						</div>
-						<div>
-							<dt>Contextos</dt>
-							<dd>{contextualConnections}</dd>
-						</div>
-					</dl>
-
-					{visibleRelationHighlights.length ? (
-						<div className={inspectorStyles.relationHighlights}>
-							<div className={inspectorStyles.relationHighlightsHeader}>
-								<p className={inspectorStyles.sectionEyebrow}>Relações visíveis</p>
-								<span>{connections.length}</span>
-							</div>
-							<div className={inspectorStyles.relationChips}>
-								{visibleRelationHighlights.map(({ edge, destination }) => (
-									<button
-										key={edge.id}
-										type="button"
-										data-family={edge.family}
-										onClick={() => onSelect(destination.id)}
-										aria-label={`Explorar relação ${edge.label} com ${destination.label}`}
-										title={`${edge.label} · ${destination.label}`}
-									>
-										{edge.label}
-									</button>
-								))}
-							</div>
-						</div>
-					) : null}
-
-					{connections.length ? (
-						<div className={inspectorStyles.overviewRelations}>
-							<h3>Conexões em destaque</h3>
+					<div className={inspectorStyles.overviewRelations}>
+						<h3>Conexões em destaque</h3>
+						{connections.length ? (
 							<ConnectionList connections={connections.slice(0, 4)} onSelect={onSelect} />
-						</div>
-					) : null}
+						) : (
+							<p className={inspectorStyles.connectionsEmpty}>
+								Nenhuma conexão visível para esta entidade neste recorte.
+							</p>
+						)}
+					</div>
+
+					<details className={inspectorStyles.mapDetails}>
+						<summary>Detalhes do mapa</summary>
+						<dl className={inspectorStyles.summaryStats}>
+							<div>
+								<dt>Laços</dt>
+								<dd>{connections.length}</dd>
+							</div>
+							<div>
+								<dt>Personagens</dt>
+								<dd>{characterConnections.length}</dd>
+							</div>
+							<div>
+								<dt>Contextos</dt>
+								<dd>{contextualConnections}</dd>
+							</div>
+						</dl>
+
+						{visibleRelationHighlights.length ? (
+							<div className={inspectorStyles.relationHighlights}>
+								<div className={inspectorStyles.relationHighlightsHeader}>
+									<p className={inspectorStyles.sectionEyebrow}>Relações visíveis</p>
+									<span>{connections.length}</span>
+								</div>
+								<div className={inspectorStyles.relationChips}>
+									{visibleRelationHighlights.map(({ edge, destination }) => (
+										<button
+											key={edge.id}
+											type="button"
+											data-family={edge.family}
+											onClick={() => onSelect(destination.id)}
+											aria-label={`Explorar relação ${edge.label} com ${destination.label}`}
+											title={`${edge.label} · ${destination.label}`}
+										>
+											<strong>{destination.label}</strong>
+											<span>{edge.label}</span>
+										</button>
+									))}
+								</div>
+							</div>
+						) : null}
+					</details>
 				</section>
 			) : null}
 
@@ -291,9 +314,9 @@ export function WorldInspectorContent({
 				</div>
 			)}
 
-			<section className={inspectorStyles.entityMeta} aria-label={`Entidade no mundo: ${selected.label}`}>
-				<p className={inspectorStyles.sectionEyebrow}>Entidade no mundo</p>
-				<dl>
+			<details className={inspectorStyles.entityMeta}>
+				<summary>Proveniência e disponibilidade</summary>
+				<dl aria-label={`Entidade no mundo: ${selected.label}`}>
 					<div>
 						<dt>Tipo</dt>
 						<dd>{nodeTypeLabel(selected)}</dd>
@@ -313,7 +336,7 @@ export function WorldInspectorContent({
 						</div>
 					) : null}
 				</dl>
-			</section>
+			</details>
 		</>
 	);
 }

@@ -1,23 +1,8 @@
 .page {
 	width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 	margin: 0 auto;
-	padding: 36px 0 96px;
+	padding: 14px 0 72px;
 	font-family: var(--ds-font-ui);
-}
-
-.header {
-	display: flex;
-	align-items: end;
-	justify-content: space-between;
-	gap: 28px;
-	padding-bottom: 24px;
-	border-bottom: 1px solid var(--ds-border);
-}
-
-.header > div {
-	display: grid;
-	max-width: 760px;
-	gap: 8px;
 }
 
 .eyebrow,
@@ -30,15 +15,6 @@
 	text-transform: uppercase;
 }
 
-.header h1 {
-	margin: 0;
-	font-family: var(--ds-font-display);
-	font-size: clamp(2.1rem, 4vw, 3.3rem);
-	font-weight: 500;
-	line-height: 1;
-}
-
-.header p:last-child,
 .create > div > p:last-child {
 	margin: 4px 0 0;
 	color: var(--ds-foreground-soft);
@@ -76,7 +52,7 @@ textarea:focus-visible {
 }
 
 .feedback {
-	margin: 22px 0 0;
+	margin: 12px 0 0;
 	padding: 14px 16px;
 	border: 1px solid var(--ds-border);
 	border-radius: var(--ds-radius-md);
@@ -84,12 +60,40 @@ textarea:focus-visible {
 	color: var(--ds-foreground-soft);
 }
 
+.createDisclosure {
+	margin-top: 10px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid var(--ds-border);
+}
+
+.createDisclosure > summary {
+	display: inline-flex;
+	min-height: 42px;
+	align-items: center;
+	padding: 0 15px;
+	border: 1px solid var(--ds-action-primary-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-action-primary-bg);
+	color: var(--ds-action-primary-foreground);
+	font-weight: 750;
+	cursor: pointer;
+	list-style: none;
+}
+
+.createDisclosure > summary::-webkit-details-marker {
+	display: none;
+}
+
+.createDisclosure > summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+
 .create {
 	display: grid;
 	grid-template-columns: minmax(240px, 0.7fr) minmax(0, 1.3fr);
-	gap: clamp(28px, 5vw, 72px);
-	padding: 42px 0;
-	border-bottom: 1px solid var(--ds-border);
+	gap: clamp(24px, 4vw, 56px);
+	padding: 24px 0 12px;
 }
 
 .create h2,
@@ -166,7 +170,7 @@ textarea:focus-visible {
 }
 
 .registry {
-	padding-top: 38px;
+	padding-top: 24px;
 }
 
 .registryHeading {
@@ -312,15 +316,8 @@ textarea:focus-visible {
 		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	}
 
-	.header,
 	.create {
 		grid-template-columns: 1fr;
-		flex-direction: column;
-		align-items: stretch;
-	}
-
-	.create {
-		display: grid;
 	}
 
 	.form {

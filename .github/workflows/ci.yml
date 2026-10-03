@@ -374,6 +374,7 @@ jobs:
             test-results/**/layout-keylines-workbench.png
             test-results/**/lore-catalog-*.png
             test-results/**/layout-cross-*.png
+            test-results/**/operational-header-*.png
           if-no-files-found: error
           retention-days: 30
       - name: Upload sanitized navigation failure artifacts
@@ -425,6 +426,14 @@ jobs:
           tests/lembra.spec.ts
           --project=desktop-1080p
           --project=mobile
+      - name: Upload sanitized Lembra visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lembra-receipts-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/**/lembra-filter-*.png
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload sanitized Lembra failure artifacts
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
