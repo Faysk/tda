@@ -75,6 +75,19 @@ def _benchmark_profile_evidence_valid(receipt: dict, profile_id: str) -> bool:
     return (
         receipt.get("profile_id") == profile_id
         and receipt.get("sample_seconds") == 300.0
+        and (
+            receipt.get("benchmark_id") is None
+            or (
+                isinstance(receipt.get("benchmark_id"), str)
+                and _is_sha256(receipt.get("sample_identity_sha256"))
+                and _is_sha256(receipt.get("transcript_sha256"))
+                and isinstance(receipt.get("transcript_size_bytes"), int)
+                and receipt["transcript_size_bytes"] > 0
+                and _is_sha256(receipt.get("metrics_sha256"))
+                and isinstance(receipt.get("metrics_size_bytes"), int)
+                and receipt["metrics_size_bytes"] > 0
+            )
+        )
         and lineage.get("runtime_family") == expected_family
         and isinstance(runtime_version, str)
         and isinstance(artifact, dict)
