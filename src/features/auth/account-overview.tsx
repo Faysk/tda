@@ -309,7 +309,7 @@ export function AccountOverview({
 					) : null}
 
 					{selectedCampaign ? (
-						<details className={styles.accessContext} open>
+						<details className={styles.accessContext}>
 							<summary className={styles.campaignContextSummary}>
 								<span>
 									<span className={styles.contextEyebrow}>Campanha</span>
@@ -342,7 +342,7 @@ export function AccountOverview({
 							Escolha uma campanha para ver as permissões específicas desse contexto.
 						</p>
 					) : singleCampaign ? (
-						<details className={styles.accessContext} open>
+						<details className={styles.accessContext}>
 							<summary className={styles.campaignContextSummary}>
 								<span>
 									<span className={styles.contextEyebrow}>Campanha</span>
