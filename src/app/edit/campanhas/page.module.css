@@ -594,7 +594,7 @@ summary:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	* {
+	.page * {
 		scroll-behavior: auto !important;
 	}
 }
