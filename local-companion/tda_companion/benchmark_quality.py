@@ -77,45 +77,73 @@ def normalization_contract() -> dict[str, Any]:
 
 
 def _edit_counts(reference: Sequence[str], hypothesis: Sequence[str]) -> dict[str, int]:
-    rows = len(reference) + 1
-    cols = len(hypothesis) + 1
-    cost = [[0] * cols for _ in range(rows)]
-    op = [[""] * cols for _ in range(rows)]
-    for i in range(1, rows):
-        cost[i][0] = i
-        op[i][0] = "D"
-    for j in range(1, cols):
-        cost[0][j] = j
-        op[0][j] = "I"
-    priority = {"E": 0, "S": 1, "D": 2, "I": 3}
-    for i in range(1, rows):
-        for j in range(1, cols):
-            candidates: list[tuple[int, str]] = []
-            if reference[i - 1] == hypothesis[j - 1]:
-                candidates.append((cost[i - 1][j - 1], "E"))
+    """Exact Levenshtein S/D/I counts with bounded memory and deterministic ties."""
+    if len(reference) * len(hypothesis) > 30_000_000:
+        raise BenchmarkQualityError("BENCHMARK_QUALITY_COMPLEXITY_LIMIT")
+    # state = (distance, substitutions, deletions, insertions, equals)
+    previous: list[tuple[int, int, int, int, int]] = [
+        (index, 0, 0, index, 0) for index in range(len(hypothesis) + 1)
+    ]
+    for ref_index, ref_value in enumerate(reference, start=1):
+        current: list[tuple[int, int, int, int, int]] = [
+            (ref_index, 0, ref_index, 0, 0)
+        ]
+        for hyp_index, hyp_value in enumerate(hypothesis, start=1):
+            candidates: list[tuple[tuple[int, int, int, int, int], int]] = []
+            diagonal = previous[hyp_index - 1]
+            if ref_value == hyp_value:
+                candidates.append((
+                    (
+                        diagonal[0],
+                        diagonal[1],
+                        diagonal[2],
+                        diagonal[3],
+                        diagonal[4] + 1,
+                    ),
+                    0,
+                ))
             else:
-                candidates.append((cost[i - 1][j - 1] + 1, "S"))
-            candidates.append((cost[i - 1][j] + 1, "D"))
-            candidates.append((cost[i][j - 1] + 1, "I"))
-            best = min(candidates, key=lambda item: (item[0], priority[item[1]]))
-            cost[i][j], op[i][j] = best
-    i, j = len(reference), len(hypothesis)
-    counts = {"substitutions": 0, "deletions": 0, "insertions": 0, "equals": 0}
-    while i > 0 or j > 0:
-        operation = op[i][j]
-        if operation in {"E", "S"}:
-            counts["equals" if operation == "E" else "substitutions"] += 1
-            i -= 1
-            j -= 1
-        elif operation == "D":
-            counts["deletions"] += 1
-            i -= 1
-        elif operation == "I":
-            counts["insertions"] += 1
-            j -= 1
-        else:
-            raise BenchmarkQualityError("BENCHMARK_EDIT_DISTANCE_INVALID")
-    return counts
+                candidates.append((
+                    (
+                        diagonal[0] + 1,
+                        diagonal[1] + 1,
+                        diagonal[2],
+                        diagonal[3],
+                        diagonal[4],
+                    ),
+                    1,
+                ))
+            deleted = previous[hyp_index]
+            candidates.append((
+                (
+                    deleted[0] + 1,
+                    deleted[1],
+                    deleted[2] + 1,
+                    deleted[3],
+                    deleted[4],
+                ),
+                2,
+            ))
+            inserted = current[hyp_index - 1]
+            candidates.append((
+                (
+                    inserted[0] + 1,
+                    inserted[1],
+                    inserted[2],
+                    inserted[3] + 1,
+                    inserted[4],
+                ),
+                3,
+            ))
+            current.append(min(candidates, key=lambda item: (item[0][0], item[1]))[0])
+        previous = current
+    final = previous[-1]
+    return {
+        "substitutions": final[1],
+        "deletions": final[2],
+        "insertions": final[3],
+        "equals": final[4],
+    }
 
 
 def _text_metrics(reference: str, hypothesis: str) -> dict[str, Any]:
@@ -211,7 +239,30 @@ def _safe_terms(value: Any) -> list[str]:
     return terms
 
 
-def _read_json(path: Path, maximum: int = _MAX_REFERENCE_BYTES) -> dict[str, Any]:
+def _assert_regular_owned_file(root: Path, path: Path) -> None:
+    root_abs = root.absolute()
+    path_abs = path.absolute()
+    try:
+        path_abs.relative_to(root_abs)
+    except ValueError as exc:
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_ESCAPE") from exc
+    current = root_abs
+    for part in path_abs.relative_to(root_abs).parts:
+        current = current / part
+        if current.exists() and current.is_symlink():
+            raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_REPARSE_REJECTED")
+    if path.exists() and not path.is_file():
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_INVALID")
+
+
+def _read_json(
+    path: Path,
+    maximum: int = _MAX_REFERENCE_BYTES,
+    *,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    if root is not None:
+        _assert_regular_owned_file(root, path)
     try:
         payload = path.read_bytes()
     except OSError as exc:
@@ -231,7 +282,7 @@ def _current_reference(root: Path) -> dict[str, Any] | None:
     pointer = root / "reference" / "current.json"
     if not pointer.is_file():
         return None
-    value = _read_json(pointer)
+    value = _read_json(pointer, root=root)
     if value.get("schema_version") != REFERENCE_POINTER_SCHEMA:
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_POINTER_INVALID")
     revision = value.get("revision")
@@ -239,7 +290,13 @@ def _current_reference(root: Path) -> dict[str, Any] | None:
     if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1 or not isinstance(digest, str):
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_POINTER_INVALID")
     path = root / "reference" / f"reference-{revision:06d}.json"
-    payload = path.read_bytes()
+    _assert_regular_owned_file(root, path)
+    try:
+        payload = path.read_bytes()
+    except OSError as exc:
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_UNAVAILABLE") from exc
+    if not payload or len(payload) > _MAX_REFERENCE_BYTES:
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_SIZE_INVALID")
     if _digest(payload) != digest:
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_INTEGRITY_FAILED")
     reference = json.loads(payload)
@@ -295,6 +352,8 @@ def save_reference(
     if len(encoded) > _MAX_REFERENCE_BYTES:
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_SIZE_INVALID")
     reference_dir = root / "reference"
+    if reference_dir.exists() and reference_dir.is_symlink():
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_REPARSE_REJECTED")
     reference_dir.mkdir(parents=True, exist_ok=True)
     path = reference_dir / f"reference-{revision:06d}.json"
     if path.exists():
@@ -497,7 +556,12 @@ def compute_quality_receipts(
     reference_by_track = {int(item["track_number"]): item["text"] for item in reference_tracks}
     reference_text = " ".join(reference_by_track[number] for number in sorted(reference_by_track))
     reference_sha = _digest(_canonical(ref))
-    quality_dir = root / "quality" / f"reference-{int(ref['revision']):06d}"
+    quality_root = root / "quality"
+    if quality_root.exists() and quality_root.is_symlink():
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_REPARSE_REJECTED")
+    quality_dir = quality_root / f"reference-{int(ref['revision']):06d}"
+    if quality_dir.exists() and quality_dir.is_symlink():
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_REPARSE_REJECTED")
     quality_dir.mkdir(parents=True, exist_ok=True)
     receipts: list[dict[str, Any]] = []
     for profile_id in PROFILES:
