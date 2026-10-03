@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { safeReturnPath } from "@/features/auth/config";
 import { CampaignCoverEditor } from "@/features/campaigns/campaign-cover-editor";
 import { readManageableCampaigns } from "@/features/campaigns/server";
 import {
@@ -29,6 +30,13 @@ function queryValue(
 	return typeof value === "string" ? value : null;
 }
 
+function validatedReturnPath(value: string | null): string | null {
+	if (!value) return null;
+	const safe = safeReturnPath(value);
+	if (safe === "/conta" && value !== "/conta") return null;
+	return safe;
+}
+
 function feedbackText(status: string | null, error: string | null) {
 	if (status === "criada") return "Campanha criada e relida com identidade estável.";
 	if (status === "atualizada") return "Campanha atualizada.";
@@ -55,10 +63,7 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 
 	const status = queryValue(params, "status");
 	const error = queryValue(params, "erro");
-	const returnTo =
-		queryValue(params, "next") === "/edit/processamento"
-			? "/edit/processamento"
-			: null;
+	const returnTo = validatedReturnPath(queryValue(params, "next"));
 	const feedback = feedbackText(status, error);
 
 	return (
@@ -72,9 +77,16 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 						estável e não muda quando o nome editorial mudar.
 					</p>
 				</div>
-				<Link className={styles.publicLink} href="/campanhas">
-					Ver diretório público
-				</Link>
+				<div className={styles.headerActions}>
+					{returnTo ? (
+						<Link className={styles.returnLink} href={returnTo}>
+							Voltar à ferramenta
+						</Link>
+					) : null}
+					<Link className={styles.publicLink} href="/campanhas">
+						Ver diretório público
+					</Link>
+				</div>
 			</header>
 
 			{feedback ? (
@@ -181,6 +193,9 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 										/>
 
 										<form className={styles.form} action={updateCampaignAction}>
+											{returnTo ? (
+												<input type="hidden" name="returnTo" value={returnTo} />
+											) : null}
 											<input type="hidden" name="id" value={campaign.id} />
 											<input
 												type="hidden"
@@ -234,6 +249,9 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 											className={styles.lifecycle}
 											action={setCampaignLifecycleAction}
 										>
+											{returnTo ? (
+												<input type="hidden" name="returnTo" value={returnTo} />
+											) : null}
 											<input type="hidden" name="id" value={campaign.id} />
 											<input
 												type="hidden"
