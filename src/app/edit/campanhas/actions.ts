@@ -21,57 +21,71 @@ function redirectWithResult(
 			typeof createCampaign | typeof updateCampaign | typeof setCampaignLifecycle
 		>
 	>,
+	options: Readonly<{
+		campaignId?: string;
+		returnTo?: string;
+	}> = {},
 ): never {
+	const params = new URLSearchParams();
 	if (result.ok) {
 		// Campaign identity is also projected by the shared root navigation.
 		revalidatePath("/", "layout");
-		redirect(`/edit/campanhas?status=${status}`);
+		params.set("status", status);
+	} else {
+		params.set("erro", result.reason);
+		if (result.field) params.set("campo", result.field);
 	}
-	redirect(
-		`/edit/campanhas?erro=${encodeURIComponent(result.reason)}${
-			result.field ? `&campo=${encodeURIComponent(result.field)}` : ""
-		}`,
-	);
+	if (options.campaignId) params.set("campanha", options.campaignId);
+	if (options.returnTo) params.set("next", options.returnTo);
+	redirect(`/edit/campanhas?${params.toString()}`);
 }
 
 export async function createCampaignAction(formData: FormData) {
+	const routeKey = text(formData, "routeKey");
+	const requestedTechnicalSlug = text(formData, "technicalSlug");
 	const result = await createCampaign({
 		name: text(formData, "name"),
-		technicalSlug: text(formData, "technicalSlug"),
-		routeKey: text(formData, "routeKey"),
+		// Human-facing creation keeps the technical key in progressive disclosure.
+		// When omitted, the initial public route is a deterministic, valid default.
+		technicalSlug: requestedTechnicalSlug.trim() || routeKey,
+		routeKey,
 		description: text(formData, "description"),
 		visibility: text(formData, "visibility"),
 	});
-	if (result.ok) {
-		const returnTo = safeReturnPath(text(formData, "returnTo"));
-		if (returnTo === "/edit/processamento") {
-			revalidatePath("/", "layout");
-			redirect(
-				`/edit/processamento?campanha=${encodeURIComponent(result.campaign.technicalSlug)}&campanhaCriada=1`,
-			);
-		}
+	const returnTo = safeReturnPath(text(formData, "returnTo"));
+	if (result.ok && returnTo === "/edit/processamento") {
+		revalidatePath("/", "layout");
+		redirect(
+			`/edit/processamento?campanha=${encodeURIComponent(result.campaign.technicalSlug)}&campanhaCriada=1`,
+		);
 	}
-	redirectWithResult("criada", result);
+	redirectWithResult("criada", result, {
+		returnTo: returnTo === "/edit/processamento" ? returnTo : undefined,
+	});
 }
 
 export async function updateCampaignAction(formData: FormData) {
+	const campaignId = text(formData, "id");
 	const result = await updateCampaign({
-		id: text(formData, "id"),
+		id: campaignId,
 		expectedUpdatedAt: text(formData, "expectedUpdatedAt"),
 		name: text(formData, "name"),
 		routeKey: text(formData, "routeKey"),
 		description: text(formData, "description"),
 		visibility: text(formData, "visibility"),
 	});
-	redirectWithResult("atualizada", result);
+	redirectWithResult("atualizada", result, { campaignId });
 }
 
 export async function setCampaignLifecycleAction(formData: FormData) {
+	const campaignId = text(formData, "id");
 	const lifecycle = text(formData, "lifecycle");
 	const result = await setCampaignLifecycle({
-		id: text(formData, "id"),
+		id: campaignId,
 		expectedUpdatedAt: text(formData, "expectedUpdatedAt"),
 		lifecycle,
 	});
-	redirectWithResult(lifecycle === "archived" ? "arquivada" : "reativada", result);
+	redirectWithResult(lifecycle === "archived" ? "arquivada" : "reativada", result, {
+		campaignId,
+	});
 }
