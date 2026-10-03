@@ -309,6 +309,14 @@
 .campaignSelect > [role="listbox"] [role="option"] {
 	height: auto;
 	min-height: 44px;
+	grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.campaignSelect > [role="listbox"] [role="option"] > span {
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	word-break: break-word;
 }
 
 .sortControl:focus-within {
