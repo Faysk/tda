@@ -412,6 +412,30 @@ def _profile_manifest_metadata(
     }
 
 
+def _verify_profile_transcript_bytes(
+    data_root: Path,
+    benchmark_id: str,
+    profile_id: str,
+    metadata: dict[str, Any],
+) -> None:
+    path = _profile_root(data_root, benchmark_id, profile_id) / "transcript.json"
+    if _is_reparse_point(path):
+        raise BenchmarkBundleError("BENCHMARK_PROFILE_TRANSCRIPT_INVALID")
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise BenchmarkBundleError("BENCHMARK_PROFILE_TRANSCRIPT_MISSING") from exc
+    if (
+        not path.is_file()
+        or size != metadata["transcript_size_bytes"]
+        or size <= 0
+        or size > _MAX_TRANSCRIPT_BYTES
+    ):
+        raise BenchmarkBundleError("BENCHMARK_BUNDLE_ARTIFACT_MISMATCH")
+    if _sha256_file(path) != metadata["transcript_sha256"]:
+        raise BenchmarkBundleError("BENCHMARK_BUNDLE_ARTIFACT_MISMATCH")
+
+
 def write_benchmark_profile(
     data_root: Path,
     document: TranscriptDocument,
@@ -687,7 +711,12 @@ def load_benchmark_bundle(data_root: Path, benchmark_id: str) -> dict[str, Any]:
             actual_size = transcript_path.stat().st_size
         except OSError as exc:
             raise BenchmarkBundleError("BENCHMARK_PROFILE_TRANSCRIPT_MISSING") from exc
-        if actual_size != expected_transcript_size or not transcript_path.is_file():
+        if (
+            actual_size != expected_transcript_size
+            or actual_size <= 0
+            or actual_size > _MAX_TRANSCRIPT_BYTES
+            or not transcript_path.is_file()
+        ):
             raise BenchmarkBundleError("BENCHMARK_BUNDLE_ARTIFACT_MISMATCH")
         verified_entries.append(entry)
 
@@ -811,6 +840,12 @@ def finalize_benchmark_bundle(
         ):
             raise BenchmarkBundleError("BENCHMARK_BUNDLE_PROFILE_RECEIPT_INVALID")
         metadata = _profile_manifest_metadata(data_root, benchmark_id, expected_profile)
+        _verify_profile_transcript_bytes(
+            data_root,
+            benchmark_id,
+            expected_profile,
+            metadata,
+        )
         profile_manifest = metadata["manifest"]
         if (
             profile_manifest.get("source_id") != source_id
