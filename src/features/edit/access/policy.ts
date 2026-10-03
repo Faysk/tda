@@ -60,6 +60,17 @@ function grantCoversCampaign(grant: EditGrant, campaignSlug: string): boolean {
 	);
 }
 
+export function isActiveTdaAccessGrant(
+	grant: EditGrant,
+	now = new Date(),
+): boolean {
+	if (!isGrantActive(grant, now)) return false;
+	return (
+		grant.scopeType === "campaign" ||
+		(grant.scopeType === "project" && grant.scopeId === PROJECT_SCOPE_ID)
+	);
+}
+
 export function authorizeCampaignCapability(
 	context: EditAccessContext,
 	capability: EditCapability,
