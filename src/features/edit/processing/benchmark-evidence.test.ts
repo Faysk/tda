@@ -211,7 +211,7 @@ describe("benchmark evidence contract", () => {
 		).toMatchObject({
 			benchmarkId: "benchmark-job-1-a1",
 			profileOrder: profiles,
-			integrity: "verified",
+			integrity: "manifest_verified",
 		});
 	});
 
