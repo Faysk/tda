@@ -18,7 +18,7 @@ const SOCIAL =
 const HERO =
 	"https://media.dnd.faysk.dev/lore/yllith/384d17c645ce923a5fc1bb6526bb213d50f9e5c4ea0a6e90e8320d6aa33cc73f/yllith-hq.png";
 
-test("Yllith is a direct-only standalone lore with cinematic and reading modes", async ({ page, request }) => {
+test("Yllith is a curated standalone lore with cinematic and reading modes", async ({ page, request }) => {
 	test.setTimeout(120000);
 	const errors: string[] = [];
 	page.on("pageerror", (error) => errors.push(error.message));
@@ -77,10 +77,16 @@ test("Yllith is a direct-only standalone lore with cinematic and reading modes",
 	expect(errors).toEqual([]);
 });
 
-test("Yllith remains absent from the curated lore catalog", async ({ page }) => {
+test("Yllith is discoverable without exposing private campaign metadata", async ({ page }) => {
 	await page.goto("/lore");
-	await expect(page.locator('a[href="/lore/yllith"]')).toHaveCount(0);
-	await expect(page.getByText("Yllith", { exact: true })).toHaveCount(0);
+	const card = page.locator('article[data-lore="yllith"]');
+	await expect(card).toBeVisible();
+	await expect(card.locator('a[href="/lore/yllith"]')).toBeVisible();
+	await expect(card).toHaveAttribute("data-lore-campaign", "standalone");
+	await expect(card).toContainText("Yllith");
+	await expect(card).toContainText("Nascida para conquistar");
+	await expect(card).not.toContainText("Passos Retomados");
+	await expect(card).not.toContainText("antes-que-seja-tarde");
 });
 
 test("Yllith exposes the approved full reading source and favicon", async ({ request }) => {

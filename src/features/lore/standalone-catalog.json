@@ -26,5 +26,19 @@
 		"title": "Antes do Inverno",
 		"description": "Uma história sobre cuidado, casa e a estrada que começa quando alguém não volta.",
 		"cover": "https://media.dnd.faysk.dev/lore/seika/74cf3cdab85ed37eac4a28276864449b9101716e63202ae32a9c314e299793b5/wide-departure-full.webp"
+	},
+	{
+		"slug": "d",
+		"name": "D",
+		"title": "Antes que seja tarde",
+		"description": "D quer encontrar o momento antes do tarde demais.",
+		"cover": "https://media.dnd.faysk.dev/lore/d/30f853af30136239f0559cfe6e300949f6be1c0667cd4bd866e8c458eff01052/d-completo.png"
+	},
+	{
+		"slug": "yllith",
+		"name": "Yllith",
+		"title": "Nascida para conquistar",
+		"description": "Antes de ser Yllith, ela foi Sequoia Vermelha. A história de quem deixou Ycarus para tentar criar uma matilha que escolhesse ficar.",
+		"cover": "https://media.dnd.faysk.dev/lore/yllith/b9858046c31ddc338fafe822b8c6132d4b4a4383c5f11b7b6e536943f8509f48/social-yllith.jpg"
 	}
 ]
