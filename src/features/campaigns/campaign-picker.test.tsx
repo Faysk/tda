@@ -68,6 +68,22 @@ describe("campaignPickerOptions", () => {
 });
 
 describe("CampaignPicker", () => {
+	it("keeps an empty controlled value visibly unselected", () => {
+		const html = renderToStaticMarkup(
+			<CampaignPicker
+				value=""
+				options={[
+					{ value: "a", label: "Campanha A" },
+					{ value: "b", label: "Campanha B" },
+				]}
+				onChange={vi.fn()}
+				ariaLabel="Campanha"
+			/>,
+		);
+		expect(html).toContain("Selecionar");
+		expect(html).not.toContain(">Campanha A</span>");
+	});
+
 	it("keeps management separate from selection and hides unauthorized actions", () => {
 		const hidden = renderToStaticMarkup(
 			<CampaignPicker
