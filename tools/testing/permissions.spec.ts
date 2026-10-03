@@ -177,6 +177,17 @@ test("governed console shows people, human access, filters and technical details
 		.getByText(/Operação técnica/u);
 	await expect(technical).toContainText("herdada");
 
+	const managerRow = page.getByRole("row", { name: /Pessoa manager/u });
+	const allAccess = managerRow.getByText(/Ver todos os acessos/);
+	await expect(allAccess).toBeVisible();
+	await allAccess.click();
+	await expect(managerRow.getByText("Gerenciar permissões", { exact: true })).toBeVisible();
+	await expect(managerRow).not.toContainText("campaign.permissions.manage");
+
+	const roleCatalog = page.getByText(/Funções disponíveis/);
+	await roleCatalog.click();
+	await expect(page.getByText("Personalizada", { exact: true }).first()).toBeVisible();
+
 	expect(
 		await page.evaluate(
 			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
