@@ -39,6 +39,12 @@ describe("World navigation model", () => {
 		expect(
 			worldNavHrefForPathname("/personagens/dandelion", "/personagens"),
 		).toBe("/personagens");
+		expect(
+			worldNavHrefForPathname(
+				"/campanhas/cronicas-da-mesa/quests/a-coroa",
+				"/lugares",
+			),
+		).toBe("/campanhas/cronicas-da-mesa/lugares");
 	});
 
 	it("marks campaign-scoped navigation without making nested World paths current", () => {
