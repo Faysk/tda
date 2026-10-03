@@ -15,6 +15,7 @@ import { readSessionPublicationContext } from "@/features/edit/sessions/session-
 import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import { SessionEditWorkspace } from "@/features/edit/sessions/session-edit-workspace";
 import { SessionCampaignMovePanel } from "@/features/edit/sessions/session-campaign-move";
+import { readSessionCampaignMoveReadiness } from "@/features/edit/sessions/session-campaign-move-repository";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
 import styles from "@/features/edit/workbench.module.css";
 import { formatSessionDate } from "@/features/sessions/model";
@@ -135,6 +136,9 @@ export default async function EditSessionPage({ params }: PageProps) {
 			: "Transcrição antiga · leitura preservada";
 	const downloadHref =
 		`/api/edit/${encodeURIComponent(campaignSlug)}/sessoes/${encodeURIComponent(session.sourceSessionId)}/transcript`;
+	const moveReadiness = moveDestinations.length
+		? await readSessionCampaignMoveReadiness()
+		: { available: true as const };
 
 	return (
 		<section className={[styles.shell, styles.sessionShell].join(" ")}>
@@ -176,6 +180,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 				sourceCampaignSlug={campaignSlug}
 				sourceCampaignName={campaign.name}
 				destinations={moveDestinations}
+				available={moveReadiness.available}
 			/>
 
 			<SessionEditWorkspace
