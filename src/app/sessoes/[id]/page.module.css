@@ -173,6 +173,19 @@
 	margin-inline: auto;
 }
 
+.body :global(.story-content [data-story-section]) {
+	scroll-margin-top: clamp(76px, 9svh, 112px);
+}
+
+.body :global(.story-content [data-story-section]:focus) {
+	outline: none;
+}
+
+.body :global(.story-content [data-story-section]:focus-visible) {
+	outline: 2px solid var(--ds-accent);
+	outline-offset: 6px;
+}
+
 
 .chapterMark {
 	display: flex;

@@ -535,3 +535,105 @@ test("session arc filters share normalized identity without crossing campaign bo
 	).toBeVisible();
 });
 
+
+
+test("long session summaries expose compact stable section navigation without burdening short readers", async ({
+	page,
+}, testInfo) => {
+	test.setTimeout(120000);
+	const longPath =
+		"/campanhas/cronicas-da-mesa/sessoes/layout-contract-long";
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto(`${longPath}#secao-capitulo-8`);
+	const deepLinkedHeading = page.getByRole("heading", { name: "Capítulo 8" });
+	await expect(deepLinkedHeading).toHaveAttribute("id", "secao-capitulo-8");
+	await expect(deepLinkedHeading).toBeInViewport();
+	const deepLinkedBox = await deepLinkedHeading.boundingBox();
+	expect(deepLinkedBox).not.toBeNull();
+	expect(deepLinkedBox?.y ?? -1).toBeGreaterThanOrEqual(0);
+
+	const keyboardNavigation = page.getByRole("navigation", {
+		name: "Nesta sessão",
+	});
+	const keyboardDisclosure = keyboardNavigation.locator("details");
+	const keyboardSummary = keyboardDisclosure.locator("summary");
+	await keyboardSummary.focus();
+	await expect(keyboardSummary).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(keyboardDisclosure).toHaveAttribute("open", "");
+
+	await expect(
+		page.getByRole("navigation", { name: "Navegação entre sessões" }),
+	).toBeVisible();
+	const archiveLink = page.getByRole("link", {
+		name: /Arquivo de Crônicas da Mesa/u,
+	});
+	await archiveLink.focus();
+	await expect(archiveLink).toBeFocused();
+	await archiveLink.click();
+	await expect(page).toHaveURL(
+		/\/campanhas\/cronicas-da-mesa\/sessoes$/u,
+	);
+	await page.goBack();
+	await expect(page).toHaveURL(
+		new RegExp(`${longPath}#secao-capitulo-8$`, "u"),
+	);
+
+	for (const viewport of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+		{ width: 683, height: 384 },
+		{ width: 1366, height: 768 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto(longPath);
+
+		const navigation = page.getByRole("navigation", { name: "Nesta sessão" });
+		await expect(navigation).toBeVisible();
+		const disclosure = navigation.locator("details");
+		await expect(disclosure).not.toHaveAttribute("open", "");
+		await disclosure.locator("summary").click();
+
+		const select = navigation.getByRole("combobox", {
+			name: "Ir para uma seção",
+		});
+		await expect(select).toBeVisible();
+		expect(await select.locator("option").count()).toBeGreaterThan(12);
+
+		const repeated = page.getByRole("heading", {
+			name: "Capítulo repetido",
+		});
+		await expect(repeated).toHaveCount(2);
+		const firstId = await repeated.nth(0).getAttribute("id");
+		const secondId = await repeated.nth(1).getAttribute("id");
+		expect(firstId).toBeTruthy();
+		expect(secondId).toBeTruthy();
+		expect(firstId).not.toBe(secondId);
+		if (!secondId) throw new Error("Second repeated heading is missing its stable ID");
+
+		await select.selectOption(secondId);
+		await expect(page).toHaveURL(new RegExp(`#${secondId}$`, "u"));
+		await expect(repeated.nth(1)).toBeInViewport();
+		await expect(repeated.nth(1)).toBeFocused();
+		const box = await repeated.nth(1).boundingBox();
+		expect(box).not.toBeNull();
+		expect(box?.y ?? 0).toBeGreaterThanOrEqual(0);
+
+		await page.goBack();
+		await expect(page).toHaveURL(new RegExp(`${longPath}$`, "u"));
+		await expectNoHorizontalOverflow(page);
+
+		await page.screenshot({
+			path: testInfo.outputPath(
+				`session-long-outline-${viewport.width}x${viewport.height}.png`,
+			),
+			fullPage: false,
+		});
+	}
+
+	await page.goto("/sessoes/layout-contract-synthetic");
+	await expect(
+		page.getByRole("navigation", { name: "Nesta sessão" }),
+	).toHaveCount(0);
+});

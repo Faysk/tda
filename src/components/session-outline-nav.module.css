@@ -1,0 +1,139 @@
+.root {
+	width: min(100%, 880px);
+	margin: 0 auto clamp(30px, 4vw, 44px);
+	font-family: var(--ds-font-ui);
+}
+
+.disclosure {
+	border-block: 1px solid var(--ds-border);
+	background: color-mix(in srgb, var(--ds-surface) 72%, transparent);
+}
+
+.summary {
+	display: flex;
+	min-height: 48px;
+	cursor: pointer;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 12px 2px;
+	color: var(--ds-foreground);
+	font-size: 0.84rem;
+	font-weight: 720;
+	list-style: none;
+}
+
+.summary::-webkit-details-marker {
+	display: none;
+}
+
+.summary::after {
+	content: "⌄";
+	color: var(--ds-foreground-muted);
+	font-size: 1rem;
+	transition: transform 160ms ease;
+}
+
+.disclosure[open] .summary::after {
+	transform: rotate(180deg);
+}
+
+.count {
+	margin-left: auto;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	font-weight: 560;
+}
+
+.panel {
+	display: grid;
+	gap: 14px;
+	padding: 2px 0 18px;
+}
+
+.list {
+	display: grid;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.list a {
+	display: inline-flex;
+	min-height: 36px;
+	align-items: center;
+	padding: 4px 8px;
+	border-radius: var(--ds-radius-sm);
+	color: var(--ds-foreground-soft);
+	font-size: 0.8rem;
+	line-height: 1.35;
+}
+
+.list a[aria-current="location"] {
+	background: var(--ds-surface-hover);
+	color: var(--ds-foreground);
+	font-weight: 700;
+}
+
+.child {
+	padding-left: 18px;
+}
+
+.selectLabel {
+	display: grid;
+	gap: 7px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	font-weight: 650;
+}
+
+.selectLabel select {
+	width: 100%;
+	min-height: 44px;
+	padding: 0 36px 0 12px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-control-background);
+	color: var(--ds-foreground);
+	font: inherit;
+	font-size: 0.82rem;
+}
+
+.topLink {
+	justify-self: start;
+	min-height: 40px;
+	padding: 8px 2px;
+	color: var(--ds-accent);
+	font-size: 0.76rem;
+	font-weight: 680;
+}
+
+.summary:focus-visible,
+.list a:focus-visible,
+.selectLabel select:focus-visible,
+.topLink:focus-visible {
+	outline: 2px solid var(--ds-accent);
+	outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+	.root {
+		margin-bottom: 28px;
+	}
+
+	.summary {
+		min-height: 44px;
+		font-size: 0.8rem;
+	}
+
+	.panel {
+		padding-bottom: 14px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.summary::after {
+		transition: none;
+	}
+}
