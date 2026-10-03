@@ -71,10 +71,31 @@ function grantsForMode(mode: string | undefined) {
 	);
 }
 
+function syntheticIdentity(
+	avatarMode: string | undefined,
+	nameMode: string | undefined,
+): NonNullable<AccountOverviewAccess["identity"]> {
+	return {
+		displayName:
+			nameMode === "long"
+				? "Pessoa Sintética Com Nome Deliberadamente Muito Longo Para Reflow do Avatar"
+				: "Pessoa Sintética",
+		avatarUrl:
+			avatarMode === "broken"
+				? "/e2e-fixtures/avatar-missing.png"
+				: avatarMode === "valid"
+					? "/e2e-fixtures/avatar-valid.png"
+					: null,
+	};
+}
+
 function syntheticAccess(
 	state: string | undefined,
 	mode: string | undefined,
+	avatarMode: string | undefined,
+	nameMode: string | undefined,
 ): AccountOverviewAccess {
+	const identity = syntheticIdentity(avatarMode, nameMode);
 	if (state === "anonymous") {
 		return { state: "anonymous", context: null, identity: null };
 	}
@@ -84,7 +105,7 @@ function syntheticAccess(
 	if (state === "unlinked") {
 		return {
 			state: "authenticated_unlinked",
-			identity: { displayName: "Pessoa Sintética", avatarUrl: null },
+			identity,
 			context: {
 				authUserId: "auth-synthetic-never-rendered",
 				profileId: null,
@@ -95,7 +116,7 @@ function syntheticAccess(
 	if (state === "no-grants" || mode === "none") {
 		return {
 			state: "authenticated_linked_no_grants",
-			identity: { displayName: "Pessoa Sintética", avatarUrl: null },
+			identity,
 			context: {
 				authUserId: "auth-synthetic-never-rendered",
 				profileId: "profile-tda-synthetic-927",
@@ -105,7 +126,7 @@ function syntheticAccess(
 	}
 	return {
 		state: "authenticated_linked",
-		identity: { displayName: "Pessoa Sintética", avatarUrl: null },
+		identity,
 		context: {
 			authUserId: "auth-synthetic-never-rendered",
 			profileId: "profile-tda-synthetic-927",
@@ -188,11 +209,11 @@ function syntheticCampaignAccess(
 export default async function AccountOverviewE2EFixture({
 	searchParams,
 }: {
-	searchParams: Promise<{ state?: string; mode?: string; campanha?: string }>;
+	searchParams: Promise<{ state?: string; mode?: string; campanha?: string; avatar?: string; name?: string }>;
 }) {
 	if (process.env.TDA_E2E_FIXTURES !== "true") notFound();
 	const query = await searchParams;
-	const access = syntheticAccess(query.state, query.mode);
+	const access = syntheticAccess(query.state, query.mode, query.avatar, query.name);
 	const campaignAccess = syntheticCampaignAccess(
 		access,
 		query.mode,
