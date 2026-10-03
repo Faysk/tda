@@ -23,8 +23,9 @@ test("account names the single campaign and keeps technical identity secondary",
 	await expect(page.getByRole("combobox", { name: "Campanha consultada" })).toHaveCount(0);
 
 	await page.getByText("Administração", { exact: true }).click();
-	await expect(page.getByText("Gerenciar permissões", { exact: true })).toBeVisible();
-	await expect(page.locator("details[open]").getByText("Específica desta campanha", { exact: true })).toBeVisible();
+	const administration = page.locator("details[open]").filter({ hasText: "Administração" });
+	await expect(administration.getByRole("listitem").getByText("Gerenciar permissões", { exact: true })).toBeVisible();
+	await expect(administration.getByText("Específica desta campanha", { exact: true })).toBeVisible();
 
 	const technicalSlug = page.getByText("yuhara-main", { exact: true });
 	await expect(technicalSlug).toBeHidden();
@@ -97,7 +98,8 @@ test("A-only, B-only and project-wide contexts never invent a hidden campaign", 
 		),
 	).toBeVisible();
 	await page.getByText("Administração", { exact: true }).click();
-	await expect(page.locator("details[open]").getByText("Herdada do projeto TDA", { exact: true }).first()).toBeVisible();
+	const administration = page.locator("details[open]").filter({ hasText: "Administração" });
+	await expect(administration.getByText("Herdada do projeto TDA", { exact: true }).first()).toBeVisible();
 });
 
 test("revocation and dependency failure remain distinguishable after reload", async ({
