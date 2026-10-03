@@ -405,7 +405,7 @@ export type BenchmarkEvidenceSummary = {
 	formats: readonly ("json" | "txt" | "txt-plain" | "vtt" | "srt")[];
 	qualityReferenceStatus: "none";
 	telemetryAvailable: boolean;
-	integrity: "verified";
+	integrity: "manifest_verified";
 };
 
 export type ResultSummary = {
@@ -2279,7 +2279,7 @@ export function parseBenchmarkEvidenceSummary(
 		formats: ["json", "txt", "txt-plain", "vtt", "srt"],
 		qualityReferenceStatus: "none",
 		telemetryAvailable: false,
-		integrity: "verified",
+		integrity: "manifest_verified",
 	};
 }
 
