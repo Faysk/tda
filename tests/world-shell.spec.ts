@@ -17,19 +17,27 @@ async function expectBelowFloatingChrome(page: Page, target: Locator) {
 	expect(targetBox?.y ?? -1).toBeGreaterThanOrEqual(chromeBottom + 4);
 }
 
-test("world surfaces share the desktop contextual universe navigation", async ({ page }) => {
+test("world surfaces share campaign-scoped desktop contextual navigation", async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 1000 });
 	await page.goto("/campanhas/cronicas-da-mesa/mundo");
 	await expect(
 		page.getByRole("navigation", { name: "Explorar o universo da campanha" }).first(),
 	).toBeVisible();
-	await expect(page.getByRole("link", { name: /Ecos da Jornada/ }).first()).toHaveAttribute(
-		"aria-current",
-		"page",
+
+	const worldLink = page.getByRole("link", { name: /Ecos da Jornada/ }).first();
+	await expect(worldLink).toHaveAttribute("aria-current", "page");
+	await expect(worldLink).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/mundo",
 	);
 
-	await page.getByRole("link", { name: /Personagens/ }).first().click();
-	await expect(page).toHaveURL(/\/personagens$/);
+	const charactersLink = page.getByRole("link", { name: /Personagens/ }).first();
+	await expect(charactersLink).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/personagens",
+	);
+	await charactersLink.click();
+	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/personagens$/);
 	await expect(page.getByRole("heading", { level: 1, name: "Personagens" })).toBeVisible();
 	await expect(page.getByRole("link", { name: /Personagens/ }).first()).toHaveAttribute(
 		"aria-current",
@@ -52,8 +60,13 @@ test("universe navigation becomes a non-reserving overlay drawer at the 320px mi
 	const open = await stage.boundingBox();
 	expect(Math.abs((open?.width ?? 0) - (before?.width ?? 0))).toBeLessThan(2);
 
-	await page.getByRole("link", { name: /Lugares/ }).last().click();
-	await expect(page).toHaveURL(/\/lugares$/);
+	const placesLink = page.getByRole("link", { name: /Lugares/ }).last();
+	await expect(placesLink).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/lugares",
+	);
+	await placesLink.click();
+	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/lugares$/);
 	await expect(page.getByRole("heading", { level: 1, name: "Lugares" })).toBeVisible();
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -140,11 +153,17 @@ test("catalogue profile context clears floating chrome across supported viewport
 		{ width: 1440, height: 1000 },
 	]) {
 		await page.setViewportSize(viewport);
-		await page.goto("/personagens/dandelion");
+		await page.goto("/campanhas/cronicas-da-mesa/personagens/dandelion");
 
-		await expectBelowFloatingChrome(
-			page,
-			page.getByRole("navigation", { name: "Contexto de exploração" }),
+		const context = page.getByRole("navigation", { name: "Contexto de exploração" });
+		await expectBelowFloatingChrome(page, context);
+		await expect(context.getByRole("link", { name: "Mundo" })).toHaveAttribute(
+			"href",
+			"/campanhas/cronicas-da-mesa/mundo",
+		);
+		await expect(context.getByRole("link", { name: "Personagens" })).toHaveAttribute(
+			"href",
+			"/campanhas/cronicas-da-mesa/personagens",
 		);
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -189,4 +208,3 @@ test("catalogue shell reflows at the governed 200 percent zoom proxy", async ({ 
 		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
 	).toBeTruthy();
 });
-
