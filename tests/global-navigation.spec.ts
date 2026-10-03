@@ -1467,3 +1467,99 @@ test("account overview keeps synthetic identity and access usable across the lay
 	}
 });
 
+
+
+async function expectDocumentScrollReleased(
+	page: import("@playwright/test").Page,
+) {
+	const overflow = await page.evaluate(() => ({
+		html: getComputedStyle(document.documentElement).overflowY,
+		body: getComputedStyle(document.body).overflowY,
+	}));
+	expect(overflow.html).not.toBe("hidden");
+	expect(overflow.body).not.toBe("hidden");
+
+	await page.evaluate(() => {
+		document.getElementById("scroll-release-probe")?.remove();
+		const probe = document.createElement("div");
+		probe.id = "scroll-release-probe";
+		probe.setAttribute("aria-hidden", "true");
+		probe.style.height = "1800px";
+		probe.style.width = "1px";
+		probe.style.pointerEvents = "none";
+		document.body.append(probe);
+		window.scrollTo(0, 0);
+	});
+	await page.evaluate(() => window.scrollTo(0, 600));
+	await expect
+		.poll(() => page.evaluate(() => window.scrollY))
+		.toBeGreaterThan(100);
+}
+
+test("World canvas scroll lock stays route-scoped through client navigation and browser history", async ({
+	page,
+}) => {
+	await mockAccess(page, { capabilities: allToolCapabilities });
+
+	for (const viewport of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+		{ width: 390, height: 500 },
+		{ width: 683, height: 384 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/mundo");
+		await expect(page.locator("[data-world-workspace-root]")).toBeVisible();
+		await expect
+			.poll(() =>
+				page.evaluate(() => getComputedStyle(document.body).overflowY),
+			)
+			.toBe("hidden");
+
+		const panel = await openGlobalMenu(page);
+		const navigation = panel.getByRole("navigation", {
+			name: "Navegação principal",
+		});
+		const world = navigation.getByRole("button", {
+			name: "Mundo",
+			exact: true,
+		});
+		await world.click();
+		const back = navigation.getByRole("button", {
+			name: "Voltar para Explorar",
+			exact: true,
+		});
+		await expect(back).toBeFocused();
+		await back.click();
+		await expect(world).toBeFocused();
+
+		const lembra = navigation.getByRole("link", {
+			name: "Lembra",
+			exact: true,
+		});
+		await lembra.scrollIntoViewIfNeeded();
+		await lembra.click();
+		await expect(page).toHaveURL(/\/lembra(?:\?.*)?$/u);
+		await expectDocumentScrollReleased(page);
+
+		await page.goBack();
+		await expect(page).toHaveURL(/\/mundo(?:\?.*)?$/u);
+		await expect(page.locator("[data-world-workspace-root]")).toBeVisible();
+		await expect
+			.poll(() =>
+				page.evaluate(() => getComputedStyle(document.body).overflowY),
+			)
+			.toBe("hidden");
+
+		await page.goForward();
+		await expect(page).toHaveURL(/\/lembra(?:\?.*)?$/u);
+		await expectDocumentScrollReleased(page);
+
+		const trigger = page.getByRole("button", { name: "Abrir menu global" });
+		await trigger.click();
+		await expect(trigger).toHaveAttribute("aria-expanded", "true");
+		await page.keyboard.press("Escape");
+		await expect(trigger).toBeFocused();
+		await expectDocumentScrollReleased(page);
+	}
+});
