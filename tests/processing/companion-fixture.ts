@@ -65,6 +65,7 @@ export type CompanionFixtureOptions = {
 	benchmarkSubmitError?: string | null;
 	benchmarkPreparationFailureProfile?: string | null;
 	benchmarkReadinessContract?: boolean;
+	benchmarkEvidence?: boolean;
 	whisperBenchmarkRuntimeUpgradeRequired?: boolean;
 	reviewEnabled?: boolean;
 	additionalCapabilities?: readonly string[];
@@ -365,6 +366,7 @@ export async function installCompanionFixture(
 						...(options.benchmarkReadinessContract === false
 							? []
 							: ["processing.benchmark.runtime-readiness-v2"]),
+						...(options.benchmarkEvidence ? ["processing.benchmark.evidence-v1"] : []),
 						"runtime.qwen.check",
 						"runtime.qwen.update",
 						"job.events",
@@ -930,6 +932,196 @@ export async function installCompanionFixture(
 						: []),
 			});
 		}
+		if (
+			options.benchmarkEvidence &&
+			path === "/benchmarks/benchmark-benchmark-job-1-a1"
+		) {
+			return json(route, {
+				schema_version: "tda_benchmark_artifacts_v1",
+				benchmark_id: "benchmark-benchmark-job-1-a1",
+				sample_identity_sha256: "b".repeat(64),
+				source_id: CRAIG_SOURCE_ID,
+				profile_order: [
+					"whisper-turbo",
+					"whisper-detailed",
+					"qwen-fast",
+					"qwen-quality",
+				],
+				bundle_size_bytes: 65536,
+				formats: ["json", "txt", "vtt", "srt"],
+				quality_reference_status: "none",
+				telemetry_available: false,
+				integrity: "verified",
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			path.startsWith("/benchmarks/benchmark-benchmark-job-1-a1/profiles/") &&
+			path.endsWith("/snapshot")
+		) {
+			const profileId = path.split("/")[4]!;
+			const engine = profileId.startsWith("whisper-") ? "whisper" : "qwen3";
+			const quality = profileId.endsWith("quality") || profileId.endsWith("detailed");
+			const runtimeFamily = engine === "whisper" ? "whisper" : "qwen";
+			const runtimeVersion = engine === "whisper" ? "1.1.7" : "1.0.12";
+			const runtimeId =
+				engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers";
+			return json(route, {
+				schema_version: "tda_benchmark_transcript_snapshot_v1",
+				benchmark_id: "benchmark-benchmark-job-1-a1",
+				sample_identity_sha256: "b".repeat(64),
+				source_id: CRAIG_SOURCE_ID,
+				source_sha256: sourceSha,
+				profile_id: profileId,
+				engine,
+				model: `fixture-${profileId}`,
+				model_revision: "fixture-revision",
+				device: "cuda:0",
+				compute_type: "float16",
+				alignment: engine === "qwen3" ? "forced-aligner" : "native",
+				execution_lineage: {
+					schema_version: "tda_execution_lineage_v1",
+					companion_version: "0.3.18",
+					runtime_family: runtimeFamily,
+					runtime_version: runtimeVersion,
+					runtime_artifact: {
+						runtime_id: runtimeId,
+						version: runtimeVersion,
+						worker_sha256: "c".repeat(64),
+						archive_sha256: "d".repeat(64),
+					},
+					execution_device: {
+						kind: "cuda",
+						logical_index: 0,
+						physical_uuid: "GPU-12345678-1234-1234-1234-123456789abc",
+						pci_bus_id: "00000000:01:00.0",
+					},
+					device: "cuda:0",
+					compute_type: "float16",
+					gpu: {
+						vendor: "NVIDIA",
+						index: 0,
+						model: "NVIDIA GeForce RTX 4070 Laptop GPU",
+						vram_total_bytes: 8 * 1024 * 1024 * 1024,
+						compute_capability: "8.9",
+						driver_version: "synthetic",
+					},
+				},
+				stats: {
+					audio_work_seconds: 600,
+					processing_seconds: quality ? 28 : 34,
+					processing_metrics: {
+						version: "engine_processing_v1",
+						external_preparation_included: false,
+						stage_seconds: {
+							runtime_validation: 1,
+							checkpoint_scan: 1,
+							model_prepare: 2,
+							model_load: 2,
+							transcription: quality ? 18 : 24,
+							alignment_and_energy: 3,
+							consolidation: 1,
+						},
+						total_processing_seconds: quality ? 28 : 34,
+						total_tracks: 2,
+						fresh_asr_tracks: 2,
+						text_checkpoint_reused_tracks: 0,
+						completed_checkpoint_reused_tracks: 0,
+						fresh_audio_work_seconds: 600,
+						reused_audio_work_seconds: 0,
+						fresh_calibration_eligible: true,
+					},
+					session_duration_seconds: 300,
+					duration_semantics: "session_extent_v1",
+					rtf: quality ? 0.0467 : 0.0567,
+					word_count: quality ? 8 : 7,
+					segment_count: 2,
+					track_count: 2,
+					turn_count: 0,
+					deduplicated_segment_count: 0,
+					warning_count: 0,
+				},
+				warnings: [],
+				segments: [
+					{
+						track_number: 1,
+						segment_id: `${profileId}-1`,
+						start: 1,
+						end: 3,
+						timeline_start: 1,
+						timeline_end: 3,
+						text: quality
+							? "Aventureiros chegam a Neverwinter"
+							: "Aventureiros chegam a Never winter",
+						speaker: "Alice",
+						word_count: 4,
+						timing_precision: engine === "qwen3" ? "word" : "segment",
+					},
+					{
+						track_number: 2,
+						segment_id: `${profileId}-2`,
+						start: 5,
+						end: 7,
+						timeline_start: 5,
+						timeline_end: 7,
+						text: "O dragão desperta",
+						speaker: "Bob",
+						word_count: 4,
+						timing_precision: engine === "qwen3" ? "word" : "segment",
+					},
+				],
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			path.startsWith("/benchmarks/benchmark-benchmark-job-1-a1/profiles/") &&
+			path.includes("/artifacts/")
+		) {
+			const parts = path.split("/");
+			const profileId = parts[4]!;
+			const format = parts[6]!;
+			const mediaType =
+				format === "json"
+					? "application/json"
+					: format === "vtt"
+						? "text/vtt"
+						: format === "srt"
+							? "application/x-subrip"
+							: "text/plain";
+			const body =
+				format === "json"
+					? JSON.stringify({ schema_version: "tda_transcript_v1", profile_id: profileId })
+					: format === "vtt"
+						? "WEBVTT\\n\\n00:00:01.000 --> 00:00:03.000\\nAlice: Neverwinter\\n"
+						: format === "srt"
+							? "1\\n00:00:01,000 --> 00:00:03,000\\nAlice: Neverwinter\\n"
+							: "[00:00:01.000] Alice\\nNeverwinter\\n";
+			return route.fulfill({
+				status: 200,
+				headers: {
+					"Access-Control-Allow-Origin": UI_ORIGIN,
+					"Content-Type": mediaType,
+					"Content-Disposition": `attachment; filename="TDA-Benchmark-benchmark-benchmark-job-1-a1-${profileId}-transcript.${format}"`,
+				},
+				body,
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			path === "/benchmarks/benchmark-benchmark-job-1-a1/export.zip"
+		) {
+			return route.fulfill({
+				status: 200,
+				headers: {
+					"Access-Control-Allow-Origin": UI_ORIGIN,
+					"Content-Type": "application/zip",
+					"Content-Disposition":
+						'attachment; filename="TDA-Benchmark-benchmark-benchmark-job-1-a1-private-evidence.zip"',
+				},
+				body: Buffer.from("PK synthetic private benchmark evidence"),
+			});
+		}
+
 		if (path === "/jobs/benchmark-job-1/result") {
 			const profile = (profileId: string, engine: "whisper" | "qwen3") => ({
 				kind: "benchmark.profile",
@@ -988,6 +1180,18 @@ export async function installCompanionFixture(
 				track_count: 2,
 				audio_work_seconds: 600,
 				prepared: true,
+				...(options.benchmarkEvidence
+					? {
+							artifact_bundle: {
+								schema_version: "tda_benchmark_artifacts_v1",
+								benchmark_id: "benchmark-benchmark-job-1-a1",
+								manifest_sha256: "e".repeat(64),
+								manifest_size_bytes: 4096,
+								bundle_size_bytes: 65536,
+								profile_count: 4,
+							},
+						}
+					: {}),
 				profiles: [
 					profile("whisper-turbo", "whisper"),
 					profile("whisper-detailed", "whisper"),
