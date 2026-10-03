@@ -2,7 +2,7 @@
 
 > Status: implementado em branch local; publicação pendente
 > Owner: narrativa / frontend
-> Última revisão: 2026-09-18
+> Última revisão: 2026-10-03
 
 ## Contrato
 
@@ -11,6 +11,14 @@ Diários são obras independentes em `/diario/<slug>`, com catálogo próprio em
 A decisão do autor nesta entrega autoriza a integração dos onze capítulos fornecidos e a preservação da experiência em livro. Planejamento, continuidade e guia de estilo são material local de trabalho e não entram nos arquivos públicos nem no Git.
 
 Cada diário pode preservar sua composição editorial independente. O catálogo usa o Design System do TDA; o leitor estático abre por navegação de documento completo, com CSS/JS isolados do shell React. Por decisão editorial, o catálogo fica acessível pela URL direta `/diario` e pelo rodapé do leitor, sem link no layout compartilhado ou alteração na página principal. A integração com a navegação do site será definida em entrega posterior.
+
+## Contexto editorial no catálogo
+
+O catálogo de diários registra vínculos editoriais de forma explícita no próprio `src/features/diary/catalog.json`; não infere campanha pelo título, autor, descrição ou texto do livro. A entrada de Astel declara o technical slug estável `yuhara-main` e a lore `astel`.
+
+O nome e a rota pública da campanha são resolvidos no servidor e só aparecem quando o vínculo declarado coincide com metadata editorial verificada e a campaign pode ser apresentada publicamente. Campaign privada ou indisponível não recebe badge/nome público por fallback. A chave técnica nunca é texto de interface.
+
+Cada card mantém três destinos distintos quando aplicáveis: abrir o diário standalone, conhecer a lore e explorar a campaign pública. O diário histórico `/diario/astel` permanece inalterado e continua oferecendo retorno ao catálogo; a contextualização nova pertence ao catálogo, não reescreve o livro. O layout deve continuar legível com zero, uma ou várias entradas, nomes longos, 320/390 px e reflow equivalente a 200%.
 
 ## Estrutura e atualização
 
