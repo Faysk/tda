@@ -10,20 +10,22 @@ import { editDataClient } from "@/integrations/supabase/server";
 import {
 	isCampaignId,
 	isCampaignLifecycle,
-	isCampaignVisibility,
 	type CampaignLifecycle,
-	type CampaignVisibility,
 } from "./model";
 
 const PROJECT_SCOPE_ID = "tda";
 const SAFE_TECHNICAL_SLUG = /^[A-Za-z0-9_-]{1,128}$/u;
 
 export type AuthorizedCampaign = Readonly<{
-	id: string;
 	technicalSlug: string;
 	name: string;
 	lifecycle: CampaignLifecycle;
-	visibility: CampaignVisibility;
+}>;
+
+export type AuthorizedCampaignClassification = Readonly<{
+	id: string;
+	name: string;
+	lifecycle: CampaignLifecycle;
 }>;
 
 export type AuthorizedCampaignsResult =
@@ -68,7 +70,6 @@ export function authorizedCampaignGrantScope(
 }
 
 function parseCampaign(row: Record<string, unknown>): AuthorizedCampaign | null {
-	const id = typeof row.id === "string" && isCampaignId(row.id) ? row.id : null;
 	const technicalSlug =
 		typeof row.slug === "string" && SAFE_TECHNICAL_SLUG.test(row.slug)
 			? row.slug
@@ -77,20 +78,12 @@ function parseCampaign(row: Record<string, unknown>): AuthorizedCampaign | null 
 		typeof row.name === "string" && row.name.trim().length
 			? row.name.trim()
 			: null;
-	if (
-		!id ||
-		!technicalSlug ||
-		!name ||
-		!isCampaignLifecycle(row.lifecycle) ||
-		!isCampaignVisibility(row.visibility)
-	)
+	if (!technicalSlug || !name || !isCampaignLifecycle(row.lifecycle))
 		return null;
 	return {
-		id,
 		technicalSlug,
 		name,
 		lifecycle: row.lifecycle,
-		visibility: row.visibility,
 	};
 }
 
@@ -110,7 +103,7 @@ export async function readAuthorizedCampaigns(
 
 	let query = client
 		.from("campaigns")
-		.select("id,slug,name,lifecycle,visibility")
+		.select("slug,name,lifecycle")
 		.order("name")
 		.order("slug");
 	if (!options.includeArchived) query = query.eq("lifecycle", "active");
@@ -135,6 +128,67 @@ export async function readAuthorizedCampaigns(
 			).ok
 		)
 			campaigns.push(campaign);
+	}
+
+	return { ok: true, campaigns };
+}
+
+
+/**
+ * Minimal UUID-bearing classification projection for authenticated consumers
+ * that need campaign identity but not technical route/visibility metadata.
+ */
+export async function readAuthorizedCampaignClassifications(
+	context: EditAccessContext,
+	capability: EditCapability,
+	options: Readonly<{ includeArchived?: boolean }> = {},
+): Promise<
+	| Readonly<{ ok: true; campaigns: readonly AuthorizedCampaignClassification[] }>
+	| Readonly<{
+			ok: false;
+			reason: "profile_unresolved" | "dependency_unavailable";
+	  }>
+> {
+	if (!context.profileId) return { ok: false, reason: "profile_unresolved" };
+
+	const scope = authorizedCampaignGrantScope(context, capability);
+	if (!scope.projectWide && scope.campaignSlugs.length === 0)
+		return { ok: true, campaigns: [] };
+
+	const client = editDataClient();
+	if (!client) return { ok: false, reason: "dependency_unavailable" };
+
+	let query = client
+		.from("campaigns")
+		.select("id,slug,name,lifecycle")
+		.order("name")
+		.order("slug");
+	if (!options.includeArchived) query = query.eq("lifecycle", "active");
+	if (!scope.projectWide) query = query.in("slug", [...scope.campaignSlugs]);
+
+	const { data, error } = await query;
+	if (error || !Array.isArray(data))
+		return { ok: false, reason: "dependency_unavailable" };
+
+	const campaigns: AuthorizedCampaignClassification[] = [];
+	for (const raw of data) {
+		if (!raw || typeof raw !== "object" || Array.isArray(raw))
+			return { ok: false, reason: "dependency_unavailable" };
+		const row = raw as Record<string, unknown>;
+		const id = typeof row.id === "string" && isCampaignId(row.id) ? row.id : null;
+		const technicalSlug =
+			typeof row.slug === "string" && SAFE_TECHNICAL_SLUG.test(row.slug)
+				? row.slug
+				: null;
+		const name =
+			typeof row.name === "string" && row.name.trim().length
+				? row.name.trim()
+				: null;
+		if (!id || !technicalSlug || !name || !isCampaignLifecycle(row.lifecycle))
+			return { ok: false, reason: "dependency_unavailable" };
+		if (authorizeCampaignCapability(context, capability, technicalSlug).ok) {
+			campaigns.push({ id, name, lifecycle: row.lifecycle });
+		}
 	}
 
 	return { ok: true, campaigns };
