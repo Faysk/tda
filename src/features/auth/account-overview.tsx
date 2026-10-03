@@ -73,7 +73,7 @@ function PermissionGroups({
 	groups,
 }: Readonly<{ groups: readonly AccountCapabilityGroup[] }>) {
 	return (
-		<div className={styles.permissionGroups}>
+		<div className={styles.permissionGroups} data-account-permission-groups>
 			{groups.map((group) => (
 				<details key={group.title} className={styles.permissionGroupDetails}>
 					<summary>
