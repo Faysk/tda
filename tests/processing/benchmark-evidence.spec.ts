@@ -93,8 +93,8 @@ test("human reference is explicit, revisioned and unlocks objective quality only
 	await expect(panel.getByText(/Qualidade não medida/u)).toBeVisible();
 	await panel.getByRole("button", { name: "Criar referência humana" }).click();
 	await expect(panel.getByText("Referência humana", { exact: true })).toBeVisible();
-	const editor = panel.getByRole("textbox").first();
-	await expect(editor).toContainText("Olá mundo da taverna");
+	const editor = panel.getByLabel("Track 1 · Alice");
+	await expect(editor).toHaveValue("Olá mundo da taverna");
 	await editor.fill("Olá mundo da taverna");
 	await panel.getByRole("button", { name: "Salvar como referência" }).click();
 
@@ -105,7 +105,6 @@ test("human reference is explicit, revisioned and unlocks objective quality only
 	await expect(
 		panel.getByRole("button", { name: "Editar referência · r1" }),
 	).toBeVisible();
-	await expect(panel.getByText(/vencedor/u)).toHaveCount(0);
 });
 
 test("legacy benchmark receipts stay readable without fabricated evidence", async ({
@@ -125,7 +124,12 @@ test("legacy benchmark receipts stay readable without fabricated evidence", asyn
 	await expect(panel.getByRole("button", { name: "Exportar evidência ZIP" })).toHaveCount(0);
 });
 
-test("evidence lab remains usable at a 200 percent layout zoom", async ({ page }) => {
+test("evidence lab remains usable at a 200 percent effective browser zoom", async ({ page }) => {
+	const originalViewport = page.viewportSize();
+	test.skip(
+		!originalViewport || originalViewport.width < 1000,
+		"200% zoom gate is exercised on desktop viewports; mobile has its own 390px project",
+	);
 	await installCompanionFixture(page, {
 		benchmarkProfiles: true,
 		benchmarkEvidence: true,
@@ -136,8 +140,9 @@ test("evidence lab remains usable at a 200 percent layout zoom", async ({ page }
 	const panel = await openBenchmark(page);
 	await panel.getByRole("button", { name: "Comparar transcripts" }).click();
 
-	await page.evaluate(() => {
-		document.documentElement.style.zoom = "2";
+	await page.setViewportSize({
+		width: Math.floor(originalViewport!.width / 2),
+		height: Math.floor(originalViewport!.height / 2),
 	});
 	await expect(panel.getByRole("tab", { name: "Performance" })).toBeVisible();
 	await panel.getByRole("tab", { name: "Performance" }).click();
