@@ -1,11 +1,6 @@
 "use client";
 
-import {
-	useEffect,
-	useId,
-	useRef,
-	type ReactNode,
-} from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import styles from "./dialog.module.css";
 
 type DialogProps = Readonly<{
@@ -76,7 +71,7 @@ export function Dialog({
 				event.preventDefault();
 				onClose();
 			}}
-			onClick={(event) => {
+			onMouseDown={(event) => {
 				if (event.target === event.currentTarget) onClose();
 			}}
 		>
