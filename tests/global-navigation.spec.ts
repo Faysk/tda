@@ -1224,16 +1224,24 @@ test("account overview keeps synthetic identity and access usable across the lay
 		const profileId = page.getByText("profile-tda-synthetic-927", { exact: true });
 		await expect(profileId).toBeHidden();
 		await expect(
-			page.getByRole("heading", { name: "Acesso nesta campanha", exact: true }),
+			page.getByRole("heading", { name: "Acesso efetivo", exact: true }),
+		).toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "Crônicas da Mesa", exact: true }),
 		).toBeVisible();
 		await expect(page.getByRole("heading", { name: "Vínculo TDA", exact: true })).toBeVisible();
 		await expect(page.getByRole("heading", { name: "Aparência", exact: true })).toBeVisible();
+		const permissionGroup = page.getByText("Administração", { exact: true });
+		await expect(page.getByText("Gerenciar permissões", { exact: true }).first()).toBeHidden();
+		await permissionGroup.click();
 		await expect(page.getByText("Gerenciar permissões", { exact: true }).first()).toBeVisible();
 		const technicalCapability = page.getByText("campaign.permissions.manage", { exact: true });
+		const technicalScope = page.getByText("campaign/yuhara-main", { exact: true });
 		await expect(technicalCapability).toBeHidden();
+		await expect(technicalScope).toBeHidden();
 		await page.getByText("Detalhes técnicos do acesso", { exact: true }).click();
 		await expect(technicalCapability).toBeVisible();
-		await expect(page.getByText("campaign/yuhara-main", { exact: true })).toHaveCount(0);
+		await expect(technicalScope).toBeVisible();
 		await expect(page.getByRole("link", { name: "Ver histórias públicas" })).toHaveCount(0);
 		await expect(page.locator('main a[href^="/edit"], main a[href="/transcricoes"]')).toHaveCount(0);
 		await expect(page.getByRole("switch", { name: "Modo escuro" })).toBeVisible();
