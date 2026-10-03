@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import type {
 	CampaignCreateInput,
 	CampaignMutationResult,
@@ -22,12 +23,12 @@ const CAMPAIGNS: readonly LembraCampaignClassification[] = [
 	},
 	{
 		id: "22222222-2222-4222-8222-222222222222",
-		name: "Campanha Pública B",
+		name: "Campanha Privada B",
 		lifecycle: "active",
 	},
 	{
 		id: "33333333-3333-4333-8333-333333333333",
-		name: "Campanha Arquivada",
+		name: "Campanha Privada C",
 		lifecycle: "archived",
 	},
 ];
@@ -119,13 +120,42 @@ async function syntheticCampaignCreateAction(
 
 export function LembraCampaignFixtureClient({
 	canManageCampaigns,
-}: Readonly<{ canManageCampaigns: boolean }>) {
+	discoverCreatedCampaign,
+}: Readonly<{
+	canManageCampaigns: boolean;
+	discoverCreatedCampaign: boolean;
+}>) {
+	const createdRef = useRef<ManageableCampaign | null>(null);
+
+	async function createCampaign(input: CampaignCreateInput): Promise<CampaignMutationResult> {
+		const result = await syntheticCampaignCreateAction(input);
+		if (result.ok) createdRef.current = result.campaign;
+		return result;
+	}
+
+	async function refreshCampaignProjection() {
+		const created = createdRef.current;
+		const projected =
+			discoverCreatedCampaign && created
+				? [
+						...CAMPAIGNS,
+						{
+							id: created.id,
+							name: created.name,
+							lifecycle: created.lifecycle,
+						},
+					]
+				: CAMPAIGNS;
+		return { ok: true as const, campaigns: projected };
+	}
+
 	return (
 		<LembraExperience
 			initialReferences={REFERENCES}
 			initialCampaigns={CAMPAIGNS}
 			canManageCampaigns={canManageCampaigns}
-			campaignCreateAction={syntheticCampaignCreateAction}
+			campaignCreateAction={createCampaign}
+			campaignProjectionRefreshAction={refreshCampaignProjection}
 		/>
 	);
 }
