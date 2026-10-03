@@ -272,3 +272,44 @@ test("read-only and mobile states remain contained and keyboard editing is opera
 	).toBeTruthy();
 	expect(await page.locator("textarea").count()).toBeLessThanOrEqual(1);
 });
+
+
+test("old build action preserves draft across reload and never mutates before explicit fresh submit", async ({
+	page,
+}) => {
+	await page.goto("/e2e-fixtures/stale-action-recovery");
+	await page.evaluate(() => {
+		sessionStorage.setItem("tda.e2e.stale-action.current-build", "A");
+		sessionStorage.setItem("tda.e2e.stale-action.mutations", "0");
+	});
+	await page.reload();
+	await expect(page.getByTestId("loaded-build")).toHaveText("Build carregado: A");
+
+	const title = page.getByLabel("Título");
+	await title.fill("Rascunho do build A");
+
+	await page.evaluate(() => {
+		sessionStorage.setItem("tda.e2e.stale-action.current-build", "B");
+	});
+	await page.getByRole("button", { name: "Salvar fixture" }).click();
+
+	await expect(page.getByRole("alert")).toContainText(
+		"O TDA foi atualizado enquanto esta tela estava aberta",
+	);
+	await expect(title).toHaveValue("Rascunho do build A");
+	await expect(page.getByTestId("mutation-count")).toHaveText("Mutations: 0");
+
+	await page
+		.getByRole("button", { name: "Atualizar e recuperar rascunho" })
+		.click();
+	await expect(page.getByTestId("loaded-build")).toHaveText("Build carregado: B");
+	await expect(page.getByRole("status")).toContainText("Rascunho recuperado");
+	await expect(page.getByLabel("Título")).toHaveValue("Rascunho do build A");
+	await expect(page.getByTestId("mutation-count")).toHaveText("Mutations: 0");
+
+	await page.getByRole("button", { name: "Salvar fixture" }).click();
+	await expect(page.getByTestId("mutation-count")).toHaveText("Mutations: 1");
+	await expect(page.getByTestId("saved-value")).toHaveText(
+		"Salvo: Rascunho do build A",
+	);
+});
