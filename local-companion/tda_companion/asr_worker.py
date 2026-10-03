@@ -272,20 +272,32 @@ def _run_craig(
                 raise TranscriptionRunError("BENCHMARK_FRESH_PROCESSING_METRICS_REQUIRED")
             benchmark_metrics = stats.processing_metrics
             lineage = capture_execution_lineage(document)
-            benchmark_id = str(command.payload.get("benchmark_id") or "")
-            sample_identity_sha256 = str(
-                command.payload.get("sample_identity_sha256") or ""
+            benchmark_id_value = command.payload.get("benchmark_id")
+            sample_identity_value = command.payload.get("sample_identity_sha256")
+            benchmark_id = (
+                str(benchmark_id_value)
+                if isinstance(benchmark_id_value, str)
+                else ""
             )
-            artifact = write_profile_payload(
-                data_root,
-                document,
-                benchmark_id=benchmark_id,
-                job_id=command.job_id,
-                attempt=command.attempt,
-                source_id=source_id,
-                sample_identity_sha256=sample_identity_sha256,
-                sample_seconds=float(benchmark_sample_seconds),
-                execution_lineage=lineage,
+            sample_identity_sha256 = (
+                str(sample_identity_value)
+                if isinstance(sample_identity_value, str)
+                else ""
+            )
+            artifact = (
+                write_profile_payload(
+                    data_root,
+                    document,
+                    benchmark_id=benchmark_id,
+                    job_id=command.job_id,
+                    attempt=command.attempt,
+                    source_id=source_id,
+                    sample_identity_sha256=sample_identity_sha256,
+                    sample_seconds=float(benchmark_sample_seconds),
+                    execution_lineage=lineage,
+                )
+                if benchmark_id and sample_identity_sha256
+                else {}
             )
             heartbeat_stop.set()
             heartbeat_thread.join(timeout=1.0)
