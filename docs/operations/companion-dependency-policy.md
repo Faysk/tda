@@ -74,14 +74,17 @@ Além do probe/import, o build Whisper deve executar no **executável empacotado
 A exceção só pode ser removida quando uma versão posterior do Faster-Whisper (ou contrato de decoder equivalente aprovado) aceitar PyAV atual e passar: smoke WAV/FLAC empacotado, suíte do runtime e aceite físico do artefato exato nos perfis `whisper-turbo` e `whisper-detailed`.
 
 
-## Contrato de benchmark do Whisper — #1233
+## Contrato de benchmark dos runtimes — #1233 / #1413
 
 A prontidão do Whisper possui dois níveis explícitos:
 
 - **transcrição normal:** mantém mínimo `1.1.4`; o runtime imutável `1.1.5` continua válido para jobs normais que já funcionavam;
-- **benchmark:** exige runtime **`>=1.1.7`**. O `1.1.6` foi consumido pela correção de decoder #1234 e teve RC publicado antes do smoke de benchmark da #1233; reservar `1.1.7` evita uma nova colisão de identidade e garante que o candidato desta correção nasça sob o gate novo.
+- **benchmark de execução/métricas de #1233:** o piso histórico do Whisper é **`>=1.1.7`**. O `1.1.6` foi consumido pela correção de decoder #1234 e teve RC publicado antes do smoke da #1233;
+- **benchmark atual com evidência textual de #1413:** exige worker congelado capaz de persistir o bundle imutável, portanto `benchmark_ready` exige **Whisper `>=1.1.10`** e **Qwen `>=1.0.18`**. Os mínimos de transcrição normal permanecem independentes.
 
-A versão `1.1.5` nunca deve ser reconstruída, sobrescrita ou republicada com bytes novos. O reparo é sempre uma nova versão imutável. O Companion `0.3.18` anuncia `processing.benchmark.runtime-readiness-v2` e separa `ready` de `benchmark_ready`; consumidores antigos ou respostas sem esse contrato devem falhar fechados para benchmark, sem bloquear transcrição normal.
+A versão `1.1.5` nunca deve ser reconstruída, sobrescrita ou republicada com bytes novos. O reparo é sempre uma nova versão imutável.
+
+Como `benchmark_bundles.py` é importado pelo worker empacotado, alterar esse contrato muda bytes do runtime. Os manifests 1.1.10/1.0.18 e as fences RC/Stable incluem esse arquivo na closure de build; runtimes anteriores não podem ser reclassificados como evidence-capable apenas por atualização do Agent. O Companion `0.3.18` anuncia `processing.benchmark.runtime-readiness-v2` e separa `ready` de `benchmark_ready`; consumidores antigos ou respostas sem esse contrato devem falhar fechados para benchmark, sem bloquear transcrição normal.
 
 A preparação iniciada pelo Benchmark usa `purpose=benchmark`. Ela pode reutilizar modelos/cache já íntegros, mas só considera o runtime pronto quando a versão ativa satisfaz o contrato de benchmark. Se a Stable ainda for `1.1.5`, o fluxo pode instalar um RC `1.1.7` publicado e verificado; isso não autoriza promovê-lo a Stable.
 
