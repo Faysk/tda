@@ -201,6 +201,7 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 						zIndex: 1,
 					}}
 					aria-hidden="true"
+					data-world-edge-layer="viewport"
 					data-world-edge-paint-layer={props.id}
 				>
 					{semantic.showHalo ? (
