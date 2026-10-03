@@ -27,6 +27,11 @@ from .attempt_fence import (
     read_attempt_outcome,
 )
 from .browser_session import BrowserSessionManager
+from .benchmark_bundles import (
+    BenchmarkBundleError,
+    benchmark_sample_descriptor,
+    claim_benchmark_outcome,
+)
 from .benchmark_evidence import (
     BenchmarkEvidenceError,
     load_bundle as load_benchmark_bundle,
@@ -103,7 +108,7 @@ _BROWSER_JOB_PATH = re.compile(
     r"^/api/v1/jobs/[A-Za-z0-9_-]{1,128}(?:/(?:cancel|retry|delete|events|result))?$"
 )
 _BROWSER_BENCHMARK_PATH = re.compile(
-    r"^/api/v1/benchmarks/benchmark-[0-9a-f]{32}"
+    r"^/api/v1/benchmarks/benchmark-(?:[0-9a-f]{32}|[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5})"
     r"(?:/profiles/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)/(?:transcript|metrics|events|telemetry)"
     r"|/export|/reference|/quality)?$"
 )
@@ -1146,6 +1151,14 @@ def create_app(
                                 is_cancelled=is_cancelled,
                             )
                         elif body["kind"] == "benchmark.craig":
+                            _, benchmark_package = await asyncio.to_thread(
+                                staged_package_under_source_gate,
+                                body["source_id"],
+                            )
+                            sample_descriptor = benchmark_sample_descriptor(
+                                benchmark_package,
+                                float(body["sample_seconds"]),
+                            )
                             outcome = await asyncio.to_thread(
                                 worker_supervisor.run_benchmark,
                                 job_id=job_id,
@@ -1155,6 +1168,7 @@ def create_app(
                                 context=body.get("context", ""),
                                 sample_identity_sha256=body["sample_identity_sha256"],
                                 sample_seconds=float(body["sample_seconds"]),
+                                sample_descriptor=sample_descriptor,
                                 on_progress=commit_progress,
                                 on_event=observe_event,
                                 is_cancelled=is_cancelled,
@@ -1182,7 +1196,10 @@ def create_app(
                                 or [item.get("profile_id") for item in payload["profiles"]]
                                 != list(_BENCHMARK_PROFILES)
                                 or not isinstance(payload.get("benchmark_id"), str)
-                                or re.fullmatch(r"benchmark-[0-9a-f]{32}", payload["benchmark_id"]) is None
+                                or re.fullmatch(
+                                    r"benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}",
+                                    payload["benchmark_id"],
+                                ) is None
                                 or not isinstance(payload.get("bundle_manifest_sha256"), str)
                                 or _SHA256_PATTERN.fullmatch(payload["bundle_manifest_sha256"]) is None
                                 or isinstance(payload.get("bundle_size_bytes"), bool)
@@ -2517,17 +2534,29 @@ def create_app(
             body = store.body(job_id)
             if (
                 current["status"] == "running"
-                and body.get("kind") == "transcription.craig"
+                and body.get("kind") in {"transcription.craig", "benchmark.craig"}
             ):
                 attempt = current.get("attempt")
                 if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
                     raise Conflict("ATTEMPT_FENCE_ATTEMPT_INVALID")
-                winner = await asyncio.to_thread(
-                    claim_cancel_under_source_gate,
-                    str(body["source_id"]),
-                    job_id,
-                    attempt,
-                )
+                if body.get("kind") == "transcription.craig":
+                    winner = await asyncio.to_thread(
+                        claim_cancel_under_source_gate,
+                        str(body["source_id"]),
+                        job_id,
+                        attempt,
+                    )
+                else:
+                    try:
+                        winner = await asyncio.to_thread(
+                            claim_benchmark_outcome,
+                            data_root,
+                            job_id,
+                            attempt,
+                            "cancel",
+                        )
+                    except BenchmarkBundleError as exc:
+                        raise Conflict(str(exc)) from None
                 if winner == "commit":
                     latest = store.get(job_id)
                     if latest["status"] == "succeeded":
