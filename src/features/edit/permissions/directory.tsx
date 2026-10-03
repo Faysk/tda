@@ -43,12 +43,12 @@ const SYSTEM_ROLE_NAMES: Readonly<Record<string, string>> = {
 	"platform owner": "Administrador da plataforma",
 };
 
-function humanRoleName(role: Pick<PermissionAssignment, "name" | "slug"> | Pick<PermissionRoleDefinition, "name" | "slug">) {
+export function humanRoleName(role: Pick<PermissionAssignment, "name" | "slug"> | Pick<PermissionRoleDefinition, "name" | "slug">) {
 	const key = role.name.trim().toLocaleLowerCase("en-US");
 	return SYSTEM_ROLE_NAMES[key] ?? role.name;
 }
 
-function humanRoleDescription(role: PermissionRoleDefinition) {
+export function humanRoleDescription(role: PermissionRoleDefinition) {
 	const labels = [...new Set(role.actions.map((action) => PERMISSION_LABELS[action] ?? action))];
 	if (!labels.length) return "Esta função não adiciona ações operacionais listadas.";
 	const visible = labels.slice(0, 4);
