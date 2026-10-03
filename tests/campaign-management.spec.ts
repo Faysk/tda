@@ -78,6 +78,20 @@ test("create and edit stay contextual and keyboard operable", async ({ page }) =
 	await expect(
 		first.getByText(/Esta campanha está pública/u),
 	).toBeVisible();
+
+	const moreActions = first.locator("details").filter({
+		has: page.getByText("Mais ações", { exact: true }),
+	});
+	await moreActions.locator(":scope > summary").click();
+	const archiveConfirm = first.locator("[data-campaign-archive-confirm]");
+	await expect(archiveConfirm.getByRole("button", { name: "Confirmar arquivamento" })).toBeHidden();
+	const archiveSummary = archiveConfirm.locator(":scope > summary");
+	await archiveSummary.focus();
+	await expect(archiveSummary).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(
+		archiveConfirm.getByRole("button", { name: "Confirmar arquivamento" }),
+	).toBeVisible();
 });
 
 test("manager keeps feedback next to the operation that needs attention", async ({
