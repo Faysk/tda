@@ -719,6 +719,12 @@ def derived_artifact(
         return canonical, "application/json; charset=utf-8", "transcript.json"
     if format_name == "txt":
         return transcript_txt(document), "text/plain; charset=utf-8", "transcript.txt"
+    if format_name == "txt-plain":
+        return (
+            transcript_txt(document, timestamps=False),
+            "text/plain; charset=utf-8",
+            "transcript-plain.txt",
+        )
     if format_name == "vtt":
         return transcript_vtt(document), "text/vtt; charset=utf-8", "transcript.vtt"
     if format_name == "srt":
@@ -746,7 +752,7 @@ def public_bundle_summary(data_root: Path, benchmark_id: str) -> dict[str, Any]:
         "source_id": manifest["source_id"],
         "profile_order": manifest["profile_order"],
         "bundle_size_bytes": bundle_size_bytes(data_root, benchmark_id),
-        "formats": ["json", "txt", "vtt", "srt"],
+        "formats": ["json", "txt", "txt-plain", "vtt", "srt"],
         "quality_reference_status": "none",
         "telemetry_available": False,
         "integrity": "verified",
