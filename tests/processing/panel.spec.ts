@@ -117,7 +117,7 @@ async function installCompletedRunCatalog(
 	);
 }
 
-test("troca de campaign com trabalho autoritativo exige confirmação e não retaggeia o job", async ({ page }) => {
+test("troca de campaign com trabalho autoritativo exige confirmação e não retaggeia o job", async ({ page }, testInfo) => {
 	await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
@@ -130,13 +130,35 @@ test("troca de campaign com trabalho autoritativo exige confirmação e não ret
 	await expect(selector).toHaveValue("yuhara-main");
 	await expect(page.getByText("Crônicas da Mesa", { exact: true }).first()).toBeVisible();
 
-	page.once("dialog", async (dialog) => {
-		expect(dialog.type()).toBe("confirm");
-		expect(dialog.message()).toContain("mantêm a campanha original");
-		await dialog.dismiss();
-	});
+	await selector.focus();
 	await selector.selectOption("antes-que-seja-tarde");
 
+	await expect(selector).toHaveValue("antes-que-seja-tarde");
+	const confirmation = page.getByRole("dialog", { name: "Trocar de campanha?" });
+	await expect(confirmation).toBeVisible();
+	await expect(confirmation).toContainText("Crônicas da Mesa");
+	await expect(confirmation).toContainText("Antes que seja tarde");
+	await expect(confirmation).toContainText(
+		"Trabalhos já enfileirados ou em execução continuam associados à campanha original.",
+	);
+	await expect(
+		confirmation.getByRole("button", { name: "Continuar nesta campanha" }),
+	).toBeFocused();
+	await page.screenshot({
+		path: testInfo.outputPath("issue-1354-campaign-switch-fixture.png"),
+		fullPage: false,
+	});
+
+	await page.keyboard.press("Escape");
+	await expect(confirmation).toBeHidden();
+	await expect(selector).toHaveValue("yuhara-main");
+	await expect(selector).toBeFocused();
+	await expect(page).toHaveURL("/");
+
+	await selector.selectOption("antes-que-seja-tarde");
+	await expect(confirmation).toBeVisible();
+	await confirmation.getByRole("button", { name: "Continuar nesta campanha" }).click();
+	await expect(confirmation).toBeHidden();
 	await expect(selector).toHaveValue("yuhara-main");
 	await expect(page).toHaveURL("/");
 });
