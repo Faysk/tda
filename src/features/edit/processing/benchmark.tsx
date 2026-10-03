@@ -187,6 +187,16 @@ function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
 				</table>
 			</div>
 			<div className={styles.qualityNotice}>
+				<strong>
+					{result.benchmarkId ? "Evidência de transcript preservada." : "Benchmark histórico."}
+				</strong>
+				<span>
+					{result.benchmarkId
+						? `Bundle local imutável · ${result.bundleSizeBytes === null ? "tamanho indisponível" : formatSubmissionBytes(result.bundleSizeBytes)} · conteúdo carregado somente quando solicitado.`
+						: "Transcript artifacts were not preserved for this historical benchmark."}
+				</span>
+			</div>
+			<div className={styles.qualityNotice}>
 				<strong>Qualidade não medida.</strong>
 				<span>
 					Este benchmark compara performance. Sem transcrição humana de referência,

@@ -62,6 +62,25 @@ Um benchmark só conclui quando cada um dos quatro receipts carrega lineage sani
 o runtime artifact selado (worker/archive SHA-256) e a GPU NVIDIA efetivamente casada com
 a execução; evidência ausente ou parcial falha fechado e não vira resultado comparável.
 
+A evidência textual do benchmark é local, imutável e separada dos runs editoriais. Cada
+perfil concluído persiste o próprio `tda_transcript_v1` canônico e um
+`tda_benchmark_profile_artifact_v1` sob `Data/benchmarks/<benchmark-id>/profiles/`.
+Somente depois dos quatro perfis verificados o Agent grava `benchmark.json`
+(`tda_benchmark_bundle_v1`) como commit marker final. O bundle registra hashes/tamanhos,
+sample 0–300 s, lineage, métricas e somente hash + comprimento de contexto/glossário; não
+duplica áudio Craig, não cria `staging/.../runs`, compatibility mirror, review,
+publicação ou sync cloud. Limpar a fila não remove o bundle. Retry forma outro
+`benchmark-id`; replay idempotente da mesma tentativa só reutiliza bytes já validados.
+
+O receipt `tda_processing_benchmark_v1` continua pequeno: referências aditivas
+(`benchmark_id`, hash/tamanho do bundle e SHA/tamanho do transcript por perfil) apontam
+para conteúdo carregado sob demanda em
+`GET /api/v1/benchmarks/<benchmark-id>` e
+`GET /api/v1/benchmarks/<benchmark-id>/profiles/<profile>/transcript`. Esses endpoints
+são privados, origin/session-bound no browser e verificam o artefato solicitado antes de
+devolver texto. Receipts históricos sem `benchmark_id` continuam válidos como
+performance-only e nunca têm transcript reconstruído por inferência.
+
 Validação deste comportamento: `tests/processing/panel.spec.ts` cobre progresso
 zero, ausência de denominador e a separação entre job ativo e métricas de run
 terminal. Este estado descreve o candidato de código; não implica integração ou

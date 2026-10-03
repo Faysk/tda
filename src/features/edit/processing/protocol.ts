@@ -372,6 +372,9 @@ export type BenchmarkProfileResult = {
 	trackCount: number;
 	warningCount: number;
 	executionLineage: LocalExecutionLineage | null;
+	transcriptSha256: string | null;
+	transcriptSizeBytes: number | null;
+	artifactAvailable: boolean;
 };
 
 export type BenchmarkResult = {
@@ -386,6 +389,9 @@ export type BenchmarkResult = {
 	trackCount: number;
 	audioWorkSeconds: number;
 	prepared: boolean;
+	benchmarkId: string | null;
+	bundleManifestSha256: string | null;
+	bundleSizeBytes: number | null;
 	profiles: readonly BenchmarkProfileResult[];
 };
 
@@ -2085,6 +2091,21 @@ export function parseBenchmarkResult(
 	if (row.kind !== "benchmark.craig") return invalid();
 	const sampleSeconds = nonNegativeNumber(row.sample_seconds);
 	if (sampleSeconds !== 300) return invalid();
+	const bundleFieldsPresent =
+		row.benchmark_id !== undefined ||
+		row.bundle_manifest_sha256 !== undefined ||
+		row.bundle_size_bytes !== undefined;
+	let benchmarkId: string | null = null;
+	let bundleManifestSha256: string | null = null;
+	let bundleSizeBytes: number | null = null;
+	if (bundleFieldsPresent) {
+		benchmarkId = text(row.benchmark_id, 196);
+		if (!/^benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}$/u.test(benchmarkId))
+			return invalid();
+		bundleManifestSha256 = sha256(row.bundle_manifest_sha256);
+		bundleSizeBytes = nonNegativeInteger(row.bundle_size_bytes);
+		if (bundleSizeBytes <= 0) return invalid();
+	}
 	const profiles = row.profiles;
 	if (!Array.isArray(profiles) || profiles.length !== 4) return invalid();
 	const parsed = profiles.map((raw): BenchmarkProfileResult => {
@@ -2107,6 +2128,28 @@ export function parseBenchmarkResult(
 			!executionLineage.gpu.model
 		)
 			return invalid();
+		let transcriptSha256: string | null = null;
+		let transcriptSizeBytes: number | null = null;
+		let artifactAvailable = false;
+		const profileArtifactFieldsPresent =
+			item.artifact_available !== undefined ||
+			item.transcript_sha256 !== undefined ||
+			item.transcript_size_bytes !== undefined ||
+			item.benchmark_id !== undefined;
+		if (bundleFieldsPresent) {
+			if (
+				item.artifact_available !== true ||
+				item.benchmark_id !== benchmarkId ||
+				item.sample_identity_sha256 !== row.sample_identity_sha256
+			)
+				return invalid();
+			transcriptSha256 = sha256(item.transcript_sha256);
+			transcriptSizeBytes = nonNegativeInteger(item.transcript_size_bytes);
+			if (transcriptSizeBytes <= 0) return invalid();
+			artifactAvailable = true;
+		} else if (profileArtifactFieldsPresent) {
+			return invalid();
+		}
 		return {
 			profileId: transcriptionProfile(item.profile_id),
 			engine,
@@ -2128,7 +2171,10 @@ export function parseBenchmarkResult(
 			segmentCount: nonNegativeInteger(item.segment_count),
 			trackCount: nonNegativeInteger(item.track_count),
 			warningCount: nonNegativeInteger(item.warning_count),
-			executionLineage: parseExecutionLineage(item.execution_lineage),
+			executionLineage,
+			transcriptSha256,
+			transcriptSizeBytes,
+			artifactAvailable,
 		};
 	});
 	const expected: readonly TranscriptionProfileId[] = [
@@ -2154,6 +2200,9 @@ export function parseBenchmarkResult(
 		trackCount: nonNegativeInteger(row.track_count),
 		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
 		prepared: boolean(row.prepared),
+		benchmarkId,
+		bundleManifestSha256,
+		bundleSizeBytes,
 		profiles: parsed,
 	};
 }

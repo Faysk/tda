@@ -12,7 +12,7 @@ from typing import Annotated, Callable, Literal
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import VERSION
@@ -27,6 +27,14 @@ from .attempt_fence import (
     read_attempt_outcome,
 )
 from .browser_session import BrowserSessionManager
+from .benchmark_bundles import (
+    BenchmarkBundleError,
+    benchmark_sample_descriptor,
+    claim_benchmark_outcome,
+    finalize_benchmark_bundle,
+    load_benchmark_bundle,
+    read_benchmark_transcript,
+)
 from .craig import CraigPackageError
 from .craig_ingest import (
     recover_interrupted_craig_repairs,
@@ -97,6 +105,10 @@ _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/"
     r"assemblies(?:/[0-9a-f]{64})?$"
 )
+_BROWSER_BENCHMARK_PATH = re.compile(
+    r"^/api/v1/benchmarks/benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}"
+    r"(?:/profiles/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)/transcript)?$"
+)
 
 
 def _browser_route_allowed(method: str, path: str) -> bool:
@@ -129,6 +141,8 @@ def _browser_route_allowed(method: str, path: str) -> bool:
         return method in {"GET", "POST"}
     if _BROWSER_SESSION_ASSEMBLY_PATH.fullmatch(path) is not None:
         return method in {"GET", "POST"}
+    if _BROWSER_BENCHMARK_PATH.fullmatch(path) is not None:
+        return method == "GET"
     match = _BROWSER_JOB_PATH.fullmatch(path)
     if match is None:
         return False
@@ -1154,18 +1168,59 @@ def create_app(
                                     "BENCHMARK_RESULT_INVALID",
                                     recoverable=False,
                                 )
-                            result = {
-                                **payload,
-                                "job_id": job_id,
-                                "campaign_id": body["campaign_id"],
-                                "session_id": body["session_id"],
-                                "track_count": body["track_count"],
-                                "audio_work_seconds": body["audio_work_seconds"],
-                                "prepared": body["prepared"],
-                            }
-                            if not store.complete(job_id, attempt, result):
-                                raise WorkerProcessError("WORKER_STALE_ATTEMPT")
-                            final_state = store.get(job_id)
+                            if final_state["status"] == "cancelled":
+                                log(
+                                    "info",
+                                    "worker",
+                                    "BENCHMARK_RESULT_DISCARDED_AFTER_CANCEL",
+                                    "Benchmark profiles finished after cancellation; no completed bundle was committed",
+                                    {"job_id": job_id, "attempt": attempt},
+                                )
+                            else:
+                                try:
+                                    with source_gate:
+                                        _, package = staged_package(
+                                            body["source_id"],
+                                            verify_tracks=False,
+                                        )
+                                        bundle = finalize_benchmark_bundle(
+                                            data_root,
+                                            job_id=job_id,
+                                            attempt=attempt,
+                                            source_id=body["source_id"],
+                                            source_sha256=package.source_sha256,
+                                            sample=benchmark_sample_descriptor(
+                                                package,
+                                                float(body["sample_seconds"]),
+                                            ),
+                                            sample_identity_sha256=body["sample_identity_sha256"],
+                                            sample_seconds=float(body["sample_seconds"]),
+                                            track_count=int(body["track_count"]),
+                                            audio_work_seconds=float(body["audio_work_seconds"]),
+                                            context=str(body.get("context") or ""),
+                                            glossary=str(body.get("glossary") or ""),
+                                            profile_receipts=payload["profiles"],
+                                        )
+                                except BenchmarkBundleError as exc:
+                                    raise WorkerProcessError(
+                                        str(exc),
+                                        recoverable=False,
+                                    ) from exc
+                                result = {
+                                    **payload,
+                                    "job_id": job_id,
+                                    "campaign_id": body["campaign_id"],
+                                    "session_id": body["session_id"],
+                                    "track_count": body["track_count"],
+                                    "audio_work_seconds": body["audio_work_seconds"],
+                                    "prepared": body["prepared"],
+                                    "benchmark_id": bundle["benchmark_id"],
+                                    "bundle_manifest_sha256": bundle["bundle_manifest_sha256"],
+                                    "bundle_size_bytes": bundle["bundle_size_bytes"],
+                                }
+                                if not store.complete(job_id, attempt, result):
+                                    raise WorkerProcessError("WORKER_STALE_ATTEMPT")
+                                final_state = store.get(job_id)
                         if outcome.terminal == "result" and body["kind"] == "transcription.craig":
                             if final_state["status"] == "cancelled":
                                 log(
@@ -2402,17 +2457,29 @@ def create_app(
             body = store.body(job_id)
             if (
                 current["status"] == "running"
-                and body.get("kind") == "transcription.craig"
+                and body.get("kind") in {"transcription.craig", "benchmark.craig"}
             ):
                 attempt = current.get("attempt")
                 if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
                     raise Conflict("ATTEMPT_FENCE_ATTEMPT_INVALID")
-                winner = await asyncio.to_thread(
-                    claim_cancel_under_source_gate,
-                    str(body["source_id"]),
-                    job_id,
-                    attempt,
-                )
+                if body.get("kind") == "transcription.craig":
+                    winner = await asyncio.to_thread(
+                        claim_cancel_under_source_gate,
+                        str(body["source_id"]),
+                        job_id,
+                        attempt,
+                    )
+                else:
+                    try:
+                        winner = await asyncio.to_thread(
+                            claim_benchmark_outcome,
+                            data_root,
+                            job_id,
+                            attempt,
+                            "cancel",
+                        )
+                    except BenchmarkBundleError as exc:
+                        raise Conflict(str(exc)) from None
                 if winner == "commit":
                     latest = store.get(job_id)
                     if latest["status"] == "succeeded":
@@ -2449,6 +2516,50 @@ def create_app(
     @app.get("/api/v1/jobs/{job_id}/result")
     def result(job_id: str):
         value = store.result(job_id)
+        if (
+            isinstance(value, dict)
+            and value.get("schema_version") == "tda_processing_benchmark_v1"
+        ):
+            benchmark_id = value.get("benchmark_id")
+            if benchmark_id is None:
+                # Historical benchmark receipts predate immutable transcript bundles.
+                return value
+            try:
+                bundle = load_benchmark_bundle(data_root, str(benchmark_id))
+            except BenchmarkBundleError as exc:
+                raise Conflict("RESULT_ARTIFACT_UNAVAILABLE") from exc
+            state = store.get(job_id)
+            result_profiles = value.get("profiles")
+            bundle_profiles = bundle.get("profiles")
+            if (
+                bundle.get("job_id") != job_id
+                or bundle.get("attempt") != state.get("attempt")
+                or bundle.get("source_id") != value.get("source_id")
+                or bundle.get("sample_identity_sha256")
+                != value.get("sample_identity_sha256")
+                or bundle.get("bundle_manifest_sha256")
+                != value.get("bundle_manifest_sha256")
+                or bundle.get("bundle_size_bytes") != value.get("bundle_size_bytes")
+                or not isinstance(result_profiles, list)
+                or not isinstance(bundle_profiles, list)
+                or len(result_profiles) != len(bundle_profiles)
+                or any(
+                    result_profile.get("profile_id") != bundle_profile.get("profile_id")
+                    or result_profile.get("artifact_available") is not True
+                    or result_profile.get("transcript_sha256")
+                    != bundle_profile["transcript"]["sha256"]
+                    or result_profile.get("transcript_size_bytes")
+                    != bundle_profile["transcript"]["size_bytes"]
+                    for result_profile, bundle_profile in zip(
+                        result_profiles,
+                        bundle_profiles,
+                        strict=True,
+                    )
+                )
+            ):
+                raise Conflict("RESULT_ARTIFACT_MISMATCH")
+            return value
+
         transcription = value.get("transcription") if isinstance(value, dict) else None
         if not isinstance(transcription, dict):
             return value
@@ -2493,5 +2604,36 @@ def create_app(
         ):
             raise Conflict("RESULT_ARTIFACT_MISMATCH")
         return value
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}")
+    def benchmark_bundle(benchmark_id: str):
+        try:
+            return load_benchmark_bundle(data_root, benchmark_id)
+        except BenchmarkBundleError as exc:
+            code = str(exc)
+            status = 404 if code == "BENCHMARK_BUNDLE_NOT_FOUND" else 409
+            return error(code, status, False)
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/transcript")
+    def benchmark_profile_transcript(benchmark_id: str, profile_id: str):
+        try:
+            payload = read_benchmark_transcript(
+                data_root,
+                benchmark_id,
+                profile_id,
+            )
+        except BenchmarkBundleError as exc:
+            code = str(exc)
+            status = 404 if code in {
+                "BENCHMARK_BUNDLE_NOT_FOUND",
+                "BENCHMARK_PROFILE_NOT_FOUND",
+                "BENCHMARK_PROFILE_TRANSCRIPT_MISSING",
+            } else 409
+            return error(code, status, False)
+        return Response(
+            content=payload,
+            media_type="application/json",
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
 
     return app

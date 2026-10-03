@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 from .asr_runtime import inspect_whisper_runtime
+from .benchmark_bundles import BENCHMARK_PROFILES, benchmark_id_for
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import inspect_qwen_runtime
 from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
@@ -53,7 +54,13 @@ def _is_sha256(value: object) -> bool:
     )
 
 
-def _benchmark_profile_evidence_valid(receipt: dict, profile_id: str) -> bool:
+def _benchmark_profile_evidence_valid(
+    receipt: dict,
+    profile_id: str,
+    *,
+    benchmark_id: str,
+    sample_identity_sha256: str,
+) -> bool:
     lineage = receipt.get("execution_lineage")
     if not isinstance(lineage, dict) or lineage.get("schema_version") != "tda_execution_lineage_v1":
         return False
@@ -67,6 +74,13 @@ def _benchmark_profile_evidence_valid(receipt: dict, profile_id: str) -> bool:
     device = lineage.get("device")
     return (
         receipt.get("profile_id") == profile_id
+        and receipt.get("benchmark_id") == benchmark_id
+        and receipt.get("sample_identity_sha256") == sample_identity_sha256
+        and receipt.get("artifact_available") is True
+        and _is_sha256(receipt.get("transcript_sha256"))
+        and isinstance(receipt.get("transcript_size_bytes"), int)
+        and not isinstance(receipt.get("transcript_size_bytes"), bool)
+        and receipt["transcript_size_bytes"] > 0
         and receipt.get("sample_seconds") == 300.0
         and lineage.get("runtime_family") == expected_family
         and isinstance(runtime_version, str)
@@ -602,12 +616,8 @@ class WorkerSupervisor:
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> WorkerOutcome:
-        profiles = (
-            "whisper-turbo",
-            "whisper-detailed",
-            "qwen-fast",
-            "qwen-quality",
-        )
+        profiles = BENCHMARK_PROFILES
+        benchmark_id = benchmark_id_for(job_id, attempt)
         receipts: list[dict] = []
         for index, profile_id in enumerate(profiles, start=1):
             if is_cancelled is not None and is_cancelled():
@@ -634,7 +644,12 @@ class WorkerSupervisor:
             receipt = dict(outcome.payload)
             if receipt.get("schema_version") != "tda_benchmark_profile_v1":
                 raise WorkerProcessError("BENCHMARK_PROFILE_RESULT_INVALID", recoverable=False)
-            if not _benchmark_profile_evidence_valid(receipt, profile_id):
+            if not _benchmark_profile_evidence_valid(
+                receipt,
+                profile_id,
+                benchmark_id=benchmark_id,
+                sample_identity_sha256=sample_identity_sha256,
+            ):
                 raise WorkerProcessError("BENCHMARK_PROFILE_EVIDENCE_INVALID", recoverable=False)
             receipts.append(receipt)
             on_progress(
@@ -657,6 +672,7 @@ class WorkerSupervisor:
                 "schema_version": "tda_processing_benchmark_v1",
                 "kind": "benchmark.craig",
                 "source_id": source_id,
+                "benchmark_id": benchmark_id,
                 "sample_identity_sha256": sample_identity_sha256,
                 "sample_seconds": sample_seconds,
                 "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
