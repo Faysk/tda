@@ -5,7 +5,9 @@ import json
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+from tda_companion.api import create_app
 from tda_companion.benchmark_evidence import (
     BenchmarkEvidenceError,
     PROFILES,
@@ -518,3 +520,88 @@ def test_queue_cleanup_does_not_delete_committed_benchmark_evidence(tmp_path: Pa
     assert manifest["job_id"] == job["id"]
     assert manifest["attempt"] == claim[1]
     assert len(manifest["profiles"]) == 4
+
+
+def test_authenticated_benchmark_api_reopens_verified_evidence_and_quality(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    benchmark_id, _ = _complete_bundle(data_root)
+    token = "t" * 43
+    origin = "https://dnd.faysk.dev"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Origin": origin,
+    }
+    app = create_app(
+        data_root,
+        token,
+        {origin},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        manifest = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}",
+            headers=headers,
+        )
+        assert manifest.status_code == 200
+        assert manifest.json()["benchmark_id"] == benchmark_id
+
+        transcript = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/profiles/qwen-quality/transcript",
+            headers=headers,
+        )
+        assert transcript.status_code == 200
+        assert transcript.json()["engine"]["profile"] == "qwen-quality"
+        assert transcript.headers["cache-control"] == "no-store"
+
+        telemetry = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/profiles/qwen-quality/telemetry",
+            headers=headers,
+        )
+        assert telemetry.status_code == 200
+        assert telemetry.json()["schema_version"] == "tda_benchmark_telemetry_v1"
+        assert "samples" not in telemetry.json()
+
+        before = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/quality",
+            headers=headers,
+        )
+        assert before.status_code == 200
+        assert before.json()["quality_measured"] is False
+
+        saved = client.post(
+            f"/api/v1/benchmarks/{benchmark_id}/reference",
+            headers={**headers, "Content-Type": "application/json"},
+            json={
+                "expected_revision": 0,
+                "provenance": "manual",
+                "seed_profile_id": None,
+                "tracks": [
+                    {
+                        "track_number": 1,
+                        "speaker": "Alice",
+                        "text": "texto qwen-quality",
+                    }
+                ],
+                "terms": ["qwen-quality"],
+            },
+        )
+        assert saved.status_code == 200
+        assert saved.json()["revision"] == 1
+
+        after = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/quality",
+            headers=headers,
+        )
+        assert after.status_code == 200
+        assert after.json()["quality_measured"] is True
+        assert len(after.json()["profiles"]) == 4
+
+        export = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/export",
+            headers=headers,
+        )
+        assert export.status_code == 200
+        assert export.headers["content-type"] == "application/zip"
+        assert "attachment;" in export.headers["content-disposition"]
