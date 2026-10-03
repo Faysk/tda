@@ -74,7 +74,7 @@ export function CampaignPicker<T extends string>({
 				{hint ? <small className={styles.hint}>{hint}</small> : null}
 			</div>
 			{canCreate || canManage ? (
-				<div className={styles.actions} role="group" aria-label="Ações de campanha">
+				<fieldset className={styles.actions} aria-label="Ações de campanha">
 					{canCreate && onCreate ? (
 						<Button
 							type="button"
@@ -97,7 +97,7 @@ export function CampaignPicker<T extends string>({
 							<span className={styles.srOnly}> (abre em nova aba)</span>
 						</a>
 					) : null}
-				</div>
+				</fieldset>
 			) : null}
 		</div>
 	);
