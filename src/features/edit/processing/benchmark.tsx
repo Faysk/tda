@@ -103,6 +103,8 @@ function bridgeMessage(error: unknown, fallback: string): string {
 				"Um perfil terminou sem provar o runtime e a GPU usados. O resultado não foi aceito; execute o diagnóstico antes de tentar novamente.",
 			WHISPER_BENCHMARK_RUNTIME_REQUIRED:
 				"O Whisper Runtime instalado transcreve normalmente, mas precisa ser atualizado para executar benchmark.",
+			QWEN_BENCHMARK_RUNTIME_REQUIRED:
+				"O Qwen Runtime instalado transcreve normalmente, mas precisa ser atualizado para executar benchmark.",
 			BENCHMARK_RESOURCE_BUSY:
 				"Há uma transcrição ou benchmark usando os recursos locais. Aguarde essa execução terminar.",
 			TRANSCRIPTION_PREPARATION_ALREADY_RUNNING:
@@ -234,7 +236,9 @@ function ProfileReadiness({
 			? "Pronto"
 			: benchmarkReason === "WHISPER_BENCHMARK_RUNTIME_REQUIRED"
 				? "Whisper Runtime precisa ser atualizado para benchmark."
-				: qwenRuntimeUpgrade
+				: benchmarkReason === "QWEN_BENCHMARK_RUNTIME_REQUIRED"
+					? "Qwen Runtime precisa ser atualizado para benchmark."
+					: qwenRuntimeUpgrade
 					? "Runtime Qwen precisa ser atualizado."
 					: qwenRuntimeRecovery
 						? "Runtime Qwen precisa ser verificado."
