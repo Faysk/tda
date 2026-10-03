@@ -469,10 +469,10 @@ def test_top_level_manifest_is_last_and_failed_atomic_commit_is_not_comparable(
     tmp_path: Path,
 ):
     real_atomic_write = benchmark_evidence.atomic_write
-    writes: list[str] = []
+    writes: list[Path] = []
 
     def fail_top_level(path, payload):
-        writes.append(str(Path(path).relative_to(tmp_path)))
+        writes.append(Path(path).relative_to(tmp_path))
         if Path(path).name == "benchmark.json":
             raise RuntimeError("synthetic top-level replace failure")
         return real_atomic_write(path, payload)
@@ -481,7 +481,7 @@ def test_top_level_manifest_is_last_and_failed_atomic_commit_is_not_comparable(
     benchmark_id = benchmark_id_for("benchmark-test", 1)
     with pytest.raises(RuntimeError, match="synthetic top-level replace failure"):
         _complete_bundle(tmp_path)
-    assert writes[-1].endswith("/benchmark.json") or writes[-1] == f"benchmarks/{benchmark_id}/benchmark.json"
+    assert writes[-1] == Path("benchmarks") / benchmark_id / "benchmark.json"
     assert not (tmp_path / "benchmarks" / benchmark_id / "benchmark.json").exists()
     with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_ARTIFACT_UNAVAILABLE"):
         load_bundle(tmp_path, benchmark_id)
