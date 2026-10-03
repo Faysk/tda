@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+import tda_companion.benchmark_evidence as benchmark_evidence
+
 from tda_companion.api import create_app
 from tda_companion.benchmark_evidence import (
     BenchmarkEvidenceError,
@@ -230,6 +232,26 @@ def _complete_bundle(
     return benchmark_id, bundle
 
 
+def _rewrite_bundle_manifest(tmp_path: Path, benchmark_id: str, mutate) -> None:
+    path = tmp_path / "benchmarks" / benchmark_id / "benchmark.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    mutate(payload)
+    unsigned = dict(payload)
+    unsigned.pop("manifest_payload_sha256", None)
+    payload["manifest_payload_sha256"] = hashlib.sha256(
+        json.dumps(
+            unsigned,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+
 def test_completed_bundle_is_hash_bound_queue_independent_and_contains_no_audio(tmp_path: Path):
     benchmark_id, receipt = _complete_bundle(tmp_path)
     manifest = load_bundle(tmp_path, benchmark_id)
@@ -245,7 +267,12 @@ def test_completed_bundle_is_hash_bound_queue_independent_and_contains_no_audio(
     assert all(item["artifact_available"] for item in receipt["profiles"])
 
     archive = private_export_zip(tmp_path, benchmark_id)
+    assert archive == private_export_zip(tmp_path, benchmark_id)
     assert b"private context" not in archive
+    for profile_id in PROFILES:
+        first = verified_profile_bytes(tmp_path, benchmark_id, profile_id, "transcript")
+        second = verified_profile_bytes(tmp_path, benchmark_id, profile_id, "transcript")
+        assert first == second
     import zipfile
     from io import BytesIO
     with zipfile.ZipFile(BytesIO(archive)) as value:
@@ -325,6 +352,138 @@ def test_rehashed_manifest_cannot_rebind_existing_profile_artifacts(tmp_path: Pa
     )
 
     with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_PROFILE_MANIFEST_INVALID"):
+        load_bundle(tmp_path, benchmark_id)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("sha256", "0" * 64),
+        ("size_bytes", 1),
+    ],
+)
+def test_rehashed_artifact_descriptor_sha_or_size_fails_closed(
+    tmp_path: Path,
+    field: str,
+    value,
+):
+    benchmark_id, _ = _complete_bundle(tmp_path)
+
+    def mutate(payload):
+        payload["profiles"][2]["artifacts"]["events"][field] = value
+
+    _rewrite_bundle_manifest(tmp_path, benchmark_id, mutate)
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_ARTIFACT_INTEGRITY_FAILED"):
+        load_bundle(tmp_path, benchmark_id)
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "../outside.json",
+        "profiles/qwen-fast/unexpected.json",
+        "profiles/whisper-turbo/transcript.json",
+    ],
+)
+def test_rehashed_artifact_descriptor_cannot_rebind_canonical_path(
+    tmp_path: Path,
+    relative: str,
+):
+    benchmark_id, _ = _complete_bundle(tmp_path)
+
+    def mutate(payload):
+        payload["profiles"][2]["artifacts"]["transcript"]["path"] = relative
+
+    _rewrite_bundle_manifest(tmp_path, benchmark_id, mutate)
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_MANIFEST_INVALID"):
+        load_bundle(tmp_path, benchmark_id)
+
+
+def test_rehashed_manifest_rejects_unexpected_artifact_name(tmp_path: Path):
+    benchmark_id, _ = _complete_bundle(tmp_path)
+
+    def mutate(payload):
+        payload["profiles"][0]["artifacts"]["surprise"] = dict(
+            payload["profiles"][0]["artifacts"]["events"]
+        )
+
+    _rewrite_bundle_manifest(tmp_path, benchmark_id, mutate)
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_MANIFEST_INVALID"):
+        load_bundle(tmp_path, benchmark_id)
+
+
+def test_mutated_profile_manifest_fails_closed(tmp_path: Path):
+    benchmark_id, _ = _complete_bundle(tmp_path)
+    path = tmp_path / "benchmarks" / benchmark_id / "profiles" / "qwen-fast" / "profile.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["profile_id"] = "qwen-quality"
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_ARTIFACT_INTEGRITY_FAILED"):
+        load_bundle(tmp_path, benchmark_id)
+
+
+@pytest.mark.parametrize(
+    ("artifact", "size"),
+    [
+        ("transcript.json", 16 * 1024 * 1024 + 1),
+        ("events.jsonl", 8 * 1024 * 1024 + 1),
+    ],
+)
+def test_oversized_json_and_jsonl_fail_before_parse(
+    tmp_path: Path,
+    artifact: str,
+    size: int,
+):
+    benchmark_id, _ = _complete_bundle(tmp_path)
+    path = tmp_path / "benchmarks" / benchmark_id / "profiles" / "qwen-fast" / artifact
+    path.write_bytes(b"x" * size)
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_ARTIFACT_SIZE_INVALID"):
+        load_bundle(tmp_path, benchmark_id)
+
+
+@pytest.mark.parametrize("failed_name", ["transcript.json", "profile.json"])
+def test_profile_atomic_write_failure_never_exposes_completed_bundle(
+    monkeypatch,
+    tmp_path: Path,
+    failed_name: str,
+):
+    real_atomic_write = benchmark_evidence.atomic_write
+
+    def fail_selected(path, payload):
+        if Path(path).name == failed_name:
+            raise RuntimeError("synthetic atomic failure")
+        return real_atomic_write(path, payload)
+
+    monkeypatch.setattr(benchmark_evidence, "atomic_write", fail_selected)
+    benchmark_id = benchmark_id_for("benchmark-test", 1)
+    with pytest.raises(RuntimeError, match="synthetic atomic failure"):
+        _complete_bundle(tmp_path)
+    assert not (tmp_path / "benchmarks" / benchmark_id / "benchmark.json").exists()
+
+
+def test_top_level_manifest_is_last_and_failed_atomic_commit_is_not_comparable(
+    monkeypatch,
+    tmp_path: Path,
+):
+    real_atomic_write = benchmark_evidence.atomic_write
+    writes: list[str] = []
+
+    def fail_top_level(path, payload):
+        writes.append(str(Path(path).relative_to(tmp_path)))
+        if Path(path).name == "benchmark.json":
+            raise RuntimeError("synthetic top-level replace failure")
+        return real_atomic_write(path, payload)
+
+    monkeypatch.setattr(benchmark_evidence, "atomic_write", fail_top_level)
+    benchmark_id = benchmark_id_for("benchmark-test", 1)
+    with pytest.raises(RuntimeError, match="synthetic top-level replace failure"):
+        _complete_bundle(tmp_path)
+    assert writes[-1].endswith("/benchmark.json") or writes[-1] == f"benchmarks/{benchmark_id}/benchmark.json"
+    assert not (tmp_path / "benchmarks" / benchmark_id / "benchmark.json").exists()
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_ARTIFACT_UNAVAILABLE"):
         load_bundle(tmp_path, benchmark_id)
 
 
