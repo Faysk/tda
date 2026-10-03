@@ -32,6 +32,15 @@ _MAX_JSON_BYTES = 16 * 1024 * 1024
 _MAX_JSONL_BYTES = 8 * 1024 * 1024
 _MAX_EVENTS = 20_000
 _MAX_TELEMETRY_SAMPLES = 2_000
+_REQUIRED_PROFILE_ARTIFACTS = frozenset({"profile", "transcript", "metrics", "events"})
+_OPTIONAL_PROFILE_ARTIFACTS = frozenset({"telemetry"})
+_PROFILE_ARTIFACT_FILENAMES = {
+    "profile": "profile.json",
+    "transcript": "transcript.json",
+    "metrics": "metrics.json",
+    "events": "events.jsonl",
+    "telemetry": "telemetry.jsonl",
+}
 _REPARSE_POINT = 0x400
 _BENCHMARK_EVENT_DATA_FIELDS = frozenset({
     "stage", "track", "total_tracks", "segment", "window", "profile",
@@ -140,6 +149,31 @@ def profile_root(data_root: Path, benchmark_id: str, profile_id: str) -> Path:
 def _descriptor(path: Path, *, maximum: int = _MAX_JSON_BYTES) -> dict[str, Any]:
     digest, size, _ = _sha256_file(path, maximum)
     return {"artifact": path.name, "sha256": digest, "size_bytes": size}
+
+
+def _verified_descriptor_path(
+    root: Path,
+    profile_id: str,
+    artifact: str,
+    descriptor: Mapping[str, Any],
+) -> Path:
+    filename = _PROFILE_ARTIFACT_FILENAMES.get(artifact)
+    if filename is None:
+        raise BenchmarkEvidenceError("BENCHMARK_ARTIFACT_INVALID")
+    expected_relative = f"profiles/{profile_id}/{filename}"
+    if (
+        descriptor.get("artifact") != filename
+        or descriptor.get("path") != expected_relative
+        or not isinstance(descriptor.get("sha256"), str)
+        or _SHA256.fullmatch(descriptor["sha256"]) is None
+        or isinstance(descriptor.get("size_bytes"), bool)
+        or not isinstance(descriptor.get("size_bytes"), int)
+        or descriptor["size_bytes"] < 1
+    ):
+        raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
+    path = root / expected_relative
+    _check_owned_tree(root, path)
+    return path
 
 
 def _read_json(path: Path, *, maximum: int = _MAX_JSON_BYTES) -> dict[str, Any]:
@@ -893,14 +927,18 @@ def load_bundle(data_root: Path, benchmark_id: str) -> dict[str, Any]:
         artifacts = item.get("artifacts")
         if not isinstance(artifacts, dict):
             raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
-        for descriptor in artifacts.values():
+        artifact_names = frozenset(artifacts)
+        if (
+            not _REQUIRED_PROFILE_ARTIFACTS.issubset(artifact_names)
+            or not artifact_names.issubset(
+                _REQUIRED_PROFILE_ARTIFACTS | _OPTIONAL_PROFILE_ARTIFACTS
+            )
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
+        for artifact, descriptor in artifacts.items():
             if not isinstance(descriptor, dict):
                 raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
-            relative = descriptor.get("path")
-            if not isinstance(relative, str) or ".." in Path(relative).parts:
-                raise BenchmarkEvidenceError("BENCHMARK_PATH_ESCAPE")
-            path = root / relative
-            _check_owned_tree(root, path)
+            path = _verified_descriptor_path(root, profile_id, artifact, descriptor)
             maximum = _MAX_JSONL_BYTES if path.suffix == ".jsonl" else _MAX_JSON_BYTES
             digest, size, _ = _sha256_file(path, maximum)
             if digest != descriptor.get("sha256") or size != descriptor.get("size_bytes"):
@@ -992,12 +1030,8 @@ def verified_profile_bytes(
     descriptor = artifacts[artifact]
     if not isinstance(descriptor, dict):
         raise BenchmarkEvidenceError("BENCHMARK_MANIFEST_INVALID")
-    relative = descriptor.get("path")
-    if not isinstance(relative, str) or ".." in Path(relative).parts:
-        raise BenchmarkEvidenceError("BENCHMARK_PATH_ESCAPE")
     root = benchmark_root(data_root, benchmark_id)
-    path = root / relative
-    _check_owned_tree(root, path)
+    path = _verified_descriptor_path(root, profile_id, artifact, descriptor)
     maximum = _MAX_JSONL_BYTES if path.suffix == ".jsonl" else _MAX_JSON_BYTES
     digest, size, payload = _sha256_file(path, maximum)
     if digest != descriptor.get("sha256") or size != descriptor.get("size_bytes"):
