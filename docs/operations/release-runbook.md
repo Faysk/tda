@@ -107,6 +107,24 @@ a promoção só continua quando não houver drift nos inputs que alteram os byt
 contrato do componente. Esta exceção não muda a política normal RC → aceite físico →
 Stable das demais releases.
 
+### Rollback operacional explícito do Whisper Runtime — #1279
+
+Rollback local de Whisper é uma operação de recuperação **explícita**, separada da descoberta normal de Stable. O fluxo normal de update continua monotônico e nunca instala uma Stable abaixo da versão ativa.
+
+Caminho suportado no produto: **TDA Companion → Configurações → Runtimes de transcrição → Whisper → Reverter…**. O operador informa a versão semântica exata `X.Y.Z` e confirma a ação.
+
+Gate obrigatório:
+
+1. não pode haver job queued/running, preparação de perfil nem manutenção de outro runtime;
+2. a versão alvo precisa ser anterior e compatível com o Companion;
+3. se `Runtime\whisper\<versão>` existir, marker, identidade, SHA-256 do worker e metadata seal são verificados **sem reescrever o artefato**;
+4. se os bytes não estiverem preservados, somente a release Stable version-locked `companion-whisper-runtime-vX.Y.Z` pode ser baixada, com tag, URL, tamanho e SHA-256 exatos;
+5. `current.json` é trocado atomicamente e a versão selecionada é verificada novamente; falha restaura o seletor anterior ou bloqueia com erro explícito;
+6. `Models`, `Data`, runs e demais versões de Runtime permanecem intactos;
+7. reinício do Agent/Companion deve reler o mesmo `current.json` e anunciar a versão revertida como `ready`.
+
+Não “corrigir” rollback mudando o comparador do update Stable de `>` para `!=`: isso reintroduziria downgrade automático quando o canal Stable estivesse abaixo de um RC/candidato instalado.
+
 ### Whisper Runtime 1.1.7 / Benchmark — #1233
 
 Para o reparo do contrato de benchmark do Whisper:

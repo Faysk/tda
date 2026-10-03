@@ -27,11 +27,13 @@ from .craig import CraigPackageError
 from .craig_ingest import CraigUploadError, ingest_craig_file
 from .craig_runtime import load_craig_package
 from .diagnostics import export_diagnostics, run_diagnostics
+from .installation_lock import InstallationLockError, whisper_runtime_maintenance_lock
 from .paths import CompanionPaths
 from .qwen_runtime import inspect_qwen_runtime
 from .settings import SettingsStore
 from .startup import set_start_with_windows
 from .updates import download_update, fetch_manifest, update_available
+from .whisper_runtime_maintenance import list_whisper_runtime_rollback_candidates
 
 PRODUCTION_ORIGIN = "https://dnd.faysk.dev"
 PROCESSING_URL = f"{PRODUCTION_ORIGIN}/edit/processamento"
@@ -74,6 +76,7 @@ class LocalAgentClient:
         body: dict[str, Any] | None = None,
         *,
         idempotency_key: str | None = None,
+        timeout: float = 5.0,
     ) -> Any:
         data = None
         headers = {
@@ -94,7 +97,7 @@ class LocalAgentClient:
             method=method,
         )
         try:
-            with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310 - fixed loopback URL
+            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed loopback URL
                 raw = response.read(2 * 1024 * 1024 + 1)
                 if len(raw) > 2 * 1024 * 1024:
                     raise RuntimeError("LOCAL_RESPONSE_TOO_LARGE")
@@ -117,8 +120,15 @@ class LocalAgentClient:
         body: dict[str, Any],
         *,
         idempotency_key: str | None = None,
+        timeout: float = 5.0,
     ) -> Any:
-        return self._request("POST", path, body, idempotency_key=idempotency_key)
+        return self._request(
+            "POST",
+            path,
+            body,
+            idempotency_key=idempotency_key,
+            timeout=timeout,
+        )
 
 
 class DesktopBridge:
@@ -381,49 +391,66 @@ class DesktopBridge:
             "version": manifest.version,
             "tag": manifest.tag,
             "size": manifest.size,
+            "rollback_versions": list_whisper_runtime_rollback_candidates(
+                self.paths.runtime_root
+            ),
         }
 
     def install_whisper_runtime(self) -> dict[str, Any]:
         if self._has_active_job():
             raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNNING_JOB")
-        state = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=True)
-        manifest = fetch_whisper_runtime_manifest()
-        current_version = state.get("version") if state.get("status") == "ready" else None
-        if not whisper_runtime_update_available(
-            current_version if isinstance(current_version, str) else None,
-            manifest,
-        ):
-            return {
-                "accepted": False,
-                "available": False,
-                "status": state.get("status"),
-                "version": manifest.version,
-            }
-        target = self.paths.runtime_root / "whisper" / manifest.version
-        repairing = bool(
-            (state.get("status") == "corrupt" and state.get("version") == manifest.version)
-            or target.exists()
-            or target.is_symlink()
+        try:
+            with whisper_runtime_maintenance_lock():
+                state = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=True)
+                manifest = fetch_whisper_runtime_manifest()
+                current_version = state.get("version") if state.get("status") == "ready" else None
+                if not whisper_runtime_update_available(
+                    current_version if isinstance(current_version, str) else None,
+                    manifest,
+                ):
+                    return {
+                        "accepted": False,
+                        "available": False,
+                        "status": state.get("status"),
+                        "version": manifest.version,
+                    }
+                target = self.paths.runtime_root / "whisper" / manifest.version
+                repairing = bool(
+                    (state.get("status") == "corrupt" and state.get("version") == manifest.version)
+                    or target.exists()
+                    or target.is_symlink()
+                )
+                archive = download_whisper_runtime(manifest, self.paths.cache_root)
+                installed = install_whisper_runtime_archive(
+                    archive,
+                    self.paths.runtime_root,
+                    version=manifest.version,
+                    expected_sha256=manifest.sha256,
+                    replace_corrupt=repairing,
+                )
+                verified = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=True)
+                if verified.get("status") != "ready" or verified.get("version") != manifest.version:
+                    raise RuntimeError("WHISPER_RUNTIME_INSTALL_VERIFY_FAILED")
+                return {
+                    "accepted": True,
+                    "available": True,
+                    "status": "ready",
+                    "version": manifest.version,
+                    "worker_sha256": installed["worker_sha256"],
+                    "repaired": repairing,
+                }
+        except InstallationLockError as exc:
+            raise RuntimeError("RUNTIME_UPDATE_BLOCKED_BY_RUNTIME_MAINTENANCE") from exc
+
+    def rollback_whisper_runtime(self, version: str) -> dict[str, Any]:
+        value = self.client.post(
+            "/whisper-runtime/rollback",
+            {"version": version},
+            timeout=600.0,
         )
-        archive = download_whisper_runtime(manifest, self.paths.cache_root)
-        installed = install_whisper_runtime_archive(
-            archive,
-            self.paths.runtime_root,
-            version=manifest.version,
-            expected_sha256=manifest.sha256,
-            replace_corrupt=repairing,
-        )
-        verified = inspect_whisper_runtime(self.paths.runtime_root, verify_worker=True)
-        if verified.get("status") != "ready" or verified.get("version") != manifest.version:
-            raise RuntimeError("WHISPER_RUNTIME_INSTALL_VERIFY_FAILED")
-        return {
-            "accepted": True,
-            "available": True,
-            "status": "ready",
-            "version": manifest.version,
-            "worker_sha256": installed["worker_sha256"],
-            "repaired": repairing,
-        }
+        if not isinstance(value, dict):
+            raise RuntimeError("WHISPER_RUNTIME_ROLLBACK_INVALID_RESPONSE")
+        return value
 
     def _wait_qwen_runtime_maintenance(
         self,

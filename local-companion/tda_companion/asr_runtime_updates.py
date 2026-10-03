@@ -96,9 +96,15 @@ def fetch_whisper_runtime_manifest(
     timeout: float = 8.0,
     *,
     client: NetworkClient | None = None,
+    version: str | None = None,
 ) -> WhisperRuntimeManifest:
+    manifest_url = MANIFEST_URL
+    if version is not None:
+        if not _VERSION.fullmatch(version):
+            raise ValueError("INVALID_RUNTIME_VERSION")
+        manifest_url = f"{MANIFEST_URL}?version={version}"
     request = urllib.request.Request(
-        MANIFEST_URL,
+        manifest_url,
         headers={
             "Accept": "application/json",
             "Cache-Control": "no-store",
@@ -114,7 +120,10 @@ def fetch_whisper_runtime_manifest(
         if len(body) > 64 * 1024:
             raise NetworkError("MANIFEST_INVALID")
     try:
-        return parse_whisper_runtime_manifest(json.loads(body.decode("utf-8")))
+        manifest = parse_whisper_runtime_manifest(json.loads(body.decode("utf-8")))
+        if version is not None and manifest.version != version:
+            raise ValueError("INVALID_RUNTIME_VERSION")
+        return manifest
     except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
         raise NetworkError("MANIFEST_INVALID") from exc
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -103,6 +104,7 @@ def test_webview_api_exposes_machine_controls_but_not_master_token_or_editorial_
     assert "snapshot" in public
     assert "open_tda" in public
     assert "restart_agent" in public
+    assert "rollback_whisper_runtime" in public
     assert "pairing_token" not in public
     assert "select_craig_session" not in public
     assert "start_craig_transcription" not in public
@@ -222,3 +224,30 @@ def test_desktop_maintenance_treats_queued_job_as_active():
 
     assert bridge._has_running_job() is False
     assert bridge._has_active_job() is True
+
+
+def test_whisper_rollback_delegates_to_agent_owned_gate():
+    bridge = object.__new__(DesktopBridge)
+    observed: dict[str, object] = {}
+
+    class Client:
+        def post(self, path, body, *, timeout=5.0):
+            observed.update(path=path, body=body, timeout=timeout)
+            return {
+                "accepted": True,
+                "previous_version": "1.1.8",
+                "version": "1.1.5",
+                "source": "preserved",
+            }
+
+    bridge.client = Client()
+
+    result = bridge.rollback_whisper_runtime("1.1.5")
+
+    assert observed == {
+        "path": "/whisper-runtime/rollback",
+        "body": {"version": "1.1.5"},
+        "timeout": 600.0,
+    }
+    assert result["previous_version"] == "1.1.8"
+    assert result["version"] == "1.1.5"

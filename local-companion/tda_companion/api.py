@@ -34,6 +34,7 @@ from .craig_ingest import (
     remove_incomplete_craig_uploads,
 )
 from .craig_runtime import load_craig_package
+from .network import NetworkError
 from .profile_preparation import (
     ProfilePreparationError,
     ProfilePreparationManager,
@@ -70,6 +71,10 @@ from .transcription_runs import (
     maintain_legacy_transcripts,
     recover_deleted_run_cleanup,
     run_id_for,
+)
+from .whisper_runtime_maintenance import (
+    WhisperRuntimeMaintenanceError,
+    rollback_whisper_runtime,
 )
 from .worker_event_schema import sanitize_worker_event
 from .worker_supervisor import WorkerProcessError, WorkerSupervisor
@@ -275,6 +280,11 @@ class ProfilePreparationRequest(BaseModel):
 class ProfilePreparationCancelRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     expected_operation_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+
+
+class WhisperRuntimeRollbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    version: str = Field(pattern=r"^\d+\.\d+\.\d+$", max_length=32)
 
 
 class LifecycleRequest(BaseModel):
@@ -1643,6 +1653,55 @@ def create_app(
                 else 400,
                 preparation_recoverable(exc.code),
             )
+
+    @app.post("/api/v1/whisper-runtime/rollback")
+    async def whisper_runtime_rollback(body: WhisperRuntimeRollbackRequest):
+        # Hold the same dispatch gate used for job claims and preparation starts
+        # for the entire selector/download transaction. That makes the "idle"
+        # check atomic instead of a Desktop-side preflight with a race window.
+        async with dispatch_gate:
+            if preparation_manager.snapshot().get("active") is True:
+                return error(
+                    "RUNTIME_ROLLBACK_BLOCKED_BY_TRANSCRIPTION_PREPARATION",
+                    409,
+                    True,
+                )
+            if qwen_runtime_manager.snapshot().get("active") is True:
+                return error(
+                    "RUNTIME_ROLLBACK_BLOCKED_BY_RUNTIME_MAINTENANCE",
+                    409,
+                    True,
+                )
+            if store.has_active_jobs():
+                return error(
+                    "RUNTIME_ROLLBACK_BLOCKED_BY_RUNNING_JOB",
+                    409,
+                    True,
+                )
+            try:
+                value = await asyncio.to_thread(
+                    rollback_whisper_runtime,
+                    resolved_runtime_root,
+                    resolved_cache_root,
+                    target_version=body.version,
+                )
+            except WhisperRuntimeMaintenanceError as exc:
+                return error(str(exc), 409, True)
+            except NetworkError as exc:
+                return error(exc.code, 503, True)
+        worker_wake.set()
+        log(
+            "warning",
+            "runtime",
+            "WHISPER_RUNTIME_ROLLBACK_COMPLETED",
+            "Whisper Runtime rollback completed by explicit operator action",
+            {
+                "previous_version": value.get("previous_version"),
+                "version": value.get("version"),
+                "source": value.get("source"),
+            },
+        )
+        return value
 
     @app.get("/api/v1/qwen-runtime")
     def qwen_runtime_status():

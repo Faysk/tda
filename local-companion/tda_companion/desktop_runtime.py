@@ -58,6 +58,9 @@ class DesktopUiApi:
     def install_whisper_runtime(self):
         return self._bridge.install_whisper_runtime()
 
+    def rollback_whisper_runtime(self, version: str):
+        return self._bridge.rollback_whisper_runtime(version)
+
     def check_qwen_runtime(self):
         return self._bridge.check_qwen_runtime()
 
