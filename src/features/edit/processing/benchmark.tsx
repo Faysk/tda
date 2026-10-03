@@ -19,6 +19,7 @@ import { LocalBridge } from "./bridge";
 import {
 	benchmarkTranscriptSegments,
 	referenceTracksFromTranscript,
+	type BenchmarkDiagnostics,
 	type BenchmarkQualityResponse,
 	type BenchmarkReferenceTrack,
 	type BenchmarkTranscript,
@@ -165,6 +166,7 @@ function BenchmarkEvidencePanel({
 	const [transcripts, setTranscripts] = useState<Partial<Record<TranscriptionProfileId, BenchmarkTranscript>>>({});
 	const [comparison, setComparison] = useState<ReturnType<typeof summarizeRunComparison> | null>(null);
 	const [quality, setQuality] = useState<BenchmarkQualityResponse>({});
+	const [diagnostics, setDiagnostics] = useState<BenchmarkDiagnostics | null>(null);
 	const [referenceTracks, setReferenceTracks] = useState<BenchmarkReferenceTrack[] | null>(null);
 	const [referenceRevision, setReferenceRevision] = useState<number | null>(null);
 	const [seedProfile, setSeedProfile] = useState<TranscriptionProfileId>("qwen-quality");
@@ -228,6 +230,19 @@ function BenchmarkEvidencePanel({
 			setComparison(summarizeRunComparison(regions));
 		} catch (error) {
 			setMessage(bridgeMessage(error, "Não foi possível comparar as transcrições."));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const loadDiagnostics = async () => {
+		setBusy(true);
+		setMessage(null);
+		const controller = new AbortController();
+		try {
+			setDiagnostics(await bridge.benchmarkDiagnostics(benchmarkId, leftProfile, controller.signal));
+		} catch (error) {
+			setMessage(bridgeMessage(error, "Não foi possível carregar o diagnóstico persistido."));
 		} finally {
 			setBusy(false);
 		}
@@ -332,6 +347,26 @@ function BenchmarkEvidencePanel({
 				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void exportArtifact(`${leftProfile}/transcript.txt`, `${leftProfile}.txt`)}>TXT</Button>
 				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void exportArtifact(`${leftProfile}/transcript.vtt`, `${leftProfile}.vtt`)}>WebVTT</Button>
 			</div>
+			<div className={styles.evidenceActions}>
+				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void loadDiagnostics()}>
+					Carregar diagnóstico persistido
+				</Button>
+			</div>
+			{diagnostics ? (
+				<div className={styles.diagnosticSummary}>
+					<strong>{LABELS[diagnostics.profileId]}</strong>
+					<span>{formatSeconds(diagnostics.metrics.totalProcessingSeconds)} · {diagnostics.metrics.warningCount} avisos · {diagnostics.events.length} eventos sanitizados</span>
+					{Object.entries(diagnostics.metrics.stageSeconds).map(([stage, seconds]) => (
+						<code key={stage}>{stage}: {seconds.toFixed(2)}s</code>
+					))}
+					{diagnostics.events.slice(-6).map((event) => (
+						<code key={event.seq}>#{event.seq} · {event.stage ?? event.type}{event.code ? ` · ${event.code}` : ""}</code>
+					))}
+					{!diagnostics.metrics.telemetry.available ? (
+						<span>Telemetria: N/A · {diagnostics.metrics.telemetry.missingReason ?? "sampler indisponível"}</span>
+					) : null}
+				</div>
+			) : null}
 
 			<div className={styles.referenceEditor}>
 				<div className={styles.evidenceHeader}>
