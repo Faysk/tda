@@ -21,6 +21,7 @@ import {
 	LEMBRA_MAX_BYTES,
 	isLembraMediaMime,
 	type LembraCampaignClassification,
+	type LembraCampaignMutationIntent,
 	type LembraMediaMime,
 	type LembraReference,
 	type LembraUploadIntent,
@@ -319,6 +320,7 @@ export function LembraExperience({
 	const [editTitle, setEditTitle] = useState("");
 	const [editDescription, setEditDescription] = useState("");
 	const [editCampaignId, setEditCampaignId] = useState<string | null>(null);
+	const [editCampaignChanged, setEditCampaignChanged] = useState(false);
 	const [galleryWidth, setGalleryWidth] = useState(0);
 
 	const campaignById = useMemo(
@@ -532,7 +534,11 @@ export function LembraExperience({
 		const filtered = references.filter((item) => {
 			if (view === "mine" && !item.mine) return false;
 			if (view === "favorites" && !favoriteIds.has(item.id)) return false;
-			if (campaignFilter === "general" && item.campaign !== null) return false;
+			if (
+				campaignFilter === "general" &&
+				(item.campaign !== null || item.campaignRestricted)
+			)
+				return false;
 			if (
 				campaignFilter !== "all" &&
 				campaignFilter !== "general" &&
@@ -728,6 +734,7 @@ export function LembraExperience({
 				campaign: draft.campaignId
 					? campaignById.get(draft.campaignId) ?? null
 					: null,
+				campaignRestricted: false,
 			};
 			setReferences((current) => [item, ...current]);
 			setDraft(null);
@@ -803,7 +810,9 @@ export function LembraExperience({
 				intent,
 				title,
 				description,
-				draft.campaignId,
+				draft.campaignId
+					? { kind: "set", campaignId: draft.campaignId }
+					: { kind: "clear" },
 			);
 			if (!finalized.ok) {
 				setUploadStatus((current) => ({ ...current, phase: "error" }));
@@ -874,6 +883,7 @@ export function LembraExperience({
 		setEditTitle(reference.title);
 		setEditDescription(reference.description);
 		setEditCampaignId(reference.campaign?.id ?? null);
+		setEditCampaignChanged(false);
 		setEditing(true);
 	}
 
@@ -882,6 +892,7 @@ export function LembraExperience({
 		setEditTitle("");
 		setEditDescription("");
 		setEditCampaignId(null);
+		setEditCampaignChanged(false);
 	}
 
 	async function saveReferenceEdit(event: FormEvent<HTMLFormElement>) {
@@ -894,24 +905,29 @@ export function LembraExperience({
 		if (!persistenceEnabled) {
 			const updatedAt = new Date().toISOString();
 			setReferences((current) =>
-				current.map((item) =>
-					item.id === selectedReference.id
-						? {
-								...item,
-								title,
-								description,
-								updatedAt,
-								campaign: editCampaignId
-									? campaignById.get(editCampaignId) ?? item.campaign
-									: null,
-							}
-						: item,
-				),
+				current.map((item) => {
+					if (item.id !== selectedReference.id) return item;
+					const campaign =
+						!item.campaignRestricted && editCampaignChanged
+							? editCampaignId
+								? campaignById.get(editCampaignId) ?? item.campaign
+								: null
+							: item.campaign;
+					return { ...item, title, description, updatedAt, campaign };
+				}),
 			);
 			setEditing(false);
+			setEditCampaignChanged(false);
 			setMessage("Referência atualizada nesta sessão.");
 			return;
 		}
+
+		const campaignIntent: LembraCampaignMutationIntent =
+			selectedReference.campaignRestricted || !editCampaignChanged
+				? { kind: "preserve" }
+				: editCampaignId
+					? { kind: "set", campaignId: editCampaignId }
+					: { kind: "clear" };
 
 		setSaving(true);
 		try {
@@ -919,7 +935,7 @@ export function LembraExperience({
 				selectedReference.id,
 				title,
 				description,
-				editCampaignId,
+				campaignIntent,
 				selectedReference.updatedAt,
 			);
 			if (!result.ok) {
@@ -1081,7 +1097,11 @@ export function LembraExperience({
 					{item.description ? <p>{item.description}</p> : null}
 					<div className={styles.cardMeta}>
 						<span>
-							{item.campaign ? `${item.campaign.name} · ` : "Geral · "}
+							{item.campaignRestricted
+								? "Classificação restrita · "
+								: item.campaign
+									? `${item.campaign.name} · `
+									: "Geral · "}
 							Por {item.author}
 						</span>
 						<time dateTime={item.createdAt}>
@@ -1456,146 +1476,37 @@ export function LembraExperience({
 										/>
 									</label>
 									<div className={styles.field}>
-										<span>Campanha</span>
-										<Select
-											value={editCampaignId ?? ""}
-											options={
-												selectedReference.campaign?.lifecycle === "archived"
-													? [
-														{ value: "", label: "Geral" },
-														{
-															value: selectedReference.campaign.id,
-															label: `${selectedReference.campaign.name} · arquivada`,
-														},
-														...activeCampaignOptions.filter(
-															(option) =>
-																option.value !== selectedReference.campaign?.id,
-														),
-													]
-													: activeCampaignOptions
-											}
-											onChange={(value) => setEditCampaignId(value || null)}
-											ariaLabel="Campanha da referência"
-										/>
-									</div>
-									<div className={styles.viewerEditActions}>
-										<Button
-											type="button"
-											variant="tertiary"
-											onClick={cancelEditing}
-											disabled={saving}
-										>
-											Cancelar
-										</Button>
-										<Button
-											pending={saving}
-											pendingLabel="Salvando…"
-											type="submit"
-											variant="primary"
-										>
-											Salvar
-										</Button>
-									</div>
-								</form>
-							) : (
-								<div className={styles.viewerInfo}>
-									<h2 id={`viewer-title-${selectedReference.id}`}>
-										{selectedReference.title}
-									</h2>
-									{selectedReference.description ? (
-										<p className={styles.viewerDescription}>
-											{selectedReference.description}
-										</p>
-									) : (
-										<p className={styles.viewerDescriptionMuted}>
-											Sem descrição. A imagem fala por si.
-										</p>
-									)}
-								</div>
-							)}
-
-							<div className={styles.viewerMeta}>
-								<div>
-									<span>Publicado por</span>
-									<strong>{selectedReference.author}</strong>
-								</div>
-								<div>
-									<span>Data</span>
-									<time dateTime={selectedReference.createdAt}>
-										{LONG_DATE_FORMATTER.format(new Date(selectedReference.createdAt))}
-									</time>
-								</div>
-								<div>
-									<span>Campanha</span>
-									<strong>
-										{selectedReference.campaign
-											? `${selectedReference.campaign.name}${selectedReference.campaign.lifecycle === "archived" ? " · arquivada" : ""}`
-											: "Geral"}
-									</strong>
-								</div>
-							</div>
-
-							{confirmRemove ? (
-								<fieldset className={styles.viewerRemoveConfirm}>
-									<legend className={styles.visuallyHidden}>Confirmar remoção</legend>
-									<div>
-										<strong>Remover esta referência?</strong>
-										<span>Ela some do Lembra para todo mundo.</span>
-									</div>
-									<div className={styles.viewerRemoveActions}>
-										<Button
-											type="button"
-											variant="tertiary"
-											onClick={() => setConfirmRemove(false)}
-											disabled={saving}
-										>
-											Cancelar
-										</Button>
-										<Button
-											type="button"
-											variant="secondary"
-											onClick={removeSelectedReference}
-											pending={saving}
-											pendingLabel="Removendo…"
-										>
-											Remover
-										</Button>
-									</div>
-								</fieldset>
-							) : (
-								<div className={styles.viewerManageActions}>
-									<button
-										type="button"
-										onClick={() => startEditing(selectedReference)}
-										disabled={saving || editing}
-									>
-										Editar
-									</button>
-									<button
-										type="button"
-										className={styles.viewerDangerAction}
-										onClick={() => {
-											setEditing(false);
-											setConfirmRemove(true);
-										}}
-										disabled={saving}
-									>
-										Remover
-									</button>
-								</div>
-							)}
-
-							<div className={styles.viewerHints} aria-hidden="true">
-								{editing ? (
-									<span>Esc cancelar edição</span>
-								) : (
-									<>
-										<span>← → navegar</span>
-										<span>Esc fechar</span>
-									</>
-								)}
-							</div>
-						</aside>
+						<span>Campanha</span>
+						{selectedReference.campaignRestricted ? (
+							<small className={styles.fieldHint}>
+								Classificação restrita. Você pode editar nome e descrição, mas
+								não alterar esse vínculo sem acesso à campanha.
+							</small>
+						) : (
+							<Select
+								value={editCampaignId ?? ""}
+								options={
+									selectedReference.campaign?.lifecycle === "archived"
+										? [
+											{ value: "", label: "Geral" },
+											{
+												value: selectedReference.campaign.id,
+												label: `${selectedReference.campaign.name} · arquivada`,
+											},
+											...activeCampaignOptions.filter(
+												(option) =>
+													option.value !== selectedReference.campaign?.id,
+											),
+										]
+										: activeCampaignOptions
+								}
+								onChange={(value) => {
+									setEditCampaignId(value || null);
+									setEditCampaignChanged(true);
+								}}
+								ariaLabel="Campanha da referência"
+							/>
+						)}
 					</div>
 				) : null}
 			</dialog>
