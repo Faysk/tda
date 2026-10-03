@@ -3,7 +3,10 @@ import type { EditAccessContext } from "@/features/edit/access/policy";
 
 vi.mock("server-only", () => ({}));
 
-import { authorizedCampaignGrantScope } from "./authorized";
+import {
+	authorizedCampaignGrantScope,
+	authorizedCampaignGrantScopeForCapabilities,
+} from "./authorized";
 
 const NOW = new Date("2026-10-01T00:00:00Z");
 
@@ -61,6 +64,34 @@ describe("authorized campaign discovery scope", () => {
 					grant("campaign.transcript.read", "campaign", "campaign-a"),
 				]),
 				"campaign.transcript.read",
+				NOW,
+			),
+		).toEqual({ projectWide: true, campaignSlugs: [] });
+	});
+
+	it("unions A+B campaign discovery and promotes exact project authority without a legacy fallback", () => {
+		const access = context([
+			grant("campaign.transcript.read", "campaign", "campaign-a"),
+			grant("campaign.content.edit", "campaign", "campaign-b"),
+		]);
+		expect(
+			authorizedCampaignGrantScopeForCapabilities(
+				access,
+				["campaign.transcript.read", "campaign.content.edit"],
+				NOW,
+			),
+		).toEqual({
+			projectWide: false,
+			campaignSlugs: ["campaign-a", "campaign-b"],
+		});
+
+		expect(
+			authorizedCampaignGrantScopeForCapabilities(
+				context([
+					...access.grants,
+					grant("campaign.content.edit", "project", "tda"),
+				]),
+				["campaign.transcript.read", "campaign.content.edit"],
 				NOW,
 			),
 		).toEqual({ projectWide: true, campaignSlugs: [] });

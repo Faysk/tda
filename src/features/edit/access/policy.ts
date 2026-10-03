@@ -41,7 +41,7 @@ export type EditAccessResult =
 
 const PROJECT_SCOPE_ID = "tda";
 
-function isGrantActive(grant: EditGrant, now: Date): boolean {
+export function isGrantActive(grant: EditGrant, now: Date): boolean {
 	if (grant.status !== "active") return false;
 
 	const startsAt = Date.parse(grant.startsAt);
@@ -52,10 +52,37 @@ function isGrantActive(grant: EditGrant, now: Date): boolean {
 	return Number.isFinite(endsAt) && endsAt > now.getTime();
 }
 
-function grantCoversCampaign(grant: EditGrant, campaignSlug: string): boolean {
+export function isEffectiveProjectGrant(
+	grant: EditGrant,
+	now: Date,
+): boolean {
 	return (
-		(grant.scopeType === "campaign" && grant.scopeId === campaignSlug) ||
-		(grant.scopeType === "project" && grant.scopeId === PROJECT_SCOPE_ID)
+		isGrantActive(grant, now) &&
+		grant.scopeType === "project" &&
+		grant.scopeId === PROJECT_SCOPE_ID
+	);
+}
+
+export function isEffectiveCampaignScopedGrant(
+	grant: EditGrant,
+	campaignSlug: string,
+	now: Date,
+): boolean {
+	return (
+		isGrantActive(grant, now) &&
+		grant.scopeType === "campaign" &&
+		grant.scopeId === campaignSlug
+	);
+}
+
+function grantCoversCampaign(
+	grant: EditGrant,
+	campaignSlug: string,
+	now: Date,
+): boolean {
+	return (
+		isEffectiveCampaignScopedGrant(grant, campaignSlug, now) ||
+		isEffectiveProjectGrant(grant, now)
 	);
 }
 
@@ -86,5 +113,5 @@ export function isEffectiveCampaignGrant(
 	campaignSlug: string,
 	now: Date,
 ): boolean {
-	return isGrantActive(grant, now) && grantCoversCampaign(grant, campaignSlug);
+	return grantCoversCampaign(grant, campaignSlug, now);
 }

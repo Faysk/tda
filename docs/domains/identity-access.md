@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada + convergência em andamento
 > Owner: identity/access
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-03
 
 ## Objetivo
 
@@ -226,6 +226,18 @@ Esse boundary pode ser **reutilizado transitoriamente** por guards administrativ
 A implementação desse resolver deve usar a representação física `scopeType="project"` + `scopeId="tda"`. O valor composto `project/tda` não é um `scope_id` válido.
 
 A convergência futura para resolver RPC/database continua desejável para reduzir privilégio e centralizar autorização, mas não exige duplicar RBAC no login nem bloquear o guard server-only já existente.
+
+## Conta e contexto efetivo multi-campaign
+
+A superfície `/conta` não pode calcular ou apresentar permissões contra um campaign slug implícito. O resumo da conta usa os grants efetivos do perfil para descobrir somente contextos de campaign autorizados, resolve nomes humanos no boundary server-side e separa:
+
+- autoridade `project/tda`, que vale transversalmente conforme cada capability;
+- permissões específicas de `campaign/<technical-slug>`;
+- identidade técnica em disclosure secundário, nunca como rótulo principal.
+
+Campanhas privadas sem discovery derivado de grant aplicável não são enumeradas pela conta. Falha do diretório autorizado é estado indisponível explícito e não pode ser convertida em “sem permissão”. O estado “vinculada” também não depende mais do slug legado `yuhara-main`: qualquer capability efetiva do catálogo da conta, em campaign autorizada ou `project/tda`, mantém o estado correto.
+
+A lista visual é uma projeção informativa. Ela não concede acesso e não substitui os guards server-side das rotas e mutations.
 
 ## Projeção mínima devolvida ao web
 

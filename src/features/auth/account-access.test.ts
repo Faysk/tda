@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { EDIT_CAPABILITIES, type EditAccessContext } from "@/features/edit/access/policy";
 import {
 	ACCOUNT_CAPABILITY_GROUPS,
+	campaignSpecificAccountCapabilityGroups,
 	effectiveAccountCapabilityGroups,
+	hasAnyEffectiveAccountCapability,
+	projectAccountCapabilityGroups,
 } from "./account-access";
 
 const NOW = new Date("2026-09-28T00:00:00Z");
@@ -38,7 +41,7 @@ function visibleCapabilities(groups: ReturnType<typeof effectiveAccountCapabilit
 }
 
 describe("account effective capability projection", () => {
-	it("shows only capabilities authorized by the canonical campaign resolver", () => {
+	it("shows only capabilities authorized by the requested campaign resolver", () => {
 		const groups = effectiveAccountCapabilityGroups(
 			context([
 				activeGrant(EDIT_CAPABILITIES.contentEdit),
@@ -63,21 +66,65 @@ describe("account effective capability projection", () => {
 		]);
 	});
 
-	it("accepts project-scoped grants only for the exact capability", () => {
-		const groups = effectiveAccountCapabilityGroups(
-			context([
-				activeGrant(EDIT_CAPABILITIES.sessionPublish, {
-					scopeType: "project",
-					scopeId: "tda",
-				}),
-			]),
-			"yuhara-main",
-			NOW,
-		);
+	it("separates project authority from A-only, B-only and A+B campaign grants", () => {
+		const access = context([
+			activeGrant(EDIT_CAPABILITIES.contentEdit, { scopeId: "campaign-a" }),
+			activeGrant(EDIT_CAPABILITIES.transcriptRead, { scopeId: "campaign-b" }),
+			activeGrant(EDIT_CAPABILITIES.sessionPublish, {
+				scopeType: "project",
+				scopeId: "tda",
+			}),
+		]);
 
-		expect(visibleCapabilities(groups)).toEqual([
+		expect(
+			visibleCapabilities(
+				campaignSpecificAccountCapabilityGroups(access, "campaign-a", NOW),
+			),
+		).toEqual([EDIT_CAPABILITIES.contentEdit]);
+		expect(
+			visibleCapabilities(
+				campaignSpecificAccountCapabilityGroups(access, "campaign-b", NOW),
+			),
+		).toEqual([EDIT_CAPABILITIES.transcriptRead]);
+		expect(visibleCapabilities(projectAccountCapabilityGroups(access, NOW))).toEqual([
 			EDIT_CAPABILITIES.sessionPublish,
 		]);
+		expect(
+			visibleCapabilities(effectiveAccountCapabilityGroups(access, "campaign-a", NOW)),
+		).toEqual([
+			EDIT_CAPABILITIES.contentEdit,
+			EDIT_CAPABILITIES.sessionPublish,
+		]);
+		expect(
+			visibleCapabilities(effectiveAccountCapabilityGroups(access, "campaign-b", NOW)),
+		).toEqual([
+			EDIT_CAPABILITIES.sessionPublish,
+			EDIT_CAPABILITIES.transcriptRead,
+		]);
+	});
+
+	it("detects effective access without pinning account state to the legacy campaign", () => {
+		expect(
+			hasAnyEffectiveAccountCapability(
+				context([
+					activeGrant(EDIT_CAPABILITIES.worldLayoutEdit, {
+						scopeId: "campaign-b",
+					}),
+				]),
+				NOW,
+			),
+		).toBe(true);
+		expect(
+			hasAnyEffectiveAccountCapability(
+				context([
+					activeGrant(EDIT_CAPABILITIES.worldLayoutEdit, {
+						scopeId: "campaign-b",
+						status: "revoked",
+					}),
+				]),
+				NOW,
+			),
+		).toBe(false);
 	});
 
 	it("returns no visual permissions when the profile is unresolved", () => {
@@ -88,6 +135,14 @@ describe("account effective capability projection", () => {
 		);
 
 		expect(groups).toEqual([]);
+		expect(projectAccountCapabilityGroups(context([], null), NOW)).toEqual([]);
+		expect(
+			campaignSpecificAccountCapabilityGroups(
+				context([activeGrant(EDIT_CAPABILITIES.contentEdit)], null),
+				"yuhara-main",
+				NOW,
+			),
+		).toEqual([]);
 	});
 
 	it("keeps every displayed capability mapped to a human label", () => {

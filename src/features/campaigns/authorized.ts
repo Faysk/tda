@@ -62,6 +62,24 @@ export function authorizedCampaignGrantScope(
 	return { projectWide: false, campaignSlugs };
 }
 
+export function authorizedCampaignGrantScopeForCapabilities(
+	context: EditAccessContext,
+	capabilities: readonly EditCapability[],
+	now = new Date(),
+): Readonly<{ projectWide: boolean; campaignSlugs: readonly string[] }> {
+	const scopes = capabilities.map((capability) =>
+		authorizedCampaignGrantScope(context, capability, now),
+	);
+	if (scopes.some((scope) => scope.projectWide))
+		return { projectWide: true, campaignSlugs: [] };
+	return {
+		projectWide: false,
+		campaignSlugs: [
+			...new Set(scopes.flatMap((scope) => scope.campaignSlugs)),
+		].sort(),
+	};
+}
+
 function parseCampaign(row: Record<string, unknown>): AuthorizedCampaign | null {
 	const technicalSlug =
 		typeof row.slug === "string" && SAFE_TECHNICAL_SLUG.test(row.slug)
@@ -84,14 +102,17 @@ function parseCampaign(row: Record<string, unknown>): AuthorizedCampaign | null 
 	};
 }
 
-export async function readAuthorizedCampaigns(
+export async function readAuthorizedCampaignsForCapabilities(
 	context: EditAccessContext,
-	capability: EditCapability,
+	capabilities: readonly EditCapability[],
 	options: Readonly<{ includeArchived?: boolean }> = {},
 ): Promise<AuthorizedCampaignsResult> {
 	if (!context.profileId) return { ok: false, reason: "profile_unresolved" };
 
-	const scope = authorizedCampaignGrantScope(context, capability);
+	const scope = authorizedCampaignGrantScopeForCapabilities(
+		context,
+		capabilities,
+	);
 	if (!scope.projectWide && scope.campaignSlugs.length === 0)
 		return { ok: true, campaigns: [] };
 
@@ -118,14 +139,29 @@ export async function readAuthorizedCampaigns(
 		if (!campaign)
 			return { ok: false, reason: "dependency_unavailable" };
 		if (
-			authorizeCampaignCapability(
-				context,
-				capability,
-				campaign.technicalSlug,
-			).ok
+			capabilities.some(
+				(capability) =>
+					authorizeCampaignCapability(
+						context,
+						capability,
+						campaign.technicalSlug,
+					).ok,
+			)
 		)
 			campaigns.push(campaign);
 	}
 
 	return { ok: true, campaigns };
+}
+
+export async function readAuthorizedCampaigns(
+	context: EditAccessContext,
+	capability: EditCapability,
+	options: Readonly<{ includeArchived?: boolean }> = {},
+): Promise<AuthorizedCampaignsResult> {
+	return readAuthorizedCampaignsForCapabilities(
+		context,
+		[capability],
+		options,
+	);
 }

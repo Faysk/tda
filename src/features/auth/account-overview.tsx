@@ -2,8 +2,13 @@ import Image from "next/image";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ActionLink, Button } from "@/components/ui";
 import type { EditAccessContext } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
-import { effectiveAccountCapabilityGroups } from "./account-access";
+import type { CampaignLifecycle } from "@/features/campaigns/model";
+import { AccountCampaignPicker } from "./account-campaign-picker";
+import {
+	campaignSpecificAccountCapabilityGroups,
+	projectAccountCapabilityGroups,
+	type AccountCapabilityGroup,
+} from "./account-access";
 import styles from "./access.module.css";
 import { ProfileIdCopy } from "./profile-id-copy";
 
@@ -23,11 +28,17 @@ export type AccountOverviewAccess = Readonly<{
 	}> | null;
 }>;
 
+export type AccountCampaignContext = Readonly<{
+	technicalSlug: string;
+	name: string;
+	lifecycle: CampaignLifecycle;
+}>;
+
 const ACCOUNT_STATE_CONTENT = {
 	anonymous: {
 		label: "Não autenticada",
 		description:
-			"Entre com o Discord para consultar seu vínculo e suas permissões nesta campanha.",
+			"Entre com o Discord para consultar seu vínculo e seus acessos no TDA.",
 	},
 	unavailable: {
 		label: "Acesso indisponível",
@@ -42,12 +53,12 @@ const ACCOUNT_STATE_CONTENT = {
 	authenticated_linked_no_grants: {
 		label: "Vinculada · sem permissões",
 		description:
-			"Seu perfil TDA está vinculado, mas não possui permissões efetivas nesta campanha.",
+			"Seu perfil TDA está vinculado, mas não possui permissões efetivas nas áreas disponíveis.",
 	},
 	authenticated_linked: {
 		label: "Vinculada",
 		description:
-			"Seu perfil TDA está vinculado e o acesso abaixo reflete as permissões efetivas desta campanha.",
+			"Seu perfil TDA está vinculado. O resumo abaixo separa autoridade do projeto e acesso específico por campanha.",
 	},
 } as const;
 
@@ -62,14 +73,79 @@ function accountInitials(displayName: string | null) {
 	return initials || "TDA";
 }
 
+function CapabilityGroups({
+	groups,
+}: Readonly<{ groups: readonly AccountCapabilityGroup[] }>) {
+	return (
+		<div className={styles.permissionGroups}>
+			{groups.map((group) => (
+				<details key={group.title} className={styles.permissionGroup}>
+					<summary>
+						<span>{group.title}</span>
+						<span className={styles.permissionCount}>
+							{group.items.length}
+						</span>
+					</summary>
+					<ul>
+						{group.items.map((item) => (
+							<li key={item.capability}>
+								<span>{item.label}</span>
+							</li>
+						))}
+					</ul>
+				</details>
+			))}
+		</div>
+	);
+}
+
+function TechnicalCapabilities({
+	groups,
+	scope,
+}: Readonly<{
+	groups: readonly AccountCapabilityGroup[];
+	scope: string;
+}>) {
+	return (
+		<details className={styles.technicalDetails}>
+			<summary>Detalhes técnicos do acesso</summary>
+			<p className={styles.scopeLine}>
+				Escopo: <code>{scope}</code>
+			</p>
+			{groups.length > 0 ? (
+				<ul className={styles.technicalCapabilityList}>
+					{groups.flatMap((group) =>
+						group.items.map((item) => (
+							<li key={item.capability}>
+								<span>{item.label}</span>
+								<code>{item.capability}</code>
+							</li>
+						)),
+					)}
+				</ul>
+			) : (
+				<p className={styles.sectionHint}>
+					Nenhuma capability específica neste escopo.
+				</p>
+			)}
+		</details>
+	);
+}
+
 export function AccountOverview({
 	access,
 	accessNotice,
 	authEnabled,
+	campaigns,
+	selectedCampaignSlug,
+	requestedCampaignUnavailable,
 }: Readonly<{
 	access: AccountOverviewAccess;
 	accessNotice: string | null;
 	authEnabled: boolean;
+	campaigns: readonly AccountCampaignContext[] | null;
+	selectedCampaignSlug: string | null;
+	requestedCampaignUnavailable: boolean;
 }>) {
 	const authenticated =
 		access.state === "authenticated_unlinked" ||
@@ -78,10 +154,26 @@ export function AccountOverview({
 	const displayName = authenticated ? access.identity?.displayName ?? null : null;
 	const avatarUrl = authenticated ? access.identity?.avatarUrl ?? null : null;
 	const profileId = authenticated ? access.context?.profileId ?? null : null;
-	const capabilityGroups =
-		access.context?.profileId
-			? effectiveAccountCapabilityGroups(access.context, CAMPAIGN_SLUG)
-			: [];
+	const projectCapabilityGroups = access.context
+		? projectAccountCapabilityGroups(access.context)
+		: [];
+	const campaignContexts =
+		campaigns?.map((campaign) => ({
+			...campaign,
+			capabilityGroups: access.context
+				? campaignSpecificAccountCapabilityGroups(
+						access.context,
+						campaign.technicalSlug,
+					)
+				: [],
+		})) ?? null;
+	const selectedCampaign =
+		campaignContexts?.find(
+			(campaign) => campaign.technicalSlug === selectedCampaignSlug,
+		) ?? null;
+	const campaignContextCount = campaignContexts?.length ?? 0;
+	const singleCampaign =
+		campaignContextCount === 1 && campaignContexts ? campaignContexts[0] : null;
 	const stateContent = ACCOUNT_STATE_CONTENT[access.state];
 
 	const linkDescription = profileId
@@ -168,61 +260,123 @@ export function AccountOverview({
 					aria-labelledby="permissions-title"
 				>
 					<div className={styles.sectionHeading}>
-						<h2 id="permissions-title">Acesso nesta campanha</h2>
+						<h2 id="permissions-title">Acesso efetivo</h2>
 						<p>
-							Aqui aparecem apenas permissões efetivas. A autorização continua
-							sendo verificada no servidor quando você abre ou executa uma ação.
+							Autoridade do projeto vale transversalmente. Permissões de campanha
+							aparecem somente no contexto humano que sua conta pode descobrir.
 						</p>
 					</div>
 
-					{capabilityGroups.length > 0 ? (
-						<>
-							<div className={styles.permissionGroups}>
-								{capabilityGroups.map((group) => (
-									<section key={group.title} className={styles.permissionGroup}>
-										<h3>{group.title}</h3>
-										<ul>
-											{group.items.map((item) => (
-												<li key={item.capability}>
-													<span>{item.label}</span>
-												</li>
-											))}
-										</ul>
-									</section>
-								))}
+					{projectCapabilityGroups.length > 0 ? (
+						<section className={styles.accessContext} aria-labelledby="project-access-title">
+							<div className={styles.accessContextHeading}>
+								<div>
+									<span className={styles.contextEyebrow}>Projeto TDA</span>
+									<h3 id="project-access-title">Acesso em todo o projeto</h3>
+								</div>
+								<span className={styles.contextScopeLabel}>Projeto</span>
 							</div>
+							<p className={styles.sectionHint}>
+								Estas permissões são efetivas em campanhas cobertas pelo escopo do projeto.
+							</p>
+							<CapabilityGroups groups={projectCapabilityGroups} />
+							<TechnicalCapabilities groups={projectCapabilityGroups} scope="project/tda" />
+						</section>
+					) : null}
 
-							<details className={styles.technicalDetails}>
-								<summary>Detalhes técnicos do acesso</summary>
-								<p className={styles.sectionHint}>
-									As capabilities abaixo são informativas; elas não tornam o
-									cliente autoridade de acesso.
-								</p>
-								<ul className={styles.technicalCapabilityList}>
-									{capabilityGroups.flatMap((group) =>
-										group.items.map((item) => (
-											<li key={item.capability}>
-												<span>{item.label}</span>
-												<code>{item.capability}</code>
-											</li>
-										)),
-									)}
-								</ul>
-							</details>
-						</>
-					) : (
-						<p className={styles.emptyState}>
-							{access.state === "authenticated_linked_no_grants"
-								? "Nenhuma permissão efetiva nesta campanha."
-								: access.state === "authenticated_unlinked"
-									? "Vincule um perfil TDA antes de receber permissões da campanha."
-									: access.state === "anonymous"
-										? "Entre com o Discord para consultar seu acesso."
-										: access.state === "unavailable"
-											? "Não foi possível calcular seu acesso agora."
-											: "Nenhuma permissão efetiva nesta campanha."}
+					{campaignContexts === null ? (
+						<p className={styles.notice} role="alert">
+							Não foi possível carregar os contextos de campanha agora. Isso não significa
+							que suas permissões foram removidas.
 						</p>
-					)}
+					) : campaignContextCount > 1 ? (
+						<>
+							<AccountCampaignPicker
+								value={selectedCampaign?.technicalSlug ?? ""}
+								options={campaignContexts.map((campaign) => ({
+									value: campaign.technicalSlug,
+									label: campaign.name,
+									lifecycle: campaign.lifecycle,
+								}))}
+							/>
+							{requestedCampaignUnavailable ? (
+								<p className={styles.notice} role="status">
+									A campanha solicitada não está disponível para esta conta. Escolha um
+									contexto autorizado.
+								</p>
+							) : null}
+						</>
+					) : null}
+
+					{selectedCampaign ? (
+						<details className={styles.accessContext}>
+							<summary className={styles.campaignContextSummary}>
+								<span>
+									<span className={styles.contextEyebrow}>Campanha</span>
+									<strong>{selectedCampaign.name}</strong>
+								</span>
+								<span className={styles.contextScopeLabel}>
+									{selectedCampaign.lifecycle === "archived" ? "Arquivada" : "Ativa"}
+								</span>
+							</summary>
+							<div className={styles.campaignContextBody}>
+								<p className={styles.sectionHint}>
+									O acesso efetivo combina a autoridade do projeto acima com permissões
+									específicas desta campanha.
+								</p>
+								{selectedCampaign.capabilityGroups.length > 0 ? (
+									<CapabilityGroups groups={selectedCampaign.capabilityGroups} />
+								) : (
+									<p className={styles.emptyState}>
+										Nenhuma permissão adicional específica desta campanha.
+									</p>
+								)}
+								<TechnicalCapabilities
+									groups={selectedCampaign.capabilityGroups}
+									scope={`campaign/${selectedCampaign.technicalSlug}`}
+								/>
+							</div>
+						</details>
+					) : campaignContextCount > 1 ? (
+						<p className={styles.emptyState}>
+							Escolha uma campanha para ver as permissões específicas desse contexto.
+						</p>
+					) : singleCampaign ? (
+						<details className={styles.accessContext}>
+							<summary className={styles.campaignContextSummary}>
+								<span>
+									<span className={styles.contextEyebrow}>Campanha</span>
+									<strong>{singleCampaign.name}</strong>
+								</span>
+								<span className={styles.contextScopeLabel}>
+									{singleCampaign.lifecycle === "archived" ? "Arquivada" : "Ativa"}
+								</span>
+							</summary>
+							<div className={styles.campaignContextBody}>
+								{singleCampaign.capabilityGroups.length > 0 ? (
+									<CapabilityGroups groups={singleCampaign.capabilityGroups} />
+								) : (
+									<p className={styles.emptyState}>
+										Nenhuma permissão adicional específica desta campanha.
+									</p>
+								)}
+								<TechnicalCapabilities
+									groups={singleCampaign.capabilityGroups}
+									scope={`campaign/${singleCampaign.technicalSlug}`}
+								/>
+							</div>
+						</details>
+					) : projectCapabilityGroups.length === 0 ? (
+						<p className={styles.emptyState}>
+							{access.state === "authenticated_unlinked"
+								? "Vincule um perfil TDA antes de receber permissões."
+								: access.state === "anonymous"
+									? "Entre com o Discord para consultar seu acesso."
+									: access.state === "unavailable"
+										? "Não foi possível calcular seu acesso agora."
+										: "Nenhuma permissão efetiva encontrada."}
+						</p>
+					) : null}
 				</section>
 			</div>
 
