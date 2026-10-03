@@ -170,7 +170,7 @@ export function CampaignCreateDialog({
 			<form ref={formRef} className={styles.form} onSubmit={submit} aria-busy={pending}>
 				<header className={styles.header}>
 					<div>
-						<p>Campaign Registry</p>
+						<p>Campanhas</p>
 						<h2 id={titleId}>Criar campanha</h2>
 						<span>
 							Crie a identidade aqui e volte ao Lembra sem perder a imagem ou os campos já preenchidos.
@@ -259,7 +259,7 @@ export function CampaignCreateDialog({
 						) : null}
 					</label>
 					<label className={styles.full}>
-						<span>Descrição pública curta</span>
+						<span>Descrição</span>
 						<textarea
 							name="description"
 							maxLength={600}
