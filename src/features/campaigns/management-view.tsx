@@ -115,9 +115,16 @@ export function CampaignManagementView({
 				title="Campanhas"
 				description={<p>Crie, organize e gerencie as campanhas do TDA.</p>}
 				meta={
-					<Link className={styles.publicLink} href="/campanhas">
-						Ver diretório público
-					</Link>
+					<div className={styles.headerActions}>
+						{returnTo ? (
+							<Link className={styles.returnLink} href={returnTo}>
+								Voltar à ferramenta
+							</Link>
+						) : null}
+						<Link className={styles.publicLink} href="/campanhas">
+							Ver diretório público
+						</Link>
+					</div>
 				}
 			/>
 
@@ -382,6 +389,9 @@ export function CampaignManagementView({
 																		</p>
 																	</div>
 																	<form className={styles.form} action={updateAction}>
+																		{returnTo ? (
+																			<input type="hidden" name="returnTo" value={returnTo} />
+																		) : null}
 																		<input
 																			type="hidden"
 																			name="id"
@@ -579,6 +589,9 @@ export function CampaignManagementView({
 																						campanha nem seus links e referências históricas.
 																					</p>
 																					<form action={lifecycleAction}>
+																						{returnTo ? (
+																							<input type="hidden" name="returnTo" value={returnTo} />
+																						) : null}
 																						<input
 																							type="hidden"
 																							name="id"
@@ -605,6 +618,9 @@ export function CampaignManagementView({
 																			</details>
 																		) : (
 																			<form action={lifecycleAction}>
+																						{returnTo ? (
+																							<input type="hidden" name="returnTo" value={returnTo} />
+																						) : null}
 																				<input
 																					type="hidden"
 																					name="id"
