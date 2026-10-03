@@ -639,3 +639,95 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
 	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false })).toBeVisible();
 });
+
+test("completed benchmark lazily compares transcript evidence and exports a private safe ZIP", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		benchmarkEvidence: true,
+		advanceJobs: false,
+		initialJobs: [fixtureBenchmarkJob("succeeded")],
+	});
+
+	const panel = await openBenchmark(page);
+	await expect(panel.getByText("Quatro perfis · mesma amostra")).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Comparar transcrições" }),
+	).toBeVisible();
+	expect(
+		state.requests.some((request) =>
+			request.path.startsWith("/benchmarks/"),
+		),
+	).toBe(false);
+
+	await panel.getByRole("button", { name: "Comparar transcrições" }).click();
+
+	const workspace = panel.getByRole("region", { name: "Evidências do Benchmark" });
+	await expect(workspace).toBeVisible();
+	await expect(workspace.getByText("Qualidade não medida.")).toBeVisible();
+	await expect(workspace.getByText("Aventureiros chegam a Neverwinter")).toBeVisible();
+	await expect(workspace.getByText("Aventureiros chegam a Never winter")).toBeVisible();
+	await expect(
+		workspace.getByText(/1 \/ 1|1 \/ 2/u),
+	).toBeVisible();
+	expect(
+		state.requests.some((request) =>
+			request.path.endsWith("/profiles/qwen-fast/snapshot"),
+		),
+	).toBe(true);
+	expect(
+		state.requests.some((request) =>
+			request.path.endsWith("/profiles/qwen-quality/snapshot"),
+		),
+	).toBe(true);
+	expect(
+		state.requests.some((request) =>
+			request.path.endsWith("/profiles/whisper-turbo/snapshot"),
+		),
+	).toBe(false);
+
+	await workspace.getByRole("tab", { name: "Timing" }).click();
+	await expect(workspace.getByText(/Precisão palavra/u).first()).toBeVisible();
+
+	await workspace.getByRole("tab", { name: "Performance" }).click();
+	await expect(workspace.getByText("Comparabilidade: comprovada")).toBeVisible();
+	await expect(workspace.getByRole("columnheader", { name: "RTF" })).toBeVisible();
+
+	await workspace.getByRole("tab", { name: "Execução" }).click();
+	await expect(workspace.getByText("NVIDIA GeForce RTX 4070 Laptop GPU").first()).toBeVisible();
+	await expect(workspace.getByText(/1\.0\.12|1\.1\.7/u).first()).toBeVisible();
+
+	await workspace.getByRole("button", { name: "Arquivos" }).click();
+	await expect(workspace.getByText("Arquivos privados locais.")).toBeVisible();
+	await expect(workspace.getByRole("button", { name: "JSON" })).toHaveCount(4);
+	await expect(workspace.getByRole("button", { name: "TXT" })).toHaveCount(4);
+	await expect(workspace.getByRole("button", { name: "VTT" })).toHaveCount(4);
+	await expect(workspace.getByRole("button", { name: "SRT" })).toHaveCount(4);
+
+	const exportButton = workspace.getByRole("button", {
+		name: "Exportar evidência privada (.zip)",
+	});
+	await exportButton.click();
+	const dialog = page
+		.getByRole("dialog")
+		.filter({ hasText: "Exportar evidência privada do Benchmark?" });
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toContainText("não faz upload para a nuvem");
+
+	const downloadPromise = page.waitForEvent("download");
+	await dialog.getByRole("button", { name: "Exportar ZIP privado" }).click();
+	const download = await downloadPromise;
+	expect(download.suggestedFilename()).toBe(
+		"TDA-Benchmark-benchmark-benchmark-job-1-a1-private-evidence.zip",
+	);
+	expect(download.suggestedFilename()).not.toContain("benchmark-craig.zip");
+
+	const horizontal = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}));
+	expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+});
