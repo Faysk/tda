@@ -100,10 +100,17 @@ export const currentAccess = cache(async () => {
 				context,
 				identity: identity.navigationIdentity,
 			} as const;
-		const effective = Object.values(EDIT_CAPABILITIES).some(
-			(action) =>
-				authorizeCampaignCapability(context, action, CAMPAIGN_SLUG).ok,
-		);
+		const editActions = new Set<string>(Object.values(EDIT_CAPABILITIES));
+		const effective = context.grants.some((grant) => {
+			if (!editActions.has(grant.action)) return false;
+			const campaignSlug =
+				grant.scopeType === "campaign" ? grant.scopeId : CAMPAIGN_SLUG;
+			return authorizeCampaignCapability(
+				context,
+				grant.action as EditCapability,
+				campaignSlug,
+			).ok;
+		});
 		return {
 			state: effective
 				? "authenticated_linked"
