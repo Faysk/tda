@@ -13,5 +13,8 @@ describe("permission confirmation contract", () => {
 		expect(source).toContain("pendingConfirmation.sensitive");
 		expect(source).toContain("pendingConfirmation.selfRevoke");
 		expect(source).toContain("executeChanges(pendingConfirmation)");
+		expect(source).toContain("operationId: crypto.randomUUID()");
+		expect(source).toContain("operationId: plan.operationId");
+		expect(source).toContain("mutationInFlightRef.current");
 	});
 });
