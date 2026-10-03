@@ -335,6 +335,7 @@ jobs:
           tests/system-states.spec.ts
           tests/session-public-layout.spec.ts
           tests/campaign-directory.spec.ts
+          tests/campaign-picker.spec.ts
           --project=desktop-1080p
       - name: Lore catalogue first-viewport contracts
         run: >-
