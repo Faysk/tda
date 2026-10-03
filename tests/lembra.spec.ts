@@ -925,3 +925,55 @@ test("Lembra keeps broken media compact instead of reserving artwork height", as
 	await expect(viewer.getByRole("heading", { name: "Sem mídia" })).toBeVisible();
 	await expect(viewer).toContainText("O texto continua útil mesmo sem artwork");
 });
+
+
+test("Lembra viewer releases modal focus and document scrolling after Escape", async ({
+	page,
+}) => {
+	for (const viewport of [
+		{ width: 320, height: 760 },
+		{ width: 390, height: 844 },
+		{ width: 683, height: 384 },
+		{ width: 1100, height: 500 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/e2e-fixtures/lembra-campaigns");
+
+		const opener = page.getByRole("button", { name: "Histórica", exact: true });
+		await opener.scrollIntoViewIfNeeded();
+		await opener.click();
+
+		const viewer = page.getByRole("dialog");
+		await expect(viewer).toBeVisible();
+		const edit = viewer.getByRole("button", { name: "Editar", exact: true });
+		await edit.scrollIntoViewIfNeeded();
+		await expect(edit).toBeVisible();
+
+		await page.keyboard.press("Escape");
+		await expect(viewer).not.toBeVisible();
+		await expect(opener).toBeFocused();
+
+		const overflow = await page.evaluate(() => ({
+			html: getComputedStyle(document.documentElement).overflowY,
+			body: getComputedStyle(document.body).overflowY,
+		}));
+		expect(overflow.html).not.toBe("hidden");
+		expect(overflow.body).not.toBe("hidden");
+
+		await page.evaluate(() => {
+			document.getElementById("lembra-scroll-release-probe")?.remove();
+			const probe = document.createElement("div");
+			probe.id = "lembra-scroll-release-probe";
+			probe.setAttribute("aria-hidden", "true");
+			probe.style.height = "1600px";
+			probe.style.width = "1px";
+			probe.style.pointerEvents = "none";
+			document.body.append(probe);
+			window.scrollTo(0, 0);
+		});
+		await page.evaluate(() => window.scrollTo(0, 500));
+		await expect
+			.poll(() => page.evaluate(() => window.scrollY))
+			.toBeGreaterThan(100);
+	}
+});
