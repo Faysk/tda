@@ -165,6 +165,11 @@ function BenchmarkEvidencePanel({
 	const [rightProfile, setRightProfile] = useState<TranscriptionProfileId>("qwen-quality");
 	const [transcripts, setTranscripts] = useState<Partial<Record<TranscriptionProfileId, BenchmarkTranscript>>>({});
 	const [comparison, setComparison] = useState<ReturnType<typeof summarizeRunComparison> | null>(null);
+	const [comparisonRegions, setComparisonRegions] = useState<ReturnType<typeof compareRunSegments>>([]);
+	const [comparisonTrack, setComparisonTrack] = useState("all");
+	const [comparisonStart, setComparisonStart] = useState("");
+	const [comparisonEnd, setComparisonEnd] = useState("");
+	const [activeDifference, setActiveDifference] = useState(0);
 	const [quality, setQuality] = useState<BenchmarkQualityResponse>({});
 	const [diagnostics, setDiagnostics] = useState<BenchmarkDiagnostics | null>(null);
 	const [referenceTracks, setReferenceTracks] = useState<BenchmarkReferenceTrack[] | null>(null);
@@ -227,7 +232,9 @@ function BenchmarkEvidencePanel({
 				benchmarkTranscriptSegments(left),
 				benchmarkTranscriptSegments(right),
 			);
+			setComparisonRegions(regions);
 			setComparison(summarizeRunComparison(regions));
+			setActiveDifference(0);
 		} catch (error) {
 			setMessage(bridgeMessage(error, "Não foi possível comparar as transcrições."));
 		} finally {
@@ -292,7 +299,7 @@ function BenchmarkEvidencePanel({
 	};
 
 	const exportArtifact = async (
-		kind: "export" | `${TranscriptionProfileId}/transcript.txt` | `${TranscriptionProfileId}/transcript.vtt`,
+		kind: "export" | `${TranscriptionProfileId}/transcript.json` | `${TranscriptionProfileId}/transcript.txt` | `${TranscriptionProfileId}/transcript.vtt` | `${TranscriptionProfileId}/transcript.srt`,
 		filename: string,
 	) => {
 		setBusy(true);
@@ -307,6 +314,22 @@ function BenchmarkEvidencePanel({
 			setBusy(false);
 		}
 	};
+
+	const comparisonStartSeconds = comparisonStart.trim() === "" ? null : Number(comparisonStart);
+	const comparisonEndSeconds = comparisonEnd.trim() === "" ? null : Number(comparisonEnd);
+	const timeFilterInvalid =
+		(comparisonStartSeconds !== null && (!Number.isFinite(comparisonStartSeconds) || comparisonStartSeconds < 0)) ||
+		(comparisonEndSeconds !== null && (!Number.isFinite(comparisonEndSeconds) || comparisonEndSeconds < 0)) ||
+		(comparisonStartSeconds !== null && comparisonEndSeconds !== null && comparisonStartSeconds > comparisonEndSeconds);
+	const visibleComparison = comparisonRegions.filter((region) => {
+		if (comparisonTrack !== "all" && region.trackNumber !== Number(comparisonTrack)) return false;
+		if (timeFilterInvalid) return false;
+		if (comparisonStartSeconds !== null && region.sessionEnd < comparisonStartSeconds) return false;
+		if (comparisonEndSeconds !== null && region.sessionStart > comparisonEndSeconds) return false;
+		return region.kind !== "equal" || region.speakerChanged;
+	});
+	const selectedDifference = visibleComparison[Math.min(activeDifference, Math.max(0, visibleComparison.length - 1))] ?? null;
+	const comparisonTracks = [...new Set(comparisonRegions.map((region) => region.trackNumber))].sort((a, b) => a - b);
 
 	return (
 		<section className={styles.evidencePanel} aria-label="Evidência e qualidade do benchmark">
@@ -343,9 +366,31 @@ function BenchmarkEvidencePanel({
 				</p>
 			) : null}
 
+			{comparison ? (
+				<div className={styles.comparisonInspector}>
+					<div className={styles.evidenceActions}>
+						<label><span>Track</span><select value={comparisonTrack} onChange={(event) => { setComparisonTrack(event.target.value); setActiveDifference(0); }}><option value="all">Todas</option>{comparisonTracks.map((track) => <option key={track} value={track}>Track {track}</option>)}</select></label>
+						<label><span>De (s)</span><input aria-label="Início da comparação em segundos" type="number" min="0" step="0.1" value={comparisonStart} onChange={(event) => { setComparisonStart(event.target.value); setActiveDifference(0); }} /></label>
+						<label><span>Até (s)</span><input aria-label="Fim da comparação em segundos" type="number" min="0" step="0.1" value={comparisonEnd} onChange={(event) => { setComparisonEnd(event.target.value); setActiveDifference(0); }} /></label>
+						<Button type="button" variant="tertiary" disabled={visibleComparison.length === 0 || activeDifference <= 0} onClick={() => setActiveDifference((value) => Math.max(0, value - 1))}>Anterior</Button>
+						<Button type="button" variant="tertiary" disabled={visibleComparison.length === 0 || activeDifference >= visibleComparison.length - 1} onClick={() => setActiveDifference((value) => Math.min(visibleComparison.length - 1, value + 1))}>Próxima</Button>
+					</div>
+					{timeFilterInvalid ? <p className={styles.evidenceSummary} role="status">Faixa temporal inválida.</p> : null}
+					{selectedDifference ? (
+						<article className={styles.comparisonRegion} aria-live="polite">
+							<header><strong>Track {selectedDifference.trackNumber} · {selectedDifference.sessionStart.toFixed(2)}–{selectedDifference.sessionEnd.toFixed(2)}s</strong><span>{activeDifference + 1} / {visibleComparison.length}</span></header>
+							<div><section><span>{LABELS[leftProfile]}</span><p>{selectedDifference.leftText || "—"}</p></section><section><span>{LABELS[rightProfile]}</span><p>{selectedDifference.rightText || "—"}</p></section></div>
+						</article>
+					) : <p className={styles.evidenceSummary}>Nenhuma divergência corresponde aos filtros atuais.</p>}
+				</div>
+			) : null}
+
 			<div className={styles.evidenceActions}>
+				<span className={styles.privateWarning}>Exports contêm conteúdo privado local. Não envie o ZIP sem revisar.</span>
+				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void exportArtifact(`${leftProfile}/transcript.json`, `${leftProfile}.json`)}>JSON</Button>
 				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void exportArtifact(`${leftProfile}/transcript.txt`, `${leftProfile}.txt`)}>TXT</Button>
 				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void exportArtifact(`${leftProfile}/transcript.vtt`, `${leftProfile}.vtt`)}>WebVTT</Button>
+				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void exportArtifact(`${leftProfile}/transcript.srt`, `${leftProfile}.srt`)}>SRT</Button>
 			</div>
 			<div className={styles.evidenceActions}>
 				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void loadDiagnostics()}>
