@@ -197,7 +197,7 @@ describe("benchmark evidence contract", () => {
 					source_id: "source-1",
 					profile_order: profiles,
 					bundle_size_bytes: 4096,
-					formats: ["json", "txt", "vtt", "srt"],
+					formats: ["json", "txt", "txt-plain", "vtt", "srt"],
 					quality_reference_status: "none",
 					telemetry_available: false,
 					integrity: "verified",
