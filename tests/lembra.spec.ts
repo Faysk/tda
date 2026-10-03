@@ -175,7 +175,7 @@ test("Lembra creates a public campaign in context without losing the upload draf
 	await expect(card).toContainText("Aurora Pública · Por Você");
 });
 
-test("Lembra keeps the prior selection and draft when a new campaign is private", async ({ page }) => {
+test("Lembra selects a newly created private campaign only after authorized projection confirms it", async ({ page }) => {
 	await page.goto("/e2e-fixtures/lembra-campaigns");
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "private-draft.png",
@@ -188,8 +188,6 @@ test("Lembra keeps the prior selection and draft when a new campaign is private"
 		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
 	await composer.getByLabel("Nome").fill("Rascunho privado");
 	await composer.getByLabel("Descrição").fill("Seleção anterior precisa continuar.");
-	await composer.getByRole("button", { name: "Campanha da referência" }).click();
-	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
 	const preview = composer.getByAltText("Preview da referência selecionada");
 	const previewUrl = await preview.getAttribute("src");
 
@@ -206,14 +204,12 @@ test("Lembra keeps the prior selection and draft when a new campaign is private"
 	await expect(composer.getByLabel("Descrição")).toHaveValue("Seleção anterior precisa continuar.");
 	await expect(preview).toHaveAttribute("src", previewUrl ?? "");
 	await expect(composer.getByRole("button", { name: "Campanha da referência" })).toContainText(
-		"Campanha Pública B",
+		"Segredo da Mesa",
 	);
-	await expect(composer).toContainText(
-		"A campanha foi criada como privada e não aparece como classificação do Lembra.",
-	);
+	await expect(composer).toContainText("Campanha criada e selecionada.");
 
 	await composer.getByRole("button", { name: "Campanha da referência" }).click();
-	await expect(page.getByRole("option", { name: "Segredo da Mesa", exact: true })).toHaveCount(0);
+	await expect(page.getByRole("option", { name: "Segredo da Mesa", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 });
 
