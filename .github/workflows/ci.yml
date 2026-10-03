@@ -368,6 +368,7 @@ jobs:
             test-results/**/layout-keylines-workbench.png
             test-results/**/lore-catalog-*.png
             test-results/**/layout-cross-*.png
+            test-results/**/operational-header-*.png
           if-no-files-found: error
           retention-days: 30
       - name: Upload sanitized navigation failure artifacts
