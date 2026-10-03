@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { currentAccess } from "@/features/auth/server";
 import { readNavigationCampaigns } from "@/features/campaigns/navigation";
 import { canManageCampaignRegistry } from "@/features/campaigns/policy";
@@ -52,17 +53,16 @@ export default async function EditPage() {
 	}));
 
 	return (
-		<main className={styles.page} data-layout-family="workspace">
-			<header className={styles.header}>
-				<div>
-					<p className={styles.eyebrow}>Edit</p>
-					<h1>Escolha a campanha</h1>
-					<p>
-						O contexto define quais dados e ações cada ferramenta pode acessar.
-						Nenhuma campanha é escolhida silenciosamente quando há mais de uma opção.
-					</p>
-				</div>
-			</header>
+		<main
+			className={styles.page}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit"
+				title="Escolha a campanha"
+				description={<p>Abra as ferramentas no contexto da campanha certa.</p>}
+			/>
 
 			<section className={styles.registry} aria-labelledby="edit-campaign-choice">
 				<div className={styles.registryHeading}>

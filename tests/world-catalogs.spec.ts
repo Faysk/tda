@@ -47,11 +47,12 @@ test("six public archives keep one technical base while exposing type context", 
 
 test("catalog content starts early and uses extra desktop width without stretching copy", async ({
 	page,
-}) => {
+}, testInfo) => {
 	const widths: number[] = [];
 	for (const viewport of [
 		{ width: 320, height: 800 },
 		{ width: 390, height: 844 },
+		{ width: 683, height: 384 },
 		{ width: 1366, height: 768 },
 		{ width: 1920, height: 1080 },
 		{ width: 2560, height: 1440 },
@@ -63,19 +64,37 @@ test("catalog content starts early and uses extra desktop width without stretchi
 		const box = await firstCard.boundingBox();
 		expect(box).not.toBeNull();
 		if (box) {
-			expect(box.y).toBeLessThan(viewport.height * 0.82);
+			expect(box.y).toBeLessThan(
+				viewport.height * (viewport.height <= 400 ? 0.92 : 0.82),
+			);
 			if (viewport.width >= 1366) {
 				const gridBox = await firstCard.locator("..").boundingBox();
 				expect(gridBox).not.toBeNull();
 				if (gridBox) widths.push(gridBox.width);
 			}
 		}
-		const intro = page
-			.getByRole("heading", { level: 1, name: "Personagens" })
-			.locator("..");
+		const heading = page.getByRole("heading", {
+			level: 1,
+			name: "Personagens",
+		});
+		const intro = heading.locator("..");
 		const introBox = await intro.boundingBox();
 		expect(introBox?.width ?? 9999).toBeLessThanOrEqual(820);
+		expect(
+			await heading.evaluate((element) =>
+				Number.parseFloat(getComputedStyle(element).fontSize),
+			),
+		).toBeLessThanOrEqual(48);
 		await expectNoHorizontalOverflow(page);
+
+		if (viewport.width === 1366 || viewport.width === 390) {
+			await page.screenshot({
+				path: testInfo.outputPath(
+					`operational-header-entity-catalog-${viewport.width}.png`,
+				),
+				fullPage: false,
+			});
+		}
 	}
 	expect(widths).toHaveLength(3);
 	expect(widths[1]).toBeGreaterThan(widths[0] + 80);

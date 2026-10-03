@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ActionLink, Button } from "@/components/ui";
 import type { EditAccessContext } from "@/features/edit/access/policy";
@@ -96,8 +97,7 @@ export function AccountOverview({
 
 	return (
 		<section className={`${styles.shell} ${styles.accountShell}`} data-layout-family="editorial" data-layout-role="editorial">
-			<div className={styles.eyebrow}>TDA · CONTA E ACESSO</div>
-			<h1 className={styles.title}>Conta e acesso</h1>
+			<OperationalPageHeader eyebrow="Conta" title="Conta e acesso" />
 
 			{accessNotice ? (
 				<p className={styles.notice} role="alert">
