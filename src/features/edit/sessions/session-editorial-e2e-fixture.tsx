@@ -12,6 +12,7 @@ import {
 	type SessionCampaignMoveTransport,
 } from "./session-campaign-move";
 import workbenchStyles from "../workbench.module.css";
+import draftStyles from "./editorial-draft.module.css";
 
 const SESSION_ID = "11111111-1111-4111-8111-111111111111";
 const TRANSCRIPT_REVISION_ID = "22222222-2222-4222-8222-222222222222";
@@ -186,7 +187,8 @@ function SyntheticCoverEditor({
 
 export function SessionEditorialE2EFixture({
 	segmentCount = BASE_SEGMENTS.length,
-}: Readonly<{ segmentCount?: number }>) {
+	moveAvailable = true,
+}: Readonly<{ segmentCount?: number; moveAvailable?: boolean }>) {
 	const segments = useMemo(() => buildSyntheticSegments(segmentCount), [segmentCount]);
 	const initialDraft = useMemo(() => freshDraft(), []);
 	const draftRef = useRef<SessionEditorialDraft>(initialDraft);
@@ -410,7 +412,12 @@ export function SessionEditorialE2EFixture({
 	}
 
 	return (
-		<main className={workbenchStyles.shell} style={{ display: "grid", gap: "2rem" }}>
+		<main style={{ display: "grid", gap: "2rem" }}>
+			<section
+				className={[workbenchStyles.shell, workbenchStyles.sessionShell].join(" ")}
+				data-testid="session-editorial-route-shell"
+			>
+				<div>
 			<header className={workbenchStyles.workbenchHeader}>
 				<div>
 					<h1 className={workbenchStyles.workbenchTitle}>Session Editorial E2E</h1>
@@ -473,6 +480,12 @@ export function SessionEditorialE2EFixture({
 				</output>
 				<output data-testid="remote-draft-revision">{remoteRevision}</output>
 			</section>
+				</div>
+
+				<div className={draftStyles.privateNotice} role="status">
+					<strong>Privado no Edit</strong>
+					<span>Salvar o draft ou trocar a capa não publica no site.</span>
+				</div>
 
 			<SessionCampaignMovePanel
 				sessionId={SESSION_ID}
@@ -492,6 +505,7 @@ export function SessionEditorialE2EFixture({
 					},
 				]}
 				transport={moveTransport}
+				available={moveAvailable}
 			/>
 
 			<section aria-label="Workspace editorial privado" data-testid="session-editorial-workspace-frame">
@@ -522,7 +536,10 @@ export function SessionEditorialE2EFixture({
 				/>
 			</section>
 
+			</section>
+
 			<section
+				className={workbenchStyles.shell}
 				aria-label="Superfície pública sintética"
 				data-testid="synthetic-public-session"
 			>
