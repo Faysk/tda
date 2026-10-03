@@ -961,7 +961,17 @@ export class ProcessingController {
 	repairPublicationTarget = async () => {
         const current = this.#state.localReview;
         if (!current || current.publicationTarget) return;
-        await this.reviewAction((signal) => this.bridge.repairPublicationTarget(current.sourceId, current.runId, signal));
+        await this.reviewAction((signal) =>
+            this.bridge.repairPublicationTarget(current.sourceId, current.runId, signal),
+        );
+        const repaired = this.#state.localReview;
+        if (
+            repaired?.sourceId === current.sourceId &&
+            repaired.runId === current.runId &&
+            repaired.publicationTarget
+        ) {
+            await this.refresh("results");
+        }
     };
 
 	saveLocalReview = async (
