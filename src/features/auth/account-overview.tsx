@@ -2,8 +2,7 @@ import Image from "next/image";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ActionLink, Button } from "@/components/ui";
 import type { EditAccessContext } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
-import { effectiveAccountCapabilityGroups } from "./account-access";
+import type { AccountCampaignAccessResult } from "./account-campaign-access";
 import styles from "./access.module.css";
 import { ProfileIdCopy } from "./profile-id-copy";
 
@@ -66,10 +65,12 @@ export function AccountOverview({
 	access,
 	accessNotice,
 	authEnabled,
+	campaignAccess,
 }: Readonly<{
 	access: AccountOverviewAccess;
 	accessNotice: string | null;
 	authEnabled: boolean;
+	campaignAccess: AccountCampaignAccessResult;
 }>) {
 	const authenticated =
 		access.state === "authenticated_unlinked" ||
@@ -78,10 +79,6 @@ export function AccountOverview({
 	const displayName = authenticated ? access.identity?.displayName ?? null : null;
 	const avatarUrl = authenticated ? access.identity?.avatarUrl ?? null : null;
 	const profileId = authenticated ? access.context?.profileId ?? null : null;
-	const capabilityGroups =
-		access.context?.profileId
-			? effectiveAccountCapabilityGroups(access.context, CAMPAIGN_SLUG)
-			: [];
 	const stateContent = ACCOUNT_STATE_CONTENT[access.state];
 
 	const linkDescription = profileId
@@ -168,48 +165,52 @@ export function AccountOverview({
 					aria-labelledby="permissions-title"
 				>
 					<div className={styles.sectionHeading}>
-						<h2 id="permissions-title">Acesso nesta campanha</h2>
+						<h2 id="permissions-title">Acesso por campanha</h2>
 						<p>
 							Aqui aparecem apenas permissões efetivas. A autorização continua
 							sendo verificada no servidor quando você abre ou executa uma ação.
 						</p>
 					</div>
 
-					{capabilityGroups.length > 0 ? (
-						<>
-							<div className={styles.permissionGroups}>
-								{capabilityGroups.map((group) => (
-									<section key={group.title} className={styles.permissionGroup}>
-										<h3>{group.title}</h3>
-										<ul>
-											{group.items.map((item) => (
-												<li key={item.capability}>
-													<span>{item.label}</span>
-												</li>
-											))}
-										</ul>
-									</section>
-								))}
-							</div>
-
-							<details className={styles.technicalDetails}>
-								<summary>Detalhes técnicos do acesso</summary>
-								<p className={styles.sectionHint}>
-									As capabilities abaixo são informativas; elas não tornam o
-									cliente autoridade de acesso.
-								</p>
-								<ul className={styles.technicalCapabilityList}>
-									{capabilityGroups.flatMap((group) =>
-										group.items.map((item) => (
-											<li key={item.capability}>
-												<span>{item.label}</span>
-												<code>{item.capability}</code>
-											</li>
-										)),
-									)}
-								</ul>
-							</details>
-						</>
+					{campaignAccess.ok === false ? (
+						<p className={styles.emptyState}>
+							Não foi possível calcular seu acesso agora.
+						</p>
+					) : campaignAccess.campaigns.length > 0 ? (
+						<div className={styles.permissionGroups}>
+							{campaignAccess.campaigns.map((campaign) => (
+								<details
+									className={styles.technicalDetails}
+									key={campaign.technicalSlug}
+									open={campaignAccess.campaigns.length === 1}
+								>
+									<summary>
+										{campaign.name} · {campaign.scope === "project"
+											? "acesso de projeto"
+											: campaign.scope === "mixed"
+												? "acesso misto"
+												: "acesso da campanha"}
+									</summary>
+									<div className={styles.permissionGroups}>
+										{campaign.groups.map((group) => (
+											<section key={group.title} className={styles.permissionGroup}>
+												<h3>{group.title}</h3>
+												<ul>
+													{group.items.map((item) => (
+														<li key={item.capability}>
+															<span>{item.label}</span>
+														</li>
+													))}
+												</ul>
+											</section>
+										))}
+									</div>
+									<p className={styles.sectionHint}>
+										Identificador técnico: <code>{campaign.technicalSlug}</code>
+									</p>
+								</details>
+							))}
+						</div>
 					) : (
 						<p className={styles.emptyState}>
 							{access.state === "authenticated_linked_no_grants"
