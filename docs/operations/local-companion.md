@@ -361,6 +361,8 @@ O rollback:
 
 Depois da troca, reiniciar o Agent/Companion faz a leitura normal de `current.json`; não há estado de rollback mantido apenas em memória.
 
+O botão de recuperação permanece disponível enquanto o runtime local está íntegro, inclusive sem uma consulta de atualização bem-sucedida. O polling da interface preserva a consulta remota enquanto a versão local não muda e invalida essa consulta quando a versão ou integridade muda. A migração dos prompts nativos para diálogos integrados está rastreada em #1353.
+
 ## ASR Whisper — receita preservada
 
 Os dois perfis Whisper preservam inicialmente a receita comprovada pelo legado:

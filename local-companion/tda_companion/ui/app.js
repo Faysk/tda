@@ -254,6 +254,14 @@
   }
 
   function renderWhisperRuntime(result, checkedRemote = false) {
+    if (!checkedRemote && lastWhisperRuntimeCheck) {
+      if (result?.status === "ready" && result.version === lastWhisperRuntimeCheck.current_version) {
+        result = lastWhisperRuntimeCheck;
+        checkedRemote = true;
+      } else {
+        lastWhisperRuntimeCheck = null;
+      }
+    }
     const status = result?.status || "missing";
     const current = result?.current_version || result?.version || null;
     const detail = $("whisper-runtime-detail");
@@ -267,7 +275,7 @@
 
     if (!checkedRemote) {
       install.classList.add("hidden");
-      rollback.classList.add("hidden");
+      rollback.classList.toggle("hidden", status !== "ready");
       feedback.textContent = "Runtime isolado; não altera o PATH global.";
       return;
     }
@@ -279,7 +287,7 @@
       install.textContent = status === "ready" ? `Atualizar para ${result.version}` : `Instalar ${result.version}`;
       feedback.textContent = `Pacote verificado · ${formatBytes(result.size)} · v${result.version}`;
     } else {
-      feedback.textContent = status === "ready" ? "Whisper já está na versão estável mais recente." : "Nenhum runtime Whisper estável disponível.";
+      feedback.textContent = status === "ready" ? "Nenhuma atualização automática disponível. Você pode reverter a versão manualmente." : "Nenhum runtime Whisper estável disponível.";
     }
   }
 
