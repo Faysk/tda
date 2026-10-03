@@ -192,10 +192,22 @@ def test_private_zip_is_deterministic_named_and_contains_no_audio(tmp_path):
     assert first.read_bytes() == second.read_bytes()
     with zipfile.ZipFile(first) as archive:
         names = archive.namelist()
-        assert any(name.endswith("/benchmark.json") for name in names)
-        assert any(name.endswith("/profiles/qwen-fast/transcript.json") for name in names)
-        assert any(name.endswith("/profiles/qwen-fast/transcript.vtt") for name in names)
-        assert any(name.endswith("/profiles/qwen-fast/events.jsonl") for name in names)
+        prefix = f"TDA-Benchmark-{benchmark_id}"
+        expected = {f"{prefix}/benchmark.json"}
+        for profile_id in PROFILES:
+            base = f"{prefix}/profiles/{profile_id}"
+            expected.update(
+                {
+                    f"{base}/profile.json",
+                    f"{base}/transcript.json",
+                    f"{base}/transcript.txt",
+                    f"{base}/transcript.vtt",
+                    f"{base}/transcript.srt",
+                    f"{base}/metrics.json",
+                    f"{base}/events.jsonl",
+                }
+            )
+        assert set(names) == expected
         assert not any(name.lower().endswith((".flac", ".wav", ".mp3", ".ogg")) for name in names)
         assert not any("private-source-name" in name for name in names)
         events_name = next(name for name in names if name.endswith("/profiles/qwen-fast/events.jsonl"))
