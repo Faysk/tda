@@ -1,7 +1,11 @@
 "use client";
 
 import { PublicLink as Link } from "@/components/public-link";
-import { WORLD_NAV_ITEMS, worldNavItemIsCurrent } from "./navigation-model";
+import {
+	WORLD_NAV_ITEMS,
+	worldNavHrefForPathname,
+	worldNavItemIsCurrent,
+} from "./navigation-model";
 import styles from "./world-shell.module.css";
 
 export function WorldNavigation({
@@ -16,12 +20,13 @@ export function WorldNavigation({
 	return (
 		<nav className={styles.navigation} aria-label="Explorar o universo da campanha">
 			{WORLD_NAV_ITEMS.map((item) => {
-				const current = worldNavItemIsCurrent(pathname, item.href);
+				const href = worldNavHrefForPathname(pathname, item.href);
+				const current = worldNavItemIsCurrent(pathname, href);
 				return (
 					<Link
 						key={item.href}
 						className={`${styles.navItem}${current ? ` ${styles.navItemCurrent}` : ""}${compact ? ` ${styles.navItemCompact}` : ""}`}
-						href={item.href}
+						href={href}
 						aria-current={current ? "page" : undefined}
 						aria-label={compact ? item.label : undefined}
 						title={compact ? `${item.label} — ${item.description}` : undefined}
