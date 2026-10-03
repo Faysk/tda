@@ -144,6 +144,18 @@ def _document_payload(document: TranscriptDocument) -> bytes:
     ).encode("utf-8")
 
 
+def _semantic_document_sha256(document: TranscriptDocument) -> str:
+    value = document.as_dict()
+    value.pop("created_at", None)
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def _validate_transcript_paths(document: TranscriptDocument) -> None:
     for track in document.tracks:
         source_filename = track.source_filename
@@ -453,7 +465,6 @@ def write_benchmark_profile(
         if (
             len(transcript_payload) != current["transcript_size_bytes"]
             or hashlib.sha256(transcript_payload).hexdigest() != current["transcript_sha256"]
-            or hashlib.sha256(document_payload).hexdigest() != current["transcript_sha256"]
         ):
             raise BenchmarkBundleError("BENCHMARK_PROFILE_TRANSCRIPT_MISMATCH")
         try:
@@ -463,6 +474,8 @@ def write_benchmark_profile(
         if (
             persisted.source_sha256.lower() != document.source_sha256.lower()
             or persisted.engine.profile != profile_id
+            or _semantic_document_sha256(persisted)
+            != _semantic_document_sha256(document)
         ):
             raise BenchmarkBundleError("BENCHMARK_PROFILE_TRANSCRIPT_MISMATCH")
         return {
