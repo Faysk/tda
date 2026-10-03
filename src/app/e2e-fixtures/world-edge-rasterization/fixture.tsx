@@ -58,7 +58,7 @@ const RASTERIZATION_PROJECTION: WorldGraphProjection = {
 			id: "raster-f",
 			slug: "raster-f",
 			kind: "entity",
-			entityType: "place",
+			entityType: "location",
 			label: "Farol",
 			prominence: "context",
 			layoutHint: { x: -360, y: 20 },
