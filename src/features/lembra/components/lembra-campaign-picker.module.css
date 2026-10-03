@@ -1,0 +1,163 @@
+.dialog {
+	width: min(560px, calc(100vw - 32px));
+	max-height: min(760px, calc(100dvh - 32px));
+	padding: 0;
+	border: 1px solid var(--ds-border);
+	border-radius: 18px;
+	background: var(--ds-surface-raised);
+	color: var(--ds-foreground);
+	box-shadow: var(--ds-shadow-lg);
+	overflow: auto;
+}
+
+.dialog::backdrop {
+	background: rgb(8 10 14 / 62%);
+	backdrop-filter: blur(4px);
+}
+
+.form {
+	display: grid;
+	gap: 18px;
+	padding: 22px;
+}
+
+.header {
+	display: flex;
+	align-items: start;
+	justify-content: space-between;
+	gap: 18px;
+}
+
+.header > div {
+	display: grid;
+	gap: 5px;
+}
+
+.header p,
+.header h2,
+.header span {
+	margin: 0;
+}
+
+.header p {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.header h2 {
+	font-family: var(--ds-font-display);
+	font-size: clamp(1.55rem, 4vw, 2rem);
+	font-weight: 600;
+}
+
+.header span,
+.form small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.78rem;
+	line-height: 1.45;
+}
+
+.close {
+	display: grid;
+	place-items: center;
+	width: 34px;
+	height: 34px;
+	border: 0;
+	border-radius: 999px;
+	background: transparent;
+	color: var(--ds-foreground-soft);
+	font-size: 1.35rem;
+	cursor: pointer;
+}
+
+.close:hover {
+	background: var(--ds-surface-soft);
+	color: var(--ds-foreground);
+}
+
+.form > label,
+.advanced label {
+	display: grid;
+	gap: 6px;
+	font-size: 0.8rem;
+	font-weight: 700;
+}
+
+.form input,
+.form select,
+.form textarea {
+	width: 100%;
+	min-width: 0;
+	padding: 10px 12px;
+	border: 1px solid var(--ds-border);
+	border-radius: 10px;
+	background: var(--ds-control-background);
+	color: var(--ds-foreground);
+	font: inherit;
+}
+
+.form textarea {
+	resize: vertical;
+}
+
+.form input:focus-visible,
+.form select:focus-visible,
+.form textarea:focus-visible,
+.close:focus-visible,
+.advanced summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.advanced {
+	border-top: 1px solid var(--ds-border);
+	border-bottom: 1px solid var(--ds-border);
+	padding: 10px 0;
+}
+
+.advanced summary {
+	cursor: pointer;
+	font-size: 0.8rem;
+	font-weight: 800;
+}
+
+.advanced > div {
+	display: grid;
+	gap: 14px;
+	padding-top: 14px;
+}
+
+.error {
+	margin: 0;
+	padding: 10px 12px;
+	border-radius: 10px;
+	background: var(--ds-status-danger-subtle);
+	color: var(--ds-status-danger-foreground);
+	font-size: 0.82rem;
+}
+
+.actions {
+	display: flex;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+@media (max-width: 480px) {
+	.form {
+		padding: 18px;
+	}
+
+	.actions > * {
+		flex: 1 1 auto;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.dialog {
+		scroll-behavior: auto;
+	}
+}
