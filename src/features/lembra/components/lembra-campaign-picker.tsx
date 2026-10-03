@@ -24,7 +24,6 @@ type Props = Readonly<{
 	canManageCampaigns?: boolean;
 	disabled?: boolean;
 	ariaLabel?: string;
-	e2eCreateFailureReason?: "forbidden" | "dependency_unavailable" | "conflict";
 }>;
 
 function createFailureMessage(reason: string) {
@@ -47,7 +46,6 @@ export function LembraCampaignPicker({
 	canManageCampaigns = false,
 	disabled = false,
 	ariaLabel = "Campanha da referência",
-	e2eCreateFailureReason,
 }: Props) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
 	const nameRef = useRef<HTMLInputElement>(null);
@@ -118,10 +116,6 @@ export function LembraCampaignPicker({
 		setSaving(true);
 		setError("");
 		try {
-			if (e2eCreateFailureReason) {
-				setError(createFailureMessage(e2eCreateFailureReason));
-				return;
-			}
 			const result = await createCampaignContextAction({
 				name,
 				technicalSlug,
