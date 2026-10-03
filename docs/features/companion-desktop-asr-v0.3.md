@@ -63,6 +63,8 @@ Layout alvo:
 ├── Companion\versions\<version>\
 ├── State\
 ├── Data\
+│   ├── staging\
+│   └── benchmarks\<benchmark-id>\
 ├── Logs\
 ├── Cache\updates\
 ├── Models\
