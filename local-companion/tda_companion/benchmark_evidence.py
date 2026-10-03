@@ -215,6 +215,8 @@ def write_profile_artifact(
             "deduplicated_segment_count": document.stats.deduplicated_segment_count,
             "warning_count": len(document.warnings),
             "execution_lineage": dict(execution_lineage),
+            "external_preparation_included": False,
+            "instrumentation_mode": "async_telemetry_sampler_v2",
             "event_policy": "protocol_semantic_events_v1_excludes_heartbeat",
         }
         metrics_path = destination / "metrics.json"
