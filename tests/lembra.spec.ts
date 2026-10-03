@@ -40,6 +40,9 @@ test("Lembra campaign classification stays optional, filterable and non-authorit
 	await page.getByRole("option", { name: "Geral", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Geral", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Mesa", exact: true })).toHaveCount(0);
+	await expect(
+		page.getByRole("button", { name: "Vínculo protegido", exact: true }),
+	).toHaveCount(0);
 
 	await campaignFilter.click();
 	await page.getByRole("option", { name: "Crônicas da Mesa", exact: true }).click();
@@ -81,6 +84,43 @@ test("Lembra campaign classification stays optional, filterable and non-authorit
 	await expect(
 		composer.getByRole("button", { name: "Campanha da referência" }),
 	).toContainText("Campanha Pública B");
+
+	await composer.getByRole("button", { name: "Fechar" }).click();
+	await page.getByRole("button", { name: "Filtrar por campanha" }).click();
+	await expect(
+		page.getByRole("option", { name: "Campanha Privada Descoberta", exact: true }),
+	).toBeVisible();
+	await page
+		.getByRole("option", { name: "Campanha Privada Descoberta", exact: true })
+		.click();
+	await expect(
+		page.getByRole("button", { name: "Privada visível", exact: true }),
+	).toBeVisible();
+
+	await page.getByRole("button", { name: "Limpar filtros" }).click();
+	await page
+		.getByPlaceholder("Buscar título, descrição, autor ou data...")
+		.fill("campanha privada descoberta");
+	await expect(
+		page.getByRole("button", { name: "Privada visível", exact: true }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Vínculo protegido", exact: true }),
+	).toHaveCount(0);
+
+	await page.getByRole("button", { name: "Limpar filtros" }).click();
+	await page
+		.getByRole("button", { name: "Vínculo protegido", exact: true })
+		.click();
+	const restrictedViewer = page.getByRole("dialog");
+	await expect(restrictedViewer).toContainText("Classificação restrita");
+	await restrictedViewer.getByRole("button", { name: "Editar", exact: true }).click();
+	await expect(restrictedViewer).toContainText(
+		"não alterar esse vínculo sem acesso à campanha",
+	);
+	await expect(
+		restrictedViewer.getByRole("button", { name: "Campanha da referência" }),
+	).toHaveCount(0);
 });
 
 test("Lembra stays dense, searchable and usable from keyboard", async ({ page }) => {
