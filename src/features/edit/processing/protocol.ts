@@ -2190,6 +2190,21 @@ export function parseBenchmarkResult(
 	if (row.kind !== "benchmark.craig") return invalid();
 	const sampleSeconds = nonNegativeNumber(row.sample_seconds);
 	if (sampleSeconds !== 300) return invalid();
+	const bundleFieldsPresent =
+		row.benchmark_id !== undefined ||
+		row.bundle_manifest_sha256 !== undefined ||
+		row.bundle_size_bytes !== undefined;
+	let benchmarkId: string | null = null;
+	let bundleManifestSha256: string | null = null;
+	let bundleSizeBytes: number | null = null;
+	if (bundleFieldsPresent) {
+		benchmarkId = text(row.benchmark_id, 196);
+		if (!/^benchmark-(?:[0-9a-f]{32}|[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5})$/u.test(benchmarkId))
+			return invalid();
+		bundleManifestSha256 = sha256(row.bundle_manifest_sha256);
+		bundleSizeBytes = nonNegativeInteger(row.bundle_size_bytes);
+		if (bundleSizeBytes <= 0) return invalid();
+	}
 	const profiles = row.profiles;
 	if (!Array.isArray(profiles) || profiles.length !== 4) return invalid();
 	const parsed = profiles.map((raw): BenchmarkProfileResult => {
@@ -2212,6 +2227,28 @@ export function parseBenchmarkResult(
 			!executionLineage.gpu.model
 		)
 			return invalid();
+		let transcriptSha256: string | null = null;
+		let transcriptSizeBytes: number | null = null;
+		let artifactAvailable = false;
+		const profileArtifactFieldsPresent =
+			item.artifact_available !== undefined ||
+			item.transcript_sha256 !== undefined ||
+			item.transcript_size_bytes !== undefined ||
+			item.benchmark_id !== undefined;
+		if (bundleFieldsPresent) {
+			if (
+				item.artifact_available !== true ||
+				item.benchmark_id !== benchmarkId ||
+				item.sample_identity_sha256 !== row.sample_identity_sha256
+			)
+				return invalid();
+			transcriptSha256 = sha256(item.transcript_sha256);
+			transcriptSizeBytes = nonNegativeInteger(item.transcript_size_bytes);
+			if (transcriptSizeBytes <= 0) return invalid();
+			artifactAvailable = true;
+		} else if (profileArtifactFieldsPresent) {
+			return invalid();
+		}
 		return {
 			profileId: transcriptionProfile(item.profile_id),
 			engine,
@@ -2233,20 +2270,10 @@ export function parseBenchmarkResult(
 			segmentCount: nonNegativeInteger(item.segment_count),
 			trackCount: nonNegativeInteger(item.track_count),
 			warningCount: nonNegativeInteger(item.warning_count),
-			executionLineage: parseExecutionLineage(item.execution_lineage),
-			transcriptSha256:
-				item.transcript_sha256 === undefined || item.transcript_sha256 === null
-					? null
-					: sha256(item.transcript_sha256),
-			transcriptSizeBytes:
-				item.transcript_size_bytes === undefined ||
-				item.transcript_size_bytes === null
-					? null
-					: nonNegativeInteger(item.transcript_size_bytes),
-			artifactAvailable:
-				item.artifact_available === undefined
-					? false
-					: boolean(item.artifact_available),
+			executionLineage,
+			transcriptSha256,
+			transcriptSizeBytes,
+			artifactAvailable,
 		};
 	});
 	const expected: readonly TranscriptionProfileId[] = [
@@ -2274,252 +2301,10 @@ export function parseBenchmarkResult(
 		trackCount: nonNegativeInteger(row.track_count),
 		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
 		prepared: boolean(row.prepared),
-		benchmarkId:
-			row.benchmark_id === undefined || row.benchmark_id === null
-				? null
-				: /^benchmark-(?:[0-9a-f]{32}|[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5})$/u.test(
-						text(row.benchmark_id, 196),
-					)
-					? text(row.benchmark_id, 196)
-					: invalid(),
-		bundleManifestSha256:
-			row.bundle_manifest_sha256 === undefined ||
-			row.bundle_manifest_sha256 === null
-				? null
-				: sha256(row.bundle_manifest_sha256),
-		bundleSizeBytes:
-			row.bundle_size_bytes === undefined || row.bundle_size_bytes === null
-				? null
-				: nonNegativeInteger(row.bundle_size_bytes),
+		benchmarkId,
+		bundleManifestSha256,
+		bundleSizeBytes,
 		profiles: parsed,
-	};
-}
-
-export function parseBenchmarkTranscript(
-	value: unknown,
-	expectedProfileId: TranscriptionProfileId,
-): BenchmarkTranscript {
-	const row = record(value);
-	if (row.schema_version !== "tda_transcript_v1") return invalid();
-	const engine = record(row.engine);
-	if (transcriptionProfile(engine.profile) !== expectedProfileId) return invalid();
-	const tracks = row.tracks;
-	if (!Array.isArray(tracks) || tracks.length > 256) return invalid();
-	const segments: LocalReviewSegment[] = [];
-	for (const rawTrack of tracks) {
-		const track = record(rawTrack);
-		const trackNumber = nonNegativeInteger(track.number);
-		if (trackNumber < 1) return invalid();
-		const speaker = text(track.speaker, 160);
-		const offset =
-			track.timeline_offset_seconds === undefined
-				? 0
-				: nonNegativeNumber(track.timeline_offset_seconds);
-		if (!Array.isArray(track.segments) || track.segments.length > 500_000)
-			return invalid();
-		for (const rawSegment of track.segments) {
-			const segment = record(rawSegment);
-			const start = nonNegativeNumber(segment.start);
-			const end = nonNegativeNumber(segment.end);
-			if (end < start) return invalid();
-			segments.push({
-				trackNumber,
-				segmentId: text(segment.id, 256),
-				start,
-				end,
-				timelineStart: start + offset,
-				timelineEnd: end + offset,
-				text: text(segment.text, 100_000),
-				speaker,
-				reviewed: false,
-			});
-		}
-	}
-	return {
-		schemaVersion: "tda_benchmark_transcript_view_v1",
-		profileId: expectedProfileId,
-		sourceSha256: sha256(row.source_sha256),
-		segments,
-		trackCount: tracks.length,
-	};
-}
-
-export function parseBenchmarkProfileMetrics(value: unknown): BenchmarkProfileMetrics {
-	const row = record(value);
-	if (row.schema_version !== "tda_benchmark_metrics_v1") return invalid();
-	const processing = record(row.processing_metrics);
-	if (processing.version !== PROCESSING_TIMING_VERSION) return invalid();
-	const stageRaw = record(processing.stage_seconds);
-	const stageSeconds: Record<string, number> = {};
-	for (const [key, raw] of Object.entries(stageRaw)) {
-		if (!/^[a-z0-9_]{1,64}$/u.test(key)) return invalid();
-		stageSeconds[key] = nonNegativeNumber(raw);
-	}
-	return {
-		profileId: transcriptionProfile(row.profile_id),
-		processingSeconds: nonNegativeNumber(row.processing_seconds),
-		rtf: nullableMetric(row.rtf),
-		stageSeconds,
-		freshAudioWorkSeconds: nonNegativeNumber(processing.fresh_audio_work_seconds),
-		reusedAudioWorkSeconds: nonNegativeNumber(processing.reused_audio_work_seconds),
-		executionLineage: parseExecutionLineage(row.execution_lineage),
-	};
-}
-
-export function parseBenchmarkProfileTelemetry(value: unknown): BenchmarkProfileTelemetry {
-	const row = record(value);
-	if (row.schema_version !== "tda_benchmark_telemetry_v1") return invalid();
-	const aggregates = record(row.aggregates);
-	const coverage = nonNegativeNumber(row.coverage);
-	if (coverage > 1) return invalid();
-	return {
-		coverage,
-		capturedSamples: nonNegativeInteger(row.captured_samples),
-		aggregates: {
-			cpuAvgPercent: nullableMetric(aggregates.cpu_avg_percent),
-			cpuP95Percent: nullableMetric(aggregates.cpu_p95_percent),
-			ramPeakBytes: nullableMetric(aggregates.ram_peak_bytes),
-			gpuUtilizationAvgPercent: nullableMetric(aggregates.gpu_utilization_avg_percent),
-			gpuUtilizationP95Percent: nullableMetric(aggregates.gpu_utilization_p95_percent),
-			gpuUtilizationPeakPercent: nullableMetric(aggregates.gpu_utilization_peak_percent),
-			vramPeakBytes: nullableMetric(aggregates.vram_peak_bytes),
-			temperatureMaxC: nullableMetric(aggregates.temperature_max_c),
-			powerAvgW: nullableMetric(aggregates.power_avg_w),
-			powerPeakW: nullableMetric(aggregates.power_peak_w),
-		},
-	};
-}
-
-export function parseBenchmarkReference(value: unknown): BenchmarkReference | null {
-	const envelope = record(value);
-	const raw = envelope.reference;
-	if (raw === null) return null;
-	const row = record(raw);
-	if (row.schema_version !== "tda_benchmark_reference_v1") return invalid();
-	const payload = record(row.payload);
-	if (!Array.isArray(payload.tracks) || payload.tracks.length > 256) return invalid();
-	const tracks = payload.tracks.map((rawTrack): BenchmarkReferenceTrack => {
-		const track = record(rawTrack);
-		const trackNumber = nonNegativeInteger(track.track_number);
-		if (trackNumber < 1) return invalid();
-		return {
-			trackNumber,
-			speaker: nullableText(track.speaker, 160),
-			text: text(track.text, 2_000_000),
-		};
-	});
-	const capability = text(row.capability, 32);
-	if (capability !== "text" && capability !== "timed_turns") return invalid();
-	const provenance = text(row.provenance, 32);
-	if (!["manual", "imported", "profile_seed"].includes(provenance)) return invalid();
-	return {
-		revision: nonNegativeInteger(row.revision),
-		provenance: provenance as BenchmarkReference["provenance"],
-		seedProfileId:
-			row.seed_profile_id === null || row.seed_profile_id === undefined
-				? null
-				: transcriptionProfile(row.seed_profile_id),
-		capability,
-		tracks,
-	};
-}
-
-function nullableMetric(value: unknown): number | null {
-	return value === null || value === undefined ? null : nonNegativeNumber(value);
-}
-
-export function parseBenchmarkQualitySummary(value: unknown): BenchmarkQualitySummary {
-	const row = record(value);
-	if (row.schema_version !== "tda_benchmark_quality_summary_v1") return invalid();
-	const referenceRaw = row.reference;
-	const reference =
-		referenceRaw === null
-			? null
-			: (() => {
-					const ref = record(referenceRaw);
-					const capability = text(ref.capability, 32);
-					const provenance = text(ref.provenance, 32);
-					if (
-						(capability !== "text" && capability !== "timed_turns") ||
-						!["manual", "imported", "profile_seed"].includes(provenance)
-					)
-						return invalid();
-					return {
-						revision: nonNegativeInteger(ref.revision),
-						capability,
-						provenance: provenance as
-							| "manual"
-							| "imported"
-							| "profile_seed",
-						seedProfileId:
-							ref.seed_profile_id === null || ref.seed_profile_id === undefined
-								? null
-								: transcriptionProfile(ref.seed_profile_id),
-					};
-				})();
-	if (!Array.isArray(row.profiles) || row.profiles.length > 4) return invalid();
-	const profiles = row.profiles.map((rawProfile): BenchmarkQualityProfile => {
-		const profile = record(rawProfile);
-		const overall = record(profile.overall);
-		const timingRaw = profile.timing;
-		const termRaw = profile.term_fidelity;
-		const timing =
-			timingRaw === null || timingRaw === undefined
-				? null
-				: (() => {
-						const item = record(timingRaw);
-						return {
-							matchedTurns: nonNegativeInteger(item.matched_turns),
-							speakerAccuracy: nullableMetric(item.speaker_accuracy),
-							startMaeSeconds: nullableMetric(item.start_mae_seconds),
-							endMaeSeconds: nullableMetric(item.end_mae_seconds),
-							boundaryP50Seconds: nullableMetric(item.boundary_p50_seconds),
-							boundaryP95Seconds: nullableMetric(item.boundary_p95_seconds),
-							overlapPrecision: nullableMetric(item.overlap_precision),
-							overlapRecall: nullableMetric(item.overlap_recall),
-							overlapF1: nullableMetric(item.overlap_f1),
-						};
-					})();
-		const termFidelity =
-			termRaw === null || termRaw === undefined
-				? null
-				: (() => {
-						const item = record(termRaw);
-						return {
-							referenceOccurrences: nonNegativeInteger(item.reference_occurrences),
-							hypothesisOccurrences: nonNegativeInteger(item.hypothesis_occurrences),
-							correctOccurrences: nonNegativeInteger(item.correct_occurrences),
-							missedOccurrences: nonNegativeInteger(item.missed_occurrences),
-							extraOccurrences: nonNegativeInteger(item.extra_occurrences),
-							recall: nullableMetric(item.recall),
-							precision: nullableMetric(item.precision),
-						};
-					})();
-		return {
-			profileId: transcriptionProfile(profile.profile_id),
-			overall: {
-				referenceWords: nonNegativeInteger(overall.reference_words),
-				hypothesisWords: nonNegativeInteger(overall.hypothesis_words),
-				substitutions: nonNegativeInteger(overall.substitutions),
-				deletions: nonNegativeInteger(overall.deletions),
-				insertions: nonNegativeInteger(overall.insertions),
-				werNormalized: nullableMetric(overall.wer_normalized),
-				referenceCharacters: nonNegativeInteger(overall.reference_characters),
-				hypothesisCharacters: nonNegativeInteger(overall.hypothesis_characters),
-				characterEdits: nonNegativeInteger(overall.character_edits),
-				cerNormalized: nullableMetric(overall.cer_normalized),
-			},
-			timing,
-			termFidelity,
-		};
-	});
-	return {
-		benchmarkId: /^benchmark-[0-9a-f]{32}$/u.test(text(row.benchmark_id, 64))
-			? text(row.benchmark_id, 64)
-			: invalid(),
-		qualityMeasured: boolean(row.quality_measured),
-		reference,
-		profiles,
 	};
 }
 
