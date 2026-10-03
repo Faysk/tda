@@ -544,6 +544,42 @@ test("long session summaries expose compact stable section navigation without bu
 	const longPath =
 		"/campanhas/cronicas-da-mesa/sessoes/layout-contract-long";
 
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto(`${longPath}#secao-capitulo-8`);
+	const deepLinkedHeading = page.getByRole("heading", { name: "Capítulo 8" });
+	await expect(deepLinkedHeading).toHaveAttribute("id", "secao-capitulo-8");
+	await expect(deepLinkedHeading).toBeInViewport();
+	const deepLinkedBox = await deepLinkedHeading.boundingBox();
+	expect(deepLinkedBox).not.toBeNull();
+	expect(deepLinkedBox?.y ?? -1).toBeGreaterThanOrEqual(0);
+
+	const keyboardNavigation = page.getByRole("navigation", {
+		name: "Nesta sessão",
+	});
+	const keyboardDisclosure = keyboardNavigation.locator("details");
+	const keyboardSummary = keyboardDisclosure.locator("summary");
+	await keyboardSummary.focus();
+	await expect(keyboardSummary).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(keyboardDisclosure).toHaveAttribute("open", "");
+
+	await expect(
+		page.getByRole("navigation", { name: "Navegação entre sessões" }),
+	).toBeVisible();
+	const archiveLink = page.getByRole("link", {
+		name: /Arquivo de Crônicas da Mesa/u,
+	});
+	await archiveLink.focus();
+	await expect(archiveLink).toBeFocused();
+	await archiveLink.click();
+	await expect(page).toHaveURL(
+		/\/campanhas\/cronicas-da-mesa\/sessoes$/u,
+	);
+	await page.goBack();
+	await expect(page).toHaveURL(
+		new RegExp(`${longPath}#secao-capitulo-8$`, "u"),
+	);
+
 	for (const viewport of [
 		{ width: 320, height: 800 },
 		{ width: 390, height: 844 },
@@ -574,8 +610,9 @@ test("long session summaries expose compact stable section navigation without bu
 		expect(firstId).toBeTruthy();
 		expect(secondId).toBeTruthy();
 		expect(firstId).not.toBe(secondId);
+		if (!secondId) throw new Error("Second repeated heading is missing its stable ID");
 
-		await select.selectOption(secondId!);
+		await select.selectOption(secondId);
 		await expect(page).toHaveURL(new RegExp(`#${secondId}$`, "u"));
 		await expect(repeated.nth(1)).toBeInViewport();
 		await expect(repeated.nth(1)).toBeFocused();
