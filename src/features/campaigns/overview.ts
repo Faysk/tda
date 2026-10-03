@@ -1,57 +1,16 @@
 import "server-only";
 
-import type { LoreRouteKind } from "@/features/lore/model";
 import { publishedDataClient } from "@/integrations/supabase/server";
-
-export type CampaignOverviewNarrativeLink = Readonly<{
-	routeKind: LoreRouteKind;
-	label: string;
-	href: string;
-}>;
+import {
+	CAMPAIGN_OVERVIEW_PUBLIC_ENTITY_TYPES,
+	campaignOverviewNarrativeLinksFromEntityTypes,
+	type CampaignOverviewNarrativeLink,
+} from "./overview-presentation";
 
 type OverviewCampaign = Readonly<{
 	routeKey: string;
 	technicalSlug: string;
 }>;
-
-const NARRATIVE_ROUTES = [
-	{ routeKind: "personagens", label: "Personagens", entityTypes: ["pc"] },
-	{ routeKind: "npcs", label: "NPCs", entityTypes: ["npc"] },
-	{ routeKind: "lugares", label: "Lugares", entityTypes: ["location"] },
-	{
-		routeKind: "faccoes",
-		label: "Facções",
-		entityTypes: ["organization", "faction"],
-	},
-	{ routeKind: "quests", label: "Quests", entityTypes: ["quest"] },
-	{ routeKind: "musicas", label: "Músicas", entityTypes: ["song"] },
-] as const satisfies readonly {
-	routeKind: LoreRouteKind;
-	label: string;
-	entityTypes: readonly string[];
-}[];
-
-const PUBLIC_ENTITY_TYPES = [
-	...new Set(NARRATIVE_ROUTES.flatMap((route) => route.entityTypes)),
-];
-
-export function campaignOverviewNarrativeLinksFromEntityTypes(
-	routeKey: string,
-	entityTypes: readonly string[],
-): readonly CampaignOverviewNarrativeLink[] {
-	const available = new Set(entityTypes);
-	return NARRATIVE_ROUTES.flatMap((route) =>
-		route.entityTypes.some((entityType) => available.has(entityType))
-			? [
-					{
-						routeKind: route.routeKind,
-						label: route.label,
-						href: `/campanhas/${encodeURIComponent(routeKey)}/${route.routeKind}`,
-					},
-				]
-			: [],
-	);
-}
 
 function fixtureNarrativeEntityTypes(routeKey: string): readonly string[] {
 	if (routeKey === "cronicas-da-mesa") return ["pc", "location"];
@@ -94,7 +53,7 @@ export async function readPublicCampaignNarrativeLinks(
 		.select("entity_type")
 		.eq("campaign_id", campaignRow.id)
 		.eq("visibility", "public_web")
-		.in("entity_type", PUBLIC_ENTITY_TYPES)
+		.in("entity_type", CAMPAIGN_OVERVIEW_PUBLIC_ENTITY_TYPES)
 		.limit(500);
 
 	if (error || !Array.isArray(data)) return null;
