@@ -48,6 +48,7 @@ A coluna **contexto** descreve a campanha necessária para a operação, não se
 | --- | --- | --- | --- | --- |
 | `/` | pública | agregado | somente projeções públicas elegíveis | canônica |
 | `/campanhas` | pública | agregado | diretório público mínimo | canônica |
+| `/campanhas/[campaign]` | pública | obrigatório | overview público da campaign + entradas scoped | canônica; alias ativo → 308 |
 | `/campanhas/sessoes` | pública | agregado | sessions publicadas de campaigns públicas/ativas | canônica |
 | `/campanhas/[campaign]/sessoes` | pública | obrigatório | archive público da campaign resolvida | canônica |
 | `/campanhas/[campaign]/sessoes/[sourceSessionId]` | pública | obrigatório | detalhe publicado campaign-qualified | canônica |

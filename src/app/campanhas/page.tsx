@@ -138,12 +138,20 @@ export default async function CampaignDirectoryPage() {
 										) : (
 											<span className={styles.count} aria-hidden="true" />
 										)}
-										<Link
-											className={styles.link}
-											href={`/campanhas/${campaign.routeKey}/sessoes`}
-										>
-											Abrir campanha <span aria-hidden="true">→</span>
-										</Link>
+										<div className={styles.cardActions}>
+											<Link
+												className={`${styles.link} ${styles.secondaryLink}`}
+												href={`/campanhas/${campaign.routeKey}/sessoes`}
+											>
+												Sessões
+											</Link>
+											<Link
+												className={styles.link}
+												href={`/campanhas/${campaign.routeKey}`}
+											>
+												Abrir campanha <span aria-hidden="true">→</span>
+											</Link>
+										</div>
 									</div>
 								</div>
 							</article>
