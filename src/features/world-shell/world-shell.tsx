@@ -3,7 +3,11 @@
 import { useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
-import { WORLD_NAV_ITEMS, worldNavItemIsCurrent } from "./navigation-model";
+import {
+	WORLD_NAV_ITEMS,
+	worldNavHrefForPathname,
+	worldNavItemIsCurrent,
+} from "./navigation-model";
 import { WorldNavigation, WorldNavigationIntro } from "./world-navigation";
 import styles from "./world-shell.module.css";
 
@@ -12,7 +16,13 @@ export function WorldShell({ children }: { children: React.ReactNode }) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
 	const [railCollapsed, setRailCollapsed] = useState(false);
 	const current = useMemo(
-		() => WORLD_NAV_ITEMS.find((item) => worldNavItemIsCurrent(pathname, item.href)),
+		() =>
+			WORLD_NAV_ITEMS.find((item) =>
+				worldNavItemIsCurrent(
+					pathname,
+					worldNavHrefForPathname(pathname, item.href),
+				),
+			),
 		[pathname],
 	);
 
