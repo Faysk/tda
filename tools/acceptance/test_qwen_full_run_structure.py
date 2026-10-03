@@ -3,12 +3,14 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import re
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).with_name("qwen_full_run_structure.py")
+GENERIC_GATE = Path(__file__).with_name("run-qwen-recovery-physical-gate.ps1")
 SPEC = importlib.util.spec_from_file_location("qwen_full_run_structure", MODULE_PATH)
 assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
@@ -18,7 +20,7 @@ SPEC.loader.exec_module(module)
 SOURCE_SHA = "b2ac78347d88b2761e51be38a60aa266933e3b00f30e72c50626fbe599849b1e"
 
 
-def transcript() -> dict:
+def transcript(*, profile_id: str = "qwen-fast") -> dict:
     tracks = []
     for number in range(1, 5):
         tracks.append(
@@ -55,7 +57,7 @@ def transcript() -> dict:
         "engine": {
             "engine": "qwen3",
             "model": "synthetic",
-            "profile": "qwen-fast",
+            "profile": profile_id,
             "device": "cuda",
             "compute_type": "bfloat16",
             "alignment": "synthetic",
@@ -96,7 +98,7 @@ class QwenFullRunStructureTests(unittest.TestCase):
             "source_sha256": SOURCE_SHA,
             "job_id": "job",
             "attempt": attempt,
-            "profile_id": "qwen-fast",
+            "profile_id": value["engine"]["profile"],
             "engine": "qwen3",
             "model": "synthetic",
             "model_revision": "deadbeef",
@@ -121,7 +123,13 @@ class QwenFullRunStructureTests(unittest.TestCase):
         marker_path.write_text(json.dumps(marker, sort_keys=True), encoding="utf-8")
         return transcript_path, marker_path
 
-    def validate(self, transcript_path: Path, marker_path: Path):
+    def validate(
+        self,
+        transcript_path: Path,
+        marker_path: Path,
+        *,
+        expected_profile_id: str = "qwen-fast",
+    ):
         return module.validate_full_run(
             transcript_path=transcript_path,
             run_marker_path=marker_path,
@@ -129,7 +137,7 @@ class QwenFullRunStructureTests(unittest.TestCase):
             expected_source_sha256=SOURCE_SHA,
             job_id="job",
             attempt=2,
-            expected_profile_id="qwen-fast",
+            expected_profile_id=expected_profile_id,
             expected_track_count=4,
             repo_root=Path(__file__).resolve().parents[2],
         )
@@ -149,6 +157,41 @@ class QwenFullRunStructureTests(unittest.TestCase):
         self.assertNotIn("speaker-", serialized)
         self.assertFalse(receipt["contains_transcript"])
         self.assertFalse(receipt["contains_paths"])
+
+    def test_power_shell_gate_qwen_quality_profile_is_accepted(self):
+        gate_text = GENERIC_GATE.read_text(encoding="utf-8")
+        match = re.search(r'--profile-id\s+"([^"]+)"', gate_text)
+        self.assertIsNotNone(match)
+        assert match is not None
+        profile_id = match.group(1)
+        self.assertEqual(profile_id, "qwen-quality")
+
+        value = transcript(profile_id=profile_id)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript_path, marker_path = self.write_fixture(root, value)
+            receipt = self.validate(
+                transcript_path,
+                marker_path,
+                expected_profile_id=profile_id,
+            )
+
+        self.assertEqual(receipt["profile_id"], "qwen-quality")
+        self.assertTrue(receipt["immutable_run_verified"])
+
+    def test_unsupported_expected_profile_is_harness_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript_path, marker_path = self.write_fixture(root, transcript())
+            with self.assertRaisesRegex(
+                module.QwenFullRunHarnessError,
+                "QWEN_1236_FULL_RUN_EXPECTED_PROFILE_INVALID",
+            ):
+                self.validate(
+                    transcript_path,
+                    marker_path,
+                    expected_profile_id="qwen-unknown",
+                )
 
     def test_source_mismatch_fails_closed(self):
         value = transcript()
