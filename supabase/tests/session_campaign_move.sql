@@ -172,6 +172,16 @@ begin
      or has_function_privilege('authenticated','public.move_session_campaign_atomic(uuid,uuid,text,text,uuid,text,uuid)','execute') then
     raise exception 'browser role can access session move boundary';
   end if;
+
+  if not has_table_privilege('service_role','public.session_campaign_move_operations','select')
+     or not has_table_privilege('service_role','public.session_campaign_move_operations','insert')
+     or has_table_privilege('service_role','public.session_campaign_move_operations','update')
+     or has_table_privilege('service_role','public.session_campaign_move_operations','delete')
+     or has_table_privilege('service_role','public.session_campaign_move_operations','truncate')
+     or not has_function_privilege('service_role','public.preflight_session_campaign_move(uuid,uuid,text,text,uuid,text)','execute')
+     or not has_function_privilege('service_role','public.move_session_campaign_atomic(uuid,uuid,text,text,uuid,text,uuid)','execute') then
+    raise exception 'service_role session move privileges are not minimal';
+  end if;
 end
 $tda_move_security$;
 
