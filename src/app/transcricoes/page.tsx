@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { currentAccess } from "@/features/auth/server";
+import { CampaignRoutePicker } from "@/features/campaigns/campaign-picker";
+import { campaignManagementHref } from "@/features/campaigns/entrypoints";
+import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import {
 	readAuthorizedCampaigns,
 	type AuthorizedCampaign,
@@ -35,55 +38,6 @@ function first(value: string | string[] | undefined) {
 
 function transcriptsHref(campaignSlug: string) {
 	return `/edit/${encodeURIComponent(campaignSlug)}/transcricoes`;
-}
-
-function CampaignPicker({
-	campaigns,
-	selected,
-	invalidSelection = false,
-}: Readonly<{
-	campaigns: readonly AuthorizedCampaign[];
-	selected?: string;
-	invalidSelection?: boolean;
-}>) {
-	return (
-		<div className={styles.campaignContext}>
-			{invalidSelection ? (
-				<p className={styles.campaignAlert} role="alert">
-					A campanha pedida não está disponível neste contexto. Ela pode não
-					existir, estar fora do seu acesso ou não estar mais disponível.
-					Nenhuma outra campanha foi escolhida automaticamente.
-				</p>
-			) : null}
-			<form className={styles.campaignPicker} method="get">
-				<label htmlFor="transcripts-campaign">
-					<span>Campanha</span>
-					<select
-						id="transcripts-campaign"
-						name="campanha"
-						required
-						defaultValue={selected ?? ""}
-					>
-						<option value="" disabled>
-							Selecione…
-						</option>
-						{campaigns.map((campaign) => (
-							<option
-								key={campaign.technicalSlug}
-								value={campaign.technicalSlug}
-							>
-								{campaign.name}
-								{campaign.lifecycle === "archived" ? " (arquivada)" : ""}
-							</option>
-						))}
-					</select>
-				</label>
-				<button type="submit">
-					{selected ? "Trocar campanha" : "Abrir transcrições"}
-				</button>
-			</form>
-		</div>
-	);
 }
 
 function AccessState({
@@ -169,13 +123,25 @@ export default async function TranscriptsPage({
 		);
 	}
 
+	const canManageCampaigns = canManageCampaignRegistry(access.context);
+	const campaignChoices = eligible.campaigns.map((campaign) => ({
+		value: campaign.technicalSlug,
+		label: campaign.name,
+		lifecycle: campaign.lifecycle,
+		href: transcriptsHref(campaign.technicalSlug),
+	}));
+
 	if (!eligible.campaigns.length) {
 		return (
 			<AccessState
 				title="Nenhuma campanha disponível"
 				message="Seu perfil não possui acesso de leitura de transcrições em nenhuma campanha disponível."
-				href="/conta"
-				label="Consultar meu acesso"
+				href={
+					canManageCampaigns
+						? campaignManagementHref("/transcricoes")
+						: "/conta"
+				}
+				label={canManageCampaigns ? "Gerir campanhas" : "Consultar meu acesso"}
 			/>
 		);
 	}
@@ -207,10 +173,29 @@ export default async function TranscriptsPage({
 						</p>
 					}
 				/>
-				<CampaignPicker
-					campaigns={eligible.campaigns}
-					invalidSelection={Boolean(requestedCampaign)}
-				/>
+				{requestedCampaign ? (
+					<p className={styles.campaignAlert} role="alert">
+						A campanha pedida não está disponível neste contexto. Nenhuma outra
+						campanha foi escolhida automaticamente.
+					</p>
+				) : null}
+				<div className={styles.campaignContext}>
+					<CampaignRoutePicker
+						actionLabel="Abrir transcrições"
+						ariaLabel="Campanha das transcrições"
+						behavior="confirm"
+						currentValue={undefined}
+						manageAction={
+							canManageCampaigns
+								? {
+										label: "Gerir campanhas",
+										href: campaignManagementHref("/transcricoes"),
+									}
+								: undefined
+						}
+						options={campaignChoices}
+					/>
+				</div>
 			</section>
 		);
 	}
@@ -235,10 +220,25 @@ export default async function TranscriptsPage({
 					eyebrow="Transcrições"
 					title={selected.name}
 				/>
-				<CampaignPicker
-					campaigns={eligible.campaigns}
-					selected={selected.technicalSlug}
-				/>
+				<div className={styles.campaignContext}>
+					<CampaignRoutePicker
+						actionLabel="Trocar campanha"
+						ariaLabel="Campanha das transcrições"
+						behavior="confirm"
+						currentValue={selected.technicalSlug}
+						manageAction={
+							canManageCampaigns
+								? {
+										label: "Gerir campanhas",
+										href: campaignManagementHref(
+											transcriptsHref(selected.technicalSlug),
+										),
+									}
+								: undefined
+						}
+						options={campaignChoices}
+					/>
+				</div>
 				<p role="status">{message}</p>
 				<p className={styles.accountLink}>
 					<Link href="/conta">Consultar meu acesso</Link>
@@ -271,10 +271,25 @@ export default async function TranscriptsPage({
 				}
 			/>
 
-			<CampaignPicker
-				campaigns={eligible.campaigns}
-				selected={selected.technicalSlug}
-			/>
+			<div className={styles.campaignContext}>
+				<CampaignRoutePicker
+					actionLabel="Trocar campanha"
+					ariaLabel="Campanha das transcrições"
+					behavior="confirm"
+					currentValue={selected.technicalSlug}
+					manageAction={
+						canManageCampaigns
+							? {
+									label: "Gerir campanhas",
+									href: campaignManagementHref(
+										transcriptsHref(selected.technicalSlug),
+									),
+								}
+							: undefined
+					}
+					options={campaignChoices}
+				/>
+			</div>
 
 			<dl
 				className={styles.summaryStrip}
