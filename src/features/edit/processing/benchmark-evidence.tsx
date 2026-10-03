@@ -85,46 +85,163 @@ function trackDraft(transcript: BenchmarkTranscript): BenchmarkReferenceTrack[] 
 function ComparisonRows({
 	regions,
 	mode,
-}: Readonly<{ regions: readonly RunComparisonRegion[]; mode: "text" | "timing" }>) {
+	scopeId,
+}: Readonly<{
+	regions: readonly RunComparisonRegion[];
+	mode: "text" | "timing";
+	scopeId: string;
+}>) {
+	const [trackFilter, setTrackFilter] = useState("all");
+	const [startFilter, setStartFilter] = useState("");
+	const [endFilter, setEndFilter] = useState("");
+	const [activeIndex, setActiveIndex] = useState(0);
 	const different = regions.filter(
 		(region) => region.kind !== "equal" || region.speakerChanged,
 	);
-	const visible = different.slice(0, 80);
-	if (!visible.length)
+	const tracks = [...new Set(different.map((region) => region.trackNumber))].sort(
+		(left, right) => left - right,
+	);
+	const startSeconds =
+		startFilter.trim() === "" ? null : Number.parseFloat(startFilter);
+	const endSeconds = endFilter.trim() === "" ? null : Number.parseFloat(endFilter);
+	const filtered = different.filter((region) => {
+		if (trackFilter !== "all" && region.trackNumber !== Number(trackFilter))
+			return false;
+		if (
+			startSeconds !== null &&
+			Number.isFinite(startSeconds) &&
+			region.sessionEnd < startSeconds
+		)
+			return false;
+		if (
+			endSeconds !== null &&
+			Number.isFinite(endSeconds) &&
+			region.sessionStart > endSeconds
+		)
+			return false;
+		return true;
+	});
+	const visible = filtered.slice(0, 80);
+
+	useEffect(() => {
+		setActiveIndex(0);
+	}, [trackFilter, startFilter, endFilter, regions]);
+
+	function jump(delta: number) {
+		if (!visible.length) return;
+		const next = (activeIndex + delta + visible.length) % visible.length;
+		setActiveIndex(next);
+		window.requestAnimationFrame(() => {
+			document
+				.getElementById(`${scopeId}-benchmark-diff-${next}`)
+				?.focus({ preventScroll: false });
+		});
+	}
+
+	if (!different.length)
 		return <p className={styles.empty}>Nenhuma diferença detectada com a tolerância temporal atual.</p>;
 	return (
-		<div className={styles.diffList}>
-			{visible.map((region) => (
-				<article key={region.id} className={styles.diffRow} data-kind={region.kind}>
-					<header>
-						<strong>Track {region.trackNumber}</strong>
-						<span>
-							{compactTime(region.sessionStart)}–{compactTime(region.sessionEnd)}
-						</span>
-						<span>{region.kind.replace("_", " ")}</span>
-						{region.speakerChanged ? <em>speaker mudou</em> : null}
-					</header>
-					{mode === "text" ? (
-						<div className={styles.diffColumns}>
-							<p>{region.leftText || "∅"}</p>
-							<p>{region.rightText || "∅"}</p>
-						</div>
-					) : (
-						<div className={styles.timingFacts}>
-							<span>Esquerda: {region.left.length} segmento(s)</span>
-							<span>Direita: {region.right.length} segmento(s)</span>
-							<span>Início: {number(region.sessionStart, " s")}</span>
-							<span>Fim: {number(region.sessionEnd, " s")}</span>
-						</div>
-					)}
-				</article>
-			))}
-			{different.length > visible.length ? (
-				<p className={styles.notice}>
-					Mostrando as primeiras {visible.length} de {different.length} regiões diferentes.
-				</p>
-			) : null}
-		</div>
+		<>
+			<div className={styles.actions} aria-label="Filtros e navegação das diferenças">
+				<label>
+					<span>Track</span>
+					<select
+						aria-label="Filtrar track"
+						value={trackFilter}
+						onChange={(event) => setTrackFilter(event.target.value)}
+					>
+						<option value="all">Todas</option>
+						{tracks.map((track) => (
+							<option key={track} value={track}>Track {track}</option>
+						))}
+					</select>
+				</label>
+				<label>
+					<span>De (s)</span>
+					<input
+						aria-label="Tempo inicial em segundos"
+						type="number"
+						min="0"
+						step="0.1"
+						value={startFilter}
+						onChange={(event) => setStartFilter(event.target.value)}
+					/>
+				</label>
+				<label>
+					<span>Até (s)</span>
+					<input
+						aria-label="Tempo final em segundos"
+						type="number"
+						min="0"
+						step="0.1"
+						value={endFilter}
+						onChange={(event) => setEndFilter(event.target.value)}
+					/>
+				</label>
+				<Button
+					type="button"
+					variant="tertiary"
+					disabled={!visible.length}
+					onClick={() => jump(-1)}
+				>
+					Diferença anterior
+				</Button>
+				<Button
+					type="button"
+					variant="tertiary"
+					disabled={!visible.length}
+					onClick={() => jump(1)}
+				>
+					Próxima diferença
+				</Button>
+				<span aria-live="polite">
+					{visible.length ? `Diferença ${activeIndex + 1} de ${visible.length}` : "Nenhuma diferença neste filtro"}
+				</span>
+			</div>
+			{visible.length ? (
+				<div className={styles.diffList}>
+					{visible.map((region, index) => (
+						<article
+							key={region.id}
+							id={`${scopeId}-benchmark-diff-${index}`}
+							tabIndex={-1}
+							className={styles.diffRow}
+							data-kind={region.kind}
+							data-current={index === activeIndex ? "true" : undefined}
+						>
+							<header>
+								<strong>Track {region.trackNumber}</strong>
+								<span>
+									{compactTime(region.sessionStart)}–{compactTime(region.sessionEnd)}
+								</span>
+								<span>{region.kind.replace("_", " ")}</span>
+								{region.speakerChanged ? <em>speaker mudou</em> : null}
+							</header>
+							{mode === "text" ? (
+								<div className={styles.diffColumns}>
+									<p>{region.leftText || "∅"}</p>
+									<p>{region.rightText || "∅"}</p>
+								</div>
+							) : (
+								<div className={styles.timingFacts}>
+									<span>Esquerda: {region.left.length} segmento(s)</span>
+									<span>Direita: {region.right.length} segmento(s)</span>
+									<span>Início: {number(region.sessionStart, " s")}</span>
+									<span>Fim: {number(region.sessionEnd, " s")}</span>
+								</div>
+							)}
+						</article>
+					))}
+					{filtered.length > visible.length ? (
+						<p className={styles.notice}>
+							Mostrando as primeiras {visible.length} de {filtered.length} regiões neste filtro.
+						</p>
+					) : null}
+				</div>
+			) : (
+				<p className={styles.empty}>Nenhuma diferença corresponde aos filtros atuais.</p>
+			)}
+		</>
 	);
 }
 
@@ -150,6 +267,7 @@ export function BenchmarkEvidenceLab({
 	const [seedProfile, setSeedProfile] = useState<TranscriptionProfileId | null>(null);
 	const [terms, setTerms] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
 	async function loadProfile(profileId: TranscriptionProfileId, signal: AbortSignal) {
@@ -298,6 +416,7 @@ export function BenchmarkEvidenceLab({
 			anchor.rel = "noopener";
 			anchor.click();
 			window.setTimeout(() => URL.revokeObjectURL(url), 0);
+			setExportConfirmOpen(false);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Não foi possível exportar a evidência privada.");
 		} finally {
@@ -323,7 +442,12 @@ export function BenchmarkEvidenceLab({
 				<Button type="button" variant="tertiary" onClick={() => setOpen((value) => !value)}>
 					{open ? "Fechar laboratório" : "Comparar transcripts"}
 				</Button>
-				<Button type="button" variant="tertiary" disabled={busy} onClick={() => void exportEvidence()}>
+				<Button
+					type="button"
+					variant="tertiary"
+					disabled={busy}
+					onClick={() => setExportConfirmOpen(true)}
+				>
 					Exportar evidência ZIP
 				</Button>
 				<Button
@@ -347,6 +471,41 @@ export function BenchmarkEvidenceLab({
 				<span>{humanBytes(result.bundleSizeBytes)}</span>
 				<span>Privado · local · sem áudio</span>
 			</div>
+			<details>
+				<summary>Arquivos / evidências</summary>
+				<p className={styles.notice}>
+					O bundle contém o benchmark.json e, para cada perfil, transcript.json canônico,
+					metrics.json, events.jsonl e telemetria quando disponível. O ZIP privado deriva
+					TXT/VTT/SRT do JSON verificado e nunca inclui o áudio Craig.
+				</p>
+				<ul>
+					{result.profiles.map((profile) => (
+						<li key={profile.profileId}>
+							<strong>{LABELS[profile.profileId]}</strong>{" "}
+							<code title={profile.transcriptSha256 ?? undefined}>
+								transcript {profile.transcriptSha256?.slice(0, 12) ?? "indisponível"}…
+							</code>
+						</li>
+					))}
+				</ul>
+			</details>
+			{exportConfirmOpen ? (
+				<div className={styles.notice} role="group" aria-label="Confirmar exportação privada">
+					<strong>ZIP privado com conteúdo de transcrição</strong>
+					<p>
+						O arquivo inclui os quatro transcripts completos, métricas e diagnósticos locais.
+						Não inclui áudio, tokens ou caminhos locais. Guarde-o como material privado.
+					</p>
+					<div className={styles.actions}>
+						<Button type="button" variant="primary" disabled={busy} onClick={() => void exportEvidence()}>
+							{busy ? "Preparando ZIP…" : "Baixar ZIP privado"}
+						</Button>
+						<Button type="button" variant="tertiary" disabled={busy} onClick={() => setExportConfirmOpen(false)}>
+							Cancelar exportação
+						</Button>
+					</div>
+				</div>
+			) : null}
 			{error ? <p className={styles.error} role="alert">{error}</p> : null}
 
 			{referenceOpen ? (
@@ -502,7 +661,23 @@ export function BenchmarkEvidenceLab({
 								<span>{summary.rightOnlyRegions} só à direita</span>
 								<span>{summary.speakerChangedRegions} speaker diferente</span>
 							</div>
-							<ComparisonRows regions={comparison?.regions ?? []} mode={view} />
+							{view === "timing" ? (
+								<div className={styles.summary} aria-label="Semântica de timing dos perfis">
+									{[left, right].map((profileId) => {
+										const profile = result.profiles.find((item) => item.profileId === profileId);
+										return (
+											<span key={profileId}>
+												{LABELS[profileId]} · alignment {profile?.alignment ?? "—"} · {profile?.warningCount ?? 0} aviso(s)
+											</span>
+										);
+									})}
+								</div>
+							) : null}
+							<ComparisonRows
+								regions={comparison?.regions ?? []}
+								mode={view}
+								scopeId={benchmarkId}
+							/>
 						</>
 					) : null}
 					{view === "performance" && left !== right ? (
