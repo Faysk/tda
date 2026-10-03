@@ -10,6 +10,13 @@ import {
 	type FormEvent,
 } from "react";
 import { Button, Progress, Select, type SelectOption } from "@/components/ui";
+import { createCampaignRegistryAction } from "@/features/campaigns/actions";
+import { CampaignCreateDialog } from "@/features/campaigns/campaign-create-dialog";
+import {
+	CampaignPicker,
+	type CampaignPickerOption,
+} from "@/features/campaigns/campaign-picker";
+import type { ManageableCampaign } from "@/features/campaigns/model";
 import {
 	finalizeLembraUploadAction,
 	retireLembraReferenceAction,
@@ -25,6 +32,7 @@ import {
 	type LembraReference,
 	type LembraUploadIntent,
 } from "../model";
+import { reconcileCreatedLembraCampaign } from "../campaign-composer";
 import {
 	hasLembraDateFilter,
 	isWithinLembraDateRange,
@@ -48,6 +56,8 @@ type LembraExperienceProps = Readonly<{
 	initialFavoriteIds?: readonly string[];
 	initialCampaigns?: readonly LembraCampaignClassification[];
 	persistenceEnabled?: boolean;
+	canManageCampaigns?: boolean;
+	campaignCreateAction?: typeof createCampaignRegistryAction;
 }>;
 
 type ReferenceDraft = Readonly<{
@@ -291,9 +301,14 @@ export function LembraExperience({
 	initialFavoriteIds = [],
 	initialCampaigns = [],
 	persistenceEnabled = false,
+	canManageCampaigns = false,
+	campaignCreateAction = createCampaignRegistryAction,
 }: LembraExperienceProps) {
 	const [references, setReferences] = useState<LembraReference[]>(() => [
 		...initialReferences,
+	]);
+	const [campaigns, setCampaigns] = useState<LembraCampaignClassification[]>(() => [
+		...initialCampaigns,
 	]);
 	const [favoriteIds, setFavoriteIds] = useState<Set<string>>(
 		() => new Set(initialFavoriteIds),
@@ -320,25 +335,38 @@ export function LembraExperience({
 	const [editDescription, setEditDescription] = useState("");
 	const [editCampaignId, setEditCampaignId] = useState<string | null>(null);
 	const [galleryWidth, setGalleryWidth] = useState(0);
+	const [campaignCreateOpen, setCampaignCreateOpen] = useState(false);
 
 	const campaignById = useMemo(
-		() => new Map(initialCampaigns.map((campaign) => [campaign.id, campaign])),
-		[initialCampaigns],
+		() => new Map(campaigns.map((campaign) => [campaign.id, campaign])),
+		[campaigns],
+	);
+	const activeCampaignChoices = useMemo<readonly CampaignPickerOption[]>(
+		() =>
+			campaigns
+				.filter((campaign) => campaign.lifecycle === "active")
+				.map((campaign) => ({
+					value: campaign.id,
+					label: campaign.name,
+					lifecycle: campaign.lifecycle,
+				})),
+		[campaigns],
 	);
 	const activeCampaignOptions = useMemo<readonly SelectOption<string>[]>(
 		() => [
 			{ value: "", label: "Geral" },
-			...initialCampaigns
-				.filter((campaign) => campaign.lifecycle === "active")
-				.map((campaign) => ({ value: campaign.id, label: campaign.name })),
+			...activeCampaignChoices.map((campaign) => ({
+				value: campaign.value,
+				label: campaign.label,
+			})),
 		],
-		[initialCampaigns],
+		[activeCampaignChoices],
 	);
 	const campaignFilterOptions = useMemo<readonly SelectOption<string>[]>(
 		() => [
 			{ value: "all", label: "Todas as campanhas" },
 			{ value: "general", label: "Geral" },
-			...initialCampaigns.map((campaign) => ({
+			...campaigns.map((campaign) => ({
 				value: campaign.id,
 				label:
 					campaign.lifecycle === "archived"
@@ -346,7 +374,7 @@ export function LembraExperience({
 						: campaign.name,
 			})),
 		],
-		[initialCampaigns],
+		[campaigns],
 	);
 
 	const searchRef = useRef<HTMLInputElement>(null);
@@ -356,6 +384,7 @@ export function LembraExperience({
 	const dialogRef = useRef<HTMLDialogElement>(null);
 	const viewerRef = useRef<HTMLDialogElement>(null);
 	const titleRef = useRef<HTMLInputElement>(null);
+	const campaignCreateButtonRef = useRef<HTMLButtonElement>(null);
 	const dragDepthRef = useRef(0);
 	const ownedUrlsRef = useRef(new Set<string>());
 
@@ -366,6 +395,7 @@ export function LembraExperience({
 	}, []);
 
 	const closeDraft = useCallback(() => {
+		setCampaignCreateOpen(false);
 		setUploadStatus(EMPTY_UPLOAD_STATUS);
 		setMessage("");
 		setDraft((current) => {
@@ -375,6 +405,7 @@ export function LembraExperience({
 	}, [discardUrl]);
 
 	const prepareFile = useCallback((file: File | undefined) => {
+		setCampaignCreateOpen(false);
 		if (!isImageFile(file)) {
 			setMessage("Use uma imagem JPG, PNG ou WebP de até 12 MB.");
 			return;
@@ -700,6 +731,26 @@ export function LembraExperience({
 
 	function openFilePicker() {
 		fileInputRef.current?.click();
+	}
+
+	function openCampaignCreate() {
+		if (!draft || !canManageCampaigns || saving) return;
+		setMessage("");
+		setCampaignCreateOpen(true);
+	}
+
+	function handleCampaignCreated(campaign: ManageableCampaign) {
+		if (!draft) return;
+		const reconciled = reconcileCreatedLembraCampaign(
+			campaigns,
+			draft.campaignId,
+			campaign,
+		);
+		setCampaigns([...reconciled.campaigns]);
+		setDraft((current) =>
+			current ? { ...current, campaignId: reconciled.campaignId } : current,
+		);
+		setMessage(reconciled.message);
 	}
 
 	async function saveReference(event: FormEvent<HTMLFormElement>) {
@@ -1605,6 +1656,7 @@ export function LembraExperience({
 				className={styles.dialog}
 				onCancel={(event) => {
 					event.preventDefault();
+					if (campaignCreateOpen) return;
 					if (!saving) closeDraft();
 				}}
 			>
@@ -1672,9 +1724,9 @@ export function LembraExperience({
 
 							<div className={styles.field}>
 								<span>Campanha</span>
-								<Select
+								<CampaignPicker
 									value={draft.campaignId ?? ""}
-									options={activeCampaignOptions}
+									options={activeCampaignChoices}
 									onChange={(value) =>
 										setDraft((current) =>
 											current
@@ -1683,6 +1735,11 @@ export function LembraExperience({
 										)
 									}
 									ariaLabel="Campanha da referência"
+									optional
+									canCreate={canManageCampaigns}
+									canManage={canManageCampaigns}
+									onCreate={openCampaignCreate}
+									createButtonRef={campaignCreateButtonRef}
 								/>
 								<small className={styles.fieldHint}>
 									Opcional. Geral mantém a referência fora de qualquer classificação de campanha.
@@ -1827,6 +1884,15 @@ export function LembraExperience({
 					</form>
 				) : null}
 			</dialog>
+
+			<CampaignCreateDialog
+				open={Boolean(draft) && campaignCreateOpen}
+				onClose={() => setCampaignCreateOpen(false)}
+				onCreated={handleCampaignCreated}
+				createCampaign={campaignCreateAction}
+				returnFocusRef={campaignCreateButtonRef}
+				defaultVisibility="public"
+			/>
 		</div>
 	);
 }
