@@ -13,6 +13,7 @@ from .atomic_storage import atomic_write
 from .benchmark_evidence import (
     CANONICAL_PROFILES,
     BenchmarkEvidenceError,
+    bundle_descriptor,
     bundle_root,
     load_bundle,
     load_profile_transcript,
@@ -520,6 +521,7 @@ def score_profile(
         "metric_implementation": METRIC_IMPLEMENTATION,
         "normalization_version": NORMALIZATION_VERSION,
         "benchmark_id": benchmark_id,
+        "benchmark_manifest_sha256": bundle_descriptor(package_root, benchmark_id)["manifest_sha256"],
         "sample_identity_sha256": bundle["sample_identity_sha256"],
         "profile_id": profile_id,
         "transcript_sha256": _hash(transcript_raw),
