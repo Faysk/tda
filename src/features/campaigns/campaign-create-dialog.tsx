@@ -26,7 +26,7 @@ type CampaignCreateDialogProps = Readonly<{
 	onClose: () => void;
 	onCreated: (campaign: ManageableCampaign) => void;
 	createCampaign: CampaignCreateMutation;
-	returnFocusRef?: RefObject<HTMLElement | null>;
+	returnFocusRef?: RefObject<HTMLButtonElement | null>;
 	defaultVisibility?: CampaignVisibility;
 }>;
 
