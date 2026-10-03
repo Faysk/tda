@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { OperationalPageHeader } from "@/components/operational-page-header";
+import { RecoverableActionForm } from "@/features/edit/recoverable-action-form";
 import styles from "@/app/edit/campanhas/page.module.css";
 import { CampaignCoverEditor } from "./campaign-cover-editor";
 import type { ManageableCampaign } from "./model";
@@ -162,7 +163,12 @@ export function CampaignManagementView({
 										{createFeedback}
 									</p>
 								) : null}
-								<form className={styles.form} action={createAction}>
+								<RecoverableActionForm
+									className={styles.form}
+									noticeClassName={styles.feedback}
+									recoveryKey="campaign:create"
+									serverAction={createAction}
+								>
 									{returnTo ? (
 										<input type="hidden" name="returnTo" value={returnTo} />
 									) : null}
@@ -269,7 +275,7 @@ export function CampaignManagementView({
 									<button className={styles.primary} type="submit">
 										Criar campanha
 									</button>
-								</form>
+								</RecoverableActionForm>
 							</div>
 						</details>
 						{createFeedback && !createHasError ? (
@@ -388,7 +394,12 @@ export function CampaignManagementView({
 																			conteúdo entre campanhas.
 																		</p>
 																	</div>
-																	<form className={styles.form} action={updateAction}>
+																	<RecoverableActionForm
+																		recoveryKey={`campaign:update:${campaign.id}`}
+																		noticeClassName={styles.feedback}
+																		className={styles.form}
+																		serverAction={updateAction}
+																	>
 																		{returnTo ? (
 																			<input type="hidden" name="returnTo" value={returnTo} />
 																		) : null}
@@ -510,7 +521,7 @@ export function CampaignManagementView({
 																		>
 																			Salvar alterações
 																		</button>
-																	</form>
+																	</RecoverableActionForm>
 																</section>
 
 																<section
@@ -588,7 +599,11 @@ export function CampaignManagementView({
 																						Confirme o arquivamento. Esta ação não apaga a
 																						campanha nem seus links e referências históricas.
 																					</p>
-																					<form action={lifecycleAction}>
+																					<RecoverableActionForm
+																						recoveryKey={`campaign:lifecycle:${campaign.id}`}
+																						noticeClassName={styles.feedback}
+																						serverAction={lifecycleAction}
+																					>
 																						{returnTo ? (
 																							<input type="hidden" name="returnTo" value={returnTo} />
 																						) : null}
@@ -613,11 +628,15 @@ export function CampaignManagementView({
 																						>
 																							Confirmar arquivamento
 																						</button>
-																					</form>
+																					</RecoverableActionForm>
 																				</div>
 																			</details>
 																		) : (
-																			<form action={lifecycleAction}>
+																			<RecoverableActionForm
+																					recoveryKey={`campaign:lifecycle:${campaign.id}`}
+																					noticeClassName={styles.feedback}
+																					serverAction={lifecycleAction}
+																				>
 																						{returnTo ? (
 																							<input type="hidden" name="returnTo" value={returnTo} />
 																						) : null}
@@ -642,7 +661,7 @@ export function CampaignManagementView({
 																				>
 																					Reativar campanha
 																				</button>
-																			</form>
+																			</RecoverableActionForm>
 																		)}
 																	</div>
 																</details>
