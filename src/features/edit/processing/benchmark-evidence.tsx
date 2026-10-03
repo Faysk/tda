@@ -303,11 +303,7 @@ export function BenchmarkEvidenceWorkspace({
 			if (track !== "all" && region.trackNumber !== Number(track)) return false;
 			if (speaker !== "all" && !regionSpeakers(region).includes(speaker))
 				return false;
-			return regionOverlapsTimeRange(
-				region,
-				timeStart === "invalid" ? null : timeStart,
-				timeEnd === "invalid" ? null : timeEnd,
-			);
+			return regionOverlapsTimeRange(region, timeStart, timeEnd);
 		});
 	}, [
 		allRegions,
