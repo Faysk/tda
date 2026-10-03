@@ -11,6 +11,8 @@ PROTOCOL_VERSION = "tda_worker_v1"
 MAX_LINE_BYTES = 64 * 1024
 JOB_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 SOURCE_ID_PATTERN = JOB_ID_PATTERN
+BENCHMARK_ID_PATTERN = re.compile(r"^benchmark-[0-9a-f]{32}$")
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 ASR_PROFILE_IDS = frozenset({"whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"})
 OUTPUT_TYPES = frozenset({"ready", "heartbeat", "stage", "progress", "event", "result", "cancelled", "error"})
 
@@ -107,6 +109,8 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
             "cpu",
             "benchmark_mode",
             "benchmark_sample_seconds",
+            "benchmark_id",
+            "benchmark_sample_identity_sha256",
         }
         if not set(payload) <= allowed:
             raise WorkerProtocolError("WORKER_PAYLOAD_FIELDS_INVALID")
@@ -125,6 +129,8 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
         if not isinstance(benchmark_mode, bool):
             raise WorkerProtocolError("WORKER_BENCHMARK_MODE_INVALID")
         benchmark_sample_seconds = payload.get("benchmark_sample_seconds")
+        benchmark_id = payload.get("benchmark_id")
+        benchmark_sample_identity = payload.get("benchmark_sample_identity_sha256")
         if benchmark_mode:
             if (
                 isinstance(benchmark_sample_seconds, bool)
@@ -133,7 +139,14 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
                 or float(benchmark_sample_seconds) != 300.0
             ):
                 raise WorkerProtocolError("WORKER_BENCHMARK_SAMPLE_INVALID")
-        elif benchmark_sample_seconds is not None:
+            if not isinstance(benchmark_id, str) or BENCHMARK_ID_PATTERN.fullmatch(benchmark_id) is None:
+                raise WorkerProtocolError("WORKER_BENCHMARK_ID_INVALID")
+            if (
+                not isinstance(benchmark_sample_identity, str)
+                or SHA256_PATTERN.fullmatch(benchmark_sample_identity) is None
+            ):
+                raise WorkerProtocolError("WORKER_BENCHMARK_IDENTITY_INVALID")
+        elif any(value is not None for value in (benchmark_sample_seconds, benchmark_id, benchmark_sample_identity)):
             raise WorkerProtocolError("WORKER_BENCHMARK_SAMPLE_INVALID")
         normalized = {
             "source_id": source_id,
@@ -145,6 +158,8 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
         if benchmark_mode:
             normalized["benchmark_mode"] = True
             normalized["benchmark_sample_seconds"] = 300.0
+            normalized["benchmark_id"] = benchmark_id
+            normalized["benchmark_sample_identity_sha256"] = benchmark_sample_identity
         return kind, normalized
 
     raise WorkerProtocolError("WORKER_KIND_UNSUPPORTED")
