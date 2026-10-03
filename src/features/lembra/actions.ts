@@ -2,7 +2,10 @@
 
 import { randomUUID } from "node:crypto";
 import { getLembraIdentity } from "./access";
-import { resolveDiscoverableLembraCampaign } from "./campaign-discovery";
+import {
+	loadDiscoverableLembraCampaigns,
+	resolveDiscoverableLembraCampaign,
+} from "./campaign-discovery";
 import { concealUndiscoverableLembraReclassification } from "./classification-mutation";
 import {
 	LEMBRA_UPLOAD_CHUNK_BYTES,
@@ -58,6 +61,21 @@ export type LembraReferenceResult =
 export type LembraBooleanResult =
 	| Readonly<{ ok: true }>
 	| Readonly<{ ok: false; reason: LembraMutationFailure }>;
+
+export type LembraCampaignProjectionResult =
+	| Readonly<{ ok: true; campaigns: readonly LembraCampaignClassification[] }>
+	| Readonly<{ ok: false; reason: LembraMutationFailure }>;
+
+export async function refreshLembraCampaignClassificationsAction(): Promise<LembraCampaignProjectionResult> {
+	const access = await getLembraIdentity();
+	if (!access.ok) return access;
+	try {
+		const campaigns = await loadDiscoverableLembraCampaigns();
+		return { ok: true, campaigns };
+	} catch {
+		return { ok: false, reason: "dependency_unavailable" };
+	}
+}
 
 function sameUpload(
 	row: Awaited<ReturnType<typeof loadLembraReferenceRow>>,
