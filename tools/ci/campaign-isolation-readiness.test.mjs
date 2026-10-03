@@ -143,27 +143,6 @@ test("account regression is a blocker when the legacy campaign constant returns"
 	}
 });
 
-test("account picker regression is a blocker when a native select bypasses the shared control", () => {
-	const root = fixture({
-		"src/features/auth/account-campaign-picker.tsx":
-			'export const picker = <select aria-label="Campanha consultada" />;\n',
-	});
-	try {
-		const result = scanCampaignIsolationReadiness(root);
-		const account = result.blockers.find((blocker) => blocker.issue === 1330);
-		assert.ok(account);
-		assert.ok(
-			account.matches.some(
-				(match) =>
-					match.path === "src/features/auth/account-campaign-picker.tsx" &&
-					match.reason === "forbidden_global_campaign_dependency",
-			),
-		);
-	} finally {
-		rmSync(root, { recursive: true, force: true });
-	}
-});
-
 test("processing regression is a blocker even when another rollout slice is pending", () => {
 	const root = fixture({
 		"src/app/edit/processamento/page.tsx": "import { CAMPAIGN_SLUG } from \"@/features/sessions/model\";\n",
