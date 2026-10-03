@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ManageableCampaign } from "@/features/campaigns/model";
-import { reconcileCreatedLembraCampaign } from "./campaign-composer";
+import {
+	reconcileCreatedLembraCampaign,
+	reconcileProjectedLembraCampaign,
+} from "./campaign-composer";
 
 const current = [
 	{
@@ -70,4 +73,40 @@ describe("Lembra contextual campaign creation", () => {
 		expect(result.campaignId).toBeNull();
 		expect(result.message).toContain("não está ativa");
 	});
+
+	it("selects a private campaign only after the authorized projection confirms it", () => {
+		const created = campaign({ visibility: "private", name: "Segredo da Mesa" });
+		const result = reconcileProjectedLembraCampaign(
+			current,
+			current[0].id,
+			created,
+			[
+				...current,
+				{ id: created.id, name: created.name, lifecycle: "active" },
+			],
+		);
+
+		expect(result.campaignId).toBe(created.id);
+		expect(result.campaigns).toContainEqual({
+			id: created.id,
+			name: created.name,
+			lifecycle: "active",
+		});
+		expect(result.message).toBe("Campanha criada e selecionada.");
+	});
+
+	it("does not ingest a created private campaign omitted by the authorized projection", () => {
+		const created = campaign({ visibility: "private", name: "Segredo da Mesa" });
+		const result = reconcileProjectedLembraCampaign(
+			current,
+			current[0].id,
+			created,
+			current,
+		);
+
+		expect(result.campaigns).toEqual(current);
+		expect(result.campaignId).toBe(current[0].id);
+		expect(result.message).toContain("ainda não está disponível");
+	});
+
 });
