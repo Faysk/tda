@@ -414,62 +414,6 @@ export function SessionEditorialE2EFixture({
 	return (
 		<main style={{ display: "grid", gap: "2rem" }}>
 			<section
-				aria-label="Controles sintéticos de falha"
-				data-testid="session-editorial-failure-controls"
-			>
-				<label>
-					<input
-						checked={editable}
-						onChange={(event) => setEditable(event.currentTarget.checked)}
-						type="checkbox"
-					/>
-					Permitir edição
-				</label>
-				<label>
-					<input
-						checked={publishable}
-						onChange={(event) => setPublishable(event.currentTarget.checked)}
-						type="checkbox"
-					/>
-					Permitir publicação
-				</label>
-				<button onClick={simulateTranscriptRevision} type="button">
-					Simular nova revisão de transcrição
-				</button>
-				<button onClick={simulateRemoteDraft} type="button">
-					Simular save concorrente
-				</button>
-				<button
-					onClick={() => {
-						loseNextResponseRef.current = true;
-					}}
-					type="button"
-				>
-					Perder próxima resposta de publicação
-				</button>
-				<button
-					onClick={() => {
-						failNextCoverPromotionRef.current = true;
-					}}
-					type="button"
-				>
-					Falhar próxima promoção da capa
-				</button>
-				<button
-					onClick={() => {
-						loseNextMoveResponseRef.current = true;
-					}}
-					type="button"
-				>
-					Perder próxima resposta de move
-				</button>
-				<output data-testid="synthetic-move-operation-ids">
-					{moveOperationIds.join("|")}
-				</output>
-				<output data-testid="remote-draft-revision">{remoteRevision}</output>
-			</section>
-
-			<section
 				className={[workbenchStyles.shell, workbenchStyles.sessionShell].join(" ")}
 				data-testid="session-editorial-route-shell"
 			>
@@ -539,6 +483,62 @@ export function SessionEditorialE2EFixture({
 						editorialUnavailable={null}
 					/>
 				</section>
+			</section>
+
+			<section
+				aria-label="Controles sintéticos de falha"
+				data-testid="session-editorial-failure-controls"
+			>
+				<label>
+					<input
+						checked={editable}
+						onChange={(event) => setEditable(event.currentTarget.checked)}
+						type="checkbox"
+					/>
+					Permitir edição
+				</label>
+				<label>
+					<input
+						checked={publishable}
+						onChange={(event) => setPublishable(event.currentTarget.checked)}
+						type="checkbox"
+					/>
+					Permitir publicação
+				</label>
+				<button onClick={simulateTranscriptRevision} type="button">
+					Simular nova revisão de transcrição
+				</button>
+				<button onClick={simulateRemoteDraft} type="button">
+					Simular save concorrente
+				</button>
+				<button
+					onClick={() => {
+						loseNextResponseRef.current = true;
+					}}
+					type="button"
+				>
+					Perder próxima resposta de publicação
+				</button>
+				<button
+					onClick={() => {
+						failNextCoverPromotionRef.current = true;
+					}}
+					type="button"
+				>
+					Falhar próxima promoção da capa
+				</button>
+				<button
+					onClick={() => {
+						loseNextMoveResponseRef.current = true;
+					}}
+					type="button"
+				>
+					Perder próxima resposta de move
+				</button>
+				<output data-testid="synthetic-move-operation-ids">
+					{moveOperationIds.join("|")}
+				</output>
+				<output data-testid="remote-draft-revision">{remoteRevision}</output>
 			</section>
 
 			<section
