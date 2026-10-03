@@ -73,6 +73,15 @@ const RULES = [
 		],
 	},
 	{
+		issue: 1330,
+		surface: "account-context",
+		description: "Account access must resolve an explicit authorized campaign instead of the legacy global campaign.",
+		files: [
+			{ path: "src/features/auth/account-overview.tsx", forbidden: [/\bCAMPAIGN_SLUG\b/u] },
+			{ path: "src/features/auth/account-campaign-picker.tsx", forbidden: [] },
+		],
+	},
+	{
 		issue: 1136,
 		surface: "navigation",
 		description: "Global/Edit navigation must preserve campaign context and never silently target the legacy campaign.",

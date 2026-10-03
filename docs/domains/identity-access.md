@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada + convergência em andamento
 > Owner: identity/access
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-03
 
 ## Objetivo
 
@@ -92,6 +92,22 @@ Regra do reboot:
 - `eligible`, `ended` e `revoked` não contam como grant ativo;
 - ausência de profile nunca cai para membership por email/nome/Discord como fallback silencioso;
 - capabilities enviadas à UI servem para apresentação; write sensível é revalidado no servidor/RPC.
+
+## Conta e contexto multi-campaign
+
+`/conta` é uma superfície de identidade e explicação de acesso; ela não é autoridade de autorização. O servidor resolve a identidade verificada, carrega o contexto de grants e descobre apenas campanhas que possuem capability efetiva para a conta. A seleção enviada pelo browser é somente intenção e precisa voltar a ser validada no servidor antes da projeção de permissões.
+
+Regras da superfície:
+
+- nenhum cálculo de acesso da Conta fica implicitamente preso à campanha histórica `yuhara-main`;
+- com zero campanhas autorizadas, a UI mostra estado vazio honesto; com uma, o contexto pode ser selecionado automaticamente; com N, a escolha é explícita pelo `CampaignPicker` compartilhado;
+- grants `project/tda` e grants específicos de `campaign/<slug>` continuam distintos e essa origem é apresentada em linguagem humana;
+- uma campanha privada, revogada, expirada, futura, desconhecida ou fora do discovery autorizado não pode ser enumerada por uma query forjada;
+- indisponibilidade de dependência é diferente de “nenhuma permissão” e deve permanecer fail closed;
+- nome humano da campanha lidera a composição; technical slug e capabilities ficam em disclosure secundário;
+- login, logout e preferência de aparência permanecem globais e independentes do contexto escolhido.
+
+O picker client-side apenas atualiza o parâmetro `campanha` da URL. Ele não recebe grants brutos, não concede capability e não substitui `authorizeCampaignCapability()` nem a reautorização de cada ação sensível.
 
 ## RBAC físico existente
 
