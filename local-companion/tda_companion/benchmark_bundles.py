@@ -50,7 +50,7 @@ def benchmark_id_for(job_id: str, attempt: int) -> str:
         isinstance(attempt, bool)
         or not isinstance(attempt, int)
         or attempt < 1
-        or attempt > 1_000_000
+        or attempt > 999_999
     ):
         raise BenchmarkBundleError("BENCHMARK_ATTEMPT_INVALID")
     value = f"benchmark-{job_id}-a{attempt}"
@@ -820,11 +820,28 @@ def finalize_benchmark_bundle(
     manifest_path = root / "benchmark.json"
     if manifest_path.exists():
         current = load_benchmark_bundle(data_root, benchmark_id)
+        expected_context = {
+            "sha256": _sha256_text(context),
+            "length": len(context),
+        }
+        expected_glossary = {
+            "sha256": _sha256_text(glossary),
+            "length": len(glossary),
+        }
         if (
             current.get("job_id") != job_id
             or current.get("attempt") != attempt
             or current.get("source_id") != source_id
+            or current.get("source_sha256") != source_sha256
             or current.get("sample_identity_sha256") != sample_identity_sha256
+            or current.get("track_count") != track_count
+            or not math.isclose(
+                float(current.get("audio_work_seconds", -1)),
+                expected_audio_work,
+                abs_tol=0.001,
+            )
+            or current.get("context") != expected_context
+            or current.get("glossary") != expected_glossary
         ):
             raise BenchmarkBundleError("BENCHMARK_BUNDLE_ALREADY_EXISTS")
         return current
@@ -853,6 +870,7 @@ def finalize_benchmark_bundle(
             or profile_manifest.get("sample_identity_sha256") != sample_identity_sha256
             or metadata["transcript_sha256"] != receipt.get("transcript_sha256")
             or metadata["transcript_size_bytes"] != receipt.get("transcript_size_bytes")
+            or profile_manifest.get("execution_lineage") != receipt.get("execution_lineage")
         ):
             raise BenchmarkBundleError("BENCHMARK_BUNDLE_PROFILE_RECEIPT_MISMATCH")
         artifacts.append(
