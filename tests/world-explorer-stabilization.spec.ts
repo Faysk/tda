@@ -35,6 +35,20 @@ test("World Explorer keeps the mobile inspector recoverable with touch-sized con
 		page.getByRole("heading", { level: 2, name: "Astel", exact: true }),
 	).toBeVisible();
 
+	const inspector = page.locator("#world-workspace-inspector");
+	const inspectorBox = await inspector.boundingBox();
+	expect(inspectorBox).not.toBeNull();
+	expect(inspectorBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(
+		844 * 0.5,
+	);
+	const mapControls = page.locator(".react-flow__controls");
+	await expect(mapControls).toBeVisible();
+	const controlsBox = await mapControls.boundingBox();
+	expect(controlsBox).not.toBeNull();
+	expect((controlsBox?.y ?? 0) + (controlsBox?.height ?? 0)).toBeLessThanOrEqual(
+		inspectorBox?.y ?? 844,
+	);
+
 	const overviewTab = page.getByRole("tab", { name: "Visão geral" });
 	await expect(overviewTab).toBeVisible();
 	const tabTarget = await overviewTab.boundingBox();

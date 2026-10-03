@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode, Ref } from "react";
+import { useState, type CSSProperties, type ReactNode, type Ref } from "react";
 import type {
 	WorldFilter,
 	WorldPublicationMeta,
@@ -159,6 +159,7 @@ export function WorldFloatingChrome({
 	searchInputRef,
 	conductor,
 }: WorldFloatingChromeProps) {
+	const [mobileConductorExpanded, setMobileConductorExpanded] = useState(false);
 	const currentRelation =
 		RELATION_OPTIONS.find((option) => option.value === relationFilter)?.label ?? "Todas";
 	const relationLegend = demo
@@ -192,9 +193,30 @@ export function WorldFloatingChrome({
 				</label>
 
 				{conductor ? (
-					<div className={chrome.conductorSlot} data-world-conductor-slot>
-						{conductor}
-					</div>
+					<>
+						<button
+							type="button"
+							className={chrome.mobileConductorToggle}
+							aria-controls="world-mobile-conductor"
+							aria-expanded={mobileConductorExpanded}
+							onClick={() =>
+								setMobileConductorExpanded((expanded) => !expanded)
+							}
+						>
+							<span aria-hidden="true">✦</span>
+							Condução
+						</button>
+						<div
+							id="world-mobile-conductor"
+							className={chrome.conductorSlot}
+							data-world-conductor-slot
+							data-mobile-expanded={
+								mobileConductorExpanded ? "true" : "false"
+							}
+						>
+							{conductor}
+						</div>
+					</>
 				) : null}
 
 				<details

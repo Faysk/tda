@@ -54,6 +54,10 @@
 	min-width: 0;
 }
 
+.mobileConductorToggle {
+	display: none;
+}
+
 .conductorSlot :global([data-testid="world-conductor"]) {
 	min-width: 0;
 	margin: 0;
@@ -462,6 +466,32 @@
 
 	.conductorSlot {
 		flex-basis: 100%;
+	}
+
+	.mobileConductorToggle {
+		display: inline-flex;
+		height: 44px;
+		min-width: 44px;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		padding: 0 11px;
+		border: 1px solid var(--ds-control-border);
+		border-radius: var(--ds-radius-md);
+		background: color-mix(in srgb, var(--ds-canvas-subtle) 72%, transparent);
+		color: var(--ds-foreground);
+		font: 700 0.68rem/1 var(--ds-font-ui);
+		cursor: pointer;
+	}
+
+	.mobileConductorToggle:focus-visible {
+		outline: 2px solid var(--ds-accent);
+		outline-offset: 2px;
+		box-shadow: var(--ds-control-focus-ring);
+	}
+
+	.conductorSlot[data-mobile-expanded="false"] {
+		display: none;
 	}
 
 	.relationMenu {

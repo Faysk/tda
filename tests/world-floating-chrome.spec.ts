@@ -150,3 +150,66 @@ test("World floating chrome stays usable at the 320x800 minimum viewport", async
 	await chrome.getByRole("button", { name: "Canvas" }).click();
 	await expect(page.getByTestId("world-canvas")).toBeVisible();
 });
+
+
+test("World conductor stays secondary on mobile without hiding primary map controls", async ({ page }) => {
+	for (const viewport of [
+		{ width: 390, height: 844, label: "390x844" },
+		{ width: 320, height: 800, label: "320x800" },
+	] as const) {
+		await page.setViewportSize({ width: viewport.width, height: viewport.height });
+		await page.goto("/e2e-fixtures/world-floating-chrome");
+
+		const chrome = page.getByTestId("world-floating-chrome");
+		const conductor = page.getByTestId("fixture-conductor");
+		const toggle = chrome.getByRole("button", { name: "Condução" });
+		await expect(toggle, viewport.label).toBeVisible();
+		await expect(toggle, viewport.label).toHaveAttribute("aria-expanded", "false");
+		await expect(conductor, viewport.label).not.toBeVisible();
+
+		for (const control of [
+			chrome.getByRole("searchbox", { name: "Buscar no mundo" }),
+			chrome.getByRole("button", { name: "Filtrar por relação" }),
+			chrome.getByRole("button", { name: "Canvas" }),
+			chrome.getByRole("button", { name: "Lista" }),
+		]) {
+			await expect(control, viewport.label).toBeVisible();
+			const box = await control.boundingBox();
+			expect(box, viewport.label).not.toBeNull();
+			expect((box?.y ?? Number.POSITIVE_INFINITY) + (box?.height ?? 0), viewport.label)
+				.toBeLessThanOrEqual(viewport.height);
+		}
+
+		await toggle.click();
+		await expect(toggle).toHaveAttribute("aria-expanded", "true");
+		await expect(conductor).toBeVisible();
+		await conductor.getByRole("button", { name: "Ação de condução" }).focus();
+		await expect(conductor.getByRole("button", { name: "Ação de condução" })).toBeFocused();
+
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+			viewport.label,
+		).toBeTruthy();
+	}
+});
+
+test("World conductor remains inline on desktop and mobile landscape keeps controls reachable", async ({ page }) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/e2e-fixtures/world-floating-chrome");
+	await expect(page.getByTestId("fixture-conductor")).toBeVisible();
+	await expect(page.getByRole("button", { name: "Condução" })).toBeHidden();
+
+	await page.setViewportSize({ width: 844, height: 390 });
+	const chrome = page.getByTestId("world-floating-chrome");
+	for (const control of [
+		chrome.getByRole("searchbox", { name: "Buscar no mundo" }),
+		chrome.getByRole("button", { name: "Filtrar por relação" }),
+		chrome.getByRole("button", { name: "Canvas" }),
+		chrome.getByRole("button", { name: "Lista" }),
+	]) {
+		await expect(control).toBeVisible();
+		const box = await control.boundingBox();
+		expect(box).not.toBeNull();
+		expect((box?.y ?? Number.POSITIVE_INFINITY) + (box?.height ?? 0)).toBeLessThanOrEqual(390);
+	}
+});
