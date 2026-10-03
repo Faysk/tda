@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from tda_companion.benchmark_evidence import benchmark_id_for
 from tda_companion.store import Store
 from tda_companion.worker_protocol import WorkerProtocolError, WorkerRunCommand
 from tda_companion.worker_supervisor import WorkerOutcome, WorkerProcessError, WorkerSupervisor
@@ -51,6 +52,8 @@ def test_benchmark_worker_command_requires_exact_five_minute_sample():
             "cpu": False,
             "benchmark_mode": True,
             "benchmark_sample_seconds": 300.0,
+            "benchmark_id": benchmark_id_for("benchmark-profile", 1),
+            "benchmark_sample_identity_sha256": "b" * 64,
         },
     )
     assert WorkerRunCommand.decode(command.encode()) == command
@@ -92,6 +95,10 @@ def _profile_receipt(profile_id: str) -> dict:
         "segment_count": 2,
         "track_count": 1,
         "warning_count": 0,
+        "benchmark_id": benchmark_id_for("benchmark-job", 1),
+        "transcript_sha256": "d" * 64,
+        "transcript_size_bytes": 1024,
+        "artifact_available": True,
         "execution_lineage": {
             "schema_version": "tda_execution_lineage_v1",
             "runtime_family": "whisper" if engine == "whisper" else "qwen",
@@ -111,10 +118,45 @@ def _profile_receipt(profile_id: str) -> dict:
     }
 
 
+
+def _stub_bundle_writes(monkeypatch):
+    monkeypatch.setattr(
+        "tda_companion.worker_supervisor.write_profile_events",
+        lambda *_args, **_kwargs: {"sha256": "e" * 64, "size_bytes": 1},
+    )
+    monkeypatch.setattr(
+        "tda_companion.worker_supervisor.write_profile_telemetry",
+        lambda *_args, **_kwargs: {"sha256": "f" * 64, "size_bytes": 1},
+    )
+    monkeypatch.setattr(
+        "tda_companion.worker_supervisor.finalize_bundle",
+        lambda _root, **kwargs: {
+            "benchmark_id": kwargs["benchmark_id"],
+            "bundle_manifest_sha256": "a" * 64,
+            "bundle_size_bytes": 4096,
+            "profiles": [
+                {
+                    "profile_id": profile,
+                    "transcript_sha256": "d" * 64,
+                    "artifact_available": True,
+                }
+                for profile in (
+                    "whisper-turbo",
+                    "whisper-detailed",
+                    "qwen-fast",
+                    "qwen-quality",
+                )
+            ],
+        },
+    )
+
+
 def test_benchmark_runs_canonical_profiles_in_order_and_emits_profile_progress(
     monkeypatch,
+    tmp_path,
 ):
-    supervisor = WorkerSupervisor()
+    _stub_bundle_writes(monkeypatch)
+    supervisor = WorkerSupervisor(data_root=tmp_path)
     seen: list[tuple[str, float | None]] = []
     progress: list[int] = []
 
@@ -155,8 +197,9 @@ def test_benchmark_runs_canonical_profiles_in_order_and_emits_profile_progress(
     ]
 
 
-def test_benchmark_stops_without_complete_receipt_on_cancel(monkeypatch):
-    supervisor = WorkerSupervisor()
+def test_benchmark_stops_without_complete_receipt_on_cancel(monkeypatch, tmp_path):
+    _stub_bundle_writes(monkeypatch)
+    supervisor = WorkerSupervisor(data_root=tmp_path)
     calls = 0
 
     def fake_run_craig(self, *, profile_id, **_kwargs):
@@ -191,8 +234,9 @@ def test_benchmark_stops_without_complete_receipt_on_cancel(monkeypatch):
     assert calls == 2
 
 
-def test_benchmark_rejects_non_benchmark_profile_result(monkeypatch):
-    supervisor = WorkerSupervisor()
+def test_benchmark_rejects_non_benchmark_profile_result(monkeypatch, tmp_path):
+    _stub_bundle_writes(monkeypatch)
+    supervisor = WorkerSupervisor(data_root=tmp_path)
 
     monkeypatch.setattr(
         WorkerSupervisor,
@@ -219,8 +263,9 @@ def test_benchmark_rejects_non_benchmark_profile_result(monkeypatch):
             on_progress=lambda _message: None,
         )
 
-def test_benchmark_rejects_profile_without_exact_runtime_gpu_evidence(monkeypatch):
-    supervisor = WorkerSupervisor()
+def test_benchmark_rejects_profile_without_exact_runtime_gpu_evidence(monkeypatch, tmp_path):
+    _stub_bundle_writes(monkeypatch)
+    supervisor = WorkerSupervisor(data_root=tmp_path)
 
     def fake_run_craig(self, *, profile_id, **_kwargs):
         receipt = _profile_receipt(profile_id)
