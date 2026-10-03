@@ -3,7 +3,11 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
-import {\n\tlistSessionArcOptions,\n\tsessionArcIdentity,\n\ttype SessionArchiveItem,\n} from "@/features/sessions/archive";
+import {
+	listSessionArcOptions,
+	sessionArcIdentity,
+	type SessionArchiveItem,
+} from "@/features/sessions/archive";
 import { formatSessionDate, sessionPublicKey, sessionPublicPath } from "@/features/sessions/model";
 import styles from "./session-list.module.css";
 
