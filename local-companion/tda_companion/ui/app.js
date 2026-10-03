@@ -6,6 +6,10 @@
   let refreshTimer = null;
   let lastConnectionState = null;
   let lastWhisperRuntimeCheck = null;
+  let lastQwenRuntimeCheck = null;
+  let lastUpdateCheck = null;
+  let maintenanceDialogState = null;
+  let maintenanceDialogBusy = false;
 
   const FRIENDLY_ERRORS = {
     CRAIG_FILE_PICKER_UNAVAILABLE: "O seletor de arquivos do Windows não está disponível.",
@@ -123,6 +127,264 @@
     const minutes = Math.floor((total % 3600) / 60);
     if (hours) return `${hours}h ${minutes}min`;
     return `${minutes}min`;
+  }
+
+  function compareSemver(left, right) {
+    const parse = (value) => {
+      if (typeof value !== "string" || !/^\d+\.\d+\.\d+$/.test(value)) return null;
+      return value.split(".").map((part) => Number.parseInt(part, 10));
+    };
+    const a = parse(left);
+    const b = parse(right);
+    if (!a || !b) return null;
+    for (let index = 0; index < 3; index += 1) {
+      if (a[index] < b[index]) return -1;
+      if (a[index] > b[index]) return 1;
+    }
+    return 0;
+  }
+
+  function setMaintenanceDialogMessage(kind, message) {
+    const node = $("maintenance-dialog-" + kind);
+    if (!node) return;
+    const visible = Boolean(message);
+    node.textContent = visible ? String(message) : "";
+    node.classList.toggle("hidden", !visible);
+  }
+
+  function updateMaintenanceTarget() {
+    const state = maintenanceDialogState;
+    if (!state?.versionField) return;
+    const value = $("maintenance-dialog-version").value.trim();
+    $("maintenance-dialog-target-version").textContent = value ? "v" + value : "—";
+  }
+
+  function updateMaintenanceDialogControls() {
+    const state = maintenanceDialogState;
+    if (!state) return;
+    const cancel = $("maintenance-dialog-cancel");
+    const confirm = $("maintenance-dialog-confirm");
+    const version = $("maintenance-dialog-version");
+    const danger = $("maintenance-dialog-danger");
+    const dangerMismatch = Boolean(
+      state.dangerPhrase && danger.value.trim() !== state.dangerPhrase,
+    );
+    cancel.disabled = maintenanceDialogBusy;
+    version.disabled = maintenanceDialogBusy;
+    danger.disabled = maintenanceDialogBusy;
+    confirm.disabled = maintenanceDialogBusy || dangerMismatch;
+  }
+
+  function renderMaintenanceVersionOptions(candidates) {
+    const container = $("maintenance-dialog-local-versions");
+    const list = $("maintenance-dialog-version-options");
+    list.replaceChildren();
+    const versions = Array.isArray(candidates)
+      ? candidates.filter((value) => typeof value === "string" && /^\d+\.\d+\.\d+$/.test(value))
+      : [];
+    container.classList.toggle("hidden", versions.length === 0);
+    versions.forEach((version) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "maintenance-version-option";
+      button.textContent = "v" + version;
+      button.addEventListener("click", () => {
+        if (maintenanceDialogBusy) return;
+        $("maintenance-dialog-version").value = version;
+        updateMaintenanceTarget();
+        setMaintenanceDialogMessage("error", "");
+        $("maintenance-dialog-version").focus();
+      });
+      list.append(button);
+    });
+  }
+
+  function closeMaintenanceDialog() {
+    if (maintenanceDialogBusy) return;
+    const dialog = $("maintenance-dialog");
+    const trigger = maintenanceDialogState?.trigger || null;
+    maintenanceDialogState = null;
+    setMaintenanceDialogMessage("error", "");
+    setMaintenanceDialogMessage("status", "");
+    if (dialog?.open) {
+      if (typeof dialog.close === "function") dialog.close();
+      else {
+        dialog.open = false;
+        dialog.removeAttribute?.("open");
+      }
+    }
+    if (trigger && typeof trigger.focus === "function" && trigger.isConnected !== false) {
+      trigger.focus();
+    }
+  }
+
+  function openMaintenanceDialog(config) {
+    const dialog = $("maintenance-dialog");
+    const form = $("maintenance-dialog-form");
+    if (!dialog || !form) return;
+    if (dialog.open) {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute?.("open");
+    }
+
+    maintenanceDialogState = config;
+    maintenanceDialogBusy = false;
+    $("maintenance-dialog-title").textContent = config.title;
+    $("maintenance-dialog-description").textContent = config.description || "";
+    $("maintenance-dialog-effect").textContent = config.effect || "";
+    $("maintenance-dialog-confirm").textContent = config.confirmLabel || "Confirmar";
+    $("maintenance-dialog-confirm").classList.toggle("danger", config.danger === true);
+    $("maintenance-dialog-confirm").classList.toggle("primary", config.danger !== true);
+
+    const showVersions = Boolean(config.showVersions || config.versionField);
+    $("maintenance-dialog-version-summary").classList.toggle("hidden", !showVersions);
+    $("maintenance-dialog-current-version").textContent = config.currentVersion ? "v" + config.currentVersion : "—";
+    $("maintenance-dialog-target-version").textContent = config.targetVersion ? "v" + config.targetVersion : "—";
+
+    const versionField = $("maintenance-dialog-version-field");
+    const versionInput = $("maintenance-dialog-version");
+    versionField.classList.toggle("hidden", !config.versionField);
+    versionInput.value = config.versionValue || config.targetVersion || "";
+
+    const dangerField = $("maintenance-dialog-danger-field");
+    const dangerInput = $("maintenance-dialog-danger");
+    dangerField.classList.toggle("hidden", !config.dangerPhrase);
+    dangerInput.value = "";
+
+    renderMaintenanceVersionOptions(config.versionCandidates || []);
+    updateMaintenanceTarget();
+    setMaintenanceDialogMessage("error", "");
+    setMaintenanceDialogMessage("status", "");
+    updateMaintenanceDialogControls();
+
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else {
+      dialog.open = true;
+      dialog.setAttribute?.("open", "");
+    }
+    $("maintenance-dialog-cancel").focus();
+  }
+
+  function validateMaintenanceDialog() {
+    const state = maintenanceDialogState;
+    if (!state) return null;
+    const values = {};
+
+    if (state.versionField) {
+      const version = $("maintenance-dialog-version").value.trim();
+      if (!/^\d+\.\d+\.\d+$/.test(version)) {
+        setMaintenanceDialogMessage("error", errorText("WHISPER_RUNTIME_ROLLBACK_VERSION_INVALID"));
+        $("maintenance-dialog-version").focus();
+        return null;
+      }
+      const order = state.currentVersion ? compareSemver(version, state.currentVersion) : null;
+      if (order !== null && order >= 0) {
+        setMaintenanceDialogMessage("error", "Escolha uma versão Whisper anterior à atualmente ativa.");
+        $("maintenance-dialog-version").focus();
+        return null;
+      }
+      values.version = version;
+    }
+
+    if (state.dangerPhrase) {
+      const phrase = $("maintenance-dialog-danger").value.trim();
+      if (phrase !== state.dangerPhrase) {
+        setMaintenanceDialogMessage("error", "Digite " + state.dangerPhrase + " para confirmar a remoção completa.");
+        $("maintenance-dialog-danger").focus();
+        return null;
+      }
+      values.dangerPhrase = phrase;
+    }
+
+    setMaintenanceDialogMessage("error", "");
+    return values;
+  }
+
+  async function submitMaintenanceDialog(event) {
+    event?.preventDefault?.();
+    if (!maintenanceDialogState || maintenanceDialogBusy) return;
+    const values = validateMaintenanceDialog();
+    if (!values) return;
+
+    const state = maintenanceDialogState;
+    maintenanceDialogBusy = true;
+    setMaintenanceDialogMessage("error", "");
+    setMaintenanceDialogMessage("status", state.pendingLabel || "Executando…");
+    updateMaintenanceDialogControls();
+
+    try {
+      const result = await state.execute(values);
+      const closeDesktop = (await state.onSuccess?.(result, values)) === true;
+      maintenanceDialogBusy = false;
+      updateMaintenanceDialogControls();
+      closeMaintenanceDialog();
+      if (closeDesktop && api?.close_desktop) {
+        Promise.resolve(api.close_desktop()).catch((error) => {
+          toast("A operação foi iniciada, mas a janela não fechou: " + errorText(error), true);
+        });
+      }
+    } catch (error) {
+      maintenanceDialogBusy = false;
+      setMaintenanceDialogMessage("status", "");
+      const prefix = state.errorPrefix ? state.errorPrefix + ": " : "";
+      setMaintenanceDialogMessage("error", prefix + errorText(error));
+      updateMaintenanceDialogControls();
+    }
+  }
+
+  function focusableMaintenanceDialogNodes() {
+    const dialog = $("maintenance-dialog");
+    if (!dialog?.querySelectorAll) return [];
+    return Array.from(
+      dialog.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((node) => !node.hidden && !node.classList?.contains("hidden"));
+  }
+
+  function handleMaintenanceDialogKeydown(event) {
+    if (!maintenanceDialogState) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (!maintenanceDialogBusy) closeMaintenanceDialog();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = focusableMaintenanceDialogNodes();
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function bindMaintenanceDialog() {
+    const dialog = $("maintenance-dialog");
+    const form = $("maintenance-dialog-form");
+    if (!dialog || !form) return;
+    form.addEventListener("submit", submitMaintenanceDialog);
+    $("maintenance-dialog-cancel").addEventListener("click", closeMaintenanceDialog);
+    $("maintenance-dialog-version").addEventListener("input", () => {
+      updateMaintenanceTarget();
+      setMaintenanceDialogMessage("error", "");
+    });
+    $("maintenance-dialog-danger").addEventListener("input", () => {
+      setMaintenanceDialogMessage("error", "");
+      updateMaintenanceDialogControls();
+    });
+    dialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      if (!maintenanceDialogBusy) closeMaintenanceDialog();
+    });
+    dialog.addEventListener("keydown", handleMaintenanceDialogKeydown);
+    dialog.addEventListener("mousedown", (event) => {
+      if (event.target === dialog && !maintenanceDialogBusy) closeMaintenanceDialog();
+    });
   }
 
   function showView(name) {
@@ -551,6 +813,7 @@
   }
 
   function renderUpdate(result) {
+    lastUpdateCheck = result || null;
     const available = Boolean(result?.available);
     $("update-banner").classList.toggle("hidden", !available);
     $("update-version").textContent = available ? `· v${result.version}` : "";
@@ -584,51 +847,63 @@
     }
   }
 
-  async function installWhisperRuntime() {
-    if (!window.confirm("Baixar e instalar o runtime Whisper isolado?")) return;
-    const button = $("install-whisper-runtime");
-    button.disabled = true;
-    button.textContent = "Baixando e verificando…";
-    try {
-      const result = await api.install_whisper_runtime();
-      toast(result.accepted ? `Whisper runtime ${result.version} instalado e verificado.` : "Runtime Whisper já está atualizado.");
-      await refreshSnapshot();
-      await checkWhisperRuntime(false);
-    } catch (error) {
-      toast(`O runtime Whisper não foi instalado: ${errorText(error)}`, true);
-    } finally {
-      button.disabled = false;
-    }
+  function installWhisperRuntime(event) {
+    const currentVersion =
+      lastWhisperRuntimeCheck?.current_version ||
+      lastSnapshot?.whisper_runtime?.version ||
+      null;
+    const targetVersion = lastWhisperRuntimeCheck?.version || null;
+    openMaintenanceDialog({
+      trigger: event?.currentTarget || $("install-whisper-runtime"),
+      title: currentVersion ? "Atualizar runtime Whisper?" : "Instalar runtime Whisper?",
+      description: "O Companion baixa e verifica o runtime isolado antes de ativá-lo.",
+      effect: "Nenhum runtime será trocado antes desta confirmação. Modelos, dados e runs locais permanecem preservados.",
+      confirmLabel: currentVersion ? "Atualizar Whisper" : "Instalar Whisper",
+      pendingLabel: "Baixando e verificando o runtime Whisper…",
+      currentVersion,
+      targetVersion,
+      showVersions: Boolean(currentVersion || targetVersion),
+      execute: () => api.install_whisper_runtime(),
+      onSuccess: async (result) => {
+        toast(result.accepted ? "Whisper runtime " + result.version + " instalado e verificado." : "Runtime Whisper já está atualizado.");
+        await refreshSnapshot();
+        await checkWhisperRuntime(false);
+        return false;
+      },
+      errorPrefix: "O runtime Whisper não foi instalado",
+    });
   }
 
-  async function rollbackWhisperRuntime() {
+  function rollbackWhisperRuntime(event) {
     const candidates = Array.isArray(lastWhisperRuntimeCheck?.rollback_versions)
       ? lastWhisperRuntimeCheck.rollback_versions
       : [];
-    const suggested = candidates[0] || "";
-    const raw = window.prompt(
-      "Versão Whisper exata para reativar (X.Y.Z). Se os bytes não estiverem preservados, o Companion buscará somente a release Stable dessa versão.",
-      suggested,
-    );
-    if (raw === null) return;
-    const version = raw.trim();
-    if (!/^\d+\.\d+\.\d+$/.test(version)) {
-      toast(errorText("WHISPER_RUNTIME_ROLLBACK_VERSION_INVALID"), true);
-      return;
-    }
-    if (!window.confirm(`Reverter explicitamente o runtime Whisper para v${version}? O runtime atual, modelos, dados e runs serão preservados.`)) return;
-    const button = $("rollback-whisper-runtime");
-    button.disabled = true;
-    try {
-      const result = await api.rollback_whisper_runtime(version);
-      toast(`Whisper revertido de v${result.previous_version} para v${result.version}.`);
-      await refreshSnapshot();
-      await checkWhisperRuntime(false);
-    } catch (error) {
-      toast(`Rollback Whisper não realizado: ${errorText(error)}`, true);
-    } finally {
-      button.disabled = false;
-    }
+    const currentVersion =
+      lastWhisperRuntimeCheck?.current_version ||
+      lastSnapshot?.whisper_runtime?.version ||
+      null;
+    openMaintenanceDialog({
+      trigger: event?.currentTarget || $("rollback-whisper-runtime"),
+      title: "Reverter runtime Whisper",
+      description: "Escolha uma versão anterior exata. Versões locais verificadas aparecem como atalhos quando disponíveis.",
+      effect: "O runtime atual, modelos, dados e runs serão preservados. Se os bytes não estiverem locais, o Companion buscará somente a release Stable exata.",
+      confirmLabel: "Reverter Whisper",
+      pendingLabel: "Verificando e reativando o runtime Whisper…",
+      currentVersion,
+      targetVersion: candidates[0] || null,
+      showVersions: true,
+      versionField: true,
+      versionValue: candidates[0] || "",
+      versionCandidates: candidates,
+      execute: ({ version }) => api.rollback_whisper_runtime(version),
+      onSuccess: async (result) => {
+        toast("Whisper revertido de v" + result.previous_version + " para v" + result.version + ".");
+        await refreshSnapshot();
+        await checkWhisperRuntime(false);
+        return false;
+      },
+      errorPrefix: "Rollback Whisper não realizado",
+    });
   }
 
   async function checkQwenRuntime(announce = false) {
@@ -636,30 +911,42 @@
     button.disabled = true;
     try {
       const result = await api.check_qwen_runtime();
+      lastQwenRuntimeCheck = result;
       renderQwenRuntime(result, true);
-      if (announce) toast(result.available ? `Qwen runtime ${result.version} disponível.` : "Runtime Qwen já está atualizado.");
+      if (announce) toast(result.available ? "Qwen runtime " + result.version + " disponível." : "Runtime Qwen já está atualizado.");
     } catch (error) {
-      if (announce) toast(`Não foi possível verificar o Qwen: ${errorText(error)}`, true);
+      if (announce) toast("Não foi possível verificar o Qwen: " + errorText(error), true);
     } finally {
       button.disabled = false;
     }
   }
 
-  async function installQwenRuntime() {
-    if (!window.confirm("Baixar e instalar o runtime Qwen isolado? Os modelos e o gate físico serão preparados somente ao processar uma sessão.")) return;
-    const button = $("install-qwen-runtime");
-    button.disabled = true;
-    button.textContent = "Baixando e verificando…";
-    try {
-      const result = await api.install_qwen_runtime();
-      toast(result.accepted ? `Qwen runtime ${result.version} instalado e verificado.` : "Runtime Qwen já está atualizado.");
-      await refreshSnapshot();
-      await checkQwenRuntime(false);
-    } catch (error) {
-      toast(`O runtime Qwen não foi instalado: ${errorText(error)}`, true);
-    } finally {
-      button.disabled = false;
-    }
+  function installQwenRuntime(event) {
+    const currentVersion =
+      lastQwenRuntimeCheck?.current_version ||
+      lastQwenRuntimeCheck?.installed_version ||
+      lastSnapshot?.qwen_runtime?.version ||
+      null;
+    const targetVersion = lastQwenRuntimeCheck?.version || null;
+    openMaintenanceDialog({
+      trigger: event?.currentTarget || $("install-qwen-runtime"),
+      title: currentVersion ? "Atualizar runtime Qwen?" : "Instalar runtime Qwen?",
+      description: "O Companion baixa e verifica o runtime Qwen isolado antes de ativá-lo.",
+      effect: "Modelos e o gate físico só serão preparados quando uma sessão Qwen for processada. Dados e runs existentes não são alterados.",
+      confirmLabel: currentVersion ? "Atualizar Qwen" : "Instalar Qwen",
+      pendingLabel: "Baixando e verificando o runtime Qwen…",
+      currentVersion,
+      targetVersion,
+      showVersions: Boolean(currentVersion || targetVersion),
+      execute: () => api.install_qwen_runtime(),
+      onSuccess: async (result) => {
+        toast(result.accepted ? "Qwen runtime " + result.version + " instalado e verificado." : "Runtime Qwen já está atualizado.");
+        await refreshSnapshot();
+        await checkQwenRuntime(false);
+        return false;
+      },
+      errorPrefix: "O runtime Qwen não foi instalado",
+    });
   }
 
   function renderDiagnostics(result) {
@@ -700,42 +987,77 @@
     }
   }
 
-  async function installUpdate() {
-    if (!window.confirm("Baixar, verificar e instalar a atualização agora? O Agent só será reiniciado se não houver trabalho em execução.")) return;
-    const button = $("install-update");
-    button.disabled = true;
-    button.textContent = "Preparando atualização…";
-    try {
-      const result = await api.install_update();
-      if (!result.accepted) {
-        renderUpdate(result);
-        toast("Você já está na versão mais recente.");
-        return;
-      }
-      toast(`Atualizando para ${result.version}…`);
-      await api.close_desktop();
-    } catch (error) {
-      toast(`A atualização não foi iniciada: ${errorText(error)}`, true);
-      button.disabled = false;
-      await checkUpdate(false);
-    }
+  function installUpdate(event) {
+    const currentVersion = lastSnapshot?.version || null;
+    const targetVersion = lastUpdateCheck?.version || null;
+    openMaintenanceDialog({
+      trigger: event?.currentTarget || $("install-update"),
+      title: "Atualizar TDA Companion?",
+      description: "O pacote será baixado e verificado antes da manutenção ser entregue ao helper.",
+      effect: "O Agent só será reiniciado se não houver trabalho ou preparação em execução. State, Data e Models são preservados.",
+      confirmLabel: targetVersion ? "Atualizar para " + targetVersion : "Atualizar Companion",
+      pendingLabel: "Preparando atualização do Companion…",
+      currentVersion,
+      targetVersion,
+      showVersions: Boolean(currentVersion || targetVersion),
+      execute: () => api.install_update(),
+      onSuccess: async (result) => {
+        if (!result.accepted) {
+          renderUpdate(result);
+          toast("Você já está na versão mais recente.");
+          return false;
+        }
+        toast("Atualizando para " + result.version + "…");
+        return true;
+      },
+      errorPrefix: "A atualização não foi iniciada",
+    });
   }
 
-  async function uninstall(purge) {
-    const message = purge
-      ? "Remover completamente o TDA Companion, fila, resultados, modelos, logs e configurações locais deste usuário? Esta ação não pode ser desfeita."
-      : "Desinstalar o TDA Companion e manter seus dados locais para uma futura reinstalação?";
-    if (!window.confirm(message)) return;
-    if (purge && !window.confirm("Confirma a remoção COMPLETA dos dados locais do TDA neste computador?")) return;
-    try {
-      const result = await api.uninstall(Boolean(purge));
-      if (result.accepted) {
-        toast(purge ? "Removendo completamente o TDA Companion…" : "Desinstalando o TDA Companion…");
-        await api.close_desktop();
-      }
-    } catch (error) {
-      toast(`A desinstalação não foi iniciada: ${errorText(error)}`, true);
-    }
+  function uninstall(purge, event) {
+    const destructive = Boolean(purge);
+    openMaintenanceDialog({
+      trigger: event?.currentTarget || $(destructive ? "uninstall-purge" : "uninstall-keep"),
+      title: destructive ? "Remover TDA Companion e todos os dados locais?" : "Desinstalar TDA Companion?",
+      description: destructive
+        ? "Esta remoção apaga fila, resultados, modelos, logs e configurações locais deste usuário."
+        : "O aplicativo será removido, mas seus dados locais serão mantidos para uma futura reinstalação.",
+      effect: destructive
+        ? "Esta ação não pode ser desfeita. Nenhuma remoção começa antes da confirmação final abaixo."
+        : "State, Data, Models e demais dados locais permanecem no computador.",
+      confirmLabel: destructive ? "Remover completamente" : "Desinstalar e manter dados",
+      pendingLabel: destructive ? "Preparando remoção completa…" : "Preparando desinstalação…",
+      danger: destructive,
+      dangerPhrase: destructive ? "REMOVER" : null,
+      execute: () => api.uninstall(destructive),
+      onSuccess: async (result) => {
+        if (result.accepted) {
+          toast(destructive ? "Removendo completamente o TDA Companion…" : "Desinstalando o TDA Companion…");
+          return true;
+        }
+        toast("Nenhuma desinstalação foi iniciada.");
+        return false;
+      },
+      errorPrefix: "A desinstalação não foi iniciada",
+    });
+  }
+
+  function restartAgent(event) {
+    openMaintenanceDialog({
+      trigger: event?.currentTarget || $("restart-agent"),
+      title: "Reiniciar Agent local?",
+      description: "Use esta ação para recuperar a conexão local sem reiniciar o Companion inteiro.",
+      effect: "O backend bloqueia o reinício durante preparação ou trabalho incompatível. A fila persistida não é apagada.",
+      confirmLabel: "Reiniciar Agent",
+      pendingLabel: "Reiniciando o Agent local…",
+      execute: () => api.restart_agent(),
+      onSuccess: async () => {
+        toast("Agent reiniciado.");
+        await refreshSnapshot();
+        return false;
+      },
+      errorPrefix: "Não foi possível reiniciar",
+    });
   }
 
   function bindEvents() {
@@ -759,16 +1081,7 @@
         toast(`Não foi possível alterar a fila: ${errorText(error)}`, true);
       }
     });
-    $("restart-agent").addEventListener("click", async () => {
-      if (!window.confirm("Reiniciar o Agent local? A ação é bloqueada se houver trabalho em execução.")) return;
-      try {
-        await api.restart_agent();
-        toast("Agent reiniciado.");
-        await refreshSnapshot();
-      } catch (error) {
-        toast(`Não foi possível reiniciar: ${errorText(error)}`, true);
-      }
-    });
+    $("restart-agent").addEventListener("click", restartAgent);
     $("quick-diagnostics").addEventListener("click", () => {
       showView("diagnostics");
       runDiagnostics();
@@ -801,13 +1114,14 @@
       showView("settings");
       checkUpdate(true);
     });
-    $("uninstall-keep").addEventListener("click", () => uninstall(false));
-    $("uninstall-purge").addEventListener("click", () => uninstall(true));
+    $("uninstall-keep").addEventListener("click", (event) => uninstall(false, event));
+    $("uninstall-purge").addEventListener("click", (event) => uninstall(true, event));
   }
 
   async function boot() {
     api = window.pywebview?.api;
     if (!api) return;
+    bindMaintenanceDialog();
     bindEvents();
     await refreshSnapshot();
     await refreshLogs(false);
