@@ -77,7 +77,7 @@ const RULES = [
 		surface: "account-context",
 		description: "Account access must resolve an explicit authorized campaign instead of the legacy global campaign.",
 		files: [
-			{ path: "src/features/auth/account-overview.tsx", forbidden: [/\\bCAMPAIGN_SLUG\\b/u] },
+			{ path: "src/features/auth/account-overview.tsx", forbidden: [/\bCAMPAIGN_SLUG\b/u] },
 		],
 	},
 	{
