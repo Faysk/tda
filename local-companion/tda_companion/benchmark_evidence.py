@@ -285,6 +285,105 @@ def _events_payload(events: Iterable[Mapping[str, Any]]) -> bytes:
     return payload
 
 
+def _percentile(values: Sequence[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = max(0, min(len(ordered) - 1, math.ceil(percentile * len(ordered)) - 1))
+    return round(float(ordered[index]), 6)
+
+
+def summarize_telemetry(
+    samples: Iterable[Mapping[str, Any]],
+    *,
+    interval_ms: int,
+    expected_samples: int,
+    expected_gpu_identity: str | None = None,
+) -> dict[str, Any]:
+    if isinstance(interval_ms, bool) or not isinstance(interval_ms, int) or interval_ms < 100:
+        raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_INTERVAL_INVALID")
+    if isinstance(expected_samples, bool) or not isinstance(expected_samples, int) or expected_samples < 1:
+        raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_EXPECTED_INVALID")
+    rows = list(samples)
+    if len(rows) > 10_000:
+        raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_COUNT_LIMIT")
+    numeric_keys = (
+        "gpu_utilization_percent",
+        "vram_used_bytes",
+        "vram_total_bytes",
+        "temperature_c",
+        "power_w",
+        "cpu_utilization_percent",
+        "ram_used_bytes",
+        "ram_percent",
+    )
+    sanitized: list[dict[str, Any]] = []
+    previous_ms = -1
+    for seq, raw in enumerate(rows, start=1):
+        relative_ms = raw.get("relative_ms")
+        if (
+            isinstance(relative_ms, bool)
+            or not isinstance(relative_ms, int)
+            or relative_ms < 0
+            or relative_ms < previous_ms
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_TIME_INVALID")
+        previous_ms = relative_ms
+        gpu_identity = raw.get("gpu_identity")
+        if gpu_identity is not None:
+            if not isinstance(gpu_identity, str) or not 1 <= len(gpu_identity) <= 160 or _PATHISH.search(gpu_identity):
+                raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_GPU_INVALID")
+            if expected_gpu_identity is not None and gpu_identity != expected_gpu_identity:
+                raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_GPU_MISMATCH")
+        row: dict[str, Any] = {
+            "schema_version": TELEMETRY_SCHEMA,
+            "seq": seq,
+            "relative_ms": relative_ms,
+            "gpu_identity": gpu_identity,
+        }
+        for key in numeric_keys:
+            value = raw.get(key)
+            if value is None:
+                row[key] = None
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or float(value) < 0:
+                raise BenchmarkEvidenceError("BENCHMARK_TELEMETRY_VALUE_INVALID")
+            row[key] = float(value)
+        sanitized.append(row)
+
+    def values(key: str) -> list[float]:
+        return [float(row[key]) for row in sanitized if row.get(key) is not None]
+
+    def average(key: str) -> float | None:
+        selected = values(key)
+        return None if not selected else round(sum(selected) / len(selected), 6)
+
+    coverage = min(1.0, len(sanitized) / expected_samples)
+    return {
+        "schema_version": "tda_benchmark_telemetry_summary_v1",
+        "sampler": "synthetic-or-platform",
+        "interval_ms": interval_ms,
+        "expected_samples": expected_samples,
+        "captured_samples": len(sanitized),
+        "coverage": round(coverage, 6),
+        "missing_reason": "SAMPLER_NOT_AVAILABLE" if not sanitized else None,
+        "gpu_identity": expected_gpu_identity,
+        "vram_peak_bytes": max(values("vram_used_bytes"), default=None),
+        "vram_average_bytes": average("vram_used_bytes"),
+        "vram_p95_bytes": _percentile(values("vram_used_bytes"), 0.95),
+        "gpu_utilization_average_percent": average("gpu_utilization_percent"),
+        "gpu_utilization_p95_percent": _percentile(values("gpu_utilization_percent"), 0.95),
+        "gpu_utilization_peak_percent": max(values("gpu_utilization_percent"), default=None),
+        "cpu_average_percent": average("cpu_utilization_percent"),
+        "cpu_p95_percent": _percentile(values("cpu_utilization_percent"), 0.95),
+        "ram_peak_bytes": max(values("ram_used_bytes"), default=None),
+        "temperature_max_c": max(values("temperature_c"), default=None),
+        "power_average_w": average("power_w"),
+        "power_peak_w": max(values("power_w"), default=None),
+        "samples": sanitized,
+    }
+
+
 def build_metrics(
     document: TranscriptDocument,
     receipt: Mapping[str, Any],
@@ -370,6 +469,10 @@ def write_profile_artifact(
     context: str,
     glossary: str,
     events: Iterable[Mapping[str, Any]] = (),
+    telemetry_samples: Iterable[Mapping[str, Any]] | None = None,
+    telemetry_interval_ms: int = 1000,
+    telemetry_expected_samples: int = 300,
+    telemetry_gpu_identity: str | None = None,
 ) -> dict[str, Any]:
     profile_id = str(receipt.get("profile_id"))
     root = _profile_root(package_root, benchmark_id, profile_id)
@@ -387,9 +490,29 @@ def write_profile_artifact(
         context=context,
         glossary=glossary,
     )
+    telemetry_meta = None
+    if telemetry_samples is not None:
+        telemetry = summarize_telemetry(
+            telemetry_samples,
+            interval_ms=telemetry_interval_ms,
+            expected_samples=telemetry_expected_samples,
+            expected_gpu_identity=telemetry_gpu_identity,
+        )
+        telemetry_rows = telemetry.pop("samples")
+        telemetry_payload = _events_payload(telemetry_rows)
+        telemetry_meta = _write_bytes(root / "telemetry.jsonl", telemetry_payload)
+        metrics["telemetry"] = telemetry
     metrics_meta = _write_bytes(root / "metrics.json", _canonical(metrics))
     event_payload = _events_payload(events)
     events_meta = _write_bytes(root / "events.jsonl", event_payload)
+
+    artifacts = {
+        "transcript.json": transcript_meta,
+        "metrics.json": metrics_meta,
+        "events.jsonl": events_meta,
+    }
+    if telemetry_meta is not None:
+        artifacts["telemetry.jsonl"] = telemetry_meta
 
     manifest = {
         "schema_version": PROFILE_SCHEMA,
@@ -399,11 +522,7 @@ def write_profile_artifact(
         "profile_id": profile_id,
         "sample_identity_sha256": _sha(sample_identity_sha256, "BENCHMARK_SAMPLE_HASH_INVALID"),
         "transcript_schema_version": document.schema_version,
-        "artifacts": {
-            "transcript.json": transcript_meta,
-            "metrics.json": metrics_meta,
-            "events.jsonl": events_meta,
-        },
+        "artifacts": artifacts,
         "execution_lineage": receipt.get("execution_lineage"),
         "completed_at": utc_now(),
     }
@@ -497,6 +616,7 @@ def commit_bundle(
         transcript = manifest["artifacts"]["transcript.json"]
         metrics = manifest["artifacts"]["metrics.json"]
         events = manifest["artifacts"]["events.jsonl"]
+        telemetry = manifest["artifacts"].get("telemetry.jsonl")
         profile_entries.append(
             {
                 "profile_id": profile_id,
@@ -520,6 +640,15 @@ def commit_bundle(
                     "sha256": events["sha256"],
                     "size_bytes": events["size_bytes"],
                 },
+                "telemetry": (
+                    {
+                        "path": f"profiles/{profile_id}/telemetry.jsonl",
+                        "sha256": telemetry["sha256"],
+                        "size_bytes": telemetry["size_bytes"],
+                    }
+                    if isinstance(telemetry, dict)
+                    else None
+                ),
                 # Additive aliases keep the first evidence-v1 physical receipt compatible.
                 "profile_manifest_sha256": _sha_bytes(profile_raw),
                 "profile_manifest_size_bytes": len(profile_raw),
@@ -611,7 +740,7 @@ def bundle_descriptor(package_root: Path, benchmark_id: str) -> dict[str, Any]:
     manifest_raw = (root / "benchmark.json").read_bytes()
     total_size = len(manifest_raw)
     for entry in manifest["profiles"]:
-        for name in ("profile_manifest", "transcript", "metrics", "events"):
+        for name in ("profile_manifest", "transcript", "metrics", "events", "telemetry"):
             descriptor = entry.get(name)
             if isinstance(descriptor, dict):
                 total_size += int(descriptor.get("size_bytes", 0))
