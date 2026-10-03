@@ -301,7 +301,7 @@ export async function updateLembraReferenceAction(
 		const reference = presentLembraRow(
 			row,
 			access.identity.authUserId,
-			campaignResult.campaign,
+			campaign,
 		);
 		return reference
 			? { ok: true, reference }
