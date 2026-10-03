@@ -2,7 +2,7 @@
 
 > Status: persistência compartilhada em Production; galeria justified responsiva rastreada na #738
 > Owner: frontend / integrations-media / identity-access
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-03
 > Fonte de verdade: este contrato, `docs/design-system/`, `docs/architecture.md` e o boundary de Media Storage
 
 ## Objetivo
@@ -80,7 +80,9 @@ O composer pede:
 - **Descrição** — opcional;
 - **Campanha** — opcional, com `Geral` como ausência explícita de classificação.
 
-Autor e data são automáticos. Somente campaigns **ativas e públicas** podem receber uma nova classificação nesta entrega. Uma referência já classificada em campaign arquivada continua legível/editável e pode permanecer nela ou voltar para `Geral`; campaign arquivada não aparece como destino novo. Campaign privada não é enumerada nem aceita por UUID enquanto #1134 não definir discovery/membership multi-campaign com segurança.
+Autor e data são automáticos. Campaigns **ativas e públicas** continuam disponíveis para qualquer usuário autenticado. Campaigns privadas entram no catálogo somente quando a sessão atual consegue descobri-las pela projection autenticada canônica `campaign_edit_directory()`, governada por `campaign.edit.access`; o Lembra reduz essa resposta a `id + name + lifecycle` antes de entregá-la ao browser. Uma referência já classificada em campaign arquivada continua legível e pode preservar o vínculo histórico, mas campaign arquivada não aparece como destino novo.
+
+Quando uma referência global possui `campaign_id` que o usuário atual não pode descobrir, o browser recebe apenas o marker neutro **Classificação restrita**. UUID, nome, technical slug, public route key, visibility, grants e membership dessa campaign não são enviados. A referência continua visível porque o Lembra é global, porém o vínculo escondido não pode ser removido ou trocado até que a sessão tenha discovery elegível.
 
 Ao publicar, o feedback visual acompanha estados reais sem expandir o composer:
 
@@ -132,7 +134,7 @@ Clicar na imagem ou no título abre um viewer amplo com:
 - descrição;
 - autor;
 - data;
-- campaign ou `Geral`;
+- campaign, `Geral` ou o marker neutro `Classificação restrita`;
 - favorito;
 - edição;
 - remoção;
@@ -196,7 +198,9 @@ lembra_favorites
 
 `campaign_id = null` significa **Geral / sem campaign**. Referências existentes permanecem `null` na migração; nenhuma é empurrada para `yuhara-main` por suposição. A FK usa `ON DELETE SET NULL`, portanto a remoção administrativa de uma campaign degrada a classificação para Geral sem apagar a referência.
 
-Classificação não altera acesso, autoria, favoritos, R2 key, bucket ou bytes. Usuário autenticado continua vendo a biblioteca compartilhada mesmo sem membership/grant da **campaign pública** classificada. O nome exibido é metadata de organização do Lembra; slug técnico não é apresentado. Campaigns privadas ficam fora do catálogo/selector desta entrega para que o service role não vire um oracle de discovery antes de #1134. Enquanto o registry first-class ainda não estiver aplicado no banco, a classificação degrada deliberadamente para `Geral`: a galeria continua disponível, o selector não enumera campaigns e payload forjado com `campaign_id` é recusado.
+Classificação não altera acesso, autoria, favoritos, R2 key, bucket ou bytes. Usuário autenticado continua vendo a biblioteca compartilhada mesmo sem acesso à campaign classificada. O catálogo combina a projection pública mínima com a projection autenticada já autorizada por #1134/#1204; queries server-side com secret/service role não decidem discovery por conta própria.
+
+A mutation de metadata usa intenção explícita `preserve | clear | set`. Isso evita que `null` confunda “Geral de propósito” com “o browser não recebeu a classificação privada”. Se a classificação corrente deixou de ser descobrível entre leitura e write, qualquer tentativa de clear/set preserva o FK existente e a resposta volta redigida como **Classificação restrita**. Target UUID inexistente, forjado ou não descobrível falha fechado sem revelar a campaign. Enquanto o registry first-class estiver indisponível, a galeria continua funcional com as projections que puderem ser comprovadas; nunca se amplia discovery como fallback.
 
 `created_by_name` é um snapshot produzido pelo servidor a partir da identidade autenticada para exibição/busca. O browser nunca fornece autoria.
 
@@ -257,7 +261,7 @@ Qualquer usuário autenticado pode:
 - criar referência;
 - alterar nome;
 - alterar descrição;
-- atribuir/remover classificação opcional de campaign;
+- atribuir/remover classificação opcional de campaign quando a campaign é descobrível;
 - remover referência;
 - favoritar/desfavoritar.
 
@@ -278,7 +282,8 @@ Tratar sem perder a galeria atual:
 - item removido enquanto outro cliente o visualiza;
 - atualização concorrente simples — metadata usa comparação de `updated_at` e retorna conflito em vez de sobrescrever silenciosamente;
 - campaign arquivada após classificação;
-- campaign inexistente/forjada no payload;
+- campaign inexistente/forjada/não descobrível no payload;
+- revogação de discovery entre leitura e mutation, preservando vínculo oculto;
 - busca sem resultado.
 
 A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-side sem segredo.
@@ -298,6 +303,10 @@ A UI deve apresentar mensagens humanas; detalhes técnicos ficam em logs server-
 - [ ] filtro por `Todas | Geral | campaign` combina com Meus itens/Favoritos/período;
 - [ ] referência legacy permanece em Geral;
 - [ ] campaign arquivada não quebra referência existente e não é destino novo;
+- [ ] campaign privada descobrível aparece por nome humano sem expor technical slug/route key;
+- [ ] campaign privada não descobrível não envia UUID/nome/route key/visibility ao browser;
+- [ ] referência com vínculo não descobrível exibe apenas `Classificação restrita` e preserva o FK em edições de metadata;
+- [ ] revoke entre leitura e mutation falha fechado para clear/set sem lost classification;
 - [ ] usuário sem membership da campaign continua sob a regra global autenticada do Lembra;
 - [ ] atribuir/remover campaign não muda `object_key` nem bytes R2;
 - [ ] atualização concorrente falha com conflito, sem lost update;
@@ -348,12 +357,12 @@ A simplicidade é requisito, não ausência de funcionalidade.
 6. ativar `TDA_LEMBRA_ENABLED=true`;
 7. smoke autenticado com dois usuários:
    - A publica em Geral e em uma campaign ativa;
-   - B vê ambas mesmo sem membership da campaign classificada;
-   - B filtra Geral/campaign e edita classificação;
-   - A vê atualização;
-   - B favorita para si;
-   - A não recebe favorito de B;
-   - referência em campaign arquivada continua legível;
+   - actor autorizado descobre uma campaign privada e consegue classificar/filtrar por ela;
+   - actor não autorizado vê a mesma referência global sem receber metadata da campaign privada;
+   - edição de título/descrição pelo actor não autorizado preserva a classificação restrita;
+   - forged UUID e revoke entre leitura/write falham fechado;
+   - favorito continua pessoal e independente da classification;
+   - referência em campaign arquivada continua legível, mas não vira destino novo;
    - A/B removem;
    - reload preserva estado correto;
 8. validar que troca de classificação preserva o mesmo `object_key`;
@@ -368,3 +377,5 @@ A simplicidade é requisito, não ausência de funcionalidade.
 - [Media Storage / R2](../integrations/r2.md)
 - [Fluxo de mídia](../integrations/r2/media-pipeline.md)
 - [Issue #476](https://github.com/Faysk/tda/issues/476)
+- [Issue #1323](https://github.com/Faysk/tda/issues/1323)
+- [Hardening multi-campaign #1134](https://github.com/Faysk/tda/issues/1134)
