@@ -324,7 +324,7 @@ export function BenchmarkEvidenceLab({
 		return () => controller.abort();
 	}, [benchmarkId, evidenceReady, bridge]);
 
-useEffect(() => {
+	useEffect(() => {
 		if (!open || !benchmarkId || !evidenceReady) return;
 		const controller = new AbortController();
 		setBusy(true);
