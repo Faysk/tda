@@ -100,7 +100,7 @@ _BROWSER_JOB_PATH = re.compile(
 _BROWSER_BENCHMARK_PATH = re.compile(
     r"^/api/v1/benchmarks/benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}"
     r"(?:/profiles/(?:whisper-(?:turbo|detailed)|qwen-(?:fast|quality))"
-    r"/(?:snapshot|artifacts/(?:json|txt|vtt|srt))|/export\\.zip)?$"
+    r"/(?:snapshot|artifacts/(?:json|txt|vtt|srt))|/export\.zip)?$"
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
