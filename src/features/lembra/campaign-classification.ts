@@ -40,10 +40,11 @@ export function resolveLembraCampaignMutation(
 		};
 	}
 
+	if (currentCampaignId && !visibleById.has(currentCampaignId)) {
+		return { ok: false, reason: "forbidden" };
+	}
+
 	if (mutation.kind === "clear") {
-		if (currentCampaignId && !visibleById.has(currentCampaignId)) {
-			return { ok: false, reason: "forbidden" };
-		}
 		return { ok: true, campaignId: null, campaign: null };
 	}
 
