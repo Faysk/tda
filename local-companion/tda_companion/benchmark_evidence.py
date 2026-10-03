@@ -182,6 +182,8 @@ def _read_bundle_manifest(data_root: Path, benchmark_id: str) -> dict[str, Any]:
     integrity = manifest.get("manifest_payload_sha256")
     attempt = manifest.get("attempt")
     sample_seconds = manifest.get("sample_seconds")
+    track_count = manifest.get("track_count")
+    audio_work_seconds = manifest.get("audio_work_seconds")
     if (
         manifest.get("schema_version") != BUNDLE_SCHEMA
         or manifest.get("status") != "completed"
@@ -200,6 +202,13 @@ def _read_bundle_manifest(data_root: Path, benchmark_id: str) -> dict[str, Any]:
         or isinstance(sample_seconds, bool)
         or not isinstance(sample_seconds, (int, float))
         or float(sample_seconds) != 300.0
+        or isinstance(track_count, bool)
+        or not isinstance(track_count, int)
+        or track_count < 1
+        or isinstance(audio_work_seconds, bool)
+        or not isinstance(audio_work_seconds, (int, float))
+        or not math.isfinite(float(audio_work_seconds))
+        or float(audio_work_seconds) < 0
         or not isinstance(sample, dict)
         or sample.get("start_seconds") != 0.0
         or sample.get("end_seconds") != sample_seconds
@@ -451,6 +460,7 @@ def _event_jsonl(
     *,
     benchmark_id: str,
     profile_id: str,
+    required_terminal: str,
 ) -> bytes:
     rows = [
         _validated_event_row(row, benchmark_id=benchmark_id, profile_id=profile_id)
@@ -460,6 +470,8 @@ def _event_jsonl(
         raise BenchmarkEvidenceError("BENCHMARK_EVENT_COUNT_INVALID")
     if any(right["seq"] <= left["seq"] for left, right in zip(rows, rows[1:])):
         raise BenchmarkEvidenceError("BENCHMARK_EVENT_SEQUENCE_INVALID")
+    if required_terminal not in {"result", "cancelled", "error"} or rows[-1]["type"] != required_terminal:
+        raise BenchmarkEvidenceError("BENCHMARK_EVENT_TERMINAL_INVALID")
     payload = b"".join(_canonical_json(row) + b"\n" for row in rows)
     if len(payload) > _MAX_JSONL_BYTES:
         raise BenchmarkEvidenceError("BENCHMARK_EVENT_SIZE_INVALID")
@@ -479,6 +491,7 @@ def write_profile_events(
         events,
         benchmark_id=benchmark_id,
         profile_id=profile_id,
+        required_terminal="result",
     )
     path = destination / "events.jsonl"
     if path.exists():
@@ -708,6 +721,7 @@ def write_failed_profile_diagnostics(
         events,
         benchmark_id=benchmark_id,
         profile_id=profile_id,
+        required_terminal=terminal,
     )
     telemetry_payload = _telemetry_jsonl(
         telemetry,
@@ -757,6 +771,8 @@ def finalize_bundle(
         raise BenchmarkEvidenceError("BENCHMARK_ALREADY_COMMITTED")
     profile_entries: list[dict[str, Any]] = []
     source_sha256: str | None = None
+    track_count: int | None = None
+    audio_work_seconds: float | None = None
     total_size = 0
     for profile_id in PROFILES:
         destination = profile_root(data_root, benchmark_id, profile_id)
@@ -801,6 +817,30 @@ def finalize_bundle(
             raise BenchmarkEvidenceError("BENCHMARK_TRANSCRIPT_INVALID") from exc
         if transcript.source_sha256.lower() != source_sha256 or transcript.engine.profile != profile_id:
             raise BenchmarkEvidenceError("BENCHMARK_TRANSCRIPT_IDENTITY_MISMATCH")
+        metrics = _read_json(destination / "metrics.json")
+        current_track_count = metrics.get("track_count")
+        current_audio_work = metrics.get("audio_work_seconds")
+        if (
+            isinstance(current_track_count, bool)
+            or not isinstance(current_track_count, int)
+            or current_track_count < 1
+            or isinstance(current_audio_work, bool)
+            or not isinstance(current_audio_work, (int, float))
+            or not math.isfinite(float(current_audio_work))
+            or float(current_audio_work) < 0
+            or current_track_count != transcript.stats.track_count
+            or not math.isclose(float(current_audio_work), transcript.stats.audio_work_seconds, abs_tol=0.001)
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_METRICS_IDENTITY_INVALID")
+        if track_count is None:
+            track_count = current_track_count
+            audio_work_seconds = float(current_audio_work)
+        elif (
+            track_count != current_track_count
+            or audio_work_seconds is None
+            or not math.isclose(audio_work_seconds, float(current_audio_work), abs_tol=0.001)
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_METRICS_IDENTITY_MISMATCH")
         profile_entries.append({"profile_id": profile_id, "artifacts": artifacts})
     if source_id != f"craig-{source_sha256}":
         raise BenchmarkEvidenceError("BENCHMARK_SOURCE_IDENTITY_MISMATCH")
@@ -815,6 +855,8 @@ def finalize_bundle(
         "sample_identity_sha256": sample_identity_sha256,
         "sample": {"start_seconds": 0.0, "end_seconds": sample_seconds},
         "sample_seconds": sample_seconds,
+        "track_count": track_count,
+        "audio_work_seconds": audio_work_seconds,
         "profile_order": list(PROFILES),
         "execution_mode": execution_mode,
         "context": _hash_private_text(context),
@@ -892,6 +934,30 @@ def load_bundle(data_root: Path, benchmark_id: str) -> dict[str, Any]:
                 or internal.get("size_bytes") != external.get("size_bytes")
             ):
                 raise BenchmarkEvidenceError("BENCHMARK_PROFILE_MANIFEST_INVALID")
+        metrics_payload = verified_profile_bytes(data_root, benchmark_id, profile_id, "metrics")
+        try:
+            metrics = json.loads(metrics_payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_METRICS_INVALID") from exc
+        if (
+            not isinstance(metrics, dict)
+            or metrics.get("schema_version") != METRICS_SCHEMA
+            or metrics.get("benchmark_id") != benchmark_id
+            or metrics.get("job_id") != manifest["job_id"]
+            or metrics.get("attempt") != manifest["attempt"]
+            or metrics.get("profile_id") != profile_id
+            or metrics.get("sample_identity_sha256") != manifest["sample_identity_sha256"]
+            or metrics.get("sample_seconds") != manifest["sample_seconds"]
+            or metrics.get("track_count") != manifest["track_count"]
+            or not isinstance(metrics.get("audio_work_seconds"), (int, float))
+            or isinstance(metrics.get("audio_work_seconds"), bool)
+            or not math.isclose(
+                float(metrics["audio_work_seconds"]),
+                float(manifest["audio_work_seconds"]),
+                abs_tol=0.001,
+            )
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_PROFILE_METRICS_INVALID")
 
         transcript_bytes = verified_profile_bytes(data_root, benchmark_id, profile_id, "transcript")
         try:
