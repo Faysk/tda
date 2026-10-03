@@ -22,6 +22,10 @@ test("World Explorer uses organic bezier geometry for visible relations", async 
 	expect(geometry.length).toBeGreaterThan(20);
 	expect(geometry.strokeLinecap).toBe("round");
 	expect(
-		await edge.evaluate((element) => Boolean(element.closest("g.react-flow__edge"))),
+		await edge.evaluate((element) => Boolean(element.closest(".react-flow__viewport-portal"))),
 	).toBe(true);
+	expect(
+		await edge.evaluate((element) => Boolean(element.closest("g.react-flow__edge"))),
+	).toBe(false);
+	await expect(page.locator(".react-flow__edge .react-flow__edge-interaction").first()).toBeVisible();
 });
