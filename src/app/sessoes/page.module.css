@@ -148,15 +148,15 @@
 
 .stat dd {
 	order: 1;
-	overflow: hidden;
+	min-width: 0;
 	margin: 0;
 	color: var(--ds-on-art-foreground);
 	font-family: var(--ds-font-display);
 	font-size: clamp(1.32rem, 1.35vw, 1.82rem);
 	font-variant-numeric: tabular-nums;
-	line-height: 1.05;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	line-height: 1.12;
+	overflow-wrap: anywhere;
+	text-wrap: balance;
 }
 
 .stat span {

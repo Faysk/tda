@@ -129,6 +129,12 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 	page,
 }) => {
 	await page.goto("/campanhas/sessoes");
+	const aggregateHero = page.locator("[data-session-archive-hero]");
+	await expect(aggregateHero).toHaveAttribute(
+		"data-session-archive-artwork-source",
+		"hero",
+	);
+	await expectDecodedImage(aggregateHero, "aggregate latest-session hero");
 	await expect(page.locator('[data-session-archive-scope="aggregate"]')).toBeVisible();
 	await expect(page.getByText("Arquivo global", { exact: true })).toBeVisible();
 	await expect(page.getByRole("heading", { level: 1, name: "Todas as campanhas" })).toBeVisible();

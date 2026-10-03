@@ -30,6 +30,25 @@ export const formatWords = (value: number | null) =>
 		? "Não informadas"
 		: new Intl.NumberFormat("pt-BR").format(value);
 
+export type TranscriptCoverageState = "empty" | "incomplete" | "complete";
+
+export function transcriptCoverageState(
+	totals: Readonly<{
+		sessions: number;
+		wordCoverage: number;
+		durationCoverage: number;
+	}>,
+): TranscriptCoverageState {
+	if (totals.sessions === 0) return "empty";
+	if (
+		totals.wordCoverage < totals.sessions ||
+		totals.durationCoverage < totals.sessions
+	) {
+		return "incomplete";
+	}
+	return "complete";
+}
+
 export function summarize(sessions: readonly SessionMetric[]) {
 	const withWords = sessions.filter((session) => session.words !== null);
 	const withDuration = sessions.filter(
