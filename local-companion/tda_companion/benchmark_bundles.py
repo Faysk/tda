@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from .atomic_storage import AtomicStorageError, atomic_write
+from .atomic_storage import AtomicStorageError, atomic_write, confirm_existing_file
 from .attempt_fence import AttemptFenceError, claim_attempt_outcome
 from .transcript import TranscriptDocument, TranscriptValidationError
 
@@ -185,6 +185,21 @@ def _validate_transcript_paths(document: TranscriptDocument) -> None:
             raise BenchmarkBundleError("BENCHMARK_TRANSCRIPT_PATH_INVALID")
 
 
+def _atomic_bytes(path: Path, payload: bytes) -> None:
+    try:
+        atomic_write(path, payload)
+        return
+    except AtomicStorageError as exc:
+        if not exc.ambiguous or not path.is_file() or _is_reparse_point(path):
+            raise
+    try:
+        if path.stat().st_size != len(payload) or _sha256_file(path) != hashlib.sha256(payload).hexdigest():
+            raise BenchmarkBundleError("BENCHMARK_ATOMIC_WRITE_MISMATCH")
+        confirm_existing_file(path)
+    except (OSError, AtomicStorageError) as exc:
+        raise BenchmarkBundleError("BENCHMARK_ATOMIC_WRITE_UNCONFIRMED") from exc
+
+
 def _atomic_json(path: Path, value: dict[str, Any]) -> None:
     payload = json.dumps(
         value,
@@ -192,7 +207,7 @@ def _atomic_json(path: Path, value: dict[str, Any]) -> None:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
-    atomic_write(path, payload)
+    _atomic_bytes(path, payload)
 
 
 def _bounded_bytes(
@@ -534,7 +549,7 @@ def write_benchmark_profile(
     destination.mkdir(parents=False, exist_ok=False)
     try:
         transcript_path = destination / "transcript.json"
-        atomic_write(transcript_path, document_payload)
+        _atomic_bytes(transcript_path, document_payload)
         transcript_sha256 = hashlib.sha256(document_payload).hexdigest()
         transcript_size_bytes = len(document_payload)
         manifest = {
