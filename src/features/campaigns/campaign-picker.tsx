@@ -11,7 +11,7 @@ export type CampaignPickerOption = Readonly<{
 	disabled?: boolean;
 }>;
 
-type CampaignPickerProps = Readonly<{
+export type CampaignPickerProps = Readonly<{
 	value: string;
 	options: readonly CampaignPickerOption[];
 	onChange: (value: string) => void;
@@ -20,6 +20,9 @@ type CampaignPickerProps = Readonly<{
 	generalValue?: string;
 	generalLabel?: string;
 	disabled?: boolean;
+	pending?: boolean;
+	pendingLabel?: string;
+	status?: string;
 	className?: string;
 	selectClassName?: string;
 	canManage?: boolean;
@@ -38,6 +41,9 @@ export function CampaignPicker({
 	generalValue = "",
 	generalLabel = "Geral",
 	disabled = false,
+	pending = false,
+	pendingLabel = "Trocando campanha…",
+	status,
 	className,
 	selectClassName,
 	canManage = false,
@@ -52,31 +58,38 @@ export function CampaignPicker({
 			value: option.value,
 			label:
 				option.lifecycle === "archived"
-					? `${option.label} · arquivada`
+					? `${option.label} (arquivada)`
 					: option.label,
 			disabled: option.disabled ?? option.lifecycle === "archived",
 		})),
 	];
+	const busy = disabled || pending;
 
 	return (
-		<div className={className ? `${styles.root} ${className}` : styles.root}>
+		<div
+			className={className ? `${styles.root} ${className}` : styles.root}
+			aria-busy={pending || undefined}
+		>
 			<Select
 				value={value}
 				options={selectOptions}
 				onChange={onChange}
 				ariaLabel={ariaLabel}
 				className={selectClassName}
-				disabled={disabled}
+				disabled={busy}
 			/>
+			<p className={styles.status} role="status" aria-live="polite">
+				{pending ? pendingLabel : status ?? ""}
+			</p>
 			{(canCreate && onCreate) || canManage ? (
-				<div className={styles.actions}>
+				<nav className={styles.actions} aria-label="Ações de campanha">
 					{canCreate && onCreate ? (
 						<button
 							ref={createButtonRef}
 							type="button"
 							className={styles.action}
 							onClick={onCreate}
-							disabled={disabled}
+							disabled={busy}
 						>
 							Nova campanha
 						</button>
@@ -95,7 +108,7 @@ export function CampaignPicker({
 							</span>
 						</a>
 					) : null}
-				</div>
+				</nav>
 			) : null}
 		</div>
 	);
