@@ -237,6 +237,10 @@
 		min-width: 40px;
 		min-height: 40px;
 	}
+
+	.layout:not([data-world-inspector-mode="closed"]) :global(.react-flow__controls) {
+		bottom: calc(min(62dvh, 600px) + 12px);
+	}
 }
 
 @media (max-width: 820px) {
@@ -255,8 +259,12 @@
 	}
 
 	.inspector {
-		max-height: min(64dvh, 560px);
+		max-height: min(48dvh, 440px);
 		padding-inline: max(16px, var(--ds-page-gutter));
+	}
+
+	.layout:not([data-world-inspector-mode="closed"]) :global(.react-flow__controls) {
+		bottom: calc(min(48dvh, 440px) + 12px);
 	}
 }
 
