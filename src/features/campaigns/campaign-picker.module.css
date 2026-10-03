@@ -36,8 +36,8 @@
 }
 
 .action:focus-visible {
-	border-radius: var(--ds-radius-xs);
-	outline: 2px solid var(--ds-focus-ring);
+	border-radius: var(--ds-radius-sm);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 3px;
 }
 
