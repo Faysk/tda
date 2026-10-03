@@ -10,8 +10,7 @@ create table public.campaigns (
   slug text not null unique,
   description text,
   metadata jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  created_at timestamptz not null default now()
 );
 
 create table public.entities (

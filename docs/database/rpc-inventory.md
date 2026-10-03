@@ -484,3 +484,7 @@ A migration no Git não prova rollout remoto. Confirmar migration history e gran
 | `session_campaign_move_dependency_count(text,text,uuid)` | helper interno | `service_role` only | Conta dependências em tabelas opcionais do domínio sem expor conteúdo. |
 
 Todos os quatro permanecem candidatos scratch-only enquanto `20261001030000_session_campaign_move.sql` não for promovido deliberadamente.
+
+## Campaign revision trigger — #1326
+
+`public.advance_campaign_registry_revision()` is introduced by `20261003011729_restore_campaign_registry_revision`. Trigger-only, SECURITY INVOKER, fixed search_path; not a browser RPC. No capability or table privilege changes. Consumed through campaign UPDATEs, with positive compare-and-set and stale-rejection assertions in `supabase/tests/campaign_registry_revision.sql`.

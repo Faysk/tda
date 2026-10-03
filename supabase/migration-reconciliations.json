@@ -1,7 +1,7 @@
 {
   "schemaVersion": "tda_migration_reconciliations_v1",
   "projectRef": "dmrqnbdvbkfqzctcerbx",
-  "verifiedAt": "2026-09-15",
+  "verifiedAt": "2026-10-03",
   "mappings": [
     {
       "from": "20260909173000_world_edit_lease.sql",
@@ -22,6 +22,21 @@
       "from": "20260915211000_transcript_review_contract_comments.sql",
       "to": "20260915211245_transcript_review_contract_comments.sql",
       "blobSha": "e1d1d5c7484a3951d8f4ed289b498246211c0eb5"
+    },
+    {
+      "from": "20261001205000_harden_campaign_discovery_authorization.sql",
+      "to": "20261001204532_harden_campaign_discovery_authorization.sql",
+      "blobSha": "f77933ee64d0951d4596335d43d4ac221ebbd127"
+    },
+    {
+      "from": "20261001204500_activate_first_class_campaign_registry.sql",
+      "to": "20261001204525_activate_first_class_campaign_registry.sql",
+      "blobSha": "2bd4de38bdc7029c14c7896d95b1b537bdc20320"
+    },
+    {
+      "from": "20261001211000_cleanup_legacy_campaign_public_description.sql",
+      "to": "20261001215014_cleanup_legacy_campaign_public_description.sql",
+      "blobSha": "9ce72686c277eb58fc1a0ff36a814cbc2dcc8624"
     }
   ]
 }

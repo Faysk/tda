@@ -223,3 +223,7 @@ Depois da ativação:
 - archived é usado para desativar operação sem hard delete;
 - public route alias permanece resolvível;
 - correção de schema é forward-only conforme runbook.
+
+## Recovery of tools discovery — #1326 (2026-10-03)
+
+The registry management reader requires `campaigns.updated_at` as an optimistic concurrency token. A legacy schema without it breaks both management and the navigation projection even when direct processing/transcript routes work. `20261003011729_restore_campaign_registry_revision` adds the database-owned token without changing campaign identity or authorization. Before publication, replay the registry/authorization scratch suites; after application, confirm the exact management SELECT, authorized launcher destinations and stale edit rejection. Preserve additive schema on application rollback.
