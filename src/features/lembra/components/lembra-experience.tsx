@@ -1480,8 +1480,7 @@ export function LembraExperience({
 										canManageCampaigns={canManageCampaigns}
 										disabled={saving}
 										ariaLabel="Campanha da referência"
-								e2eCreateFailureReason={e2eCampaignCreateFailureReason}
-									e2eCreateFailureReason={e2eCampaignCreateFailureReason}
+										e2eCreateFailureReason={e2eCampaignCreateFailureReason}
 									/>
 									<div className={styles.viewerEditActions}>
 										<Button
