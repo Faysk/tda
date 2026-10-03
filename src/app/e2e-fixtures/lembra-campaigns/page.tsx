@@ -13,6 +13,7 @@ export default async function LembraCampaignE2EFixture({ searchParams }: Props) 
 	return (
 		<LembraCampaignFixtureClient
 			canManageCampaigns={params.manage !== "0"}
+			discoverCreatedCampaign={params.discoverCreated !== "0"}
 		/>
 	);
 }
