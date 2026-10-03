@@ -35,6 +35,7 @@ import {
 	type LembraUploadIntent,
 } from "../model";
 import { reconcileCreatedLembraCampaign } from "../campaign-composer";
+import { lembraCampaignMutationFromSelection } from "../campaign-classification";
 import {
 	hasLembraDateFilter,
 	isWithinLembraDateRange,
@@ -1549,11 +1550,13 @@ export function LembraExperience({
 													: activeCampaignOptions
 											}
 											onChange={(value) => {
-												setEditCampaignId(value || null);
+												const nextCampaignId = value || null;
+												setEditCampaignId(nextCampaignId);
 												setEditCampaignMutation(
-													value
-														? { kind: "set", campaignId: value }
-														: { kind: "clear" },
+													lembraCampaignMutationFromSelection(
+														selectedReference.campaign?.id ?? null,
+														nextCampaignId,
+													),
 												);
 											}}
 											ariaLabel="Campanha da referência"
