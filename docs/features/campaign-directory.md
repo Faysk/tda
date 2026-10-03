@@ -3,7 +3,7 @@
 > Status: registry first-class ativo; diretório público em operação
 > Owner: campaigns / public navigation / Edit
 > Última revisão: 2026-10-01
-> Issues: #1122, #1124, #1281
+> Issues: #1122, #1124, #1281, #1327
 
 ## Objetivo
 
@@ -65,12 +65,55 @@ A memória mais recente usa o mesmo ordering determinístico do feed público
 (data, campaign e source id). Contagem e “última memória” vêm exclusivamente da
 projection pública.
 
-Cada card aponta para o archive campaign-qualified em
-`/campanhas/[routeKey]/sessoes`.
+Cada card oferece duas intenções distintas:
+
+- **Abrir campanha** aponta para o hub canônico `/campanhas/[routeKey]`;
+- **Sessões** continua como atalho direto para `/campanhas/[routeKey]/sessoes`.
 
 Descrições operacionais de seed/import não são apresentação editorial. #1281
 limpa o placeholder histórico conhecido no dado e a UI usa copy neutra quando
 não existe descrição editorial.
+
+## Hub público — `/campanhas/[routeKey]`
+
+#1327 torna a raiz campaign-qualified a referência pública estável da campanha.
+Ela reutiliza exatamente o mesmo resolver do registry usado pelas superfícies
+filhas; não existe uma segunda fonte de identidade ou autorização.
+
+Contrato:
+
+- somente campaign `active/public` resolve para o visitante;
+- `public_slug` é a URL canônica;
+- alias ativo redireciona permanentemente para o `public_slug` antes de
+  apresentar conteúdo;
+- campaign `private`, `archived` e rota inexistente falham como ausência,
+  sem revelar nome, descrição, artwork, UUID ou technical slug;
+- indisponibilidade do registry produz estado genérico, sem metadata específica
+  da campaign solicitada.
+
+A primeira viewport prioriza contexto e ação, não métricas:
+
+1. nome editorial;
+2. descrição pública existente ou fallback neutro explícito;
+3. cover pública verificada da campaign;
+4. na ausência da cover, artwork de **sessão publicada da própria campaign**;
+5. fallback visual local quando não existir mídia pública;
+6. ações de Sessões e Mundo.
+
+O hub pode destacar a memória publicada mais recente somente a partir do
+archive público **scoped pela mesma `routeKey`**. Falha da leitura de sessões é
+diferente de zero sessões; nenhuma das duas condições permite herdar memória ou
+artwork de uma campaign irmã.
+
+Entradas narrativas adicionais (Personagens, NPCs, Lugares, Facções, Quests e
+Músicas) aparecem somente quando existe ao menos uma entidade da própria
+campaign com `visibility=public_web` compatível com aquela rota. O hub não
+inventa contagens, lore, relacionamentos ou links privados para preencher
+espaço.
+
+Metadata social/canonical usa a route key canônica e somente artwork público
+verificado. Metadata de uma rota não autorizada permanece genérica e
+`noindex`, evitando que um pedido anônimo use head metadata como canal lateral.
 
 ## Route key e aliases
 
@@ -186,9 +229,14 @@ Fixtures sintéticas, sem conteúdo real:
 - duas campaigns públicas;
 - nome longo;
 - descrição ausente;
-- clique para archive A/B;
-- campaign B sem sessions não recebe sessions de A;
-- 320 px sem overflow;
+- diretório abre o hub e preserva atalho direto de Sessões;
+- hub A destaca somente sessão/artwork de A;
+- hub B nunca herda destaque, artwork ou categorias narrativas de A;
+- hub sem sessão apresenta estado vazio útil sem inventar conteúdo;
+- alias da raiz redireciona para a canonical;
+- private, archived e rota inexistente retornam 404 sem metadata da campaign;
+- ida hub → Sessões → voltar preserva a campaign;
+- 320 px e 390 px sem overflow;
 - teclado;
 - 200% zoom.
 
