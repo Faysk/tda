@@ -58,40 +58,37 @@ function rpcRow(campaign: CampaignFixture) {
 }
 
 function fakeCampaignClient(rows: readonly CampaignFixture[]) {
-	return {
-		from(table: string) {
-			if (table !== "campaigns") throw new Error(`unexpected table: ${table}`);
-			let result = [...rows];
-			const query = {
+	function query(current: readonly CampaignFixture[]) {
+		return Object.assign(
+			Promise.resolve({ data: [...current], error: null }),
+			{
 				select() {
-					return query;
+					return query(current);
 				},
 				eq(column: string, value: unknown) {
-					result = result.filter(
-						(row) => row[column as keyof CampaignFixture] === value,
+					return query(
+						current.filter(
+							(row) => row[column as keyof CampaignFixture] === value,
+						),
 					);
-					return query;
 				},
 				order() {
-					return query;
+					return query(current);
 				},
 				maybeSingle() {
 					return Promise.resolve({
-						data: result.length === 1 ? result[0] : null,
+						data: current.length === 1 ? current[0] : null,
 						error: null,
 					});
 				},
-				then(
-					resolve: (value: unknown) => unknown,
-					reject: (reason: unknown) => unknown,
-				) {
-					return Promise.resolve({ data: result, error: null }).then(
-						resolve,
-						reject,
-					);
-				},
-			};
-			return query;
+			},
+		);
+	}
+
+	return {
+		from(table: string) {
+			if (table !== "campaigns") throw new Error(`unexpected table: ${table}`);
+			return query(rows);
 		},
 	};
 }
