@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -26,6 +27,13 @@ from tda_companion.benchmark_evidence import (
     write_failed_profile_diagnostics,
     write_profile_telemetry,
 )
+from tda_companion.benchmark_bundles import (
+    benchmark_sample_descriptor as legacy_sample_descriptor,
+    benchmark_sample_identity as legacy_sample_identity,
+    finalize_benchmark_bundle as finalize_legacy_bundle,
+    write_benchmark_profile as write_legacy_profile,
+)
+
 from tda_companion.benchmark_quality import (
     BenchmarkQualityError,
     normalize_text,
@@ -270,6 +278,70 @@ def _rewrite_bundle_manifest(tmp_path: Path, benchmark_id: str, mutate) -> None:
         json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
         encoding="utf-8",
     )
+
+
+def test_merged_1419_bundle_stays_readable_comparable_and_exportable(tmp_path: Path):
+    job_id = "legacy-benchmark"
+    attempt = 1
+    source_id = "craig-" + "a" * 64
+    package = SimpleNamespace(
+        source_sha256="a" * 64,
+        tracks=(SimpleNamespace(number=1, sha256="b" * 64),),
+    )
+    sample_identity = legacy_sample_identity(package)
+    receipts = []
+    for profile in PROFILES:
+        artifact = write_legacy_profile(
+            tmp_path,
+            _document(profile, f"texto {profile}"),
+            job_id=job_id,
+            attempt=attempt,
+            source_id=source_id,
+            sample_identity_sha256=sample_identity,
+            sample_seconds=300.0,
+            execution_lineage=_lineage(profile),
+        )
+        receipts.append(
+            {
+                "profile_id": profile,
+                "benchmark_id": artifact["benchmark_id"],
+                "sample_identity_sha256": sample_identity,
+                "transcript_sha256": artifact["transcript_sha256"],
+                "transcript_size_bytes": artifact["transcript_size_bytes"],
+                "artifact_available": True,
+                "execution_lineage": _lineage(profile),
+            }
+        )
+    legacy = finalize_legacy_bundle(
+        tmp_path,
+        job_id=job_id,
+        attempt=attempt,
+        source_id=source_id,
+        source_sha256="a" * 64,
+        sample=legacy_sample_descriptor(package),
+        sample_identity_sha256=sample_identity,
+        sample_seconds=300.0,
+        track_count=1,
+        audio_work_seconds=300.0,
+        context="",
+        glossary="",
+        profile_receipts=receipts,
+    )
+
+    loaded = load_bundle(tmp_path, legacy["benchmark_id"])
+    assert loaded["bundle_manifest_sha256"] == legacy["bundle_manifest_sha256"]
+    assert json.loads(
+        verified_profile_bytes(
+            tmp_path,
+            legacy["benchmark_id"],
+            "qwen-fast",
+            "transcript",
+        )
+    )["engine"]["profile"] == "qwen-fast"
+
+    archive = private_export_zip(tmp_path, legacy["benchmark_id"])
+    assert b"WEBVTT" in archive
+    assert b"texto qwen-fast" in archive
 
 
 def test_completed_bundle_is_hash_bound_queue_independent_and_contains_no_audio(tmp_path: Path):
