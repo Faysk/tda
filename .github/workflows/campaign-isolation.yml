@@ -344,6 +344,7 @@ jobs:
             test-results/**/interaction-*.png
             test-results/**/interaction-*.json
             test-results/**/product-coherence-regression-*.png
+            test-results/**/lore-mode-*-390.png
             test-results/**/operational-header-*.png
             test-results/**/world-selected-relation-paint.png
           if-no-files-found: ignore
