@@ -91,21 +91,106 @@ test("copies the visible working speaker with the immutable timestamp and restor
 
 test("revert removes dirty state and dirty navigation requires explicit confirmation", async ({
 	page,
-}) => {
+}, testInfo) => {
 	await openFresh(page);
 	const first = await editFirst(page, "Mudança descartável");
 	await first.getByRole("button", { name: "Reverter" }).click();
 	await expect(page.getByText("Nenhuma alteração", { exact: true })).toBeVisible();
 
 	await editFirst(page, "Working copy protegida");
-	page.once("dialog", async (dialog) => {
-		expect(dialog.message()).toContain("alterações não salvas");
-		await dialog.dismiss();
+	const exitLink = page.getByRole("link", { name: "Sair da fixture" });
+	await exitLink.click();
+
+	const confirmation = page.getByRole("dialog", {
+		name: "Sair com alterações não salvas?",
 	});
-	await page.getByRole("link", { name: "Sair da fixture" }).click();
+	await expect(confirmation).toBeVisible();
+	await expect(confirmation).toContainText("1 alteração(ões)");
+	await expect(
+		confirmation.getByRole("button", { name: "Continuar editando" }),
+	).toBeFocused();
+	await page.setViewportSize({ width: 390, height: 844 });
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+	).toBeTruthy();
+	await page.screenshot({
+		path: testInfo.outputPath("issue-1354-transcript-discard-mobile-fixture.png"),
+		fullPage: false,
+	});
+
+	await page.keyboard.press("Escape");
+	await expect(confirmation).toBeHidden();
 	await expect(page).toHaveURL(/\/e2e-fixtures\/transcript-edit/u);
 	await expect(
 		page.getByText("Working copy protegida", { exact: true }),
+	).toBeVisible();
+	await expect(exitLink).toBeFocused();
+
+	await exitLink.click();
+	await expect(confirmation).toBeVisible();
+	await confirmation.getByRole("button", { name: "Descartar e sair" }).click();
+	await expect(page).toHaveURL("http://127.0.0.1:3112/");
+});
+
+test("bulk discard is explicit and Escape preserves the working copy", async ({ page }, testInfo) => {
+	await openFresh(page);
+	await editFirst(page, "Working copy para descarte");
+
+	const discard = page.getByRole("button", {
+		name: "Descartar alterações",
+		exact: true,
+	});
+	await discard.click();
+	const confirmation = page.getByRole("dialog", {
+		name: "Descartar alterações da transcrição?",
+	});
+	await expect(confirmation).toBeVisible();
+	await expect(confirmation).toContainText("1 alteração(ões)");
+	await expect(
+		confirmation.getByRole("button", { name: "Continuar editando" }),
+	).toBeFocused();
+
+	await page.keyboard.press("Escape");
+	await expect(confirmation).toBeHidden();
+	await expect(discard).toBeFocused();
+	await expect(
+		page.getByText("Working copy para descarte", { exact: true }),
+	).toBeVisible();
+	await expect(
+		page.getByText("1 alteração(ões) não salvas", { exact: true }),
+	).toBeVisible();
+
+	await discard.click();
+	await confirmation
+		.getByRole("button", { name: "Descartar alterações", exact: true })
+		.click();
+	await expect(confirmation).toBeHidden();
+	await expect(page.getByText("Nenhuma alteração", { exact: true })).toBeVisible();
+	await expect(
+		page.getByText("Working copy para descarte", { exact: true }),
+	).toHaveCount(0);
+});
+
+test("external dirty navigation stays under beforeunload instead of the integrated dialog", async ({
+	page,
+}) => {
+	await openFresh(page);
+	await editFirst(page, "Working copy protegida de saída externa");
+
+	let beforeUnloadSeen = false;
+	page.once("dialog", async (dialog) => {
+		beforeUnloadSeen = dialog.type() === "beforeunload";
+		await dialog.dismiss();
+	});
+	await page.getByRole("link", { name: "Sair para site externo" }).click();
+
+	expect(beforeUnloadSeen).toBe(true);
+	await expect(
+		page.getByRole("dialog", { name: "Sair com alterações não salvas?" }),
+	).toHaveCount(0);
+	await expect(page).toHaveURL(/\/e2e-fixtures\/transcript-edit/u);
+	await expect(
+		page.getByText("Working copy protegida de saída externa", { exact: true }),
 	).toBeVisible();
 });
 
@@ -131,6 +216,32 @@ test("stale current preserves the working copy and never retries blindly", async
 	await expect(
 		page.getByText("1 alteração(ões) não salvas", { exact: true }),
 	).toBeVisible();
+
+	const reloadLatest = page.getByRole("button", {
+		name: "Recarregar versão mais recente",
+	});
+	await reloadLatest.click();
+	const confirmation = page.getByRole("dialog", {
+		name: "Carregar a revisão mais recente?",
+	});
+	await expect(confirmation).toBeVisible();
+	await expect(confirmation).toContainText("1 alteração(ões)");
+	await page.keyboard.press("Escape");
+	await expect(confirmation).toBeHidden();
+	await expect(
+		page.getByText("Minha correção local", { exact: true }),
+	).toBeVisible();
+
+	await reloadLatest.click();
+	await confirmation
+		.getByRole("button", { name: "Descartar e recarregar" })
+		.click();
+	await expect(
+		page.getByText("Revisão privada sintética · r2", { exact: true }),
+	).toBeVisible();
+	await expect(
+		page.getByText("Minha correção local", { exact: true }),
+	).toHaveCount(0);
 });
 
 test("ambiguous response reuses the operation and reconciles without a duplicate revision", async ({

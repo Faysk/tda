@@ -119,6 +119,46 @@ test("speaker limits count emoji as one scalar and reject excess ASCII before sa
 	await expect(page.getByRole("alert")).toContainText("Corrija os campos");
 });
 
+test("dirty local review closes only after explicit integrated confirmation", async ({ page }, testInfo) => {
+	await page.goto("/?review-contracts");
+	await page.getByRole("button", { name: /^Editar / }).first().click();
+	const text = page.getByRole("textbox", { name: /^Texto em / }).first();
+	await text.fill("Rascunho local protegido");
+	await page.getByRole("button", { name: /^Concluir edição / }).first().click();
+	await expect(page.getByText("Alterações não salvas", { exact: true })).toBeVisible();
+
+	const back = page.getByRole("button", { name: "← Resultados" });
+	await back.click();
+	const confirmation = page.getByRole("dialog", {
+		name: "Descartar alterações desta revisão?",
+	});
+	await expect(confirmation).toBeVisible();
+	await expect(confirmation).toContainText("whisper-detailed");
+	await expect(confirmation).toContainText(
+		"Somente a working copy não salva desta tela será descartada.",
+	);
+	await expect(
+		confirmation.getByRole("button", { name: "Continuar editando" }),
+	).toBeFocused();
+	await page.screenshot({
+		path: testInfo.outputPath("issue-1354-review-discard-fixture.png"),
+		fullPage: false,
+	});
+
+	await page.keyboard.press("Escape");
+	await expect(confirmation).toBeHidden();
+	await expect(back).toBeFocused();
+	await expect(page.getByText("Rascunho local protegido", { exact: true })).toBeVisible();
+	await expect(page.getByTestId("close-count")).toHaveText("0");
+	await expect(page.getByTestId("save-count")).toHaveText("0");
+
+	await back.click();
+	await confirmation.getByRole("button", { name: "Descartar alterações" }).click();
+	await expect(confirmation).toBeHidden();
+	await expect(page.getByTestId("close-count")).toHaveText("1");
+	await expect(page.getByTestId("save-count")).toHaveText("0");
+});
+
 test("review shows factual warning totals with bounded details and Unicode word count", async ({
 	page,
 }, testInfo) => {
@@ -325,18 +365,41 @@ test("lost publication recovers after reload without a second write or transcrip
  // The recovery effect is opportunistic. The persisted operation must surface
  // as recovery, never as a fresh enabled "Preparar sessão" action.
  await expect(page.getByRole("button", { name: "Preparar sessão" })).toBeDisabled();
- await expect(page.getByRole("button", { name: "Abandonar handoff anterior" })).toBeVisible();
- let abandonmentMessage = "";
- page.once("dialog", async dialog => {
-  abandonmentMessage = dialog.message();
-  await dialog.dismiss();
+ const abandonTrigger = page.getByRole("button", { name: "Abandonar handoff anterior" });
+ await expect(abandonTrigger).toBeVisible();
+ await abandonTrigger.click();
+ const abandonment = page.getByRole("dialog", { name: "Abandonar recuperação do handoff?" });
+ await expect(abandonment).toBeVisible();
+ await expect(abandonment).toContainText("A intenção anterior pode já ter sido concluída no Edit.");
+ await expect(abandonment).toContainText("Abandonar não desfaz um commit privado");
+ await expect(abandonment).toContainText("nova intenção posterior pode criar outra revisão privada");
+ await expect(abandonment).toContainText("Nada é publicado no site público por esta ação.");
+ await expect(
+  abandonment.getByRole("button", { name: "Continuar editando" }),
+ ).toBeFocused();
+ await page.screenshot({
+  path: testInfo.outputPath("issue-1354-handoff-abandon-fixture.png"),
+  fullPage: false,
  });
- await page.getByRole("button", { name: "Abandonar handoff anterior" }).click();
- expect(abandonmentMessage).toContain("O handoff privado anterior pode já ter sido concluído.");
- expect(abandonmentMessage).toContain("outra revisão privada");
- expect(abandonmentMessage).toContain("Nada é publicado no site por esta ação.");
- expect(abandonmentMessage).not.toContain("A publicação anterior pode ter sido concluída");
+ await page.keyboard.press("Escape");
+ await expect(abandonment).toBeHidden();
+ await expect(abandonTrigger).toBeFocused();
  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(1);
+
+ await page.evaluate(() => {
+  const originalRemoveItem = Storage.prototype.removeItem;
+  Storage.prototype.removeItem = function removeItem(key: string) {
+   if (key.startsWith("tda.publication.pending.v1:")) throw new Error("synthetic storage failure");
+   return originalRemoveItem.call(this, key);
+  };
+ });
+ await abandonTrigger.click();
+ await abandonment.getByRole("button", { name: "Abandonar recuperação" }).click();
+ await expect(abandonment).toBeHidden();
+ await expect(page.getByText("O handoff anterior ainda precisa ser reconciliado", { exact: true })).toBeVisible();
+ await expect(abandonTrigger).toBeVisible();
+ expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("tda.publication.pending.v1:")))).toHaveLength(1);
+
  readable = true;
  await page.reload();
  await expect(page.getByText(/Sessão preparada no Edit · revisão cloud 1/)).toBeVisible();
