@@ -9,6 +9,7 @@ import {
 	type EditCapability,
 } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
+import { hasAnyActiveAccountGrant } from "./account-access";
 import { authClient } from "./client";
 import { safeReturnPath } from "./config";
 import { navigationIdentityFromMetadata } from "./presentation";
@@ -100,10 +101,7 @@ export const currentAccess = cache(async () => {
 				context,
 				identity: identity.navigationIdentity,
 			} as const;
-		const effective = Object.values(EDIT_CAPABILITIES).some(
-			(action) =>
-				authorizeCampaignCapability(context, action, CAMPAIGN_SLUG).ok,
-		);
+		const effective = hasAnyActiveAccountGrant(context);
 		return {
 			state: effective
 				? "authenticated_linked"

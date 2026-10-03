@@ -3,8 +3,14 @@ import { OperationalPageHeader } from "@/components/operational-page-header";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ActionLink, Button } from "@/components/ui";
 import type { EditAccessContext } from "@/features/edit/access/policy";
-import { CAMPAIGN_SLUG } from "@/features/sessions/model";
-import { effectiveAccountCapabilityGroups } from "./account-access";
+import {
+	effectiveAccountProjectCapabilityGroups,
+	type AccountCapabilityGroup,
+} from "./account-access";
+import type {
+	AccountCampaignAccess,
+	AccountCampaignAccessResult,
+} from "./account-campaigns";
 import styles from "./access.module.css";
 import { ProfileIdCopy } from "./profile-id-copy";
 
@@ -28,7 +34,7 @@ const ACCOUNT_STATE_CONTENT = {
 	anonymous: {
 		label: "Não autenticada",
 		description:
-			"Entre com o Discord para consultar seu vínculo e suas permissões nesta campanha.",
+			"Entre com o Discord para consultar seu vínculo e os acessos disponíveis para esta conta.",
 	},
 	unavailable: {
 		label: "Acesso indisponível",
@@ -43,12 +49,12 @@ const ACCOUNT_STATE_CONTENT = {
 	authenticated_linked_no_grants: {
 		label: "Vinculada · sem permissões",
 		description:
-			"Seu perfil TDA está vinculado, mas não possui permissões efetivas nesta campanha.",
+			"Seu perfil TDA está vinculado, mas não possui grants ativos para as áreas protegidas.",
 	},
 	authenticated_linked: {
 		label: "Vinculada",
 		description:
-			"Seu perfil TDA está vinculado e o acesso abaixo reflete as permissões efetivas desta campanha.",
+			"Seu perfil TDA está vinculado. O acesso abaixo separa autoridade do projeto de permissões específicas de campanha.",
 	},
 } as const;
 
@@ -63,12 +69,101 @@ function accountInitials(displayName: string | null) {
 	return initials || "TDA";
 }
 
+function PermissionGroups({
+	groups,
+}: Readonly<{ groups: readonly AccountCapabilityGroup[] }>) {
+	return (
+		<div className={styles.permissionGroups} data-account-permission-groups>
+			{groups.map((group) => (
+				<details key={group.title} className={styles.permissionGroupDetails}>
+					<summary>
+						<span>{group.title}</span>
+						<small>
+							{group.items.length}{" "}
+							{group.items.length === 1 ? "permissão" : "permissões"}
+						</small>
+					</summary>
+					<ul>
+						{group.items.map((item) => (
+							<li key={item.capability}>
+								<span>{item.label}</span>
+							</li>
+						))}
+					</ul>
+				</details>
+			))}
+		</div>
+	);
+}
+
+function TechnicalScopeDetails({
+	scope,
+	groups,
+}: Readonly<{
+	scope: string;
+	groups: readonly AccountCapabilityGroup[];
+}>) {
+	return (
+		<details className={styles.technicalDetails}>
+			<summary>Detalhes técnicos do acesso</summary>
+			<p className={styles.scopeLine}>
+				Escopo: <code>{scope}</code>
+			</p>
+			<p className={styles.sectionHint}>
+				As capabilities abaixo são informativas; o servidor continua sendo a
+				autoridade de acesso.
+			</p>
+			<ul className={styles.technicalCapabilityList}>
+				{groups.flatMap((group) =>
+					group.items.map((item) => (
+						<li key={item.capability}>
+							<span>{item.label}</span>
+							<code>{item.capability}</code>
+						</li>
+					)),
+				)}
+			</ul>
+		</details>
+	);
+}
+
+function CampaignAccessBlock({
+	campaign,
+}: Readonly<{ campaign: AccountCampaignAccess }>) {
+	return (
+		<section
+			className={styles.accessScopeBlock}
+			data-account-campaign={campaign.technicalSlug}
+		>
+			<div className={styles.accessScopeHeading}>
+				<div>
+					<h3>{campaign.name}</h3>
+					<p>
+						Acesso concedido especificamente nesta campanha. Permissões já
+						cobertas pela autoridade do projeto não são repetidas aqui.
+					</p>
+				</div>
+				{campaign.lifecycle === "archived" ? (
+					<span className={styles.scopeState}>Arquivada</span>
+				) : null}
+			</div>
+			<PermissionGroups groups={campaign.capabilityGroups} />
+			<TechnicalScopeDetails
+				scope={`campaign/${campaign.technicalSlug}`}
+				groups={campaign.capabilityGroups}
+			/>
+		</section>
+	);
+}
+
 export function AccountOverview({
 	access,
+	campaignAccess,
 	accessNotice,
 	authEnabled,
 }: Readonly<{
 	access: AccountOverviewAccess;
+	campaignAccess: AccountCampaignAccessResult;
 	accessNotice: string | null;
 	authEnabled: boolean;
 }>) {
@@ -79,16 +174,20 @@ export function AccountOverview({
 	const displayName = authenticated ? access.identity?.displayName ?? null : null;
 	const avatarUrl = authenticated ? access.identity?.avatarUrl ?? null : null;
 	const profileId = authenticated ? access.context?.profileId ?? null : null;
-	const capabilityGroups =
+	const projectCapabilityGroups =
 		access.context?.profileId
-			? effectiveAccountCapabilityGroups(access.context, CAMPAIGN_SLUG)
+			? effectiveAccountProjectCapabilityGroups(access.context)
 			: [];
 	const stateContent = ACCOUNT_STATE_CONTENT[access.state];
+	const campaignAccessUnavailable = campaignAccess.status === "unavailable";
+	const hasVisibleAccess =
+		projectCapabilityGroups.length > 0 ||
+		(campaignAccess.status === "ready" && campaignAccess.campaigns.length > 0);
 
 	const linkDescription = profileId
 		? "Seu perfil TDA está vinculado a esta conta do Discord."
 		: access.state === "authenticated_unlinked"
-			? "Esta conta do Discord ainda não tem um perfil TDA vinculado. A vinculação continua sendo administrada pela campanha."
+			? "Esta conta do Discord ainda não tem um perfil TDA vinculado. A vinculação continua sendo administrada pelo projeto."
 			: access.state === "anonymous"
 				? "Entre com o Discord para consultar seu vínculo TDA."
 				: access.state === "unavailable"
@@ -96,7 +195,11 @@ export function AccountOverview({
 					: "Nenhum perfil TDA está disponível para esta sessão.";
 
 	return (
-		<section className={`${styles.shell} ${styles.accountShell}`} data-layout-family="editorial" data-layout-role="editorial">
+		<section
+			className={`${styles.shell} ${styles.accountShell}`}
+			data-layout-family="editorial"
+			data-layout-role="editorial"
+		>
 			<OperationalPageHeader eyebrow="Conta" title="Conta e acesso" />
 
 			{accessNotice ? (
@@ -168,61 +271,64 @@ export function AccountOverview({
 					aria-labelledby="permissions-title"
 				>
 					<div className={styles.sectionHeading}>
-						<h2 id="permissions-title">Acesso nesta campanha</h2>
+						<h2 id="permissions-title">Acesso efetivo</h2>
 						<p>
-							Aqui aparecem apenas permissões efetivas. A autorização continua
-							sendo verificada no servidor quando você abre ou executa uma ação.
+							O contexto é explícito: autoridade do projeto e grants específicos
+							de campanha aparecem separados. Cada ação continua sendo
+							revalidada no servidor.
 						</p>
 					</div>
 
-					{capabilityGroups.length > 0 ? (
-						<>
-							<div className={styles.permissionGroups}>
-								{capabilityGroups.map((group) => (
-									<section key={group.title} className={styles.permissionGroup}>
-										<h3>{group.title}</h3>
-										<ul>
-											{group.items.map((item) => (
-												<li key={item.capability}>
-													<span>{item.label}</span>
-												</li>
-											))}
-										</ul>
-									</section>
-								))}
-							</div>
-
-							<details className={styles.technicalDetails}>
-								<summary>Detalhes técnicos do acesso</summary>
-								<p className={styles.sectionHint}>
-									As capabilities abaixo são informativas; elas não tornam o
-									cliente autoridade de acesso.
-								</p>
-								<ul className={styles.technicalCapabilityList}>
-									{capabilityGroups.flatMap((group) =>
-										group.items.map((item) => (
-											<li key={item.capability}>
-												<span>{item.label}</span>
-												<code>{item.capability}</code>
-											</li>
-										)),
-									)}
-								</ul>
-							</details>
-						</>
-					) : (
-						<p className={styles.emptyState}>
-							{access.state === "authenticated_linked_no_grants"
-								? "Nenhuma permissão efetiva nesta campanha."
-								: access.state === "authenticated_unlinked"
-									? "Vincule um perfil TDA antes de receber permissões da campanha."
-									: access.state === "anonymous"
-										? "Entre com o Discord para consultar seu acesso."
-										: access.state === "unavailable"
-											? "Não foi possível calcular seu acesso agora."
-											: "Nenhuma permissão efetiva nesta campanha."}
+					{campaignAccessUnavailable ? (
+						<p className={styles.accessUnavailable} role="status">
+							Não foi possível carregar o diretório autorizado de campanhas
+							agora. Seus grants não foram reinterpretados como ausência de
+							permissão; recarregue para tentar novamente.
 						</p>
-					)}
+					) : null}
+
+					{projectCapabilityGroups.length > 0 ? (
+						<section
+							className={styles.accessScopeBlock}
+							data-account-scope="project"
+						>
+							<div className={styles.accessScopeHeading}>
+								<div>
+									<h3>Autoridade do projeto</h3>
+									<p>
+										Estas permissões valem em nível de projeto para a mesma
+										capability, sem transformar a interface em autoridade.
+									</p>
+								</div>
+							</div>
+							<PermissionGroups groups={projectCapabilityGroups} />
+							<TechnicalScopeDetails
+								scope="project/tda"
+								groups={projectCapabilityGroups}
+							/>
+						</section>
+					) : null}
+
+					{campaignAccess.status === "ready"
+						? campaignAccess.campaigns.map((campaign) => (
+								<CampaignAccessBlock
+									key={campaign.technicalSlug}
+									campaign={campaign}
+								/>
+							))
+						: null}
+
+					{!campaignAccessUnavailable && !hasVisibleAccess ? (
+						<p className={styles.emptyState}>
+							{access.state === "authenticated_unlinked"
+								? "Vincule um perfil TDA antes de receber permissões."
+								: access.state === "anonymous"
+									? "Entre com o Discord para consultar seu acesso."
+									: access.state === "unavailable"
+										? "Não foi possível calcular seu acesso agora."
+										: "Nenhuma permissão efetiva disponível para esta conta."}
+						</p>
+					) : null}
 				</section>
 			</div>
 

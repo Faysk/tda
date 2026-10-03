@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada + convergência em andamento
 > Owner: identity/access
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-03
 
 ## Objetivo
 
@@ -409,3 +409,26 @@ Até lá, esta frente não amplia o bypass nem cria segundo caminho de autoriza�
 ## Implementação de login Discord
 
 O candidato implementa entrada exclusivamente Discord, sessão SSR e guards administrativos. Consulte o [runbook Discord](../operations/discord-auth.md). Login não concede administração; profile e capabilities continuam obrigatórios. O resolver usa scope_type=project e scope_id=tda para project/tda e exige a action no grant ativo. Falhas operacionais negam acesso.
+
+
+## Projeção de acesso da conta — #1330 (2026-10-03)
+
+`/conta` não pode derivar acesso efetivo da campanha histórica `yuhara-main`.
+A superfície de conta é uma projeção somente leitura dos grants já resolvidos no
+servidor e mantém dois escopos explícitos:
+
+- grants ativos em `project/tda` aparecem uma única vez como **Autoridade do projeto**;
+- grants ativos em escopo de campanha aparecem sob o nome humano da campaign
+  autorizada; o technical slug permanece detalhe secundário;
+- uma capability de projeto não é repetida dentro de cada campaign;
+- nomes de campaigns são resolvidos somente para grants explícitos necessários
+  a esta projeção; campaigns privadas sem esse acesso não são enumeradas;
+- falha do diretório autorizado aparece como contexto indisponível, nunca como
+  "sem permissão";
+- logout, vínculo de identidade e preferência de aparência permanecem
+  independentes da projeção de campaign.
+
+A projeção enviada ao navegador é informativa. Ela não concede autoridade, não
+aceita um scope escolhido pelo cliente como prova de acesso e não altera grants
+para fazer a UI coincidir com um resultado esperado. Revogação e expiração são
+refletidas a partir do access context recarregado.
