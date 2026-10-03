@@ -53,6 +53,7 @@ O overlay nunca é commitado, não executa `migration repair`, não reescreve o 
 - `migrations/20260912214500_world_entity_media_foundation_v2.sql` — identidade first-class de assets do World, vínculo entity → portrait e wrapper transacional de publicação. Autorizada para rollout controlado pela #271; ainda não aplicada no Supabase Production até a execução do Production CD da promoção `Preview -> main`.
 - `migrations/20261001024500_campaign_cover_media_scope.sql` — extensão aditiva #1135 para `campaign_cover` e `campaign_media_bindings`, com FK composta same-campaign e namespace estável pelo technical slug; preserva objetos legados e exige receipt do Production CD para comprovar aplicação remota.
 - `migrations/20261001162000_world_graph_draft_campaign_isolation.sql` — correção #1138 para rejeitar UUIDs de entity/relation pertencentes a campaign irmã antes de persistir `draft_graph`; preserva recovery same-campaign e exige receipt do Production CD para comprovar aplicação remota.
+- `migrations/20261004133000_session_campaign_move.sql` — promoção governada #1426/#1129 do boundary fail-closed de move entre campaigns; cria receipt idempotente e RPCs server-only, sem mover dependências incompatíveis automaticamente; aplicação remota exige Production CD + read-back.
 
 ## Candidatos atuais
 
@@ -64,6 +65,6 @@ Estes SQL permanecem deliberadamente fora de Production:
 - `candidates/20260908231000_backfill_screacky_historical_alias.sql`;
 - `candidates/20260930174200_first_class_campaign_registry.sql` — candidate expand-only de #1123 para lifecycle/public route identity/aliases e invariantes cross-campaign; validado apenas em PostgreSQL scratch até decisão explícita de rollout.
 - `candidates/20260930191500_harden_campaign_discovery_authorization.sql` — candidate #1134 para discovery público/Edit, capability exata e hardening de `access_directory`; depende de #1123 e permanece scratch-only até rollout deliberado.
-- `candidates/20261001030000_session_campaign_move.sql` — candidate #1129 para preflight/commit transacional de move entre campanhas, audit/receipt idempotente e bloqueio fail-closed de dependências ainda não migráveis; depende de #1123/#1134 e permanece scratch-only.
+- `candidates/20261001030000_session_campaign_move.sql` — snapshot histórico do candidate #1129; permanece scratch-only e **não é aplicado diretamente**. A promoção governada atual é `migrations/20261004133000_session_campaign_move.sql` (#1426).
 
 Os contratos e gates de ativação continuam em `docs/integrations/transcript-import.md`, `docs/features/world-entity-media-foundation.md` e `docs/database/migrations.md`.
