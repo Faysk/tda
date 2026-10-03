@@ -59,3 +59,16 @@ export function resolveLembraCampaignMutation(
 		campaign: target,
 	};
 }
+
+
+export function lembraCampaignMutationFromSelection(
+	currentVisibleCampaignId: string | null,
+	nextCampaignId: string | null,
+): LembraCampaignMutation {
+	if (nextCampaignId === currentVisibleCampaignId) {
+		return { kind: "preserve" };
+	}
+	return nextCampaignId
+		? { kind: "set", campaignId: nextCampaignId }
+		: { kind: "clear" };
+}
