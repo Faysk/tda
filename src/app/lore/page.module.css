@@ -173,7 +173,7 @@
 	}
 
 	.card {
-		min-height: min(54svh, 430px);
+		min-height: min(52svh, 420px);
 		border-radius: 24px;
 	}
 
