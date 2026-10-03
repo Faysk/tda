@@ -1345,8 +1345,9 @@ def transcript_to_srt(document: TranscriptDocument) -> str:
 
 
 def private_export_zip(data_root: Path, benchmark_id: str) -> bytes:
-    manifest = load_bundle(data_root, benchmark_id)
+    load_bundle(data_root, benchmark_id)
     root = benchmark_root(data_root, benchmark_id)
+    _, _, canonical_manifest = _sha256_file(root / "benchmark.json", _MAX_JSON_BYTES)
     stream = io.BytesIO()
     prefix = f"TDA-Benchmark-{benchmark_id}"
     with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
@@ -1355,7 +1356,7 @@ def private_export_zip(data_root: Path, benchmark_id: str) -> bytes:
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o600 << 16
             archive.writestr(info, payload)
-        add("benchmark.json", _canonical_json(manifest))
+        add("benchmark.json", canonical_manifest)
         add("export.json", _canonical_json({
             "schema_version": EXPORT_SCHEMA,
             "benchmark_id": benchmark_id,
@@ -1370,7 +1371,10 @@ def private_export_zip(data_root: Path, benchmark_id: str) -> bytes:
                 try:
                     payload = verified_profile_bytes(data_root, benchmark_id, profile_id, artifact)
                 except BenchmarkEvidenceError as exc:
-                    if artifact == "telemetry" and str(exc) == "BENCHMARK_ARTIFACT_UNAVAILABLE":
+                    if (
+                        artifact in {"metrics", "events", "telemetry"}
+                        and str(exc) == "BENCHMARK_ARTIFACT_UNAVAILABLE"
+                    ):
                         continue
                     raise
                 suffix = "jsonl" if artifact in {"events", "telemetry"} else "json"
