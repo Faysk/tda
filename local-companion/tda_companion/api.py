@@ -12,7 +12,7 @@ from typing import Annotated, Callable, Literal
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import VERSION
@@ -27,7 +27,21 @@ from .attempt_fence import (
     read_attempt_outcome,
 )
 from .browser_session import BrowserSessionManager
-from .benchmark_evidence import BenchmarkEvidenceError, load_bundle
+from .benchmark_evidence import (
+    BenchmarkEvidenceError,
+    deterministic_private_zip,
+    load_bundle,
+    load_profile_transcript,
+    transcript_srt,
+    transcript_text,
+    transcript_vtt,
+)
+from .benchmark_quality import (
+    BenchmarkQualityError,
+    create_reference_revision,
+    load_current_reference,
+    score_all_profiles,
+)
 from .craig import CraigPackageError
 from .craig_ingest import (
     recover_interrupted_craig_repairs,
@@ -85,6 +99,7 @@ _ID_PATTERN = r"^[A-Za-z0-9_-]{1,128}$"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _WORKER_SHUTDOWN_FAST_SECONDS = 20.0
 LOCAL_JSON_BODY_MAX_BYTES = 4096
+BENCHMARK_REFERENCE_BODY_MAX_BYTES = 8 * 1024 * 1024
 TRANSCRIPTION_TEXT_MAX_CHARS = 1200
 
 _BROWSER_JOB_PATH = re.compile(
@@ -97,6 +112,11 @@ _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
 _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/"
     r"assemblies(?:/[0-9a-f]{64})?$"
+)
+_BROWSER_BENCHMARK_PATH = re.compile(
+    r"^/api/v1/benchmarks/[A-Za-z0-9_-]{1,128}"
+    r"(?:/(?:export|reference|quality|profiles/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)/"
+    r"(?:transcript|transcript\\.txt|transcript\\.vtt|transcript\\.srt)))?$"
 )
 
 
@@ -130,6 +150,8 @@ def _browser_route_allowed(method: str, path: str) -> bool:
         return method in {"GET", "POST"}
     if _BROWSER_SESSION_ASSEMBLY_PATH.fullmatch(path) is not None:
         return method in {"GET", "POST"}
+    if _BROWSER_BENCHMARK_PATH.fullmatch(path) is not None:
+        return method == "GET" or (method == "POST" and path.endswith("/reference"))
     match = _BROWSER_JOB_PATH.fullmatch(path)
     if match is None:
         return False
@@ -158,6 +180,38 @@ class CraigBenchmarkJobRequest(BaseModel):
     source_id: str = Field(pattern=_ID_PATTERN)
     glossary: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
     context: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
+
+
+class BenchmarkReferenceTurnRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    start: float = Field(ge=0)
+    end: float = Field(ge=0)
+    text: str = Field(max_length=200_000)
+    speaker: str = Field(min_length=1, max_length=160)
+    overlaps_other_speaker: bool = False
+
+
+class BenchmarkReferenceTrackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    track_number: int = Field(ge=1, le=256)
+    speaker: str = Field(min_length=1, max_length=160)
+    text: str = Field(max_length=2_000_000)
+    turns: list[BenchmarkReferenceTurnRequest] | None = None
+
+
+class BenchmarkReferenceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    sample_identity_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    tracks: list[BenchmarkReferenceTrackRequest] = Field(min_length=1, max_length=256)
+    provenance: Literal["manual", "imported", "derived_from_profile"] = "manual"
+    seed_profile_id: Literal[
+        "whisper-turbo",
+        "whisper-detailed",
+        "qwen-fast",
+        "qwen-quality",
+    ] | None = None
+    expected_revision: int | None = Field(default=None, ge=0)
+    terms: list[str] = Field(default_factory=list, max_length=512)
 
 
 class CraigTranscriptionJobRequest(BaseModel):
@@ -1475,7 +1529,13 @@ def create_app(
                 body_bytes = bytearray()
                 async for chunk in request.stream():
                     body_bytes.extend(chunk)
-                    if len(body_bytes) > LOCAL_JSON_BODY_MAX_BYTES:
+                    body_limit = (
+                        BENCHMARK_REFERENCE_BODY_MAX_BYTES
+                        if _BROWSER_BENCHMARK_PATH.fullmatch(request.url.path) is not None
+                        and request.url.path.endswith("/reference")
+                        else LOCAL_JSON_BODY_MAX_BYTES
+                    )
+                    if len(body_bytes) > body_limit:
                         response = error("BODY_TOO_LARGE", 413)
                         break
                 if response is None:
@@ -1549,6 +1609,8 @@ def create_app(
             "transcription.runs.catalog",
             "processing.benchmark",
             "processing.benchmark.runtime-readiness-v2",
+            "processing.benchmark.evidence-v1",
+            "processing.benchmark.quality-v1",
             "system.telemetry",
             "worker.subprocess",
             "transcription.prepare",
@@ -2446,6 +2508,161 @@ def create_app(
             before_seq=before_seq,
             limit=limit,
         )
+
+    def find_benchmark_package(benchmark_id: str):
+        if re.fullmatch(_ID_PATTERN, benchmark_id) is None:
+            return None
+        staging_root = (data_root / "staging").resolve()
+        try:
+            sources = tuple(staging_root.iterdir())
+        except FileNotFoundError:
+            return None
+        matches: list[tuple[Path, dict]] = []
+        for source_root in sources:
+            if (
+                not source_root.is_dir()
+                or source_root.is_symlink()
+                or re.fullmatch(_ID_PATTERN, source_root.name) is None
+            ):
+                continue
+            manifest_path = source_root / "benchmarks" / benchmark_id / "benchmark.json"
+            if not manifest_path.is_file() or manifest_path.is_symlink():
+                continue
+            try:
+                manifest = load_bundle(source_root, benchmark_id, verify_artifacts=True)
+            except BenchmarkEvidenceError:
+                raise Conflict("BENCHMARK_ARTIFACT_UNAVAILABLE") from None
+            matches.append((source_root, manifest))
+            if len(matches) > 1:
+                raise Conflict("BENCHMARK_ID_COLLISION")
+        return matches[0] if matches else None
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}")
+    def benchmark_manifest(benchmark_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        _package_root, manifest = found
+        return manifest
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/transcript")
+    def benchmark_transcript(benchmark_id: str, profile_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            return load_profile_transcript(package_root, benchmark_id, profile_id).as_dict()
+        except BenchmarkEvidenceError:
+            return error("BENCHMARK_PROFILE_ARTIFACT_UNAVAILABLE", 409)
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/transcript.txt")
+    def benchmark_transcript_txt(benchmark_id: str, profile_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            value = transcript_text(load_profile_transcript(package_root, benchmark_id, profile_id))
+        except BenchmarkEvidenceError:
+            return error("BENCHMARK_PROFILE_ARTIFACT_UNAVAILABLE", 409)
+        return Response(value, media_type="text/plain; charset=utf-8")
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/transcript.vtt")
+    def benchmark_transcript_vtt(benchmark_id: str, profile_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            value = transcript_vtt(load_profile_transcript(package_root, benchmark_id, profile_id))
+        except BenchmarkEvidenceError:
+            return error("BENCHMARK_PROFILE_ARTIFACT_UNAVAILABLE", 409)
+        return Response(value, media_type="text/vtt; charset=utf-8")
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/transcript.srt")
+    def benchmark_transcript_srt(benchmark_id: str, profile_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            value = transcript_srt(load_profile_transcript(package_root, benchmark_id, profile_id))
+        except BenchmarkEvidenceError:
+            return error("BENCHMARK_PROFILE_ARTIFACT_UNAVAILABLE", 409)
+        return Response(value, media_type="application/x-subrip; charset=utf-8")
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/export")
+    def benchmark_export(benchmark_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            payload = deterministic_private_zip(package_root, benchmark_id)
+        except BenchmarkEvidenceError:
+            return error("BENCHMARK_EXPORT_UNAVAILABLE", 409)
+        return Response(
+            payload,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="tda-benchmark-{benchmark_id}.zip"'
+            },
+        )
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/reference")
+    def benchmark_reference(benchmark_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            return load_current_reference(package_root, benchmark_id)
+        except BenchmarkQualityError as exc:
+            if str(exc) == "REFERENCE_NOT_FOUND":
+                return error("BENCHMARK_REFERENCE_NOT_FOUND", 404)
+            return error("BENCHMARK_REFERENCE_INVALID", 409)
+
+    @app.post("/api/v1/benchmarks/{benchmark_id}/reference")
+    def save_benchmark_reference(benchmark_id: str, body: BenchmarkReferenceRequest):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            reference = create_reference_revision(
+                package_root,
+                benchmark_id,
+                sample_identity_sha256=body.sample_identity_sha256,
+                tracks=[track.model_dump() for track in body.tracks],
+                provenance=body.provenance,
+                seed_profile_id=body.seed_profile_id,
+                expected_revision=body.expected_revision,
+                terms=body.terms,
+            )
+            quality = score_all_profiles(package_root, benchmark_id)
+        except BenchmarkQualityError as exc:
+            code = str(exc)
+            status = 409 if code.endswith(("MISMATCH", "CONFLICT", "EXISTS")) else 422
+            return error(code if re.fullmatch(r"[A-Z0-9_]{1,96}", code) else "BENCHMARK_REFERENCE_INVALID", status)
+        except BenchmarkEvidenceError:
+            return error("BENCHMARK_ARTIFACT_UNAVAILABLE", 409)
+        return {"reference": reference, "quality": quality}
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/quality")
+    def benchmark_quality(benchmark_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            return {"profiles": score_all_profiles(package_root, benchmark_id)}
+        except BenchmarkQualityError as exc:
+            if str(exc) == "REFERENCE_NOT_FOUND":
+                return error("BENCHMARK_REFERENCE_NOT_FOUND", 404)
+            return error("BENCHMARK_QUALITY_UNAVAILABLE", 409)
+        except BenchmarkEvidenceError:
+            return error("BENCHMARK_ARTIFACT_UNAVAILABLE", 409)
 
     @app.get("/api/v1/jobs/{job_id}/result")
     def result(job_id: str):
