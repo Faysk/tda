@@ -74,13 +74,59 @@ test("Lembra campaign classification stays optional, filterable and non-authorit
 	const composer = page.getByRole("dialog");
 	await expect(composer.getByRole("heading", { name: "Quase lá." })).toBeVisible();
 	await composer.getByRole("button", { name: "Campanha da referência" }).click();
-	await expect(
-		page.getByRole("option", { name: "Campanha Arquivada · arquivada", exact: true }),
-	).toHaveCount(0);
+	const archivedDestination = page.getByRole("option", {
+		name: "Campanha Arquivada · arquivada",
+		exact: true,
+	});
+	await expect(archivedDestination).toBeVisible();
+	await expect(archivedDestination).toBeDisabled();
 	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
 	await expect(
 		composer.getByRole("button", { name: "Campanha da referência" }),
 	).toContainText("Campanha Pública B");
+});
+
+
+test("Lembra keeps the image draft while contextual campaign creation opens, fails or is cancelled", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "mapa-do-draft.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const composer = page.getByRole("dialog").filter({ hasText: "Quase lá." });
+	await composer.getByLabel("Nome").fill("Mapa que não pode sumir");
+	await composer.getByLabel("Descrição").fill("Rascunho preservado durante criação.");
+	await composer.getByRole("button", { name: "Campanha da referência" }).click();
+	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
+
+	const manage = composer.getByRole("link", { name: /Gerenciar campanhas/u });
+	await expect(manage).toHaveAttribute("href", "/edit/campanhas");
+	await expect(manage).toHaveAttribute("target", "_blank");
+
+	await composer.getByRole("button", { name: "+ Nova campanha", exact: true }).click();
+	const campaignDialog = page
+		.getByRole("dialog")
+		.filter({ has: page.getByRole("heading", { name: "Nova campanha" }) });
+	await expect(campaignDialog).toBeVisible();
+	await campaignDialog.getByLabel("Nome").fill("Campanha sem autoridade");
+	await campaignDialog.getByRole("button", { name: "Criar campanha", exact: true }).click();
+	await expect(campaignDialog.getByRole("alert")).toBeVisible();
+
+	await expect(composer.getByLabel("Nome")).toHaveValue("Mapa que não pode sumir");
+	await expect(composer.getByLabel("Descrição")).toHaveValue(
+		"Rascunho preservado durante criação.",
+	);
+	await expect(
+		composer.getByRole("button", { name: "Campanha da referência" }),
+	).toContainText("Campanha Pública B");
+	await expect(composer.getByAltText("Preview da referência selecionada")).toBeVisible();
+
+	await campaignDialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+	await expect(campaignDialog).not.toBeVisible();
+	await expect(composer).toBeVisible();
+	await expect(composer.getByLabel("Nome")).toHaveValue("Mapa que não pode sumir");
 });
 
 test("Lembra stays dense, searchable and usable from keyboard", async ({ page }) => {
