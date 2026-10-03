@@ -5,7 +5,9 @@ from io import BytesIO
 from zipfile import ZipFile
 
 import pytest
+from fastapi.testclient import TestClient
 
+from tda_companion.api import create_app
 from tda_companion.benchmark_evidence import (
     CANONICAL_PROFILES,
     BenchmarkEvidenceError,
@@ -685,3 +687,82 @@ def test_normalization_known_edge_cases_and_mismatch_fail_closed(tmp_path):
     # The payload hash no longer matches even before the scorer can accept stale semantics.
     with pytest.raises(BenchmarkQualityError, match="REFERENCE_HASH_MISMATCH"):
         score_profile(package, benchmark_id, "qwen-quality")
+
+
+
+def test_committed_bundle_survives_real_queue_row_and_event_pruning(tmp_path):
+    package, benchmark_id = _write_complete_bundle(tmp_path)
+    token = "z" * 43
+    origin = "https://dnd.faysk.dev"
+    app = create_app(tmp_path, token, {origin}, run_worker=False)
+    headers = {"Authorization": f"Bearer {token}", "Origin": origin}
+    body = {
+        "kind": "benchmark.craig",
+        "campaign_id": "benchmark-local",
+        "session_id": "benchmark-local",
+        "source_id": "craig-" + SOURCE_SHA,
+        "sample_identity_sha256": SAMPLE_SHA,
+        "sample_seconds": 300.0,
+        "profile_order": list(CANONICAL_PROFILES),
+        "context": "",
+        "glossary": "",
+        "cpu": False,
+        "units": 4,
+    }
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        job = app.state.store.submit("benchmark-retention", body)
+        claimed = app.state.store.claim()
+        assert claimed == (job["id"], 1)
+        for completed in range(1, 5):
+            assert app.state.store.progress(
+                job["id"],
+                1,
+                completed=completed,
+                total=4,
+                stage="benchmark_profile",
+            )
+        result = {
+            "schema_version": "tda_processing_benchmark_v1",
+            "kind": "benchmark.craig",
+            "benchmark_id": benchmark_id,
+            "evidence_schema_version": "tda_benchmark_bundle_v1",
+            "source_id": body["source_id"],
+            "sample_identity_sha256": SAMPLE_SHA,
+        }
+        assert app.state.store.complete(job["id"], 1, result)
+        assert app.state.store.remove(job["id"]) == {"deleted": True, "id": job["id"]}
+        assert app.state.store.terminal_receipt(job["id"])["status"] == "succeeded"
+
+        response = client.get(f"/api/v1/benchmarks/{benchmark_id}", headers=headers)
+        assert response.status_code == 200
+        assert response.json()["benchmark_id"] == benchmark_id
+        assert response.json()["status"] == "completed"
+
+        transcript = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/profiles/qwen-quality/transcript",
+            headers=headers,
+        )
+        assert transcript.status_code == 200
+        assert transcript.json()["engine"]["profile"] == "qwen-quality"
+
+
+def test_benchmark_evidence_api_requires_auth_and_fails_closed_for_unknown_or_invalid_profile(tmp_path):
+    _package, benchmark_id = _write_complete_bundle(tmp_path)
+    token = "z" * 43
+    origin = "https://dnd.faysk.dev"
+    app = create_app(tmp_path, token, {origin}, run_worker=False)
+    headers = {"Authorization": f"Bearer {token}", "Origin": origin}
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        unauthorized = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}",
+            headers={"Origin": origin},
+        )
+        assert unauthorized.status_code == 401
+        missing = client.get("/api/v1/benchmarks/benchmark-missing", headers=headers)
+        assert missing.status_code == 404
+        invalid_profile = client.get(
+            f"/api/v1/benchmarks/{benchmark_id}/profiles/not-a-profile/transcript",
+            headers=headers,
+        )
+        assert invalid_profile.status_code in {404, 409}
+        assert "traceback" not in invalid_profile.text.lower()
