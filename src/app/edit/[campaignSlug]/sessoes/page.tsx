@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
 import { FormSubmitButton, StatusPill } from "@/components/ui";
 import { requireCampaignCapability } from "@/features/auth/server";
+import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import { editSessionDetailHref, editSessionLibraryHref, readEditableSessionCampaigns } from "@/features/campaigns/sessions";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import {
@@ -54,6 +55,20 @@ function parseFilters(params: Awaited<SearchParams>): SessionLibraryFilters {
 	};
 }
 
+function sessionLibraryReturnTo(
+	campaignSlug: string,
+	filters: SessionLibraryFilters,
+): string {
+	const params = new URLSearchParams();
+	if (filters.query) params.set("q", filters.query);
+	if (filters.state !== "all") params.set("estado", filters.state);
+	if (filters.publication !== "all") params.set("publicacao", filters.publication);
+	if (filters.arc !== "all") params.set("arco", filters.arc);
+	if (filters.sort !== "date-desc") params.set("ordem", filters.sort);
+	const query = params.toString();
+	return `${editSessionLibraryHref(campaignSlug)}${query ? `?${query}` : ""}`;
+}
+
 function ErrorState({ retryHref }: { retryHref: string }) {
 	return (
 		<section className={styles.locked}>
@@ -89,6 +104,8 @@ export default async function EditSessionsPage({
 	const campaign = eligible.campaigns.find((item) => item.technicalSlug === campaignSlug);
 	if (!campaign) notFound();
 	const filters = parseFilters(await searchParams);
+	const managementReturnTo = sessionLibraryReturnTo(campaignSlug, filters);
+	const canManageCampaigns = canManageCampaignRegistry(accessContext);
 
 	let sessions: Awaited<ReturnType<typeof listEditSessionLibrary>>;
 	try {
@@ -132,13 +149,15 @@ export default async function EditSessionsPage({
 
 			<div className={styles.libraryFilters}>
 				<SessionCampaignSwitcher
-					className={styles.control}
+					canManage={canManageCampaigns}
 					options={eligible.campaigns.map((item) => ({
 						key: item.technicalSlug,
 						name: item.name,
-						href: editSessionLibraryHref(item.technicalSlug),
+						href: sessionLibraryReturnTo(item.technicalSlug, filters),
 						current: item.technicalSlug === campaignSlug,
+						lifecycle: item.lifecycle,
 					}))}
+					returnTo={managementReturnTo}
 				/>
 			</div>
 
@@ -201,9 +220,9 @@ export default async function EditSessionsPage({
 				<div className={styles.libraryFilterActions}>
 					<FormSubmitButton
 						className={styles.librarySubmit}
-						pendingLabel="Aplicando…"
+						pendingLabel="Aplicando filtros…"
 					>
-						Aplicar
+						Aplicar filtros
 					</FormSubmitButton>
 					{hasFilters ? <Link href={returnTo}>Limpar filtros</Link> : null}
 				</div>
