@@ -31,6 +31,8 @@ from .benchmark_evidence import (
     BenchmarkEvidenceError,
     deterministic_private_zip,
     load_bundle,
+    load_profile_events,
+    load_profile_metrics,
     load_profile_transcript,
     transcript_srt,
     transcript_text,
@@ -116,7 +118,7 @@ _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
 _BROWSER_BENCHMARK_PATH = re.compile(
     r"^/api/v1/benchmarks/[A-Za-z0-9_-]{1,128}"
     r"(?:/(?:export|reference|quality|profiles/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)/"
-    r"(?:transcript|transcript\\.txt|transcript\\.vtt|transcript\\.srt)))?$"
+    r"(?:transcript|transcript\\.txt|transcript\\.vtt|transcript\\.srt|metrics|events)))?$"
 )
 
 
@@ -2544,6 +2546,34 @@ def create_app(
             return error("BENCHMARK_NOT_FOUND", 404)
         _package_root, manifest = found
         return manifest
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/metrics")
+    def benchmark_metrics(benchmark_id: str, profile_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            return load_profile_metrics(package_root, benchmark_id, profile_id)
+        except BenchmarkEvidenceError:
+            return error("BENCHMARK_PROFILE_ARTIFACT_UNAVAILABLE", 409)
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/events")
+    def benchmark_events(benchmark_id: str, profile_id: str):
+        found = find_benchmark_package(benchmark_id)
+        if found is None:
+            return error("BENCHMARK_NOT_FOUND", 404)
+        package_root, _manifest = found
+        try:
+            rows = load_profile_events(package_root, benchmark_id, profile_id)
+        except BenchmarkEvidenceError:
+            return error("BENCHMARK_PROFILE_ARTIFACT_UNAVAILABLE", 409)
+        return {
+            "schema_version": "tda_benchmark_diagnostics_v1",
+            "benchmark_id": benchmark_id,
+            "profile_id": profile_id,
+            "events": rows,
+        }
 
     @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/transcript")
     def benchmark_transcript(benchmark_id: str, profile_id: str):
