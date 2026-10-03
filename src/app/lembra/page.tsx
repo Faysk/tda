@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { canCurrentUserManageCampaigns } from "@/features/campaigns/server";
 import { getLembraIdentity } from "@/features/lembra/access";
+import { loadDiscoverableLembraCampaigns } from "@/features/lembra/campaign-discovery";
 import { LembraExperience } from "@/features/lembra/components/lembra-experience";
 import {
-	loadLembraCampaignClassifications,
 	loadLembraFavoriteIds,
 	loadLembraReferences,
 } from "@/features/lembra/repository";
@@ -31,7 +31,7 @@ export default async function LembraPage() {
 		redirect("/conta?acesso=indisponivel");
 	}
 
-	const campaignsPromise = loadLembraCampaignClassifications();
+	const campaignsPromise = loadDiscoverableLembraCampaigns();
 	const favoriteIdsPromise = loadLembraFavoriteIds(access.identity.authUserId);
 	const canManageCampaignsPromise = canCurrentUserManageCampaigns();
 	const campaigns = await campaignsPromise;
