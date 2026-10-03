@@ -566,6 +566,7 @@ export function WorldExplorerClient({
 	useEffect(() => {
 		if (!authoringActive) return;
 		function handleShortcut(event: KeyboardEvent) {
+			if (edit.discardConfirmationOpen) return;
 			if (event.key === "Escape" && connectionActive && !isTypingTarget(event.target)) {
 				event.preventDefault();
 				setRelationCandidate(null);
@@ -593,6 +594,7 @@ export function WorldExplorerClient({
 		authoringUi.state.commandPaletteOpen,
 		authoringUi.setCommandPaletteOpen,
 		authoringUi.setTool,
+		edit.discardConfirmationOpen,
 	]);
 
 	const conductor = canEditLayout && projection.mode === "overview" ? (
@@ -872,11 +874,11 @@ export function WorldExplorerClient({
 				onClose={edit.cancelDiscard}
 				actions={
 					<>
-						<Button data-dialog-initial-focus onClick={edit.cancelDiscard}>
+						<Button data-dialog-initial-focus variant="secondary" onClick={edit.cancelDiscard}>
 							Continuar editando
 						</Button>
 						<Button
-							variant="primary"
+							variant="tertiary"
 							pending={edit.terminalAction === "discard"}
 							pendingLabel="Descartando…"
 							onClick={() => void edit.confirmDiscard()}
