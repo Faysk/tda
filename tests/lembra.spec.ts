@@ -46,7 +46,7 @@ test("Lembra campaign classification stays optional, filterable and non-authorit
 	await expect(page.getByRole("button", { name: "Mesa", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Geral", exact: true })).toHaveCount(0);
 
-	await page.getByRole("button", { name: "Limpar filtros" }).click();
+	await page.getByRole("button", { name: "Limpar filtros", exact: true }).click();
 	const search = page.getByPlaceholder(
 		"Buscar título, descrição, autor ou data...",
 	);
