@@ -14,6 +14,14 @@ function text(formData: FormData, key: string): string {
 	return typeof value === "string" ? value : "";
 }
 
+function optionalReturnPath(formData: FormData): string | null {
+	const raw = text(formData, "returnTo");
+	if (!raw) return null;
+	const safe = safeReturnPath(raw);
+	if (safe === "/conta" && raw !== "/conta") return null;
+	return safe;
+}
+
 function redirectWithResult(
 	status: "criada" | "atualizada" | "arquivada" | "reativada",
 	result: Awaited<
@@ -23,12 +31,11 @@ function redirectWithResult(
 	>,
 	options: Readonly<{
 		campaignId?: string;
-		returnTo?: string;
+		returnTo?: string | null;
 	}> = {},
 ): never {
 	const params = new URLSearchParams();
 	if (result.ok) {
-		// Campaign identity is also projected by the shared root navigation.
 		revalidatePath("/", "layout");
 		params.set("status", status);
 	} else {
@@ -41,30 +48,27 @@ function redirectWithResult(
 }
 
 export async function createCampaignAction(formData: FormData) {
+	const returnTo = optionalReturnPath(formData);
 	const routeKey = text(formData, "routeKey");
 	const requestedTechnicalSlug = text(formData, "technicalSlug");
 	const result = await createCampaign({
 		name: text(formData, "name"),
-		// Human-facing creation keeps the technical key in progressive disclosure.
-		// When omitted, the initial public route is a deterministic, valid default.
 		technicalSlug: requestedTechnicalSlug.trim() || routeKey,
 		routeKey,
 		description: text(formData, "description"),
 		visibility: text(formData, "visibility"),
 	});
-	const returnTo = safeReturnPath(text(formData, "returnTo"));
 	if (result.ok && returnTo === "/edit/processamento") {
 		revalidatePath("/", "layout");
 		redirect(
 			`/edit/processamento?campanha=${encodeURIComponent(result.campaign.technicalSlug)}&campanhaCriada=1`,
 		);
 	}
-	redirectWithResult("criada", result, {
-		returnTo: returnTo === "/edit/processamento" ? returnTo : undefined,
-	});
+	redirectWithResult("criada", result, { returnTo });
 }
 
 export async function updateCampaignAction(formData: FormData) {
+	const returnTo = optionalReturnPath(formData);
 	const campaignId = text(formData, "id");
 	const result = await updateCampaign({
 		id: campaignId,
@@ -74,10 +78,11 @@ export async function updateCampaignAction(formData: FormData) {
 		description: text(formData, "description"),
 		visibility: text(formData, "visibility"),
 	});
-	redirectWithResult("atualizada", result, { campaignId });
+	redirectWithResult("atualizada", result, { campaignId, returnTo });
 }
 
 export async function setCampaignLifecycleAction(formData: FormData) {
+	const returnTo = optionalReturnPath(formData);
 	const campaignId = text(formData, "id");
 	const lifecycle = text(formData, "lifecycle");
 	const result = await setCampaignLifecycle({
@@ -87,5 +92,6 @@ export async function setCampaignLifecycleAction(formData: FormData) {
 	});
 	redirectWithResult(lifecycle === "archived" ? "arquivada" : "reativada", result, {
 		campaignId,
+		returnTo,
 	});
 }
