@@ -52,7 +52,7 @@ describe("standalone lore campaign linkage", () => {
 				data: {
 					id: "campaign-d-id",
 					slug: "antes-que-seja-tarde",
-					name: "Antes que seja tarde",
+					name: "Passos Retomados",
 				},
 				error: null,
 			},
@@ -68,7 +68,7 @@ describe("standalone lore campaign linkage", () => {
 		await expect(resolveStandaloneLoreCampaignLink("d")).resolves.toEqual({
 			campaignId: "campaign-d-id",
 			technicalSlug: "antes-que-seja-tarde",
-			name: "Antes que seja tarde",
+			name: "Passos Retomados",
 			publicCampaign: null,
 		});
 		expect(calls).toContainEqual({
@@ -83,7 +83,7 @@ describe("standalone lore campaign linkage", () => {
 				data: {
 					id: "campaign-d-id",
 					slug: "antes-que-seja-tarde",
-					name: "Antes que seja tarde",
+					name: "Passos Retomados",
 				},
 				error: null,
 			},
@@ -99,11 +99,24 @@ describe("standalone lore campaign linkage", () => {
 		await expect(resolveStandaloneLoreCampaignLink("d")).resolves.toEqual({
 			campaignId: "campaign-d-id",
 			technicalSlug: "antes-que-seja-tarde",
-			name: "Antes que seja tarde",
+			name: "Passos Retomados",
 			publicCampaign: {
 				routeKey: "antes-que-seja-tarde",
-				name: "Antes que seja tarde",
+				name: "Passos Retomados",
 			},
+		});
+	});
+
+	it("resolves Yllith to the same private campaign without exposing a public badge", async () => {
+		setupCampaignResults([
+			{ data: { id: "campaign-d-id", slug: "antes-que-seja-tarde", name: "Passos Retomados" }, error: null },
+			{ data: { public_slug: "passos-retomados", lifecycle: "active", visibility: "private" }, error: null },
+		]);
+		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toEqual({
+			campaignId: "campaign-d-id",
+			technicalSlug: "antes-que-seja-tarde",
+			name: "Passos Retomados",
+			publicCampaign: null,
 		});
 	});
 
@@ -113,7 +126,7 @@ describe("standalone lore campaign linkage", () => {
 				data: {
 					id: "campaign-d-id",
 					slug: "antes-que-seja-tarde",
-					name: "Antes que seja tarde",
+					name: "Passos Retomados",
 				},
 				error: null,
 			},
@@ -122,7 +135,7 @@ describe("standalone lore campaign linkage", () => {
 		await expect(resolveStandaloneLoreCampaignLink("d")).resolves.toEqual({
 			campaignId: "campaign-d-id",
 			technicalSlug: "antes-que-seja-tarde",
-			name: "Antes que seja tarde",
+			name: "Passos Retomados",
 			publicCampaign: null,
 		});
 	});
@@ -161,8 +174,8 @@ describe("standalone lore campaign linkage", () => {
 		});
 	});
 
-	it("does not touch storage for an unlinked standalone lore", async () => {
-		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toBeNull();
+	it("does not touch storage for an unregistered lore", async () => {
+		await expect(resolveStandaloneLoreCampaignLink("not-registered")).resolves.toBeNull();
 		expect(mocks.client).not.toHaveBeenCalled();
 	});
 	it("uses synthetic A/B and standalone lore context without touching storage", async () => {
@@ -177,6 +190,16 @@ describe("standalone lore campaign linkage", () => {
 			publicCampaign: { routeKey: "antes-que-seja-tarde" },
 		});
 		await expect(resolveStandaloneLoreCampaignLink("seika")).resolves.toBeNull();
+		await expect(resolveStandaloneLoreCampaignLink("d")).resolves.toMatchObject({
+			technicalSlug: "antes-que-seja-tarde",
+			name: "Passos Retomados",
+			publicCampaign: null,
+		});
+		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toMatchObject({
+			technicalSlug: "antes-que-seja-tarde",
+			name: "Passos Retomados",
+			publicCampaign: null,
+		});
 		expect(mocks.client).not.toHaveBeenCalled();
 	});
 

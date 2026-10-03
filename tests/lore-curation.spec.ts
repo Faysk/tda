@@ -5,37 +5,57 @@ test("curated lore catalogue discovers every listed experience exactly once", as
 }) => {
 	await page.goto("/lore");
 
-	for (const slug of ["astel", "noah", "pipipi", "seika"] as const) {
+	for (const slug of ["astel", "noah", "pipipi", "seika", "d", "yllith"] as const) {
 		const card = page.locator(`article[data-lore="${slug}"]`);
 		await expect(card).toHaveCount(1);
 		await expect(card.getByRole("link")).toHaveAttribute("href", `/lore/${slug}`);
 	}
 
-	await expect(page.locator('article[data-lore="d"]')).toHaveCount(0);
-	await expect(page.locator('article[data-lore="yllith"]')).toHaveCount(0);
+	for (const slug of ["d", "yllith"] as const) {
+		const card = page.locator(`article[data-lore="${slug}"]`);
+		await expect(card).toHaveAttribute("data-lore-campaign", "standalone");
+		await expect(card).not.toContainText("Passos Retomados");
+		await expect(card).not.toContainText("antes-que-seja-tarde");
+		await expect(card).not.toContainText("Crônicas da Mesa");
+		const image = card.locator("img").first();
+		await expect(image).toBeVisible();
+		await expect.poll(() =>
+			image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0),
+		).toBe(true);
+	}
 });
 
-test("Seika remains canonical while becoming discoverable from the catalogue", async ({
+test("D and Yllith keep standalone canonicals while becoming discoverable", async ({
 	page,
 }) => {
-	await page.goto("/lore");
-	await page.locator('article[data-lore="seika"]').getByRole("link").click();
-	await expect(page).toHaveURL(/\/lore\/seika$/u);
-	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
-		"href",
-		"https://dnd.faysk.dev/lore/seika",
-	);
-	await expect(page.locator("h1").first()).toHaveText("SEIKA");
+	for (const slug of ["d", "yllith"] as const) {
+		await page.goto(`/lore/${slug}`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+			"href",
+			`https://dnd.faysk.dev/lore/${slug}`,
+		);
+		await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+			"content",
+			/noindex/u,
+		);
+	}
 });
 
 test("catalogue preserves narrow-screen flow with the additional curated lore", async ({
 	page,
 }) => {
-	await page.setViewportSize({ width: 320, height: 800 });
-	await page.goto("/lore");
-	await expect(page.locator('article[data-lore="seika"]')).toBeVisible();
-	const overflow = await page.evaluate(
-		() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-	);
-	expect(overflow).toBeLessThanOrEqual(1);
+	for (const viewport of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+		{ width: 960, height: 540 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/lore");
+		await expect(page.locator('article[data-lore="d"]')).toBeVisible();
+		await expect(page.locator('article[data-lore="yllith"]')).toBeVisible();
+		const overflow = await page.evaluate(
+			() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+		);
+		expect(overflow).toBeLessThanOrEqual(1);
+	}
 });

@@ -70,7 +70,7 @@ export function Select<T extends string>({
 	const listboxRef = useRef<HTMLDivElement>(null);
 	const baseId = useId();
 	const listboxId = `${baseId}-listbox`;
-	const selected = options[selectedIndex] ?? options[firstEnabledIndex(options)];
+	const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
 
 	useEffect(() => {
 		if (!open) return;

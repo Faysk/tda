@@ -1197,7 +1197,7 @@ test("account overview keeps synthetic identity and access usable across the lay
 		{
 			query: "no-grants",
 			status: "Vinculada · sem permissões",
-			body: "Nenhuma permissão efetiva nesta campanha.",
+			body: "Nenhuma permissão efetiva está ativa para esta conta.",
 		},
 	]) {
 		await page.goto(`/e2e-fixtures/account-overview?state=${state.query}`);
@@ -1224,10 +1224,11 @@ test("account overview keeps synthetic identity and access usable across the lay
 		const profileId = page.getByText("profile-tda-synthetic-927", { exact: true });
 		await expect(profileId).toBeHidden();
 		await expect(
-			page.getByRole("heading", { name: "Acesso nesta campanha", exact: true }),
+			page.getByRole("heading", { name: "Acesso por campanha", exact: true }),
 		).toBeVisible();
 		await expect(page.getByRole("heading", { name: "Vínculo TDA", exact: true })).toBeVisible();
 		await expect(page.getByRole("heading", { name: "Aparência", exact: true })).toBeVisible();
+		await page.getByText("Administração", { exact: true }).click();
 		await expect(page.getByText("Gerenciar permissões", { exact: true }).first()).toBeVisible();
 		const technicalCapability = page.getByText("campaign.permissions.manage", { exact: true });
 		await expect(technicalCapability).toBeHidden();

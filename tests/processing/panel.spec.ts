@@ -255,18 +255,25 @@ test("troca de campaign com trabalho autoritativo exige confirmação e não ret
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	const selector = page.getByLabel("Trocar campanha");
-	await expect(selector).toHaveValue("yuhara-main");
-	await expect(page.getByText("Crônicas da Mesa", { exact: true }).first()).toBeVisible();
+	const selector = page.getByRole("button", {
+		name: "Trocar campanha do processamento",
+	});
+	await expect(selector).toContainText("Crônicas da Mesa");
 
 	page.once("dialog", async (dialog) => {
 		expect(dialog.type()).toBe("confirm");
 		expect(dialog.message()).toContain("mantêm a campanha original");
 		await dialog.dismiss();
 	});
-	await selector.selectOption("antes-que-seja-tarde");
+	await selector.click();
+	const alternateCampaign = page
+		.getByRole("option")
+		.filter({ hasNotText: "Crônicas da Mesa" })
+		.first();
+	await expect(alternateCampaign).toBeVisible();
+	await alternateCampaign.click();
 
-	await expect(selector).toHaveValue("yuhara-main");
+	await expect(selector).toContainText("Crônicas da Mesa");
 	await expect(page).toHaveURL("/");
 });
 
