@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { safeReturnPath } from "@/features/auth/config";
 import {
 	CampaignManagementView,
 	type CampaignManagerFeedback,
@@ -30,6 +31,13 @@ function queryValue(
 	return typeof value === "string" ? value : null;
 }
 
+function validatedReturnPath(value: string | null): string | null {
+	if (!value) return null;
+	const safe = safeReturnPath(value);
+	if (safe === "/conta" && value !== "/conta") return null;
+	return safe;
+}
+
 export default async function CampaignManagementPage({ searchParams }: Props) {
 	const [params, result] = await Promise.all([
 		searchParams,
@@ -49,10 +57,7 @@ export default async function CampaignManagementPage({ searchParams }: Props) {
 		field: queryValue(params, "campo"),
 		campaignId: queryValue(params, "campanha"),
 	};
-	const returnTo =
-		queryValue(params, "next") === "/edit/processamento"
-			? "/edit/processamento"
-			: null;
+	const returnTo = validatedReturnPath(queryValue(params, "next"));
 
 	return (
 		<CampaignManagementView
