@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound, permanentRedirect } from "next/navigation";
 import { PublicLink as Link } from "@/components/public-link";
 import { SessionShareActions } from "@/components/session-share-actions";
+import { SessionOutlineNav } from "@/components/session-outline-nav";
 import { StoryMarkdown } from "@/components/story-markdown";
 import { DisplayTitle, Eyebrow } from "@/components/ui";
 import { resolvePublicCampaignRoute } from "@/features/campaigns/server";
@@ -11,6 +12,7 @@ import { resolveSessionReaderArtwork } from "@/features/sessions/reader-artwork"
 import { formatSessionDate, sessionPublicPath, type PublishedSession } from "@/features/sessions/model";
 import { findPublishedSession, findPublishedSessionNeighbors, PublishedSessionUnavailableError } from "@/features/sessions/repository";
 import { sessionShareDescription } from "@/features/sessions/share";
+import { buildStoryOutline } from "@/features/sessions/story-outline";
 import styles from "../../../../sessoes/[id]/page.module.css";
 
 export const dynamic="force-dynamic";
@@ -110,9 +112,10 @@ export default async function CampaignSession({params}:Params){
 	const next=neighbors?.next;
 	const date=formatSessionDate(session.date);
 	const story=session.fullSummary||session.summary||"Resumo ainda não disponível.";
+	const outline=buildStoryOutline(story,session.title).outline;
 	const artwork=resolveSessionReaderArtwork(session);
 	const heroClassName=artwork.url ? `${styles.hero} ${styles.heroWithArt}` : styles.hero;
-	return <article className={styles.page}>
+	return <article className={styles.page} id="topo-da-sessao">
 		<header className={heroClassName} data-session-reader-hero data-session-artwork-source={artwork.source}>
 			{artwork.url ? <><Image className={styles.art} src={artwork.url} alt="" fill sizes="100vw" priority/><div className={styles.overlay} aria-hidden="true"/></> : null}
 			<div className={styles.heroInner}><div className={styles.content}>
@@ -123,6 +126,7 @@ export default async function CampaignSession({params}:Params){
 		</div></div></header>
 		<div className={styles.body} data-session-reading>
 			<div className={styles.readingIntro}><span className={styles.chapterMark} aria-hidden="true">◆</span><SessionShareActions title={session.title} description={sessionShareDescription(session.summary,session.title)}/></div>
+			{outline.length>=4?<SessionOutlineNav entries={outline}/>:null}
 			<StoryMarkdown source={story} title={session.title}/>
 			{previous||next?<nav className={styles.pagination} aria-label="Navegação entre sessões">
 				{previous?<NavigationCard session={previous} direction="previous"/>:null}
