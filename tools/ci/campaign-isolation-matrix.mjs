@@ -102,7 +102,8 @@ export const SURFACE_COVERAGE = [
 	{ id: "permissions", evidence: ["src/features/edit/permissions/mutation.test.ts", "src/features/edit/permissions/query.test.ts"] },
 	{ id: "media", evidence: ["src/features/media/campaign-media.test.ts", "src/features/campaigns/campaign-cover-media.test.ts"] },
 	{ id: "lore", evidence: ["src/features/lore/campaign-context.test.ts", "src/features/lore/standalone-link-repository.test.ts"] },
-	{ id: "lembra", evidence: ["src/features/lembra/campaign-classification.test.ts", "tools/lembra-db.py"] },
+	{ id: "lembra", evidence: ["src/features/lembra/campaign-classification.test.ts", "tools/lembra-db.py", "tests/product-coherence-regressions.spec.ts"] },
+	{ id: "account_context", evidence: ["src/features/auth/account-campaign-access.test.ts", "tests/account-campaign-context.spec.ts"] },
 ];
 
 function normalizeEvidence(evidence) {
@@ -161,6 +162,7 @@ export function buildCampaignIsolationMatrix(root = DEFAULT_ROOT) {
 		missingAnchors: validation.missingAnchors,
 		complete:
 			NEGATIVE_CASES.length === 12 &&
+			SURFACE_COVERAGE.length === 11 &&
 			duplicateIds.length === 0 &&
 			validation.missingEvidence.length === 0 &&
 			validation.missingAnchors.length === 0,
