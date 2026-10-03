@@ -18,7 +18,7 @@ function lineage(family: "whisper" | "qwen") {
 		runtime_family: family,
 		runtime_version: "1.2.3",
 		runtime_artifact: {
-			runtime_id: \`\${family}-test\`,
+			runtime_id: `${family}-test`,
 			version: "1.2.3",
 			worker_sha256: sha("a"),
 			archive_sha256: sha("b"),
@@ -75,7 +75,7 @@ describe("benchmark evidence protocol", () => {
 			schema_version: "tda_processing_benchmark_v1",
 			job_id: "benchmark-job",
 			kind: "benchmark.craig",
-			source_id: \`craig-\${sha("d")}\`,
+			source_id: `craig-${sha("d")}`,
 			campaign_id: "benchmark-local",
 			session_id: "benchmark-local",
 			sample_identity_sha256: sha("e"),
@@ -95,13 +95,13 @@ describe("benchmark evidence protocol", () => {
 		const current = parseBenchmarkResult(
 			{
 				...base,
-				benchmark_id: \`benchmark-\${"1".repeat(32)}\`,
+				benchmark_id: `benchmark-${"1".repeat(32)}`,
 				bundle_manifest_sha256: sha("f"),
 				bundle_size_bytes: 9999,
 			},
 			"benchmark-job",
 		);
-		expect(current.benchmarkId).toBe(\`benchmark-\${"1".repeat(32)}\`);
+		expect(current.benchmarkId).toBe(`benchmark-${"1".repeat(32)}`);
 		expect(current.bundleManifestSha256).toBe(sha("f"));
 		expect(current.profiles.every((item) => item.artifactAvailable)).toBe(true);
 
@@ -221,7 +221,7 @@ describe("benchmark evidence protocol", () => {
 
 		const quality = parseBenchmarkQualitySummary({
 			schema_version: "tda_benchmark_quality_summary_v1",
-			benchmark_id: \`benchmark-\${"1".repeat(32)}\`,
+			benchmark_id: `benchmark-${"1".repeat(32)}`,
 			quality_measured: true,
 			reference: {
 				revision: 2,
