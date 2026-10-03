@@ -1063,6 +1063,7 @@ export class LocalBridge {
 		benchmarkId: string,
 		kind:
 			| "export"
+			| `${CraigTranscriptionInput["profileId"]}/transcript.json`
 			| `${CraigTranscriptionInput["profileId"]}/transcript.txt`
 			| `${CraigTranscriptionInput["profileId"]}/transcript.vtt`
 			| `${CraigTranscriptionInput["profileId"]}/transcript.srt`,
