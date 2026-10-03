@@ -50,6 +50,7 @@ type LembraExperienceProps = Readonly<{
 	initialCampaigns?: readonly LembraCampaignClassification[];
 	canManageCampaigns?: boolean;
 	persistenceEnabled?: boolean;
+	e2eCampaignCreateFailureReason?: "forbidden" | "dependency_unavailable" | "conflict";
 }>;
 
 type ReferenceDraft = Readonly<{
@@ -294,6 +295,7 @@ export function LembraExperience({
 	initialCampaigns = [],
 	canManageCampaigns = false,
 	persistenceEnabled = false,
+	e2eCampaignCreateFailureReason,
 }: LembraExperienceProps) {
 	const [references, setReferences] = useState<LembraReference[]>(() => [
 		...initialReferences,
@@ -1478,6 +1480,8 @@ export function LembraExperience({
 										canManageCampaigns={canManageCampaigns}
 										disabled={saving}
 										ariaLabel="Campanha da referência"
+								e2eCreateFailureReason={e2eCampaignCreateFailureReason}
+									e2eCreateFailureReason={e2eCampaignCreateFailureReason}
 									/>
 									<div className={styles.viewerEditActions}>
 										<Button
@@ -1686,6 +1690,7 @@ export function LembraExperience({
 								canManageCampaigns={canManageCampaigns}
 								disabled={saving}
 								ariaLabel="Campanha da referência"
+								e2eCreateFailureReason={e2eCampaignCreateFailureReason}
 							/>
 
 							<div className={styles.autoMeta}>
