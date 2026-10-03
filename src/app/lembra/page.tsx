@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getLembraIdentity } from "@/features/lembra/access";
 import { LembraExperience } from "@/features/lembra/components/lembra-experience";
+import { loadLembraCampaignContext } from "@/features/lembra/campaign-directory";
 import {
-	loadLembraCampaignClassifications,
 	loadLembraFavoriteIds,
 	loadLembraReferences,
 } from "@/features/lembra/repository";
@@ -30,9 +30,11 @@ export default async function LembraPage() {
 		redirect("/conta?acesso=indisponivel");
 	}
 
-	const campaigns = await loadLembraCampaignClassifications();
+	const campaignContext = await loadLembraCampaignContext(
+		access.identity.authUserId,
+	);
 	const [references, favoriteIds] = await Promise.all([
-		loadLembraReferences(access.identity.authUserId, campaigns),
+		loadLembraReferences(access.identity.authUserId, campaignContext.campaigns),
 		loadLembraFavoriteIds(access.identity.authUserId),
 	]);
 	const activeIds = new Set(references.map((reference) => reference.id));
@@ -41,7 +43,8 @@ export default async function LembraPage() {
 		<LembraExperience
 			initialReferences={references}
 			initialFavoriteIds={favoriteIds.filter((id) => activeIds.has(id))}
-			initialCampaigns={campaigns}
+			initialCampaigns={campaignContext.campaigns}
+			canManageCampaigns={campaignContext.canManageCampaigns}
 			persistenceEnabled
 		/>
 	);
