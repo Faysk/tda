@@ -5,6 +5,7 @@ import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { FormSubmitButton, StatusPill } from "@/components/ui";
 import { requireCampaignCapability } from "@/features/auth/server";
+import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import { editSessionDetailHref, editSessionLibraryHref, readEditableSessionCampaigns } from "@/features/campaigns/sessions";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import {
@@ -95,7 +96,20 @@ export default async function EditSessionsPage({
 	if (!eligible.ok) return <ErrorState retryHref={returnTo} />;
 	const campaign = eligible.campaigns.find((item) => item.technicalSlug === campaignSlug);
 	if (!campaign) notFound();
-	const filters = parseFilters(await searchParams);
+	const rawSearchParams = await searchParams;
+	const filters = parseFilters(rawSearchParams);
+	const canManageCampaigns = canManageCampaignRegistry(accessContext);
+	const preservedQuery = new URLSearchParams();
+	for (const [key, value] of Object.entries(rawSearchParams)) {
+		const normalized = Array.isArray(value) ? value[0] : value;
+		if (normalized) preservedQuery.set(key, normalized);
+	}
+	const returnWithIntent = preservedQuery.size
+		? `${returnTo}?${preservedQuery.toString()}`
+		: returnTo;
+	const manageHref = canManageCampaigns
+		? `/edit/campanhas?next=${encodeURIComponent(returnWithIntent)}`
+		: undefined;
 
 	let sessions: Awaited<ReturnType<typeof listEditSessionLibrary>>;
 	try {
@@ -144,7 +158,9 @@ export default async function EditSessionsPage({
 						name: item.name,
 						href: editSessionLibraryHref(item.technicalSlug),
 						current: item.technicalSlug === campaignSlug,
+						lifecycle: item.lifecycle,
 					}))}
+					manageHref={manageHref}
 				/>
 			</div>
 

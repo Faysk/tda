@@ -9,6 +9,12 @@ on:
       - "tests/campaign-directory.spec.ts"
       - "tests/product-coherence.spec.ts"
       - "tests/product-coherence-interactions.spec.ts"
+      - "tests/product-coherence-regressions.spec.ts"
+      - "tests/account-campaign-context.spec.ts"
+      - "tests/lore-mode-continuity.spec.ts"
+      - "tests/layout-geometry.spec.ts"
+      - "tests/world-floating-chrome.spec.ts"
+      - "tests/world-relation-polish-gates.spec.ts"
       - "tests/world-edge-anchor-geometry.spec.ts"
       - "tests/global-navigation.spec.ts"
       - "tools/ci/campaign-isolation-*.mjs"
@@ -27,6 +33,7 @@ on:
       - "src/app/diario/**"
       - "src/app/lembra/**"
       - "src/app/conta/**"
+      - "src/features/auth/account-*.ts*"
       - "src/app/transcricoes/**"
       - "src/app/edit/**"
       - "src/components/public-navigation-model.ts"
@@ -58,6 +65,12 @@ on:
       - "tests/campaign-directory.spec.ts"
       - "tests/product-coherence.spec.ts"
       - "tests/product-coherence-interactions.spec.ts"
+      - "tests/product-coherence-regressions.spec.ts"
+      - "tests/account-campaign-context.spec.ts"
+      - "tests/lore-mode-continuity.spec.ts"
+      - "tests/layout-geometry.spec.ts"
+      - "tests/world-floating-chrome.spec.ts"
+      - "tests/world-relation-polish-gates.spec.ts"
       - "tests/world-edge-anchor-geometry.spec.ts"
       - "tests/global-navigation.spec.ts"
       - "tools/ci/campaign-isolation-*.mjs"
@@ -76,6 +89,7 @@ on:
       - "src/app/diario/**"
       - "src/app/lembra/**"
       - "src/app/conta/**"
+      - "src/features/auth/account-*.ts*"
       - "src/app/transcricoes/**"
       - "src/app/edit/**"
       - "src/components/public-navigation-model.ts"
@@ -193,6 +207,10 @@ jobs:
           pnpm exec vitest run
           src/components/public-navigation-model.test.ts
           src/features/campaigns/authorized.test.ts
+          src/features/auth/account-access.test.ts
+          src/features/auth/account-campaign-access.test.ts
+          src/features/auth/server.test.ts
+          src/features/transcripts/statistics/model.test.ts
           src/features/campaigns/model.test.ts
           src/features/campaigns/policy.test.ts
           src/features/campaigns/processing-policy.test.ts
@@ -325,6 +343,10 @@ jobs:
           path: |
             test-results/**/interaction-*.png
             test-results/**/interaction-*.json
+            test-results/**/product-coherence-regression-*.png
+            test-results/**/lore-mode-*-390.png
+            test-results/**/operational-header-*.png
+            test-results/**/world-selected-relation-paint.png
           if-no-files-found: ignore
           retention-days: 30
       - name: Upload sanitized browser failures
@@ -516,9 +538,15 @@ jobs:
               issue: 1288,
               semanticSpec: "tests/product-coherence.spec.ts",
               interactionSpec: "tests/product-coherence-interactions.spec.ts",
+              regressionSpec: "tests/product-coherence-regressions.spec.ts",
+              accountContextSpec: "tests/account-campaign-context.spec.ts",
+              loreModeContinuitySpec: "tests/lore-mode-continuity.spec.ts",
+              operationalGeometrySpec: "tests/layout-geometry.spec.ts",
+              worldPaintSpec: "tests/world-relation-polish-gates.spec.ts",
               worldGeometrySpec: "tests/world-edge-anchor-geometry.spec.ts",
+              transcriptCoverageContract: "src/features/transcripts/statistics/model.test.ts",
               requiredViewports: ["320x720", "390x844", "1366x768", "683x384-200%-proxy"],
-              surfaces: ["home", "campaign-directory", "aggregate-sessions", "scoped-sessions", "session-reader", "lore", "world", "authenticated-edit-navigation", "global-menu-interactions"],
+              surfaces: ["home", "campaign-directory", "campaign-root", "aggregate-sessions", "scoped-sessions", "session-reader", "lore", "lore-mode-continuity", "world", "account-context", "authenticated-edit-navigation", "global-menu-interactions", "transcript-coverage-state"],
             },
             activationReady: readiness.ready,
             negativeCaseCount: matrix.negativeCaseCount,

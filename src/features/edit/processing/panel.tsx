@@ -10,6 +10,7 @@ import {
 import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
+import { CampaignPicker } from "@/features/campaigns/campaign-picker";
 import { ProcessingBenchmark } from "./benchmark";
 import { CompanionDownload } from "./companion-download";
 import { ActivityPackAdmin } from "./activity-pack-admin";
@@ -321,6 +322,7 @@ export function ProcessingPanel({
 	publicationEnabled = false,
 	activityBarksManage = false,
 	activityPackScope = null,
+	canManageCampaigns = false,
 }: Readonly<{
 	campaignId: string;
 	campaignName: string;
@@ -328,6 +330,7 @@ export function ProcessingPanel({
 	publicationEnabled?: boolean;
 	activityBarksManage?: boolean;
 	activityPackScope?: string | null;
+	canManageCampaigns?: boolean;
 }>) {
 	const [controller] = useState(() => new ProcessingController());
 	const state = useSyncExternalStore(
@@ -346,6 +349,7 @@ export function ProcessingPanel({
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
 	const [campaignSelection, setCampaignSelection] = useState(campaignId);
+	const [campaignNavigationPending, setCampaignNavigationPending] = useState(false);
 	const diagnosticOpener = useRef<HTMLElement | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
@@ -647,7 +651,10 @@ export function ProcessingPanel({
 			setCampaignSelection(campaignId);
 			return;
 		}
-		window.location.assign(processingCampaignHref(nextCampaignId));
+		setCampaignNavigationPending(true);
+		requestAnimationFrame(() => {
+			window.location.assign(processingCampaignHref(nextCampaignId));
+		});
 	}
 
 	function selectViewFromKeyboard(
@@ -678,26 +685,38 @@ export function ProcessingPanel({
 		<div className={styles.panel} data-global-loading="off">
 			<section className={styles.campaignContext} aria-label="Campanha do processamento">
 				<div>
-					<span>Campanha</span>
+					<span>Contexto atual</span>
 					<strong>{campaignName}</strong>
 				</div>
-				<label>
-					<span className={styles.visuallyHidden}>Trocar campanha</span>
-					<select
-						value={campaignSelection}
-						onChange={(event) => {
-							const next = event.target.value;
-							setCampaignSelection(next);
-							switchCampaign(next);
-						}}
-					>
-						{campaignOptions.map((campaign) => (
-							<option key={campaign.technicalSlug} value={campaign.technicalSlug}>
-								{campaign.name}
-							</option>
-						))}
-					</select>
-				</label>
+				<CampaignPicker
+					value={campaignSelection}
+					options={campaignOptions.map((campaign) => ({
+						value: campaign.technicalSlug,
+						label: campaign.name,
+						lifecycle: "active" as const,
+					}))}
+					onChange={(next) => {
+						setCampaignSelection(next);
+						switchCampaign(next);
+					}}
+					ariaLabel="Trocar campanha do processamento"
+					pending={campaignNavigationPending}
+					pendingLabel="Trocando campanha…"
+					status={
+						campaignNavigationPending
+							? undefined
+							: "Campanha aplicada ao workspace atual."
+					}
+					canManage={
+						canManageCampaigns &&
+						!submissionDraftActive &&
+						!state.mutation &&
+						!state.uncertainSubmission
+					}
+					manageHref={`/edit/campanhas?next=${encodeURIComponent(
+						processingCampaignHref(campaignId),
+					)}`}
+				/>
 			</section>
 			<div className={styles.processingHeader}>
 				<div
@@ -1032,17 +1051,23 @@ export function ProcessingPanel({
 									</div>
 								)}
 							</section>
-							<ProcessingSubmission
-								campaignId={campaignId}
-								className={styles.submissionCard}
-								compact={Boolean(activeJob || queued.length)}
-								onOpenDiagnostics={() => activateView("diagnostics")}
-								runs={state.localRuns}
-								benchmarks={state.benchmarkResults}
-								system={state.system}
-								recoveryScope={activityPackScope}
-								onDraftStateChange={setSubmissionDraftActive}
-							/>
+							<fieldset
+								className={styles.campaignNavigationGuard}
+								disabled={campaignNavigationPending}
+								aria-busy={campaignNavigationPending || undefined}
+							>
+								<ProcessingSubmission
+									campaignId={campaignId}
+									className={styles.submissionCard}
+									compact={Boolean(activeJob || queued.length)}
+									onOpenDiagnostics={() => activateView("diagnostics")}
+									runs={state.localRuns}
+									benchmarks={state.benchmarkResults}
+									system={state.system}
+									recoveryScope={activityPackScope}
+									onDraftStateChange={setSubmissionDraftActive}
+								/>
+							</fieldset>
 						</div>
 						{latestCompletedRun ? (
 							<section

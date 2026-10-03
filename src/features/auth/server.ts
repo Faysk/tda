@@ -6,6 +6,7 @@ import { loadEditAccessContext } from "@/features/edit/access/repository";
 import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
+	isActiveTdaAccessGrant,
 	type EditCapability,
 } from "@/features/edit/access/policy";
 import { CAMPAIGN_SLUG } from "@/features/sessions/model";
@@ -100,9 +101,10 @@ export const currentAccess = cache(async () => {
 				context,
 				identity: identity.navigationIdentity,
 			} as const;
-		const effective = Object.values(EDIT_CAPABILITIES).some(
-			(action) =>
-				authorizeCampaignCapability(context, action, CAMPAIGN_SLUG).ok,
+		const knownCapabilities = new Set<string>(Object.values(EDIT_CAPABILITIES));
+		const effective = context.grants.some(
+			(grant) =>
+				knownCapabilities.has(grant.action) && isActiveTdaAccessGrant(grant),
 		);
 		return {
 			state: effective
@@ -130,7 +132,9 @@ export async function requireCampaignCapability(
 		!access.context ||
 		!authorizeCampaignCapability(access.context, capability, campaignSlug).ok
 	)
-		redirect("/conta?acesso=negado");
+		redirect(
+			`/conta?acesso=negado&retorno=${encodeURIComponent(safeReturnPath(returnTo))}`,
+		);
 	return access.context;
 }
 
@@ -147,6 +151,8 @@ export async function requireCapability(
 		!access.context ||
 		!authorizeCampaignCapability(access.context, capability, CAMPAIGN_SLUG).ok
 	)
-		redirect("/conta?acesso=negado");
+		redirect(
+			`/conta?acesso=negado&retorno=${encodeURIComponent(safeReturnPath(returnTo))}`,
+		);
 	return access.context;
 }

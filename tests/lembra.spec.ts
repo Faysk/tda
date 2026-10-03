@@ -43,7 +43,10 @@ async function addReference(
 	title: string,
 	description: string,
 ) {
-	await page.locator('input[type="file"]').setInputFiles({
+	const fileChooserPromise = page.waitForEvent("filechooser");
+	await page.getByRole("button", { name: "Adicionar imagem" }).click();
+	const fileChooser = await fileChooserPromise;
+	await fileChooser.setFiles({
 		name: `${title}.png`,
 		mimeType: "image/png",
 		buffer: PNG_1X1,

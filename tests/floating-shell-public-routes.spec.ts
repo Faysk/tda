@@ -133,8 +133,7 @@ test("Lore and Diário share the structural keyline and intentionally use wide v
 			.getByRole("heading", { level: 1, name: "Diários", exact: true })
 			.boundingBox();
 		const diaryBook = await page
-			.getByRole("link", { name: /Astel Nightshade.*Diário de Astel/ })
-			.first()
+			.locator('[data-diary="astel"]')
 			.boundingBox();
 		expect(diaryHeading).not.toBeNull();
 		expect(diaryBook).not.toBeNull();

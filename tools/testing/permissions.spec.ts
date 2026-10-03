@@ -177,6 +177,17 @@ test("governed console shows people, human access, filters and technical details
 		.getByText(/Operação técnica/u);
 	await expect(technical).toContainText("herdada");
 
+	const managerRow = page.getByRole("row", { name: /Pessoa manager/u });
+	const allAccess = managerRow.getByText(/Ver todos os acessos/);
+	await expect(allAccess).toBeVisible();
+	await allAccess.click();
+	await expect(managerRow.getByText("Gerenciar permissões", { exact: true })).toBeVisible();
+	await expect(managerRow).not.toContainText("campaign.permissions.manage");
+
+	const roleCatalog = page.getByText(/Funções disponíveis/);
+	await roleCatalog.click();
+	await expect(roleCatalog.locator("..").getByText("Leitura sintética", { exact: true }).first()).toBeVisible();
+
 	expect(
 		await page.evaluate(
 			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
@@ -601,7 +612,71 @@ test("revoked admin authority fails closed on the next server request", async ({
 	}
 });
 
-test("viewport matrix and 200% zoom keep management usable without horizontal overflow", async ({
+test("200% browser zoom equivalent reflows management without horizontal overflow", async ({
+	page,
+	context,
+}, testInfo) => {
+	test.skip(
+		testInfo.project.name !== "permissions-desktop",
+		"Chromium zoom emulation runs once on the desktop project.",
+	);
+	await login(context, "manager");
+
+	const cdp = await context.newCDPSession(page);
+	try {
+		// Chromium browser zoom changes the effective CSS viewport and device pixel
+		// ratio. Emulate a 1366×768 desktop viewed at 200%: 683×384 CSS px at DPR 2.
+		await cdp.send("Emulation.setDeviceMetricsOverride", {
+			width: 683,
+			height: 384,
+			deviceScaleFactor: 2,
+			mobile: false,
+			screenWidth: 1366,
+			screenHeight: 768,
+		});
+		await page.goto(path);
+
+		const metrics = await page.evaluate(() => ({
+			devicePixelRatio: window.devicePixelRatio,
+			innerWidth: window.innerWidth,
+			innerHeight: window.innerHeight,
+			hasHorizontalOverflow:
+				document.documentElement.scrollWidth > window.innerWidth + 1,
+		}));
+		expect(metrics.devicePixelRatio).toBe(2);
+		expect(metrics.innerWidth).toBe(683);
+		expect(metrics.innerHeight).toBe(384);
+		expect(metrics.hasHorizontalOverflow).toBe(false);
+
+		const memberRow = page.getByRole("row", { name: /Pessoa member/u });
+		await memberRow.getByRole("button", { name: "Gerenciar" }).click();
+		const dialog = page.getByRole("dialog", { name: "Pessoa member" });
+		await expect(dialog).toBeVisible();
+		await expect(dialog.getByRole("button", { name: "Aplicar mudanças" })).toBeVisible();
+
+		const box = await dialog.boundingBox();
+		expect(box).not.toBeNull();
+		if (box) {
+			expect(box.x).toBeGreaterThanOrEqual(-1);
+			expect(box.x + box.width).toBeLessThanOrEqual(metrics.innerWidth + 1);
+		}
+
+		expect(
+			await page.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+			),
+		).toBe(true);
+		await page.screenshot({
+			path: testInfo.outputPath("permissions-zoom-200.png"),
+			fullPage: false,
+		});
+	} finally {
+		await cdp.send("Emulation.clearDeviceMetricsOverride");
+		await cdp.detach();
+	}
+});
+
+test("viewport matrix keeps management usable without horizontal overflow", async ({
 	page,
 	context,
 }, testInfo) => {

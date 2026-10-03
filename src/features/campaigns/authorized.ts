@@ -129,3 +129,70 @@ export async function readAuthorizedCampaigns(
 
 	return { ok: true, campaigns };
 }
+
+
+export type AuthorizedCampaignAccess = AuthorizedCampaign &
+	Readonly<{ capabilities: readonly EditCapability[] }>;
+
+export type AuthorizedCampaignAccessResult =
+	| Readonly<{ ok: true; campaigns: readonly AuthorizedCampaignAccess[] }>
+	| Readonly<{
+			ok: false;
+			reason: "profile_unresolved" | "dependency_unavailable";
+	  }>;
+
+export async function readAuthorizedCampaignAccess(
+	context: EditAccessContext,
+	capabilities: readonly EditCapability[],
+	options: Readonly<{ includeArchived?: boolean }> = {},
+): Promise<AuthorizedCampaignAccessResult> {
+	if (!context.profileId) return { ok: false, reason: "profile_unresolved" };
+
+	const scopes = capabilities.map((capability) => ({
+		capability,
+		scope: authorizedCampaignGrantScope(context, capability),
+	}));
+	const projectWide = scopes.some(({ scope }) => scope.projectWide);
+	const candidateSlugs = [
+		...new Set(scopes.flatMap(({ scope }) => scope.campaignSlugs)),
+	].sort();
+	if (!projectWide && candidateSlugs.length === 0) {
+		return { ok: true, campaigns: [] };
+	}
+
+	const client = editDataClient();
+	if (!client) return { ok: false, reason: "dependency_unavailable" };
+
+	let query = client
+		.from("campaigns")
+		.select("slug,name,lifecycle")
+		.order("name")
+		.order("slug");
+	if (!options.includeArchived) query = query.eq("lifecycle", "active");
+	if (!projectWide) query = query.in("slug", candidateSlugs);
+
+	const { data, error } = await query;
+	if (error || !Array.isArray(data)) {
+		return { ok: false, reason: "dependency_unavailable" };
+	}
+
+	const campaigns: AuthorizedCampaignAccess[] = [];
+	for (const raw of data) {
+		if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+			return { ok: false, reason: "dependency_unavailable" };
+		}
+		const campaign = parseCampaign(raw as Record<string, unknown>);
+		if (!campaign) return { ok: false, reason: "dependency_unavailable" };
+		const effectiveCapabilities = capabilities.filter((capability) =>
+			authorizeCampaignCapability(
+				context,
+				capability,
+				campaign.technicalSlug,
+			).ok,
+		);
+		if (effectiveCapabilities.length === 0) continue;
+		campaigns.push({ ...campaign, capabilities: effectiveCapabilities });
+	}
+
+	return { ok: true, campaigns };
+}

@@ -3,6 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
+import {
+	clearStaleActionRecovery,
+	isStaleServerActionError,
+	persistStaleActionRecovery,
+	readStaleActionRecovery,
+} from "@/features/edit/stale-action-recovery";
 import { saveTranscriptRevisionEditsAction } from "./edit-actions";
 import {
 	type TranscriptEditRequest,
@@ -27,6 +33,11 @@ type WorkingEdit = Readonly<{
 }>;
 
 type SavePhase = "idle" | "saving" | "saved" | "conflict" | "error";
+
+type TranscriptStaleRecovery = Readonly<{
+	baseRevisionId: string;
+	working: Readonly<Record<string, WorkingEdit>>;
+}>;
 
 export type TranscriptReaderSaveAction = typeof saveTranscriptRevisionEditsAction;
 
@@ -89,6 +100,7 @@ export function TranscriptReader({
 	const [savePhase, setSavePhase] = useState<SavePhase>("idle");
 	const [saveMessage, setSaveMessage] = useState("");
 	const [remoteRevisionNumber, setRemoteRevisionNumber] = useState<number | null>(null);
+	const [staleRecovery, setStaleRecovery] = useState<"idle" | "stale" | "restored">("idle");
 	const pendingOperation = useRef<{ id: string; signature: string } | null>(null);
 
 	const [query, setQuery] = useState("");
@@ -101,6 +113,7 @@ export function TranscriptReader({
 	const sentinelRef = useRef<HTMLDivElement>(null);
 	const activeSpeakerRef = useRef<HTMLInputElement>(null);
 	const normalizedQuery = normalizeSearch(query);
+	const recoveryKey = sessionId ? `transcript-reader:${sessionId}` : null;
 	const dirtyCount = Object.keys(working).length;
 	const dirty = dirtyCount > 0;
 	const canEdit =
@@ -108,6 +121,30 @@ export function TranscriptReader({
 		Boolean(sessionId) &&
 		Boolean(currentRevisionId) &&
 		baseline.every((segment) => Boolean(segment.sourceSegmentId));
+
+	useEffect(() => {
+		if (!recoveryKey || !currentRevisionId) return;
+		const recovered =
+			readStaleActionRecovery<TranscriptStaleRecovery>(recoveryKey);
+		if (!recovered || recovered.baseRevisionId !== currentRevisionId) return;
+		const validIds = new Set(baseline.map((segment) => segment.id));
+		const restored = Object.fromEntries(
+			Object.entries(recovered.working).filter(
+				([segmentId, edit]) =>
+					validIds.has(segmentId) &&
+					typeof edit?.speaker === "string" &&
+					typeof edit?.text === "string",
+			),
+		);
+		if (!Object.keys(restored).length) return;
+		setWorking(restored);
+		setEditMode(true);
+		setSavePhase("idle");
+		setSaveMessage(
+			"Rascunho recuperado após a atualização do TDA. Revise as falas antes de salvar.",
+		);
+		setStaleRecovery("restored");
+	}, [baseline, currentRevisionId, recoveryKey]);
 
 	const matches = useMemo(() => {
 		if (!normalizedQuery) return [] as number[];
@@ -293,6 +330,8 @@ export function TranscriptReader({
 		setSaveMessage("Salvando nova revisão privada…");
 		try {
 			const result = await saveAction(request);
+			if (recoveryKey) clearStaleActionRecovery(recoveryKey);
+			setStaleRecovery("idle");
 			if (result.ok) {
 				setBaseline((current) =>
 					current.map((segment) =>
@@ -338,10 +377,25 @@ export function TranscriptReader({
 			);
 			if (result.reason !== "dependency_unavailable")
 				pendingOperation.current = null;
-		} catch {
+		} catch (error) {
+			if (isStaleServerActionError(error)) {
+				if (recoveryKey && currentRevisionId) {
+					persistStaleActionRecovery<TranscriptStaleRecovery>(recoveryKey, {
+						baseRevisionId: currentRevisionId,
+						working,
+					});
+				}
+				pendingOperation.current = null;
+				setStaleRecovery("stale");
+				setSavePhase("error");
+				setSaveMessage(
+					"O TDA foi atualizado enquanto esta revisão estava aberta. A ação antiga não foi executada; a working copy foi preservada sem retry automático.",
+				);
+				return;
+			}
 			setSavePhase("error");
 			setSaveMessage(
-				"Não foi possível confirmar o save. A working copy e a identidade da tentativa foram preservadas para retry.",
+				"Não foi possível confirmar o save. A working copy e a identidade da tentativa foram preservadas para retry idempotente.",
 			);
 		}
 	}
@@ -557,7 +611,25 @@ export function TranscriptReader({
 						role={savePhase === "error" || savePhase === "conflict" ? "alert" : "status"}
 					>
 						<span>{saveMessage}</span>
-						{savePhase === "conflict" ? (
+						{staleRecovery === "stale" ? (
+							<div className={styles.conflictActions}>
+								<Button
+									size="sm"
+									variant="secondary"
+									onClick={() => {
+										if (recoveryKey && currentRevisionId) {
+											persistStaleActionRecovery<TranscriptStaleRecovery>(
+												recoveryKey,
+												{ baseRevisionId: currentRevisionId, working },
+											);
+										}
+										window.location.reload();
+									}}
+								>
+									Atualizar e recuperar rascunho
+								</Button>
+							</div>
+						) : savePhase === "conflict" ? (
 							<div className={styles.conflictActions}>
 								{remoteRevisionNumber ? (
 									<span>Remoto: r{remoteRevisionNumber}</span>

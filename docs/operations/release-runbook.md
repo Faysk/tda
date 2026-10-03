@@ -72,6 +72,43 @@ Acompanhar o lifecycle completo:
 Falha antes do promote não deve mover o domínio oficial.
 
 
+### Version skew de Server Actions e abas antigas — #1339
+
+Deploys web podem ocorrer enquanto uma aba do Edit continua aberta. Uma Server Action
+referenciada pelo JavaScript antigo pode deixar de existir no deployment novo. Esse caso
+é diferente de timeout ou resposta perdida depois de um commit.
+
+Contrato do TDA:
+
+1. somente erros reconhecíveis de lookup da Server Action
+   (`UnrecognizedActionError`, `Server Action was not found`,
+   `Failed to find Server Action` ou a indicação explícita de deployment antigo/novo)
+   entram no caminho de **stale deployment**;
+2. nesse caminho a ação antiga é tratada como **não executada**: a UI preserva somente
+   os campos editáveis/working copy, nunca restaura hidden IDs, revisions ou CAS tokens
+   antigos, e oferece atualização explícita da página;
+3. a recuperação usa `sessionStorage` da própria aba, expira em até 24 horas e nunca
+   publica/grava automaticamente depois do reload;
+4. a página nova fornece novamente os IDs/revisions autoritativos. O operador revisa o
+   rascunho recuperado e decide se salva;
+5. timeout, falha de rede ou resposta ambígua **não** são classificados como stale
+   deployment. Esses casos continuam usando receipt/idempotency/CAS quando o domínio
+   possui esse contrato, ou ficam sem replay automático até read-back humano;
+6. o fallback global pode orientar hard reload, mas somente superfícies que registram
+   working copy antes do reload prometem recuperação de campos.
+
+Vercel possui Skew Protection para prender clientes ao deployment que os originou, mas
+essa feature/configuração de provider não é requisito de correção do TDA e não foi
+ativada nem alterada por #1339. A aplicação mantém recuperação própria sem adicionar
+serviço pago. Se Skew Protection estiver disponível e habilitada no projeto, ela reduz a
+incidência; não substitui CAS, receipts nem compatibilidade de serviços externos.
+
+Rollback: se uma release introduzir falhas amplas de Server Actions, usar o rollback
+normal para o deployment saudável anterior e confirmar `/api/version`. Abas que já
+receberam o aviso de versão antiga devem fazer hard reload; nunca reutilizar IDs de
+Server Actions antigos nem manter endpoints mortos só para aceitar mutações de uma aba
+obsoleta.
+
 ### Identidade imutável de Runtime RC
 
 A descoberta automática de Runtime RC é fail-closed por versão semântica exata:

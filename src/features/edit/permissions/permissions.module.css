@@ -207,6 +207,29 @@
 	font-size: 0.78rem;
 }
 
+.accessSummary {
+	display: grid;
+	gap: 6px;
+}
+
+.accessSummary > details {
+	color: var(--ds-foreground-muted);
+	font-size: 0.74rem;
+}
+
+.accessSummary > details > summary {
+	width: fit-content;
+	cursor: pointer;
+}
+
+.accessSummary ul {
+	display: grid;
+	gap: 4px;
+	margin: 7px 0 0;
+	padding-left: 18px;
+	color: var(--ds-foreground-soft);
+}
+
 .technical {
 	margin-top: 6px;
 	color: var(--ds-foreground-muted);

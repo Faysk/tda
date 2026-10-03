@@ -175,3 +175,12 @@ The synthetic gate also does not replace the release contract: the exact
 published SHA still needs `/api/version` evidence and real, non-mutating
 post-release interaction checks. Writing flows, R2 upload/read-back and ASR
 quality retain their own domain gates.
+
+
+## Two-campaign product-coherence acceptance — #1288
+
+The exact-SHA Campaign Isolation Gate owns the synthetic two-campaign product-coherence acceptance as a release blocker. It reuses the #1138 isolation harness and validates the public directory, aggregate/scoped sessions, session reader, Lore parity, World isolation/geometry, authenticated/Edit navigation and explicit Account campaign context without reading private narrative/transcript/audio data or mutating Production.
+
+The 2026-10-03 regression matrix also exercises global-menu interaction/focus, campaign selection + Back, 320/390/1366 and 683×384 200%-equivalent reflow, compact operational headers, World mobile controls, visible selected-relation paint, transcript empty/incomplete/complete semantics and long Lembra campaign labels. Account access must not import or depend on the historical `CAMPAIGN_SLUG`; 0/1/N authorized campaign contexts, A-only/B-only/A+B/project-wide authority, dependency failure and forged campaign requests are covered explicitly.
+
+Artifacts are synthetic and sanitized. The workflow receipt proves the tested source SHA and does not replace post-release `/api/version` or authorized physical inspection of the deployed candidate.
