@@ -4,6 +4,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ActionLink, Button } from "@/components/ui";
 import type { EditAccessContext } from "@/features/edit/access/policy";
 import type { AccountCampaignAccess } from "./account-campaign-access";
+import { AccountCampaignPicker } from "./account-campaign-picker";
 import styles from "./access.module.css";
 import { ProfileIdCopy } from "./profile-id-copy";
 
@@ -211,33 +212,13 @@ export function AccountOverview({
 							novamente.
 						</p>
 					) : campaignAccess.campaigns.length > 1 ? (
-						<form
-							action="/conta"
-							method="get"
-							className={styles.campaignPicker}
-						>
-							<label>
-								<span>Campanha consultada</span>
-								<select
-									name="campanha"
-									defaultValue={selectedCampaign?.technicalSlug ?? ""}
-									required
-								>
-									<option value="">Escolha uma campanha</option>
-									{campaignAccess.campaigns.map((campaign) => (
-										<option
-											key={campaign.technicalSlug}
-											value={campaign.technicalSlug}
-										>
-											{campaign.name}
-										</option>
-									))}
-								</select>
-							</label>
-							<Button type="submit" variant="secondary">
-								Ver acesso
-							</Button>
-						</form>
+						<div className={styles.campaignPicker}>
+							<span>Campanha consultada</span>
+							<AccountCampaignPicker
+								campaigns={campaignAccess.campaigns}
+								selectedCampaignSlug={selectedCampaign?.technicalSlug ?? null}
+							/>
+						</div>
 					) : null}
 
 					{campaignAccess.state === "ready" &&
