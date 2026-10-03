@@ -229,7 +229,7 @@ export async function installCompanionFixture(
 		options.benchmarkReadyProfiles ??
 			(options.profileReady ? [...benchmarkProfileIds] : []),
 	);
-	let qwenRuntimeVersion = options.qwenRuntimeVersion === undefined ? "1.0.18" : options.qwenRuntimeVersion;
+	let qwenRuntimeVersion = options.qwenRuntimeVersion === undefined ? "1.0.12" : options.qwenRuntimeVersion;
 	const qwenStableVersion = options.qwenRuntimeStableVersion ?? "1.0.12";
 	let qwenMaintenanceSequence = 0;
 	let qwenRuntimeRecoveredFromInitialUpdate = false;
