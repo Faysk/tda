@@ -244,7 +244,7 @@ test("Lembra hides campaign management entrypoints without project capability", 
 	);
 });
 
-test("Lembra contextual campaign dialogs do not overflow at 320px", async ({ page }) => {
+test("Lembra contextual campaign dialogs reflow at 320px and a 200%-equivalent viewport", async ({ page }) => {
 	await page.setViewportSize({ width: 320, height: 760 });
 	await page.goto("/e2e-fixtures/lembra-campaigns");
 	await page.locator('input[type="file"]').setInputFiles({
@@ -259,6 +259,12 @@ test("Lembra contextual campaign dialogs do not overflow at 320px", async ({ pag
 	await composer.getByRole("button", { name: "Nova campanha" }).click();
 	await expect(page.getByRole("dialog", { name: "Criar campanha" })).toBeVisible();
 
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+	).toBe(true);
+
+	await page.setViewportSize({ width: 683, height: 384 });
+	await expect(page.getByRole("dialog", { name: "Criar campanha" })).toBeVisible();
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
 	).toBe(true);
