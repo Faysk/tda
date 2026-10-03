@@ -290,7 +290,7 @@ button.quiet { min-height: auto; padding: 5px 8px; font-size: 11px; background: 
   padding: 10px 11px;
 }
 .maintenance-version-summary span,
-.maintenance-local-versions > span,
+.maintenance-local-versions > legend,
 .maintenance-field > span {
   display: block;
   color: var(--muted);
@@ -306,6 +306,10 @@ button.quiet { min-height: auto; padding: 5px 8px; font-size: 11px; background: 
 .maintenance-local-versions {
   display: grid;
   gap: 7px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .maintenance-version-options {
   display: flex;
