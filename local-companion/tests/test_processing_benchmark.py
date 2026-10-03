@@ -197,7 +197,12 @@ def test_benchmark_runs_canonical_profiles_in_order_and_emits_profile_progress(
     ]
 
 
-def test_benchmark_stops_without_complete_receipt_on_cancel(monkeypatch, tmp_path):
+@pytest.mark.parametrize("cancel_on", [1, 2, 3])
+def test_benchmark_stops_without_complete_receipt_on_cancel(
+    monkeypatch,
+    tmp_path,
+    cancel_on,
+):
     _stub_bundle_writes(monkeypatch)
     supervisor = WorkerSupervisor(data_root=tmp_path)
     calls = 0
@@ -205,7 +210,7 @@ def test_benchmark_stops_without_complete_receipt_on_cancel(monkeypatch, tmp_pat
     def fake_run_craig(self, *, profile_id, **_kwargs):
         nonlocal calls
         calls += 1
-        if calls == 2:
+        if calls == cancel_on:
             return WorkerOutcome(
                 terminal="cancelled",
                 payload={"stage": "benchmark", "forced": False},
@@ -231,8 +236,8 @@ def test_benchmark_stops_without_complete_receipt_on_cancel(monkeypatch, tmp_pat
     )
 
     assert outcome.terminal == "cancelled"
-    assert calls == 2
-
+    assert calls == cancel_on
+    assert not (tmp_path / "benchmarks" / benchmark_id_for("benchmark-job", 1) / "benchmark.json").exists()
 
 def test_benchmark_rejects_non_benchmark_profile_result(monkeypatch, tmp_path):
     _stub_bundle_writes(monkeypatch)
