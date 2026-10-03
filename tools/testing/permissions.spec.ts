@@ -75,6 +75,16 @@ async function postMutation(
 	return context.request.post(api, { data: body });
 }
 
+async function fixtureRequests(request: APIRequestContext) {
+	const response = await request.get(`${fixtureOrigin}/requests`);
+	expect(response.ok()).toBe(true);
+	return (await response.json()) as Array<{
+		method: string;
+		path: string;
+		query: string;
+	}>;
+}
+
 test.beforeEach(async ({ request }) => {
 	await resetFixture(request);
 });
@@ -238,6 +248,155 @@ test("person management previews resulting access then grants and revokes an exi
 	await expect(history).toContainText("concedeu");
 	await expect(history).toContainText("revogou");
 	await expect(history).toContainText("Pessoa member");
+});
+
+test("sensitive self-revocation is summarized once and Escape sends no mutation", async ({
+	page,
+	context,
+	request,
+}, testInfo) => {
+	await login(context, "manager");
+	await page.goto(path);
+
+	const managerRow = page.getByRole("row", { name: /Pessoa manager/u });
+	await managerRow.getByRole("button", { name: "Gerenciar" }).click();
+	const drawer = page.getByRole("dialog", { name: "Pessoa manager" });
+	const managerRole = drawer.getByRole("checkbox", { name: /Gestão sintética/u });
+	await managerRole.uncheck();
+	await drawer.getByRole("button", { name: "Aplicar mudanças" }).click();
+
+	const confirmation = page.getByRole("dialog", {
+		name: "Confirmar mudança de acesso?",
+	});
+	await expect(confirmation).toBeVisible();
+	await expect(confirmation.getByText("Gestão sintética", { exact: true })).toBeVisible();
+	await expect(confirmation).toContainText(
+		"Esta mudança afeta administração, publicação ou aprovação de cânone.",
+	);
+	await expect(confirmation).toContainText(
+		"Você está removendo uma função da própria conta.",
+	);
+	await page.screenshot({
+		path: testInfo.outputPath("permissions-confirmation-self-revoke.png"),
+		fullPage: false,
+	});
+
+	await page.keyboard.press("Escape");
+	await expect(confirmation).toBeHidden();
+	await expect(drawer).toBeVisible();
+	await expect(managerRole).not.toBeChecked();
+
+	const requests = await fixtureRequests(request);
+	expect(
+		requests.filter(
+			(entry) =>
+				entry.method === "POST" &&
+				entry.path === "/rest/v1/rpc/manage_campaign_role_assignments",
+		),
+	).toHaveLength(0);
+});
+
+test("confirmation blocks duplicate submit and cannot close while the mutation is in flight", async ({
+	page,
+	context,
+}) => {
+	await login(context, "manager");
+
+	const postBodies: Record<string, unknown>[] = [];
+	let releaseFirst: (() => void) | null = null;
+	let markFirstSeen: (() => void) | null = null;
+	const firstSeen = new Promise<void>((resolve) => {
+		markFirstSeen = resolve;
+	});
+	const holdFirst = new Promise<void>((resolve) => {
+		releaseFirst = resolve;
+	});
+
+	await page.route("**/api/edit/yuhara-main/permissions", async (route) => {
+		if (route.request().method() === "POST") {
+			postBodies.push(route.request().postDataJSON() as Record<string, unknown>);
+			if (postBodies.length === 1) {
+				markFirstSeen?.();
+				await holdFirst;
+			}
+		}
+		await route.continue();
+	});
+
+	await page.goto(path);
+	const memberRow = page.getByRole("row", { name: /Pessoa member/u });
+	await memberRow.getByRole("button", { name: "Gerenciar" }).click();
+	const drawer = page.getByRole("dialog", { name: "Pessoa member" });
+	await drawer.getByRole("checkbox", { name: /Gestão sintética/u }).check();
+	await drawer.getByRole("button", { name: "Aplicar mudanças" }).click();
+
+	const confirmation = page.getByRole("dialog", {
+		name: "Confirmar mudança de acesso?",
+	});
+	const confirmButton = confirmation.getByRole("button", {
+		name: "Aplicar mudanças",
+	});
+	await confirmButton.click();
+	await firstSeen;
+	await expect(confirmButton).toBeDisabled();
+
+	await confirmButton.dispatchEvent("click");
+	await page.keyboard.press("Escape");
+	await expect(confirmation).toBeVisible();
+	expect(postBodies).toHaveLength(1);
+
+	releaseFirst?.();
+	await expect(confirmation).toBeHidden();
+	await expect(
+		page.getByText("Acesso atualizado e confirmado pelo servidor.", {
+			exact: true,
+		}),
+	).toBeVisible();
+	expect(postBodies).toHaveLength(1);
+});
+
+test("uncertain retry keeps the same operation id and the same confirmation summary", async ({
+	page,
+	context,
+}) => {
+	await login(context, "manager");
+
+	const postBodies: Record<string, unknown>[] = [];
+	let abortFirst = true;
+	await page.route("**/api/edit/yuhara-main/permissions", async (route) => {
+		if (route.request().method() === "POST") {
+			postBodies.push(route.request().postDataJSON() as Record<string, unknown>);
+			if (abortFirst) {
+				abortFirst = false;
+				await route.abort("failed");
+				return;
+			}
+		}
+		await route.continue();
+	});
+
+	await page.goto(path);
+	const memberRow = page.getByRole("row", { name: /Pessoa member/u });
+	await memberRow.getByRole("button", { name: "Gerenciar" }).click();
+	const drawer = page.getByRole("dialog", { name: "Pessoa member" });
+	await drawer.getByRole("checkbox", { name: /Gestão sintética/u }).check();
+	await drawer.getByRole("button", { name: "Aplicar mudanças" }).click();
+
+	const confirmation = page.getByRole("dialog", {
+		name: "Confirmar mudança de acesso?",
+	});
+	await confirmation.getByRole("button", { name: "Aplicar mudanças" }).click();
+	await expect(confirmation).toContainText(
+		"A resposta da alteração não pôde ser confirmada.",
+	);
+	await expect(confirmation.getByText("Gestão sintética", { exact: true })).toBeVisible();
+	expect(postBodies).toHaveLength(1);
+
+	await confirmation.getByRole("button", { name: "Aplicar mudanças" }).click();
+	await expect(confirmation).toBeHidden();
+	expect(postBodies).toHaveLength(2);
+	expect(postBodies[0]?.operationId).toBeTruthy();
+	expect(postBodies[1]?.operationId).toBe(postBodies[0]?.operationId);
 });
 
 test("stale CAS, replay, project-role delegation and sensitive confirmation fail safely", async ({
