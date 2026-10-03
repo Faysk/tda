@@ -112,6 +112,7 @@ export function LembraCampaignPicker({
 
 	async function submitCreate(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
+		event.stopPropagation();
 		if (saving) return;
 		setSaving(true);
 		setError("");
