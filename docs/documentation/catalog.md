@@ -114,9 +114,9 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | Review Board com provenance + triagem implementado; adoção editorial real em andamento | 2026-09-22 |
 | [Entidades, personagens e mundo narrativo](../domains/entities.md) | narrative-memory/entities | preparado | 2026-09-06 |
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
-| [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-10-01 |
+| [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-10-03 |
 | [Processamento, jobs e áudio](../domains/processing.md) | processing/local-companion | processamento local real implementado; lifecycle editorial pós-ASR aprovado e em implementação futura | 2026-09-15 |
-| [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-10-01 |
+| [Campanhas, sessões e participantes](../domains/sessions.md) | sessions | implementado | 2026-10-03 |
 
 ## docs/features
 
