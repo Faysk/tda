@@ -32,7 +32,6 @@ const CAMPAIGNS: readonly LembraCampaignClassification[] = [
 	},
 ];
 
-
 const PRIVATE_CAMPAIGN: LembraCampaignClassification = {
 	id: "66666666-6666-4666-8666-666666666666",
 	name: "Passos Retomados",
@@ -83,7 +82,7 @@ const REFERENCES: readonly LembraReference[] = [
 		height: 12,
 		mine: false,
 		campaign: CAMPAIGNS[2],
-	},,
+	},
 	{
 		id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
 		title: "Referência privada global",
@@ -98,7 +97,6 @@ const REFERENCES: readonly LembraReference[] = [
 		mine: false,
 		campaign: PRIVATE_CAMPAIGN,
 	},
-
 ];
 
 function createdCampaign(input: CampaignCreateInput): ManageableCampaign {
