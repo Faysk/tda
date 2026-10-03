@@ -7,6 +7,7 @@ export const BROWSER_TOKEN = "browser_session_fixture_12345678901234567890123456
 const sourceSha = "a".repeat(64);
 export const CRAIG_SOURCE_ID = `craig-${sourceSha}`;
 export const TRANSCRIPT_SHA = "b".repeat(64);
+export const BENCHMARK_ID = `benchmark-${"1".repeat(32)}`;
 
 function compareSemver(left: string, right: string): number {
 	const parse = (value: string) => {
@@ -60,6 +61,7 @@ export type CompanionFixtureOptions = {
 	expireBrowserSessionOnce?: boolean;
 	profileReady?: boolean;
 	benchmarkProfiles?: boolean;
+	benchmarkEvidence?: boolean;
 	benchmarkReadyProfiles?: string[];
 	benchmarkMinimumTrackDurationSeconds?: number | null;
 	benchmarkSubmitError?: string | null;
@@ -240,6 +242,7 @@ export async function installCompanionFixture(
 	let expired = false;
 	let ambiguousJobPostConsumed = false;
 	let submittedJob = false;
+	let benchmarkReference: Record<string, unknown> | null = null;
 	const state: CompanionFixtureState = {
 		requests: [],
 		sessionCount: 0,
@@ -365,6 +368,12 @@ export async function installCompanionFixture(
 						...(options.benchmarkReadinessContract === false
 							? []
 							: ["processing.benchmark.runtime-readiness-v2"]),
+						...(options.benchmarkEvidence
+							? [
+									"processing.benchmark.evidence-v1",
+									"processing.benchmark.reference-v1",
+								]
+							: []),
 						"runtime.qwen.check",
 						"runtime.qwen.update",
 						"job.events",
@@ -952,6 +961,14 @@ export async function installCompanionFixture(
 				segment_count: 10,
 				track_count: 2,
 				warning_count: 0,
+				...(options.benchmarkEvidence
+					? {
+							benchmark_id: BENCHMARK_ID,
+							transcript_sha256: TRANSCRIPT_SHA,
+							transcript_size_bytes: 2048,
+							artifact_available: true,
+						}
+					: {}),
 				execution_lineage: {
 					schema_version: "tda_execution_lineage_v1",
 					companion_version: "0.3.18",
@@ -988,12 +1005,199 @@ export async function installCompanionFixture(
 				track_count: 2,
 				audio_work_seconds: 600,
 				prepared: true,
+				...(options.benchmarkEvidence
+					? {
+							benchmark_id: BENCHMARK_ID,
+							bundle_manifest_sha256: "f".repeat(64),
+							bundle_size_bytes: 32768,
+						}
+					: {}),
 				profiles: [
 					profile("whisper-turbo", "whisper"),
 					profile("whisper-detailed", "whisper"),
 					profile("qwen-fast", "qwen3"),
 					profile("qwen-quality", "qwen3"),
 				],
+			});
+		}
+		if (options.benchmarkEvidence && path.startsWith(`/benchmarks/${BENCHMARK_ID}/profiles/`)) {
+			const match = /^\/benchmarks\/[^/]+\/profiles\/(whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)\/(transcript|metrics|telemetry)$/u.exec(path);
+			if (!match) return invalidRequest(route);
+			const profileId = match[1]!;
+			const artifact = match[2]!;
+			const profileIndex = benchmarkProfileIds.indexOf(
+				profileId as (typeof benchmarkProfileIds)[number],
+			);
+			const engine = profileId.startsWith("whisper-") ? "whisper" : "qwen";
+			if (artifact === "transcript") {
+				const textByProfile: Record<string, string> = {
+					"whisper-turbo": "Olá mundo da taverna",
+					"whisper-detailed": "Olá cruel mundo da taverna",
+					"qwen-fast": "Ola mundo da taverna",
+					"qwen-quality": "Olá mundo na taverna",
+				};
+				return json(route, {
+					schema_version: "tda_transcript_v1",
+					source_sha256: sourceSha,
+					engine: { profile: profileId },
+					tracks: [
+						{
+							number: 1,
+							speaker: "Alice",
+							timeline_offset_seconds: 0,
+							segments: [
+								{
+									id: `${profileIndex + 1}-a`,
+									start: 1,
+									end: 3,
+									text: textByProfile[profileId],
+								},
+							],
+						},
+					],
+				});
+			}
+			if (artifact === "metrics") {
+				return json(route, {
+					schema_version: "tda_benchmark_metrics_v1",
+					profile_id: profileId,
+					processing_seconds: 30 + profileIndex,
+					rtf: 0.05 + profileIndex * 0.01,
+					processing_metrics: {
+						version: "engine_processing_v1",
+						stage_seconds: {
+							runtime_validation: 1,
+							checkpoint_scan: 1,
+							model_prepare: 3,
+							model_load: 5,
+							transcription: 18 + profileIndex,
+							alignment_and_energy: 2,
+							consolidation: 1,
+						},
+						fresh_audio_work_seconds: 600,
+						reused_audio_work_seconds: 0,
+					},
+					execution_lineage: {
+						schema_version: "tda_execution_lineage_v1",
+						companion_version: "0.3.18",
+						runtime_family: engine,
+						runtime_version: engine === "whisper" ? "1.1.7" : "1.0.12",
+						runtime_artifact: {
+							runtime_id: `${engine}-fixture`,
+							version: engine === "whisper" ? "1.1.7" : "1.0.12",
+							worker_sha256: "c".repeat(64),
+							archive_sha256: "d".repeat(64),
+						},
+						device: "cuda:0",
+						compute_type: "float16",
+						gpu: {
+							vendor: "NVIDIA",
+							index: 0,
+							model: "Synthetic GPU",
+							vram_total_bytes: 8 * 1024 ** 3,
+							compute_capability: "8.9",
+							driver_version: "synthetic",
+						},
+					},
+				});
+			}
+			return json(route, {
+				schema_version: "tda_benchmark_telemetry_v1",
+				coverage: 1,
+				captured_samples: 3,
+				aggregates: {
+					cpu_avg_percent: 25 + profileIndex,
+					cpu_p95_percent: 35 + profileIndex,
+					ram_peak_bytes: 4 * 1024 ** 3,
+					gpu_utilization_avg_percent: 70 + profileIndex,
+					gpu_utilization_p95_percent: 90 + profileIndex,
+					gpu_utilization_peak_percent: 95 + profileIndex,
+					vram_peak_bytes: (4 + profileIndex * 0.5) * 1024 ** 3,
+					temperature_max_c: 65 + profileIndex,
+					power_avg_w: 90 + profileIndex,
+					power_peak_w: 110 + profileIndex,
+				},
+			});
+		}
+		if (options.benchmarkEvidence && path === `/benchmarks/${BENCHMARK_ID}/reference`) {
+			if (request.method() === "GET")
+				return json(route, { reference: benchmarkReference });
+			if (request.method() === "POST") {
+				const payload = request.postDataJSON() as {
+					expected_revision?: number;
+					provenance?: string;
+					seed_profile_id?: string | null;
+					tracks?: unknown[];
+				};
+				const revision = benchmarkReference
+					? Number(benchmarkReference.revision)
+					: 0;
+				if (payload.expected_revision !== revision || !Array.isArray(payload.tracks))
+					return invalidRequest(route, "BENCHMARK_REFERENCE_REVISION_CONFLICT");
+				benchmarkReference = {
+					schema_version: "tda_benchmark_reference_v1",
+					revision: revision + 1,
+					parent_revision: revision || null,
+					provenance: payload.provenance ?? "manual",
+					seed_profile_id: payload.seed_profile_id ?? null,
+					capability: "text",
+					payload: { tracks: payload.tracks },
+				};
+				return json(route, {
+					schema_version: "tda_benchmark_reference_pointer_v1",
+					benchmark_id: BENCHMARK_ID,
+					revision: revision + 1,
+				});
+			}
+		}
+		if (options.benchmarkEvidence && path === `/benchmarks/${BENCHMARK_ID}/quality`) {
+			const measured = benchmarkReference !== null;
+			return json(route, {
+				schema_version: "tda_benchmark_quality_summary_v1",
+				benchmark_id: BENCHMARK_ID,
+				quality_measured: measured,
+				reference: measured
+					? {
+							revision: benchmarkReference?.revision,
+							capability: "text",
+							provenance: benchmarkReference?.provenance,
+							seed_profile_id: benchmarkReference?.seed_profile_id ?? null,
+						}
+					: null,
+				profiles: measured
+					? benchmarkProfileIds.map((profileId, index) => ({
+							profile_id: profileId,
+							overall: {
+								reference_words: 4,
+								hypothesis_words: 4 + (index === 1 ? 1 : 0),
+								substitutions: index === 0 ? 0 : 1,
+								deletions: 0,
+								insertions: index === 1 ? 1 : 0,
+								wer_normalized: index === 0 ? 0 : index === 1 ? 0.5 : 0.25,
+								reference_characters: 20,
+								hypothesis_characters: 20,
+								character_edits: index === 0 ? 0 : 1,
+								cer_normalized: index === 0 ? 0 : 0.05,
+							},
+							timing: null,
+							term_fidelity: null,
+						}))
+					: [],
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			path === `/benchmarks/${BENCHMARK_ID}/export` &&
+			request.method() === "GET"
+		) {
+			return route.fulfill({
+				status: 200,
+				headers: {
+					"Access-Control-Allow-Origin": UI_ORIGIN,
+					"Content-Type": "application/zip",
+					"Cache-Control": "no-store",
+				},
+				body: Buffer.from("PK synthetic private benchmark evidence"),
 			});
 		}
 		if (
