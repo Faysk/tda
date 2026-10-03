@@ -1191,7 +1191,7 @@ test("broken global avatar keeps a stable accessible trigger across navigation, 
 		await page.goto("/");
 
 		const trigger = page.getByRole("button", { name: "Abrir menu global" });
-		await expect(page.locator(".account-avatar-initials")).toHaveText("PS");
+		await expect(page.locator(".account-avatar-initials")).toHaveText("PA");
 		await expect(page.locator(".account-avatar-image")).toHaveCount(0);
 		const before = await trigger.boundingBox();
 		expect(before).not.toBeNull();
@@ -1212,7 +1212,7 @@ test("broken global avatar keeps a stable accessible trigger across navigation, 
 		await panel.getByRole("link", { name: "Campanhas", exact: true }).click();
 		await expect(page).toHaveURL(/\/campanhas$/);
 		await expect(trigger).toHaveAttribute("aria-expanded", "false");
-		await expect(page.locator(".account-avatar-initials")).toHaveText("PS");
+		await expect(page.locator(".account-avatar-initials")).toHaveText("PA");
 
 		const afterNavigation = await trigger.boundingBox();
 		expect(afterNavigation).not.toBeNull();
@@ -1222,7 +1222,7 @@ test("broken global avatar keeps a stable accessible trigger across navigation, 
 		}
 
 		await page.reload();
-		await expect(page.locator(".account-avatar-initials")).toHaveText("PS");
+		await expect(page.locator(".account-avatar-initials")).toHaveText("PA");
 		await expect(page.locator(".account-avatar-image")).toHaveCount(0);
 		const afterReload = await trigger.boundingBox();
 		expect(afterReload).not.toBeNull();
@@ -1294,7 +1294,7 @@ test("account identity avatar handles valid, missing and failed sources without 
 		);
 		await expect(
 			avatar.locator('[data-account-avatar-fallback="true"]'),
-		).toHaveText("PS");
+		).toHaveText("PA");
 		const failedBox = await avatar.boundingBox();
 		expect(failedBox).not.toBeNull();
 		const expectedSize = viewport.width <= 420 ? 56 : 64;
