@@ -254,6 +254,46 @@ def test_symlinked_benchmark_artifact_is_rejected(tmp_path: Path):
         load_bundle(tmp_path, benchmark_id)
 
 
+def test_tampered_top_level_manifest_fails_before_artifact_read(tmp_path: Path):
+    benchmark_id, _ = _complete_bundle(tmp_path)
+    path = tmp_path / "benchmarks" / benchmark_id / "benchmark.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["sample_identity_sha256"] = "d" * 64
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_MANIFEST_INTEGRITY_FAILED"):
+        load_bundle(tmp_path, benchmark_id)
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_MANIFEST_INTEGRITY_FAILED"):
+        verified_profile_bytes(tmp_path, benchmark_id, "qwen-fast", "transcript")
+
+
+def test_rehashed_manifest_cannot_rebind_existing_profile_artifacts(tmp_path: Path):
+    benchmark_id, _ = _complete_bundle(tmp_path)
+    path = tmp_path / "benchmarks" / benchmark_id / "benchmark.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["sample_identity_sha256"] = "d" * 64
+    unsigned = dict(payload)
+    unsigned.pop("manifest_payload_sha256", None)
+    payload["manifest_payload_sha256"] = hashlib.sha256(
+        json.dumps(
+            unsigned,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_PROFILE_MANIFEST_INVALID"):
+        load_bundle(tmp_path, benchmark_id)
+
+
 def test_reference_metrics_use_versioned_unicode_normalization_and_micro_wer(tmp_path: Path):
     texts = {
         "whisper-turbo": "Olá mundo",
@@ -288,6 +328,47 @@ def test_reference_metrics_use_versioned_unicode_normalization_and_micro_wer(tmp
     assert by_profile["qwen-quality"]["overall"]["wer_normalized"] == 0.5
     assert normalize_text("  OLÁ…   Mundo! ") == "olá mundo"
     assert normalize_text("ação") != normalize_text("acao")
+
+
+def test_quality_receipts_bind_exact_manifest_and_are_deterministic_with_wer_over_100(tmp_path: Path):
+    texts = {
+        "whisper-turbo": "ação",
+        "whisper-detailed": "ação",
+        "qwen-fast": "ação extra extra extra",
+        "qwen-quality": "acao",
+    }
+    benchmark_id, _ = _complete_bundle(tmp_path, texts)
+    save_reference(
+        tmp_path,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [{"track_number": 1, "speaker": "Alice", "text": "ação"}],
+        },
+    )
+
+    first = quality_summary(tmp_path, benchmark_id)
+    second = quality_summary(tmp_path, benchmark_id)
+    assert json.dumps(first, ensure_ascii=False, sort_keys=True) == json.dumps(
+        second,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+    by_profile = {item["profile_id"]: item for item in first["profiles"]}
+    manifest_path = tmp_path / "benchmarks" / benchmark_id / "benchmark.json"
+    expected_manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    for receipt in first["profiles"]:
+        assert receipt["benchmark_manifest_sha256"] == expected_manifest_sha
+        assert len(receipt["normalization_sha256"]) == 64
+        assert "computed_at" not in receipt
+
+    assert by_profile["qwen-fast"]["overall"]["insertions"] == 3
+    assert by_profile["qwen-fast"]["overall"]["wer_normalized"] == 3.0
+    assert by_profile["qwen-quality"]["overall"]["wer_normalized"] == 1.0
+    assert by_profile["qwen-quality"]["overall"]["cer_normalized"] == 0.5
 
 
 def test_reference_is_cas_versioned_and_quality_receipt_contains_no_reference_text(tmp_path: Path):
