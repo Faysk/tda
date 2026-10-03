@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EditAccessContext } from "@/features/edit/access/policy";
 
 const mocks = vi.hoisted(() => ({
-	readAuthorizedCampaigns: vi.fn(),
+	readAuthorizedCampaignClassifications: vi.fn(),
 	loadEditAccessContext: vi.fn(),
 	loadPublicCampaigns: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/features/campaigns/authorized", () => ({
-	readAuthorizedCampaigns: mocks.readAuthorizedCampaigns,
+	readAuthorizedCampaignClassifications: mocks.readAuthorizedCampaignClassifications,
 }));
 vi.mock("@/features/edit/access/repository", () => ({
 	loadEditAccessContext: mocks.loadEditAccessContext,
@@ -56,14 +56,10 @@ describe("Lembra privacy-safe campaign directory", () => {
 		vi.clearAllMocks();
 		mocks.loadPublicCampaigns.mockResolvedValue([publicCampaign]);
 		mocks.loadEditAccessContext.mockResolvedValue(managerContext());
-		mocks.readAuthorizedCampaigns.mockResolvedValue({
+		mocks.readAuthorizedCampaignClassifications.mockResolvedValue({
 			ok: true,
 			campaigns: [
-				{
-					...privateCampaign,
-					technicalSlug: "passos-retomados",
-					visibility: "private",
-				},
+				privateCampaign,
 			],
 		});
 	});
@@ -73,7 +69,7 @@ describe("Lembra privacy-safe campaign directory", () => {
 			campaigns: [publicCampaign, privateCampaign],
 			canManageCampaigns: true,
 		});
-		expect(mocks.readAuthorizedCampaigns).toHaveBeenCalledWith(
+		expect(mocks.readAuthorizedCampaignClassifications).toHaveBeenCalledWith(
 			expect.objectContaining({ authUserId: "auth-a" }),
 			"campaign.edit.access",
 			{ includeArchived: true },
