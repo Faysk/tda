@@ -31,6 +31,7 @@ from .benchmark_evidence import (
     BenchmarkEvidenceError,
     load_bundle as load_benchmark_bundle,
     private_export_zip,
+    telemetry_summary_from_bytes,
     verified_profile_bytes,
 )
 from .benchmark_quality import (
@@ -2392,6 +2393,14 @@ def create_app(
             payload = verified_profile_bytes(data_root, benchmark_id, profile_id, artifact)
         except BenchmarkEvidenceError as exc:
             return error(str(exc), 409, False)
+        if artifact == "telemetry":
+            try:
+                return JSONResponse(
+                    telemetry_summary_from_bytes(payload),
+                    headers={"Cache-Control": "no-store"},
+                )
+            except BenchmarkEvidenceError as exc:
+                return error(str(exc), 409, False)
         media_type = "application/x-ndjson" if artifact == "events" else "application/json"
         return Response(content=payload, media_type=media_type, headers={"Cache-Control": "no-store"})
 
