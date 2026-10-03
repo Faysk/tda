@@ -1,44 +1,47 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { CampaignNavigationPicker } from "@/features/campaigns/campaign-navigation-picker";
 
 export type SessionCampaignSwitchOption = Readonly<{
 	key: string;
 	name: string;
 	href: string;
 	current: boolean;
+	lifecycle: "active" | "archived";
 }>;
 
 export function SessionCampaignSwitcher({
 	options,
 	className,
+	canManage = false,
+	manageHref = "/edit/campanhas",
 }: {
 	options: readonly SessionCampaignSwitchOption[];
 	className?: string;
+	canManage?: boolean;
+	manageHref?: string;
 }) {
-	const router = useRouter();
 	const current = options.find((option) => option.current);
 
 	return (
-		<label>
+		<div className={className}>
 			<span>Campanha</span>
-			<select
-				aria-label="Campanha da biblioteca"
-				className={className}
+			<CampaignNavigationPicker
 				value={current?.key ?? ""}
-				onChange={(event) => {
-					const selected = options.find(
-						(option) => option.key === event.currentTarget.value,
-					);
-					if (selected && !selected.current) router.push(selected.href);
-				}}
-			>
-				{options.map((option) => (
-					<option key={option.key} value={option.key}>
-						{option.name}
-					</option>
-				))}
-			</select>
-		</label>
+				options={options.map((option) => ({
+					value: option.key,
+					label: option.name,
+					disambiguation: option.key,
+					href: option.href,
+					lifecycle: option.lifecycle,
+					disabled: false,
+				}))}
+				ariaLabel="Campanha da biblioteca"
+				canManage={canManage}
+				manageHref={manageHref}
+				manageTarget="_self"
+				pendingLabel="Abrindo biblioteca…"
+			/>
+		</div>
 	);
 }

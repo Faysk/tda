@@ -5,6 +5,7 @@ import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { FormSubmitButton, StatusPill } from "@/components/ui";
 import { requireCampaignCapability } from "@/features/auth/server";
+import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import { editSessionDetailHref, editSessionLibraryHref, readEditableSessionCampaigns } from "@/features/campaigns/sessions";
 import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
 import {
@@ -96,6 +97,7 @@ export default async function EditSessionsPage({
 	const campaign = eligible.campaigns.find((item) => item.technicalSlug === campaignSlug);
 	if (!campaign) notFound();
 	const filters = parseFilters(await searchParams);
+	const canManageCampaigns = canManageCampaignRegistry(accessContext);
 
 	let sessions: Awaited<ReturnType<typeof listEditSessionLibrary>>;
 	try {
@@ -138,13 +140,16 @@ export default async function EditSessionsPage({
 
 			<div className={styles.libraryFilters}>
 				<SessionCampaignSwitcher
-					className={styles.control}
+					className={styles.campaignSwitcher}
 					options={eligible.campaigns.map((item) => ({
 						key: item.technicalSlug,
 						name: item.name,
 						href: editSessionLibraryHref(item.technicalSlug),
 						current: item.technicalSlug === campaignSlug,
+						lifecycle: item.lifecycle,
 					}))}
+					canManage={canManageCampaigns}
+					manageHref={`/edit/campanhas?next=${encodeURIComponent(returnTo)}`}
 				/>
 			</div>
 

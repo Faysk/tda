@@ -196,6 +196,7 @@ const EMPTY_BENCHMARKS: readonly BenchmarkResult[] = [];
 
 export function ProcessingSubmission({
 	campaignId,
+	disabled = false,
 	className,
 	compact = false,
 	recoveryScope = null,
@@ -206,6 +207,7 @@ export function ProcessingSubmission({
 	system = null,
 }: Readonly<{
 	campaignId: string;
+	disabled?: boolean;
 	className?: string;
 	compact?: boolean;
 	recoveryScope?: string | null;
@@ -543,6 +545,7 @@ export function ProcessingSubmission({
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (
+			disabled ||
 			busy ||
 			intentRequest ||
 			!profile ||
@@ -957,7 +960,7 @@ export function ProcessingSubmission({
 							multiple
 							accept=".zip,application/zip"
 							aria-label="Export do Craig"
-							disabled={busy || Boolean(intentRequest)}
+							disabled={disabled || busy || Boolean(intentRequest)}
 							onChange={(event) => {
 								applyFiles(Array.from(event.target.files ?? []));
 								event.currentTarget.value = "";
@@ -967,15 +970,15 @@ export function ProcessingSubmission({
 							type="button"
 							className={styles.dropAction}
 							data-craig-drop-target="true"
-							disabled={busy || Boolean(intentRequest)}
+							disabled={disabled || busy || Boolean(intentRequest)}
 							onClick={() => fileInput.current?.click()}
 							onDragEnter={(event) => {
 								event.preventDefault();
-								if (!busy && !intentRequest) setDragActive(true);
+								if (!disabled && !busy && !intentRequest) setDragActive(true);
 							}}
 							onDragOver={(event) => {
 								event.preventDefault();
-								if (!busy && !intentRequest) setDragActive(true);
+								if (!disabled && !busy && !intentRequest) setDragActive(true);
 							}}
 							onDragLeave={(event) => {
 								if (
@@ -1076,7 +1079,7 @@ export function ProcessingSubmission({
 							<select
 								value={profile}
 								onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
-								disabled={busy || Boolean(intentRequest)}
+								disabled={disabled || busy || Boolean(intentRequest)}
 								required
 							>
 								{availableProfiles.map((item) => (
@@ -1091,6 +1094,7 @@ export function ProcessingSubmission({
 								type="submit"
 								variant="primary"
 								disabled={
+									disabled ||
 									busy ||
 									Boolean(intentRequest) ||
 									stageableCraigFiles(files).length === 0 ||
@@ -1214,7 +1218,7 @@ export function ProcessingSubmission({
 										onChange={(event) =>
 												setContext(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
 										}
-										disabled={busy || Boolean(intentRequest)}
+										disabled={disabled || busy || Boolean(intentRequest)}
 										placeholder="Contexto curto da sessão/campanha para reconhecimento."
 									/>
 								</label>
@@ -1225,7 +1229,7 @@ export function ProcessingSubmission({
 										onChange={(event) =>
 												setGlossary(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
 										}
-										disabled={busy || Boolean(intentRequest)}
+										disabled={disabled || busy || Boolean(intentRequest)}
 										placeholder="Personagens, NPCs, lugares e termos difíceis."
 									/>
 								</label>
@@ -1249,7 +1253,7 @@ export function ProcessingSubmission({
 						capabilities={capabilities.capabilities}
 						request={intentRequest}
 						recoveryScope={recoveryScope}
-						disabled={busy || requestTooLarge}
+						disabled={disabled || busy || requestTooLarge}
 						onActiveChange={setComposerActive}
 						onRestoreSessionId={(value) =>
 							setSessionId((current) => current || value)
@@ -1288,7 +1292,7 @@ export function ProcessingSubmission({
 								glossary={glossary}
 								profileReady={selectedProfileState?.ready === true}
 								recoveryScope={recoveryScope}
-								disabled={busy || requestTooLarge}
+								disabled={disabled || busy || requestTooLarge}
 								onActiveChange={setComposerActive}
 								onRestoreSessionId={(value) =>
 									setSessionId((current) => current || value)

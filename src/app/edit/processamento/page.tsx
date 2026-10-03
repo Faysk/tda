@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
+import { CampaignNavigationPicker } from "@/features/campaigns/campaign-navigation-picker";
 import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import { readEligibleProcessingCampaigns } from "@/features/campaigns/processing";
 import { currentAccess } from "@/features/auth/server";
@@ -36,7 +37,7 @@ function queryValue(
 	return typeof value === "string" ? value : null;
 }
 
-function CampaignPicker({
+function ProcessingCampaignEntry({
 	campaigns,
 	invalidSelection,
 	campaignCreated,
@@ -56,58 +57,57 @@ function CampaignPicker({
 			<OperationalPageHeader
 				eyebrow="Edit · Processamento"
 				title="Escolha a campanha"
-				description={<p>Abra a fila e o processamento local no contexto certo.</p>}
+				description={
+					<p>
+						Escolha onde trabalhar. A campanha define o contexto da fila,
+						resultados e novas transcrições.
+					</p>
+				}
 			/>
 			{invalidSelection ? (
 				<p className={pageStyles.campaignAlert} role="alert">
 					{campaignCreated
-						? "A campanha foi criada, mas seu perfil ainda não possui campaign.local.process nela. A identidade foi preservada e nenhuma permissão foi concedida automaticamente."
-						: "A campanha pedida não está disponível ou você não possui acesso a ela. Nenhuma outra campanha foi escolhida automaticamente."}
+						? "A campanha foi criada, mas seu perfil ainda não pode processar nela. A identidade foi preservada e nenhuma permissão foi concedida automaticamente."
+						: "A campanha pedida não está disponível para processamento. Nenhuma outra campanha foi escolhida automaticamente."}
 				</p>
 			) : null}
 			{campaigns.length ? (
-				<form className={pageStyles.campaignPicker} method="get">
-					<label htmlFor="processing-campaign">
-						<span>Campanha</span>
-						<select id="processing-campaign" name="campanha" required defaultValue="">
-							<option value="" disabled>
-								Selecione…
-							</option>
-							{campaigns.map((campaign) => (
-								<option key={campaign.technicalSlug} value={campaign.technicalSlug}>
-									{campaign.name}
-								</option>
-							))}
-						</select>
-					</label>
-					<button type="submit">Abrir processamento</button>
-				</form>
+				<div className={pageStyles.campaignPicker}>
+					<span className={pageStyles.campaignLabel}>Campanha</span>
+					<CampaignNavigationPicker
+						value=""
+						options={campaigns.map((campaign) => ({
+							value: campaign.technicalSlug,
+							label: campaign.name,
+							disambiguation: campaign.routeKey,
+							href: processingCampaignHref(campaign.technicalSlug),
+							lifecycle: "active",
+						}))}
+						ariaLabel="Campanha do processamento"
+						selectClassName={pageStyles.campaignSelect}
+						canManage={canManageCampaigns}
+						manageHref="/edit/campanhas?next=%2Fedit%2Fprocessamento"
+						manageTarget="_self"
+						pendingLabel="Abrindo processamento…"
+					/>
+				</div>
 			) : (
 				<div className={pageStyles.campaignEmpty} role="status">
-					<strong>Nenhuma campanha ativa disponível para processamento.</strong>
+					<strong>Nenhuma campanha disponível para processamento.</strong>
 					<span>
-						Seu perfil não possui uma campaign ativa com
-						{" "}
-						<code>{EDIT_CAPABILITIES.localProcess}</code>.
+						Seu perfil não possui uma campanha ativa em que possa iniciar
+						processamento local.
 					</span>
+					{canManageCampaigns ? (
+						<Link
+							className={pageStyles.campaignManageLink}
+							href="/edit/campanhas?next=%2Fedit%2Fprocessamento"
+						>
+							Criar ou gerenciar campanhas
+						</Link>
+					) : null}
 				</div>
 			)}
-			{canManageCampaigns ? (
-				<Link
-					className={pageStyles.campaignManageLink}
-					href="/edit/campanhas?next=%2Fedit%2Fprocessamento"
-				>
-					Criar ou gerir campanhas
-				</Link>
-			) : null}
-			<details className={pageStyles.campaignHelp}>
-				<summary>Sobre o contexto da campanha</summary>
-				<p>
-					Jobs, recuperação e handoff permanecem vinculados à campanha
-					selecionada. A lista mostra somente contextos em que seu perfil pode
-					processar.
-				</p>
-			</details>
 		</section>
 	);
 }
@@ -159,7 +159,7 @@ export default async function ProcessingPage({ searchParams }: Props) {
 
 	if (!selected) {
 		return (
-			<CampaignPicker
+			<ProcessingCampaignEntry
 				campaigns={eligible.campaigns}
 				invalidSelection={Boolean(requestedCampaign)}
 				campaignCreated={campaignCreated}
@@ -194,6 +194,7 @@ export default async function ProcessingPage({ searchParams }: Props) {
 				campaignId={selected.technicalSlug}
 				campaignName={selected.name}
 				campaignOptions={eligible.campaigns}
+				canManageCampaigns={canManageCampaigns}
 				publicationEnabled={publicationEnabled}
 				activityBarksManage={activityBarksManage}
 				activityPackScope={`${access.context.profileId}:${selected.technicalSlug}`}

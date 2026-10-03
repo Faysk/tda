@@ -7,6 +7,8 @@ import {
 	readAuthorizedCampaigns,
 	type AuthorizedCampaign,
 } from "@/features/campaigns/authorized";
+import { CampaignNavigationPicker } from "@/features/campaigns/campaign-navigation-picker";
+import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
@@ -41,15 +43,19 @@ function transcriptsHref(campaignSlug: string) {
 	return `/edit/${encodeURIComponent(campaignSlug)}/transcricoes`;
 }
 
-function CampaignPicker({
+function CampaignContextPicker({
 	campaigns,
 	selected,
 	invalidSelection = false,
+	canManageCampaigns,
 }: Readonly<{
 	campaigns: readonly AuthorizedCampaign[];
 	selected?: string;
 	invalidSelection?: boolean;
+	canManageCampaigns: boolean;
 }>) {
+	const currentPath = selected ? transcriptsHref(selected) : "/transcricoes";
+
 	return (
 		<div className={styles.campaignContext}>
 			{invalidSelection ? (
@@ -59,33 +65,26 @@ function CampaignPicker({
 					Nenhuma outra campanha foi escolhida automaticamente.
 				</p>
 			) : null}
-			<form className={styles.campaignPicker} method="get">
-				<label htmlFor="transcripts-campaign">
-					<span>Campanha</span>
-					<select
-						id="transcripts-campaign"
-						name="campanha"
-						required
-						defaultValue={selected ?? ""}
-					>
-						<option value="" disabled>
-							Selecione…
-						</option>
-						{campaigns.map((campaign) => (
-							<option
-								key={campaign.technicalSlug}
-								value={campaign.technicalSlug}
-							>
-								{campaign.name}
-								{campaign.lifecycle === "archived" ? " (arquivada)" : ""}
-							</option>
-						))}
-					</select>
-				</label>
-				<button type="submit">
-					{selected ? "Trocar campanha" : "Abrir transcrições"}
-				</button>
-			</form>
+			<div className={styles.campaignPicker}>
+				<span>Campanha</span>
+				<CampaignNavigationPicker
+					value={selected ?? ""}
+					options={campaigns.map((campaign) => ({
+						value: campaign.technicalSlug,
+						label: campaign.name,
+						disambiguation: campaign.technicalSlug,
+						href: transcriptsHref(campaign.technicalSlug),
+						lifecycle: campaign.lifecycle,
+						disabled: false,
+					}))}
+					ariaLabel="Campanha das transcrições"
+					selectClassName={styles.campaignSelect}
+					canManage={canManageCampaigns}
+					manageHref={`/edit/campanhas?next=${encodeURIComponent(currentPath)}`}
+					manageTarget="_self"
+					pendingLabel="Abrindo transcrições…"
+				/>
+			</div>
 		</div>
 	);
 }
@@ -173,6 +172,8 @@ export default async function TranscriptsPage({
 		);
 	}
 
+	const canManageCampaigns = canManageCampaignRegistry(access.context);
+
 	if (!eligible.campaigns.length) {
 		return (
 			<AccessState
@@ -211,9 +212,10 @@ export default async function TranscriptsPage({
 						</p>
 					}
 				/>
-				<CampaignPicker
+				<CampaignContextPicker
 					campaigns={eligible.campaigns}
 					invalidSelection={Boolean(requestedCampaign)}
+					canManageCampaigns={canManageCampaigns}
 				/>
 			</section>
 		);
@@ -239,9 +241,10 @@ export default async function TranscriptsPage({
 					eyebrow="Transcrições"
 					title={selected.name}
 				/>
-				<CampaignPicker
+				<CampaignContextPicker
 					campaigns={eligible.campaigns}
 					selected={selected.technicalSlug}
+					canManageCampaigns={canManageCampaigns}
 				/>
 				<p role="status">{message}</p>
 				<p className={styles.accountLink}>
@@ -279,7 +282,7 @@ export default async function TranscriptsPage({
 				}
 			/>
 
-			<CampaignPicker
+			<CampaignContextPicker
 				campaigns={eligible.campaigns}
 				selected={selected.technicalSlug}
 			/>

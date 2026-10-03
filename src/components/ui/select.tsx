@@ -62,9 +62,11 @@ export function Select<T extends string>({
 }: SelectProps<T>) {
 	const [open, setOpen] = useState(false);
 	const selectedIndex = options.findIndex((option) => option.value === value);
-	const [activeIndex, setActiveIndex] = useState(
-		selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(options),
-	);
+	const selectedEnabledIndex =
+		selectedIndex >= 0 && !options[selectedIndex]?.disabled
+			? selectedIndex
+			: firstEnabledIndex(options);
+	const [activeIndex, setActiveIndex] = useState(selectedEnabledIndex);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const listboxRef = useRef<HTMLDivElement>(null);
@@ -83,10 +85,9 @@ export function Select<T extends string>({
 
 	useEffect(() => {
 		if (!open) return;
-		const nextIndex = selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(options);
-		setActiveIndex(nextIndex);
+		setActiveIndex(selectedEnabledIndex);
 		requestAnimationFrame(() => listboxRef.current?.focus());
-	}, [open, options, selectedIndex]);
+	}, [open, selectedEnabledIndex]);
 
 	useEffect(() => {
 		if (!open || activeIndex < 0) return;
@@ -114,9 +115,7 @@ export function Select<T extends string>({
 				const preferred =
 					event.key === "ArrowUp"
 						? lastEnabledIndex(options)
-						: selectedIndex >= 0
-							? selectedIndex
-							: firstEnabledIndex(options);
+						: selectedEnabledIndex;
 				setActiveIndex(preferred);
 				setOpen(true);
 			}

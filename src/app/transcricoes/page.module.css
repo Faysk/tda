@@ -30,46 +30,14 @@
 
 .campaignPicker {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	align-items: end;
-	gap: 12px;
-}
-
-.campaignPicker label {
-	display: grid;
 	gap: 6px;
 	min-width: 0;
 	font-size: 0.82rem;
 	font-weight: 700;
 }
 
-.campaignPicker select,
-.campaignPicker button {
-	min-height: 42px;
-	border: 1px solid var(--ds-control-border);
-	border-radius: var(--ds-radius-sm);
-	font: inherit;
-}
-
-.campaignPicker select {
+.campaignSelect {
 	width: 100%;
-	padding: 0 12px;
-	background: var(--ds-canvas-subtle);
-	color: var(--ds-foreground);
-}
-
-.campaignPicker button {
-	padding: 0 14px;
-	background: var(--ds-action-primary-bg);
-	color: var(--ds-action-primary-foreground);
-	font-weight: 750;
-	cursor: pointer;
-}
-
-.campaignPicker select:focus-visible,
-.campaignPicker button:focus-visible {
-	outline: 2px solid var(--ds-control-focus-ring);
-	outline-offset: 2px;
 }
 
 .campaignAlert {
@@ -214,13 +182,6 @@
 		white-space: normal;
 	}
 
-	.campaignPicker {
-		grid-template-columns: 1fr;
-	}
-
-	.campaignPicker button {
-		width: 100%;
-	}
 
 	.metricRow {
 		display: grid;

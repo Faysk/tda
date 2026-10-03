@@ -3,7 +3,7 @@
 > Status: registry first-class ativo; diretório público em operação
 > Owner: campaigns / public navigation / Edit
 > Última revisão: 2026-10-03
-> Issues: #1122, #1124, #1281, #1322, #1327
+> Issues: #1122, #1124, #1281, #1320, #1322, #1327
 
 ## Objetivo
 
@@ -131,6 +131,38 @@ Public route key:
 - é normalizado antes de validar;
 - colisão com canonical/alias falha fechada;
 - rename depende do recorder de alias definido no candidate de registry.
+
+## Seleção compartilhada e entrada de gestão
+
+Features que precisam escolher campaign reutilizam
+`src/features/campaigns/campaign-picker.tsx` e, quando a escolha muda a rota,
+`campaign-navigation-picker.tsx`. Os componentes recebem uma projection já
+autorizada pelo domínio consumidor e tratam cada `value` como identidade opaca;
+não consultam o registry e não convertem UUID, technical slug ou public route key.
+
+Regras transversais:
+
+- `Geral` só existe quando o consumidor declara seleção opcional;
+- estado required sem seleção mostra placeholder explícito e nunca apresenta a
+  primeira campaign como se já estivesse escolhida;
+- nomes humanos duplicados continuam distintos pela identidade fornecida pelo
+  consumidor;
+- archived é identificado em texto e não vira novo destino por padrão; uma
+  superfície histórica pode habilitá-lo explicitamente;
+- `Nova campanha` e `Gerenciar campanhas` são ações fora da lista de valores;
+- `canManage` é apenas hint de apresentação. Toda mutation continua
+  reautorizando `project.campaigns.manage @ project/tda` no servidor;
+- durante navegação o picker anuncia estado busy e bloqueia nova escolha/ações,
+  evitando repetir intenção contra o contexto anterior;
+- zero, erro ou projection indisponível nunca inventam `yuhara-main`, primeira
+  row do banco ou outra campanha silenciosa.
+
+As superfícies preservam diferenças justificadas. Lembra usa UUID e pode manter
+`Geral`, além de abrir gestão em nova aba quando existe draft local.
+Processamento, Transcrições e a biblioteca editorial usam technical identity e
+troca imediata de rota. O gerenciador aceita um `next` interno sanitizado,
+preserva esse retorno através das operações e oferece “Voltar à ferramenta”,
+sem transformar retorno ou seleção em autorização.
 
 ## Edit — `/edit/campanhas`
 

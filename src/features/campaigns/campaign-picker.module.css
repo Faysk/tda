@@ -41,7 +41,8 @@
 	outline-offset: 3px;
 }
 
-.action:disabled {
+.action:disabled,
+.action[aria-disabled="true"] {
 	opacity: 0.45;
 	cursor: default;
 	text-decoration: none;
@@ -56,4 +57,16 @@
 	.actions {
 		gap: 4px 12px;
 	}
+}
+
+
+.pending {
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-ui);
+	font-size: 0.72rem;
+	line-height: 1.35;
+}
+
+.root[data-pending="true"] .actions {
+	pointer-events: none;
 }

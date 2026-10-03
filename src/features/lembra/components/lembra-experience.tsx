@@ -357,6 +357,7 @@ export function LembraExperience({
 				.map((campaign) => ({
 					value: campaign.id,
 					label: campaign.name,
+					disambiguation: campaign.routeKey,
 					lifecycle: campaign.lifecycle,
 				})),
 		[campaigns],

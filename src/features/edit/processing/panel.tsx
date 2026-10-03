@@ -8,6 +8,7 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { AnimatedProgress } from "@/components/ui/animated-progress";
+import { CampaignPicker } from "@/features/campaigns/campaign-picker";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import { ProcessingBenchmark } from "./benchmark";
@@ -318,6 +319,7 @@ export function ProcessingPanel({
 	campaignId,
 	campaignName,
 	campaignOptions,
+	canManageCampaigns = false,
 	publicationEnabled = false,
 	activityBarksManage = false,
 	activityPackScope = null,
@@ -325,6 +327,7 @@ export function ProcessingPanel({
 	campaignId: string;
 	campaignName: string;
 	campaignOptions: readonly ProcessingCampaignOption[];
+	canManageCampaigns?: boolean;
 	publicationEnabled?: boolean;
 	activityBarksManage?: boolean;
 	activityPackScope?: string | null;
@@ -346,6 +349,7 @@ export function ProcessingPanel({
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
 	const [campaignSelection, setCampaignSelection] = useState(campaignId);
+	const [campaignNavigationPending, setCampaignNavigationPending] = useState(false);
 	const diagnosticOpener = useRef<HTMLElement | null>(null);
 	const dialog = useRef<HTMLDialogElement>(null);
 
@@ -622,6 +626,7 @@ export function ProcessingPanel({
 	}
 
 	function switchCampaign(nextCampaignId: string) {
+		if (campaignNavigationPending) return;
 		if (nextCampaignId === campaignId) {
 			setCampaignSelection(campaignId);
 			return;
@@ -647,6 +652,7 @@ export function ProcessingPanel({
 			setCampaignSelection(campaignId);
 			return;
 		}
+		setCampaignNavigationPending(true);
 		window.location.assign(processingCampaignHref(nextCampaignId));
 	}
 
@@ -675,29 +681,37 @@ export function ProcessingPanel({
 	}
 
 	return (
-		<div className={styles.panel} data-global-loading="off">
+		<div
+			className={styles.panel}
+			data-global-loading={campaignNavigationPending ? "on" : "off"}
+			aria-busy={campaignNavigationPending || undefined}
+		>
 			<section className={styles.campaignContext} aria-label="Campanha do processamento">
 				<div>
 					<span>Campanha</span>
 					<strong>{campaignName}</strong>
 				</div>
-				<label>
-					<span className={styles.visuallyHidden}>Trocar campanha</span>
-					<select
-						value={campaignSelection}
-						onChange={(event) => {
-							const next = event.target.value;
-							setCampaignSelection(next);
-							switchCampaign(next);
-						}}
-					>
-						{campaignOptions.map((campaign) => (
-							<option key={campaign.technicalSlug} value={campaign.technicalSlug}>
-								{campaign.name}
-							</option>
-						))}
-					</select>
-				</label>
+				<CampaignPicker
+					value={campaignSelection}
+					options={campaignOptions.map((campaign) => ({
+						value: campaign.technicalSlug,
+						label: campaign.name,
+						disambiguation: campaign.routeKey,
+						lifecycle: "active",
+					}))}
+					onChange={(next) => {
+						setCampaignSelection(next);
+						switchCampaign(next);
+					}}
+					ariaLabel="Trocar campanha do processamento"
+					className={styles.campaignPickerControl}
+					pending={campaignNavigationPending}
+					pendingLabel="Abrindo campanha…"
+					canManage={canManageCampaigns}
+					manageHref={`/edit/campanhas?next=${encodeURIComponent(
+						processingCampaignHref(campaignId),
+					)}`}
+				/>
 			</section>
 			<div className={styles.processingHeader}>
 				<div
@@ -1034,6 +1048,7 @@ export function ProcessingPanel({
 							</section>
 							<ProcessingSubmission
 								campaignId={campaignId}
+								disabled={campaignNavigationPending}
 								className={styles.submissionCard}
 								compact={Boolean(activeJob || queued.length)}
 								onOpenDiagnostics={() => activateView("diagnostics")}
