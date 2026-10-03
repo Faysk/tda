@@ -83,7 +83,8 @@ textarea:focus-visible {
 .createDisclosure > summary::-webkit-details-marker,
 .editor > summary::-webkit-details-marker,
 .advanced > summary::-webkit-details-marker,
-.moreActions > summary::-webkit-details-marker {
+.moreActions > summary::-webkit-details-marker,
+.confirmAction > summary::-webkit-details-marker {
 	display: none;
 }
 
@@ -679,4 +680,30 @@ textarea:focus-visible {
 	.tertiary {
 		scroll-behavior: auto;
 	}
+}
+
+
+.confirmAction {
+	width: fit-content;
+}
+
+.confirmAction > summary {
+	list-style: none;
+}
+
+.confirmPanel {
+	display: grid;
+	gap: 10px;
+	max-width: 640px;
+	margin-top: 10px;
+	padding: 12px 14px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-canvas-subtle);
+}
+
+.confirmPanel p {
+	margin: 0;
+	color: var(--ds-foreground-soft);
+	line-height: 1.45;
 }
