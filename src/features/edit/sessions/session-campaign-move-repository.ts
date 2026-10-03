@@ -72,6 +72,20 @@ function boundaryParams(input: MoveBoundaryInput) {
 	};
 }
 
+export async function readSessionCampaignMoveReadiness() {
+	const client = editDataClient();
+	if (!client) return { available: false as const };
+
+	const { error } = await client
+		.from("session_campaign_move_operations")
+		.select("operation_id", { head: true })
+		.limit(1);
+
+	return error
+		? { available: false as const }
+		: { available: true as const };
+}
+
 export async function preflightSessionCampaignMove(input: MoveBoundaryInput) {
 	const client = editDataClient();
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
