@@ -86,7 +86,7 @@ test("dirty local review uses the integrated discard dialog and closes exactly o
 	await expect(dialog).toContainText("Revisão whisper-detailed · draft r1");
 	await expect(dialog.getByRole("button", { name: "Continuar editando" })).toBeFocused();
 	await page.screenshot({
-		path: testInfo.outputPath("dirty-review-discard-dialog.png"),
+		path: testInfo.outputPath("issue-1354-dirty-review-discard-dialog.png"),
 		fullPage: true,
 	});
 	await page.keyboard.press("Escape");
