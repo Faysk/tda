@@ -9,11 +9,12 @@ import {
 	type RefObject,
 } from "react";
 import { Button } from "@/components/ui";
-import type {
-	CampaignCreateInput,
-	CampaignMutationResult,
-	CampaignVisibility,
-	ManageableCampaign,
+import {
+	normalizeCampaignName,
+	type CampaignCreateInput,
+	type CampaignMutationResult,
+	type CampaignVisibility,
+	type ManageableCampaign,
 } from "./model";
 import styles from "./campaign-create-dialog.module.css";
 
@@ -122,6 +123,13 @@ export function CampaignCreateDialog({
 			description: formText(formData, "description"),
 			visibility: formText(formData, "visibility"),
 		};
+
+		if (!normalizeCampaignName(input.name)) {
+			setGeneralError("Revise os campos indicados antes de criar a campanha.");
+			setFieldError("name");
+			requestAnimationFrame(() => nameRef.current?.focus());
+			return;
+		}
 
 		setPending(true);
 		setGeneralError("");
