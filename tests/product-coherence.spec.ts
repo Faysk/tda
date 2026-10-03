@@ -129,9 +129,12 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 	page,
 }) => {
 	await page.goto("/campanhas/sessoes");
-	await expect(page.getByText("Arquivo de campanhas", { exact: true })).toBeVisible();
+	await expect(page.getByText("Arquivo global", { exact: true })).toBeVisible();
 	await expect(
-		page.getByText("Sessões publicadas de todas as campanhas públicas", { exact: false }),
+		page.getByRole("heading", { level: 1, name: "Todas as campanhas" }),
+	).toBeVisible();
+	await expect(
+		page.getByText("Sessões publicadas de todas as campanhas do TDA", { exact: false }),
 	).toBeVisible();
 	await expect(page.locator("[data-session-card]")).toHaveCount(4);
 	const filter = page.getByLabel("Filtrar por campanha");
