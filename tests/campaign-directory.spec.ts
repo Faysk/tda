@@ -34,9 +34,19 @@ test("public campaign directory exposes only the synthetic public projection", a
 	await expect(links).toHaveCount(2);
 	await expect(links.nth(0)).toHaveAttribute(
 		"href",
-		"/campanhas/cronicas-da-mesa/sessoes",
+		"/campanhas/cronicas-da-mesa",
 	);
 	await expect(links.nth(1)).toHaveAttribute(
+		"href",
+		"/campanhas/antes-que-seja-tarde",
+	);
+	const sessionShortcuts = page.getByRole("link", { name: "Sessões", exact: true });
+	await expect(sessionShortcuts).toHaveCount(2);
+	await expect(sessionShortcuts.nth(0)).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/sessoes",
+	);
+	await expect(sessionShortcuts.nth(1)).toHaveAttribute(
 		"href",
 		"/campanhas/antes-que-seja-tarde/sessoes",
 	);
@@ -53,6 +63,10 @@ test("campaign cards open a campaign-qualified archive without leaking sibling s
 		.getByRole("link", { name: /Abrir campanha/u })
 		.click();
 
+	await expect(page).toHaveURL(
+		/\/campanhas\/antes-que-seja-tarde$/u,
+	);
+	await page.getByRole("link", { name: "Ver sessões" }).click();
 	await expect(page).toHaveURL(
 		/\/campanhas\/antes-que-seja-tarde\/sessoes$/u,
 	);
@@ -394,4 +408,128 @@ test("aggregate controls preserve campaign-qualified identity and scoped control
 			),
 		);
 	expect(campaignRoutes).toEqual(["cronicas-da-mesa"]);
+});
+
+
+test("canonical campaign root keeps public context, useful actions and verified scoped content", async ({
+	page,
+}) => {
+	await page.goto("/campanhas/cronicas-da-mesa");
+
+	const root = page.locator('[data-campaign-root][data-campaign-route="cronicas-da-mesa"]');
+	await expect(root).toBeVisible();
+	await expect(root.getByRole("heading", { level: 1 })).toHaveText("Crônicas da Mesa");
+	await expect(root).toHaveAttribute("data-campaign-artwork-source", "session-artwork");
+	await expect(root.getByRole("link", { name: "Ver sessões" })).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/sessoes",
+	);
+	await expect(root.getByRole("link", { name: "Explorar Mundo" })).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/mundo",
+	);
+	await expect(root.getByRole("link", { name: "Personagens" })).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/personagens",
+	);
+	await expect(root.getByRole("link", { name: "Lugares" })).toHaveAttribute(
+		"href",
+		"/campanhas/cronicas-da-mesa/lugares",
+	);
+	await expect(root.locator('[data-campaign-latest-session="shared-session"]')).toContainText(
+		"A memória mais recente do arquivo sintético",
+	);
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+		"href",
+		/\/campanhas\/cronicas-da-mesa$/u,
+	);
+
+	await root.getByRole("link", { name: "Ver sessões" }).click();
+	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/sessoes$/u);
+	await expect(
+		page.getByRole("navigation", { name: "Contexto da campanha" }).getByRole("link", {
+			name: "Crônicas da Mesa",
+		}),
+	).toHaveAttribute("href", "/campanhas/cronicas-da-mesa");
+
+	await page.goBack();
+	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa$/u);
+	await expect(
+		page.locator('[data-campaign-root][data-campaign-route="cronicas-da-mesa"]'),
+	).toBeVisible();
+});
+
+test("campaign roots never inherit a sibling highlight or narrative availability", async ({
+	page,
+}) => {
+	await page.goto("/campanhas/antes-que-seja-tarde");
+
+	const root = page.locator(
+		'[data-campaign-root][data-campaign-route="antes-que-seja-tarde"]',
+	);
+	await expect(root).toBeVisible();
+	await expect(root.getByRole("heading", { level: 1 })).toHaveText(
+		"Antes que seja tarde — uma campanha com nome deliberadamente comprido",
+	);
+	await expect(root).toHaveAttribute("data-campaign-artwork-source", "fallback");
+	await expect(root.locator('[data-campaign-latest-session="shared-session"]')).toContainText(
+		"A memória global mais recente vem da campanha B",
+	);
+	await expect(root.getByText("A memória mais recente do arquivo sintético")).toHaveCount(0);
+	await expect(root.getByRole("link", { name: "Personagens" })).toHaveCount(0);
+	await expect(root.getByRole("link", { name: "Lugares" })).toHaveCount(0);
+	await expect(root).toContainText(
+		"Nenhum outro arquivo narrativo público foi vinculado a esta campanha ainda.",
+	);
+});
+
+test("campaign root aliases canonicalize while private, archived and unknown routes fail closed", async ({
+	page,
+}) => {
+	const alias = await page.request.get("/campanhas/cronicas-da-mesa-antiga", {
+		maxRedirects: 0,
+	});
+	expect(alias.status()).toBe(308);
+	expect(new URL(alias.headers().location!, "http://127.0.0.1").pathname).toBe(
+		"/campanhas/cronicas-da-mesa",
+	);
+
+	for (const [path, secret] of [
+		["/campanhas/fixture-private", "Fixture privada"],
+		["/campanhas/fixture-archived", "Fixture arquivada"],
+		["/campanhas/nao-existe", "nao-existe"],
+	] as const) {
+		const response = await page.request.get(path, { maxRedirects: 0 });
+		expect(response.status(), path).toBe(404);
+		const body = await response.text();
+		expect(body, path).not.toContain(secret);
+	}
+});
+
+test("campaign root keeps first actions reachable without horizontal overflow on narrow and zoom-equivalent viewports", async ({
+	page,
+}) => {
+	for (const viewport of [
+		{ width: 320, height: 800, label: "320x800" },
+		{ width: 390, height: 844, label: "390x844" },
+		{ width: 960, height: 540, label: "200%-equivalent" },
+		{ width: 1366, height: 768, label: "desktop" },
+	] as const) {
+		await page.setViewportSize({ width: viewport.width, height: viewport.height });
+		await page.goto("/campanhas/cronicas-da-mesa");
+
+		const overflow = await page.evaluate(
+			() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+		);
+		expect(overflow, viewport.label).toBeLessThanOrEqual(1);
+
+		const action = page.getByRole("link", { name: "Ver sessões" });
+		await action.focus();
+		await expect(action, viewport.label).toBeFocused();
+		const box = await action.boundingBox();
+		expect(box, viewport.label).not.toBeNull();
+		expect(box?.y ?? Number.POSITIVE_INFINITY, viewport.label).toBeLessThan(
+			viewport.height,
+		);
+	}
 });
