@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui";
 import {
 	clearStaleActionRecovery,
+	isNextRedirectSignal,
 	isStaleServerActionError,
 	persistStaleActionRecovery,
 	readStaleActionRecovery,
@@ -205,6 +206,10 @@ export function RecoverableActionForm({
 			await serverAction(formData);
 			clearStaleActionRecovery(recoveryKey);
 		} catch (error) {
+			if (isNextRedirectSignal(error)) {
+				clearStaleActionRecovery(recoveryKey);
+				return;
+			}
 			for (const details of openDisclosures) details.open = true;
 			if (isStaleServerActionError(error)) {
 				persistStaleActionRecovery(recoveryKey, captureDirtyFormPatch(form));
