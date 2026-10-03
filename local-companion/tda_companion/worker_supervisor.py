@@ -18,6 +18,7 @@ from .benchmark_evidence import (
     finalize_bundle,
     normalize_telemetry_samples,
     sanitize_benchmark_message,
+    write_failed_profile_diagnostics,
     write_profile_events,
     write_profile_telemetry,
 )
@@ -708,7 +709,29 @@ class WorkerSupervisor:
             )
             capture(terminal_message)
 
+            profile_elapsed_ms = max(0, round((time.monotonic() - profile_started) * 1000))
             if outcome.terminal != "result":
+                try:
+                    telemetry = normalize_telemetry_samples(
+                        telemetry_samples,
+                        lineage={},
+                        interval_ms=1000,
+                        elapsed_ms=profile_elapsed_ms,
+                    )
+                    write_failed_profile_diagnostics(
+                        self.data_root,
+                        benchmark_id=benchmark_id,
+                        job_id=job_id,
+                        attempt=attempt,
+                        profile_id=profile_id,
+                        sample_identity_sha256=sample_identity_sha256,
+                        terminal=outcome.terminal if outcome.terminal == "cancelled" else "error",
+                        failure_payload=outcome.payload if isinstance(outcome.payload, dict) else {},
+                        events=evidence_events,
+                        telemetry=telemetry,
+                    )
+                except BenchmarkEvidenceError as exc:
+                    raise WorkerProcessError(str(exc), recoverable=False) from exc
                 return outcome
             receipt = dict(outcome.payload)
             if receipt.get("schema_version") != "tda_benchmark_profile_v1":
@@ -729,6 +752,7 @@ class WorkerSupervisor:
                     telemetry_samples,
                     lineage=receipt["execution_lineage"],
                     interval_ms=1000,
+                    elapsed_ms=profile_elapsed_ms,
                 )
                 write_profile_telemetry(
                     self.data_root,
@@ -766,7 +790,7 @@ class WorkerSupervisor:
                 sample_seconds=sample_seconds,
                 context=context,
                 glossary=glossary,
-                execution_mode="prepared_artifacts_fresh_worker_per_profile_v1",
+                execution_mode="prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2",
             )
         except BenchmarkEvidenceError as exc:
             raise WorkerProcessError(str(exc), recoverable=False) from exc
@@ -778,7 +802,7 @@ class WorkerSupervisor:
                 "source_id": source_id,
                 "sample_identity_sha256": sample_identity_sha256,
                 "sample_seconds": sample_seconds,
-                "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                "execution_mode": "prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2",
                 "profiles": receipts,
                 **bundle,
             },
