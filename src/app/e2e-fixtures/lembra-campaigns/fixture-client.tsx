@@ -32,6 +32,8 @@ const CAMPAIGNS: readonly LembraCampaignClassification[] = [
 	},
 ];
 
+let latestCreatedCampaign: ManageableCampaign | null = null;
+
 const REFERENCES: readonly LembraReference[] = [
 	{
 		id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -114,7 +116,23 @@ async function syntheticCampaignCreateAction(
 		return { ok: false, reason: "validation", field: "visibility" };
 	}
 
-	return { ok: true, campaign: createdCampaign(input) };
+	latestCreatedCampaign = createdCampaign(input);
+	return { ok: true, campaign: latestCreatedCampaign };
+}
+
+async function syntheticCampaignProjectionAction() {
+	await Promise.resolve();
+	const projected = latestCreatedCampaign
+		? [
+				...CAMPAIGNS,
+				{
+					id: latestCreatedCampaign.id,
+					name: latestCreatedCampaign.name,
+					lifecycle: latestCreatedCampaign.lifecycle,
+				},
+			]
+		: CAMPAIGNS;
+	return { ok: true as const, campaigns: projected };
 }
 
 export function LembraCampaignFixtureClient({
@@ -126,6 +144,7 @@ export function LembraCampaignFixtureClient({
 			initialCampaigns={CAMPAIGNS}
 			canManageCampaigns={canManageCampaigns}
 			campaignCreateAction={syntheticCampaignCreateAction}
+			campaignProjectionAction={syntheticCampaignProjectionAction}
 		/>
 	);
 }
