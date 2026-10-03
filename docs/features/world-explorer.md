@@ -445,7 +445,9 @@ Dados mínimos desejados:
 - CTA para detalhe;
 - indicação do foco temporário quando pertinente.
 
-O inspector é resumo, não duplicação da página completa.
+O inspector é resumo, não duplicação da página completa. Na visão geral, a ordem de prioridade é identidade e resumo público curto, conexões/ações úteis e, por último, métricas/proveniência em divulgação progressiva. Uma relação curta sempre identifica também o destino; estado técnico desconhecido não vira badge público por fallback.
+
+Quando não houver retrato ou resumo, o fallback permanece compacto e neutro; ausência de conteúdo não autoriza inventar biografia, lore ou perfil. Métricas do grafo, aliases e disponibilidade de rota ficam em detalhes sob demanda.
 
 Próximos recortes devem ampliar navegação contextual e informações úteis sem introduzir um segundo resolver de perfis.
 

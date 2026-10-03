@@ -25,6 +25,14 @@
 	object-position: 50% 34%;
 }
 
+.identityMedia[data-has-image="false"] {
+	height: 96px;
+}
+
+.identityMedia[data-has-image="false"] .identityInitial {
+	font-size: clamp(2.8rem, 5vw, 4rem);
+}
+
 .identityInitial {
 	font: 500 clamp(4.8rem, 9vw, 7rem)/1 var(--ds-font-display);
 	color: var(--ds-accent-strong);
@@ -180,7 +188,7 @@
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 7px;
-	margin: 18px 0 0;
+	margin: 12px 0 0;
 }
 
 .summaryStats > div {
@@ -239,7 +247,11 @@
 
 .relationChips button {
 	--relation-accent: var(--world-edge-context);
-	min-height: 32px;
+	display: inline-grid;
+	grid-template-columns: auto auto;
+	align-items: center;
+	gap: 6px;
+	min-height: 36px;
 	padding: 0 10px;
 	border: 1px solid color-mix(in srgb, var(--relation-accent) 48%, var(--ds-border));
 	border-radius: 999px;
@@ -260,6 +272,20 @@
 .relationChips button[data-family="creative"] { --relation-accent: var(--world-edge-creative); }
 .relationChips button[data-family="origin"] { --relation-accent: var(--world-edge-origin); }
 
+.relationChips button strong {
+	max-width: 16ch;
+	overflow: hidden;
+	color: var(--ds-foreground);
+	font: 700 0.61rem/1.15 var(--ds-font-ui);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.relationChips button span {
+	color: currentColor;
+	font: 620 0.57rem/1.15 var(--ds-font-ui);
+}
+
 .relationChips button:hover,
 .relationChips button:focus-visible {
 	border-color: var(--relation-accent);
@@ -268,9 +294,29 @@
 }
 
 .overviewRelations {
-	margin-top: 22px;
-	padding-top: 16px;
+	margin-top: 18px;
+}
+
+.mapDetails {
+	margin-top: 16px;
+	padding-top: 14px;
 	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.mapDetails > summary,
+.entityMeta > summary {
+	width: fit-content;
+	min-height: 36px;
+	display: inline-flex;
+	align-items: center;
+	color: var(--ds-foreground-muted);
+	font: 680 0.66rem/1 var(--ds-font-ui);
+	cursor: pointer;
+}
+
+.mapDetails[open] > summary,
+.entityMeta[open] > summary {
+	color: var(--ds-accent-strong);
 }
 
 .overviewRelations h3 {
@@ -443,8 +489,8 @@
 }
 
 .entityMeta {
-	margin-top: 22px;
-	padding-top: 18px;
+	margin-top: 18px;
+	padding-top: 14px;
 	border-top: 1px solid var(--ds-border-subtle);
 }
 
@@ -495,6 +541,7 @@
 		margin-top: 0;
 	}
 	.identityMedia { height: auto; min-height: 132px; }
+	.identityMedia[data-has-image="false"] { min-height: 104px; }
 	.identityCopy { align-self: end; margin-top: 0; padding: 16px 14px; }
 	.identityCopy h2 { font-size: clamp(1.55rem, 7vw, 2.05rem); }
 	.identityBadges { margin-top: 9px; }
