@@ -21,7 +21,7 @@ const E2E_CAMPAIGNS = [
 	{
 		routeKey: "cronicas-da-mesa",
 		technicalSlug: "yuhara-main",
-		name: "Crônicas da Mesa",
+		name: "Destino Sem Fim",
 		description: "Uma campanha sintética pública usada somente no contrato E2E.",
 		coverImage: null,
 		lifecycle: "active",
@@ -30,7 +30,7 @@ const E2E_CAMPAIGNS = [
 	{
 		routeKey: "antes-que-seja-tarde",
 		technicalSlug: "antes-que-seja-tarde",
-		name: "Antes que seja tarde — uma campanha com nome deliberadamente comprido",
+		name: "Passos Retomados — uma campanha com nome deliberadamente comprido",
 		description: null,
 		coverImage: null,
 		lifecycle: "active",
