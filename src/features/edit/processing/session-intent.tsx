@@ -96,7 +96,10 @@ type Props = Readonly<{
 	onRestoreSessionId?: (sessionId: string) => void;
 	onRestoreIntent?: (intent: SessionTranscriptionIntent) => void;
 	onStatus?: (message: string) => void;
-	onError?: (message: string) => void;
+	onError?: (
+		message: string,
+		availabilityFailure?: "timeout" | "unreachable",
+	) => void;
 	onOpenTechnical?: () => void;
 }>;
 
@@ -213,8 +216,13 @@ export function SessionIntentCoordinator({
 	const fail = useCallback(
 		(cause: unknown) => {
 			const message = errorMessage(cause);
+			const availabilityFailure =
+				cause instanceof BridgeError &&
+				(cause.code === "timeout" || cause.code === "unreachable")
+					? cause.code
+					: undefined;
 			setLocalError(message);
-			onError?.(message);
+			onError?.(message, availabilityFailure);
 		},
 		[onError],
 	);
@@ -1365,7 +1373,7 @@ export function SessionIntentCoordinator({
 				</div>
 			) : null}
 
-			{localError ? (
+			{localError && !onError ? (
 				<p className={styles.error} role="alert">
 					{localError}
 				</p>
