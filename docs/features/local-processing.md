@@ -45,10 +45,25 @@ e ficam ocultas enquanto outro job está ativo. Elapsed continua indisponível
 até um timestamp autoritativo persistido ser exposto pelo contrato (#603).
 Benchmark é uma tab funcional para comparação exploratória local: usa a mesma
 source Craig e o mesmo corte temporal de 0–300 s nos quatro perfis, executados
-sequencialmente com artefatos já preparados. O receipt é sanitizado e registra a
-identidade da amostra, lineage e métricas factuais; não contém transcript/áudio,
-não cria run publicável e não escolhe vencedor. Sem referência humana, qualidade
-permanece explicitamente não medida. Este benchmark não substitui o aceite físico
+sequencialmente com artefatos já preparados. O **receipt da fila** continua
+sanitizado e registra identidade da amostra, lineage e métricas factuais sem
+transportar transcript/áudio. A partir do gate #1417, uma execução concluída também
+possui um bundle privado local `tda_benchmark_bundle_v1`, independente da retenção
+da fila. Cada perfil persiste `transcript.json`, `metrics.json` e `events.jsonl`
+sanitizado; `profile.json` fecha o perfil e `benchmark.json` é escrito por último,
+somente depois de os quatro perfis e seus hashes serem revalidados. Parcial,
+arquivo ausente ou hash divergente falha fechado e não vira evidência concluída.
+
+Esse bundle não cria run editorial nem envia transcript para a cloud. A Web pode
+ler os quatro transcripts pela sessão loopback, comparar por track/timeline usando
+o comparador canônico, abrir diagnóstico persistido por perfil e exportar
+TXT/WebVTT/SRT ou um ZIP **privado** determinístico. O ZIP não inclui áudio e não
+é um artifact de CI compartilhável. A referência humana é versionada e vinculada
+ao hash exato da amostra; um perfil pode apenas iniciar o rascunho, que precisa de
+ação humana explícita para virar revisão. WER/CER usam normalização versionada;
+métricas de timing/speaker/overlap ficam `N/A` quando a referência não possui
+anotações temporais. Performance e qualidade permanecem separadas e nenhum
+vencedor é escolhido automaticamente. Este benchmark não substitui o aceite físico
 de release definido em #478.
 Desde #1233, prontidão de transcrição e prontidão de benchmark são contratos
 separados. Whisper Runtime 1.1.5 permanece aceito para transcrição normal, mas não
@@ -64,8 +79,15 @@ a execução; evidência ausente ou parcial falha fechado e não vira resultado 
 
 Validação deste comportamento: `tests/processing/panel.spec.ts` cobre progresso
 zero, ausência de denominador e a separação entre job ativo e métricas de run
-terminal. Este estado descreve o candidato de código; não implica integração ou
-publicação.
+terminal. `local-companion/tests/test_benchmark_evidence_quality_gate.py` cobre
+atomicidade/hash, corrupção, privacidade de diagnóstico, export determinístico,
+WER/CER e vínculo da referência; `tests/processing/benchmark.spec.ts` cobre a
+jornada de navegador sem referência e depois com referência humana. Esses testes
+são sintéticos, não usam modelo/GPU/áudio privado e fazem parte do
+`processing-e2e` requerido. O handoff físico
+`tools/acceptance/run-processing-benchmark-physical-gate.ps1` reabre os quatro
+artefatos reais em memória e grava no receipt somente hashes/contagens
+sanitizados. Este estado descreve o candidato de código; não implica publicação.
 
 ### Command bar — candidato #608 / #622
 
