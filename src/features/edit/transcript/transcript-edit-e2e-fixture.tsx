@@ -63,6 +63,7 @@ export function TranscriptEditE2EFixture({
 					{lostResponseArmed ? "armed" : ""}
 				</output>
 				<a href="/">Sair da fixture</a>
+				<a href="https://example.com/">Sair para site externo</a>
 			</section>
 			<TranscriptReader
 				downloadHref="#synthetic-download"
