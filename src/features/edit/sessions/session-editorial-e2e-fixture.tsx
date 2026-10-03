@@ -414,21 +414,9 @@ export function SessionEditorialE2EFixture({
 	return (
 		<main style={{ display: "grid", gap: "2rem" }}>
 			<section
-				className={[workbenchStyles.shell, workbenchStyles.sessionShell].join(" ")}
-				data-testid="session-editorial-route-shell"
+				aria-label="Controles sintéticos de falha"
+				data-testid="session-editorial-failure-controls"
 			>
-				<div>
-			<header className={workbenchStyles.workbenchHeader}>
-				<div>
-					<h1 className={workbenchStyles.workbenchTitle}>Session Editorial E2E</h1>
-					<p className={workbenchStyles.muted}>
-						Fixture sintética. Nenhum dado, credencial, mídia ou transcrição real é
-						carregado.
-					</p>
-				</div>
-			</header>
-
-			<section aria-label="Controles sintéticos de falha" data-testid="session-editorial-failure-controls">
 				<label>
 					<input
 						checked={editable}
@@ -480,62 +468,77 @@ export function SessionEditorialE2EFixture({
 				</output>
 				<output data-testid="remote-draft-revision">{remoteRevision}</output>
 			</section>
-				</div>
+
+			<section
+				className={[workbenchStyles.shell, workbenchStyles.sessionShell].join(" ")}
+				data-testid="session-editorial-route-shell"
+			>
+				<header className={workbenchStyles.workbenchHeader}>
+					<div>
+						<h1 className={workbenchStyles.workbenchTitle}>Session Editorial E2E</h1>
+						<p className={workbenchStyles.muted}>
+							Fixture sintética. Nenhum dado, credencial, mídia ou transcrição real é
+							carregado.
+						</p>
+					</div>
+				</header>
 
 				<div className={draftStyles.privateNotice} role="status">
 					<strong>Privado no Edit</strong>
 					<span>Salvar o draft ou trocar a capa não publica no site.</span>
 				</div>
 
-			<SessionCampaignMovePanel
-				sessionId={SESSION_ID}
-				sourceSessionId="synthetic-editorial"
-				sourceCampaignSlug="campanha-a"
-				sourceCampaignName="Campanha A"
-				destinations={[
-					{
-						technicalSlug: "campanha-b",
-						routeKey: "campanha-b",
-						name: "Campanha B",
-					},
-					{
-						technicalSlug: "campanha-bloqueada",
-						routeKey: "campanha-bloqueada",
-						name: "Campanha bloqueada",
-					},
-				]}
-				transport={moveTransport}
-				available={moveAvailable}
-			/>
-
-			<section aria-label="Workspace editorial privado" data-testid="session-editorial-workspace-frame">
-				<SessionEditWorkspace
-					transcript={{
-						downloadHref: "/e2e-fixtures/session-editorial/transcript",
-						segments,
-						sourceLabel: "Revisão privada sintética · r1",
-					}}
-					editorial={{
-						editable,
-						initial: {
-							...initialDraft,
-							currentTranscriptRevisionId: transcriptRevisionId,
-							transcriptChanged:
-								initialDraft.baseTranscriptRevisionId !== transcriptRevisionId,
+				<SessionCampaignMovePanel
+					sessionId={SESSION_ID}
+					sourceSessionId="synthetic-editorial"
+					sourceCampaignSlug="campanha-a"
+					sourceCampaignName="Campanha A"
+					destinations={[
+						{
+							technicalSlug: "campanha-b",
+							routeKey: "campanha-b",
+							name: "Campanha B",
 						},
-						initialPublication: {
-							currentPublicationId: null,
-							currentVersion: 0,
+						{
+							technicalSlug: "campanha-bloqueada",
+							routeKey: "campanha-bloqueada",
+							name: "Campanha bloqueada",
 						},
-						publicationAvailable: true,
-						publishable,
-						sessionId: SESSION_ID,
-						transport,
-					}}
-					editorialUnavailable={null}
+					]}
+					transport={moveTransport}
+					available={moveAvailable}
 				/>
-			</section>
 
+				<section
+					aria-label="Workspace editorial privado"
+					data-testid="session-editorial-workspace-frame"
+				>
+					<SessionEditWorkspace
+						transcript={{
+							downloadHref: "/e2e-fixtures/session-editorial/transcript",
+							segments,
+							sourceLabel: "Revisão privada sintética · r1",
+						}}
+						editorial={{
+							editable,
+							initial: {
+								...initialDraft,
+								currentTranscriptRevisionId: transcriptRevisionId,
+								transcriptChanged:
+									initialDraft.baseTranscriptRevisionId !== transcriptRevisionId,
+							},
+							initialPublication: {
+								currentPublicationId: null,
+								currentVersion: 0,
+							},
+							publicationAvailable: true,
+							publishable,
+							sessionId: SESSION_ID,
+							transport,
+						}}
+						editorialUnavailable={null}
+					/>
+				</section>
 			</section>
 
 			<section
