@@ -2,7 +2,7 @@
 
 > Status: persistência compartilhada em Production; galeria justified responsiva rastreada na #738
 > Owner: frontend / integrations-media / identity-access
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-03
 > Fonte de verdade: este contrato, `docs/design-system/`, `docs/architecture.md` e o boundary de Media Storage
 
 ## Objetivo
@@ -368,3 +368,12 @@ A simplicidade é requisito, não ausência de funcionalidade.
 - [Media Storage / R2](../integrations/r2.md)
 - [Fluxo de mídia](../integrations/r2/media-pipeline.md)
 - [Issue #476](https://github.com/Faysk/tda/issues/476)
+
+
+## Classificação por campanha privada — #1323 / #1331
+
+A biblioteca continua global entre usuários autenticados. A classificação de campanha é metadata e não altera visibilidade nem object key da imagem.
+
+O servidor projeta campanhas públicas e campanhas privadas que o viewer pode descobrir por grants ativos existentes. Campanhas privadas nunca são filtradas no browser. Um viewer sem discovery recebe a referência sem nome, UUID, route key ou outro indicador da classificação privada.
+
+Updates de metadata usam intenção explícita `preserve | set | clear`. Quando a classificação atual é privada e invisível ao viewer, editar título/descrição preserva o vínculo server-side; um `clear` direto sem discovery também não apaga o vínculo. Novos assignments exigem campanha elegível e ativa; archived pode permanecer apenas como histórico já visível ao actor autorizado.
