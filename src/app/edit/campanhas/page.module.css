@@ -707,3 +707,36 @@ textarea:focus-visible {
 	color: var(--ds-foreground-soft);
 	line-height: 1.45;
 }
+
+
+/* Compatibility for the governed operational-header fixture while the
+   human-facing manager uses the richer overview classes above. */
+.technical {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.itemHeader {
+	display: flex;
+	align-items: start;
+	justify-content: space-between;
+	gap: 20px;
+	margin-bottom: 22px;
+}
+
+.itemHeader h3 {
+	margin: 6px 0 0;
+	font-family: var(--ds-font-display);
+	font-size: 1.55rem;
+	font-weight: 500;
+}
+
+@media (max-width: 720px) {
+	.itemHeader {
+		align-items: center;
+	}
+}
