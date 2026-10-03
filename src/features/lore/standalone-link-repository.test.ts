@@ -190,8 +190,16 @@ describe("standalone lore campaign linkage", () => {
 			publicCampaign: { routeKey: "antes-que-seja-tarde" },
 		});
 		await expect(resolveStandaloneLoreCampaignLink("seika")).resolves.toBeNull();
-		await expect(resolveStandaloneLoreCampaignLink("d")).resolves.toBeNull();
-		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toBeNull();
+		await expect(resolveStandaloneLoreCampaignLink("d")).resolves.toMatchObject({
+			technicalSlug: "antes-que-seja-tarde",
+			name: "Passos Retomados",
+			publicCampaign: null,
+		});
+		await expect(resolveStandaloneLoreCampaignLink("yllith")).resolves.toMatchObject({
+			technicalSlug: "antes-que-seja-tarde",
+			name: "Passos Retomados",
+			publicCampaign: null,
+		});
 		expect(mocks.client).not.toHaveBeenCalled();
 	});
 
