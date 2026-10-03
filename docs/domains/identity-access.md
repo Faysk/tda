@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada + convergência em andamento
 > Owner: identity/access
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-03
 
 ## Objetivo
 
@@ -409,3 +409,40 @@ Até lá, esta frente não amplia o bypass nem cria segundo caminho de autoriza�
 ## Implementação de login Discord
 
 O candidato implementa entrada exclusivamente Discord, sessão SSR e guards administrativos. Consulte o [runbook Discord](../operations/discord-auth.md). Login não concede administração; profile e capabilities continuam obrigatórios. O resolver usa scope_type=project e scope_id=tda para project/tda e exige a action no grant ativo. Falhas operacionais negam acesso.
+
+
+## Contexto explícito da conta por campanha — #1330
+
+`/conta` não usa mais a campaign histórica como contexto implícito para decidir se
+uma conta vinculada possui grants. O estado `authenticated_linked` considera
+assignments ativos do profile independentemente do technical slug legado; a
+autorização de cada ação continua sendo reavaliada por
+`authorizeCampaignCapability()` no scope real.
+
+A projeção de acesso da conta é server-only e obedece discovery por capability:
+
+- campanhas só entram no seletor quando ao menos uma capability exibida é
+  efetiva para aquele profile;
+- uma campaign privada sem autoridade de discovery não é enumerada;
+- `project/tda` pode cobrir campanhas atuais conforme a action, sem criar ou
+  duplicar assignment;
+- grants de campaign A não aparecem como acesso de B;
+- falha de discovery é estado `unavailable`, nunca reinterpretado como
+  ausência de permissão;
+- com uma única campaign autorizada o contexto pode ser resolvido diretamente;
+  com múltiplas campaigns nenhuma é escolhida por ordem de banco ou legado.
+
+A apresentação usa o nome humano da campaign como contexto primário. O technical
+slug permanece apenas no disclosure técnico. Cada capability efetiva informa se
+a origem é herdada de `project/tda` ou específica da campaign; quando ambas
+existem para a mesma action, a apresentação reconhece a autoridade project-wide
+sem remover o assignment direto.
+
+Os detalhes de permissões são agrupados em disclosures para manter identidade e
+resumo de acesso acima da dobra sem transformar a conta em dashboard de badges.
+Login/logout, preferência de tema, vínculo TDA e o boundary server-side permanecem
+inalterados.
+
+Quando um guard nega uma ferramenta, a conta pode preservar um retorno interno
+sanitizado por `safeReturnPath()` para nova tentativa após ajuste de acesso. Falha de
+dependência continua sem ecoar o destino solicitado, evitando expor contexto privado.

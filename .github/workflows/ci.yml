@@ -325,6 +325,7 @@ jobs:
         run: >-
           pnpm exec playwright test
           tests/global-navigation.spec.ts
+          tests/account-campaign-context.spec.ts
           tests/floating-shell-public-routes.spec.ts
           tests/layout-geometry.spec.ts
           tests/layout-receipts.spec.ts

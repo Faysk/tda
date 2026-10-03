@@ -1,11 +1,25 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EditAccessContext } from "@/features/edit/access/policy";
 
-vi.mock("server-only", () => ({}));
+const mocks = vi.hoisted(() => ({
+	editDataClient: vi.fn(),
+}));
 
-import { authorizedCampaignGrantScope } from "./authorized";
+vi.mock("server-only", () => ({}));
+vi.mock("@/integrations/supabase/server", () => ({
+	editDataClient: mocks.editDataClient,
+}));
+
+import {
+	authorizedCampaignGrantScope,
+	readAuthorizedCampaignAccess,
+} from "./authorized";
 
 const NOW = new Date("2026-10-01T00:00:00Z");
+
+beforeEach(() => {
+	vi.clearAllMocks();
+});
 
 function context(
 	grants: EditAccessContext["grants"],
@@ -85,5 +99,117 @@ describe("authorized campaign discovery scope", () => {
 				NOW,
 			),
 		).toEqual({ projectWide: false, campaignSlugs: [] });
+	});
+});
+
+
+function campaignQuery(result: Readonly<{ data: unknown; error: unknown }>) {
+	const query: Record<string, unknown> = {};
+	for (const method of ["select", "order", "eq", "in"]) {
+		query[method] = vi.fn(() => query);
+	}
+	query.then = (
+		resolve: (value: Readonly<{ data: unknown; error: unknown }>) => unknown,
+		reject: (reason: unknown) => unknown,
+	) => Promise.resolve(result).then(resolve, reject);
+	return query as {
+		select: ReturnType<typeof vi.fn>;
+		order: ReturnType<typeof vi.fn>;
+		eq: ReturnType<typeof vi.fn>;
+		in: ReturnType<typeof vi.fn>;
+	};
+}
+
+describe("authorized campaign access directory", () => {
+	it("queries only candidate A/B slugs and filters an unexpected private row again before projection", async () => {
+		const query = campaignQuery({
+			data: [
+				{ slug: "campaign-a", name: "Campanha A", lifecycle: "active" },
+				{ slug: "campaign-b", name: "Campanha B", lifecycle: "active" },
+				{ slug: "private-c", name: "Privada C", lifecycle: "active" },
+			],
+			error: null,
+		});
+		mocks.editDataClient.mockReturnValue({ from: vi.fn(() => query) });
+		const access = context([
+			grant("campaign.content.edit", "campaign", "campaign-a"),
+			grant("campaign.transcript.read", "campaign", "campaign-b"),
+		]);
+
+		await expect(
+			readAuthorizedCampaignAccess(access, [
+				"campaign.content.edit",
+				"campaign.transcript.read",
+			]),
+		).resolves.toEqual({
+			ok: true,
+			campaigns: [
+				{
+					technicalSlug: "campaign-a",
+					name: "Campanha A",
+					lifecycle: "active",
+					capabilities: ["campaign.content.edit"],
+				},
+				{
+					technicalSlug: "campaign-b",
+					name: "Campanha B",
+					lifecycle: "active",
+					capabilities: ["campaign.transcript.read"],
+				},
+			],
+		});
+		expect(query.in).toHaveBeenCalledWith("slug", ["campaign-a", "campaign-b"]);
+	});
+
+	it("lets an exact project/tda capability discover all returned active campaigns", async () => {
+		const query = campaignQuery({
+			data: [
+				{ slug: "campaign-a", name: "Campanha A", lifecycle: "active" },
+				{ slug: "campaign-b", name: "Campanha B", lifecycle: "active" },
+			],
+			error: null,
+		});
+		mocks.editDataClient.mockReturnValue({ from: vi.fn(() => query) });
+		const access = context([
+			grant("campaign.transcript.read", "project", "tda"),
+		]);
+
+		const result = await readAuthorizedCampaignAccess(access, [
+			"campaign.transcript.read",
+		]);
+		expect(result).toEqual({
+			ok: true,
+			campaigns: [
+				{
+					technicalSlug: "campaign-a",
+					name: "Campanha A",
+					lifecycle: "active",
+					capabilities: ["campaign.transcript.read"],
+				},
+				{
+					technicalSlug: "campaign-b",
+					name: "Campanha B",
+					lifecycle: "active",
+					capabilities: ["campaign.transcript.read"],
+				},
+			],
+		});
+		expect(query.in).not.toHaveBeenCalled();
+	});
+
+	it("fails closed on a directory dependency error", async () => {
+		const query = campaignQuery({
+			data: null,
+			error: { message: "database unavailable" },
+		});
+		mocks.editDataClient.mockReturnValue({ from: vi.fn(() => query) });
+		await expect(
+			readAuthorizedCampaignAccess(
+				context([
+					grant("campaign.content.edit", "campaign", "campaign-a"),
+				]),
+				["campaign.content.edit"],
+			),
+		).resolves.toEqual({ ok: false, reason: "dependency_unavailable" });
 	});
 });

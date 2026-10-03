@@ -3,6 +3,7 @@ import {
 	EDIT_CAPABILITIES,
 	type EditAccessContext,
 	type EditCapability,
+	isEffectiveCampaignGrant,
 } from "@/features/edit/access/policy";
 
 export type AccountCapabilityItem = Readonly<{
@@ -13,6 +14,16 @@ export type AccountCapabilityItem = Readonly<{
 export type AccountCapabilityGroup = Readonly<{
 	title: string;
 	items: readonly AccountCapabilityItem[];
+}>;
+
+export type AccountCapabilityScope = "project" | "campaign";
+
+export type AccountEffectiveCapabilityItem = AccountCapabilityItem &
+	Readonly<{ scope: AccountCapabilityScope }>;
+
+export type AccountEffectiveCapabilityGroup = Readonly<{
+	title: string;
+	items: readonly AccountEffectiveCapabilityItem[];
 }>;
 
 export const ACCOUNT_CAPABILITY_GROUPS: readonly AccountCapabilityGroup[] = [
@@ -71,20 +82,65 @@ export const ACCOUNT_CAPABILITY_GROUPS: readonly AccountCapabilityGroup[] = [
 	},
 ];
 
+export const ACCOUNT_CAPABILITIES: readonly EditCapability[] =
+	ACCOUNT_CAPABILITY_GROUPS.flatMap((group) =>
+		group.items.map((item) => item.capability),
+	);
+
+export function effectiveAccountCapabilityScope(
+	context: EditAccessContext,
+	capability: EditCapability,
+	campaignSlug: string,
+	now = new Date(),
+): AccountCapabilityScope | null {
+	const grants = context.grants.filter(
+		(grant) =>
+			grant.action === capability &&
+			isEffectiveCampaignGrant(grant, campaignSlug, now),
+	);
+	if (
+		grants.some(
+			(grant) => grant.scopeType === "project" && grant.scopeId === "tda",
+		)
+	) {
+		return "project";
+	}
+	if (
+		grants.some(
+			(grant) =>
+				grant.scopeType === "campaign" && grant.scopeId === campaignSlug,
+		)
+	) {
+		return "campaign";
+	}
+	return null;
+}
+
 export function effectiveAccountCapabilityGroups(
 	context: EditAccessContext,
 	campaignSlug: string,
 	now = new Date(),
-): readonly AccountCapabilityGroup[] {
+): readonly AccountEffectiveCapabilityGroup[] {
 	return ACCOUNT_CAPABILITY_GROUPS.map((group) => ({
 		...group,
-		items: group.items.filter((item) =>
-			authorizeCampaignCapability(
+		items: group.items.flatMap((item) => {
+			if (
+				!authorizeCampaignCapability(
+					context,
+					item.capability,
+					campaignSlug,
+					now,
+				).ok
+			) {
+				return [];
+			}
+			const scope = effectiveAccountCapabilityScope(
 				context,
 				item.capability,
 				campaignSlug,
 				now,
-			).ok,
-		),
+			);
+			return scope ? [{ ...item, scope }] : [];
+		}),
 	})).filter((group) => group.items.length > 0);
 }
