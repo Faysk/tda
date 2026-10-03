@@ -80,6 +80,7 @@ export default function LembraCampaignE2EFixture() {
 		<LembraExperience
 			initialReferences={REFERENCES}
 			initialCampaigns={CAMPAIGNS}
+			canManageCampaigns
 		/>
 	);
 }
