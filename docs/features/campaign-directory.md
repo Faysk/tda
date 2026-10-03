@@ -95,6 +95,18 @@ A página exige exatamente `project.campaigns.manage` em `project/tda`.
 
 Campaign-scoped grants não são promovidos para essa capability.
 
+A apresentação é orientada a tarefas humanas: a primeira área útil mostra a lista
+compacta e a ação `+ Nova campanha`. Create/edit são contextuais; UUID, technical
+slug e rota ficam em disclosure avançado e não competem com nome, visibilidade,
+descrição e capa. `Ativa/Arquivada` e `Pública/Privada` são labels explícitas,
+sem usar apenas cor.
+
+O padrão compartilhado `CampaignPicker` recebe uma projection segura do consumidor
+e trata seu `value` como identidade opaca. UUID, technical slug e public route key
+não são convertidos implicitamente. `Geral` é opt-in do consumidor. Create/manage
+são ações separadas das options e seus hints de apresentação nunca substituem a
+reautorização server-side.
+
 Operações:
 
 ### Criar
@@ -159,7 +171,10 @@ Não existe secret/service key no browser.
 - schema/provider indisponível → `dependency_unavailable`;
 - validação inválida → nenhuma tentativa de write.
 
-Após sucesso, `/campanhas` e `/edit/campanhas` são revalidados.
+Após sucesso, o layout raiz é revalidado para atualizar launcher e consumers do
+registry. O manager permanece canônico. Contextos in-memory, como o composer do
+Lembra, usam o wrapper server-side genérico de criação e atualizam sua projection
+sem criar mutation paralela nem navegar obrigatoriamente para esta página.
 
 ## Sessões
 
