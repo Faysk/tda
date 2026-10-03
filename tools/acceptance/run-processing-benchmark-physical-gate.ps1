@@ -558,7 +558,6 @@ exit 1
             Assert-Sha256 ([string](Get-OptionalPropertyValue $entry $hashName)) ("BENCHMARK_EVIDENCE_HASH_INVALID:" + $profileId + ":" + $hashName)
         }
 
-        # Read private artifacts only in memory. Never copy transcript/event payloads into the sanitized receipt.
         $transcript = Invoke-AgentJson $Token "GET" ("/benchmarks/" + $benchmarkId + "/profiles/" + $profileId + "/transcript") 30
         $engine = Get-OptionalPropertyValue $transcript "engine"
         if (
