@@ -1116,6 +1116,10 @@ export function SessionRecordingComposer({
 
 					<div className={styles.actions}>
 						<div>
+							<span data-session-composer-progress>
+								{workspace.parts.length - pending.length}/{workspace.parts.length}{" "}
+								{workspace.parts.length === 1 ? "concluída" : "concluídas"}
+							</span>
 							<strong>
 								{pending.length
 									? pending.length + (pending.length === 1 ? " gravação" : " gravações") + " sem run concluído"
