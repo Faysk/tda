@@ -443,6 +443,17 @@ test("recovery separates a previous Companion outage from current readiness with
 		).toBe(true);
 		await expect(page.getByText("0/1 concluída", { exact: true })).toBeVisible();
 	}
+
+	offline = true;
+	await page.evaluate(() => {
+		document.dispatchEvent(new Event("visibilitychange"));
+	});
+	await expect(history).toHaveCount(0);
+	await expect(
+		page.getByRole("alert").filter({
+			hasText: "Não foi possível alcançar o Companion local.",
+		}),
+	).toHaveCount(1);
 });
 
 test("cancelamento exige confirmação e converge para cancelled", async ({ page }) => {
