@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 test.beforeEach(async ({ request }) => {
 	await request.post("http://127.0.0.1:3103/fixture/reset");
@@ -19,6 +19,21 @@ async function signIn(context: BrowserContext, sub: string) {
 			sameSite: "Lax",
 		},
 	]);
+}
+
+async function openTranscriptCampaignPicker(page: Page) {
+	const trigger = page.getByRole("button", {
+		name: "Campanha das transcrições",
+	});
+	await trigger.click();
+	return page.getByRole("listbox", {
+		name: "Campanha das transcrições",
+	});
+}
+
+async function chooseTranscriptCampaign(page: Page, name: string) {
+	const listbox = await openTranscriptCampaignPicker(page);
+	await listbox.getByRole("option", { name, exact: true }).click();
 }
 
 test("anonymous user receives no metrics and is directed to sign in", async ({
@@ -84,7 +99,9 @@ test("invalid campaign input is reported as validation instead of access denial"
 			exact: false,
 		}),
 	).toBeVisible();
-	await expect(page.getByRole("combobox", { name: "Campanha" })).toHaveValue("");
+	await expect(
+		page.getByRole("button", { name: "Campanha das transcrições" }),
+	).toHaveText("Selecionar");
 	expect(await response?.text()).not.toContain("A travessia das montanhas");
 });
 
@@ -261,12 +278,23 @@ test("multi-campaign reader selects by human name and keeps A/B totals isolated 
 	await expect(
 		page.getByRole("heading", { name: "Escolha a campanha" }),
 	).toBeVisible();
-	const selector = page.getByRole("combobox", { name: "Campanha" });
-	await expect(selector.locator("option")).toHaveCount(3);
-	await expect(selector).toContainText("Crônicas da Mesa");
-	await expect(selector).toContainText("Antes que seja tarde");
+	const selector = page.getByRole("button", {
+		name: "Campanha das transcrições",
+	});
+	await expect(selector).toHaveText("Selecionar");
+	const options = await openTranscriptCampaignPicker(page);
+	await expect(options.getByRole("option")).toHaveCount(2);
+	await expect(
+		options.getByRole("option", { name: "Crônicas da Mesa", exact: true }),
+	).toBeVisible();
+	await expect(
+		options.getByRole("option", { name: "Antes que seja tarde", exact: true }),
+	).toBeVisible();
 
-	await selector.selectOption("other");
+	await options
+		.getByRole("option", { name: "Antes que seja tarde", exact: true })
+		.click();
+	await expect(selector).toHaveText("Antes que seja tarde");
 	await page.getByRole("button", { name: "Abrir transcrições" }).click();
 	await expect(page).toHaveURL(/\/transcricoes\?campanha=other$/);
 	await expect(
@@ -281,7 +309,7 @@ test("multi-campaign reader selects by human name and keeps A/B totals isolated 
 	await expect(page).toHaveURL(/campanha=other/);
 	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("7");
 
-	await page.getByRole("combobox", { name: "Campanha" }).selectOption("yuhara-main");
+	await chooseTranscriptCampaign(page, "Crônicas da Mesa");
 	await page.getByRole("button", { name: "Trocar campanha" }).click();
 	await expect(page).toHaveURL(/campanha=yuhara-main/);
 	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("410");
@@ -302,10 +330,23 @@ test("project transcript grant discovers active and archived campaigns without e
 	await signIn(context, "project-reader");
 	await page.goto("/transcricoes");
 
-	const selector = page.getByRole("combobox", { name: "Campanha" });
-	await expect(selector).toContainText("Crônicas da Mesa");
-	await expect(selector).toContainText("Antes que seja tarde");
-	await expect(selector).toContainText("Memórias arquivadas (arquivada)");
+	const selector = page.getByRole("button", {
+		name: "Campanha das transcrições",
+	});
+	await expect(selector).toHaveText("Selecionar");
+	const options = await openTranscriptCampaignPicker(page);
+	await expect(
+		options.getByRole("option", { name: "Crônicas da Mesa", exact: true }),
+	).toBeVisible();
+	await expect(
+		options.getByRole("option", { name: "Antes que seja tarde", exact: true }),
+	).toBeVisible();
+	await expect(
+		options.getByRole("option", {
+			name: "Memórias arquivadas (arquivada)",
+			exact: true,
+		}),
+	).toBeVisible();
 	await expect(page.getByRole("heading", { level: 1 })).not.toContainText(
 		"yuhara-main",
 	);
@@ -348,8 +389,13 @@ test("narrative review uses an explicit campaign selector and preserves it on re
 	await expect(
 		page.getByRole("heading", {
 			level: 1,
-			name: "Revisão narrativa · Antes que seja tarde",
+			name: "Revisão narrativa",
 		}),
+	).toBeVisible();
+	await expect(
+		page
+			.locator('[data-operational-page-header="true"]')
+			.getByText("Antes que seja tarde", { exact: true }),
 	).toBeVisible();
 	await expect(
 		page.getByRole("heading", {
@@ -363,8 +409,13 @@ test("narrative review uses an explicit campaign selector and preserves it on re
 	await expect(
 		page.getByRole("heading", {
 			level: 1,
-			name: "Revisão narrativa · Antes que seja tarde",
+			name: "Revisão narrativa",
 		}),
+	).toBeVisible();
+	await expect(
+		page
+			.locator('[data-operational-page-header="true"]')
+			.getByText("Antes que seja tarde", { exact: true }),
 	).toBeVisible();
 });
 
@@ -378,8 +429,13 @@ test("archived campaign review is historical and does not expose decision contro
 	await expect(
 		page.getByRole("heading", {
 			level: 1,
-			name: "Revisão narrativa · Memórias arquivadas",
+			name: "Revisão narrativa",
 		}),
+	).toBeVisible();
+	await expect(
+		page
+			.locator('[data-operational-page-header="true"]')
+			.getByText("Memórias arquivadas", { exact: true }),
 	).toBeVisible();
 	await expect(
 		page.getByText("Campanha arquivada: leitura histórica", { exact: false }),
