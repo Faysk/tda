@@ -70,3 +70,35 @@ test("[regression #1346] Lembra preserves long campaign identity across small an
 		}
 	}
 });
+
+
+test("[regression #1341] World primary controls remain reachable at 320 and 390 CSS px", async ({
+	page,
+}) => {
+	for (const viewport of [
+		{ width: 320, height: 800 },
+		{ width: 390, height: 844 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/campanhas/cronicas-da-mesa/mundo");
+
+		const chrome = page.getByTestId("world-floating-chrome");
+		await expect(chrome).toBeVisible();
+		for (const control of [
+			chrome.getByRole("searchbox", { name: "Buscar no mundo" }),
+			chrome.getByRole("button", { name: "Filtrar por relação" }),
+			chrome.getByRole("button", { name: "Canvas" }),
+			chrome.getByRole("button", { name: "Lista" }),
+		]) {
+			await expect(control).toBeVisible();
+			const box = await control.boundingBox();
+			expect(box).not.toBeNull();
+			expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+			expect((box?.y ?? Number.POSITIVE_INFINITY) + (box?.height ?? 0)).toBeLessThanOrEqual(viewport.height);
+		}
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+			`${viewport.width}x${viewport.height}: World must not overflow horizontally`,
+		).toBe(true);
+	}
+});
