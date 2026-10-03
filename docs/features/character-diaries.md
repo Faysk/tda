@@ -2,7 +2,7 @@
 
 > Status: implementado em branch local; publicação pendente
 > Owner: narrativa / frontend
-> Última revisão: 2026-09-18
+> Última revisão: 2026-10-03
 
 ## Contrato
 
@@ -10,7 +10,7 @@ Diários são obras independentes em `/diario/<slug>`, com catálogo próprio em
 
 A decisão do autor nesta entrega autoriza a integração dos onze capítulos fornecidos e a preservação da experiência em livro. Planejamento, continuidade e guia de estilo são material local de trabalho e não entram nos arquivos públicos nem no Git.
 
-Cada diário pode preservar sua composição editorial independente. O catálogo usa o Design System do TDA; o leitor estático abre por navegação de documento completo, com CSS/JS isolados do shell React. Por decisão editorial, o catálogo fica acessível pela URL direta `/diario` e pelo rodapé do leitor, sem link no layout compartilhado ou alteração na página principal. A integração com a navegação do site será definida em entrega posterior.
+Cada diário pode preservar sua composição editorial independente. O catálogo usa o Design System do TDA; o leitor estático abre por navegação de documento completo, com CSS/JS isolados do shell React. Por decisão editorial, o catálogo fica acessível pela URL direta `/diario` e pelo rodapé do leitor, sem link no layout compartilhado ou alteração na página principal. O catálogo pode declarar `campaignTechnicalSlug` e `loreSlug` explicitamente. O nome/rota humanos da campanha são resolvidos no servidor a partir do vínculo editorial existente; uma campanha privada ou indisponível não recebe badge/link público. O vínculo não altera a URL histórica do diário nem cria entity/canon automaticamente.
 
 ## Estrutura e atualização
 
