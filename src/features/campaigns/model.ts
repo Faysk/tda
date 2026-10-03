@@ -71,6 +71,18 @@ export function normalizeCampaignRouteKey(value: string): string | null {
 	return normalized;
 }
 
+export function suggestCampaignRouteKey(value: string): string {
+	const suggested = value
+		.normalize("NFKD")
+		.replace(/\p{M}+/gu, "")
+		.toLocaleLowerCase("pt-BR")
+		.replace(/[^a-z0-9]+/gu, "-")
+		.replace(/^-+|-+$/gu, "")
+		.slice(0, 80)
+		.replace(/-+$/gu, "");
+	return normalizeCampaignRouteKey(suggested) ?? "nova-campanha";
+}
+
 export function isCampaignId(value: string): boolean {
 	return UUID.test(value);
 }
