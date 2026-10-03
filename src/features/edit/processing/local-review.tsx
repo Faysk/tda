@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { actionStyles, Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { StatusPill } from "@/components/ui/status";
 import {
 	PublicationClientError,
@@ -352,6 +353,7 @@ function ReviewEditor({
 	const publishDialog = useRef<HTMLDialogElement>(null);
 	const publishReturnFocus = useRef<HTMLElement | null>(null);
 	const [publishing, setPublishing] = useState(false);
+	const [reviewConfirmation, setReviewConfirmation] = useState<"close-dirty" | "abandon-recovery" | null>(null);
     const editingBlocked = busy || comparing || comparison !== null || publishing;
 	const [publicationErrorCode, setPublicationErrorCode] = useState<string | null>(null);
 	const [publicationReceipt, setPublicationReceipt] =
@@ -615,13 +617,15 @@ function ReviewEditor({
 	}
 
 	function attemptClose() {
-		if (
-			dirty &&
-			!window.confirm(
-				"Há alterações locais ainda não salvas. Fechar a revisão e descartá-las desta tela?",
-			)
-		)
+		if (dirty) {
+			setReviewConfirmation("close-dirty");
 			return;
+		}
+		onClose();
+	}
+
+	function discardAndCloseReview() {
+		setReviewConfirmation(null);
 		onClose();
 	}
 
@@ -651,11 +655,23 @@ function ReviewEditor({
             setPublicationRecovery(null); setPublicationErrorCode(recoveryError(cause));
         } finally { setPublishConfirmation(false); setPublishing(false); }
     }
+    function requestAbandonPublication() {
+        if (!publicationRecovery?.pending || publishing) return;
+        setReviewConfirmation("abandon-recovery");
+    }
     async function abandonPublication() {
-        if (!publicationRecovery?.pending || !window.confirm("O handoff privado anterior pode já ter sido concluído. Abandonar a recuperação não desfaz esse commit; apenas permite formar uma nova intenção editorial, que pode criar outra revisão privada. Nada é publicado no site por esta ação. Continuar?")) return;
+        if (!publicationRecovery?.pending || publishing) return;
         setPublishing(true); setPublishConfirmation(false);
-        try { await browserPublicationRecovery().abandon(review, publicationRecovery); setPublicationRecovery(null); setPublicationErrorCode(null); }
-        catch (cause) { setPublicationRecovery(null); setPublicationErrorCode(recoveryError(cause)); }
+        try {
+            await browserPublicationRecovery().abandon(review, publicationRecovery);
+            setPublicationRecovery(null);
+            setPublicationErrorCode(null);
+            setReviewConfirmation(null);
+        }
+        catch (cause) {
+            setPublicationErrorCode(recoveryError(cause));
+            setReviewConfirmation(null);
+        }
         finally { setPublishing(false); }
     }
 
@@ -858,12 +874,12 @@ function ReviewEditor({
 							</Button>
 						) : null}
 						{publicationRecovery?.pending && handoffBlocker.action !== "abandon" ? (
-							<Button type="button" variant="tertiary" disabled={publishing} onClick={() => void abandonPublication()}>
+							<Button type="button" variant="tertiary" disabled={publishing} onClick={requestAbandonPublication}>
 								Abandonar handoff anterior
 							</Button>
 						) : null}
 						{handoffBlocker.action === "abandon" ? (
-							<Button type="button" variant="secondary" disabled={publishing} onClick={() => void abandonPublication()}>
+							<Button type="button" variant="secondary" disabled={publishing} onClick={requestAbandonPublication}>
 								Abandonar handoff anterior
 							</Button>
 						) : null}
@@ -955,6 +971,77 @@ function ReviewEditor({
 					</Button>
 				</div>
 			) : null}
+
+			<Dialog
+				open={reviewConfirmation !== null}
+				title={
+					reviewConfirmation === "close-dirty"
+						? "Descartar alterações desta revisão?"
+						: "Abandonar recuperação do handoff?"
+				}
+				description={
+					reviewConfirmation === "close-dirty" ? (
+						<p>
+							Há alterações locais ainda não salvas em{" "}
+							<strong>{review.lineage.profileId}</strong>.
+						</p>
+					) : reviewConfirmation === "abandon-recovery" ? (
+						<p>
+							A intenção anterior pode já ter sido concluída no Edit. Esta ação só
+							abandona a recuperação local.
+						</p>
+					) : undefined
+				}
+				onClose={() => {
+					if (!publishing) setReviewConfirmation(null);
+				}}
+				actions={
+					reviewConfirmation ? (
+						<>
+							<Button
+								data-dialog-initial-focus
+								variant="secondary"
+								disabled={publishing}
+								onClick={() => setReviewConfirmation(null)}
+							>
+								Continuar editando
+							</Button>
+							<Button
+								variant="secondary"
+								disabled={publishing}
+								onClick={() => {
+									if (reviewConfirmation === "close-dirty") {
+										discardAndCloseReview();
+										return;
+									}
+									void abandonPublication();
+								}}
+							>
+								{publishing
+									? "Processando…"
+									: reviewConfirmation === "close-dirty"
+										? "Descartar alterações"
+										: "Abandonar recuperação"}
+							</Button>
+						</>
+					) : null
+				}
+			>
+				{reviewConfirmation === "close-dirty" ? (
+					<p>
+						O run bruto e qualquer revisão já salva continuam preservados. Somente a
+						working copy não salva desta tela será descartada.
+					</p>
+				) : reviewConfirmation === "abandon-recovery" ? (
+					<>
+						<p>
+							Abandonar não desfaz um commit privado que já possa ter ocorrido. Uma
+							nova intenção posterior pode criar outra revisão privada.
+						</p>
+						<p>Nada é publicado no site público por esta ação.</p>
+					</>
+				) : null}
+			</Dialog>
 
 			{review.lineage.executionLineage?.runtimeArtifact ? (
 				<details className={styles.warnings}>
