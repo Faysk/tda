@@ -19,6 +19,7 @@ from tda_companion.benchmark_bundles import (
     benchmark_root,
     benchmark_sample_descriptor,
     benchmark_sample_identity,
+    claim_benchmark_outcome,
     finalize_benchmark_bundle,
     load_benchmark_bundle,
     read_benchmark_transcript,
@@ -279,6 +280,39 @@ def test_profile_commit_failure_cleans_non_ambiguous_partial_artifact(tmp_path: 
         / "profiles"
         / "whisper-turbo"
     ).exists()
+
+
+def test_cancel_fence_wins_before_top_manifest_and_preserves_profile_evidence(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    package = _package()
+    job_id = "cancel-fence-job"
+    receipts = _profile_receipts(data_root, job_id, 1)
+
+    assert claim_benchmark_outcome(data_root, job_id, 1, "cancel") == "cancel"
+    with pytest.raises(BenchmarkBundleError, match="BENCHMARK_ATTEMPT_CANCELLED"):
+        finalize_benchmark_bundle(
+            data_root,
+            job_id=job_id,
+            attempt=1,
+            source_id=SOURCE_ID,
+            source_sha256=SOURCE_SHA,
+            sample=benchmark_sample_descriptor(package),
+            sample_identity_sha256=benchmark_sample_identity(package),
+            sample_seconds=300.0,
+            track_count=1,
+            audio_work_seconds=300.0,
+            context="",
+            glossary="",
+            profile_receipts=receipts,
+        )
+
+    root = benchmark_root(data_root, benchmark_id_for(job_id, 1))
+    assert not (root / "benchmark.json").exists()
+    assert all(
+        (root / "profiles" / profile_id / "profile.json").is_file()
+        for profile_id in BENCHMARK_PROFILES
+    )
 
 
 def test_crash_before_top_manifest_preserves_profiles_but_not_completed_bundle(
