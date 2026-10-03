@@ -88,26 +88,43 @@ function syntheticAccess(state: string | undefined): AccountOverviewAccess {
 export default async function AccountOverviewE2EFixture({
 	searchParams,
 }: {
-	searchParams: Promise<{ state?: string }>;
+	searchParams: Promise<{ state?: string; campanha?: string }>;
 }) {
 	if (process.env.TDA_E2E_FIXTURES !== "true") notFound();
 	const query = await searchParams;
+
+	const campaigns =
+		query.state === "unavailable"
+			? null
+			: query.state === "anonymous" ||
+					query.state === "unlinked" ||
+					query.state === "no-grants"
+				? []
+				: query.state === "multi"
+					? multiCampaigns
+					: fixtureCampaigns;
+	const requestedCampaign = query.campanha ?? null;
+	const selectedCampaign =
+		campaigns === null
+			? null
+			: campaigns.find(
+					(campaign) => campaign.technicalSlug === requestedCampaign,
+				) ??
+				(requestedCampaign === null && campaigns.length === 1
+					? campaigns[0]
+					: null);
 
 	return (
 		<AccountOverview
 			access={syntheticAccess(query.state)}
 			accessNotice={null}
 			authEnabled={true}
-			campaigns={
-				query.state === "unavailable"
-					? null
-					: query.state === "anonymous" ||
-						query.state === "unlinked" ||
-						query.state === "no-grants"
-						? []
-						: query.state === "multi"
-							? multiCampaigns
-							: fixtureCampaigns
+			campaigns={campaigns}
+			selectedCampaignSlug={selectedCampaign?.technicalSlug ?? null}
+			requestedCampaignUnavailable={
+				requestedCampaign !== null &&
+				campaigns !== null &&
+				selectedCampaign === null
 			}
 		/>
 	);
