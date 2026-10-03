@@ -1476,37 +1476,158 @@ export function LembraExperience({
 										/>
 									</label>
 									<div className={styles.field}>
-						<span>Campanha</span>
-						{selectedReference.campaignRestricted ? (
-							<small className={styles.fieldHint}>
-								Classificação restrita. Você pode editar nome e descrição, mas
-								não alterar esse vínculo sem acesso à campanha.
-							</small>
-						) : (
-							<Select
-								value={editCampaignId ?? ""}
-								options={
-									selectedReference.campaign?.lifecycle === "archived"
-										? [
-											{ value: "", label: "Geral" },
-											{
-												value: selectedReference.campaign.id,
-												label: `${selectedReference.campaign.name} · arquivada`,
-											},
-											...activeCampaignOptions.filter(
-												(option) =>
-													option.value !== selectedReference.campaign?.id,
-											),
-										]
-										: activeCampaignOptions
-								}
-								onChange={(value) => {
-									setEditCampaignId(value || null);
-									setEditCampaignChanged(true);
-								}}
-								ariaLabel="Campanha da referência"
-							/>
-						)}
+										<span>Campanha</span>
+										{selectedReference.campaignRestricted ? (
+											<small className={styles.fieldHint}>
+												Classificação restrita. Você pode editar nome e descrição, mas
+												não alterar esse vínculo sem acesso à campanha.
+											</small>
+										) : (
+											<Select
+												value={editCampaignId ?? ""}
+												options={
+													selectedReference.campaign?.lifecycle === "archived"
+														? [
+															{ value: "", label: "Geral" },
+															{
+																value: selectedReference.campaign.id,
+																label: `${selectedReference.campaign.name} · arquivada`,
+															},
+															...activeCampaignOptions.filter(
+																(option) =>
+																	option.value !== selectedReference.campaign?.id,
+															),
+														]
+														: activeCampaignOptions
+												}
+												onChange={(value) => {
+													setEditCampaignId(value || null);
+													setEditCampaignChanged(true);
+												}}
+												ariaLabel="Campanha da referência"
+											/>
+										)}
+									</div>
+									<div className={styles.viewerEditActions}>
+										<Button
+											type="button"
+											variant="tertiary"
+											onClick={cancelEditing}
+											disabled={saving}
+										>
+											Cancelar
+										</Button>
+										<Button
+											pending={saving}
+											pendingLabel="Salvando…"
+											type="submit"
+											variant="primary"
+										>
+											Salvar
+										</Button>
+									</div>
+								</form>
+							) : (
+								<div className={styles.viewerInfo}>
+									<h2 id={`viewer-title-${selectedReference.id}`}>
+										{selectedReference.title}
+									</h2>
+									{selectedReference.description ? (
+										<p className={styles.viewerDescription}>
+											{selectedReference.description}
+										</p>
+									) : (
+										<p className={styles.viewerDescriptionMuted}>
+											Sem descrição. A imagem fala por si.
+										</p>
+									)}
+								</div>
+							)}
+
+							<div className={styles.viewerMeta}>
+								<div>
+									<span>Publicado por</span>
+									<strong>{selectedReference.author}</strong>
+								</div>
+								<div>
+									<span>Data</span>
+									<time dateTime={selectedReference.createdAt}>
+										{LONG_DATE_FORMATTER.format(new Date(selectedReference.createdAt))}
+									</time>
+								</div>
+								<div>
+									<span>Campanha</span>
+									<strong>
+										{selectedReference.campaignRestricted
+											? "Classificação restrita"
+											: selectedReference.campaign
+												? `${selectedReference.campaign.name}${selectedReference.campaign.lifecycle === "archived" ? " · arquivada" : ""}`
+												: "Geral"}
+									</strong>
+								</div>
+							</div>
+
+							{confirmRemove ? (
+								<fieldset className={styles.viewerRemoveConfirm}>
+									<legend className={styles.visuallyHidden}>Confirmar remoção</legend>
+									<div>
+										<strong>Remover esta referência?</strong>
+										<span>Ela some do Lembra para todo mundo.</span>
+									</div>
+									<div className={styles.viewerRemoveActions}>
+										<Button
+											type="button"
+											variant="tertiary"
+											onClick={() => setConfirmRemove(false)}
+											disabled={saving}
+										>
+											Cancelar
+										</Button>
+										<Button
+											type="button"
+											variant="secondary"
+											onClick={removeSelectedReference}
+											pending={saving}
+											pendingLabel="Removendo…"
+										>
+											Remover
+										</Button>
+									</div>
+								</fieldset>
+							) : (
+								<div className={styles.viewerManageActions}>
+									<button
+										type="button"
+										onClick={() => startEditing(selectedReference)}
+										disabled={saving || editing}
+									>
+										Editar
+									</button>
+									<button
+										type="button"
+										className={styles.viewerDangerAction}
+										onClick={() => {
+											setEditing(false);
+											setConfirmRemove(true);
+										}}
+										disabled={saving}
+									>
+										Remover
+									</button>
+								</div>
+							)}
+
+							<div className={styles.viewerHints} aria-hidden="true">
+								{editing ? (
+									<span>Esc cancelar edição</span>
+								) : (
+									<>
+										<span>← → navegar</span>
+										<span>Esc fechar</span>
+									</>
+								)}
+							</div>
+						</aside>
 					</div>
 				) : null}
 			</dialog>
