@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
-import type { SessionArchiveItem } from "@/features/sessions/archive";
+import {\n\tlistSessionArcOptions,\n\tsessionArcIdentity,\n\ttype SessionArchiveItem,\n} from "@/features/sessions/archive";
 import { formatSessionDate, sessionPublicKey, sessionPublicPath } from "@/features/sessions/model";
 import styles from "./session-list.module.css";
 
@@ -237,14 +237,10 @@ export function SessionList({
 
 	const arcs = useMemo(
 		() =>
-			Array.from(
-				new Set(
-					sessions
-						.map((session) => session.arc.trim())
-						.filter((value) => value.length > 0),
-				),
-			).sort(collator.compare),
-		[sessions],
+			listSessionArcOptions(sessions, {
+				qualifyByCampaign: showCampaignFilter,
+			}),
+		[sessions, showCampaignFilter],
 	);
 
 	const campaigns = useMemo(() => {
@@ -264,11 +260,37 @@ export function SessionList({
 
 	const showCampaignSelect = showCampaignFilter && campaigns.length > 1;
 
+	const arcCampaigns = useMemo(() => {
+		const byArc = new Map<string, Set<string>>();
+		for (const option of arcs) {
+			const campaignsForArc =
+				byArc.get(option.normalizedArc) ?? new Set<string>();
+			campaignsForArc.add(option.campaignSlug);
+			byArc.set(option.normalizedArc, campaignsForArc);
+		}
+		return byArc;
+	}, [arcs]);
+
+	const visibleArcs = useMemo(
+		() =>
+			showCampaignFilter && campaign !== "all"
+				? arcs.filter((option) => option.campaignSlug === campaign)
+				: arcs,
+		[arcs, campaign, showCampaignFilter],
+	);
+
 	const visible = useMemo(() => {
 		const needle = normalizeSearch(query.trim());
 		const items = sessions.filter((session) => {
 			if (campaign !== "all" && session.campaignSlug !== campaign) return false;
-			if (arc !== "all" && session.arc !== arc) return false;
+			if (
+				arc !== "all" &&
+				sessionArcIdentity(session, {
+					qualifyByCampaign: showCampaignFilter,
+				}) !== arc
+			) {
+				return false;
+			}
 			if (!needle) return true;
 			return normalizeSearch(
 				`${session.title} ${session.campaignName} ${session.arc} ${session.summary}`,
@@ -279,7 +301,7 @@ export function SessionList({
 			if (sort === "title") return collator.compare(a.title, b.title);
 			return compareDates(a, b, sort === "oldest");
 		});
-	}, [arc, campaign, query, sessions, sort]);
+	}, [arc, campaign, query, sessions, showCampaignFilter, sort]);
 
 	const filtered =
 		query.trim().length > 0 ||
@@ -329,7 +351,10 @@ export function SessionList({
 						<span className={styles.srOnly}>Filtrar por campanha</span>
 						<select
 							value={campaign}
-							onChange={(event) => setCampaign(event.target.value)}
+							onChange={(event) => {
+								setCampaign(event.target.value);
+								setArc("all");
+							}}
 						>
 							<option value="all">Todas as campanhas</option>
 							{campaigns.map((item) => (
@@ -345,11 +370,19 @@ export function SessionList({
 					<span className={styles.srOnly}>Filtrar por arco</span>
 					<select value={arc} onChange={(event) => setArc(event.target.value)}>
 						<option value="all">Todos os arcos</option>
-						{arcs.map((value) => (
-							<option key={value} value={value}>
-								{value}
-							</option>
-						))}
+						{visibleArcs.map((option) => {
+							const duplicateAcrossCampaigns =
+								showCampaignFilter &&
+								campaign === "all" &&
+								(arcCampaigns.get(option.normalizedArc)?.size ?? 0) > 1;
+							return (
+								<option key={option.identity} value={option.identity}>
+									{duplicateAcrossCampaigns
+										? `${option.label} — ${option.campaignName}`
+										: option.label}
+								</option>
+							);
+						})}
 					</select>
 				</label>
 
