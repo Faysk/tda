@@ -73,6 +73,31 @@ temporais. Telemetria usa amostragem assíncrona versionada e não altera
 cancelamento pode preservar diagnóstico parcial sanitizado, mas nunca produz
 bundle concluído nem quality receipt. Este Benchmark não substitui o aceite físico
 de release definido em #478.
+
+#### Handoff de aceite físico do Benchmark
+
+O CI prova o contrato sintético, não a qualidade real dos engines. No host Windows/GPU
+suportado, um aceite físico deliberado deve usar uma source Craig privada escolhida pelo
+operador e seguir esta sequência:
+
+1. registrar Companion/runtime/model/GPU e os SHA-256 exatos dos artefatos preparados;
+2. executar uma única vez o Benchmark canônico de 5:00, sem reutilizar checkpoints;
+3. reabrir o receipt e confirmar 4/4 perfis, o mesmo `sample_identity_sha256` e leitura
+   verificada dos quatro `transcript.json`;
+4. abrir a comparação A/B, conferir métricas/events/telemetria e exportar o ZIP privado;
+5. validar localmente que o ZIP contém manifest, quatro transcripts e diagnósticos, sem
+   áudio, tokens, paths privados ou logs globais;
+6. opcionalmente criar uma pequena referência humana local e confirmar que WER/CER e
+   métricas temporais compatíveis recomputam contra a revisão exata;
+7. reiniciar/reabrir o Companion e confirmar que o bundle continua legível sem depender
+   da linha da fila.
+
+Se governança exigir receipt persistido no repositório, ele deve ser **metadata-only**:
+benchmark/sample/manifest hashes, versões e hashes de runtime/model, GPU/driver, contagens,
+cobertura de telemetria, schemas de métrica e PASS/FAIL dos gates estruturais. Nunca
+commitar áudio, transcript/reference text, nomes de speakers, filename/path local,
+hostname/username ou qualquer segredo. O ZIP privado continua fora do Git.
+
 Desde #1233, prontidão de transcrição e prontidão de benchmark são contratos
 separados. Whisper Runtime 1.1.5 permanece aceito para transcrição normal, mas não
 pode ser anunciado como pronto para benchmark; o primeiro runtime que satisfaz o
