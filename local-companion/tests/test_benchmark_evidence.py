@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -15,13 +14,18 @@ from tda_companion.benchmark_evidence import (
     load_bundle,
     normalize_telemetry_samples,
     private_export_zip,
+    sanitize_benchmark_message,
+    telemetry_summary_from_bytes,
     verified_profile_bytes,
     write_profile_artifact,
     write_profile_events,
+    write_failed_profile_diagnostics,
     write_profile_telemetry,
 )
 from tda_companion.benchmark_quality import normalize_text, quality_summary, save_reference
 from tda_companion.engine_metrics import EngineMeasurement
+from tda_companion.store import Store
+from tda_companion.worker_protocol import WorkerMessage
 from tda_companion.transcript import (
     TranscriptDocument,
     TranscriptEngine,
@@ -108,9 +112,13 @@ def _document(profile: str, text: str, source_sha: str = "a" * 64) -> Transcript
     )
 
 
-def _complete_bundle(tmp_path: Path, texts: dict[str, str] | None = None):
-    job_id = "benchmark-test"
-    attempt = 1
+def _complete_bundle(
+    tmp_path: Path,
+    texts: dict[str, str] | None = None,
+    *,
+    job_id: str = "benchmark-test",
+    attempt: int = 1,
+):
     sample_sha = "c" * 64
     benchmark_id = benchmark_id_for(job_id, attempt)
     for profile in PROFILES:
@@ -169,6 +177,7 @@ def _complete_bundle(tmp_path: Path, texts: dict[str, str] | None = None):
             ],
             lineage=_lineage(profile),
             interval_ms=1000,
+            elapsed_ms=3_000,
         )
         assert "SECRET" not in json.dumps(telemetry)
         write_profile_telemetry(tmp_path, benchmark_id, profile, telemetry)
@@ -183,7 +192,7 @@ def _complete_bundle(tmp_path: Path, texts: dict[str, str] | None = None):
         sample_seconds=300.0,
         context="private context",
         glossary="Valyndra",
-        execution_mode="prepared_artifacts_fresh_worker_per_profile_v1",
+        execution_mode="prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2",
     )
     return benchmark_id, bundle
 
@@ -306,3 +315,206 @@ def test_reference_is_cas_versioned_and_quality_receipt_contains_no_reference_te
     assert first["revision"] == 1
     assert "SEGREDO HUMANO" not in quality
     assert "1-Alice.flac" not in quality
+
+
+def test_telemetry_jsonl_records_sampling_semantics_coverage_and_exact_gpu(tmp_path: Path):
+    benchmark_id, _ = _complete_bundle(tmp_path)
+    payload = verified_profile_bytes(tmp_path, benchmark_id, "whisper-turbo", "telemetry")
+    rows = [json.loads(line) for line in payload.splitlines()]
+    summary = telemetry_summary_from_bytes(payload)
+
+    assert rows[0]["record_type"] == "summary"
+    assert summary["sampling_mode"] == "daemon_thread_outside_engine_processing_timer_v1"
+    assert summary["interval_ms"] == 1000
+    assert summary["expected_samples"] == 3
+    assert summary["captured_samples"] == 1
+    assert summary["coverage"] == pytest.approx(1 / 3, abs=1e-6)
+    assert summary["selected_gpu"]["uuid"] == "GPU-test"
+    assert summary["selected_gpu"]["pci_bus_id"] == "0000:01:00.0"
+    assert rows[1]["record_type"] == "sample"
+    assert rows[1]["profile_id"] == "whisper-turbo"
+    assert "host" not in rows[1]
+    assert "SECRET" not in payload.decode("utf-8")
+
+
+def test_telemetry_never_falls_back_to_wrong_gpu_when_exact_identity_is_present():
+    telemetry = normalize_telemetry_samples(
+        [
+            {
+                "sampled_at": "2026-10-03T00:00:01Z",
+                "cpu": {"utilization_percent": 10},
+                "memory": {"used_bytes": 100, "percent": 10},
+                "gpus": [
+                    {
+                        "uuid": "GPU-wrong",
+                        "pci_bus_id": "0000:02:00.0",
+                        "name": "Synthetic GPU",
+                        "utilization_percent": 99,
+                        "memory_used_bytes": 999,
+                    },
+                    {
+                        "uuid": "GPU-test",
+                        "pci_bus_id": "0000:01:00.0",
+                        "name": "Synthetic GPU",
+                        "utilization_percent": 55,
+                        "memory_used_bytes": 555,
+                    },
+                ],
+            }
+        ],
+        lineage=_lineage("whisper-turbo"),
+        interval_ms=1000,
+        elapsed_ms=1000,
+    )
+    assert telemetry["aggregates"]["gpu_utilization_peak_percent"] == 55
+    assert telemetry["aggregates"]["vram_peak_bytes"] == 555
+
+
+def test_benchmark_event_sink_drops_speaker_paths_tokens_and_transcript_like_extras():
+    message = WorkerMessage.create(
+        job_id="benchmark-privacy",
+        attempt=1,
+        seq=7,
+        type="event",
+        payload={
+            "code": "TRACK_STARTED",
+            "stage": "transcription",
+            "track": 1,
+            "total_tracks": 2,
+            "speaker": "SEGREDO TRANSCRITO Alice@example.com C:\\Users\\Alice",
+            "Authorization": "Bearer super-secret",
+            "cookie": "session=super-secret",
+            "transcript": "frase privada que nunca deveria entrar no diagnóstico",
+            "path": "/home/alice/private/session.flac",
+        },
+    )
+    row = sanitize_benchmark_message(
+        message,
+        benchmark_id=benchmark_id_for("benchmark-privacy", 1),
+        profile_id="qwen-fast",
+        sample_identity_sha256="d" * 64,
+        relative_ms=123,
+    )
+    assert row is not None
+    encoded = json.dumps(row, ensure_ascii=False)
+    assert row["code"] == "TRACK_STARTED"
+    assert row["data"]["track"] == 1
+    assert "speaker" not in row["data"]
+    assert "Alice" not in encoded
+    assert "Authorization" not in encoded
+    assert "super-secret" not in encoded
+    assert "frase privada" not in encoded
+    assert "session.flac" not in encoded
+
+
+def test_event_sink_rejects_non_monotonic_sequence(tmp_path: Path):
+    benchmark_id = benchmark_id_for("benchmark-event-order", 1)
+    profile = "qwen-fast"
+    write_profile_artifact(
+        tmp_path,
+        _document(profile, "texto"),
+        benchmark_id=benchmark_id,
+        job_id="benchmark-event-order",
+        attempt=1,
+        profile_id=profile,
+        sample_identity_sha256="d" * 64,
+        sample_seconds=300.0,
+        execution_lineage=_lineage(profile),
+    )
+    base = {
+        "schema_version": "tda_benchmark_event_v1",
+        "at": "2026-10-03T00:00:00.000Z",
+        "relative_ms": 0,
+        "benchmark_id": benchmark_id,
+        "attempt": 1,
+        "profile_id": profile,
+        "sample_identity_sha256": "d" * 64,
+        "type": "ready",
+        "stage": None,
+        "code": "WORKER_READY",
+        "data": {},
+    }
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_EVENT_SEQUENCE_INVALID"):
+        write_profile_events(
+            tmp_path,
+            benchmark_id,
+            profile,
+            [{**base, "seq": 2}, {**base, "seq": 2}],
+        )
+
+
+def test_failed_profile_diagnostics_survive_without_completed_bundle(tmp_path: Path):
+    benchmark_id = benchmark_id_for("benchmark-failed", 1)
+    telemetry = normalize_telemetry_samples(
+        [],
+        lineage={},
+        interval_ms=1000,
+        elapsed_ms=2500,
+    )
+    failure = write_failed_profile_diagnostics(
+        tmp_path,
+        benchmark_id=benchmark_id,
+        job_id="benchmark-failed",
+        attempt=1,
+        profile_id="whisper-turbo",
+        sample_identity_sha256="e" * 64,
+        terminal="error",
+        failure_payload={"code": "WHISPER_RUNTIME_UNAVAILABLE", "stage": "benchmark_worker_launch"},
+        events=[
+            {
+                "schema_version": "tda_benchmark_event_v1",
+                "seq": 0,
+                "at": "2026-10-03T00:00:00.000Z",
+                "relative_ms": 10,
+                "benchmark_id": benchmark_id,
+                "attempt": 1,
+                "profile_id": "whisper-turbo",
+                "sample_identity_sha256": "e" * 64,
+                "type": "error",
+                "stage": "benchmark_worker_launch",
+                "code": "WORKER_ERROR",
+                "data": {"code": "WHISPER_RUNTIME_UNAVAILABLE"},
+            }
+        ],
+        telemetry=telemetry,
+    )
+    root = tmp_path / "benchmarks" / benchmark_id
+    assert failure["terminal"] == "error"
+    assert not (root / "benchmark.json").exists()
+    assert not list(root.rglob("transcript.json"))
+    assert (root / "partial" / "whisper-turbo" / "attempt-0001" / "events.jsonl").is_file()
+    assert (root / "partial" / "whisper-turbo" / "attempt-0001" / "telemetry.jsonl").is_file()
+
+
+def test_queue_cleanup_does_not_delete_committed_benchmark_evidence(tmp_path: Path):
+    store = Store(tmp_path)
+    body = {
+        "kind": "benchmark.craig",
+        "campaign_id": "benchmark-local",
+        "session_id": "benchmark-local",
+        "source_id": "craig-" + "a" * 64,
+        "glossary": "",
+        "context": "",
+        "units": 4,
+        "sample_seconds": 300.0,
+        "sample_identity_sha256": "c" * 64,
+        "track_count": 1,
+        "audio_work_seconds": 300.0,
+        "profiles": list(PROFILES),
+        "prepared": True,
+    }
+    job = store.submit("benchmark-evidence-retention", body)
+    claim = store.claim()
+    assert claim is not None and claim[0] == job["id"]
+    benchmark_id, _ = _complete_bundle(
+        tmp_path,
+        job_id=job["id"],
+        attempt=claim[1],
+    )
+    store.fail(*claim, "SYNTHETIC_TERMINAL_FAILURE")
+    assert store.remove(job["id"]) == {"deleted": True, "id": job["id"]}
+
+    manifest = load_bundle(tmp_path, benchmark_id)
+    assert manifest["job_id"] == job["id"]
+    assert manifest["attempt"] == claim[1]
+    assert len(manifest["profiles"]) == 4
