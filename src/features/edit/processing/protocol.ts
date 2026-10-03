@@ -2277,8 +2277,10 @@ export function parseBenchmarkResult(
 		benchmarkId:
 			row.benchmark_id === undefined || row.benchmark_id === null
 				? null
-				: /^benchmark-[0-9a-f]{32}$/u.test(text(row.benchmark_id, 64))
-					? text(row.benchmark_id, 64)
+				: /^benchmark-(?:[0-9a-f]{32}|[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5})$/u.test(
+						text(row.benchmark_id, 196),
+					)
+					? text(row.benchmark_id, 196)
 					: invalid(),
 		bundleManifestSha256:
 			row.bundle_manifest_sha256 === undefined ||
