@@ -871,3 +871,35 @@ test("retired grouping preference stays absent across responsive diagnostics", a
 	}
 });
 
+
+
+test("processing tab transitions never leak a page scroll lock across mobile and zoom reflow", async ({
+	page,
+}) => {
+	for (const viewport of [
+		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 960, height: 540 },
+	]) {
+		await openRunningWorkspace(page, viewport.width, viewport.height);
+
+		for (const label of ["Fila", "Resultados", "Diagnóstico", "Visão geral"]) {
+			await page.getByRole("tab", { name: label, exact: true }).click();
+			await expect(
+				page.getByRole("tabpanel", { name: label, exact: true }),
+			).toBeVisible();
+
+			const overflow = await page.evaluate(() => ({
+				html: getComputedStyle(document.documentElement).overflowY,
+				body: getComputedStyle(document.body).overflowY,
+				scrollWidth: document.documentElement.scrollWidth,
+				clientWidth: document.documentElement.clientWidth,
+			}));
+			expect(overflow.html).not.toBe("hidden");
+			expect(overflow.body).not.toBe("hidden");
+			expect(overflow.scrollWidth).toBeLessThanOrEqual(
+				overflow.clientWidth + 1,
+			);
+		}
+	}
+});
