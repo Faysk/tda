@@ -59,13 +59,13 @@ from .qwen_prefix_checkpoint import (
     save_qwen_text_prefix_checkpoint,
     should_flush_qwen_text_prefix,
 )
-from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment, TranscriptTrack, TranscriptWord, stats_for_tracks
+from .transcript import TranscriptDocument, TranscriptEngine, TranscriptSegment, TranscriptTrack, TranscriptValidationError, TranscriptWord, stats_for_tracks
 
 QWEN_WINDOW_OVERLAP_SECONDS = 6.0
 QWEN_WINDOW_STRIDE_SECONDS = QWEN_WINDOW_SECONDS - QWEN_WINDOW_OVERLAP_SECONDS
-QWEN_ALIGNMENT_POLICY = "strict-overlap-v4"
-QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
-QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v2"
+QWEN_ALIGNMENT_POLICY = "strict-overlap-v5"
+QWEN_PREVIOUS_TEXT_ALIGNMENT_POLICY = "strict-overlap-v4"
+QWEN_LEGACY_TEXT_ALIGNMENT_POLICY = "strict-overlap-v3"
 _ALIGNMENT_FAILURE_CLASS = re.compile(r"^[A-Z0-9_]{1,96}$")
 _RUNTIME_VERSION_FIELD = re.compile(r"(?:^|;)runtime=([0-9]+\.[0-9]+\.[0-9]+)(?:;|$)")
 _RUNTIME_WORKER_SHA256_FIELD = re.compile(r"(?:^|;)worker_sha256=([0-9a-f]{64})(?:;|$)")
@@ -88,6 +88,39 @@ _ALIGNMENT_DIAGNOSTIC_KEYS = frozenset(
         "owned_word_count",
     }
 )
+_TRACK_VALIDATION_FAILURES = {
+    "segment:WORDS_OUT_OF_ORDER": "QWEN_TRACK_WORDS_OUT_OF_ORDER",
+    "track.segment:AFTER_DURATION": "QWEN_TRACK_SEGMENT_AFTER_DURATION",
+    "track.segment:DUPLICATE_ID": "QWEN_TRACK_SEGMENT_DUPLICATE_ID",
+    "track.segments:OUT_OF_ORDER": "QWEN_TRACK_SEGMENTS_OUT_OF_ORDER",
+}
+
+
+def _track_validation_failure_class(error: TranscriptValidationError) -> str:
+    return _TRACK_VALIDATION_FAILURES.get(
+        str(error),
+        "QWEN_TRACK_VALIDATION_FAILED",
+    )
+
+
+def _ordered_track_segments(
+    segments: Iterable[TranscriptSegment],
+) -> tuple[tuple[TranscriptSegment, ...], int]:
+    original = tuple(segments)
+    ordered = tuple(
+        sorted(
+            original,
+            key=lambda segment: (segment.start, segment.end, segment.id),
+        )
+    )
+    reordered = sum(
+        1
+        for before, after in zip(original, ordered, strict=True)
+        if before.id != after.id
+    )
+    return ordered, reordered
+
+
 def _runtime_identity_metadata(fingerprint: str) -> dict[str, str]:
     version = _RUNTIME_VERSION_FIELD.search(fingerprint)
     worker = _RUNTIME_WORKER_SHA256_FIELD.search(fingerprint)
@@ -1299,17 +1332,44 @@ def transcribe_craig_package_qwen_strict(
                     window = next_window
                 if seen != set(expected_by_index):
                     raise QwenRuntimeError("QWEN_WINDOW_REPLAY_MISMATCH")
+                ordered_segments, reordered_segment_count = _ordered_track_segments(
+                    segments
+                )
+                if reordered_segment_count:
+                    report(
+                        {
+                            "type": "event",
+                            "code": "QWEN_TRACK_SEGMENTS_REORDERED",
+                            "stage": "alignment",
+                            "track": track.number,
+                            "total_tracks": total_tracks,
+                            "count": reordered_segment_count,
+                        }
+                    )
                 transcript_track = TranscriptTrack(
                     number=track.number,
                     speaker=track.speaker,
                     source_filename=track.filename,
                     source_sha256=track.sha256,
                     duration_seconds=round(duration, 3),
-                    segments=tuple(segments),
+                    segments=ordered_segments,
                     timeline_offset_seconds=track.timeline_offset_seconds,
                     identity=asdict(track.identity) if track.identity is not None else None,
                 )
-                transcript_track.validate()
+                try:
+                    transcript_track.validate()
+                except TranscriptValidationError as exc:
+                    report(
+                        {
+                            "type": "event",
+                            "code": "QWEN_TRACK_VALIDATION_FAILED",
+                            "stage": "alignment",
+                            "track": track.number,
+                            "total_tracks": total_tracks,
+                            "failure_class": _track_validation_failure_class(exc),
+                        }
+                    )
+                    raise
                 new_tracks[track.number] = transcript_track
                 if checkpoints:
                     try:
