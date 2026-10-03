@@ -8,6 +8,7 @@ on:
       - "tests/campaign-isolation.spec.ts"
       - "tests/campaign-directory.spec.ts"
       - "tests/product-coherence.spec.ts"
+      - "tests/product-coherence-interactions.spec.ts"
       - "tests/world-edge-anchor-geometry.spec.ts"
       - "tests/global-navigation.spec.ts"
       - "tools/ci/campaign-isolation-*.mjs"
@@ -17,6 +18,15 @@ on:
       - "src/app/lore/**"
       - "src/app/sessoes/**"
       - "src/app/mundo/**"
+      - "src/app/personagens/**"
+      - "src/app/npcs/**"
+      - "src/app/lugares/**"
+      - "src/app/faccoes/**"
+      - "src/app/quests/**"
+      - "src/app/musicas/**"
+      - "src/app/diario/**"
+      - "src/app/lembra/**"
+      - "src/app/conta/**"
       - "src/app/transcricoes/**"
       - "src/app/edit/**"
       - "src/components/public-navigation-model.ts"
@@ -47,6 +57,7 @@ on:
       - "tests/campaign-isolation.spec.ts"
       - "tests/campaign-directory.spec.ts"
       - "tests/product-coherence.spec.ts"
+      - "tests/product-coherence-interactions.spec.ts"
       - "tests/world-edge-anchor-geometry.spec.ts"
       - "tests/global-navigation.spec.ts"
       - "tools/ci/campaign-isolation-*.mjs"
@@ -56,6 +67,15 @@ on:
       - "src/app/lore/**"
       - "src/app/sessoes/**"
       - "src/app/mundo/**"
+      - "src/app/personagens/**"
+      - "src/app/npcs/**"
+      - "src/app/lugares/**"
+      - "src/app/faccoes/**"
+      - "src/app/quests/**"
+      - "src/app/musicas/**"
+      - "src/app/diario/**"
+      - "src/app/lembra/**"
+      - "src/app/conta/**"
       - "src/app/transcricoes/**"
       - "src/app/edit/**"
       - "src/components/public-navigation-model.ts"
@@ -297,6 +317,16 @@ jobs:
           --config playwright.config.ts
           --project=mobile
           --grep "multi-campaign tool launcher requires explicit context|explicit unauthorized campaign context never falls back|campaign-scoped public routes select the matching tool context|390 CSS px keeps the campaign launcher usable|tool launcher never invents an unauthorized sibling campaign|public navigation remains usable while auth projection is pending or unavailable"
+      - name: Upload sanitized interaction measurements
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: campaign-browser-interactions-${{ env.SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/interaction-*.png
+            test-results/**/interaction-*.json
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Upload sanitized browser failures
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -485,9 +515,10 @@ jobs:
             productCoherence: {
               issue: 1288,
               semanticSpec: "tests/product-coherence.spec.ts",
+              interactionSpec: "tests/product-coherence-interactions.spec.ts",
               worldGeometrySpec: "tests/world-edge-anchor-geometry.spec.ts",
-              requiredViewports: ["390x844", "1366x768", "683x384-200%-proxy"],
-              surfaces: ["home", "campaign-directory", "aggregate-sessions", "scoped-sessions", "session-reader", "lore", "world", "authenticated-edit-navigation"],
+              requiredViewports: ["320x720", "390x844", "1366x768", "683x384-200%-proxy"],
+              surfaces: ["home", "campaign-directory", "aggregate-sessions", "scoped-sessions", "session-reader", "lore", "world", "authenticated-edit-navigation", "global-menu-interactions"],
             },
             activationReady: readiness.ready,
             negativeCaseCount: matrix.negativeCaseCount,
