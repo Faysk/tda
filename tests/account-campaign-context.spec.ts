@@ -20,7 +20,7 @@ test("account names the single campaign and keeps technical identity secondary",
 			.locator('[data-account-campaign-summary="true"]')
 			.getByText("Destino Sem Fim", { exact: true }),
 	).toBeVisible();
-	await expect(page.getByRole("combobox", { name: "Campanha consultada" })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Campanha consultada" })).toHaveCount(0);
 
 	await page.getByText("Administração", { exact: true }).click();
 	const administration = page.locator("details[open]").filter({ hasText: "Administração" });
@@ -37,14 +37,24 @@ test("A+B requires an explicit choice and separates project authority from campa
 	page,
 }) => {
 	await page.goto("/e2e-fixtures/account-overview?mode=multi");
-	const selector = page.getByRole("combobox", { name: "Campanha consultada" });
+	const selector = page.getByRole("button", { name: "Campanha consultada" });
 	await expect(selector).toBeVisible();
-	await expect(selector).toHaveValue("");
-	await expect(selector.locator("option")).toContainText([
-		"Escolha uma campanha",
-		"Destino Sem Fim",
-		"Passos Retomados",
-	]);
+	await expect(selector).toContainText("Escolha uma campanha");
+	await selector.click();
+	const campaignOptions = page.getByRole("listbox", { name: "Campanha consultada" });
+	await expect(campaignOptions).toBeVisible();
+	await expect(campaignOptions.getByRole("option")).toHaveCount(3);
+	await expect(
+		campaignOptions.getByRole("option", { name: "Destino Sem Fim", exact: true }),
+	).toBeVisible();
+	await expect(
+		campaignOptions.getByRole("option", {
+			name: "Passos Retomados — nome sintético deliberadamente comprido para reflow",
+			exact: true,
+		}),
+	).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(selector).toBeFocused();
 	await expect(
 		page.getByText("Escolha uma campanha para ver as permissões efetivas nesse contexto.", {
 			exact: true,
@@ -84,7 +94,7 @@ test("A-only, B-only and project-wide contexts never invent a hidden campaign", 
 				.locator('[data-account-campaign-summary="true"]')
 				.getByText(fixture.name, { exact: true }),
 		).toBeVisible();
-		await expect(page.getByRole("combobox", { name: "Campanha consultada" })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "Campanha consultada" })).toHaveCount(0);
 		await expect(page.locator("body")).not.toContainText("private-undiscovered");
 	}
 
@@ -170,9 +180,25 @@ test("long campaign context reflows at mobile and the 200 percent proxy", async 
 
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/e2e-fixtures/account-overview?mode=multi");
-	const selector = page.getByRole("combobox", { name: "Campanha consultada" });
+	const selector = page.getByRole("button", { name: "Campanha consultada" });
 	await selector.focus();
 	await expect(selector).toBeFocused();
-	await selector.selectOption("passos-retomados");
-	await expect(selector).toHaveValue("passos-retomados");
+	await page.keyboard.press("Enter");
+	const listbox = page.getByRole("listbox", { name: "Campanha consultada" });
+	await expect(listbox).toBeVisible();
+	await listbox
+		.getByRole("option", {
+			name: "Passos Retomados — nome sintético deliberadamente comprido para reflow",
+			exact: true,
+		})
+		.click();
+	await expect(page).toHaveURL(/campanha=passos-retomados/u);
+	await expect(
+		page
+			.locator('[data-account-campaign-summary="true"]')
+			.getByText(
+				"Passos Retomados — nome sintético deliberadamente comprido para reflow",
+				{ exact: true },
+			),
+	).toBeVisible();
 });
