@@ -175,8 +175,8 @@ export default async function ProcessingPage({ searchParams }: Props) {
 
 			<ProcessingPanel
 				campaignId={selected.technicalSlug}
-				campaignName={selected.name}
 				campaignOptions={eligible.campaigns}
+				canManageCampaigns={canManageCampaigns}
 				publicationEnabled={publicationEnabled}
 				activityBarksManage={activityBarksManage}
 				activityPackScope={`${access.context.profileId}:${selected.technicalSlug}`}
