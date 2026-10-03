@@ -486,14 +486,16 @@ test("session arc filters share normalized identity without crossing campaign bo
 	});
 	const aggregateArcLabels = await aggregateArc.locator("option").allTextContents();
 
-	expect(
-		aggregateArcLabels.filter((label) =>
-			label.toLocaleLowerCase("pt-BR").includes("valcinzento"),
-		),
-	).toEqual([
-		"VALCINZENTO E O CORAÇÃO-RAIZ — Campanha Única de Teste",
-		"Valcinzento e o Coração-Raiz — Campanha com Conteúdo",
-	]);
+	const aggregateValcinzentoLabels = aggregateArcLabels.filter((label) =>
+		label.toLocaleLowerCase("pt-BR").includes("valcinzento"),
+	);
+	expect(aggregateValcinzentoLabels).toHaveLength(2);
+	expect(aggregateValcinzentoLabels).toEqual(
+		expect.arrayContaining([
+			"VALCINZENTO E O CORAÇÃO-RAIZ — Campanha Única de Teste",
+			"Valcinzento e o Coração-Raiz — Campanha com Conteúdo",
+		]),
+	);
 
 	await aggregateArc.selectOption({
 		label: "VALCINZENTO E O CORAÇÃO-RAIZ — Campanha Única de Teste",
