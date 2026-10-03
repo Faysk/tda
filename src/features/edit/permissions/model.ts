@@ -20,6 +20,7 @@ export const PERMISSION_LABELS: Readonly<Record<string, string>> = {
 	"narrative.dm_notes.read": "Ler notas privadas do mestre",
 	"narrative.notes.review": "Revisar notas narrativas",
 	"narrative.roll20.ingest": "Importar material do Roll20",
+	"project.campaigns.manage": "Gerenciar campanhas do projeto",
 	"project.costs.read": "Consultar custos do projeto",
 	"project.deployments.read": "Consultar deployments",
 	"project.jobs.read": "Consultar jobs técnicos",

@@ -20,7 +20,7 @@ profile
   -> rota / launcher / mutation
 ```
 
-A UI usa nomes humanos de ferramentas e ações. Slugs, IDs e códigos de capability ficam em disclosure técnico.
+A UI usa nomes humanos de ferramentas e ações. Slugs, IDs e códigos de capability ficam em disclosure técnico. Funções de sistema conhecidas recebem apresentação em português; descrições visíveis são derivadas das capabilities efetivas, não de copy legado da role. Funções custom preservam o nome cadastrado sem tradução inferida. Quando o resumo de acesso encurta a lista, a própria linha oferece expansão de todas as capabilities efetivas e mantém a origem campaign/project sem duplicar grants visualmente.
 
 ## Authority
 
