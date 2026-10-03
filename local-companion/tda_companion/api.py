@@ -27,6 +27,7 @@ from .attempt_fence import (
     read_attempt_outcome,
 )
 from .browser_session import BrowserSessionManager
+from .benchmark_evidence import BenchmarkEvidenceError, load_bundle
 from .craig import CraigPackageError
 from .craig_ingest import (
     recover_interrupted_craig_repairs,
@@ -2449,6 +2450,38 @@ def create_app(
     @app.get("/api/v1/jobs/{job_id}/result")
     def result(job_id: str):
         value = store.result(job_id)
+        if isinstance(value, dict) and value.get("kind") == "benchmark.craig":
+            body = store.body(job_id)
+            job_state = store.get(job_id)
+            benchmark_id = value.get("benchmark_id")
+            attempt = job_state.get("attempt")
+            if (
+                not isinstance(benchmark_id, str)
+                or isinstance(attempt, bool)
+                or not isinstance(attempt, int)
+                or attempt < 1
+            ):
+                raise Conflict("BENCHMARK_ARTIFACT_MISMATCH")
+            try:
+                with source_gate:
+                    package_root, package = staged_package(
+                        body["source_id"],
+                        verify_tracks=False,
+                    )
+                    manifest = load_bundle(package_root, benchmark_id, verify_artifacts=True)
+            except (KeyError, CraigPackageError, BenchmarkEvidenceError, ValueError) as exc:
+                raise Conflict("BENCHMARK_ARTIFACT_UNAVAILABLE") from exc
+            if (
+                manifest.get("job_id") != job_id
+                or manifest.get("attempt") != attempt
+                or manifest.get("source_id") != body.get("source_id")
+                or manifest.get("source_sha256") != package.source_sha256
+                or manifest.get("sample_identity_sha256") != body.get("sample_identity_sha256")
+                or value.get("sample_identity_sha256") != body.get("sample_identity_sha256")
+            ):
+                raise Conflict("BENCHMARK_ARTIFACT_MISMATCH")
+            return value
+
         transcription = value.get("transcription") if isinstance(value, dict) else None
         if not isinstance(transcription, dict):
             return value
