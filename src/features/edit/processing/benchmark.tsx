@@ -15,6 +15,7 @@ import {
 	type TranscriptionProfileState,
 } from "./protocol";
 import { LocalBridge } from "./bridge";
+import { BenchmarkEvidenceWorkspace } from "./benchmark-evidence";
 import { presentJobEvent, stageLabels } from "./presentation";
 import {
 	formatSubmissionBytes,
@@ -129,7 +130,17 @@ function bridgeMessage(error: unknown, fallback: string): string {
 	);
 }
 
-function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
+function ResultCard({
+	result,
+	onCompare,
+	onFiles,
+	onExport,
+}: Readonly<{
+	result: BenchmarkResult;
+	onCompare: () => void;
+	onFiles: () => void;
+	onExport: () => void;
+}>) {
 	return (
 		<article className={styles.resultCard}>
 			<header className={styles.resultHeader}>
@@ -193,6 +204,24 @@ function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
 					WER/omissões/inserções não são calculados e nenhum perfil recebe vencedor automático.
 				</span>
 			</div>
+			{result.artifacts ? (
+				<div className={styles.activeActions}>
+					<Button size="sm" variant="secondary" onClick={onCompare}>
+						Comparar transcrições
+					</Button>
+					<Button size="sm" variant="tertiary" onClick={onFiles}>
+						Arquivos / evidências
+					</Button>
+					<Button size="sm" variant="tertiary" onClick={onExport}>
+						Exportar ZIP
+					</Button>
+				</div>
+			) : (
+				<p className={styles.loading}>
+					Receipt anterior ao contrato de evidências: métricas preservadas, sem
+					transcripts persistidos para comparação/exportação.
+				</p>
+			)}
 		</article>
 	);
 }
@@ -291,6 +320,11 @@ export function ProcessingBenchmark({
 	const [error, setError] = useState<string | null>(null);
 	const [status, setStatus] = useState<string | null>(null);
 	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
+	const [evidenceView, setEvidenceView] = useState<{
+		result: BenchmarkResult;
+		mode: "compare" | "files";
+		promptExport: boolean;
+	} | null>(null);
 	const [acceptedJob, setAcceptedJob] = useState<LocalJob | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
 	const request = useRef<AbortController | null>(null);
@@ -1232,6 +1266,17 @@ export function ProcessingBenchmark({
 				</section>
 			) : null}
 
+			{evidenceView ? (
+				<BenchmarkEvidenceWorkspace
+					key={`${evidenceView.result.jobId}:${evidenceView.mode}:${evidenceView.promptExport ? "export" : "browse"}`}
+					bridge={bridge}
+					result={evidenceView.result}
+					initialMode={evidenceView.mode}
+					promptExport={evidenceView.promptExport}
+					onClose={() => setEvidenceView(null)}
+				/>
+			) : null}
+
 			<section className={styles.history}>
 				<div className={styles.historyHeader}>
 					<div>
@@ -1243,7 +1288,31 @@ export function ProcessingBenchmark({
 				{latestCompleted.length ? (
 					latestCompleted.slice(0, 10).map((job) =>
 						results[job.id] ? (
-							<ResultCard key={job.id} result={results[job.id]!} />
+							<ResultCard
+								key={job.id}
+								result={results[job.id]!}
+								onCompare={() =>
+									setEvidenceView({
+										result: results[job.id]!,
+										mode: "compare",
+										promptExport: false,
+									})
+								}
+								onFiles={() =>
+									setEvidenceView({
+										result: results[job.id]!,
+										mode: "files",
+										promptExport: false,
+									})
+								}
+								onExport={() =>
+									setEvidenceView({
+										result: results[job.id]!,
+										mode: "files",
+										promptExport: true,
+									})
+								}
+							/>
 						) : (
 							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>
 						),
