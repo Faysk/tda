@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { OperationalPageHeader } from "@/components/operational-page-header";
 import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import { readEligibleProcessingCampaigns } from "@/features/campaigns/processing";
 import { currentAccess } from "@/features/auth/server";
@@ -47,14 +48,16 @@ function CampaignPicker({
 	canManageCampaigns: boolean;
 }>) {
 	return (
-		<section className={pageStyles.campaignGate} aria-labelledby="processing-campaign-title">
-			<p className={pageStyles.eyebrow}>Edit · processamento</p>
-			<h1 id="processing-campaign-title">Escolha a campanha</h1>
-			<p>
-				Cada processamento, recovery e handoff pertence a uma campanha
-				explícita. A seleção abaixo só mostra campanhas ativas para as quais
-				seu perfil possui a capability de processamento local.
-			</p>
+		<section
+			className={pageStyles.campaignGate}
+			data-layout-family="workspace"
+			data-layout-role="editorial"
+		>
+			<OperationalPageHeader
+				eyebrow="Edit · Processamento"
+				title="Escolha a campanha"
+				description={<p>Abra a fila e o processamento local no contexto certo.</p>}
+			/>
 			{invalidSelection ? (
 				<p className={pageStyles.campaignAlert} role="alert">
 					{campaignCreated
@@ -97,6 +100,14 @@ function CampaignPicker({
 					Criar ou gerir campanhas
 				</Link>
 			) : null}
+			<details className={pageStyles.campaignHelp}>
+				<summary>Sobre o contexto da campanha</summary>
+				<p>
+					Jobs, recuperação e handoff permanecem vinculados à campanha
+					selecionada. A lista mostra somente contextos em que seu perfil pode
+					processar.
+				</p>
+			</details>
 		</section>
 	);
 }
@@ -115,15 +126,20 @@ export default async function ProcessingPage({ searchParams }: Props) {
 		return (
 			<section
 				className={pageStyles.campaignGate}
-				aria-labelledby="processing-campaign-unavailable"
+				data-layout-family="workspace"
+				data-layout-role="editorial"
 				role="status"
 			>
-				<p className={pageStyles.eyebrow}>Edit · processamento</p>
-				<h1 id="processing-campaign-unavailable">Campanhas indisponíveis</h1>
-				<p>
-					A sessão está autenticada, mas o registry de campanhas não pôde ser
-					consultado com segurança. Nenhum contexto de processamento foi assumido.
-				</p>
+				<OperationalPageHeader
+					eyebrow="Edit · Processamento"
+					title="Campanhas indisponíveis"
+					description={
+						<p>
+							Não foi possível consultar as campanhas agora. Nenhum contexto
+							foi assumido.
+						</p>
+					}
+				/>
 			</section>
 		);
 	}
