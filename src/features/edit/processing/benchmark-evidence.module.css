@@ -159,6 +159,18 @@
 	border-color: var(--ds-accent);
 }
 
+.region:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.timingDelta {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: .6875rem;
+	font-variant-numeric: tabular-nums;
+}
+
 .regionHeader {
 	display: flex;
 	justify-content: space-between;
