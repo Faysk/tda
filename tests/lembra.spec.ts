@@ -30,6 +30,35 @@ async function addReference(
 }
 
 
+test("Lembra private campaign projection is visible only to an authorized viewer", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns");
+
+	const privateCard = page.locator("article").filter({ hasText: "Referência privada global" });
+	await expect(privateCard).toContainText("Passos Retomados");
+	const campaignFilter = page.getByRole("button", { name: "Filtrar por campanha" });
+	await campaignFilter.click();
+	await expect(page.getByRole("option", { name: "Passos Retomados", exact: true })).toBeVisible();
+	await page.keyboard.press("Escape");
+
+	await page.goto("/e2e-fixtures/lembra-campaigns?private=0");
+	const outsiderCard = page.locator("article").filter({ hasText: "Referência privada global" });
+	await expect(outsiderCard).toBeVisible();
+	await expect(outsiderCard).not.toContainText("Passos Retomados");
+
+	const rawHtml = await page.content();
+	expect(rawHtml).not.toContain("Passos Retomados");
+	expect(rawHtml).not.toContain("66666666-6666-4666-8666-666666666666");
+
+	const outsiderFilter = page.getByRole("button", { name: "Filtrar por campanha" });
+	await outsiderFilter.click();
+	await expect(page.getByRole("option", { name: "Passos Retomados", exact: true })).toHaveCount(0);
+	await page.keyboard.press("Escape");
+
+	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
+	await search.fill("passos retomados");
+	await expect(outsiderCard).toHaveCount(0);
+});
+
 test("Lembra campaign classification stays optional, filterable and non-authoritative", async ({ page }) => {
 	await page.goto("/e2e-fixtures/lembra-campaigns");
 
