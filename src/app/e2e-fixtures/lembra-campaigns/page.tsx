@@ -81,6 +81,7 @@ export default function LembraCampaignE2EFixture() {
 			initialReferences={REFERENCES}
 			initialCampaigns={CAMPAIGNS}
 			canManageCampaigns
+			e2eCampaignCreateFailureReason="forbidden"
 		/>
 	);
 }
