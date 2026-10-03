@@ -117,7 +117,7 @@ async function installRecoveredPendingSession(
 		}),
 	);
 	await page.route(
-		/^http:\/\/127\\.0\\.0\\.1:8765\/api\/v1\/jobs(?:\\?.*)?$/u,
+		/^http:\/\/127\.0\.0\.1:8765\/api\/v1\/jobs(?:\?.*)?$/u,
 		(route) =>
 			fulfillJson(route, {
 				schema_version: "tda_job_page_v1",
