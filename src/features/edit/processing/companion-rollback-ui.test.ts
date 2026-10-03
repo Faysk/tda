@@ -33,8 +33,8 @@ function createHarness() {
 			dataset: {},
 			children,
 			classList: {
-				add: (...names: string[]) => names.forEach((name) => classes.add(name)),
-				remove: (...names: string[]) => names.forEach((name) => classes.delete(name)),
+				add: (...names: string[]) => names.forEach((name) => { classes.add(name); }),
+				remove: (...names: string[]) => names.forEach((name) => { classes.delete(name); }),
 				toggle: (name: string, force?: boolean) => {
 					const enabled = force === undefined ? !classes.has(name) : force;
 					if (enabled) classes.add(name);
