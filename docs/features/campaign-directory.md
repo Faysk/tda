@@ -2,8 +2,8 @@
 
 > Status: registry first-class ativo; diretório público em operação
 > Owner: campaigns / public navigation / Edit
-> Última revisão: 2026-10-01
-> Issues: #1122, #1124, #1281
+> Última revisão: 2026-10-03
+> Issues: #1122, #1124, #1281, #1322
 
 ## Objetivo
 
@@ -92,20 +92,32 @@ Public route key:
 ## Edit — `/edit/campanhas`
 
 A página exige exatamente `project.campaigns.manage` em `project/tda`.
-
 Campaign-scoped grants não são promovidos para essa capability.
 
-Operações:
+#1322 define esta superfície como **gerenciador humano de campanhas**, não como
+um registry técnico exposto ao operador. A primeira área útil prioriza:
+
+- título curto `Campanhas`;
+- ação `Nova campanha`;
+- lista compacta com capa/fallback, nome, descrição, lifecycle e visibilidade;
+- edição somente da campaign escolhida.
+
+UUID, technical slug e metadata operacional ficam em progressive disclosure.
+Nenhum desses valores concede autoridade.
 
 ### Criar
 
-Entrada:
+Campos comuns:
 
 - nome;
-- technical slug;
-- public route key;
+- visibilidade inicial;
 - descrição opcional;
-- visibilidade inicial.
+- public route key.
+
+A chave técnica fica em `Detalhes avançados`. Quando o operador não fornece
+uma chave separada, a criação usa deterministicamente a **rota pública inicial**
+como technical slug. Depois da criação a chave técnica permanece estável e não
+acompanha rename editorial ou mudança posterior de public route key.
 
 A criação registra somente identidade/metadata de campaign com:
 
@@ -116,6 +128,9 @@ A criação registra somente identidade/metadata de campaign com:
 
 ### Editar
 
+Cada campaign abre seu editor contextualmente; os formulários das demais ficam
+recolhidos.
+
 Campos mutáveis:
 
 - nome;
@@ -123,17 +138,37 @@ Campos mutáveis:
 - public route key;
 - visibilidade.
 
-Technical slug não é alterado pela aplicação.
+Technical slug e UUID são somente leitura no disclosure avançado. A mutation
+continua usando optimistic concurrency por `updated_at`; stale form retorna
+conflito em vez de sobrescrever silenciosamente outra edição.
 
-A mutation usa optimistic concurrency por `updated_at`. Stale form retorna conflito em vez de sobrescrever silenciosamente outra edição.
+Feedback de create/update/archive/reactivate, validation, collision, stale write
+e dependency failure fica junto da operação correspondente. Um erro de edição
+reabre apenas o editor da campaign atingida.
+
+### Capa
+
+Na lista, a capa é apenas thumbnail/fallback. Upload, replace e remove continuam
+no `CampaignCoverEditor` dentro do editor contextual.
+
+Antes do seletor de arquivo, a UI declara a visibilidade **persistida** atual:
+
+- campaign pública: uma capa promovida/verificada pode aparecer em superfícies públicas;
+- campaign privada: upload não torna a campaign pública e continua sujeito ao
+  pipeline de promoção/read-back.
+
+Alterar o select de visibilidade só produz efeito após `Salvar alterações`.
 
 ### Arquivar / reativar
+
+Lifecycle fica em `Mais ações`, separado da ação primária de salvar.
 
 Arquivar:
 
 - altera lifecycle para `archived`;
 - registra `archived_at`;
-- preserva row, UUID, aliases e referências históricas.
+- preserva row, UUID, aliases e referências históricas;
+- não equivale a delete.
 
 Reativar limpa `archived_at` e restaura lifecycle `active`.
 
@@ -183,14 +218,16 @@ A evolução completa do arquivo agregado, canonical detail, aliases de `/sessoe
 
 Fixtures sintéticas, sem conteúdo real:
 
-- duas campaigns públicas;
-- nome longo;
-- descrição ausente;
-- clique para archive A/B;
+- zero, uma e várias campaigns no manager;
+- nomes aprovados Destino Sem Fim / Passos Retomados na fixture principal;
+- nome longo e descrição ausente;
+- ação Nova campanha e primeiro item ainda na primeira viewport;
+- create/edit contextuais por disclosure, inclusive teclado;
+- technical slug/UUID ocultos na leitura comum e disponíveis sob detalhes avançados;
+- feedback de conflict/validation localizado na operação e disclosure correto reaberto;
+- labels Pública/Privada e Ativa/Arquivada;
 - campaign B sem sessions não recebe sessions de A;
-- 320 px sem overflow;
-- teclado;
-- 200% zoom.
+- 320×800, 390×844 e viewport equivalente a 200% sem overflow.
 
 ### DB / rollout
 
