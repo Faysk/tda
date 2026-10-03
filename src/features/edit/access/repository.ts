@@ -1,12 +1,12 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { editDataClient } from "@/integrations/supabase/server";
 import type { EditAccessContext, EditGrant } from "./policy";
 
-export async function loadEditAccessContext(
+export async function loadEditAccessContextWithClient(
+	client: SupabaseClient,
 	authUserId: string,
-): Promise<EditAccessContext | null> {
-	const client = editDataClient();
-	if (!client) return null;
+): Promise<EditAccessContext> {
 
 	const { data: profile, error: profileError } = await client
 		.from("profiles")
@@ -60,4 +60,12 @@ export async function loadEditAccessContext(
 	);
 
 	return { authUserId, profileId: profile.id, grants };
+}
+
+export async function loadEditAccessContext(
+	authUserId: string,
+): Promise<EditAccessContext | null> {
+	const client = editDataClient();
+	if (!client) return null;
+	return loadEditAccessContextWithClient(client, authUserId);
 }
