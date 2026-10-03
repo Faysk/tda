@@ -3,6 +3,8 @@ import {
 	EDIT_CAPABILITIES,
 	type EditAccessContext,
 	type EditCapability,
+	isEffectiveCampaignScopedGrant,
+	isEffectiveProjectGrant,
 } from "@/features/edit/access/policy";
 
 export type AccountCapabilityItem = Readonly<{
@@ -71,20 +73,78 @@ export const ACCOUNT_CAPABILITY_GROUPS: readonly AccountCapabilityGroup[] = [
 	},
 ];
 
+export const ACCOUNT_CAPABILITIES: readonly EditCapability[] =
+	ACCOUNT_CAPABILITY_GROUPS.flatMap((group) =>
+		group.items.map((item) => item.capability),
+	);
+
+function filterCapabilityGroups(
+	predicate: (capability: EditCapability) => boolean,
+): readonly AccountCapabilityGroup[] {
+	return ACCOUNT_CAPABILITY_GROUPS.map((group) => ({
+		...group,
+		items: group.items.filter((item) => predicate(item.capability)),
+	})).filter((group) => group.items.length > 0);
+}
+
 export function effectiveAccountCapabilityGroups(
 	context: EditAccessContext,
 	campaignSlug: string,
 	now = new Date(),
 ): readonly AccountCapabilityGroup[] {
-	return ACCOUNT_CAPABILITY_GROUPS.map((group) => ({
-		...group,
-		items: group.items.filter((item) =>
+	return filterCapabilityGroups(
+		(capability) =>
 			authorizeCampaignCapability(
 				context,
-				item.capability,
+				capability,
 				campaignSlug,
 				now,
 			).ok,
+	);
+}
+
+export function projectAccountCapabilityGroups(
+	context: EditAccessContext,
+	now = new Date(),
+): readonly AccountCapabilityGroup[] {
+	if (!context.profileId) return [];
+	return filterCapabilityGroups((capability) =>
+		context.grants.some(
+			(grant) =>
+				grant.action === capability &&
+				isEffectiveProjectGrant(grant, now),
 		),
-	})).filter((group) => group.items.length > 0);
+	);
+}
+
+export function campaignSpecificAccountCapabilityGroups(
+	context: EditAccessContext,
+	campaignSlug: string,
+	now = new Date(),
+): readonly AccountCapabilityGroup[] {
+	if (!context.profileId) return [];
+	return filterCapabilityGroups((capability) =>
+		context.grants.some(
+			(grant) =>
+				grant.action === capability &&
+				isEffectiveCampaignScopedGrant(grant, campaignSlug, now),
+		),
+	);
+}
+
+export function hasAnyEffectiveAccountCapability(
+	context: EditAccessContext,
+	now = new Date(),
+): boolean {
+	if (!context.profileId) return false;
+	const capabilities = new Set<string>(ACCOUNT_CAPABILITIES);
+	return context.grants.some(
+		(grant) =>
+			capabilities.has(grant.action) &&
+			(
+				isEffectiveProjectGrant(grant, now) ||
+				(grant.scopeType === "campaign" &&
+					isEffectiveCampaignScopedGrant(grant, grant.scopeId, now))
+			),
+	);
 }
