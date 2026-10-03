@@ -32,6 +32,32 @@ export type CampaignPickerProps = Readonly<{
 	manageHref?: string;
 }>;
 
+export function campaignPickerOptions(
+	options: readonly CampaignPickerOption[],
+	config: Readonly<{
+		optional?: boolean;
+		generalValue?: string;
+		generalLabel?: string;
+	}> = {},
+): readonly SelectOption<string>[] {
+	const {
+		optional = false,
+		generalValue = "",
+		generalLabel = "Geral",
+	} = config;
+	return [
+		...(optional ? [{ value: generalValue, label: generalLabel }] : []),
+		...options.map((option) => ({
+			value: option.value,
+			label:
+				option.lifecycle === "archived"
+					? `${option.label} (arquivada)`
+					: option.label,
+			disabled: option.disabled ?? option.lifecycle === "archived",
+		})),
+	];
+}
+
 export function CampaignPicker({
 	value,
 	options,
@@ -52,17 +78,11 @@ export function CampaignPicker({
 	createButtonRef,
 	manageHref = "/edit/campanhas",
 }: CampaignPickerProps) {
-	const selectOptions: readonly SelectOption<string>[] = [
-		...(optional ? [{ value: generalValue, label: generalLabel }] : []),
-		...options.map((option) => ({
-			value: option.value,
-			label:
-				option.lifecycle === "archived"
-					? `${option.label} (arquivada)`
-					: option.label,
-			disabled: option.disabled ?? option.lifecycle === "archived",
-		})),
-	];
+	const selectOptions = campaignPickerOptions(options, {
+		optional,
+		generalValue,
+		generalLabel,
+	});
 	const busy = disabled || pending;
 
 	return (
