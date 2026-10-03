@@ -69,6 +69,7 @@ export function Dialog({
 		<dialog
 			ref={dialogRef}
 			className={styles.dialog}
+			aria-modal={open ? "true" : undefined}
 			aria-labelledby={titleId}
 			aria-describedby={description ? descriptionId : undefined}
 			onCancel={(event) => {
