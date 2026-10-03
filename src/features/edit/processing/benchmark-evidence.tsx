@@ -273,16 +273,23 @@ export function BenchmarkEvidenceLab({
 
 	async function loadProfile(profileId: TranscriptionProfileId, signal: AbortSignal) {
 		if (!benchmarkId) return;
-		const [transcript, profileMetrics] = await Promise.all([
-			transcripts[profileId]
-				? Promise.resolve(transcripts[profileId]!)
-				: bridge.benchmarkTranscript(benchmarkId, profileId, signal),
-			metrics[profileId]
-				? Promise.resolve(metrics[profileId]!)
-				: bridge.benchmarkProfileMetrics(benchmarkId, profileId, signal),
-		]);
+		const transcript = transcripts[profileId]
+			? transcripts[profileId]!
+			: await bridge.benchmarkTranscript(benchmarkId, profileId, signal);
 		setTranscripts((current) => ({ ...current, [profileId]: transcript }));
-		setMetrics((current) => ({ ...current, [profileId]: profileMetrics }));
+		if (!metrics[profileId]) {
+			try {
+				const profileMetrics = await bridge.benchmarkProfileMetrics(
+					benchmarkId,
+					profileId,
+					signal,
+				);
+				setMetrics((current) => ({ ...current, [profileId]: profileMetrics }));
+			} catch {
+				// Bundles created by the merged #1419 baseline have canonical transcripts
+				// but no separate metrics.json diagnostic artifact.
+			}
+		}
 		if (!telemetry[profileId]) {
 			try {
 				const profileTelemetry = await bridge.benchmarkProfileTelemetry(
