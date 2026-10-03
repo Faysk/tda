@@ -31,6 +31,23 @@ _MAX_JSONL_BYTES = 8 * 1024 * 1024
 _MAX_EVENTS = 20_000
 _MAX_TELEMETRY_SAMPLES = 2_000
 _REPARSE_POINT = 0x400
+_BENCHMARK_EVENT_DATA_FIELDS = frozenset({
+    "stage", "track", "total_tracks", "segment", "window", "profile",
+    "device", "compute_type", "runtime_version", "worker_sha256",
+    "source_runtime_version", "source_signature_sha256",
+    "track_count", "count", "sample_count", "aligned_reused", "text_reused",
+    "text_compat_reused", "text_prefix_windows_reused", "reused_window_count",
+    "durable_window_count", "pending_asr", "aligned_item", "aligned_word_count",
+    "owned_word_count", "completed_window_count", "completed_segment_count",
+    "downloaded_bytes", "total_bytes", "preloaded", "memory_error",
+    "first_window", "last_window", "context_seconds", "window_start_seconds",
+    "window_end_seconds", "ownership_left_seconds", "ownership_right_seconds",
+    "overflow_seconds", "previous_end_seconds", "start_seconds", "end_seconds",
+    "relative_start_seconds", "relative_end_seconds", "duration_ms",
+    "peak_dbfs", "rms_dbfs", "silence_peak_threshold_dbfs",
+    "silence_rms_threshold_dbfs", "failure_class", "reason",
+    "completed", "total", "unit", "code",
+})
 
 
 class BenchmarkEvidenceError(RuntimeError):
@@ -259,7 +276,11 @@ def sanitize_benchmark_message(
     if kind == "event":
         clean = sanitize_worker_event(payload)
         row["code"] = clean.code
-        row["data"] = dict(clean.data)
+        row["data"] = {
+            key: value
+            for key, value in clean.data.items()
+            if key in _BENCHMARK_EVENT_DATA_FIELDS
+        }
         stage = clean.data.get("stage")
         if isinstance(stage, str):
             row["stage"] = stage[:64]
@@ -350,7 +371,11 @@ def _validated_event_row(
             or re.fullmatch(r"[A-Z0-9_]{1,96}", row["code"]) is None
         ))
         or not isinstance(row.get("data"), dict)
-        or any(key not in {"track", "total_tracks", "window", "start_seconds", "end_seconds", "duration_seconds", "completed", "total", "unit", "stage", "code"} for key in row["data"])
+        or any(key not in _BENCHMARK_EVENT_DATA_FIELDS for key in row["data"])
+        or any(
+            isinstance(value, str) and (len(value) > 256 or "\0" in value)
+            for value in row["data"].values()
+        )
     ):
         raise BenchmarkEvidenceError("BENCHMARK_EVENT_INVALID")
     encoded_data = _canonical_json(row["data"])
