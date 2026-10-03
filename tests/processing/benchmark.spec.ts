@@ -633,6 +633,12 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	await expect.poll(() => state.job?.status).toBe("succeeded");
 	await expect(panel.getByText("Concluído", { exact: true })).toBeVisible();
 	await expect(panel.getByText("Quatro perfis · mesma amostra")).toBeVisible();
+	await expect(
+		panel.getByText(/Artefatos de transcrição não preservados nesta execução/u),
+	).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Comparar transcrições" }),
+	).toHaveCount(0);
 
 	state.setJob(fixtureBenchmarkJob("failed"));
 	await refresh.click();
@@ -691,6 +697,23 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 
 	await workspace.getByRole("tab", { name: "Timing" }).click();
 	await expect(workspace.getByText(/Precisão palavra/u).first()).toBeVisible();
+	await expect(workspace.getByText(/Δ início/u).first()).toBeVisible();
+
+	await workspace.getByRole("button", { name: "Próxima diferença →" }).click();
+	await expect(
+		workspace.locator('[data-active="true"]:focus'),
+	).toHaveCount(1);
+
+	const leftSelector = workspace.getByLabel("Perfil A");
+	await leftSelector.selectOption("whisper-turbo");
+	await expect(workspace.getByText("Whisper Turbo").first()).toBeVisible();
+	await expect
+		.poll(() =>
+			state.requests.some((request) =>
+				request.path.endsWith("/profiles/whisper-turbo/snapshot"),
+			),
+		)
+		.toBe(true);
 
 	await workspace.getByRole("tab", { name: "Performance" }).click();
 	await expect(workspace.getByText("Comparabilidade: comprovada")).toBeVisible();
@@ -704,6 +727,7 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 	await expect(workspace.getByText("Arquivos privados locais.")).toBeVisible();
 	await expect(workspace.getByRole("button", { name: "JSON" })).toHaveCount(4);
 	await expect(workspace.getByRole("button", { name: "TXT" })).toHaveCount(4);
+	await expect(workspace.getByRole("button", { name: "TXT simples" })).toHaveCount(4);
 	await expect(workspace.getByRole("button", { name: "VTT" })).toHaveCount(4);
 	await expect(workspace.getByRole("button", { name: "SRT" })).toHaveCount(4);
 
@@ -725,9 +749,19 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 	);
 	expect(download.suggestedFilename()).not.toContain("benchmark-craig.zip");
 
-	const horizontal = await page.evaluate(() => ({
-		scrollWidth: document.documentElement.scrollWidth,
-		clientWidth: document.documentElement.clientWidth,
-	}));
-	expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+	const assertNoHorizontalOverflow = async () => {
+		const horizontal = await page.evaluate(() => ({
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		}));
+		expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+	};
+	await assertNoHorizontalOverflow();
+
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await assertNoHorizontalOverflow();
+
+	// 683 CSS px is the existing browser-level proxy for a 1366px viewport at 200% zoom.
+	await page.setViewportSize({ width: 683, height: 768 });
+	await assertNoHorizontalOverflow();
 });
