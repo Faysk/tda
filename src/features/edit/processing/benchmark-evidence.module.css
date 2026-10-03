@@ -292,3 +292,11 @@
 		overflow: visible;
 	}
 }
+
+.hash {
+	max-width: 24rem;
+	font-family: var(--ds-font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+	font-size: .65rem;
+	overflow-wrap: anywhere;
+	word-break: break-all;
+}
