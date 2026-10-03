@@ -50,18 +50,18 @@ test("Lembra campaign classification stays optional, filterable and non-authorit
 	const search = page.getByPlaceholder(
 		"Buscar título, descrição, autor ou data...",
 	);
-	await search.fill("campanha arquivada");
+	await search.fill("campanha privada c");
 	await expect(page.getByRole("button", { name: "Histórica", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Mesa", exact: true })).toHaveCount(0);
 	await page.getByRole("button", { name: "Limpar filtros" }).click();
 
 	await page.getByRole("button", { name: "Histórica", exact: true }).click();
 	const viewer = page.getByRole("dialog");
-	await expect(viewer).toContainText("Campanha Arquivada · arquivada");
+	await expect(viewer).toContainText("Campanha Privada C · arquivada");
 	await viewer.getByRole("button", { name: "Editar", exact: true }).click();
 	await viewer.getByRole("button", { name: "Campanha da referência" }).click();
 	await expect(
-		page.getByRole("option", { name: "Campanha Arquivada · arquivada", exact: true }),
+		page.getByRole("option", { name: "Campanha Privada C · arquivada", exact: true }),
 	).toBeVisible();
 	await page.keyboard.press("Escape");
 	await viewer.getByRole("button", { name: "Fechar referência" }).click();
@@ -75,12 +75,12 @@ test("Lembra campaign classification stays optional, filterable and non-authorit
 	await expect(composer.getByRole("heading", { name: "Quase lá." })).toBeVisible();
 	await composer.getByRole("button", { name: "Campanha da referência" }).click();
 	await expect(
-		page.getByRole("option", { name: "Campanha Arquivada · arquivada", exact: true }),
+		page.getByRole("option", { name: "Campanha Privada C · arquivada", exact: true }),
 	).toHaveCount(0);
-	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
+	await page.getByRole("option", { name: "Campanha Privada B", exact: true }).click();
 	await expect(
 		composer.getByRole("button", { name: "Campanha da referência" }),
-	).toContainText("Campanha Pública B");
+	).toContainText("Campanha Privada B");
 });
 
 
@@ -103,8 +103,8 @@ test("Lembra returns to Geral and cancels campaign creation without changing the
 	const campaignPicker = composer.getByRole("button", { name: "Campanha da referência" });
 
 	await campaignPicker.click();
-	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
-	await expect(campaignPicker).toContainText("Campanha Pública B");
+	await page.getByRole("option", { name: "Campanha Privada B", exact: true }).click();
+	await expect(campaignPicker).toContainText("Campanha Privada B");
 
 	await campaignPicker.click();
 	await page.getByRole("option", { name: "Geral", exact: true }).click();
@@ -175,7 +175,7 @@ test("Lembra creates a public campaign in context without losing the upload draf
 	await expect(card).toContainText("Aurora Pública · Por Você");
 });
 
-test("Lembra keeps the prior selection and draft when a new campaign is private", async ({ page }) => {
+test("Lembra selects a newly created private campaign only after authorized projection confirmation", async ({ page }) => {
 	await page.goto("/e2e-fixtures/lembra-campaigns");
 	await page.locator('input[type="file"]').setInputFiles({
 		name: "private-draft.png",
@@ -187,11 +187,39 @@ test("Lembra keeps the prior selection and draft when a new campaign is private"
 		.getByRole("dialog")
 		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
 	await composer.getByLabel("Nome").fill("Rascunho privado");
-	await composer.getByLabel("Descrição").fill("Seleção anterior precisa continuar.");
+	await composer.getByLabel("Descrição").fill("A projection precisa confirmar a seleção.");
+	await composer.getByRole("button", { name: "Nova campanha" }).click();
+	const createDialog = page.getByRole("dialog", { name: "Criar campanha" });
+	await createDialog.getByLabel("Nome").fill("Segredo da Mesa");
+	await createDialog.getByLabel("Slug técnico").fill("segredo-da-mesa");
+	await createDialog.getByLabel("Rota pública").fill("segredo-da-mesa");
+	await createDialog.getByLabel("Visibilidade inicial").selectOption("private");
+	await createDialog.getByRole("button", { name: "Criar e voltar" }).click();
+
+	await expect(createDialog).not.toBeVisible();
+	await expect(composer.getByRole("button", { name: "Campanha da referência" })).toContainText(
+		"Segredo da Mesa",
+	);
+	await expect(composer).toContainText("Campanha criada e selecionada.");
 	await composer.getByRole("button", { name: "Campanha da referência" }).click();
-	await page.getByRole("option", { name: "Campanha Pública B", exact: true }).click();
-	const preview = composer.getByAltText("Preview da referência selecionada");
-	const previewUrl = await preview.getAttribute("src");
+	await expect(page.getByRole("option", { name: "Segredo da Mesa", exact: true })).toBeVisible();
+	await page.keyboard.press("Escape");
+});
+
+test("Lembra does not ingest a newly created private campaign omitted by the authorized projection", async ({ page }) => {
+	await page.goto("/e2e-fixtures/lembra-campaigns?discoverCreated=0");
+	await page.locator('input[type="file"]').setInputFiles({
+		name: "private-hidden-draft.png",
+		mimeType: "image/png",
+		buffer: PNG_1X1,
+	});
+
+	const composer = page
+		.getByRole("dialog")
+		.filter({ has: page.getByRole("heading", { name: "Quase lá." }) });
+	await composer.getByLabel("Nome").fill("Rascunho privado oculto");
+	await composer.getByRole("button", { name: "Campanha da referência" }).click();
+	await page.getByRole("option", { name: "Campanha Privada B", exact: true }).click();
 
 	await composer.getByRole("button", { name: "Nova campanha" }).click();
 	const createDialog = page.getByRole("dialog", { name: "Criar campanha" });
@@ -202,16 +230,12 @@ test("Lembra keeps the prior selection and draft when a new campaign is private"
 	await createDialog.getByRole("button", { name: "Criar e voltar" }).click();
 
 	await expect(createDialog).not.toBeVisible();
-	await expect(composer.getByLabel("Nome")).toHaveValue("Rascunho privado");
-	await expect(composer.getByLabel("Descrição")).toHaveValue("Seleção anterior precisa continuar.");
-	await expect(preview).toHaveAttribute("src", previewUrl ?? "");
 	await expect(composer.getByRole("button", { name: "Campanha da referência" })).toContainText(
-		"Campanha Pública B",
+		"Campanha Privada B",
 	);
 	await expect(composer).toContainText(
-		"A campanha foi criada como privada e não aparece como classificação do Lembra.",
+		"A campanha foi criada, mas ainda não está disponível para classificação no Lembra.",
 	);
-
 	await composer.getByRole("button", { name: "Campanha da referência" }).click();
 	await expect(page.getByRole("option", { name: "Segredo da Mesa", exact: true })).toHaveCount(0);
 	await page.keyboard.press("Escape");
@@ -308,6 +332,49 @@ test("Lembra contextual campaign dialogs reflow at 320px and a 200%-equivalent v
 
 	await page.setViewportSize({ width: 683, height: 384 });
 	await expect(page.getByRole("dialog", { name: "Criar campanha" })).toBeVisible();
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+	).toBe(true);
+});
+
+test("Lembra fully redacts undiscoverable private classifications", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/e2e-fixtures/lembra-campaigns-restricted");
+
+	const campaignFilter = page.getByRole("button", { name: "Filtrar por campanha" });
+	await campaignFilter.click();
+	await expect(page.getByRole("option", { name: "Campanha A", exact: true })).toBeVisible();
+	await expect(page.getByRole("option", { name: "Campanha Privada B", exact: true })).toHaveCount(0);
+	await expect(page.getByRole("option", { name: "Campanha Privada C", exact: true })).toHaveCount(0);
+	await page.keyboard.press("Escape");
+
+	await page.getByRole("button", { name: "Referência redigida", exact: true }).click();
+	const viewer = page.getByRole("dialog");
+	await expect(viewer).toContainText("Campanha");
+	await expect(viewer).toContainText("Geral");
+	await expect(viewer).not.toContainText("Campanha Privada B");
+	await viewer.getByRole("button", { name: "Editar", exact: true }).click();
+	await viewer.getByLabel("Nome").fill("Referência redigida editada");
+	await viewer.getByRole("button", { name: "Salvar", exact: true }).click();
+	await expect(
+		viewer.getByRole("heading", { name: "Referência redigida editada" }),
+	).toBeVisible();
+	await expect(viewer).toContainText("Geral");
+	await viewer.getByRole("button", { name: "Fechar referência" }).click();
+
+	const search = page.getByPlaceholder("Buscar título, descrição, autor ou data...");
+	await search.fill("Campanha Privada B");
+	await expect(
+		page.getByRole("button", { name: "Referência redigida editada", exact: true }),
+	).toHaveCount(0);
+	await page.getByRole("button", { name: "Limpar filtros" }).click();
+
+	await campaignFilter.click();
+	await page.getByRole("option", { name: "Geral", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Geral explícita", exact: true })).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Referência redigida editada", exact: true }),
+	).toBeVisible();
 	expect(
 		await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
 	).toBe(true);
