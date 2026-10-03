@@ -1001,7 +1001,9 @@ export async function installCompanionFixture(
 				session_id: "benchmark-local",
 				sample_identity_sha256: "b".repeat(64),
 				sample_seconds: 300,
-				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				execution_mode: options.benchmarkEvidence
+					? "prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2"
+					: "prepared_artifacts_fresh_worker_per_profile_v1",
 				track_count: 2,
 				audio_work_seconds: 600,
 				prepared: true,
