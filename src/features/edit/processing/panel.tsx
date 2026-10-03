@@ -356,6 +356,7 @@ export function ProcessingPanel({
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
 	const [campaignSelection, setCampaignSelection] = useState(campaignId);
+	const campaignSelectorRef = useRef<HTMLSelectElement>(null);
 	const diagnosticOpener = useRef<HTMLElement | null>(null);
 
 	useEffect(() => {
@@ -515,6 +516,15 @@ export function ProcessingPanel({
 		const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
 		return () => window.clearInterval(timer);
 	}, [activeJobClockKey]);
+
+	function dismissConfirmation() {
+		const restoreCampaignFocus = confirmation?.action === "switch_campaign";
+		if (restoreCampaignFocus) setCampaignSelection(campaignId);
+		setConfirmation(null);
+		if (restoreCampaignFocus) {
+			window.requestAnimationFrame(() => campaignSelectorRef.current?.focus());
+		}
+	}
 
 	async function confirm() {
 		const choice = confirmation;
@@ -700,6 +710,7 @@ export function ProcessingPanel({
 				<label>
 					<span className={styles.visuallyHidden}>Trocar campanha</span>
 					<select
+						ref={campaignSelectorRef}
 						value={campaignSelection}
 						onChange={(event) => {
 							const next = event.target.value;
@@ -1580,20 +1591,12 @@ export function ProcessingPanel({
 										? `O trabalho ${confirmation.id}, seus eventos e a referência de resultado na fila serão excluídos.`
 										: `Uma nova tentativa será criada para ${confirmation.id}.`
 					}
-					onClose={() => {
-					if (confirmation.action === "switch_campaign")
-						setCampaignSelection(campaignId);
-					setConfirmation(null);
-				}}
+					onClose={dismissConfirmation}
 					actions={
 					<>
 						<Button
 							data-dialog-initial-focus="true"
-							onClick={() => {
-								if (confirmation.action === "switch_campaign")
-									setCampaignSelection(campaignId);
-								setConfirmation(null);
-							}}
+							onClick={dismissConfirmation}
 						>
 							Cancelar
 						</Button>
