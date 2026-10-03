@@ -1,4 +1,3 @@
-import type { ManageableCampaign } from "@/features/campaigns/model";
 import type { LembraCampaignClassification } from "./model";
 
 export type ReconciledLembraCampaign = Readonly<{
@@ -17,16 +16,19 @@ function sortCampaigns(
 }
 
 export function reconcileCreatedLembraCampaign(
-	campaigns: readonly LembraCampaignClassification[],
+	projectedCampaigns: readonly LembraCampaignClassification[],
 	currentCampaignId: string | null,
-	created: ManageableCampaign,
+	createdCampaignId: string,
 ): ReconciledLembraCampaign {
-	if (created.visibility !== "public") {
+	const campaigns = sortCampaigns(projectedCampaigns);
+	const created = campaigns.find((campaign) => campaign.id === createdCampaignId);
+
+	if (!created) {
 		return {
 			campaigns,
 			campaignId: currentCampaignId,
 			message:
-				"A campanha foi criada como privada e não aparece como classificação do Lembra.",
+				"A campanha foi criada, mas não está disponível para classificar referências neste acesso.",
 		};
 	}
 
@@ -39,17 +41,9 @@ export function reconcileCreatedLembraCampaign(
 		};
 	}
 
-	const classification: LembraCampaignClassification = {
-		id: created.id,
-		name: created.name,
-		lifecycle: "active",
-	};
-	const next = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
-	next.set(classification.id, classification);
-
 	return {
-		campaigns: sortCampaigns([...next.values()]),
-		campaignId: classification.id,
+		campaigns,
+		campaignId: created.id,
 		message: "Campanha criada e selecionada.",
 	};
 }
