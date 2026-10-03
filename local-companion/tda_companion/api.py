@@ -30,6 +30,7 @@ from .browser_session import BrowserSessionManager
 from .benchmark_bundles import (
     BenchmarkBundleError,
     benchmark_sample_descriptor,
+    claim_benchmark_outcome,
     finalize_benchmark_bundle,
     load_benchmark_bundle,
     read_benchmark_transcript,
@@ -2456,17 +2457,29 @@ def create_app(
             body = store.body(job_id)
             if (
                 current["status"] == "running"
-                and body.get("kind") == "transcription.craig"
+                and body.get("kind") in {"transcription.craig", "benchmark.craig"}
             ):
                 attempt = current.get("attempt")
                 if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
                     raise Conflict("ATTEMPT_FENCE_ATTEMPT_INVALID")
-                winner = await asyncio.to_thread(
-                    claim_cancel_under_source_gate,
-                    str(body["source_id"]),
-                    job_id,
-                    attempt,
-                )
+                if body.get("kind") == "transcription.craig":
+                    winner = await asyncio.to_thread(
+                        claim_cancel_under_source_gate,
+                        str(body["source_id"]),
+                        job_id,
+                        attempt,
+                    )
+                else:
+                    try:
+                        winner = await asyncio.to_thread(
+                            claim_benchmark_outcome,
+                            data_root,
+                            job_id,
+                            attempt,
+                            "cancel",
+                        )
+                    except BenchmarkBundleError as exc:
+                        raise Conflict(str(exc)) from None
                 if winner == "commit":
                     latest = store.get(job_id)
                     if latest["status"] == "succeeded":
