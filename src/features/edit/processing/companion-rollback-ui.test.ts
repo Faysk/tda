@@ -388,7 +388,7 @@ describe("Companion maintenance dialogs", () => {
 		);
 		expect(harness.get("maintenance-dialog-confirm").disabled).toBe(false);
 
-		let releaseRestart = (_value: boolean) => undefined;
+		let releaseRestart: (value: boolean) => void = () => {};
 		const pendingRestart = new Promise<boolean>((resolve) => {
 			releaseRestart = resolve;
 		});
