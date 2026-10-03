@@ -1252,12 +1252,22 @@ test("account overview keeps synthetic identity and access usable across the lay
 	]) {
 		await page.setViewportSize(viewport);
 		await page.goto("/e2e-fixtures/account-overview?state=multi");
-		await expect(page.getByText("Crônicas da Mesa", { exact: true })).toBeVisible();
+		const campaignPicker = page.getByRole("combobox", {
+			name: "Campanha consultada",
+		});
+		await expect(campaignPicker).toBeVisible();
+		await expect(campaignPicker).toHaveValue("");
+		await expect(campaignPicker.locator("option")).toContainText([
+			"Crônicas da Mesa",
+			"A Campanha Sintética Com Nome Deliberadamente Muito Longo Para Validar Reflow",
+		]);
+		await campaignPicker.selectOption("campaign-b");
+		await expect(page).toHaveURL(/campanha=campaign-b/u);
 		await expect(
 			page.getByText(
 				"A Campanha Sintética Com Nome Deliberadamente Muito Longo Para Validar Reflow",
 				{ exact: true },
-			),
+			).last(),
 		).toBeVisible();
 		await expectNoHorizontalOverflow(page);
 	}
