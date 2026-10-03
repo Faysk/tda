@@ -340,8 +340,14 @@ def test_merged_1419_bundle_stays_readable_comparable_and_exportable(tmp_path: P
     )["engine"]["profile"] == "qwen-fast"
 
     archive = private_export_zip(tmp_path, legacy["benchmark_id"])
-    assert b"WEBVTT" in archive
-    assert b"texto qwen-fast" in archive
+    import zipfile
+    from io import BytesIO
+
+    with zipfile.ZipFile(BytesIO(archive)) as exported:
+        names = exported.namelist()
+        qwen_vtt = next(name for name in names if name.endswith("/profiles/qwen-fast/transcript.vtt"))
+        assert exported.read(qwen_vtt).startswith(b"WEBVTT")
+        assert b"texto qwen-fast" in exported.read(qwen_vtt)
 
 
 def test_completed_bundle_is_hash_bound_queue_independent_and_contains_no_audio(tmp_path: Path):
