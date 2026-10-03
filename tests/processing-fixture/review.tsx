@@ -13,6 +13,7 @@ export function ReviewFixture() {
 	const comparisonMode = new URLSearchParams(location.search).has("comparison");
 	const metricsMode = new URLSearchParams(location.search).has("metrics") || comparisonMode;
     const [saveCount, setSaveCount] = useState(0);
+    const [closeCount, setCloseCount] = useState(0);
     const [openedRunId, setOpenedRunId] = useState("");
     const [saveError, setSaveError] = useState<string | null>(null);
     const [review, setReview] = useState<LocalReview>({
@@ -172,6 +173,7 @@ export function ReviewFixture() {
 	return (
 		<>
         <span data-testid="save-count">{saveCount}</span>
+        <span data-testid="close-count">{closeCount}</span>
         <span data-testid="opened-run-id" hidden>{openedRunId}</span>
         <LocalReviewWorkspace
 			runs={comparisonMode ? [run, comparisonRunB, otherSourceRun] : metricsMode ? [run] : []}
@@ -208,7 +210,7 @@ export function ReviewFixture() {
                     attempt: 1,
                 },
             }) : undefined}
-            onClose={() => {}}
+            onClose={() => setCloseCount((count) => count + 1)}
 			onPublish={(review, id, expected, profile) => publishApprovedLocalReview(review, id, expected, fetch, profile)}
 		/>
         </>
