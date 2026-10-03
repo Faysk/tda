@@ -141,7 +141,7 @@
 .primaryAction {
 	border-color: var(--ds-accent-strong);
 	background: var(--ds-accent-strong);
-	color: var(--ds-canvas);
+	color: var(--ds-accent-contrast);
 }
 
 .secondaryAction {
