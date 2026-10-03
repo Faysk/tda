@@ -8,6 +8,66 @@ function overlapArea(a: Box, b: Box) {
 	return width * height;
 }
 
+
+async function expectPaintedWorldEdge(page: Page, edgeId: string) {
+	const edge = page.locator(`[data-world-edge="${edgeId}"]`);
+	await expect(edge).toBeVisible();
+	const receipt = await edge.evaluate((element) => {
+		const path = element as SVGPathElement;
+		const totalLength = path.getTotalLength();
+		const mid = path.getPointAtLength(totalLength / 2);
+		const matrix = path.getScreenCTM();
+		if (!matrix) throw new Error("Selected World edge has no screen transform");
+		const screenMid = new DOMPoint(mid.x, mid.y).matrixTransform(matrix);
+		const canvas = path.closest('[data-testid="world-canvas"]') as HTMLElement | null;
+		if (!canvas) throw new Error("Selected World edge is outside the World canvas");
+		const canvasBox = canvas.getBoundingClientRect();
+		const style = getComputedStyle(path);
+		const strokePoint = path.ownerSVGElement?.createSVGPoint();
+		if (!strokePoint) throw new Error("Selected World edge has no SVG point factory");
+		strokePoint.x = mid.x;
+		strokePoint.y = mid.y;
+		const edgeLayer = document.querySelector(".react-flow__edges");
+		const nodeLayer = document.querySelector(".react-flow__nodes");
+		const portalLayer = document.querySelector(".react-flow__viewport-portal");
+		return {
+			totalLength,
+			strokeWidth: Number.parseFloat(style.strokeWidth),
+			strokeOpacity: Number.parseFloat(style.strokeOpacity),
+			display: style.display,
+			visibility: style.visibility,
+			inStroke:
+				typeof path.isPointInStroke === "function"
+					? path.isPointInStroke(strokePoint)
+					: true,
+			screenMid,
+			canvas: {
+				left: canvasBox.left,
+				top: canvasBox.top,
+				right: canvasBox.right,
+				bottom: canvasBox.bottom,
+			},
+			z: {
+				portal: Number.parseInt(getComputedStyle(portalLayer!).zIndex || "0", 10),
+				edges: Number.parseInt(getComputedStyle(edgeLayer!).zIndex || "0", 10),
+				nodes: Number.parseInt(getComputedStyle(nodeLayer!).zIndex || "0", 10),
+			},
+		};
+	});
+	expect(receipt.totalLength).toBeGreaterThan(20);
+	expect(receipt.strokeWidth).toBeGreaterThan(0);
+	expect(receipt.strokeOpacity).toBeGreaterThan(0.5);
+	expect(receipt.display).not.toBe("none");
+	expect(receipt.visibility).not.toBe("hidden");
+	expect(receipt.inStroke).toBe(true);
+	expect(receipt.z.portal).toBeLessThan(receipt.z.edges);
+	expect(receipt.z.edges).toBeLessThan(receipt.z.nodes);
+	expect(receipt.screenMid.x).toBeGreaterThanOrEqual(receipt.canvas.left - 2);
+	expect(receipt.screenMid.x).toBeLessThanOrEqual(receipt.canvas.right + 2);
+	expect(receipt.screenMid.y).toBeGreaterThanOrEqual(receipt.canvas.top - 2);
+	expect(receipt.screenMid.y).toBeLessThanOrEqual(receipt.canvas.bottom + 2);
+}
+
 async function closeWorkspaceOverlays(page: Page) {
 	const navigationClose = page.getByRole("button", { name: "Recolher navegação do mundo" });
 	if (await navigationClose.isVisible().catch(() => false)) await navigationClose.click();
@@ -128,6 +188,48 @@ test("World canvas utilities keep independent corner safe areas without overlapp
 	const receiptPath = testInfo.outputPath("world-relation-polish-1920x1080.png");
 	await page.screenshot({ path: receiptPath });
 	await testInfo.attach("world-relation-polish-1920x1080", {
+		path: receiptPath,
+		contentType: "image/png",
+	});
+});
+
+
+test("World selected relation strokes paint above neighborhoods and stay attached through camera changes", async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name === "mobile", "Desktop painting receipt uses the full graph.");
+
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.goto("/campanhas/cronicas-da-mesa/mundo");
+	await closeWorkspaceOverlays(page);
+
+	await page.locator('[data-world-node="astel"]').click();
+	await expect(page.locator('[data-world-edge="astel-raven-queen"]')).toHaveAttribute(
+		"data-world-edge-active",
+		"true",
+	);
+	await expectPaintedWorldEdge(page, "astel-raven-queen");
+
+	const canvas = page.getByTestId("world-canvas");
+	const box = await canvas.boundingBox();
+	expect(box).not.toBeNull();
+	if (box) {
+		await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
+		await page.mouse.wheel(0, -360);
+		await page.waitForTimeout(180);
+		await expectPaintedWorldEdge(page, "astel-raven-queen");
+	}
+
+	await page.locator('[data-world-node="dandelion"]').click();
+	await expect(page.locator('[data-world-edge="dandelion-astel"]')).toHaveAttribute(
+		"data-world-edge-active",
+		"true",
+	);
+	await expectPaintedWorldEdge(page, "dandelion-astel");
+
+	const receiptPath = testInfo.outputPath("world-selected-relation-paint.png");
+	await page.screenshot({ path: receiptPath });
+	await testInfo.attach("world-selected-relation-paint", {
 		path: receiptPath,
 		contentType: "image/png",
 	});
