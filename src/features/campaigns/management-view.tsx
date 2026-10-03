@@ -25,9 +25,9 @@ type Props = Readonly<{
 const FIELD_LABELS: Readonly<Record<string, string>> = {
 	name: "nome",
 	technicalSlug: "chave técnica",
-	routeKey: "rota pública",
-	description: "descrição",
-	visibility: "visibilidade",
+	routeKey: "endereço público",
+	description: "apresentação",
+	visibility: "quem pode ver",
 };
 
 function feedbackText(
@@ -169,7 +169,7 @@ export function CampaignManagementView({
 										/>
 									</label>
 									<label>
-										<span>Visibilidade inicial</span>
+										<span>Quem pode ver</span>
 										<select
 											name="visibility"
 											defaultValue="private"
@@ -187,7 +187,7 @@ export function CampaignManagementView({
 										</select>
 									</label>
 									<label className={styles.full}>
-										<span>Descrição</span>
+										<span>Apresentação</span>
 										<textarea
 											name="description"
 											maxLength={600}
@@ -203,7 +203,7 @@ export function CampaignManagementView({
 										/>
 									</label>
 									<label className={styles.full}>
-										<span>Rota pública</span>
+										<span>Endereço público</span>
 										<input
 											name="routeKey"
 											required
@@ -412,7 +412,7 @@ export function CampaignManagementView({
 																			/>
 																		</label>
 																		<label>
-																			<span>Visibilidade</span>
+																			<span>Quem pode ver</span>
 																			<select
 																				name="visibility"
 																				defaultValue={campaign.visibility}
@@ -438,7 +438,7 @@ export function CampaignManagementView({
 																			</select>
 																		</label>
 																		<label className={styles.full}>
-																			<span>Descrição</span>
+																			<span>Apresentação</span>
 																			<textarea
 																				name="description"
 																				defaultValue={campaign.description ?? ""}
@@ -463,7 +463,7 @@ export function CampaignManagementView({
 																			/>
 																		</label>
 																		<label className={styles.full}>
-																			<span>Rota pública</span>
+																			<span>Endereço público</span>
 																			<input
 																				name="routeKey"
 																				defaultValue={campaign.routeKey}
