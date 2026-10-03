@@ -385,7 +385,9 @@ export type BenchmarkResult = {
 	sessionId: string;
 	sampleIdentitySha256: string;
 	sampleSeconds: number;
-	executionMode: "prepared_artifacts_fresh_worker_per_profile_v1";
+	executionMode:
+		| "prepared_artifacts_fresh_worker_per_profile_v1"
+		| "prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2";
 	trackCount: number;
 	audioWorkSeconds: number;
 	prepared: boolean;
@@ -2264,7 +2266,9 @@ export function parseBenchmarkResult(
 		sampleIdentitySha256: sha256(row.sample_identity_sha256),
 		sampleSeconds,
 		executionMode:
-			row.execution_mode === "prepared_artifacts_fresh_worker_per_profile_v1"
+			row.execution_mode === "prepared_artifacts_fresh_worker_per_profile_v1" ||
+			row.execution_mode ===
+				"prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2"
 				? row.execution_mode
 				: invalid(),
 		trackCount: nonNegativeInteger(row.track_count),
