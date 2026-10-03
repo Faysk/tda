@@ -16,12 +16,17 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _SOURCE_ID = re.compile(r"^craig-([0-9a-f]{64})$")
 _MAX_TRANSCRIPT_BYTES = 512 * 1024 * 1024
 _MAX_MANIFEST_BYTES = 256 * 1024
+_QWEN_PROFILES = frozenset({"qwen-fast", "qwen-quality"})
 
 
 class QwenFullRunStructureError(RuntimeError):
     def __init__(self, code: str):
         super().__init__(code)
         self.code = code
+
+
+class QwenFullRunConfigurationError(QwenFullRunStructureError):
+    """Acceptance harness configuration does not match the validator contract."""
 
 
 def _sha256_file(path: Path) -> str:
@@ -80,8 +85,8 @@ def validate_full_run(
         raise QwenFullRunStructureError("QWEN_1236_FULL_RUN_SOURCE_MISMATCH")
     if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt < 2:
         raise QwenFullRunStructureError("QWEN_1236_FULL_RUN_RETRY_ATTEMPT_INVALID")
-    if expected_profile_id != "qwen-fast":
-        raise QwenFullRunStructureError("QWEN_1236_FULL_RUN_PROFILE_INVALID")
+    if expected_profile_id not in _QWEN_PROFILES:
+        raise QwenFullRunConfigurationError("QWEN_1236_FULL_RUN_PROFILE_INVALID")
     if expected_track_count != 4:
         raise QwenFullRunStructureError("QWEN_1236_FULL_RUN_TRACK_CONTRACT_INVALID")
 
@@ -215,6 +220,9 @@ def main(argv: list[str] | None = None) -> int:
         _write_json(args.output.resolve(), receipt)
         print("QWEN_1236_FULL_RUN_STRUCTURE_OK")
         return 0
+    except QwenFullRunConfigurationError as exc:
+        print(exc.code, file=sys.stderr)
+        return 3
     except QwenFullRunStructureError as exc:
         print(exc.code, file=sys.stderr)
         return 2
