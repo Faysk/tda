@@ -372,7 +372,7 @@ test("Lembra fully redacts undiscoverable private classifications", async ({ pag
 	await expect(
 		page.getByRole("button", { name: "Referência redigida editada", exact: true }),
 	).toHaveCount(0);
-	await page.getByRole("button", { name: "Limpar filtros" }).click();
+	await page.getByRole("button", { name: "Limpar filtros", exact: true }).click();
 
 	await campaignFilter.click();
 	await page.getByRole("option", { name: "Geral", exact: true }).click();
