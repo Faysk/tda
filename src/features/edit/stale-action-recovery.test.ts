@@ -2,10 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
 	decodeStaleActionRecovery,
 	encodeStaleActionRecovery,
+	isNextRedirectSignal,
 	isStaleServerActionError,
 } from "./stale-action-recovery";
 
 describe("stale Server Action recovery", () => {
+	it("keeps framework redirects out of failure recovery", () => {
+		expect(
+			isNextRedirectSignal({
+				digest: "NEXT_REDIRECT;replace;/edit/campanhas?status=criada;307;",
+			}),
+		).toBe(true);
+		expect(isNextRedirectSignal(new Error("Server Action was not found"))).toBe(false);
+	});
+
 	it("recognizes deployment-skew action lookup failures only", () => {
 		expect(
 			isStaleServerActionError(
