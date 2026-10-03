@@ -27,7 +27,7 @@ create index if not exists session_campaign_move_operations_actor_profile_id_idx
   on public.session_campaign_move_operations(actor_profile_id);
 
 alter table public.session_campaign_move_operations enable row level security;
-revoke all on table public.session_campaign_move_operations from public, anon, authenticated;
+revoke all on table public.session_campaign_move_operations from public, anon, authenticated, service_role;
 grant select, insert on table public.session_campaign_move_operations to service_role;
 
 create or replace function public.session_campaign_move_dependency_count(
