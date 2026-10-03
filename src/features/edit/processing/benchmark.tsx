@@ -318,7 +318,7 @@ function BenchmarkEvidencePanel({
 						{PROFILES.map((id) => <option key={id} value={id}>{LABELS[id]}</option>)}
 					</select>
 				</label>
-				<Button type="button" variant="secondary" disabled={busy || leftProfile === rightProfile} onClick={() => void compare()}>
+				<Button type="button" variant="tertiary" disabled={busy || leftProfile === rightProfile} onClick={() => void compare()}>
 					Comparar por track e tempo
 				</Button>
 			</div>
