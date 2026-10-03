@@ -89,29 +89,52 @@ test("copies the visible working speaker with the immutable timestamp and restor
 		.toBe("00:00:00.000 · Speaker 1");
 });
 
-test("revert removes dirty state and dirty navigation requires explicit confirmation", async ({
+test("revert removes dirty state and dirty navigation uses integrated confirmation", async ({
 	page,
-}) => {
+}, testInfo) => {
 	await openFresh(page);
 	const first = await editFirst(page, "Mudança descartável");
 	await first.getByRole("button", { name: "Reverter" }).click();
 	await expect(page.getByText("Nenhuma alteração", { exact: true })).toBeVisible();
 
 	await editFirst(page, "Working copy protegida");
-	page.once("dialog", async (dialog) => {
-		expect(dialog.message()).toContain("alterações não salvas");
-		await dialog.dismiss();
+	let nativeDialogs = 0;
+	page.on("dialog", () => {
+		nativeDialogs += 1;
 	});
-	await page.getByRole("link", { name: "Sair da fixture" }).click();
+
+	const exitLink = page.getByRole("link", { name: "Sair da fixture" });
+	await exitLink.click();
+	const dialog = page.getByRole("dialog", { name: "Sair da transcrição?" });
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toContainText("1 alteração(ões) não salvas");
+	await expect(
+		dialog.getByRole("button", { name: "Continuar editando" }),
+	).toBeFocused();
+	await page.screenshot({
+		path: testInfo.outputPath("issue-1354-transcript-dirty-navigation-dialog.png"),
+		fullPage: true,
+	});
+
+	await page.keyboard.press("Escape");
+	await expect(dialog).not.toBeVisible();
+	await expect(exitLink).toBeFocused();
 	await expect(page).toHaveURL(/\/e2e-fixtures\/transcript-edit/u);
 	await expect(
 		page.getByText("Working copy protegida", { exact: true }),
 	).toBeVisible();
+	expect(nativeDialogs).toBe(0);
+
+	await exitLink.click();
+	await expect(dialog).toBeVisible();
+	await dialog.getByRole("button", { name: "Descartar e sair" }).click();
+	await expect(page).toHaveURL(/\/$/u);
+	expect(nativeDialogs).toBe(0);
 });
 
-test("stale current preserves the working copy and never retries blindly", async ({
+test("stale current preserves draft and remote reload requires integrated confirmation", async ({
 	page,
-}) => {
+}, testInfo) => {
 	await openFresh(page);
 	await editFirst(page, "Minha correção local");
 	await page.getByRole("button", { name: "Simular revisão remota" }).click();
@@ -120,9 +143,8 @@ test("stale current preserves the working copy and never retries blindly", async
 	await page
 		.getByRole("button", { name: "Salvar alterações da transcrição" })
 		.click();
-	const readerAlert = page
-		.getByRole("region", { name: "Leitor e editor de transcrição" })
-		.getByRole("alert");
+	const reader = page.getByRole("region", { name: "Leitor e editor de transcrição" });
+	const readerAlert = reader.getByRole("alert");
 	await expect(readerAlert).toContainText("working copy foi preservada");
 	await expect(readerAlert).toContainText("Remoto: r2");
 	await expect(
@@ -131,6 +153,41 @@ test("stale current preserves the working copy and never retries blindly", async
 	await expect(
 		page.getByText("1 alteração(ões) não salvas", { exact: true }),
 	).toBeVisible();
+
+	let nativeDialogs = 0;
+	page.on("dialog", () => {
+		nativeDialogs += 1;
+	});
+	const reload = page.getByRole("button", { name: "Recarregar versão mais recente" });
+	await reload.click();
+	const dialog = page.getByRole("dialog", {
+		name: "Recarregar versão mais recente?",
+	});
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toContainText("working copy local será descartada");
+	await expect(
+		dialog.getByRole("button", { name: "Continuar editando" }),
+	).toBeFocused();
+	await page.screenshot({
+		path: testInfo.outputPath("issue-1354-transcript-remote-reload-dialog.png"),
+		fullPage: true,
+	});
+
+	await page.keyboard.press("Escape");
+	await expect(dialog).not.toBeVisible();
+	await expect(reload).toBeFocused();
+	await expect(
+		page.getByText("Minha correção local", { exact: true }),
+	).toBeVisible();
+	expect(nativeDialogs).toBe(0);
+
+	await reload.click();
+	await dialog.getByRole("button", { name: "Descartar e recarregar" }).click();
+	await expect(
+		page.getByRole("heading", { name: "Transcript Edit E2E" }),
+	).toBeVisible();
+	await expect(page.getByText("Nenhuma alteração", { exact: true })).toBeVisible();
+	expect(nativeDialogs).toBe(0);
 });
 
 test("ambiguous response reuses the operation and reconciles without a duplicate revision", async ({
