@@ -362,6 +362,20 @@ test("session campaign move preflight keeps blockers actionable on keyboard and 
 	).toBeTruthy();
 });
 
+test("campaign move reports runtime dependency loss explicitly", async ({ page }) => {
+	await page.goto("/e2e-fixtures/session-editorial");
+
+	const selector = page.getByLabel("Mover para outra campanha");
+	await selector.selectOption("campanha-indisponivel");
+	await page.getByRole("button", { name: "Pré-validar mudança" }).click();
+
+	await expect(
+		page.getByRole("alert").filter({
+			hasText: "A mudança de campanha está temporariamente indisponível neste ambiente.",
+		}),
+	).toBeVisible();
+});
+
 test("campaign move fails closed before the backend contract is available", async ({
 	page,
 }) => {
