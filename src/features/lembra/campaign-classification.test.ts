@@ -92,6 +92,13 @@ describe("Lembra privacy-safe campaign mutation", () => {
 				{ kind: "set", campaignId: privateCampaign.id },
 			),
 		).toEqual({ ok: false, reason: "forbidden" });
+		expect(
+			resolveLembraCampaignMutation(
+				privateCampaign.id,
+				[publicCampaign],
+				{ kind: "set", campaignId: publicCampaign.id },
+			),
+		).toEqual({ ok: false, reason: "forbidden" });
 	});
 
 	it("allows an authorized viewer to set or clear a discoverable private campaign", () => {
