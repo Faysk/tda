@@ -3,11 +3,13 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { lembraDataClient } from "@/integrations/supabase/server";
 import { isLembraCampaignRegistryUnavailable } from "./campaign-classification";
+import { lembraCampaignColumnPatch } from "./classification-mutation";
 import {
 	isLembraMediaMime,
 	isLembraUuid,
 	lembraImageUrl,
 	type LembraCampaignClassification,
+	type LembraCampaignMutationIntent,
 	type LembraMediaMime,
 	type LembraReference,
 } from "./model";
@@ -264,17 +266,19 @@ export async function updateLembraReferenceMetadata(
 	referenceId: string,
 	title: string,
 	description: string,
-	campaignId: string | null,
+	classification: LembraCampaignMutationIntent,
 	expectedUpdatedAt: string,
 ): Promise<LembraReferenceRow | null> {
+	const update: Record<string, unknown> = {
+		title,
+		description,
+		updated_at: new Date().toISOString(),
+		...lembraCampaignColumnPatch(classification),
+	};
+
 	const { data, error } = await client
 		.from("lembra_references")
-		.update({
-			title,
-			description,
-			campaign_id: campaignId,
-			updated_at: new Date().toISOString(),
-		})
+		.update(update)
 		.eq("id", referenceId)
 		.eq("status", "active")
 		.eq("updated_at", expectedUpdatedAt)
