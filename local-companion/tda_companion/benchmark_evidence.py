@@ -923,13 +923,45 @@ def finalize_bundle(
     source_id: str,
     sample_identity_sha256: str,
     sample_seconds: float,
+    sample_descriptor: Mapping[str, Any],
     context: str,
     glossary: str,
     execution_mode: str,
 ) -> dict[str, Any]:
     root = benchmark_root(data_root, benchmark_id)
     if (root / "benchmark.json").exists():
-        raise BenchmarkEvidenceError("BENCHMARK_ALREADY_COMMITTED")
+        current = _read_bundle_manifest(data_root, benchmark_id)
+        if (
+            current.get("job_id") != job_id
+            or current.get("attempt") != attempt
+            or current.get("source_id") != source_id
+            or current.get("sample_identity_sha256") != sample_identity_sha256
+        ):
+            raise BenchmarkEvidenceError("BENCHMARK_ALREADY_EXISTS")
+        descriptor = _descriptor(root / "benchmark.json")
+        return {
+            "benchmark_id": benchmark_id,
+            "bundle_manifest_sha256": descriptor["sha256"],
+            "bundle_size_bytes": int(descriptor["size_bytes"]) + sum(
+                int(artifact.get("size_bytes", 0))
+                for item in current.get("profiles", [])
+                if isinstance(item, dict)
+                for artifact in (
+                    item.get("artifacts", {}).values()
+                    if isinstance(item.get("artifacts"), dict)
+                    else ()
+                )
+                if isinstance(artifact, dict)
+            ),
+            "profiles": [
+                {
+                    "profile_id": item["profile_id"],
+                    "transcript_sha256": item["artifacts"]["transcript"]["sha256"],
+                    "artifact_available": True,
+                }
+                for item in current["profiles"]
+            ],
+        }
     profile_entries: list[dict[str, Any]] = []
     source_sha256: str | None = None
     track_count: int | None = None
@@ -1005,6 +1037,21 @@ def finalize_bundle(
         profile_entries.append({"profile_id": profile_id, "artifacts": artifacts})
     if source_id != f"craig-{source_sha256}":
         raise BenchmarkEvidenceError("BENCHMARK_SOURCE_IDENTITY_MISMATCH")
+    sample = _validate_sample_descriptor(
+        sample_descriptor,
+        source_sha256=source_sha256,
+        sample_seconds=sample_seconds,
+        sample_identity_sha256=sample_identity_sha256,
+    )
+    if track_count != len(sample["tracks"]):
+        raise BenchmarkEvidenceError("BENCHMARK_SAMPLE_TRACK_COUNT_MISMATCH")
+    expected_audio_work = sample_seconds * track_count
+    if audio_work_seconds is None or not math.isclose(
+        audio_work_seconds,
+        expected_audio_work,
+        abs_tol=0.001,
+    ):
+        raise BenchmarkEvidenceError("BENCHMARK_SAMPLE_AUDIO_WORK_MISMATCH")
     manifest = {
         "schema_version": BUNDLE_SCHEMA,
         "status": "completed",
@@ -1014,7 +1061,7 @@ def finalize_bundle(
         "source_id": source_id,
         "source_sha256": source_sha256,
         "sample_identity_sha256": sample_identity_sha256,
-        "sample": {"start_seconds": 0.0, "end_seconds": sample_seconds},
+        "sample": sample,
         "sample_seconds": sample_seconds,
         "track_count": track_count,
         "audio_work_seconds": audio_work_seconds,
@@ -1026,6 +1073,12 @@ def finalize_bundle(
         "completed_at": utc_now(),
     }
     manifest["manifest_payload_sha256"] = _manifest_payload_sha256(manifest)
+    try:
+        winner = claim_benchmark_outcome(data_root, job_id, attempt, "commit")
+    except BenchmarkBundleError as exc:
+        raise BenchmarkEvidenceError(str(exc)) from exc
+    if winner != "commit":
+        raise BenchmarkEvidenceError("BENCHMARK_ATTEMPT_CANCELLED")
     _write_json(root / "benchmark.json", manifest)
     descriptor = _descriptor(root / "benchmark.json")
     total_size += int(descriptor["size_bytes"])
