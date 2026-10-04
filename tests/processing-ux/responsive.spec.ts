@@ -1000,6 +1000,8 @@ async function readContextualLogGeometry(
 			footerVisible,
 			logOverflowY: getComputedStyle(log).overflowY,
 			shellOverflowY: getComputedStyle(shell).overflowY,
+			shellScrollHeight: shell.scrollHeight,
+			shellClientHeight: shell.clientHeight,
 		};
 	});
 }
@@ -1053,11 +1055,17 @@ for (const viewport of [
 
 		const geometry = await readContextualLogGeometry(inspector);
 		expectContextualLogRegionsDoNotOverlap(geometry);
-		if (viewport.height <= 700) {
-			expect(["auto", "scroll"]).toContain(geometry.shellOverflowY);
-			expect(geometry.logOverflowY).toBe("visible");
-		} else {
-			expect(["auto", "scroll"]).toContain(geometry.logOverflowY);
+		expect(["auto", "scroll"]).toContain(geometry.shellOverflowY);
+		expect(["auto", "scroll"]).toContain(geometry.logOverflowY);
+		if (viewport.height <= 568) {
+			expect(geometry.shellScrollHeight).toBeGreaterThan(
+				geometry.shellClientHeight,
+			);
+		}
+		if (viewport.width === 1920 && viewport.height === 1080) {
+			expect(geometry.shellScrollHeight).toBeLessThanOrEqual(
+				geometry.shellClientHeight + 1,
+			);
 		}
 
 		if (
