@@ -416,6 +416,7 @@ def _recover_empty_window_with_subwindows(
     report: ProgressCallback,
     track_number: int,
     total_tracks: int,
+    is_cancelled: CancelCallback,
 ) -> tuple[str, str] | None:
     """Retry one signal-bearing full Qwen window as two bounded in-window halves.
 
@@ -462,6 +463,8 @@ def _recover_empty_window_with_subwindows(
     recovered: list[str] = []
     language = profile_language or "Portuguese"
     for subwindow_index, piece in enumerate((audio[:midpoint], audio[midpoint:]), start=1):
+        if is_cancelled():
+            raise QwenRuntimeError("ASR_CANCELLED")
         diagnostics = _qwen_window_signal_diagnostics(piece)
         if diagnostics["confidently_silent"]:
             continue
@@ -972,6 +975,7 @@ def transcribe_craig_package_qwen_strict(
                                 report=report,
                                 track_number=track.number,
                                 total_tracks=total_tracks,
+                                is_cancelled=is_cancelled,
                             )
                             if recovered is None:
                                 raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")

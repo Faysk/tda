@@ -645,6 +645,66 @@ def test_fast_empty_full_window_recovery_accepts_silent_half_without_fabricating
     assert recovered["strategy"] == "split_2x30s"
 
 
+
+def test_fast_empty_full_window_recovery_honors_cancel_between_halves(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    calls = 0
+    cancelled = False
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            nonlocal calls, cancelled
+            calls += 1
+            if calls == 1:
+                assert len(audio) == 320
+                return "", "Portuguese"
+            if calls == 2:
+                assert len(audio) == 160
+                cancelled = True
+                return "primeira", "Portuguese"
+            raise AssertionError("second recovery half must not run after cancellation")
+
+        def close(self):
+            pass
+
+    audio = [0.1, -0.1] * 160
+    with pytest.raises(QwenRuntimeError, match="ASR_CANCELLED"):
+        transcribe_craig_package_qwen_strict(
+            package,
+            root,
+            tmp_path / "Models",
+            profile_id="qwen-fast",
+            checkpoints=False,
+            plan_resolver=_plan,
+            model_prepare=_model_prepare,
+            aligner_prepare=lambda _root: (_ for _ in ()).throw(
+                AssertionError("cancelled Fast recovery must stop before alignment")
+            ),
+            asr_session_factory=lambda _root, plan: (
+                Asr()
+                if plan.profile_id == "qwen-fast"
+                else (_ for _ in ()).throw(AssertionError("Fast recovery switched profile"))
+            ),
+            aligner_session_factory=lambda *_args: (_ for _ in ()).throw(
+                AssertionError("cancelled Fast recovery must stop before aligner creation")
+            ),
+            window_reader=lambda _path: iter(
+                [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
+            ),
+            is_cancelled=lambda: cancelled,
+            report=reports.append,
+        )
+
+    assert calls == 2
+    codes = [item.get("code") for item in reports]
+    assert codes.count("QWEN_WINDOW_EMPTY_ASR_REJECTED") == 1
+    assert codes.count("QWEN_EMPTY_WINDOW_RECOVERY_STARTED") == 1
+    assert "QWEN_EMPTY_WINDOW_RECOVERY_FAILED" not in codes
+    assert "QWEN_EMPTY_WINDOW_RECOVERED" not in codes
+
 def test_strict_qwen_mixed_tracks_keep_silent_timeline_and_voiced_identity(tmp_path: Path):
     package, root = _two_track_package(tmp_path)
     reports: list[dict] = []
