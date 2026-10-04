@@ -59,7 +59,16 @@ export function presentJobTitle(job: Pick<LocalJob, "kind">): string {
 	return job.kind;
 }
 
-export function presentJobError(code: string): string {
+export function presentJobError(
+	code: string,
+	kind?: LocalJob["kind"],
+): string {
+	if (
+		code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN" &&
+		kind === "benchmark.craig"
+	) {
+		return "O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. O Benchmark registrou a falha deste perfil e continua automaticamente com os perfis independentes restantes.";
+	}
 	const known: Record<string, string> = {
 		AGENT_BUSY: "O Companion está ocupado com um processamento ou preparação local; aguarde a operação atual terminar.",
 		PROCESS_INTERRUPTED: "Execução interrompida pelo encerramento ou reinício do Agent.",
@@ -217,6 +226,40 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 	const totalTracks = numberData(event, "total_tracks");
 
 	switch (event.code) {
+		case "BENCHMARK_PROFILE_STARTED": {
+			const profile = textData(event, "profile");
+			return {
+				title: profile
+					? `Benchmark iniciou o perfil ${profile}.`
+					: "Benchmark iniciou o próximo perfil.",
+			};
+		}
+		case "BENCHMARK_PROFILE_COMPLETED": {
+			const profile = textData(event, "profile");
+			const successful = numberData(event, "successful_count");
+			const totalProfiles = numberData(event, "total_profiles");
+			return {
+				title: profile
+					? `Perfil ${profile} concluído no Benchmark.`
+					: "Perfil do Benchmark concluído.",
+				detail:
+					successful !== null && totalProfiles !== null
+						? `${successful} de ${totalProfiles} perfis concluídos com sucesso.`
+						: undefined,
+			};
+		}
+		case "BENCHMARK_PROFILE_FAILED": {
+			const profile = textData(event, "profile");
+			const errorCode = textData(event, "error_code");
+			return {
+				title: profile
+					? `Perfil ${profile} falhou; o Benchmark continuará quando a falha estiver isolada.`
+					: "Um perfil falhou; o Benchmark continuará quando a falha estiver isolada.",
+				detail: errorCode
+					? presentJobError(errorCode, "benchmark.craig")
+					: undefined,
+			};
+		}
 		case "DUPLICATE_SUBMISSION_REUSED":
 			return {
 				title: "A mesma transcrição já estava ativa; o TDA reutilizou o trabalho existente.",
