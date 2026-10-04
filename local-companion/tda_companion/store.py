@@ -2199,6 +2199,44 @@ class Store:
             )
             return True
 
+    def complete_partial_benchmark(self, job_id, attempt, result):
+        """Commit a terminal Benchmark attempt that ran all profiles but is not 4/4 comparable."""
+        encoded = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if not row or row["status"] != "running" or row["attempt"] != attempt:
+                return False
+            body = json.loads(row["body"])
+            if body.get("kind") != "benchmark.craig":
+                raise Conflict("BENCHMARK_PARTIAL_KIND_INVALID")
+            if row["completed"] != body["units"]:
+                raise Conflict("WORKER_RESULT_INCOMPLETE")
+            if (
+                not isinstance(result, dict)
+                or result.get("schema_version") != "tda_processing_benchmark_v2"
+                or result.get("status") != "partial"
+            ):
+                raise Conflict("BENCHMARK_PARTIAL_RESULT_INVALID")
+            now = utc_now()
+            db.execute(
+                "UPDATE jobs SET status='succeeded',stage='benchmark_partial',result=?,error=NULL,"
+                "attempt_finished_at=?,stage_started_at=?,updated=? WHERE id=?",
+                (encoded, now, now, now, job_id),
+            )
+            self.event(
+                db,
+                job_id,
+                "BENCHMARK_PARTIAL",
+                {
+                    "completed_count": result.get("completed_count"),
+                    "failed_count": result.get("failed_count"),
+                    "total": body["units"],
+                },
+                level="warning",
+                attempt=attempt,
+            )
+            return True
+
     def complete_recovered(self, job_id, attempt, result):
         encoded = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         with self.tx() as db:
