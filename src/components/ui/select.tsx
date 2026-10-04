@@ -81,6 +81,7 @@ export function Select<T extends string>({
 	const [internalValue, setInternalValue] = useState<T>(fallbackValue);
 	const currentValue = value ?? internalValue;
 	const [open, setOpen] = useState(false);
+	const [requiredMissing, setRequiredMissing] = useState(false);
 	const selectedIndex = options.findIndex((option) => option.value === currentValue);
 	const [activeIndex, setActiveIndex] = useState(
 		selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(options),
@@ -100,6 +101,21 @@ export function Select<T extends string>({
 		form.addEventListener("reset", handleReset);
 		return () => form.removeEventListener("reset", handleReset);
 	}, [fallbackValue, name, value]);
+
+	useEffect(() => {
+		if (!required) return;
+		const form = triggerRef.current?.form;
+		if (!form) return;
+		const handleSubmit = (event: SubmitEvent) => {
+			if (currentValue) return;
+			event.preventDefault();
+			setRequiredMissing(true);
+			setOpen(true);
+			requestAnimationFrame(() => triggerRef.current?.focus());
+		};
+		form.addEventListener("submit", handleSubmit);
+		return () => form.removeEventListener("submit", handleSubmit);
+	}, [currentValue, required]);
 
 	useEffect(() => {
 		if (!open) return;
@@ -132,6 +148,7 @@ export function Select<T extends string>({
 		const option = options[index];
 		if (!option || option.disabled) return;
 		if (value === undefined) setInternalValue(option.value);
+		setRequiredMissing(false);
 		onChange?.(option.value);
 		closeAndFocusTrigger();
 	}
@@ -234,7 +251,7 @@ export function Select<T extends string>({
 				aria-expanded={open}
 				aria-controls={listboxId}
 				aria-describedby={ariaDescribedBy}
-				aria-invalid={ariaInvalid || undefined}
+				aria-invalid={ariaInvalid || requiredMissing || undefined}
 				aria-required={required || undefined}
 				disabled={disabled}
 				onClick={() => setOpen((current) => !current)}
