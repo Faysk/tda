@@ -43,6 +43,7 @@ type Props = Readonly<{
 	review: SessionAssemblyReviewSummary;
 	disabled?: boolean;
 	onChange: (review: SessionAssemblyReviewSummary) => void;
+	onDirtyChange?: (dirty: boolean) => void;
 	onStatus?: (message: string) => void;
 }>;
 
@@ -154,6 +155,7 @@ export function SessionAssemblyReview({
 	review,
 	disabled = false,
 	onChange,
+	onDirtyChange,
 	onStatus,
 }: Props) {
 	const [baseline, setBaseline] = useState(review);
@@ -178,6 +180,11 @@ export function SessionAssemblyReview({
 		setReceipt(null);
 		setPending(loadPending(review.assemblyId));
 	}, [review]);
+
+	useEffect(() => {
+		onDirtyChange?.(dirty);
+		return () => onDirtyChange?.(false);
+	}, [dirty, onDirtyChange]);
 
 	const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
 	const matches = useMemo(
