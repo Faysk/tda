@@ -7,10 +7,7 @@ import {
 	latestJobForSource,
 	sessionAssemblyReadiness,
 } from "./session-composer-model";
-import type {
-	SessionAssembly,
-	SessionAssemblyReviewSummary,
-} from "./session-composer-protocol";
+import type { SessionAssembly } from "./session-composer-protocol";
 import {
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
@@ -45,7 +42,6 @@ import type {
 	TranscriptionProfileId,
 } from "./protocol";
 import { BridgeError } from "./protocol";
-import { SessionAssemblyReview } from "./session-assembly-review";
 import {
 	sessionRecoveryForError,
 	sessionTimelineRecovery,
@@ -219,7 +215,6 @@ export function SessionIntentCoordinator({
 	>(new Map());
 	const [jobs, setJobs] = useState<readonly LocalJob[]>([]);
 	const [assembly, setAssembly] = useState<SessionAssembly | null>(null);
-	const [review, setReview] = useState<SessionAssemblyReviewSummary | null>(null);
 	const [activeRequest, setActiveRequest] =
 		useState<SessionTranscriptionIntent | null>(null);
 	const [blocker, setBlocker] = useState<Blocker | null>(null);
@@ -346,7 +341,6 @@ export function SessionIntentCoordinator({
 			setLocalError(null);
 			setBlocker(null);
 			enqueueRecoveryBlocked.current.clear();
-			setReview(null);
 			setAssembly(null);
 			setActiveRequest(intent);
 			try {
@@ -1143,28 +1137,9 @@ export function SessionIntentCoordinator({
 		void begin(activeRequest);
 	}
 
-	async function openReview() {
-		if (!workspace || !assembly || busy || disabled) return;
-		if (onReviewAssembly) {
-			onReviewAssembly(assembly);
-			return;
-		}
-		const controller = new AbortController();
-		setBusy(true);
-		try {
-			const next = await bridge.sessionAssemblyReview(
-				workspace.campaignId,
-				workspace.sessionId,
-				assembly.assemblyId,
-				controller.signal,
-			);
-			setReview(next);
-			announce("Transcrição contínua carregada e pronta para revisão.");
-		} catch (cause) {
-			fail(cause);
-		} finally {
-			setBusy(false);
-		}
+	function openReview() {
+		if (!assembly || busy || disabled || !onReviewAssembly) return;
+		onReviewAssembly(assembly);
 	}
 
 	if (!enabled || (!workspace && !request)) return null;
@@ -1612,23 +1587,12 @@ export function SessionIntentCoordinator({
 					<Button
 						type="button"
 						variant="primary"
-						disabled={busy}
+						disabled={busy || !onReviewAssembly}
 						onClick={() => void openReview()}
 					>
 						Revisar transcrição
 					</Button>
 				</div>
-			) : null}
-
-			{review && assembly ? (
-				<SessionAssemblyReview
-					bridge={bridge}
-					assembly={assembly}
-					review={review}
-					disabled={busy || disabled}
-					onChange={setReview}
-					onStatus={announce}
-				/>
 			) : null}
 
 			{activeJobs.length ? (
