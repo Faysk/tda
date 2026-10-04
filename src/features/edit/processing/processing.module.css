@@ -32,7 +32,7 @@
 	display: flex;
 	min-width: 0;
 	min-height: 42px;
-	align-items: stretch;
+	align-items: start;
 	padding-inline:
 		var(--site-chrome-brand-clearance, 0px)
 		var(--site-chrome-profile-clearance, 0px);
@@ -486,7 +486,8 @@
 }
 
 .submissionCard {
-	height: 100%;
+	align-self: start;
+	height: auto;
 	margin: 0;
 }
 
