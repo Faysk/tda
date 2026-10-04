@@ -300,6 +300,50 @@ def test_bundle_rejects_partial_diagnostic_artifacts(tmp_path: Path):
         )
 
 
+
+def test_oversized_manifest_and_jsonl_diagnostics_fail_closed(tmp_path: Path, monkeypatch):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+
+    completed = _finalize(data_root, job_id="oversized-manifest")
+    benchmark_id = completed["benchmark_id"]
+    monkeypatch.setattr(bundles, "_MAX_MANIFEST_BYTES", 64)
+    with pytest.raises(BenchmarkBundleError, match="BENCHMARK_BUNDLE_MANIFEST_INVALID"):
+        load_benchmark_bundle(data_root, benchmark_id)
+
+    monkeypatch.setattr(bundles, "_MAX_MANIFEST_BYTES", 512 * 1024)
+    job_id = "oversized-events"
+    receipts = _profile_receipts(data_root, job_id, 1)
+    profile_root = (
+        benchmark_root(data_root, benchmark_id_for(job_id, 1))
+        / "profiles"
+        / BENCHMARK_PROFILES[0]
+    )
+    (profile_root / "metrics.json").write_text(
+        '{"schema_version":"tda_benchmark_metrics_v1"}',
+        encoding="utf-8",
+    )
+    (profile_root / "events.jsonl").write_bytes(b"x" * 65)
+    monkeypatch.setattr(bundles, "_MAX_BENCHMARK_EVENTS_BYTES", 64)
+    package = _package()
+    with pytest.raises(BenchmarkBundleError, match="BENCHMARK_DIAGNOSTIC_ARTIFACT_INVALID"):
+        finalize_benchmark_bundle(
+            data_root,
+            job_id=job_id,
+            attempt=1,
+            source_id=SOURCE_ID,
+            source_sha256=SOURCE_SHA,
+            sample=benchmark_sample_descriptor(package),
+            sample_identity_sha256=benchmark_sample_identity(package),
+            sample_seconds=300.0,
+            track_count=1,
+            audio_work_seconds=300.0,
+            context="",
+            glossary="",
+            profile_receipts=receipts,
+        )
+
+
 def test_profile_artifacts_commit_before_top_manifest_and_bundle_is_separate(tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
