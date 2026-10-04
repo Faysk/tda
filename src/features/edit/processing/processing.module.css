@@ -1717,6 +1717,7 @@
 
 .liveLogExplorer .logHeader {
 	align-items: flex-start;
+	flex-wrap: wrap;
 }
 
 .logToolbar {
@@ -1749,6 +1750,8 @@
 }
 .logToolbar select,
 .logToolbar button {
+	max-width: 100%;
+	min-width: 0;
 	padding-inline: 8px;
 }
 .liveLogExplorer .log {
