@@ -12,13 +12,19 @@ describe("session campaign move cache invalidation", () => {
 				sourceSessionId: "shared-session",
 			}),
 		).toEqual([
+			"/",
+			"/campanhas",
+			"/campanhas/sessoes",
 			"/edit/campaign-a/sessoes",
 			"/edit/campaign-b/sessoes",
 			"/edit/campaign-a/sessoes/shared-session",
 			"/edit/campaign-b/sessoes/shared-session",
 			"/sessoes",
+			"/sessoes/shared-session",
 			"/campanhas/campanha-a/sessoes",
 			"/campanhas/campanha-b/sessoes",
+			"/campanhas/campanha-a/sessoes/shared-session",
+			"/campanhas/campanha-b/sessoes/shared-session",
 		]);
 	});
 

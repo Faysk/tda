@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { ActionLink, StatusPill } from "@/components/ui";
@@ -16,6 +16,7 @@ import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import { SessionEditWorkspace } from "@/features/edit/sessions/session-edit-workspace";
 import { SessionCampaignMovePanel } from "@/features/edit/sessions/session-campaign-move";
 import {
+	readRecentSessionCampaignMoveDestination,
 	sessionCampaignMoveBackendReady,
 } from "@/features/edit/sessions/session-campaign-move-repository";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
@@ -105,7 +106,33 @@ export default async function EditSessionPage({ params }: PageProps) {
 	} catch {
 		return <UnavailableTranscript backHref={backHref} />;
 	}
-	if (!session) notFound();
+	if (!session) {
+		const moved = accessContext.profileId
+			? await readRecentSessionCampaignMoveDestination({
+				actorProfileId: accessContext.profileId,
+				sourceCampaignId: campaign.id,
+				sourceSessionId,
+			})
+			: null;
+		if (moved) {
+			const destination = eligible.campaigns.find(
+				(item) => item.id === moved.destinationCampaignId,
+			);
+			if (
+				destination &&
+				authorizeCampaignCapability(
+					accessContext,
+					EDIT_CAPABILITIES.transcriptRead,
+					destination.technicalSlug,
+				).ok
+			) {
+				redirect(
+					`/edit/${encodeURIComponent(destination.technicalSlug)}/sessoes/${encodeURIComponent(sourceSessionId)}`,
+				);
+			}
+		}
+		notFound();
+	}
 
 	let snapshot: Awaited<ReturnType<typeof readTranscriptSnapshot>>;
 	try {

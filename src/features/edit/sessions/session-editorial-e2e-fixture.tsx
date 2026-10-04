@@ -343,6 +343,7 @@ export function SessionEditorialE2EFixture({
 			preview: request.destinationCampaignSlug === "campanha-bloqueada"
 				? {
 					status: "blocked" as const,
+					contractVersion: 2 as const,
 					sessionId: request.sessionId,
 					sourceSessionId: request.sourceSessionId,
 					sourceCampaignSlug: request.sourceCampaignSlug,
@@ -352,15 +353,18 @@ export function SessionEditorialE2EFixture({
 						count: 1,
 						message: "Dependência sintética impede o move.",
 					}],
+					plan: [],
 					consequences: [],
 				}
 				: {
 					status: "ready" as const,
+					contractVersion: 2 as const,
 					sessionId: request.sessionId,
 					sourceSessionId: request.sourceSessionId,
 					sourceCampaignSlug: request.sourceCampaignSlug,
 					destinationCampaignSlug: request.destinationCampaignSlug,
 					blockers: [],
+					plan: [],
 					consequences: [
 						"edit_url_changes",
 						"campaign_scope_changes",

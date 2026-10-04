@@ -10,8 +10,10 @@ import {
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
 import { sessionCampaignMoveRevalidationPaths } from "./session-campaign-move-cache";
+import type { SessionCampaignMoveDecisionState } from "./session-campaign-move-model";
 import {
 	commitSessionCampaignMove,
+	prepareSessionCampaignMoveMedia,
 	preflightSessionCampaignMove,
 } from "./session-campaign-move-repository";
 
@@ -105,18 +107,39 @@ function invalidateMovePaths(input: {
 }
 
 export async function moveSessionCampaignAction(
-	request: Request & Readonly<{ operationId: string }>,
+	request: Request & Readonly<{
+		operationId: string;
+		decisions: SessionCampaignMoveDecisionState;
+	}>,
 ) {
-	if (!UUID.test(request.operationId))
+	if (
+		!UUID.test(request.operationId) ||
+		typeof request.decisions?.unlinkParticipantEntities !== "boolean" ||
+		typeof request.decisions?.revokeSessionGrants !== "boolean" ||
+		typeof request.decisions?.acknowledgeHistoricalPublication !== "boolean"
+	) {
 		return { ok: false as const, reason: "validation" as const };
+	}
 	const access = await authorizedRequest(request);
 	if (!access.ok) return access;
 
-	const result = await commitSessionCampaignMove({
+	const boundary = {
 		authUserId: access.authUserId,
 		actorProfileId: access.profileId,
 		...request,
-	});
+	};
+	let result = await commitSessionCampaignMove(boundary);
+
+	if (!result.ok && result.reason === "preparation_required") {
+		const prepared = await prepareSessionCampaignMoveMedia({
+			...boundary,
+			sourceCampaignId: access.source.id,
+			destinationCampaignId: access.destination.id,
+			destinationPublic: access.destination.visibility === "public",
+		});
+		if (!prepared.ok) return prepared;
+		result = await commitSessionCampaignMove(boundary);
+	}
 	if (!result.ok) return result;
 
 	const cachePending = invalidateMovePaths({
