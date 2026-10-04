@@ -26,12 +26,12 @@
 .header > div {
 	min-width: 0;
 }
-.header > div, .item > div, .review {
+.header > div, .item > div {
 	display: grid;
 	min-width: 0;
 	gap: 3px;
 }
-.header span, .item span, .item small, .review span, .review small, .empty {
+.header span, .item span, .item small, .empty, .status {
 	color: var(--ds-foreground-muted);
 	font-size: 0.72rem;
 	line-height: 1.4;
@@ -52,21 +52,32 @@
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-canvas-subtle);
 }
-.item strong, .review strong {
+.item strong {
 	font-size: 0.78rem;
 }
 .item span, .item small {
 	overflow-wrap: anywhere;
 }
-.review {
-	padding: 9px;
-	border: 1px solid color-mix(in srgb, var(--ds-success) 40%, var(--ds-border));
-	border-radius: var(--ds-radius-md);
-	background: var(--ds-canvas-subtle);
+.item[data-selected="true"] {
+	border-color: color-mix(in srgb, var(--ds-accent) 48%, var(--ds-border));
+	background: color-mix(in srgb, var(--ds-accent) 5%, var(--ds-canvas-subtle));
 }
-.empty, .error {
+
+.editor {
+	min-width: 0;
+	padding-top: 2px;
+}
+
+.empty,
+.error,
+.status {
 	margin: 0;
 }
+
+.status {
+	color: var(--ds-foreground-muted);
+}
+
 .error {
 	color: var(--ds-danger);
 	font-size: 0.72rem;
