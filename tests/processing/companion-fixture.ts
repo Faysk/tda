@@ -66,6 +66,8 @@ export type CompanionFixtureOptions = {
 	benchmarkPreparationFailureProfile?: string | null;
 	benchmarkReadinessContract?: boolean;
 	benchmarkEvidence?: boolean;
+	benchmarkQuality?: boolean;
+	benchmarkCorruptProfile?: "whisper-turbo" | "whisper-detailed" | "qwen-fast" | "qwen-quality";
 	whisperBenchmarkRuntimeUpgradeRequired?: boolean;
 	qwenBenchmarkRuntimeUpgradeRequired?: boolean;
 	reviewEnabled?: boolean;
@@ -242,6 +244,7 @@ export async function installCompanionFixture(
 	let expired = false;
 	let ambiguousJobPostConsumed = false;
 	let submittedJob = false;
+	let benchmarkReference: Record<string, unknown> | null = null;
 	const state: CompanionFixtureState = {
 		requests: [],
 		sessionCount: 0,
@@ -374,6 +377,9 @@ export async function installCompanionFixture(
 							? []
 							: ["processing.benchmark.runtime-readiness-v2"]),
 						...(options.benchmarkEvidence ? ["processing.benchmark.evidence-v1"] : []),
+						...(options.benchmarkQuality
+							? ["processing.benchmark.reference-v1", "processing.benchmark.quality-v1"]
+							: []),
 						"runtime.qwen.check",
 						"runtime.qwen.update",
 						"job.events",
@@ -971,6 +977,13 @@ export async function installCompanionFixture(
 			path.endsWith("/snapshot")
 		) {
 			const profileId = path.split("/")[4]!;
+			if (options.benchmarkCorruptProfile === profileId) {
+				return json(
+					route,
+					{ error: { code: "BENCHMARK_ARTIFACT_INTEGRITY_FAILED", recoverable: false } },
+					409,
+				);
+			}
 			const engine = profileId.startsWith("whisper-") ? "whisper" : "qwen3";
 			const quality = profileId.endsWith("quality") || profileId.endsWith("detailed");
 			const runtimeFamily = engine === "whisper" ? "whisper" : "qwen";
@@ -1115,6 +1128,248 @@ export async function installCompanionFixture(
 					"Content-Disposition": `attachment; filename="TDA-Benchmark-benchmark-benchmark-job-1-a1-${profileId}-transcript.${format}"`,
 				},
 				body,
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			options.benchmarkQuality &&
+			path === "/benchmarks/benchmark-benchmark-job-1-a1/reference"
+		) {
+			const normalization = {
+				schema_version: "tda_asr_text_normalization_v1",
+				unicode_normalization: "NFC",
+				case: "unicode_casefold",
+				whitespace: "collapse",
+				punctuation: "strip_unicode_punctuation_except_apostrophe-hyphen_v1",
+				diacritics: "preserve",
+				locale_dependent: false,
+			};
+			return json(route, {
+				status: {
+					schema_version: "tda_benchmark_reference_status_v1",
+					benchmark_id: "benchmark-benchmark-job-1-a1",
+					latest_revision: benchmarkReference ? Number(benchmarkReference.revision) : 0,
+					active_revision: benchmarkReference ? Number(benchmarkReference.revision) : null,
+					active_sha256: benchmarkReference ? benchmarkReference.canonical_payload_sha256 : null,
+					normalization_policy: normalization,
+				},
+				reference: benchmarkReference,
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			options.benchmarkQuality &&
+			path.match(/^\\/benchmarks\\/benchmark-benchmark-job-1-a1\\/profiles\\/(whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)\\/reference-draft$/u)
+		) {
+			const profileId = path.split("/")[4]!;
+			return json(route, {
+				schema_version: "tda_benchmark_reference_draft_v1",
+				benchmark_id: "benchmark-benchmark-job-1-a1",
+				source_sha256: sourceSha,
+				sample_identity_sha256: "b".repeat(64),
+				capability_level: 1,
+				provenance: {
+					kind: "derived-from-profile",
+					seed_profile_id: profileId,
+					human_owned: true,
+				},
+				normalization_policy: {
+					schema_version: "tda_asr_text_normalization_v1",
+					unicode_normalization: "NFC",
+					case: "unicode_casefold",
+					whitespace: "collapse",
+					punctuation: "strip_unicode_punctuation_except_apostrophe-hyphen_v1",
+					diacritics: "preserve",
+					locale_dependent: false,
+				},
+				glossary_terms: [],
+				tracks: [
+					{
+						track_number: 1,
+						speaker: "Alice",
+						text: "Aventureiros chegam a Neverwinter",
+					},
+				],
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			options.benchmarkQuality &&
+			path === "/benchmarks/benchmark-benchmark-job-1-a1/references" &&
+			request.method() === "POST"
+		) {
+			const payload = request.postDataJSON() as {
+				expected_revision?: number;
+				capability_level?: number;
+				provenance_kind?: string;
+				seed_profile_id?: string | null;
+				glossary_terms?: string[];
+				tracks?: Array<Record<string, unknown>>;
+				activate?: boolean;
+			};
+			const revision = benchmarkReference ? Number(benchmarkReference.revision) : 0;
+			if (payload.expected_revision !== revision || !Array.isArray(payload.tracks)) {
+				return json(
+					route,
+					{ error: { code: "BENCHMARK_REFERENCE_STALE_REVISION", recoverable: false } },
+					409,
+				);
+			}
+			const sha = "e".repeat(64);
+			benchmarkReference = {
+				schema_version: "tda_benchmark_reference_v1",
+				benchmark_id: "benchmark-benchmark-job-1-a1",
+				source_sha256: sourceSha,
+				sample_identity_sha256: "b".repeat(64),
+				revision: revision + 1,
+				parent_revision: revision === 0 ? null : revision,
+				capability_level: payload.capability_level ?? 1,
+				canonical_payload_sha256: sha,
+				provenance: {
+					kind: payload.provenance_kind ?? "manual",
+					seed_profile_id: payload.seed_profile_id ?? null,
+					human_owned: true,
+				},
+				normalization_policy: {
+					schema_version: "tda_asr_text_normalization_v1",
+					unicode_normalization: "NFC",
+					case: "unicode_casefold",
+					whitespace: "collapse",
+					punctuation: "strip_unicode_punctuation_except_apostrophe-hyphen_v1",
+					diacritics: "preserve",
+					locale_dependent: false,
+				},
+				glossary_terms: payload.glossary_terms ?? [],
+				tracks: payload.tracks.map((track) => ({
+					track_number: track.track_number,
+					speaker: track.speaker,
+					text: track.text,
+					turns: Array.isArray(track.turns) ? track.turns : [],
+				})),
+			};
+			const status = {
+				schema_version: "tda_benchmark_reference_status_v1",
+				benchmark_id: "benchmark-benchmark-job-1-a1",
+				latest_revision: revision + 1,
+				active_revision: revision + 1,
+				active_sha256: sha,
+				normalization_policy: benchmarkReference.normalization_policy,
+			};
+			const profileIds = ["whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"] as const;
+			const quality = {
+				schema_version: "tda_benchmark_quality_summary_v1",
+				benchmark_id: "benchmark-benchmark-job-1-a1",
+				reference: status,
+				quality_measured: true,
+				winner: null,
+				composite_score: null,
+				profiles: profileIds.map((profileId, index) => ({
+					schema_version: "tda_benchmark_quality_receipt_v1",
+					benchmark_id: "benchmark-benchmark-job-1-a1",
+					benchmark_manifest_sha256: "f".repeat(64),
+					sample_identity_sha256: "b".repeat(64),
+					profile_id: profileId,
+					profile_transcript_sha256: "b".repeat(64),
+					reference_revision: revision + 1,
+					reference_sha256: sha,
+					normalization_policy: status.normalization_policy,
+					normalization_policy_sha256: "d".repeat(64),
+					metric_implementation_version: "tda_asr_quality_metrics_v1",
+					capability_level: 1,
+					receipt_sha256: String(index + 1).repeat(64),
+					receipt_size_bytes: 2048,
+					metrics: {
+						per_track: [
+							{
+								track_number: 1,
+								state: "matched",
+								substitutions: index === 0 ? 0 : 1,
+								deletions: 0,
+								insertions: 0,
+								distance: index === 0 ? 0 : 1,
+								reference_words: 4,
+								hypothesis_words: 4,
+								wer_normalized: index === 0 ? 0 : 0.25,
+								reference_characters: 34,
+								hypothesis_characters: 34,
+								character_distance: index === 0 ? 0 : 1,
+								cer_normalized: index === 0 ? 0 : 0.03,
+							},
+						],
+						micro: {
+							substitutions: index === 0 ? 0 : 1,
+							deletions: 0,
+							insertions: 0,
+							distance: index === 0 ? 0 : 1,
+							reference_words: 4,
+							hypothesis_words: 4,
+							wer_normalized: index === 0 ? 0 : 0.25,
+							reference_characters: 34,
+							hypothesis_characters: 34,
+							character_distance: index === 0 ? 0 : 1,
+							cer_normalized: index === 0 ? 0 : 0.03,
+							macro_wer_normalized: index === 0 ? 0 : 0.25,
+						},
+						glossary: {
+							available: false,
+							reference_occurrences: 0,
+							correct_occurrences: 0,
+							missed_occurrences: 0,
+							extra_occurrences: 0,
+							recall: null,
+							precision: null,
+						},
+						timing: {
+							available: false,
+							reason: "reference_capability_level_1",
+							timing_precision: "segment_aligned",
+							turn_coverage: null,
+							speaker_accuracy: null,
+							boundary_p50_seconds: null,
+							boundary_p95_seconds: null,
+							overlap: null,
+						},
+					},
+				})),
+			};
+			return json(route, {
+				schema_version: "tda_benchmark_reference_save_v1",
+				reference: benchmarkReference,
+				status,
+				quality,
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			options.benchmarkQuality &&
+			path === "/benchmarks/benchmark-benchmark-job-1-a1/quality"
+		) {
+			const revision = benchmarkReference ? Number(benchmarkReference.revision) : 0;
+			const activeSha = benchmarkReference ? String(benchmarkReference.canonical_payload_sha256) : null;
+			const status = {
+				schema_version: "tda_benchmark_reference_status_v1",
+				benchmark_id: "benchmark-benchmark-job-1-a1",
+				latest_revision: revision,
+				active_revision: revision || null,
+				active_sha256: activeSha,
+				normalization_policy: {
+					schema_version: "tda_asr_text_normalization_v1",
+					unicode_normalization: "NFC",
+					case: "unicode_casefold",
+					whitespace: "collapse",
+					punctuation: "strip_unicode_punctuation_except_apostrophe-hyphen_v1",
+					diacritics: "preserve",
+					locale_dependent: false,
+				},
+			};
+			return json(route, {
+				schema_version: "tda_benchmark_quality_summary_v1",
+				benchmark_id: "benchmark-benchmark-job-1-a1",
+				reference: status,
+				quality_measured: false,
+				winner: null,
+				composite_score: null,
+				profiles: [],
 			});
 		}
 		if (
