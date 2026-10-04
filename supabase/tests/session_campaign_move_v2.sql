@@ -268,8 +268,23 @@ begin
     '61000000-0000-4000-8000-000000000021',
     '{}'::jsonb
   );
+  if v->>'status' <> 'decision_required'
+     or v->>'decision' <> 'acknowledge_historical_publication' then
+    raise exception 'private destination publication acknowledgment was not required: %', v;
+  end if;
+
+  v := public.move_session_campaign_v2_atomic(
+    '90000000-0000-4000-8000-000000000006',
+    '30000000-0000-4000-8000-000000000006',
+    'yuhara-main',
+    'antes-que-seja-tarde',
+    '41000000-0000-4000-8000-000000000021',
+    'move-published-v2',
+    '61000000-0000-4000-8000-000000000021',
+    '{"acknowledgeHistoricalPublication":true}'::jsonb
+  );
   if v->>'status' <> 'moved' then
-    raise exception 'published -> private v2 move failed: %', v;
+    raise exception 'published -> private v2 move failed after acknowledgment: %', v;
   end if;
 
   if not exists (
