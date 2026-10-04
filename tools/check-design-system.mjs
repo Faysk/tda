@@ -298,6 +298,11 @@ for (const requiredNativeSelectContract of [
 	}
 }
 
+const publicSessionList = fs.readFileSync("src/components/session-list.tsx", "utf8");
+if (/<select(?:\s|>)/u.test(publicSessionList)) {
+	fail("public Sessions filters must use the shared themed Select instead of a native select popup");
+}
+
 for (const filePath of sourceFiles("src")) {
 	const source = fs.readFileSync(filePath, "utf8");
 	if (/box-shadow\s*:\s*var\(--ds-control-focus-ring\)\s*;/u.test(source)) {
