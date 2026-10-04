@@ -1,4 +1,38 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function openArchiveSelect(scope: Page | Locator, name: string) {
+	const trigger = scope.getByRole("button", { name, exact: true });
+	await trigger.click();
+	const listbox = scope.getByRole("listbox", { name, exact: true });
+	await expect(listbox).toBeVisible();
+	return listbox;
+}
+
+async function selectArchiveValue(
+	scope: Page | Locator,
+	name: string,
+	value: string,
+) {
+	const listbox = await openArchiveSelect(scope, name);
+	const options = listbox.getByRole("option");
+	for (let index = 0; index < (await options.count()); index += 1) {
+		const option = options.nth(index);
+		if ((await option.getAttribute("data-value")) === value) {
+			await option.click();
+			return;
+		}
+	}
+	throw new Error(`Select option ${value} not found in ${name}`);
+}
+
+async function selectArchiveLabel(
+	scope: Page | Locator,
+	name: string,
+	label: string,
+) {
+	const listbox = await openArchiveSelect(scope, name);
+	await listbox.getByRole("option", { name: label, exact: true }).click();
+}
 
 test("public campaign directory exposes only the synthetic public projection", async ({
 	page,
@@ -309,15 +343,19 @@ test("aggregate filter keeps a zero-session campaign selectable while a sibling 
 	await page.goto("/e2e-fixtures/session-archive-scope");
 
 	const fixture = page.locator('[data-session-scope-fixture="empty-campaign"]');
-	const campaignFilter = fixture.getByLabel("Filtrar por campanha");
+	const campaignFilter = fixture.getByRole("button", {
+		name: "Filtrar por campanha",
+	});
 	await expect(campaignFilter).toBeVisible();
-	await expect(campaignFilter.locator("option")).toHaveCount(3);
+	const campaignOptions = await openArchiveSelect(fixture, "Filtrar por campanha");
+	await expect(campaignOptions.getByRole("option")).toHaveCount(3);
+	await campaignOptions.press("Escape");
 
-	await campaignFilter.selectOption("fixture-only-campaign");
+	await selectArchiveValue(fixture, "Filtrar por campanha", "fixture-only-campaign");
 	await expect(fixture.locator("[data-session-card]")).toHaveCount(0);
 	await expect(fixture).toContainText("Nenhuma sessão por aqui.");
 
-	await campaignFilter.selectOption("fixture-with-content");
+	await selectArchiveValue(fixture, "Filtrar por campanha", "fixture-with-content");
 	await expect(fixture.locator('[data-session-card="grid"]')).toHaveCount(1);
 	await expect(fixture.locator('[data-session-card="grid"]').first()).toHaveAttribute(
 		"data-campaign-route",
@@ -379,10 +417,11 @@ test("aggregate controls preserve campaign-qualified identity and scoped control
 		),
 	).toBeVisible();
 
-	const aggregateArc = page.getByLabel("Filtrar por arco");
-	const contractArcOptions = (await aggregateArc.locator("option").allTextContents()).filter(
-		(label) => label.includes("Contrato visual E2E"),
-	);
+	const aggregateArcListbox = await openArchiveSelect(page, "Filtrar por arco");
+	const contractArcOptions = (
+		await aggregateArcListbox.getByRole("option").allTextContents()
+	).filter((label) => label.includes("Contrato visual E2E"));
+	await aggregateArcListbox.press("Escape");
 	expect(contractArcOptions).toEqual(
 		expect.arrayContaining([
 			"Contrato visual E2E — Crônicas da Mesa",
@@ -391,19 +430,25 @@ test("aggregate controls preserve campaign-qualified identity and scoped control
 	);
 	expect(contractArcOptions).toHaveLength(2);
 
-	await aggregateArc.selectOption({ label: "Contrato visual E2E — Crônicas da Mesa" });
+	await selectArchiveLabel(
+		page,
+		"Filtrar por arco",
+		"Contrato visual E2E — Crônicas da Mesa",
+	);
 	await expect(page.locator('[data-session-card="grid"]')).toHaveCount(3);
 
-	await page
-		.getByLabel("Filtrar por campanha")
-		.selectOption("antes-que-seja-tarde");
+	await selectArchiveValue(
+		page,
+		"Filtrar por campanha",
+		"antes-que-seja-tarde",
+	);
 	await expect(page.locator('[data-session-card="grid"]')).toHaveCount(1);
 	await expect(page.locator('[data-session-card="grid"]').first()).toHaveAttribute(
 		"data-campaign-route",
 		"antes-que-seja-tarde",
 	);
 
-	await page.getByLabel("Ordenar por").selectOption("title");
+	await selectArchiveValue(page, "Ordenar por", "title");
 	await expect(page.locator('[data-session-card="grid"]')).toHaveCount(1);
 
 	await page.goto("/campanhas/cronicas-da-mesa/sessoes");
@@ -411,7 +456,7 @@ test("aggregate controls preserve campaign-qualified identity and scoped control
 	await expect(page.locator("[data-session-card]")).toHaveCount(0);
 
 	await page.getByRole("button", { name: "Limpar filtros" }).click();
-	await page.getByLabel("Ordenar por").selectOption("oldest");
+	await selectArchiveValue(page, "Ordenar por", "oldest");
 	const campaignRoutes = await page
 		.locator('[data-session-card="grid"]')
 		.evaluateAll((nodes) =>
