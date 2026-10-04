@@ -137,9 +137,14 @@ function benchmark(
 		trackCount: 1,
 		audioWorkSeconds: 300,
 		prepared: true,
+		outcome: "completed",
 		benchmarkId: null,
+		partialBenchmarkId: null,
 		bundleManifestSha256: null,
 		bundleSizeBytes: null,
+		attemptedCount: 4,
+		completedCount: 4,
+		failedCount: 0,
 		profiles: [
 			{
 				profileId: "qwen-quality",
@@ -166,6 +171,7 @@ function benchmark(
 				...overrides,
 			},
 		],
+		profileOutcomes: [],
 	};
 }
 
