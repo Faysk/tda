@@ -892,7 +892,7 @@ export function SessionIntentCoordinator({
 		void advance();
 	}, [advance]);
 
-	async function useTrustedTimelineOrder() {
+	async function applyTrustedTimelineOrder() {
 		if (!workspace || blocker?.kind !== "trusted_order" || busy || disabled) return;
 		const controller = new AbortController();
 		setBusy(true);
@@ -1258,7 +1258,7 @@ export function SessionIntentCoordinator({
 							size="sm"
 							variant="secondary"
 							disabled={busy}
-							onClick={() => void useTrustedTimelineOrder()}
+							onClick={() => void applyTrustedTimelineOrder()}
 						>
 							Usar horários Craig
 						</Button>
