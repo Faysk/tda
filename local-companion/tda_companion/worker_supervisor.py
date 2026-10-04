@@ -12,17 +12,8 @@ from pathlib import Path
 from typing import Callable
 
 from .asr_runtime import inspect_whisper_runtime
-from .benchmark_evidence import (
-    BenchmarkEvidenceError,
-    benchmark_id_for,
-    finalize_bundle,
-    normalize_telemetry_samples,
-    sanitize_benchmark_message,
-    write_failed_profile_diagnostics,
-    write_profile_events,
-    write_profile_telemetry,
-)
-from .telemetry import SystemTelemetry
+from .benchmark_bundles import BENCHMARK_PROFILES, benchmark_id_for
+from .benchmark_diagnostics import BenchmarkDiagnosticsError, BenchmarkProfileDiagnostics
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import inspect_qwen_runtime
 from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
@@ -64,7 +55,13 @@ def _is_sha256(value: object) -> bool:
     )
 
 
-def _benchmark_profile_evidence_valid(receipt: dict, profile_id: str) -> bool:
+def _benchmark_profile_evidence_valid(
+    receipt: dict,
+    profile_id: str,
+    *,
+    benchmark_id: str,
+    sample_identity_sha256: str,
+) -> bool:
     lineage = receipt.get("execution_lineage")
     if not isinstance(lineage, dict) or lineage.get("schema_version") != "tda_execution_lineage_v1":
         return False
@@ -78,6 +75,13 @@ def _benchmark_profile_evidence_valid(receipt: dict, profile_id: str) -> bool:
     device = lineage.get("device")
     return (
         receipt.get("profile_id") == profile_id
+        and receipt.get("benchmark_id") == benchmark_id
+        and receipt.get("sample_identity_sha256") == sample_identity_sha256
+        and receipt.get("artifact_available") is True
+        and _is_sha256(receipt.get("transcript_sha256"))
+        and isinstance(receipt.get("transcript_size_bytes"), int)
+        and not isinstance(receipt.get("transcript_size_bytes"), bool)
+        and receipt["transcript_size_bytes"] > 0
         and receipt.get("sample_seconds") == 300.0
         and lineage.get("runtime_family") == expected_family
         and isinstance(runtime_version, str)
@@ -185,6 +189,7 @@ class WorkerSupervisor:
         *,
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
+        on_message: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
         process_command: list[str] | None = None,
         environment_overrides: dict[str, str] | None = None,
@@ -376,12 +381,14 @@ class WorkerSupervisor:
                         "WORKER_READY_REQUIRED",
                         recoverable=False,
                     )
+                if message.type == "ready" and ready:
+                    raise WorkerProcessError(
+                        "WORKER_READY_REPLAY",
+                        recoverable=False,
+                    )
+                if on_message is not None:
+                    on_message(message)
                 if message.type == "ready":
-                    if ready:
-                        raise WorkerProcessError(
-                            "WORKER_READY_REPLAY",
-                            recoverable=False,
-                        )
                     ready = True
                     if on_event is not None:
                         on_event(message)
@@ -488,10 +495,10 @@ class WorkerSupervisor:
         context: str,
         cpu: bool,
         benchmark_sample_seconds: float | None = None,
-        benchmark_id: str | None = None,
-        benchmark_sample_identity_sha256: str | None = None,
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
+        on_message: Callable[[WorkerMessage], object] | None = None,
+        on_runtime_artifact: Callable[[dict | None], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> WorkerOutcome:
         if self.data_root is None or self.models_root is None:
@@ -511,8 +518,6 @@ class WorkerSupervisor:
                     {
                         "benchmark_mode": True,
                         "benchmark_sample_seconds": benchmark_sample_seconds,
-                        "benchmark_id": benchmark_id,
-                        "benchmark_sample_identity_sha256": benchmark_sample_identity_sha256,
                     }
                     if benchmark_sample_seconds is not None
                     else {}
@@ -531,6 +536,7 @@ class WorkerSupervisor:
 
         runtime_command = None
         runtime_environment: dict[str, str] | None = None
+        runtime_artifact_identity: dict | None = None
         if profile_id.startswith("whisper-"):
             if self.runtime_root is None:
                 raise WorkerProcessError("WHISPER_RUNTIME_UNCONFIGURED")
@@ -549,6 +555,7 @@ class WorkerSupervisor:
             artifact = runtime_artifact(state, family="whisper", version=worker.parent.name)
             if artifact is None:
                 raise WorkerProcessError("ASR_RUNTIME_IDENTITY_INVALID")
+            runtime_artifact_identity = artifact
             runtime_command = [str(worker)]
             runtime_environment = {
                 "TDA_ASR_RUNTIME_FAMILY": "whisper",
@@ -580,6 +587,7 @@ class WorkerSupervisor:
             artifact = runtime_artifact(state, family="qwen", version=worker.parent.name)
             if artifact is None or artifact != gate.get("runtime_artifact"):
                 raise WorkerProcessError("ASR_RUNTIME_IDENTITY_INVALID")
+            runtime_artifact_identity = artifact
             runtime_command = [str(worker)]
             runtime_environment = {
                 "TDA_ASR_RUNTIME_FAMILY": "qwen",
@@ -594,10 +602,25 @@ class WorkerSupervisor:
                 returncode=0,
             )
 
+        if on_runtime_artifact is not None:
+            on_runtime_artifact(runtime_artifact_identity)
+
+        # Preserve compatibility with tests/specialized supervisors that override
+        # the historical _run_command signature. The message observer is opt-in.
+        if on_message is None:
+            return self._run_command(
+                worker_command,
+                on_progress=on_progress,
+                on_event=on_event,
+                is_cancelled=is_cancelled,
+                process_command=runtime_command,
+                environment_overrides=runtime_environment,
+            )
         return self._run_command(
             worker_command,
             on_progress=on_progress,
             on_event=on_event,
+            on_message=on_message,
             is_cancelled=is_cancelled,
             process_command=runtime_command,
             environment_overrides=runtime_environment,
@@ -613,75 +636,39 @@ class WorkerSupervisor:
         context: str,
         sample_identity_sha256: str,
         sample_seconds: float,
-        sample_descriptor: dict[str, object],
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> WorkerOutcome:
-        if self.data_root is None:
-            raise WorkerProcessError("WORKER_ASR_ROOTS_UNCONFIGURED")
-        profiles = (
-            "whisper-turbo",
-            "whisper-detailed",
-            "qwen-fast",
-            "qwen-quality",
-        )
+        profiles = BENCHMARK_PROFILES
         benchmark_id = benchmark_id_for(job_id, attempt)
         receipts: list[dict] = []
         for index, profile_id in enumerate(profiles, start=1):
             if is_cancelled is not None and is_cancelled():
                 return WorkerOutcome(
                     terminal="cancelled",
-                    payload={"stage": "benchmark", "forced": False, "benchmark_id": benchmark_id},
+                    payload={"stage": "benchmark", "forced": False},
                     returncode=0,
                 )
 
-            profile_started = time.monotonic()
-            evidence_events: list[dict] = []
-            telemetry_samples: list[dict] = []
-            telemetry_stop = threading.Event()
-
-            def capture(message: WorkerMessage) -> None:
-                row = sanitize_benchmark_message(
-                    message,
-                    benchmark_id=benchmark_id,
+            diagnostics = (
+                BenchmarkProfileDiagnostics(
+                    data_root=self.data_root,
+                    job_id=job_id,
+                    attempt=attempt,
+                    source_id=source_id,
                     profile_id=profile_id,
                     sample_identity_sha256=sample_identity_sha256,
-                    relative_ms=round((time.monotonic() - profile_started) * 1000),
+                    sample_seconds=sample_seconds,
+                    context=context,
+                    glossary=glossary,
                 )
-                if row is not None and len(evidence_events) < 20_000:
-                    evidence_events.append(row)
-
-            def capture_event(message: WorkerMessage) -> None:
-                capture(message)
-                if on_event is not None:
-                    on_event(message)
-
-            def capture_progress(message: WorkerMessage) -> None:
-                capture(message)
-
-            def sample_telemetry() -> None:
-                try:
-                    sampler = SystemTelemetry()
-                except Exception:
-                    return
-                while not telemetry_stop.is_set() and len(telemetry_samples) < 2_000:
-                    try:
-                        value = sampler.snapshot()
-                        if isinstance(value, dict):
-                            telemetry_samples.append(value)
-                    except Exception:
-                        pass
-                    telemetry_stop.wait(1.0)
-
-            sampler_thread = threading.Thread(
-                target=sample_telemetry,
-                name=f"tda-benchmark-telemetry-{profile_id}",
-                daemon=True,
+                if self.data_root is not None
+                else None
             )
-            sampler_thread.start()
-            raised: WorkerProcessError | None = None
-            outcome: WorkerOutcome | None = None
+            if diagnostics is not None:
+                diagnostics.start()
+
             try:
                 outcome = self.run_craig(
                     job_id=job_id,
@@ -692,118 +679,98 @@ class WorkerSupervisor:
                     context=context,
                     cpu=False,
                     benchmark_sample_seconds=sample_seconds,
-                    benchmark_id=benchmark_id,
-                    benchmark_sample_identity_sha256=sample_identity_sha256,
-                    on_progress=capture_progress,
-                    on_event=capture_event,
+                    on_progress=lambda _message: None,
+                    on_event=on_event,
+                    on_message=diagnostics.observe_message if diagnostics is not None else None,
+                    on_runtime_artifact=(
+                        diagnostics.bind_runtime_artifact if diagnostics is not None else None
+                    ),
                     is_cancelled=is_cancelled,
                 )
+            except BenchmarkDiagnosticsError as exc:
+                if diagnostics is not None:
+                    try:
+                        diagnostics.finalize(status="failed", error_code=exc.code)
+                    except BenchmarkDiagnosticsError:
+                        pass
+                raise WorkerProcessError(exc.code, recoverable=False) from exc
             except WorkerProcessError as exc:
-                raised = exc
-            finally:
-                telemetry_stop.set()
-                sampler_thread.join(timeout=2.0)
+                if diagnostics is not None:
+                    try:
+                        diagnostics.finalize(status="failed", error_code=exc.code)
+                    except BenchmarkDiagnosticsError as diagnostics_exc:
+                        raise WorkerProcessError(
+                            diagnostics_exc.code,
+                            recoverable=False,
+                        ) from exc
+                raise
+            except Exception:
+                if diagnostics is not None:
+                    try:
+                        diagnostics.finalize(
+                            status="failed",
+                            error_code="BENCHMARK_PROFILE_SUPERVISOR_FAILED",
+                        )
+                    except BenchmarkDiagnosticsError:
+                        pass
+                raise
 
-            terminal_seq = max((int(row.get("seq", -1)) for row in evidence_events), default=-1) + 1
-            terminal_payload = (
-                outcome.payload
-                if outcome is not None and isinstance(outcome.payload, dict)
-                else {
-                    "code": raised.code if raised is not None else "WORKER_EXECUTION_FAILED",
-                    "stage": "benchmark_worker_launch",
-                }
-            )
-            terminal_type = (
-                outcome.terminal
-                if outcome is not None and outcome.terminal in {"result", "cancelled"}
-                else "error"
-            )
-            terminal_message = WorkerMessage.create(
-                job_id=job_id,
-                attempt=attempt,
-                seq=terminal_seq,
-                type=terminal_type,
-                payload=terminal_payload,
-            )
-            capture(terminal_message)
-
-            profile_elapsed_ms = max(0, round((time.monotonic() - profile_started) * 1000))
-            if raised is not None:
-                try:
-                    telemetry = normalize_telemetry_samples(
-                        telemetry_samples,
-                        lineage={},
-                        interval_ms=1000,
-                        elapsed_ms=profile_elapsed_ms,
-                    )
-                    write_failed_profile_diagnostics(
-                        self.data_root,
-                        benchmark_id=benchmark_id,
-                        job_id=job_id,
-                        attempt=attempt,
-                        profile_id=profile_id,
-                        sample_identity_sha256=sample_identity_sha256,
-                        terminal="error",
-                        failure_payload=terminal_payload,
-                        events=evidence_events,
-                        telemetry=telemetry,
-                    )
-                except BenchmarkEvidenceError as exc:
-                    raise WorkerProcessError(str(exc), recoverable=False) from exc
-                raise raised
-            assert outcome is not None
             if outcome.terminal != "result":
-                try:
-                    telemetry = normalize_telemetry_samples(
-                        telemetry_samples,
-                        lineage={},
-                        interval_ms=1000,
-                        elapsed_ms=profile_elapsed_ms,
+                if diagnostics is not None:
+                    status = "cancelled" if outcome.terminal == "cancelled" else "failed"
+                    diagnostics.finalize(
+                        status=status,
+                        error_code=(
+                            "PROFILE_CANCELLED"
+                            if status == "cancelled"
+                            else "BENCHMARK_PROFILE_SUPERVISOR_FAILED"
+                        ),
                     )
-                    write_failed_profile_diagnostics(
-                        self.data_root,
-                        benchmark_id=benchmark_id,
-                        job_id=job_id,
-                        attempt=attempt,
-                        profile_id=profile_id,
-                        sample_identity_sha256=sample_identity_sha256,
-                        terminal=outcome.terminal if outcome.terminal == "cancelled" else "error",
-                        failure_payload=outcome.payload if isinstance(outcome.payload, dict) else {},
-                        events=evidence_events,
-                        telemetry=telemetry,
-                    )
-                except BenchmarkEvidenceError as exc:
-                    raise WorkerProcessError(str(exc), recoverable=False) from exc
                 return outcome
-            receipt = dict(outcome.payload)
-            if receipt.get("schema_version") != "tda_benchmark_profile_v1":
-                raise WorkerProcessError("BENCHMARK_PROFILE_RESULT_INVALID", recoverable=False)
-            if not _benchmark_profile_evidence_valid(receipt, profile_id):
-                raise WorkerProcessError("BENCHMARK_PROFILE_EVIDENCE_INVALID", recoverable=False)
-            if receipt.get("benchmark_id") != benchmark_id or receipt.get("transcript_sha256") is None:
-                raise WorkerProcessError("BENCHMARK_PROFILE_ARTIFACT_INVALID", recoverable=False)
 
-            try:
-                write_profile_events(
-                    self.data_root,
-                    benchmark_id,
-                    profile_id,
-                    evidence_events,
-                )
-                telemetry = normalize_telemetry_samples(
-                    telemetry_samples,
-                    lineage=receipt["execution_lineage"],
-                    interval_ms=1000,
-                    elapsed_ms=profile_elapsed_ms,
-                )
-                write_profile_telemetry(
-                    self.data_root,
-                    benchmark_id,
-                    profile_id,
-                    telemetry,
-                )
-            except BenchmarkEvidenceError as exc:
-                raise WorkerProcessError(str(exc), recoverable=False) from exc
+            receipt = dict(outcome.payload)
+            worker_diagnostics = receipt.pop("benchmark_diagnostics", None)
+            if receipt.get("schema_version") != "tda_benchmark_profile_v1":
+                if diagnostics is not None:
+                    diagnostics.record_supervisor_terminal(
+                        status="failed",
+                        code="BENCHMARK_PROFILE_RESULT_INVALID",
+                        recoverable=False,
+                    )
+                    diagnostics.finalize(
+                        status="failed",
+                        receipt=receipt,
+                        error_code="BENCHMARK_PROFILE_RESULT_INVALID",
+                    )
+                raise WorkerProcessError("BENCHMARK_PROFILE_RESULT_INVALID", recoverable=False)
+            if not _benchmark_profile_evidence_valid(
+                receipt,
+                profile_id,
+                benchmark_id=benchmark_id,
+                sample_identity_sha256=sample_identity_sha256,
+            ):
+                if diagnostics is not None:
+                    diagnostics.record_supervisor_terminal(
+                        status="failed",
+                        code="BENCHMARK_PROFILE_EVIDENCE_INVALID",
+                        recoverable=False,
+                    )
+                    diagnostics.finalize(
+                        status="failed",
+                        receipt=receipt,
+                        error_code="BENCHMARK_PROFILE_EVIDENCE_INVALID",
+                    )
+                raise WorkerProcessError("BENCHMARK_PROFILE_EVIDENCE_INVALID", recoverable=False)
+
+            if diagnostics is not None:
+                try:
+                    diagnostics.finalize(
+                        status="completed",
+                        receipt=receipt,
+                        worker_diagnostics=worker_diagnostics,
+                    )
+                except BenchmarkDiagnosticsError as exc:
+                    raise WorkerProcessError(exc.code, recoverable=False) from exc
 
             receipts.append(receipt)
             on_progress(
@@ -820,34 +787,17 @@ class WorkerSupervisor:
                     },
                 )
             )
-
-        try:
-            bundle = finalize_bundle(
-                self.data_root,
-                benchmark_id=benchmark_id,
-                job_id=job_id,
-                attempt=attempt,
-                source_id=source_id,
-                sample_identity_sha256=sample_identity_sha256,
-                sample_seconds=sample_seconds,
-                sample_descriptor=sample_descriptor,
-                context=context,
-                glossary=glossary,
-                execution_mode="prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2",
-            )
-        except BenchmarkEvidenceError as exc:
-            raise WorkerProcessError(str(exc), recoverable=False) from exc
         return WorkerOutcome(
             terminal="result",
             payload={
                 "schema_version": "tda_processing_benchmark_v1",
                 "kind": "benchmark.craig",
                 "source_id": source_id,
+                "benchmark_id": benchmark_id,
                 "sample_identity_sha256": sample_identity_sha256,
                 "sample_seconds": sample_seconds,
-                "execution_mode": "prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2",
+                "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
                 "profiles": receipts,
-                **bundle,
             },
             returncode=0,
         )
