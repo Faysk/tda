@@ -141,6 +141,72 @@ def test_session_workspace_api_is_additive_durable_and_cas_guarded(
         assert recovered.json()["parts"][0]["source_id"] == SOURCE_B
 
 
+
+def test_sequence_endpoint_builds_editorial_timeline_without_wall_clock(
+    tmp_path: Path,
+    monkeypatch,
+):
+    data_root = tmp_path / "Data"
+    package = SimpleNamespace(
+        start_time=None,
+        tracks=(
+            SimpleNamespace(
+                duration_seconds=60.0,
+                timeline_offset_seconds=0.0,
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        api_module,
+        "load_craig_package",
+        lambda _root, verify_tracks=False: package,
+    )
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    for source_id in (SOURCE_A, SOURCE_B):
+        _stage(data_root, source_id)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        workspace = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-sequence",
+            headers=HEADERS,
+            json={},
+        ).json()
+        for source_id in (SOURCE_A, SOURCE_B):
+            workspace = client.post(
+                "/api/v1/session-workspaces/campaign-a/session-sequence/parts",
+                headers=HEADERS,
+                json={
+                    "source_id": source_id,
+                    "expected_revision": workspace["revision"],
+                },
+            ).json()
+
+        assert workspace["timeline"]["state"] == "needs_timing"
+        assert workspace["timeline"]["all_sources_trusted"] is False
+
+        confirmed = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-sequence/timeline/sequence",
+            headers=HEADERS,
+            json={"expected_revision": workspace["revision"]},
+        )
+        assert confirmed.status_code == 200
+        body = confirmed.json()
+        assert body["ordering_mode"] == "confirmed_sequence"
+        assert body["timeline"]["state"] == "ready"
+        assert [part["timeline_mode"] for part in body["parts"]] == [
+            "confirmed_sequence",
+            "confirmed_sequence",
+        ]
+        assert [part["session_offset_seconds"] for part in body["parts"]] == [
+            0.0,
+            60.0,
+        ]
+        assert all(
+            part["source_start_confidence"] == "missing" for part in body["parts"]
+        )
+
+
+
 def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, monkeypatch):
     data_root = tmp_path / "Data"
     monkeypatch.setattr(
