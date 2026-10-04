@@ -103,8 +103,10 @@ type Props = Readonly<{
 	onError?: (
 		message: string,
 		availabilityFailure?: "timeout" | "unreachable",
+		technicalCode?: string,
 	) => void;
 	onOpenTechnical?: () => void;
+	onRestoreSource?: () => void;
 }>;
 
 function supported(capabilities: readonly string[]): boolean {
@@ -164,6 +166,7 @@ export function SessionIntentCoordinator({
 	onStatus,
 	onError,
 	onOpenTechnical,
+	onRestoreSource,
 }: Props) {
 	const enabled = supported(capabilities);
 	const [workspace, setWorkspace] = useState<SessionWorkspace | null>(null);
@@ -224,7 +227,7 @@ export function SessionIntentCoordinator({
 					: undefined;
 			setLocalErrorCode(code);
 			setLocalError(message);
-			onError?.(message, availabilityFailure);
+			onError?.(message, availabilityFailure, code ?? undefined);
 		},
 		[announce, onError, workspace?.timeline.state],
 	);
@@ -1462,10 +1465,21 @@ export function SessionIntentCoordinator({
 					<div>
 						<strong>Uma gravação local precisa ser restaurada.</strong>
 						<span>
-							O workspace foi preservado, mas a fonte não passou na verificação de
-							integridade.
+							Selecione novamente o ZIP original. Os resultados já concluídos serão
+							preservados quando íntegros.
 						</span>
 					</div>
+					{onRestoreSource ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="secondary"
+							disabled={busy}
+							onClick={onRestoreSource}
+						>
+							Selecionar ZIP original
+						</Button>
+					) : null}
 				</div>
 			) : null}
 
