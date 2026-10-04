@@ -431,7 +431,7 @@ export function ProcessingPanel({
 				new Date(left.updated_at).getTime() - new Date(right.updated_at).getTime(),
 		);
 	const attention = campaignJobs.filter((job) =>
-		["failed", "interrupted"].includes(job.status),
+		["partial", "failed", "interrupted"].includes(job.status),
 	);
 	const activeJob = running[0] ?? null;
 	const activePercent = activeJob ? progressPercent(activeJob) : null;
