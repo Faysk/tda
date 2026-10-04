@@ -52,6 +52,38 @@ describe("contextual job diagnostic privacy contract", () => {
 		expect(JSON.stringify(sanitized)).not.toContain("secret");
 	});
 
+	it("keeps sanitized Benchmark profile outcome counters and error identity", () => {
+		const sanitized = sanitizeJobDiagnosticEvent({
+			seq: 51,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_OUTCOME",
+			at: "2026-10-04T19:26:44Z",
+			level: "warning",
+			data: {
+				profile_id: "qwen-fast",
+				status: "failed",
+				attempted_count: 3,
+				successful_count: 2,
+				failed_count: 1,
+				error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+				recoverable: true,
+				transcript: "private words",
+				audio_path: "C:\\private\\audio.wav",
+			},
+		});
+		expect(sanitized.data).toEqual({
+			profile_id: "qwen-fast",
+			status: "failed",
+			attempted_count: 3,
+			successful_count: 2,
+			failed_count: 1,
+			error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+			recoverable: true,
+		});
+		expect(JSON.stringify(sanitized)).not.toContain("private words");
+		expect(JSON.stringify(sanitized)).not.toContain("audio.wav");
+	});
+
 	it("scopes visible events to the requested attempt while preserving attemptless lifecycle facts", () => {
 		const events: JobEvent[] = [
 			{
