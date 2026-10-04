@@ -101,7 +101,7 @@
 }
 
 .dropAction:focus-visible {
-	outline: 2px solid var(--ds-focus-ring);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
 }
 
@@ -207,7 +207,7 @@
 .form input:focus-visible,
 .form select:focus-visible,
 .form textarea:focus-visible {
-	outline: 2px solid var(--ds-focus-ring);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
 }
 
@@ -409,7 +409,7 @@
 }
 
 .privacy summary:focus-visible {
-	outline: 2px solid var(--ds-focus-ring);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
 }
 
@@ -459,7 +459,7 @@
 }
 
 .advanced summary:focus-visible {
-	outline: 2px solid var(--ds-focus-ring);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
 }
 
@@ -786,7 +786,7 @@
 }
 
 .technical > summary:focus-visible {
-	outline: 2px solid var(--ds-focus-ring);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
 }
 
