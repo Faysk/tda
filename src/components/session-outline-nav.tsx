@@ -80,6 +80,7 @@ export function SessionOutlineNav({
 								options={outlineOptions}
 								onChange={navigate}
 								ariaLabel="Ir para uma seção"
+								restoreFocusOnSelect={false}
 							/>
 						</div>
 					) : (
