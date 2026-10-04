@@ -1062,6 +1062,29 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 	await expect(review).toContainText("1 falas");
 	await expect(page.locator("[data-session-assembly-editor='true']")).toBeVisible();
 
+	// #1471: the review must resolve canonical semantic tokens in both themes,
+	// not fall back to transparent/un-styled legacy aliases.
+	const themeStyles: Record<string, { background: string; border: string; color: string }> = {};
+	for (const theme of ["dark", "light"] as const) {
+		await page.evaluate((nextTheme) => {
+			document.documentElement.dataset.theme = nextTheme;
+		}, theme);
+		themeStyles[theme] = await review.evaluate((element) => {
+			const style = getComputedStyle(element);
+			return {
+				background: style.backgroundColor,
+				border: style.borderTopColor,
+				color: style.color,
+			};
+		});
+		expect(themeStyles[theme].background).not.toBe("rgba(0, 0, 0, 0)");
+		expect(themeStyles[theme].border).not.toBe("rgba(0, 0, 0, 0)");
+	}
+	expect(themeStyles.dark?.background).not.toBe(themeStyles.light?.background);
+	await page.evaluate(() => {
+		document.documentElement.dataset.theme = "dark";
+	});
+
 	// The Results editor stays mounted across tab switches. Re-entering the same
 	// assembly from Overview must focus the existing working copy instead of
 	// reloading it and discarding unsaved edits.
