@@ -1095,7 +1095,10 @@ test("8k-fala session review stays bounded and edits only the active row", async
 	const review = page.getByRole("region", {
 		name: "Revisão da transcrição da sessão",
 	});
-	await expect(review).toBeVisible();
+	// The stress fixture serializes/parses the full 8k working copy before the bounded
+	// UI can mount. Keep the product assertion bounded without using the default
+	// 5 s locator timeout as an accidental payload-size SLA.
+	await expect(review).toBeVisible({ timeout: 20_000 });
 	await expect(review).toContainText("8.000 falas");
 	await expect(review).toHaveAttribute("data-review-page-size", "60");
 
@@ -1790,10 +1793,14 @@ test("exact duplicate is reused once instead of creating a second part or job", 
 		},
 	]);
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
-	await expect(page.getByText(/duplicata exata · será reutilizada uma vez/u)).toBeVisible();
-	await expect(
-		page.getByRole("region", { name: /Transcrição da sessão/u }),
-	).toContainText("Transcrição pronta");
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	// Once the intent is fixed the draft/file list is deliberately replaced by the
+	// compact session state. Prove dedupe through the resulting session instead of
+	// requiring stale draft copy to remain visible.
+	await expect(intent.getByRole("listitem")).toHaveCount(1);
+	await expect(intent).toContainText("original.zip");
+	await expect(intent).not.toContainText("copia.zip");
 	expect(multi.attachedSources).toEqual([SOURCE_IDS[0]]);
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
 });
