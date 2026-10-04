@@ -71,7 +71,7 @@ test("source to four-profile evidence to human-reference quality is one coherent
 
 	await panel.getByRole("button", { name: "Exportar evidência ZIP" }).click();
 	await expect(
-		panel.getByRole("group", { name: "Confirmar exportação privada" }),
+		panel.getByRole("complementary", { name: "Confirmar exportação privada" }),
 	).toContainText("quatro transcripts completos");
 	expect(state.requests.some((item) => item.path.endsWith("/export"))).toBe(false);
 	await panel.getByRole("button", { name: "Baixar ZIP privado" }).click();
@@ -241,7 +241,7 @@ test("private export requires an explicit transcript-content disclosure", async 
 
 	await expect(panel.getByText("Arquivos / evidências")).toBeVisible();
 	await panel.getByRole("button", { name: "Exportar evidência ZIP" }).click();
-	await expect(panel.getByRole("group", { name: "Confirmar exportação privada" })).toContainText(
+	await expect(panel.getByRole("complementary", { name: "Confirmar exportação privada" })).toContainText(
 		"quatro transcripts completos",
 	);
 	expect(state.requests.some((item) => item.path.endsWith("/export"))).toBe(false);
