@@ -172,6 +172,8 @@ def user_confirmed_sequence_placements(
     previous_facts: dict[str, Any] | None = None
     previous_offset = 0.0
     previous_duration: float | None = None
+    last_trusted_epoch: float | None = None
+    last_trusted_ordinal: int | None = None
 
     for ordinal, part in enumerate(rows):
         source_id = str(part["source_id"])
@@ -180,18 +182,34 @@ def user_confirmed_sequence_placements(
         if facts.get("source_state", "invalid") != "ready" or duration is None:
             raise ValueError("SESSION_WORKSPACE_SOURCE_UNAVAILABLE")
 
+        current_confidence = facts.get("start_confidence")
+        current_epoch = (
+            _number(facts.get("start_epoch_seconds"))
+            if current_confidence == "trusted_absolute"
+            else None
+        )
+        if current_confidence == "trusted_absolute" and current_epoch is None:
+            raise ValueError("SESSION_WORKSPACE_TIMELINE_NOT_TRUSTED")
+        if current_epoch is not None and last_trusted_epoch is not None:
+            if current_epoch < last_trusted_epoch - _EPSILON:
+                raise ValueError("SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT")
+            if (
+                abs(current_epoch - last_trusted_epoch) <= _EPSILON
+                and last_trusted_ordinal is not None
+                and ordinal != last_trusted_ordinal + 1
+            ):
+                raise ValueError("SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT")
+
         if ordinal == 0:
             offset = 0.0
         else:
             assert previous_facts is not None and previous_duration is not None
             previous_confidence = previous_facts.get("start_confidence")
-            current_confidence = facts.get("start_confidence")
             if (
                 previous_confidence == "trusted_absolute"
                 and current_confidence == "trusted_absolute"
             ):
                 previous_epoch = _number(previous_facts.get("start_epoch_seconds"))
-                current_epoch = _number(facts.get("start_epoch_seconds"))
                 if previous_epoch is None or current_epoch is None:
                     raise ValueError("SESSION_WORKSPACE_TIMELINE_NOT_TRUSTED")
                 delta_from_previous_start = current_epoch - previous_epoch
@@ -212,6 +230,9 @@ def user_confirmed_sequence_placements(
         previous_facts = facts
         previous_offset = offset
         previous_duration = duration
+        if current_epoch is not None:
+            last_trusted_epoch = current_epoch
+            last_trusted_ordinal = ordinal
 
     return placements
 
