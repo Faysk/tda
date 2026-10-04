@@ -902,6 +902,7 @@ export function SessionIntentCoordinator({
 		blocker?.kind,
 		bridge,
 		busy,
+		capabilities,
 		disabled,
 		enabled,
 		fail,
