@@ -39,6 +39,7 @@ from .benchmark_quality import (
 from .browser_session import BrowserSessionManager
 from .benchmark_bundles import (
     BenchmarkBundleError,
+    benchmark_id_for,
     benchmark_sample_descriptor,
     claim_benchmark_outcome,
     finalize_benchmark_bundle,
@@ -469,6 +470,85 @@ def _benchmark_sample_identity(package) -> str:
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+
+
+def _benchmark_partial_result_valid(
+    payload: object,
+    body: dict,
+    *,
+    job_id: str,
+    attempt: int,
+) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if (
+        payload.get("schema_version") != "tda_processing_benchmark_partial_v1"
+        or payload.get("kind") != "benchmark.craig"
+        or payload.get("status") != "partial"
+        or payload.get("source_id") != body.get("source_id")
+        or payload.get("benchmark_id") != benchmark_id_for(job_id, attempt)
+        or payload.get("sample_identity_sha256") != body.get("sample_identity_sha256")
+        or payload.get("sample_seconds") != body.get("sample_seconds")
+        or payload.get("execution_mode")
+        != "prepared_artifacts_fresh_worker_per_profile_v1"
+    ):
+        return False
+
+    profiles = payload.get("profiles")
+    if (
+        not isinstance(profiles, list)
+        or len(profiles) != len(_BENCHMARK_PROFILES)
+        or [item.get("profile_id") if isinstance(item, dict) else None for item in profiles]
+        != list(_BENCHMARK_PROFILES)
+    ):
+        return False
+
+    completed_count = 0
+    failed_count = 0
+    for profile_id, item in zip(_BENCHMARK_PROFILES, profiles, strict=True):
+        if not isinstance(item, dict):
+            return False
+        status = item.get("status")
+        if status == "completed":
+            receipt = item.get("receipt")
+            if (
+                item.get("artifact_available") is not True
+                or not isinstance(receipt, dict)
+                or receipt.get("schema_version") != "tda_benchmark_profile_v1"
+                or receipt.get("profile_id") != profile_id
+                or receipt.get("benchmark_id") != payload.get("benchmark_id")
+                or receipt.get("sample_identity_sha256")
+                != payload.get("sample_identity_sha256")
+                or receipt.get("artifact_available") is not True
+            ):
+                return False
+            completed_count += 1
+            continue
+        if status != "failed" or item.get("artifact_available") is not False:
+            return False
+        error_payload = item.get("error")
+        continuation = item.get("continuation")
+        if (
+            not isinstance(error_payload, dict)
+            or not isinstance(error_payload.get("code"), str)
+            or re.fullmatch(r"[A-Z0-9_]{1,96}", error_payload["code"]) is None
+            or error_payload.get("recoverable") is not True
+            or error_payload.get("scope") != "profile"
+            or not isinstance(continuation, dict)
+            or continuation.get("decision") != "continue"
+            or continuation.get("reason") != "profile_local_allowlist"
+        ):
+            return False
+        failed_count += 1
+
+    return (
+        failed_count >= 1
+        and completed_count < len(_BENCHMARK_PROFILES)
+        and payload.get("attempted_count") == len(_BENCHMARK_PROFILES)
+        and payload.get("completed_count") == completed_count
+        and payload.get("failed_count") == failed_count
+        and completed_count + failed_count == len(_BENCHMARK_PROFILES)
+    )
 
 
 def create_app(
