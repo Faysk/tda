@@ -1061,6 +1061,23 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 	await expect(review).toBeVisible();
 	await expect(review).toContainText("1 falas");
 	await expect(page.locator("[data-session-assembly-editor='true']")).toBeVisible();
+
+	// The Results editor stays mounted across tab switches. Re-entering the same
+	// assembly from Overview must focus the existing working copy instead of
+	// reloading it and discarding unsaved edits.
+	await review.getByRole("button", { name: /Editar fala de Participante/u }).click();
+	await review.getByLabel("Texto").fill("Trecho 1 preservado entre abas");
+	await review.getByRole("button", { name: "Aplicar" }).click();
+	await expect(review.getByRole("button", { name: "Salvar alterações" })).toBeVisible();
+	await page.getByRole("tab", { name: "Visão geral" }).click();
+	await expect(intent).toBeVisible();
+	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(review).toContainText("Trecho 1 preservado entre abas");
+	await expect(review.getByRole("button", { name: "Salvar alterações" })).toBeVisible();
 });
 
 test("8k-fala session review stays bounded and edits only the active row", async ({
