@@ -53,6 +53,13 @@ const SAFE_EVENT_DATA_KEYS = new Set([
 	"worker_sha256",
 	"downloaded_bytes",
 	"device",
+	"profile_id",
+	"status",
+	"attempted_count",
+	"successful_count",
+	"failed_count",
+	"error_code",
+	"recoverable",
 ]);
 
 function formatDateTime(value: string | null | undefined): string {
@@ -183,6 +190,29 @@ export function JobDiagnosticsInspector({
 					);
 				}) ?? null
 			: null;
+	const benchmarkOutcomeEvents =
+		job?.kind === "benchmark.craig"
+			? visibleEvents.filter((event) => event.code === "BENCHMARK_PROFILE_OUTCOME")
+			: [];
+	const benchmarkLatestOutcome = benchmarkOutcomeEvents.at(-1);
+	const benchmarkAttempted =
+		typeof benchmarkLatestOutcome?.data.attempted_count === "number"
+			? benchmarkLatestOutcome.data.attempted_count
+			: job?.kind === "benchmark.craig"
+				? job.progress?.completed ?? 0
+				: null;
+	const benchmarkSuccessful =
+		typeof benchmarkLatestOutcome?.data.successful_count === "number"
+			? benchmarkLatestOutcome.data.successful_count
+			: job?.kind === "benchmark.craig"
+				? benchmarkAttempted
+				: null;
+	const benchmarkFailed =
+		typeof benchmarkLatestOutcome?.data.failed_count === "number"
+			? benchmarkLatestOutcome.data.failed_count
+			: job?.kind === "benchmark.craig"
+				? 0
+				: null;
 
 	useEffect(() => {
 		const dialog = dialogRef.current;
@@ -313,7 +343,9 @@ export function JobDiagnosticsInspector({
 				{job ? (
 					<>
 						<div className={styles.jobDiagnosticsStatus}>
-							<StatusPill tone={jobTone(job.status)}>{jobLabels[job.status]}</StatusPill>
+							<StatusPill tone={job.error?.code === "BENCHMARK_PARTIAL" ? "warning" : jobTone(job.status)}>
+								{job.error?.code === "BENCHMARK_PARTIAL" ? "Parcial" : jobLabels[job.status]}
+							</StatusPill>
 							<strong>{stageLabels[job.stage] ?? job.stage}</strong>
 							{job.error ? (
 								<span data-tone="danger">
@@ -335,7 +367,13 @@ export function JobDiagnosticsInspector({
 								<div><dt>Resultado</dt><dd>{job.result_available ? "Disponível" : "Não disponível"}</dd></div>
 								<div className={styles.detailWide}>
 									<dt>Progresso</dt>
-									<dd>{job.progress ? `${job.progress.completed}/${job.progress.total} ${job.progress.unit}` : "—"}</dd>
+									<dd>
+										{job.kind === "benchmark.craig" && benchmarkAttempted !== null
+											? `Tentados ${benchmarkAttempted}/${job.progress?.total ?? 4} · Concluídos ${benchmarkSuccessful ?? 0} · Falharam ${benchmarkFailed ?? 0}`
+											: job.progress
+												? `${job.progress.completed}/${job.progress.total} ${job.progress.unit}`
+												: "—"}
+									</dd>
 								</div>
 							</dl>
 						</section>
@@ -365,7 +403,7 @@ export function JobDiagnosticsInspector({
 							<legend className={styles.jobDiagnosticsActionsLegend}>
 								Ações do processamento
 							</legend>
-							{job.status === "succeeded" && job.result_available ? (
+							{job.status === "succeeded" && job.result_available && job.kind !== "benchmark.craig" ? (
 								<Button
 									size="sm"
 									variant="primary"
@@ -383,7 +421,11 @@ export function JobDiagnosticsInspector({
 							) : null}
 							{["failed", "interrupted"].includes(job.status) && job.error?.recoverable ? (
 								<Button size="sm" disabled={pendingAction === "retry"} onClick={() => onRetry(job)}>
-									{pendingAction === "retry" ? "Repetindo…" : "Repetir trabalho"}
+									{pendingAction === "retry"
+										? "Repetindo…"
+										: job.kind === "benchmark.craig"
+											? "Repetir benchmark"
+											: "Repetir trabalho"}
 								</Button>
 							) : null}
 							{["queued", "running"].includes(job.status) ? (
