@@ -30,6 +30,42 @@ async function analyze(panel: import("@playwright/test").Locator) {
 	await expect(panel.getByText(/Fonte validada/u)).toBeVisible();
 }
 
+test("partial benchmark keeps failed Fast visible after Quality completes without faking 4/4", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		benchmarkPartialResult: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureBenchmarkJob("failed", {
+				stage: "partial",
+				progress: { completed: 4, total: 4, unit: "profiles" },
+				error: { code: "BENCHMARK_PARTIAL", recoverable: true },
+				result_available: true,
+				updated_at: "2026-10-04T19:26:44Z",
+			}),
+		],
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel.getByText("Benchmark parcial").first()).toBeVisible();
+	await expect(panel.getByText("4/4 tentados").first()).toBeVisible();
+	await expect(panel.getByText("3/4 concluídos").first()).toBeVisible();
+	await expect(panel.getByText("1 falhou").first()).toBeVisible();
+	await expect(
+		panel.getByText(/Qwen Fast · falhou · QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN/u).first(),
+	).toBeVisible();
+	await expect(panel.getByText(/Qwen Quality · concluído/u).first()).toBeVisible();
+	await expect(
+		panel.getByText(/Benchmark tenta automaticamente os perfis restantes/u).first(),
+	).toBeVisible();
+	await expect(panel.getByRole("button", { name: "Comparar transcrições" })).toHaveCount(0);
+	await expect(panel.getByText(/selecione Qwen Quality no formulário/u)).toHaveCount(0);
+});
+
+
 test("benchmark foregrounds source, readiness, and only the next available action", async ({
 	page,
 }) => {
