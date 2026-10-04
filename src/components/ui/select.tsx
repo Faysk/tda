@@ -22,6 +22,7 @@ export type SelectProps<T extends string> = Readonly<{
 	options: readonly SelectOption<T>[];
 	onChange?: (value: T) => void;
 	ariaLabel: string;
+	id?: string;
 	ariaDescribedBy?: string;
 	ariaInvalid?: boolean;
 	className?: string;
@@ -63,6 +64,7 @@ export function Select<T extends string>({
 	options,
 	onChange,
 	ariaLabel,
+	id,
 	ariaDescribedBy,
 	ariaInvalid,
 	className,
@@ -223,6 +225,7 @@ export function Select<T extends string>({
 			) : null}
 			<button
 				ref={triggerRef}
+				id={id}
 				type="button"
 				className={styles.trigger}
 				aria-label={ariaLabel}
