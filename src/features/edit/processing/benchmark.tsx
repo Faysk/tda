@@ -39,6 +39,23 @@ const LABELS: Record<(typeof PROFILES)[number], string> = {
 	"qwen-quality": "Qwen Quality",
 };
 
+type BenchmarkStepState = "complete" | "failed" | "current" | "pending";
+
+function benchmarkStepLabel(state: BenchmarkStepState): string {
+	return {
+		complete: "concluído",
+		failed: "falhou",
+		current: "em execução",
+		pending: "pendente",
+	}[state];
+}
+
+function benchmarkProfileFailureCopy(code: string | undefined): string {
+	if (code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+		return "Sinal de áudio detectado, mas o Qwen não reconheceu o trecho com segurança; nenhum texto foi inventado.";
+	return code ? `Falha do perfil · ${code}` : "O perfil não concluiu.";
+}
+
 const QWEN_RUNTIME_RECOVERY_REASONS = new Set([
 	"QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
 	"QWEN_RUNTIME_REQUIRED",
