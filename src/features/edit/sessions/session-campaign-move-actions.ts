@@ -115,7 +115,8 @@ export async function moveSessionCampaignAction(
 	if (
 		!UUID.test(request.operationId) ||
 		typeof request.decisions?.unlinkParticipantEntities !== "boolean" ||
-		typeof request.decisions?.revokeSessionGrants !== "boolean"
+		typeof request.decisions?.revokeSessionGrants !== "boolean" ||
+		typeof request.decisions?.acknowledgeHistoricalPublication !== "boolean"
 	) {
 		return { ok: false as const, reason: "validation" as const };
 	}
