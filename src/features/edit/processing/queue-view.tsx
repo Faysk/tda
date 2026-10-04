@@ -258,6 +258,7 @@ export function ProcessingQueueView({
 						}))}
 						onChange={(value) => setSort(value as QueueSort)}
 						ariaLabel="Ordenar fila"
+						compact
 					/>
 				</label>
 
