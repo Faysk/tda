@@ -52,6 +52,39 @@ begin
     ) then
     raise exception 'service role cannot execute the v2 move boundary';
   end if;
+
+  if has_table_privilege(
+      'anon',
+      'public.session_campaign_move_media_preparations',
+      'select'
+    )
+    or has_table_privilege(
+      'authenticated',
+      'public.session_campaign_move_media_preparations',
+      'select'
+    )
+    or not has_table_privilege(
+      'service_role',
+      'public.session_campaign_move_media_preparations',
+      'select'
+    )
+    or not has_table_privilege(
+      'service_role',
+      'public.session_campaign_move_media_preparations',
+      'insert'
+    )
+    or has_table_privilege(
+      'service_role',
+      'public.session_campaign_move_media_preparations',
+      'update'
+    )
+    or has_table_privilege(
+      'service_role',
+      'public.session_campaign_move_media_preparations',
+      'delete'
+    ) then
+    raise exception 'media preparation receipt privileges are not select+insert server-only';
+  end if;
 end
 $tda_move_v2_contract$;
 
@@ -138,7 +171,90 @@ begin
         'publicVerifiedAt',null
       )
     )
+  ); 
+
+  if v->>'status' <> 'media_prepare_required' then
+    raise exception 'prepared cover without a durable receipt did not fail closed: %', v;
+  end if;
+
+  insert into public.session_campaign_move_media_preparations(
+    operation_id,
+    source_asset_id,
+    destination_asset_id,
+    session_id,
+    source_campaign_id,
+    destination_campaign_id,
+    actor_profile_id,
+    source_object_key,
+    destination_object_key,
+    sha256,
+    mime_type,
+    byte_size,
+    width,
+    height,
+    status,
+    staged_bucket,
+    public_bucket,
+    public_object_key,
+    public_delivery_verified,
+    public_verified_at
+  ) values (
+    '61000000-0000-4000-8000-000000000020',
+    '54000000-0000-4000-8000-000000000020',
+    '54000000-0000-4000-8000-000000000021',
+    '41000000-0000-4000-8000-000000000020',
+    v_source,
+    v_destination,
+    '30000000-0000-4000-8000-000000000006',
+    'campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000020/cover/' ||
+      repeat('a',64) || '.webp',
+    'campaigns/antes-que-seja-tarde/sessions/41000000-0000-4000-8000-000000000020/cover/' ||
+      repeat('a',64) || '.webp',
+    repeat('a',64),
+    'image/webp',
+    128,
+    16,
+    8,
+    'staged',
+    'tda-media-private',
+    null,
+    null,
+    false,
+    null
   );
+
+    v := public.move_session_campaign_atomic_v2(
+    '90000000-0000-4000-8000-000000000006',
+    '30000000-0000-4000-8000-000000000006',
+    'yuhara-main',
+    'antes-que-seja-tarde',
+    '41000000-0000-4000-8000-000000000020',
+    'move-populated',
+    '61000000-0000-4000-8000-000000000020',
+    jsonb_build_object(
+      'publishedPolicy','unpublish',
+      'preparedCover',jsonb_build_object(
+        'sourceAssetId','54000000-0000-4000-8000-000000000020',
+        'destinationAssetId','54000000-0000-4000-8000-000000000021',
+        'sha256',repeat('a',64),
+        'mimeType','image/webp',
+        'status','staged',
+        'stagedBucket','tda-media-private',
+        'objectKey',
+          'campaigns/antes-que-seja-tarde/sessions/41000000-0000-4000-8000-000000000020/cover/' ||
+          repeat('a',64) || '.webp',
+        'bytes','128',
+        'width','16',
+        'height','8',
+        'publicBucket',null,
+        'publicObjectKey',null,
+        'publicDeliveryVerified',false,
+        'publicVerifiedAt',null
+      )
+    )
+  );
+
+  if v->>'status' <> 'moved'
 
   if v->>'status' <> 'moved'
      or v->>'publicationState' <> 'unpublished'
@@ -234,6 +350,21 @@ begin
       and ma.public_verified_at is null
   ) then
     raise exception 'private destination cover was not staged without public delivery';
+  end if;
+
+  if not exists (
+    select 1
+    from public.session_campaign_move_media_preparations prep
+    where prep.operation_id='61000000-0000-4000-8000-000000000020'
+      and prep.source_asset_id='54000000-0000-4000-8000-000000000020'
+      and prep.destination_asset_id='54000000-0000-4000-8000-000000000021'
+      and prep.session_id='41000000-0000-4000-8000-000000000020'
+      and prep.source_campaign_id=v_source
+      and prep.destination_campaign_id=v_destination
+      and prep.status='staged'
+      and prep.public_object_key is null
+  ) then
+    raise exception 'durable media preparation receipt was not preserved';
   end if;
 
   if (
