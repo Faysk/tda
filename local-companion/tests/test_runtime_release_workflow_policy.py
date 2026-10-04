@@ -82,7 +82,7 @@ def test_qwen_runtime_uses_package_builder_without_legacy_direct_stable_publishe
 def test_qwen_runtime_package_restores_runtime_rc_for_issue_1413_1018():
     package = _workflow("qwen-runtime-package.yml")
 
-    assert 'REPAIR_VERSION="1.0.18"' in package
+    assert 'REPAIR_VERSION="1.0.19"' in package
     assert 'STABLE_TAG="companion-qwen-runtime-v$REPAIR_VERSION"' in package
     assert "QWEN_RUNTIME_RC_1413_VERSION_MISMATCH" in package
     assert "QWEN_RUNTIME_RC_DISABLED_AFTER_1018_STABLE" in package
