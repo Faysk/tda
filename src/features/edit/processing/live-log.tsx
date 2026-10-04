@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Select } from "@/components/ui";
 import {
 	activityContext,
 	activityEventCanBeHumorous,
@@ -458,48 +459,48 @@ export function ProcessingLiveLog({
 						placeholder="Buscar code, speaker, stage…"
 					/>
 				</label>
-				<select
+				<Select
 					value={level}
-					onChange={(event) =>
-						setLevel(event.target.value as typeof level)
-					}
-					aria-label="Filtrar por nível"
-				>
-					<option value="all">Todos os níveis</option>
-					<option value="info">Info</option>
-					<option value="warning">Warning</option>
-					<option value="error">Erro</option>
-				</select>
-				<select
+					options={[
+						{ value: "all", label: "Todos os níveis" },
+						{ value: "info", label: "Info" },
+						{ value: "warning", label: "Warning" },
+						{ value: "error", label: "Erro" },
+					]}
+					onChange={(value) => setLevel(value as typeof level)}
+					ariaLabel="Filtrar por nível"
+					compact
+				/>
+				<Select
 					value={code}
-					onChange={(event) => setCode(event.target.value)}
-					aria-label="Filtrar por code"
-				>
-					<option value="all">Todos os codes</option>
-					{codeOptions.map((value) => (
-						<option key={value} value={value}>{value}</option>
-					))}
-				</select>
-				<select
+					options={[
+						{ value: "all", label: "Todos os codes" },
+						...codeOptions.map((value) => ({ value, label: value })),
+					]}
+					onChange={setCode}
+					ariaLabel="Filtrar por code"
+					compact
+				/>
+				<Select
 					value={speaker}
-					onChange={(event) => setSpeaker(event.target.value)}
-					aria-label="Filtrar por speaker"
-				>
-					<option value="all">Todos os speakers</option>
-					{speakerOptions.map((value) => (
-						<option key={value} value={value}>{value}</option>
-					))}
-				</select>
-				<select
+					options={[
+						{ value: "all", label: "Todos os speakers" },
+						...speakerOptions.map((value) => ({ value, label: value })),
+					]}
+					onChange={setSpeaker}
+					ariaLabel="Filtrar por speaker"
+					compact
+				/>
+				<Select
 					value={track}
-					onChange={(event) => setTrack(event.target.value)}
-					aria-label="Filtrar por track"
-				>
-					<option value="all">Todas as tracks</option>
-					{trackOptions.map((value) => (
-						<option key={value} value={value}>Track {value}</option>
-					))}
-				</select>
+					options={[
+						{ value: "all", label: "Todas as tracks" },
+						...trackOptions.map((value) => ({ value, label: `Track ${value}` })),
+					]}
+					onChange={setTrack}
+					ariaLabel="Filtrar por track"
+					compact
+				/>
 				<button type="button" onClick={togglePause}>
 					{paused ? "Retomar visualização" : "Pausar visualização"}
 				</button>
