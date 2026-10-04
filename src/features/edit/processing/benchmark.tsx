@@ -461,6 +461,9 @@ export function ProcessingBenchmark({
 	const [error, setError] = useState<string | null>(null);
 	const [status, setStatus] = useState<string | null>(null);
 	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
+	const [partialResults, setPartialResults] = useState<
+		Record<string, BenchmarkPartialResult>
+	>({});
 	const [evidenceView, setEvidenceView] = useState<{
 		result: BenchmarkResult;
 		mode: "compare" | "files";
@@ -496,6 +499,9 @@ export function ProcessingBenchmark({
 			: undefined);
 	const latestCompleted = benchmarkJobs.filter(
 		(job) => job.status === "succeeded" && job.result_available,
+	);
+	const latestPartial = benchmarkJobs.filter(
+		(job) => job.status === "partial" && job.result_available,
 	);
 	const latestJob = benchmarkJobs[0];
 	const latestProblem =
