@@ -1425,7 +1425,11 @@ def create_app(
                                     "bundle_manifest_sha256": None,
                                     "bundle_size_bytes": None,
                                 }
-                                if not store.complete(job_id, attempt, result):
+                                if not store.complete_partial_benchmark(
+                                    job_id,
+                                    attempt,
+                                    result,
+                                ):
                                     raise WorkerProcessError("WORKER_STALE_ATTEMPT")
                                 final_state = store.get(job_id)
                                 log(
