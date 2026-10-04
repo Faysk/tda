@@ -33,10 +33,11 @@ import { ProcessingController } from "./controller";
 import { JobDiagnosticsInspector } from "./job-diagnostics-inspector";
 import { LocalReviewWorkspace } from "./local-review";
 import { serializeLocalRunKey } from "./local-run-key";
+import { SessionAssemblyResults } from "./session-assembly-results";
 import {
-	SessionAssemblyResults,
+	nextSessionAssemblyReviewFocus,
 	type SessionAssemblyReviewFocus,
-} from "./session-assembly-results";
+} from "./session-assembly-results-model";
 import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
 import { ProcessingQueueView } from "./queue-view";
@@ -550,11 +551,9 @@ export function ProcessingPanel({
 	}
 
 	function openSessionAssemblyReview(sessionId: string, assemblyId: string) {
-		setSessionReviewFocus((current) => ({
-			sessionId,
-			assemblyId,
-			requestId: (current?.requestId ?? 0) + 1,
-		}));
+		setSessionReviewFocus((current) =>
+			nextSessionAssemblyReviewFocus(current, sessionId, assemblyId),
+		);
 		activateView("results");
 	}
 
