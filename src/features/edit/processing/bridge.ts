@@ -9,9 +9,12 @@ import {
 	type CraigTranscriptionInput,
 	type LocalReviewSegment,
 	type LocalReviewStatus,
+	benchmarkIdentifier,
 	identifier,
 	LOCAL_API,
+	parseBenchmarkEvidenceSummary,
 	parseBenchmarkResult,
+	parseBenchmarkTranscriptSnapshot,
 	parseCapabilities,
 	parseCraigSource,
 	parseHealth,
@@ -281,6 +284,58 @@ export class LocalBridge {
 					signal: AbortSignal.any([signal, timeout]),
 				});
 				return await this.responseJson(response, LOCAL_REVIEW_BODY_MAX_BYTES);
+			} catch (error) {
+				if (timeout.aborted && !signal.aborted) timedOut = true;
+				throw error;
+			}
+		};
+		try {
+			return await requestOnce();
+		} catch (error) {
+			if (
+				error instanceof BridgeError &&
+				error.code === "unauthorized" &&
+				pairingMode === "browser" &&
+				!signal.aborted
+			) {
+				await this.bootstrap(signal);
+				timedOut = false;
+				return await requestOnce();
+			}
+			if (error instanceof BridgeError) throw error;
+			throw new BridgeError(timedOut ? "timeout" : "unreachable");
+		}
+	}
+
+	private async raw(
+		path: string,
+		signal: AbortSignal,
+		accept = "*/*",
+	) {
+		let timedOut = false;
+		const requestOnce = async () => {
+			const timeout = AbortSignal.timeout(120_000);
+			try {
+				const response = await this.request(`${LOCAL_API}${path}`, {
+					method: "GET",
+					headers: {
+						Accept: accept,
+						Authorization: `Bearer ${this.token()}`,
+					},
+					mode: "cors",
+					credentials: "omit",
+					redirect: "error",
+					cache: "no-store",
+					referrerPolicy: "no-referrer",
+					signal: AbortSignal.any([signal, timeout]),
+				});
+				if (!response.ok) {
+					const contentType = response.headers.get("content-type") ?? "";
+					if (contentType.includes("application/json"))
+						await this.responseJson(response, LOCAL_REVIEW_BODY_MAX_BYTES);
+					throw mapStatus(response.status);
+				}
+				return response;
 			} catch (error) {
 				if (timeout.aborted && !signal.aborted) timedOut = true;
 				throw error;
@@ -895,6 +950,44 @@ export class LocalBridge {
 			await this.json(`/jobs/${identifier(id)}/result`, signal),
 			id,
 		);
+	}
+	async benchmarkEvidence(benchmarkId: string, signal: AbortSignal) {
+		const id = benchmarkIdentifier(benchmarkId);
+		return parseBenchmarkEvidenceSummary(
+			await this.reviewJson(`/benchmarks/${id}`, signal),
+			id,
+		);
+	}
+	async benchmarkTranscript(
+		benchmarkId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		signal: AbortSignal,
+	) {
+		const id = benchmarkIdentifier(benchmarkId);
+		return parseBenchmarkTranscriptSnapshot(
+			await this.reviewJson(
+				`/benchmarks/${id}/profiles/${profileId}/snapshot`,
+				signal,
+			),
+			id,
+			profileId,
+		);
+	}
+	async benchmarkArtifact(
+		benchmarkId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		format: "json" | "txt" | "txt-plain" | "vtt" | "srt",
+		signal: AbortSignal,
+	) {
+		const id = benchmarkIdentifier(benchmarkId);
+		return this.raw(
+			`/benchmarks/${id}/profiles/${profileId}/artifacts/${format}`,
+			signal,
+		);
+	}
+	async benchmarkEvidenceZip(benchmarkId: string, signal: AbortSignal) {
+		const id = benchmarkIdentifier(benchmarkId);
+		return this.raw(`/benchmarks/${id}/export.zip`, signal, "application/zip");
 	}
 	async result(id: string, signal: AbortSignal) {
 		return parseResultSummary(
