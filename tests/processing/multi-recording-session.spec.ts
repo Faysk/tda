@@ -81,6 +81,7 @@ type FixtureOptions = Readonly<{
 	)[];
 	failReviewSaveOnce?: boolean;
 	untrustedSourceIndexes?: readonly number[];
+	manualTimelineReady?: boolean;
 }>;
 
 async function installMultiRecordingRoutes(
@@ -91,6 +92,7 @@ async function installMultiRecordingRoutes(
 	let revision = 0;
 	let timelineDerived = false;
 	let sequenceConfirmed = false;
+	let deriveCount = 0;
 	let agentOfflineOnce = false;
 	let failNextSecondSourceEnqueue = false;
 	const analyzed = new Set<string>();
@@ -200,7 +202,10 @@ async function installMultiRecordingRoutes(
 				!options.untrustedSourceIndexes?.includes(SOURCE_IDS.indexOf(sourceId)),
 		);
 	const chronologyReady = () =>
-		attached.length <= 1 || timelineDerived || sequenceConfirmed;
+		attached.length <= 1 ||
+		timelineDerived ||
+		sequenceConfirmed ||
+		Boolean(options.manualTimelineReady);
 
 	const workspace = () => ({
 		schema_version: "tda_session_workspace_v1",
@@ -211,7 +216,9 @@ async function installMultiRecordingRoutes(
 			? "confirmed_sequence"
 			: timelineDerived
 				? "automatic"
-				: "attachment",
+				: options.manualTimelineReady
+					? "manual"
+					: "attachment",
 		created_at: NOW,
 		updated_at: NOW,
 		parts: attached.map((sourceId, index) => ({
@@ -222,9 +229,11 @@ async function installMultiRecordingRoutes(
 			source_state: "ready",
 			timeline_mode: sequenceConfirmed
 				? "confirmed_sequence"
-				: chronologyReady()
-					? "automatic"
-					: "unresolved",
+				: options.manualTimelineReady
+					? "manual"
+					: chronologyReady()
+						? "automatic"
+						: "unresolved",
 			session_offset_seconds: chronologyReady() ? index * 300 : null,
 			trim_start_seconds: 0,
 			trim_end_seconds: null,
@@ -471,6 +480,13 @@ async function installMultiRecordingRoutes(
 				`/session-workspaces/${CAMPAIGN}/${SESSION}/timeline/derive` &&
 			request.method() === "POST"
 		) {
+			deriveCount += 1;
+			if (options.manualTimelineReady)
+				return json(
+					route,
+					{ error: { code: "SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE" } },
+					409,
+				);
 			timelineDerived = true;
 			revision += 1;
 			return json(route, workspace());
@@ -839,6 +855,10 @@ async function installMultiRecordingRoutes(
 		get assemblyBuilt() {
 			return assemblyBuilt;
 		},
+		get deriveCount() {
+			return deriveCount;
+		},
+
 		get reviewStatus() {
 			return reviewStatus;
 		},
@@ -1008,6 +1028,40 @@ test("stale Markdown import preserves the working copy and never overwrites sile
 		review.getByText("Trecho 1 preservado após conflito"),
 	).toBeVisible();
 	expect(multi.reviewStatus).toBe("draft");
+});
+
+test("manual session order is preserved without triggering automatic timeline override", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		manualTimelineReady: true,
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "manual-a.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-manual-a"),
+		},
+		{
+			name: "manual-b.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-manual-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	await expect(intent).not.toContainText("SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE");
+	expect(multi.deriveCount).toBe(0);
+	expect(multi.assemblyBuilt).toBe(true);
 });
 
 test("three ZIPs become one session intent with missing clocks by confirming the visible order", async ({
