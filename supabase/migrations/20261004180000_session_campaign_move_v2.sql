@@ -223,6 +223,7 @@ declare
   v_count bigint;
   v_current_draft_id uuid;
   v_current_publication_id uuid;
+  v_destination_visibility text;
   v_metadata jsonb;
   v_cover text;
 begin
@@ -241,6 +242,21 @@ begin
         'code','session_missing','count',1,'message','A sessão não existe mais.'
       ))
     );
+  end if;
+
+  select c.visibility into v_destination_visibility
+  from public.campaigns c
+  where c.id=p_destination_campaign_id;
+
+  if v_current_publication_id is not null
+     and v_destination_visibility='private' then
+    v_plan := v_plan || jsonb_build_array(jsonb_build_object(
+      'family','historical_publication_retention',
+      'classification','decision',
+      'count',1,
+      'message','A rota pública atual será retirada do discovery, mas o snapshot e o objeto de mídia já publicados permanecem como histórico imutável.',
+      'action','acknowledge_historical_publication'
+    ));
   end if;
 
   if jsonb_array_length(public.session_campaign_move_registry_drift()) > 0 then
@@ -579,6 +595,7 @@ declare
   v_preflight jsonb;
   v_participant_links bigint := 0;
   v_session_grants bigint := 0;
+  v_has_current_publication boolean := false;
   v_cover_asset_id uuid;
   v_prep public.session_campaign_move_media_preparations%rowtype;
   v_decisions jsonb := coalesce(p_decisions,'{}'::jsonb);
@@ -649,6 +666,20 @@ begin
   );
   if v_preflight->>'status' <> 'ready' then
     return v_preflight;
+  end if;
+
+  select s.current_session_publication_id is not null
+  into v_has_current_publication
+  from public.sessions s
+  where s.id=p_session_id;
+
+  if v_has_current_publication
+     and v_destination_visibility='private'
+     and coalesce((v_decisions->>'acknowledgeHistoricalPublication')::boolean,false) is not true then
+    return jsonb_build_object(
+      'status','decision_required','contractVersion',2,
+      'decision','acknowledge_historical_publication','count',1
+    );
   end if;
 
   select count(*) into v_participant_links
@@ -892,7 +923,9 @@ begin
       'unlinkParticipantEntities',v_participant_links > 0,
       'participantEntityLinksDetached',v_participant_links,
       'revokeSessionGrants',v_session_grants > 0,
-      'sessionGrantsRevoked',v_session_grants
+      'sessionGrantsRevoked',v_session_grants,
+      'acknowledgeHistoricalPublication',
+        v_has_current_publication and v_destination_visibility='private'
     )
   );
 
