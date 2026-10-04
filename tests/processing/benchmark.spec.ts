@@ -551,7 +551,7 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await run.click();
 	await expect.poll(() => state.jobPostCount).toBe(1);
 	await expect(panel.getByText("Benchmark em andamento")).toBeVisible();
-	await expect(panel.getByText("0 de 4 perfis concluídos")).toBeVisible();
+	await expect(panel.getByText("Tentados 0/4 · Concluídos 0 · Falharam 0")).toBeVisible();
 
 	const diagnosticsButton = panel.getByRole("button", { name: "Ver log / Diagnóstico" });
 	await diagnosticsButton.click();
