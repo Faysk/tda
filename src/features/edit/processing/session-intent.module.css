@@ -13,7 +13,8 @@
 .header,
 .complete,
 .blocker,
-.secondaryActions {
+.secondaryActions,
+.completeActions {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -165,7 +166,8 @@
 	font-size: 0.78rem;
 }
 
-.blockerActions {
+.blockerActions,
+.completeActions {
 	display: flex;
 	flex-wrap: wrap;
 	justify-content: flex-end;
@@ -221,12 +223,14 @@
 	}
 
 	.blockerActions,
+	.completeActions,
 	.secondaryActions {
 		width: 100%;
 		justify-content: stretch;
 	}
 
 	.blockerActions :global(.ds-action),
+	.completeActions :global(.ds-action),
 	.complete :global(.ds-action),
 	.secondaryActions :global(.ds-action) {
 		width: 100%;
