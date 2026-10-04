@@ -204,12 +204,10 @@ test("[interaction] menu drilldown, campaign selection, navigation, Back and Esc
 	await expect(worldButton).toBeFocused();
 
 	const selector = panel.getByLabel("Campanha das ferramentas");
-	await expect(selector).toHaveValue(CAMPAIGN_A.technical);
-	await selector.selectOption(CAMPAIGN_B.technical);
-	await expect(selector).toHaveValue(CAMPAIGN_B.technical);
-	await expect(
-		selector.locator("option").filter({ hasText: CAMPAIGN_B.name }),
-	).toHaveText(CAMPAIGN_B.name);
+	await expectThemedSelectValue(selector, CAMPAIGN_A.technical);
+	await selectThemedOption(page, selector, CAMPAIGN_B.technical);
+	await expectThemedSelectValue(selector, CAMPAIGN_B.technical);
+	await expect(selector).toContainText(CAMPAIGN_B.name);
 	await recordTargetGeometry(
 		page,
 		selector,
@@ -230,7 +228,8 @@ test("[interaction] menu drilldown, campaign selection, navigation, Back and Esc
 	);
 
 	({ trigger, panel } = await openGlobalMenu(page));
-	await expect(panel.getByLabel("Campanha das ferramentas")).toHaveValue(
+	await expectThemedSelectValue(
+		panel.getByLabel("Campanha das ferramentas"),
 		CAMPAIGN_A.technical,
 	);
 
