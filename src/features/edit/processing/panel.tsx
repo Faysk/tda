@@ -560,6 +560,9 @@ export function ProcessingPanel({
 			requestId: (current?.requestId ?? 0) + 1,
 		}));
 		activateView("results");
+		window.requestAnimationFrame(() => {
+			document.getElementById("processing-tab-results")?.focus();
+		});
 	}
 
 	async function openJobResult(job: LocalJob): Promise<string | null> {
