@@ -1,6 +1,11 @@
 .root {
 	position: relative;
+	width: 100%;
 	min-width: 0;
+}
+
+.root[data-open="true"] {
+	z-index: 120;
 }
 
 .trigger {
