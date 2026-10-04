@@ -25,6 +25,36 @@ footer {
 	font-family: var(--ds-font-ui);
 }
 
+
+/*
+ * Native select popups are painted partly by the host browser/OS. Keep the
+ * application theme explicit on the control and own option foreground/surface
+ * so a dark TDA theme cannot inherit a light popup with light text.
+ */
+select {
+	color-scheme: dark;
+}
+
+:root[data-theme="light"] select {
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme]) select {
+		color-scheme: light;
+	}
+}
+
+select option,
+select optgroup {
+	background: var(--ds-surface-elevated);
+	color: var(--ds-foreground);
+}
+
+select option:disabled {
+	color: var(--ds-foreground-muted);
+}
+
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
