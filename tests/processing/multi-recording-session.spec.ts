@@ -985,6 +985,207 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 	await expect(review).toContainText("1 falas");
 });
 
+test("session assembly review resolves semantic tokens across themes, focus and responsive zoom", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0],
+		failReviewSaveOnce: true,
+	});
+	await page.addInitScript(
+		({ assemblyId }) => {
+			window.localStorage.setItem(
+				"tda.processing.sessionAssemblyPublication.v1:" + assemblyId,
+				JSON.stringify({
+					schemaVersion: "tda_session_assembly_publication_recovery_v1",
+					assemblyId,
+					operationId: "11111111-1111-4111-8111-111111111111",
+					expectedCurrentRevisionId: null,
+					expectedActorProfileId: "22222222-2222-4222-8222-222222222222",
+					createdAt: new Date().toISOString(),
+				}),
+			);
+		},
+		{ assemblyId: ASSEMBLY_ID },
+	);
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles({
+		name: "sessao-42.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-review-tokens"),
+	});
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+
+	const review = page.getByRole("region", {
+		name: "Revisão da transcrição da sessão",
+	});
+	await expect(review).toBeVisible();
+	const notice = review.getByText(
+		/Há um handoff com identidade preservada/u,
+	);
+	await expect(notice).toBeVisible();
+
+	const textarea = review.locator("textarea").first();
+	await textarea.fill("Trecho alterado para validar o estado de erro.");
+	await review.getByRole("button", { name: "Salvar alterações" }).click();
+	const error = review.getByRole("alert");
+	await expect(error).toBeVisible();
+
+	const scenarios = [
+		{ theme: "dark", width: 1920, height: 1080 },
+		{ theme: "light", width: 390, height: 844 },
+		// 960x540 is the CSS-pixel reflow equivalent used by this suite for
+		// a 1920x1080 viewport at 200% browser zoom.
+		{ theme: "dark", width: 960, height: 540 },
+	] as const;
+
+	for (const scenario of scenarios) {
+		await page.setViewportSize({
+			width: scenario.width,
+			height: scenario.height,
+		});
+		await page.emulateMedia({
+			colorScheme: scenario.theme,
+			reducedMotion: "reduce",
+		});
+		await page.evaluate((theme) => {
+			document.documentElement.dataset.theme = theme;
+		}, scenario.theme);
+
+		const search = review.getByLabel("Buscar na transcrição");
+		await search.focus();
+		await expect(search).toBeFocused();
+
+		const computed = await review.evaluate((section) => {
+			const requireElement = <T extends Element>(selector: string): T => {
+				const element = section.querySelector<T>(selector);
+				if (!element) throw new Error(`Missing SessionAssemblyReview target: ${selector}`);
+				return element;
+			};
+			const style = (selector: string) =>
+				getComputedStyle(requireElement<HTMLElement>(selector));
+			const container = getComputedStyle(section);
+			const searchInput = style('input[type="search"]');
+			const participantInput = style("li[data-assembly-segment] input");
+			const textArea = style("li[data-assembly-segment] textarea");
+			const noticeStyle = getComputedStyle(
+				requireElement<HTMLElement>('[role="status"]'),
+			);
+			const errorStyle = getComputedStyle(
+				requireElement<HTMLElement>('[role="alert"]'),
+			);
+			const divider = style("li[data-assembly-segment]");
+			return {
+				container: {
+					background: container.backgroundColor,
+					borderColor: container.borderTopColor,
+					borderWidth: container.borderTopWidth,
+					radius: container.borderTopLeftRadius,
+				},
+				search: {
+					background: searchInput.backgroundColor,
+					borderColor: searchInput.borderTopColor,
+					borderWidth: searchInput.borderTopWidth,
+					outlineColor: searchInput.outlineColor,
+					outlineStyle: searchInput.outlineStyle,
+					outlineWidth: searchInput.outlineWidth,
+				},
+				participant: {
+					background: participantInput.backgroundColor,
+					borderColor: participantInput.borderTopColor,
+					borderWidth: participantInput.borderTopWidth,
+				},
+				textarea: {
+					background: textArea.backgroundColor,
+					borderColor: textArea.borderTopColor,
+					borderWidth: textArea.borderTopWidth,
+				},
+				notice: {
+					background: noticeStyle.backgroundColor,
+					color: noticeStyle.color,
+					borderColor: noticeStyle.borderTopColor,
+					borderWidth: noticeStyle.borderTopWidth,
+				},
+				error: {
+					background: errorStyle.backgroundColor,
+					color: errorStyle.color,
+					borderColor: errorStyle.borderTopColor,
+					borderWidth: errorStyle.borderTopWidth,
+				},
+				divider: {
+					borderColor: divider.borderTopColor,
+					borderWidth: divider.borderTopWidth,
+				},
+				horizontalOverflow:
+					document.documentElement.scrollWidth -
+					document.documentElement.clientWidth,
+			};
+		});
+
+		const visibleColor = (value: string) => {
+			expect(value).not.toBe("transparent");
+			expect(value).not.toBe("rgba(0, 0, 0, 0)");
+		};
+		visibleColor(computed.container.background);
+		visibleColor(computed.container.borderColor);
+		expect(computed.container.borderWidth).not.toBe("0px");
+		expect(computed.container.radius).not.toBe("0px");
+
+		for (const field of [computed.search, computed.participant, computed.textarea]) {
+			visibleColor(field.background);
+			visibleColor(field.borderColor);
+			expect(field.borderWidth).not.toBe("0px");
+		}
+		expect(computed.search.outlineStyle).toBe("solid");
+		expect(computed.search.outlineWidth).toBe("2px");
+		visibleColor(computed.search.outlineColor);
+
+		for (const state of [computed.notice, computed.error]) {
+			visibleColor(state.background);
+			visibleColor(state.color);
+			visibleColor(state.borderColor);
+			expect(state.borderWidth).not.toBe("0px");
+		}
+		visibleColor(computed.divider.borderColor);
+		expect(computed.divider.borderWidth).not.toBe("0px");
+		expect(computed.horizontalOverflow).toBeLessThanOrEqual(1);
+	}
+
+	await page.emulateMedia({
+		forcedColors: "active",
+		reducedMotion: "reduce",
+	});
+	await page.setViewportSize({ width: 390, height: 844 });
+	const search = review.getByLabel("Buscar na transcrição");
+	await search.focus();
+	await expect(search).toBeFocused();
+	expect(
+		await page.evaluate(
+			() =>
+				document.documentElement.scrollWidth -
+				document.documentElement.clientWidth,
+		),
+	).toBeLessThanOrEqual(1);
+	const forcedFocus = await search.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			outlineStyle: style.outlineStyle,
+			outlineWidth: style.outlineWidth,
+		};
+	});
+	expect(forcedFocus.outlineStyle).not.toBe("none");
+	expect(forcedFocus.outlineWidth).not.toBe("0px");
+});
+
 test("trusted midnight stays visible while unavailable wall-clock stays absent", async ({
 	page,
 }) => {
