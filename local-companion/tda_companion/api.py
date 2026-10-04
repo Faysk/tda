@@ -1438,6 +1438,7 @@ def create_app(
                                     **payload,
                                     "job_id": job_id,
                                     "campaign_id": body["campaign_id"],
+                                    "source_sha256": package.source_sha256,
                                     "session_id": body["session_id"],
                                     "track_count": body["track_count"],
                                     "audio_work_seconds": body["audio_work_seconds"],
@@ -2866,27 +2867,25 @@ def create_app(
             body = store.body(job_id)
             benchmark_id = value.get("benchmark_id")
             profiles = value.get("profiles")
+            source_sha256 = value.get("source_sha256")
             if (
                 body.get("kind") != "benchmark.craig"
                 or benchmark_id != benchmark_id_for(job_id, state.get("attempt"))
                 or not isinstance(profiles, list)
+                or not isinstance(source_sha256, str)
+                or re.fullmatch(r"[a-f0-9]{64}", source_sha256) is None
             ):
                 raise Conflict("RESULT_ARTIFACT_MISMATCH")
             try:
-                with source_gate:
-                    _, package = staged_package(
-                        body["source_id"],
-                        verify_tracks=False,
+                for receipt in profiles:
+                    verify_benchmark_profile_receipt(
+                        data_root,
+                        benchmark_id=str(benchmark_id),
+                        source_id=body["source_id"],
+                        source_sha256=source_sha256,
+                        sample_identity_sha256=body["sample_identity_sha256"],
+                        receipt=receipt,
                     )
-                    for receipt in profiles:
-                        verify_benchmark_profile_receipt(
-                            data_root,
-                            benchmark_id=str(benchmark_id),
-                            source_id=body["source_id"],
-                            source_sha256=package.source_sha256,
-                            sample_identity_sha256=body["sample_identity_sha256"],
-                            receipt=receipt,
-                        )
             except BenchmarkBundleError as exc:
                 raise Conflict("RESULT_ARTIFACT_UNAVAILABLE") from exc
             return value
