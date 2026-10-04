@@ -266,6 +266,42 @@ Falhar fechado quando:
 Orphan de arquivo temporário/revisão não indexada nunca deve ser interpretado como
 referência ativa ou benchmark concluído.
 
+## Aceite físico do contrato #1417
+
+A CI comprova integridade estrutural com fixtures sintéticas; qualidade ASR real
+continua exigindo o host Windows/GPU suportado e uma fonte Craig escolhida
+explicitamente pelo operador.
+
+O handoff canônico é:
+
+```powershell
+.\tools\acceptance\run-processing-benchmark-physical-gate.ps1 `
+  -CraigZip <arquivo-craig-privado.zip> `
+  -CompanionPayloadManifest <companion-payload-manifest.json> `
+  -WhisperRuntimeCandidateManifest <whisper-runtime-candidate.json> `
+  -QwenRuntimeCandidateManifest <qwen-runtime-candidate.json> `
+  -OutputRoot <diretorio-local-de-evidencias>
+```
+
+Opcionalmente, `-HumanReferenceJson <reference-request.json>` ativa uma revisão
+humana local e inclui no receipt sanitizado apenas revisão, WER/CER e metadados
+numéricos por perfil.
+
+O gate:
+
+- reabre os quatro transcripts canônicos e confere SHA-256;
+- valida o bundle 4/4, ordem de perfis e amostra de 300 s;
+- baixa o ZIP de evidência apenas para o diretório local indicado;
+- rejeita áudio e entradas inesperadas no ZIP;
+- verifica diagnósticos contra padrões de token, cookie, caminho pessoal e nomes
+  de arquivos de áudio;
+- mantém transcript, referência humana e paths locais fora do receipt;
+- não faz upload, publicação, promoção de runtime ou promoção do Companion.
+
+O ZIP privado contém transcripts por definição e **não deve ser commitado**.
+Somente o receipt sanitizado/metadados pode ser retido como evidência de
+aceitação, conforme a governança vigente.
+
 ## Testes mínimos
 
 Companion:
