@@ -299,7 +299,9 @@ for (const requiredNativeSelectContract of [
 }
 
 const nativeSelectFiles = sourceFiles("src").filter((filePath) => {
-	if (!filePath.endsWith(".tsx")) return false;
+	const normalizedPath = filePath.replaceAll("\\", "/");
+	if (!normalizedPath.endsWith(".tsx")) return false;
+	if (normalizedPath.includes("/e2e-fixtures/")) return false;
 	const source = fs.readFileSync(filePath, "utf8");
 	return /<select(?:\s|>)/u.test(source);
 });
