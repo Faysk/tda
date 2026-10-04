@@ -1486,7 +1486,7 @@ export function LocalReviewWorkspace({
 								placeholder="Perfil, modelo, GPU, runtime ou ID…"
 							/>
 						</label>
-						<label data-results-filter-start="true">
+						<div data-results-filter-start="true">
 							<span>Perfil</span>
 							<Select
 								value={profileFilter}
@@ -1498,8 +1498,8 @@ export function LocalReviewWorkspace({
 								ariaLabel="Filtrar resultados por perfil"
 								compact
 							/>
-						</label>
-						<label>
+						</div>
+						<div>
 							<span>Revisão</span>
 							<Select
 								value={reviewFilter}
@@ -1514,8 +1514,8 @@ export function LocalReviewWorkspace({
 								ariaLabel="Filtrar por revisão"
 								compact
 							/>
-						</label>
-						<label>
+						</div>
+						<div>
 							<span>Ordenar</span>
 							<Select
 								value={sortOrder}
@@ -1528,7 +1528,7 @@ export function LocalReviewWorkspace({
 								ariaLabel="Ordenar resultados"
 								compact
 							/>
-						</label>
+						</div>
 					</div>
 					<div className={styles.libraryWorkspace}>
 						<nav
