@@ -186,7 +186,11 @@ function localOperationMessage(code: string | null): string {
 				? "Uma faixa do ZIP Craig é inválida ou excede os limites aceitos."
 				: code.startsWith("CRAIG_MANIFEST_")
 					? "A cópia local da fonte não corresponde mais ao manifesto verificado. Reenvie o ZIP original."
-					: `Operação local não concluída · ${code}`);
+					: code === "SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE"
+						? "A ordem desta sessão já possui um ajuste manual. O TDA preservou sua decisão; revise a sequência para continuar."
+						: code.startsWith("SESSION_WORKSPACE_") || code.startsWith("SESSION_ASSEMBLY_")
+							? "A sessão local precisa de uma decisão antes de continuar. Revise a ordem das gravações ou abra os detalhes técnicos."
+							: "Não foi possível concluir esta etapa local. Abra o Diagnóstico se o problema continuar.");
 }
 
 type PendingStage = "validating" | "preparing" | "submitting";
@@ -507,6 +511,18 @@ export function ProcessingSubmission({
 		if (busy || intentRequest) return;
 		setFiles((current) => removeCraigFileSelection(current, id));
 	}
+	function moveFile(id: string, direction: -1 | 1) {
+		if (busy || intentRequest) return;
+		setFiles((current) => {
+			const index = current.findIndex((item) => item.id === id);
+			const target = index + direction;
+			if (index < 0 || target < 0 || target >= current.length) return current;
+			const next = [...current];
+			[next[index], next[target]] = [next[target]!, next[index]!];
+			return next;
+		});
+	}
+
 
 	function handleDrop(event: DragEvent<HTMLButtonElement>) {
 		event.preventDefault();
@@ -1008,6 +1024,24 @@ export function ProcessingSubmission({
 						</button>
 					</div>
 
+					{files.length > 1 ? (
+						<div className={styles.multiZipNotice} role="status">
+							<strong>
+								{files.length} gravações serão reunidas em uma única sessão
+							</strong>
+							<span>
+								O TDA usa horários Craig confiáveis quando existirem. Se algum
+								horário não puder ser comprovado, a ordem abaixo poderá ser
+								confirmada como sequência editorial — sem inventar horário real.
+							</span>
+							<div className={styles.multiZipFacts}>
+								<span>✓ Ordem da sessão: definida pela lista abaixo</span>
+								<span>ℹ Horário real: usado somente quando confiável</span>
+								<span>⚠ Só conflitos reais ou sobreposição exigem decisão</span>
+							</div>
+						</div>
+					) : null}
+
 					{files.length ? (
 						<ul className={styles.fileList} aria-label="Gravações selecionadas">
 							{files.map((item, index) => (
@@ -1035,16 +1069,42 @@ export function ProcessingSubmission({
 										) : null}
 									</div>
 									{!intentRequest ? (
-										<Button
-											type="button"
-											size="sm"
-											variant="tertiary"
-											disabled={busy}
-											aria-label={`Remover ${item.file.name}`}
-											onClick={() => removeFile(item.id)}
-										>
-											Remover
-										</Button>
+										<div className={styles.fileActions}>
+											{files.length > 1 ? (
+												<>
+													<Button
+														type="button"
+														size="sm"
+														variant="tertiary"
+														disabled={busy || index === 0}
+														aria-label={`Mover ${item.file.name} para cima`}
+														onClick={() => moveFile(item.id, -1)}
+													>
+														↑
+													</Button>
+													<Button
+														type="button"
+														size="sm"
+														variant="tertiary"
+														disabled={busy || index === files.length - 1}
+														aria-label={`Mover ${item.file.name} para baixo`}
+														onClick={() => moveFile(item.id, 1)}
+													>
+														↓
+													</Button>
+												</>
+											) : null}
+											<Button
+												type="button"
+												size="sm"
+												variant="tertiary"
+												disabled={busy}
+												aria-label={`Remover ${item.file.name}`}
+												onClick={() => removeFile(item.id)}
+											>
+												Remover
+											</Button>
+										</div>
 									) : null}
 								</li>
 							))}
