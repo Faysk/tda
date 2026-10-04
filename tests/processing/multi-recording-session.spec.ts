@@ -1232,10 +1232,13 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 		"sessao-42-transcricao-tda-v1.md",
 	);
 
-	const reviewSegments = SOURCE_IDS.slice(0, 3).map((sourceId, index) => ({
-		id: index === 0 ? SEGMENT_ID : (index + 10).toString(16).repeat(64),
-		startMs: index * 300_000,
-		endMs: index * 300_000 + 1_000,
+	const reviewSegments = SOURCE_IDS.slice(0, 3).map((_sourceId, index) => ({
+		id:
+			index === 0
+				? SEGMENT_ID
+				: (index + 10).toString(16).padStart(64, "0").slice(-64),
+		startMs: index * 2_000,
+		endMs: index * 2_000 + 1_000,
 		speaker: "Participante",
 		text: `Trecho ${index + 1}`,
 	}));
