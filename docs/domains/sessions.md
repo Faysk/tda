@@ -217,11 +217,66 @@ A biblioteca privada de sessões usa contexto explícito de campanha:
 
 “Mover para outra campanha” é uma ação separada do draft editorial. O fluxo é `preflight -> confirmação -> commit`. Destinos são somente campanhas ativas com transcript read + content edit para o actor. O banco revalida origem e destino novamente no preflight/commit.
 
-O primeiro slice é deliberadamente fail-closed: uma sessão sem dependências incompatíveis pode mudar de campaign; publication ativa, transcript revisions, editorial drafts, participant→entity links, cover/media referenciada, provenance, grants de sessão e demais domínios sem migração transacional segura bloqueiam a operação com razão acionável. Não existem clones silenciosos nem updates parciais.
+O primeiro slice (#1129) foi deliberadamente fail-closed e continua sendo a base de compatibilidade. O boundary v2 (#1454) amplia o mesmo contrato para sessões editoriais populadas sem transformar a operação num update genérico de FK.
 
-O commit usa `operation_id` durável, row lock e audit sanitizado. Retry após resposta perdida reaproveita o receipt sem duplicar a mudança. Dois movers concorrentes serializam no row lock; o writer stale recebe conflict.
+### Boundary v2 para sessão populada
 
-Depois do commit, a aplicação revalida bibliotecas/detalhes privados e superfícies públicas da origem/destino. Falha de cache/delivery não desfaz o commit já confirmado; o retorno marca `cachePending` para recuperação explícita.
+O preflight v2 devolve um plano estruturado e versionado. Cada família ligada à session é classificada como:
+
+- `auto`: acompanha a session ou tem ownership atual atualizado no commit;
+- `historical`: permanece como evidência histórica, sem falsificar a campaign onde o evento ocorreu;
+- `external_prepare`: exige side effect verificado antes do commit PostgreSQL, hoje a capa/R2;
+- `decision`: exige escolha humana explícita;
+- `hard_block`: não possui reconciliação segura dentro deste boundary.
+
+Toda FK direta para `sessions(id)` precisa constar no registry de políticas. Uma relação nova ou uma relation/column obrigatória ausente deixa `registryComplete=false` e desativa o v2. O default é negar, não presumir que a dependência é inofensiva.
+
+### Transcript e drafts
+
+Revisions atuais da transcrição acompanham o ownership da session sem regenerar payload, hashes, revision numbers, operation IDs ou parent lineage. As tabelas campaign-owned preservam `origin_campaign_id` para distinguir onde a evidência foi originalmente criada do ownership operacional atual.
+
+Drafts editoriais antigos continuam imutáveis na campaign de origem. Se existe current draft, o move cria um **bridge draft** imutável na destination, usando o próximo revision number da própria session, a mesma base transcript e os mesmos campos editoriais. O pointer `current_editorial_draft_id` avança para esse bridge. Assim a próxima edição/publicação usa um draft coerente com a destination sem reescrever histórico.
+
+### Sessão já publicada
+
+Move de uma publicação ativa nunca republica automaticamente no destino. A única política v2 inicial é `publishedPolicy=unpublish`, escolhida explicitamente e autorizada por `campaign.sessions.publish` na origem.
+
+No mesmo commit:
+
+- o snapshot/receipt histórico permanece preservado e recebe ownership atual coerente, mantendo `origin_campaign_id`;
+- `current_session_publication_id` é limpo;
+- `status=published` volta para `approved`;
+- `coverImageUrl` e `heroImageUrl` públicos são removidos da projection materializada da session;
+- a nova campaign só volta a publicar conteúdo após uma publicação editorial explícita normal.
+
+Isso impede que mover para uma campaign privada mantenha exposição pública por acidente.
+
+### Capa e R2
+
+Uma capa moderna é campaign-owned no banco e também no namespace físico:
+
+`campaigns/<technical_slug>/sessions/<session_id>/cover/<sha>.(png|webp)`.
+
+Por isso o fluxo é `preflight -> prepare/read-back -> DB commit -> cleanup assíncrono/lifecycle`. O prepare copia bytes imutáveis para a chave destination, verifica hash/MIME/dimensões/read-back e, se a capa já era pública, também verifica a delivery pública destination. O objeto da origem não é apagado no caminho crítico.
+
+O commit recebe apenas um receipt de mídia verificado e materializa/reutiliza o `media_asset` destination antes de criar o bridge draft. Referência de capa legado exige decisão explícita `legacyCoverPolicy=clear_current`; o histórico antigo permanece intacto e o current bridge começa sem capa.
+
+### Dependências que exigem decisão
+
+O v2 nunca clona narrativa por nome.
+
+- `participant.character_entity_id`: pode ser explicitamente removido; participant/texto histórico permanecem;
+- `entity_mentions`: podem ser destacados da session, preservando a menção/entity original;
+- `canon_candidates.related_entity_ids`: podem ser destacados somente enquanto não houver `canon_entries` materializados; canon já materializado continua hard blocker;
+- grants `scope_type=session`: podem ser preservados ou revogados explicitamente, e qualquer decisão exige `campaign.permissions.manage` em origem e destino.
+
+### Idempotência, recovery e caches
+
+O commit usa `operation_id` durável, row lock, receipt e audit sanitizado. A identidade unresolved também é persistida de forma bounded no navegador, scoped por hash opaco do profile + session + origem + destino; reload/deploy pode reutilizar o mesmo operation id e reconciliar um commit cuja resposta se perdeu. Nenhum transcript, resumo, grant ou URL privada entra nesse storage.
+
+Dois movers concorrentes serializam no row lock; o writer stale recebe `conflict`. Alterar o conjunto de decisões com o mesmo `operation_id` retorna `operation_conflict`.
+
+Depois do commit, a aplicação revalida Home, diretório/agregado público, aliases legados, archives/detalhes públicos de origem e destino e bibliotecas/detalhes privados. Falha de cache/delivery não desfaz o commit já confirmado; o retorno marca `cachePending` para recuperação explícita.
 
 
 ## Compatibilidade de leitura pública durante o rollout do registry
