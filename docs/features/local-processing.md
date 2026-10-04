@@ -47,8 +47,10 @@ Benchmark é uma tab funcional para comparação exploratória local: usa a mesm
 source Craig e o mesmo corte temporal de 0–300 s nos quatro perfis, executados
 sequencialmente com artefatos já preparados. O receipt é sanitizado e registra a
 identidade da amostra, lineage e métricas factuais; não contém transcript/áudio,
-não cria run publicável e não escolhe vencedor. Sem referência humana, qualidade
-permanece explicitamente não medida. Este benchmark não substitui o aceite físico
+não cria run publicável e não escolhe vencedor. A referência humana local e as
+[métricas objetivas de qualidade](processing-benchmark-quality.md) usam o bundle
+imutável preservado; benchmarks sem referência ativa continuam explicitamente com
+qualidade não medida. Este benchmark não substitui o aceite físico
 de release definido em #478.
 Desde #1233, prontidão de transcrição e prontidão de benchmark são contratos
 separados. Whisper Runtime 1.1.5 permanece aceito para transcrição normal, e 1.1.7
