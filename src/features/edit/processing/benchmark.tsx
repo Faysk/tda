@@ -1370,7 +1370,7 @@ export function ProcessingBenchmark({
 						</h3>
 						<p>
 							{active.progress
-								? `${active.progress.completed} de ${active.progress.total} perfis concluídos`
+								? `Tentados ${liveState.attempted}/${active.progress.total} · Concluídos ${liveState.completed} · Falharam ${liveState.failed}`
 								: "Preparando execução"}
 							{active.stage ? ` · ${stageLabels[active.stage] ?? active.stage}` : ""}
 						</p>
@@ -1386,22 +1386,33 @@ export function ProcessingBenchmark({
 						)}
 					</div>
 					<ol className={styles.runSteps} aria-label="Progresso dos quatro perfis">
-						{PROFILES.map((id, index) => {
-							const stepState =
-								index < completed
+						{liveState.profiles.map((profile, index) => {
+							const visualState =
+								profile.status === "completed"
 									? "complete"
-									: active.status === "running" && index === Math.min(completed, PROFILES.length - 1)
+									: profile.status === "running"
 										? "current"
-										: "pending";
+										: profile.status;
 							return (
 								<li
-									key={id}
+									key={profile.profileId}
 									className={styles.runStep}
-									data-state={stepState}
-									aria-current={stepState === "current" ? "step" : undefined}
+									data-state={visualState}
+									aria-current={profile.status === "running" ? "step" : undefined}
 								>
-									<i aria-hidden="true">{stepState === "complete" ? "✓" : index + 1}</i>
-									<span>{LABELS[id]}</span>
+									<i aria-hidden="true">
+										{profile.status === "completed"
+											? "✓"
+											: profile.status === "failed"
+												? "×"
+												: profile.status === "running"
+													? "●"
+													: index + 1}
+									</i>
+									<span>
+										{LABELS[profile.profileId]} · {LIVE_STATUS_LABELS[profile.status]}
+										{profile.errorCode ? " · " + profile.errorCode : ""}
+									</span>
 								</li>
 							);
 						})}
