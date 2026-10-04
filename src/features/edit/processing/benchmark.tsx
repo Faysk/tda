@@ -333,7 +333,7 @@ function PartialResultCard({
 	return (
 		<article className={[styles.resultCard, styles.partialCard].join(" ")}>
 			<header className={styles.resultHeader}>
-				<div>
+				<div role="status" aria-live="polite">
 					<span className={styles.eyebrow}>Benchmark local · attempt parcial</span>
 					<h3>
 						{result.completedCount} de {result.attemptedCount} perfis concluíram
