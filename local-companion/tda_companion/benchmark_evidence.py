@@ -27,6 +27,7 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MAX_TRANSCRIPT_BYTES = 512 * 1024 * 1024
 _MAX_PROFILE_MANIFEST_BYTES = 512 * 1024
 _MAX_BUNDLE_MANIFEST_BYTES = 1024 * 1024
+_MAX_DIAGNOSTIC_ARTIFACT_BYTES = 8 * 1024 * 1024
 
 
 class BenchmarkEvidenceError(RuntimeError):
@@ -159,6 +160,58 @@ def _profile_manifest(
     ):
         raise BenchmarkEvidenceError("BENCHMARK_PROFILE_MANIFEST_MISMATCH")
     return value, payload
+
+
+def _diagnostic_artifact(
+    data_root: Path,
+    benchmark_id: str,
+    profile_id: str,
+    kind: str,
+    *,
+    bundle: dict[str, Any],
+) -> bytes | None:
+    entry = _profile_entry(bundle, profile_id)
+    diagnostics = entry.get("diagnostics")
+    if diagnostics is None:
+        return None
+    if not isinstance(diagnostics, dict):
+        raise BenchmarkEvidenceError("BENCHMARK_DIAGNOSTIC_ARTIFACT_INVALID")
+    descriptor = diagnostics.get(kind)
+    if descriptor is None:
+        return None
+    if not isinstance(descriptor, dict):
+        raise BenchmarkEvidenceError("BENCHMARK_DIAGNOSTIC_ARTIFACT_INVALID")
+    filenames = {
+        "metrics": "metrics.json",
+        "events": "events.jsonl",
+        "telemetry": "telemetry.jsonl",
+    }
+    filename = filenames.get(kind)
+    if filename is None:
+        raise BenchmarkEvidenceError("BENCHMARK_DIAGNOSTIC_ARTIFACT_INVALID")
+    expected_artifact = f"profiles/{profile_id}/{filename}"
+    digest = descriptor.get("sha256")
+    size = descriptor.get("size_bytes")
+    if (
+        descriptor.get("artifact") != expected_artifact
+        or not isinstance(digest, str)
+        or _SHA256.fullmatch(digest) is None
+        or isinstance(size, bool)
+        or not isinstance(size, int)
+        or size <= 0
+        or size > _MAX_DIAGNOSTIC_ARTIFACT_BYTES
+    ):
+        raise BenchmarkEvidenceError("BENCHMARK_DIAGNOSTIC_ARTIFACT_INVALID")
+    path = benchmark_root(data_root, benchmark_id) / expected_artifact
+    payload = _read_bounded(
+        path,
+        _MAX_DIAGNOSTIC_ARTIFACT_BYTES,
+        "BENCHMARK_DIAGNOSTIC_ARTIFACT_MISSING",
+        "BENCHMARK_DIAGNOSTIC_ARTIFACT_INVALID",
+    )
+    if len(payload) != size or hashlib.sha256(payload).hexdigest() != digest:
+        raise BenchmarkEvidenceError("BENCHMARK_DIAGNOSTIC_ARTIFACT_MISMATCH")
+    return payload
 
 
 def load_verified_transcript(
@@ -455,6 +508,12 @@ def _derived_events(
 
 def public_bundle_summary(data_root: Path, benchmark_id: str) -> dict[str, Any]:
     bundle = _bundle(data_root, benchmark_id)
+    telemetry_available = any(
+        isinstance(entry, dict)
+        and isinstance(entry.get("diagnostics"), dict)
+        and isinstance(entry["diagnostics"].get("telemetry"), dict)
+        for entry in bundle.get("profiles", [])
+    )
     return {
         "schema_version": "tda_benchmark_artifacts_v1",
         "benchmark_id": benchmark_id,
@@ -464,7 +523,7 @@ def public_bundle_summary(data_root: Path, benchmark_id: str) -> dict[str, Any]:
         "bundle_size_bytes": bundle["bundle_size_bytes"],
         "formats": ["json", "txt", "txt-plain", "vtt", "srt"],
         "quality_reference_status": "none",
-        "telemetry_available": False,
+        "telemetry_available": telemetry_available,
         "integrity": "manifest_verified",
     }
 
@@ -533,21 +592,40 @@ def write_private_evidence_zip(
             _write_zip_entry(archive, f"{base}/transcript.txt", transcript_txt(document))
             _write_zip_entry(archive, f"{base}/transcript.vtt", transcript_vtt(document))
             _write_zip_entry(archive, f"{base}/transcript.srt", transcript_srt(document))
-            _write_zip_entry(
-                archive,
-                f"{base}/metrics.json",
-                _derived_metrics(
-                    bundle=bundle,
-                    document=document,
-                    profile_manifest=profile_manifest,
-                ),
+            metrics_payload = _diagnostic_artifact(
+                data_root,
+                benchmark_id,
+                profile_id,
+                "metrics",
+                bundle=bundle,
+            ) or _derived_metrics(
+                bundle=bundle,
+                document=document,
+                profile_manifest=profile_manifest,
             )
-            _write_zip_entry(
-                archive,
-                f"{base}/events.jsonl",
-                _derived_events(
-                    bundle=bundle,
-                    document=document,
-                    profile_manifest=profile_manifest,
-                ),
+            events_payload = _diagnostic_artifact(
+                data_root,
+                benchmark_id,
+                profile_id,
+                "events",
+                bundle=bundle,
+            ) or _derived_events(
+                bundle=bundle,
+                document=document,
+                profile_manifest=profile_manifest,
             )
+            telemetry_payload = _diagnostic_artifact(
+                data_root,
+                benchmark_id,
+                profile_id,
+                "telemetry",
+                bundle=bundle,
+            )
+            _write_zip_entry(archive, f"{base}/metrics.json", metrics_payload)
+            _write_zip_entry(archive, f"{base}/events.jsonl", events_payload)
+            if telemetry_payload is not None:
+                _write_zip_entry(
+                    archive,
+                    f"{base}/telemetry.jsonl",
+                    telemetry_payload,
+                )
