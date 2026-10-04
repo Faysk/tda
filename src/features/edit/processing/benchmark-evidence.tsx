@@ -496,7 +496,11 @@ export function BenchmarkEvidenceWorkspace({
 									}
 								>
 									{result.profiles.map((profile) => (
-										<option key={profile.profileId} value={profile.profileId}>
+										<option
+											key={profile.profileId}
+											value={profile.profileId}
+											disabled={profile.profileId === rightProfile}
+										>
 											{LABELS[profile.profileId]}
 										</option>
 									))}
@@ -511,7 +515,11 @@ export function BenchmarkEvidenceWorkspace({
 									}
 								>
 									{result.profiles.map((profile) => (
-										<option key={profile.profileId} value={profile.profileId}>
+										<option
+											key={profile.profileId}
+											value={profile.profileId}
+											disabled={profile.profileId === leftProfile}
+										>
 											{LABELS[profile.profileId]}
 										</option>
 									))}
@@ -558,7 +566,7 @@ export function BenchmarkEvidenceWorkspace({
 							texto/timing e métricas. Não calcula WER nem declara um perfil vencedor.
 						</p>
 					</div>
-					{left && right ? (
+					{left && right && leftProfile !== rightProfile ? (
 						<>
 							<div className={styles.summary}>
 								<span>{summary.totalRegions} regiões</span>
