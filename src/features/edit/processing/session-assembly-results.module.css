@@ -58,14 +58,28 @@
 .item span, .item small {
 	overflow-wrap: anywhere;
 }
+.reviewWorkspace {
+	display: grid;
+	gap: 10px;
+	min-width: 0;
+}
+
+.item[data-selected="true"] {
+	border-color: color-mix(in srgb, var(--ds-accent) 55%, var(--ds-border));
+}
+
 .review {
 	padding: 9px;
 	border: 1px solid color-mix(in srgb, var(--ds-success) 40%, var(--ds-border));
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-canvas-subtle);
 }
-.empty, .error {
+.empty, .status, .error {
 	margin: 0;
+}
+.status {
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
 }
 .error {
 	color: var(--ds-danger);
