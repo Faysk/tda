@@ -894,6 +894,130 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 	await expect(panel.getByRole("button", { name: "Ver log / Diagnóstico" })).toBeVisible();
 });
 
+test("terminal global Benchmark failure restores failed and not-attempted profile states", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureBenchmarkJob("failed", {
+				stage: "failed",
+				progress: { completed: 2, total: 4, unit: "profiles" },
+				error: {
+					code: "BENCHMARK_PROFILE_EVIDENCE_INVALID",
+					recoverable: false,
+				},
+				result_available: false,
+			}),
+		],
+		jobEvents: [
+			{
+				seq: 1,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T20:00:01Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					completed_count: 0,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 2,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-04T20:00:02Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					completed_count: 1,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 3,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T20:00:03Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-detailed",
+					attempted_count: 2,
+					completed_count: 1,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 4,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-04T20:00:04Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-detailed",
+					attempted_count: 2,
+					completed_count: 2,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 5,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T20:00:05Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "qwen-fast",
+					attempted_count: 3,
+					completed_count: 2,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 6,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_FAILED",
+				at: "2026-10-04T20:00:06Z",
+				level: "warning",
+				data: {
+					stage: "benchmark",
+					profile: "qwen-fast",
+					attempted_count: 3,
+					completed_count: 2,
+					failed_count: 1,
+					error_code: "BENCHMARK_PROFILE_EVIDENCE_INVALID",
+					recoverable: false,
+					scope: "benchmark",
+					continuation: "stop",
+				},
+			},
+		],
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel.getByText("Benchmark falhou globalmente")).toBeVisible();
+	await expect(panel.getByText("Tentados 3/4")).toBeVisible();
+	await expect(panel.getByText("Concluídos 2")).toBeVisible();
+	await expect(panel.getByText("Falharam 1")).toBeVisible();
+	await expect(panel.getByText("Pendentes 1")).toBeVisible();
+	await expect(
+		panel.locator("[data-state='failed']").filter({ hasText: "Qwen Fast" }),
+	).toContainText("BENCHMARK_PROFILE_EVIDENCE_INVALID");
+	await expect(
+		panel.locator("[data-state='not_attempted']").filter({ hasText: "Qwen Quality" }),
+	).toBeVisible();
+});
+
 test("completed benchmark loads a comparable receipt while failed history remains inspectable", async ({
 	page,
 }) => {
