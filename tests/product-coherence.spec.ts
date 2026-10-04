@@ -327,7 +327,7 @@ test("[auth/Edit] A+B, A-only, anonymous and unavailable states remain fail-clos
 	await page.goto(`/campanhas/${CAMPAIGN_B.route}/sessoes`);
 	let panel = await openGlobalMenu(page);
 	const selector = panel.getByLabel("Campanha das ferramentas");
-	await expect(selector).toHaveValue(CAMPAIGN_B.technical);
+	await expectThemedSelectValue(selector, CAMPAIGN_B.technical);
 	await expect(panel.getByRole("link", { name: "Transcrições", exact: true })).toHaveAttribute(
 		"href",
 		`/edit/${CAMPAIGN_B.technical}/transcricoes`,
