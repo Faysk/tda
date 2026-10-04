@@ -21,11 +21,17 @@ const SOURCE_B = "craig-" + SOURCE_B_SHA;
 function assembly(): SessionAssembly {
 	return {
 		schemaVersion: "tda_session_assembly_v1",
+		canonicalizationVersion: "tda_session_assembly_canonical_v2",
+		timingPolicyVersion: "tda_session_timeline_v2",
+		segmentBoundaryPolicy: "segment_start_owner_v1",
 		assemblyId: "1".repeat(64),
 		campaignId: "yuhara-main",
 		sessionId: "sessao-1118",
 		inputsSha256: "1".repeat(64),
 		timelineFingerprintSha256: "2".repeat(64),
+		timelineStrategy: "user_confirmed_sequence",
+		wallClock: "partial",
+		unknownIntervalCount: 1,
 		participantMappingSha256: "3".repeat(64),
 		participantApprovalBlocked: false,
 		transcriptSha256: "4".repeat(64),
@@ -45,6 +51,7 @@ function assembly(): SessionAssembly {
 				trimEndSeconds: null,
 				overlapResolution: null,
 				overlapBoundarySeconds: null,
+				physicalIntervalState: "first",
 			},
 			{
 				partId: "7".repeat(32),
@@ -58,6 +65,7 @@ function assembly(): SessionAssembly {
 				trimEndSeconds: null,
 				overlapResolution: null,
 				overlapBoundarySeconds: null,
+				physicalIntervalState: "unknown",
 			},
 		],
 	};
@@ -159,6 +167,11 @@ describe("Session Assembly publication client", () => {
 				sourceSessionId: "sessao-1118",
 			},
 			assembly: {
+				canonicalizationVersion: "tda_session_assembly_canonical_v2",
+				timingPolicyVersion: "tda_session_timeline_v2",
+				timelineStrategy: "user_confirmed_sequence",
+				wallClock: "partial",
+				unknownIntervalCount: 1,
 				assemblyId: "1".repeat(64),
 				parts: [
 					expect.objectContaining({ sourceId: SOURCE_A, runId: "run-a", ordinal: 0 }),
