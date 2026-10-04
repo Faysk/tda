@@ -1972,3 +1972,22 @@ Objetivo:
 - garantir que skew de rollout ou aba antiga falhe antes de executar qualquer write parcial.
 
 O gate PostgreSQL chama deliberadamente o commit v1 sob `service_role` e exige `insufficient_privilege`, além de reexecutar a corrida concorrente pelo commit v2. Rollback não deve reabrir o v1; compatibilidade deve ser restaurada corrigindo o consumidor v2 para frente.
+
+
+## `20261004195300_session_campaign_move_operational_hardening`
+
+**Estado:** migration forward-only de #1485. Enquanto este texto estiver apenas na branch/PR, merge não comprova aplicação remota; o estado Production precisa ser confirmado pelo Production CD, migration history e read-back do health RPC no SHA promovido.
+
+Objetivo:
+
+- adicionar índices cobrindo recovery e FKs das tabelas `session_campaign_move_operations` e `session_campaign_move_media_preparations`;
+- expor `session_campaign_move_release_health()` como probe **read-only e sanitizado** do boundary;
+- fazer o probe validar contract v2, registry drift e grants esperados sem consultar session, transcript, entity, media payload ou qualquer conteúdo narrativo;
+- manter o commit legado v1 fisicamente compatível, porém sem `EXECUTE` para roles da aplicação;
+- manter preflight e commit v2 disponíveis somente ao boundary server-side esperado.
+
+O RPC de health retorna apenas schema/version, quantidade de drift e booleans de grants. `anon` e `authenticated` não recebem `EXECUTE`; somente `service_role` pode executar o probe. O Production CD chama esse health depois de aplicar migrations e antes de promover o artefato, e repete o read-back depois da promoção. Um mismatch falha fechado e não chama nenhuma mutation de campaign move.
+
+A suíte sintética inclui a migration e `supabase/tests/session_campaign_move_operational_hardening.sql` no PostgreSQL descartável. O gate também continua provando que v1 está retirado, v2 é service-role-only, registry drift é vazio e concorrência/replay permanecem íntegros.
+
+Rollback continua forward-only. Não remover índices/RPC nem reabrir o commit v1 por edição de migrations históricas; qualquer correção deve entrar como migration nova.

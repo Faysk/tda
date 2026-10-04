@@ -2,7 +2,7 @@
 
 > Status: implementado
 > Owner: sessions
-> Última revisão: 2026-10-03
+> Última revisão: 2026-10-04
 
 ## Objetivo
 
@@ -267,3 +267,12 @@ A `operation_id` é durável. Resposta perdida reutiliza a mesma intenção; a U
 O commit legado v1 `move_session_campaign_atomic(...)` fica deliberadamente sem `EXECUTE` para roles da aplicação depois da ativação do v2. Isso protege abas/Server Actions stale: o preflight v2 pode classificar uma session populada como pronta, mas somente `move_session_campaign_v2_atomic(...)` tem autoridade para efetivar o grafo completo.
 
 O gate sintético de v2 usa uma session populada com lineage, múltiplos drafts, receipts, cover, publication ativa, decisão de participant/grant, replay e drift estrutural. Nenhum teste de campaign move lê narrativa privada de Production nem executa mutation remota.
+
+
+### Hardening operacional do campaign move — #1485
+
+O boundary v2 possui um health contract server-only para release. `session_campaign_move_release_health()` não recebe identidade de sessão e não devolve conteúdo; ele verifica somente contract version, quantidade de drift no registry e a matriz esperada de `EXECUTE` para v1/preflight/v2. O Production CD exige esse estado antes de promover e faz novo read-back depois da promoção.
+
+A aplicação emite observabilidade estruturada e allowlisted para as fases `preflight`, `prepare`, `commit` e `cache`. Os eventos podem carregar apenas outcome/reason normalizados, contract version, contagem de assets preparados e uma `operation_id` UUID já existente. Session/source IDs, campaign slugs, actor, transcript, títulos/resumos, entity names, object keys, URLs privadas, grants e tokens não entram nesse payload.
+
+As tabelas de receipts possuem índices para recovery e FKs relevantes; eles existem para tornar o boundary administrativamente previsível sem alterar sua semântica. O gate de CI usa somente fixtures sintéticas. CI/Production health nunca executa um move real como canário: mutation de conteúdo continua exigindo intenção explícita do operador e passa pelo fluxo normal `preflight -> prepare/read-back -> commit v2 -> cache/read-back`.
