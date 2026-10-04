@@ -77,11 +77,13 @@ export function sessionCampaignMoveTelemetryEvent(
 		contractVersion: 2,
 	};
 
+	const preparedAssets = input.preparedAssets;
 	if (
-		Number.isSafeInteger(input.preparedAssets) &&
-		(input.preparedAssets ?? -1) >= 0
+		typeof preparedAssets === "number" &&
+		Number.isSafeInteger(preparedAssets) &&
+		preparedAssets >= 0
 	) {
-		event.preparedAssets = input.preparedAssets;
+		event.preparedAssets = preparedAssets;
 	}
 	return event;
 }
