@@ -187,6 +187,7 @@ export async function prepareSessionCampaignMoveCover(input: Readonly<{
 	sourceCampaignSlug: string;
 	destinationCampaignId: string;
 	destinationCampaignSlug: string;
+	destinationPublic: boolean;
 }>): Promise<
 	| Readonly<{ kind: "none" | "legacy" }>
 	| Readonly<{ kind: "prepared"; cover: PreparedSessionCampaignMoveCover }>
@@ -305,17 +306,28 @@ export async function prepareSessionCampaignMoveCover(input: Readonly<{
 	}
 
 	const destinationAssetId = existing?.destinationAssetId ?? randomUUID();
-	if (source.status === "staged" && existing) {
+	if (
+		existing &&
+		(
+			source.status === "staged" ||
+			(!input.destinationPublic && existing.status === "staged")
+		)
+	) {
 		return {
 			kind: "prepared",
 			cover: {
 				...existing,
 				sourceAssetId: coverReference,
 				destinationAssetId,
+				status: "staged",
+				publicBucket: null,
+				publicObjectKey: null,
+				publicDeliveryVerified: false,
+				publicVerifiedAt: null,
 			},
 		};
 	}
-	if (source.status === "verified_public") {
+	if (source.status === "verified_public" && input.destinationPublic) {
 		const promoted = await promoteGovernedImageObject({
 			stagedBucket: staged.bucket,
 			objectKey: staged.objectKey,
