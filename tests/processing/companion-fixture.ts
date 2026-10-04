@@ -1098,12 +1098,18 @@ export async function installCompanionFixture(
 						runtime_family: engine,
 						runtime_version: engine === "whisper" ? "1.1.7" : "1.0.12",
 						runtime_artifact: {
-							runtime_id: `${engine}-fixture`,
+							runtime_id: engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
 							version: engine === "whisper" ? "1.1.7" : "1.0.12",
 							worker_sha256: "c".repeat(64),
 							archive_sha256: "d".repeat(64),
 						},
 						device: "cuda:0",
+						execution_device: {
+							kind: "cuda",
+							logical_index: 0,
+							physical_uuid: "GPU-SYNTHETIC",
+							pci_bus_id: "0000:01:00.0",
+						},
 						compute_type: "float16",
 						gpu: {
 							vendor: "NVIDIA",
