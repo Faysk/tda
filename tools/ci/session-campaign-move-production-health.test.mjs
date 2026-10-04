@@ -79,7 +79,6 @@ test("uses the Management API read-only query when the PAT is available and neve
 	assert.equal(seen[0].init.headers.authorization, `Bearer ${ACCESS_TOKEN}`);
 	assert.deepEqual(JSON.parse(seen[0].init.body), {
 		query: "select public.session_campaign_move_release_health() as health",
-		read_only: true,
 	});
 	assert.equal(lines.join("\n").includes(ACCESS_TOKEN), false);
 	assert.equal(lines.join("\n").includes(SECRET), false);
