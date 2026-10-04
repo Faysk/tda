@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Select } from "@/components/ui";
+import { Select } from "@/components/ui/select";
 import {
 	activityContext,
 	activityEventCanBeHumorous,
