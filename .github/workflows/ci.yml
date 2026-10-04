@@ -549,6 +549,7 @@ jobs:
       - name: Benchmark evidence and quality Python contracts
         run: >-
           .venv/bin/python -m pytest -q
+          local-companion/tests/test_benchmark_bundles.py
           local-companion/tests/test_benchmark_evidence.py
           local-companion/tests/test_processing_benchmark.py
       - name: Benchmark evidence Web contracts
