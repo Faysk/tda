@@ -26,6 +26,7 @@ type MediaPreparationInput = MoveBoundaryInput & Readonly<{
 	operationId: string;
 	sourceCampaignId: string;
 	destinationCampaignId: string;
+	destinationPublic: boolean;
 }>;
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -260,6 +261,7 @@ export async function prepareSessionCampaignMoveMedia(
 				width: asset.width,
 				height: asset.height,
 				verifiedPublic:
+					input.destinationPublic &&
 					asset.status === "verified_public" &&
 					asset.public_delivery_verified === true,
 			});
