@@ -2216,30 +2216,30 @@ export function parseBenchmarkResult(
 	jobId: string,
 ): BenchmarkResult {
 	const row = record(value);
-	if (row.schema_version !== "tda_processing_benchmark_v1")
+	const schema = row.schema_version;
+	if (
+		schema !== "tda_processing_benchmark_v1" &&
+		schema !== "tda_processing_benchmark_v2"
+	)
 		throw new BridgeError("incompatible");
 	if (identifier(row.job_id) !== jobId) return invalid();
 	if (row.kind !== "benchmark.craig") return invalid();
+
 	const sampleSeconds = nonNegativeNumber(row.sample_seconds);
 	if (sampleSeconds !== 300) return invalid();
-	const bundleFieldsPresent =
-		row.benchmark_id !== undefined ||
-		row.bundle_manifest_sha256 !== undefined ||
-		row.bundle_size_bytes !== undefined;
-	let benchmarkId: string | null = null;
-	let bundleManifestSha256: string | null = null;
-	let bundleSizeBytes: number | null = null;
-	if (bundleFieldsPresent) {
-		benchmarkId = text(row.benchmark_id, 196);
-		if (!/^benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}$/u.test(benchmarkId))
-			return invalid();
-		bundleManifestSha256 = sha256(row.bundle_manifest_sha256);
-		bundleSizeBytes = nonNegativeInteger(row.bundle_size_bytes);
-		if (bundleSizeBytes <= 0) return invalid();
-	}
-	const profiles = row.profiles;
-	if (!Array.isArray(profiles) || profiles.length !== 4) return invalid();
-	const parsed = profiles.map((raw): BenchmarkProfileResult => {
+	const sampleIdentitySha256 = sha256(row.sample_identity_sha256);
+	const expected: readonly TranscriptionProfileId[] = [
+		"whisper-turbo",
+		"whisper-detailed",
+		"qwen-fast",
+		"qwen-quality",
+	];
+
+	const parseProfile = (
+		raw: unknown,
+		artifactMode: "required" | "forbidden",
+		expectedBenchmarkId: string | null,
+	): BenchmarkProfileResult => {
 		const item = record(raw);
 		if (item.schema_version !== "tda_benchmark_profile_v1") return invalid();
 		const engine = text(item.engine, 64);
@@ -2259,6 +2259,7 @@ export function parseBenchmarkResult(
 			!executionLineage.gpu.model
 		)
 			return invalid();
+
 		let transcriptSha256: string | null = null;
 		let transcriptSizeBytes: number | null = null;
 		let artifactAvailable = false;
@@ -2266,12 +2267,13 @@ export function parseBenchmarkResult(
 			item.artifact_available !== undefined ||
 			item.transcript_sha256 !== undefined ||
 			item.transcript_size_bytes !== undefined ||
-			item.benchmark_id !== undefined;
-		if (bundleFieldsPresent) {
+			item.benchmark_id !== undefined ||
+			item.sample_identity_sha256 !== undefined;
+		if (artifactMode === "required") {
 			if (
 				item.artifact_available !== true ||
-				item.benchmark_id !== benchmarkId ||
-				item.sample_identity_sha256 !== row.sample_identity_sha256
+				item.benchmark_id !== expectedBenchmarkId ||
+				item.sample_identity_sha256 !== sampleIdentitySha256
 			)
 				return invalid();
 			transcriptSha256 = sha256(item.transcript_sha256);
@@ -2307,22 +2309,14 @@ export function parseBenchmarkResult(
 			transcriptSizeBytes,
 			artifactAvailable,
 		};
-	});
-	const expected: readonly TranscriptionProfileId[] = [
-		"whisper-turbo",
-		"whisper-detailed",
-		"qwen-fast",
-		"qwen-quality",
-	];
-	if (parsed.some((item, index) => item.profileId !== expected[index]))
-		return invalid();
-	return {
-		schemaVersion: "tda_processing_benchmark_v1",
+	};
+
+	const common = {
 		jobId,
 		sourceId: identifier(row.source_id),
 		campaignId: identifier(row.campaign_id),
 		sessionId: identifier(row.session_id),
-		sampleIdentitySha256: sha256(row.sample_identity_sha256),
+		sampleIdentitySha256,
 		sampleSeconds,
 		executionMode:
 			row.execution_mode === "prepared_artifacts_fresh_worker_per_profile_v1"
@@ -2331,10 +2325,166 @@ export function parseBenchmarkResult(
 		trackCount: nonNegativeInteger(row.track_count),
 		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
 		prepared: boolean(row.prepared),
-		benchmarkId,
-		bundleManifestSha256,
-		bundleSizeBytes,
-		profiles: parsed,
+	};
+
+	if (schema === "tda_processing_benchmark_v1") {
+		const bundleFieldsPresent =
+			row.benchmark_id !== undefined ||
+			row.bundle_manifest_sha256 !== undefined ||
+			row.bundle_size_bytes !== undefined;
+		let benchmarkId: string | null = null;
+		let bundleManifestSha256: string | null = null;
+		let bundleSizeBytes: number | null = null;
+		if (bundleFieldsPresent) {
+			benchmarkId = text(row.benchmark_id, 196);
+			if (
+				!/^benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}$/u.test(
+					benchmarkId,
+				)
+			)
+				return invalid();
+			bundleManifestSha256 = sha256(row.bundle_manifest_sha256);
+			bundleSizeBytes = nonNegativeInteger(row.bundle_size_bytes);
+			if (bundleSizeBytes <= 0) return invalid();
+		}
+		const profiles = row.profiles;
+		if (!Array.isArray(profiles) || profiles.length !== 4) return invalid();
+		const parsed = profiles.map((raw) =>
+			parseProfile(
+				raw,
+				bundleFieldsPresent ? "required" : "forbidden",
+				benchmarkId,
+			),
+		);
+		if (parsed.some((item, index) => item.profileId !== expected[index]))
+			return invalid();
+		return {
+			schemaVersion: "tda_processing_benchmark_v1",
+			outcome: "completed",
+			...common,
+			benchmarkId,
+			partialBenchmarkId: null,
+			bundleManifestSha256,
+			bundleSizeBytes,
+			attemptedCount: 4,
+			completedCount: 4,
+			failedCount: 0,
+			profiles: parsed,
+			profileOutcomes: parsed.map((result) => ({
+				profileId: result.profileId,
+				status: "completed" as const,
+				result,
+				error: null,
+			})),
+		};
+	}
+
+	if (
+		row.status !== "partial" ||
+		row.benchmark_id !== null ||
+		row.bundle_manifest_sha256 !== null ||
+		row.bundle_size_bytes !== null
+	)
+		return invalid();
+	const partialBenchmarkId = text(row.partial_benchmark_id, 196);
+	if (
+		!/^benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}$/u.test(
+			partialBenchmarkId,
+		)
+	)
+		return invalid();
+	const rawOutcomes = row.profile_outcomes;
+	if (!Array.isArray(rawOutcomes) || rawOutcomes.length !== 4) return invalid();
+
+	const profileOutcomes: BenchmarkProfileOutcome[] = rawOutcomes.map(
+		(raw, index) => {
+			const item = record(raw);
+			const profileId = transcriptionProfile(item.profile_id);
+			if (profileId !== expected[index]) return invalid();
+			if (item.status === "completed") {
+				if (item.error !== undefined) return invalid();
+				const result = parseProfile(
+					item.receipt,
+					"required",
+					partialBenchmarkId,
+				);
+				if (result.profileId !== profileId) return invalid();
+				return {
+					profileId,
+					status: "completed" as const,
+					result,
+					error: null,
+				};
+			}
+			if (item.status !== "failed" || item.receipt !== undefined)
+				return invalid();
+			const error = record(item.error);
+			const code = text(error.code, 96);
+			if (!/^[A-Z0-9_]{1,96}$/u.test(code) || error.scope !== "profile")
+				return invalid();
+			return {
+				profileId,
+				status: "failed" as const,
+				result: null,
+				error: {
+					code,
+					recoverable: boolean(error.recoverable),
+					scope: "profile" as const,
+				},
+			};
+		},
+	);
+	const parsedProfiles = profileOutcomes
+		.filter(
+			(
+				item,
+			): item is BenchmarkProfileOutcome & {
+				status: "completed";
+				result: BenchmarkProfileResult;
+			} => item.status === "completed" && item.result !== null,
+		)
+		.map((item) => item.result);
+	const failedCount = profileOutcomes.filter(
+		(item) => item.status === "failed",
+	).length;
+	const completedCount = parsedProfiles.length;
+	if (
+		nonNegativeInteger(row.attempted_count) !== 4 ||
+		nonNegativeInteger(row.completed_count) !== completedCount ||
+		nonNegativeInteger(row.failed_count) !== failedCount ||
+		failedCount < 1 ||
+		completedCount + failedCount !== 4
+	)
+		return invalid();
+
+	const rawProfiles = row.profiles;
+	if (!Array.isArray(rawProfiles) || rawProfiles.length !== completedCount)
+		return invalid();
+	const repeatedProfiles = rawProfiles.map((raw) =>
+		parseProfile(raw, "required", partialBenchmarkId),
+	);
+	if (
+		repeatedProfiles.some(
+			(item, index) =>
+				item.profileId !== parsedProfiles[index]?.profileId ||
+				item.transcriptSha256 !== parsedProfiles[index]?.transcriptSha256,
+		)
+	)
+		return invalid();
+
+	return {
+		schemaVersion: "tda_processing_benchmark_v2",
+		outcome: "partial",
+		...common,
+		benchmarkId: null,
+		partialBenchmarkId,
+		bundleManifestSha256: null,
+		bundleSizeBytes: null,
+		attemptedCount: 4,
+		completedCount,
+		failedCount,
+		profiles: parsedProfiles,
+		profileOutcomes,
 	};
 }
 
