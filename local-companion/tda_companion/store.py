@@ -1038,6 +1038,8 @@ class Store:
             ).fetchall()
             if len(current) != len(normalized):
                 raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+            if any(part["timeline_mode"] == "manual" for part in current):
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE")
             by_part = {part["part_id"]: part for part in current}
             if set(by_part) != {item["part_id"] for item in normalized}:
                 raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
