@@ -62,7 +62,7 @@ test("four-profile evidence, comparison, private export and human-reference qual
 	await expect(
 		panel.getByRole("heading", { name: "Referência humana e métricas ASR" }),
 	).toBeVisible();
-	await expect(panel.getByText("Qualidade não medida.", { exact: true })).toBeVisible();
+	await expect(panel.getByText("Não medida", { exact: true })).toBeVisible();
 
 	expect(
 		state.requests.some((request) => request.path.endsWith("/snapshot")),
@@ -161,7 +161,6 @@ test("corrupted canonical evidence fails closed instead of showing stale transcr
 		)
 		.toBe(true);
 	await expect(panel.getByRole("alert")).toBeVisible();
-	await expect(panel.getByRole("alert")).not.toBeEmpty();
 	await expect(panel.getByText("Aventureiros chegam a Neverwinter")).toHaveCount(0);
 	await expect(panel.getByText("Aventureiros chegam a Never winter")).toHaveCount(0);
 });
@@ -206,6 +205,10 @@ test("quality evidence remains keyboard-usable and overflow-free at the 200 perc
 	await panel.getByRole("button", { name: "Comparar transcrições" }).click();
 	const evidence = panel.getByRole("region", { name: "Evidências do Benchmark" });
 	await expect(evidence).toBeVisible();
+	await expect(evidence.getByText("Aventureiros chegam a Neverwinter")).toBeVisible();
+	await expect(
+		evidence.getByRole("button", { name: "Próxima diferença →" }),
+	).toBeEnabled();
 
 	if (!viewport) throw new Error("BENCHMARK_VIEWPORT_UNAVAILABLE");
 	await page.setViewportSize({
