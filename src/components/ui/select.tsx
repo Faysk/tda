@@ -297,6 +297,7 @@ export function Select<T extends string>({
 				type="button"
 				className={styles.trigger}
 				aria-label={ariaLabel}
+				data-value={currentValue}
 				data-form-control-name={name}
 				aria-haspopup="listbox"
 				aria-expanded={open}
