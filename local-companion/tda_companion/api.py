@@ -27,6 +27,15 @@ from .attempt_fence import (
     claim_attempt_outcome,
     read_attempt_outcome,
 )
+from .benchmark_quality import (
+    BenchmarkQualityError,
+    active_reference,
+    inspect_quality_errors,
+    reference_draft_from_profile,
+    reference_status,
+    save_reference_revision,
+    score_all_profiles,
+)
 from .browser_session import BrowserSessionManager
 from .benchmark_bundles import (
     BenchmarkBundleError,
@@ -99,6 +108,7 @@ _ID_PATTERN = r"^[A-Za-z0-9_-]{1,128}$"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _WORKER_SHUTDOWN_FAST_SECONDS = 20.0
 LOCAL_JSON_BODY_MAX_BYTES = 4096
+BENCHMARK_REFERENCE_JSON_BODY_MAX_BYTES = 16 * 1024 * 1024
 TRANSCRIPTION_TEXT_MAX_CHARS = 1200
 
 _BROWSER_JOB_PATH = re.compile(
@@ -114,8 +124,13 @@ _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
 )
 _BROWSER_BENCHMARK_PATH = re.compile(
     r"^/api/v1/benchmarks/benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}"
-    r"(?:/profiles/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)"
-    r"/(?:transcript|snapshot|artifacts/(?:json|txt|txt-plain|vtt|srt))|/export\.zip)?$"
+    r"(?:/(?:reference|quality|export\\.zip|profiles/"
+    r"(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)"
+    r"/(?:transcript|snapshot|reference-draft|artifacts/(?:json|txt|txt-plain|vtt|srt))"
+    r"|quality/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)/inspection))?$"
+)
+_BROWSER_BENCHMARK_REFERENCE_WRITE = re.compile(
+    r"^/api/v1/benchmarks/benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}/references$"
 )
 
 
@@ -150,7 +165,10 @@ def _browser_route_allowed(method: str, path: str) -> bool:
     if _BROWSER_SESSION_ASSEMBLY_PATH.fullmatch(path) is not None:
         return method in {"GET", "POST"}
     if _BROWSER_BENCHMARK_PATH.fullmatch(path) is not None:
-        return method == "GET"
+        return method == "GET" or (
+            method == "POST"
+            and _BROWSER_BENCHMARK_REFERENCE_WRITE.fullmatch(path) is not None
+        )
     match = _BROWSER_JOB_PATH.fullmatch(path)
     if match is None:
         return False
@@ -202,6 +220,40 @@ JobRequest = Annotated[
     SyntheticJobRequest | CraigTranscriptionJobRequest | CraigBenchmarkJobRequest,
     Field(discriminator="kind"),
 ]
+
+
+class BenchmarkReferenceTurnRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    id: str | None = Field(default=None, max_length=256)
+    speaker: str = Field(min_length=1, max_length=160)
+    start: float = Field(ge=0)
+    end: float = Field(ge=0)
+    text: str = Field(default="", max_length=250_000)
+    overlaps_other_speaker: bool = False
+
+
+class BenchmarkReferenceTrackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    track_number: int = Field(ge=1)
+    speaker: str = Field(min_length=1, max_length=160)
+    text: str = Field(default="", max_length=250_000)
+    turns: list[BenchmarkReferenceTurnRequest] = Field(default_factory=list, max_length=20_000)
+
+
+class BenchmarkReferenceSaveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    expected_revision: int = Field(ge=0)
+    capability_level: Literal[1, 2] = 1
+    provenance_kind: Literal["manual", "imported", "derived-from-profile"]
+    seed_profile_id: Literal[
+        "whisper-turbo",
+        "whisper-detailed",
+        "qwen-fast",
+        "qwen-quality",
+    ] | None = None
+    glossary_terms: list[str] = Field(default_factory=list, max_length=512)
+    tracks: list[BenchmarkReferenceTrackRequest] = Field(min_length=1, max_length=128)
+    activate: bool = False
 
 
 class BrowserSessionRequest(BaseModel):
@@ -1537,7 +1589,15 @@ def create_app(
                 body_bytes = bytearray()
                 async for chunk in request.stream():
                     body_bytes.extend(chunk)
-                    if len(body_bytes) > LOCAL_JSON_BODY_MAX_BYTES:
+                    body_limit = (
+                        BENCHMARK_REFERENCE_JSON_BODY_MAX_BYTES
+                        if _BROWSER_BENCHMARK_REFERENCE_WRITE.fullmatch(
+                            request.url.path
+                        )
+                        is not None
+                        else LOCAL_JSON_BODY_MAX_BYTES
+                    )
+                    if len(body_bytes) > body_limit:
                         response = error("BODY_TOO_LARGE", 413)
                         break
                 if response is None:
@@ -1631,6 +1691,9 @@ def create_app(
             "transcription.runs.catalog",
             "processing.benchmark",
             "processing.benchmark.runtime-readiness-v2",
+            "processing.benchmark.evidence-v1",
+            "processing.benchmark.reference-v1",
+            "processing.benchmark.quality-v1",
             "system.telemetry",
             "worker.subprocess",
             "transcription.prepare",
@@ -2727,5 +2790,109 @@ def create_app(
                 "X-Content-Type-Options": "nosniff",
             },
         )
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/reference")
+    def benchmark_reference(benchmark_id: str):
+        try:
+            return {
+                "status": reference_status(data_root, benchmark_id=benchmark_id),
+                "reference": active_reference(data_root, benchmark_id=benchmark_id),
+            }
+        except (BenchmarkBundleError, BenchmarkQualityError) as exc:
+            return error(_public_error_code_from_exception(exc), 409, False)
+
+    @app.get(
+        "/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/reference-draft"
+    )
+    def benchmark_reference_draft(
+        benchmark_id: str,
+        profile_id: Literal[
+            "whisper-turbo",
+            "whisper-detailed",
+            "qwen-fast",
+            "qwen-quality",
+        ],
+    ):
+        try:
+            return reference_draft_from_profile(
+                data_root,
+                benchmark_id=benchmark_id,
+                profile_id=profile_id,
+            )
+        except (BenchmarkBundleError, BenchmarkQualityError) as exc:
+            return error(_public_error_code_from_exception(exc), 409, False)
+
+    @app.post("/api/v1/benchmarks/{benchmark_id}/references")
+    def save_benchmark_reference(
+        benchmark_id: str,
+        body: BenchmarkReferenceSaveRequest,
+    ):
+        try:
+            payload = body.model_dump()
+            tracks = [
+                {
+                    **track,
+                    "turns": list(track.get("turns") or []),
+                }
+                for track in payload["tracks"]
+            ]
+            with source_gate:
+                saved = save_reference_revision(
+                    data_root,
+                    benchmark_id=benchmark_id,
+                    expected_revision=payload["expected_revision"],
+                    capability_level=payload["capability_level"],
+                    provenance_kind=payload["provenance_kind"],
+                    seed_profile_id=payload.get("seed_profile_id"),
+                    glossary_terms=payload.get("glossary_terms") or [],
+                    tracks=tracks,
+                    activate=payload["activate"],
+                )
+                quality = (
+                    score_all_profiles(data_root, benchmark_id=benchmark_id)
+                    if payload["activate"]
+                    else None
+                )
+            return {
+                "schema_version": "tda_benchmark_reference_save_v1",
+                "reference": saved["reference"],
+                "status": reference_status(data_root, benchmark_id=benchmark_id),
+                "quality": quality,
+            }
+        except (BenchmarkBundleError, BenchmarkQualityError) as exc:
+            code = _public_error_code_from_exception(exc)
+            return error(
+                code,
+                409 if code == "BENCHMARK_REFERENCE_STALE_REVISION" else 422,
+                False,
+            )
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/quality")
+    def benchmark_quality(benchmark_id: str):
+        try:
+            return score_all_profiles(data_root, benchmark_id=benchmark_id)
+        except (BenchmarkBundleError, BenchmarkQualityError) as exc:
+            return error(_public_error_code_from_exception(exc), 409, False)
+
+    @app.get(
+        "/api/v1/benchmarks/{benchmark_id}/quality/{profile_id}/inspection"
+    )
+    def benchmark_quality_inspection(
+        benchmark_id: str,
+        profile_id: Literal[
+            "whisper-turbo",
+            "whisper-detailed",
+            "qwen-fast",
+            "qwen-quality",
+        ],
+    ):
+        try:
+            return inspect_quality_errors(
+                data_root,
+                benchmark_id=benchmark_id,
+                profile_id=profile_id,
+            )
+        except (BenchmarkBundleError, BenchmarkQualityError) as exc:
+            return error(_public_error_code_from_exception(exc), 409, False)
 
     return app
