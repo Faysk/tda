@@ -1310,7 +1310,7 @@ test("stale Markdown import preserves the working copy and never overwrites sile
 	expect(multi.reviewStatus).toBe("draft");
 });
 
-test("multi-ZIP preflight explains one session, reorders accessibly, and carries order into progress", async ({ page }) => {
+test("multi-ZIP preflight explains one session and reorders accessibly before compact completion", async ({ page }) => {
 	await installCompanionFixture(page, { profileReady: true, reviewEnabled: true });
 	await installMultiRecordingRoutes(page, { uploadSequence: [0, 1, 2] });
 	await openProcessing(page);
@@ -1335,7 +1335,8 @@ test("multi-ZIP preflight explains one session, reorders accessibly, and carries
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(intent).toContainText("Transcrição pronta");
-	await expect(intent.getByLabel("Progresso das gravações").getByRole("listitem").nth(0)).toContainText("ordem-3.zip");
+	await expect(intent.getByLabel("Progresso das gravações")).toHaveCount(0);
+	await expect(intent).toContainText("3 gravações");
 });
 
 test("three ZIPs become one session intent, retry only the failed recording, auto-assemble and open review", async ({
