@@ -18,7 +18,7 @@ function lineage(family: "whisper" | "qwen") {
 		runtime_family: family,
 		runtime_version: "1.2.3",
 		runtime_artifact: {
-			runtime_id: `${family}-test`,
+			runtime_id: family === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
 			version: "1.2.3",
 			worker_sha256: sha("a"),
 			archive_sha256: sha("b"),
