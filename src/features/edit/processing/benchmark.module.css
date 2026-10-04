@@ -815,6 +815,19 @@
 	color: var(--ds-accent-strong);
 }
 
+.runStep[data-state="stopped"] {
+	color: var(--ds-warning);
+	font-weight: 700;
+}
+
+.runStep[data-state="stopped"] i {
+	border-color: var(--ds-warning);
+}
+
+.runStep[data-state="not_attempted"] {
+	color: var(--ds-foreground-muted);
+}
+
 .activeActions {
 	display: flex;
 	flex-wrap: wrap;
