@@ -257,12 +257,15 @@ export function SessionIntentCoordinator({
 					? cause.code
 					: undefined;
 			setLocalError(null);
-			setRecovery(nextRecovery);
-			if (availabilityFailure)
+			if (availabilityFailure) {
+				setRecovery(null);
 				onError?.(
-					"O Companion ficou indisponível. O workspace persistido foi preservado.",
+					`${nextRecovery.title} ${nextRecovery.detail}`,
 					availabilityFailure,
 				);
+				return;
+			}
+			setRecovery(nextRecovery);
 		},
 		[onError, workspace],
 	);
