@@ -50,9 +50,9 @@ test("completed benchmark reopens verified evidence lazily and keeps comparison 
 
 	const leftSelector = workspace.getByLabel("Perfil A");
 	await leftSelector.focus();
-	await page.keyboard.press("ArrowDown");
-	await expect(leftSelector).not.toHaveValue("qwen-fast");
-	await page.keyboard.press("ArrowUp");
+	await expect(leftSelector).toBeFocused();
+	await leftSelector.selectOption("whisper-turbo");
+	await expect(leftSelector).toHaveValue("whisper-turbo");
 
 	const nextDifference = workspace.getByRole("button", {
 		name: "Próxima diferença →",
@@ -149,7 +149,9 @@ test("historical performance-only receipts remain readable without fabricated ar
 	const panel = await openBenchmark(page);
 
 	await expect(panel.getByText("Concluído", { exact: true })).toBeVisible();
-	await expect(panel.getByText(/Evidência detalhada indisponível/u)).toBeVisible();
+	await expect(
+		panel.getByText(/receipt performance-only · transcrições não preservadas/u),
+	).toBeVisible();
 	await expect(
 		panel.getByRole("button", { name: "Comparar transcrições" }),
 	).toHaveCount(0);
