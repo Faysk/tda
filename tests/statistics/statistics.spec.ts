@@ -371,7 +371,7 @@ test("archived campaign remains readable but is labeled as historical context", 
 	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("3");
 });
 
-test("narrative review uses an explicit campaign selector and preserves it on reload", async ({
+test("narrative review preserves campaign identity across reload, switch and back", async ({
 	context,
 	page,
 }) => {
@@ -412,6 +412,25 @@ test("narrative review uses an explicit campaign selector and preserves it on re
 			name: "Revisão narrativa",
 		}),
 	).toBeVisible();
+	await expect(
+		page
+			.locator('[data-operational-page-header="true"]')
+			.getByText("Antes que seja tarde", { exact: true }),
+	).toBeVisible();
+
+	await page
+		.getByRole("combobox", { name: "Campanha" })
+		.selectOption("yuhara-main");
+	await page.getByRole("button", { name: "Trocar campanha" }).click();
+	await expect(page).toHaveURL(/campanha=yuhara-main/);
+	await expect(
+		page
+			.locator('[data-operational-page-header="true"]')
+			.getByText("Crônicas da Mesa", { exact: true }),
+	).toBeVisible();
+
+	await page.goBack();
+	await expect(page).toHaveURL(/campanha=other/);
 	await expect(
 		page
 			.locator('[data-operational-page-header="true"]')
