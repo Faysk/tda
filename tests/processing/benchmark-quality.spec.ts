@@ -39,6 +39,7 @@ test("four-profile evidence, comparison, private export and human-reference qual
 	const state = await installCompanionFixture(page, {
 		benchmarkProfiles: true,
 		benchmarkEvidence: true,
+		benchmarkSnapshotDelayMs: 250,
 		profileReady: true,
 		advanceJobs: true,
 	});
@@ -72,11 +73,29 @@ test("four-profile evidence, comparison, private export and human-reference qual
 	await panel.getByRole("button", { name: "Comparar transcrições" }).click();
 	const evidence = panel.getByRole("region", { name: "Evidências do Benchmark" });
 	await expect(evidence).toBeVisible();
+	await expect(evidence.getByRole("status")).toContainText(
+		"Carregando transcrições selecionadas",
+	);
 	await expect(evidence.getByText("Aventureiros chegam a Neverwinter")).toBeVisible();
 	await expect(evidence.getByText("Aventureiros chegam a Never winter")).toBeVisible();
 	expect(
 		state.requests.some((request) => request.path.endsWith("/snapshot")),
 	).toBe(true);
+
+	const profileB = evidence.getByLabel("Perfil B");
+	await profileB.selectOption("whisper-turbo");
+	await expect(evidence.getByRole("status")).toContainText(
+		"Carregando transcrições selecionadas",
+	);
+	await expect(profileB).toHaveValue("whisper-turbo");
+	await expect
+		.poll(() =>
+			state.requests.some((request) =>
+				request.path.endsWith("/profiles/whisper-turbo/snapshot"),
+			),
+		)
+		.toBe(true);
+	await expect(evidence.getByText(/Track 1 · changed/u)).toBeVisible();
 
 	const nextDifference = evidence.getByRole("button", { name: "Próxima diferença →" });
 	await nextDifference.click();
