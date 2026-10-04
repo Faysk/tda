@@ -277,7 +277,7 @@ export function SessionCampaignMovePanel({
 
 				<div className={styles.body}>
 					<div className={styles.controls}>
-						<label>
+						<div>
 							<span>Destino</span>
 							<Select
 								value={destination}
@@ -294,7 +294,7 @@ export function SessionCampaignMovePanel({
 								ariaLabel="Mover para outra campanha"
 								disabled={pending || Boolean(recovery)}
 							/>
-						</label>
+						</div>
 						<button
 							type="button"
 							onClick={runPreflight}
