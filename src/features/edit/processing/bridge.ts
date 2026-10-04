@@ -12,6 +12,7 @@ import {
 	benchmarkIdentifier,
 	identifier,
 	LOCAL_API,
+	parseBenchmarkAttemptResult,
 	parseBenchmarkEvidenceSummary,
 	parseBenchmarkResult,
 	parseBenchmarkTranscriptSnapshot,
@@ -1032,6 +1033,12 @@ export class LocalBridge {
 	}
 	async benchmarkResult(id: string, signal: AbortSignal) {
 		return parseBenchmarkResult(
+			await this.json(`/jobs/${identifier(id)}/result`, signal),
+			id,
+		);
+	}
+	async benchmarkAttemptResult(id: string, signal: AbortSignal) {
+		return parseBenchmarkAttemptResult(
 			await this.json(`/jobs/${identifier(id)}/result`, signal),
 			id,
 		);

@@ -350,3 +350,62 @@ it("presents Qwen post-ASR track context truthfully", () => {
 		}),
 	).toEqual({ title: "Analisando energia do arquivo 2 de 4 — Bob." });
 });
+
+it("explains Benchmark profile-local Qwen failure without suggesting manual Quality rerun", () => {
+		const presented = presentJobEvent({
+			seq: 20,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_FAILED",
+			at: "2026-10-04T20:00:00Z",
+			level: "warning",
+			data: {
+				stage: "benchmark",
+				profile: "qwen-fast",
+				attempted_count: 3,
+				completed_count: 2,
+				failed_count: 1,
+				error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+				recoverable: true,
+				scope: "profile",
+				continuation: "continue",
+			},
+		});
+		expect(presented.title).toContain("qwen-fast");
+		expect(presented.detail).toContain("continuará automaticamente");
+		expect(presented.detail).not.toContain("selecione Qwen Quality");
+	});
+
+	it("presents Benchmark profile start and completion as independent outcomes", () => {
+		expect(
+			presentJobEvent({
+				seq: 21,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T20:00:01Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "qwen-quality",
+					attempted_count: 4,
+					completed_count: 2,
+					failed_count: 1,
+				},
+			}).title,
+		).toContain("qwen-quality");
+		expect(
+			presentJobEvent({
+				seq: 22,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-04T20:00:02Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "qwen-quality",
+					attempted_count: 4,
+					completed_count: 3,
+					failed_count: 1,
+				},
+			}).detail,
+		).toContain("3 perfis concluídos");
+	});
