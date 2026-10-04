@@ -124,23 +124,40 @@ function errorMessage(cause: unknown): string {
 	const code = cause.serverCode ?? cause.code;
 	const messages: Record<string, string> = {
 		SESSION_WORKSPACE_REVISION_CONFLICT:
-			"A sessão mudou em outra aba. O TDA vai recarregar o estado antes de continuar.",
+			"A sessão mudou em outra aba. O estado salvo foi preservado; tente novamente sobre a versão atual.",
 		SESSION_WORKSPACE_SOURCE_UNAVAILABLE:
-			"Uma gravação local não está mais íntegra. Reimporte o ZIP correspondente.",
+			"Uma gravação local precisa ser restaurada. Selecione novamente o ZIP original; resultados íntegros já concluídos serão preservados.",
+		SESSION_WORKSPACE_SOURCE_DURATION_UNAVAILABLE:
+			"Não conseguimos ler a duração de uma gravação. Restaure o ZIP correspondente para continuar.",
+		SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE:
+			"A ordem desta sessão já possui um ajuste manual. O TDA preservou sua decisão e não alterou os horários automaticamente.",
 		SESSION_WORKSPACE_TIMELINE_ORDER_AMBIGUOUS:
-			"Não conseguimos provar a ordem de todas as gravações.",
+			"Não conseguimos confirmar a ordem das gravações. Organize os arquivos na sequência correta e confirme.",
 		SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION:
-			"Dois horários colidem e não autorizam uma ordem automática.",
+			"Os horários das gravações entram em conflito com a sequência escolhida. Revise qual gravação vem primeiro.",
+		SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID:
+			"O ponto de corte precisa ficar dentro da sobreposição real entre as gravações.",
 		SESSION_ASSEMBLY_TIMELINE_NOT_READY:
-			"A cronologia ainda precisa de uma decisão antes de concluir a transcrição.",
+			"A sequência da sessão ainda precisa de uma decisão antes de concluir a transcrição.",
+		SESSION_ASSEMBLY_PART_INVALID:
+			"Uma gravação ainda não possui um resultado válido selecionado.",
+		SESSION_ASSEMBLY_RUN_INVALID:
+			"Um resultado selecionado não passou na verificação local. Escolha outro resultado ou reprocesse somente essa gravação.",
+		SESSION_ASSEMBLY_RUN_NOT_VISIBLE:
+			"Um resultado selecionado não está mais disponível para esta sessão. Escolha outro resultado para continuar.",
 		SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INVALID:
-			"Há um conflito de participante que precisa de decisão.",
+			"Há um participante ambíguo que precisa de decisão antes da montagem final.",
+		SESSION_ASSEMBLY_SOURCE_UNAVAILABLE:
+			"Uma gravação local precisa ser restaurada antes da montagem final.",
 		timeout:
 			"O Companion demorou demais para responder. O estado já salvo foi preservado.",
 		unreachable:
 			"O Companion ficou indisponível. O estado já salvo foi preservado.",
 	};
-	return messages[code] ?? `Operação local não concluída · ${code}`;
+	return (
+		messages[code] ??
+		"Não foi possível concluir esta etapa local. O estado já salvo foi preservado; abra os detalhes técnicos para diagnóstico se o problema continuar."
+	);
 }
 
 function sourceLabel(
@@ -784,7 +801,7 @@ export function SessionIntentCoordinator({
 
 			if (
 				workspace.timeline.automaticOrderAvailable &&
-				workspace.orderingMode !== "automatic"
+				workspace.orderingMode === "attachment"
 			) {
 				await bridge.deriveSessionTimeline(
 					workspace.campaignId,
@@ -882,6 +899,30 @@ export function SessionIntentCoordinator({
 	useEffect(() => {
 		void advance();
 	}, [advance]);
+
+	async function confirmCurrentOrder() {
+		if (!workspace || busy || disabled) return;
+		const controller = new AbortController();
+		setBusy(true);
+		setLocalError(null);
+		try {
+			await bridge.confirmSessionSequence(
+				workspace.campaignId,
+				workspace.sessionId,
+				workspace.revision,
+				controller.signal,
+			);
+			setBlocker(null);
+			await loadSnapshot(workspace.sessionId, controller.signal);
+			announce(
+				"Ordem confirmada. A timeline contínua usa esta sequência sem inventar horários reais ausentes.",
+			);
+		} catch (cause) {
+			fail(cause);
+		} finally {
+			setBusy(false);
+		}
+	}
 
 	async function retryFailed() {
 		if (!workspace || busy || disabled) return;
@@ -1205,25 +1246,47 @@ export function SessionIntentCoordinator({
 				<div className={styles.blocker} role="alert">
 					<div>
 						<strong>
-							{blocker.state === "overlap_unresolved"
-								? "Há uma sobreposição que precisa de decisão."
-								: "Não conseguimos provar onde uma gravação entra na sessão."}
+							{blocker.state === "needs_timing"
+								? "Algumas gravações não possuem horário confiável."
+								: blocker.state === "overlap_unresolved"
+									? "Há uma sobreposição que precisa de decisão."
+									: blocker.state === "order_conflict"
+										? "Os horários entram em conflito com a sequência."
+										: "A sequência da sessão precisa de uma decisão."}
 						</strong>
 						<span>
-							Nenhuma ordem ou corte será inventado. Resolva somente esta
-							ambiguidade e o fluxo continua sozinho.
+							{blocker.state === "needs_timing"
+								? "Isso não impede a montagem. Confirme a ordem das gravações e o TDA cria uma timeline editorial contínua sem inventar horário real."
+								: blocker.state === "overlap_unresolved"
+									? "Existe conteúdo gravado ao mesmo tempo nas duas partes. Escolha qual gravação deve prevalecer somente nesse trecho."
+									: "Revise somente esta ambiguidade; as gravações e resultados já concluídos continuam preservados."}
 						</span>
 					</div>
-					{onOpenTechnical ? (
-						<Button
-							type="button"
-							size="sm"
-							variant="secondary"
-							onClick={onOpenTechnical}
-						>
-							Resolver cronologia
-						</Button>
-					) : null}
+					<div className={styles.blockerActions}>
+						{blocker.state === "needs_timing" ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="secondary"
+								disabled={busy}
+								onClick={() => void confirmCurrentOrder()}
+							>
+								Usar esta ordem
+							</Button>
+						) : null}
+						{blocker.state !== "needs_timing" && onOpenTechnical ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="secondary"
+								onClick={onOpenTechnical}
+							>
+								{blocker.state === "overlap_unresolved"
+									? "Resolver sobreposição"
+									: "Revisar ordem"}
+							</Button>
+						) : null}
+					</div>
 				</div>
 			) : null}
 
