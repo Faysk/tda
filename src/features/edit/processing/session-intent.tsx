@@ -1199,8 +1199,7 @@ export function SessionIntentCoordinator({
 				) : null}
 			</div>
 
-			{workspace?.parts.length ? (
-				assembly ? null : (
+			{workspace?.parts.length && !assembly ? (
 				<ol className={styles.progressList} aria-label="Progresso das gravações">
 					{workspace.parts.map((part, index) => {
 						const runs = runsBySource.get(part.sourceId) ?? [];
@@ -1265,10 +1264,9 @@ export function SessionIntentCoordinator({
 						);
 					})}
 				</ol>
-				)
-			) : (
+			) : !workspace?.parts.length ? (
 				<p className={styles.waiting}>Preparando as gravações desta sessão…</p>
-			)}
+			) : null}
 
 			{recovery ? (
 				<RecoveryGuideCard
