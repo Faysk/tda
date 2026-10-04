@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { selectThemedOption } from "../helpers/themed-select";
 
 test.beforeEach(async ({ request }) => {
 	await request.post("http://127.0.0.1:3103/fixture/reset");
