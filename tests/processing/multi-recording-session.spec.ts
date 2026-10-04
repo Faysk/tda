@@ -1254,7 +1254,7 @@ test("three ZIPs without trusted timestamps use confirmed order, survive reload,
 	await expect(intent).toContainText(
 		"o intervalo real continuará marcado como desconhecido",
 	);
-	await expect(page.getByLabel(/Início na sessão/u)).toHaveCount(0);
+	await expect(intent.getByLabel(/Início na sessão/u)).toHaveCount(0);
 
 	await confirm.click();
 	await expect(intent).toContainText("Transcrição pronta");
