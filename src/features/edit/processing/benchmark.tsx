@@ -969,15 +969,43 @@ export function ProcessingBenchmark({
 		}
 	}
 
-	const completed = active?.progress?.completed ?? 0;
-	const currentProfile =
-		active?.status === "running" ? PROFILES[Math.min(completed, 3)] : null;
 	const activeEvents =
 		active && observedJobId === active.id
 			? events.filter(
 					(event) => event.attempt === null || event.attempt === active.attempt,
 				)
 			: [];
+	const activeProfileOutcomes = new Map<
+		(typeof PROFILES)[number],
+		{ status: "completed" | "failed"; errorCode: string | null }
+	>();
+	for (const event of activeEvents) {
+		if (event.code !== "BENCHMARK_PROFILE_OUTCOME") continue;
+		const profileId = event.data.profile_id;
+		const profileStatus = event.data.status;
+		if (
+			(typeof profileId !== "string" ||
+				!PROFILES.includes(profileId as (typeof PROFILES)[number])) ||
+			(profileStatus !== "completed" && profileStatus !== "failed")
+		)
+			continue;
+		activeProfileOutcomes.set(profileId as (typeof PROFILES)[number], {
+			status: profileStatus,
+			errorCode:
+				typeof event.data.error_code === "string" ? event.data.error_code : null,
+		});
+	}
+	const attemptedCount = active?.progress?.completed ?? activeProfileOutcomes.size;
+	const failedCount = [...activeProfileOutcomes.values()].filter(
+		(item) => item.status === "failed",
+	).length;
+	const successfulCount = activeProfileOutcomes.size
+		? [...activeProfileOutcomes.values()].filter((item) => item.status === "completed").length
+		: Math.max(0, attemptedCount - failedCount);
+	const currentProfile =
+		active?.status === "running" && attemptedCount < PROFILES.length
+			? PROFILES[attemptedCount] ?? null
+			: null;
 	const latestEvent = activeEvents.at(-1) ?? null;
 	const latestActivity = latestEvent ? presentJobEvent(latestEvent) : null;
 
@@ -1334,7 +1362,7 @@ export function ProcessingBenchmark({
 						</h3>
 						<p>
 							{active.progress
-								? `${active.progress.completed} de ${active.progress.total} perfis concluídos`
+								? `Tentados ${attemptedCount}/${active.progress.total} · Concluídos ${successfulCount} · Falharam ${failedCount}`
 								: "Preparando execução"}
 							{active.stage ? ` · ${stageLabels[active.stage] ?? active.stage}` : ""}
 						</p>
@@ -1351,10 +1379,14 @@ export function ProcessingBenchmark({
 					</div>
 					<ol className={styles.runSteps} aria-label="Progresso dos quatro perfis">
 						{PROFILES.map((id, index) => {
-							const stepState =
-								index < completed
+							const outcome = activeProfileOutcomes.get(id);
+							const stepState: BenchmarkStepState = outcome
+								? outcome.status === "completed"
 									? "complete"
-									: active.status === "running" && index === Math.min(completed, PROFILES.length - 1)
+									: "failed"
+								: index < attemptedCount
+									? "complete"
+									: currentProfile === id
 										? "current"
 										: "pending";
 							return (
@@ -1363,9 +1395,15 @@ export function ProcessingBenchmark({
 									className={styles.runStep}
 									data-state={stepState}
 									aria-current={stepState === "current" ? "step" : undefined}
+									aria-label={`${LABELS[id]} · ${benchmarkStepLabel(stepState)}`}
 								>
-									<i aria-hidden="true">{stepState === "complete" ? "✓" : index + 1}</i>
-									<span>{LABELS[id]}</span>
+									<i aria-hidden="true">
+										{stepState === "complete" ? "✓" : stepState === "failed" ? "×" : index + 1}
+									</i>
+									<span>
+										{LABELS[id]}
+										<small>{benchmarkStepLabel(stepState)}</small>
+									</span>
 								</li>
 							);
 						})}
@@ -1434,10 +1472,10 @@ export function ProcessingBenchmark({
 						<span className={styles.eyebrow}>Histórico local</span>
 						<h2>Receipts comparáveis</h2>
 					</div>
-					<span>{latestCompleted.length} concluído{latestCompleted.length === 1 ? "" : "s"}</span>
+					<span>{resultJobs.length} execução{resultJobs.length === 1 ? "" : "ões"}</span>
 				</div>
-				{latestCompleted.length ? (
-					latestCompleted.slice(0, 10).map((job) =>
+				{resultJobs.length ? (
+					resultJobs.slice(0, 10).map((job) =>
 						results[job.id] ? (
 							<ResultCard
 								key={job.id}
@@ -1475,7 +1513,7 @@ export function ProcessingBenchmark({
 					)
 				) : (
 					<p className={styles.empty}>
-						Nenhum benchmark concluído neste Companion.
+						Nenhum benchmark concluído ou parcial neste Companion.
 					</p>
 				)}
 			</section>
