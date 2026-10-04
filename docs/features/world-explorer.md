@@ -627,14 +627,24 @@ Um usuário autorizado consegue abrir `/mundo`, compreender a constelação vis�
 A rodada #99 só pode declarar a evolução para dados reais/edição concluída quando houver evidência separada de: dataset revisado e autorizado; projection sem leak; mutation factual server-side com concorrência/erro cobertos; edição de layout diferenciada; CI do SHA; e, se houver publicação, smoke do ambiente deliberadamente publicado.
 
 
-### Paint order for spatial relations
+### Paint and transform contract for spatial relations
 
-The published canvas keeps visual neighborhoods as background context only. The
-viewport portal used by those regions must stay below the SVG edge layer; relation
-strokes stay below nodes, while relation labels render above both. This ordering
-is part of the browser acceptance contract because a valid SVG `path` in the DOM
-does not prove that a user can actually trace the relation on screen.
+Relation geometry has one authoritative flow-space path. React Flow's native edge
+SVG retains the transparent interaction target, while the visible halo, stroke and
+motion path render through `ViewportPortal`. That portal shares the same viewport
+transform as nodes, so pan, zoom, resize and restore cannot reproduce the historical
+`EdgeLabelRenderer` coordinate drift. Relation labels remain in
+`EdgeLabelRenderer` because they are HTML presentation rather than the SVG stroke.
 
-The regression gate checks selected edges from two nodes with browser geometry,
-`isPointInStroke()`, computed paint properties, explicit layer order and a
-screenshot receipt. Layout positions remain unchanged by this presentation rule.
+This split is deliberate for Chromium: a valid, styled path inside the native edge
+SVG has previously existed in the DOM without producing reliable visible paint in
+the World composition. The visible relation paint therefore lives in the
+viewport-synchronized portal above neighborhood decoration and below nodes, while
+the native edge layer remains the interaction/accessibility surface.
+
+Browser acceptance must verify both geometry and final rasterization. The permanent
+gate uses sanitized public/Edit fixtures and compares Chromium screenshots with a
+known relation visible versus the same relation temporarily hidden. DOM presence,
+computed stroke properties and `isPointInStroke()` are diagnostic evidence only;
+they are not sufficient proof that the user can see the relation. Layout positions,
+relation topology and campaign data remain unchanged by this presentation rule.
