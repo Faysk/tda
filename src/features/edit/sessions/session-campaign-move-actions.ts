@@ -10,6 +10,8 @@ import {
 	EDIT_CAPABILITIES,
 } from "@/features/edit/access/policy";
 import { sessionCampaignMoveRevalidationPaths } from "./session-campaign-move-cache";
+import { prepareSessionCampaignMoveCover } from "./session-campaign-move-media-server";
+import type { SessionCampaignMoveOptions } from "./session-campaign-move-model";
 import {
 	commitSessionCampaignMove,
 	preflightSessionCampaignMove,
@@ -24,6 +26,7 @@ type Request = Readonly<{
 	sourceSessionId: string;
 	sourceCampaignSlug: string;
 	destinationCampaignSlug: string;
+	options: SessionCampaignMoveOptions;
 }>;
 
 async function authorizedRequest(request: Request) {
@@ -34,7 +37,8 @@ async function authorizedRequest(request: Request) {
 		!SLUG.test(request.sourceCampaignSlug) ||
 		!SLUG.test(request.destinationCampaignSlug) ||
 		request.sourceCampaignSlug === request.destinationCampaignSlug
-	) return { ok: false as const, reason: "validation" as const };
+	)
+		return { ok: false as const, reason: "validation" as const };
 
 	const identity = await getVerifiedServerIdentity();
 	if (!identity.ok) return { ok: false as const, reason: identity.reason };
@@ -63,13 +67,15 @@ async function authorizedRequest(request: Request) {
 				EDIT_CAPABILITIES.contentEdit,
 				campaign.technicalSlug,
 			).ok
-		) return { ok: false as const, reason: "forbidden" as const };
+		)
+			return { ok: false as const, reason: "forbidden" as const };
 	}
 
 	return {
 		ok: true as const,
 		authUserId: identity.authUserId,
 		profileId: context.profileId,
+		client: context.client,
 		source,
 		destination,
 	};
@@ -93,8 +99,7 @@ function invalidateMovePaths(input: {
 	sourceSessionId: string;
 }) {
 	let cachePending = false;
-	const paths = sessionCampaignMoveRevalidationPaths(input);
-	for (const path of paths) {
+	for (const path of sessionCampaignMoveRevalidationPaths(input)) {
 		try {
 			revalidatePath(path);
 		} catch {
@@ -112,10 +117,57 @@ export async function moveSessionCampaignAction(
 	const access = await authorizedRequest(request);
 	if (!access.ok) return access;
 
+	const authoritative = await preflightSessionCampaignMove({
+		authUserId: access.authUserId,
+		actorProfileId: access.profileId,
+		...request,
+	});
+	if (!authoritative.ok) return authoritative;
+	if (authoritative.preview.status !== "ready") {
+		return {
+			ok: false as const,
+			reason: "blocked" as const,
+			preview: authoritative.preview,
+		};
+	}
+
+	let preparedCover = null;
+	try {
+		const prepared = await prepareSessionCampaignMoveCover({
+			client: access.client,
+			sessionId: request.sessionId,
+			sourceCampaignId: access.source.id,
+			sourceCampaignSlug: access.source.technicalSlug,
+			destinationCampaignId: access.destination.id,
+			destinationCampaignSlug: access.destination.technicalSlug,
+		});
+		if (prepared.kind === "prepared") preparedCover = prepared.cover;
+		if (
+			prepared.kind === "legacy" &&
+			request.options.legacyCoverPolicy !== "clear_current"
+		) {
+			return {
+				ok: false as const,
+				reason: "blocked" as const,
+				preview: authoritative.preview,
+			};
+		}
+	} catch (error) {
+		console.error(
+			"[edit] session campaign move media prepare failed",
+			error instanceof Error ? error.message : "unknown_error",
+		);
+		return {
+			ok: false as const,
+			reason: "media_prepare_unavailable" as const,
+		};
+	}
+
 	const result = await commitSessionCampaignMove({
 		authUserId: access.authUserId,
 		actorProfileId: access.profileId,
 		...request,
+		preparedCover,
 	});
 	if (!result.ok) return result;
 
@@ -129,6 +181,7 @@ export async function moveSessionCampaignAction(
 	return {
 		ok: true as const,
 		replayed: result.replayed,
+		publicationState: result.publicationState,
 		cachePending,
 		destinationHref: editSessionDetailHref(
 			access.destination.technicalSlug,
