@@ -134,6 +134,7 @@ export async function moveSessionCampaignAction(
 			...boundary,
 			sourceCampaignId: access.source.id,
 			destinationCampaignId: access.destination.id,
+			destinationPublic: access.destination.visibility === "public",
 		});
 		if (!prepared.ok) return prepared;
 		result = await commitSessionCampaignMove(boundary);
