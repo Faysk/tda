@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LocalBridge } from "./bridge";
+import { SessionAssemblyReview } from "./session-assembly-review";
 import {
 	retainSessionAssemblyReview,
 	shouldApplySessionAssemblyResult,
@@ -15,9 +16,16 @@ import {
 import type { SessionAssemblyListItem } from "./session-composer-protocol";
 import styles from "./session-assembly-results.module.css";
 
+export type SessionAssemblyReviewFocus = Readonly<{
+	sessionId: string;
+	assemblyId: string;
+	requestId: number;
+}>;
+
 type Props = Readonly<{
 	campaignId: string;
 	capabilities: readonly string[];
+	focusReview?: SessionAssemblyReviewFocus | null;
 }>;
 
 function short(value: string, size = 12) {
@@ -33,7 +41,11 @@ function readSessionId(campaignId: string): string | null {
 	}
 }
 
-export function SessionAssemblyResults({ campaignId, capabilities }: Props) {
+export function SessionAssemblyResults({
+	campaignId,
+	capabilities,
+	focusReview = null,
+}: Props) {
 	const enabled =
 		capabilities.includes("transcription.session-assembly") &&
 		capabilities.includes("transcription.session-assembly.review");
@@ -45,13 +57,15 @@ export function SessionAssemblyResults({ campaignId, capabilities }: Props) {
 	const sessionIdRef = useRef<string | null>(null);
 	const refreshGeneration = useRef(0);
 	const reviewGeneration = useRef(0);
+	const handledFocusRequest = useRef(0);
+	const reviewHeading = useRef<HTMLHeadingElement>(null);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
 	const refresh = useCallback(async () => {
 		if (!enabled) return;
 		const generation = ++refreshGeneration.current;
-		const nextSession = readSessionId(campaignId);
+		const nextSession = focusReview?.sessionId ?? readSessionId(campaignId);
 		const previousSession = sessionIdRef.current;
 		sessionIdRef.current = nextSession;
 		setSessionId(nextSession);
@@ -108,7 +122,7 @@ export function SessionAssemblyResults({ campaignId, capabilities }: Props) {
 			)
 				setBusy(false);
 		}
-	}, [bridge, campaignId, enabled]);
+	}, [bridge, campaignId, enabled, focusReview?.sessionId]);
 
 	useEffect(() => {
 		if (!enabled) return;
@@ -127,16 +141,19 @@ export function SessionAssemblyResults({ campaignId, capabilities }: Props) {
 	const review =
 		reviewSelection?.sessionId === sessionId ? reviewSelection.review : null;
 
-	async function openReview(assemblyId: string) {
-		if (!sessionId || busy) return;
-		const requestSessionId = sessionId;
+	async function openReview(
+		assemblyId: string,
+		requestedSessionId: string | null = sessionId,
+	) {
+		if (!requestedSessionId) return;
+		const requestSessionId = requestedSessionId;
 		const generation = ++reviewGeneration.current;
 		const controller = new AbortController();
 		setReviewSelection(null);
 		setBusy(true);
 		setError(null);
 		try {
-			const nextReview = await bridge.sessionAssemblyReviewBase(
+			const nextReview = await bridge.sessionAssemblyReview(
 				campaignId,
 				requestSessionId,
 				assemblyId,
@@ -175,6 +192,24 @@ export function SessionAssemblyResults({ campaignId, capabilities }: Props) {
 		}
 	}
 
+	useEffect(() => {
+		if (
+			!focusReview ||
+			busy ||
+			handledFocusRequest.current === focusReview.requestId ||
+			sessionId !== focusReview.sessionId ||
+			!assemblies.some((item) => item.assemblyId === focusReview.assemblyId)
+		)
+			return;
+		handledFocusRequest.current = focusReview.requestId;
+		void openReview(focusReview.assemblyId, focusReview.sessionId);
+	}, [assemblies, busy, focusReview, sessionId]);
+
+	useEffect(() => {
+		if (!review || !focusReview || review.assemblyId !== focusReview.assemblyId) return;
+		requestAnimationFrame(() => reviewHeading.current?.focus({ preventScroll: false }));
+	}, [focusReview, review]);
+
 	return (
 		<section
 			className={styles.section}
@@ -185,7 +220,13 @@ export function SessionAssemblyResults({ campaignId, capabilities }: Props) {
 			<div className={styles.header}>
 				<div>
 					<span>Resultado de sessão</span>
-					<h2 id="session-assembly-results-title">Assemblies · {sessionId}</h2>
+					<h2
+						id="session-assembly-results-title"
+						ref={reviewHeading}
+						tabIndex={-1}
+					>
+						Assemblies · {sessionId}
+					</h2>
 					{assemblies.length === 0 ? (
 						<p className={styles.empty}>Nenhuma assembly concluída para a sessão ativa.</p>
 					) : null}
@@ -197,7 +238,13 @@ export function SessionAssemblyResults({ campaignId, capabilities }: Props) {
 			{assemblies.length ? (
 				<div className={styles.list}>
 					{assemblies.map((assembly) => (
-						<article key={assembly.assemblyId} className={styles.item}>
+						<article
+							key={assembly.assemblyId}
+							className={styles.item}
+							data-selected={
+								review?.assemblyId === assembly.assemblyId ? "true" : undefined
+							}
+						>
 							<div>
 								<strong>{assembly.partCount} gravações · {assembly.segmentCount} segmentos</strong>
 								<span>
@@ -217,15 +264,35 @@ export function SessionAssemblyResults({ campaignId, capabilities }: Props) {
 					))}
 				</div>
 			) : null}
-			{review ? (
-				<div className={styles.review} role="status">
-					<strong>Revisão baseada na assembly {short(review.assemblyId)}</strong>
-					<span>
-						{review.segmentCount} segmentos · {review.reviewedSegments} revisados · {review.reviewPercent.toFixed(1)}%
-					</span>
-					<small>
-						Base {short(review.baseTranscriptSha256)} · {review.persistence === "persisted" ? "draft r" + review.draftRevision : "base ainda sem draft"}
-					</small>
+			{review && sessionId ? (
+				<div className={styles.reviewWorkspace} data-session-review-owner="results">
+					<div className={styles.review} role="status">
+						<strong>Revisão baseada na assembly {short(review.assemblyId)}</strong>
+						<span>
+							{review.segmentCount} segmentos · {review.reviewedSegments} revisados ·{" "}
+							{review.reviewPercent.toFixed(1)}%
+						</span>
+						<small>
+							Base {short(review.baseTranscriptSha256)} ·{" "}
+							{review.persistence === "persisted"
+								? "draft r" + review.draftRevision
+								: "base ainda sem draft"}
+						</small>
+					</div>
+					<SessionAssemblyReview
+						bridge={bridge}
+						assembly={{
+							campaignId,
+							sessionId,
+							assemblyId: review.assemblyId,
+						}}
+						review={review}
+						disabled={busy}
+						onChange={(next) =>
+							setReviewSelection({ sessionId, review: next })
+						}
+						onStatus={(message) => setError(message)}
+					/>
 				</div>
 			) : null}
 			{error ? <p className={styles.error} role="alert">{error}</p> : null}
