@@ -465,7 +465,7 @@ def public_bundle_summary(data_root: Path, benchmark_id: str) -> dict[str, Any]:
         "formats": ["json", "txt", "txt-plain", "vtt", "srt"],
         "quality_reference_status": "none",
         "telemetry_available": False,
-        "integrity": "verified",
+        "integrity": "manifest_verified",
     }
 
 
