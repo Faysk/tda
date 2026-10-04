@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import {
 	BridgeError,
+	type BenchmarkPartialResult,
 	type BenchmarkResult,
 	type Capabilities,
 	type CraigSource,
@@ -15,6 +16,10 @@ import {
 	type TranscriptionProfileState,
 } from "./protocol";
 import { LocalBridge } from "./bridge";
+import {
+	BENCHMARK_PROFILE_ORDER,
+	deriveBenchmarkLiveState,
+} from "./benchmark-state";
 import { BenchmarkEvidenceWorkspace } from "./benchmark-evidence";
 import { BenchmarkQualityLab } from "./benchmark-quality";
 import { presentJobEvent, stageLabels } from "./presentation";
@@ -25,12 +30,7 @@ import {
 } from "./submission-model";
 import styles from "./benchmark.module.css";
 
-const PROFILES = [
-	"whisper-turbo",
-	"whisper-detailed",
-	"qwen-fast",
-	"qwen-quality",
-] as const;
+const PROFILES = BENCHMARK_PROFILE_ORDER;
 
 const LABELS: Record<(typeof PROFILES)[number], string> = {
 	"whisper-turbo": "Whisper Turbo",
@@ -38,6 +38,13 @@ const LABELS: Record<(typeof PROFILES)[number], string> = {
 	"qwen-fast": "Qwen Fast",
 	"qwen-quality": "Qwen Quality",
 };
+
+const LIVE_STATUS_LABELS = {
+	pending: "pendente",
+	running: "executando",
+	completed: "concluído",
+	failed: "falhou",
+} as const;
 
 const QWEN_RUNTIME_RECOVERY_REASONS = new Set([
 	"QWEN_RUNTIME_ALIGNMENT_UPGRADE_REQUIRED",
