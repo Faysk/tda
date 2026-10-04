@@ -1077,12 +1077,6 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 			const searchInput = style('input[type="search"]');
 			const participantInput = style("li[data-assembly-segment] input");
 			const textArea = style("li[data-assembly-segment] textarea");
-			const noticeStyle = getComputedStyle(
-				requireElement<HTMLElement>('p[role="status"]'),
-			);
-			const errorStyle = getComputedStyle(
-				requireElement<HTMLElement>('[role="alert"]'),
-			);
 			const divider = style("li[data-assembly-segment]");
 			return {
 				container: {
@@ -1109,18 +1103,6 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 					borderColor: textArea.borderTopColor,
 					borderWidth: textArea.borderTopWidth,
 				},
-				notice: {
-					background: noticeStyle.backgroundColor,
-					color: noticeStyle.color,
-					borderColor: noticeStyle.borderTopColor,
-					borderWidth: noticeStyle.borderTopWidth,
-				},
-				error: {
-					background: errorStyle.backgroundColor,
-					color: errorStyle.color,
-					borderColor: errorStyle.borderTopColor,
-					borderWidth: errorStyle.borderTopWidth,
-				},
 				divider: {
 					borderColor: divider.borderTopColor,
 					borderWidth: divider.borderTopWidth,
@@ -1130,6 +1112,21 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 					document.documentElement.clientWidth,
 			};
 		});
+
+		const stateStyle = async (target: typeof notice) =>
+			target.evaluate((element) => {
+				const style = getComputedStyle(element);
+				return {
+					background: style.backgroundColor,
+					color: style.color,
+					borderColor: style.borderTopColor,
+					borderWidth: style.borderTopWidth,
+				};
+			});
+		const [noticeStyle, errorStyle] = await Promise.all([
+			stateStyle(notice),
+			stateStyle(error),
+		]);
 
 		const scenarioLabel =
 			`${scenario.theme} ${scenario.width}x${scenario.height}`;
@@ -1160,8 +1157,8 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 		visibleColor(computed.search.outlineColor, "search focus outline");
 
 		for (const [label, state] of [
-			["notice", computed.notice],
-			["error", computed.error],
+			["notice", noticeStyle],
+			["error", errorStyle],
 		] as const) {
 			visibleColor(state.background, `${label} background`);
 			visibleColor(state.color, `${label} foreground`);
