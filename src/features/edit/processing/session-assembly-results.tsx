@@ -230,8 +230,6 @@ export function SessionAssemblyResults({
 		);
 	}, [campaignId, enabled, focus, loadReview, refresh]);
 
-	if (!enabled || (!sessionId && assemblies.length === 0 && !focus)) return null;
-
 	const review =
 		reviewSelection?.sessionId === sessionId ? reviewSelection.review : null;
 	const editorOpen =
@@ -250,6 +248,8 @@ export function SessionAssemblyResults({
 		editorRef.current?.focus({ preventScroll: true });
 		editorRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
 	}, [editorOpen, focus]);
+
+	if (!enabled || (!sessionId && assemblies.length === 0 && !focus)) return null;
 
 	return (
 		<section
