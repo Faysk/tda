@@ -21,11 +21,13 @@ export type SessionCampaignMovePlanItem = Readonly<{
 export type SessionCampaignMoveDecisionState = Readonly<{
 	unlinkParticipantEntities: boolean;
 	revokeSessionGrants: boolean;
+	acknowledgeHistoricalPublication: boolean;
 }>;
 
 export const EMPTY_SESSION_CAMPAIGN_MOVE_DECISIONS: SessionCampaignMoveDecisionState = {
 	unlinkParticipantEntities: false,
 	revokeSessionGrants: false,
+	acknowledgeHistoricalPublication: false,
 };
 
 export type SessionCampaignMovePreview = Readonly<{
@@ -87,7 +89,11 @@ export function sessionCampaignMovePlanHeading(
 
 export function requiredSessionCampaignMoveDecisions(
 	preview: SessionCampaignMovePreview | null,
-): Readonly<{ unlinkParticipantEntities: boolean; revokeSessionGrants: boolean }> {
+): Readonly<{
+	unlinkParticipantEntities: boolean;
+	revokeSessionGrants: boolean;
+	acknowledgeHistoricalPublication: boolean;
+}> {
 	const actions = new Set(
 		(preview?.plan ?? [])
 			.filter((item) => item.classification === "decision")
@@ -96,6 +102,9 @@ export function requiredSessionCampaignMoveDecisions(
 	return {
 		unlinkParticipantEntities: actions.has("unlink_participant_entities"),
 		revokeSessionGrants: actions.has("revoke_session_grants"),
+		acknowledgeHistoricalPublication: actions.has(
+			"acknowledge_historical_publication",
+		),
 	};
 }
 
