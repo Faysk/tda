@@ -349,8 +349,9 @@ it("presents Qwen post-ASR track context truthfully", () => {
 			data: { track: 2, total_tracks: 4, speaker: "Bob", stage: "energy_analysis" },
 		}),
 	).toEqual({ title: "Analisando energia do arquivo 2 de 4 — Bob." });
+});
 
-	it("explains Benchmark profile-local Qwen failure without suggesting manual Quality rerun", () => {
+it("explains Benchmark profile-local Qwen failure without suggesting manual Quality rerun", () => {
 		const presented = presentJobEvent({
 			seq: 20,
 			attempt: 1,
@@ -408,5 +409,3 @@ it("presents Qwen post-ASR track context truthfully", () => {
 			}).detail,
 		).toContain("3 perfis concluídos");
 	});
-
-});
