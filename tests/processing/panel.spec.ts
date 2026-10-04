@@ -1327,6 +1327,21 @@ test("idle Full HD keeps the essential composer and recent result in one viewpor
 	await expect(advanced).toBeFocused();
 	await page.keyboard.press("Enter");
 	await expect(composer.getByLabel("Contexto opcional")).toBeVisible();
+	const advancedDetails = advanced.locator("..");
+	const [composerBox, advancedBox, contextBox, glossaryBox] = await Promise.all([
+		composer.boundingBox(),
+		advancedDetails.boundingBox(),
+		composer.getByLabel("Contexto opcional").boundingBox(),
+		composer.getByLabel("Glossário opcional").boundingBox(),
+	]);
+	expect(composerBox).not.toBeNull();
+	expect(advancedBox).not.toBeNull();
+	if (composerBox && advancedBox)
+		expect(advancedBox.width).toBeGreaterThan(composerBox.width * 0.85);
+	expect(contextBox).not.toBeNull();
+	expect(glossaryBox).not.toBeNull();
+	if (contextBox && glossaryBox)
+		expect(Math.abs(contextBox.y - glossaryBox.y)).toBeLessThanOrEqual(2);
 	await advanced.focus();
 	await page.keyboard.press("Enter");
 	await expect(composer.getByLabel("Contexto opcional")).not.toBeVisible();
