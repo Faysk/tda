@@ -16,6 +16,7 @@ import {
 } from "./protocol";
 import { LocalBridge } from "./bridge";
 import { BenchmarkEvidenceWorkspace } from "./benchmark-evidence";
+import { BenchmarkQualityLab } from "./benchmark-quality";
 import { presentJobEvent, stageLabels } from "./presentation";
 import {
 	formatSubmissionBytes,
@@ -146,6 +147,9 @@ function formatBenchmarkHistoryDate(value: string): string {
 function ResultCard({
 	result,
 	updatedAt,
+	bridge,
+	connected,
+	qualityEnabled,
 	onCompare,
 	onFiles,
 	onExport,
@@ -153,6 +157,9 @@ function ResultCard({
 }: Readonly<{
 	result: BenchmarkResult;
 	updatedAt: string;
+	bridge: LocalBridge;
+	connected: boolean;
+	qualityEnabled: boolean;
 	onCompare: () => void;
 	onFiles: () => void;
 	onExport: () => void;
@@ -187,7 +194,6 @@ function ResultCard({
 						? `bundle ${formatSubmissionBytes(result.bundleSizeBytes ?? 0)} · evidência preservada`
 						: "receipt performance-only · transcrições não preservadas"}
 				</span>
-				<span>Qualidade: sem referência humana</span>
 			</div>
 			{hasEvidence ? (
 				<div className={styles.activeActions}>
@@ -247,13 +253,6 @@ function ResultCard({
 						</tbody>
 					</table>
 				</div>
-				<div className={styles.qualityNotice}>
-					<strong>Qualidade não medida.</strong>
-					<span>
-						Sem transcrição humana de referência, WER/omissões/inserções não são
-						calculados e nenhum perfil recebe vencedor automático.
-					</span>
-				</div>
 				<div className={styles.receiptFacts}>
 					<span>
 						Integridade: {hasEvidence
@@ -270,7 +269,7 @@ function ResultCard({
 							? formatSubmissionBytes(result.bundleSizeBytes ?? 0)
 							: "não preservado"}
 					</span>
-					<span>Referência de qualidade: sem referência humana</span>
+					<span>Referência de qualidade: {qualityEnabled ? "gerida localmente abaixo" : "contrato indisponível"}</span>
 				</div>
 				<div className={styles.activeActions}>
 					<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
@@ -278,6 +277,12 @@ function ResultCard({
 					</Button>
 				</div>
 			</details>
+			<BenchmarkQualityLab
+				result={result}
+				bridge={bridge}
+				connected={connected}
+				enabled={qualityEnabled}
+			/>
 		</article>
 	);
 }
@@ -425,6 +430,11 @@ export function ProcessingBenchmark({
 	const benchmarkContractSupported =
 		capabilities?.capabilities.includes("processing.benchmark.runtime-readiness-v2") ??
 		false;
+	const benchmarkQualitySupported = Boolean(
+		capabilities?.capabilities.includes("processing.benchmark.evidence-v1") &&
+			capabilities.capabilities.includes("processing.benchmark.reference-v1") &&
+			capabilities.capabilities.includes("processing.benchmark.quality-v1"),
+	);
 	const readyCount = benchmarkContractSupported
 		? profileStates.filter((item) => item?.benchmarkReady).length
 		: 0;
@@ -1350,6 +1360,9 @@ export function ProcessingBenchmark({
 								key={job.id}
 								result={results[job.id]!}
 								updatedAt={job.updated_at}
+								bridge={bridge}
+								connected={connected}
+								qualityEnabled={benchmarkQualitySupported}
 								onCompare={() =>
 									setEvidenceView({
 										result: results[job.id]!,
