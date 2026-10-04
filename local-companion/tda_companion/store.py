@@ -2373,3 +2373,74 @@ class Store:
                     level="error",
                     attempt=attempt,
                 )
+
+    def complete_partial_benchmark(self, job_id, attempt, result):
+        """Persist a terminal incomplete Benchmark without minting a 4/4 bundle."""
+        if (
+            not isinstance(result, dict)
+            or result.get("schema_version") != "tda_processing_benchmark_partial_v1"
+            or result.get("kind") != "benchmark.craig"
+            or result.get("status") != "partial"
+        ):
+            raise Conflict("BENCHMARK_PARTIAL_RESULT_INVALID")
+        try:
+            encoded = json.dumps(
+                result,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        except (TypeError, ValueError) as exc:
+            raise Conflict("BENCHMARK_PARTIAL_RESULT_INVALID") from exc
+
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if not row or row["status"] != "running" or row["attempt"] != attempt:
+                return False
+            body = json.loads(row["body"])
+            if body.get("kind") != "benchmark.craig":
+                raise Conflict("BENCHMARK_PARTIAL_RESULT_KIND_INVALID")
+            if row["completed"] != body["units"]:
+                raise Conflict("BENCHMARK_PARTIAL_PROGRESS_INCOMPLETE")
+            attempted = result.get("attempted_count")
+            completed = result.get("completed_count")
+            failed = result.get("failed_count")
+            if (
+                isinstance(attempted, bool)
+                or not isinstance(attempted, int)
+                or attempted != body["units"]
+                or isinstance(completed, bool)
+                or not isinstance(completed, int)
+                or completed < 0
+                or completed >= attempted
+                or isinstance(failed, bool)
+                or not isinstance(failed, int)
+                or failed != attempted - completed
+                or failed < 1
+            ):
+                raise Conflict("BENCHMARK_PARTIAL_RESULT_INVALID")
+
+            now = utc_now()
+            changed = db.execute(
+                "UPDATE jobs SET status='failed',stage='benchmark_partial',"
+                "error='BENCHMARK_PARTIAL',error_recoverable=0,result=?,"
+                "attempt_finished_at=?,stage_started_at=?,updated=? "
+                "WHERE id=? AND status='running' AND attempt=?",
+                (encoded, now, now, now, job_id, attempt),
+            ).rowcount
+            if changed:
+                self.event(
+                    db,
+                    job_id,
+                    "BENCHMARK_PARTIAL",
+                    {
+                        "attempted_count": attempted,
+                        "completed_count": completed,
+                        "failed_count": failed,
+                    },
+                    level="warning",
+                    attempt=attempt,
+                )
+            return bool(changed)
+
