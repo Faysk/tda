@@ -39,7 +39,7 @@ type PendingPublication = Readonly<{
 
 type Props = Readonly<{
 	bridge: LocalBridge;
-	assembly: SessionAssembly;
+	assembly: Pick<SessionAssembly, "campaignId" | "sessionId" | "assemblyId">;
 	review: SessionAssemblyReviewSummary;
 	disabled?: boolean;
 	onChange: (review: SessionAssemblyReviewSummary) => void;
