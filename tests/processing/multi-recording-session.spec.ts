@@ -143,8 +143,10 @@ async function installMultiRecordingRoutes(
 				source_segment_id: `seg-${index + 1}`,
 				track_number: 1,
 				participant_id: "9".repeat(32),
-				start: index * 2,
-				end: index * 2 + 1,
+				start:
+					options.reviewSegmentCount === undefined ? index * 300 : index * 2,
+				end:
+					(options.reviewSegmentCount === undefined ? index * 300 : index * 2) + 1,
 				...(options.reviewAbsoluteTimes === undefined
 					? {}
 					: absolute
