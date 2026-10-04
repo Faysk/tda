@@ -164,11 +164,10 @@ def _browser_route_allowed(method: str, path: str) -> bool:
         return method in {"GET", "POST"}
     if _BROWSER_SESSION_ASSEMBLY_PATH.fullmatch(path) is not None:
         return method in {"GET", "POST"}
+    if _BROWSER_BENCHMARK_REFERENCE_WRITE.fullmatch(path) is not None:
+        return method == "POST"
     if _BROWSER_BENCHMARK_PATH.fullmatch(path) is not None:
-        return method == "GET" or (
-            method == "POST"
-            and _BROWSER_BENCHMARK_REFERENCE_WRITE.fullmatch(path) is not None
-        )
+        return method == "GET"
     match = _BROWSER_JOB_PATH.fullmatch(path)
     if match is None:
         return False
