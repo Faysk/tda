@@ -76,7 +76,7 @@
 .selectField:focus-within,
 .sortField select:focus-visible {
 	border-color: var(--ds-accent);
-	box-shadow: var(--ds-control-focus-ring);
+	box-shadow: 0 0 0 2px var(--ds-control-focus-ring);
 }
 
 .selectField {
@@ -175,7 +175,6 @@
 .rowAction:focus-visible {
 	outline: 2px solid var(--ds-accent);
 	outline-offset: 3px;
-	box-shadow: var(--ds-control-focus-ring);
 }
 
 .viewToggle button.activeView {
@@ -891,7 +890,6 @@
 .campaignLinks a:focus-visible {
 	outline: 2px solid var(--ds-accent);
 	outline-offset: 2px;
-	box-shadow: var(--ds-control-focus-ring);
 }
 
 .toolbarWithCampaign {
