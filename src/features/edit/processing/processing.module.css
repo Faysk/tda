@@ -1575,7 +1575,7 @@
 		min-height: 0;
 	}
 
-	.diagnosticsEventPane .log {
+	.diagnosticsEventPane .liveLogViewport {
 		min-height: 230px;
 		max-height: min(58dvh, 640px);
 		overscroll-behavior: contain;
@@ -1642,7 +1642,7 @@
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.diagnosticsEventPane .log {
+	.diagnosticsEventPane .liveLogViewport {
 		max-height: 320px;
 	}
 
@@ -1690,20 +1690,57 @@
 
 .liveLogExplorer {
 	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
 	gap: 8px;
+	min-width: 0;
 	min-height: 0;
 }
+
+.liveLogControls,
+.liveLogFooter {
+	display: grid;
+	min-width: 0;
+	min-height: 0;
+}
+
+.liveLogControls {
+	gap: 8px;
+}
+
+.liveLogControls > [role="status"] {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.4;
+}
+
+.liveLogFooter {
+	gap: 6px;
+}
+
+.liveLogFooter:empty {
+	display: none;
+}
+
 .liveLogExplorer .logHeader {
 	align-items: flex-start;
+	flex-wrap: wrap;
 }
+
 .logToolbar {
 	display: flex;
+	min-width: 0;
 	align-items: center;
 	gap: 6px;
 	flex-wrap: wrap;
 }
+
+.logToolbar > label {
+	min-width: min(220px, 100%);
+	flex: 1 1 240px;
+}
+
 .logToolbar .logSearch,
-.logToolbar select,
 .logToolbar button {
 	min-height: 32px;
 	border: 1px solid var(--ds-control-border);
@@ -1713,22 +1750,38 @@
 	font: inherit;
 	font-size: 0.72rem;
 }
+
 .logToolbar .logSearch {
-	min-width: min(260px, 70vw);
+	width: 100%;
+	min-width: 0;
 	padding-inline: 8px;
 }
+
 .logToolbar .logSelect {
 	width: auto;
+	max-width: 100%;
 	min-width: 128px;
 	flex: 0 1 180px;
 }
-.logToolbar select,
+
 .logToolbar button {
+	max-width: 100%;
+	min-width: 0;
 	padding-inline: 8px;
 }
-.liveLogExplorer .log {
-	max-height: min(52vh, 620px);
+
+.liveLogViewport {
+	min-height: 0;
+	max-height: min(52dvh, 620px);
 	overflow: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
+}
+
+.liveLogExplorer .log {
+	min-height: 0;
+	max-height: none;
+	overflow: visible;
 }
 .liveLogExplorer .logEntry {
 	width: 100%;
@@ -2013,10 +2066,12 @@
 
 .jobDiagnosticsShell {
 	display: grid;
-	grid-template-rows: auto auto auto auto auto minmax(180px, 1fr) auto;
+	grid-template-rows: auto auto auto auto auto minmax(280px, 1fr) auto;
 	gap: 10px;
 	height: 100%;
 	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
 	padding: 14px;
 	font-family: var(--ds-font-ui);
 }
@@ -2111,8 +2166,10 @@
 }
 
 .jobDiagnosticsLog {
+	display: grid;
+	grid-template-rows: minmax(0, 1fr);
 	min-height: 0;
-	overflow: hidden;
+	overflow: visible;
 	padding: 10px;
 	border: 1px solid var(--ds-border-subtle);
 	border-radius: var(--ds-radius-md);
@@ -2120,16 +2177,25 @@
 }
 
 .jobDiagnosticsLog > .liveLogExplorer {
-	height: 100%;
+	height: auto;
 	min-height: 0;
-	grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.jobDiagnosticsLog .liveLogViewport {
+	min-height: 64px;
+	max-height: none;
+	overflow: auto;
+	overscroll-behavior: auto;
 }
 
 .jobDiagnosticsLog .log {
-	max-height: none;
 	min-height: 0;
-	height: 100%;
-	overscroll-behavior: contain;
+	max-height: none;
+	overflow: visible;
+}
+
+.jobDiagnosticsLog .logInspector {
+	margin-top: 8px;
 }
 
 .jobDiagnosticsExecution,
@@ -2162,7 +2228,7 @@
 	}
 
 	.jobDiagnosticsShell {
-		grid-template-rows: auto auto auto auto auto minmax(180px, 1fr) auto;
+		grid-template-rows: auto auto auto auto auto minmax(280px, 1fr) auto;
 		padding: 10px;
 	}
 
@@ -2179,22 +2245,6 @@
 
 	.jobDiagnosticsLog {
 		padding: 8px;
-	}
-}
-
-@media (max-height: 700px) {
-	.jobDiagnosticsDialog {
-		height: 100dvh;
-	}
-
-	.jobDiagnosticsShell {
-		grid-template-rows: auto auto auto auto auto minmax(220px, auto) auto;
-		overflow-y: auto;
-		overscroll-behavior: contain;
-	}
-
-	.jobDiagnosticsLog {
-		min-height: 220px;
 	}
 }
 
