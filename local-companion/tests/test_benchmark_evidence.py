@@ -776,7 +776,7 @@ def test_timing_matching_does_not_use_speaker_as_pairing_priority():
         source_sha256="a" * 64,
         language="pt",
         engine=TranscriptEngine(
-            engine="whisper",
+            engine="faster-whisper",
             model="model",
             profile="whisper-turbo",
             device="cuda:0",
@@ -807,7 +807,7 @@ def test_timing_matching_does_not_use_speaker_as_pairing_priority():
         stats=stats_for_tracks(
             (track,),
             processing_seconds=1.0,
-            session_duration_seconds=300.0,
+            turn_count=2,
         ),
     )
     timing = _timing_metrics(
