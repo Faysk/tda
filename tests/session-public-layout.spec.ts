@@ -100,12 +100,16 @@ async function chooseArchiveOptionByValue(
 	value: string,
 ) {
 	const listbox = await openArchiveSelect(scope, name);
-	await listbox.getByRole("option").filter({ has: listbox.locator(`[data-never-match="${value}"]`) }).count().catch(() => 0);
-	await listbox.locator('[role="option"]').evaluateAll((nodes, expected) => {
-		const match = nodes.find((node) => node.getAttribute("data-value") === expected);
-		if (!(match instanceof HTMLElement)) throw new Error(`Select option ${expected} not found`);
-		match.click();
-	}, value);
+	const options = listbox.getByRole("option");
+	const count = await options.count();
+	for (let index = 0; index < count; index += 1) {
+		const option = options.nth(index);
+		if ((await option.getAttribute("data-value")) === value) {
+			await option.click();
+			return;
+		}
+	}
+	throw new Error(`Select option ${value} not found in ${name}`);
 }
 
 test("public Sessions keeps archive value in the first viewport and reader measure healthy", async ({
