@@ -1043,19 +1043,18 @@ export function ProcessingSubmission({
 									<span>A saída será uma única transcrição contínua da sessão.</span>
 								</div>
 							</div>
-							<div
+							<ul
 								className={styles.sessionSummary}
-								role="list"
 								aria-label="Resumo da montagem da sessão"
 							>
-								<span role="listitem">✓ Ordem da sessão definida</span>
-								<span role="listitem">
+								<li>✓ Ordem da sessão definida</li>
+								<li>
 									◐ Horário real só é usado quando o Craig fornece um horário confiável
-								</span>
-								<span role="listitem">
+								</li>
+								<li>
 									✓ Gap conhecido é informação; overlap confirmado pode exigir decisão
-								</span>
-							</div>
+								</li>
+							</ul>
 							<p className={styles.sessionOrderHelp}>
 								A sequência abaixo é sua ordem editorial. Quando não houver horário confiável,
 								 ela será preservada. Se horários Craig confiáveis indicarem outra ordem, o
