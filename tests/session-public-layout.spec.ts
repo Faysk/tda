@@ -689,11 +689,12 @@ test("long session summaries expose compact stable section navigation without bu
 		await expect(disclosure).not.toHaveAttribute("open", "");
 		await disclosure.locator("summary").click();
 
-		const select = navigation.getByRole("combobox", {
-			name: "Ir para uma seção",
-		});
+		const select = navigation.getByLabel("Ir para uma seção");
 		await expect(select).toBeVisible();
-		expect(await select.locator("option").count()).toBeGreaterThan(12);
+		await select.click();
+		const outlineListbox = page.getByRole("listbox", { name: "Ir para uma seção" });
+		expect(await outlineListbox.getByRole("option").count()).toBeGreaterThan(12);
+		await page.keyboard.press("Escape");
 
 		const repeated = page.getByRole("heading", {
 			name: "Capítulo repetido",
@@ -706,7 +707,7 @@ test("long session summaries expose compact stable section navigation without bu
 		expect(firstId).not.toBe(secondId);
 		if (!secondId) throw new Error("Second repeated heading is missing its stable ID");
 
-		await select.selectOption(secondId);
+		await selectThemedOption(page, select, secondId);
 		await expect(page).toHaveURL(new RegExp(`#${secondId}$`, "u"));
 		await expect(repeated.nth(1)).toBeInViewport();
 		await expect(repeated.nth(1)).toBeFocused();
