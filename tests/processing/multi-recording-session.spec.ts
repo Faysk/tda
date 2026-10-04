@@ -79,6 +79,7 @@ type FixtureOptions = Readonly<{
 		| Readonly<{ start: string; end: string }>
 		| null
 	)[];
+	reviewSegmentCount?: number;
 	failReviewSaveOnce?: boolean;
 	untrustedTimeline?: boolean;
 	timelineDeriveErrorCode?: string | null;
@@ -123,20 +124,25 @@ async function installMultiRecordingRoutes(
 	let timelineDeriveCount = 0;
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
 
-	const baseReviewRows = () =>
-		attached.map((sourceId, index) => {
+	const baseReviewRows = () => {
+		const count = options.reviewSegmentCount ?? attached.length;
+		return Array.from({ length: count }, (_, index) => {
+			const attachedIndex = attached.length ? index % attached.length : 0;
+			const sourceId = attached[attachedIndex] ?? SOURCE_IDS[0];
 			const absolute = options.reviewAbsoluteTimes?.[index];
 			return {
 				assembly_segment_id:
-					index === 0 ? SEGMENT_ID : (index + 10).toString(16).repeat(64),
-				part_id: PART_IDS[index],
+					index === 0
+						? SEGMENT_ID
+						: (index + 10).toString(16).padStart(64, "0").slice(-64),
+				part_id: PART_IDS[attachedIndex] ?? PART_IDS[0],
 				source_id: sourceId,
 				run_id: `run-${SOURCE_IDS.indexOf(sourceId) + 1}`,
 				source_segment_id: `seg-${index + 1}`,
 				track_number: 1,
 				participant_id: "9".repeat(32),
-				start: index * 300,
-				end: index * 300 + 1,
+				start: index * 2,
+				end: index * 2 + 1,
 				...(options.reviewAbsoluteTimes === undefined
 					? {}
 					: absolute
@@ -157,6 +163,7 @@ async function installMultiRecordingRoutes(
 				reviewed: false,
 			};
 		});
+	};
 	const currentReviewRows = () => reviewRows ?? baseReviewRows();
 	const reviewWordCount = () =>
 		currentReviewRows().reduce((total, row) => {
@@ -199,6 +206,57 @@ async function installMultiRecordingRoutes(
 			segments: rows,
 		};
 	};
+
+
+	const assemblyResponse = () => ({
+		schema_version: "tda_session_assembly_v1",
+		assembly_id: ASSEMBLY_ID,
+		status: "completed",
+		campaign_id: CAMPAIGN,
+		session_id: SESSION,
+		canonicalization_version: "tda_session_assembly_canonical_v2",
+		timing_policy_version: "tda_session_timeline_v2",
+		segment_boundary_policy: "segment_start_owner_v1",
+		inputs_sha256: ASSEMBLY_ID,
+		timeline_fingerprint_sha256: "f".repeat(64),
+		timeline_strategy: sequenceConfirmed
+			? "user_confirmed_sequence"
+			: "trusted_absolute",
+		wall_clock: options.untrustedTimeline ? "unavailable" : "trusted",
+		unknown_interval_count:
+			sequenceConfirmed && options.untrustedTimeline
+				? Math.max(0, attached.length - 1)
+				: 0,
+		participant_mapping_sha256: "8".repeat(64),
+		participant_approval_blocked: false,
+		transcript_artifact: "transcript.json",
+		transcript_sha256: TRANSCRIPT_SHA,
+		transcript_size_bytes: 512,
+		segment_count: options.reviewSegmentCount ?? attached.length,
+		created_at: NOW,
+		parts: attached.map((sourceId, index) => ({
+			part_id: PART_IDS[index],
+			source_id: sourceId,
+			source_sha256: SOURCE_SHAS[SOURCE_IDS.indexOf(sourceId)],
+			run_id: selected.get(sourceId),
+			transcript_sha256: runFor(
+				sourceId,
+				SOURCE_IDS.indexOf(sourceId),
+			).transcript_sha256,
+			ordinal: index,
+			session_offset_seconds: index * 300,
+			trim_start_seconds: 0,
+			trim_end_seconds: null,
+			overlap_resolution: null,
+			overlap_boundary_seconds: null,
+			physical_interval_state:
+				index === 0
+					? "first"
+					: sequenceConfirmed && options.untrustedTimeline
+						? "unknown"
+						: "trusted_absolute",
+		})),
+	});
 
 
 	const sourceTiming = (sourceId: string) => {
@@ -763,6 +821,15 @@ async function installMultiRecordingRoutes(
 						]
 					: [],
 			});
+		}
+		if (
+			path ===
+				`/session-workspaces/${CAMPAIGN}/${SESSION}/assemblies/${ASSEMBLY_ID}` &&
+			request.method() === "GET"
+		) {
+			return assemblyBuilt
+				? json(route, assemblyResponse())
+				: json(route, { error: { code: "SESSION_ASSEMBLY_NOT_FOUND" } }, 404);
 		}
 		if (
 			path === `/session-workspaces/${CAMPAIGN}/${SESSION}/assemblies` &&
