@@ -61,6 +61,7 @@ export function SessionAssemblyResults({
 	const reviewHeading = useRef<HTMLHeadingElement>(null);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [status, setStatus] = useState<string | null>(null);
 
 	const refresh = useCallback(async () => {
 		if (!enabled) return;
@@ -136,8 +137,6 @@ export function SessionAssemblyResults({
 		};
 	}, [enabled, refresh]);
 
-	if (!enabled || (!sessionId && assemblies.length === 0)) return null;
-
 	const review =
 		reviewSelection?.sessionId === sessionId ? reviewSelection.review : null;
 
@@ -209,6 +208,8 @@ export function SessionAssemblyResults({
 		if (!review || !focusReview || review.assemblyId !== focusReview.assemblyId) return;
 		requestAnimationFrame(() => reviewHeading.current?.focus({ preventScroll: false }));
 	}, [focusReview, review]);
+
+	if (!enabled || (!sessionId && assemblies.length === 0)) return null;
 
 	return (
 		<section
@@ -291,10 +292,14 @@ export function SessionAssemblyResults({
 						onChange={(next) =>
 							setReviewSelection({ sessionId, review: next })
 						}
-						onStatus={(message) => setError(message)}
+						onStatus={(message) => {
+							setError(null);
+							setStatus(message);
+						}}
 					/>
 				</div>
 			) : null}
+			{status ? <p className={styles.status} role="status">{status}</p> : null}
 			{error ? <p className={styles.error} role="alert">{error}</p> : null}
 		</section>
 	);
