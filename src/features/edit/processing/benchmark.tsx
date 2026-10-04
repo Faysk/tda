@@ -1061,6 +1061,13 @@ export function ProcessingBenchmark({
 		? deriveBenchmarkAttemptUiState(active, activeEvents)
 		: null;
 	const currentProfile = activeAttemptState?.currentProfile ?? null;
+	const activeUncertainProfile =
+		activeAttemptState?.profiles.find(
+			(profile) =>
+				profile.status === "failed" &&
+				profile.errorCode === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN" &&
+				profile.continuation === "continue",
+		) ?? null;
 	const latestEvent = activeEvents.at(-1) ?? null;
 	const latestActivity = latestEvent ? presentJobEvent(latestEvent) : null;
 
@@ -1453,6 +1460,11 @@ export function ProcessingBenchmark({
 							</li>
 						))}
 					</ol>
+					{activeUncertainProfile ? (
+						<p className={styles.partialExplanation}>
+							O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. O Benchmark registrou a falha deste perfil e continuará automaticamente com os perfis restantes.
+						</p>
+					) : null}
 					<div className={styles.activeActions}>
 						<Button
 							type="button"
