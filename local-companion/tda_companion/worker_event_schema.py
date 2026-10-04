@@ -299,7 +299,7 @@ _SECONDS_FIELDS = frozenset(
     }
 )
 _SIGNED_SECONDS_FIELDS = frozenset({"relative_start_seconds", "relative_end_seconds"})
-_TOKEN_FIELDS = frozenset({"profile", "device", "compute_type"})
+_TOKEN_FIELDS = frozenset({"profile", "device", "compute_type", "strategy"})
 _RUNTIME_FIELDS = frozenset({"runtime_version", "source_runtime_version"})
 _HASH_FIELDS = frozenset({"worker_sha256", "source_signature_sha256"})
 _DBFS_FIELDS = frozenset(
