@@ -595,6 +595,33 @@
 }
 
 
+.multiZipNotice {
+	display: grid;
+	gap: 5px;
+	padding: 9px 10px;
+	border: 1px solid color-mix(in srgb, var(--ds-accent) 24%, var(--ds-border-subtle));
+	border-radius: var(--ds-radius-md);
+	background: color-mix(in srgb, var(--ds-accent-muted) 48%, var(--ds-surface));
+}
+
+.multiZipNotice > strong {
+	font-size: 0.8rem;
+}
+
+.multiZipNotice > span,
+.multiZipFacts span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+	line-height: 1.4;
+}
+
+.multiZipFacts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+}
+
+
 .fileList {
 	display: grid;
 	gap: 6px;
@@ -615,11 +642,23 @@
 	background: color-mix(in srgb, var(--ds-canvas-subtle) 76%, transparent);
 }
 
-.fileList li > div {
+.fileList li > div:first-child {
 	display: grid;
 	min-width: 0;
 	gap: 2px;
 }
+
+.fileActions {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 4px;
+}
+
+.fileActions :global(.ds-action) {
+	min-width: 34px;
+}
+
 
 .fileList strong,
 .fileList span,
@@ -687,7 +726,18 @@
 		flex-direction: column;
 	}
 
-	.fileList :global(.ds-action) {
+	.fileActions {
+		display: grid;
+		grid-template-columns: auto auto minmax(0, 1fr);
 		width: 100%;
+	}
+
+	.fileActions :global(.ds-action) {
+		width: 100%;
+	}
+
+	.multiZipFacts {
+		display: grid;
+		gap: 3px;
 	}
 }
