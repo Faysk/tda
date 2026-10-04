@@ -28,6 +28,7 @@ on:
       - 'local-companion/tda_companion/attempt_fence.py'
       - 'local-companion/tda_companion/asr_worker.py'
       - 'local-companion/tda_companion/benchmark_bundles.py'
+      - 'local-companion/tda_companion/benchmark_diagnostics.py'
       - 'local-companion/tda_companion/worker_protocol.py'
   push:
     branches: [main, Preview]
@@ -55,6 +56,7 @@ on:
       - 'local-companion/tda_companion/attempt_fence.py'
       - 'local-companion/tda_companion/asr_worker.py'
       - 'local-companion/tda_companion/benchmark_bundles.py'
+      - 'local-companion/tda_companion/benchmark_diagnostics.py'
       - 'local-companion/tda_companion/worker_protocol.py'
 
 concurrency:
