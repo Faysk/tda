@@ -24,9 +24,9 @@ def _artifact(version: str) -> dict[str, str]:
     }
 
 
-def test_qwen_1_0_17_remains_valid_for_transcription_but_not_benchmark():
+def test_qwen_1_0_18_remains_valid_for_transcription_but_not_benchmark():
     assert MIN_COMPATIBLE_QWEN_RUNTIME_VERSION == "1.0.12"
-    assert MIN_BENCHMARK_QWEN_RUNTIME_VERSION == "1.0.18"
+    assert MIN_BENCHMARK_QWEN_RUNTIME_VERSION == "1.0.19"
     assert qwen_runtime_version_compatible("1.0.17") is True
     assert qwen_runtime_benchmark_compatible("1.0.17") is False
     assert qwen_runtime_benchmark_compatible("1.0.18") is True
