@@ -408,7 +408,9 @@ export function SessionAssemblyReview({
 			<header className={styles.header}>
 				<div>
 					<span className={styles.eyebrow}>Revisão contínua</span>
-					<h3>Transcrição da sessão</h3>
+					<h3 data-assembly-review-focus-target="true" tabIndex={-1}>
+						Transcrição da sessão
+					</h3>
 					<p>
 						{baseline.segmentCount.toLocaleString("pt-BR")} falas ·{" "}
 						{baseline.reviewedSegments.toLocaleString("pt-BR")} revisadas · Assembly{" "}
