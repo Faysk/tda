@@ -499,6 +499,15 @@ export function SessionAssemblyReview({
 						size="sm"
 						variant="tertiary"
 						disabled={page === 0 || hasOpenSegmentEditor}
+						onClick={() => changePage(0)}
+					>
+						Primeira
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant="tertiary"
+						disabled={page === 0 || hasOpenSegmentEditor}
 						onClick={() => changePage(page - 1)}
 					>
 						Página anterior
@@ -514,6 +523,15 @@ export function SessionAssemblyReview({
 						onClick={() => changePage(page + 1)}
 					>
 						Próxima página
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant="tertiary"
+						disabled={page >= pageCount - 1 || hasOpenSegmentEditor}
+						onClick={() => changePage(pageCount - 1)}
+					>
+						Última
 					</Button>
 				</nav>
 			</div>
