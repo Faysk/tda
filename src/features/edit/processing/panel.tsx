@@ -34,6 +34,7 @@ import { JobDiagnosticsInspector } from "./job-diagnostics-inspector";
 import { LocalReviewWorkspace } from "./local-review";
 import { serializeLocalRunKey } from "./local-run-key";
 import { SessionAssemblyResults } from "./session-assembly-results";
+import type { SessionAssembly } from "./session-composer-protocol";
 import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
 import { ProcessingQueueView } from "./queue-view";
@@ -346,6 +347,9 @@ export function ProcessingPanel({
 	const [clockNow, setClockNow] = useState(() => Date.now());
 	const [customActivityBarks, setCustomActivityBarks] = useState<readonly ActivityBark[]>([]);
 	const [resultFocus, setResultFocus] = useState<Readonly<{ key: string; requestId: number }> | null>(null);
+	const [sessionAssemblyFocus, setSessionAssemblyFocus] = useState<
+		Readonly<{ sessionId: string; assemblyId: string; requestId: number }> | null
+	>(null);
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
@@ -542,6 +546,15 @@ export function ProcessingPanel({
 		setView(next);
 		if (leavingDiagnostics) void controller.observeJob(null);
 		if (next === "results") void controller.refresh("results");
+	}
+
+	function openSessionAssemblyReview(assembly: SessionAssembly) {
+		setSessionAssemblyFocus((current) => ({
+			sessionId: assembly.sessionId,
+			assemblyId: assembly.assemblyId,
+			requestId: (current?.requestId ?? 0) + 1,
+		}));
+		activateView("results");
 	}
 
 	async function openJobResult(job: LocalJob): Promise<string | null> {
@@ -1078,6 +1091,7 @@ export function ProcessingPanel({
 									system={state.system}
 									recoveryScope={activityPackScope}
 									onDraftStateChange={setSubmissionDraftActive}
+									onReviewAssembly={openSessionAssemblyReview}
 								/>
 							</fieldset>
 						</div>
@@ -1210,6 +1224,7 @@ export function ProcessingPanel({
 							<SessionAssemblyResults
 								campaignId={campaignId}
 								capabilities={state.capabilities.capabilities}
+								focus={sessionAssemblyFocus}
 							/>
 						) : null}
 						{unboundRuns.length ? (
