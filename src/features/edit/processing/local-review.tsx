@@ -1496,6 +1496,7 @@ export function LocalReviewWorkspace({
 								]}
 								onChange={setProfileFilter}
 								ariaLabel="Filtrar resultados por perfil"
+								compact
 							/>
 						</label>
 						<label>
@@ -1511,6 +1512,7 @@ export function LocalReviewWorkspace({
 								]}
 								onChange={setReviewFilter}
 								ariaLabel="Filtrar por revisão"
+								compact
 							/>
 						</label>
 						<label>
@@ -1524,6 +1526,7 @@ export function LocalReviewWorkspace({
 								]}
 								onChange={(value) => setSortOrder(value as "newest" | "oldest" | "fastest")}
 								ariaLabel="Ordenar resultados"
+								compact
 							/>
 						</label>
 					</div>
