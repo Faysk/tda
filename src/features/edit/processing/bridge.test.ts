@@ -200,6 +200,178 @@ describe("processing benchmark contract", () => {
 		expect(JSON.stringify(result)).not.toContain("segments\":");
 	});
 
+	it("parses a partial benchmark without pretending it is a complete four-profile bundle", () => {
+		const benchmarkId = "benchmark-benchmark-job-a1";
+		const sampleIdentity = "b".repeat(64);
+		const profile = (profileId: string, engine: "whisper" | "qwen3") => ({
+			kind: "benchmark.profile",
+			schema_version: "tda_benchmark_profile_v1",
+			benchmark_id: benchmarkId,
+			sample_identity_sha256: sampleIdentity,
+			transcript_sha256: "e".repeat(64),
+			transcript_size_bytes: 4096,
+			artifact_available: true,
+			profile_id: profileId,
+			engine,
+			model: "model",
+			model_revision: "revision",
+			device: "cuda",
+			compute_type: "float16",
+			alignment: "native",
+			sample_seconds: 300,
+			audio_work_seconds: 300,
+			session_duration_seconds: 300,
+			processing_timing_version: "engine_processing_v1",
+			processing_seconds: 30,
+			rtf: 0.1,
+			word_count: 10,
+			segment_count: 2,
+			track_count: 1,
+			warning_count: 0,
+			execution_lineage: {
+				schema_version: "tda_execution_lineage_v1",
+				companion_version: "0.3.18",
+				runtime_family: engine === "whisper" ? "whisper" : "qwen",
+				runtime_version: engine === "whisper" ? "1.1.10" : "1.0.19",
+				runtime_artifact: {
+					runtime_id:
+						engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
+					version: engine === "whisper" ? "1.1.10" : "1.0.19",
+					worker_sha256: "c".repeat(64),
+					archive_sha256: "d".repeat(64),
+				},
+				device: "cuda:0",
+				compute_type: "float16",
+				gpu: {
+					vendor: "NVIDIA",
+					index: 0,
+					model: "Synthetic GPU",
+					vram_total_bytes: 8 * 1024 * 1024 * 1024,
+					compute_capability: "8.9",
+					driver_version: "synthetic",
+				},
+			},
+		});
+		const completedOutcome = (profileId: string) => ({
+			schema_version: "tda_benchmark_profile_outcome_v1",
+			profile_id: profileId,
+			status: "completed",
+			artifact_available: true,
+			error: null,
+		});
+		const result = parseBenchmarkResult(
+			{
+				schema_version: "tda_processing_benchmark_v2",
+				kind: "benchmark.craig",
+				job_id: "benchmark-job",
+				source_id: "craig-" + "a".repeat(64),
+				campaign_id: "benchmark-local",
+				session_id: "benchmark-local",
+				sample_identity_sha256: sampleIdentity,
+				sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				outcome: "partial",
+				attempted_count: 4,
+				completed_count: 3,
+				failed_count: 1,
+				track_count: 1,
+				audio_work_seconds: 300,
+				prepared: true,
+				benchmark_id: benchmarkId,
+				bundle_manifest_sha256: null,
+				bundle_size_bytes: null,
+				profiles: [
+					profile("whisper-turbo", "whisper"),
+					profile("whisper-detailed", "whisper"),
+					profile("qwen-quality", "qwen3"),
+				],
+				profile_outcomes: [
+					completedOutcome("whisper-turbo"),
+					completedOutcome("whisper-detailed"),
+					{
+						schema_version: "tda_benchmark_profile_outcome_v1",
+						profile_id: "qwen-fast",
+						status: "failed",
+						artifact_available: false,
+						error: {
+							code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+							recoverable: true,
+							scope: "profile",
+						},
+					},
+					completedOutcome("qwen-quality"),
+				],
+			},
+			"benchmark-job",
+		);
+
+		expect(result.schemaVersion).toBe("tda_processing_benchmark_v2");
+		expect(result.outcome).toBe("partial");
+		expect(result.attemptedCount).toBe(4);
+		expect(result.completedCount).toBe(3);
+		expect(result.failedCount).toBe(1);
+		expect(result.benchmarkId).toBe(benchmarkId);
+		expect(result.bundleManifestSha256).toBeNull();
+		expect(result.bundleSizeBytes).toBeNull();
+		expect(result.profiles.map((item) => item.profileId)).toEqual([
+			"whisper-turbo",
+			"whisper-detailed",
+			"qwen-quality",
+		]);
+		expect(result.profileOutcomes.map((item) => [item.profileId, item.status])).toEqual([
+			["whisper-turbo", "completed"],
+			["whisper-detailed", "completed"],
+			["qwen-fast", "failed"],
+			["qwen-quality", "completed"],
+		]);
+		expect(result.profileOutcomes[2]?.error?.code).toBe(
+			"QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+		);
+	});
+
+	it("rejects contradictory partial benchmark profile outcomes", () => {
+		expect(() =>
+			parseBenchmarkResult(
+				{
+					schema_version: "tda_processing_benchmark_v2",
+					kind: "benchmark.craig",
+					job_id: "benchmark-job",
+					source_id: "craig-" + "a".repeat(64),
+					campaign_id: "benchmark-local",
+					session_id: "benchmark-local",
+					sample_identity_sha256: "b".repeat(64),
+					sample_seconds: 300,
+					execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+					outcome: "partial",
+					attempted_count: 4,
+					completed_count: 3,
+					failed_count: 1,
+					track_count: 1,
+					audio_work_seconds: 300,
+					prepared: true,
+					benchmark_id: "benchmark-benchmark-job-a1",
+					bundle_manifest_sha256: null,
+					bundle_size_bytes: null,
+					profiles: [],
+					profile_outcomes: [
+						{
+							schema_version: "tda_benchmark_profile_outcome_v1",
+							profile_id: "whisper-turbo",
+							status: "failed",
+							artifact_available: true,
+							error: {
+								code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+								recoverable: true,
+								scope: "profile",
+							},
+						},
+					],
+				},
+				"benchmark-job",
+			),
+		).toThrow();
+	});
+
 	it("rejects benchmark receipts without exact runtime and GPU evidence", () => {
 		const profile = (profileId: string, engine: "whisper" | "qwen3") => ({
 			kind: "benchmark.profile",
