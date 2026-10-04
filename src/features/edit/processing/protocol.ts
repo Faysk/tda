@@ -2311,6 +2311,10 @@ export function parseBenchmarkResult(
 		};
 	};
 
+	const executionMode: BenchmarkResult["executionMode"] =
+		row.execution_mode === "prepared_artifacts_fresh_worker_per_profile_v1"
+			? "prepared_artifacts_fresh_worker_per_profile_v1"
+			: invalid();
 	const common = {
 		jobId,
 		sourceId: identifier(row.source_id),
@@ -2318,10 +2322,7 @@ export function parseBenchmarkResult(
 		sessionId: identifier(row.session_id),
 		sampleIdentitySha256,
 		sampleSeconds,
-		executionMode:
-			row.execution_mode === "prepared_artifacts_fresh_worker_per_profile_v1"
-				? row.execution_mode
-				: invalid(),
+		executionMode,
 		trackCount: nonNegativeInteger(row.track_count),
 		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
 		prepared: boolean(row.prepared),
