@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { Select } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import {
 	moveSessionCampaignAction,
@@ -276,26 +277,24 @@ export function SessionCampaignMovePanel({
 
 				<div className={styles.body}>
 					<div className={styles.controls}>
-						<label>
+						<div>
 							<span>Destino</span>
-							<select
-								aria-label="Mover para outra campanha"
+							<Select
 								value={destination}
-								onChange={(event) => {
-									setDestination(event.currentTarget.value);
+								options={destinations.map((item) => ({
+									value: item.technicalSlug,
+									label: item.name,
+								}))}
+								onChange={(value) => {
+									setDestination(value);
 									setPreview(null);
 									setError(null);
 									resetMoveIntent();
 								}}
+								ariaLabel="Mover para outra campanha"
 								disabled={pending || Boolean(recovery)}
-							>
-								{destinations.map((item) => (
-									<option key={item.technicalSlug} value={item.technicalSlug}>
-										{item.name}
-									</option>
-								))}
-							</select>
-						</label>
+							/>
+						</div>
 						<button
 							type="button"
 							onClick={runPreflight}

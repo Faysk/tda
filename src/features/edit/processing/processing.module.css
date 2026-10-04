@@ -1739,8 +1739,8 @@
 	min-width: min(220px, 100%);
 	flex: 1 1 240px;
 }
+
 .logToolbar .logSearch,
-.logToolbar select,
 .logToolbar button {
 	min-height: 32px;
 	border: 1px solid var(--ds-control-border);
@@ -1750,17 +1750,26 @@
 	font: inherit;
 	font-size: 0.72rem;
 }
+
 .logToolbar .logSearch {
 	width: 100%;
 	min-width: 0;
 	padding-inline: 8px;
 }
-.logToolbar select,
+
+.logToolbar .logSelect {
+	width: auto;
+	max-width: 100%;
+	min-width: 128px;
+	flex: 0 1 180px;
+}
+
 .logToolbar button {
 	max-width: 100%;
 	min-width: 0;
 	padding-inline: 8px;
 }
+
 .liveLogViewport {
 	min-height: 0;
 	max-height: min(52dvh, 620px);

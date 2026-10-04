@@ -3,10 +3,13 @@
 import {
 	useEffect,
 	useId,
+	useLayoutEffect,
 	useRef,
 	useState,
+	type CSSProperties,
 	type KeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { classNames } from "./class-names";
 import styles from "./select.module.css";
 
@@ -16,14 +19,22 @@ export type SelectOption<T extends string = string> = Readonly<{
 	disabled?: boolean;
 }>;
 
-type SelectProps<T extends string> = Readonly<{
-	value: T;
+export type SelectProps<T extends string> = Readonly<{
+	value?: T;
+	defaultValue?: T;
 	options: readonly SelectOption<T>[];
-	onChange: (value: T) => void;
+	onChange?: (value: T) => void;
 	ariaLabel: string;
+	id?: string;
+	ariaDescribedBy?: string;
+	ariaInvalid?: boolean;
 	className?: string;
 	disabled?: boolean;
 	embedded?: boolean;
+	compact?: boolean;
+	name?: string;
+	required?: boolean;
+	restoreFocusOnSelect?: boolean;
 }>;
 
 function firstEnabledIndex<T extends string>(options: readonly SelectOption<T>[]) {
@@ -53,15 +64,31 @@ function nextEnabledIndex<T extends string>(
 
 export function Select<T extends string>({
 	value,
+	defaultValue,
 	options,
 	onChange,
 	ariaLabel,
+	id,
+	ariaDescribedBy,
+	ariaInvalid,
 	className,
 	disabled = false,
 	embedded = false,
+	compact = false,
+	name,
+	required = false,
+	restoreFocusOnSelect = true,
 }: SelectProps<T>) {
+	const fallbackValue =
+		defaultValue ??
+		options.find((option) => !option.disabled)?.value ??
+		("" as T);
+	const [internalValue, setInternalValue] = useState<T>(fallbackValue);
+	const currentValue = value ?? internalValue;
 	const [open, setOpen] = useState(false);
-	const selectedIndex = options.findIndex((option) => option.value === value);
+	const [requiredMissing, setRequiredMissing] = useState(false);
+	const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({});
+	const selectedIndex = options.findIndex((option) => option.value === currentValue);
 	const [activeIndex, setActiveIndex] = useState(
 		selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(options),
 	);
@@ -71,11 +98,96 @@ export function Select<T extends string>({
 	const baseId = useId();
 	const listboxId = `${baseId}-listbox`;
 	const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+	const portalHost =
+		typeof document !== "undefined"
+			? (triggerRef.current?.closest("dialog[open]") ?? document.body)
+			: null;
+
+	useEffect(() => {
+		if (value !== undefined || !name) return;
+		const form = triggerRef.current?.form;
+		if (!form) return;
+		const handleReset = () => setInternalValue(fallbackValue);
+		form.addEventListener("reset", handleReset);
+		return () => form.removeEventListener("reset", handleReset);
+	}, [fallbackValue, name, value]);
+
+	useEffect(() => {
+		if (!required) return;
+		const form = triggerRef.current?.form;
+		if (!form) return;
+		const handleSubmit = (event: SubmitEvent) => {
+			if (currentValue) return;
+			event.preventDefault();
+			setRequiredMissing(true);
+			setOpen(true);
+			requestAnimationFrame(() => triggerRef.current?.focus());
+		};
+		form.addEventListener("submit", handleSubmit);
+		return () => form.removeEventListener("submit", handleSubmit);
+	}, [currentValue, required]);
+
+	useLayoutEffect(() => {
+		if (!open) return;
+		const updatePosition = () => {
+			const trigger = triggerRef.current;
+			if (!trigger) return;
+			const rect = trigger.getBoundingClientRect();
+			const viewportPadding = 8;
+			const gap = 7;
+			const preferredMaxHeight = Math.min(320, window.innerHeight * 0.46);
+			const preferredWidth = rect.width + (embedded ? 58 : 0);
+			const width = Math.min(
+				Math.max(rect.width, preferredWidth),
+				Math.max(120, window.innerWidth - viewportPadding * 2),
+			);
+			const naturalLeft = rect.left - (embedded ? 58 : 0);
+			const left = Math.min(
+				Math.max(viewportPadding, naturalLeft),
+				Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
+			);
+			const below = window.innerHeight - rect.bottom - gap - viewportPadding;
+			const above = rect.top - gap - viewportPadding;
+			const openUp = below < Math.min(180, preferredMaxHeight) && above > below;
+			const available = Math.max(96, openUp ? above : below);
+			setPopoverStyle({
+				left,
+				width,
+				maxHeight: Math.min(preferredMaxHeight, available),
+				...(openUp
+					? { bottom: window.innerHeight - rect.top + gap, top: "auto" }
+					: { top: rect.bottom + gap, bottom: "auto" }),
+			});
+		};
+		updatePosition();
+		window.addEventListener("resize", updatePosition);
+		window.addEventListener("scroll", updatePosition, true);
+		return () => {
+			window.removeEventListener("resize", updatePosition);
+			window.removeEventListener("scroll", updatePosition, true);
+		};
+	}, [embedded, open]);
+
+	useEffect(() => {
+		if (!open) return;
+		const popover = listboxRef.current;
+		if (!popover?.showPopover) return;
+		if (!popover.matches(":popover-open")) popover.showPopover();
+		return () => {
+			if (popover.matches(":popover-open")) popover.hidePopover();
+		};
+	}, [open]);
 
 	useEffect(() => {
 		if (!open) return;
 		const handlePointerDown = (event: PointerEvent) => {
-			if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+			const target = event.target as Node;
+			if (
+				!rootRef.current?.contains(target) &&
+				!listboxRef.current?.contains(target)
+			) {
+				setOpen(false);
+			}
 		};
 		document.addEventListener("pointerdown", handlePointerDown);
 		return () => document.removeEventListener("pointerdown", handlePointerDown);
@@ -102,8 +214,14 @@ export function Select<T extends string>({
 	function choose(index: number) {
 		const option = options[index];
 		if (!option || option.disabled) return;
-		onChange(option.value);
-		closeAndFocusTrigger();
+		if (value === undefined) setInternalValue(option.value);
+		setRequiredMissing(false);
+		onChange?.(option.value);
+		if (restoreFocusOnSelect) {
+			closeAndFocusTrigger();
+		} else {
+			setOpen(false);
+		}
 	}
 
 	function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -176,16 +294,36 @@ export function Select<T extends string>({
 	return (
 		<div
 			ref={rootRef}
-			className={classNames(styles.root, embedded ? styles.embedded : undefined, className)}
+			className={classNames(
+				styles.root,
+				embedded ? styles.embedded : undefined,
+				compact ? styles.compact : undefined,
+				className,
+			)}
+			data-open={open ? "true" : "false"}
 		>
+			{name ? (
+				<input
+					type="hidden"
+					name={name}
+					value={currentValue}
+					disabled={disabled}
+					data-select-hidden-input="true"
+				/>
+			) : null}
 			<button
 				ref={triggerRef}
+				id={id}
 				type="button"
 				className={styles.trigger}
 				aria-label={ariaLabel}
+				data-value={currentValue}
+				data-form-control-name={name}
 				aria-haspopup="listbox"
 				aria-expanded={open}
 				aria-controls={listboxId}
+				aria-describedby={ariaDescribedBy}
+				aria-invalid={ariaInvalid || requiredMissing || undefined}
 				disabled={disabled}
 				onClick={() => setOpen((current) => !current)}
 				onKeyDown={handleTriggerKeyDown}
@@ -196,45 +334,52 @@ export function Select<T extends string>({
 				</svg>
 			</button>
 
-			{open ? (
-				<div
-					ref={listboxRef}
-					id={listboxId}
-					className={styles.popover}
-					role="listbox"
-					aria-label={ariaLabel}
-					aria-activedescendant={
-						activeIndex >= 0 ? `${baseId}-option-${activeIndex}` : undefined
-					}
-					tabIndex={-1}
-					onKeyDown={handleListboxKeyDown}
-				>
-					{options.map((option, index) => (
-						<button
-							key={option.value}
-							id={`${baseId}-option-${index}`}
-							type="button"
-							className={classNames(
-								styles.option,
-								index === activeIndex ? styles.optionActive : undefined,
-							)}
-							role="option"
-							aria-selected={option.value === value}
-							disabled={option.disabled}
+			{open && portalHost
+				? createPortal(
+						<div
+							ref={listboxRef}
+							id={listboxId}
+							className={styles.popover}
+							data-select-popover="true"
+							popover="manual"
+							style={popoverStyle}
+							role="listbox"
+							aria-label={ariaLabel}
+							aria-activedescendant={
+								activeIndex >= 0 ? `${baseId}-option-${activeIndex}` : undefined
+							}
 							tabIndex={-1}
-							onMouseEnter={() => !option.disabled && setActiveIndex(index)}
-							onClick={() => choose(index)}
+							onKeyDown={handleListboxKeyDown}
 						>
-							<span>{option.label}</span>
-							{option.value === value ? (
-								<svg viewBox="0 0 16 16" aria-hidden="true">
-									<path d="m3.5 8 2.8 2.8 6.2-6.2" />
-								</svg>
-							) : null}
-						</button>
-					))}
-				</div>
-			) : null}
+							{options.map((option, index) => (
+								<button
+									key={option.value}
+									id={`${baseId}-option-${index}`}
+									type="button"
+									className={classNames(
+										styles.option,
+										index === activeIndex ? styles.optionActive : undefined,
+									)}
+									role="option"
+									data-value={option.value}
+									aria-selected={option.value === currentValue}
+									disabled={option.disabled}
+									tabIndex={-1}
+									onMouseEnter={() => !option.disabled && setActiveIndex(index)}
+									onClick={() => choose(index)}
+								>
+									<span>{option.label}</span>
+									{option.value === currentValue ? (
+										<svg viewBox="0 0 16 16" aria-hidden="true">
+											<path d="m3.5 8 2.8 2.8 6.2-6.2" />
+										</svg>
+									) : null}
+								</button>
+							))}
+						</div>,
+						portalHost,
+					)
+				: null}
 		</div>
 	);
 }

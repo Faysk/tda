@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expectThemedSelectValue } from "./helpers/themed-select";
 
 const CAMPAIGN_A = {
 	route: "cronicas-da-mesa",
@@ -83,6 +84,22 @@ async function expectNoHorizontalOverflow(page: Page, label: string) {
 	expect(overflow, `${label}: horizontal overflow`).toBeLessThanOrEqual(1);
 }
 
+async function selectArchiveValue(page: Page, name: string, value: string) {
+	const trigger = page.getByRole("button", { name, exact: true });
+	await trigger.click();
+	const listbox = page.getByRole("listbox", { name, exact: true });
+	await expect(listbox).toBeVisible();
+	const options = listbox.getByRole("option");
+	for (let index = 0; index < (await options.count()); index += 1) {
+		const option = options.nth(index);
+		if ((await option.getAttribute("data-value")) === value) {
+			await option.click();
+			return;
+		}
+	}
+	throw new Error(`Select option ${value} not found in ${name}`);
+}
+
 async function expectDecodedImage(container: Locator, label: string) {
 	const image = container.locator("img").first();
 	await expect(image, `${label}: image element`).toBeVisible();
@@ -142,7 +159,7 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 		page.getByRole("region", { name: "Sessões publicadas de todas as campanhas" }),
 	).toBeVisible();
 	await expect(page.locator("[data-session-card]")).toHaveCount(4);
-	const filter = page.getByLabel("Filtrar por campanha");
+	const filter = page.getByRole("button", { name: "Filtrar por campanha" });
 	await expect(filter).toBeVisible();
 	await expect(
 		page.locator("[data-session-card]").filter({ hasText: CAMPAIGN_A.name }).first(),
@@ -151,7 +168,7 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 		page.locator("[data-session-card]").filter({ hasText: CAMPAIGN_B.name }).first(),
 	).toBeVisible();
 
-	await filter.selectOption(CAMPAIGN_B.route);
+	await selectArchiveValue(page, "Filtrar por campanha", CAMPAIGN_B.route);
 	await expect(
 		page.getByRole("heading", { name: "A memória global mais recente vem da campanha B" }),
 	).toBeVisible();
@@ -311,7 +328,7 @@ test("[auth/Edit] A+B, A-only, anonymous and unavailable states remain fail-clos
 	await page.goto(`/campanhas/${CAMPAIGN_B.route}/sessoes`);
 	let panel = await openGlobalMenu(page);
 	const selector = panel.getByLabel("Campanha das ferramentas");
-	await expect(selector).toHaveValue(CAMPAIGN_B.technical);
+	await expectThemedSelectValue(selector, CAMPAIGN_B.technical);
 	await expect(panel.getByRole("link", { name: "Transcrições", exact: true })).toHaveAttribute(
 		"href",
 		`/edit/${CAMPAIGN_B.technical}/transcricoes`,

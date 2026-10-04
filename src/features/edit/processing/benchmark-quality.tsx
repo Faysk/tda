@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { StatusPill } from "@/components/ui/status";
 import type { LocalBridge } from "./bridge";
 import type {
@@ -515,22 +516,20 @@ export function BenchmarkQualityLab({
 						</p>
 					</div>
 					<div className={styles.referenceActions}>
-						<label>
+						<div>
 							<span>Transcript-base</span>
-							<select
+							<Select
 								value={seedProfile}
-								onChange={(event) =>
-									setSeedProfile(event.target.value as TranscriptionProfileId)
-								}
+								options={PROFILE_ORDER.map((profile) => ({
+									value: profile,
+									label: PROFILE_LABELS[profile],
+								}))}
+								onChange={(value) => setSeedProfile(value as TranscriptionProfileId)}
+								ariaLabel="Transcript-base"
+								compact
 								disabled={!connected || loading}
-							>
-								{PROFILE_ORDER.map((profile) => (
-									<option key={profile} value={profile}>
-										{PROFILE_LABELS[profile]}
-									</option>
-								))}
-							</select>
-						</label>
+							/>
+						</div>
 						<Button
 							type="button"
 							variant="tertiary"

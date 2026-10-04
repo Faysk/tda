@@ -487,9 +487,16 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	await page.goto("/");
 	const panel = await openGlobalMenu(page);
 	const toolsSection = panel.locator('[data-nav-section="tools"]');
-	const selector = toolsSection.getByLabel("Campanha das ferramentas");
-	await expect(selector).toHaveValue("");
-	await expect(selector.locator("option")).toHaveText([
+	const selector = toolsSection.getByRole("button", {
+		name: "Campanha das ferramentas",
+	});
+	await expect(selector).toContainText("Escolha uma campanha");
+	await selector.click();
+	const campaignListbox = page.getByRole("listbox", {
+		name: "Campanha das ferramentas",
+	});
+	await expect(campaignListbox).toBeVisible();
+	await expect(campaignListbox.getByRole("option")).toHaveText([
 		"Escolha uma campanha",
 		"Crônicas da Mesa",
 		longName,
@@ -515,7 +522,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	expect(
 		await selector.evaluate((element) => element.getBoundingClientRect().height),
 	).toBeGreaterThanOrEqual(44);
-	await selector.selectOption("antes-que-seja-tarde");
+	await campaignListbox.getByRole("option", { name: longName, exact: true }).click();
 	await expect(
 		toolsSection.getByRole("link", { name: "Transcrições", exact: true }),
 	).toHaveAttribute(
@@ -536,7 +543,11 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	await expectNoHorizontalOverflow(page);
 	await expectPanelContained(page);
 
-	await selector.selectOption("yuhara-main");
+	await selector.click();
+	await page
+		.getByRole("listbox", { name: "Campanha das ferramentas" })
+		.getByRole("option", { name: "Crônicas da Mesa", exact: true })
+		.click();
 	await expect(
 		toolsSection.getByRole("link", { name: "Editar sessões", exact: true }),
 	).toHaveAttribute("href", "/edit/yuhara-main/sessoes");
@@ -546,7 +557,11 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	await expect(
 		toolsSection.getByRole("link", { name: "Permissões", exact: true }),
 	).toHaveAttribute("href", "/edit/yuhara-main/permissions");
-	await selector.selectOption("mesa-do-norte");
+	await selector.click();
+	await page
+		.getByRole("listbox", { name: "Campanha das ferramentas" })
+		.getByRole("option", { name: "Mesa do Norte", exact: true })
+		.click();
 	await expect(
 		toolsSection.getByRole("link", { name: "Editar mundo", exact: true }),
 	).toHaveAttribute("href", "/edit/mesa-do-norte/mundo");
@@ -572,7 +587,9 @@ test("explicit unauthorized campaign context never falls back to the only author
 	await page.goto("/lore?campanha=antes-que-seja-tarde");
 	const panel = await openGlobalMenu(page);
 	const tools = panel.locator('[data-nav-section="tools"]');
-	await expect(tools.getByLabel("Campanha das ferramentas")).toHaveValue("");
+	await expect(
+		tools.getByRole("button", { name: "Campanha das ferramentas" }),
+	).toContainText("Escolha uma campanha");
 	await expect(
 		tools.getByRole("link", { name: "Permissões", exact: true }),
 	).toHaveCount(0);
@@ -604,8 +621,10 @@ test("campaign-scoped public routes select the matching tool context and keep cu
 	await expect(
 		navigation.getByRole("link", { name: "Campanhas", exact: true }),
 	).not.toHaveAttribute("aria-current", "page");
-	const selector = panel.getByLabel("Campanha das ferramentas");
-	await expect(selector).toHaveValue("antes-que-seja-tarde");
+	const selector = panel.getByRole("button", {
+		name: "Campanha das ferramentas",
+	});
+	await expect(selector).toContainText("Antes que seja tarde");
 	await expect(
 		panel.getByRole("link", { name: "Permissões", exact: true }),
 	).toHaveAttribute("href", "/edit/antes-que-seja-tarde/permissions");
@@ -633,16 +652,16 @@ test("browser history restores the campaign context from scoped public routes", 
 
 	await page.goBack();
 	let panel = await openGlobalMenu(page);
-	await expect(panel.getByLabel("Campanha das ferramentas")).toHaveValue(
-		"yuhara-main",
-	);
+	await expect(
+		panel.getByRole("button", { name: "Campanha das ferramentas" }),
+	).toContainText("Crônicas da Mesa");
 	await page.keyboard.press("Escape");
 
 	await page.goForward();
 	panel = await openGlobalMenu(page);
-	await expect(panel.getByLabel("Campanha das ferramentas")).toHaveValue(
-		"antes-que-seja-tarde",
-	);
+	await expect(
+		panel.getByRole("button", { name: "Campanha das ferramentas" }),
+	).toContainText("Antes que seja tarde");
 });
 
 test("390 CSS px keeps the campaign launcher usable at the layout equivalent of 200 percent zoom", async ({ page }) => {
@@ -665,7 +684,9 @@ test("390 CSS px keeps the campaign launcher usable at the layout equivalent of 
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/");
 	const panel = await openGlobalMenu(page);
-	await expect(panel.getByLabel("Campanha das ferramentas")).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Campanha das ferramentas" }),
+	).toBeVisible();
 	await expectPanelContained(page);
 	await expectNoHorizontalOverflow(page);
 });

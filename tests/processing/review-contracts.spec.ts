@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { selectThemedOption, selectThemedOptionByLabel } from "../helpers/themed-select";
 
 test("completed runs compare locally with source and time filters before an explicit base choice", async ({ page }, testInfo) => {
 	await page.goto("/?review-contracts&comparison");
@@ -9,9 +10,12 @@ test("completed runs compare locally with source and time filters before an expl
 	await comparisonDisclosure.click();
 
 	const target = page.getByLabel("Segundo run para comparação");
-	await expect(target.locator("option")).toHaveCount(1);
-	await expect(target.locator("option").first()).toContainText("qwen-quality");
-	await expect(target).not.toContainText("other-source");
+	await target.click();
+	const targetListbox = page.getByRole("listbox", { name: "Segundo run para comparação" });
+	await expect(targetListbox.getByRole("option")).toHaveCount(1);
+	await expect(targetListbox.getByRole("option").first()).toContainText("qwen-quality");
+	await expect(targetListbox).not.toContainText("other-source");
+	await page.keyboard.press("Escape");
 
 	await page.getByRole("button", { name: "Comparar" }).click();
 	await expect(page.getByRole("heading", { name: "Dois runs da mesma fonte" })).toBeVisible();
@@ -40,10 +44,10 @@ test("completed runs compare locally with source and time filters before an expl
 	await expect(activeRegion).toContainText("Versão A");
 
 	const participant = page.getByLabel("Participante");
-	await participant.selectOption({ label: "Bia" });
+	await selectThemedOptionByLabel(page, participant, "Bia");
 	await expect(regions).toHaveCount(1);
 	await expect(regions.first()).toContainText("Versão B");
-	await participant.selectOption("all");
+	await selectThemedOption(page, participant, "all");
 	await expect(regions).toHaveCount(2);
 
 	await page.getByLabel("Somente divergências").uncheck();
@@ -221,7 +225,7 @@ test("target repair preserves edits and restores only the original destination",
 test("bulk rename isolates a track, preserves exceptions and saves one snapshot", async ({ page }, testInfo) => {
     await page.goto("/?review-contracts&bulk");
     await page.getByText(/Gerenciar participantes/).click();
-    await page.getByLabel("Participante de origem").selectOption(JSON.stringify([1, "Alex"]));
+    await selectThemedOption(page, page.getByLabel("Participante de origem"), JSON.stringify([1, "Alex"]));
     await page.getByLabel("Novo nome").fill("Nome normalizado");
     await expect(page.getByText("3 falas serão alteradas; 1 com nomes diferentes serão preservadas.")).toBeVisible();
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
@@ -245,7 +249,7 @@ test("bulk rename isolates a track, preserves exceptions and saves one snapshot"
 test("bulk rename survives a save conflict", async ({ page }) => {
     await page.goto("/?review-contracts&bulk&conflict");
     await page.getByText(/Gerenciar participantes/).click();
-    await page.getByLabel("Participante de origem").selectOption(JSON.stringify([1, "Alex"]));
+    await selectThemedOption(page, page.getByLabel("Participante de origem"), JSON.stringify([1, "Alex"]));
     await page.getByLabel("Novo nome").fill("Novo");
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();
@@ -259,7 +263,7 @@ test("bulk rename survives a save conflict", async ({ page }) => {
 test("concurrent bulk edits reconcile by field without closing or losing the working copy", async ({ page }, testInfo) => {
     await page.goto("/?review-contracts&bulk&conflict");
     await page.getByText(/Gerenciar participantes/).click();
-    await page.getByLabel("Participante de origem").selectOption(JSON.stringify([1, "Alex"]));
+    await selectThemedOption(page, page.getByLabel("Participante de origem"), JSON.stringify([1, "Alex"]));
     await page.getByLabel("Novo nome").fill("Novo");
     await page.getByRole("button", { name: "Revisar renomeio" }).click();
     await page.getByRole("button", { name: "Aplicar ao draft" }).click();

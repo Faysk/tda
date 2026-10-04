@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Button, Dialog } from "@/components/ui";
+import { Button, Dialog, Select } from "@/components/ui";
 import {
 	reloadTranscriptSegmentAction,
 	updateTranscriptSegmentAction,
@@ -408,25 +408,25 @@ function SegmentEditor({
 			</div>
 
 			<div className={styles.segmentSide}>
-				<label className={styles.fieldLabel}>
+				<div className={styles.fieldLabel}>
 					Revisão
-					<select
-						className={styles.control}
+					<Select
 						disabled={!editable}
-						onChange={(event) =>
+						onChange={(value) =>
 							setEditor((current) =>
 								editTranscriptDraft(current, {
-									reviewStatus: event.target.value as TranscriptReviewStatus,
+									reviewStatus: value as TranscriptReviewStatus,
 								}),
 							)
 						}
 						value={draft.reviewStatus}
-					>
-						{Object.entries(statusLabels).map(([value, label]) => (
-							<option key={value} value={value}>{label}</option>
-						))}
-					</select>
-				</label>
+						options={Object.entries(statusLabels).map(([value, label]) => ({
+							value,
+							label,
+						}))}
+						ariaLabel="Revisão"
+					/>
+				</div>
 				{editable ? (
 					<Button
 						disabled={!dirty || editor.phase === "conflict"}

@@ -18,7 +18,10 @@
 .trigger:focus-visible {
 	outline: 0;
 	border-color: var(--ds-accent);
-	box-shadow: var(--ds-control-focus-ring);
+}
+
+.trigger:focus-visible {
+	box-shadow: 0 0 0 2px var(--ds-control-focus-ring);
 }
 
 .trigger kbd {
@@ -134,7 +137,10 @@
 	border-color: var(--ds-accent);
 	background: var(--ds-surface-hover);
 	color: var(--ds-accent-strong);
-	box-shadow: var(--ds-control-focus-ring);
+}
+
+.closeButton:focus-visible {
+	box-shadow: 0 0 0 2px var(--ds-control-focus-ring);
 }
 
 .search {

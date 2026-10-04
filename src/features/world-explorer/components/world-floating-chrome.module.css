@@ -132,9 +132,8 @@
 }
 
 .relationMenu > summary:focus-visible {
-	outline: 2px solid var(--ds-accent);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
-	box-shadow: var(--ds-control-focus-ring);
 }
 
 .relationPopover {
@@ -485,9 +484,8 @@
 	}
 
 	.mobileConductorToggle:focus-visible {
-		outline: 2px solid var(--ds-accent);
+		outline: 2px solid var(--ds-control-focus-ring);
 		outline-offset: 2px;
-		box-shadow: var(--ds-control-focus-ring);
 	}
 
 	.conductorSlot[data-mobile-expanded="false"] {

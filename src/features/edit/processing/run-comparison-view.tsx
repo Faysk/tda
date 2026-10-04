@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import type { LocalReview, LocalRunSummary } from "./protocol";
 import {
 	compareRunPerformanceSemantics,
@@ -302,34 +303,32 @@ export function RunComparisonView({
 					/>
 					<span>Somente divergências</span>
 				</label>
-				<label>
+				<div>
 					<span>Track</span>
-					<select
+					<Select
 						value={trackFilter}
-						onChange={(event) => setTrackFilter(event.target.value)}
-					>
-						<option value="all">Todas</option>
-						{tracks.map((track) => (
-							<option key={track} value={track}>
-								Track {track}
-							</option>
-						))}
-					</select>
-				</label>
-				<label>
+						options={[
+							{ value: "all", label: "Todas" },
+							...tracks.map((track) => ({ value: String(track), label: `Track ${track}` })),
+						]}
+						onChange={setTrackFilter}
+						ariaLabel="Filtrar comparação por track"
+						compact
+					/>
+				</div>
+				<div>
 					<span>Participante</span>
-					<select
+					<Select
 						value={speakerFilter}
-						onChange={(event) => setSpeakerFilter(event.target.value)}
-					>
-						<option value="all">Todos</option>
-						{speakers.map((speaker) => (
-							<option key={speaker} value={speaker}>
-								{speaker}
-							</option>
-						))}
-					</select>
-				</label>
+						options={[
+							{ value: "all", label: "Todos" },
+							...speakers.map((speaker) => ({ value: speaker, label: speaker })),
+						]}
+						onChange={setSpeakerFilter}
+						ariaLabel="Filtrar comparação por participante"
+						compact
+					/>
+				</div>
 				<fieldset className={styles.timeRange}>
 					<legend>Faixa na sessão (s)</legend>
 					<label>

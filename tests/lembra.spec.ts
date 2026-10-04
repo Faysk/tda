@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { selectThemedOption } from "./helpers/themed-select";
 
 const PNG_1X1 = Buffer.from(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl5n6sAAAAASUVORK5CYII=",
@@ -292,7 +293,11 @@ test("Lembra selects a newly created private campaign only after authorized proj
 	await createDialog.getByLabel("Nome").fill("Segredo da Mesa");
 	await createDialog.getByLabel("Slug técnico").fill("segredo-da-mesa");
 	await createDialog.getByLabel("Rota pública").fill("segredo-da-mesa");
-	await createDialog.getByLabel("Visibilidade inicial").selectOption("private");
+	await selectThemedOption(
+		page,
+		createDialog.getByRole("button", { name: "Visibilidade inicial" }),
+		"private",
+	);
 	await createDialog.getByRole("button", { name: "Criar e voltar" }).click();
 
 	await expect(createDialog).not.toBeVisible();

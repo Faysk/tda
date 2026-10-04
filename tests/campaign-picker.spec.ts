@@ -51,6 +51,70 @@ test.describe("shared campaign picker", () => {
 		});
 	}
 
+	test("owns popup palette and focus ring when app theme differs from the OS", async ({ page }, testInfo) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+
+		for (const scenario of [
+			{ theme: "dark" as const, os: "light" as const },
+			{ theme: "light" as const, os: "dark" as const },
+		]) {
+			await page.emulateMedia({ colorScheme: scenario.os, reducedMotion: "reduce" });
+			await page.goto("/");
+			await page.evaluate((theme) => localStorage.setItem("tda-theme", theme), scenario.theme);
+			await page.goto("/e2e-fixtures/campaign-picker?scenario=many&mode=confirmed");
+			await expect(page.locator("html")).toHaveAttribute("data-theme", scenario.theme);
+
+			const trigger = page.getByRole("button", { name: "Campanha de teste" });
+			await trigger.focus();
+			const focused = await trigger.evaluate((element) => {
+				const style = getComputedStyle(element);
+				return { boxShadow: style.boxShadow, outlineStyle: style.outlineStyle };
+			});
+			expect(focused.boxShadow).not.toBe("none");
+
+			await trigger.click();
+			const listbox = page.getByRole("listbox", { name: "Campanha de teste" });
+			await expect(listbox).toBeVisible();
+			const palette = await listbox.evaluate((element) => {
+				const listStyle = getComputedStyle(element);
+				const option = element.querySelector<HTMLElement>('[role="option"]');
+				const optionStyle = option ? getComputedStyle(option) : null;
+				return {
+					background: listStyle.backgroundColor,
+					optionColor: optionStyle?.color ?? "",
+				};
+			});
+			expect(palette.background).not.toBe("rgba(0, 0, 0, 0)");
+			expect(palette.optionColor).not.toBe("");
+
+			const nativeContract = await page.evaluate(() => {
+				const select = document.createElement("select");
+				const option = document.createElement("option");
+				option.textContent = "Contrato sintético";
+				select.append(option);
+				document.body.append(select);
+				const selectStyle = getComputedStyle(select);
+				const optionStyle = getComputedStyle(option);
+				const result = {
+					colorScheme: selectStyle.colorScheme,
+					optionColor: optionStyle.color,
+					optionBackground: optionStyle.backgroundColor,
+				};
+				select.remove();
+				return result;
+			});
+			expect(nativeContract.colorScheme).toContain(scenario.theme);
+			expect(nativeContract.optionColor).not.toBe(nativeContract.optionBackground);
+
+			await page.screenshot({
+				path: testInfo.outputPath(`campaign-picker-${scenario.theme}-on-${scenario.os}-os.png`),
+				fullPage: false,
+			});
+			await listbox.press("Escape");
+			await expect(trigger).toBeFocused();
+		}
+	});
+
 	for (const viewport of [
 		{ width: 320, height: 760 },
 		{ width: 390, height: 844 },

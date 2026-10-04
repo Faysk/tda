@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const CAMPAIGN_A = {
 	route: "cronicas-da-mesa",
@@ -13,6 +13,22 @@ const CAMPAIGN_B = {
 } as const;
 
 const SHARED_SESSION = "shared-session";
+
+async function selectArchiveValue(page: Page, name: string, value: string) {
+	const trigger = page.getByRole("button", { name, exact: true });
+	await trigger.click();
+	const listbox = page.getByRole("listbox", { name, exact: true });
+	await expect(listbox).toBeVisible();
+	const options = listbox.getByRole("option");
+	for (let index = 0; index < (await options.count()); index += 1) {
+		const option = options.nth(index);
+		if ((await option.getAttribute("data-value")) === value) {
+			await option.click();
+			return;
+		}
+	}
+	throw new Error(`Select option ${value} not found in ${name}`);
+}
 
 test("Home selects the newest public memory globally and keeps its campaign-qualified link", async ({ page }) => {
 	await page.goto("/");
@@ -62,15 +78,23 @@ test("aggregate archive preserves colliding sessions and filters by campaign", a
 	await expect(page.getByRole("heading", { name: CAMPAIGN_A.title })).toBeVisible();
 	await expect(page.getByRole("heading", { name: CAMPAIGN_B.title })).toBeVisible();
 
-	const campaignFilter = page.getByLabel("Filtrar por campanha");
-	await expect(campaignFilter).toContainText(CAMPAIGN_A.name);
-	await expect(campaignFilter).toContainText(CAMPAIGN_B.name);
+	const campaignFilter = page.getByRole("button", {
+		name: "Filtrar por campanha",
+	});
+	await expect(campaignFilter).toBeVisible();
+	await campaignFilter.click();
+	const campaignListbox = page.getByRole("listbox", {
+		name: "Filtrar por campanha",
+	});
+	await expect(campaignListbox).toContainText(CAMPAIGN_A.name);
+	await expect(campaignListbox).toContainText(CAMPAIGN_B.name);
+	await campaignListbox.press("Escape");
 
-	await campaignFilter.selectOption(CAMPAIGN_A.route);
+	await selectArchiveValue(page, "Filtrar por campanha", CAMPAIGN_A.route);
 	await expect(page.getByRole("heading", { name: CAMPAIGN_A.title })).toBeVisible();
 	await expect(page.getByRole("heading", { name: CAMPAIGN_B.title })).toHaveCount(0);
 
-	await campaignFilter.selectOption(CAMPAIGN_B.route);
+	await selectArchiveValue(page, "Filtrar por campanha", CAMPAIGN_B.route);
 	await expect(page.getByRole("heading", { name: CAMPAIGN_B.title })).toBeVisible();
 	await expect(page.getByRole("heading", { name: CAMPAIGN_A.title })).toHaveCount(0);
 });
@@ -117,10 +141,15 @@ test("campaign archive controls remain keyboard reachable and overflow-free acro
 		);
 		expect(overflow, viewport.label).toBeLessThanOrEqual(1);
 
-		const campaignFilter = page.getByLabel("Filtrar por campanha");
+		const campaignFilter = page.getByRole("button", {
+			name: "Filtrar por campanha",
+		});
 		await campaignFilter.focus();
 		await expect(campaignFilter, viewport.label).toBeFocused();
 		await page.keyboard.press("Tab");
-		await expect(page.getByLabel("Filtrar por arco"), viewport.label).toBeFocused();
+		await expect(
+			page.getByRole("button", { name: "Filtrar por arco" }),
+			viewport.label,
+		).toBeFocused();
 	}
 });

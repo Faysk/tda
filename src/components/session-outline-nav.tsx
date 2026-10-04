@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Select, type SelectOption } from "@/components/ui";
 import type { StoryOutlineEntry } from "@/features/sessions/story-outline";
 import styles from "./session-outline-nav.module.css";
 
@@ -14,6 +15,14 @@ export function SessionOutlineNav({
 	const baseLevel = useMemo(
 		() => Math.min(...entries.map((entry) => entry.level)),
 		[entries],
+	);
+	const outlineOptions = useMemo<readonly SelectOption<string>[]>(
+		() =>
+			entries.map((entry) => ({
+				value: entry.id,
+				label: `${"› ".repeat(Math.max(0, entry.level - baseLevel))}${entry.text}`,
+			})),
+		[baseLevel, entries],
 	);
 
 	useEffect(() => {
@@ -31,7 +40,11 @@ export function SessionOutlineNav({
 				const visible = records
 					.filter((record) => record.isIntersecting)
 					.sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top);
-				const id = visible[0]?.target.id;
+				if (!visible.length) return;
+
+				const hashId = decodeURIComponent(window.location.hash.slice(1));
+				const explicitTarget = visible.find((record) => record.target.id === hashId);
+				const id = explicitTarget?.target.id ?? visible[0]?.target.id;
 				if (id) setActiveId(id);
 			},
 			{ rootMargin: "-18% 0px -68% 0px", threshold: 0 },
@@ -43,13 +56,12 @@ export function SessionOutlineNav({
 	function navigate(id: string) {
 		const target = document.getElementById(id);
 		if (!target) return;
-		const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 		window.location.hash = id;
+		target.focus({ preventScroll: true });
 		target.scrollIntoView({
 			block: "start",
-			behavior: reducedMotion ? "auto" : "smooth",
+			behavior: "auto",
 		});
-		requestAnimationFrame(() => target.focus({ preventScroll: true }));
 		setActiveId(id);
 	}
 
@@ -64,20 +76,16 @@ export function SessionOutlineNav({
 				</summary>
 				<div className={styles.panel}>
 					{compact ? (
-						<label className={styles.selectLabel}>
+						<div className={styles.selectLabel}>
 							<span>Ir para um trecho</span>
-							<select
+							<Select
 								value={activeId}
-								onChange={(event) => navigate(event.target.value)}
-								aria-label="Ir para uma seção"
-							>
-								{entries.map((entry) => (
-									<option key={entry.id} value={entry.id}>
-										{`${"› ".repeat(Math.max(0, entry.level - baseLevel))}${entry.text}`}
-									</option>
-								))}
-							</select>
-						</label>
+								options={outlineOptions}
+								onChange={navigate}
+								ariaLabel="Ir para uma seção"
+								restoreFocusOnSelect={false}
+							/>
+						</div>
 					) : (
 						<ol className={styles.list}>
 							{entries.map((entry) => (

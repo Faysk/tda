@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { isReviewStringV1 } from "../../transcript-review/text-contract";
 import type { LocalReviewSegment } from "./protocol";
 import { participantGroups, previewParticipantRename, type ParticipantRename } from "./participant-rename";
@@ -15,23 +16,33 @@ export function ParticipantManager({ segments, disabled, onApply }: Readonly<{
 	const [name, setName] = useState("");
 	const [preview, setPreview] = useState<ParticipantRename | null>(null);
 	const [message, setMessage] = useState("");
-	const select = useRef<HTMLSelectElement>(null);
+	const selectRoot = useRef<HTMLDivElement>(null);
 	const group = groups.find((item) => item.key === selected);
 	const preserved = group ? segments.filter((segment) => segment.trackNumber === group.trackNumber && segment.speaker !== group.speaker) : [];
 	function cancel() {
 		setPreview(null);
 		setName("");
-		select.current?.focus({ preventScroll: true });
+		selectRoot.current?.querySelector<HTMLButtonElement>('button[aria-haspopup="listbox"]')?.focus({ preventScroll: true });
 	}
 	return <details className={styles.notice}>
 		<summary>Gerenciar participantes · {new Set(groups.map((item) => item.trackNumber)).size} tracks</summary>
 		<div className={styles.participantManager}>
-			<label>Participante de origem
-				<select ref={select} value={selected} disabled={disabled} onChange={(event) => { setSelected(event.target.value); setPreview(null); setMessage(""); }}>
-					<option value="">Selecione uma track e um nome</option>
-					{groups.map((item) => <option key={item.key} value={item.key}>Track {item.trackNumber} · {item.speaker} · {item.count} falas</option>)}
-				</select>
-			</label>
+			<div ref={selectRoot}>Participante de origem
+				<Select
+					value={selected}
+					disabled={disabled}
+					options={[
+						{ value: "", label: "Selecione uma track e um nome" },
+						...groups.map((item) => ({
+							value: item.key,
+							label: `Track ${item.trackNumber} · ${item.speaker} · ${item.count} falas`,
+						})),
+					]}
+					onChange={(value) => { setSelected(value); setPreview(null); setMessage(""); }}
+					ariaLabel="Participante de origem"
+					compact
+				/>
+			</div>
 			<label>Novo nome
 				<input value={name} disabled={disabled} aria-invalid={name !== "" && !isReviewStringV1(name, "speaker")} onChange={(event) => { setName(event.target.value); setPreview(null); }} />
 			</label>

@@ -22,6 +22,7 @@ import {
 } from "./public-navigation-model";
 import { PublicLink as Link } from "./public-link";
 import { ThemeToggle } from "./theme-toggle";
+import { Select } from "./ui";
 import {
 	isAuthenticatedNavigationState,
 	loadNavigationAuthProjection,
@@ -320,6 +321,12 @@ export function AccountMenu() {
 
 		const onPointerDown = (event: PointerEvent) => {
 			if (
+				event.target instanceof Element &&
+				event.target.closest('[data-select-popover="true"]')
+			) {
+				return;
+			}
+			if (
 				event.target instanceof Node &&
 				!rootRef.current?.contains(event.target)
 			) {
@@ -328,6 +335,12 @@ export function AccountMenu() {
 		};
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== "Escape" || !expanded) return;
+			if (
+				event.target instanceof Element &&
+				event.target.closest('[data-select-popover="true"]')
+			) {
+				return;
+			}
 			event.preventDefault();
 			close(true);
 		};
@@ -461,31 +474,23 @@ export function AccountMenu() {
 															) : null}
 														</p>
 													) : (
-														<label className="global-nav-campaign-select">
+														<div className="global-nav-campaign-select">
 															<span>Campanha das ferramentas</span>
-															<select
-																aria-label="Campanha das ferramentas"
+															<Select
+																ariaLabel="Campanha das ferramentas"
 																value={selectedCampaignSlug ?? ""}
-																onChange={(event) =>
-																	setSelectedCampaignSlug(
-																		event.currentTarget.value || null,
-																	)
+																options={[
+																	{ value: "", label: "Escolha uma campanha" },
+																	...campaigns.map((campaign) => ({
+																		value: campaign.technicalSlug,
+																		label: `${campaign.name}${campaign.lifecycle === "archived" ? " — arquivada" : ""}`,
+																	})),
+																]}
+																onChange={(value) =>
+																	setSelectedCampaignSlug(value || null)
 																}
-															>
-																<option value="">Escolha uma campanha</option>
-																{campaigns.map((campaign) => (
-																	<option
-																		key={campaign.technicalSlug}
-																		value={campaign.technicalSlug}
-																	>
-																		{campaign.name}
-																		{campaign.lifecycle === "archived"
-																			? " — arquivada"
-																			: ""}
-																	</option>
-																))}
-															</select>
-														</label>
+															/>
+														</div>
 													)}
 												</div>
 
