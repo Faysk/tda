@@ -3,7 +3,6 @@ import {
 	EMPTY_SESSION_CAMPAIGN_MOVE_DECISIONS,
 	requiredSessionCampaignMoveDecisions,
 	sessionCampaignMovePlanHeading,
-	sessionCampaignMoveRecoveryKey,
 	validSessionCampaignMoveRecoveryIntent,
 	type SessionCampaignMovePreview,
 } from "./session-campaign-move-model";
@@ -74,20 +73,13 @@ describe("session campaign move model", () => {
 			sourceCampaignSlug: preview.sourceCampaignSlug,
 			destinationCampaignSlug: preview.destinationCampaignSlug,
 			operationId: "61000000-0000-4000-8000-000000000001",
-			decisions: {
-				unlinkParticipantEntities: true,
-				revokeSessionGrants: false,
-			},
 		};
 		expect(validSessionCampaignMoveRecoveryIntent(intent)).toBe(true);
 		expect(
 			validSessionCampaignMoveRecoveryIntent({
 				...intent,
-				decisions: { unlinkParticipantEntities: "yes" },
+				operationId: 123,
 			}),
 		).toBe(false);
-		expect(sessionCampaignMoveRecoveryKey(preview.sessionId)).toContain(
-			preview.sessionId,
-		);
 	});
 });
