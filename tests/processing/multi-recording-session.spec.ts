@@ -1048,12 +1048,14 @@ test("trusted midnight stays visible while unavailable wall-clock stays absent",
 	await expect(review.locator("time")).toContainText(
 		"2026-09-29 · 23:59:59 +01:00",
 	);
-	await expect(
-		review.locator("li > :not(details)").getByText(/Track 1/iu),
-	).toHaveCount(0);
-	await expect(
-		review.locator("details").getByText(/track 1/iu),
-	).toHaveCount(2);
+	await expect(review.getByText(/track 1/iu)).toHaveCount(0);
+	const segmentTriggers = review.locator("[data-assembly-segment-trigger]");
+	await segmentTriggers.first().click();
+	await expect(review.locator("details").getByText(/track 1/iu)).toHaveCount(1);
+	await review.getByRole("button", { name: "Cancelar" }).click();
+	await segmentTriggers.nth(1).click();
+	await expect(review.locator("details").getByText(/track 1/iu)).toHaveCount(1);
+	await review.getByRole("button", { name: "Cancelar" }).click();
 });
 
 test("stale Markdown import preserves the working copy and never overwrites silently", async ({
