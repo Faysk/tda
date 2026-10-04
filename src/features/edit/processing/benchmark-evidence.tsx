@@ -159,15 +159,18 @@ export function BenchmarkEvidenceWorkspace({
 	promptExport?: boolean;
 	onClose: () => void;
 }>) {
-	const artifacts =
-		result.benchmarkId !== null &&
-		result.bundleSizeBytes !== null &&
-		result.profiles.every((profile) => profile.artifactAvailable)
-			? {
-					benchmarkId: result.benchmarkId,
-					bundleSizeBytes: result.bundleSizeBytes,
-				}
-			: null;
+	const artifacts = useMemo(
+		() =>
+			result.benchmarkId !== null &&
+			result.bundleSizeBytes !== null &&
+			result.profiles.every((profile) => profile.artifactAvailable)
+				? {
+						benchmarkId: result.benchmarkId,
+						bundleSizeBytes: result.bundleSizeBytes,
+					}
+				: null,
+		[result.benchmarkId, result.bundleSizeBytes, result.profiles],
+	);
 	const [mode, setMode] = useState<WorkspaceMode>(initialMode);
 	const [manifest, setManifest] = useState<BenchmarkEvidenceSummary | null>(null);
 	const [snapshots, setSnapshots] = useState<
