@@ -59,7 +59,9 @@ export function presentJobTitle(job: Pick<LocalJob, "kind">): string {
 	return job.kind;
 }
 
-export function presentJobError(code: string): string {
+export function presentJobError(code: string, kind?: string): string {
+	if (code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN" && kind === "benchmark.craig")
+		return "O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. A falha ficou isolada neste perfil e o Benchmark tenta automaticamente os perfis restantes.";
 	const known: Record<string, string> = {
 		AGENT_BUSY: "O Companion está ocupado com um processamento ou preparação local; aguarde a operação atual terminar.",
 		PROCESS_INTERRUPTED: "Execução interrompida pelo encerramento ou reinício do Agent.",
@@ -69,6 +71,7 @@ export function presentJobError(code: string): string {
 		WORKER_HEARTBEAT_TIMEOUT: "O worker local parou de responder.",
 		WORKER_EXECUTION_FAILED: "O worker local encontrou uma falha inesperada.",
 		BENCHMARK_RESULT_INVALID: "O benchmark terminou com um receipt inconsistente e foi descartado.",
+		BENCHMARK_PARTIAL: "Um ou mais perfis não concluíram, mas os demais foram tentados e as evidências válidas foram preservadas. Execute um novo benchmark para obter uma comparação completa 4/4.",
 		BENCHMARK_SAMPLE_TOO_SHORT: "A fonte não possui 5 minutos completos em todas as tracks.",
 		BENCHMARK_PROFILES_NOT_READY: "Os quatro perfis precisam estar preparados antes do benchmark.",
 		BENCHMARK_RESOURCE_BUSY: "Há outro processamento local usando os recursos necessários para o benchmark.",
