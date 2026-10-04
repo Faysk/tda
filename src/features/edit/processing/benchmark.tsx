@@ -1491,7 +1491,7 @@ export function ProcessingBenchmark({
 						<span className={styles.eyebrow}>Histórico local</span>
 						<h2>Histórico de benchmark</h2>
 					</div>
-					<span>{latestResults.length} execução{latestResults.length === 1 ? "" : "ões"}</span>
+					<span>{latestResults.length} {latestResults.length === 1 ? "execução" : "execuções"}</span>
 				</div>
 				{latestResults.length ? (
 					latestResults.slice(0, 10).map((job) =>
