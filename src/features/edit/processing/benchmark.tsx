@@ -1407,7 +1407,8 @@ export function ProcessingBenchmark({
 						<p>
 							Tentados {activeAttemptState.attemptedCount}/4 · Concluídos{" "}
 							{activeAttemptState.completedCount} · Falharam{" "}
-							{activeAttemptState.failedCount}
+							{activeAttemptState.failedCount} · Pendentes{" "}
+							{activeAttemptState.pendingCount}
 							{currentProfile ? " · Atual: " + LABELS[currentProfile] : ""}
 							{active.stage ? " · " + (stageLabels[active.stage] ?? active.stage) : ""}
 						</p>
