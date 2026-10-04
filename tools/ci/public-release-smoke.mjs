@@ -275,6 +275,28 @@ export async function runPublicReleaseSmoke({
     return validateTransportResult(context, route, response);
   };
 
+  const healthBody = await request("/api/health");
+  let health;
+  try {
+    health = JSON.parse(healthBody);
+  } catch {
+    fail(context, "invalid_health_json", "/api/health");
+  }
+  if (
+    health?.features?.sessionCampaignMoveV2 !== true ||
+    health?.features?.sessionCampaignMoveContractVersion !== 2
+  ) {
+    fail(context, "session_campaign_move_not_ready", "/api/health");
+  }
+  record(logger, {
+    sourceSha: sha,
+    phase,
+    route: "/api/health",
+    result: "pass",
+    at: nowIso(nowImpl),
+    state: "session_campaign_move_v2_ready",
+  });
+
   await request("/");
   record(logger, {
     sourceSha: sha,
