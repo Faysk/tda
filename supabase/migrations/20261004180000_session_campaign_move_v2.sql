@@ -623,6 +623,23 @@ begin
     return jsonb_build_object('status','conflict','contractVersion',2);
   end if;
 
+  -- Rare administrative operation: briefly fence the session-owned relations
+  -- that can create new reconciliation blockers while the row lock is held.
+  lock table public.participants in share row exclusive mode;
+  lock table public.role_assignments in share row exclusive mode;
+  lock table public.entity_mentions in share row exclusive mode;
+  lock table public.canon_candidates in share row exclusive mode;
+  lock table public.publications in share row exclusive mode;
+  lock table public.transcript_revisions in share row exclusive mode;
+  lock table public.transcript_publication_receipts in share row exclusive mode;
+  lock table public.transcript_publication_events in share row exclusive mode;
+  lock table public.session_editorial_drafts in share row exclusive mode;
+  lock table public.session_publications in share row exclusive mode;
+  lock table public.session_publication_operations in share row exclusive mode;
+  lock table public.media_assets in share row exclusive mode;
+  lock table public.discord_interactions in share row exclusive mode;
+  lock table public.table_notes in share row exclusive mode;
+
   v_preflight := public.preflight_session_campaign_move(
     p_auth_user_id,p_actor_profile_id,p_source_campaign_slug,p_destination_campaign_slug,
     p_session_id,p_source_session_id
