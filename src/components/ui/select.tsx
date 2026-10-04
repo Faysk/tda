@@ -377,7 +377,7 @@ export function Select<T extends string>({
 								</button>
 							))}
 						</div>,
-						document.body,
+						portalHost,
 					)
 				: null}
 		</div>
