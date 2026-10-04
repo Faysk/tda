@@ -255,8 +255,6 @@ begin
   );
 
   if v->>'status' <> 'moved'
-
-  if v->>'status' <> 'moved'
      or v->>'publicationState' <> 'unpublished'
      or v->>'contractVersion' <> 'tda_session_campaign_move_v2' then
     raise exception 'populated move did not commit: %', v;
