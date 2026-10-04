@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { selectThemedOption } from "../helpers/themed-select";
 import {
 	failedJob,
 	fixtureJob,
@@ -141,7 +142,7 @@ test("filtros, busca e ordenação operam localmente sem perder running no topo"
 	await expect(dataRows).toHaveCount(4);
 	await expect(dataRows.first()).toContainText("sessao-zulu");
 
-	await page.getByLabel("Ordenar").selectOption("session");
+	await selectThemedOption(page, page.getByLabel("Ordenar"), "session");
 	await expect(dataRows.first()).toContainText("sessao-zulu");
 
 	const search = queue.getByLabel("Buscar");
