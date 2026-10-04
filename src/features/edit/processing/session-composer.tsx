@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, Select } from "@/components/ui";
 import { renderTranscriptMarkdownV1 } from "../../transcript-review/markdown-contract";
 import { LocalBridge } from "./bridge";
 import {
@@ -1073,18 +1073,22 @@ export function SessionRecordingComposer({
 							}
 						>
 							<span>Run desta gravação</span>
-											<select
+											<Select
 												value={part.selectedRunId ?? ""}
 												disabled={busy || partRuns.length === 0}
-												onChange={(event) => void selectRun(part, event.target.value)}
-											>
-												<option value="">{partRuns.length ? "Selecionar resultado…" : "Nenhum run concluído"}</option>
-												{partRuns.map((run) => (
-													<option key={run.runId} value={run.runId}>
-														{run.profileId} · {short(run.runId, 10)} · {run.completedAt ? new Date(run.completedAt).toLocaleString("pt-BR") : "data desconhecida"}
-													</option>
-												))}
-											</select>
+												options={[
+													{
+														value: "",
+														label: partRuns.length ? "Selecionar resultado…" : "Nenhum run concluído",
+													},
+													...partRuns.map((run) => ({
+														value: run.runId,
+														label: `${run.profileId} · ${short(run.runId, 10)} · ${run.completedAt ? new Date(run.completedAt).toLocaleString("pt-BR") : "data desconhecida"}`,
+													})),
+												]}
+												onChange={(value) => void selectRun(part, value)}
+												ariaLabel={`Run da gravação ${index + 1}`}
+											/>
 										</label>
 										<details
 							data-session-recovery-target={
@@ -1123,19 +1127,27 @@ export function SessionRecordingComposer({
 									>
 														<label>
 															<span>Regra do overlap</span>
-															<select
+															<Select
 																value={overlapDraft.resolution}
-																onChange={(event) => setOverlapDrafts((current) => ({
+																options={[
+																	{
+																		value: "prefer_later_from",
+																		label: "Usar gravação anterior até o corte; nova após o corte",
+																	},
+																	{
+																		value: "prefer_earlier_until",
+																		label: "Usar nova até o corte; anterior após o corte",
+																	},
+																]}
+																onChange={(value) => setOverlapDrafts((current) => ({
 																	...current,
 																	[part.partId]: {
 																		...overlapDraft,
-																		resolution: event.target.value as "prefer_earlier_until" | "prefer_later_from",
+																		resolution: value as "prefer_earlier_until" | "prefer_later_from",
 																	},
 																}))}
-															>
-																<option value="prefer_later_from">Usar gravação anterior até o corte; nova após o corte</option>
-																<option value="prefer_earlier_until">Usar nova até o corte; anterior após o corte</option>
-															</select>
+																ariaLabel="Regra do overlap"
+															/>
 														</label>
 														<label>
 															<span>Boundary na sessão (s)</span>
@@ -1188,17 +1200,18 @@ export function SessionRecordingComposer({
 												return (
 													<label key={observationId}>
 														<span>{observation?.rawSpeaker ?? "Observação"} · gravação {(observation?.partOrdinal ?? 0) + 1}</span>
-														<select
+														<Select
 															value={participantDrafts[observationId] ?? mapping.manualAssignments.find((item) => item.observationId === observationId)?.participantId ?? ""}
-															onChange={(event) => setParticipantDrafts((current) => ({ ...current, [observationId]: event.target.value }))}
-														>
-															<option value="">Escolher participante…</option>
-															{mapping.participants.map((participant) => (
-																<option key={participant.participantId} value={participant.participantId}>
-																	{participant.displaySpeaker} · {participant.resolution}
-																</option>
-															))}
-														</select>
+															options={[
+																{ value: "", label: "Escolher participante…" },
+																...mapping.participants.map((participant) => ({
+																	value: participant.participantId,
+																	label: `${participant.displaySpeaker} · ${participant.resolution}`,
+																})),
+															]}
+															onChange={(value) => setParticipantDrafts((current) => ({ ...current, [observationId]: value }))}
+															ariaLabel={`Participante para ${observation?.rawSpeaker ?? "observação"}`}
+														/>
 													</label>
 												);
 											})}
