@@ -1892,3 +1892,36 @@ The first two match the recorded remote statements after newline normalization. 
 New additive migration `20261003011729_restore_campaign_registry_revision` repairs the real legacy schema, which lacks `campaigns.updated_at` although the management SELECT and compare-and-set updates require it. It backfills from `created_at`, makes the column non-null with a default, and advances it monotonically in a trigger on every update. No UUID, technical/public slug, visibility, membership, transcript or media changes.
 
 Consumers: campaign management, cover editor concurrency and navigation discovery. Recovery: retain the additive column/trigger while rolling back the application; never drop the token from a running consumer. Scratch validation starts without the column, replays the migration and proves successful/stale updates. Remote application and live verification remain separate release steps.
+
+
+## `20261004023000_session_campaign_move`
+
+**Estado:** migration forward-only promovida a partir do candidate scratch-only de #1129 para fechar #1426. A aplicação remota continua pertencendo ao Production CD governado; presença no Git não prova rollout.
+
+Objetivo:
+
+- criar `session_campaign_move_operations` como receipt idempotente sem conteúdo de transcript;
+- expor somente `preflight_session_campaign_move(...)` e `move_session_campaign_atomic(...)` ao `service_role`;
+- manter helpers internos sem `EXECUTE` do `service_role`;
+- revalidar identidade, capabilities em origem/destino, lifecycle, colisão e blockers antes do write;
+- serializar o commit com row lock, audit sanitizado e replay por `operation_id`;
+- bloquear dependências ainda não migráveis em vez de clonar ou atualizar parcialmente.
+
+Segurança:
+
+- `anon` e `authenticated` não possuem acesso à tabela nem EXECUTE nas RPCs;
+- `service_role` recebe somente `SELECT, INSERT` no receipt, sem `UPDATE/DELETE`;
+- os helpers de contagem/blockers continuam internos ao boundary;
+- a UI deve permanecer fail-closed enquanto o backend não estiver disponível, detectado server-side por leitura zero-row da relação de receipt.
+
+Validação:
+
+- `tools/session-campaign-move-db.py` aplica a migration deployable no PostgreSQL 16 descartável;
+- `supabase/tests/session_campaign_move.sql` cobre blockers, auth source/destination, atomicidade, audit sem transcript, replay, operation-id conflict, grants mínimos e a corrida concorrente real;
+- o browser E2E cobre backend indisponível e geometria da workbench sem depender de dados privados.
+
+Rollback lógico:
+
+- antes de qualquer move confirmado, rollback começa desabilitando a ação na aplicação;
+- depois de receipts existentes, não apagar histórico para simular rollback;
+- correções futuras devem ser migrations forward-only, sem editar esta migration aplicada.
