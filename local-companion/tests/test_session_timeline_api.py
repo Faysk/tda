@@ -182,7 +182,8 @@ def test_trusted_absolute_times_derive_order_offsets_gaps_and_overlaps(
         )
         assert recovered.status_code == 200
         assert recovered.json()["timeline"]["fingerprint_sha256"] == final_fingerprint
-        assert recovered.json()["parts"][1]["gap_confirmed"] is True
+        assert recovered.json()["parts"][1]["gap_confirmed"] is False
+        assert recovered.json()["parts"][1]["physical_interval_state"] == "trusted_absolute"
         assert recovered.json()["parts"][2]["trim_start_seconds"] == 300.0
 
 
