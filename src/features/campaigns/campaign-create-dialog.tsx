@@ -247,7 +247,7 @@ export function CampaignCreateDialog({
 							</small>
 						) : null}
 					</label>
-					<label>
+					<div>
 						<span>Visibilidade inicial</span>
 						<Select
 							name="visibility"
@@ -266,7 +266,7 @@ export function CampaignCreateDialog({
 								{fieldMessage("visibility")}
 							</small>
 						) : null}
-					</label>
+					</div>
 					<label className={styles.full}>
 						<span>Descrição</span>
 						<textarea
