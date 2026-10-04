@@ -248,9 +248,13 @@ export function ProcessingSubmission({
 	const [files, setFiles] = useState<readonly CraigFileSelection[]>([]);
 	const source =
 		files.find((item) => item.source && item.state === "valid")?.source ?? null;
+	const exactDuplicateCount = files.filter(
+		(item) => item.state === "duplicate",
+	).length;
 	const [intentRequest, setIntentRequest] =
 		useState<SessionTranscriptionIntent | null>(null);
 	const [composerActive, setComposerActive] = useState(false);
+	const [sourceRecoveryActive, setSourceRecoveryActive] = useState(false);
 	const [technicalOpen, setTechnicalOpen] = useState(false);
 	const [technicalTarget, setTechnicalTarget] =
 		useState<SessionRecoveryTarget | null>(null);
@@ -293,6 +297,7 @@ export function ProcessingSubmission({
 	}, []);
 
 	const openSourceRecovery = useCallback(() => {
+		setSourceRecoveryActive(true);
 		setIntentRequest(null);
 		setFiles([]);
 		setError(null);
@@ -312,6 +317,7 @@ export function ProcessingSubmission({
 			request.current?.abort();
 			setCapabilities(null);
 			setProfile("");
+			setSourceRecoveryActive(false);
 			setCapabilityError(null);
 			setRecoveryNotice(null);
 			return;
@@ -846,6 +852,7 @@ export function ProcessingSubmission({
 				);
 				confirmSessionComposerPendingSubmission(window.localStorage, pending);
 				fallbackPending.current = null;
+				setSourceRecoveryActive(false);
 				setFiles([]);
 				setStatus(
 					`Job ${job.id} confirmado no Companion · ${job.status === "succeeded" ? "concluído" : "acompanhe na fila"}.`,
@@ -859,6 +866,7 @@ export function ProcessingSubmission({
 					? "Iniciando a transcrição da sessão…"
 					: `Iniciando a transcrição da sessão com ${stagedSources.length} gravações…`,
 			);
+			setSourceRecoveryActive(false);
 			setIntentRequest({
 				id: crypto.randomUUID(),
 				sessionId,
@@ -961,7 +969,11 @@ export function ProcessingSubmission({
 			className={className ? `${styles.card} ${className}` : styles.card}
 			data-craig-composer="true"
 			data-layout={compact ? "compact" : "default"}
-			data-intent-fixed={intentRequest || composerActive ? "true" : "false"}
+			data-intent-fixed={
+				(intentRequest || composerActive) && !sourceRecoveryActive
+					? "true"
+					: "false"
+			}
 			aria-labelledby="new-local-transcription"
 		>
 			<div className={styles.heading}>
@@ -1221,7 +1233,7 @@ export function ProcessingSubmission({
 							<select
 								value={profile}
 								onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
-								disabled={busy || Boolean(intentRequest)}
+								disabled={busy || composerActive || Boolean(intentRequest)}
 								required
 							>
 								{availableProfiles.map((item) => (
@@ -1359,7 +1371,7 @@ export function ProcessingSubmission({
 										onChange={(event) =>
 												setContext(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
 										}
-										disabled={busy || Boolean(intentRequest)}
+										disabled={busy || composerActive || Boolean(intentRequest)}
 										placeholder="Contexto curto da sessão/campanha para reconhecimento."
 									/>
 								</label>
@@ -1370,7 +1382,7 @@ export function ProcessingSubmission({
 										onChange={(event) =>
 												setGlossary(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
 										}
-										disabled={busy || Boolean(intentRequest)}
+										disabled={busy || composerActive || Boolean(intentRequest)}
 										placeholder="Personagens, NPCs, lugares e termos difíceis."
 									/>
 								</label>
@@ -1392,7 +1404,7 @@ export function ProcessingSubmission({
 						<strong>{sessionId}</strong>
 						<span>
 							{files.length
-								? `${files.length} ${files.length === 1 ? "gravação" : "gravações"} · ${profile ? submissionProfileLabel(profile) : "perfil preservado"}`
+								? `${files.length} ${files.length === 1 ? "gravação" : "gravações"}${exactDuplicateCount === 1 ? " · 1 duplicata exata · será reutilizada uma vez" : exactDuplicateCount > 1 ? ` · ${exactDuplicateCount} duplicatas exatas · serão reutilizadas uma vez cada` : ""} · ${profile ? submissionProfileLabel(profile) : "perfil preservado"}`
 								: `Gravações preservadas no Companion · ${profile ? submissionProfileLabel(profile) : "perfil preservado"}`}
 						</span>
 					</div>
