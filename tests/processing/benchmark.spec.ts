@@ -643,7 +643,43 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 
 	await panel.getByRole("button", { name: "Cancelar benchmark" }).click();
 	await expect.poll(() => state.job?.status).toBe("cancelled");
+	state.setJobEvents([
+		{
+			seq: 40,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_COMPLETED",
+			at: "2026-10-04T19:30:00Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "whisper-turbo",
+				attempted_count: 1,
+				successful_count: 1,
+				failed_count: 0,
+				total_profiles: 4,
+			},
+		},
+		{
+			seq: 41,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_CANCELLED",
+			at: "2026-10-04T19:31:00Z",
+			level: "warning",
+			data: {
+				stage: "benchmark",
+				profile: "whisper-detailed",
+				attempted_count: 2,
+				successful_count: 1,
+				failed_count: 0,
+				total_profiles: 4,
+			},
+		},
+	]);
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
 	await expect(panel.getByText("Benchmark cancelado")).toBeVisible();
+	await expect(panel.getByText("Whisper Detailed · cancelado")).toBeVisible();
+	await expect(panel.getByText("Qwen Fast · não tentado")).toBeVisible();
+	await expect(panel.getByText("Qwen Quality · não tentado")).toBeVisible();
 	await expect(panel.getByRole("button", { name: "Ver log / Diagnóstico" })).toBeVisible();
 });
 
@@ -791,6 +827,106 @@ test("running benchmark keeps a failed profile visible while the next profile co
 	).toBeVisible();
 });
 
+test("global Benchmark failure marks active profile failed and later profiles not attempted", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+	await chooseZip(panel);
+	await analyze(panel);
+	await panel
+		.getByRole("button", { name: "Executar benchmark de 5 minutos" })
+		.click();
+	await expect.poll(() => state.jobPostCount).toBe(1);
+
+	state.setJob(
+		fixtureBenchmarkJob("failed", {
+			stage: "benchmark",
+			progress: { completed: 2, total: 4, unit: "profiles" },
+		}),
+	);
+	state.setJobEvents([
+		{
+			seq: 20,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_COMPLETED",
+			at: "2026-10-04T19:20:00Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "whisper-turbo",
+				attempted_count: 1,
+				successful_count: 1,
+				failed_count: 0,
+				total_profiles: 4,
+			},
+		},
+		{
+			seq: 21,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_COMPLETED",
+			at: "2026-10-04T19:21:00Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "whisper-detailed",
+				attempted_count: 2,
+				successful_count: 2,
+				failed_count: 0,
+				total_profiles: 4,
+			},
+		},
+		{
+			seq: 22,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_STARTED",
+			at: "2026-10-04T19:22:00Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "qwen-fast",
+				attempted_count: 3,
+				successful_count: 2,
+				failed_count: 0,
+				total_profiles: 4,
+			},
+		},
+		{
+			seq: 23,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_ABORTED",
+			at: "2026-10-04T19:22:10Z",
+			level: "error",
+			data: {
+				stage: "benchmark",
+				profile: "qwen-fast",
+				attempted_count: 3,
+				successful_count: 2,
+				failed_count: 0,
+				total_profiles: 4,
+				error_code: "QWEN_ASR_INFERENCE_FAILED",
+				recoverable: true,
+				scope: "benchmark",
+			},
+		},
+	]);
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+
+	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
+	await expect(
+		panel.getByText("Tentados 3/4 · Concluídos 2 · Falharam 0"),
+	).toBeVisible();
+	await expect(panel.getByText("Qwen Fast · falhou")).toBeVisible();
+	await expect(panel.getByText("Qwen Quality · não tentado")).toBeVisible();
+	await expect(panel.getByText("Whisper Turbo · concluído")).toBeVisible();
+	await expect(panel.getByText("Whisper Detailed · concluído")).toBeVisible();
+});
+
+
 test("partial benchmark remains diagnostic history and never masquerades as 4/4", async ({
 	page,
 }) => {
@@ -839,6 +975,12 @@ test("partial benchmark remains diagnostic history and never masquerades as 4/4"
 		panel.getByText(/Os demais perfis independentes foram tentados automaticamente/u),
 	).toBeVisible();
 	await expect(panel.getByText("bundle 4/4 não criado")).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Executar novo benchmark" }),
+	).toBeDisabled();
+	await expect(
+		panel.getByText(/Selecione e valide novamente o ZIP acima/u),
+	).toBeVisible();
 	await expect(
 		panel.getByRole("button", { name: "Comparar transcrições" }),
 	).toHaveCount(0);

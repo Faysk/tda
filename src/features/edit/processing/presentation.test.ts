@@ -126,6 +126,46 @@ describe("processing presentation", () => {
 		});
 		expect(completed.title).toContain("qwen-quality");
 		expect(completed.detail).toContain("3 de 4");
+
+		const aborted = presentJobEvent({
+			seq: 32,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_ABORTED",
+			at: "2026-10-04T19:27:10Z",
+			level: "error",
+			data: {
+				stage: "benchmark",
+				profile: "qwen-fast",
+				attempted_count: 3,
+				successful_count: 2,
+				failed_count: 0,
+				total_profiles: 4,
+				error_code: "QWEN_ASR_INFERENCE_FAILED",
+				recoverable: true,
+				scope: "benchmark",
+			},
+		});
+		expect(aborted.title).toContain("qwen-fast");
+		expect(aborted.title).toContain("falha global");
+		expect(aborted.detail).toContain("não foram tentados");
+
+		const cancelled = presentJobEvent({
+			seq: 33,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_CANCELLED",
+			at: "2026-10-04T19:27:11Z",
+			level: "warning",
+			data: {
+				stage: "benchmark",
+				profile: "whisper-detailed",
+				attempted_count: 2,
+				successful_count: 1,
+				failed_count: 0,
+				total_profiles: 4,
+			},
+		});
+		expect(cancelled.title).toContain("whisper-detailed");
+		expect(cancelled.detail).toContain("não foram tentados");
 	});
 
 	it("explains physical ASR execution failures", () => {

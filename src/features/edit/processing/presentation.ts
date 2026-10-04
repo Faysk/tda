@@ -268,6 +268,27 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 					: undefined,
 			};
 		}
+		case "BENCHMARK_PROFILE_ABORTED": {
+			const profile = textData(event, "profile");
+			const errorCode = textData(event, "error_code");
+			return {
+				title: profile
+					? `O Benchmark foi interrompido durante ${profile} por uma falha global.`
+					: "O Benchmark foi interrompido por uma falha global.",
+				detail: errorCode
+					? `${presentJobError(errorCode)} · perfis seguintes não foram tentados.`
+					: "Os perfis seguintes não foram tentados.",
+			};
+		}
+		case "BENCHMARK_PROFILE_CANCELLED": {
+			const profile = textData(event, "profile");
+			return {
+				title: profile
+					? `Perfil ${profile} cancelado pelo operador.`
+					: "Perfil do Benchmark cancelado pelo operador.",
+				detail: "Os perfis seguintes não foram tentados.",
+			};
+		}
 		case "DUPLICATE_SUBMISSION_REUSED":
 			return {
 				title: "A mesma transcrição já estava ativa; o TDA reutilizou o trabalho existente.",

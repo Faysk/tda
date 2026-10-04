@@ -797,6 +797,22 @@
 	color: var(--ds-danger);
 }
 
+.runStep[data-state="cancelled"],
+.runStep[data-state="interrupted"] {
+	color: var(--ds-warning);
+	font-weight: 700;
+}
+
+.runStep[data-state="cancelled"] i,
+.runStep[data-state="interrupted"] i {
+	border-color: var(--ds-warning);
+	color: var(--ds-warning);
+}
+
+.runStep[data-state="not_attempted"] {
+	opacity: 0.72;
+}
+
 .runStep[data-state="current"] {
 	color: var(--ds-foreground);
 	font-weight: 700;

@@ -295,10 +295,12 @@ function PartialResultCard({
 	result,
 	updatedAt,
 	onDiagnostics,
+	onRunAgain,
 }: Readonly<{
 	result: BenchmarkResult;
 	updatedAt: string;
 	onDiagnostics: () => void;
+	onRunAgain: (() => void) | null;
 }>) {
 	const failed = result.profileOutcomes.filter(
 		(item) => item.status === "failed",
@@ -354,10 +356,23 @@ function PartialResultCard({
 				</p>
 			))}
 			<div className={styles.activeActions}>
+				<Button
+					size="sm"
+					variant="secondary"
+					disabled={onRunAgain === null}
+					onClick={() => onRunAgain?.()}
+				>
+					Executar novo benchmark
+				</Button>
 				<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
 					Abrir Diagnóstico
 				</Button>
 			</div>
+			{onRunAgain === null ? (
+				<p className={styles.loading}>
+					Selecione e valide novamente o ZIP acima para executar uma nova comparação 4/4.
+				</p>
+			) : null}
 		</article>
 	);
 }
@@ -962,24 +977,36 @@ export function ProcessingBenchmark({
 		}
 	}
 
-	const progressTerminalCount = active?.progress?.completed ?? 0;
-	const activeEvents =
-		active && observedJobId === active.id
+	type BenchmarkStepState =
+		| "pending"
+		| "current"
+		| "complete"
+		| "failed"
+		| "cancelled"
+		| "interrupted"
+		| "not_attempted";
+	const lifecycleJob = active ?? latestProblem;
+	const progressTerminalCount = lifecycleJob?.progress?.completed ?? 0;
+	const lifecycleEvents =
+		lifecycleJob && observedJobId === lifecycleJob.id
 			? events.filter(
-					(event) => event.attempt === null || event.attempt === active.attempt,
+					(event) =>
+						event.attempt === null || event.attempt === lifecycleJob.attempt,
 				)
 			: [];
-	const benchmarkProfileEvents = activeEvents.filter((event) =>
+	const benchmarkProfileEvents = lifecycleEvents.filter((event) =>
 		[
 			"BENCHMARK_PROFILE_STARTED",
 			"BENCHMARK_PROFILE_COMPLETED",
 			"BENCHMARK_PROFILE_FAILED",
+			"BENCHMARK_PROFILE_ABORTED",
+			"BENCHMARK_PROFILE_CANCELLED",
 		].includes(event.code),
 	);
 	const hasProfileLifecycle = benchmarkProfileEvents.length > 0;
 	const activeStepStates = new Map<
 		(typeof PROFILES)[number],
-		"pending" | "current" | "complete" | "failed"
+		BenchmarkStepState
 	>(PROFILES.map((profile) => [profile, "pending"]));
 	if (hasProfileLifecycle) {
 		for (const event of benchmarkProfileEvents) {
@@ -994,8 +1021,13 @@ export function ProcessingBenchmark({
 				activeStepStates.set(profile, "current");
 			if (event.code === "BENCHMARK_PROFILE_COMPLETED")
 				activeStepStates.set(profile, "complete");
-			if (event.code === "BENCHMARK_PROFILE_FAILED")
+			if (
+				event.code === "BENCHMARK_PROFILE_FAILED" ||
+				event.code === "BENCHMARK_PROFILE_ABORTED"
+			)
 				activeStepStates.set(profile, "failed");
+			if (event.code === "BENCHMARK_PROFILE_CANCELLED")
+				activeStepStates.set(profile, "cancelled");
 		}
 	} else {
 		PROFILES.forEach((profile, index) => {
@@ -1010,8 +1042,35 @@ export function ProcessingBenchmark({
 			);
 		});
 	}
+	if (latestProblem && lifecycleJob?.id === latestProblem.id) {
+		const currentTerminal: BenchmarkStepState =
+			latestProblem.status === "cancelled"
+				? "cancelled"
+				: latestProblem.status === "interrupted"
+					? "interrupted"
+					: "failed";
+		for (const profile of PROFILES) {
+			const state = activeStepStates.get(profile);
+			if (state === "current") activeStepStates.set(profile, currentTerminal);
+			else if (state === "pending")
+				activeStepStates.set(profile, "not_attempted");
+		}
+	}
+	const profileStateLabel = (state: BenchmarkStepState): string =>
+		({
+			pending: "pendente",
+			current: "executando",
+			complete: "concluído",
+			failed: "falhou",
+			cancelled: "cancelado",
+			interrupted: "interrompido",
+			not_attempted: "não tentado",
+		})[state];
 	const currentProfile =
-		PROFILES.find((profile) => activeStepStates.get(profile) === "current") ?? null;
+		active
+			? (PROFILES.find((profile) => activeStepStates.get(profile) === "current") ??
+				null)
+			: null;
 	const latestProfileEvent = benchmarkProfileEvents.at(-1) ?? null;
 	const eventNumber = (key: string): number | null => {
 		const value = latestProfileEvent?.data[key];
@@ -1020,7 +1079,10 @@ export function ProcessingBenchmark({
 	const attemptedProfiles =
 		eventNumber("attempted_count") ??
 		(hasProfileLifecycle
-			? [...activeStepStates.values()].filter((state) => state !== "pending").length
+			? [...activeStepStates.values()].filter(
+					(state) =>
+						state !== "pending" && state !== "not_attempted",
+				).length
 			: progressTerminalCount);
 	const successfulProfiles =
 		eventNumber("successful_count") ??
@@ -1030,7 +1092,7 @@ export function ProcessingBenchmark({
 	const failedProfiles =
 		eventNumber("failed_count") ??
 		[...activeStepStates.values()].filter((state) => state === "failed").length;
-	const latestEvent = activeEvents.at(-1) ?? null;
+	const latestEvent = active ? lifecycleEvents.at(-1) ?? null : null;
 	const latestActivity = latestEvent ? presentJobEvent(latestEvent) : null;
 
 	const preparationLabel =
@@ -1404,14 +1466,7 @@ export function ProcessingBenchmark({
 					<ol className={styles.runSteps} aria-label="Progresso dos quatro perfis">
 						{PROFILES.map((id, index) => {
 							const stepState = activeStepStates.get(id) ?? "pending";
-							const stateLabel =
-								stepState === "complete"
-									? "concluído"
-									: stepState === "failed"
-										? "falhou"
-										: stepState === "current"
-											? "executando"
-											: "pendente";
+							const stateLabel = profileStateLabel(stepState);
 							return (
 								<li
 									key={id}
@@ -1424,7 +1479,12 @@ export function ProcessingBenchmark({
 											? "✓"
 											: stepState === "failed"
 												? "×"
-												: index + 1}
+												: stepState === "cancelled" ||
+													  stepState === "interrupted"
+													? "!"
+													: stepState === "not_attempted"
+														? "–"
+														: index + 1}
 									</i>
 									<span>{LABELS[id]} · {stateLabel}</span>
 								</li>
@@ -1468,6 +1528,43 @@ export function ProcessingBenchmark({
 								: `Tentativa ${latestProblem.attempt}`}
 						</p>
 					</div>
+					{hasProfileLifecycle && lifecycleJob?.id === latestProblem.id ? (
+						<>
+							<p className={styles.loading}>
+								Tentados {attemptedProfiles}/4 · Concluídos {successfulProfiles} ·
+								Falharam {failedProfiles}
+							</p>
+							<ol
+								className={styles.runSteps}
+								aria-label="Estado terminal dos quatro perfis"
+							>
+								{PROFILES.map((id, index) => {
+									const stepState = activeStepStates.get(id) ?? "not_attempted";
+									return (
+										<li
+											key={id}
+											className={styles.runStep}
+											data-state={stepState}
+										>
+											<i aria-hidden="true">
+												{stepState === "complete"
+													? "✓"
+													: stepState === "failed"
+														? "×"
+														: stepState === "cancelled" ||
+															  stepState === "interrupted"
+															? "!"
+															: stepState === "not_attempted"
+																? "–"
+																: index + 1}
+											</i>
+											<span>{LABELS[id]} · {profileStateLabel(stepState)}</span>
+										</li>
+									);
+								})}
+							</ol>
+						</>
+					) : null}
 					<Button
 						type="button"
 						variant="tertiary"
@@ -1506,6 +1603,14 @@ export function ProcessingBenchmark({
 									result={results[job.id]!}
 									updatedAt={job.updated_at}
 									onDiagnostics={() => onOpenDiagnostics(job)}
+									onRunAgain={
+										file &&
+										source?.sourceId === results[job.id]!.sourceId &&
+										allProfilesReady &&
+										!active
+											? () => void runBenchmark()
+											: null
+									}
 								/>
 							) : (
 								<ResultCard
