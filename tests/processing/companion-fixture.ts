@@ -1032,7 +1032,7 @@ export async function installCompanionFixture(
 		if (path === "/jobs/benchmark-job-1/events") {
 			return json(route, {
 				events:
-					options.jobEvents ??
+					jobEvents ??
 					(state.job?.status === "running"
 						? [
 								{
