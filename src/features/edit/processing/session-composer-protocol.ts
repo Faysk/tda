@@ -227,6 +227,47 @@ export function parseSessionAssembly(value: unknown): SessionAssembly {
 	const assemblyId = hex(row.assembly_id, 64);
 	const inputsSha256 = hex(row.inputs_sha256, 64);
 	if (assemblyId !== inputsSha256) return invalid();
+	const timelineStrategy =
+		canonicalizationVersion === "tda_session_assembly_canonical_v2"
+			? (() => {
+					const strategy = string(row.timeline_strategy, 32);
+					if (
+						![
+							"trusted_absolute",
+							"user_confirmed_sequence",
+							"manual_offsets",
+						].includes(strategy)
+					)
+						return invalid();
+					return strategy as Exclude<SessionAssembly["timelineStrategy"], null>;
+				})()
+			: null;
+	const wallClock =
+		canonicalizationVersion === "tda_session_assembly_canonical_v2"
+			? (() => {
+					const state = string(row.wall_clock, 16);
+					if (!["unavailable", "partial", "trusted"].includes(state))
+						return invalid();
+					return state as Exclude<SessionAssembly["wallClock"], null>;
+				})()
+			: null;
+	const unknownIntervalCount =
+		canonicalizationVersion === "tda_session_assembly_canonical_v2"
+			? integer(row.unknown_interval_count, 0, Math.max(0, parts.length - 1))
+			: null;
+	if (canonicalizationVersion === "tda_session_assembly_canonical_v2") {
+		if (
+			parts.some(
+				(part, index) =>
+					part.physicalIntervalState === null ||
+					(index === 0 && part.physicalIntervalState !== "first") ||
+					(index > 0 && part.physicalIntervalState === "first"),
+			) ||
+			parts.filter((part) => part.physicalIntervalState === "unknown").length !==
+				unknownIntervalCount
+		)
+			return invalid();
+	}
 	return {
 		schemaVersion: "tda_session_assembly_v1",
 		canonicalizationVersion:
@@ -239,34 +280,9 @@ export function parseSessionAssembly(value: unknown): SessionAssembly {
 		sessionId: id(row.session_id, 128),
 		inputsSha256,
 		timelineFingerprintSha256: hex(row.timeline_fingerprint_sha256, 64),
-		timelineStrategy:
-			canonicalizationVersion === "tda_session_assembly_canonical_v2"
-				? (() => {
-						const strategy = string(row.timeline_strategy, 32);
-						if (
-							![
-								"trusted_absolute",
-								"user_confirmed_sequence",
-								"manual_offsets",
-							].includes(strategy)
-						)
-							return invalid();
-						return strategy as SessionAssembly["timelineStrategy"];
-					})()
-				: null,
-		wallClock:
-			canonicalizationVersion === "tda_session_assembly_canonical_v2"
-				? (() => {
-						const state = string(row.wall_clock, 16);
-						if (!["unavailable", "partial", "trusted"].includes(state))
-							return invalid();
-						return state as SessionAssembly["wallClock"];
-					})()
-				: null,
-		unknownIntervalCount:
-			canonicalizationVersion === "tda_session_assembly_canonical_v2"
-				? integer(row.unknown_interval_count, 0, Math.max(0, parts.length - 1))
-				: null,
+		timelineStrategy,
+		wallClock,
+		unknownIntervalCount,
 		participantMappingSha256: hex(row.participant_mapping_sha256, 64),
 		participantApprovalBlocked: bool(row.participant_approval_blocked),
 		transcriptSha256: hex(row.transcript_sha256, 64),
