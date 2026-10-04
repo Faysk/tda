@@ -36,47 +36,62 @@ export function parseProductionEnv(text) {
 }
 
 function normalizedHealth(payload) {
-	const candidate = Array.isArray(payload) ? payload[0] : payload;
-	return candidate && typeof candidate === "object" && !Array.isArray(candidate)
-		? candidate
-		: null;
-}
-
-function assertBoolean(value, expected, label) {
-	if (value !== expected) {
-		throw new Error(`campaign move release health mismatch: ${label}`);
-	}
-}
-
-export async function verifySessionCampaignMoveProductionHealth({
-	supabaseUrl,
-	secretKey,
-	projectRef,
-	phase,
-	fetchImpl = globalThis.fetch,
-	logger = console.log,
-}) {
-	if (!["pre_promote", "canonical"].includes(phase)) {
-		throw new Error("phase must be pre_promote or canonical");
-	}
-	if (!/^[a-z0-9]{20}$/u.test(projectRef ?? "")) {
-		throw new Error("invalid Supabase project ref");
-	}
-	const base = new URL(supabaseUrl);
+	if (Array.isArray(payload)) return normalizedHealth(payload[0]);
+	if (!payload || typeof payload !== "object") return null;
+	if (Array.isArray(payload.result)) return normalizedHealth(payload.result);
+	if (Array.isArray(payload.data)) return normalizedHealth(payload.data);
 	if (
-		base.protocol !== "https:" ||
-		base.hostname !== `${projectRef}.supabase.co` ||
-		base.username ||
-		base.password ||
-		base.search ||
-		base.hash
-	) {
-		throw new Error("Supabase URL does not match the governed Production project");
+		payload.health &&
+		typeof payload.health === "object" &&
+		!Array.isArray(payload.health)
+	) return payload.health;
+	return payload;
+}
+
+async function requestHealthViaManagementApi({
+	accessToken,
+	projectRef,
+	fetchImpl,
+}) {
+	if (typeof accessToken !== "string" || accessToken.length < 20) {
+		throw new Error("Supabase Management API access token is unavailable");
 	}
-	if (typeof secretKey !== "string" || secretKey.length < 32) {
+	const response = await fetchImpl(
+		`https://api.supabase.com/v1/projects/${projectRef}/database/query`,
+		{
+			method: "POST",
+			headers: {
+				accept: "application/json",
+				"content-type": "application/json",
+				authorization: `Bearer ${accessToken}`,
+			},
+			body: JSON.stringify({
+				query: "select public.session_campaign_move_release_health() as health",
+				read_only: true,
+			}),
+			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+		},
+	);
+	if (!response?.ok) {
+		throw new Error(
+			`campaign move Management API health request failed with HTTP ${response?.status ?? "unknown"}`,
+		);
+	}
+	return normalizedHealth(await response.json());
+}
+
+async function requestHealthViaPostgrest({
+	base,
+	secretKey,
+	fetchImpl,
+}) {
+	if (
+		typeof secretKey !== "string" ||
+		secretKey.length < 32 ||
+		secretKey === "[SENSITIVE]"
+	) {
 		throw new Error("Production Supabase secret key is unavailable");
 	}
-
 	const response = await fetchImpl(
 		new URL("/rest/v1/rpc/session_campaign_move_release_health", base),
 		{
@@ -96,8 +111,55 @@ export async function verifySessionCampaignMoveProductionHealth({
 			`campaign move release health request failed with HTTP ${response?.status ?? "unknown"}`,
 		);
 	}
+	return normalizedHealth(await response.json());
+}
 
-	const health = normalizedHealth(await response.json());
+function assertBoolean(value, expected, label) {
+	if (value !== expected) {
+		throw new Error(`campaign move release health mismatch: ${label}`);
+	}
+}
+
+export async function verifySessionCampaignMoveProductionHealth({
+	supabaseUrl,
+	secretKey,
+	accessToken,
+	projectRef,
+	phase,
+	fetchImpl = globalThis.fetch,
+	logger = console.log,
+}) {
+	if (!["pre_promote", "canonical"].includes(phase)) {
+		throw new Error("phase must be pre_promote or canonical");
+	}
+	if (!/^[a-z0-9]{20}$/u.test(projectRef ?? "")) {
+		throw new Error("invalid Supabase project ref");
+	}
+	const base = new URL(
+		supabaseUrl || `https://${projectRef}.supabase.co`,
+	);
+	if (
+		base.protocol !== "https:" ||
+		base.hostname !== `${projectRef}.supabase.co` ||
+		base.username ||
+		base.password ||
+		base.search ||
+		base.hash
+	) {
+		throw new Error("Supabase URL does not match the governed Production project");
+	}
+	const health =
+		typeof accessToken === "string" && accessToken.length >= 20
+			? await requestHealthViaManagementApi({
+					accessToken,
+					projectRef,
+					fetchImpl,
+				})
+			: await requestHealthViaPostgrest({
+					base,
+					secretKey,
+					fetchImpl,
+				});
 	if (!health || health.schema !== EXPECTED_SCHEMA) {
 		throw new Error("campaign move release health returned an incompatible schema");
 	}
@@ -160,6 +222,7 @@ async function main() {
 	await verifySessionCampaignMoveProductionHealth({
 		supabaseUrl: values.SUPABASE_URL,
 		secretKey: values.SUPABASE_SECRET_KEY,
+		accessToken: process.env.SUPABASE_ACCESS_TOKEN,
 		projectRef,
 		phase,
 	});

@@ -287,7 +287,7 @@ export function JobDiagnosticsInspector({
 				if (open) onClose();
 			}}
 		>
-			<div className={styles.jobDiagnosticsShell}>
+			<div className={styles.jobDiagnosticsShell} data-job-diagnostics-shell="true">
 				<header className={styles.jobDiagnosticsHeader}>
 					<div>
 						<span className={styles.overline}>Diagnóstico do processamento</span>
@@ -436,7 +436,11 @@ export function JobDiagnosticsInspector({
 							) : null}
 						</fieldset>
 
-						<section className={styles.jobDiagnosticsLog} aria-label="Eventos deste processamento">
+						<section
+							className={styles.jobDiagnosticsLog}
+							aria-label="Eventos deste processamento"
+							data-job-diagnostics-log="true"
+						>
 							{eventsReady ? (
 								<ProcessingLiveLog
 									key={`${job.id}:${job.attempt}`}
