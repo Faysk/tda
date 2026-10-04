@@ -17,7 +17,11 @@ import {
 import { LocalBridge } from "./bridge";
 import { BenchmarkEvidenceWorkspace } from "./benchmark-evidence";
 import { BenchmarkQualityLab } from "./benchmark-quality";
-import { presentJobError, presentJobEvent, stageLabels } from "./presentation";
+import {
+	presentBenchmarkPartialProfileError,
+	presentJobEvent,
+	stageLabels,
+} from "./presentation";
 import {
 	formatSubmissionBytes,
 	profileReadinessCopy,
@@ -345,7 +349,7 @@ function PartialResultCard({
 				<p key={item.profileId} className={styles.loading}>
 					<strong>{LABELS[item.profileId]}:</strong>{" "}
 					{item.error
-						? presentJobError(item.error.code, "benchmark.craig")
+						? presentBenchmarkPartialProfileError(item.error.code)
 						: "Falha do perfil."}
 				</p>
 			))}
