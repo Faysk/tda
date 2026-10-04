@@ -973,6 +973,23 @@ begin
     return jsonb_build_object('status', 'not_found');
   end if;
 
+  -- Freeze lifecycle/visibility for the duration of the commit. Lock both
+  -- campaign rows in UUID order so opposite-direction administrative moves do
+  -- not deadlock while protecting the private/public media decision.
+  perform 1
+  from public.campaigns c
+  where c.id in (v_source.id, v_destination.id)
+  order by c.id
+  for share;
+
+  select * into v_source
+  from public.campaigns
+  where id = v_source.id;
+
+  select * into v_destination
+  from public.campaigns
+  where id = v_destination.id;
+
   select *
   into v_session
   from public.sessions s
