@@ -41,7 +41,7 @@ const consolidationStages = new Set([
 function jobTone(status: LocalJob["status"]): StatusTone {
 	if (status === "succeeded") return "success";
 	if (status === "failed") return "danger";
-	if (status === "interrupted") return "warning";
+	if (status === "partial" || status === "interrupted") return "warning";
 	if (status === "running") return "accent";
 	return "neutral";
 }
@@ -60,6 +60,8 @@ function progressPercent(job: LocalJob): number | null {
 
 function progressCopy(job: LocalJob): string {
 	if (!job.progress) return "Sem medida";
+	if (job.kind === "benchmark.craig")
+		return `${job.progress.completed} de ${job.progress.total} perfis tentados`;
 	const unit = job.progress.unit === "items" ? "itens" : job.progress.unit;
 	return `${job.progress.completed} de ${job.progress.total} ${unit}`;
 }
