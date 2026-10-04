@@ -169,7 +169,7 @@
 .dateSummary:focus-visible,
 .dateSummaryActive:focus-visible {
 	border-color: var(--ds-accent);
-	box-shadow: var(--ds-control-focus-ring);
+	box-shadow: 0 0 0 2px var(--ds-control-focus-ring);
 	outline: 0;
 }
 
