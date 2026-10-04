@@ -6,6 +6,7 @@ from dataclasses import replace
 
 import pytest
 
+import tda_companion.benchmark_quality as benchmark_quality_module
 from tda_companion.benchmark_bundles import (
     BENCHMARK_PROFILES,
     benchmark_id_for as _canonical_benchmark_id_for,
@@ -1021,6 +1022,98 @@ def test_glossary_hit_on_wrong_track_is_not_counted_as_correct():
     assert glossary["extra_occurrences"] == 1
     assert glossary["recall"] == 0.0
     assert glossary["precision"] == 0.0
+
+def test_private_glossary_inspection_counts_wrong_track_as_miss_and_extra(
+    monkeypatch,
+    tmp_path,
+):
+    track_one = TranscriptTrack(
+        number=1,
+        speaker="Alice",
+        source_filename="1.flac",
+        source_sha256="c" * 64,
+        duration_seconds=300.0,
+        segments=(
+            TranscriptSegment(
+                id="seg-1",
+                start=0.0,
+                end=1.0,
+                text="fala comum",
+            ),
+        ),
+    )
+    track_two = TranscriptTrack(
+        number=2,
+        speaker="Bob",
+        source_filename="2.flac",
+        source_sha256="d" * 64,
+        duration_seconds=300.0,
+        segments=(
+            TranscriptSegment(
+                id="seg-2",
+                start=0.0,
+                end=1.0,
+                text="Strahd",
+            ),
+        ),
+    )
+    candidate = TranscriptDocument(
+        recording_id="recording",
+        source_sha256=SOURCE_SHA256,
+        language="pt",
+        engine=TranscriptEngine(
+            engine="whisper",
+            model="model",
+            profile="whisper-turbo",
+            device="cuda:0",
+            compute_type="float16",
+            alignment="native",
+        ),
+        tracks=(track_one, track_two),
+        turns=(),
+        stats=TranscriptStats(
+            audio_work_seconds=600.0,
+            session_duration_seconds=300.0,
+            processing_seconds=1.0,
+            word_count=3,
+            segment_count=2,
+            track_count=2,
+            turn_count=0,
+        ),
+    )
+    reference = {
+        "source_sha256": SOURCE_SHA256,
+        "revision": 1,
+        "canonical_payload_sha256": "e" * 64,
+        "glossary_terms": ["Strahd"],
+        "tracks": [
+            {"track_number": 1, "text": "Strahd fala"},
+            {"track_number": 2, "text": "fala comum"},
+        ],
+    }
+
+    monkeypatch.setattr(
+        benchmark_quality_module,
+        "active_reference",
+        lambda *_args, **_kwargs: reference,
+    )
+    monkeypatch.setattr(
+        benchmark_quality_module,
+        "load_profile_transcript",
+        lambda *_args, **_kwargs: ({}, candidate),
+    )
+
+    inspection = benchmark_quality_module.inspect_quality_errors(
+        tmp_path,
+        benchmark_id="benchmark-quality-a1",
+        profile_id="whisper-turbo",
+    )
+
+    finding = inspection["glossary_findings"][0]
+    assert finding["correct_occurrences"] == 0
+    assert finding["missed_occurrences"] == 1
+    assert finding["extra_occurrences"] == 1
+
 
 def test_timing_match_uses_temporal_overlap_before_speaker_identity():
     reference = {
