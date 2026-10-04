@@ -5,6 +5,7 @@ import { getVerifiedServerIdentity } from "@/features/auth/server";
 import { editSessionDetailHref } from "@/features/campaigns/session-routes";
 import { readEditableSessionCampaigns } from "@/features/campaigns/sessions";
 import { loadEditAccessContext } from "@/features/edit/access/repository";
+import { editDataClient } from "@/integrations/supabase/server";
 import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
@@ -75,7 +76,6 @@ async function authorizedRequest(request: Request) {
 		ok: true as const,
 		authUserId: identity.authUserId,
 		profileId: context.profileId,
-		client: context.client,
 		source,
 		destination,
 	};
@@ -131,10 +131,14 @@ export async function moveSessionCampaignAction(
 		};
 	}
 
+	const client = editDataClient();
+	if (!client)
+		return { ok: false as const, reason: "dependency_unavailable" as const };
+
 	let preparedCover = null;
 	try {
 		const prepared = await prepareSessionCampaignMoveCover({
-			client: access.client,
+			client,
 			sessionId: request.sessionId,
 			sourceCampaignId: access.source.id,
 			sourceCampaignSlug: access.source.technicalSlug,
