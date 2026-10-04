@@ -131,6 +131,10 @@ function errorMessage(cause: unknown): string {
 			"Não conseguimos provar a ordem de todas as gravações.",
 		SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION:
 			"Dois horários colidem e não autorizam uma ordem automática.",
+		SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT:
+			"Os horários confiáveis contradizem a ordem mostrada. Reordene as gravações antes de continuar.",
+		SESSION_WORKSPACE_SEQUENCE_INVALID:
+			"A ordem mudou antes da confirmação. Atualize a sessão e confirme novamente.",
 		SESSION_ASSEMBLY_TIMELINE_NOT_READY:
 			"A cronologia ainda precisa de uma decisão antes de concluir a transcrição.",
 		SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INVALID:
@@ -883,6 +887,30 @@ export function SessionIntentCoordinator({
 		void advance();
 	}, [advance]);
 
+	async function confirmCurrentOrder() {
+		if (!workspace || workspace.parts.length < 2 || busy || disabled) return;
+		const controller = new AbortController();
+		setBusy(true);
+		setLocalError(null);
+		try {
+			await bridge.confirmSessionSequence(
+				workspace.campaignId,
+				workspace.sessionId,
+				workspace.revision,
+				controller.signal,
+			);
+			setBlocker(null);
+			await loadSnapshot(workspace.sessionId, controller.signal);
+			announce(
+				"Ordem confirmada. Intervalos sem horário comprovado seguem contínuos somente na leitura editorial.",
+			);
+		} catch (cause) {
+			fail(cause);
+		} finally {
+			setBusy(false);
+		}
+	}
+
 	async function retryFailed() {
 		if (!workspace || busy || disabled) return;
 		const controller = new AbortController();
@@ -1206,24 +1234,46 @@ export function SessionIntentCoordinator({
 					<div>
 						<strong>
 							{blocker.state === "overlap_unresolved"
-								? "Há uma sobreposição que precisa de decisão."
-								: "Não conseguimos provar onde uma gravação entra na sessão."}
+								? "Há uma sobreposição comprovada que precisa de decisão."
+								: blocker.state === "needs_timing" &&
+										workspace &&
+										workspace.parts.length > 1
+									? "Confirme a ordem das gravações."
+									: "A cronologia precisa de uma decisão antes de continuar."}
 						</strong>
 						<span>
-							Nenhuma ordem ou corte será inventado. Resolva somente esta
-							ambiguidade e o fluxo continua sozinho.
+							{blocker.state === "needs_timing" &&
+							workspace &&
+							workspace.parts.length > 1
+								? "A ordem exibida acima será usada como continuidade da sessão. Onde não houver horário confiável, o intervalo real continuará marcado como desconhecido."
+								: "Nenhuma ordem, horário ou corte será inventado. Resolva somente esta ambiguidade e o fluxo continua sozinho."}
 						</span>
 					</div>
-					{onOpenTechnical ? (
-						<Button
-							type="button"
-							size="sm"
-							variant="secondary"
-							onClick={onOpenTechnical}
-						>
-							Resolver cronologia
-						</Button>
-					) : null}
+					<div className={styles.headerActions}>
+						{blocker.state === "needs_timing" &&
+						workspace &&
+						workspace.parts.length > 1 ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="primary"
+								disabled={busy}
+								onClick={() => void confirmCurrentOrder()}
+							>
+								Usar esta ordem para montar a sessão
+							</Button>
+						) : null}
+						{onOpenTechnical ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="secondary"
+								onClick={onOpenTechnical}
+							>
+								Resolver cronologia
+							</Button>
+						) : null}
+					</div>
 				</div>
 			) : null}
 
