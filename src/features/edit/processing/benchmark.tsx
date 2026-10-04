@@ -555,6 +555,17 @@ export function ProcessingBenchmark({
 		["failed", "cancelled", "interrupted"].includes(latestJob.status)
 			? latestJob
 			: undefined;
+	const latestProblemEvents =
+		latestProblem && observedJobId === latestProblem.id
+			? events.filter(
+					(event) =>
+						event.attempt === null || event.attempt === latestProblem.attempt,
+				)
+			: [];
+	const latestProblemAttemptState =
+		latestProblem && latestProblemEvents.length > 0
+			? deriveBenchmarkAttemptUiState(latestProblem, latestProblemEvents)
+			: null;
 	const profileStates = PROFILES.map(
 		(id) => catalog.find((item) => item.id === id) ?? null,
 	);
