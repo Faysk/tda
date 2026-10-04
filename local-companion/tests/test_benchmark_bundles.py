@@ -192,6 +192,114 @@ def _finalize(data_root: Path, job_id: str = "benchmark-job", attempt: int = 1) 
     )
 
 
+def test_completed_bundle_hash_binds_profile_diagnostics(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    job_id = "diagnostics-job"
+    benchmark_id = benchmark_id_for(job_id, 1)
+    receipts = _profile_receipts(data_root, job_id, 1)
+
+    for index, profile_id in enumerate(BENCHMARK_PROFILES):
+        root = benchmark_root(data_root, benchmark_id) / "profiles" / profile_id
+        metrics = json.dumps(
+            {
+                "schema_version": "tda_benchmark_metrics_v1",
+                "benchmark_id": benchmark_id,
+                "profile_id": profile_id,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        events = (
+            json.dumps(
+                {
+                    "schema_version": "tda_benchmark_event_v1",
+                    "benchmark_id": benchmark_id,
+                    "profile_id": profile_id,
+                    "seq": 0,
+                    "code": "PROFILE_COMPLETED",
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
+        ).encode("utf-8")
+        (root / "metrics.json").write_bytes(metrics)
+        (root / "events.jsonl").write_bytes(events)
+        if index == 0:
+            (root / "telemetry.jsonl").write_text(
+                '{"schema_version":"tda_benchmark_telemetry_v1","relative_ms":0}\n',
+                encoding="utf-8",
+            )
+
+    package = _package()
+    bundle = finalize_benchmark_bundle(
+        data_root,
+        job_id=job_id,
+        attempt=1,
+        source_id=SOURCE_ID,
+        source_sha256=SOURCE_SHA,
+        sample=benchmark_sample_descriptor(package),
+        sample_identity_sha256=benchmark_sample_identity(package),
+        sample_seconds=300.0,
+        track_count=1,
+        audio_work_seconds=300.0,
+        context="contexto privado",
+        glossary="Valyndra",
+        profile_receipts=receipts,
+    )
+
+    assert bundle["status"] == "completed"
+    assert all("diagnostics" in item for item in bundle["profiles"])
+    first = bundle["profiles"][0]["diagnostics"]
+    assert first["metrics"]["artifact"].endswith("/metrics.json")
+    assert first["events"]["artifact"].endswith("/events.jsonl")
+    assert first["telemetry"]["artifact"].endswith("/telemetry.jsonl")
+    assert bundle["profiles"][1]["diagnostics"]["telemetry"] is None
+
+    tampered = benchmark_root(data_root, benchmark_id) / "profiles" / "qwen-fast" / "events.jsonl"
+    tampered.write_bytes(tampered.read_bytes() + b'{"seq":999}\n')
+    with pytest.raises(
+        BenchmarkBundleError,
+        match="BENCHMARK_BUNDLE_DIAGNOSTIC_ARTIFACT_MISMATCH",
+    ):
+        load_benchmark_bundle(data_root, benchmark_id)
+
+
+def test_bundle_rejects_partial_diagnostic_artifacts(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    job_id = "partial-diagnostics"
+    benchmark_id = benchmark_id_for(job_id, 1)
+    receipts = _profile_receipts(data_root, job_id, 1)
+    first = benchmark_root(data_root, benchmark_id) / "profiles" / BENCHMARK_PROFILES[0]
+    (first / "metrics.json").write_text(
+        '{"schema_version":"tda_benchmark_metrics_v1"}',
+        encoding="utf-8",
+    )
+    package = _package()
+
+    with pytest.raises(
+        BenchmarkBundleError,
+        match="BENCHMARK_DIAGNOSTIC_ARTIFACT_INCOMPLETE",
+    ):
+        finalize_benchmark_bundle(
+            data_root,
+            job_id=job_id,
+            attempt=1,
+            source_id=SOURCE_ID,
+            source_sha256=SOURCE_SHA,
+            sample=benchmark_sample_descriptor(package),
+            sample_identity_sha256=benchmark_sample_identity(package),
+            sample_seconds=300.0,
+            track_count=1,
+            audio_work_seconds=300.0,
+            context="",
+            glossary="",
+            profile_receipts=receipts,
+        )
+
+
 def test_profile_artifacts_commit_before_top_manifest_and_bundle_is_separate(tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()

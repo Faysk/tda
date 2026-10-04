@@ -72,6 +72,35 @@ duplica áudio Craig, não cria `staging/.../runs`, compatibility mirror, review
 publicação ou sync cloud. Limpar a fila não remove o bundle. Retry forma outro
 `benchmark-id`; replay idempotente da mesma tentativa só reutiliza bytes já validados.
 
+Cada perfil também preserva diagnóstico estruturado no mesmo diretório:
+`metrics.json`, `events.jsonl` e `telemetry.jsonl` quando o sampler está
+disponível. `metrics.json` inclui todos os `stage_seconds` de
+`engine_processing_v1`, total/RTF, fator realtime marcado como derivado, contagens,
+proveniência fresh/reused, lineage de modelo/runtime/GPU, fingerprint de
+contexto/glossário e timing autoritativo do supervisor. Preparação externa continua
+explicitamente fora do timing da engine.
+
+`events.jsonl` é capturado no boundary supervisor↔worker depois de validação do
+protocolo e da sequência. Transições de stage, warnings, errors, recovery e terminal
+ficam estruturadas por código; progress/heartbeat/eventos repetitivos podem ser
+agregados em `BENCHMARK_EVENT_AGGREGATE` com count, primeiro/último worker seq e
+janela relativa. O orçamento é limitado e evidência obrigatória excedida falha
+fechado, em vez de ser silenciosamente truncada e chamada de raw.
+
+A telemetria é best-effort, por padrão a cada ~1 s e limitada a 900 amostras por
+perfil. A GPU é casada por UUID/PCI físico reportado pela execução, não pelo ordinal
+NVML isolado. Cobertura, amostras esperadas/capturadas e motivo de ausência são
+persistidos; VRAM e utilização GPU, CPU e RAM são agregados sobre a janela completa.
+Temperatura/potência permanecem `null` enquanto a API local não as expuser com
+semântica confiável. Falha do sampler não falha a transcrição.
+
+O `benchmark.json` final inclui caminho, SHA-256 e tamanho desses diagnósticos para
+cada perfil, tornando-os parte verificável da identidade do bundle. Persistência usa
+allowlist e não recebe dump de environment, PATH/cwd, paths de instalação,
+hostname/usuário, Authorization/cookies/tokens, speaker, filenames, áudio nem texto
+da transcrição. Contexto e glossário entram apenas como hash + comprimento; o log
+global `companion.log` não é copiado nem fatiado como evidência.
+
 O receipt `tda_processing_benchmark_v1` continua pequeno: referências aditivas
 (`benchmark_id`, hash/tamanho do bundle e SHA/tamanho do transcript por perfil) apontam
 para conteúdo carregado sob demanda em
