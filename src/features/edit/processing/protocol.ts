@@ -395,8 +395,19 @@ export type BenchmarkProfileResult = {
 	artifactAvailable: boolean;
 };
 
-export type BenchmarkResult = {
-	schemaVersion: "tda_processing_benchmark_v1";
+export type BenchmarkProfileOutcome = {
+	profileId: TranscriptionProfileId;
+	status: "completed" | "failed";
+	artifactAvailable: boolean;
+	receiptIndex: number | null;
+	error: null | {
+		code: string;
+		recoverable: true;
+		scope: "profile";
+	};
+};
+
+type BenchmarkResultBase = {
 	jobId: string;
 	sourceId: string;
 	campaignId: string;
@@ -412,6 +423,29 @@ export type BenchmarkResult = {
 	bundleSizeBytes: number | null;
 	profiles: readonly BenchmarkProfileResult[];
 };
+
+export type BenchmarkCompleteResult = BenchmarkResultBase & {
+	schemaVersion: "tda_processing_benchmark_v1";
+	status: "completed";
+	profileOutcomes: readonly BenchmarkProfileOutcome[];
+	attemptedCount: 4;
+	completedCount: 4;
+	failedCount: 0;
+};
+
+export type BenchmarkPartialResult = BenchmarkResultBase & {
+	schemaVersion: "tda_processing_benchmark_v2";
+	status: "partial";
+	benchmarkId: string;
+	bundleManifestSha256: null;
+	bundleSizeBytes: null;
+	profileOutcomes: readonly BenchmarkProfileOutcome[];
+	attemptedCount: number;
+	completedCount: number;
+	failedCount: number;
+};
+
+export type BenchmarkResult = BenchmarkCompleteResult | BenchmarkPartialResult;
 
 export type BenchmarkEvidenceSummary = {
 	schemaVersion: "tda_benchmark_bundle_v1";
@@ -2192,113 +2226,103 @@ export function parseLocalReview(
 	};
 }
 
-export function parseBenchmarkResult(
-	value: unknown,
-	jobId: string,
-): BenchmarkResult {
-	const row = record(value);
-	if (row.schema_version !== "tda_processing_benchmark_v1")
-		throw new BridgeError("incompatible");
+function parseBenchmarkProfileResult(
+	raw: unknown,
+	{
+		expectedBenchmarkId,
+		expectedSampleIdentity,
+		requireArtifact,
+	}: Readonly<{
+		expectedBenchmarkId: string | null;
+		expectedSampleIdentity: string;
+		requireArtifact: boolean;
+	}>,
+): BenchmarkProfileResult {
+	const item = record(raw);
+	if (item.schema_version !== "tda_benchmark_profile_v1") return invalid();
+	const engine = text(item.engine, 64);
+	if (engine !== "whisper" && engine !== "qwen3") return invalid();
+	const rtf =
+		item.rtf === null || item.rtf === undefined
+			? null
+			: nonNegativeNumber(item.rtf);
+	const executionLineage = parseExecutionLineage(item.execution_lineage);
+	const expectedRuntimeFamily = engine === "whisper" ? "whisper" : "qwen";
+	if (
+		!executionLineage ||
+		executionLineage.runtimeFamily !== expectedRuntimeFamily ||
+		!executionLineage.runtimeArtifact?.archiveSha256 ||
+		!executionLineage.device?.toLowerCase().startsWith("cuda") ||
+		executionLineage.gpu?.vendor !== "NVIDIA" ||
+		!executionLineage.gpu.model
+	)
+		return invalid();
+
+	let transcriptSha256: string | null = null;
+	let transcriptSizeBytes: number | null = null;
+	let artifactAvailable = false;
+	const artifactFieldsPresent =
+		item.artifact_available !== undefined ||
+		item.transcript_sha256 !== undefined ||
+		item.transcript_size_bytes !== undefined ||
+		item.benchmark_id !== undefined;
+	if (requireArtifact) {
+		if (
+			item.artifact_available !== true ||
+			expectedBenchmarkId === null ||
+			item.benchmark_id !== expectedBenchmarkId ||
+			item.sample_identity_sha256 !== expectedSampleIdentity
+		)
+			return invalid();
+		transcriptSha256 = sha256(item.transcript_sha256);
+		transcriptSizeBytes = nonNegativeInteger(item.transcript_size_bytes);
+		if (transcriptSizeBytes <= 0) return invalid();
+		artifactAvailable = true;
+	} else if (artifactFieldsPresent) {
+		return invalid();
+	}
+
+	return {
+		profileId: transcriptionProfile(item.profile_id),
+		engine,
+		model: text(item.model, 256),
+		modelRevision: nullableText(item.model_revision, 256),
+		device: text(item.device, 64),
+		computeType: nullableText(item.compute_type, 64),
+		alignment: text(item.alignment, 128),
+		sampleSeconds: nonNegativeNumber(item.sample_seconds),
+		audioWorkSeconds: nonNegativeNumber(item.audio_work_seconds),
+		sessionDurationSeconds: nonNegativeNumber(item.session_duration_seconds),
+		processingTimingVersion:
+			item.processing_timing_version === PROCESSING_TIMING_VERSION
+				? PROCESSING_TIMING_VERSION
+				: invalid(),
+		processingSeconds: nonNegativeNumber(item.processing_seconds),
+		rtf,
+		wordCount: nonNegativeInteger(item.word_count),
+		segmentCount: nonNegativeInteger(item.segment_count),
+		trackCount: nonNegativeInteger(item.track_count),
+		warningCount: nonNegativeInteger(item.warning_count),
+		executionLineage,
+		transcriptSha256,
+		transcriptSizeBytes,
+		artifactAvailable,
+	};
+}
+
+const BENCHMARK_PROFILE_ORDER: readonly TranscriptionProfileId[] = [
+	"whisper-turbo",
+	"whisper-detailed",
+	"qwen-fast",
+	"qwen-quality",
+];
+
+function benchmarkResultBase(row: Record<string, unknown>, jobId: string) {
 	if (identifier(row.job_id) !== jobId) return invalid();
 	if (row.kind !== "benchmark.craig") return invalid();
 	const sampleSeconds = nonNegativeNumber(row.sample_seconds);
 	if (sampleSeconds !== 300) return invalid();
-	const bundleFieldsPresent =
-		row.benchmark_id !== undefined ||
-		row.bundle_manifest_sha256 !== undefined ||
-		row.bundle_size_bytes !== undefined;
-	let benchmarkId: string | null = null;
-	let bundleManifestSha256: string | null = null;
-	let bundleSizeBytes: number | null = null;
-	if (bundleFieldsPresent) {
-		benchmarkId = text(row.benchmark_id, 196);
-		if (!/^benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}$/u.test(benchmarkId))
-			return invalid();
-		bundleManifestSha256 = sha256(row.bundle_manifest_sha256);
-		bundleSizeBytes = nonNegativeInteger(row.bundle_size_bytes);
-		if (bundleSizeBytes <= 0) return invalid();
-	}
-	const profiles = row.profiles;
-	if (!Array.isArray(profiles) || profiles.length !== 4) return invalid();
-	const parsed = profiles.map((raw): BenchmarkProfileResult => {
-		const item = record(raw);
-		if (item.schema_version !== "tda_benchmark_profile_v1") return invalid();
-		const engine = text(item.engine, 64);
-		if (engine !== "whisper" && engine !== "qwen3") return invalid();
-		const rtf =
-			item.rtf === null || item.rtf === undefined
-				? null
-				: nonNegativeNumber(item.rtf);
-		const executionLineage = parseExecutionLineage(item.execution_lineage);
-		const expectedRuntimeFamily = engine === "whisper" ? "whisper" : "qwen";
-		if (
-			!executionLineage ||
-			executionLineage.runtimeFamily !== expectedRuntimeFamily ||
-			!executionLineage.runtimeArtifact?.archiveSha256 ||
-			!executionLineage.device?.toLowerCase().startsWith("cuda") ||
-			executionLineage.gpu?.vendor !== "NVIDIA" ||
-			!executionLineage.gpu.model
-		)
-			return invalid();
-		let transcriptSha256: string | null = null;
-		let transcriptSizeBytes: number | null = null;
-		let artifactAvailable = false;
-		const profileArtifactFieldsPresent =
-			item.artifact_available !== undefined ||
-			item.transcript_sha256 !== undefined ||
-			item.transcript_size_bytes !== undefined ||
-			item.benchmark_id !== undefined;
-		if (bundleFieldsPresent) {
-			if (
-				item.artifact_available !== true ||
-				item.benchmark_id !== benchmarkId ||
-				item.sample_identity_sha256 !== row.sample_identity_sha256
-			)
-				return invalid();
-			transcriptSha256 = sha256(item.transcript_sha256);
-			transcriptSizeBytes = nonNegativeInteger(item.transcript_size_bytes);
-			if (transcriptSizeBytes <= 0) return invalid();
-			artifactAvailable = true;
-		} else if (profileArtifactFieldsPresent) {
-			return invalid();
-		}
-		return {
-			profileId: transcriptionProfile(item.profile_id),
-			engine,
-			model: text(item.model, 256),
-			modelRevision: nullableText(item.model_revision, 256),
-			device: text(item.device, 64),
-			computeType: nullableText(item.compute_type, 64),
-			alignment: text(item.alignment, 128),
-			sampleSeconds: nonNegativeNumber(item.sample_seconds),
-			audioWorkSeconds: nonNegativeNumber(item.audio_work_seconds),
-			sessionDurationSeconds: nonNegativeNumber(item.session_duration_seconds),
-			processingTimingVersion:
-				item.processing_timing_version === PROCESSING_TIMING_VERSION
-					? PROCESSING_TIMING_VERSION
-					: invalid(),
-			processingSeconds: nonNegativeNumber(item.processing_seconds),
-			rtf,
-			wordCount: nonNegativeInteger(item.word_count),
-			segmentCount: nonNegativeInteger(item.segment_count),
-			trackCount: nonNegativeInteger(item.track_count),
-			warningCount: nonNegativeInteger(item.warning_count),
-			executionLineage,
-			transcriptSha256,
-			transcriptSizeBytes,
-			artifactAvailable,
-		};
-	});
-	const expected: readonly TranscriptionProfileId[] = [
-		"whisper-turbo",
-		"whisper-detailed",
-		"qwen-fast",
-		"qwen-quality",
-	];
-	if (parsed.some((item, index) => item.profileId !== expected[index]))
-		return invalid();
 	return {
-		schemaVersion: "tda_processing_benchmark_v1",
 		jobId,
 		sourceId: identifier(row.source_id),
 		campaignId: identifier(row.campaign_id),
@@ -2312,10 +2336,146 @@ export function parseBenchmarkResult(
 		trackCount: nonNegativeInteger(row.track_count),
 		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
 		prepared: boolean(row.prepared),
+	};
+}
+
+export function parseBenchmarkResult(
+	value: unknown,
+	jobId: string,
+): BenchmarkResult {
+	const row = record(value);
+	const base = benchmarkResultBase(row, jobId);
+
+	if (row.schema_version === "tda_processing_benchmark_v1") {
+		const bundleFieldsPresent =
+			row.benchmark_id !== undefined ||
+			row.bundle_manifest_sha256 !== undefined ||
+			row.bundle_size_bytes !== undefined;
+		let benchmarkId: string | null = null;
+		let bundleManifestSha256: string | null = null;
+		let bundleSizeBytes: number | null = null;
+		if (bundleFieldsPresent) {
+			benchmarkId = benchmarkIdentifier(row.benchmark_id);
+			bundleManifestSha256 = sha256(row.bundle_manifest_sha256);
+			bundleSizeBytes = nonNegativeInteger(row.bundle_size_bytes);
+			if (bundleSizeBytes <= 0) return invalid();
+		}
+		const profiles = row.profiles;
+		if (!Array.isArray(profiles) || profiles.length !== 4) return invalid();
+		const parsed = profiles.map((raw) =>
+			parseBenchmarkProfileResult(raw, {
+				expectedBenchmarkId: benchmarkId,
+				expectedSampleIdentity: base.sampleIdentitySha256,
+				requireArtifact: bundleFieldsPresent,
+			}),
+		);
+		if (parsed.some((item, index) => item.profileId !== BENCHMARK_PROFILE_ORDER[index]))
+			return invalid();
+		const profileOutcomes: readonly BenchmarkProfileOutcome[] = parsed.map(
+			(profile, index) => ({
+				profileId: profile.profileId,
+				status: "completed",
+				artifactAvailable: profile.artifactAvailable,
+				receiptIndex: index,
+				error: null,
+			}),
+		);
+		return {
+			...base,
+			schemaVersion: "tda_processing_benchmark_v1",
+			status: "completed",
+			benchmarkId,
+			bundleManifestSha256,
+			bundleSizeBytes,
+			profiles: parsed,
+			profileOutcomes,
+			attemptedCount: 4,
+			completedCount: 4,
+			failedCount: 0,
+		};
+	}
+
+	if (row.schema_version !== "tda_processing_benchmark_v2")
+		throw new BridgeError("incompatible");
+	if (row.status !== "partial") return invalid();
+	const benchmarkId = benchmarkIdentifier(row.benchmark_id);
+	if (row.bundle_manifest_sha256 !== null || row.bundle_size_bytes !== null)
+		return invalid();
+
+	const rawProfiles = row.profiles;
+	if (!Array.isArray(rawProfiles) || rawProfiles.length > 3) return invalid();
+	const profiles = rawProfiles.map((raw) =>
+		parseBenchmarkProfileResult(raw, {
+			expectedBenchmarkId: benchmarkId,
+			expectedSampleIdentity: base.sampleIdentitySha256,
+			requireArtifact: true,
+		}),
+	);
+	const rawOutcomes = row.profile_outcomes;
+	if (!Array.isArray(rawOutcomes) || rawOutcomes.length !== 4) return invalid();
+	const outcomes = rawOutcomes.map((raw, index): BenchmarkProfileOutcome => {
+		const item = record(raw);
+		const profileId = transcriptionProfile(item.profile_id);
+		if (profileId !== BENCHMARK_PROFILE_ORDER[index]) return invalid();
+		if (item.status === "completed") {
+			const receiptIndex = nonNegativeInteger(item.receipt_index);
+			if (
+				item.artifact_available !== true ||
+				receiptIndex >= profiles.length ||
+				profiles[receiptIndex]?.profileId !== profileId
+			)
+				return invalid();
+			return {
+				profileId,
+				status: "completed",
+				artifactAvailable: true,
+				receiptIndex,
+				error: null,
+			};
+		}
+		if (item.status !== "failed" || item.artifact_available !== false)
+			return invalid();
+		const error = record(item.error);
+		const code = text(error.code, 96);
+		if (!/^[A-Z0-9_]{1,96}$/u.test(code)) return invalid();
+		if (error.recoverable !== true || error.scope !== "profile") return invalid();
+		return {
+			profileId,
+			status: "failed",
+			artifactAvailable: false,
+			receiptIndex: null,
+			error: {
+				code,
+				recoverable: true,
+				scope: "profile",
+			},
+		};
+	});
+	const attemptedCount = nonNegativeInteger(row.attempted_count);
+	const completedCount = nonNegativeInteger(row.completed_count);
+	const failedCount = nonNegativeInteger(row.failed_count);
+	if (
+		attemptedCount !== 4 ||
+		completedCount !== profiles.length ||
+		failedCount < 1 ||
+		completedCount + failedCount !== attemptedCount ||
+		outcomes.filter((item) => item.status === "completed").length !== completedCount ||
+		outcomes.filter((item) => item.status === "failed").length !== failedCount
+	)
+		return invalid();
+
+	return {
+		...base,
+		schemaVersion: "tda_processing_benchmark_v2",
+		status: "partial",
 		benchmarkId,
-		bundleManifestSha256,
-		bundleSizeBytes,
-		profiles: parsed,
+		bundleManifestSha256: null,
+		bundleSizeBytes: null,
+		profiles,
+		profileOutcomes: outcomes,
+		attemptedCount,
+		completedCount,
+		failedCount,
 	};
 }
 
