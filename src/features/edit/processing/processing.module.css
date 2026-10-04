@@ -2164,8 +2164,7 @@
 }
 
 .jobDiagnosticsLog .liveLogViewport {
-	height: 100%;
-	min-height: 80px;
+	min-height: 64px;
 	max-height: none;
 	overflow: auto;
 	overscroll-behavior: auto;
