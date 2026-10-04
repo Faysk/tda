@@ -477,6 +477,43 @@ def _verify_profile_transcript_bytes(
         raise BenchmarkBundleError("BENCHMARK_BUNDLE_ARTIFACT_MISMATCH")
 
 
+def verify_benchmark_profile_receipt(
+    data_root: Path,
+    *,
+    benchmark_id: str,
+    source_id: str,
+    sample_identity_sha256: str,
+    receipt: dict[str, Any],
+) -> dict[str, Any]:
+    """Verify one persisted profile artifact without requiring a completed 4/4 bundle."""
+
+    if not isinstance(receipt, dict):
+        raise BenchmarkBundleError("BENCHMARK_PROFILE_RECEIPT_INVALID")
+    profile_id = receipt.get("profile_id")
+    if profile_id not in BENCHMARK_PROFILES:
+        raise BenchmarkBundleError("BENCHMARK_PROFILE_RECEIPT_INVALID")
+    if (
+        receipt.get("schema_version") != "tda_benchmark_profile_v1"
+        or receipt.get("benchmark_id") != benchmark_id
+        or receipt.get("sample_identity_sha256") != sample_identity_sha256
+        or receipt.get("artifact_available") is not True
+    ):
+        raise BenchmarkBundleError("BENCHMARK_PROFILE_RECEIPT_INVALID")
+
+    metadata = _profile_manifest_metadata(data_root, benchmark_id, profile_id)
+    _verify_profile_transcript_bytes(data_root, benchmark_id, profile_id, metadata)
+    manifest = metadata["manifest"]
+    if (
+        manifest.get("source_id") != source_id
+        or manifest.get("sample_identity_sha256") != sample_identity_sha256
+        or metadata["transcript_sha256"] != receipt.get("transcript_sha256")
+        or metadata["transcript_size_bytes"] != receipt.get("transcript_size_bytes")
+        or manifest.get("execution_lineage") != receipt.get("execution_lineage")
+    ):
+        raise BenchmarkBundleError("BENCHMARK_PROFILE_RECEIPT_MISMATCH")
+    return metadata
+
+
 def write_benchmark_profile(
     data_root: Path,
     document: TranscriptDocument,
