@@ -45,6 +45,7 @@ import type {
 	TranscriptionProfileId,
 } from "./protocol";
 import { BridgeError } from "./protocol";
+import { sessionRecoveryPrimaryMessage } from "./session-recovery";
 import { SessionAssemblyReview } from "./session-assembly-review";
 import styles from "./session-intent.module.css";
 
@@ -121,33 +122,13 @@ function validSessionId(value: string): boolean {
 	return /^[A-Za-z0-9_-]{1,128}$/u.test(value);
 }
 
+function errorCode(cause: unknown): string | null {
+	if (!(cause instanceof BridgeError)) return null;
+	return cause.serverCode ?? cause.code;
+}
+
 function errorMessage(cause: unknown): string {
-	if (!(cause instanceof BridgeError))
-		return "Não foi possível continuar a transcrição da sessão.";
-	const code = cause.serverCode ?? cause.code;
-	const messages: Record<string, string> = {
-		SESSION_WORKSPACE_REVISION_CONFLICT:
-			"A sessão mudou em outra aba. O TDA vai recarregar o estado antes de continuar.",
-		SESSION_WORKSPACE_SOURCE_UNAVAILABLE:
-			"Uma gravação local não está mais íntegra. Reimporte o ZIP correspondente.",
-		SESSION_WORKSPACE_TIMELINE_ORDER_AMBIGUOUS:
-			"Não conseguimos provar a ordem de todas as gravações.",
-		SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION:
-			"Dois horários colidem e não autorizam uma ordem automática.",
-		SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT:
-			"Os horários confiáveis contradizem a ordem mostrada. Reordene as gravações antes de continuar.",
-		SESSION_WORKSPACE_SEQUENCE_INVALID:
-			"A ordem mudou antes da confirmação. Atualize a sessão e confirme novamente.",
-		SESSION_ASSEMBLY_TIMELINE_NOT_READY:
-			"A cronologia ainda precisa de uma decisão antes de concluir a transcrição.",
-		SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INVALID:
-			"Há um conflito de participante que precisa de decisão.",
-		timeout:
-			"O Companion demorou demais para responder. O estado já salvo foi preservado.",
-		unreachable:
-			"O Companion ficou indisponível. O estado já salvo foi preservado.",
-	};
-	return messages[code] ?? `Operação local não concluída · ${code}`;
+	return sessionRecoveryPrimaryMessage(errorCode(cause));
 }
 
 function sourceLabel(
@@ -199,6 +180,7 @@ export function SessionIntentCoordinator({
 	const [busy, setBusy] = useState(false);
 	const [live, setLive] = useState<string | null>(null);
 	const [localError, setLocalError] = useState<string | null>(null);
+	const [localErrorCode, setLocalErrorCode] = useState<string | null>(null);
 	const processedRequest = useRef<string | null>(null);
 	const advancing = useRef(false);
 	const pendingSubmissions = useRef(
@@ -222,16 +204,29 @@ export function SessionIntentCoordinator({
 	);
 	const fail = useCallback(
 		(cause: unknown) => {
+			const code = errorCode(cause);
+			if (
+				code === "SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE" &&
+				workspace?.timeline.state === "ready"
+			) {
+				setLocalError(null);
+				setLocalErrorCode(null);
+				announce(
+					"Ordem definida manualmente. Vamos preservar a sequência escolhida por você.",
+				);
+				return;
+			}
 			const message = errorMessage(cause);
 			const availabilityFailure =
 				cause instanceof BridgeError &&
 				(cause.code === "timeout" || cause.code === "unreachable")
 					? cause.code
 					: undefined;
+			setLocalErrorCode(code);
 			setLocalError(message);
 			onError?.(message, availabilityFailure);
 		},
-		[onError],
+		[announce, onError, workspace?.timeline.state],
 	);
 
 	const persistIntentReceipt = useCallback(
@@ -306,6 +301,7 @@ export function SessionIntentCoordinator({
 			const controller = new AbortController();
 			setBusy(true);
 			setLocalError(null);
+			setLocalErrorCode(null);
 			setBlocker(null);
 			enqueueRecoveryBlocked.current.clear();
 			setReview(null);
@@ -1520,9 +1516,15 @@ export function SessionIntentCoordinator({
 			) : null}
 
 			{localError && !onError ? (
-				<p className={styles.error} role="alert">
-					{localError}
-				</p>
+				<div className={styles.error} role="alert">
+					<p>{localError}</p>
+					{localErrorCode ? (
+						<details>
+							<summary>Detalhes técnicos</summary>
+							<code>{localErrorCode}</code>
+						</details>
+					) : null}
+				</div>
 			) : null}
 			<p className={styles.live} role="status" aria-live="polite" aria-atomic="true">
 				{live}
