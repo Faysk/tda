@@ -86,6 +86,7 @@ type FixtureOptions = Readonly<{
 	invalidSourceIndex?: number | null;
 	sourceStartOrder?: readonly number[];
 	initialTimelineState?: "needs_timing" | "overlap_unresolved" | "order_conflict";
+	reviewRowCount?: number;
 }>;
 
 async function installMultiRecordingRoutes(
@@ -123,20 +124,25 @@ async function installMultiRecordingRoutes(
 	let timelineDeriveCount = 0;
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
 
-	const baseReviewRows = () =>
-		attached.map((sourceId, index) => {
-			const absolute = options.reviewAbsoluteTimes?.[index];
+	const baseReviewRows = () => {
+		const count = options.reviewRowCount ?? attached.length;
+		return Array.from({ length: count }, (_, index) => {
+			const sourceIndex = attached.length ? index % attached.length : 0;
+			const sourceId = attached[sourceIndex] ?? SOURCE_IDS[0]!;
+			const absolute = options.reviewAbsoluteTimes?.[sourceIndex];
 			return {
 				assembly_segment_id:
-					index === 0 ? SEGMENT_ID : (index + 10).toString(16).repeat(64),
-				part_id: PART_IDS[index],
+					index === 0
+						? SEGMENT_ID
+						: (index + 10).toString(16).padStart(64, "0").slice(-64),
+				part_id: PART_IDS[sourceIndex] ?? PART_IDS[0],
 				source_id: sourceId,
 				run_id: `run-${SOURCE_IDS.indexOf(sourceId) + 1}`,
 				source_segment_id: `seg-${index + 1}`,
 				track_number: 1,
 				participant_id: "9".repeat(32),
-				start: index * 300,
-				end: index * 300 + 1,
+				start: index * 2,
+				end: index * 2 + 1,
 				...(options.reviewAbsoluteTimes === undefined
 					? {}
 					: absolute
@@ -157,6 +163,7 @@ async function installMultiRecordingRoutes(
 				reviewed: false,
 			};
 		});
+	};
 	const currentReviewRows = () => reviewRows ?? baseReviewRows();
 	const reviewWordCount = () =>
 		currentReviewRows().reduce((total, row) => {
@@ -755,7 +762,7 @@ async function installMultiRecordingRoutes(
 								assembly_id: ASSEMBLY_ID,
 								transcript_sha256: TRANSCRIPT_SHA,
 								inputs_sha256: ASSEMBLY_ID,
-								segment_count: attached.length,
+								segment_count: options.reviewRowCount ?? attached.length,
 								part_count: attached.length,
 								participant_approval_blocked: false,
 								created_at: NOW,
@@ -793,7 +800,7 @@ async function installMultiRecordingRoutes(
 				transcript_artifact: "transcript.json",
 				transcript_sha256: TRANSCRIPT_SHA,
 				transcript_size_bytes: 512,
-				segment_count: attached.length,
+				segment_count: options.reviewRowCount ?? attached.length,
 				created_at: NOW,
 				parts: attached.map((sourceId, index) => ({
 					part_id: PART_IDS[index],
@@ -977,11 +984,23 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 	expect(multi.assemblyBuilt).toBe(true);
 
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
-	const review = page.getByRole("region", {
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const reviewOwner = page.locator("[data-assembly-review-owner='results']");
+	const review = reviewOwner.getByRole("region", {
 		name: "Revisão da transcrição da sessão",
 	});
+	await expect(reviewOwner).toBeVisible();
+	await expect(page.getByRole("tab", { name: "Resultados" })).toBeFocused();
 	await expect(review).toBeVisible();
 	await expect(review).toContainText("1 falas");
+	await expect(
+		page
+			.locator("[data-session-intent='true']")
+			.getByRole("region", { name: "Revisão da transcrição da sessão" }),
+	).toHaveCount(0);
 });
 
 test("trusted midnight stays visible while unavailable wall-clock stays absent", async ({
@@ -1020,9 +1039,11 @@ test("trusted midnight stays visible while unavailable wall-clock stays absent",
 	await expect(intent).toContainText("Transcrição pronta");
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
 
-	const review = page.getByRole("region", {
-		name: "Revisão da transcrição da sessão",
-	});
+	const review = page
+		.locator("[data-assembly-review-owner='results']")
+		.getByRole("region", {
+			name: "Revisão da transcrição da sessão",
+		});
 	await expect(review.locator("time")).toHaveCount(1);
 	await expect(review.locator("time")).toContainText(
 		"2026-09-29 · 23:59:59 +01:00",
@@ -1058,9 +1079,11 @@ test("stale Markdown import preserves the working copy and never overwrites sile
 	await expect(intent).toContainText("Transcrição pronta");
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
 
-	const review = page.getByRole("region", {
-		name: "Revisão da transcrição da sessão",
-	});
+	const review = page
+		.locator("[data-assembly-review-owner='results']")
+		.getByRole("region", {
+			name: "Revisão da transcrição da sessão",
+		});
 	await review.getByText("Markdown para revisão externa", { exact: true }).click();
 	const correctedMarkdown = (
 		await renderTranscriptMarkdownV1({
@@ -1173,6 +1196,8 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(intent).toBeVisible();
+	await expect(page.locator("[data-processing-intent-summary='true']")).toBeVisible();
+	await expect(page.getByLabel("Export do Craig")).toBeHidden();
 	await expect(intent).toContainText("2/3 concluídas");
 	await expect(intent.getByRole("alert")).toContainText("Uma gravação falhou.");
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
@@ -1187,9 +1212,11 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	expect(multi.assemblyBuilt).toBe(true);
 
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
-	const review = page.getByRole("region", {
-		name: "Revisão da transcrição da sessão",
-	});
+	const review = page
+		.locator("[data-assembly-review-owner='results']")
+		.getByRole("region", {
+			name: "Revisão da transcrição da sessão",
+		});
 	await expect(review).toBeVisible();
 	await expect(review).toContainText("3 falas");
 
@@ -1290,6 +1317,70 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 			).toBeTruthy();
 		}
 	}
+});
+
+test("8k session review stays bounded, paged and edits only the active utterance", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0],
+		reviewRowCount: 8_000,
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles({
+		name: "sessao-longa.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-long"),
+	});
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const review = page
+		.locator("[data-assembly-review-owner='results']")
+		.getByRole("region", { name: "Revisão da transcrição da sessão" });
+	await expect(review).toContainText("8.000 falas");
+	const viewport = review.locator("[data-assembly-transcript-viewport='true']");
+	await expect(viewport).toHaveAttribute("data-page-size", "60");
+	await expect(viewport.locator("[data-assembly-segment]")).toHaveCount(60);
+	await expect(viewport.locator("textarea")).toHaveCount(0);
+
+	const pageGeometry = await page.evaluate(() => ({
+		scrollHeight: document.documentElement.scrollHeight,
+		clientHeight: document.documentElement.clientHeight,
+	}));
+	expect(pageGeometry.scrollHeight).toBeLessThan(pageGeometry.clientHeight * 4);
+
+	await viewport.locator("[data-assembly-segment-trigger]").first().click();
+	await expect(viewport.locator("textarea")).toHaveCount(1);
+	await viewport.getByLabel("Texto").fill("Trecho descartado");
+	await viewport.getByRole("button", { name: "Cancelar" }).click();
+	await expect(viewport.locator("textarea")).toHaveCount(0);
+	await expect(viewport.getByText("Trecho 1", { exact: true })).toBeVisible();
+
+	await viewport.locator("[data-assembly-segment-trigger]").first().click();
+	await viewport.getByLabel("Texto").fill("Trecho editado no viewport");
+	await viewport.getByRole("button", { name: "Aplicar" }).click();
+	await expect(viewport.locator("textarea")).toHaveCount(0);
+	await expect(viewport.getByText("Trecho editado no viewport", { exact: true })).toBeVisible();
+
+	await review.getByRole("button", { name: "Próxima" }).click();
+	await expect(review.getByText("Página 2 de 134", { exact: true })).toBeVisible();
+	await expect(viewport.locator("[data-assembly-segment]")).toHaveCount(60);
+
+	await review.getByLabel("Buscar na transcrição").fill("Trecho 8000");
+	await expect(review.getByText("1 falas encontradas", { exact: true })).toBeVisible();
+	await expect(viewport.locator("[data-assembly-segment]")).toHaveCount(1);
+	await expect(viewport.getByText("Trecho 8000", { exact: true })).toBeVisible();
 });
 
 test("trusted Craig chronology never silently replaces the editorial order", async ({ page }) => {
