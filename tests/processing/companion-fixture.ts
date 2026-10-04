@@ -1159,7 +1159,7 @@ export async function installCompanionFixture(
 		if (
 			options.benchmarkEvidence &&
 			options.benchmarkQuality &&
-			path.match(/^\\/benchmarks\\/benchmark-benchmark-job-1-a1\\/profiles\\/(whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)\\/reference-draft$/u)
+			path.match(/^\/benchmarks\/benchmark-benchmark-job-1-a1\/profiles\/(whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)\/reference-draft$/u)
 		) {
 			const profileId = path.split("/")[4]!;
 			return json(route, {
