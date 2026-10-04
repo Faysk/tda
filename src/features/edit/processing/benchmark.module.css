@@ -787,6 +787,16 @@
 	border-color: var(--ds-success);
 }
 
+.runStep[data-state="failed"] {
+	color: var(--ds-danger);
+	font-weight: 700;
+}
+
+.runStep[data-state="failed"] i {
+	border-color: var(--ds-danger);
+	color: var(--ds-danger);
+}
+
 .runStep[data-state="current"] {
 	color: var(--ds-foreground);
 	font-weight: 700;
