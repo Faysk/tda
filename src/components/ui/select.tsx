@@ -303,7 +303,6 @@ export function Select<T extends string>({
 				aria-controls={listboxId}
 				aria-describedby={ariaDescribedBy}
 				aria-invalid={ariaInvalid || requiredMissing || undefined}
-				aria-required={required || undefined}
 				disabled={disabled}
 				onClick={() => setOpen((current) => !current)}
 				onKeyDown={handleTriggerKeyDown}
