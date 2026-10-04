@@ -111,10 +111,12 @@ describe("partial Benchmark protocol", () => {
 	});
 
 	it("rejects count drift and any fake bundle metadata on a partial attempt", () => {
-		const value = payload();
-		value.completed_count = 4;
-		value.failed_count = 0;
-		value.bundle_manifest_sha256 = "d".repeat(64);
+		const value = {
+			...payload(),
+			completed_count: 4,
+			failed_count: 0,
+			bundle_manifest_sha256: "d".repeat(64),
+		};
 		expect(() => parseBenchmarkAttemptResult(value, JOB_ID)).toThrow();
 	});
 });
