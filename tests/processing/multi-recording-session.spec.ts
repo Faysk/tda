@@ -1323,7 +1323,9 @@ test("three ZIPs without trusted timestamps use confirmed order, survive reload,
 		name: "Usar esta ordem para montar a sessão",
 	});
 	await expect(confirm).toBeVisible();
-	await expect(intent.getByRole("status")).toContainText("Confirme a ordem das gravações.");
+	await expect(
+		intent.getByRole("status").filter({ hasText: "Confirme a ordem das gravações." }),
+	).toBeVisible();
 	await expect(intent.getByRole("alert")).toHaveCount(0);
 	await expect(intent).toContainText(
 		"o intervalo real continuará marcado como desconhecido",
