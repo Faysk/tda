@@ -61,7 +61,7 @@ def _lineage(*, qwen: bool = False) -> dict:
     artifact = {
         **RUNTIME_ARTIFACT,
         "runtime_id": "qwen3-transformers" if qwen else "whisper-ctranslate2",
-        "version": "1.0.18" if qwen else "1.1.10",
+        "version": "1.0.19" if qwen else "1.1.10",
     }
     return {
         "schema_version": "tda_execution_lineage_v1",
