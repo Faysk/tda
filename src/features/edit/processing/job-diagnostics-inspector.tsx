@@ -359,8 +359,17 @@ export function JobDiagnosticsInspector({
 											<dt>Resultados por perfil</dt>
 											<dd>
 												{benchmarkAttemptState.profiles.map((item) => {
-													const suffix = item.errorCode ? ` · ${item.errorCode}` : "";
-													return `${item.profileId}: ${item.status}${suffix}`;
+													const details = [
+														item.errorCode,
+														item.scope ? `escopo ${item.scope}` : null,
+														item.recoverable === null
+															? null
+															: item.recoverable
+																? "recuperável"
+																: "não recuperável",
+														item.continuation ? `continuação ${item.continuation}` : null,
+													].filter(Boolean);
+													return `${item.profileId}: ${item.status}${details.length ? " · " + details.join(" · ") : ""}`;
 												}).join(" · ")}
 											</dd>
 										</div>
