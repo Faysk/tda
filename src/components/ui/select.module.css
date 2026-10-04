@@ -33,7 +33,7 @@
 .trigger:focus-visible,
 .trigger[aria-expanded="true"] {
 	border-color: var(--ds-accent);
-	box-shadow: var(--ds-control-focus-ring);
+	box-shadow: 0 0 0 2px var(--ds-control-focus-ring);
 	outline: 0;
 }
 
@@ -56,12 +56,18 @@
 	box-shadow: none;
 }
 
-.embedded .trigger:hover,
+.embedded .trigger:hover {
+	border: 0;
+	background: var(--ds-surface-hover);
+	box-shadow: none;
+}
+
 .embedded .trigger:focus-visible,
 .embedded .trigger[aria-expanded="true"] {
 	border: 0;
 	background: var(--ds-surface-hover);
-	box-shadow: none;
+	box-shadow: inset 0 0 0 2px var(--ds-control-focus-ring);
+	outline: 0;
 }
 
 .value {
