@@ -12,14 +12,19 @@ from pathlib import Path
 from typing import BinaryIO, Callable, TextIO
 
 from .asr_models import ModelRegistryError, get_profile
+from .benchmark_diagnostics import build_worker_benchmark_diagnostics
 from .attempt_fence import AttemptFenceError, claim_attempt_outcome
 from .asr_whisper import WhisperRuntimeError, transcribe_craig_package
+from .benchmark_bundles import (
+    BenchmarkBundleError,
+    benchmark_sample_identity,
+    write_benchmark_profile,
+)
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
 from .execution_device import reset_execution_device
 from .execution_lineage import capture_execution_lineage
 from .engine_metrics import fresh_calibration_sample
-from .benchmark_evidence import BenchmarkEvidenceError, write_profile_artifact
 from .transcript import TranscriptValidationError
 from .transcription_runs import (
     TranscriptionRunError,
@@ -120,7 +125,13 @@ def _stable_error_code(error: BaseException) -> str:
     if re.fullmatch(r"[A-Z0-9_]{1,96}", code):
         if isinstance(
             error,
-            (WhisperRuntimeError, ModelRegistryError, CraigPackageError, TranscriptionRunError),
+            (
+                WhisperRuntimeError,
+                ModelRegistryError,
+                CraigPackageError,
+                TranscriptionRunError,
+                BenchmarkBundleError,
+            ),
         ):
             return code
         if error.__class__.__name__ == "QwenRuntimeError":
@@ -163,12 +174,6 @@ def _run_craig(
             float(command.payload["benchmark_sample_seconds"])
             if benchmark_mode
             else None
-        )
-        benchmark_id = str(command.payload.get("benchmark_id") or "") if benchmark_mode else ""
-        benchmark_sample_identity = (
-            str(command.payload.get("benchmark_sample_identity_sha256") or "")
-            if benchmark_mode
-            else ""
         )
         staging_root = (data_root / "staging").resolve()
         package_root = (staging_root / source_id).resolve()
@@ -278,20 +283,21 @@ def _run_craig(
                 raise TranscriptionRunError("BENCHMARK_FRESH_PROCESSING_METRICS_REQUIRED")
             benchmark_metrics = stats.processing_metrics
             lineage = capture_execution_lineage(document)
-            try:
-                profile_artifact = write_profile_artifact(
-                    data_root,
-                    document,
-                    benchmark_id=benchmark_id,
-                    job_id=command.job_id,
-                    attempt=command.attempt,
-                    profile_id=profile.id,
-                    sample_identity_sha256=benchmark_sample_identity,
-                    sample_seconds=float(benchmark_sample_seconds),
-                    execution_lineage=lineage,
-                )
-            except BenchmarkEvidenceError as exc:
-                raise TranscriptionRunError(str(exc)) from exc
+            worker_diagnostics = build_worker_benchmark_diagnostics(document)
+            sample_identity_sha256 = benchmark_sample_identity(
+                package,
+                benchmark_sample_seconds,
+            )
+            artifact = write_benchmark_profile(
+                data_root,
+                document,
+                job_id=command.job_id,
+                attempt=command.attempt,
+                source_id=source_id,
+                sample_identity_sha256=sample_identity_sha256,
+                sample_seconds=benchmark_sample_seconds,
+                execution_lineage=lineage,
+            )
             heartbeat_stop.set()
             heartbeat_thread.join(timeout=1.0)
             emitter.emit(
@@ -299,6 +305,11 @@ def _run_craig(
                 {
                     "kind": "benchmark.profile",
                     "schema_version": "tda_benchmark_profile_v1",
+                    "benchmark_id": artifact["benchmark_id"],
+                    "sample_identity_sha256": sample_identity_sha256,
+                    "transcript_sha256": artifact["transcript_sha256"],
+                    "transcript_size_bytes": artifact["transcript_size_bytes"],
+                    "artifact_available": True,
                     "profile_id": profile.id,
                     "engine": document.engine.engine,
                     "model": document.engine.model,
@@ -317,10 +328,7 @@ def _run_craig(
                     "track_count": stats.track_count,
                     "warning_count": len(document.warnings),
                     "execution_lineage": lineage,
-                    "benchmark_id": benchmark_id,
-                    "transcript_sha256": profile_artifact["transcript"]["sha256"],
-                    "transcript_size_bytes": profile_artifact["transcript"]["size_bytes"],
-                    "artifact_available": True,
+                    "benchmark_diagnostics": worker_diagnostics,
                 },
             )
             return 0
