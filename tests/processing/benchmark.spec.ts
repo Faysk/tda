@@ -676,6 +676,11 @@ test("benchmark continues after a profile-local Qwen failure and finishes as Par
 	const rerun = panel.getByRole("button", { name: "Executar novo benchmark" }).first();
 	await rerun.focus();
 	await expect(rerun).toBeFocused();
+	const originalKey = state.idempotencyKeys[0];
+	await page.keyboard.press("Enter");
+	await expect.poll(() => state.jobPostCount).toBe(2);
+	expect(state.idempotencyKeys).toHaveLength(2);
+	expect(state.idempotencyKeys[1]).not.toBe(originalKey);
 });
 
 test("Whisper 1.1.9 stays transcription-ready but requires benchmark evidence runtime", async ({
