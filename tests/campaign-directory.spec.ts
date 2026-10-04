@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 async function openArchiveSelect(scope: Page | Locator, name: string) {
 	const trigger = scope.getByRole("button", { name, exact: true });
 	await trigger.click();
-	const listbox = scope.getByRole("listbox", { name, exact: true });
+	const listbox = trigger.page().getByRole("listbox", { name, exact: true });
 	await expect(listbox).toBeVisible();
 	return listbox;
 }
