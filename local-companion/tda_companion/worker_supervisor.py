@@ -44,6 +44,20 @@ class WorkerOutcome:
     returncode: int
 
 
+_BENCHMARK_PROFILE_LOCAL_FAILURES = frozenset(
+    {
+        # Signal-bearing audio that Qwen cannot recognize remains a real failed
+        # profile, but it does not invalidate the shared source or independent
+        # later profiles in the same benchmark attempt.
+        "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+    }
+)
+
+
+def _benchmark_profile_failure_is_local(exc: WorkerProcessError) -> bool:
+    return exc.recoverable and exc.code in _BENCHMARK_PROFILE_LOCAL_FAILURES
+
+
 def default_worker_command() -> list[str]:
     if getattr(sys, "frozen", False):
         return [sys.executable, "--worker"]
@@ -661,6 +675,27 @@ class WorkerSupervisor:
         profiles = BENCHMARK_PROFILES
         benchmark_id = benchmark_id_for(job_id, attempt)
         receipts: list[dict] = []
+        profile_outcomes: list[dict] = []
+
+        def commit_attempted_progress(index: int) -> None:
+            on_progress(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=index - 1,
+                    type="progress",
+                    payload={
+                        # Queue progress counts attempted benchmark profiles. The
+                        # partial-result contract carries successful/failed counts
+                        # separately so a failed profile is never called success.
+                        "completed": index,
+                        "total": len(profiles),
+                        "unit": "profiles",
+                        "stage": "benchmark",
+                    },
+                )
+            )
+
         for index, profile_id in enumerate(profiles, start=1):
             if is_cancelled is not None and is_cancelled():
                 return WorkerOutcome(
@@ -715,13 +750,37 @@ class WorkerSupervisor:
             except WorkerProcessError as exc:
                 if diagnostics is not None:
                     try:
+                        diagnostics.record_supervisor_terminal(
+                            status="failed",
+                            code=exc.code,
+                            recoverable=exc.recoverable,
+                        )
                         diagnostics.finalize(status="failed", error_code=exc.code)
                     except BenchmarkDiagnosticsError as diagnostics_exc:
                         raise WorkerProcessError(
                             diagnostics_exc.code,
                             recoverable=False,
                         ) from exc
-                raise
+                if not _benchmark_profile_failure_is_local(exc):
+                    raise
+                profile_outcomes.append(
+                    {
+                        "profile_id": profile_id,
+                        "status": "failed",
+                        "error": {
+                            "code": exc.code,
+                            "recoverable": exc.recoverable,
+                            "scope": "profile",
+                        },
+                        "artifact_available": False,
+                        "continuation": {
+                            "decision": "continue",
+                            "reason": "profile_local_allowlist",
+                        },
+                    }
+                )
+                commit_attempted_progress(index)
+                continue
             except Exception:
                 if diagnostics is not None:
                     try:
@@ -791,20 +850,36 @@ class WorkerSupervisor:
                     raise WorkerProcessError(exc.code, recoverable=False) from exc
 
             receipts.append(receipt)
-            on_progress(
-                WorkerMessage.create(
-                    job_id=job_id,
-                    attempt=attempt,
-                    seq=index - 1,
-                    type="progress",
-                    payload={
-                        "completed": index,
-                        "total": len(profiles),
-                        "unit": "profiles",
-                        "stage": "benchmark",
-                    },
-                )
+            profile_outcomes.append(
+                {
+                    "profile_id": profile_id,
+                    "status": "completed",
+                    "receipt": receipt,
+                    "artifact_available": True,
+                }
             )
+            commit_attempted_progress(index)
+
+        if len(receipts) != len(profiles):
+            return WorkerOutcome(
+                terminal="partial",
+                payload={
+                    "schema_version": "tda_processing_benchmark_partial_v1",
+                    "kind": "benchmark.craig",
+                    "status": "partial",
+                    "source_id": source_id,
+                    "benchmark_id": benchmark_id,
+                    "sample_identity_sha256": sample_identity_sha256,
+                    "sample_seconds": sample_seconds,
+                    "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                    "attempted_count": len(profile_outcomes),
+                    "completed_count": len(receipts),
+                    "failed_count": len(profile_outcomes) - len(receipts),
+                    "profiles": profile_outcomes,
+                },
+                returncode=0,
+            )
+
         return WorkerOutcome(
             terminal="result",
             payload={
