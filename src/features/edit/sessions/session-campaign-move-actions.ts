@@ -11,6 +11,7 @@ import {
 } from "@/features/edit/access/policy";
 import { sessionCampaignMoveRevalidationPaths } from "./session-campaign-move-cache";
 import type { SessionCampaignMoveDecisionState } from "./session-campaign-move-model";
+import { logSessionCampaignMoveOperational } from "./session-campaign-move-observability";
 import {
 	commitSessionCampaignMove,
 	prepareSessionCampaignMoveMedia,
@@ -80,11 +81,25 @@ async function authorizedRequest(request: Request) {
 export async function preflightSessionCampaignMoveAction(request: Request) {
 	const access = await authorizedRequest(request);
 	if (!access.ok) return access;
-	return preflightSessionCampaignMove({
+	const result = await preflightSessionCampaignMove({
 		authUserId: access.authUserId,
 		actorProfileId: access.profileId,
 		...request,
 	});
+	if (result.ok) {
+		logSessionCampaignMoveOperational({
+			phase: "preflight",
+			outcome: result.preview.status,
+			contractVersion: result.preview.contractVersion,
+		});
+	} else {
+		logSessionCampaignMoveOperational({
+			phase: "preflight",
+			outcome: "failed",
+			reason: result.reason,
+		});
+	}
+	return result;
 }
 
 function invalidateMovePaths(input: {
@@ -121,7 +136,15 @@ export async function moveSessionCampaignAction(
 		return { ok: false as const, reason: "validation" as const };
 	}
 	const access = await authorizedRequest(request);
-	if (!access.ok) return access;
+	if (!access.ok) {
+		logSessionCampaignMoveOperational({
+			phase: "commit",
+			outcome: "failed",
+			operationId: request.operationId,
+			reason: access.reason,
+		});
+		return access;
+	}
 
 	const boundary = {
 		authUserId: access.authUserId,
@@ -137,10 +160,38 @@ export async function moveSessionCampaignAction(
 			destinationCampaignId: access.destination.id,
 			destinationPublic: access.destination.visibility === "public",
 		});
-		if (!prepared.ok) return prepared;
+		if (!prepared.ok) {
+			logSessionCampaignMoveOperational({
+				phase: "prepare",
+				outcome: "failed",
+				operationId: request.operationId,
+				reason: prepared.reason,
+			});
+			return prepared;
+		}
+		logSessionCampaignMoveOperational({
+			phase: "prepare",
+			outcome: "prepared",
+			operationId: request.operationId,
+			preparedAssets: prepared.prepared,
+		});
 		result = await commitSessionCampaignMove(boundary);
 	}
-	if (!result.ok) return result;
+	if (!result.ok) {
+		logSessionCampaignMoveOperational({
+			phase: "commit",
+			outcome: "failed",
+			operationId: request.operationId,
+			reason: result.reason,
+		});
+		return result;
+	}
+
+	logSessionCampaignMoveOperational({
+		phase: "commit",
+		outcome: result.replayed ? "replay" : "moved",
+		operationId: request.operationId,
+	});
 
 	const cachePending = invalidateMovePaths({
 		sourceCampaignSlug: access.source.technicalSlug,
@@ -148,6 +199,11 @@ export async function moveSessionCampaignAction(
 		destinationCampaignSlug: access.destination.technicalSlug,
 		destinationRouteKey: access.destination.routeKey,
 		sourceSessionId: request.sourceSessionId,
+	});
+	logSessionCampaignMoveOperational({
+		phase: "cache",
+		outcome: cachePending ? "cache_pending" : "cache_ok",
+		operationId: request.operationId,
 	});
 	return {
 		ok: true as const,
