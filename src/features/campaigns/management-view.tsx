@@ -188,7 +188,7 @@ export function CampaignManagementView({
 											}
 										/>
 									</label>
-									<label>
+									<div>
 										<span>Quem pode ver</span>
 										<Select
 											name="visibility"
@@ -206,7 +206,7 @@ export function CampaignManagementView({
 											}
 											required
 										/>
-									</label>
+									</div>
 									<label className={styles.full}>
 										<span>Apresentação</span>
 										<textarea
@@ -440,7 +440,7 @@ export function CampaignManagementView({
 																				}
 																			/>
 																		</label>
-																		<label>
+																		<div>
 																			<span>Quem pode ver</span>
 																			<Select
 																				name="visibility"
@@ -466,7 +466,7 @@ export function CampaignManagementView({
 																				}
 																				required
 																			/>
-																		</label>
+																		</div>
 																		<label className={styles.full}>
 																			<span>Apresentação</span>
 																			<textarea
