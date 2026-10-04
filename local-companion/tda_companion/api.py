@@ -1101,6 +1101,12 @@ def create_app(
                                             recoverable=False,
                                         )
                                     event_data["recoverable"] = recoverable
+                                if profile_status == "failed":
+                                    # A failed outcome reaches this path only after the
+                                    # supervisor explicitly classified it as isolated
+                                    # to this profile and chose to continue Benchmark.
+                                    event_data["scope"] = "profile"
+                                    event_data["continued"] = True
                                 store.record_worker_event(
                                     job_id,
                                     attempt,
