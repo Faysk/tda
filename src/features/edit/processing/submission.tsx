@@ -1043,12 +1043,16 @@ export function ProcessingSubmission({
 									<span>A saída será uma única transcrição contínua da sessão.</span>
 								</div>
 							</div>
-							<div className={styles.sessionSummary} aria-label="Resumo da montagem da sessão">
-								<span>✓ Ordem da sessão definida</span>
-								<span>
+							<div
+								className={styles.sessionSummary}
+								role="list"
+								aria-label="Resumo da montagem da sessão"
+							>
+								<span role="listitem">✓ Ordem da sessão definida</span>
+								<span role="listitem">
 									◐ Horário real só é usado quando o Craig fornece um horário confiável
 								</span>
-								<span>
+								<span role="listitem">
 									✓ Gap conhecido é informação; só uma sobreposição real pode exigir decisão
 								</span>
 							</div>
