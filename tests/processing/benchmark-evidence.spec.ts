@@ -285,9 +285,10 @@ test("evidence lab remains usable at a 200 percent effective browser zoom", asyn
 	const panel = await openBenchmark(page);
 	await panel.getByRole("button", { name: "Comparar transcripts" }).click();
 
+	if (!originalViewport) throw new Error("BENCHMARK_VIEWPORT_UNAVAILABLE");
 	await page.setViewportSize({
-		width: Math.floor(originalViewport!.width / 2),
-		height: Math.floor(originalViewport!.height / 2),
+		width: Math.floor(originalViewport.width / 2),
+		height: Math.floor(originalViewport.height / 2),
 	});
 	await expect(panel.getByRole("tab", { name: "Performance" })).toBeVisible();
 	await panel.getByRole("tab", { name: "Performance" }).click();
