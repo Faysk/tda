@@ -99,6 +99,7 @@ function part(
 		relationToPrevious: ordinal === 0 ? "first" : "contiguous",
 		relationSeconds: 0,
 		overlapResolutionValid: false,
+		physicalIntervalState: ordinal === 0 ? "first" : "manual",
 		createdAt: "2026-09-28T00:00:00Z",
 		updatedAt: "2026-09-28T00:00:00Z",
 	};
@@ -118,9 +119,12 @@ function workspace(selected = true): SessionWorkspace {
 			part(partB, sourceB, 1, selected ? runB : null),
 		],
 		timeline: {
-			policyVersion: "tda_session_timeline_v1",
+			policyVersion: "tda_session_timeline_v2",
 			segmentBoundaryPolicy: "segment_start_owner_v1",
 			fingerprintSha256: "f".repeat(64),
+			strategy: "manual_offsets",
+			wallClock: "unavailable",
+			unknownIntervalCount: 0,
 			state: "ready",
 			allSourcesTrusted: false,
 			automaticOrderAvailable: false,
@@ -181,14 +185,18 @@ function rawWorkspace() {
 				relation_to_previous: "first",
 				relation_seconds: 0,
 				overlap_resolution_valid: false,
+				physical_interval_state: "first",
 				created_at: "2026-09-28T00:00:00Z",
 				updated_at: "2026-09-28T00:00:01Z",
 			},
 		],
 		timeline: {
-			policy_version: "tda_session_timeline_v1",
+			policy_version: "tda_session_timeline_v2",
 			segment_boundary_policy: "segment_start_owner_v1",
 			fingerprint_sha256: "f".repeat(64),
+			strategy: "manual_offsets",
+			wall_clock: "unavailable",
+			unknown_interval_count: 0,
 			state: "ready",
 			all_sources_trusted: false,
 			automatic_order_available: false,
@@ -430,6 +438,56 @@ describe("session composer enqueue recovery", () => {
 		});
 		expect(afterConfirmation.key).toBe("composer-key-2");
 		expect(afterConfirmation.recoveredFromStorage).toBe(false);
+	});
+});
+
+describe("confirmed sequence web contracts", () => {
+	it("parses user-confirmed sequence provenance without treating unknown intervals as facts", () => {
+		const raw = rawWorkspace();
+		raw.parts = [
+			raw.parts[0],
+			{
+				...raw.parts[0],
+				part_id: partB,
+				source_id: sourceB,
+				ordinal: 1,
+				selected_run_id: runB,
+				timeline_mode: "sequence",
+				session_offset_seconds: 100,
+				effective_start_seconds: 100,
+				effective_end_seconds: 200,
+				relation_to_previous: "contiguous",
+				physical_interval_state: "unknown",
+			},
+		];
+		raw.parts[0] = {
+			...raw.parts[0],
+			timeline_mode: "sequence",
+		};
+		raw.timeline = {
+			...raw.timeline,
+			strategy: "user_confirmed_sequence",
+			wall_clock: "unavailable",
+			unknown_interval_count: 1,
+		};
+
+		const parsed = new LocalBridge(
+			vi.fn<typeof fetch>().mockResolvedValue(Response.json(raw)),
+		);
+		parsed.pair(token);
+		return expect(
+			parsed.sessionWorkspace("yuhara-main", "session-42", signal()),
+		).resolves.toMatchObject({
+			timeline: {
+				strategy: "user_confirmed_sequence",
+				wallClock: "unavailable",
+				unknownIntervalCount: 1,
+			},
+			parts: [
+				{ physicalIntervalState: "first" },
+				{ physicalIntervalState: "unknown" },
+			],
+		});
 	});
 });
 
