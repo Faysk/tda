@@ -34,6 +34,7 @@ export type SelectProps<T extends string> = Readonly<{
 	compact?: boolean;
 	name?: string;
 	required?: boolean;
+	restoreFocusOnSelect?: boolean;
 }>;
 
 function firstEnabledIndex<T extends string>(options: readonly SelectOption<T>[]) {
@@ -76,6 +77,7 @@ export function Select<T extends string>({
 	compact = false,
 	name,
 	required = false,
+	restoreFocusOnSelect = true,
 }: SelectProps<T>) {
 	const fallbackValue =
 		defaultValue ??
@@ -205,7 +207,11 @@ export function Select<T extends string>({
 		if (value === undefined) setInternalValue(option.value);
 		setRequiredMissing(false);
 		onChange?.(option.value);
-		closeAndFocusTrigger();
+		if (restoreFocusOnSelect) {
+			closeAndFocusTrigger();
+		} else {
+			setOpen(false);
+		}
 	}
 
 	function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
