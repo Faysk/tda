@@ -868,6 +868,12 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 		mimeType: "application/zip",
 		buffer: Buffer.from("PK-single"),
 	});
+	await expect(
+		page.getByText(/gravações serão unidas em uma única sessão/u),
+	).toHaveCount(0);
+	await expect(
+		page.getByRole("button", { name: /Mover sessao-42\.zip/u }),
+	).toHaveCount(0);
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
@@ -1039,7 +1045,39 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 		},
 	]);
 
-	await expect(page.getByLabel("Gravações selecionadas").getByRole("listitem")).toHaveCount(3);
+	const selected = page.getByLabel("Gravações selecionadas");
+	await expect(selected.getByRole("listitem")).toHaveCount(3);
+	await expect(
+		page.getByText("3 gravações serão unidas em uma única sessão"),
+	).toBeVisible();
+	await expect(page.getByText("Ordem da sessão", { exact: true })).toBeVisible();
+	await expect(
+		page.getByText(/sequência abaixo é sua ordem editorial/u),
+	).toBeVisible();
+	await expect(
+		page.getByText(/horário real só é usado quando o Craig fornece um horário confiável/u),
+	).toBeVisible();
+	await page
+		.getByRole("button", { name: "Mover sessao-42-parte-3.zip para cima" })
+		.click();
+	await page
+		.getByRole("button", { name: "Mover sessao-42-parte-3.zip para cima" })
+		.click();
+	await expect(selected.getByRole("listitem").nth(0)).toContainText(
+		"sessao-42-parte-3.zip",
+	);
+	await expect(selected.getByRole("listitem").nth(1)).toContainText(
+		"sessao-42-parte-1.zip",
+	);
+	await expect(selected.getByRole("listitem").nth(2)).toContainText(
+		"sessao-42-parte-2.zip",
+	);
+	await page.setViewportSize({ width: 390, height: 844 });
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+		),
+	).toBeTruthy();
 	await expect(page.getByRole("button", { name: "Transcrever sessão" })).toBeEnabled();
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 
@@ -1162,6 +1200,126 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 			).toBeTruthy();
 		}
 	}
+});
+
+test("trusted Craig order that differs from the editorial sequence waits for explicit confirmation", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		sourceStartOrder: [1, 0],
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "editorial-primeiro.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-order-a"),
+		},
+		{
+			name: "editorial-segundo.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-order-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText(
+		"Os horários Craig indicam uma ordem diferente.",
+	);
+	await expect(intent).toContainText("O TDA não troca isso silenciosamente.");
+	expect(multi.attachedSources).toEqual([SOURCE_IDS[0], SOURCE_IDS[1]]);
+	expect(multi.assemblyBuilt).toBe(false);
+
+	await intent.getByRole("button", { name: "Usar horários Craig" }).click();
+	await expect(intent).toContainText("Transcrição pronta");
+	expect(multi.attachedSources).toEqual([SOURCE_IDS[1], SOURCE_IDS[0]]);
+	expect(multi.assemblyBuilt).toBe(true);
+});
+
+test("missing wall-clock metadata is neutral while a real overlap is an explicit exception", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		sourceStartConfidence: { 0: "missing", 1: "missing" },
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "sem-relogio-a.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-missing-a"),
+		},
+		{
+			name: "sem-relogio-b.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-missing-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	const neutral = intent.locator('[role="status"]').filter({
+		hasText: "Nem todas as gravações têm horário real confiável.",
+	});
+	await expect(neutral).toBeVisible();
+	await expect(neutral).toContainText("Isso não é erro por si só");
+	await expect(
+		intent.getByRole("alert").filter({
+			hasText: "Nem todas as gravações têm horário real confiável.",
+		}),
+	).toHaveCount(0);
+
+});
+
+test("real overlap is announced as the temporal case that requires a decision", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		initialTimelineState: "overlap_unresolved",
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "overlap-a.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-overlap-a"),
+		},
+		{
+			name: "overlap-b.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-overlap-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	const blocker = intent.getByRole("alert").filter({
+		hasText: "Há uma sobreposição real que precisa de decisão.",
+	});
+	await expect(blocker).toBeVisible();
+	await expect(blocker).toContainText(
+		"Só a região sobreposta precisa de uma escolha",
+	);
+	await expect(
+		blocker.getByRole("button", { name: "Resolver sobreposição" }),
+	).toBeVisible();
 });
 
 test("mixed valid and invalid files keep independent state and valid ZIPs still run", async ({
