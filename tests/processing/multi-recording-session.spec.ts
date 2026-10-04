@@ -1063,7 +1063,11 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 
 test("8k-fala session review stays bounded and edits only the active row", async ({
 	page,
-}) => {
+}, testInfo) => {
+	test.skip(
+		testInfo.project.name !== "desktop",
+		"the 8k stress receipt runs once; mobile/reflow is covered by the normal workflow matrix",
+	);
 	await page.setViewportSize({ width: 1920, height: 1080 });
 	await installCompanionFixture(page, {
 		profileReady: true,
@@ -1108,6 +1112,7 @@ test("8k-fala session review stays bounded and edits only the active row", async
 	const firstTrigger = review.locator(
 		`[data-assembly-edit-trigger="${SEGMENT_ID}"]`,
 	);
+	await expect(firstTrigger).toHaveAccessibleName(/Participante.*Trecho 1/u);
 	await firstTrigger.click();
 	await expect(review.locator("textarea")).toHaveCount(1);
 	await expect(
