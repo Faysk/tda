@@ -342,6 +342,38 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 				title: "Não foi possível salvar o checkpoint final desta faixa.",
 				detail: "A faixa continua nesta execução, mas uma nova tentativa pode precisar refazer este trabalho.",
 			};
+		case "BENCHMARK_PROFILE_STARTED": {
+			const profile = textData(event, "profile");
+			return {
+				title: profile
+					? `Benchmark iniciou ${profile}.`
+					: "Benchmark iniciou o próximo perfil.",
+			};
+		}
+		case "BENCHMARK_PROFILE_COMPLETED": {
+			const profile = textData(event, "profile");
+			return {
+				title: profile
+					? `Benchmark concluiu ${profile}.`
+					: "Perfil do Benchmark concluído.",
+			};
+		}
+		case "BENCHMARK_PROFILE_FAILED": {
+			const profile = textData(event, "profile");
+			const code = textData(event, "error_code");
+			const continued = event.data.continued === true;
+			return {
+				title: profile
+					? `Benchmark marcou ${profile} como falho.`
+					: "Um perfil do Benchmark falhou.",
+				detail: [
+					code,
+					continued ? "os perfis restantes continuam automaticamente" : null,
+				]
+					.filter(Boolean)
+					.join(" · ") || undefined,
+			};
+		}
 		case "QUEUED":
 			return { title: "Trabalho adicionado à fila." };
 		case "RUNNING":
