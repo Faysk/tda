@@ -419,14 +419,14 @@ export function SessionCampaignMovePanel({
 							) : null}
 
 							{preview.consequences.length ? (
-								<details>
-									<summary>Consequências da transferência</summary>
+								<section aria-label="Consequências da transferência">
+									<strong>Consequências da transferência</strong>
 									<ul>
 										{preview.consequences.map((item) => (
 											<li key={item}>{sessionCampaignMoveConsequenceLabel(item)}</li>
 										))}
 									</ul>
-								</details>
+								</section>
 							) : null}
 
 							{preview.status === "ready" ? (
