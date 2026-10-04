@@ -1056,7 +1056,7 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 		page.getByText(/sequência abaixo é sua ordem editorial/u),
 	).toBeVisible();
 	await expect(
-		page.getByText(/horário real só é usado quando o Craig fornece um horário confiável/u),
+		page.getByText(/horário real só é usado quando o Craig fornece um horário confiável/iu),
 	).toBeVisible();
 	const moveThirdUp = page.getByRole("button", {
 		name: "Mover sessao-42-parte-3.zip para cima",
