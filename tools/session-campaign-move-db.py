@@ -58,6 +58,8 @@ try:
       repo/"supabase/tests/session_campaign_move_v2_fixture.sql",
       repo/"supabase/migrations/20261004180000_session_campaign_move_v2.sql",
       repo/"supabase/tests/session_campaign_move_v2.sql",
+      repo/"supabase/migrations/20261004182700_retire_session_campaign_move_v1_commit.sql",
+      repo/"supabase/tests/session_campaign_move_v1_retirement.sql",
     ]
     output=[]
     for path in paths:
@@ -72,14 +74,17 @@ try:
         raise RuntimeError("session campaign move v1 assertions did not emit success marker")
     if "SESSION_CAMPAIGN_MOVE_V2_SQL_OK" not in combined_output:
         raise RuntimeError("session campaign move v2 assertions did not emit success marker")
+    if "SESSION_CAMPAIGN_MOVE_V1_RETIRED_OK" not in combined_output:
+        raise RuntimeError("session campaign move v1 retirement assertions did not emit success marker")
 
-    call="""select public.move_session_campaign_atomic(
+    call="""select public.move_session_campaign_v2_atomic(
       '90000000-0000-4000-8000-000000000006'::uuid,
       '30000000-0000-4000-8000-000000000006'::uuid,
       'yuhara-main','antes-que-seja-tarde',
       '41000000-0000-4000-8000-000000000012'::uuid,
       'move-concurrent',
-      '61000000-0000-4000-8000-000000000012'::uuid
+      '61000000-0000-4000-8000-000000000012'::uuid,
+      '{}'::jsonb
     );"""
     first=launch("set application_name='tda_move_a'; set role service_role; begin; "+call+" select pg_sleep(3); commit;")
     deadline=time.monotonic()+7
@@ -111,7 +116,7 @@ try:
     if '"status": "conflict"' not in second_out and '"status":"conflict"' not in second_out:
         raise RuntimeError(f"stale concurrent move did not conflict: {second_out}")
 
-    print("SESSION_CAMPAIGN_MOVE_DB_OK contract_v2=1 registry_drift=1 populated_lineage=1 publication_transfer=1 media_receipt=1 decisions=1 auth_source_destination=1 atomic=1 audit_sanitized=1 replay=1 operation_conflict=1 concurrent_conflict=1",flush=True)
+    print("SESSION_CAMPAIGN_MOVE_DB_OK contract_v2=1 v1_commit_retired=1 registry_drift=1 populated_lineage=1 publication_transfer=1 media_receipt=1 decisions=1 auth_source_destination=1 atomic=1 audit_sanitized=1 replay=1 operation_conflict=1 concurrent_conflict=1",flush=True)
 finally:
     if started:
         try: run([str(binary/"pg_ctl"),"-D",str(data),"-m","fast","-w","stop"],timeout=20)
