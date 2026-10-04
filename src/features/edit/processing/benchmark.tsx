@@ -294,6 +294,77 @@ function ResultCard({
 	);
 }
 
+function PartialResultCard({
+	result,
+	updatedAt,
+	onDiagnostics,
+	onNewBenchmark,
+}: Readonly<{
+	result: BenchmarkPartialResult;
+	updatedAt: string;
+	onDiagnostics: () => void;
+	onNewBenchmark: () => void;
+}>) {
+	return (
+		<article className={styles.resultCard} data-benchmark-outcome="partial">
+			<header className={styles.resultHeader}>
+				<div>
+					<span className={styles.eyebrow}>Benchmark local · 5:00</span>
+					<h3>Benchmark parcial</h3>
+				</div>
+				<StatusPill tone="warning">Parcial</StatusPill>
+			</header>
+			<div className={styles.receiptFacts}>
+				<span>{formatBenchmarkHistoryDate(updatedAt)}</span>
+				<span>Tentados {result.attemptedCount}/4</span>
+				<span>Concluídos {result.completedCount}/4</span>
+				<span>{result.failedCount} falhou{result.failedCount === 1 ? "" : "ram"}</span>
+			</div>
+			<p className={styles.loading}>
+				Os resultados válidos foram preservados, mas esta tentativa não é uma
+				comparação 4/4 e não entra no fluxo de quality/publicação.
+			</p>
+			<ol className={styles.runSteps} aria-label="Resultado dos quatro perfis">
+				{result.profileOutcomes.map((outcome) => (
+					<li
+						key={outcome.profileId}
+						className={styles.runStep}
+						data-state={outcome.status === "completed" ? "complete" : "failed"}
+					>
+						<i aria-hidden="true">
+							{outcome.status === "completed" ? "✓" : "×"}
+						</i>
+						<span>
+							{LABELS[outcome.profileId]} ·{" "}
+							{outcome.status === "completed" ? "concluído" : "falhou"}
+							{outcome.error?.code ? " · " + outcome.error.code : ""}
+						</span>
+					</li>
+				))}
+			</ol>
+			{result.profileOutcomes.some(
+				(outcome) =>
+					outcome.status === "failed" &&
+					outcome.error?.code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+			) ? (
+				<p className={styles.notice}>
+					O Qwen encontrou sinal, mas não reconheceu um trecho com segurança.
+					Nada foi convertido em silêncio nem inventado; os demais perfis foram
+					tentados automaticamente.
+				</p>
+			) : null}
+			<div className={styles.activeActions}>
+				<Button size="sm" variant="primary" onClick={onNewBenchmark}>
+					Executar novo benchmark
+				</Button>
+				<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+					Ver diagnóstico
+				</Button>
+			</div>
+		</article>
+	);
+}
+
 function ProfileReadiness({
 	profile,
 	id,
