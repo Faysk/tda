@@ -12,13 +12,19 @@ describe("session campaign move cache invalidation", () => {
 				sourceSessionId: "shared-session",
 			}),
 		).toEqual([
+			"/",
+			"/campanhas",
+			"/campanhas/sessoes",
+			"/sessoes",
+			"/sessoes/shared-session",
 			"/edit/campaign-a/sessoes",
 			"/edit/campaign-b/sessoes",
 			"/edit/campaign-a/sessoes/shared-session",
 			"/edit/campaign-b/sessoes/shared-session",
-			"/sessoes",
 			"/campanhas/campanha-a/sessoes",
 			"/campanhas/campanha-b/sessoes",
+			"/campanhas/campanha-a/sessoes/shared-session",
+			"/campanhas/campanha-b/sessoes/shared-session",
 		]);
 	});
 
@@ -32,5 +38,7 @@ describe("session campaign move cache invalidation", () => {
 		});
 		expect(paths).toContain("/campanhas/mesa%20a/sessoes");
 		expect(paths).toContain("/campanhas/mesa%2Fb/sessoes");
+		expect(paths).toContain("/campanhas/mesa%20a/sessoes/session-1");
+		expect(paths).toContain("/campanhas/mesa%2Fb/sessoes/session-1");
 	});
 });
