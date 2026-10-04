@@ -15,6 +15,7 @@ const PART_IDS = Array.from({ length: 20 }, (_, index) =>
 	(index + 1).toString(16).padStart(32, "0"),
 );
 const ASSEMBLY_ID = "c".repeat(64);
+const OLD_ASSEMBLY_ID = "b".repeat(64);
 const TRANSCRIPT_SHA = "d".repeat(64);
 const SEGMENT_ID = "e".repeat(64);
 const NOW = "2026-09-30T00:00:00.000Z";
@@ -88,6 +89,7 @@ type FixtureOptions = Readonly<{
 	sourceStartOrder?: readonly number[];
 	initialTimelineState?: "needs_timing" | "overlap_unresolved" | "order_conflict";
 	reviewRowCount?: number;
+	includeOlderAssembly?: boolean;
 }>;
 
 async function installMultiRecordingRoutes(
@@ -759,6 +761,19 @@ async function installMultiRecordingRoutes(
 				session_id: SESSION,
 				assemblies: assemblyBuilt
 					? [
+							...(options.includeOlderAssembly
+								? [
+									{
+										assembly_id: OLD_ASSEMBLY_ID,
+										transcript_sha256: "a".repeat(64),
+										inputs_sha256: OLD_ASSEMBLY_ID,
+										segment_count: 1,
+										part_count: 1,
+										participant_approval_blocked: false,
+										created_at: "2026-09-29T00:00:00.000Z",
+									},
+								]
+								: []),
 							{
 								assembly_id: ASSEMBLY_ID,
 								transcript_sha256: TRANSCRIPT_SHA,
@@ -966,6 +981,7 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 	});
 	const multi = await installMultiRecordingRoutes(page, {
 		uploadSequence: [0],
+		includeOlderAssembly: true,
 	});
 
 	await openProcessing(page);
@@ -994,9 +1010,14 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 		name: "Revisão da transcrição da sessão",
 	});
 	await expect(reviewOwner).toBeVisible();
-	await expect(page.getByRole("tab", { name: "Resultados" })).toBeFocused();
 	await expect(review).toBeVisible();
+	await expect(
+		review.getByRole("heading", { name: "Transcrição da sessão" }),
+	).toBeFocused();
 	await expect(review).toContainText("1 falas");
+	await expect(
+		page.locator("[data-results-assembly] article[data-selected='true']"),
+	).toContainText(`Assembly ${ASSEMBLY_ID.slice(0, 12)}`);
 	await expect(
 		page
 			.locator("[data-session-intent='true']")
@@ -1269,6 +1290,21 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await review
 		.getByRole("button", { name: "Aplicar à working copy" })
 		.click();
+	await expect(review.getByText("Trecho 1 corrigido no Markdown")).toBeVisible();
+
+	await page.getByRole("tab", { name: "Visão geral" }).click();
+	await expect(page.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(page.locator("[data-processing-intent-summary='true']")).toBeVisible();
+	await expect(page.getByLabel("Export do Craig")).toBeHidden();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(review).toBeVisible();
 	await expect(review.getByText("Trecho 1 corrigido no Markdown")).toBeVisible();
 
 	await review.getByRole("button", { name: "Salvar alterações" }).click();
