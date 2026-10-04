@@ -83,6 +83,7 @@ from .store import Conflict, Store
 from .session_timeline import (
     automatic_placements,
     classify_start_time,
+    user_confirmed_sequence_placements,
     enrich_workspace_timeline,
     package_duration_seconds,
     validate_overlap_boundary,
@@ -310,6 +311,11 @@ class SessionWorkspaceTimingRequest(BaseModel):
 
 
 class SessionWorkspaceDeriveTimelineRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    expected_revision: int = Field(ge=0)
+
+
+class SessionWorkspaceConfirmSequenceRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     expected_revision: int = Field(ge=0)
 
@@ -2149,6 +2155,31 @@ def create_app(
                 gap_confirmed=body.gap_confirmed,
                 overlap_resolution=body.overlap_resolution,
                 overlap_boundary_seconds=body.overlap_boundary_seconds,
+            )
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/timeline/confirm-sequence")
+    def confirm_session_workspace_sequence(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceConfirmSequenceRequest,
+    ):
+        current = store.session_workspace(campaign_id, session_id)
+        if len(current["parts"]) < 2:
+            raise Conflict("SESSION_WORKSPACE_SEQUENCE_INVALID")
+        facts = session_workspace_source_facts(current)
+        if any(value["source_state"] != "ready" for value in facts.values()):
+            raise Conflict("SESSION_WORKSPACE_SOURCE_UNAVAILABLE")
+        try:
+            placements = user_confirmed_sequence_placements(current["parts"], facts)
+        except ValueError as exc:
+            raise Conflict(str(exc)) from exc
+        return session_workspace_response(
+            store.apply_user_confirmed_session_sequence(
+                campaign_id,
+                session_id,
+                placements,
+                body.expected_revision,
             )
         )
 
