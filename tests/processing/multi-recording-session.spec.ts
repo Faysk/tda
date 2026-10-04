@@ -1784,7 +1784,9 @@ test("exact duplicate is reused once instead of creating a second part or job", 
 		},
 	]);
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
-	await expect(page.getByText(/duplicata exata · será reutilizada uma vez/u)).toBeVisible();
+	await expect(
+		page.locator("[data-processing-intent-summary='true']"),
+	).toContainText("1 duplicata exata · será reutilizada uma vez");
 	await expect(
 		page.getByRole("region", { name: /Transcrição da sessão/u }),
 	).toContainText("Transcrição pronta");
