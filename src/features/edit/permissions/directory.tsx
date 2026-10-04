@@ -410,6 +410,7 @@ export function PermissionsDirectoryView({
 						options={roleOptions}
 						onChange={setRoleFilter}
 						ariaLabel="Filtrar por função"
+						compact
 					/>
 				</label>
 				<label className={styles.filterField}>
@@ -419,6 +420,7 @@ export function PermissionsDirectoryView({
 						options={accessOptions}
 						onChange={setAccessFilter}
 						ariaLabel="Filtrar por acesso"
+						compact
 					/>
 				</label>
 				<p className={styles.muted} role="status">
