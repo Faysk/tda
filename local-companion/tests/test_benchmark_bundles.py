@@ -841,11 +841,8 @@ def test_partial_benchmark_result_readback_revalidates_preserved_profile_bytes(
 ):
     data_root = tmp_path / "Data"
     data_root.mkdir()
-    job_id = "partial-api-job"
     package = _package()
     sample_identity = benchmark_sample_identity(package)
-    receipts = _profile_receipts(data_root, job_id, 1, count=3)
-    benchmark_id = benchmark_id_for(job_id, 1)
     body = {
         "kind": "benchmark.craig",
         "campaign_id": "benchmark-local",
@@ -863,12 +860,9 @@ def test_partial_benchmark_result_readback_revalidates_preserved_profile_bytes(
     }
     store = Store(data_root)
     submitted = store.submit("partial-api-intent", body)
-    assert submitted["id"] == job_id or submitted["id"]
     actual_job_id = submitted["id"]
-    # Profile evidence must be tied to the actual queue job identity.
-    if actual_job_id != job_id:
-        receipts = _profile_receipts(data_root, actual_job_id, 1, count=3)
-        benchmark_id = benchmark_id_for(actual_job_id, 1)
+    receipts = _profile_receipts(data_root, actual_job_id, 1, count=3)
+    benchmark_id = benchmark_id_for(actual_job_id, 1)
     claimed = store.claim()
     assert claimed is not None
     assert claimed[0] == actual_job_id
