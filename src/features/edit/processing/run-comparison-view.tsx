@@ -312,6 +312,7 @@ export function RunComparisonView({
 						]}
 						onChange={setTrackFilter}
 						ariaLabel="Filtrar comparação por track"
+						compact
 					/>
 				</label>
 				<label>
@@ -324,6 +325,7 @@ export function RunComparisonView({
 						]}
 						onChange={setSpeakerFilter}
 						ariaLabel="Filtrar comparação por participante"
+						compact
 					/>
 				</label>
 				<fieldset className={styles.timeRange}>
