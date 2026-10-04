@@ -504,6 +504,7 @@ export function BenchmarkEvidenceWorkspace({
 									}))}
 									onChange={(value) => setLeftProfile(value as TranscriptionProfileId)}
 									ariaLabel="Perfil A"
+									compact
 								/>
 							</label>
 							<label>
@@ -517,6 +518,7 @@ export function BenchmarkEvidenceWorkspace({
 									}))}
 									onChange={(value) => setRightProfile(value as TranscriptionProfileId)}
 									ariaLabel="Perfil B"
+									compact
 								/>
 							</label>
 							{leftProfile === rightProfile ? (
@@ -583,6 +585,7 @@ export function BenchmarkEvidenceWorkspace({
 												]}
 												onChange={setTrack}
 												ariaLabel="Filtrar por track"
+												compact
 											/>
 										</label>
 										<label>
@@ -595,6 +598,7 @@ export function BenchmarkEvidenceWorkspace({
 												]}
 												onChange={setSpeaker}
 												ariaLabel="Filtrar por speaker"
+												compact
 											/>
 										</label>
 										<label>
