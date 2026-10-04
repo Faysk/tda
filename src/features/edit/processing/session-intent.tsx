@@ -888,7 +888,14 @@ export function SessionIntentCoordinator({
 	}, [advance]);
 
 	async function confirmCurrentOrder() {
-		if (!workspace || workspace.parts.length < 2 || busy || disabled) return;
+		if (
+			!workspace ||
+			workspace.parts.length < 2 ||
+			busy ||
+			disabled ||
+			!capabilities.includes("transcription.session-sequence")
+		)
+			return;
 		const controller = new AbortController();
 		setBusy(true);
 		setLocalError(null);
@@ -1252,7 +1259,8 @@ export function SessionIntentCoordinator({
 					<div className={styles.headerActions}>
 						{blocker.state === "needs_timing" &&
 						workspace &&
-						workspace.parts.length > 1 ? (
+						workspace.parts.length > 1 &&
+						capabilities.includes("transcription.session-sequence") ? (
 							<Button
 								type="button"
 								size="sm"
