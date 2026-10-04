@@ -110,6 +110,11 @@ function elapsed(seconds: number): string {
 		.join(":");
 }
 
+function accessibleExcerpt(value: string): string {
+	const normalized = value.replace(/\s+/gu, " ").trim();
+	return normalized.length > 160 ? normalized.slice(0, 157) + "…" : normalized;
+}
+
 function errorMessage(cause: unknown): string {
 	if (cause instanceof BridgeError) {
 		const code = cause.serverCode ?? cause.code;
@@ -646,7 +651,7 @@ export function SessionAssemblyReview({
 									data-assembly-edit-trigger={segment.assemblySegmentId}
 									disabled={disabled || busy || hasOpenSegmentEditor}
 									onClick={() => beginEdit(segment)}
-									aria-label={`Editar fala de ${segment.speaker} em ${elapsed(segment.start)}`}
+									aria-label={`Editar fala de ${segment.speaker} em ${elapsed(segment.start)}. ${accessibleExcerpt(segment.text)}`}
 								>
 									<div className={styles.segmentMeta}>
 										<span>{elapsed(segment.start)}</span>
