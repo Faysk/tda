@@ -641,6 +641,12 @@
 	height: 100%;
 }
 
+.sessionWorkspaceFrame {
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+}
+
 .libraryGuidance {
 	max-width: 760px;
 	margin: 2px 0 16px;
@@ -777,6 +783,10 @@
 }
 
 @media (max-width: 640px) {
+	.sessionShell {
+		padding-top: calc(var(--site-chrome-panel-top, 66px) + 12px);
+	}
+
 	.workbenchTitle {
 		font-size: clamp(1.25rem, 7vw, 1.7rem);
 	}
