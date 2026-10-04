@@ -53,6 +53,14 @@ const SAFE_EVENT_DATA_KEYS = new Set([
 	"worker_sha256",
 	"downloaded_bytes",
 	"device",
+	"profile",
+	"attempted_count",
+	"successful_count",
+	"failed_count",
+	"total_profiles",
+	"error_code",
+	"recoverable",
+	"scope",
 ]);
 
 function formatDateTime(value: string | null | undefined): string {
@@ -313,7 +321,19 @@ export function JobDiagnosticsInspector({
 				{job ? (
 					<>
 						<div className={styles.jobDiagnosticsStatus}>
-							<StatusPill tone={jobTone(job.status)}>{jobLabels[job.status]}</StatusPill>
+							<StatusPill
+								tone={
+									job.kind === "benchmark.craig" &&
+									job.stage === "benchmark_partial"
+										? "warning"
+										: jobTone(job.status)
+								}
+							>
+								{job.kind === "benchmark.craig" &&
+								job.stage === "benchmark_partial"
+									? "Parcial"
+									: jobLabels[job.status]}
+							</StatusPill>
 							<strong>{stageLabels[job.stage] ?? job.stage}</strong>
 							{job.error ? (
 								<span data-tone="danger">
