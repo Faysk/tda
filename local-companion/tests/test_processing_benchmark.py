@@ -4,7 +4,7 @@ import pytest
 
 from tda_companion.api import _benchmark_partial_result_valid
 from tda_companion.benchmark_bundles import BENCHMARK_PROFILES, benchmark_id_for
-from tda_companion.store import Store
+from tda_companion.store import Conflict, Store
 from tda_companion.worker_protocol import WorkerProtocolError, WorkerRunCommand
 from tda_companion.worker_supervisor import WorkerOutcome, WorkerProcessError, WorkerSupervisor
 
@@ -571,6 +571,6 @@ def test_store_persists_partial_benchmark_as_failed_result_without_retry_alias(t
     assert state["result_available"] is True
     assert store.result(job_id) == result
 
-    with pytest.raises(Exception, match="JOB_NOT_RETRYABLE"):
+    with pytest.raises(Conflict, match="JOB_NOT_RETRYABLE"):
         store.action(job_id, "retry")
 
