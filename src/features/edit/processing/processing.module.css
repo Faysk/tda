@@ -2042,10 +2042,12 @@
 
 .jobDiagnosticsShell {
 	display: grid;
-	grid-template-rows: auto auto auto auto auto minmax(180px, 1fr) auto;
+	grid-template-rows: auto auto auto auto auto minmax(min-content, 1fr) auto;
 	gap: 10px;
 	height: 100%;
 	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
 	padding: 14px;
 	font-family: var(--ds-font-ui);
 }
@@ -2154,9 +2156,9 @@
 }
 
 .jobDiagnosticsLog .log {
-	min-height: 0;
+	min-height: clamp(120px, 22dvh, 220px);
 	max-height: none;
-	overscroll-behavior: contain;
+	overscroll-behavior: auto;
 }
 
 .jobDiagnosticsLog .logInspector {
@@ -2212,36 +2214,6 @@
 
 	.jobDiagnosticsLog {
 		padding: 8px;
-	}
-}
-
-@media (max-height: 700px) {
-	.jobDiagnosticsDialog {
-		height: 100dvh;
-	}
-
-	.jobDiagnosticsShell {
-		grid-template-rows: auto auto auto auto auto auto auto;
-		overflow-y: auto;
-		overscroll-behavior: contain;
-	}
-
-	.jobDiagnosticsLog {
-		min-height: 0;
-	}
-
-	.jobDiagnosticsLog > .liveLogExplorer {
-		height: auto;
-	}
-
-	.jobDiagnosticsLog .log {
-		max-height: none;
-		overflow: visible;
-	}
-
-	.jobDiagnosticsLog .logInspector {
-		max-height: none;
-		overflow: visible;
 	}
 }
 
