@@ -1023,6 +1023,7 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	const multi = await installMultiRecordingRoutes(page, {
 		uploadSequence: [0, 1, 2],
 		failOnceSourceIndex: 2,
+		sourceStartOrder: [2, 0, 1],
 	});
 
 	await openProcessing(page);
@@ -1095,7 +1096,11 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await expect(intent).toContainText("Transcrição pronta");
 	expect(multi.retryCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
-	expect(multi.attachedSources).toEqual(SOURCE_IDS.slice(0, 3));
+	expect(multi.attachedSources).toEqual([
+		SOURCE_IDS[2],
+		SOURCE_IDS[0],
+		SOURCE_IDS[1],
+	]);
 	expect(multi.assemblyBuilt).toBe(true);
 
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
