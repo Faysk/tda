@@ -135,11 +135,13 @@ function ResultCard({
 	onCompare,
 	onFiles,
 	onExport,
+	onDiagnostics,
 }: Readonly<{
 	result: BenchmarkResult;
 	onCompare: () => void;
 	onFiles: () => void;
 	onExport: () => void;
+	onDiagnostics: () => void;
 }>) {
 	const gpu = result.profiles
 		.map((profile) => profile.executionLineage?.gpu?.model)
@@ -235,6 +237,29 @@ function ResultCard({
 						Sem transcrição humana de referência, WER/omissões/inserções não são
 						calculados e nenhum perfil recebe vencedor automático.
 					</span>
+				</div>
+				<div className={styles.receiptFacts}>
+					<span>
+						Integridade: {hasEvidence
+							? "hashes validados sob demanda ao abrir ou exportar"
+							: "sem artefatos preservados para validar"}
+					</span>
+					<span>
+						Formatos: {hasEvidence
+							? "JSON · TXT · TXT simples · WebVTT · SRT"
+							: "indisponíveis nesta execução"}
+					</span>
+					<span>
+						Bundle: {hasEvidence
+							? formatSubmissionBytes(result.bundleSizeBytes ?? 0)
+							: "não preservado"}
+					</span>
+					<span>Referência de qualidade: sem referência humana</span>
+				</div>
+				<div className={styles.activeActions}>
+					<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+						Abrir Diagnóstico
+					</Button>
 				</div>
 			</details>
 		</article>
@@ -1327,6 +1352,7 @@ export function ProcessingBenchmark({
 										promptExport: true,
 									})
 								}
+								onDiagnostics={() => onOpenDiagnostics(job)}
 							/>
 						) : (
 							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>
