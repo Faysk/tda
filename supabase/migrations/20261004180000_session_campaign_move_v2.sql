@@ -65,7 +65,8 @@ insert into public.session_campaign_move_dependency_policies(
   ('public.session_publications','rewrite_current_ownership',true,'campaign_id','Publicações editoriais','campaign_id é ownership atual; snapshot/hash/timestamp não são regenerados.'),
   ('public.session_publication_operations','rewrite_current_ownership',true,'campaign_id','Receipts de publicação','Operation ids e payload hashes permanecem intactos.'),
   ('public.transcript_assembly_publication_receipts','rewrite_current_ownership',false,'campaign_id','Receipts de Session Assembly','Ownership acompanha a session.'),
-  ('public.session_campaign_move_operations','preserve_historical_attribution',true,null,'Receipts de move','Receipts de moves anteriores nunca são reescritos.')
+  ('public.session_campaign_move_operations','preserve_historical_attribution',true,null,'Receipts de move','Receipts de moves anteriores nunca são reescritos.'),
+  ('public.session_campaign_move_media_preparations','preserve_historical_attribution',true,null,'Preparações de mídia do move','Receipts de preparação pertencem à operação e nunca são reescritos.')
 on conflict (relation_name) do update set
   policy = excluded.policy,
   required = excluded.required,
