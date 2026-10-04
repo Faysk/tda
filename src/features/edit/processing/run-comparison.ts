@@ -305,7 +305,12 @@ export type RunPerformanceComparability = Readonly<{
 	reasons: readonly string[];
 }>;
 
-function executionDeviceIdentity(run: LocalRunSummary): string | null {
+type PerformanceComparableRun = Pick<
+	LocalRunSummary,
+	"stats" | "executionLineage"
+>;
+
+function executionDeviceIdentity(run: PerformanceComparableRun): string | null {
 	const device = run.executionLineage?.executionDevice;
 	if (!device) return null;
 	if (device.kind === "cpu") return "cpu";
@@ -318,8 +323,8 @@ function executionDeviceIdentity(run: LocalRunSummary): string | null {
  * normalized throughput may be read as an apples-to-apples comparison.
  */
 export function compareRunPerformanceSemantics(
-	left: LocalRunSummary,
-	right: LocalRunSummary,
+	left: PerformanceComparableRun,
+	right: PerformanceComparableRun,
 ): RunPerformanceComparability {
 	const reasons: string[] = [];
 	const leftMetrics = left.stats.processingMetrics;
