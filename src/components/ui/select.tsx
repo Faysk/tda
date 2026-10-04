@@ -219,6 +219,7 @@ export function Select<T extends string>({
 								index === activeIndex ? styles.optionActive : undefined,
 							)}
 							role="option"
+							data-value={option.value}
 							aria-selected={option.value === value}
 							disabled={option.disabled}
 							tabIndex={-1}
