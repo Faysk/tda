@@ -798,6 +798,17 @@
 	color: var(--ds-accent-strong);
 }
 
+.runStep[data-state="failed"] {
+	color: var(--ds-danger);
+	font-weight: 700;
+}
+
+.runStep[data-state="failed"] i {
+	border-color: var(--ds-danger);
+	background: color-mix(in srgb, var(--ds-danger) 10%, transparent);
+	color: var(--ds-danger);
+}
+
 .activeActions {
 	display: flex;
 	flex-wrap: wrap;
