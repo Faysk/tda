@@ -343,8 +343,8 @@ test("session campaign move preflight keeps blockers actionable on keyboard and 
 	await page.goto("/e2e-fixtures/session-editorial");
 	await openCampaignMove(page);
 
-	const selector = page.getByRole("combobox", { name: "Mover para outra campanha" });
-	await selector.selectOption("campanha-bloqueada");
+	const selector = page.getByLabel("Mover para outra campanha");
+	await selectThemedOption(page, selector, "campanha-bloqueada");
 	await selector.focus();
 	await page.keyboard.press("Tab");
 	const preflight = page.getByRole("button", { name: "Pré-validar mudança" });
@@ -355,7 +355,7 @@ test("session campaign move preflight keeps blockers actionable on keyboard and 
 	await expect(page.getByText("Dependência sintética impede o move.")).toBeVisible();
 	await expect(page.getByRole("button", { name: /Confirmar mudança/u })).toHaveCount(0);
 
-	await selector.selectOption("campanha-b");
+	await selectThemedOption(page, selector, "campanha-b");
 	await preflight.click();
 	await expect(page.getByRole("heading", { name: "Plano de transferência" })).toBeVisible();
 	await expect(
@@ -384,7 +384,7 @@ test("session campaign move stays fail-closed when the backend migration is unav
 		page.getByText(/backend deste ambiente ainda não possui o contrato v2/u),
 	).toBeVisible();
 	await expect(page.getByRole("button", { name: "Pré-validar mudança" })).toHaveCount(0);
-	await expect(page.getByRole("combobox", { name: "Mover para outra campanha" })).toHaveCount(0);
+	await expect(page.getByLabel("Mover para outra campanha")).toHaveCount(0);
 });
 
 
@@ -393,9 +393,9 @@ test("lost move response reuses operation id and recovers cache without hiding c
 }) => {
 	await page.goto("/e2e-fixtures/session-editorial");
 	await openCampaignMove(page);
-	const selector = page.getByRole("combobox", { name: "Mover para outra campanha" });
+	const selector = page.getByLabel("Mover para outra campanha");
 	const preflight = page.getByRole("button", { name: "Pré-validar mudança" });
-	await selector.selectOption("campanha-b");
+	await selectThemedOption(page, selector, "campanha-b");
 	await preflight.click();
 	await expect(page.getByRole("heading", { name: "Plano de transferência" })).toBeVisible();
 
