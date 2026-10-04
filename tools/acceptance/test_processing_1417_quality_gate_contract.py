@@ -29,8 +29,8 @@ class ProcessingBenchmarkQualityGateContractTests(unittest.TestCase):
         self.assertIn("contains_reference_text = $false", verifier)
         self.assertIn("contains_token = $false", verifier)
         self.assertIn("contains_local_paths = $false", verifier)
-        self.assertNotIn("transcript_text =", verifier)
-        self.assertNotIn("reference_text =", verifier)
+        self.assertNotIn("transcript_payload =", verifier)
+        self.assertNotIn("raw_reference =", verifier)
 
     def test_required_ci_owns_the_benchmark_quality_gate(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
