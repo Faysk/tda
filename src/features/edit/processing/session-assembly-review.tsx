@@ -464,11 +464,10 @@ export function SessionAssemblyReview({
 				</nav>
 			) : null}
 
-			<div
+			<section
 				className={styles.transcriptViewport}
 				data-assembly-transcript-viewport="true"
 				data-page-size={PAGE_SIZE}
-				role="region"
 				aria-label="Timeline da transcrição"
 			>
 				{visible.length ? (
@@ -575,7 +574,7 @@ export function SessionAssemblyReview({
 				) : (
 					<p className={styles.empty}>Nenhuma fala corresponde à busca atual.</p>
 				)}
-			</div>
+			</section>
 		</section>
 	);
 }
