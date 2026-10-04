@@ -44,6 +44,21 @@ class WorkerOutcome:
     returncode: int
 
 
+# Benchmark continuation is deliberately allowlisted. A worker can mark many
+# operational failures recoverable for a deliberate retry of that same job, but
+# that does not prove it is safe to continue a multi-profile comparison. Only
+# errors whose scope is known to be isolated to one profile belong here.
+_BENCHMARK_PROFILE_LOCAL_ERROR_CODES = frozenset(
+    {
+        "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+    }
+)
+
+
+def _benchmark_profile_error_isolated(exc: WorkerProcessError) -> bool:
+    return exc.recoverable and exc.code in _BENCHMARK_PROFILE_LOCAL_ERROR_CODES
+
+
 def default_worker_command() -> list[str]:
     if getattr(sys, "frozen", False):
         return [sys.executable, "--worker"]
@@ -661,6 +676,65 @@ class WorkerSupervisor:
         profiles = BENCHMARK_PROFILES
         benchmark_id = benchmark_id_for(job_id, attempt)
         receipts: list[dict] = []
+        profile_outcomes: list[dict] = []
+        failed_count = 0
+
+        def emit_profile_event(
+            code: str,
+            *,
+            profile_id: str,
+            attempted_count: int,
+            error_code: str | None = None,
+            recoverable: bool | None = None,
+        ) -> None:
+            if on_event is None:
+                return
+            payload: dict[str, object] = {
+                "code": code,
+                "stage": "benchmark",
+                "profile": profile_id,
+                "attempted_count": attempted_count,
+                "successful_count": len(receipts),
+                "failed_count": failed_count,
+                "total_profiles": len(profiles),
+            }
+            if error_code is not None:
+                payload["error_code"] = error_code
+                payload["scope"] = "profile"
+            if recoverable is not None:
+                payload["recoverable"] = recoverable
+            on_event(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=max(attempted_count - 1, 0),
+                    type="event",
+                    payload=payload,
+                )
+            )
+
+        def commit_profile_progress(index: int) -> None:
+            on_progress(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=index - 1,
+                    type="progress",
+                    payload={
+                        # For Benchmark this scalar tracks profiles attempted to a
+                        # terminal outcome. Successful/failed counts are carried
+                        # separately so a failed profile is never presented as a
+                        # successful completion.
+                        "completed": index,
+                        "total": len(profiles),
+                        "unit": "profiles",
+                        "stage": "benchmark",
+                        "successful_count": len(receipts),
+                        "failed_count": failed_count,
+                    },
+                )
+            )
+
         for index, profile_id in enumerate(profiles, start=1):
             if is_cancelled is not None and is_cancelled():
                 return WorkerOutcome(
@@ -686,6 +760,11 @@ class WorkerSupervisor:
             )
             if diagnostics is not None:
                 diagnostics.start()
+            emit_profile_event(
+                "BENCHMARK_PROFILE_STARTED",
+                profile_id=profile_id,
+                attempted_count=index,
+            )
 
             try:
                 outcome = self.run_craig(
@@ -721,7 +800,29 @@ class WorkerSupervisor:
                             diagnostics_exc.code,
                             recoverable=False,
                         ) from exc
-                raise
+                if not _benchmark_profile_error_isolated(exc):
+                    raise
+                failed_count += 1
+                profile_outcomes.append(
+                    {
+                        "profile_id": profile_id,
+                        "status": "failed",
+                        "error": {
+                            "code": exc.code,
+                            "recoverable": exc.recoverable,
+                            "scope": "profile",
+                        },
+                    }
+                )
+                emit_profile_event(
+                    "BENCHMARK_PROFILE_FAILED",
+                    profile_id=profile_id,
+                    attempted_count=index,
+                    error_code=exc.code,
+                    recoverable=exc.recoverable,
+                )
+                commit_profile_progress(index)
+                continue
             except Exception:
                 if diagnostics is not None:
                     try:
@@ -791,31 +892,52 @@ class WorkerSupervisor:
                     raise WorkerProcessError(exc.code, recoverable=False) from exc
 
             receipts.append(receipt)
-            on_progress(
-                WorkerMessage.create(
-                    job_id=job_id,
-                    attempt=attempt,
-                    seq=index - 1,
-                    type="progress",
-                    payload={
-                        "completed": index,
-                        "total": len(profiles),
-                        "unit": "profiles",
-                        "stage": "benchmark",
-                    },
-                )
+            profile_outcomes.append(
+                {
+                    "profile_id": profile_id,
+                    "status": "completed",
+                    "receipt": receipt,
+                }
             )
+            emit_profile_event(
+                "BENCHMARK_PROFILE_COMPLETED",
+                profile_id=profile_id,
+                attempted_count=index,
+            )
+            commit_profile_progress(index)
+
+        if failed_count == 0:
+            return WorkerOutcome(
+                terminal="result",
+                payload={
+                    "schema_version": "tda_processing_benchmark_v1",
+                    "kind": "benchmark.craig",
+                    "source_id": source_id,
+                    "benchmark_id": benchmark_id,
+                    "sample_identity_sha256": sample_identity_sha256,
+                    "sample_seconds": sample_seconds,
+                    "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                    "profiles": receipts,
+                },
+                returncode=0,
+            )
+
         return WorkerOutcome(
             terminal="result",
             payload={
-                "schema_version": "tda_processing_benchmark_v1",
+                "schema_version": "tda_processing_benchmark_v2",
                 "kind": "benchmark.craig",
+                "status": "partial",
                 "source_id": source_id,
                 "benchmark_id": benchmark_id,
                 "sample_identity_sha256": sample_identity_sha256,
                 "sample_seconds": sample_seconds,
                 "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                "attempted_count": len(profile_outcomes),
+                "completed_count": len(receipts),
+                "failed_count": failed_count,
                 "profiles": receipts,
+                "profile_outcomes": profile_outcomes,
             },
             returncode=0,
         )
