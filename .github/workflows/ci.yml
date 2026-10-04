@@ -495,6 +495,7 @@ jobs:
             test-results/**/live-log-urgent-bypass.png
             test-results/**/live-log-caught-up.png
             test-results/**/live-log-reduced-motion.png
+            test-results/**/contextual-diagnostics-*.png
             test-results/**/companion-maintenance-dialog-after.png
             test-results/**/issue-1354-*.png
           if-no-files-found: error
