@@ -192,7 +192,7 @@ def test_snapshot_and_derived_formats_read_only_from_canonical_bundle(tmp_path: 
     benchmark_id = bundle["benchmark_id"]
 
     summary = public_bundle_summary(data_root, benchmark_id)
-    assert summary["integrity"] == "verified"
+    assert summary["integrity"] == "manifest_verified"
     assert summary["profile_order"] == list(BENCHMARK_PROFILES)
     assert summary["formats"] == ["json", "txt", "txt-plain", "vtt", "srt"]
 
