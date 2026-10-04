@@ -395,8 +395,23 @@ export type BenchmarkProfileResult = {
 	artifactAvailable: boolean;
 };
 
+export type BenchmarkProfileOutcome = {
+	profileId: TranscriptionProfileId;
+	status: "completed" | "failed";
+	artifactAvailable: boolean;
+	error: null | {
+		code: string;
+		recoverable: boolean;
+		scope: "profile";
+	};
+};
+
 export type BenchmarkResult = {
-	schemaVersion: "tda_processing_benchmark_v1";
+	schemaVersion: "tda_processing_benchmark_v1" | "tda_processing_benchmark_v2";
+	outcome: "completed" | "partial";
+	attemptedCount: number;
+	completedCount: number;
+	failedCount: number;
 	jobId: string;
 	sourceId: string;
 	campaignId: string;
@@ -411,6 +426,7 @@ export type BenchmarkResult = {
 	bundleManifestSha256: string | null;
 	bundleSizeBytes: number | null;
 	profiles: readonly BenchmarkProfileResult[];
+	profileOutcomes: readonly BenchmarkProfileOutcome[];
 };
 
 export type BenchmarkEvidenceSummary = {
