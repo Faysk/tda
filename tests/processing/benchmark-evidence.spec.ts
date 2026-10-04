@@ -14,6 +14,82 @@ async function openBenchmark(page: import("@playwright/test").Page) {
 	return panel;
 }
 
+async function chooseZip(panel: import("@playwright/test").Locator) {
+	await panel.getByLabel("ZIP Craig").setInputFiles({
+		name: "benchmark-craig.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK synthetic benchmark Craig fixture"),
+	});
+}
+
+async function analyze(panel: import("@playwright/test").Locator) {
+	const button = panel.getByRole("button", {
+		name: "Analisar amostra localmente",
+	});
+	await expect(button).toBeEnabled();
+	await button.click();
+	await expect(panel.getByText(/Fonte validada/u)).toBeVisible();
+}
+
+test("source to four-profile evidence to human-reference quality is one coherent journey", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkEvidence: true,
+		profileReady: true,
+		advanceJobs: true,
+	});
+	const panel = await openBenchmark(page);
+
+	await chooseZip(panel);
+	await analyze(panel);
+	await expect(panel.getByText("Quatro perfis prontos para o benchmark.")).toBeVisible();
+	await expect(panel.getByText(/Qualidade não medida/u)).toHaveCount(0);
+
+	await panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }).click();
+	await expect(panel.getByText("Benchmark em andamento")).toBeVisible();
+
+	const refresh = page.getByRole("button", { name: "Atualizar estado" });
+	for (let index = 0; index < 4; index += 1) {
+		await refresh.click();
+		if (state.job?.status === "succeeded") break;
+	}
+	await expect.poll(() => state.job?.status).toBe("succeeded");
+	await expect(panel.getByText("Concluído", { exact: true })).toBeVisible();
+	await expect(panel.getByText("Quatro perfis · mesma amostra")).toBeVisible();
+	await expect(panel.getByText(/Qualidade não medida/u)).toBeVisible();
+
+	expect(
+		state.requests.some((item) => item.path.includes("/transcript")),
+	).toBe(false);
+	await panel.getByRole("button", { name: "Comparar transcripts" }).click();
+	await expect(panel.getByText(/Diferença 1 de/u)).toBeVisible();
+	expect(
+		state.requests.some((item) => item.path.includes("/transcript")),
+	).toBe(true);
+
+	await panel.getByRole("button", { name: "Exportar evidência ZIP" }).click();
+	await expect(
+		panel.getByRole("group", { name: "Confirmar exportação privada" }),
+	).toContainText("quatro transcripts completos");
+	expect(state.requests.some((item) => item.path.endsWith("/export"))).toBe(false);
+	await panel.getByRole("button", { name: "Baixar ZIP privado" }).click();
+	await expect.poll(
+		() => state.requests.some((item) => item.path.endsWith("/export")),
+	).toBe(true);
+
+	await panel.getByRole("button", { name: "Criar referência humana" }).click();
+	const editor = panel.getByLabel("Track 1 · Alice");
+	await expect(editor).toHaveValue("Olá mundo da taverna");
+	await editor.fill("Olá mundo da taverna");
+	await panel.getByRole("button", { name: "Salvar como referência" }).click();
+
+	await expect(panel.getByText(/Qualidade medida · referência r1/u)).toBeVisible();
+	await expect(panel.getByText("WER")).toBeVisible();
+	await expect(panel.getByText("CER")).toBeVisible();
+});
+
 test("completed evidence reopens four-profile lab without turning it into Results", async ({
 	page,
 }) => {
