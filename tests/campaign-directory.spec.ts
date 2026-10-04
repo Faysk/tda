@@ -86,6 +86,44 @@ test("public campaign directory exposes only the synthetic public projection", a
 	);
 });
 
+test("issue 1466 keeps Campaign accent-strong small text coherent in light and dark themes", async ({
+	page,
+}, testInfo) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+
+	for (const theme of ["light", "dark"] as const) {
+		await page.goto("/");
+		await page.evaluate((value) => localStorage.setItem("tda-theme", value), theme);
+		await page.goto("/campanhas");
+		await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+
+		const eyebrow = page.getByText("TDA · campanhas", { exact: true });
+		const latest = page.getByText("Última memória", { exact: true }).first();
+		const action = page.getByRole("link", { name: /Abrir campanha/u }).first();
+		await expect(eyebrow).toBeVisible();
+		await expect(latest).toBeVisible();
+		await expect(action).toBeVisible();
+		await action.hover();
+
+		for (const consumer of [eyebrow, latest, action]) {
+			const style = await consumer.evaluate((element) => ({
+				color: getComputedStyle(element).color,
+				token: getComputedStyle(document.documentElement)
+					.getPropertyValue("--ds-accent-strong")
+					.trim(),
+			}));
+			expect(style.color).not.toBe("");
+			expect(style.token).not.toBe("");
+		}
+
+		await page.screenshot({
+			path: testInfo.outputPath(`issue-1466-campaign-${theme}.png`),
+			fullPage: false,
+		});
+	}
+});
+
+
 test("campaign cards open a campaign-qualified archive without leaking sibling sessions", async ({
 	page,
 }) => {
