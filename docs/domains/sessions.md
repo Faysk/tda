@@ -264,4 +264,6 @@ Reconciliações que mudam semântica continuam explícitas:
 
 A `operation_id` é durável. Resposta perdida reutiliza a mesma intenção; a UI guarda intent bounded na aba e o servidor consegue redirecionar um deep link antigo a partir do receipt do ator quando o commit já ocorreu. Isso não amplia discovery: receipt recovery é actor/source scoped e o destino ainda precisa estar autorizado.
 
+O commit legado v1 `move_session_campaign_atomic(...)` fica deliberadamente sem `EXECUTE` para roles da aplicação depois da ativação do v2. Isso protege abas/Server Actions stale: o preflight v2 pode classificar uma session populada como pronta, mas somente `move_session_campaign_v2_atomic(...)` tem autoridade para efetivar o grafo completo.
+
 O gate sintético de v2 usa uma session populada com lineage, múltiplos drafts, receipts, cover, publication ativa, decisão de participant/grant, replay e drift estrutural. Nenhum teste de campaign move lê narrativa privada de Production nem executa mutation remota.
