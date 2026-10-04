@@ -961,7 +961,7 @@ export function ProcessingSubmission({
 			className={className ? `${styles.card} ${className}` : styles.card}
 			data-craig-composer="true"
 			data-layout={compact ? "compact" : "default"}
-			data-intent-fixed={intentRequest ? "true" : "false"}
+			data-intent-fixed={intentRequest || composerActive ? "true" : "false"}
 			aria-labelledby="new-local-transcription"
 		>
 			<div className={styles.heading}>
@@ -1386,7 +1386,7 @@ export function ProcessingSubmission({
 				</form>
 			)}
 
-			{intentRequest ? (
+			{intentRequest || composerActive ? (
 				<div className={styles.intentSummary} role="status" data-processing-intent-summary="true">
 					<div>
 						<strong>{sessionId}</strong>
