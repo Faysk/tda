@@ -1366,6 +1366,49 @@ def create_app(
                                 if not store.complete(job_id, attempt, result):
                                     raise WorkerProcessError("WORKER_STALE_ATTEMPT")
                                 final_state = store.get(job_id)
+                        if outcome.terminal == "partial" and body["kind"] == "benchmark.craig":
+                            payload = outcome.payload
+                            if not _benchmark_partial_result_valid(
+                                payload,
+                                body,
+                                job_id=job_id,
+                                attempt=attempt,
+                            ):
+                                raise WorkerProcessError(
+                                    "BENCHMARK_PARTIAL_RESULT_INVALID",
+                                    recoverable=False,
+                                )
+                            if final_state["status"] == "cancelled":
+                                log(
+                                    "info",
+                                    "worker",
+                                    "BENCHMARK_PARTIAL_DISCARDED_AFTER_CANCEL",
+                                    "Benchmark reached a partial terminal state after cancellation; partial queue result was discarded",
+                                    {"job_id": job_id, "attempt": attempt},
+                                )
+                            else:
+                                result = {
+                                    **payload,
+                                    "job_id": job_id,
+                                    "campaign_id": body["campaign_id"],
+                                    "session_id": body["session_id"],
+                                    "track_count": body["track_count"],
+                                    "audio_work_seconds": body["audio_work_seconds"],
+                                    "prepared": body["prepared"],
+                                    # A partial attempt has no verified 4/4 bundle.
+                                    "bundle_manifest_sha256": None,
+                                    "bundle_size_bytes": None,
+                                }
+                                if not store.complete_partial_benchmark(
+                                    job_id,
+                                    attempt,
+                                    result,
+                                ):
+                                    raise WorkerProcessError(
+                                        "WORKER_STALE_ATTEMPT",
+                                        recoverable=False,
+                                    )
+                                final_state = store.get(job_id)
                         if outcome.terminal == "result" and body["kind"] == "transcription.craig":
                             if final_state["status"] == "cancelled":
                                 log(
@@ -1424,6 +1467,14 @@ def create_app(
                             "cancelled",
                         }:
                             raise WorkerProcessError("WORKER_RESULT_INCOMPLETE")
+                        if outcome.terminal == "partial" and final_state["status"] not in {
+                            "failed",
+                            "cancelled",
+                        }:
+                            raise WorkerProcessError(
+                                "BENCHMARK_PARTIAL_RESULT_INCOMPLETE",
+                                recoverable=False,
+                            )
                         log(
                             "info",
                             "worker",
