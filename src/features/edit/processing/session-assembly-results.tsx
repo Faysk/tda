@@ -136,7 +136,7 @@ export function SessionAssemblyResults({
 			assemblyId: string,
 			knownAssembly?: SessionAssembly,
 		) => {
-			if (!enabled || busy) return;
+			if (!enabled) return;
 			const generation = ++reviewGeneration.current;
 			const controller = new AbortController();
 			setBusy(true);
@@ -194,7 +194,7 @@ export function SessionAssemblyResults({
 					setBusy(false);
 			}
 		},
-		[bridge, busy, campaignId, enabled],
+		[bridge, campaignId, enabled],
 	);
 
 	useEffect(() => {
