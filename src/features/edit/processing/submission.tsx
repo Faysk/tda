@@ -216,6 +216,7 @@ export function ProcessingSubmission({
 	recoveryScope = null,
 	onDraftStateChange,
 	onOpenDiagnostics,
+	onReviewSessionAssembly,
 	runs = EMPTY_RUNS,
 	benchmarks = EMPTY_BENCHMARKS,
 	system = null,
@@ -226,6 +227,9 @@ export function ProcessingSubmission({
 	recoveryScope?: string | null;
 	onDraftStateChange?: (active: boolean) => void;
 	onOpenDiagnostics?: () => void;
+	onReviewSessionAssembly?: (
+		assembly: import("./session-composer-protocol").SessionAssembly,
+	) => void;
 	runs?: readonly LocalRunSummary[];
 	benchmarks?: readonly BenchmarkResult[];
 	system?: SystemSnapshot | null;
@@ -957,6 +961,7 @@ export function ProcessingSubmission({
 			className={className ? `${styles.card} ${className}` : styles.card}
 			data-craig-composer="true"
 			data-layout={compact ? "compact" : "default"}
+			data-intent-fixed={intentRequest ? "true" : "false"}
 			aria-labelledby="new-local-transcription"
 		>
 			<div className={styles.heading}>
@@ -1381,6 +1386,20 @@ export function ProcessingSubmission({
 				</form>
 			)}
 
+			{intentRequest ? (
+				<div className={styles.intentSummary} role="status" data-processing-intent-summary="true">
+					<div>
+						<strong>{sessionId}</strong>
+						<span>
+							{files.length
+								? `${files.length} ${files.length === 1 ? "gravação" : "gravações"} · ${profile ? submissionProfileLabel(profile) : "perfil preservado"}`
+								: `Gravações preservadas no Companion · ${profile ? submissionProfileLabel(profile) : "perfil preservado"}`}
+						</span>
+					</div>
+					<small>A intenção da sessão está fixada; acompanhe progresso e decisões abaixo.</small>
+				</div>
+			) : null}
+
 			{capabilities ? (
 				<>
 					<SessionIntentCoordinator
@@ -1403,6 +1422,7 @@ export function ProcessingSubmission({
 						onError={handleChildError}
 						onOpenTechnical={openTechnicalRecovery}
 						onSelectSource={openSourceRecovery}
+						onReviewAssembly={onReviewSessionAssembly}
 					/>
 					{composerActive ? (
 						<details
