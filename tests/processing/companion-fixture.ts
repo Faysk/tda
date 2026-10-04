@@ -66,6 +66,7 @@ export type CompanionFixtureOptions = {
 	benchmarkPreparationFailureProfile?: string | null;
 	benchmarkReadinessContract?: boolean;
 	benchmarkEvidence?: boolean;
+	benchmarkSnapshotDelayMs?: number;
 	benchmarkCorruptProfile?: "whisper-turbo" | "whisper-detailed" | "qwen-fast" | "qwen-quality";
 	whisperBenchmarkRuntimeUpgradeRequired?: boolean;
 	qwenBenchmarkRuntimeUpgradeRequired?: boolean;
@@ -1077,6 +1078,11 @@ export async function installCompanionFixture(
 			path.endsWith("/snapshot")
 		) {
 			const profileId = path.split("/")[4]!;
+			if ((options.benchmarkSnapshotDelayMs ?? 0) > 0) {
+				await new Promise((resolve) =>
+					setTimeout(resolve, options.benchmarkSnapshotDelayMs),
+				);
+			}
 			if (options.benchmarkCorruptProfile === profileId) {
 				return json(
 					route,
