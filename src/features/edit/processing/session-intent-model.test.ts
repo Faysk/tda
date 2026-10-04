@@ -11,6 +11,8 @@ import {
 	intentProgress,
 	recordingVariantConflicts,
 	retryableIntentJob,
+	trustedTimelineOrderDiffers,
+	trustedTimelineSourceOrder,
 	uniqueIntentSources,
 } from "./session-intent-model";
 
@@ -184,6 +186,41 @@ describe("session intent model", () => {
 		).toEqual({ total: 4, waiting: 1, running: 1, completed: 1, failed: 1 });
 		expect(retryableIntentJob([job(c, "failed")], c)?.status).toBe("failed");
 		expect(retryableIntentJob([job(b, "running")], b)).toBeNull();
+	});
+
+	test("previews a different trusted Craig chronology without treating editorial order as truth", () => {
+		const a = "craig-" + "1".repeat(64);
+		const b = "craig-" + "2".repeat(64);
+		const first = {
+			...part(a),
+			sourceStartTime: "2026-10-04T10:05:00+01:00",
+			sourceStartConfidence: "trusted_absolute" as const,
+			sourceStartUtc: "2026-10-04T09:05:00Z",
+		};
+		const second = {
+			...part(b),
+			sourceStartTime: "2026-10-04T10:00:00+01:00",
+			sourceStartConfidence: "trusted_absolute" as const,
+			sourceStartUtc: "2026-10-04T09:00:00Z",
+		};
+		const value = workspace([first, second]);
+		expect(trustedTimelineSourceOrder(value)).toEqual([b, a]);
+		expect(trustedTimelineOrderDiffers(value)).toBe(true);
+	});
+
+	test("keeps mixed or missing wall-clock metadata neutral", () => {
+		const a = "craig-" + "3".repeat(64);
+		const b = "craig-" + "4".repeat(64);
+		const trusted = {
+			...part(a),
+			sourceStartTime: "2026-10-04T10:00:00+01:00",
+			sourceStartConfidence: "trusted_absolute" as const,
+			sourceStartUtc: "2026-10-04T09:00:00Z",
+		};
+		const mixed = workspace([trusted, part(b)]);
+		expect(trustedTimelineSourceOrder(mixed)).toBeNull();
+		expect(trustedTimelineOrderDiffers(mixed)).toBe(false);
+		expect(trustedTimelineSourceOrder(workspace([part(a), part(b)]))).toBeNull();
 	});
 
 	test("flags only same-recording byte variants", () => {
