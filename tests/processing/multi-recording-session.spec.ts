@@ -1057,12 +1057,14 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await expect(
 		page.getByText(/horário real só é usado quando o Craig fornece um horário confiável/u),
 	).toBeVisible();
-	await page
-		.getByRole("button", { name: "Mover sessao-42-parte-3.zip para cima" })
-		.click();
-	await page
-		.getByRole("button", { name: "Mover sessao-42-parte-3.zip para cima" })
-		.click();
+	const moveThirdUp = page.getByRole("button", {
+		name: "Mover sessao-42-parte-3.zip para cima",
+	});
+	await moveThirdUp.focus();
+	await expect(moveThirdUp).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(moveThirdUp).toBeFocused();
+	await page.keyboard.press("Enter");
 	await expect(selected.getByRole("listitem").nth(0)).toContainText(
 		"sessao-42-parte-3.zip",
 	);
