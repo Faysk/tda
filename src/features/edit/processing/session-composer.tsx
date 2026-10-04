@@ -40,6 +40,12 @@ import {
 	saveSessionComposerPointers,
 	type SessionComposerPendingSubmission,
 } from "./session-composer-storage";
+import {
+	sessionRecoveryForError,
+	sessionRecoveryPrimaryText,
+	type SessionRecoverySeverity,
+	type SessionRecoveryTarget,
+} from "./session-recovery";
 import styles from "./session-composer.module.css";
 
 type Props = Readonly<{
@@ -53,6 +59,7 @@ type Props = Readonly<{
 	glossary: string;
 	profileReady: boolean;
 	recoveryScope: string | null;
+	recoveryFocusTarget?: SessionRecoveryTarget | null;
 	disabled?: boolean;
 	onActiveChange?: (active: boolean) => void;
 	onRestoreSessionId?: (sessionId: string) => void;
@@ -65,50 +72,6 @@ type Props = Readonly<{
 
 function validSessionId(value: string): boolean {
 	return /^[A-Za-z0-9_-]{1,128}$/u.test(value);
-}
-
-function errorMessage(cause: unknown): string {
-	if (!(cause instanceof BridgeError))
-		return "A composição local não foi concluída.";
-	const code = cause.serverCode ?? cause.code;
-	return {
-		SESSION_WORKSPACE_REVISION_CONFLICT:
-			"A sessão mudou em outra aba ou processo. O estado foi recarregado; repita a ação sobre a revisão atual.",
-		SESSION_WORKSPACE_SOURCE_EXISTS:
-			"Esta gravação já faz parte da sessão.",
-		SESSION_WORKSPACE_SOURCE_UNAVAILABLE:
-			"A gravação local não está disponível ou perdeu integridade.",
-		SESSION_WORKSPACE_SESSION_MISMATCH:
-			"O composer carregado pertence a outra sessão. Feche o composer antes de trocar o alvo.",
-		SESSION_WORKSPACE_TIMELINE_ORDER_AMBIGUOUS:
-			"Os horários não estabelecem uma ordem segura. Confirme a ordem visual da sessão.",
-		SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT:
-			"Os horários confiáveis contradizem a ordem escolhida. Reordene as gravações ou use os horários confiáveis.",
-		SESSION_WORKSPACE_SEQUENCE_INVALID:
-			"A sequência mudou antes da confirmação. Atualize o composer e confirme a ordem novamente.",
-		SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION:
-			"Os horários colidem e não autorizam ordem automática. Confirme a ordem manualmente.",
-		SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID:
-			"O corte precisa ficar dentro do overlap real entre as duas gravações.",
-		SESSION_ASSEMBLY_TIMELINE_NOT_READY:
-			"Resolva ordem, gaps e overlaps antes de montar a transcrição da sessão.",
-		SESSION_ASSEMBLY_PART_INVALID:
-			"Cada gravação precisa ter exatamente um resultado selecionado.",
-		SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INVALID:
-			"O mapa de participantes não passou na validação local.",
-		SESSION_ASSEMBLY_SOURCE_UNAVAILABLE:
-			"Uma gravação da sessão não está mais disponível no armazenamento local.",
-		SESSION_ASSEMBLY_RUN_INVALID:
-			"O resultado selecionado não passou na verificação de integridade.",
-		SESSION_ASSEMBLY_RUN_NOT_VISIBLE:
-			"O resultado selecionado não está mais elegível para a assembly.",
-		conflict:
-			"A operação conflitou com uma alteração mais nova. Recarregue o composer e tente novamente.",
-		timeout:
-			"O Companion demorou demais para responder. O workspace persistido foi preservado.",
-		unreachable:
-			"O Companion ficou indisponível. O workspace persistido foi preservado.",
-	}[code] ?? ("Operação local não concluída · " + code);
 }
 
 function short(value: string | null | undefined, size = 10): string {
@@ -147,6 +110,7 @@ export function SessionRecordingComposer({
 	glossary,
 	profileReady,
 	recoveryScope,
+	recoveryFocusTarget = null,
 	disabled = false,
 	onActiveChange,
 	onRestoreSessionId,
@@ -169,12 +133,16 @@ export function SessionRecordingComposer({
 	const [busy, setBusy] = useState(false);
 	const [live, setLive] = useState<string | null>(null);
 	const [localError, setLocalError] = useState<string | null>(null);
+	const [localTechnicalCode, setLocalTechnicalCode] = useState<string | null>(null);
+	const [localSeverity, setLocalSeverity] =
+		useState<SessionRecoverySeverity | null>(null);
 	const [offsetDrafts, setOffsetDrafts] = useState<Record<string, string>>({});
 	const [overlapDrafts, setOverlapDrafts] = useState<
 		Record<string, { boundary: string; resolution: "prefer_earlier_until" | "prefer_later_from" }>
 	>({});
 	const [participantDrafts, setParticipantDrafts] = useState<Record<string, string>>({});
 	const restored = useRef(false);
+	const sectionRef = useRef<HTMLElement | null>(null);
 	const pendingSubmissions = useRef(new Map<string, SessionComposerPendingSubmission>());
 
 	const currentDuplicate =
@@ -195,6 +163,9 @@ export function SessionRecordingComposer({
 
 	const announce = useCallback(
 		(message: string) => {
+			setLocalError(null);
+			setLocalTechnicalCode(null);
+			setLocalSeverity(null);
 			setLive(message);
 			onStatus?.(message);
 		},
@@ -203,17 +174,64 @@ export function SessionRecordingComposer({
 
 	const fail = useCallback(
 		(cause: unknown) => {
-			const message = errorMessage(cause);
+			const recovery = sessionRecoveryForError(cause, workspace);
+			const message = sessionRecoveryPrimaryText(recovery);
 			const availabilityFailure =
 				cause instanceof BridgeError &&
 				(cause.code === "timeout" || cause.code === "unreachable")
 					? cause.code
 					: undefined;
 			setLocalError(message);
-			onError?.(message, availabilityFailure);
+			setLocalTechnicalCode(recovery.technicalCode);
+			setLocalSeverity(recovery.severity);
+			if (recovery.severity === "error")
+				onError?.(message, availabilityFailure);
 		},
-		[onError],
+		[onError, workspace],
 	);
+
+	useEffect(() => {
+		if (
+			!recoveryFocusTarget ||
+			recoveryFocusTarget === "source" ||
+			recoveryFocusTarget === "reload"
+		)
+			return;
+		const root = sectionRef.current;
+		const targets = root
+			? Array.from(
+					root.querySelectorAll<HTMLElement>(
+						`[data-session-recovery-target="${recoveryFocusTarget}"]`,
+					),
+				)
+			: [];
+		const candidate = targets
+			.map((target) => {
+				const details =
+					target instanceof HTMLDetailsElement
+						? target
+						: target.closest("details");
+				if (details instanceof HTMLDetailsElement) details.open = true;
+				const focusable = target.matches(
+					"button:not(:disabled), input:not(:disabled), select:not(:disabled), summary",
+				)
+					? target
+					: target.querySelector<HTMLElement>(
+							"button:not(:disabled), input:not(:disabled), select:not(:disabled), summary",
+						);
+				return focusable ? { target, focusable } : null;
+			})
+			.find(
+				(value): value is { target: HTMLElement; focusable: HTMLElement } =>
+					value !== null,
+			);
+		if (!candidate) return;
+		const frame = window.requestAnimationFrame(() => {
+			candidate.target.scrollIntoView({ block: "center", behavior: "auto" });
+			candidate.focusable.focus({ preventScroll: true });
+		});
+		return () => window.cancelAnimationFrame(frame);
+	}, [recoveryFocusTarget]);
 
 	const loadRelated = useCallback(
 		async (next: SessionWorkspace, signal: AbortSignal) => {
@@ -885,7 +903,11 @@ export function SessionRecordingComposer({
 		mapping?.conflicts.filter((conflict) => conflict.requiresResolution) ?? [];
 
 	return (
-		<section className={styles.composer} aria-labelledby="session-composer-title">
+		<section
+			ref={sectionRef}
+			className={styles.composer}
+			aria-labelledby="session-composer-title"
+		>
 			<div className={styles.header}>
 				<div>
 					<span>Composição da sessão</span>
@@ -1027,6 +1049,7 @@ export function SessionRecordingComposer({
 										</div>
 										<fieldset
 											className={styles.reorder}
+											data-session-recovery-target="order"
 											aria-label={"Ordenar gravação " + (index + 1)}
 										>
 											<Button type="button" size="sm" variant="tertiary" disabled={busy || index === 0} onClick={() => void reorder(part, -1)} aria-label={"Mover gravação " + (index + 1) + " para cima"}>
@@ -1039,8 +1062,12 @@ export function SessionRecordingComposer({
 									</div>
 
 									<div className={styles.partControls}>
-										<label>
-											<span>Run desta gravação</span>
+										<label
+							data-session-recovery-target={
+								part.selectedRunId === null ? "run" : undefined
+							}
+						>
+							<span>Run desta gravação</span>
 											<select
 												value={part.selectedRunId ?? ""}
 												disabled={busy || partRuns.length === 0}
@@ -1054,8 +1081,15 @@ export function SessionRecordingComposer({
 												))}
 											</select>
 										</label>
-										<details>
-											<summary>Ajustar gravação</summary>
+										<details
+							data-session-recovery-target={
+								part.sessionOffsetSeconds === null ||
+								(part.relationToPrevious === "gap" && !part.gapConfirmed)
+									? "position"
+									: undefined
+							}
+						>
+							<summary>Ajustar gravação</summary>
 											<div className={styles.timingControls}>
 												<label>
 													<span>Início na sessão (s)</span>
@@ -1078,7 +1112,10 @@ export function SessionRecordingComposer({
 													</Button>
 												) : null}
 												{part.relationToPrevious === "overlap" && !part.overlapResolutionValid ? (
-													<div className={styles.overlapControls}>
+													<div
+										className={styles.overlapControls}
+										data-session-recovery-target="overlap"
+									>
 														<label>
 															<span>Regra do overlap</span>
 															<select
@@ -1125,7 +1162,11 @@ export function SessionRecordingComposer({
 					</ol>
 
 					{workspace.parts.length > 1 && mapping ? (
-						<details className={styles.conflicts} open={unresolvedConflicts.length > 0}>
+						<details
+							className={styles.conflicts}
+							data-session-recovery-target="participants"
+							open={unresolvedConflicts.length > 0}
+						>
 							<summary>
 								Participantes · {mapping.participants.length}
 								{unresolvedConflicts.length ? " · " + unresolvedConflicts.length + " conflito(s) a resolver" : " · reconciliados"}
@@ -1187,7 +1228,13 @@ export function SessionRecordingComposer({
 						</div>
 						<div>
 							{pending.length ? (
-								<Button type="button" variant="secondary" disabled={busy || disabled || !profile || !profileReady} onClick={() => void processMissing()}>
+								<Button
+									type="button"
+									variant="secondary"
+									data-session-recovery-target="run"
+									disabled={busy || disabled || !profile || !profileReady}
+									onClick={() => void processMissing()}
+								>
 									Processar pendentes ({pending.length})
 								</Button>
 							) : null}
@@ -1238,8 +1285,24 @@ export function SessionRecordingComposer({
 				</p>
 			)}
 
-			{localError && !onError ? (
-				<p className={styles.error} role="alert">{localError}</p>
+			{localError ? (
+				<div
+					className={styles.recoveryMessage}
+					data-severity={localSeverity ?? "error"}
+					role={
+						localSeverity === "info" || localSeverity === "warning"
+							? "status"
+							: "alert"
+					}
+				>
+					{localError}
+					{localTechnicalCode ? (
+						<details className={styles.diagnostic}>
+							<summary>Diagnóstico</summary>
+							<code>{localTechnicalCode}</code>
+						</details>
+					) : null}
+				</div>
 			) : null}
 			<p className={styles.live} role="status" aria-live="polite" aria-atomic="true">
 				{live}

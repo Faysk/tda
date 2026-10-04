@@ -200,13 +200,39 @@
 	margin: 0;
 	padding: 7px 2px;
 }
-.error, .live {
+.error, .live, .recoveryMessage {
 	margin: 0;
 	font-size: 0.72rem;
 	line-height: 1.4;
 }
 .error {
 	color: var(--ds-danger);
+}
+.recoveryMessage {
+	color: var(--ds-foreground-muted);
+}
+.recoveryMessage[data-severity="warning"],
+.recoveryMessage[data-severity="blocker"] {
+	color: var(--ds-warning);
+}
+.recoveryMessage[data-severity="error"] {
+	color: var(--ds-danger);
+}
+.diagnostic {
+	margin-top: 4px;
+	color: var(--ds-foreground-muted);
+}
+.diagnostic summary {
+	width: fit-content;
+	cursor: pointer;
+	font-weight: 700;
+}
+.diagnostic code {
+	display: block;
+	margin-top: 4px;
+	overflow-wrap: anywhere;
+	font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+	font-size: 0.68rem;
 }
 .live {
 	min-height: 1em;

@@ -473,7 +473,7 @@ test("recovery separates a previous Companion outage from current readiness with
 	await technical.getByRole("button", { name: "Atualizar", exact: true }).click();
 
 	const previousOutage = page.getByRole("alert").filter({
-		hasText: "O Companion ficou indisponível. O workspace persistido foi preservado.",
+		hasText: "O Companion ficou indisponível. O estado já salvo foi preservado.",
 	});
 	await expect(previousOutage).toHaveCount(1);
 	await expect(

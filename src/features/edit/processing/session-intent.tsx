@@ -46,6 +46,12 @@ import type {
 } from "./protocol";
 import { BridgeError } from "./protocol";
 import { SessionAssemblyReview } from "./session-assembly-review";
+import {
+	sessionRecoveryForError,
+	sessionTimelineRecovery,
+	type SessionRecoveryGuide,
+	type SessionRecoveryTarget,
+} from "./session-recovery";
 import styles from "./session-intent.module.css";
 
 export type SessionIntentSource = Readonly<{
@@ -103,7 +109,8 @@ type Props = Readonly<{
 		message: string,
 		availabilityFailure?: "timeout" | "unreachable",
 	) => void;
-	onOpenTechnical?: () => void;
+	onOpenTechnical?: (target?: SessionRecoveryTarget) => void;
+	onSelectSource?: () => void;
 }>;
 
 function supported(capabilities: readonly string[]): boolean {
@@ -121,33 +128,50 @@ function validSessionId(value: string): boolean {
 	return /^[A-Za-z0-9_-]{1,128}$/u.test(value);
 }
 
-function errorMessage(cause: unknown): string {
-	if (!(cause instanceof BridgeError))
-		return "Não foi possível continuar a transcrição da sessão.";
-	const code = cause.serverCode ?? cause.code;
-	const messages: Record<string, string> = {
-		SESSION_WORKSPACE_REVISION_CONFLICT:
-			"A sessão mudou em outra aba. O TDA vai recarregar o estado antes de continuar.",
-		SESSION_WORKSPACE_SOURCE_UNAVAILABLE:
-			"Uma gravação local não está mais íntegra. Reimporte o ZIP correspondente.",
-		SESSION_WORKSPACE_TIMELINE_ORDER_AMBIGUOUS:
-			"Não conseguimos provar a ordem de todas as gravações.",
-		SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION:
-			"Dois horários colidem e não autorizam uma ordem automática.",
-		SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT:
-			"Os horários confiáveis contradizem a ordem mostrada. Reordene as gravações antes de continuar.",
-		SESSION_WORKSPACE_SEQUENCE_INVALID:
-			"A ordem mudou antes da confirmação. Atualize a sessão e confirme novamente.",
-		SESSION_ASSEMBLY_TIMELINE_NOT_READY:
-			"A cronologia ainda precisa de uma decisão antes de concluir a transcrição.",
-		SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INVALID:
-			"Há um conflito de participante que precisa de decisão.",
-		timeout:
-			"O Companion demorou demais para responder. O estado já salvo foi preservado.",
-		unreachable:
-			"O Companion ficou indisponível. O estado já salvo foi preservado.",
-	};
-	return messages[code] ?? `Operação local não concluída · ${code}`;
+function RecoveryGuideCard({
+	recovery,
+	disabled,
+	onAction,
+}: Readonly<{
+	recovery: SessionRecoveryGuide;
+	disabled: boolean;
+	onAction: (target: SessionRecoveryTarget) => void;
+}>) {
+	const role =
+		recovery.severity === "blocker" || recovery.severity === "error"
+			? "alert"
+			: "status";
+	return (
+		<div
+			className={styles.blocker}
+			data-severity={recovery.severity}
+			role={role}
+		>
+			<div>
+				<strong>{recovery.title}</strong>
+				<span>{recovery.detail}</span>
+				{recovery.technicalCode ? (
+					<details className={styles.recoveryTechnical}>
+						<summary>Diagnóstico</summary>
+						<code>{recovery.technicalCode}</code>
+					</details>
+				) : null}
+			</div>
+			{recovery.actionLabel && recovery.target ? (
+				<Button
+					type="button"
+					size="sm"
+					variant="secondary"
+					disabled={disabled}
+					onClick={() => {
+						if (recovery.target) onAction(recovery.target);
+					}}
+				>
+					{recovery.actionLabel}
+				</Button>
+			) : null}
+		</div>
+	);
 }
 
 function sourceLabel(
@@ -183,6 +207,7 @@ export function SessionIntentCoordinator({
 	onStatus,
 	onError,
 	onOpenTechnical,
+	onSelectSource,
 }: Props) {
 	const enabled = supported(capabilities);
 	const [workspace, setWorkspace] = useState<SessionWorkspace | null>(null);
@@ -199,6 +224,7 @@ export function SessionIntentCoordinator({
 	const [busy, setBusy] = useState(false);
 	const [live, setLive] = useState<string | null>(null);
 	const [localError, setLocalError] = useState<string | null>(null);
+	const [recovery, setRecovery] = useState<SessionRecoveryGuide | null>(null);
 	const processedRequest = useRef<string | null>(null);
 	const advancing = useRef(false);
 	const pendingSubmissions = useRef(
@@ -215,6 +241,8 @@ export function SessionIntentCoordinator({
 
 	const announce = useCallback(
 		(message: string) => {
+			setRecovery(null);
+			setLocalError(null);
 			setLive(message);
 			onStatus?.(message);
 		},
@@ -222,16 +250,21 @@ export function SessionIntentCoordinator({
 	);
 	const fail = useCallback(
 		(cause: unknown) => {
-			const message = errorMessage(cause);
+			const nextRecovery = sessionRecoveryForError(cause, workspace);
 			const availabilityFailure =
 				cause instanceof BridgeError &&
 				(cause.code === "timeout" || cause.code === "unreachable")
 					? cause.code
 					: undefined;
-			setLocalError(message);
-			onError?.(message, availabilityFailure);
+			setLocalError(null);
+			setRecovery(nextRecovery);
+			if (availabilityFailure)
+				onError?.(
+					"O Companion ficou indisponível. O workspace persistido foi preservado.",
+					availabilityFailure,
+				);
 		},
-		[onError],
+		[onError, workspace],
 	);
 
 	const persistIntentReceipt = useCallback(
@@ -934,6 +967,7 @@ export function SessionIntentCoordinator({
 		const controller = new AbortController();
 		setBusy(true);
 		setLocalError(null);
+		setRecovery(null);
 		try {
 			await bridge.confirmSessionSequence(
 				workspace.campaignId,
@@ -951,6 +985,35 @@ export function SessionIntentCoordinator({
 		} finally {
 			setBusy(false);
 		}
+	}
+
+
+	async function refreshSession() {
+		if (!workspace || busy || disabled) return;
+		const controller = new AbortController();
+		setBusy(true);
+		try {
+			setRecovery(null);
+			setBlocker(null);
+			await loadSnapshot(workspace.sessionId, controller.signal);
+			announce("Sessão atualizada a partir do estado preservado no Companion.");
+		} catch (cause) {
+			fail(cause);
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	function runRecoveryAction(target: SessionRecoveryTarget) {
+		if (target === "reload") {
+			void refreshSession();
+			return;
+		}
+		if (target === "source") {
+			onSelectSource?.();
+			return;
+		}
+		onOpenTechnical?.(target);
 	}
 
 	async function retryFailed() {
@@ -1117,6 +1180,13 @@ export function SessionIntentCoordinator({
 					blocker.runIds.includes(run.runId),
 				)
 			: [];
+	const timelineRecovery = sessionTimelineRecovery(workspace);
+	const timelineBlockerRecovery =
+		blocker?.kind === "timeline" ? timelineRecovery : null;
+	const timelineNotice =
+		blocker?.kind !== "timeline" && timelineRecovery?.severity === "info"
+			? timelineRecovery
+			: null;
 
 	return (
 		<section
@@ -1210,6 +1280,22 @@ export function SessionIntentCoordinator({
 			) : (
 				<p className={styles.waiting}>Preparando as gravações desta sessão…</p>
 			)}
+
+			{recovery ? (
+				<RecoveryGuideCard
+					recovery={recovery}
+					disabled={busy || disabled}
+					onAction={runRecoveryAction}
+				/>
+			) : null}
+
+			{timelineNotice ? (
+				<RecoveryGuideCard
+					recovery={timelineNotice}
+					disabled={busy || disabled}
+					onAction={runRecoveryAction}
+				/>
+			) : null}
 
 			{workspace?.parts.length && workspace.parts.length > 1 ? (
 				<p className={styles.outputHint}>A saída será uma única transcrição da sessão.</p>
@@ -1308,7 +1394,7 @@ export function SessionIntentCoordinator({
 								size="sm"
 								variant="tertiary"
 								disabled={busy}
-								onClick={onOpenTechnical}
+								onClick={() => onOpenTechnical("order")}
 							>
 								Revisar ordem
 							</Button>
@@ -1320,6 +1406,7 @@ export function SessionIntentCoordinator({
 			{blocker?.kind === "timeline" ? (
 				<div
 					className={styles.blocker}
+					data-severity="blocker"
 					role={
 						blocker.state === "overlap_unresolved" || blocker.state === "order_conflict"
 							? "alert"
@@ -1334,14 +1421,16 @@ export function SessionIntentCoordinator({
 										workspace &&
 										workspace.parts.length > 1
 									? "Confirme a ordem das gravações."
-									: "A cronologia precisa de uma decisão antes de continuar."}
+									: (timelineBlockerRecovery?.title ??
+										"A cronologia da sessão ainda precisa de uma decisão.")}
 						</strong>
 						<span>
 							{blocker.state === "needs_timing" &&
 							workspace &&
 							workspace.parts.length > 1
 								? "A ordem exibida acima será usada como continuidade da sessão. Onde não houver horário confiável, o intervalo real continuará marcado como desconhecido."
-								: "Nenhuma ordem, horário ou corte será inventado. Resolva somente esta ambiguidade e o fluxo continua sozinho."}
+								: (timelineBlockerRecovery?.detail ??
+									"Revise somente a pendência indicada para continuar.")}
 						</span>
 					</div>
 					<div className={styles.headerActions}>
@@ -1359,14 +1448,20 @@ export function SessionIntentCoordinator({
 								Usar esta ordem para montar a sessão
 							</Button>
 						) : null}
-						{onOpenTechnical ? (
+						{timelineBlockerRecovery?.actionLabel &&
+						timelineBlockerRecovery.target &&
+						onOpenTechnical ? (
 							<Button
 								type="button"
 								size="sm"
 								variant="secondary"
-								onClick={onOpenTechnical}
+								disabled={busy || disabled}
+								onClick={() => {
+								if (timelineBlockerRecovery.target)
+									runRecoveryAction(timelineBlockerRecovery.target);
+							}}
 							>
-								Resolver cronologia
+								{timelineBlockerRecovery.actionLabel}
 							</Button>
 						) : null}
 					</div>
@@ -1387,7 +1482,7 @@ export function SessionIntentCoordinator({
 							type="button"
 							size="sm"
 							variant="secondary"
-							onClick={onOpenTechnical}
+							onClick={() => onOpenTechnical("participants")}
 						>
 							Resolver participantes
 						</Button>
@@ -1448,28 +1543,50 @@ export function SessionIntentCoordinator({
 			) : null}
 
 			{blocker?.kind === "resume" ? (
-				<div className={styles.blocker} role="status">
+				<div className={styles.blocker} data-severity="blocker" role="alert">
 					<div>
 						<strong>A sessão foi recuperada do Companion.</strong>
 						<span>
 							{blocker.sourceIds.length} gravação
 							{blocker.sourceIds.length === 1 ? "" : "ões"} ainda não possui
-							execução confirmada. Selecione novamente os ZIPs para retomar sem
+							resultado concluído. Selecione novamente os ZIPs para retomar sem
 							mover ou duplicar as partes já salvas.
 						</span>
 					</div>
+					{onSelectSource ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="secondary"
+							disabled={busy || disabled}
+							onClick={onSelectSource}
+						>
+							Selecionar ZIP para retomar
+						</Button>
+					) : null}
 				</div>
 			) : null}
 
 			{blocker?.kind === "source" ? (
-				<div className={styles.blocker} role="alert">
+				<div className={styles.blocker} data-severity="blocker" role="alert">
 					<div>
 						<strong>Uma gravação local precisa ser restaurada.</strong>
 						<span>
-							O workspace foi preservado, mas a fonte não passou na verificação de
-							integridade.
+							Selecione novamente o ZIP original. Os resultados já concluídos serão
+							preservados quando íntegros.
 						</span>
 					</div>
+					{onSelectSource ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="secondary"
+							disabled={busy || disabled}
+							onClick={onSelectSource}
+						>
+							Selecionar ZIP original
+						</Button>
+					) : null}
 				</div>
 			) : null}
 
