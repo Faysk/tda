@@ -95,6 +95,7 @@ export function WorldRelationAuthoringControls({
 							}))}
 							onChange={setRelationType}
 							ariaLabel="Tipo da ligação"
+							compact
 							required
 						/>
 					</label>
@@ -108,6 +109,7 @@ export function WorldRelationAuthoringControls({
 							}))}
 							onChange={(value) => setVisibility(value as WorldVisibility)}
 							ariaLabel="Visibilidade da ligação"
+							compact
 						/>
 					</label>
 					{visibility === "public_campaign" || visibility === "public_web" ? (
