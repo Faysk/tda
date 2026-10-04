@@ -815,6 +815,7 @@ export function SessionIntentCoordinator({
 			}
 
 			if (
+				capabilities.includes("transcription.session-sequence") &&
 				workspace.parts.length === 1 &&
 				workspace.timeline.state === "needs_timing"
 			) {
@@ -1280,7 +1281,8 @@ export function SessionIntentCoordinator({
 						</span>
 					</div>
 					<div className={styles.blockerActions}>
-						{blocker.state === "needs_timing" ? (
+						{blocker.state === "needs_timing" &&
+						capabilities.includes("transcription.session-sequence") ? (
 							<Button
 								type="button"
 								size="sm"
@@ -1291,7 +1293,9 @@ export function SessionIntentCoordinator({
 								Usar esta ordem
 							</Button>
 						) : null}
-						{blocker.state !== "needs_timing" && onOpenTechnical ? (
+						{(blocker.state !== "needs_timing" ||
+							!capabilities.includes("transcription.session-sequence")) &&
+						onOpenTechnical ? (
 							<Button
 								type="button"
 								size="sm"
