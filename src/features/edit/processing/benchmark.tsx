@@ -494,12 +494,17 @@ export function ProcessingBenchmark({
 		(acceptedJob && ["queued", "running"].includes(acceptedJob.status)
 			? acceptedJob
 			: undefined);
-	const latestCompleted = benchmarkJobs.filter(
-		(job) => job.status === "succeeded" && job.result_available,
+	const resultJobs = benchmarkJobs.filter(
+		(job) =>
+			job.result_available &&
+			(job.status === "succeeded" ||
+				(job.status === "failed" && job.error?.code === "BENCHMARK_PARTIAL")),
 	);
 	const latestJob = benchmarkJobs[0];
 	const latestProblem =
-		latestJob && ["failed", "cancelled", "interrupted"].includes(latestJob.status)
+		latestJob &&
+		["failed", "cancelled", "interrupted"].includes(latestJob.status) &&
+		!(latestJob.status === "failed" && latestJob.error?.code === "BENCHMARK_PARTIAL")
 			? latestJob
 			: undefined;
 	const profileStates = PROFILES.map(
@@ -562,7 +567,7 @@ export function ProcessingBenchmark({
 	}, [acceptedJob, benchmarkJobs]);
 
 	useEffect(() => {
-		const missing = latestCompleted
+		const missing = resultJobs
 			.slice(0, 10)
 			.filter((job) => results[job.id] === undefined);
 		if (!connected || missing.length === 0) return;
@@ -585,7 +590,7 @@ export function ProcessingBenchmark({
 			}));
 		});
 		return () => controller.abort();
-	}, [bridge, connected, latestCompleted, results]);
+	}, [bridge, connected, resultJobs, results]);
 
 	useEffect(() => () => request.current?.abort(), []);
 
