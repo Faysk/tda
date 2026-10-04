@@ -164,6 +164,7 @@ async function assetById(
 async function destinationAsset(
 	client: SupabaseClient,
 	campaignId: string,
+	stagedBucket: string,
 	objectKey: string,
 ): Promise<CoverAssetRow | null> {
 	const { data, error } = await client
@@ -172,6 +173,7 @@ async function destinationAsset(
 			"id,campaign_id,status,role_hint,staged_bucket,object_key,sha256,mime_type,byte_size,width,height,read_back_verified,public_bucket,public_object_key,public_delivery_verified,public_verified_at",
 		)
 		.eq("campaign_id", campaignId)
+		.eq("staged_bucket", stagedBucket)
 		.eq("object_key", objectKey)
 		.maybeSingle();
 	if (error) throw new Error("SESSION_CAMPAIGN_MOVE_MEDIA_DESTINATION_LOOKUP");
@@ -242,39 +244,6 @@ export async function prepareSessionCampaignMoveCover(input: Readonly<{
 	if (!destinationKey)
 		throw new Error("SESSION_CAMPAIGN_MOVE_MEDIA_DESTINATION_KEY");
 
-	const existingRaw = await destinationAsset(
-		input.client,
-		input.destinationCampaignId,
-		destinationKey,
-	);
-	if (existingRaw) {
-		const existing = parsedAsset(existingRaw, {
-			campaignId: input.destinationCampaignId,
-			sessionId: input.sessionId,
-			campaignSlug: input.destinationCampaignSlug,
-		});
-		if (
-			!existing ||
-			existing.sha256 !== source.sha256 ||
-			existing.mimeType !== source.mimeType ||
-			existing.bytes !== source.bytes ||
-			existing.width !== source.width ||
-			existing.height !== source.height ||
-			(source.status === "verified_public" &&
-				existing.status !== "verified_public")
-		) {
-			throw new Error("SESSION_CAMPAIGN_MOVE_MEDIA_COLLISION");
-		}
-		return {
-			kind: "prepared",
-			cover: {
-				...existing,
-				sourceAssetId: coverReference,
-				destinationAssetId: existing.destinationAssetId,
-			},
-		};
-	}
-
 	const readBucket =
 		source.status === "verified_public" && source.publicBucket
 			? source.publicBucket
@@ -310,7 +279,32 @@ export async function prepareSessionCampaignMoveCover(input: Readonly<{
 		throw new Error("SESSION_CAMPAIGN_MOVE_MEDIA_STAGE_MISMATCH");
 	}
 
-	const destinationAssetId = randomUUID();
+	const existingRaw = await destinationAsset(
+		input.client,
+		input.destinationCampaignId,
+		staged.bucket,
+		destinationKey,
+	);
+	const existing = existingRaw
+		? parsedAsset(existingRaw, {
+				campaignId: input.destinationCampaignId,
+				sessionId: input.sessionId,
+				campaignSlug: input.destinationCampaignSlug,
+			})
+		: null;
+	if (
+		existingRaw &&
+		(!existing ||
+			existing.sha256 !== source.sha256 ||
+			existing.mimeType !== source.mimeType ||
+			existing.bytes !== source.bytes ||
+			existing.width !== source.width ||
+			existing.height !== source.height)
+	) {
+		throw new Error("SESSION_CAMPAIGN_MOVE_MEDIA_COLLISION");
+	}
+
+	const destinationAssetId = existing?.destinationAssetId ?? randomUUID();
 	if (source.status === "verified_public") {
 		const promoted = await promoteGovernedImageObject({
 			stagedBucket: staged.bucket,
@@ -359,4 +353,4 @@ export async function prepareSessionCampaignMoveCover(input: Readonly<{
 			publicVerifiedAt: null,
 		},
 	};
-}
+}}
