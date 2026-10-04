@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import {
 	BridgeError,
+	type BenchmarkAttemptResult,
+	type BenchmarkPartialResult,
 	type BenchmarkResult,
 	type Capabilities,
 	type CraigSource,
@@ -23,14 +25,14 @@ import {
 	profileReadinessCopy,
 	validateCraigFile,
 } from "./submission-model";
+import {
+	BENCHMARK_PROFILES,
+	deriveBenchmarkAttemptUiState,
+	type BenchmarkProfileUiState,
+} from "./benchmark-outcomes";
 import styles from "./benchmark.module.css";
 
-const PROFILES = [
-	"whisper-turbo",
-	"whisper-detailed",
-	"qwen-fast",
-	"qwen-quality",
-] as const;
+const PROFILES = BENCHMARK_PROFILES;
 
 const LABELS: Record<(typeof PROFILES)[number], string> = {
 	"whisper-turbo": "Whisper Turbo",
@@ -382,7 +384,7 @@ export function ProcessingBenchmark({
 	const qwenRuntimeCheckKey = useRef<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [status, setStatus] = useState<string | null>(null);
-	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
+	const [results, setResults] = useState<Record<string, BenchmarkAttemptResult>>({});
 	const [evidenceView, setEvidenceView] = useState<{
 		result: BenchmarkResult;
 		mode: "compare" | "files";
@@ -416,12 +418,24 @@ export function ProcessingBenchmark({
 		(acceptedJob && ["queued", "running"].includes(acceptedJob.status)
 			? acceptedJob
 			: undefined);
+	const resultJobs = benchmarkJobs.filter(
+		(job) =>
+			job.result_available &&
+			["succeeded", "failed"].includes(job.status),
+	);
 	const latestCompleted = benchmarkJobs.filter(
 		(job) => job.status === "succeeded" && job.result_available,
 	);
 	const latestJob = benchmarkJobs[0];
+	const latestResult = latestJob ? results[latestJob.id] : undefined;
+	const latestPartialResult =
+		latestResult?.schemaVersion === "tda_processing_benchmark_partial_v1"
+			? latestResult
+			: null;
 	const latestProblem =
-		latestJob && ["failed", "cancelled", "interrupted"].includes(latestJob.status)
+		latestJob &&
+		!latestPartialResult &&
+		["failed", "cancelled", "interrupted"].includes(latestJob.status)
 			? latestJob
 			: undefined;
 	const profileStates = PROFILES.map(
@@ -484,15 +498,18 @@ export function ProcessingBenchmark({
 	}, [acceptedJob, benchmarkJobs]);
 
 	useEffect(() => {
-		const missing = latestCompleted
-			.slice(0, 10)
+		const missing = resultJobs
+			.slice(0, 20)
 			.filter((job) => results[job.id] === undefined);
 		if (!connected || missing.length === 0) return;
 		const controller = new AbortController();
 		void Promise.all(
 			missing.map(async (job) => {
 				try {
-					return [job.id, await bridge.benchmarkResult(job.id, controller.signal)] as const;
+					return [
+						job.id,
+						await bridge.benchmarkAttemptResult(job.id, controller.signal),
+					] as const;
 				} catch {
 					return null;
 				}
@@ -502,12 +519,15 @@ export function ProcessingBenchmark({
 			setResults((current) => ({
 				...current,
 				...Object.fromEntries(
-					loaded.filter((item): item is readonly [string, BenchmarkResult] => item !== null),
+					loaded.filter(
+						(item): item is readonly [string, BenchmarkAttemptResult] =>
+							item !== null,
+					),
 				),
 			}));
 		});
 		return () => controller.abort();
-	}, [bridge, connected, latestCompleted, results]);
+	}, [bridge, connected, resultJobs, results]);
 
 	useEffect(() => () => request.current?.abort(), []);
 
@@ -886,15 +906,16 @@ export function ProcessingBenchmark({
 		}
 	}
 
-	const completed = active?.progress?.completed ?? 0;
-	const currentProfile =
-		active?.status === "running" ? PROFILES[Math.min(completed, 3)] : null;
 	const activeEvents =
 		active && observedJobId === active.id
 			? events.filter(
 					(event) => event.attempt === null || event.attempt === active.attempt,
 				)
 			: [];
+	const activeAttemptState = active
+		? deriveBenchmarkAttemptUiState(active, activeEvents)
+		: null;
+	const currentProfile = activeAttemptState?.currentProfile ?? null;
 	const latestEvent = activeEvents.at(-1) ?? null;
 	const latestActivity = latestEvent ? presentJobEvent(latestEvent) : null;
 
