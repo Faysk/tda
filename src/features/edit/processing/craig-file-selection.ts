@@ -45,6 +45,32 @@ export function replaceCraigFileSelection(
 	return current.map((item) => (item.id === id ? { ...item, ...patch } : item));
 }
 
+export function reorderCraigFileSelection(
+	current: readonly CraigFileSelection[],
+	id: string,
+	targetIndex: number,
+): CraigFileSelection[] {
+	const sourceIndex = current.findIndex((item) => item.id === id);
+	if (sourceIndex < 0 || current.length < 2) return [...current];
+	const boundedTarget = Math.max(0, Math.min(Math.trunc(targetIndex), current.length - 1));
+	if (sourceIndex === boundedTarget) return [...current];
+	const next = [...current];
+	const [moved] = next.splice(sourceIndex, 1);
+	if (!moved) return next;
+	next.splice(boundedTarget, 0, moved);
+	return next;
+}
+
+export function moveCraigFileSelection(
+	current: readonly CraigFileSelection[],
+	id: string,
+	direction: -1 | 1,
+): CraigFileSelection[] {
+	const sourceIndex = current.findIndex((item) => item.id === id);
+	if (sourceIndex < 0) return [...current];
+	return reorderCraigFileSelection(current, id, sourceIndex + direction);
+}
+
 export function removeCraigFileSelection(
 	current: readonly CraigFileSelection[],
 	id: string,
