@@ -593,6 +593,38 @@ export function ProcessingBenchmark({
 		return () => controller.abort();
 	}, [bridge, connected, latestCompleted, results]);
 
+	useEffect(() => {
+		const missing = latestPartial
+			.slice(0, 10)
+			.filter((job) => partialResults[job.id] === undefined);
+		if (!connected || missing.length === 0) return;
+		const controller = new AbortController();
+		void Promise.all(
+			missing.map(async (job) => {
+				try {
+					return [
+						job.id,
+						await bridge.benchmarkPartialResult(job.id, controller.signal),
+					] as const;
+				} catch {
+					return null;
+				}
+			}),
+		).then((loaded) => {
+			if (controller.signal.aborted) return;
+			setPartialResults((current) => ({
+				...current,
+				...Object.fromEntries(
+					loaded.filter(
+						(item): item is readonly [string, BenchmarkPartialResult] =>
+							item !== null,
+					),
+				),
+			}));
+		});
+		return () => controller.abort();
+	}, [bridge, connected, latestPartial, partialResults]);
+
 	useEffect(() => () => request.current?.abort(), []);
 
 	useEffect(() => {
