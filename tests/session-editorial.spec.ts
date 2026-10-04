@@ -632,6 +632,44 @@ test("session workbench floating-shell receipts cover desktop, mobile and zoom",
 	}
 });
 
+test("issue 1466 keeps Workbench dirty state legible in light and dark themes", async ({
+	page,
+}, testInfo) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+
+	for (const theme of ["light", "dark"] as const) {
+		await page.goto("/");
+		await page.evaluate((value) => localStorage.setItem("tda-theme", value), theme);
+		await page.goto("/e2e-fixtures/session-editorial");
+		await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+
+		await page.getByRole("tab", { name: "Sessão", exact: true }).click();
+		await page.getByLabel("Título").fill(`Receipt #1466 ${theme}`);
+
+		const dirtyState = page.getByText("Alterações não salvas", { exact: true });
+		await expect(dirtyState).toBeVisible();
+		await expect(dirtyState).toHaveAttribute("data-state", "dirty");
+
+		const style = await dirtyState.evaluate((element) => ({
+			color: getComputedStyle(element).color,
+			token: getComputedStyle(document.documentElement)
+				.getPropertyValue("--ds-accent-strong")
+				.trim(),
+		}));
+		expect(style.color).not.toBe("");
+		expect(style.token).not.toBe("");
+
+		await page.getByTestId("session-editorial-failure-controls").evaluate((element) => {
+			(element as HTMLElement).style.display = "none";
+		});
+		await page.screenshot({
+			path: testInfo.outputPath(`issue-1466-workbench-dirty-${theme}.png`),
+			fullPage: false,
+		});
+	}
+});
+
+
 test("mobile workspace is segmented instead of squeezing the two desktop panes", async ({
 	page,
 }) => {
