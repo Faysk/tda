@@ -634,7 +634,7 @@ def test_sequence_partial_wall_clock_keeps_unknown_interval_explicit_not_zero():
     assert workspace["parts"][1]["physical_interval_state"] == "trusted_absolute"
     assert workspace["parts"][2]["physical_interval_state"] == "unknown"
     assert workspace["parts"][2]["relation_to_previous"] == "contiguous"
-    assert workspace["parts"][2]["relation_seconds"] == 0.0
+    assert workspace["parts"][2]["relation_seconds"] is None
     assert workspace["parts"][2]["source_start_utc"] is None
 
 
