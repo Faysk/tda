@@ -541,6 +541,9 @@ export function ProcessingBenchmark({
 	);
 	const latestJob = benchmarkJobs[0];
 	const latestResult = latestJob ? results[latestJob.id] : undefined;
+	const latestResultPending = Boolean(
+		latestJob?.result_available && latestResult === undefined,
+	);
 	const latestPartialResult =
 		latestResult?.schemaVersion === "tda_processing_benchmark_partial_v1"
 			? latestResult
@@ -548,6 +551,7 @@ export function ProcessingBenchmark({
 	const latestProblem =
 		latestJob &&
 		!latestPartialResult &&
+		!latestResultPending &&
 		["failed", "cancelled", "interrupted"].includes(latestJob.status)
 			? latestJob
 			: undefined;
@@ -1464,6 +1468,14 @@ export function ProcessingBenchmark({
 					onDiagnostics={() => onOpenDiagnostics(latestJob)}
 					onRepeat={() => void repeatPartialBenchmark(latestPartialResult)}
 				/>
+			) : latestResultPending ? (
+				<section className={styles.problemCard} role="status">
+					<div>
+						<span className={styles.eyebrow}>Última execução</span>
+						<h3>Carregando resultado do benchmark…</h3>
+						<p>Validando o receipt terminal antes de classificar esta execução.</p>
+					</div>
+				</section>
 			) : latestProblem ? (
 				<section className={styles.problemCard} role="status">
 					<div>
