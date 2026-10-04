@@ -26,7 +26,7 @@ export function ParticipantManager({ segments, disabled, onApply }: Readonly<{
 	return <details className={styles.notice}>
 		<summary>Gerenciar participantes · {new Set(groups.map((item) => item.trackNumber)).size} tracks</summary>
 		<div className={styles.participantManager}>
-			<label ref={selectRoot}>Participante de origem
+			<div ref={selectRoot}>Participante de origem
 				<Select
 					value={selected}
 					disabled={disabled}
@@ -41,7 +41,7 @@ export function ParticipantManager({ segments, disabled, onApply }: Readonly<{
 					ariaLabel="Participante de origem"
 					compact
 				/>
-			</label>
+			</div>
 			<label>Novo nome
 				<input value={name} disabled={disabled} aria-invalid={name !== "" && !isReviewStringV1(name, "speaker")} onChange={(event) => { setName(event.target.value); setPreview(null); }} />
 			</label>
