@@ -321,6 +321,12 @@ export function AccountMenu() {
 
 		const onPointerDown = (event: PointerEvent) => {
 			if (
+				event.target instanceof Element &&
+				event.target.closest('[data-select-popover="true"]')
+			) {
+				return;
+			}
+			if (
 				event.target instanceof Node &&
 				!rootRef.current?.contains(event.target)
 			) {
@@ -329,6 +335,12 @@ export function AccountMenu() {
 		};
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== "Escape" || !expanded) return;
+			if (
+				event.target instanceof Element &&
+				event.target.closest('[data-select-popover="true"]')
+			) {
+				return;
+			}
 			event.preventDefault();
 			close(true);
 		};
