@@ -80,3 +80,24 @@
 		width: 100%;
 	}
 }
+
+
+.item[data-selected="true"] {
+	border-color: color-mix(in srgb, var(--ds-accent) 42%, var(--ds-border));
+	background: color-mix(in srgb, var(--ds-accent) 5%, var(--ds-canvas-subtle));
+}
+
+.editor {
+	min-width: 0;
+	outline: none;
+}
+
+.section[data-review-open="true"] {
+	gap: 10px;
+}
+
+@media (max-width: 720px) {
+	.editor {
+		min-width: 0;
+	}
+}
