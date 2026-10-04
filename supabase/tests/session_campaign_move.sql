@@ -172,6 +172,20 @@ begin
      or has_function_privilege('authenticated','public.move_session_campaign_atomic(uuid,uuid,text,text,uuid,text,uuid)','execute') then
     raise exception 'browser role can access session move boundary';
   end if;
+
+  if not has_table_privilege('service_role','public.session_campaign_move_operations','select')
+     or not has_table_privilege('service_role','public.session_campaign_move_operations','insert')
+     or has_table_privilege('service_role','public.session_campaign_move_operations','update')
+     or has_table_privilege('service_role','public.session_campaign_move_operations','delete') then
+    raise exception 'service_role receipt privileges are broader or narrower than select+insert';
+  end if;
+
+  if not has_function_privilege('service_role','public.preflight_session_campaign_move(uuid,uuid,text,text,uuid,text)','execute')
+     or not has_function_privilege('service_role','public.move_session_campaign_atomic(uuid,uuid,text,text,uuid,text,uuid)','execute')
+     or has_function_privilege('service_role','public.session_campaign_move_dependency_count(text,text,uuid)','execute')
+     or has_function_privilege('service_role','public.session_campaign_move_blockers(uuid,uuid)','execute') then
+    raise exception 'service_role function privileges do not match the public server boundary';
+  end if;
 end
 $tda_move_security$;
 

@@ -621,6 +621,32 @@
 	font-size: 0.78rem;
 }
 
+.sessionHeader {
+	grid-area: session-header;
+}
+
+.sessionNotice {
+	grid-area: session-notice;
+}
+
+.sessionMove {
+	grid-area: session-move;
+	min-width: 0;
+}
+
+.sessionWorkspace {
+	grid-area: session-workspace;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+}
+
+.sessionWorkspaceFrame {
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+}
+
 .libraryGuidance {
 	max-width: 760px;
 	margin: 2px 0 16px;
@@ -708,13 +734,14 @@
 @media (min-width: 981px) {
 	.sessionShell {
 		display: grid;
-		grid-template-rows: auto auto minmax(0, 1fr);
+		grid-template-areas:
+			"session-header"
+			"session-notice"
+			"session-move"
+			"session-workspace";
+		grid-template-rows: auto auto auto minmax(0, 1fr);
 		height: 100dvh;
 		overflow: hidden;
-	}
-
-	.sessionShell > :last-child {
-		min-height: 0;
 	}
 }
 
@@ -723,6 +750,10 @@
 		height: auto;
 		overflow: visible;
 		padding-bottom: 40px;
+	}
+
+	.sessionWorkspace {
+		height: auto;
 	}
 }
 
@@ -752,6 +783,10 @@
 }
 
 @media (max-width: 640px) {
+	.sessionShell {
+		padding-top: calc(var(--site-chrome-panel-top, 66px) + 12px);
+	}
+
 	.workbenchTitle {
 		font-size: clamp(1.25rem, 7vw, 1.7rem);
 	}

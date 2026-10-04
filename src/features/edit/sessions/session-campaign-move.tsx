@@ -36,6 +36,7 @@ type Props = Readonly<{
 	sourceCampaignSlug: string;
 	sourceCampaignName: string;
 	destinations: readonly SessionCampaignMoveDestination[];
+	backendReady?: boolean;
 	transport?: SessionCampaignMoveTransport;
 }>;
 
@@ -54,6 +55,8 @@ function failureLabel(reason: string): string {
 			return "A sessão ou uma das campanhas não está mais disponível.";
 		case "validation":
 			return "Os dados da mudança ficaram inválidos. Recarregue e tente novamente.";
+		case "dependency_unavailable":
+			return "Mover campanha está temporariamente indisponível neste ambiente. Nenhuma alteração foi aplicada.";
 		default:
 			return "Não foi possível confirmar a mudança agora. Nenhuma alteração parcial deve ser assumida.";
 	}
@@ -65,6 +68,7 @@ export function SessionCampaignMovePanel({
 	sourceCampaignSlug,
 	sourceCampaignName,
 	destinations,
+	backendReady = true,
 	transport = DEFAULT_TRANSPORT,
 }: Props) {
 	const router = useRouter();
@@ -83,16 +87,20 @@ export function SessionCampaignMovePanel({
 		[destinations, destination],
 	);
 
-	if (!destinations.length) {
+	if (!destinations.length) return null;
+
+	if (!backendReady) {
 		return (
-			<section className={styles.panel} aria-labelledby="session-move-title">
-				<div>
-					<p className={styles.eyebrow}>Campanha atual</p>
-					<h2 id="session-move-title">{sourceCampaignName}</h2>
-				</div>
-				<p className={styles.muted}>
-					Não há outra campanha ativa em que você possua leitura da transcrição e edição de conteúdo.
-				</p>
+			<section
+				className={styles.unavailable}
+				data-testid="session-campaign-move-unavailable"
+				role="status"
+			>
+				<strong>Mover campanha indisponível</strong>
+				<span>
+					A operação ainda não está ativa neste ambiente. A sessão continua em{" "}
+					{sourceCampaignName}.
+				</span>
 			</section>
 		);
 	}
@@ -156,101 +164,110 @@ export function SessionCampaignMovePanel({
 	}
 
 	return (
-		<section className={styles.panel} aria-labelledby="session-move-title">
-			<div className={styles.heading}>
-				<div>
-					<p className={styles.eyebrow}>Campanha atual</p>
-					<h2 id="session-move-title">{sourceCampaignName}</h2>
-				</div>
-				<p className={styles.muted}>Mover é uma operação separada do draft editorial.</p>
-			</div>
-
-			<div className={styles.controls}>
-				<label>
-					<span>Mover para outra campanha</span>
-					<select
-						value={destination}
-						onChange={(event) => {
-							setDestination(event.currentTarget.value);
-							setPreview(null);
-							setError(null);
-							setOperationId(null);
-							setRecovery(null);
-						}}
-						disabled={pending || Boolean(recovery)}
-					>
-						{destinations.map((item) => (
-							<option key={item.technicalSlug} value={item.technicalSlug}>
-								{item.name}
-							</option>
-						))}
-					</select>
-				</label>
-				<button
-					type="button"
-					onClick={runPreflight}
-					disabled={pending || !selected || Boolean(recovery)}
-				>
-					{pending ? "Verificando…" : "Pré-validar mudança"}
-				</button>
-			</div>
-
-			{error ? <p className={styles.error} role="alert">{error}</p> : null}
-
-			{recovery ? (
-				<div className={styles.recovery} role="status">
-					<strong>Commit confirmado.</strong>
+		<section
+			className={styles.panel}
+			aria-labelledby="session-move-title"
+			data-testid="session-campaign-move-panel"
+		>
+			<details className={styles.disclosure}>
+				<summary className={styles.summary}>
 					<span>
-						Destino confirmado: {recovery.destinationName} ({recovery.destinationSlug}).
+						<strong id="session-move-title">Mover para outra campanha</strong>
+						<small>Atual: {sourceCampaignName}</small>
 					</span>
-					<span>
-						A sessão já mudou de campanha no banco. A revalidação de cache/delivery
-						 ficou pendente; isso não desfaz o commit.
-					</span>
-					<button
-						type="button"
-						onClick={() => {
-							router.replace(recovery.href);
-							router.refresh();
-						}}
-					>
-						Abrir destino confirmado
-					</button>
-				</div>
-			) : null}
+					<span className={styles.summaryHint}>Operação separada do draft editorial</span>
+				</summary>
 
-			{preview ? (
-				<div className={styles.preview} data-status={preview.status}>
-					<h3>{preview.status === "ready" ? "Pronta para confirmar" : "Mudança bloqueada"}</h3>
-					{preview.blockers.length ? (
-						<ul>
-							{preview.blockers.map((blocker) => (
-								<li key={blocker.code}>
-									<strong>{blocker.message}</strong>
-									<span>{blocker.count} dependência(s) · {blocker.code}</span>
-								</li>
-							))}
-						</ul>
-					) : (
-						<ul>
-							{preview.consequences.map((item) => (
-								<li key={item}>{sessionCampaignMoveConsequenceLabel(item)}</li>
-							))}
-						</ul>
-					)}
-					{preview.status === "ready" ? (
-						<button type="button" onClick={commitMove} disabled={pending}>
-							{pending
-								? recovery
-									? "Revalidando…"
-									: "Movendo…"
-								: recovery
-									? "Revalidar caches"
-									: `Confirmar mudança para ${selected?.name ?? "destino"}`}
+				<div className={styles.body}>
+					<div className={styles.controls}>
+						<label>
+							<span>Destino</span>
+							<select
+								aria-label="Mover para outra campanha"
+								value={destination}
+								onChange={(event) => {
+									setDestination(event.currentTarget.value);
+									setPreview(null);
+									setError(null);
+									setOperationId(null);
+									setRecovery(null);
+								}}
+								disabled={pending || Boolean(recovery)}
+							>
+								{destinations.map((item) => (
+									<option key={item.technicalSlug} value={item.technicalSlug}>
+										{item.name}
+									</option>
+								))}
+							</select>
+						</label>
+						<button
+							type="button"
+							onClick={runPreflight}
+							disabled={pending || !selected || Boolean(recovery)}
+						>
+							{pending ? "Verificando…" : "Pré-validar mudança"}
 						</button>
+					</div>
+
+					{error ? <p className={styles.error} role="alert">{error}</p> : null}
+
+					{recovery ? (
+						<div className={styles.recovery} role="status">
+							<strong>Commit confirmado.</strong>
+							<span>
+								Destino confirmado: {recovery.destinationName} ({recovery.destinationSlug}).
+							</span>
+							<span>
+								A sessão já mudou de campanha no banco. A revalidação de cache/delivery
+								 ficou pendente; isso não desfaz o commit.
+							</span>
+							<button
+								type="button"
+								onClick={() => {
+									router.replace(recovery.href);
+									router.refresh();
+								}}
+							>
+								Abrir destino confirmado
+							</button>
+						</div>
+					) : null}
+
+					{preview ? (
+						<div className={styles.preview} data-status={preview.status}>
+							<h3>{preview.status === "ready" ? "Pronta para confirmar" : "Mudança bloqueada"}</h3>
+							{preview.blockers.length ? (
+								<ul>
+									{preview.blockers.map((blocker) => (
+										<li key={blocker.code}>
+											<strong>{blocker.message}</strong>
+											<span>{blocker.count} dependência(s) · {blocker.code}</span>
+										</li>
+									))}
+								</ul>
+							) : (
+								<ul>
+									{preview.consequences.map((item) => (
+										<li key={item}>{sessionCampaignMoveConsequenceLabel(item)}</li>
+									))}
+								</ul>
+							)}
+							{preview.status === "ready" ? (
+								<button type="button" onClick={commitMove} disabled={pending}>
+									{pending
+										? recovery
+											? "Revalidando…"
+											: "Movendo…"
+										: recovery
+											? "Revalidar caches"
+											: `Confirmar mudança para ${selected?.name ?? "destino"}`}
+								</button>
+							) : null}
+						</div>
 					) : null}
 				</div>
-			) : null}
+			</details>
 		</section>
 	);
 }

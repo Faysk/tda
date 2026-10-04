@@ -72,6 +72,21 @@ function boundaryParams(input: MoveBoundaryInput) {
 	};
 }
 
+export async function sessionCampaignMoveBackendReady(): Promise<boolean> {
+	const client = editDataClient();
+	if (!client) return false;
+
+	// The move schema is delivered atomically in one migration. A zero-row
+	// service-role read proves the receipt relation is present without reading
+	// any session receipt or narrative data. If the relation is absent from the
+	// PostgREST schema cache, fail closed and keep the action unavailable.
+	const { error } = await client
+		.from("session_campaign_move_operations")
+		.select("operation_id")
+		.limit(0);
+	return !error;
+}
+
 export async function preflightSessionCampaignMove(input: MoveBoundaryInput) {
 	const client = editDataClient();
 	if (!client) return { ok: false as const, reason: "dependency_unavailable" as const };
