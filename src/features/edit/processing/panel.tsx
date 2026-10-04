@@ -346,6 +346,13 @@ export function ProcessingPanel({
 	const [clockNow, setClockNow] = useState(() => Date.now());
 	const [customActivityBarks, setCustomActivityBarks] = useState<readonly ActivityBark[]>([]);
 	const [resultFocus, setResultFocus] = useState<Readonly<{ key: string; requestId: number }> | null>(null);
+	const [assemblyReviewFocus, setAssemblyReviewFocus] = useState<
+		Readonly<{
+			sessionId: string;
+			assembly: import("./session-composer-protocol").SessionAssembly;
+			requestId: number;
+		}> | null
+	>(null);
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
@@ -542,6 +549,20 @@ export function ProcessingPanel({
 		setView(next);
 		if (leavingDiagnostics) void controller.observeJob(null);
 		if (next === "results") void controller.refresh("results");
+	}
+
+	function openSessionAssemblyReview(
+		assembly: import("./session-composer-protocol").SessionAssembly,
+	) {
+		setAssemblyReviewFocus((current) => ({
+			sessionId: assembly.sessionId,
+			assembly,
+			requestId: (current?.requestId ?? 0) + 1,
+		}));
+		activateView("results");
+		window.requestAnimationFrame(() => {
+			document.getElementById("processing-tab-results")?.focus();
+		});
 	}
 
 	async function openJobResult(job: LocalJob): Promise<string | null> {
@@ -1078,6 +1099,7 @@ export function ProcessingPanel({
 									system={state.system}
 									recoveryScope={activityPackScope}
 									onDraftStateChange={setSubmissionDraftActive}
+									onReviewSessionAssembly={openSessionAssemblyReview}
 								/>
 							</fieldset>
 						</div>
@@ -1210,6 +1232,7 @@ export function ProcessingPanel({
 							<SessionAssemblyResults
 								campaignId={campaignId}
 								capabilities={state.capabilities.capabilities}
+								focus={assemblyReviewFocus}
 							/>
 						) : null}
 						{unboundRuns.length ? (
