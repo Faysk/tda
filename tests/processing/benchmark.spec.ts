@@ -706,7 +706,7 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 
 	const leftSelector = workspace.getByLabel("Perfil A");
 	await leftSelector.selectOption("whisper-turbo");
-	await expect(workspace.getByText("Whisper Turbo").first()).toBeVisible();
+	await expect(leftSelector).toHaveValue("whisper-turbo");
 	await expect
 		.poll(() =>
 			state.requests.some((request) =>
