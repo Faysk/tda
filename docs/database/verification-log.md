@@ -602,3 +602,115 @@ PR #1336 / commit `2dcfde2f5b228cec091e14c24b3eb4e5c0ae48f2`, Production CD http
 Após autorização explícita do proprietário, o perfil vinculado à sessão Chrome foi comparado com o platform owner ativo antes da operação. Cinco grants de roles existentes em project/tda foram adicionados somente à conta confirmada, com audit atômico. Read-back: um perfil alterado, cinco eventos, zero capabilities atuais ausentes. A configuração não altera permissões de outras contas. Operação `a80495ef-c69b-4bda-92c5-f3fe48b6aa2d`; recovery permite revogar somente os assignments registrados por essa operação, preservando histórico e grants anteriores. Ver contrato de [permissões](../features/edit-permissions.md).
 
 O formulário aberto durante a promoção rejeitou um Server Action antigo antes de qualquer write; reload permitiu salvar normalmente. Renomear também revelou menu com metadata antiga durante a navegação cliente; a correção invalida o root layout após mutations de campanha, sem alterar composição visual.
+
+
+## 2026-10-04 — campaign move v2 publicado e commit v1 retirado
+
+### Escopo
+
+Fechamento operacional de #1454 e das issues #1455–#1462, seguido do hardening #1475 identificado durante o próprio read-back pós-rollout.
+
+Projeto canônico: `dmrqnbdvbkfqzctcerbx`.
+
+Nenhum conteúdo narrativo privado de transcript/canon/mídia foi lido nesta verificação. A sessão real usada para confirmar o plano foi consultada apenas por identidade estrutural, contagens e flags de relacionamento. Nenhum campaign move foi executado nessa sessão durante a validação.
+
+### Release v2
+
+PR #1464 foi integrada em:
+
+- source SHA: `981095a742280163e451a0fb15d001a54ad0a88e`;
+- CI: https://github.com/Faysk/tda/actions/runs/37223854033 — success;
+- Campaign Isolation Gate: https://github.com/Faysk/tda/actions/runs/37223853673 — success;
+- CodeQL: https://github.com/Faysk/tda/actions/runs/37223853659 — success;
+- Production CD: https://github.com/Faysk/tda/actions/runs/37224181889 — success;
+- release: `prod-981095a74228`.
+
+O Production CD partiu do baseline `4ac3aab53c721f8d7d91bc0b15c7ca81319709a7`, aplicou `20261004180000_session_campaign_move_v2.sql`, confirmou `PRODUCTION_MIGRATIONS_OK` e depois `CANONICAL_PRODUCTION_OK` para o mesmo SHA. O smoke semântico staged + canonical passou.
+
+Read-back após a migration:
+
+- `session_campaign_move_contract().version = 2`;
+- features: dependency registry, private lineage, publication transfer, media prepare/commit, decisões explícitas de participant/grants e durable replay;
+- `session_campaign_move_registry_drift() = []`;
+- tabelas de policy e media-preparation receipt presentes;
+- `service_role` com EXECUTE no contract, preflight e commit v2;
+- `anon`/`authenticated` sem EXECUTE nas mutations do campaign move;
+- helper interno de drift sem EXECUTE do `service_role`.
+
+### Sessão estruturalmente revalidada
+
+A sessão `20260917-sessao-PF` permaneceu em **Destino Sem Fim** durante toda a verificação e continuou com zero receipts de campaign move.
+
+Estado estrutural observado:
+
+- 1 transcript revision;
+- 9 editorial drafts;
+- 1 session publication;
+- 1 publication operation;
+- current transcript/draft/publication presentes;
+- 0 participant→entity links;
+- 0 session-scoped grants;
+- 0 entity mentions;
+- 0 canon/entity links;
+- 0 legacy public publications.
+
+O plano v2 para **Passos Retomados** retornou `blockers=[]`. Classificação:
+
+- `audit_log`: histórico preservado;
+- 9 drafts + publication/operation + transcript revision/receipts/events: transferência automática de ownership;
+- 2 cover assets: `external_prepare`, exigindo cópia/read-back governados no namespace R2 de destino antes do commit.
+
+Nenhuma das duas capas foi copiada por esta verificação porque o usuário não solicitou executar o move da sessão; o read-back apenas prova que o boundary está pronto para preparar e efetivar a operação quando houver intenção explícita.
+
+### Hardening de skew — #1475
+
+O read-back revelou um risco de compatibilidade entre app antigo e schema v2: `preflight_session_campaign_move(...)` passou a aprovar sessões populadas, mas o commit legado `move_session_campaign_atomic(...)` ainda podia ser executado por `service_role` e atualizava somente `sessions.campaign_id`.
+
+No momento da detecção havia **zero receipts de move v1/v2**, portanto não foi encontrado move parcial já cometido.
+
+A correção foi entregue por PR #1477:
+
+- source SHA: `5f6a446e74ef35c89397c8675ed2e661c83e7a86`;
+- CI: https://github.com/Faysk/tda/actions/runs/37224832321 — success;
+- Campaign Isolation Gate: https://github.com/Faysk/tda/actions/runs/37224832107 — success;
+- CodeQL: https://github.com/Faysk/tda/actions/runs/37224832078 — success;
+- Production CD: https://github.com/Faysk/tda/actions/runs/37224929719 — success;
+- release: `prod-5f6a446e74ef`.
+
+O rollout partiu do baseline `981095a742280163e451a0fb15d001a54ad0a88e`, aplicou `20261004182700_retire_session_campaign_move_v1_commit.sql`, confirmou migration history exato e publicou o mesmo SHA canônico.
+
+Read-back final:
+
+- contract continua v2;
+- registry drift continua vazio;
+- `service_role`, `anon` e `authenticated`: **sem EXECUTE** no commit v1;
+- `service_role`: EXECUTE preservado no preflight e no commit v2;
+- browser roles continuam sem autoridade para efetivar o move.
+
+Assim, Server Actions/abas stale falham antes do write em vez de poder executar o caminho parcial v1.
+
+### Advisors pós-rollout
+
+Security advisor:
+
+- `rls_enabled_no_policy` continua INFO/deny-by-default; inclui as tabelas server-only de receipts/policies do move e não representa abertura para browser;
+- warnings de `SECURITY DEFINER` executável e leaked-password protection observados são classes preexistentes e não apontam para os RPCs de campaign move v2.
+
+Performance advisor:
+
+- há INFOs de FKs sem covering index nas tabelas de move/receipt;
+- nenhuma criação de índice foi feita apenas para silenciar advisor;
+- o fluxo de move é administrativo/raro e os caminhos quentes principais usam operation/session identity; indexação adicional fica condicionada a evidência de query/performance real.
+
+Remediação de referência:
+- RLS sem policy: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
+- FKs sem índice: https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys
+
+### Estado final
+
+- v2 aplicado e publicado;
+- commit v1 de aplicação retirado;
+- migration history remoto alinhado ao repositório;
+- gates exatos e smoke de Production verdes;
+- sessão real preservada sem mutation;
+- operação real pode agora seguir o fluxo `preflight → media prepare/read-back → commit v2 → cache/read-back` quando houver ordem explícita para mover.
