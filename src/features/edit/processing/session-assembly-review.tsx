@@ -210,6 +210,14 @@ export function SessionAssemblyReview({
 		() => segments.filter((segment) => segment.reviewed).length,
 		[segments],
 	);
+	const markdownBase = useMemo(
+		() => sessionAssemblyMarkdownBase(assembly, baseline),
+		[assembly, baseline],
+	);
+	const markdownSegments = useMemo(
+		() => sessionAssemblyMarkdownSegments(segments),
+		[segments],
+	);
 	const pageCount = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
 	const page = Math.min(pageIndex, pageCount - 1);
 	const visibleStart = page * PAGE_SIZE;
@@ -465,8 +473,8 @@ export function SessionAssemblyReview({
 					/>
 				</label>
 				<TranscriptMarkdownRoundTrip
-					base={sessionAssemblyMarkdownBase(assembly, baseline)}
-					segments={sessionAssemblyMarkdownSegments(segments)}
+					base={markdownBase}
+					segments={markdownSegments}
 					title={assembly.sessionId}
 					fileIdentity={assembly.sessionId}
 					dirty={dirty}
