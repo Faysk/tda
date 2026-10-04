@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Button, Dialog } from "@/components/ui";
+import { Button, Dialog, Select } from "@/components/ui";
 import {
 	reloadTranscriptSegmentAction,
 	updateTranscriptSegmentAction,
