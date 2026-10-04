@@ -218,8 +218,24 @@ export function SessionAssemblyResults({
 		)
 			return;
 		handledFocusRequest.current = focus.requestId;
+		if (
+			selectedAssembly?.assemblyId === focus.assemblyId &&
+			reviewSelection?.sessionId === focus.sessionId
+		) {
+			window.requestAnimationFrame(() => {
+				editorRef.current?.querySelector<HTMLElement>("h3")?.focus();
+			});
+			return;
+		}
 		void openReview(focus.assemblyId);
-	}, [enabled, focus, openReview, sessionId]);
+	}, [
+		enabled,
+		focus,
+		openReview,
+		reviewSelection?.sessionId,
+		selectedAssembly?.assemblyId,
+		sessionId,
+	]);
 
 	if (!enabled || (!sessionId && assemblies.length === 0)) return null;
 
@@ -281,7 +297,13 @@ export function SessionAssemblyResults({
 									size="sm"
 									variant={selected ? "secondary" : "tertiary"}
 									disabled={reviewBusy}
-									onClick={() => void openReview(assembly.assemblyId)}
+									onClick={() => {
+										if (selected && review) {
+											editorRef.current?.querySelector<HTMLElement>("h3")?.focus();
+											return;
+										}
+										void openReview(assembly.assemblyId);
+									}}
 								>
 									{selected ? "Revisão aberta" : "Abrir revisão"}
 								</Button>
