@@ -1803,10 +1803,9 @@ test("ambiguous enqueue reuses the same idempotency identity and reconnect keeps
 	await expect(recovered).toContainText("Transcrição pronta");
 	await expect(page.getByLabel("ID da sessão")).toHaveCount(0);
 	await expect(page.getByRole("heading", { name: "Sessão local" })).toBeVisible();
-	const submissionForm = page.locator("form").filter({
-		has: page.getByLabel("Export do Craig"),
-	});
-	await expect(submissionForm.getByLabel("Perfil")).toHaveValue("whisper-detailed");
+	await expect(
+		page.locator("form").filter({ has: page.getByLabel("Export do Craig") }),
+	).toHaveCount(0);
 	const secondKeys = multi.keysFor(SOURCE_IDS[1] ?? "");
 	expect(secondKeys).toHaveLength(2);
 	expect(secondKeys[0]).toBe(secondKeys[1]);
