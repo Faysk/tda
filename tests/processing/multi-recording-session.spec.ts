@@ -1838,12 +1838,11 @@ test("exact duplicate is reused once instead of creating a second part or job", 
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(intent).toContainText("Transcrição pronta");
-	// Once the intent is fixed the draft/file list is deliberately replaced by the
-	// compact session state. Prove dedupe through the resulting session instead of
-	// requiring stale draft copy to remain visible.
-	await expect(intent.getByRole("listitem")).toHaveCount(1);
-	await expect(intent).toContainText("original.zip");
-	await expect(intent).not.toContainText("copia.zip");
+	// Once completed, Overview collapses the per-recording list. Dedupe remains
+	// proven by the compact summary plus the authoritative fixture counters.
+	await expect(intent.getByRole("listitem")).toHaveCount(0);
+	await expect(intent).toContainText("1/1 concluída");
+	await expect(intent).toContainText("1 gravação");
 	expect(multi.attachedSources).toEqual([SOURCE_IDS[0]]);
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
 });
