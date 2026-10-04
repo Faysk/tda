@@ -353,4 +353,4 @@ export async function prepareSessionCampaignMoveCover(input: Readonly<{
 			publicVerifiedAt: null,
 		},
 	};
-}}
+}
