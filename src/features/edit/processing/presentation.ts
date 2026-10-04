@@ -236,7 +236,7 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 					: "Benchmark concluiu um perfil.",
 				detail:
 					completedCount !== null
-						? `${completedCount} perfil${completedCount === 1 ? "" : "is"} concluído${completedCount === 1 ? "" : "s"} com receipt aceito.`
+						? `${completedCount} ${completedCount === 1 ? "perfil" : "perfis"} concluído${completedCount === 1 ? "" : "s"} com receipt aceito.`
 						: undefined,
 			};
 		}
