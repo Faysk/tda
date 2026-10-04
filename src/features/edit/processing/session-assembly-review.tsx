@@ -165,7 +165,11 @@ export function SessionAssemblyReview({
 	const [dirty, setDirty] = useState(false);
 	const [query, setQuery] = useState("");
 	const [page, setPage] = useState(0);
-	const [editingId, setEditingId] = useState<string | null>(null);
+	const [editingDraft, setEditingDraft] = useState<Readonly<{
+		assemblySegmentId: string;
+		speaker: string;
+		text: string;
+	}> | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [receipt, setReceipt] = useState<PublicationReceiptView | null>(null);
@@ -176,15 +180,15 @@ export function SessionAssemblyReview({
 		setSegments(review.segments.map((segment) => ({ ...segment })));
 		setDirty(false);
 		setPage(0);
-		setEditingId(null);
+		setEditingDraft(null);
 		setReceipt(null);
 		setPending(loadPending(review.assemblyId));
 	}, [review]);
 
 	useEffect(() => {
-		onDirtyChange?.(dirty);
+		onDirtyChange?.(dirty || editingDraft !== null);
 		return () => onDirtyChange?.(false);
-	}, [dirty, onDirtyChange]);
+	}, [dirty, editingDraft, onDirtyChange]);
 
 	const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
 	const matches = useMemo(
@@ -225,24 +229,7 @@ export function SessionAssemblyReview({
 		baseline.status === "approved_local" &&
 		baseline.approvalCurrent;
 
-	function editSegment(
-		assemblySegmentId: string,
-		field: "speaker" | "text",
-		value: string,
-	) {
-		setSegments((current) =>
-			current.map((segment) =>
-				segment.assemblySegmentId === assemblySegmentId
-					? { ...segment, [field]: value, reviewed: true }
-					: segment,
-			),
-		);
-		setDirty(true);
-		setReceipt(null);
-	}
-
-	function closeSegmentEditor(assemblySegmentId: string) {
-		setEditingId(null);
+	function focusSegmentTrigger(assemblySegmentId: string) {
 		window.requestAnimationFrame(() => {
 			const trigger = [
 				...document.querySelectorAll<HTMLButtonElement>(
@@ -256,8 +243,53 @@ export function SessionAssemblyReview({
 		});
 	}
 
+	function openSegmentEditor(segment: SessionAssemblyReviewSegment) {
+		setEditingDraft({
+			assemblySegmentId: segment.assemblySegmentId,
+			speaker: segment.speaker,
+			text: segment.text,
+		});
+	}
+
+	function cancelSegmentEditor(assemblySegmentId: string) {
+		setEditingDraft(null);
+		focusSegmentTrigger(assemblySegmentId);
+	}
+
+	function applySegmentEditor(segment: SessionAssemblyReviewSegment) {
+		if (
+			!editingDraft ||
+			editingDraft.assemblySegmentId !== segment.assemblySegmentId
+		)
+			return;
+		const changed =
+			editingDraft.speaker !== segment.speaker ||
+			editingDraft.text !== segment.text;
+		if (changed) {
+			setSegments((current) => {
+				const index = current.findIndex(
+					(item) => item.assemblySegmentId === segment.assemblySegmentId,
+				);
+				if (index < 0) return current;
+				const next = [...current];
+				next[index] = {
+					...current[index],
+					speaker: editingDraft.speaker,
+					text: editingDraft.text,
+					reviewed: true,
+				};
+				return next;
+			});
+			setDirty(true);
+			setReceipt(null);
+		}
+		setEditingDraft(null);
+		focusSegmentTrigger(segment.assemblySegmentId);
+	}
+
+
 	function changePage(nextPage: number) {
-		setEditingId(null);
+		setEditingDraft(null);
 		setPage(Math.max(0, Math.min(pageCount - 1, nextPage)));
 		window.requestAnimationFrame(() => {
 			const viewport = document.querySelector<HTMLElement>(
@@ -402,8 +434,9 @@ export function SessionAssemblyReview({
 						onChange={(event) => {
 							setQuery(event.currentTarget.value);
 							setPage(0);
-							setEditingId(null);
+							setEditingDraft(null);
 						}}
+						disabled={editingDraft !== null}
 						placeholder="Participante, texto ou origem"
 					/>
 				</label>
@@ -450,7 +483,7 @@ export function SessionAssemblyReview({
 						type="button"
 						size="sm"
 						variant="tertiary"
-						disabled={safePage === 0}
+						disabled={safePage === 0 || editingDraft !== null}
 						onClick={() => changePage(safePage - 1)}
 					>
 						Anterior
@@ -463,7 +496,7 @@ export function SessionAssemblyReview({
 						type="button"
 						size="sm"
 						variant="tertiary"
-						disabled={safePage >= pageCount - 1}
+						disabled={safePage >= pageCount - 1 || editingDraft !== null}
 						onClick={() => changePage(safePage + 1)}
 					>
 						Próxima
@@ -483,7 +516,8 @@ export function SessionAssemblyReview({
 							const wallClock = segment.absoluteTime
 								? wallClockPresentation(segment.absoluteTime.startIso)
 								: null;
-							const editing = editingId === segment.assemblySegmentId;
+							const editing =
+								editingDraft?.assemblySegmentId === segment.assemblySegmentId;
 							return (
 								<li
 									key={segment.assemblySegmentId}
@@ -496,13 +530,13 @@ export function SessionAssemblyReview({
 										data-assembly-segment-trigger={segment.assemblySegmentId}
 										aria-expanded={editing}
 										aria-label={`Editar fala ${pageStart + index + 1} de ${matches.length}: ${segment.speaker}`}
-										onClick={() =>
-											setEditingId((current) =>
-												current === segment.assemblySegmentId
-													? null
-													: segment.assemblySegmentId,
-											)
+										disabled={
+											editingDraft !== null &&
+											editingDraft.assemblySegmentId !== segment.assemblySegmentId
 										}
+										onClick={() => {
+											if (!editing) openSegmentEditor(segment);
+										}}
 									>
 										<span className={styles.segmentMeta}>
 											<span>{elapsed(segment.start)}</span>
@@ -525,13 +559,13 @@ export function SessionAssemblyReview({
 												<label>
 													<span>Participante</span>
 													<input
-														value={segment.speaker}
+														value={editingDraft?.speaker ?? segment.speaker}
 														disabled={disabled || busy}
 														onChange={(event) =>
-															editSegment(
-																segment.assemblySegmentId,
-																"speaker",
-																event.currentTarget.value,
+															setEditingDraft((current) =>
+																current
+																	? { ...current, speaker: event.currentTarget.value }
+																	: current,
 															)
 														}
 													/>
@@ -540,13 +574,13 @@ export function SessionAssemblyReview({
 													<span>Texto</span>
 													<textarea
 														rows={4}
-														value={segment.text}
+														value={editingDraft?.text ?? segment.text}
 														disabled={disabled || busy}
 														onChange={(event) =>
-															editSegment(
-																segment.assemblySegmentId,
-																"text",
-																event.currentTarget.value,
+															setEditingDraft((current) =>
+																current
+																	? { ...current, text: event.currentTarget.value }
+																	: current,
 															)
 														}
 													/>
@@ -561,16 +595,26 @@ export function SessionAssemblyReview({
 														{segment.sourceSegmentId}
 													</small>
 												</details>
-												<Button
-													type="button"
-													size="sm"
-													variant="secondary"
-													onClick={() =>
-														closeSegmentEditor(segment.assemblySegmentId)
-													}
-												>
-													Concluir edição
-												</Button>
+												<div className={styles.editorActions}>
+													<Button
+														type="button"
+														size="sm"
+														variant="tertiary"
+														onClick={() =>
+															cancelSegmentEditor(segment.assemblySegmentId)
+														}
+													>
+														Cancelar
+													</Button>
+													<Button
+														type="button"
+														size="sm"
+														variant="secondary"
+														onClick={() => applySegmentEditor(segment)}
+													>
+														Aplicar
+													</Button>
+												</div>
 											</div>
 										</div>
 									) : null}
