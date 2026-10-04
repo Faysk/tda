@@ -39,6 +39,64 @@ def test_benchmark_idempotency_reuses_ambiguous_retry_but_allows_a_new_deliberat
     assert second["id"] != first["id"]
 
 
+def test_partial_benchmark_store_keeps_result_available_with_distinct_terminal_stage(tmp_path):
+    store = Store(tmp_path)
+    body = {
+        "kind": "benchmark.craig",
+        "campaign_id": "benchmark-local",
+        "session_id": "benchmark-local",
+        "source_id": "craig-" + "a" * 64,
+        "glossary": "",
+        "context": "",
+        "units": 4,
+        "sample_seconds": 300.0,
+        "sample_identity_sha256": "b" * 64,
+        "track_count": 1,
+        "audio_work_seconds": 300.0,
+        "profiles": [
+            "whisper-turbo",
+            "whisper-detailed",
+            "qwen-fast",
+            "qwen-quality",
+        ],
+        "prepared": True,
+    }
+    submitted = store.submit("benchmark-partial-intent", body)
+    claimed = store.claim()
+    assert claimed is not None
+    job_id, attempt = claimed
+    assert job_id == submitted["id"]
+
+    for completed in range(1, 5):
+        assert store.progress(
+            job_id,
+            attempt,
+            completed=completed,
+            total=4,
+            stage="benchmark",
+        )
+
+    result = {
+        "schema_version": "tda_processing_benchmark_v2",
+        "kind": "benchmark.craig",
+        "status": "partial",
+        "completed_count": 3,
+        "failed_count": 1,
+    }
+    assert store.complete_partial_benchmark(job_id, attempt, result) is True
+
+    terminal = store.get(job_id)
+    assert terminal["status"] == "succeeded"
+    assert terminal["stage"] == "benchmark_partial"
+    assert terminal["result_available"] is True
+    assert store.result(job_id)["status"] == "partial"
+    assert any(
+        item["code"] == "BENCHMARK_PARTIAL"
+        and item["level"] == "warning"
+        for item in store.events(job_id)
+    )
+
+
 def test_benchmark_worker_command_requires_exact_five_minute_sample():
     command = WorkerRunCommand(
         job_id="benchmark-profile",
@@ -101,10 +159,10 @@ def _profile_receipt(profile_id: str) -> dict:
         "execution_lineage": {
             "schema_version": "tda_execution_lineage_v1",
             "runtime_family": "whisper" if engine == "whisper" else "qwen",
-            "runtime_version": "1.1.10" if engine == "whisper" else "1.0.18",
+            "runtime_version": "1.1.10" if engine == "whisper" else "1.0.19",
             "runtime_artifact": {
                 "runtime_id": "whisper-ctranslate2" if engine == "whisper" else "qwen3-transformers",
-                "version": "1.1.10" if engine == "whisper" else "1.0.18",
+                "version": "1.1.10" if engine == "whisper" else "1.0.19",
                 "worker_sha256": "a" * 64,
                 "archive_sha256": "b" * 64,
             },
