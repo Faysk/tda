@@ -395,8 +395,22 @@ export type BenchmarkProfileResult = {
 	artifactAvailable: boolean;
 };
 
+export type BenchmarkProfileOutcome = {
+	profileId: TranscriptionProfileId;
+	status: "completed" | "failed";
+	result: BenchmarkProfileResult | null;
+	error: null | {
+		code: string;
+		recoverable: boolean;
+		scope: "profile";
+	};
+};
+
 export type BenchmarkResult = {
-	schemaVersion: "tda_processing_benchmark_v1";
+	schemaVersion:
+		| "tda_processing_benchmark_v1"
+		| "tda_processing_benchmark_v2";
+	outcome: "completed" | "partial";
 	jobId: string;
 	sourceId: string;
 	campaignId: string;
@@ -408,9 +422,14 @@ export type BenchmarkResult = {
 	audioWorkSeconds: number;
 	prepared: boolean;
 	benchmarkId: string | null;
+	partialBenchmarkId: string | null;
 	bundleManifestSha256: string | null;
 	bundleSizeBytes: number | null;
+	attemptedCount: number;
+	completedCount: number;
+	failedCount: number;
 	profiles: readonly BenchmarkProfileResult[];
+	profileOutcomes: readonly BenchmarkProfileOutcome[];
 };
 
 export type BenchmarkEvidenceSummary = {
