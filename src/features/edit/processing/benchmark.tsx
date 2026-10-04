@@ -182,21 +182,26 @@ function ResultCard({
 	onExport: () => void;
 	onDiagnostics: () => void;
 }>) {
+	const partial = result.outcome === "partial";
 	const gpu = result.profiles
 		.map((profile) => profile.executionLineage?.gpu?.model)
 		.find(Boolean);
 	const hasEvidence =
+		!partial &&
 		result.benchmarkId !== null &&
 		result.bundleSizeBytes !== null &&
+		result.profiles.length === PROFILES.length &&
 		result.profiles.every((profile) => profile.artifactAvailable);
 	return (
-		<article className={styles.resultCard}>
+		<article className={styles.resultCard} data-outcome={result.outcome}>
 			<header className={styles.resultHeader}>
 				<div>
 					<span className={styles.eyebrow}>Benchmark local · 5:00</span>
-					<h3>Quatro perfis · mesma amostra</h3>
+					<h3>{partial ? "Benchmark parcial · mesma amostra" : "Quatro perfis · mesma amostra"}</h3>
 				</div>
-				<StatusPill tone="success">Concluído</StatusPill>
+				<StatusPill tone={partial ? "warning" : "success"}>
+					{partial ? "Parcial" : "Concluído"}
+				</StatusPill>
 			</header>
 			<div className={styles.receiptFacts}>
 				<span>{formatBenchmarkHistoryDate(updatedAt)}</span>
@@ -205,101 +210,157 @@ function ResultCard({
 				</span>
 				<span>{result.trackCount} tracks</span>
 				<span>{gpu ?? "GPU não registrada"}</span>
-				<span>4/4 perfis</span>
+				<span>
+					{partial
+						? `${result.completedCount}/4 concluídos · ${result.failedCount} falhou${result.failedCount === 1 ? "" : "ram"}`
+						: "4/4 perfis"}
+				</span>
 				<span>
 					{hasEvidence
 						? `bundle ${formatSubmissionBytes(result.bundleSizeBytes ?? 0)} · evidência preservada`
-						: "receipt performance-only · transcrições não preservadas"}
+						: partial
+							? "sem bundle 4/4 · evidências válidas permanecem por perfil"
+							: "receipt performance-only · transcrições não preservadas"}
 				</span>
 			</div>
-			{hasEvidence ? (
-				<div className={styles.activeActions}>
-					<Button size="sm" variant="secondary" onClick={onCompare}>
-						Comparar transcrições
-					</Button>
-					<Button size="sm" variant="tertiary" onClick={onFiles}>
-						Arquivos / evidências
-					</Button>
-					<Button size="sm" variant="tertiary" onClick={onExport}>
-						Exportar ZIP
-					</Button>
-				</div>
-			) : (
-				<p className={styles.loading}>
-					Artefatos de transcrição não preservados nesta execução. As métricas do
-					receipt continuam disponíveis abaixo.
-				</p>
-			)}
-			<details className={styles.resultDetails}>
-				<summary>Métricas dos quatro perfis</summary>
-				<div className={styles.tableWrap}>
-					<table>
-						<thead>
-							<tr>
-								<th>Perfil</th>
-								<th>Tempo</th>
-								<th>RTF</th>
-								<th>× realtime</th>
-								<th>Palavras</th>
-								<th>Segmentos</th>
-								<th>Avisos</th>
-								<th>Runtime / compute</th>
-							</tr>
-						</thead>
-						<tbody>
-							{result.profiles.map((profile) => (
-								<tr key={profile.profileId}>
-									<th scope="row">{LABELS[profile.profileId]}</th>
-									<td>{formatSeconds(profile.processingSeconds)}</td>
-									<td>{profile.rtf === null ? "—" : profile.rtf.toFixed(3)}</td>
-									<td>{formatRealtime(profile.rtf)}</td>
-									<td>{profile.wordCount}</td>
-									<td>{profile.segmentCount}</td>
-									<td>{profile.warningCount}</td>
-									<td>
-										{[
-											profile.executionLineage?.runtimeVersion,
-											profile.computeType,
-											profile.executionLineage?.gpu?.model,
-										]
-											.filter(Boolean)
-											.join(" · ") || "—"}
-									</td>
-								</tr>
+
+			{partial ? (
+				<>
+					<ol className={styles.runSteps} aria-label="Resultado dos quatro perfis">
+						{result.profileOutcomes.map((outcome, index) => {
+							const state: BenchmarkStepState =
+								outcome.status === "completed" ? "complete" : "failed";
+							return (
+								<li
+									key={outcome.profileId}
+									className={styles.runStep}
+									data-state={state}
+									aria-label={`${LABELS[outcome.profileId]} · ${benchmarkStepLabel(state)}`}
+								>
+									<i aria-hidden="true">{state === "complete" ? "✓" : "×"}</i>
+									<span>
+										{LABELS[outcome.profileId]}
+										<small>{benchmarkStepLabel(state)}</small>
+									</span>
+								</li>
+							);
+						})}
+					</ol>
+					<div className={styles.partialNotice} role="status">
+						<strong>
+							{result.completedCount} de 4 perfis concluíram; este attempt não é uma comparação 4/4.
+						</strong>
+						{result.profileOutcomes
+							.filter((outcome) => outcome.status === "failed")
+							.map((outcome) => (
+								<span key={outcome.profileId}>
+									{LABELS[outcome.profileId]}: {benchmarkProfileFailureCopy(outcome.error?.code)}
+								</span>
 							))}
-						</tbody>
-					</table>
-				</div>
-				<div className={styles.receiptFacts}>
-					<span>
-						Integridade: {hasEvidence
-							? "hashes validados sob demanda ao abrir ou exportar"
-							: "sem artefatos preservados para validar"}
-					</span>
-					<span>
-						Formatos: {hasEvidence
-							? "JSON · TXT · TXT simples · WebVTT · SRT"
-							: "indisponíveis nesta execução"}
-					</span>
-					<span>
-						Bundle: {hasEvidence
-							? formatSubmissionBytes(result.bundleSizeBytes ?? 0)
-							: "não preservado"}
-					</span>
-					<span>Referência de qualidade: {qualityEnabled ? "gerida localmente abaixo" : "contrato indisponível"}</span>
-				</div>
-				<div className={styles.activeActions}>
-					<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
-						Abrir Diagnóstico
-					</Button>
-				</div>
-			</details>
-			<BenchmarkQualityLab
-				result={result}
-				bridge={bridge}
-				connected={connected}
-				enabled={qualityEnabled}
-			/>
+						<span>
+							Os perfis restantes foram tentados automaticamente; execute um novo benchmark para obter uma comparação completa.
+						</span>
+					</div>
+					<div className={styles.activeActions}>
+						<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+							Abrir Diagnóstico
+						</Button>
+					</div>
+				</>
+			) : (
+				<>
+					{hasEvidence ? (
+						<div className={styles.activeActions}>
+							<Button size="sm" variant="secondary" onClick={onCompare}>
+								Comparar transcrições
+							</Button>
+							<Button size="sm" variant="tertiary" onClick={onFiles}>
+								Arquivos / evidências
+							</Button>
+							<Button size="sm" variant="tertiary" onClick={onExport}>
+								Exportar ZIP
+							</Button>
+						</div>
+					) : (
+						<p className={styles.loading}>
+							Artefatos de transcrição não preservados nesta execução. As métricas do
+							receipt continuam disponíveis abaixo.
+						</p>
+					)}
+					<details className={styles.resultDetails}>
+						<summary>Métricas dos quatro perfis</summary>
+						<div className={styles.tableWrap}>
+							<table>
+								<thead>
+									<tr>
+										<th>Perfil</th>
+										<th>Tempo</th>
+										<th>RTF</th>
+										<th>× realtime</th>
+										<th>Palavras</th>
+										<th>Segmentos</th>
+										<th>Avisos</th>
+										<th>Runtime / compute</th>
+									</tr>
+								</thead>
+								<tbody>
+									{result.profiles.map((profile) => (
+										<tr key={profile.profileId}>
+											<th scope="row">{LABELS[profile.profileId]}</th>
+											<td>{formatSeconds(profile.processingSeconds)}</td>
+											<td>{profile.rtf === null ? "—" : profile.rtf.toFixed(3)}</td>
+											<td>{formatRealtime(profile.rtf)}</td>
+											<td>{profile.wordCount}</td>
+											<td>{profile.segmentCount}</td>
+											<td>{profile.warningCount}</td>
+											<td>
+												{[
+													profile.executionLineage?.runtimeVersion,
+													profile.computeType,
+													profile.executionLineage?.gpu?.model,
+												]
+													.filter(Boolean)
+													.join(" · ") || "—"}
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+						<div className={styles.receiptFacts}>
+							<span>
+								Integridade: {hasEvidence
+									? "hashes validados sob demanda ao abrir ou exportar"
+									: "sem artefatos preservados para validar"}
+							</span>
+							<span>
+								Formatos: {hasEvidence
+									? "JSON · TXT · TXT simples · WebVTT · SRT"
+									: "indisponíveis nesta execução"}
+							</span>
+							<span>
+								Bundle: {hasEvidence
+									? formatSubmissionBytes(result.bundleSizeBytes ?? 0)
+									: "não preservado"}
+							</span>
+							<span>
+								Referência de qualidade: {qualityEnabled ? "gerida localmente abaixo" : "contrato indisponível"}
+							</span>
+						</div>
+						<div className={styles.activeActions}>
+							<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+								Abrir Diagnóstico
+							</Button>
+						</div>
+					</details>
+					<BenchmarkQualityLab
+						result={result}
+						bridge={bridge}
+						connected={connected}
+						enabled={qualityEnabled}
+					/>
+				</>
+			)}
 		</article>
 	);
 }
