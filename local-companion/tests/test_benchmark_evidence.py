@@ -29,7 +29,9 @@ from tda_companion.benchmark_evidence import (
 from tda_companion.benchmark_quality import (
     BenchmarkQualityError,
     _text_metrics,
+    compute_quality_receipts,
     normalize_text,
+    normalization_contract,
     quality_summary,
     save_reference,
 )
@@ -83,44 +85,63 @@ def _lineage(profile_id: str) -> dict:
     }
 
 
-def _document(profile_id: str, text: str) -> TranscriptDocument:
-    words = tuple(
-        TranscriptWord(
-            text=word,
-            start=1.0 + index * 0.2,
-            end=1.15 + index * 0.2,
-            confidence=0.99,
+def _document_tracks(
+    profile_id: str,
+    tracks: list[tuple[int, str, str, bool, bool]],
+) -> TranscriptDocument:
+    transcript_tracks: list[TranscriptTrack] = []
+    turns: list[TranscriptTurn] = []
+    for number, text, speaker, word_aligned, overlaps in tracks:
+        words = (
+            tuple(
+                TranscriptWord(
+                    text=word,
+                    start=1.0 + index * 0.2,
+                    end=1.15 + index * 0.2,
+                    confidence=0.99,
+                )
+                for index, word in enumerate(text.split())
+            )
+            if word_aligned
+            else ()
         )
-        for index, word in enumerate(text.split())
-    )
-    segment = TranscriptSegment(
-        id="1-0",
-        start=1.0,
-        end=max(2.0, 1.2 + len(words) * 0.2),
-        text=text,
-        words=words,
-    )
-    track = TranscriptTrack(
-        number=1,
-        speaker="Alice",
-        source_filename="1-Alice.flac",
-        source_sha256=TRACK_SHA,
-        duration_seconds=300.0,
-        segments=(segment,),
-    )
-    turn = TranscriptTurn(
-        id="turn-1",
-        speaker="Alice",
-        start=segment.start,
-        end=segment.end,
-        text=text,
-        segments=(TranscriptSegmentRef(track_number=1, segment_id=segment.id),),
-        overlaps_other_speaker=False,
-    )
+        segments: tuple[TranscriptSegment, ...] = ()
+        if text:
+            segment = TranscriptSegment(
+                id=f"{number}-0",
+                start=1.0,
+                end=max(2.0, 1.2 + max(1, len(text.split())) * 0.2),
+                text=text,
+                words=words,
+            )
+            segments = (segment,)
+            turns.append(
+                TranscriptTurn(
+                    id=f"turn-{number}",
+                    speaker=speaker,
+                    start=segment.start,
+                    end=segment.end,
+                    text=text,
+                    segments=(TranscriptSegmentRef(track_number=number, segment_id=segment.id),),
+                    overlaps_other_speaker=overlaps,
+                )
+            )
+        transcript_tracks.append(
+            TranscriptTrack(
+                number=number,
+                speaker=speaker,
+                source_filename=f"{number}-{speaker}.flac",
+                source_sha256=str(number) * 64,
+                duration_seconds=300.0,
+                segments=segments,
+            )
+        )
+
+    tracks_value = tuple(transcript_tracks)
     timer = EngineMeasurement(lambda _event: None, clock=lambda: 10.0)
-    processing = timer.finish((track,))
+    processing = timer.finish(tracks_value)
     stats = stats_for_tracks(
-        (track,),
+        tracks_value,
         processing_seconds=30.0,
         processing_metrics=processing,
     )
@@ -137,24 +158,47 @@ def _document(profile_id: str, text: str) -> TranscriptDocument:
             alignment="native",
             model_revision="synthetic-revision",
         ),
-        tracks=(track,),
+        tracks=tracks_value,
         stats=stats,
-        turns=(turn,),
+        turns=tuple(turns),
     )
 
 
-def _bundle(root: Path, texts: dict[str, str] | None = None, *, job_id: str = "quality-gate") -> str:
+def _document(profile_id: str, text: str) -> TranscriptDocument:
+    return _document_tracks(profile_id, [(1, text, "Alice", True, False)])
+
+
+def _bundle(
+    root: Path,
+    texts: dict[str, str] | None = None,
+    *,
+    job_id: str = "quality-gate",
+    documents: dict[str, TranscriptDocument] | None = None,
+) -> str:
+    representative = (
+        documents[BENCHMARK_PROFILES[0]]
+        if documents is not None
+        else _document(BENCHMARK_PROFILES[0], (texts or {}).get(BENCHMARK_PROFILES[0], f"texto {BENCHMARK_PROFILES[0]}"))
+    )
     package = SimpleNamespace(
         source_sha256=SOURCE_SHA,
-        tracks=(SimpleNamespace(number=1, sha256=TRACK_SHA),),
+        tracks=tuple(
+            SimpleNamespace(number=track.number, sha256=track.source_sha256)
+            for track in representative.tracks
+        ),
     )
     sample = benchmark_sample_descriptor(package)
     sample_identity = benchmark_sample_identity(package)
     receipts = []
     for profile_id in BENCHMARK_PROFILES:
+        document = (
+            documents[profile_id]
+            if documents is not None
+            else _document(profile_id, (texts or {}).get(profile_id, f"texto {profile_id}"))
+        )
         receipt = write_benchmark_profile(
             root,
-            _document(profile_id, (texts or {}).get(profile_id, f"texto {profile_id}")),
+            document,
             job_id=job_id,
             attempt=1,
             source_id=SOURCE_ID,
@@ -169,6 +213,7 @@ def _bundle(root: Path, texts: dict[str, str] | None = None, *, job_id: str = "q
                 **receipt,
             }
         )
+    track_count = len(package.tracks)
     final = finalize_benchmark_bundle(
         root,
         job_id=job_id,
@@ -178,8 +223,8 @@ def _bundle(root: Path, texts: dict[str, str] | None = None, *, job_id: str = "q
         sample=sample,
         sample_identity_sha256=sample_identity,
         sample_seconds=300.0,
-        track_count=1,
-        audio_work_seconds=300.0,
+        track_count=track_count,
+        audio_work_seconds=300.0 * track_count,
         context="private context",
         glossary="Valyndra",
         profile_receipts=receipts,
@@ -225,6 +270,7 @@ def test_canonical_bundle_is_readable_exportable_deterministic_and_audio_free(tm
             name.lower().endswith((".wav", ".flac", ".mp3", ".ogg", ".m4a", ".opus"))
             for name in names
         )
+        assert not any("Alice.flac" in name or "1-Alice" in name for name in names)
 
 
 def test_corruption_and_queue_independence_fail_closed(tmp_path: Path):
@@ -258,6 +304,224 @@ def test_known_answer_wer_cer_and_normalization_contract():
     assert missing["deletions"] == 2
     assert missing["wer_normalized"] == 1.0
 
+
+
+@pytest.mark.parametrize(
+    ("reference", "hypothesis", "expected"),
+    [
+        ("um dois", "um três", (1, 0, 0, 0.5)),
+        ("um dois", "um", (0, 1, 0, 0.5)),
+        ("um", "um dois", (0, 0, 1, 1.0)),
+        ("um", "um dois três quatro", (0, 0, 3, 3.0)),
+        ("um dois", "", (0, 2, 0, 1.0)),
+    ],
+)
+def test_word_error_known_answers(reference, hypothesis, expected):
+    metrics = _text_metrics(reference, hypothesis)
+    assert (
+        metrics["substitutions"],
+        metrics["deletions"],
+        metrics["insertions"],
+        metrics["wer_normalized"],
+    ) == expected
+
+
+def test_normalization_is_versioned_nfc_and_locale_independent():
+    contract = normalization_contract()
+    assert contract["schema_version"] == "tda_asr_text_normalization_v1"
+    assert contract["locale_dependent"] is False
+    assert normalize_text("  OLÁ, João!  ") == "olá joão"
+    assert normalize_text("ac\u0327a\u0303o") == normalize_text("ação")
+    assert normalize_text("ação") != normalize_text("acao")
+    assert normalize_text("d’água") == normalize_text("d'água")
+    assert normalize_text("guarda-chuva") == "guarda-chuva"
+
+
+def test_quality_micro_aggregate_counts_missing_and_extra_tracks(tmp_path: Path):
+    root = tmp_path / "Data"
+    root.mkdir()
+    documents = {
+        profile_id: _document_tracks(
+            profile_id,
+            [
+                (1, "um três", "Alice", True, False),
+                (2, "", "Bob", True, False),
+                (3, "extra", "Carol", True, False),
+            ],
+        )
+        for profile_id in BENCHMARK_PROFILES
+    }
+    benchmark_id = _bundle(root, job_id="micro-aggregate", documents=documents)
+    save_reference(
+        root,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [
+                {"track_number": 1, "speaker": "Alice", "text": "um dois"},
+                {"track_number": 2, "speaker": "Bob", "text": "três"},
+            ],
+            "terms": [],
+        },
+    )
+    receipt = next(
+        item
+        for item in quality_summary(root, benchmark_id)["profiles"]
+        if item["profile_id"] == "qwen-fast"
+    )
+    assert receipt["overall"]["aggregation"] == "micro"
+    assert receipt["overall"]["reference_words"] == 3
+    assert receipt["overall"]["substitutions"] == 1
+    assert receipt["overall"]["deletions"] == 1
+    assert receipt["overall"]["insertions"] == 1
+    assert receipt["overall"]["wer_normalized"] == 1.0
+    assert [item["track_number"] for item in receipt["per_track"]] == [1, 2, 3]
+
+
+def test_timed_reference_reports_boundaries_speaker_overlap_and_fallback_alignment(tmp_path: Path):
+    root = tmp_path / "Data"
+    root.mkdir()
+    documents = {
+        profile_id: _document_tracks(
+            profile_id,
+            [(1, "olá mundo", "Alice", False, False)],
+        )
+        for profile_id in BENCHMARK_PROFILES
+    }
+    benchmark_id = _bundle(root, job_id="timed-quality", documents=documents)
+    save_reference(
+        root,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [
+                {
+                    "track_number": 1,
+                    "speaker": "Bob",
+                    "text": "olá mundo",
+                    "turns": [
+                        {
+                            "start": 1.1,
+                            "end": 2.1,
+                            "speaker": "Bob",
+                            "text": "olá mundo",
+                            "overlaps_other_speaker": True,
+                        },
+                        {
+                            "start": 100.0,
+                            "end": 101.0,
+                            "speaker": "Bob",
+                            "text": "turno sem hipótese",
+                            "overlaps_other_speaker": False,
+                        },
+                    ],
+                }
+            ],
+            "terms": [],
+        },
+    )
+    receipt = next(
+        item
+        for item in quality_summary(root, benchmark_id)["profiles"]
+        if item["profile_id"] == "whisper-turbo"
+    )
+    timing = receipt["timing"]
+    assert timing["matched_turns"] == 1
+    assert timing["unmatched_reference_turns"] == 1
+    assert timing["speaker_accuracy"] == 0.0
+    assert timing["start_mae_seconds"] == pytest.approx(0.1)
+    assert timing["end_mae_seconds"] == pytest.approx(0.1)
+    assert timing["overlap_recall"] == 0.0
+    assert timing["hypothesis_timing"]["timestamp_granularity"] == "segment_aligned"
+
+
+def test_timed_reference_cannot_escape_exact_five_minute_sample(tmp_path: Path):
+    root = tmp_path / "Data"
+    root.mkdir()
+    benchmark_id = _bundle(root, job_id="timed-out-of-sample")
+    with pytest.raises(BenchmarkQualityError, match="BENCHMARK_REFERENCE_TURN_OUT_OF_SAMPLE"):
+        save_reference(
+            root,
+            benchmark_id,
+            {
+                "expected_revision": 0,
+                "provenance": "manual",
+                "seed_profile_id": None,
+                "tracks": [
+                    {
+                        "track_number": 1,
+                        "speaker": "Alice",
+                        "text": "fora",
+                        "turns": [
+                            {
+                                "start": 299.5,
+                                "end": 300.5,
+                                "speaker": "Alice",
+                                "text": "fora",
+                                "overlaps_other_speaker": False,
+                            }
+                        ],
+                    }
+                ],
+                "terms": [],
+            },
+        )
+
+
+def test_reference_normalization_schema_mismatch_fails_closed(tmp_path: Path):
+    root = tmp_path / "Data"
+    root.mkdir()
+    benchmark_id = _bundle(root, job_id="normalization-mismatch")
+    save_reference(
+        root,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [{"track_number": 1, "speaker": "Alice", "text": "olá"}],
+            "terms": [],
+        },
+    )
+    reference_path = benchmark_root(root, benchmark_id) / "reference" / "reference-000001.json"
+    reference = json.loads(reference_path.read_text(encoding="utf-8"))
+    reference["normalization"]["schema_version"] = "tda_asr_text_normalization_v999"
+    with pytest.raises(BenchmarkQualityError, match="BENCHMARK_REFERENCE_IDENTITY_MISMATCH"):
+        compute_quality_receipts(root, benchmark_id, reference=reference)
+
+
+def test_reference_seed_profile_does_not_change_scoring_algorithm(tmp_path: Path):
+    documents = {
+        profile_id: _document(profile_id, "olá mundo")
+        for profile_id in BENCHMARK_PROFILES
+    }
+    summaries = []
+    for index, seed in enumerate(("qwen-fast", "whisper-turbo"), start=1):
+        root = tmp_path / f"Data-{index}"
+        root.mkdir()
+        benchmark_id = _bundle(root, job_id=f"seed-{index}", documents=documents)
+        save_reference(
+            root,
+            benchmark_id,
+            {
+                "expected_revision": 0,
+                "provenance": "profile_seed",
+                "seed_profile_id": seed,
+                "tracks": [{"track_number": 1, "speaker": "Alice", "text": "olá mundo"}],
+                "terms": [],
+            },
+        )
+        receipt = next(
+            item
+            for item in quality_summary(root, benchmark_id)["profiles"]
+            if item["profile_id"] == "qwen-fast"
+        )
+        summaries.append((receipt["overall"], receipt["per_track"], receipt["timing"]))
+    assert summaries[0] == summaries[1]
 
 def test_reference_is_versioned_sample_bound_and_unlocks_quality(tmp_path: Path):
     root = tmp_path / "Data"
