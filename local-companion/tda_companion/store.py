@@ -670,7 +670,7 @@ class Store:
             )
             parts = db.execute(
                 """
-                SELECT part_id FROM session_recording_parts
+                SELECT part_id,timeline_mode FROM session_recording_parts
                 WHERE campaign_id=? AND session_id=?
                 ORDER BY ordinal ASC,part_id ASC
                 """,
@@ -680,6 +680,29 @@ class Store:
                 db.execute(
                     "UPDATE session_recording_parts SET ordinal=?,updated=? WHERE part_id=?",
                     (ordinal, utc_now(), part["part_id"]),
+                )
+            if len(parts) > 1 and any(part["timeline_mode"] == "sequence" for part in parts):
+                db.execute(
+                    """
+                    UPDATE session_recording_parts
+                    SET timeline_mode='unresolved',session_offset_seconds=NULL,updated=?
+                    WHERE campaign_id=? AND session_id=? AND timeline_mode='sequence'
+                    """,
+                    (relation_reset_at, row["campaign_id"], row["session_id"]),
+                )
+            elif len(parts) == 1 and parts[0]["timeline_mode"] == "sequence":
+                db.execute(
+                    """
+                    UPDATE session_recording_parts
+                    SET session_offset_seconds=0,updated=?
+                    WHERE campaign_id=? AND session_id=? AND part_id=?
+                    """,
+                    (
+                        relation_reset_at,
+                        row["campaign_id"],
+                        row["session_id"],
+                        parts[0]["part_id"],
+                    ),
                 )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
@@ -704,7 +727,7 @@ class Store:
             )
             current = db.execute(
                 """
-                SELECT part_id FROM session_recording_parts
+                SELECT part_id,timeline_mode FROM session_recording_parts
                 WHERE campaign_id=? AND session_id=?
                 ORDER BY ordinal ASC,part_id ASC
                 """,
@@ -747,6 +770,15 @@ class Store:
                 """,
                 (now, row["campaign_id"], row["session_id"]),
             )
+            if any(part["timeline_mode"] == "sequence" for part in current):
+                db.execute(
+                    """
+                    UPDATE session_recording_parts
+                    SET timeline_mode='unresolved',session_offset_seconds=NULL,updated=?
+                    WHERE campaign_id=? AND session_id=? AND timeline_mode='sequence'
+                    """,
+                    (now, row["campaign_id"], row["session_id"]),
+                )
             db.execute(
                 "UPDATE session_workspaces SET ordering_mode='manual' "
                 "WHERE campaign_id=? AND session_id=?",
@@ -824,29 +856,34 @@ class Store:
             ).fetchone()
             if part is None:
                 raise Conflict("SESSION_WORKSPACE_PART_NOT_FOUND")
-            next_values = (
-                "manual",
-                offset,
-                trim_start,
-                trim_end,
-                int(gap_confirmed),
-                resolution,
-                boundary,
-            )
-            current_values = (
-                part["timeline_mode"],
+            current_geometry = (
                 part["session_offset_seconds"],
                 part["trim_start_seconds"],
                 part["trim_end_seconds"],
+            )
+            requested_geometry = (offset, trim_start, trim_end)
+            current_relation = (
                 int(part["gap_confirmed"]),
                 part["overlap_resolution"],
                 part["overlap_boundary_seconds"],
             )
+            requested_relation = (int(gap_confirmed), resolution, boundary)
+            geometry_changed = current_geometry != requested_geometry
+            relation_changed = current_relation != requested_relation
+            target_mode = "manual" if geometry_changed else part["timeline_mode"]
+            next_values = (
+                target_mode,
+                *requested_geometry,
+                *requested_relation,
+            )
+            current_values = (
+                part["timeline_mode"],
+                *current_geometry,
+                *current_relation,
+            )
             if current_values == next_values:
                 return self._session_workspace_dto(db, row)
 
-            geometry_changed = current_values[1:4] != next_values[1:4]
-            relation_changed = current_values[4:7] != next_values[4:7]
             if geometry_changed and not relation_changed:
                 next_values = (*next_values[:4], 0, None, None)
             changed_at = utc_now()
@@ -873,6 +910,104 @@ class Store:
                         row["campaign_id"],
                         row["session_id"],
                         part["ordinal"] + 1,
+                    ),
+                )
+            if geometry_changed:
+                db.execute(
+                    "UPDATE session_workspaces SET ordering_mode='manual' "
+                    "WHERE campaign_id=? AND session_id=?",
+                    (row["campaign_id"], row["session_id"]),
+                )
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
+    def apply_user_confirmed_session_sequence(
+        self,
+        campaign_id,
+        session_id,
+        placements,
+        expected_revision,
+    ):
+        if (
+            not isinstance(placements, (list, tuple))
+            or not 2 <= len(placements) <= 64
+        ):
+            raise Conflict("SESSION_WORKSPACE_SEQUENCE_INVALID")
+        normalized = []
+        for expected_ordinal, raw in enumerate(placements):
+            if not isinstance(raw, dict):
+                raise Conflict("SESSION_WORKSPACE_SEQUENCE_INVALID")
+            ordinal = raw.get("ordinal")
+            if (
+                isinstance(ordinal, bool)
+                or not isinstance(ordinal, int)
+                or ordinal != expected_ordinal
+            ):
+                raise Conflict("SESSION_WORKSPACE_SEQUENCE_INVALID")
+            normalized.append(
+                {
+                    "part_id": self._workspace_part_id(raw.get("part_id")),
+                    "source_id": self._workspace_source_id(raw.get("source_id")),
+                    "ordinal": ordinal,
+                    "session_offset_seconds": self._workspace_seconds(
+                        raw.get("session_offset_seconds"), "SESSION_OFFSET"
+                    ),
+                }
+            )
+        if len({item["part_id"] for item in normalized}) != len(normalized):
+            raise Conflict("SESSION_WORKSPACE_SEQUENCE_INVALID")
+
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            current = db.execute(
+                """
+                SELECT part_id,source_id,ordinal,timeline_mode,session_offset_seconds
+                FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=?
+                ORDER BY ordinal ASC,part_id ASC
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchall()
+            if len(current) != len(normalized):
+                raise Conflict("SESSION_WORKSPACE_SEQUENCE_INVALID")
+            if any(part["timeline_mode"] == "manual" for part in current):
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE")
+            for part, item in zip(current, normalized, strict=True):
+                if (
+                    part["part_id"] != item["part_id"]
+                    or part["source_id"] != item["source_id"]
+                    or part["ordinal"] != item["ordinal"]
+                ):
+                    raise Conflict("SESSION_WORKSPACE_SEQUENCE_INVALID")
+
+            already_applied = all(
+                part["timeline_mode"] == "sequence"
+                and part["session_offset_seconds"] == item["session_offset_seconds"]
+                for part, item in zip(current, normalized, strict=True)
+            )
+            if already_applied:
+                return self._session_workspace_dto(db, row)
+
+            now = utc_now()
+            for item in normalized:
+                db.execute(
+                    """
+                    UPDATE session_recording_parts
+                    SET timeline_mode='sequence',session_offset_seconds=?,
+                        gap_confirmed=0,overlap_resolution=NULL,
+                        overlap_boundary_seconds=NULL,updated=?
+                    WHERE campaign_id=? AND session_id=? AND part_id=?
+                    """,
+                    (
+                        item["session_offset_seconds"],
+                        now,
+                        row["campaign_id"],
+                        row["session_id"],
+                        item["part_id"],
                     ),
                 )
             db.execute(
