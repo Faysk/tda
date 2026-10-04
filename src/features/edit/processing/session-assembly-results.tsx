@@ -221,6 +221,16 @@ export function SessionAssemblyResults({
 			setError("A assembly selecionada não pertence ao contexto atual.");
 			return;
 		}
+		if (
+			reviewDirty &&
+			activeAssembly &&
+			activeAssembly.assemblyId !== focus.assembly.assemblyId
+		) {
+			setError(
+				"Há alterações não salvas na revisão atual. Salve ou descarte antes de abrir outra assembly.",
+			);
+			return;
+		}
 		sessionIdRef.current = focus.sessionId;
 		setSessionId(focus.sessionId);
 		void refresh(focus.sessionId);
@@ -229,7 +239,15 @@ export function SessionAssemblyResults({
 			focus.assembly.assemblyId,
 			focus.assembly,
 		);
-	}, [campaignId, enabled, focus, loadReview, refresh]);
+	}, [
+		activeAssembly,
+		campaignId,
+		enabled,
+		focus,
+		loadReview,
+		refresh,
+		reviewDirty,
+	]);
 
 	const review =
 		reviewSelection?.sessionId === sessionId ? reviewSelection.review : null;
