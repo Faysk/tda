@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type {
 	BenchmarkProfileMetrics,
@@ -122,14 +122,11 @@ function ComparisonRows({
 		return true;
 	});
 	const visible = filtered.slice(0, 80);
-
-	useEffect(() => {
-		setActiveIndex(0);
-	}, [trackFilter, startFilter, endFilter, regions]);
+	const currentIndex = visible.length ? Math.min(activeIndex, visible.length - 1) : 0;
 
 	function jump(delta: number) {
 		if (!visible.length) return;
-		const next = (activeIndex + delta + visible.length) % visible.length;
+		const next = (currentIndex + delta + visible.length) % visible.length;
 		setActiveIndex(next);
 		window.requestAnimationFrame(() => {
 			document
@@ -142,13 +139,16 @@ function ComparisonRows({
 		return <p className={styles.empty}>Nenhuma diferença detectada com a tolerância temporal atual.</p>;
 	return (
 		<>
-			<div className={styles.actions} aria-label="Filtros e navegação das diferenças">
+			<nav className={styles.actions} aria-label="Filtros e navegação das diferenças">
 				<label>
 					<span>Track</span>
 					<select
 						aria-label="Filtrar track"
 						value={trackFilter}
-						onChange={(event) => setTrackFilter(event.target.value)}
+						onChange={(event) => {
+							setTrackFilter(event.target.value);
+							setActiveIndex(0);
+						}}
 					>
 						<option value="all">Todas</option>
 						{tracks.map((track) => (
@@ -164,7 +164,10 @@ function ComparisonRows({
 						min="0"
 						step="0.1"
 						value={startFilter}
-						onChange={(event) => setStartFilter(event.target.value)}
+						onChange={(event) => {
+							setStartFilter(event.target.value);
+							setActiveIndex(0);
+						}}
 					/>
 				</label>
 				<label>
@@ -175,7 +178,10 @@ function ComparisonRows({
 						min="0"
 						step="0.1"
 						value={endFilter}
-						onChange={(event) => setEndFilter(event.target.value)}
+						onChange={(event) => {
+							setEndFilter(event.target.value);
+							setActiveIndex(0);
+						}}
 					/>
 				</label>
 				<Button
@@ -195,9 +201,9 @@ function ComparisonRows({
 					Próxima diferença
 				</Button>
 				<span aria-live="polite">
-					{visible.length ? `Diferença ${activeIndex + 1} de ${visible.length}` : "Nenhuma diferença neste filtro"}
+					{visible.length ? `Diferença ${currentIndex + 1} de ${visible.length}` : "Nenhuma diferença neste filtro"}
 				</span>
-			</div>
+			</nav>
 			{visible.length ? (
 				<div className={styles.diffList}>
 					{visible.map((region, index) => (
@@ -207,7 +213,7 @@ function ComparisonRows({
 							tabIndex={-1}
 							className={styles.diffRow}
 							data-kind={region.kind}
-							data-current={index === activeIndex ? "true" : undefined}
+							data-current={index === currentIndex ? "true" : undefined}
 						>
 							<header>
 								<strong>Track {region.trackNumber}</strong>
@@ -271,13 +277,11 @@ export function BenchmarkEvidenceLab({
 	const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	async function loadProfile(profileId: TranscriptionProfileId, signal: AbortSignal) {
-		if (!benchmarkId) return;
-		const transcript = transcripts[profileId]
-			? transcripts[profileId]!
-			: await bridge.benchmarkTranscript(benchmarkId, profileId, signal);
-		setTranscripts((current) => ({ ...current, [profileId]: transcript }));
-		if (!metrics[profileId]) {
+	const loadProfile = useCallback(
+		async (profileId: TranscriptionProfileId, signal: AbortSignal) => {
+			if (!benchmarkId) return;
+			const transcript = await bridge.benchmarkTranscript(benchmarkId, profileId, signal);
+			setTranscripts((current) => ({ ...current, [profileId]: transcript }));
 			try {
 				const profileMetrics = await bridge.benchmarkProfileMetrics(
 					benchmarkId,
@@ -286,11 +290,8 @@ export function BenchmarkEvidenceLab({
 				);
 				setMetrics((current) => ({ ...current, [profileId]: profileMetrics }));
 			} catch {
-				// Bundles created by the merged #1419 baseline have canonical transcripts
-				// but no separate metrics.json diagnostic artifact.
+				// Historical bundles may have canonical transcripts without separate metrics.json diagnostics.
 			}
-		}
-		if (!telemetry[profileId]) {
 			try {
 				const profileTelemetry = await bridge.benchmarkProfileTelemetry(
 					benchmarkId,
@@ -301,8 +302,9 @@ export function BenchmarkEvidenceLab({
 			} catch {
 				// Telemetry is optional. Missing sensors must not make transcript evidence unreadable.
 			}
-		}
-	}
+		},
+		[benchmarkId, bridge],
+	);
 
 	useEffect(() => {
 		if (!benchmarkId || !evidenceReady) {
@@ -361,9 +363,7 @@ export function BenchmarkEvidenceLab({
 			}
 		})();
 		return () => controller.abort();
-		// Keep this effect tied to explicit pair/evidence changes. Cached profiles avoid re-fetches.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [open, benchmarkId, evidenceReady, left, right, bridge]);
+	}, [open, benchmarkId, evidenceReady, left, right, bridge, loadProfile]);
 
 	const comparison = useMemo(() => {
 		const leftTranscript = transcripts[left];
@@ -556,7 +556,7 @@ export function BenchmarkEvidenceLab({
 				</ul>
 			</details>
 			{exportConfirmOpen ? (
-				<div className={styles.notice} role="group" aria-label="Confirmar exportação privada">
+				<aside className={styles.notice} aria-label="Confirmar exportação privada">
 					<strong>ZIP privado com conteúdo de transcrição</strong>
 					<p>
 						O arquivo inclui os quatro transcripts completos, métricas e diagnósticos locais.
@@ -570,7 +570,7 @@ export function BenchmarkEvidenceLab({
 							Cancelar exportação
 						</Button>
 					</div>
-				</div>
+				</aside>
 			) : null}
 			{error ? <p className={styles.error} role="alert">{error}</p> : null}
 
@@ -730,7 +730,7 @@ export function BenchmarkEvidenceLab({
 								<span>{summary.speakerChangedRegions} speaker diferente</span>
 							</div>
 							{view === "timing" ? (
-								<div className={styles.summary} aria-label="Semântica de timing dos perfis">
+								<section className={styles.summary} aria-label="Semântica de timing dos perfis">
 									{[left, right].map((profileId) => {
 										const profile = result.profiles.find((item) => item.profileId === profileId);
 										return (
@@ -739,7 +739,7 @@ export function BenchmarkEvidenceLab({
 											</span>
 										);
 									})}
-								</div>
+								</section>
 							) : null}
 							<ComparisonRows
 								regions={comparison?.regions ?? []}
