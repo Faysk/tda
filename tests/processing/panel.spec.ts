@@ -1327,6 +1327,33 @@ test("idle Full HD keeps the essential composer and recent result in one viewpor
 	await expect(advanced).toBeFocused();
 	await page.keyboard.press("Enter");
 	await expect(composer.getByLabel("Contexto opcional")).toBeVisible();
+	const advancedGeometry = await composer.evaluate((element) => {
+		const details = [...element.querySelectorAll("details")].find((candidate) =>
+			candidate.querySelector("summary")?.textContent?.includes("Opções avançadas"),
+		);
+		const context = element.querySelector<HTMLTextAreaElement>(
+			'textarea[placeholder^="Contexto curto"]',
+		);
+		const glossary = element.querySelector<HTMLTextAreaElement>(
+			'textarea[placeholder^="Personagens"]',
+		);
+		if (!(details instanceof HTMLElement) || !context || !glossary)
+			throw new Error("Advanced composer geometry is missing");
+		const composerBox = element.getBoundingClientRect();
+		const detailsBox = details.getBoundingClientRect();
+		const contextBox = context.getBoundingClientRect();
+		const glossaryBox = glossary.getBoundingClientRect();
+		return {
+			leftInset: detailsBox.left - composerBox.left,
+			rightInset: composerBox.right - detailsBox.right,
+			contextWidth: contextBox.width,
+			glossaryWidth: glossaryBox.width,
+		};
+	});
+	expect(advancedGeometry.leftInset).toBeLessThanOrEqual(20);
+	expect(advancedGeometry.rightInset).toBeLessThanOrEqual(20);
+	expect(advancedGeometry.contextWidth).toBeGreaterThan(300);
+	expect(advancedGeometry.glossaryWidth).toBeGreaterThan(300);
 	await advanced.focus();
 	await page.keyboard.press("Enter");
 	await expect(composer.getByLabel("Contexto opcional")).not.toBeVisible();
