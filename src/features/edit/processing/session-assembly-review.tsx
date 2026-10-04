@@ -218,6 +218,7 @@ export function SessionAssemblyReview({
 		!disabled &&
 		!busy &&
 		!dirty &&
+		editingDraft === null &&
 		baseline.persistence === "persisted" &&
 		baseline.status !== "approved_local" &&
 		!baseline.approvalBlocked;
@@ -225,6 +226,7 @@ export function SessionAssemblyReview({
 		!disabled &&
 		!busy &&
 		!dirty &&
+		editingDraft === null &&
 		baseline.persistence === "persisted" &&
 		baseline.status === "approved_local" &&
 		baseline.approvalCurrent;
@@ -412,7 +414,12 @@ export function SessionAssemblyReview({
 							Abrir sessão no Edit
 						</a>
 					) : dirty ? (
-						<Button size="sm" variant="primary" disabled={busy || disabled} onClick={() => void save("reviewed")}>
+						<Button
+						size="sm"
+						variant="primary"
+						disabled={busy || disabled || editingDraft !== null}
+						onClick={() => void save("reviewed")}
+					>
 							{busy ? "Salvando…" : "Salvar alterações"}
 						</Button>
 					) : canApprove ? (
@@ -448,7 +455,7 @@ export function SessionAssemblyReview({
 					title={assembly.sessionId}
 					fileIdentity={assembly.sessionId}
 					dirty={dirty}
-					disabled={disabled || busy}
+					disabled={disabled || busy || editingDraft !== null}
 					onApply={(result) => {
 						setSegments((current) => [
 							...applySessionAssemblyMarkdownImport(current, result),
