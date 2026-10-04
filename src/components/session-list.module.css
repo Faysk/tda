@@ -16,6 +16,8 @@
 }
 
 .toolbar {
+	position: relative;
+	z-index: 10;
 	display: grid;
 	grid-template-columns: minmax(260px, 1.25fr) minmax(190px, 0.72fr) minmax(420px, 1fr);
 	gap: 12px;
