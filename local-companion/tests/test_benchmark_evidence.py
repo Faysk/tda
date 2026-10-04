@@ -440,6 +440,128 @@ def test_timed_reference_reports_boundaries_speaker_overlap_and_fallback_alignme
     assert timing["hypothesis_timing"]["timestamp_granularity"] == "segment_aligned"
 
 
+
+def test_timed_reference_word_aligned_path_reports_exact_speaker_overlap_and_boundaries(tmp_path: Path):
+    root = tmp_path / "Data"
+    root.mkdir()
+    documents = {
+        profile_id: _document_tracks(
+            profile_id,
+            [(1, "olá mundo", "Alice", True, True)],
+        )
+        for profile_id in BENCHMARK_PROFILES
+    }
+    benchmark_id = _bundle(root, job_id="timed-word-aligned", documents=documents)
+    save_reference(
+        root,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [
+                {
+                    "track_number": 1,
+                    "speaker": "Alice",
+                    "text": "olá mundo",
+                    "turns": [
+                        {
+                            "start": 1.0,
+                            "end": 2.0,
+                            "speaker": "Alice",
+                            "text": "olá mundo",
+                            "overlaps_other_speaker": True,
+                        }
+                    ],
+                }
+            ],
+            "terms": [],
+        },
+    )
+    receipt = next(
+        item
+        for item in quality_summary(root, benchmark_id)["profiles"]
+        if item["profile_id"] == "qwen-quality"
+    )
+    timing = receipt["timing"]
+    assert timing["matched_turns"] == 1
+    assert timing["unmatched_reference_turns"] == 0
+    assert timing["unmatched_hypothesis_turns"] == 0
+    assert timing["speaker_accuracy"] == 1.0
+    assert timing["start_mae_seconds"] == 0.0
+    assert timing["end_mae_seconds"] == 0.0
+    assert timing["overlap_precision"] == 1.0
+    assert timing["overlap_recall"] == 1.0
+    assert timing["overlap_f1"] == 1.0
+    assert timing["hypothesis_timing"]["timestamp_granularity"] == "word_aligned"
+
+
+def test_glossary_fidelity_counts_repeated_multiword_terms_and_ignores_absent_terms(tmp_path: Path):
+    root = tmp_path / "Data"
+    root.mkdir()
+    benchmark_id = _bundle(
+        root,
+        {
+            "whisper-turbo": "dragão vermelho dragão vermelho",
+            "whisper-detailed": "dragão vermelho dragão vermelho",
+            "qwen-fast": "dragão vermelho",
+            "qwen-quality": "dragão vermelho dragão vermelho",
+        },
+        job_id="glossary-quality",
+    )
+    save_reference(
+        root,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [
+                {
+                    "track_number": 1,
+                    "speaker": "Alice",
+                    "text": "dragão vermelho dragão vermelho",
+                }
+            ],
+            "terms": ["dragão vermelho", "termo ausente"],
+        },
+    )
+    receipt = next(
+        item
+        for item in quality_summary(root, benchmark_id)["profiles"]
+        if item["profile_id"] == "qwen-fast"
+    )
+    fidelity = receipt["term_fidelity"]
+    assert fidelity["reference_occurrences"] == 2
+    assert fidelity["hypothesis_occurrences"] == 1
+    assert fidelity["correct_occurrences"] == 1
+    assert fidelity["missed_occurrences"] == 1
+    assert fidelity["extra_occurrences"] == 0
+    assert fidelity["recall"] == 0.5
+    assert fidelity["precision"] == 1.0
+
+
+def test_wrong_reference_sample_identity_is_rejected_even_with_intact_payload(tmp_path: Path):
+    root = tmp_path / "Data"
+    root.mkdir()
+    benchmark_id = _bundle(root, job_id="wrong-reference-sample")
+    save_reference(
+        root,
+        benchmark_id,
+        {
+            "expected_revision": 0,
+            "provenance": "manual",
+            "seed_profile_id": None,
+            "tracks": [{"track_number": 1, "speaker": "Alice", "text": "olá"}],
+            "terms": [],
+        },
+    )
+    reference_path = benchmark_root(root, benchmark_id) / "reference" / "reference-000001.json"
+    reference = json.loads(reference_path.read_text(encoding="utf-8"))
+    reference["sample_identity_sha256"] = "f" * 64
+    with pytest.raises(BenchmarkQualityError, match="BENCHMARK_REFERENCE_IDENTITY_MISMATCH"):
+        compute_quality_receipts(root, benchmark_id, reference=reference)
+
 def test_timed_reference_cannot_escape_exact_five_minute_sample(tmp_path: Path):
     root = tmp_path / "Data"
     root.mkdir()
