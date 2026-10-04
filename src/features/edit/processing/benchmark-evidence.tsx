@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Dialog } from "@/components/ui/dialog";
 import { LocalBridge } from "./bridge";
 import { processingStageLabels, type EngineProcessingMetrics } from "./engine-metrics";
@@ -493,44 +494,34 @@ export function BenchmarkEvidenceWorkspace({
 				{mode === "compare" ? (
 					<>
 						<div className={styles.selectors}>
-							<label>
+							<div>
 								Perfil A
-								<select
+								<Select
 									value={leftProfile}
-									onChange={(event) =>
-										setLeftProfile(event.target.value as TranscriptionProfileId)
-									}
-								>
-									{result.profiles.map((profile) => (
-										<option
-											key={profile.profileId}
-											value={profile.profileId}
-											disabled={profile.profileId === rightProfile}
-										>
-											{LABELS[profile.profileId]}
-										</option>
-									))}
-								</select>
-							</label>
-							<label>
+									options={result.profiles.map((profile) => ({
+										value: profile.profileId,
+										label: LABELS[profile.profileId],
+										disabled: profile.profileId === rightProfile,
+									}))}
+									onChange={(value) => setLeftProfile(value as TranscriptionProfileId)}
+									ariaLabel="Perfil A"
+									compact
+								/>
+							</div>
+							<div>
 								Perfil B
-								<select
+								<Select
 									value={rightProfile}
-									onChange={(event) =>
-										setRightProfile(event.target.value as TranscriptionProfileId)
-									}
-								>
-									{result.profiles.map((profile) => (
-										<option
-											key={profile.profileId}
-											value={profile.profileId}
-											disabled={profile.profileId === leftProfile}
-										>
-											{LABELS[profile.profileId]}
-										</option>
-									))}
-								</select>
-							</label>
+									options={result.profiles.map((profile) => ({
+										value: profile.profileId,
+										label: LABELS[profile.profileId],
+										disabled: profile.profileId === leftProfile,
+									}))}
+									onChange={(value) => setRightProfile(value as TranscriptionProfileId)}
+									ariaLabel="Perfil B"
+									compact
+								/>
+							</div>
 							{leftProfile === rightProfile ? (
 								<span className={styles.muted}>
 									Escolha dois perfis diferentes.
@@ -585,24 +576,32 @@ export function BenchmarkEvidenceWorkspace({
 							{tab === "text" || tab === "timing" ? (
 								<>
 									<div className={styles.filters}>
-										<label>
+										<div>
 											Track
-											<select value={track} onChange={(event) => setTrack(event.target.value)}>
-												<option value="all">Todas</option>
-												{tracks.map((value) => (
-													<option key={value} value={value}>Track {value}</option>
-												))}
-											</select>
-										</label>
-										<label>
+											<Select
+												value={track}
+												options={[
+													{ value: "all", label: "Todas" },
+													...tracks.map((value) => ({ value: String(value), label: `Track ${value}` })),
+												]}
+												onChange={setTrack}
+												ariaLabel="Filtrar por track"
+												compact
+											/>
+										</div>
+										<div>
 											Speaker
-											<select value={speaker} onChange={(event) => setSpeaker(event.target.value)}>
-												<option value="all">Todos</option>
-												{speakers.map((value) => (
-													<option key={value} value={value}>{value}</option>
-												))}
-											</select>
-										</label>
+											<Select
+												value={speaker}
+												options={[
+													{ value: "all", label: "Todos" },
+													...speakers.map((value) => ({ value, label: value })),
+												]}
+												onChange={setSpeaker}
+												ariaLabel="Filtrar por speaker"
+												compact
+											/>
+										</div>
 										<label>
 											De (s)
 											<input

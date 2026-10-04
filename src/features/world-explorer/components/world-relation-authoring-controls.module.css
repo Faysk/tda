@@ -83,7 +83,12 @@
 .composer select:focus-visible {
 	outline: 0;
 	border-color: var(--ds-accent);
-	box-shadow: var(--ds-control-focus-ring);
+}
+
+.modeNotice button:focus-visible,
+.composer button:focus-visible,
+.composer select:focus-visible {
+	box-shadow: 0 0 0 2px var(--ds-control-focus-ring);
 }
 
 .composer {

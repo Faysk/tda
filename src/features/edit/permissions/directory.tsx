@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Button, Dialog, StatusPill } from "@/components/ui";
+import { Button, Dialog, Select, StatusPill, type SelectOption } from "@/components/ui";
 import {
 	PERMISSION_LABELS,
 	type PermissionAssignment,
@@ -129,6 +129,20 @@ export function PermissionsDirectoryView({
 	const mutationInFlightRef = useRef(false);
 
 	const selected = directory.people.find((person) => person.id === selectedId) ?? null;
+
+	const roleOptions = useMemo<readonly SelectOption<string>[]>(
+		() => [
+			{ value: "all", label: "Todas" },
+			...directory.roles.map((role) => ({ value: role.id, label: humanRoleName(role) })),
+		],
+		[directory.roles],
+	);
+	const accessOptions: readonly SelectOption<string>[] = [
+		{ value: "all", label: "Todos" },
+		{ value: "with", label: "Com acesso" },
+		{ value: "without", label: "Sem acesso" },
+		{ value: "admin", label: "Administração" },
+	];
 
 	const people = useMemo(() => {
 		const term = search.trim().toLocaleLowerCase("pt-BR");
@@ -389,33 +403,26 @@ export function PermissionsDirectoryView({
 						placeholder="Nome, função ou ferramenta"
 					/>
 				</div>
-				<label className={styles.filterField}>
+				<div className={styles.filterField}>
 					<span>Função</span>
-					<select
+					<Select
 						value={roleFilter}
-						onChange={(event) => setRoleFilter(event.target.value)}
-					>
-						<option value="all">Todas</option>
-						{directory.roles.map((role) => (
-							<option value={role.id} key={role.id}>
-								{humanRoleName(role)}
-							</option>
-						))}
-					</select>
-				</label>
-				<label className={styles.filterField}>
+						options={roleOptions}
+						onChange={setRoleFilter}
+						ariaLabel="Filtrar por função"
+						compact
+					/>
+				</div>
+				<div className={styles.filterField}>
 					<span>Acesso</span>
-					<select
-						aria-label="Filtrar por acesso"
+					<Select
 						value={accessFilter}
-						onChange={(event) => setAccessFilter(event.target.value)}
-					>
-						<option value="all">Todos</option>
-						<option value="with">Com acesso</option>
-						<option value="without">Sem acesso</option>
-						<option value="admin">Administração</option>
-					</select>
-				</label>
+						options={accessOptions}
+						onChange={setAccessFilter}
+						ariaLabel="Filtrar por acesso"
+						compact
+					/>
+				</div>
 				<p className={styles.muted} role="status">
 					{people.length} de {directory.people.length}
 				</p>

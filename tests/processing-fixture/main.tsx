@@ -1,4 +1,5 @@
 // Isolated browser harness. Never included in the Next app or used as an auth bypass.
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import "../../src/app/design-tokens.css";
 import "../../src/app/design-system.css";
@@ -6,6 +7,28 @@ import "../../src/app/globals.css";
 import { ProcessingPanel } from "../../src/features/edit/processing/panel";
 import { ReviewFixture } from "./review";
 import processingStyles from "../../src/features/edit/processing/processing.module.css";
+
+class FixtureRenderBoundary extends Component<
+	Readonly<{ children: ReactNode }>,
+	Readonly<{ error: string | null }>
+> {
+	state = { error: null as string | null };
+
+	static getDerivedStateFromError(error: unknown) {
+		return { error: error instanceof Error ? error.stack ?? error.message : String(error) };
+	}
+
+	componentDidCatch(error: unknown, info: ErrorInfo) {
+		console.error("PROCESSING_FIXTURE_RENDER_ERROR", error, info.componentStack);
+	}
+
+	render() {
+		if (this.state.error) {
+			return <pre data-processing-fixture-render-error="true">{this.state.error}</pre>;
+		}
+		return this.props.children;
+	}
+}
 
 const originalFetch = window.fetch.bind(window);
 const fixtureParams = new URLSearchParams(location.search);
@@ -46,6 +69,7 @@ window.fetch = (input, init) => {
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing fixture root");
 createRoot(root).render(
+	<FixtureRenderBoundary>
 	<main className={processingStyles.page} data-processing-workspace="true">
 		<h1
 			style={{
@@ -84,5 +108,6 @@ createRoot(root).render(
 				publicationEnabled={fixtureParams.has("publication")}
 			/>
 		)}
-	</main>,
+	</main>
+	</FixtureRenderBoundary>,
 );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
+import { Select } from "@/components/ui";
 import { formatSessionDate } from "@/features/sessions/model";
 import {
 	formatDuration,
@@ -71,32 +72,30 @@ export function TranscriptInventory({
 						autoComplete="off"
 					/>
 				</label>
-				<label className={styles.control}>
+				<div className={styles.control}>
 					<span>Cobertura</span>
-					<select
+					<Select
 						value={coverage}
-						onChange={(event) =>
-							setCoverage(event.target.value as CoverageFilter)
-						}
-					>
-						<option value="all">Todas</option>
-						<option value="complete">Completa</option>
-						<option value="incomplete">Com dados faltantes</option>
-					</select>
-				</label>
-				<label className={styles.control}>
+						options={[
+							{ value: "all", label: "Todas" },
+							{ value: "complete", label: "Completa" },
+							{ value: "incomplete", label: "Com dados faltantes" },
+						]}
+						onChange={(value) => setCoverage(value as CoverageFilter)}
+						ariaLabel="Cobertura"
+						compact
+					/>
+				</div>
+				<div className={styles.control}>
 					<span>Ordenar</span>
-					<select
+					<Select
 						value={sort}
-						onChange={(event) => setSort(event.target.value as SortOption)}
-					>
-						{SORT_OPTIONS.map((option) => (
-							<option key={option.value} value={option.value}>
-								{option.label}
-							</option>
-						))}
-					</select>
-				</label>
+						options={SORT_OPTIONS}
+						onChange={(value) => setSort(value as SortOption)}
+						ariaLabel="Ordenar sessões"
+						compact
+					/>
+				</div>
 				<p className={styles.resultCount} role="status" aria-live="polite">
 					{visibleSessions.length === sessions.length
 						? String(sessions.length) +

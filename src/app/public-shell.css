@@ -884,22 +884,6 @@ footer {
 	gap: 6px;
 }
 
-.global-nav-campaign-select select {
-	width: 100%;
-	min-width: 0;
-	min-height: 45px;
-	padding: 8px 34px 8px 10px;
-	border: 1px solid var(--ds-control-border);
-	border-radius: var(--ds-radius-sm);
-	background: var(--ds-surface);
-	color: var(--ds-foreground);
-	font: 650 0.82rem/1.2 var(--ds-font-ui);
-}
-
-.global-nav-campaign-select select:focus-visible {
-	outline: 2px solid var(--ds-control-focus-ring);
-	outline-offset: 2px;
-}
 
 .global-nav-campaign-status {
 	padding: 4px 2px 2px;

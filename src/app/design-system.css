@@ -25,6 +25,27 @@ footer {
 	font-family: var(--ds-font-ui);
 }
 
+/* Native form popups must follow the application theme as well as the closed control. */
+select {
+	color-scheme: dark;
+}
+
+select option,
+select optgroup {
+	background: var(--ds-surface-elevated);
+	color: var(--ds-foreground);
+}
+
+:root[data-theme="light"] select {
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme]) select {
+		color-scheme: light;
+	}
+}
+
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,

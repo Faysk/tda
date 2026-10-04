@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { selectThemedOption } from "../helpers/themed-select";
 
 test.beforeEach(async ({ request }) => {
 	await request.post("http://127.0.0.1:3103/fixture/reset");
@@ -167,19 +168,19 @@ test("read-only user sees a compact searchable and sortable session inventory", 
 	await expect(table).toContainText("Não informadas");
 
 	const search = page.getByRole("searchbox", { name: "Buscar sessão" });
-	const coverage = page.getByRole("combobox", { name: "Cobertura" });
-	const sort = page.getByRole("combobox", { name: "Ordenar" });
+	const coverage = page.getByLabel("Cobertura");
+	const sort = page.getByLabel("Ordenar");
 
 	await search.fill("reencontro a beira");
 	await expect(table.locator("tbody tr")).toHaveCount(1);
 	await expect(table).toContainText("O reencontro à beira do rio");
 	await search.fill("");
 
-	await coverage.selectOption("incomplete");
+	await selectThemedOption(page, coverage, "incomplete");
 	await expect(table.locator("tbody tr")).toHaveCount(2);
-	await coverage.selectOption("all");
+	await selectThemedOption(page, coverage, "all");
 
-	await sort.selectOption("title-asc");
+	await selectThemedOption(page, sort, "title-asc");
 	const rows = table.locator("tbody tr");
 	await expect(rows.nth(0)).toContainText("A travessia das montanhas");
 	await expect(rows.nth(1)).toContainText("O reencontro à beira do rio");
@@ -381,8 +382,8 @@ test("narrative review preserves campaign identity across reload, switch and bac
 	await expect(
 		page.getByRole("heading", { name: "Escolha a campanha" }),
 	).toBeVisible();
-	const selector = page.getByRole("combobox", { name: "Campanha" });
-	await selector.selectOption("other");
+	const selector = page.getByLabel("Campanha");
+	await selectThemedOption(page, selector, "other");
 	await page.getByRole("button", { name: "Abrir revisão" }).click();
 
 	await expect(page).toHaveURL(/\/edit\/revisao\?campanha=other$/);
@@ -418,9 +419,7 @@ test("narrative review preserves campaign identity across reload, switch and bac
 			.getByText("Antes que seja tarde", { exact: true }),
 	).toBeVisible();
 
-	await page
-		.getByRole("combobox", { name: "Campanha" })
-		.selectOption("yuhara-main");
+	await selectThemedOption(page, page.getByLabel("Campanha"), "yuhara-main");
 	await page.getByRole("button", { name: "Trocar campanha" }).click();
 	await expect(page).toHaveURL(/campanha=yuhara-main/);
 	await expect(

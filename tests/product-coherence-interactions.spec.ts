@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
+import { expectThemedSelectValue, selectThemedOption } from "./helpers/themed-select";
 
 const CAMPAIGN_A = {
 	route: "cronicas-da-mesa",
@@ -204,12 +205,10 @@ test("[interaction] menu drilldown, campaign selection, navigation, Back and Esc
 	await expect(worldButton).toBeFocused();
 
 	const selector = panel.getByLabel("Campanha das ferramentas");
-	await expect(selector).toHaveValue(CAMPAIGN_A.technical);
-	await selector.selectOption(CAMPAIGN_B.technical);
-	await expect(selector).toHaveValue(CAMPAIGN_B.technical);
-	await expect(
-		selector.locator("option").filter({ hasText: CAMPAIGN_B.name }),
-	).toHaveText(CAMPAIGN_B.name);
+	await expectThemedSelectValue(selector, CAMPAIGN_A.technical);
+	await selectThemedOption(page, selector, CAMPAIGN_B.technical);
+	await expectThemedSelectValue(selector, CAMPAIGN_B.technical);
+	await expect(selector).toContainText(CAMPAIGN_B.name);
 	await recordTargetGeometry(
 		page,
 		selector,
@@ -230,7 +229,8 @@ test("[interaction] menu drilldown, campaign selection, navigation, Back and Esc
 	);
 
 	({ trigger, panel } = await openGlobalMenu(page));
-	await expect(panel.getByLabel("Campanha das ferramentas")).toHaveValue(
+	await expectThemedSelectValue(
+		panel.getByLabel("Campanha das ferramentas"),
 		CAMPAIGN_A.technical,
 	);
 
@@ -276,10 +276,16 @@ test("[interaction] authenticated navigation distinguishes zero, one and many ca
 	({ panel } = await openGlobalMenu(page));
 	const selector = panel.getByLabel("Campanha das ferramentas");
 	await expect(selector).toBeVisible();
-	await expect(selector.locator("option")).toHaveCount(3);
+	await selector.click();
+	const campaignListbox = page.getByRole("listbox", {
+		name: "Campanha das ferramentas",
+	});
+	await expect(campaignListbox.getByRole("option")).toHaveCount(3);
 	await expect(
-		selector.locator("option").filter({ hasText: CAMPAIGN_B.name }),
-	).toHaveText(CAMPAIGN_B.name);
+		campaignListbox.getByRole("option", { name: CAMPAIGN_B.name, exact: true }),
+	).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(selector).toBeFocused();
 });
 
 test("[interaction] 320/390/desktop/200%-proxy keep campaign controls reachable and unclipped", async ({
