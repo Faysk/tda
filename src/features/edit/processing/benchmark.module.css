@@ -48,6 +48,261 @@
 .activeCard p,
 .qualityNotice span,
 .notice,
+.qualityLab {
+	display: grid;
+	gap: 10px;
+	min-width: 0;
+	padding-top: 10px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.qualityHeader,
+.referenceEditorHeader,
+.qualityDrilldownHeader,
+.referenceSummary,
+.referenceStart {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+	min-width: 0;
+}
+
+.qualityHeader h4,
+.qualityHeader p,
+.referenceEditorHeader p,
+.referenceSummary p,
+.referenceStart p,
+.qualityDrilldown p {
+	margin: 0;
+}
+
+.qualityHeader h4 {
+	font-family: var(--ds-font-display);
+	font-size: 1rem;
+	line-height: 1.2;
+}
+
+.qualityHeader p,
+.referenceEditorHeader p,
+.referenceSummary p,
+.referenceStart p,
+.qualityDrilldown p {
+	margin-top: 3px;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.45;
+}
+
+.qualityMeta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px 12px;
+	color: var(--ds-foreground-muted);
+	font-family: var(--ds-font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+	font-size: 0.65rem;
+}
+
+.referenceStart,
+.referenceSummary {
+	padding: 9px 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+}
+
+.referenceStart > div:first-child,
+.referenceSummary > div:first-child,
+.referenceEditorHeader > div:first-child,
+.qualityDrilldownHeader > div:first-child {
+	min-width: 0;
+}
+
+.referenceActions {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: flex-end;
+	gap: 8px;
+}
+
+.referenceActions label,
+.glossaryEditor,
+.referenceTrack {
+	display: grid;
+	gap: 5px;
+	min-width: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.68rem;
+	font-weight: 700;
+}
+
+.referenceActions select,
+.referenceTrack textarea,
+.glossaryEditor textarea {
+	min-width: 0;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-control-bg, var(--ds-surface));
+	color: var(--ds-foreground);
+	font: inherit;
+}
+
+.referenceActions select {
+	min-height: 34px;
+	padding: 5px 28px 5px 8px;
+}
+
+.referenceTrack textarea,
+.glossaryEditor textarea {
+	width: 100%;
+	padding: 8px 9px;
+	resize: vertical;
+	font-family: var(--ds-font-ui);
+	font-size: 0.76rem;
+	font-weight: 450;
+	line-height: 1.5;
+}
+
+.referenceActions select:focus-visible,
+.referenceTrack textarea:focus-visible,
+.glossaryEditor textarea:focus-visible,
+.metricButton:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+.referenceEditor {
+	display: grid;
+	gap: 10px;
+	padding: 10px;
+	border: 1px solid color-mix(in srgb, var(--ds-accent) 38%, var(--ds-border));
+	border-radius: var(--ds-radius-md);
+	background: color-mix(in srgb, var(--ds-canvas-subtle) 94%, var(--ds-accent-muted));
+}
+
+.referenceTracks {
+	display: grid;
+	gap: 9px;
+	min-width: 0;
+}
+
+.referenceTrack {
+	padding-top: 8px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.referenceTrack:first-child {
+	padding-top: 0;
+	border-top: 0;
+}
+
+.referenceSave {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding-top: 8px;
+	border-top: 1px solid var(--ds-border-subtle);
+	color: var(--ds-foreground-muted);
+	font-size: 0.69rem;
+}
+
+.qualityResults {
+	display: grid;
+	gap: 9px;
+	min-width: 0;
+}
+
+.metricButton {
+	padding: 2px 4px;
+	border: 0;
+	border-radius: var(--ds-radius-xs, 4px);
+	background: transparent;
+	color: var(--ds-accent-strong);
+	font: inherit;
+	font-weight: 750;
+	cursor: pointer;
+	text-decoration: underline;
+	text-decoration-style: dotted;
+	text-underline-offset: 3px;
+}
+
+.metricButton:hover {
+	background: var(--ds-accent-muted);
+}
+
+.qualityDrilldown {
+	display: grid;
+	gap: 8px;
+	padding: 9px 10px;
+	border-left: 3px solid var(--ds-accent);
+	background: var(--ds-canvas-subtle);
+}
+
+.qualityDrilldownHeader strong {
+	display: block;
+	font-size: 0.78rem;
+}
+
+.errorRegions,
+.glossaryFindings {
+	display: grid;
+	gap: 7px;
+	min-width: 0;
+}
+
+.errorRegion {
+	display: grid;
+	gap: 7px;
+	padding: 8px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface);
+}
+
+.errorRegion header {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+	font-size: 0.68rem;
+}
+
+.errorRegion header span,
+.errorRegionColumns span,
+.glossaryFindings span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.64rem;
+}
+
+.errorRegionColumns {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.errorRegionColumns > div {
+	min-width: 0;
+	padding: 7px 8px;
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+}
+
+.errorRegionColumns p {
+	margin: 3px 0 0;
+	overflow-wrap: anywhere;
+	color: var(--ds-foreground);
+	font-family: var(--ds-font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+	font-size: 0.7rem;
+	line-height: 1.45;
+}
+
+.glossaryFindings {
+	padding: 8px;
+	border-left: 3px solid var(--ds-accent);
+	background: var(--ds-canvas-subtle);
+}
+
+
 .empty,
 .loading {
 	color: var(--ds-foreground-muted);
@@ -691,7 +946,13 @@
 	.preparationStatus,
 	.activeActions,
 	.qualityNotice,
-	.runtimeRecoveryHeader {
+	.runtimeRecoveryHeader,
+	.qualityHeader,
+	.referenceStart,
+	.referenceSummary,
+	.referenceEditorHeader,
+	.qualityDrilldownHeader,
+	.referenceSave {
 		align-items: stretch;
 		flex-direction: column;
 	}
@@ -721,6 +982,22 @@
 
 	.sourceMeta :global(.ds-action) {
 		margin-left: 0;
+	}
+
+	.referenceActions {
+		width: 100%;
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.referenceActions label,
+	.referenceActions :global(.ds-action),
+	.referenceSave :global(.ds-action) {
+		width: 100%;
+	}
+
+	.errorRegionColumns {
+		grid-template-columns: 1fr;
 	}
 }
 
