@@ -30,6 +30,13 @@ from .worker_protocol import (
 )
 
 
+_BENCHMARK_PROFILE_LOCAL_ERRORS = frozenset(
+    {
+        "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+    }
+)
+
+
 class WorkerProcessError(RuntimeError):
     def __init__(self, code: str, *, recoverable: bool = True):
         super().__init__(code)
@@ -661,6 +668,52 @@ class WorkerSupervisor:
         profiles = BENCHMARK_PROFILES
         benchmark_id = benchmark_id_for(job_id, attempt)
         receipts: list[dict] = []
+        profile_outcomes: list[dict] = []
+        completed_count = 0
+        failed_count = 0
+
+        def emit(code: str, index: int, profile_id: str, **extra: object) -> None:
+            if on_event is None:
+                return
+            on_event(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=max(index - 1, 0),
+                    type="event",
+                    payload={
+                        "code": code,
+                        "stage": "benchmark",
+                        "profile": profile_id,
+                        "attempted_count": index,
+                        "completed_count": completed_count,
+                        "failed_count": failed_count,
+                        "total": len(profiles),
+                        **extra,
+                    },
+                )
+            )
+
+        def commit_attempt(index: int) -> None:
+            on_progress(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=index - 1,
+                    type="progress",
+                    payload={
+                        # For benchmark jobs this counter means profiles attempted,
+                        # not profiles successfully completed. Per-profile events
+                        # carry completed/failed counts without weakening Store's
+                        # sequential progress fence.
+                        "completed": index,
+                        "total": len(profiles),
+                        "unit": "profiles",
+                        "stage": "benchmark",
+                    },
+                )
+            )
+
         for index, profile_id in enumerate(profiles, start=1):
             if is_cancelled is not None and is_cancelled():
                 return WorkerOutcome(
@@ -669,6 +722,7 @@ class WorkerSupervisor:
                     returncode=0,
                 )
 
+            emit("BENCHMARK_PROFILE_STARTED", index, profile_id)
             diagnostics = (
                 BenchmarkProfileDiagnostics(
                     data_root=self.data_root,
@@ -721,7 +775,36 @@ class WorkerSupervisor:
                             diagnostics_exc.code,
                             recoverable=False,
                         ) from exc
-                raise
+                profile_local = (
+                    exc.recoverable
+                    and exc.code in _BENCHMARK_PROFILE_LOCAL_ERRORS
+                )
+                if not profile_local:
+                    raise
+                failed_count += 1
+                profile_outcomes.append(
+                    {
+                        "profile_id": profile_id,
+                        "status": "failed",
+                        "error": {
+                            "code": exc.code,
+                            "recoverable": True,
+                            "scope": "profile",
+                        },
+                        "artifact_available": False,
+                    }
+                )
+                emit(
+                    "BENCHMARK_PROFILE_FAILED",
+                    index,
+                    profile_id,
+                    error_code=exc.code,
+                    recoverable=True,
+                    scope="profile",
+                    continuation="continue",
+                )
+                commit_attempt(index)
+                continue
             except Exception:
                 if diagnostics is not None:
                     try:
@@ -791,31 +874,50 @@ class WorkerSupervisor:
                     raise WorkerProcessError(exc.code, recoverable=False) from exc
 
             receipts.append(receipt)
-            on_progress(
-                WorkerMessage.create(
-                    job_id=job_id,
-                    attempt=attempt,
-                    seq=index - 1,
-                    type="progress",
-                    payload={
-                        "completed": index,
-                        "total": len(profiles),
-                        "unit": "profiles",
-                        "stage": "benchmark",
-                    },
-                )
+            completed_count += 1
+            profile_outcomes.append(
+                {
+                    "profile_id": profile_id,
+                    "status": "completed",
+                    "receipt": receipt,
+                    "artifact_available": True,
+                }
             )
+            emit("BENCHMARK_PROFILE_COMPLETED", index, profile_id)
+            commit_attempt(index)
+
+        if failed_count == 0:
+            return WorkerOutcome(
+                terminal="result",
+                payload={
+                    "schema_version": "tda_processing_benchmark_v1",
+                    "kind": "benchmark.craig",
+                    "source_id": source_id,
+                    "benchmark_id": benchmark_id,
+                    "sample_identity_sha256": sample_identity_sha256,
+                    "sample_seconds": sample_seconds,
+                    "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                    "profiles": receipts,
+                },
+                returncode=0,
+            )
+
         return WorkerOutcome(
             terminal="result",
             payload={
-                "schema_version": "tda_processing_benchmark_v1",
+                "schema_version": "tda_processing_benchmark_partial_v1",
                 "kind": "benchmark.craig",
+                "status": "partial",
                 "source_id": source_id,
                 "benchmark_id": benchmark_id,
                 "sample_identity_sha256": sample_identity_sha256,
                 "sample_seconds": sample_seconds,
                 "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
-                "profiles": receipts,
+                "attempted_count": len(profile_outcomes),
+                "completed_count": completed_count,
+                "failed_count": failed_count,
+                "profile_outcomes": profile_outcomes,
             },
             returncode=0,
         )
+
