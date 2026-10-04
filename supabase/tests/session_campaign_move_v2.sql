@@ -315,35 +315,44 @@ begin
     raise exception 'publication operation ownership did not follow private transfer';
   end if;
 
-  -- Move the same session back to the public historical campaign. This proves
-  -- that a public destination can restore a verified public delivery while the
-  -- immutable publication snapshot/hash stays untouched.
+  -- Promote the synthetic destination campaign to public for a separate
+  -- published fixture. This covers public -> public without weakening the
+  -- previous private-destination assertion.
+  update public.campaigns
+  set visibility='public'
+  where id=v_destination;
+
+  select payload_sha256, cover_url
+  into strict v_payload, v_cover
+  from public.session_publications
+  where id='53000000-0000-4000-8000-000000000022';
+
   insert into public.session_campaign_move_media_preparations(
     operation_id,asset_id,session_id,source_campaign_id,destination_campaign_id,
     source_object_key,destination_object_key,sha256,staged_bucket,
     destination_public_object_key,destination_public_url,public_verified_at
   ) values (
     '61000000-0000-4000-8000-000000000022',
-    '54000000-0000-4000-8000-000000000021',
-    '41000000-0000-4000-8000-000000000021',
-    v_destination,
+    '54000000-0000-4000-8000-000000000022',
+    '41000000-0000-4000-8000-000000000022',
     v_source,
-    'campaigns/antes-que-seja-tarde/sessions/41000000-0000-4000-8000-000000000021/cover/' || repeat('e',64) || '.webp',
-    'campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000021/cover/' || repeat('e',64) || '.webp',
-    repeat('e',64),
+    v_destination,
+    'campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000022/cover/' || repeat('2',64) || '.webp',
+    'campaigns/antes-que-seja-tarde/sessions/41000000-0000-4000-8000-000000000022/cover/' || repeat('2',64) || '.webp',
+    repeat('2',64),
     'tda-media-preview',
-    'campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000021/cover/' || repeat('e',64) || '.webp',
-    'https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000021/cover/' || repeat('e',64) || '.webp',
+    'campaigns/antes-que-seja-tarde/sessions/41000000-0000-4000-8000-000000000022/cover/' || repeat('2',64) || '.webp',
+    'https://media.dnd.faysk.dev/campaigns/antes-que-seja-tarde/sessions/41000000-0000-4000-8000-000000000022/cover/' || repeat('2',64) || '.webp',
     clock_timestamp()
   );
 
   v := public.move_session_campaign_v2_atomic(
     '90000000-0000-4000-8000-000000000006',
     '30000000-0000-4000-8000-000000000006',
-    'antes-que-seja-tarde',
     'yuhara-main',
-    '41000000-0000-4000-8000-000000000021',
-    'move-published-v2',
+    'antes-que-seja-tarde',
+    '41000000-0000-4000-8000-000000000022',
+    'move-published-public-v2',
     '61000000-0000-4000-8000-000000000022',
     '{}'::jsonb
   );
@@ -353,34 +362,36 @@ begin
 
   if not exists (
     select 1 from public.sessions
-    where id='41000000-0000-4000-8000-000000000021'
-      and campaign_id=v_source
+    where id='41000000-0000-4000-8000-000000000022'
+      and campaign_id=v_destination
       and status='published'
-      and current_session_publication_id='53000000-0000-4000-8000-000000000021'
+      and current_session_publication_id='53000000-0000-4000-8000-000000000022'
       and metadata->>'coverImageUrl' like
-        'https://media.dnd.faysk.dev/campaigns/yuhara-main/%'
+        'https://media.dnd.faysk.dev/campaigns/antes-que-seja-tarde/%'
   ) then
-    raise exception 'public destination did not restore canonical public cover metadata';
+    raise exception 'public destination did not receive canonical public cover metadata';
   end if;
 
   if not exists (
     select 1 from public.media_assets
-    where id='54000000-0000-4000-8000-000000000021'
-      and campaign_id=v_source
-      and status='staged'
-      and object_key like 'campaigns/yuhara-main/sessions/%'
+    where id='54000000-0000-4000-8000-000000000022'
+      and campaign_id=v_destination
+      and status='verified_public'
+      and public_object_key like 'campaigns/antes-que-seja-tarde/sessions/%'
+      and public_delivery_verified=true
+      and public_verified_at is not null
   ) then
-    raise exception 'staged asset ownership/key did not return to public campaign';
+    raise exception 'verified-public cover did not remain verified after public transfer';
   end if;
 
   if not exists (
     select 1 from public.session_publications
-    where id='53000000-0000-4000-8000-000000000021'
-      and campaign_id=v_source
+    where id='53000000-0000-4000-8000-000000000022'
+      and campaign_id=v_destination
       and payload_sha256=v_payload
       and cover_url=v_cover
   ) then
-    raise exception 'published snapshot changed during return to public campaign';
+    raise exception 'published snapshot changed during public ownership transfer';
   end if;
 end
 $tda_move_v2_published$;
