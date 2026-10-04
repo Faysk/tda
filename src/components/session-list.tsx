@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { PublicLink as Link } from "@/components/public-link";
+import { Select, type SelectOption } from "@/components/ui";
 import {
 	listSessionArcOptions,
 	sessionArcIdentity,
@@ -13,6 +14,12 @@ import styles from "./session-list.module.css";
 
 type ViewMode = "grid" | "list";
 type SortMode = "newest" | "oldest" | "title";
+
+const SORT_OPTIONS: readonly SelectOption<SortMode>[] = [
+	{ value: "newest", label: "Mais recentes" },
+	{ value: "oldest", label: "Mais antigas" },
+	{ value: "title", label: "Título A–Z" },
+];
 
 export type SessionCampaignOption = Readonly<{
 	slug: string;
@@ -283,6 +290,33 @@ export function SessionList({
 		[arcs, campaign, showCampaignFilter],
 	);
 
+	const campaignSelectOptions = useMemo<readonly SelectOption<string>[]>(
+		() => [
+			{ value: "all", label: "Todas as campanhas" },
+			...campaigns.map((item) => ({ value: item.slug, label: item.name })),
+		],
+		[campaigns],
+	);
+
+	const arcSelectOptions = useMemo<readonly SelectOption<string>[]>(
+		() => [
+			{ value: "all", label: "Todos os arcos" },
+			...visibleArcs.map((option) => {
+				const duplicateAcrossCampaigns =
+					showCampaignFilter &&
+					campaign === "all" &&
+					(arcCampaigns.get(option.normalizedArc)?.size ?? 0) > 1;
+				return {
+					value: option.identity,
+					label: duplicateAcrossCampaigns
+						? `${option.label} — ${option.campaignName}`
+						: option.label,
+				};
+			}),
+		],
+		[arcCampaigns, campaign, showCampaignFilter, visibleArcs],
+	);
+
 	const visible = useMemo(() => {
 		const needle = normalizeSearch(query.trim());
 		const items = sessions.filter((session) => {
@@ -351,57 +385,37 @@ export function SessionList({
 				</label>
 
 				{showCampaignSelect ? (
-					<label className={styles.selectField}>
-						<span className={styles.srOnly}>Filtrar por campanha</span>
-						<select
-							value={campaign}
-							onChange={(event) => {
-								setCampaign(event.target.value);
-								setArc("all");
-							}}
-						>
-							<option value="all">Todas as campanhas</option>
-							{campaigns.map((item) => (
-								<option key={item.slug} value={item.slug}>
-									{item.name}
-								</option>
-							))}
-						</select>
-					</label>
+					<Select
+						value={campaign}
+						options={campaignSelectOptions}
+						onChange={(value) => {
+							setCampaign(value);
+							setArc("all");
+						}}
+						ariaLabel="Filtrar por campanha"
+						className={styles.selectField}
+					/>
 				) : null}
 
-				<label className={styles.selectField}>
-					<span className={styles.srOnly}>Filtrar por arco</span>
-					<select value={arc} onChange={(event) => setArc(event.target.value)}>
-						<option value="all">Todos os arcos</option>
-						{visibleArcs.map((option) => {
-							const duplicateAcrossCampaigns =
-								showCampaignFilter &&
-								campaign === "all" &&
-								(arcCampaigns.get(option.normalizedArc)?.size ?? 0) > 1;
-							return (
-								<option key={option.identity} value={option.identity}>
-									{duplicateAcrossCampaigns
-										? `${option.label} — ${option.campaignName}`
-										: option.label}
-								</option>
-							);
-						})}
-					</select>
-				</label>
+				<Select
+					value={arc}
+					options={arcSelectOptions}
+					onChange={setArc}
+					ariaLabel="Filtrar por arco"
+					className={styles.selectField}
+				/>
 
 				<div className={styles.toolbarEnd}>
-					<label className={styles.sortField}>
+					<div className={styles.sortField}>
 						<span>Ordenar por</span>
-						<select
+						<Select
 							value={sort}
-							onChange={(event) => setSort(event.target.value as SortMode)}
-						>
-							<option value="newest">Mais recentes</option>
-							<option value="oldest">Mais antigas</option>
-							<option value="title">Título A–Z</option>
-						</select>
-					</label>
+							options={SORT_OPTIONS}
+							onChange={setSort}
+							ariaLabel="Ordenar por"
+							className={styles.sortSelect}
+						/>
+					</div>
 
 					<fieldset className={styles.viewToggle}>
 						<legend className={styles.srOnly}>Visualização</legend>
