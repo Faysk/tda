@@ -205,13 +205,17 @@ export function JobDiagnosticsInspector({
 		typeof benchmarkLatestOutcome?.data.successful_count === "number"
 			? benchmarkLatestOutcome.data.successful_count
 			: job?.kind === "benchmark.craig"
-				? benchmarkAttempted
+				? job.error?.code === "BENCHMARK_PARTIAL"
+					? null
+					: benchmarkAttempted
 				: null;
 	const benchmarkFailed =
 		typeof benchmarkLatestOutcome?.data.failed_count === "number"
 			? benchmarkLatestOutcome.data.failed_count
 			: job?.kind === "benchmark.craig"
-				? 0
+				? job.error?.code === "BENCHMARK_PARTIAL"
+					? null
+					: 0
 				: null;
 
 	useEffect(() => {
@@ -369,7 +373,7 @@ export function JobDiagnosticsInspector({
 									<dt>Progresso</dt>
 									<dd>
 										{job.kind === "benchmark.craig" && benchmarkAttempted !== null
-											? `Tentados ${benchmarkAttempted}/${job.progress?.total ?? 4} · Concluídos ${benchmarkSuccessful ?? 0} · Falharam ${benchmarkFailed ?? 0}`
+											? `Tentados ${benchmarkAttempted}/${job.progress?.total ?? 4} · Concluídos ${benchmarkSuccessful ?? "—"} · Falharam ${benchmarkFailed ?? "—"}`
 											: job.progress
 												? `${job.progress.completed}/${job.progress.total} ${job.progress.unit}`
 												: "—"}
