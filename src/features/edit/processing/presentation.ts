@@ -89,6 +89,7 @@ export function presentJobError(code: string): string {
 		QWEN_RUNTIME_UNCONFIGURED: "O runtime Qwen ainda não está configurado neste Companion.",
 		QWEN_PHYSICAL_ACCEPTANCE_REQUIRED: "O Qwen precisa concluir novamente a validação física de runtime, modelo e GPU antes de processar.",
 		QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN: "O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. Se este job usou Qwen Fast, selecione Qwen Quality no formulário e envie a mesma sessão novamente.",
+		BENCHMARK_PARTIAL: "O benchmark terminou parcialmente: os perfis válidos foram preservados, mas a tentativa não é uma comparação 4/4.",
 		WORKER_RESULT_RUN_INVALID: "O run local falhou na validação de integridade.",
 		WORKER_RESULT_RUN_MISMATCH: "O run local não corresponde a este job e tentativa.",
 		WORKER_RESULT_INCOMPLETE: "O worker terminou sem concluir todas as unidades exigidas pela fila.",
@@ -127,10 +128,25 @@ export function presentJobError(code: string): string {
 	return known[code] ?? code.replaceAll("_", " ").toLocaleLowerCase("pt-BR");
 }
 
+export function presentJobErrorForJob(
+	job: Pick<LocalJob, "kind" | "error">,
+): string {
+	const code = job.error?.code;
+	if (!code) return "";
+	if (
+		job.kind === "benchmark.craig" &&
+		code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"
+	) {
+		return "O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. No Benchmark, os perfis independentes restantes continuam automaticamente quando a falha é isolada.";
+	}
+	return presentJobError(code);
+}
+
 export const jobLabels: Record<JobStatus, string> = {
 	queued: "Na fila",
 	running: "Processando",
 	succeeded: "Concluído",
+	partial: "Parcial",
 	failed: "Falhou",
 	cancelled: "Cancelado",
 	interrupted: "Interrompido",
