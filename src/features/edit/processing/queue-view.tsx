@@ -2,7 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatedProgress } from "@/components/ui/animated-progress";
-import { Button, Select } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { StatusPill, type StatusTone } from "@/components/ui/status";
 import {
 	jobLabels,
