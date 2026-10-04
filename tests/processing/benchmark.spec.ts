@@ -759,7 +759,7 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 	await workspace.getByRole("button", { name: "Arquivos" }).click();
 	await expect(workspace.getByText("Arquivos privados locais.")).toBeVisible();
 	await expect(workspace.getByRole("button", { name: "JSON" })).toHaveCount(4);
-	await expect(workspace.getByRole("button", { name: "TXT" })).toHaveCount(4);
+	await expect(workspace.getByRole("button", { name: "TXT", exact: true })).toHaveCount(4);
 	await expect(workspace.getByRole("button", { name: "TXT simples" })).toHaveCount(4);
 	await expect(workspace.getByRole("button", { name: "VTT" })).toHaveCount(4);
 	await expect(workspace.getByRole("button", { name: "SRT" })).toHaveCount(4);
