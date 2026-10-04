@@ -370,6 +370,34 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 						: "Unidade de trabalho concluída.",
 				detail: choose(genericProgressJokes, event.seq),
 			};
+		case "BENCHMARK_PROFILE_STARTED": {
+			const profile = textData(event, "profile");
+			return {
+				title: profile
+					? `Benchmark iniciou ${profile}.`
+					: "Benchmark iniciou o próximo perfil.",
+			};
+		}
+		case "BENCHMARK_PROFILE_COMPLETED": {
+			const profile = textData(event, "profile");
+			return {
+				title: profile
+					? `Benchmark concluiu ${profile}.`
+					: "Benchmark concluiu um perfil.",
+			};
+		}
+		case "BENCHMARK_PROFILE_FAILED": {
+			const profile = textData(event, "profile");
+			const errorCode = textData(event, "error_code");
+			return {
+				title: profile
+					? `Benchmark: ${profile} falhou isoladamente.`
+					: "Um perfil do benchmark falhou isoladamente.",
+				detail: errorCode
+					? `${errorCode}. Os perfis restantes continuam quando a falha é segura e isolada.`
+					: "Os perfis restantes continuam quando a falha é segura e isolada.",
+			};
+		}
 		case "SOURCE_VALIDATED":
 			return {
 				title: "Sessão local validada.",
