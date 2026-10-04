@@ -61,7 +61,7 @@ export function SessionAssemblyResults({
 	const sessionIdRef = useRef<string | null>(null);
 	const refreshGeneration = useRef(0);
 	const reviewGeneration = useRef(0);
-	const editorRef = useRef<HTMLDivElement>(null);
+	const editorRef = useRef<HTMLElement>(null);
 	const focusedRequestId = useRef(0);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -322,10 +322,11 @@ export function SessionAssemblyResults({
 			) : null}
 
 			{editorOpen && activeAssembly && review ? (
-				<div
+				<section
 					ref={editorRef}
 					className={styles.editor}
 					data-assembly-review-owner="results"
+					aria-label="Revisão aberta em Resultados"
 					tabIndex={-1}
 				>
 					<SessionAssemblyReview
@@ -340,7 +341,7 @@ export function SessionAssemblyResults({
 							})
 						}
 					/>
-				</div>
+				</section>
 			) : null}
 
 			{error ? (
