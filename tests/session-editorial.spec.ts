@@ -344,7 +344,7 @@ test("session campaign move preflight keeps blockers actionable on keyboard and 
 	await page.goto("/e2e-fixtures/session-editorial");
 	await openCampaignMove(page);
 
-	const selector = page.getByLabel("Mover para outra campanha");
+	const selector = page.getByRole("button", { name: "Mover para outra campanha" });
 	await selectThemedOption(page, selector, "campanha-bloqueada");
 	await selector.focus();
 	await page.keyboard.press("Tab");
@@ -394,7 +394,7 @@ test("lost move response reuses operation id and recovers cache without hiding c
 }) => {
 	await page.goto("/e2e-fixtures/session-editorial");
 	await openCampaignMove(page);
-	const selector = page.getByLabel("Mover para outra campanha");
+	const selector = page.getByRole("button", { name: "Mover para outra campanha" });
 	const preflight = page.getByRole("button", { name: "Pré-validar mudança" });
 	await selectThemedOption(page, selector, "campanha-b");
 	await preflight.click();
