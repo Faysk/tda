@@ -74,6 +74,17 @@ describe("processing presentation", () => {
 		);
 	});
 
+	it("keeps Qwen safety copy but avoids manual Quality advice inside Benchmark", () => {
+		expect(
+			presentJobError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN", "benchmark.craig"),
+		).toBe(
+			"O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. A falha ficou isolada neste perfil e o Benchmark tenta automaticamente os perfis restantes.",
+		);
+		expect(presentJobError("BENCHMARK_PARTIAL", "benchmark.craig")).toContain(
+			"comparação completa 4/4",
+		);
+	});
+
 	it("explains physical ASR execution failures", () => {
 		expect(presentJobError("QWEN_ALIGNMENT_REQUIRED")).toBe(
 			"O alinhamento obrigatório falhou. Abra Diagnóstico para ver a faixa, a janela e a causa específica. Nenhum resultado parcial foi publicado.",
