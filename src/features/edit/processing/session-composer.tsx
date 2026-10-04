@@ -81,7 +81,11 @@ function errorMessage(cause: unknown): string {
 		SESSION_WORKSPACE_SESSION_MISMATCH:
 			"O composer carregado pertence a outra sessão. Feche o composer antes de trocar o alvo.",
 		SESSION_WORKSPACE_TIMELINE_ORDER_AMBIGUOUS:
-			"Os horários não estabelecem uma ordem segura. Use os botões de ordem e informe o início manualmente.",
+			"Os horários não estabelecem uma ordem segura. Confirme a ordem visual da sessão.",
+		SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT:
+			"Os horários confiáveis contradizem a ordem escolhida. Reordene as gravações ou use os horários confiáveis.",
+		SESSION_WORKSPACE_SEQUENCE_INVALID:
+			"A sequência mudou antes da confirmação. Atualize o composer e confirme a ordem novamente.",
 		SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION:
 			"Os horários colidem e não autorizam ordem automática. Confirme a ordem manualmente.",
 		SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID:
@@ -499,6 +503,19 @@ export function SessionRecordingComposer({
 					signal,
 				),
 			"Ordem das gravações atualizada.",
+		);
+	}
+
+	async function confirmSequence() {
+		await mutate(
+			(current, signal) =>
+				bridge.confirmSessionSequence(
+					current.campaignId,
+					current.sessionId,
+					current.revision,
+					signal,
+				),
+			"Ordem confirmada. A sessão usa continuidade editorial onde o intervalo real é desconhecido.",
 		);
 	}
 
@@ -936,16 +953,45 @@ export function SessionRecordingComposer({
 					{workspace.parts.length > 1 ? (
 						<div className={styles.timelineSummary} data-state={workspace.timeline.state}>
 							<div>
-								<strong>Cronologia · {workspace.timeline.state}</strong>
+								<strong>
+									{workspace.timeline.strategy === "user_confirmed_sequence"
+										? "Ordem da sessão confirmada"
+										: workspace.timeline.strategy === "trusted_absolute"
+											? "Ordem definida por horários confiáveis"
+											: "Ordem da sessão precisa de confirmação"}
+								</strong>
 								<span>
-									{workspace.timeline.gapCount} gaps · {workspace.timeline.overlapCount} overlaps · {workspace.timeline.orderConflictCount} conflitos de ordem
+									{workspace.timeline.wallClock === "trusted"
+										? "Horário real disponível em todas as gravações."
+										: workspace.timeline.wallClock === "partial"
+											? "Horário real disponível somente onde foi comprovado."
+											: "Horário real indisponível; isso não impede a transcrição."}
+									{workspace.timeline.unknownIntervalCount
+										? " " +
+											workspace.timeline.unknownIntervalCount +
+											(workspace.timeline.unknownIntervalCount === 1
+												? " intervalo físico permanece desconhecido."
+												: " intervalos físicos permanecem desconhecidos.")
+										: ""}
+								</span>
+								<span>
+									{workspace.timeline.gapCount} gap(s) comprovado(s)/definido(s) · {workspace.timeline.overlapCount} overlap(s) · {workspace.timeline.orderConflictCount} conflito(s) de ordem
 								</span>
 							</div>
-							{workspace.timeline.automaticOrderAvailable && workspace.timeline.state !== "ready" ? (
-								<Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void deriveTimeline()}>
-									Usar horários confiáveis
-								</Button>
-							) : null}
+							<div className={styles.headerActions}>
+								{workspace.timeline.automaticOrderAvailable &&
+								workspace.timeline.strategy !== "trusted_absolute" ? (
+									<Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void deriveTimeline()}>
+										Usar horários confiáveis
+									</Button>
+								) : null}
+								{!workspace.timeline.automaticOrderAvailable &&
+								workspace.timeline.strategy === "unresolved" ? (
+									<Button type="button" size="sm" variant="primary" disabled={busy} onClick={() => void confirmSequence()}>
+										Usar esta ordem para montar a sessão
+									</Button>
+								) : null}
+							</div>
 						</div>
 					) : null}
 
@@ -1018,7 +1064,9 @@ export function SessionRecordingComposer({
 												<Button type="button" size="sm" variant="tertiary" disabled={busy} onClick={() => void saveOffset(part)}>
 													Salvar posição
 												</Button>
-												{part.relationToPrevious === "gap" && !part.gapConfirmed ? (
+												{part.relationToPrevious === "gap" &&
+												!part.gapConfirmed &&
+												part.physicalIntervalState !== "trusted_absolute" ? (
 													<Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void confirmGap(part)}>
 														Confirmar gap de {Math.round(part.relationSeconds ?? 0)} s
 													</Button>
