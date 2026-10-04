@@ -44,8 +44,17 @@ _BENCHMARK_PROFILE_LOCAL_ERRORS = frozenset({
 })
 
 
-def _benchmark_profile_failure_can_continue(exc: WorkerProcessError) -> bool:
-    return exc.recoverable and exc.code in _BENCHMARK_PROFILE_LOCAL_ERRORS
+def _benchmark_profile_failure_can_continue(
+    profile_id: str,
+    exc: WorkerProcessError,
+) -> bool:
+    """Return whether a worker failure is proven isolated to one Benchmark profile."""
+
+    return (
+        profile_id in {"qwen-fast", "qwen-quality"}
+        and exc.recoverable
+        and exc.code in _BENCHMARK_PROFILE_LOCAL_ERRORS
+    )
 
 
 @dataclass(frozen=True)
@@ -770,7 +779,7 @@ class WorkerSupervisor:
                             diagnostics_exc.code,
                             recoverable=False,
                         ) from exc
-                if not _benchmark_profile_failure_can_continue(exc):
+                if not _benchmark_profile_failure_can_continue(profile_id, exc):
                     raise
                 profile_outcomes.append(
                     {
