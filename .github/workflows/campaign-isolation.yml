@@ -231,6 +231,7 @@ jobs:
           src/features/edit/sessions/canonical-route-contract.test.ts
           src/features/edit/sessions/session-campaign-move-cache.test.ts
           src/features/edit/sessions/session-campaign-move-model.test.ts
+          src/features/edit/sessions/session-campaign-move-recovery.test.ts
           src/features/edit/sessions/library.test.ts
           src/features/edit/sessions/repository.test.ts
           src/features/edit/sessions/session-cover-media.test.ts
