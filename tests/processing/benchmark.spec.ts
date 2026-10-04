@@ -918,7 +918,7 @@ test("global Benchmark failure marks active profile failed and later profiles no
 
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
 	await expect(
-		panel.getByText("Tentados 3/4 · Concluídos 2 · Falharam 0"),
+		panel.getByText("Tentados 3/4 · Concluídos 2 · Falharam 1"),
 	).toBeVisible();
 	await expect(panel.getByText("Qwen Fast · falhou")).toBeVisible();
 	await expect(panel.getByText("Qwen Quality · não tentado")).toBeVisible();

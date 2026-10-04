@@ -1090,8 +1090,10 @@ export function ProcessingBenchmark({
 			? [...activeStepStates.values()].filter((state) => state === "complete").length
 			: progressTerminalCount);
 	const failedProfiles =
-		eventNumber("failed_count") ??
-		[...activeStepStates.values()].filter((state) => state === "failed").length;
+		latestProblem && lifecycleJob?.id === latestProblem.id
+			? [...activeStepStates.values()].filter((state) => state === "failed").length
+			: eventNumber("failed_count") ??
+				[...activeStepStates.values()].filter((state) => state === "failed").length;
 	const latestEvent = active ? lifecycleEvents.at(-1) ?? null : null;
 	const latestActivity = latestEvent ? presentJobEvent(latestEvent) : null;
 
