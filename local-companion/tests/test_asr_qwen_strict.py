@@ -417,6 +417,9 @@ def test_strict_qwen_rejects_empty_asr_when_window_has_signal(
     assert not any(
         item.get("code") == "QWEN_WINDOW_SILENCE_CONFIRMED" for item in reports
     )
+    assert not any(
+        item.get("code") == "QWEN_EMPTY_WINDOW_RECOVERY_STARTED" for item in reports
+    )
 
 
 
@@ -639,6 +642,7 @@ def test_fast_empty_full_window_recovery_accepts_silent_half_without_fabricating
     )
     assert recovered["profile"] == "qwen-fast"
     assert recovered["strategy"] == "split_2x30s"
+
 
 def test_strict_qwen_mixed_tracks_keep_silent_timeline_and_voiced_identity(tmp_path: Path):
     package, root = _two_track_package(tmp_path)
