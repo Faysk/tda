@@ -300,6 +300,7 @@ export function ProcessingSubmission({
 	const openSourceRecovery = useCallback(() => {
 		setSourceRecoveryActive(true);
 		setIntentRequest(null);
+		setAdvancedOpen(false);
 		setFiles([]);
 		setError(null);
 		setRecoveryNotice(null);
@@ -307,6 +308,22 @@ export function ProcessingSubmission({
 			"Selecione novamente o ZIP original. O workspace da sessão permanece preservado enquanto a fonte local é restaurada.",
 		);
 		window.requestAnimationFrame(() => fileInput.current?.click());
+	}, []);
+
+	const startNewTranscription = useCallback(() => {
+		setIntentRequest(null);
+		setComposerActive(false);
+		setSourceRecoveryActive(false);
+		setFiles([]);
+		setSessionId("");
+		setContext("");
+		setGlossary("");
+		setAdvancedOpen(false);
+		setTechnicalOpen(false);
+		setTechnicalTarget(null);
+		setError(null);
+		setRecoveryNotice(null);
+		setStatus("Pronto para iniciar uma nova transcrição.");
 	}, []);
 
 	useEffect(() => {
@@ -868,6 +885,7 @@ export function ProcessingSubmission({
 					: `Iniciando a transcrição da sessão com ${stagedSources.length} gravações…`,
 			);
 			setSourceRecoveryActive(false);
+			setAdvancedOpen(false);
 			setIntentRequest({
 				id: crypto.randomUUID(),
 				sessionId,
@@ -1435,6 +1453,7 @@ export function ProcessingSubmission({
 						onOpenTechnical={openTechnicalRecovery}
 						onSelectSource={openSourceRecovery}
 						onReviewAssembly={onReviewSessionAssembly}
+						onNewTranscription={startNewTranscription}
 					/>
 					{composerActive ? (
 						<details
