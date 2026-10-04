@@ -44,6 +44,7 @@ from .benchmark_bundles import (
     claim_benchmark_outcome,
     finalize_benchmark_bundle,
     load_benchmark_bundle,
+    verify_benchmark_profile_receipt,
     read_benchmark_transcript,
 )
 from .benchmark_evidence import (
@@ -1411,6 +1412,28 @@ def create_app(
                                     {"job_id": job_id, "attempt": attempt},
                                 )
                             elif partial_result:
+                                try:
+                                    with source_gate:
+                                        _, package = staged_package(
+                                            body["source_id"],
+                                            verify_tracks=False,
+                                        )
+                                        for receipt in payload["profiles"]:
+                                            verify_benchmark_profile_receipt(
+                                                data_root,
+                                                benchmark_id=payload["benchmark_id"],
+                                                source_id=body["source_id"],
+                                                source_sha256=package.source_sha256,
+                                                sample_identity_sha256=body[
+                                                    "sample_identity_sha256"
+                                                ],
+                                                receipt=receipt,
+                                            )
+                                except BenchmarkBundleError as exc:
+                                    raise WorkerProcessError(
+                                        str(exc),
+                                        recoverable=False,
+                                    ) from exc
                                 result = {
                                     **payload,
                                     "job_id": job_id,
@@ -2833,6 +2856,41 @@ def create_app(
     @app.get("/api/v1/jobs/{job_id}/result")
     def result(job_id: str):
         value = store.result(job_id)
+        if (
+            isinstance(value, dict)
+            and value.get("schema_version") == "tda_processing_benchmark_v2"
+        ):
+            if value.get("outcome") != "partial":
+                raise Conflict("RESULT_ARTIFACT_MISMATCH")
+            state = store.get(job_id)
+            body = store.body(job_id)
+            benchmark_id = value.get("benchmark_id")
+            profiles = value.get("profiles")
+            if (
+                body.get("kind") != "benchmark.craig"
+                or benchmark_id != benchmark_id_for(job_id, state.get("attempt"))
+                or not isinstance(profiles, list)
+            ):
+                raise Conflict("RESULT_ARTIFACT_MISMATCH")
+            try:
+                with source_gate:
+                    _, package = staged_package(
+                        body["source_id"],
+                        verify_tracks=False,
+                    )
+                    for receipt in profiles:
+                        verify_benchmark_profile_receipt(
+                            data_root,
+                            benchmark_id=str(benchmark_id),
+                            source_id=body["source_id"],
+                            source_sha256=package.source_sha256,
+                            sample_identity_sha256=body["sample_identity_sha256"],
+                            receipt=receipt,
+                        )
+            except BenchmarkBundleError as exc:
+                raise Conflict("RESULT_ARTIFACT_UNAVAILABLE") from exc
+            return value
+
         if (
             isinstance(value, dict)
             and value.get("schema_version") == "tda_processing_benchmark_v1"
