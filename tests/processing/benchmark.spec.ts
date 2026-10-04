@@ -698,7 +698,7 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 	).toBeVisible();
 	expect(
 		state.requests.some((request) =>
-			request.path.startsWith("/benchmarks/"),
+			request.path.endsWith("/snapshot"),
 		),
 	).toBe(false);
 

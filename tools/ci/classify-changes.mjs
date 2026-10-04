@@ -80,13 +80,21 @@ const EXACT = {
 		"tools/check-migration-naming.py",
 		"tools/check-relation-migration-safety.py",
 	]),
-	companion: new Set([".github/workflows/companion.yml"]),
+	companion: new Set([
+		".github/workflows/companion.yml",
+		"tools/acceptance/run-processing-benchmark-physical-gate.ps1",
+		"tools/acceptance/verify-processing-benchmark-quality-handoff.ps1",
+	]),
 	processing: new Set([
 		".github/workflows/ci.yml",
 		"playwright.processing.config.ts",
 		"playwright.processing-ux.config.ts",
 		"playwright.processing-integration.config.ts",
+		"playwright.benchmark-quality.config.ts",
 		"tools/processing-ui-fixture.mjs",
+		"tools/acceptance/run-processing-benchmark-physical-gate.ps1",
+		"tools/acceptance/verify-processing-benchmark-quality-handoff.ps1",
+		"tools/acceptance/test_processing_1417_quality_gate_contract.py",
 	]),
 	lembra: new Set([
 		".github/workflows/ci.yml",

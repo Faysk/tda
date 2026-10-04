@@ -150,6 +150,17 @@ test("Processing Web paths activate the Processing E2E contract", () => {
 		flags(["playwright.processing-integration.config.ts"]).processing,
 		true,
 	);
+	assert.equal(
+		flags(["playwright.benchmark-quality.config.ts"]).processing,
+		true,
+	);
+	for (const path of [
+		"tools/acceptance/run-processing-benchmark-physical-gate.ps1",
+		"tools/acceptance/verify-processing-benchmark-quality-handoff.ps1",
+		"tools/acceptance/test_processing_1417_quality_gate_contract.py",
+	]) {
+		assert.equal(flags([path]).processing, true, path);
+	}
 });
 
 test("Lembra paths activate only the targeted Lembra E2E contract", () => {
@@ -198,6 +209,14 @@ test("Companion source activates Companion and Processing E2E", () => {
 		flags(["tools/check-companion-model-freshness.py"]).companion,
 		true,
 	);
+	for (const path of [
+		"tools/acceptance/run-processing-benchmark-physical-gate.ps1",
+		"tools/acceptance/verify-processing-benchmark-quality-handoff.ps1",
+	]) {
+		const acceptance = flags([path]);
+		assert.equal(acceptance.companion, true, path);
+		assert.equal(acceptance.processing, true, path);
+	}
 });
 
 test("specialized runtime workflows do not build generic MSI or browser gates by themselves", () => {

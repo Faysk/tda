@@ -75,7 +75,9 @@ jobs:
             "local-companion/packaging/run-physical-acceptance.ps1",
             "local-companion/packaging/run-installed-acceptance.ps1",
             "local-companion/packaging/run-recovery-acceptance.ps1",
-            "local-companion/packaging/smoke-windows-lifecycle.ps1"
+            "local-companion/packaging/smoke-windows-lifecycle.ps1",
+            "tools/acceptance/run-processing-benchmark-physical-gate.ps1",
+            "tools/acceptance/verify-processing-benchmark-quality-handoff.ps1"
           )) {
             $tokens = $null
             $errors = $null

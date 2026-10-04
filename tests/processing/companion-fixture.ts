@@ -66,6 +66,8 @@ export type CompanionFixtureOptions = {
 	benchmarkPreparationFailureProfile?: string | null;
 	benchmarkReadinessContract?: boolean;
 	benchmarkEvidence?: boolean;
+	benchmarkSnapshotDelayMs?: number;
+	benchmarkCorruptProfile?: "whisper-turbo" | "whisper-detailed" | "qwen-fast" | "qwen-quality";
 	whisperBenchmarkRuntimeUpgradeRequired?: boolean;
 	qwenBenchmarkRuntimeUpgradeRequired?: boolean;
 	reviewEnabled?: boolean;
@@ -242,6 +244,105 @@ export async function installCompanionFixture(
 	let expired = false;
 	let ambiguousJobPostConsumed = false;
 	let submittedJob = false;
+	let benchmarkReference: Record<string, unknown> | null = null;
+	let benchmarkReferenceRevision = 0;
+	const benchmarkId = "benchmark-benchmark-job-1-a1";
+	const normalizationPolicy = {
+		schema_version: "tda_asr_text_normalization_v1",
+		unicode_normalization: "NFC",
+		case: "unicode_casefold",
+		whitespace: "collapse",
+		punctuation: "strip_unicode_punctuation_except_apostrophe_hyphen_v1",
+		diacritics: "preserve",
+		locale_dependent: false,
+	} as const;
+	const referenceStatus = () => ({
+		schema_version: "tda_benchmark_reference_status_v1",
+		benchmark_id: benchmarkId,
+		latest_revision: benchmarkReferenceRevision,
+		active_revision: benchmarkReference ? benchmarkReferenceRevision : null,
+		active_sha256: benchmarkReference ? "9".repeat(64) : null,
+		normalization_policy: normalizationPolicy,
+	});
+	const qualitySummary = () => ({
+		schema_version: "tda_benchmark_quality_summary_v1",
+		benchmark_id: benchmarkId,
+		reference: referenceStatus(),
+		quality_measured: benchmarkReference !== null,
+		profiles:
+			benchmarkReference === null
+				? []
+				: benchmarkProfileIds.map((profileId, index) => ({
+						schema_version: "tda_benchmark_quality_receipt_v1",
+						benchmark_id: benchmarkId,
+						benchmark_manifest_sha256: "e".repeat(64),
+						sample_identity_sha256: "b".repeat(64),
+						profile_id: profileId,
+						profile_transcript_sha256: "f".repeat(64),
+						reference_revision: benchmarkReferenceRevision,
+						reference_sha256: "9".repeat(64),
+						normalization_policy: normalizationPolicy,
+						normalization_policy_sha256: "8".repeat(64),
+						metric_implementation_version: "tda_asr_quality_metrics_v1",
+						capability_level: 1,
+						receipt_sha256: String(index + 1).repeat(64),
+						receipt_size_bytes: 1024 + index,
+						metrics: {
+							per_track: [
+								{
+									track_number: 1,
+									state: "matched",
+									substitutions: index === 0 ? 0 : 1,
+									deletions: 0,
+									insertions: index === 1 ? 1 : 0,
+									distance: index === 0 ? 0 : index === 1 ? 2 : 1,
+									reference_words: 4,
+									hypothesis_words: index === 1 ? 5 : 4,
+									wer_normalized: index === 0 ? 0 : index === 1 ? 0.5 : 0.25,
+									reference_characters: 29,
+									hypothesis_characters: 29,
+									character_distance: index === 0 ? 0 : 1,
+									cer_normalized: index === 0 ? 0 : 0.0345,
+								},
+							],
+							micro: {
+								substitutions: index === 0 ? 0 : 1,
+								deletions: 0,
+								insertions: index === 1 ? 1 : 0,
+								distance: index === 0 ? 0 : index === 1 ? 2 : 1,
+								reference_words: 4,
+								hypothesis_words: index === 1 ? 5 : 4,
+								wer_normalized: index === 0 ? 0 : index === 1 ? 0.5 : 0.25,
+								reference_characters: 29,
+								hypothesis_characters: 29,
+								character_distance: index === 0 ? 0 : 1,
+								cer_normalized: index === 0 ? 0 : 0.0345,
+								macro_wer_normalized: index === 0 ? 0 : index === 1 ? 0.5 : 0.25,
+							},
+							glossary: {
+								available: false,
+								reference_occurrences: 0,
+								correct_occurrences: 0,
+								missed_occurrences: 0,
+								extra_occurrences: 0,
+								recall: null,
+								precision: null,
+							},
+							timing: {
+								available: false,
+								reason: "REFERENCE_LEVEL_1",
+								timing_precision: "segment_aligned",
+								turn_coverage: null,
+								speaker_accuracy: null,
+								boundary_p50_seconds: null,
+								boundary_p95_seconds: null,
+								overlap: null,
+							},
+						},
+					})),
+		winner: null,
+		composite_score: null,
+	});
 	const state: CompanionFixtureState = {
 		requests: [],
 		sessionCount: 0,
@@ -373,7 +474,13 @@ export async function installCompanionFixture(
 						...(options.benchmarkReadinessContract === false
 							? []
 							: ["processing.benchmark.runtime-readiness-v2"]),
-						...(options.benchmarkEvidence ? ["processing.benchmark.evidence-v1"] : []),
+						...(options.benchmarkEvidence
+							? [
+									"processing.benchmark.evidence-v1",
+									"processing.benchmark.reference-v1",
+									"processing.benchmark.quality-v1",
+								]
+							: []),
 						"runtime.qwen.check",
 						"runtime.qwen.update",
 						"job.events",
@@ -971,6 +1078,18 @@ export async function installCompanionFixture(
 			path.endsWith("/snapshot")
 		) {
 			const profileId = path.split("/")[4]!;
+			if ((options.benchmarkSnapshotDelayMs ?? 0) > 0) {
+				await new Promise((resolve) =>
+					setTimeout(resolve, options.benchmarkSnapshotDelayMs),
+				);
+			}
+			if (options.benchmarkCorruptProfile === profileId) {
+				return json(
+					route,
+					{ error: { code: "BENCHMARK_ARTIFACT_INTEGRITY_FAILED", recoverable: false } },
+					409,
+				);
+			}
 			const engine = profileId.startsWith("whisper-") ? "whisper" : "qwen3";
 			const quality = profileId.endsWith("quality") || profileId.endsWith("detailed");
 			const runtimeFamily = engine === "whisper" ? "whisper" : "qwen";
@@ -1061,9 +1180,10 @@ export async function installCompanionFixture(
 						end: 3,
 						timeline_start: 1,
 						timeline_end: 3,
-						text: quality
-							? "Aventureiros chegam a Neverwinter"
-							: "Aventureiros chegam a Never winter",
+						text:
+							profileId === "whisper-turbo" || quality
+								? "Aventureiros chegam a Neverwinter"
+								: "Aventureiros chegam a Never winter",
 						speaker: "Alice",
 						word_count: 4,
 						timing_precision: engine === "qwen3" ? "word" : "segment",
@@ -1131,6 +1251,106 @@ export async function installCompanionFixture(
 				},
 				body: Buffer.from("PK synthetic private benchmark evidence"),
 			});
+		}
+
+		if (options.benchmarkEvidence && path === `/benchmarks/${benchmarkId}/reference`) {
+			if (request.method() !== "GET") return invalidRequest(route);
+			return json(route, {
+				status: referenceStatus(),
+				reference: benchmarkReference,
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			path.startsWith(`/benchmarks/${benchmarkId}/profiles/`) &&
+			path.endsWith("/reference-draft")
+		) {
+			if (request.method() !== "GET") return invalidRequest(route);
+			const profileId = path.split("/")[4]!;
+			if (!benchmarkProfileIds.includes(profileId as (typeof benchmarkProfileIds)[number]))
+				return invalidRequest(route);
+			return json(route, {
+				schema_version: "tda_benchmark_reference_draft_v1",
+				benchmark_id: benchmarkId,
+				source_sha256: sourceSha,
+				sample_identity_sha256: "b".repeat(64),
+				capability_level: 1,
+				provenance: {
+					kind: "derived-from-profile",
+					seed_profile_id: profileId,
+					human_owned: true,
+				},
+				normalization_policy: normalizationPolicy,
+				glossary_terms: [],
+				tracks: [
+					{
+						track_number: 1,
+						speaker: "Alice",
+						text: "Aventureiros chegam a Neverwinter",
+					},
+					{
+						track_number: 2,
+						speaker: "Bob",
+						text: "O dragão desperta",
+					},
+				],
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			path === `/benchmarks/${benchmarkId}/references` &&
+			request.method() === "POST"
+		) {
+			let payload: Record<string, unknown>;
+			try {
+				payload = request.postDataJSON() as Record<string, unknown>;
+			} catch {
+				return invalidRequest(route);
+			}
+			if (
+				payload.expected_revision !== benchmarkReferenceRevision ||
+				(payload.capability_level !== 1 && payload.capability_level !== 2) ||
+				!Array.isArray(payload.tracks) ||
+				!Array.isArray(payload.glossary_terms)
+			) {
+				return json(
+					route,
+					{ error: { code: "BENCHMARK_REFERENCE_STALE_REVISION", recoverable: true } },
+					409,
+				);
+			}
+			benchmarkReferenceRevision += 1;
+			benchmarkReference = {
+				schema_version: "tda_benchmark_reference_v1",
+				benchmark_id: benchmarkId,
+				source_sha256: sourceSha,
+				sample_identity_sha256: "b".repeat(64),
+				revision: benchmarkReferenceRevision,
+				parent_revision: benchmarkReferenceRevision > 1 ? benchmarkReferenceRevision - 1 : null,
+				capability_level: payload.capability_level,
+				canonical_payload_sha256: "9".repeat(64),
+				provenance: {
+					kind: payload.provenance_kind,
+					seed_profile_id: payload.seed_profile_id ?? null,
+					human_owned: true,
+				},
+				normalization_policy: normalizationPolicy,
+				glossary_terms: payload.glossary_terms,
+				tracks: payload.tracks,
+			};
+			return json(route, {
+				schema_version: "tda_benchmark_reference_save_v1",
+				reference: benchmarkReference,
+				status: referenceStatus(),
+				quality: qualitySummary(),
+			});
+		}
+		if (
+			options.benchmarkEvidence &&
+			path === `/benchmarks/${benchmarkId}/quality` &&
+			request.method() === "GET"
+		) {
+			return json(route, qualitySummary());
 		}
 
 		if (path === "/jobs/benchmark-job-1/result") {
