@@ -791,11 +791,7 @@ def test_partial_benchmark_result_readback_verifies_profile_artifacts_without_co
 ):
     data_root = tmp_path / "Data"
     data_root.mkdir()
-    job_id = "partial-readback-job"
     sample_identity = benchmark_sample_identity(_package())
-    all_receipts = _profile_receipts(data_root, job_id, 1)
-    receipts = [all_receipts[0], all_receipts[1], all_receipts[3]]
-    benchmark_id = benchmark_id_for(job_id, 1)
     body = {
         "kind": "benchmark.craig",
         "campaign_id": "benchmark-local",
@@ -815,7 +811,9 @@ def test_partial_benchmark_result_readback_verifies_profile_artifacts_without_co
     submitted = store.submit("partial-readback-key", body)
     claimed_id, attempt = store.claim()
     assert claimed_id == submitted["id"]
-    assert claimed_id == job_id or claimed_id != ""
+    all_receipts = _profile_receipts(data_root, claimed_id, attempt)
+    receipts = [all_receipts[0], all_receipts[1], all_receipts[3]]
+    benchmark_id = benchmark_id_for(claimed_id, attempt)
     for completed in range(1, 5):
         assert store.progress(
             claimed_id,
@@ -824,12 +822,6 @@ def test_partial_benchmark_result_readback_verifies_profile_artifacts_without_co
             total=4,
             stage="benchmark",
         )
-    # Persisted profile artifacts were created for the intended benchmark id above,
-    # so bind the queue result to the actual submitted id with fresh artifacts.
-    if claimed_id != job_id:
-        all_receipts = _profile_receipts(data_root, claimed_id, attempt)
-        receipts = [all_receipts[0], all_receipts[1], all_receipts[3]]
-        benchmark_id = benchmark_id_for(claimed_id, attempt)
 
     result = {
         "schema_version": "tda_processing_benchmark_v2",
