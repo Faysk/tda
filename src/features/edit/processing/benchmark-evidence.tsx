@@ -493,7 +493,7 @@ export function BenchmarkEvidenceWorkspace({
 				{mode === "compare" ? (
 					<>
 						<div className={styles.selectors}>
-							<label>
+							<div>
 								Perfil A
 								<Select
 									value={leftProfile}
@@ -506,8 +506,8 @@ export function BenchmarkEvidenceWorkspace({
 									ariaLabel="Perfil A"
 									compact
 								/>
-							</label>
-							<label>
+							</div>
+							<div>
 								Perfil B
 								<Select
 									value={rightProfile}
@@ -520,7 +520,7 @@ export function BenchmarkEvidenceWorkspace({
 									ariaLabel="Perfil B"
 									compact
 								/>
-							</label>
+							</div>
 							{leftProfile === rightProfile ? (
 								<span className={styles.muted}>
 									Escolha dois perfis diferentes.
@@ -575,7 +575,7 @@ export function BenchmarkEvidenceWorkspace({
 							{tab === "text" || tab === "timing" ? (
 								<>
 									<div className={styles.filters}>
-										<label>
+										<div>
 											Track
 											<Select
 												value={track}
@@ -587,8 +587,8 @@ export function BenchmarkEvidenceWorkspace({
 												ariaLabel="Filtrar por track"
 												compact
 											/>
-										</label>
-										<label>
+										</div>
+										<div>
 											Speaker
 											<Select
 												value={speaker}
@@ -600,7 +600,7 @@ export function BenchmarkEvidenceWorkspace({
 												ariaLabel="Filtrar por speaker"
 												compact
 											/>
-										</label>
+										</div>
 										<label>
 											De (s)
 											<input
