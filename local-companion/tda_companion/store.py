@@ -1986,7 +1986,7 @@ class Store:
             ).fetchone()
             if not row:
                 raise KeyError(job_id)
-            if row["status"] not in ("succeeded", "failed", "interrupted", "cancelled"):
+            if row["status"] not in ("succeeded", "partial", "failed", "interrupted", "cancelled"):
                 raise Conflict("JOB_ACTIVE")
             # Queue rows and events are disposable operational state. Preserve the
             # terminal status/attempt before deletion so run visibility does not
@@ -2195,6 +2195,48 @@ class Store:
                 job_id,
                 "SUCCEEDED",
                 {"total": body["units"]},
+                attempt=attempt,
+            )
+            return True
+
+    def complete_partial(self, job_id, attempt, result, *, completed_count, failed_count):
+        if (
+            isinstance(completed_count, bool)
+            or not isinstance(completed_count, int)
+            or completed_count < 0
+            or isinstance(failed_count, bool)
+            or not isinstance(failed_count, int)
+            or failed_count < 1
+        ):
+            raise Conflict("BENCHMARK_PARTIAL_COUNTS_INVALID")
+        encoded = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if not row or row["status"] != "running" or row["attempt"] != attempt:
+                return False
+            body = json.loads(row["body"])
+            if body.get("kind") != "benchmark.craig":
+                raise Conflict("BENCHMARK_PARTIAL_KIND_INVALID")
+            if row["completed"] != body["units"]:
+                raise Conflict("WORKER_RESULT_INCOMPLETE")
+            if completed_count + failed_count != body["units"]:
+                raise Conflict("BENCHMARK_PARTIAL_COUNTS_INVALID")
+            now = utc_now()
+            db.execute(
+                "UPDATE jobs SET status='partial',stage='complete',result=?,error=NULL,error_recoverable=1,"
+                "attempt_finished_at=?,stage_started_at=?,updated=? WHERE id=?",
+                (encoded, now, now, now, job_id),
+            )
+            self.event(
+                db,
+                job_id,
+                "BENCHMARK_PARTIAL",
+                {
+                    "total": body["units"],
+                    "completed_count": completed_count,
+                    "failed_count": failed_count,
+                },
+                level="warning",
                 attempt=attempt,
             )
             return True
