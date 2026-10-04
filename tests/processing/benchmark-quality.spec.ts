@@ -95,7 +95,15 @@ test("four-profile evidence, comparison, private export and human-reference qual
 			),
 		)
 		.toBe(true);
-	await expect(evidence.getByText(/Track 1 · changed/u)).toBeVisible();
+	const textualDifference = evidence
+		.locator('article[data-kind]:not([data-kind="equal"])')
+		.first();
+	await expect(textualDifference).toBeVisible();
+	const differenceKind = await textualDifference.getAttribute("data-kind");
+	expect(differenceKind).not.toBeNull();
+	await expect(textualDifference.locator("strong").first()).toContainText(
+		`· ${differenceKind ?? ""}`,
+	);
 
 	const nextDifference = evidence.getByRole("button", { name: "Próxima diferença →" });
 	await nextDifference.click();
