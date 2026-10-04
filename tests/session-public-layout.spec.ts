@@ -731,13 +731,6 @@ test("long session summaries expose compact stable section navigation without bu
 		await expect(disclosure).not.toHaveAttribute("open", "");
 		await disclosure.locator("summary").click();
 
-		const select = navigation.getByLabel("Ir para uma seção");
-		await expect(select).toBeVisible();
-		await select.click();
-		const outlineListbox = page.getByRole("listbox", { name: "Ir para uma seção" });
-		expect(await outlineListbox.getByRole("option").count()).toBeGreaterThan(12);
-		await page.keyboard.press("Escape");
-
 		const repeated = page.getByRole("heading", {
 			name: "Capítulo repetido",
 		});
@@ -749,7 +742,24 @@ test("long session summaries expose compact stable section navigation without bu
 		expect(firstId).not.toBe(secondId);
 		if (!secondId) throw new Error("Second repeated heading is missing its stable ID");
 
-		await selectThemedOption(page, select, secondId);
+		const select = navigation.getByLabel("Ir para uma seção");
+		await expect(select).toBeVisible();
+		await select.click();
+		const outlineListbox = page.getByRole("listbox", { name: "Ir para uma seção" });
+		const outlineOptions = outlineListbox.getByRole("option");
+		expect(await outlineOptions.count()).toBeGreaterThan(12);
+		let targetSelected = false;
+		for (let index = 0; index < (await outlineOptions.count()); index += 1) {
+			const option = outlineOptions.nth(index);
+			if ((await option.getAttribute("data-value")) === secondId) {
+				await option.click();
+				targetSelected = true;
+				break;
+			}
+		}
+		expect(targetSelected).toBe(true);
+		await expect(select).toHaveAttribute("data-value", secondId);
+		await expect(select).toHaveAttribute("aria-expanded", "false");
 		await expect(page).toHaveURL(new RegExp(`#${secondId}$`, "u"));
 		await expect(repeated.nth(1)).toBeInViewport();
 		await expect(repeated.nth(1)).toBeFocused();
