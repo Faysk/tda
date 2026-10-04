@@ -691,6 +691,7 @@ class WorkerSupervisor:
             attempted_count: int,
             error_code: str | None = None,
             recoverable: bool | None = None,
+            scope: str | None = None,
         ) -> None:
             if on_event is None:
                 return
@@ -705,7 +706,7 @@ class WorkerSupervisor:
             }
             if error_code is not None:
                 payload["error_code"] = error_code
-                payload["scope"] = "profile"
+                payload["scope"] = scope or "profile"
             if recoverable is not None:
                 payload["recoverable"] = recoverable
             on_event(
@@ -795,6 +796,14 @@ class WorkerSupervisor:
                         diagnostics.finalize(status="failed", error_code=exc.code)
                     except BenchmarkDiagnosticsError:
                         pass
+                emit_profile_event(
+                    "BENCHMARK_PROFILE_ABORTED",
+                    profile_id=profile_id,
+                    attempted_count=index,
+                    error_code=exc.code,
+                    recoverable=False,
+                    scope="benchmark",
+                )
                 raise WorkerProcessError(exc.code, recoverable=False) from exc
             except WorkerProcessError as exc:
                 if diagnostics is not None:
@@ -806,6 +815,14 @@ class WorkerSupervisor:
                             recoverable=False,
                         ) from exc
                 if not _benchmark_profile_error_isolated(profile_id, exc):
+                    emit_profile_event(
+                        "BENCHMARK_PROFILE_ABORTED",
+                        profile_id=profile_id,
+                        attempted_count=index,
+                        error_code=exc.code,
+                        recoverable=exc.recoverable,
+                        scope="benchmark",
+                    )
                     raise
                 failed_count += 1
                 profile_outcomes.append(
@@ -837,11 +854,19 @@ class WorkerSupervisor:
                         )
                     except BenchmarkDiagnosticsError:
                         pass
+                emit_profile_event(
+                    "BENCHMARK_PROFILE_ABORTED",
+                    profile_id=profile_id,
+                    attempted_count=index,
+                    error_code="BENCHMARK_PROFILE_SUPERVISOR_FAILED",
+                    recoverable=False,
+                    scope="benchmark",
+                )
                 raise
 
             if outcome.terminal != "result":
+                status = "cancelled" if outcome.terminal == "cancelled" else "failed"
                 if diagnostics is not None:
-                    status = "cancelled" if outcome.terminal == "cancelled" else "failed"
                     diagnostics.finalize(
                         status=status,
                         error_code=(
@@ -849,6 +874,21 @@ class WorkerSupervisor:
                             if status == "cancelled"
                             else "BENCHMARK_PROFILE_SUPERVISOR_FAILED"
                         ),
+                    )
+                if status == "cancelled":
+                    emit_profile_event(
+                        "BENCHMARK_PROFILE_CANCELLED",
+                        profile_id=profile_id,
+                        attempted_count=index,
+                    )
+                else:
+                    emit_profile_event(
+                        "BENCHMARK_PROFILE_ABORTED",
+                        profile_id=profile_id,
+                        attempted_count=index,
+                        error_code="BENCHMARK_PROFILE_SUPERVISOR_FAILED",
+                        recoverable=False,
+                        scope="benchmark",
                     )
                 return outcome
 

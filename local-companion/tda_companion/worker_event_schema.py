@@ -275,6 +275,24 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         ),
         level="warning",
     ),
+    "BENCHMARK_PROFILE_ABORTED": _schema(
+        "stage", "profile", "attempted_count", "successful_count", "failed_count",
+        "total_profiles", "error_code", "recoverable", "scope",
+        required=(
+            "stage", "profile", "attempted_count", "successful_count", "failed_count",
+            "total_profiles", "error_code", "recoverable", "scope",
+        ),
+        level="error",
+    ),
+    "BENCHMARK_PROFILE_CANCELLED": _schema(
+        "stage", "profile", "attempted_count", "successful_count", "failed_count",
+        "total_profiles",
+        required=(
+            "stage", "profile", "attempted_count", "successful_count", "failed_count",
+            "total_profiles",
+        ),
+        level="warning",
+    ),
     "SOURCE_VALIDATED": _schema(
         "stage", "track_count", required=("stage", "track_count")
     ),

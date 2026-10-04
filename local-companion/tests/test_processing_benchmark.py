@@ -380,6 +380,7 @@ def test_benchmark_qwen_error_from_whisper_profile_is_not_treated_as_isolated(mo
 def test_benchmark_unknown_recoverable_error_remains_global_fail_closed(monkeypatch):
     supervisor = WorkerSupervisor()
     seen: list[str] = []
+    events: list[dict] = []
 
     def fake_run_craig(self, *, profile_id, **_kwargs):
         seen.append(profile_id)
@@ -403,9 +404,19 @@ def test_benchmark_unknown_recoverable_error_remains_global_fail_closed(monkeypa
             sample_identity_sha256="b" * 64,
             sample_seconds=300.0,
             on_progress=lambda _message: None,
+            on_event=lambda message: events.append(dict(message.payload)),
         )
 
     assert seen == ["whisper-turbo", "whisper-detailed", "qwen-fast"]
+    aborted = [item for item in events if item.get("code") == "BENCHMARK_PROFILE_ABORTED"]
+    assert len(aborted) == 1
+    assert aborted[0]["profile"] == "qwen-fast"
+    assert aborted[0]["attempted_count"] == 3
+    assert aborted[0]["successful_count"] == 2
+    assert aborted[0]["failed_count"] == 0
+    assert aborted[0]["error_code"] == "QWEN_ASR_INFERENCE_FAILED"
+    assert aborted[0]["recoverable"] is True
+    assert aborted[0]["scope"] == "benchmark"
 
 
 def test_benchmark_last_profile_isolated_failure_returns_partial(monkeypatch):
@@ -448,6 +459,7 @@ def test_benchmark_last_profile_isolated_failure_returns_partial(monkeypatch):
 def test_benchmark_stops_without_complete_receipt_on_cancel(monkeypatch):
     supervisor = WorkerSupervisor()
     calls = 0
+    events: list[dict] = []
 
     def fake_run_craig(self, *, profile_id, **_kwargs):
         nonlocal calls
@@ -475,10 +487,16 @@ def test_benchmark_stops_without_complete_receipt_on_cancel(monkeypatch):
         sample_identity_sha256="b" * 64,
         sample_seconds=300.0,
         on_progress=lambda _message: None,
+        on_event=lambda message: events.append(dict(message.payload)),
     )
 
     assert outcome.terminal == "cancelled"
     assert calls == 2
+    cancelled = [item for item in events if item.get("code") == "BENCHMARK_PROFILE_CANCELLED"]
+    assert len(cancelled) == 1
+    assert cancelled[0]["profile"] == "whisper-detailed"
+    assert cancelled[0]["attempted_count"] == 2
+    assert cancelled[0]["successful_count"] == 1
 
 
 def test_benchmark_rejects_non_benchmark_profile_result(monkeypatch):

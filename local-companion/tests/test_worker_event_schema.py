@@ -212,6 +212,58 @@ def test_benchmark_profile_failure_event_preserves_only_safe_continuation_metada
     assert "private" not in repr(event).lower()
 
 
+def test_benchmark_global_abort_event_preserves_safe_scope_without_private_payload():
+    event = sanitize_worker_event(
+        {
+            "code": "BENCHMARK_PROFILE_ABORTED",
+            "stage": "benchmark",
+            "profile": "qwen-fast",
+            "attempted_count": 3,
+            "successful_count": 2,
+            "failed_count": 0,
+            "total_profiles": 4,
+            "error_code": "QWEN_ASR_INFERENCE_FAILED",
+            "recoverable": True,
+            "scope": "benchmark",
+            "text": "private transcript",
+            "path": "C:/private/audio.flac",
+        }
+    )
+
+    assert event.code == "BENCHMARK_PROFILE_ABORTED"
+    assert event.level == "error"
+    assert event.data == {
+        "stage": "benchmark",
+        "profile": "qwen-fast",
+        "attempted_count": 3,
+        "successful_count": 2,
+        "failed_count": 0,
+        "total_profiles": 4,
+        "error_code": "QWEN_ASR_INFERENCE_FAILED",
+        "recoverable": True,
+        "scope": "benchmark",
+    }
+    assert event.drift_reason == "unexpected_or_invalid_field"
+    assert "private" not in repr(event).lower()
+
+
+def test_benchmark_cancelled_event_is_profile_scoped_without_error_payload():
+    event = sanitize_worker_event(
+        {
+            "code": "BENCHMARK_PROFILE_CANCELLED",
+            "stage": "benchmark",
+            "profile": "whisper-detailed",
+            "attempted_count": 2,
+            "successful_count": 1,
+            "failed_count": 0,
+            "total_profiles": 4,
+        }
+    )
+    assert event.code == "BENCHMARK_PROFILE_CANCELLED"
+    assert event.level == "warning"
+    assert event.drift_reason is None
+
+
 def test_unknown_or_malformed_event_code_never_persists_raw_code_or_payload():
     for payload in (
         {"code": "PRIVATE_WORDS_FROM_TRANSCRIPT", "detail": "segredo"},
