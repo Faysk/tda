@@ -19,6 +19,13 @@ export type SessionAssemblyPart = {
 
 export type SessionAssembly = {
 	schemaVersion: "tda_session_assembly_v1";
+	canonicalizationVersion:
+		| "tda_session_assembly_canonical_v1"
+		| "tda_session_assembly_canonical_v2";
+	timingPolicyVersion:
+		| "tda_session_timeline_v1"
+		| "tda_session_timeline_v2";
+	segmentBoundaryPolicy: "segment_start_owner_v1";
 	assemblyId: string;
 	campaignId: string;
 	sessionId: string;
@@ -208,11 +215,25 @@ export function parseSessionAssembly(value: unknown): SessionAssembly {
 	if (!Array.isArray(row.parts) || row.parts.length < 1 || row.parts.length > 64)
 		return invalid();
 	const parts = row.parts.map((part, index) => parseAssemblyPart(part, index));
+	const timingPolicyVersion = string(row.timing_policy_version, 48);
+	if (
+		(canonicalizationVersion === "tda_session_assembly_canonical_v1" &&
+			timingPolicyVersion !== "tda_session_timeline_v1") ||
+		(canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+			timingPolicyVersion !== "tda_session_timeline_v2") ||
+		row.segment_boundary_policy !== "segment_start_owner_v1"
+	)
+		return invalid();
 	const assemblyId = hex(row.assembly_id, 64);
 	const inputsSha256 = hex(row.inputs_sha256, 64);
 	if (assemblyId !== inputsSha256) return invalid();
 	return {
 		schemaVersion: "tda_session_assembly_v1",
+		canonicalizationVersion:
+			canonicalizationVersion as SessionAssembly["canonicalizationVersion"],
+		timingPolicyVersion:
+			timingPolicyVersion as SessionAssembly["timingPolicyVersion"],
+		segmentBoundaryPolicy: "segment_start_owner_v1",
 		assemblyId,
 		campaignId: id(row.campaign_id, 128),
 		sessionId: id(row.session_id, 128),
