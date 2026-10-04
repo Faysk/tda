@@ -836,6 +836,139 @@ def test_queue_row_deletion_does_not_remove_completed_bundle(tmp_path: Path):
 
 
 
+def test_partial_benchmark_result_readback_revalidates_preserved_profile_bytes(
+    tmp_path: Path,
+):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    job_id = "partial-api-job"
+    package = _package()
+    sample_identity = benchmark_sample_identity(package)
+    receipts = _profile_receipts(data_root, job_id, 1, count=3)
+    benchmark_id = benchmark_id_for(job_id, 1)
+    body = {
+        "kind": "benchmark.craig",
+        "campaign_id": "benchmark-local",
+        "session_id": "benchmark-local",
+        "source_id": SOURCE_ID,
+        "glossary": "",
+        "context": "",
+        "units": 4,
+        "sample_seconds": 300.0,
+        "sample_identity_sha256": sample_identity,
+        "track_count": 1,
+        "audio_work_seconds": 300.0,
+        "profiles": list(BENCHMARK_PROFILES),
+        "prepared": True,
+    }
+    store = Store(data_root)
+    submitted = store.submit("partial-api-intent", body)
+    assert submitted["id"] == job_id or submitted["id"]
+    actual_job_id = submitted["id"]
+    # Profile evidence must be tied to the actual queue job identity.
+    if actual_job_id != job_id:
+        receipts = _profile_receipts(data_root, actual_job_id, 1, count=3)
+        benchmark_id = benchmark_id_for(actual_job_id, 1)
+    claimed = store.claim()
+    assert claimed is not None
+    assert claimed[0] == actual_job_id
+    attempt = claimed[1]
+    for completed in range(1, 5):
+        assert store.progress(
+            actual_job_id,
+            attempt,
+            completed=completed,
+            total=4,
+            stage="benchmark",
+        )
+
+    outcomes = [
+        {
+            "schema_version": "tda_benchmark_profile_outcome_v1",
+            "profile_id": profile_id,
+            "status": "completed",
+            "artifact_available": True,
+            "error": None,
+        }
+        for profile_id in BENCHMARK_PROFILES[:3]
+    ]
+    outcomes.append(
+        {
+            "schema_version": "tda_benchmark_profile_outcome_v1",
+            "profile_id": "qwen-quality",
+            "status": "failed",
+            "artifact_available": False,
+            "error": {
+                "code": "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+                "recoverable": True,
+                "scope": "profile",
+            },
+        }
+    )
+    partial = {
+        "schema_version": "tda_processing_benchmark_v2",
+        "kind": "benchmark.craig",
+        "job_id": actual_job_id,
+        "campaign_id": "benchmark-local",
+        "session_id": "benchmark-local",
+        "source_id": SOURCE_ID,
+        "source_sha256": SOURCE_SHA,
+        "benchmark_id": benchmark_id,
+        "sample_identity_sha256": sample_identity,
+        "sample_seconds": 300.0,
+        "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+        "outcome": "partial",
+        "attempted_count": 4,
+        "completed_count": 3,
+        "failed_count": 1,
+        "track_count": 1,
+        "audio_work_seconds": 300.0,
+        "prepared": True,
+        "bundle_manifest_sha256": None,
+        "bundle_size_bytes": None,
+        "profiles": receipts,
+        "profile_outcomes": outcomes,
+    }
+    assert store.complete_partial_benchmark(actual_job_id, attempt, partial)
+
+    token = "s" * 43
+    origin = "https://panel.example"
+    app = create_app(data_root, token, {origin}, run_worker=False)
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        session_response = client.post(
+            "/api/v1/session",
+            headers={"Origin": origin, "Content-Type": "application/json"},
+            json={},
+        )
+        browser_token = session_response.json()["token"]
+        headers = {
+            "Origin": origin,
+            "Authorization": f"Bearer {browser_token}",
+        }
+
+        result = client.get(f"/api/v1/jobs/{actual_job_id}/result", headers=headers)
+        assert result.status_code == 200
+        assert result.json()["outcome"] == "partial"
+        assert result.json()["bundle_manifest_sha256"] is None
+
+        transcript = (
+            benchmark_root(data_root, benchmark_id)
+            / "profiles"
+            / "whisper-detailed"
+            / "transcript.json"
+        )
+        payload = bytearray(transcript.read_bytes())
+        payload[-2] = payload[-2] ^ 1
+        transcript.write_bytes(payload)
+
+        corrupted = client.get(
+            f"/api/v1/jobs/{actual_job_id}/result",
+            headers=headers,
+        )
+        assert corrupted.status_code == 409
+        assert corrupted.json()["error"]["code"] == "RESULT_ARTIFACT_UNAVAILABLE"
+
+
 def test_benchmark_content_endpoints_are_authenticated_lazy_and_profile_scoped(tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
