@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -68,6 +68,44 @@ async function expectNoHorizontalOverflow(page: Page) {
 		clientWidth: document.documentElement.clientWidth,
 	}));
 	expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
+}
+
+async function openArchiveSelect(scope: Page | Locator, name: string) {
+	const trigger = scope.getByRole("button", { name, exact: true });
+	await trigger.click();
+	const listbox = scope.getByRole("listbox", { name, exact: true });
+	await expect(listbox).toBeVisible();
+	return listbox;
+}
+
+async function archiveOptionLabels(scope: Page | Locator, name: string) {
+	const listbox = await openArchiveSelect(scope, name);
+	const labels = await listbox.getByRole("option").allTextContents();
+	await listbox.press("Escape");
+	return labels;
+}
+
+async function chooseArchiveOptionByLabel(
+	scope: Page | Locator,
+	name: string,
+	label: string,
+) {
+	const listbox = await openArchiveSelect(scope, name);
+	await listbox.getByRole("option", { name: label, exact: true }).click();
+}
+
+async function chooseArchiveOptionByValue(
+	scope: Page | Locator,
+	name: string,
+	value: string,
+) {
+	const listbox = await openArchiveSelect(scope, name);
+	await listbox.getByRole("option").filter({ has: listbox.locator(`[data-never-match="${value}"]`) }).count().catch(() => 0);
+	await listbox.locator('[role="option"]').evaluateAll((nodes, expected) => {
+		const match = nodes.find((node) => node.getAttribute("data-value") === expected);
+		if (!(match instanceof HTMLElement)) throw new Error(`Select option ${expected} not found`);
+		match.click();
+	}, value);
 }
 
 test("public Sessions keeps archive value in the first viewport and reader measure healthy", async ({
@@ -452,16 +490,20 @@ test("session arc filters share normalized identity without crossing campaign bo
 	const scoped = page.locator(
 		'[data-session-scope-fixture="arc-identity-scoped"]',
 	);
-	const scopedArc = scoped.getByRole("combobox", { name: "Filtrar por arco" });
+	const scopedArcLabels = await archiveOptionLabels(scoped, "Filtrar por arco");
 
-	await expect(scopedArc.locator("option")).toHaveCount(4);
+	expect(scopedArcLabels).toHaveLength(4);
 	expect(
-		(await scopedArc.locator("option").allTextContents()).filter((label) =>
+		scopedArcLabels.filter((label) =>
 			label.toLocaleLowerCase("pt-BR").includes("valcinzento"),
 		),
 	).toHaveLength(1);
 
-	await scopedArc.selectOption({ label: "VALCINZENTO E O CORAÇÃO-RAIZ" });
+	await chooseArchiveOptionByLabel(
+		scoped,
+		"Filtrar por arco",
+		"VALCINZENTO E O CORAÇÃO-RAIZ",
+	);
 	await expect(scoped.locator('[data-session-card="grid"]')).toHaveCount(4);
 	await expect(scoped.locator("[data-session-archive-results] strong")).toHaveText(
 		"4",
@@ -472,19 +514,16 @@ test("session arc filters share normalized identity without crossing campaign bo
 
 	await scoped.getByRole("button", { name: "Limpar filtros" }).click();
 	await expect(scoped.locator('[data-session-card="list"]')).toHaveCount(6);
-	await scoped.getByLabel("Ordenar por").selectOption("title");
+	await chooseArchiveOptionByValue(scoped, "Ordenar por", "title");
 	await expect(scoped.locator('[data-session-card="list"]')).toHaveCount(6);
 
 	const aggregate = page.locator(
 		'[data-session-scope-fixture="arc-identity-aggregate"]',
 	);
-	const aggregateCampaign = aggregate.getByRole("combobox", {
-		name: "Filtrar por campanha",
-	});
-	const aggregateArc = aggregate.getByRole("combobox", {
-		name: "Filtrar por arco",
-	});
-	const aggregateArcLabels = await aggregateArc.locator("option").allTextContents();
+	const aggregateArcLabels = await archiveOptionLabels(
+		aggregate,
+		"Filtrar por arco",
+	);
 
 	const aggregateValcinzentoLabels = aggregateArcLabels.filter((label) =>
 		label.toLocaleLowerCase("pt-BR").includes("valcinzento"),
@@ -497,21 +536,39 @@ test("session arc filters share normalized identity without crossing campaign bo
 		]),
 	);
 
-	await aggregateArc.selectOption({
-		label: "VALCINZENTO E O CORAÇÃO-RAIZ — Campanha Única de Teste",
-	});
+	await chooseArchiveOptionByLabel(
+		aggregate,
+		"Filtrar por arco",
+		"VALCINZENTO E O CORAÇÃO-RAIZ — Campanha Única de Teste",
+	);
 	await expect(aggregate.locator('[data-session-card="grid"]')).toHaveCount(4);
 
-	await aggregateCampaign.selectOption("fixture-with-content");
+	await chooseArchiveOptionByValue(
+		aggregate,
+		"Filtrar por campanha",
+		"fixture-with-content",
+	);
 	await expect(aggregate.locator('[data-session-card="grid"]')).toHaveCount(1);
-	await expect(aggregateArc.locator("option")).toHaveCount(2);
-	await aggregateArc.selectOption({ label: "Valcinzento e o Coração-Raiz" });
+	expect(await archiveOptionLabels(aggregate, "Filtrar por arco")).toHaveLength(2);
+	await chooseArchiveOptionByLabel(
+		aggregate,
+		"Filtrar por arco",
+		"Valcinzento e o Coração-Raiz",
+	);
 	await expect(aggregate.locator('[data-session-card="grid"]')).toHaveCount(1);
 
-	await aggregateCampaign.selectOption("fixture-only-campaign");
+	await chooseArchiveOptionByValue(
+		aggregate,
+		"Filtrar por campanha",
+		"fixture-only-campaign",
+	);
 	await expect(aggregate.locator('[data-session-card="grid"]')).toHaveCount(6);
-	await expect(aggregateArc.locator("option")).toHaveCount(4);
-	await aggregateArc.selectOption({ label: "VALCINZENTO E O CORAÇÃO-RAIZ" });
+	expect(await archiveOptionLabels(aggregate, "Filtrar por arco")).toHaveLength(4);
+	await chooseArchiveOptionByLabel(
+		aggregate,
+		"Filtrar por arco",
+		"VALCINZENTO E O CORAÇÃO-RAIZ",
+	);
 	await expect(aggregate.locator('[data-session-card="grid"]')).toHaveCount(4);
 
 	await page.reload();
@@ -520,12 +577,9 @@ test("session arc filters share normalized identity without crossing campaign bo
 	);
 	await expect(reloadedScoped.locator('[data-session-card="grid"]')).toHaveCount(6);
 	expect(
-		(
-			await reloadedScoped
-				.getByRole("combobox", { name: "Filtrar por arco" })
-				.locator("option")
-				.allTextContents()
-		).filter((label) => label.toLocaleLowerCase("pt-BR").includes("valcinzento")),
+		(await archiveOptionLabels(reloadedScoped, "Filtrar por arco")).filter((label) =>
+			label.toLocaleLowerCase("pt-BR").includes("valcinzento"),
+		),
 	).toHaveLength(1);
 
 	await page.goto("/e2e-fixtures/session-archive-scope?history-probe=1");
