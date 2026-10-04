@@ -973,12 +973,14 @@ async function readContextualLogGeometry(
 		const toolbar = required("[data-live-log-toolbar='true']");
 		const log = required("[data-live-log-viewport='true']");
 		const footer = required("[data-live-log-footer='true']");
+		const host = required("[data-job-diagnostics-log='true']");
 		const shell = required("[data-job-diagnostics-shell='true']");
 		const dialogBox = dialog.getBoundingClientRect();
 		const controlsBox = controls.getBoundingClientRect();
 		const toolbarBox = toolbar.getBoundingClientRect();
 		const logBox = log.getBoundingClientRect();
 		const footerBox = footer.getBoundingClientRect();
+		const hostBox = host.getBoundingClientRect();
 		const footerVisible =
 			getComputedStyle(footer).display !== "none" && footer.getClientRects().length > 0;
 		return {
@@ -993,6 +995,8 @@ async function readContextualLogGeometry(
 			logTop: logBox.top,
 			logBottom: logBox.bottom,
 			footerTop: footerVisible ? footerBox.top : null,
+			footerBottom: footerVisible ? footerBox.bottom : null,
+			hostBottom: hostBox.bottom,
 			footerVisible,
 			logOverflowY: getComputedStyle(log).overflowY,
 			shellOverflowY: getComputedStyle(shell).overflowY,
@@ -1010,8 +1014,13 @@ function expectContextualLogRegionsDoNotOverlap(
 	expect(geometry.dialogScrollWidth).toBeLessThanOrEqual(
 		geometry.dialogClientWidth + 1,
 	);
-	if (geometry.footerVisible && geometry.footerTop !== null) {
+	if (
+		geometry.footerVisible &&
+		geometry.footerTop !== null &&
+		geometry.footerBottom !== null
+	) {
 		expect(geometry.logBottom).toBeLessThanOrEqual(geometry.footerTop + 1);
+		expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.hostBottom + 1);
 	}
 }
 
