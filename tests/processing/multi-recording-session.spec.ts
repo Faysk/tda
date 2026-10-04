@@ -80,6 +80,7 @@ type FixtureOptions = Readonly<{
 		| null
 	)[];
 	failReviewSaveOnce?: boolean;
+	untrustedSourceIndexes?: readonly number[];
 }>;
 
 async function installMultiRecordingRoutes(
@@ -89,6 +90,7 @@ async function installMultiRecordingRoutes(
 	let uploadIndex = 0;
 	let revision = 0;
 	let timelineDerived = false;
+	let sequenceConfirmed = false;
 	let agentOfflineOnce = false;
 	let failNextSecondSourceEnqueue = false;
 	const analyzed = new Set<string>();
@@ -192,13 +194,24 @@ async function installMultiRecordingRoutes(
 		};
 	};
 
+	const allAttachedSourcesTrusted = () =>
+		attached.every(
+			(sourceId) =>
+				!options.untrustedSourceIndexes?.includes(SOURCE_IDS.indexOf(sourceId)),
+		);
+	const chronologyReady = () =>
+		attached.length <= 1 || timelineDerived || sequenceConfirmed;
+
 	const workspace = () => ({
 		schema_version: "tda_session_workspace_v1",
 		campaign_id: CAMPAIGN,
 		session_id: SESSION,
 		revision,
-		ordering_mode:
-			attached.length <= 1 ? "attachment" : timelineDerived ? "automatic" : "attachment",
+		ordering_mode: sequenceConfirmed
+			? "confirmed_sequence"
+			: timelineDerived
+				? "automatic"
+				: "attachment",
 		created_at: NOW,
 		updated_at: NOW,
 		parts: attached.map((sourceId, index) => ({
@@ -207,33 +220,45 @@ async function installMultiRecordingRoutes(
 			ordinal: index,
 			selected_run_id: selected.get(sourceId) ?? null,
 			source_state: "ready",
-			timeline_mode:
-				attached.length <= 1 ? "automatic" : timelineDerived ? "automatic" : "unresolved",
-			session_offset_seconds:
-				attached.length <= 1 || timelineDerived ? index * 300 : null,
+			timeline_mode: sequenceConfirmed
+				? "confirmed_sequence"
+				: chronologyReady()
+					? "automatic"
+					: "unresolved",
+			session_offset_seconds: chronologyReady() ? index * 300 : null,
 			trim_start_seconds: 0,
 			trim_end_seconds: null,
 			gap_confirmed: false,
 			overlap_resolution: null,
 			overlap_boundary_seconds: null,
-			source_start_time: `2026-09-29T2${index}:00:00Z`,
-			source_start_confidence: "trusted_absolute",
-			source_start_utc: `2026-09-29T2${index}:00:00Z`,
+			source_start_time: options.untrustedSourceIndexes?.includes(
+				SOURCE_IDS.indexOf(sourceId),
+			)
+				? null
+				: `2026-09-29T2${index}:00:00Z`,
+			source_start_confidence: options.untrustedSourceIndexes?.includes(
+				SOURCE_IDS.indexOf(sourceId),
+			)
+				? "missing"
+				: "trusted_absolute",
+			source_start_utc: options.untrustedSourceIndexes?.includes(
+				SOURCE_IDS.indexOf(sourceId),
+			)
+				? null
+				: `2026-09-29T2${index}:00:00Z`,
 			source_duration_seconds: 300,
-			effective_start_seconds:
-				attached.length <= 1 || timelineDerived ? index * 300 : null,
-			effective_end_seconds:
-				attached.length <= 1 || timelineDerived ? (index + 1) * 300 : null,
+			effective_start_seconds: chronologyReady() ? index * 300 : null,
+			effective_end_seconds: chronologyReady() ? (index + 1) * 300 : null,
 			relation_to_previous:
 				index === 0
 					? "first"
-					: attached.length <= 1 || timelineDerived
+					: chronologyReady()
 						? "contiguous"
 						: "unknown",
 			relation_seconds:
 				index === 0
 					? null
-					: attached.length <= 1 || timelineDerived
+					: chronologyReady()
 						? 0
 						: null,
 			overlap_resolution_valid: true,
@@ -244,10 +269,13 @@ async function installMultiRecordingRoutes(
 			policy_version: "tda_session_timeline_v1",
 			segment_boundary_policy: "segment_start_owner_v1",
 			fingerprint_sha256: "f".repeat(64),
-			state:
-				attached.length <= 1 || timelineDerived ? "ready" : "needs_timing",
-			all_sources_trusted: true,
-			automatic_order_available: attached.length > 1 && !timelineDerived,
+			state: chronologyReady() ? "ready" : "needs_timing",
+			all_sources_trusted: allAttachedSourcesTrusted(),
+			automatic_order_available:
+				attached.length > 1 &&
+				allAttachedSourcesTrusted() &&
+				!timelineDerived &&
+				!sequenceConfirmed,
 			gap_count: 0,
 			overlap_count: 0,
 			order_conflict_count: 0,
@@ -434,6 +462,7 @@ async function installMultiRecordingRoutes(
 				attached = [...attached, payload.source_id];
 				revision += 1;
 				timelineDerived = false;
+				sequenceConfirmed = false;
 			}
 			return json(route, workspace());
 		}
@@ -443,6 +472,16 @@ async function installMultiRecordingRoutes(
 			request.method() === "POST"
 		) {
 			timelineDerived = true;
+			revision += 1;
+			return json(route, workspace());
+		}
+		if (
+			path ===
+				`/session-workspaces/${CAMPAIGN}/${SESSION}/timeline/sequence` &&
+			request.method() === "POST"
+		) {
+			sequenceConfirmed = true;
+			timelineDerived = false;
 			revision += 1;
 			return json(route, workspace());
 		}
