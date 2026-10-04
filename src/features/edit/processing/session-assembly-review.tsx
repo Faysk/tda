@@ -187,8 +187,14 @@ export function SessionAssemblyReview({
 
 	useEffect(() => {
 		onDirtyChange?.(dirty || editingDraft !== null);
-		return () => onDirtyChange?.(false);
 	}, [dirty, editingDraft, onDirtyChange]);
+
+	useEffect(
+		() => () => {
+			onDirtyChange?.(false);
+		},
+		[onDirtyChange],
+	);
 
 	const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
 	const matches = useMemo(
