@@ -217,6 +217,8 @@ function rawAssembly() {
 		campaign_id: "yuhara-main",
 		session_id: "session-42",
 		canonicalization_version: "tda_session_assembly_canonical_v1",
+		timing_policy_version: "tda_session_timeline_v1",
+		segment_boundary_policy: "segment_start_owner_v1",
 		inputs_sha256: "c".repeat(64),
 		timeline_fingerprint_sha256: "f".repeat(64),
 		participant_mapping_sha256: "e".repeat(64),
