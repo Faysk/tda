@@ -1453,6 +1453,7 @@ export async function installCompanionFixture(
 					kind: "benchmark.craig",
 					job_id: "benchmark-job-1",
 					source_id: CRAIG_SOURCE_ID,
+					source_sha256: CRAIG_SOURCE_ID.slice("craig-".length),
 					campaign_id: "benchmark-local",
 					session_id: "benchmark-local",
 					sample_identity_sha256: "b".repeat(64),
