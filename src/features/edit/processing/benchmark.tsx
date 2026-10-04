@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import {
 	BridgeError,
+	type BenchmarkCompleteResult,
+	type BenchmarkPartialResult,
 	type BenchmarkResult,
 	type Capabilities,
 	type CraigSource,
@@ -17,7 +19,7 @@ import {
 import { LocalBridge } from "./bridge";
 import { BenchmarkEvidenceWorkspace } from "./benchmark-evidence";
 import { BenchmarkQualityLab } from "./benchmark-quality";
-import { presentJobEvent, stageLabels } from "./presentation";
+import { presentJobError, presentJobEvent, stageLabels } from "./presentation";
 import {
 	formatSubmissionBytes,
 	profileReadinessCopy,
@@ -155,7 +157,7 @@ function ResultCard({
 	onExport,
 	onDiagnostics,
 }: Readonly<{
-	result: BenchmarkResult;
+	result: BenchmarkCompleteResult;
 	updatedAt: string;
 	bridge: LocalBridge;
 	connected: boolean;
@@ -287,6 +289,78 @@ function ResultCard({
 	);
 }
 
+function PartialResultCard({
+	result,
+	updatedAt,
+	onDiagnostics,
+}: Readonly<{
+	result: BenchmarkPartialResult;
+	updatedAt: string;
+	onDiagnostics: () => void;
+}>) {
+	const byProfile = new Map(
+		result.profiles.map((profile) => [profile.profileId, profile] as const),
+	);
+	return (
+		<article className={styles.resultCard}>
+			<header className={styles.resultHeader}>
+				<div>
+					<span className={styles.eyebrow}>Benchmark local · 5:00</span>
+					<h3>Benchmark parcial</h3>
+				</div>
+				<StatusPill tone="warning">Parcial</StatusPill>
+			</header>
+			<div className={styles.receiptFacts}>
+				<span>{formatBenchmarkHistoryDate(updatedAt)}</span>
+				<span>{result.attemptedCount + "/4 tentados"}</span>
+				<span>{result.completedCount + "/4 concluídos"}</span>
+				<span>{result.failedCount + (result.failedCount === 1 ? " falhou" : " falharam")}</span>
+				<span>sem bundle comparável 4/4</span>
+			</div>
+			<ol className={styles.runSteps} aria-label="Resultado dos quatro perfis">
+				{result.profileOutcomes.map((outcome) => {
+					const profile = byProfile.get(outcome.profileId);
+					return (
+						<li
+							key={outcome.profileId}
+							className={styles.runStep}
+							data-state={outcome.status === "completed" ? "complete" : "failed"}
+						>
+							<i aria-hidden="true">{outcome.status === "completed" ? "✓" : "×"}</i>
+							<span>
+								{LABELS[outcome.profileId]} ·{" "}
+								{outcome.status === "completed"
+									? profile
+										? "concluído · " + formatSeconds(profile.processingSeconds)
+										: "concluído"
+									: "falhou · " + (outcome.error?.code ?? "erro do perfil")}
+							</span>
+						</li>
+					);
+				})}
+			</ol>
+			<p className={styles.notice}>
+				Os perfis válidos foram preservados, mas esta execução não entra na
+				comparação de quatro perfis. Execute um novo benchmark para obter 4/4.
+			</p>
+			{result.profileOutcomes
+				.filter((outcome) => outcome.status === "failed" && outcome.error)
+				.map((outcome) => (
+					<p key={outcome.profileId} className={styles.error}>
+						<strong>{LABELS[outcome.profileId]}:</strong>{" "}
+						{presentJobError(outcome.error!.code, "benchmark.craig")}
+					</p>
+				))}
+			<div className={styles.activeActions}>
+				<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+					Abrir Diagnóstico
+				</Button>
+			</div>
+		</article>
+	);
+}
+
+
 function ProfileReadiness({
 	profile,
 	id,
@@ -384,7 +458,7 @@ export function ProcessingBenchmark({
 	const [status, setStatus] = useState<string | null>(null);
 	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
 	const [evidenceView, setEvidenceView] = useState<{
-		result: BenchmarkResult;
+		result: BenchmarkCompleteResult;
 		mode: "compare" | "files";
 		promptExport: boolean;
 	} | null>(null);
@@ -416,14 +490,17 @@ export function ProcessingBenchmark({
 		(acceptedJob && ["queued", "running"].includes(acceptedJob.status)
 			? acceptedJob
 			: undefined);
-	const latestCompleted = benchmarkJobs.filter(
-		(job) => job.status === "succeeded" && job.result_available,
-	);
+	const resultJobs = benchmarkJobs.filter((job) => job.result_available);
+	const latestCompleted = resultJobs.filter((job) => job.status === "succeeded");
 	const latestJob = benchmarkJobs[0];
 	const latestProblem =
-		latestJob && ["failed", "cancelled", "interrupted"].includes(latestJob.status)
+		latestJob &&
+		["failed", "cancelled", "interrupted"].includes(latestJob.status) &&
+		latestJob.error?.code !== "BENCHMARK_PARTIAL"
 			? latestJob
 			: undefined;
+	const latestPartialJob =
+		latestJob?.error?.code === "BENCHMARK_PARTIAL" ? latestJob : undefined;
 	const profileStates = PROFILES.map(
 		(id) => catalog.find((item) => item.id === id) ?? null,
 	);
@@ -484,7 +561,7 @@ export function ProcessingBenchmark({
 	}, [acceptedJob, benchmarkJobs]);
 
 	useEffect(() => {
-		const missing = latestCompleted
+		const missing = resultJobs
 			.slice(0, 10)
 			.filter((job) => results[job.id] === undefined);
 		if (!connected || missing.length === 0) return;
@@ -507,7 +584,7 @@ export function ProcessingBenchmark({
 			}));
 		});
 		return () => controller.abort();
-	}, [bridge, connected, latestCompleted, results]);
+	}, [bridge, connected, resultJobs, results]);
 
 	useEffect(() => () => request.current?.abort(), []);
 
