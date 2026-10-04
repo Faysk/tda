@@ -560,11 +560,6 @@ export function ProcessingPanel({
 			requestId: (current?.requestId ?? 0) + 1,
 		}));
 		activateView("results");
-		requestAnimationFrame(() => {
-			document
-				.querySelector<HTMLElement>("[data-assembly-review-owner='results']")
-				?.focus({ preventScroll: true });
-		});
 	}
 
 	async function openJobResult(job: LocalJob): Promise<string | null> {
