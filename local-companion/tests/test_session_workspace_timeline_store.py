@@ -147,6 +147,73 @@ def test_automatic_timeline_reorders_and_sets_offsets_atomically(tmp_path):
     ]
 
 
+
+def test_confirmed_sequence_persists_editorial_authority_and_known_gap(tmp_path):
+    store = Store(tmp_path)
+    workspace = _workspace_with_two_parts(store)
+    first, second = workspace["parts"]
+
+    confirmed = store.apply_confirmed_session_timeline(
+        "campaign-a",
+        "session-a",
+        [
+            {
+                "part_id": first["part_id"],
+                "source_id": first["source_id"],
+                "ordinal": 0,
+                "session_offset_seconds": 0.0,
+                "gap_confirmed": False,
+            },
+            {
+                "part_id": second["part_id"],
+                "source_id": second["source_id"],
+                "ordinal": 1,
+                "session_offset_seconds": 75.0,
+                "gap_confirmed": True,
+            },
+        ],
+        workspace["revision"],
+    )
+
+    assert confirmed["ordering_mode"] == "confirmed_sequence"
+    assert [part["timeline_mode"] for part in confirmed["parts"]] == [
+        "confirmed_sequence",
+        "confirmed_sequence",
+    ]
+    assert [part["session_offset_seconds"] for part in confirmed["parts"]] == [
+        0.0,
+        75.0,
+    ]
+    assert confirmed["parts"][1]["gap_confirmed"] is True
+
+    repeated = store.apply_confirmed_session_timeline(
+        "campaign-a",
+        "session-a",
+        [
+            {
+                "part_id": first["part_id"],
+                "source_id": first["source_id"],
+                "ordinal": 0,
+                "session_offset_seconds": 0.0,
+                "gap_confirmed": False,
+            },
+            {
+                "part_id": second["part_id"],
+                "source_id": second["source_id"],
+                "ordinal": 1,
+                "session_offset_seconds": 75.0,
+                "gap_confirmed": True,
+            },
+        ],
+        confirmed["revision"],
+    )
+    assert repeated["revision"] == confirmed["revision"]
+
+    recovered = Store(tmp_path).session_workspace("campaign-a", "session-a")
+    assert recovered["ordering_mode"] == "confirmed_sequence"
+    assert recovered["parts"][1]["session_offset_seconds"] == 75.0
+
+
 def test_automatic_derivation_never_overwrites_manual_timing(tmp_path):
     store = Store(tmp_path)
     workspace = _workspace_with_two_parts(store)
@@ -274,6 +341,12 @@ def test_reorder_clears_adjacency_specific_relation_decisions(tmp_path):
         workspace["revision"],
     )
 
+    assert [part["timeline_mode"] for part in reordered["parts"]] == [
+        "unresolved", "unresolved", "unresolved",
+    ]
+    assert [part["session_offset_seconds"] for part in reordered["parts"]] == [
+        None, None, None,
+    ]
     assert [part["gap_confirmed"] for part in reordered["parts"]] == [False, False, False]
     assert [part["overlap_resolution"] for part in reordered["parts"]] == [None, None, None]
     assert [part["overlap_boundary_seconds"] for part in reordered["parts"]] == [
@@ -304,6 +377,8 @@ def test_detach_clears_relation_decisions_before_new_adjacency(tmp_path):
     assert [part["part_id"] for part in detached["parts"]] == [
         first["part_id"], third["part_id"],
     ]
+    assert all(part["timeline_mode"] == "unresolved" for part in detached["parts"])
+    assert all(part["session_offset_seconds"] is None for part in detached["parts"])
     assert all(part["gap_confirmed"] is False for part in detached["parts"])
     assert all(part["overlap_resolution"] is None for part in detached["parts"])
     assert all(part["overlap_boundary_seconds"] is None for part in detached["parts"])
