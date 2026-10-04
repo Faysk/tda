@@ -242,6 +242,10 @@ export function ProcessingSubmission({
 	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [status, setStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [technicalFailure, setTechnicalFailure] = useState<Readonly<{
+		message: string;
+		code: string;
+	}> | null>(null);
 	const [capabilityError, setCapabilityError] = useState<string | null>(null);
 	const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
 	const [preparation, setPreparation] = useState<PreparationStatus | null>(null);
@@ -258,10 +262,17 @@ export function ProcessingSubmission({
 	const fileInput = useRef<HTMLInputElement>(null);
 
 	const handleChildError = useCallback(
-		(message: string, availabilityFailure?: AvailabilityFailure) => {
+		(
+			message: string,
+			availabilityFailure?: AvailabilityFailure,
+			technicalCode?: string,
+		) => {
 			historicalAvailabilityFailure.current = availabilityFailure
 				? { code: availabilityFailure, message }
 				: null;
+			setTechnicalFailure(
+				technicalCode ? { message, code: technicalCode } : null,
+			);
 			setRecoveryNotice(null);
 			setError(message);
 		},
@@ -311,6 +322,7 @@ export function ProcessingSubmission({
 					setError((current) =>
 						current === recoveredFailure.message ? null : current,
 					);
+					setTechnicalFailure(null);
 					setRecoveryNotice(
 						recoveredAvailabilityNotice(recoveredFailure.code),
 					);
@@ -1371,6 +1383,7 @@ export function ProcessingSubmission({
 						onStatus={setStatus}
 						onError={handleChildError}
 						onOpenTechnical={() => setTechnicalOpen(true)}
+						onRestoreSource={() => fileInput.current?.click()}
 					/>
 					{composerActive ? (
 						<details
@@ -1448,7 +1461,17 @@ export function ProcessingSubmission({
 			) : null}
 			{status ? <p className={styles.status} role="status">{status}</p> : null}
 			{capabilityError && capabilities ? <p className={styles.inlineError} role="alert">{capabilityError}</p> : null}
-			{error ? <p className={styles.inlineError} role="alert">{error}</p> : null}
+			{error ? (
+				<div className={styles.inlineError} role="alert">
+					<p>{error}</p>
+					{technicalFailure?.message === error ? (
+						<details>
+							<summary>Detalhes técnicos</summary>
+							<code>{technicalFailure.code}</code>
+						</details>
+					) : null}
+				</div>
+			) : null}
 		</section>
 	);
 
