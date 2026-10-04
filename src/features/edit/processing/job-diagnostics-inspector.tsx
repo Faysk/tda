@@ -88,6 +88,7 @@ function jobTone(status: LocalJob["status"]): "neutral" | "accent" | "success" |
 		queued: "neutral",
 		running: "accent",
 		succeeded: "success",
+		partial: "warning",
 		failed: "danger",
 		cancelled: "neutral",
 		interrupted: "warning",
