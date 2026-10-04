@@ -155,5 +155,5 @@ test("historical performance-only receipts remain readable without fabricated ar
 	await expect(
 		panel.getByRole("button", { name: "Comparar transcrições" }),
 	).toHaveCount(0);
-	await expect(panel.getByText(/Nenhum WER foi inventado retroativamente/u)).toHaveCount(0);
+	await expect(panel.getByText(/Nenhum WER foi inventado retroativamente/u)).toBeVisible();
 });
