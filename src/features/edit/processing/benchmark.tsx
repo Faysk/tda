@@ -1479,52 +1479,79 @@ export function ProcessingBenchmark({
 				<div className={styles.historyHeader}>
 					<div>
 						<span className={styles.eyebrow}>Histórico local</span>
-						<h2>Receipts comparáveis</h2>
+						<h2>Execuções locais</h2>
 					</div>
-					<span>{latestCompleted.length} concluído{latestCompleted.length === 1 ? "" : "s"}</span>
+					<span>
+						{latestCompleted.length} completo{latestCompleted.length === 1 ? "" : "s"} ·{" "}
+						{latestPartial.length} parcial{latestPartial.length === 1 ? "" : "is"}
+					</span>
 				</div>
-				{latestCompleted.length ? (
-					latestCompleted.slice(0, 10).map((job) =>
-						results[job.id] ? (
-							<ResultCard
-								key={job.id}
-								result={results[job.id]!}
-								updatedAt={job.updated_at}
-								bridge={bridge}
-								connected={connected}
-								qualityEnabled={benchmarkQualitySupported}
-								onCompare={() =>
-									setEvidenceView({
-										result: results[job.id]!,
-										mode: "compare",
-										promptExport: false,
-									})
-								}
-								onFiles={() =>
-									setEvidenceView({
-										result: results[job.id]!,
-										mode: "files",
-										promptExport: false,
-									})
-								}
-								onExport={() =>
-									setEvidenceView({
-										result: results[job.id]!,
-										mode: "files",
-										promptExport: true,
-									})
-								}
-								onDiagnostics={() => onOpenDiagnostics(job)}
-							/>
-						) : (
-							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>
-						),
-					)
-				) : (
-					<p className={styles.empty}>
-						Nenhum benchmark concluído neste Companion.
-					</p>
+				{latestPartial.slice(0, 10).map((job) =>
+					partialResults[job.id] ? (
+						<PartialResultCard
+							key={job.id}
+							result={partialResults[job.id]!}
+							updatedAt={job.updated_at}
+							onDiagnostics={() => onOpenDiagnostics(job)}
+							onNewBenchmark={() => {
+								document
+									.getElementById("benchmark-title")
+									?.scrollIntoView({ behavior: "smooth", block: "start" });
+								fileInput.current?.focus();
+							}}
+						/>
+					) : (
+						<p key={job.id} className={styles.loading}>
+							Carregando tentativa parcial {job.id.slice(0, 8)}…
+						</p>
+					),
 				)}
+				{latestCompleted.length
+					? latestCompleted.slice(0, 10).map((job) =>
+							results[job.id] ? (
+								<ResultCard
+									key={job.id}
+									result={results[job.id]!}
+									updatedAt={job.updated_at}
+									bridge={bridge}
+									connected={connected}
+									qualityEnabled={benchmarkQualitySupported}
+									onCompare={() =>
+										setEvidenceView({
+											result: results[job.id]!,
+											mode: "compare",
+											promptExport: false,
+										})
+									}
+									onFiles={() =>
+										setEvidenceView({
+											result: results[job.id]!,
+											mode: "files",
+											promptExport: false,
+										})
+									}
+									onExport={() =>
+										setEvidenceView({
+											result: results[job.id]!,
+											mode: "files",
+											promptExport: true,
+										})
+									}
+									onDiagnostics={() => onOpenDiagnostics(job)}
+								/>
+							) : (
+								<p key={job.id} className={styles.loading}>
+									Carregando receipt {job.id.slice(0, 8)}…
+								</p>
+							),
+						)
+					: latestPartial.length === 0
+						? (
+							<p className={styles.empty}>
+								Nenhuma execução de benchmark neste Companion.
+							</p>
+						)
+						: null}
 			</section>
 		</div>
 	);
