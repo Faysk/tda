@@ -408,6 +408,118 @@ test("benchmark preflight reflows from mobile through 4K without horizontal over
 	}
 });
 
+test("partial benchmark keeps the failed profile visible and never asks for manual Quality submission", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	const partialJob = fixtureBenchmarkJob("failed", {
+		stage: "complete",
+		progress: { completed: 4, total: 4, unit: "profiles" },
+		error: { code: "BENCHMARK_PARTIAL", recoverable: true },
+		result_available: true,
+		updated_at: "2026-10-04T19:26:44Z",
+	});
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		benchmarkEvidence: true,
+		advanceJobs: false,
+		initialJobs: [partialJob],
+		jobEvents: [
+			{
+				seq: 10,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_OUTCOME",
+				at: "2026-10-04T19:20:00Z",
+				level: "info",
+				data: {
+					profile_id: "whisper-turbo",
+					status: "completed",
+					attempted_count: 1,
+					successful_count: 1,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 11,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_OUTCOME",
+				at: "2026-10-04T19:22:00Z",
+				level: "info",
+				data: {
+					profile_id: "whisper-detailed",
+					status: "completed",
+					attempted_count: 2,
+					successful_count: 2,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 12,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_OUTCOME",
+				at: "2026-10-04T19:24:00Z",
+				level: "warning",
+				data: {
+					profile_id: "qwen-fast",
+					status: "failed",
+					error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+					recoverable: true,
+					attempted_count: 3,
+					successful_count: 2,
+					failed_count: 1,
+				},
+			},
+			{
+				seq: 13,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_OUTCOME",
+				at: "2026-10-04T19:26:00Z",
+				level: "info",
+				data: {
+					profile_id: "qwen-quality",
+					status: "completed",
+					attempted_count: 4,
+					successful_count: 3,
+					failed_count: 1,
+				},
+			},
+		],
+	});
+	const panel = await openBenchmark(page);
+
+	const partial = panel.getByRole("article").filter({ hasText: "Benchmark parcial · mesma amostra" });
+	await expect(partial).toBeVisible();
+	await expect(partial).toContainText("Parcial");
+	await expect(partial).toContainText("3/4 concluídos · 1 falhou");
+	await expect(partial.getByLabel("Whisper Turbo · concluído")).toBeVisible();
+	await expect(partial.getByLabel("Whisper Detailed · concluído")).toBeVisible();
+	await expect(partial.getByLabel("Qwen Fast · falhou")).toBeVisible();
+	await expect(partial.getByLabel("Qwen Quality · concluído")).toBeVisible();
+	await expect(partial).toContainText(
+		"Sinal de áudio detectado, mas o Qwen não reconheceu o trecho com segurança",
+	);
+	await expect(partial).toContainText("Os perfis restantes foram tentados automaticamente");
+	await expect(partial).not.toContainText("selecione Qwen Quality");
+	await expect(partial.getByRole("button", { name: "Comparar transcrições" })).toHaveCount(0);
+	await expect(partial.getByRole("button", { name: "Arquivos / evidências" })).toHaveCount(0);
+	await expect(partial.getByRole("button", { name: "Exportar ZIP" })).toHaveCount(0);
+
+	const horizontal = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}));
+	expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+
+	await partial.getByRole("button", { name: "Abrir Diagnóstico" }).click();
+	const inspector = page.locator("dialog").filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(inspector).toContainText("Parcial");
+	await expect(inspector).toContainText("Tentados 4/4 · Concluídos 3 · Falharam 1");
+	await expect(inspector.getByRole("button", { name: "Repetir benchmark" })).toBeVisible();
+	await expect(inspector.getByRole("button", { name: "Abrir resultado" })).toHaveCount(0);
+});
+
 test("benchmark preflights the source, prepares pending profiles, and opens its live diagnostics", async ({
 	page,
 }) => {
