@@ -1707,6 +1707,13 @@
 	gap: 8px;
 }
 
+.liveLogControls > [role="status"] {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	line-height: 1.4;
+}
+
 .liveLogFooter {
 	gap: 6px;
 }
