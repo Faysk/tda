@@ -61,6 +61,8 @@ export function SessionAssemblyResults({
 	const sessionIdRef = useRef<string | null>(null);
 	const refreshGeneration = useRef(0);
 	const reviewGeneration = useRef(0);
+	const reviewFocusRef = useRef<HTMLElement | null>(null);
+	const focusedRequestId = useRef(0);
 	const [busy, setBusy] = useState(false);
 	const [reviewDirty, setReviewDirty] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -260,6 +262,20 @@ export function SessionAssemblyResults({
 		review !== null &&
 		activeAssembly.assemblyId === review.assemblyId;
 
+	useEffect(() => {
+		if (!editorOpen || !focus) return;
+		if (focusedRequestId.current === focus.requestId) return;
+		if (activeAssembly?.assemblyId !== focus.assembly.assemblyId) return;
+		const frame = window.requestAnimationFrame(() => {
+			const target = reviewFocusRef.current?.querySelector<HTMLElement>(
+				"[data-assembly-review-focus-target='true']",
+			);
+			if (!target) return;
+			target.focus({ preventScroll: true });
+			focusedRequestId.current = focus.requestId;
+		});
+		return () => window.cancelAnimationFrame(frame);
+	}, [activeAssembly, editorOpen, focus]);
 
 	if (!enabled || (!sessionId && assemblies.length === 0 && !focus)) return null;
 
@@ -341,6 +357,7 @@ export function SessionAssemblyResults({
 
 			{editorOpen && activeAssembly && review ? (
 				<section
+					ref={reviewFocusRef}
 					className={styles.editor}
 					data-assembly-review-owner="results"
 					aria-label="Revisão aberta em Resultados"
