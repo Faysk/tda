@@ -847,6 +847,7 @@ export function SessionIntentCoordinator({
 			if (
 				capabilities.includes("transcription.session-sequence") &&
 				workspace.parts.length === 1 &&
+				workspace.parts.every((part) => part.timelineMode !== "manual") &&
 				workspace.timeline.state === "needs_timing"
 			) {
 				await bridge.confirmSessionSequence(
@@ -1313,7 +1314,8 @@ export function SessionIntentCoordinator({
 					</div>
 					<div className={styles.blockerActions}>
 						{blocker.state === "needs_timing" &&
-						capabilities.includes("transcription.session-sequence") ? (
+						capabilities.includes("transcription.session-sequence") &&
+						workspace.parts.every((part) => part.timelineMode !== "manual") ? (
 							<Button
 								type="button"
 								size="sm"
@@ -1325,7 +1327,8 @@ export function SessionIntentCoordinator({
 							</Button>
 						) : null}
 						{(blocker.state !== "needs_timing" ||
-							!capabilities.includes("transcription.session-sequence")) &&
+							!capabilities.includes("transcription.session-sequence") ||
+							workspace.parts.some((part) => part.timelineMode === "manual")) &&
 						onOpenTechnical ? (
 							<Button
 								type="button"
