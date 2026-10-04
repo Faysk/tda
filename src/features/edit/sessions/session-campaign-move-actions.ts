@@ -12,6 +12,10 @@ import {
 import { sessionCampaignMoveRevalidationPaths } from "./session-campaign-move-cache";
 import type { SessionCampaignMoveDecisionState } from "./session-campaign-move-model";
 import {
+	logSessionCampaignMoveTelemetry,
+	sessionCampaignMoveTelemetryOutcome,
+} from "./session-campaign-move-telemetry";
+import {
 	commitSessionCampaignMove,
 	prepareSessionCampaignMoveMedia,
 	preflightSessionCampaignMove,
@@ -79,12 +83,25 @@ async function authorizedRequest(request: Request) {
 
 export async function preflightSessionCampaignMoveAction(request: Request) {
 	const access = await authorizedRequest(request);
-	if (!access.ok) return access;
-	return preflightSessionCampaignMove({
+	if (!access.ok) {
+		logSessionCampaignMoveTelemetry({
+			stage: "preflight",
+			outcome: sessionCampaignMoveTelemetryOutcome(access.reason),
+		});
+		return access;
+	}
+	const result = await preflightSessionCampaignMove({
 		authUserId: access.authUserId,
 		actorProfileId: access.profileId,
 		...request,
 	});
+	logSessionCampaignMoveTelemetry({
+		stage: "preflight",
+		outcome: result.ok
+			? sessionCampaignMoveTelemetryOutcome(result.preview.status)
+			: sessionCampaignMoveTelemetryOutcome(result.reason),
+	});
+	return result;
 }
 
 function invalidateMovePaths(input: {
@@ -118,10 +135,20 @@ export async function moveSessionCampaignAction(
 		typeof request.decisions?.revokeSessionGrants !== "boolean" ||
 		typeof request.decisions?.acknowledgeHistoricalPublication !== "boolean"
 	) {
+		logSessionCampaignMoveTelemetry({
+			stage: "commit",
+			outcome: "validation",
+		});
 		return { ok: false as const, reason: "validation" as const };
 	}
 	const access = await authorizedRequest(request);
-	if (!access.ok) return access;
+	if (!access.ok) {
+		logSessionCampaignMoveTelemetry({
+			stage: "commit",
+			outcome: sessionCampaignMoveTelemetryOutcome(access.reason),
+		});
+		return access;
+	}
 
 	const boundary = {
 		authUserId: access.authUserId,
@@ -131,16 +158,41 @@ export async function moveSessionCampaignAction(
 	let result = await commitSessionCampaignMove(boundary);
 
 	if (!result.ok && result.reason === "preparation_required") {
+		logSessionCampaignMoveTelemetry({
+			stage: "commit",
+			outcome: "preparation_required",
+		});
 		const prepared = await prepareSessionCampaignMoveMedia({
 			...boundary,
 			sourceCampaignId: access.source.id,
 			destinationCampaignId: access.destination.id,
 			destinationPublic: access.destination.visibility === "public",
 		});
-		if (!prepared.ok) return prepared;
+		if (!prepared.ok) {
+			logSessionCampaignMoveTelemetry({
+				stage: "prepare",
+				outcome: sessionCampaignMoveTelemetryOutcome(prepared.reason),
+			});
+			return prepared;
+		}
+		logSessionCampaignMoveTelemetry({
+			stage: "prepare",
+			outcome: "prepared",
+			preparedAssets: prepared.prepared,
+		});
 		result = await commitSessionCampaignMove(boundary);
 	}
-	if (!result.ok) return result;
+	if (!result.ok) {
+		logSessionCampaignMoveTelemetry({
+			stage: "commit",
+			outcome: sessionCampaignMoveTelemetryOutcome(result.reason),
+		});
+		return result;
+	}
+	logSessionCampaignMoveTelemetry({
+		stage: "commit",
+		outcome: result.replayed ? "replay" : "moved",
+	});
 
 	const cachePending = invalidateMovePaths({
 		sourceCampaignSlug: access.source.technicalSlug,
@@ -148,6 +200,10 @@ export async function moveSessionCampaignAction(
 		destinationCampaignSlug: access.destination.technicalSlug,
 		destinationRouteKey: access.destination.routeKey,
 		sourceSessionId: request.sourceSessionId,
+	});
+	logSessionCampaignMoveTelemetry({
+		stage: "cache",
+		outcome: cachePending ? "cache_pending" : "success",
 	});
 	return {
 		ok: true as const,
