@@ -386,6 +386,7 @@ export class ProcessingController {
 
 		const terminalStatuses = new Set([
 			"succeeded",
+			"partial",
 			"failed",
 			"interrupted",
 			"cancelled",
