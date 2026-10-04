@@ -192,15 +192,7 @@ export async function commitSessionCampaignMove(
 			reason: "dependency_unavailable" as const,
 		};
 	const { data, error } = await client.rpc("move_session_campaign_atomic_v2", {
-		...boundaryParams({
-			...input,
-			options: {
-				...input.options,
-				...(input.preparedCover
-					? ({} as SessionCampaignMoveOptions)
-					: {}),
-			},
-		}),
+		...boundaryParams(input),
 		p_operation_id: input.operationId,
 		p_options: {
 			...input.options,
