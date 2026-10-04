@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { selectThemedOption } from "./helpers/themed-select";
 
 type Box = { x: number; y: number; width: number; height: number };
 
