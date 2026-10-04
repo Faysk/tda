@@ -248,7 +248,7 @@ export function ProcessingQueueView({
 					/>
 				</label>
 
-				<label className={styles.sort}>
+				<div className={styles.sort}>
 					<span>Ordenar</span>
 					<Select
 						value={sort}
@@ -260,7 +260,7 @@ export function ProcessingQueueView({
 						ariaLabel="Ordenar fila"
 						compact
 					/>
-				</label>
+				</div>
 
 				<span className={styles.count} aria-live="polite">
 					{rows.length === jobs.length
