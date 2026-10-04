@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Select } from "@/components/ui";
 import {
 	WORLD_VISIBILITIES,
 	type WorldGraphDraft,
@@ -86,30 +87,28 @@ export function WorldRelationAuthoringControls({
 					</header>
 					<label>
 						<span>Tipo</span>
-						<select
+						<Select
 							value={relationType}
-							onChange={(event) => setRelationType(event.target.value)}
+							options={activeTypes.map((type) => ({
+								value: type.slug,
+								label: type.label,
+							}))}
+							onChange={setRelationType}
+							ariaLabel="Tipo da ligação"
 							required
-						>
-							{activeTypes.map((type) => (
-								<option key={type.slug} value={type.slug}>
-									{type.label}
-								</option>
-							))}
-						</select>
+						/>
 					</label>
 					<label>
 						<span>Visibilidade</span>
-						<select
+						<Select
 							value={visibility}
-							onChange={(event) => setVisibility(event.target.value as WorldVisibility)}
-						>
-							{WORLD_VISIBILITIES.map((value) => (
-								<option key={value} value={value}>
-									{VISIBILITY_LABELS[value]}
-								</option>
-							))}
-						</select>
+							options={WORLD_VISIBILITIES.map((value) => ({
+								value,
+								label: VISIBILITY_LABELS[value],
+							}))}
+							onChange={(value) => setVisibility(value as WorldVisibility)}
+							ariaLabel="Visibilidade da ligação"
+						/>
 					</label>
 					{visibility === "public_campaign" || visibility === "public_web" ? (
 						<p className={styles.reviewNotice}>
