@@ -1373,7 +1373,14 @@ jobs:
             "source_sha =",
             "source_tree_sha =",
             "archive_sha256 =",
-            "worker_sha256 ="
+            "worker_sha256 =",
+            "Assert-BenchmarkEvidence",
+            "BENCHMARK_EVIDENCE_TRANSCRIPT_HASH_MISMATCH",
+            "BENCHMARK_EXPORT_AUDIO_PRESENT",
+            "HumanReferenceJson",
+            "quality_measured",
+            "private_export_kept_local = $true",
+            "contains_transcript = $false"
           )) {
             if (-not $benchmarkGate.Contains($required)) {
               throw ("BENCHMARK_GATE_COMPATIBILITY_CONTRACT_MISSING:" + $required)
