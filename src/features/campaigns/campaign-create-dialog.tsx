@@ -8,7 +8,7 @@ import {
 	type FormEvent,
 	type RefObject,
 } from "react";
-import { Button } from "@/components/ui";
+import { Button, Select } from "@/components/ui";
 import type {
 	CampaignCreateInput,
 	CampaignMutationResult,
@@ -138,7 +138,13 @@ export function CampaignCreateDialog({
 				requestAnimationFrame(() => {
 					if (!nextField) return;
 					const field = formRef.current?.elements.namedItem(nextField);
-					if (field instanceof HTMLElement) field.focus();
+					if (field instanceof HTMLElement && field.getAttribute("type") !== "hidden") {
+						field.focus();
+						return;
+					}
+					formRef.current
+						?.querySelector<HTMLElement>(`[data-form-control-name="${nextField}"]`)
+						?.focus();
 				});
 				return;
 			}
@@ -243,15 +249,18 @@ export function CampaignCreateDialog({
 					</label>
 					<label>
 						<span>Visibilidade inicial</span>
-						<select
+						<Select
 							name="visibility"
 							defaultValue={defaultVisibility}
-							aria-invalid={fieldError === "visibility" || undefined}
-							aria-describedby={describedBy("visibility")}
-						>
-							<option value="public">Pública · pode classificar referências</option>
-							<option value="private">Privada · não aparece no Lembra</option>
-						</select>
+							options={[
+								{ value: "public", label: "Pública · pode classificar referências" },
+								{ value: "private", label: "Privada · não aparece no Lembra" },
+							]}
+							ariaLabel="Visibilidade inicial"
+							ariaInvalid={fieldError === "visibility"}
+							ariaDescribedBy={describedBy("visibility")}
+							required
+						/>
 						{fieldError === "visibility" ? (
 							<small id={`${errorId}-visibility`} className={styles.fieldError}>
 								{fieldMessage("visibility")}
