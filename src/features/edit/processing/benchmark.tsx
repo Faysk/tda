@@ -17,7 +17,7 @@ import {
 import { LocalBridge } from "./bridge";
 import { BenchmarkEvidenceWorkspace } from "./benchmark-evidence";
 import { BenchmarkQualityLab } from "./benchmark-quality";
-import { presentJobEvent, stageLabels } from "./presentation";
+import { presentJobError, presentJobEvent, stageLabels } from "./presentation";
 import {
 	formatSubmissionBytes,
 	profileReadinessCopy,
@@ -286,6 +286,76 @@ function ResultCard({
 		</article>
 	);
 }
+
+function PartialResultCard({
+	result,
+	updatedAt,
+	onDiagnostics,
+}: Readonly<{
+	result: BenchmarkResult;
+	updatedAt: string;
+	onDiagnostics: () => void;
+}>) {
+	const failed = result.profileOutcomes.filter(
+		(item) => item.status === "failed",
+	);
+	return (
+		<article className={styles.resultCard}>
+			<header className={styles.resultHeader}>
+				<div>
+					<span className={styles.eyebrow}>Benchmark local · 5:00</span>
+					<h3>Benchmark parcial · mesma amostra</h3>
+				</div>
+				<StatusPill tone="warning">Parcial</StatusPill>
+			</header>
+			<div className={styles.receiptFacts}>
+				<span>{formatBenchmarkHistoryDate(updatedAt)}</span>
+				<span title={result.sampleIdentitySha256}>
+					Sample SHA {result.sampleIdentitySha256.slice(0, 12)}…
+				</span>
+				<span>Tentados {result.attemptedCount}/4</span>
+				<span>Concluídos {result.completedCount}/4</span>
+				<span>Falharam {result.failedCount}</span>
+				<span>bundle 4/4 não criado</span>
+			</div>
+			<p className={styles.loading}>
+				Os perfis válidos foram preservados localmente, mas esta execução não
+				é uma comparação completa de quatro perfis.
+			</p>
+			<ol className={styles.runSteps} aria-label="Resultado parcial dos quatro perfis">
+				{result.profileOutcomes.map((item) => (
+					<li
+						key={item.profileId}
+						className={styles.runStep}
+						data-state={item.status === "completed" ? "complete" : "failed"}
+					>
+						<i aria-hidden="true">
+							{item.status === "completed" ? "✓" : "×"}
+						</i>
+						<span>
+							{LABELS[item.profileId]} ·{" "}
+							{item.status === "completed"
+								? "concluído"
+								: "falhou · " + (item.error?.code ?? "erro do perfil")}
+						</span>
+					</li>
+				))}
+			</ol>
+			{failed.map((item) => (
+				<p key={item.profileId} className={styles.loading}>
+					<strong>{LABELS[item.profileId]}:</strong>{" "}
+					{item.error ? presentJobError(item.error.code) : "Falha do perfil."}
+				</p>
+			))}
+			<div className={styles.activeActions}>
+				<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+					Abrir Diagnóstico
+				</Button>
+			</div>
+		</article>
+	);
+}
+
 
 function ProfileReadiness({
 	profile,
