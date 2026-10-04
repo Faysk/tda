@@ -149,27 +149,20 @@ A auditoria #1465–#1467 tornou explícitos três contratos que antes dependiam
 
 - no tema claro, `--ds-accent-strong` usa `#6b4913`; como texto normal ele mantém pelo menos 4,5:1 contra canvas, canvas-subtle, surface, surface-hover e surface-elevated;
 - `--ds-control-focus-ring` é **um token de cor**, não um valor completo de `box-shadow`; consumidores devem usá-lo em `outline` ou compor offsets/espalhamento explicitamente;
-- selects nativos que ainda existem recebem `color-scheme` e cores de `option/optgroup` do tema global. Superfícies em que a paleta do popup precisa ser totalmente controlada, como os filtros públicos de Sessões, usam o primitive compartilhado `Select` em vez de depender do popup nativo do SO.
+- popups de escolha do app não dependem mais de `<select>` nativo: toda superfície TSX de produto usa o primitive compartilhado `Select`, porque Chromium/Windows, Firefox e WebKit podem delegar a pintura do popup ao SO e ignorar parcialmente CSS de `option`.
 
-O checker de Design System falha se o contraste de `accent-strong` cair abaixo do contrato ou se o token de foco voltar a ser usado como `box-shadow: var(--ds-control-focus-ring)` sem geometria de sombra.
+O checker de Design System falha se o contraste de `accent-strong` cair abaixo do contrato, se o token de foco voltar a ser usado como `box-shadow: var(--ds-control-focus-ring)` sem geometria de sombra ou se um `<select>` nativo reaparecer em uma superfície TSX de aplicação.
 
-#### Política e inventário de `select` nativo
+#### Política de seleção
 
-A escolha entre o primitive `Select` e o controle nativo é intencional, não estética por acaso:
+O primitive `Select` é o contrato único para escolhas discretas no produto:
 
-- filtros públicos de navegação/arquivo, em que o popup faz parte da composição visual e precisa sobreviver a app-theme diferente do tema do SO, usam o `Select` compartilhado;
-- selects de formulário e controles operacionais densos podem permanecer nativos quando a semântica HTML, serialização de `FormData` ou integração direta com formulários é mais importante que possuir a superfície do popup;
-- todo select nativo herda o contrato global de `color-scheme`, `option` e `optgroup`; nenhuma superfície deve depender da paleta default do host para legibilidade.
+- controla popup, hover, seleção, foco, disabled e contraste em dark/light independentemente do tema do SO;
+- suporta modo controlado e não controlado, `name`/serialização por `FormData`, reset de formulário e bloqueio de submit quando um valor obrigatório ainda não foi escolhido;
+- usa listbox acessível por teclado e portal ancorado ao viewport, evitando clipping e disputas de stacking context com cards, dialogs e workspaces;
+- `compact` preserva a densidade dos workspaces operacionais sem reintroduzir popup nativo.
 
-Inventário auditado nesta rodada que permanece nativo por contrato de formulário/operação:
-
-- criação e administração de campanhas: `src/features/campaigns/campaign-create-dialog.tsx` e `src/app/edit/campanhas`;
-- entradas operacionais de campanha: `src/app/edit/processamento`, `src/app/transcricoes` e `src/features/edit/review`;
-- permissões: `src/features/edit/permissions`;
-- Processamento/qualidade: Benchmark Evidence, Benchmark, Local Review, Queue, Run Comparison e controles auxiliares de `processing.module.css`;
-- navegação interna de sessão longa ("Ir para uma seção"), que preserva o select nativo por semântica simples de salto.
-
-O arquivo público de Sessões é deliberadamente diferente: campanha, arco e ordenação usam o primitive compartilhado, e o checker falha se um `<select>` nativo voltar a `src/components/session-list.tsx`.
+O CSS global de `select/option` permanece apenas como defesa para HTML externo/legado fora das superfícies TSX governadas. Ele **não** é considerado solução de tema para novos controles do produto.
 
 ## Extensão promovida — borda de controle
 
