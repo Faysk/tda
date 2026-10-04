@@ -954,18 +954,22 @@ export function SessionRecordingComposer({
 						<div className={styles.timelineSummary} data-state={workspace.timeline.state}>
 							<div>
 								<strong>
-									{workspace.timeline.strategy === "user_confirmed_sequence"
-										? "Ordem da sessão confirmada"
-										: workspace.timeline.strategy === "trusted_absolute"
-											? "Ordem definida por horários confiáveis"
-											: "Ordem da sessão precisa de confirmação"}
+									{workspace.timeline.strategy === null
+										? `Cronologia · ${workspace.timeline.state}`
+										: workspace.timeline.strategy === "user_confirmed_sequence"
+											? "Ordem da sessão confirmada"
+											: workspace.timeline.strategy === "trusted_absolute"
+												? "Ordem definida por horários confiáveis"
+												: "Ordem da sessão precisa de confirmação"}
 								</strong>
 								<span>
-									{workspace.timeline.wallClock === "trusted"
-										? "Horário real disponível em todas as gravações."
-										: workspace.timeline.wallClock === "partial"
-											? "Horário real disponível somente onde foi comprovado."
-											: "Horário real indisponível; isso não impede a transcrição."}
+									{workspace.timeline.wallClock === null
+										? "Este Companion usa o contrato temporal anterior."
+										: workspace.timeline.wallClock === "trusted"
+											? "Horário real disponível em todas as gravações."
+											: workspace.timeline.wallClock === "partial"
+												? "Horário real disponível somente onde foi comprovado."
+												: "Horário real indisponível; isso não impede a transcrição."}
 									{workspace.timeline.unknownIntervalCount
 										? " " +
 											workspace.timeline.unknownIntervalCount +
@@ -987,7 +991,8 @@ export function SessionRecordingComposer({
 									</Button>
 								) : null}
 								{!workspace.timeline.automaticOrderAvailable &&
-								workspace.timeline.strategy === "unresolved" ? (
+								workspace.timeline.strategy === "unresolved" &&
+								capabilities.includes("transcription.session-sequence") ? (
 									<Button type="button" size="sm" variant="primary" disabled={busy} onClick={() => void confirmSequence()}>
 										Usar esta ordem para montar a sessão
 									</Button>
