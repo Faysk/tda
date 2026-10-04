@@ -310,7 +310,7 @@ export function ProcessingQueueView({
 								const isExpanded = expanded.has(job.id);
 								const profile = queueProfileLabel(job.context?.profileId);
 								const error = job.error
-									? presentJobError(job.error.code)
+									? presentJobError(job.error.code, job.kind)
 									: null;
 								const detailsId = `queue-job-details-${job.id}`;
 								return (
