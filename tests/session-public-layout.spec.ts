@@ -73,7 +73,7 @@ async function expectNoHorizontalOverflow(page: Page) {
 async function openArchiveSelect(scope: Page | Locator, name: string) {
 	const trigger = scope.getByRole("button", { name, exact: true });
 	await trigger.click();
-	const listbox = scope.getByRole("listbox", { name, exact: true });
+	const listbox = trigger.page().getByRole("listbox", { name, exact: true });
 	await expect(listbox).toBeVisible();
 	return listbox;
 }
@@ -349,7 +349,7 @@ test("Sessions archive owns filter popup colors instead of native select renderi
 		const trigger = toolbar.getByRole("button", { name, exact: true });
 		await expect(trigger).toBeVisible();
 		await trigger.click();
-		const listbox = toolbar.getByRole("listbox", { name, exact: true });
+		const listbox = page.getByRole("listbox", { name, exact: true });
 		await expect(listbox).toBeVisible();
 		const styles = await listbox.evaluate((element) => {
 			const listStyle = getComputedStyle(element);
