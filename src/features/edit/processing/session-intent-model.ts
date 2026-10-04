@@ -160,10 +160,12 @@ export function trustedTimelineSourceOrder(
 
 export function trustedTimelineOrderDiffers(
 	workspace: SessionWorkspace,
+	editorialOrder: readonly string[] = workspace.parts.map((part) => part.sourceId),
 ): boolean {
 	const trusted = trustedTimelineSourceOrder(workspace);
 	if (!trusted) return false;
-	return trusted.some((sourceId, index) => workspace.parts[index]?.sourceId !== sourceId);
+	if (trusted.length !== editorialOrder.length) return true;
+	return trusted.some((sourceId, index) => editorialOrder[index] !== sourceId);
 }
 
 export function retryableIntentJob(
