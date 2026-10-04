@@ -6,10 +6,10 @@ import math
 from datetime import datetime, time, timedelta, timezone
 from typing import Any, Iterable
 
-TIMING_POLICY_VERSION = "tda_session_timeline_v1"
+TIMING_POLICY_VERSION = "tda_session_timeline_v2"
 SEGMENT_BOUNDARY_POLICY = "segment_start_owner_v1"
 _START_CONFIDENCES = frozenset({"trusted_absolute", "ambiguous", "opaque", "missing"})
-_TIMELINE_MODES = frozenset({"unresolved", "automatic", "manual"})
+_TIMELINE_MODES = frozenset({"unresolved", "automatic", "manual", "sequence"})
 _OVERLAP_RESOLUTIONS = frozenset({"prefer_earlier_until", "prefer_later_from"})
 _EPSILON = 1e-9
 
@@ -157,6 +157,65 @@ def automatic_placements(
     ]
 
 
+def user_confirmed_sequence_placements(
+    parts: Iterable[dict[str, Any]],
+    source_facts: dict[str, dict[str, Any]],
+) -> list[dict[str, object]]:
+    """Place parts in the user-confirmed order without inventing physical gaps.
+
+    Adjacent trusted Craig timestamps retain their factual relative geometry.
+    Every other adjacency is editorially continuous: its physical interval stays
+    unknown even though the session timeline itself remains continuous.
+    """
+    rows = list(parts)
+    placements: list[dict[str, object]] = []
+    previous_facts: dict[str, Any] | None = None
+    previous_offset = 0.0
+    previous_duration: float | None = None
+
+    for ordinal, part in enumerate(rows):
+        source_id = str(part["source_id"])
+        facts = source_facts.get(source_id, {})
+        duration = _number(facts.get("duration_seconds"))
+        if facts.get("source_state", "invalid") != "ready" or duration is None:
+            raise ValueError("SESSION_WORKSPACE_SOURCE_UNAVAILABLE")
+
+        if ordinal == 0:
+            offset = 0.0
+        else:
+            assert previous_facts is not None and previous_duration is not None
+            previous_confidence = previous_facts.get("start_confidence")
+            current_confidence = facts.get("start_confidence")
+            if (
+                previous_confidence == "trusted_absolute"
+                and current_confidence == "trusted_absolute"
+            ):
+                previous_epoch = _number(previous_facts.get("start_epoch_seconds"))
+                current_epoch = _number(facts.get("start_epoch_seconds"))
+                if previous_epoch is None or current_epoch is None:
+                    raise ValueError("SESSION_WORKSPACE_TIMELINE_NOT_TRUSTED")
+                delta_from_previous_start = current_epoch - previous_epoch
+                if delta_from_previous_start < -_EPSILON:
+                    raise ValueError("SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT")
+                offset = previous_offset + max(0.0, delta_from_previous_start)
+            else:
+                offset = previous_offset + previous_duration
+
+        placements.append(
+            {
+                "part_id": str(part["part_id"]),
+                "source_id": source_id,
+                "ordinal": ordinal,
+                "session_offset_seconds": offset,
+            }
+        )
+        previous_facts = facts
+        previous_offset = offset
+        previous_duration = duration
+
+    return placements
+
+
 def _number(value: object) -> float | None:
     if value is None:
         return None
@@ -169,23 +228,42 @@ def _number(value: object) -> float | None:
     return float(value)
 
 
+def _timeline_strategy(parts: list[dict[str, Any]]) -> str:
+    if not parts:
+        return "unresolved"
+    modes = [str(part.get("timeline_mode", "unresolved")) for part in parts]
+    if all(mode == "automatic" for mode in modes):
+        return "trusted_absolute"
+    if all(mode == "sequence" for mode in modes):
+        return "user_confirmed_sequence"
+    if all(mode in {"automatic", "sequence", "manual"} for mode in modes) and any(
+        mode == "manual" for mode in modes
+    ):
+        return "manual_offsets"
+    return "unresolved"
+
+
 def enrich_workspace_timeline(
     workspace: dict[str, Any],
     source_facts: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
+    raw_parts = list(workspace.get("parts", []))
+    strategy = _timeline_strategy(raw_parts)
     enriched_parts: list[dict[str, Any]] = []
     gap_count = 0
     overlap_count = 0
     unresolved_overlap_count = 0
     unconfirmed_gap_count = 0
     order_conflict_count = 0
+    unknown_interval_count = 0
     source_invalid = False
-    needs_timing = not bool(workspace.get("parts"))
-    all_sources_trusted = bool(workspace.get("parts"))
+    needs_timing = not bool(raw_parts)
+    all_sources_trusted = bool(raw_parts)
     trusted_epochs: list[float] = []
+    trusted_source_count = 0
 
     previous: dict[str, Any] | None = None
-    for part in workspace.get("parts", []):
+    for part in raw_parts:
         source_id = str(part["source_id"])
         facts = source_facts.get(source_id, {})
         source_state = facts.get("source_state", "invalid")
@@ -198,6 +276,7 @@ def enrich_workspace_timeline(
         start_epoch = _number(facts.get("start_epoch_seconds"))
         if start_confidence == "trusted_absolute" and start_epoch is not None:
             trusted_epochs.append(start_epoch)
+            trusted_source_count += 1
         if source_state != "ready":
             source_invalid = True
 
@@ -210,12 +289,10 @@ def enrich_workspace_timeline(
             trim_start = 0.0
         trim_end = _number(part.get("trim_end_seconds"))
         duration = _number(facts.get("duration_seconds"))
-        if offset is None or duration is None:
+        if offset is None or duration is None or mode == "unresolved":
             needs_timing = True
 
-        effective_start = (
-            offset + trim_start if offset is not None else None
-        )
+        effective_start = offset + trim_start if offset is not None else None
         local_end = trim_end if trim_end is not None else duration
         effective_end = (
             offset + local_end
@@ -226,7 +303,22 @@ def enrich_workspace_timeline(
         relation = "first" if previous is None else "unknown"
         relation_seconds: float | None = 0.0 if previous is None else None
         overlap_resolution_valid = False
+        physical_interval_state = "first"
         if previous is not None:
+            previous_mode = previous.get("timeline_mode", "unresolved")
+            if (
+                mode in {"automatic", "sequence"}
+                and previous_mode in {"automatic", "sequence"}
+                and start_confidence == "trusted_absolute"
+                and previous.get("source_start_confidence") == "trusted_absolute"
+            ):
+                physical_interval_state = "trusted_absolute"
+            elif mode == "manual" or previous_mode == "manual":
+                physical_interval_state = "manual"
+            else:
+                physical_interval_state = "unknown"
+                unknown_interval_count += 1
+
             previous_start = previous.get("effective_start_seconds")
             previous_end = previous.get("effective_end_seconds")
             if (
@@ -242,7 +334,8 @@ def enrich_workspace_timeline(
                     relation = "gap"
                     relation_seconds = delta
                     gap_count += 1
-                    if part.get("gap_confirmed") is not True:
+                    factual_gap = physical_interval_state == "trusted_absolute"
+                    if not factual_gap and part.get("gap_confirmed") is not True:
                         unconfirmed_gap_count += 1
                 elif abs(delta) <= _EPSILON:
                     relation = "contiguous"
@@ -270,6 +363,7 @@ def enrich_workspace_timeline(
 
         enriched = {
             **part,
+            "timeline_mode": mode,
             "source_state": source_state,
             "source_start_time": facts.get("start_time"),
             "source_start_confidence": start_confidence,
@@ -279,11 +373,19 @@ def enrich_workspace_timeline(
             "effective_end_seconds": effective_end,
             "relation_to_previous": relation,
             "relation_seconds": relation_seconds,
+            "physical_interval_state": physical_interval_state,
             "gap_confirmed": bool(part.get("gap_confirmed", False)),
             "overlap_resolution_valid": overlap_resolution_valid,
         }
         enriched_parts.append(enriched)
         previous = enriched
+
+    if trusted_source_count == 0:
+        wall_clock = "unavailable"
+    elif trusted_source_count == len(raw_parts):
+        wall_clock = "trusted"
+    else:
+        wall_clock = "partial"
 
     fingerprint_payload = {
         "schema_version": TIMING_POLICY_VERSION,
@@ -291,6 +393,9 @@ def enrich_workspace_timeline(
         "campaign_id": workspace.get("campaign_id"),
         "session_id": workspace.get("session_id"),
         "ordering_mode": workspace.get("ordering_mode", "attachment"),
+        "timeline_strategy": strategy,
+        "wall_clock": wall_clock,
+        "unknown_intervals": unknown_interval_count,
         "parts": [
             {
                 "part_id": part.get("part_id"),
@@ -300,11 +405,12 @@ def enrich_workspace_timeline(
                 "session_offset_seconds": part.get("session_offset_seconds"),
                 "trim_start_seconds": part.get("trim_start_seconds", 0.0),
                 "trim_end_seconds": part.get("trim_end_seconds"),
+                "physical_interval_state": part.get("physical_interval_state"),
                 "gap_confirmed": bool(part.get("gap_confirmed", False)),
                 "overlap_resolution": part.get("overlap_resolution"),
                 "overlap_boundary_seconds": part.get("overlap_boundary_seconds"),
             }
-            for part in workspace.get("parts", [])
+            for part in enriched_parts
         ],
     }
     fingerprint = hashlib.sha256(
@@ -318,9 +424,12 @@ def enrich_workspace_timeline(
 
     automatic_order_available = (
         all_sources_trusted
-        and len(trusted_epochs) == len(workspace.get("parts", []))
+        and len(trusted_epochs) == len(raw_parts)
         and len(set(trusted_epochs)) == len(trusted_epochs)
     )
+
+    if strategy == "unresolved" and len(raw_parts) > 1:
+        needs_timing = True
 
     if source_invalid:
         state = "source_invalid"
@@ -343,6 +452,9 @@ def enrich_workspace_timeline(
             "segment_boundary_policy": SEGMENT_BOUNDARY_POLICY,
             "fingerprint_sha256": fingerprint,
             "state": state,
+            "strategy": strategy,
+            "wall_clock": wall_clock,
+            "unknown_interval_count": unknown_interval_count,
             "all_sources_trusted": all_sources_trusted,
             "automatic_order_available": automatic_order_available,
             "gap_count": gap_count,
