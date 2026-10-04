@@ -155,7 +155,9 @@ describe("multi-source transcript publication contract", () => {
 		]);
 
 		const tampered = structuredClone(input);
-		tampered.assembly.unknownIntervalCount = 0;
+		Object.assign(tampered.assembly as Record<string, unknown>, {
+			unknownIntervalCount: 0,
+		});
 		expect(preparePublication(JSON.stringify(tampered))).toEqual({
 			ok: false,
 			reason: "invalid_payload",
