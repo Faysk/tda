@@ -257,9 +257,9 @@ export function SessionIntentCoordinator({
 					? cause.code
 					: undefined;
 			setLocalError(null);
-			if (availabilityFailure) {
+			if (availabilityFailure && onError) {
 				setRecovery(null);
-				onError?.(
+				onError(
 					`${nextRecovery.title} ${nextRecovery.detail}`,
 					availabilityFailure,
 				);
