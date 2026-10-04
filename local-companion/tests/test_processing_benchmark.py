@@ -161,6 +161,148 @@ def test_benchmark_runs_canonical_profiles_in_order_and_emits_profile_progress(
     ]
 
 
+def test_benchmark_continues_after_isolated_qwen_empty_signal_failure(monkeypatch):
+    supervisor = WorkerSupervisor()
+    seen: list[str] = []
+    progress: list[tuple[int, int, int]] = []
+    events: list[str] = []
+
+    def fake_run_craig(self, *, profile_id, **_kwargs):
+        seen.append(profile_id)
+        if profile_id == "qwen-fast":
+            raise WorkerProcessError(
+                "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+                recoverable=True,
+            )
+        return WorkerOutcome(
+            terminal="result",
+            payload=_profile_receipt(profile_id),
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+
+    outcome = supervisor.run_benchmark(
+        job_id="benchmark-job",
+        attempt=1,
+        source_id="craig-" + "a" * 64,
+        glossary="",
+        context="",
+        sample_identity_sha256="b" * 64,
+        sample_seconds=300.0,
+        on_progress=lambda message: progress.append(
+            (
+                message.payload["completed"],
+                message.payload["successful_count"],
+                message.payload["failed_count"],
+            )
+        ),
+        on_event=lambda message: events.append(str(message.payload.get("code"))),
+    )
+
+    assert seen == [
+        "whisper-turbo",
+        "whisper-detailed",
+        "qwen-fast",
+        "qwen-quality",
+    ]
+    assert progress == [(1, 1, 0), (2, 2, 0), (3, 2, 1), (4, 3, 1)]
+    assert outcome.terminal == "result"
+    assert outcome.payload["schema_version"] == "tda_processing_benchmark_v2"
+    assert outcome.payload["status"] == "partial"
+    assert outcome.payload["attempted_count"] == 4
+    assert outcome.payload["completed_count"] == 3
+    assert outcome.payload["failed_count"] == 1
+    assert [item["profile_id"] for item in outcome.payload["profiles"]] == [
+        "whisper-turbo",
+        "whisper-detailed",
+        "qwen-quality",
+    ]
+    assert [item["status"] for item in outcome.payload["profile_outcomes"]] == [
+        "completed",
+        "completed",
+        "failed",
+        "completed",
+    ]
+    failed = outcome.payload["profile_outcomes"][2]
+    assert failed["error"] == {
+        "code": "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+        "recoverable": True,
+        "scope": "profile",
+    }
+    assert events.count("BENCHMARK_PROFILE_STARTED") == 4
+    assert events.count("BENCHMARK_PROFILE_COMPLETED") == 3
+    assert events.count("BENCHMARK_PROFILE_FAILED") == 1
+
+
+def test_benchmark_unknown_recoverable_error_remains_global_fail_closed(monkeypatch):
+    supervisor = WorkerSupervisor()
+    seen: list[str] = []
+
+    def fake_run_craig(self, *, profile_id, **_kwargs):
+        seen.append(profile_id)
+        if profile_id == "qwen-fast":
+            raise WorkerProcessError("QWEN_ASR_INFERENCE_FAILED", recoverable=True)
+        return WorkerOutcome(
+            terminal="result",
+            payload=_profile_receipt(profile_id),
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+
+    with pytest.raises(WorkerProcessError, match="QWEN_ASR_INFERENCE_FAILED"):
+        supervisor.run_benchmark(
+            job_id="benchmark-job",
+            attempt=1,
+            source_id="craig-" + "a" * 64,
+            glossary="",
+            context="",
+            sample_identity_sha256="b" * 64,
+            sample_seconds=300.0,
+            on_progress=lambda _message: None,
+        )
+
+    assert seen == ["whisper-turbo", "whisper-detailed", "qwen-fast"]
+
+
+def test_benchmark_last_profile_isolated_failure_returns_partial(monkeypatch):
+    supervisor = WorkerSupervisor()
+    seen: list[str] = []
+
+    def fake_run_craig(self, *, profile_id, **_kwargs):
+        seen.append(profile_id)
+        if profile_id == "qwen-quality":
+            raise WorkerProcessError(
+                "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+                recoverable=True,
+            )
+        return WorkerOutcome(
+            terminal="result",
+            payload=_profile_receipt(profile_id),
+            returncode=0,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+
+    outcome = supervisor.run_benchmark(
+        job_id="benchmark-job",
+        attempt=1,
+        source_id="craig-" + "a" * 64,
+        glossary="",
+        context="",
+        sample_identity_sha256="b" * 64,
+        sample_seconds=300.0,
+        on_progress=lambda _message: None,
+    )
+
+    assert seen == list(("whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"))
+    assert outcome.payload["status"] == "partial"
+    assert outcome.payload["completed_count"] == 3
+    assert outcome.payload["failed_count"] == 1
+    assert outcome.payload["profile_outcomes"][-1]["status"] == "failed"
+
+
 def test_benchmark_stops_without_complete_receipt_on_cancel(monkeypatch):
     supervisor = WorkerSupervisor()
     calls = 0
