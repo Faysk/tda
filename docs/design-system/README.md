@@ -136,12 +136,22 @@ Os tokens semânticos do pacote v1.0 são a base oficial do reboot e vivem opera
 | foreground-soft | `--ds-foreground-soft` | `#4f4b44` |
 | foreground-muted | `--ds-foreground-muted` | `#625d55` |
 | accent | `--ds-accent` | `#805817` |
-| accent-strong | `--ds-accent-strong` | `#9a6a1d` |
+| accent-strong | `--ds-accent-strong` | `#6b4913` |
 | action-primary-bg | `--ds-action-primary-bg` | `#805817` |
 | danger | `--ds-danger` | `#9a3025` |
 | success | `--ds-success` | `#326c42` |
 
 `tools/check-design-system.mjs` verifica o contrato completo de valores do v1 em toda execução de `pnpm check`.
+
+### Hardening de contraste e controles — 2026-10-04
+
+A auditoria #1465–#1467 tornou explícitos três contratos que antes dependiam demais do navegador:
+
+- no tema claro, `--ds-accent-strong` usa `#6b4913`; como texto normal ele mantém pelo menos 4,5:1 contra canvas, canvas-subtle, surface, surface-hover e surface-elevated;
+- `--ds-control-focus-ring` é **um token de cor**, não um valor completo de `box-shadow`; consumidores devem usá-lo em `outline` ou compor offsets/espalhamento explicitamente;
+- selects nativos que ainda existem recebem `color-scheme` e cores de `option/optgroup` do tema global. Superfícies em que a paleta do popup precisa ser totalmente controlada, como os filtros públicos de Sessões, usam o primitive compartilhado `Select` em vez de depender do popup nativo do SO.
+
+O checker de Design System falha se o contraste de `accent-strong` cair abaixo do contrato ou se o token de foco voltar a ser usado como `box-shadow: var(--ds-control-focus-ring)` sem geometria de sombra.
 
 ## Extensão promovida — borda de controle
 
@@ -168,6 +178,8 @@ O próprio pacote forneceu `tokens/proposed-extensions.css`. O reboot promove:
 | ambos | `--ds-control-focus-ring` | `var(--ds-accent-strong)` | foco oficial |
 
 Essa é uma **extensão do reboot promovida a partir do pack**, não uma alegação de que o token fazia parte de `tda-design-tokens.css` v1.0.
+
+O contrato de `--ds-control-focus-ring` é cromático: `outline: 2px solid var(--ds-control-focus-ring)` é válido; para shadow, use uma forma completa como `box-shadow: 0 0 0 2px var(--ds-control-focus-ring)`. Uma cor isolada não é gramática válida de `box-shadow`.
 
 Separadores e contornos puramente decorativos continuam usando `--ds-border`/`--ds-border-subtle`.
 
