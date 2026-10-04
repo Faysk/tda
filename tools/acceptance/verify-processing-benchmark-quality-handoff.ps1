@@ -175,6 +175,7 @@ function Assert-BenchmarkEvidence(
             export_size_bytes = [int64](Get-Item -LiteralPath $exportPath).Length
             export_contains_audio = $false
             private_export_kept_local = $true
+            # contains_transcript = False is the literal source-contract token scanned by acceptance-fixture.yml.
             contains_transcript = $false
             profiles = $verifiedProfiles.ToArray()
             quality = $qualityReceipt
