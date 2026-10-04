@@ -2150,6 +2150,8 @@
 }
 
 .jobDiagnosticsLog {
+	display: grid;
+	grid-template-rows: minmax(0, 1fr);
 	min-height: 0;
 	overflow: visible;
 	padding: 10px;
@@ -2159,7 +2161,7 @@
 }
 
 .jobDiagnosticsLog > .liveLogExplorer {
-	height: 100%;
+	height: auto;
 	min-height: 0;
 }
 
