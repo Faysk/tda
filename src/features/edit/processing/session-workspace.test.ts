@@ -111,6 +111,26 @@ describe("session workspace protocol", () => {
 		expect(JSON.stringify(parsed)).not.toContain("transcript");
 	});
 
+	it("keeps Stable timeline v1 workspaces readable without inventing v2 provenance", () => {
+		const legacy = workspace();
+		legacy.timeline.policy_version = "tda_session_timeline_v1";
+		delete (legacy.timeline as Record<string, unknown>).strategy;
+		delete (legacy.timeline as Record<string, unknown>).wall_clock;
+		delete (legacy.timeline as Record<string, unknown>).unknown_interval_count;
+		delete (legacy.parts[0] as Record<string, unknown>).physical_interval_state;
+
+		const parsed = parseSessionWorkspace(legacy);
+
+		expect(parsed.timeline).toMatchObject({
+			policyVersion: "tda_session_timeline_v1",
+			strategy: null,
+			wallClock: null,
+			unknownIntervalCount: null,
+			state: "ready",
+		});
+		expect(parsed.parts[0].physicalIntervalState).toBeNull();
+	});
+
 	it("parses explicit fail-closed order conflicts", () => {
 		const raw = workspace([
 			recordingPart({
