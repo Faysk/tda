@@ -19,6 +19,8 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) — arquitetura aprovada para manter múltiplos resultados ASR, revisar/comparar antes de publicar, versionar publicações e suportar substituição, restore, unpublish e delete sem sobrescrita acidental.
 
+[Benchmark ASR — referência humana e métricas objetivas](processing-benchmark-quality.md) — referência humana versionada sobre o bundle canônico do Benchmark, WER/CER/S-D-I/glossário e timing condicionado; nenhuma publicação ou vencedor automático.
+
 [Sessões com múltiplas gravações Craig](multi-recording-sessions.md) — contrato implementado para compor 1..N sources/runs em uma Session Assembly imutável antes de review/publicação, preservando gaps, overlaps e provenance por part.
 
 [Navegação global do TDA](global-navigation.md) — contrato canônico para marca = início, launcher = produto e avatar = conta/aparência; projeção sanitizada de Auth integrada e rollout visual rastreado por #879.
