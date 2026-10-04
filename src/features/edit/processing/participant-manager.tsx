@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { Button, Select } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { isReviewStringV1 } from "../../transcript-review/text-contract";
 import type { LocalReviewSegment } from "./protocol";
 import { participantGroups, previewParticipantRename, type ParticipantRename } from "./participant-rename";
