@@ -1200,6 +1200,7 @@ export function SessionIntentCoordinator({
 			</div>
 
 			{workspace?.parts.length ? (
+				assembly ? null : (
 				<ol className={styles.progressList} aria-label="Progresso das gravações">
 					{workspace.parts.map((part, index) => {
 						const runs = runsBySource.get(part.sourceId) ?? [];
@@ -1264,6 +1265,7 @@ export function SessionIntentCoordinator({
 						);
 					})}
 				</ol>
+				)
 			) : (
 				<p className={styles.waiting}>Preparando as gravações desta sessão…</p>
 			)}
@@ -1284,7 +1286,7 @@ export function SessionIntentCoordinator({
 				/>
 			) : null}
 
-			{workspace?.parts.length && workspace.parts.length > 1 ? (
+			{!assembly && workspace?.parts.length && workspace.parts.length > 1 ? (
 				<p className={styles.outputHint}>A saída será uma única transcrição da sessão.</p>
 			) : null}
 
