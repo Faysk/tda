@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Select, type SelectOption } from "@/components/ui";
 import type { StoryOutlineEntry } from "@/features/sessions/story-outline";
 import styles from "./session-outline-nav.module.css";
 
@@ -14,6 +15,14 @@ export function SessionOutlineNav({
 	const baseLevel = useMemo(
 		() => Math.min(...entries.map((entry) => entry.level)),
 		[entries],
+	);
+	const outlineOptions = useMemo<readonly SelectOption<string>[]>(
+		() =>
+			entries.map((entry) => ({
+				value: entry.id,
+				label: `${"› ".repeat(Math.max(0, entry.level - baseLevel))}${entry.text}`,
+			})),
+		[baseLevel, entries],
 	);
 
 	useEffect(() => {
@@ -66,17 +75,12 @@ export function SessionOutlineNav({
 					{compact ? (
 						<label className={styles.selectLabel}>
 							<span>Ir para um trecho</span>
-							<select
+							<Select
 								value={activeId}
-								onChange={(event) => navigate(event.target.value)}
-								aria-label="Ir para uma seção"
-							>
-								{entries.map((entry) => (
-									<option key={entry.id} value={entry.id}>
-										{`${"› ".repeat(Math.max(0, entry.level - baseLevel))}${entry.text}`}
-									</option>
-								))}
-							</select>
+								options={outlineOptions}
+								onChange={navigate}
+								ariaLabel="Ir para uma seção"
+							/>
 						</label>
 					) : (
 						<ol className={styles.list}>
