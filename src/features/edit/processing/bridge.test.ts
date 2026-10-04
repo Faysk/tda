@@ -303,7 +303,8 @@ describe("processing benchmark contract", () => {
 		expect(result.failedCount).toBe(1);
 		expect(result.bundleManifestSha256).toBeNull();
 		expect(result.bundleSizeBytes).toBeNull();
-		expect(result.profileOutcomes[2]).toEqual({
+		expect(result.profileOutcomes).toBeDefined();
+		expect(result.profileOutcomes?.[2]).toEqual({
 			profileId: "qwen-fast",
 			status: "failed",
 			artifactAvailable: false,
