@@ -376,6 +376,7 @@ async function installMultiRecordingRoutes(
 					"transcription.session-workspace",
 					"transcription.session-intent",
 					"transcription.session-timeline",
+					"transcription.session-sequence",
 					"transcription.session-participants",
 					"transcription.session-assembly",
 					"transcription.session-assembly.review",
