@@ -89,6 +89,15 @@ export function Select<T extends string>({
 	const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
 
 	useEffect(() => {
+		if (value !== undefined || !name) return;
+		const form = triggerRef.current?.form;
+		if (!form) return;
+		const handleReset = () => setInternalValue(fallbackValue);
+		form.addEventListener("reset", handleReset);
+		return () => form.removeEventListener("reset", handleReset);
+	}, [fallbackValue, name, value]);
+
+	useEffect(() => {
 		if (!open) return;
 		const handlePointerDown = (event: PointerEvent) => {
 			if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
@@ -210,6 +219,7 @@ export function Select<T extends string>({
 				type="button"
 				className={styles.trigger}
 				aria-label={ariaLabel}
+				data-form-control-name={name}
 				aria-haspopup="listbox"
 				aria-expanded={open}
 				aria-controls={listboxId}
