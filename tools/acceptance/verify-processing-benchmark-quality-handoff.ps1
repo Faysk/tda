@@ -130,13 +130,13 @@ function Assert-BenchmarkEvidence(
     try {
         $resultProfiles = @((Get-OptionalPropertyValue $Result "profiles"))
         foreach ($profileId in $RequiredProfiles) {
-            $matches = @($resultProfiles | Where-Object {
+            $profileRows = @($resultProfiles | Where-Object {
                 [string](Get-OptionalPropertyValue $_ "profile_id") -eq $profileId
             })
-            if ($matches.Count -ne 1) {
+            if ($profileRows.Count -ne 1) {
                 Fail ("BENCHMARK_EVIDENCE_PROFILE_MISSING:" + $profileId)
             }
-            $row = $matches[0]
+            $row = $profileRows[0]
             $expectedSha = [string](Get-OptionalPropertyValue $row "transcript_sha256")
             Assert-Sha256 $expectedSha ("BENCHMARK_EVIDENCE_TRANSCRIPT_SHA_INVALID:" + $profileId)
 
