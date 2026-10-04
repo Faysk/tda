@@ -59,6 +59,7 @@ import {
 	type QwenRuntimeReleaseAvailability,
 } from "./qwen-runtime-release-availability";
 import { SessionRecordingComposer } from "./session-composer";
+import type { SessionAssembly } from "./session-composer-protocol";
 import {
 	SessionIntentCoordinator,
 	type SessionTranscriptionIntent,
@@ -69,8 +70,10 @@ import {
 	type SessionRecoveryTarget,
 } from "./session-recovery";
 import {
+	clearSessionComposerRecoveryPointer,
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
+	SESSION_COMPOSER_CHANGE_EVENT,
 	type SessionComposerPendingSubmission,
 } from "./session-composer-storage";
 import {
@@ -216,6 +219,7 @@ export function ProcessingSubmission({
 	recoveryScope = null,
 	onDraftStateChange,
 	onOpenDiagnostics,
+	onReviewAssembly,
 	runs = EMPTY_RUNS,
 	benchmarks = EMPTY_BENCHMARKS,
 	system = null,
@@ -226,6 +230,7 @@ export function ProcessingSubmission({
 	recoveryScope?: string | null;
 	onDraftStateChange?: (active: boolean) => void;
 	onOpenDiagnostics?: () => void;
+	onReviewAssembly?: (assembly: SessionAssembly) => void;
 	runs?: readonly LocalRunSummary[];
 	benchmarks?: readonly BenchmarkResult[];
 	system?: SystemSnapshot | null;
@@ -247,6 +252,8 @@ export function ProcessingSubmission({
 	const [intentRequest, setIntentRequest] =
 		useState<SessionTranscriptionIntent | null>(null);
 	const [composerActive, setComposerActive] = useState(false);
+	const [sourceRecoveryActive, setSourceRecoveryActive] = useState(false);
+	const [intentEpoch, setIntentEpoch] = useState(0);
 	const [technicalOpen, setTechnicalOpen] = useState(false);
 	const [technicalTarget, setTechnicalTarget] =
 		useState<SessionRecoveryTarget | null>(null);
@@ -289,6 +296,7 @@ export function ProcessingSubmission({
 	}, []);
 
 	const openSourceRecovery = useCallback(() => {
+		setSourceRecoveryActive(true);
 		setIntentRequest(null);
 		setFiles([]);
 		setError(null);
@@ -855,6 +863,7 @@ export function ProcessingSubmission({
 					? "Iniciando a transcrição da sessão…"
 					: `Iniciando a transcrição da sessão com ${stagedSources.length} gravações…`,
 			);
+			setSourceRecoveryActive(false);
 			setIntentRequest({
 				id: crypto.randomUUID(),
 				sessionId,
@@ -950,6 +959,31 @@ export function ProcessingSubmission({
 				? qwenRuntimeBlockMessage
 				: localOperationMessage(selectedProfileState.reason)
 			: null;
+	const sessionActive = Boolean((intentRequest || composerActive) && !sourceRecoveryActive);
+
+	function startNewTranscription() {
+		request.current?.abort();
+		try {
+			clearSessionComposerRecoveryPointer(window.localStorage, campaignId);
+		} catch {
+			// The Agent remains authoritative; clearing browser recovery is best effort.
+		}
+		window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
+		setIntentEpoch((value) => value + 1);
+		setIntentRequest(null);
+		setComposerActive(false);
+		setSourceRecoveryActive(false);
+		setTechnicalOpen(false);
+		setTechnicalTarget(null);
+		setFiles([]);
+		setSessionId("");
+		setContext("");
+		setGlossary("");
+		setAdvancedOpen(false);
+		setStatus(null);
+		setError(null);
+		setRecoveryNotice(null);
+	}
 
 
 	return (
@@ -957,14 +991,23 @@ export function ProcessingSubmission({
 			className={className ? `${styles.card} ${className}` : styles.card}
 			data-craig-composer="true"
 			data-layout={compact ? "compact" : "default"}
+			data-state={sessionActive ? "active" : sourceRecoveryActive ? "recovery" : "draft"}
 			aria-labelledby="new-local-transcription"
 		>
 			<div className={styles.heading}>
 				<div>
 					<span>Processamento local</span>
-					<h2 id="new-local-transcription">Transcrever sessão</h2>
+					<h2 id="new-local-transcription">
+						{sessionActive ? "Sessão local" : sourceRecoveryActive ? "Restaurar gravação" : "Transcrever sessão"}
+					</h2>
 				</div>
-				<small>1..N ZIPs Craig → uma transcrição contínua</small>
+				<small>
+					{sessionActive
+						? "Estado preservado no TDA Companion"
+						: sourceRecoveryActive
+							? "Selecione o ZIP original para retomar"
+							: "1..N ZIPs Craig → uma transcrição contínua"}
+				</small>
 			</div>
 
 			{!capabilities && capabilityError ? (
@@ -995,7 +1038,7 @@ export function ProcessingSubmission({
 						</Button>
 					) : null}
 				</div>
-			) : (
+			) : sessionActive ? null : (
 				<form className={styles.form} onSubmit={submit}>
 					<div
 						className={styles.dropZone}
@@ -1384,6 +1427,7 @@ export function ProcessingSubmission({
 			{capabilities ? (
 				<>
 					<SessionIntentCoordinator
+						key={intentEpoch}
 						bridge={bridge}
 						campaignId={campaignId}
 						capabilities={capabilities.capabilities}
@@ -1395,6 +1439,7 @@ export function ProcessingSubmission({
 							setSessionId((current) => current || value)
 						}
 						onRestoreIntent={(restored) => {
+							setSourceRecoveryActive(false);
 							setProfile(restored.profile);
 							setContext(restored.context);
 							setGlossary(restored.glossary);
@@ -1403,6 +1448,8 @@ export function ProcessingSubmission({
 						onError={handleChildError}
 						onOpenTechnical={openTechnicalRecovery}
 						onSelectSource={openSourceRecovery}
+						onReviewAssembly={onReviewAssembly}
+						onStartNew={startNewTranscription}
 					/>
 					{composerActive ? (
 						<details
