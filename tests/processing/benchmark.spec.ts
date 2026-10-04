@@ -520,6 +520,72 @@ test("partial benchmark keeps the failed profile visible and never asks for manu
 	await expect(inspector.getByRole("button", { name: "Abrir resultado" })).toHaveCount(0);
 });
 
+test("global Benchmark failure keeps later profiles explicitly not attempted", async ({
+	page,
+}) => {
+	const failedJob = fixtureBenchmarkJob("failed", {
+		stage: "benchmark",
+		progress: { completed: 2, total: 4, unit: "profiles" },
+		error: { code: "WORKER_PROTOCOL_INVALID", recoverable: false },
+		result_available: false,
+		updated_at: "2026-10-04T19:24:44Z",
+	});
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [failedJob],
+		jobEvents: [
+			{
+				seq: 20,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_OUTCOME",
+				at: "2026-10-04T19:20:00Z",
+				level: "info",
+				data: {
+					profile_id: "whisper-turbo",
+					status: "completed",
+					attempted_count: 1,
+					successful_count: 1,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 21,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_OUTCOME",
+				at: "2026-10-04T19:22:00Z",
+				level: "info",
+				data: {
+					profile_id: "whisper-detailed",
+					status: "completed",
+					attempted_count: 2,
+					successful_count: 2,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 22,
+				attempt: 1,
+				code: "WORKER_PROTOCOL_INVALID",
+				at: "2026-10-04T19:24:00Z",
+				level: "error",
+				data: {},
+			},
+		],
+	});
+	const panel = await openBenchmark(page);
+
+	const problem = panel.locator("section").filter({ hasText: "Benchmark falhou" }).first();
+	await expect(problem).toBeVisible();
+	await expect(problem).toContainText("WORKER_PROTOCOL_INVALID");
+	await expect(problem.getByLabel("Whisper Turbo · concluído")).toBeVisible();
+	await expect(problem.getByLabel("Whisper Detailed · concluído")).toBeVisible();
+	await expect(problem.getByLabel("Qwen Fast · interrompido")).toBeVisible();
+	await expect(problem.getByLabel("Qwen Quality · não tentado")).toBeVisible();
+	await expect(problem.getByText("Qwen Quality").locator("..")).not.toContainText("falhou");
+});
+
 test("benchmark preflights the source, prepares pending profiles, and opens its live diagnostics", async ({
 	page,
 }) => {
