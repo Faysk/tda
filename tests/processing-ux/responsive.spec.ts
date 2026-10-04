@@ -1158,6 +1158,23 @@ test("contextual diagnostics preserves toolbar geometry with bounded history, ca
 	});
 });
 
+test("contextual event detail remains contained immediately above the sheet breakpoint", async ({
+	page,
+}) => {
+	const { inspector } = await openBenchmarkContextualDiagnostics(
+		page,
+		{ width: 761, height: 701 },
+	);
+	await inspector.getByRole("button", { name: "Técnica", exact: true }).click();
+	const log = inspector.locator("[data-live-log-viewport='true']");
+	await log.locator("button[data-event-seq]").first().click();
+	await expect(inspector.locator("[data-live-log-detail='true']")).toBeVisible();
+
+	const geometry = await readContextualLogGeometry(inspector);
+	expectContextualLogRegionsDoNotOverlap(geometry);
+	expect(geometry.footerVisible).toBe(true);
+});
+
 test("contextual diagnostics keeps stale-event warning in flow without covering controls", async ({
 	page,
 }) => {
