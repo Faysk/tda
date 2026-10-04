@@ -1211,7 +1211,7 @@ export function ProcessingSubmission({
 									: "Sugestão vem do nome do ZIP quando o campo está vazio. Sempre editável antes de compor."}
 							</small>
 						</label>
-						<label>
+						<div>
 							<span>Perfil</span>
 							<Select
 								value={profile}
@@ -1224,7 +1224,7 @@ export function ProcessingSubmission({
 								disabled={busy || Boolean(intentRequest)}
 								required
 							/>
-						</label>
+						</div>
 						<div className={styles.submitRow}>
 							<Button
 								type="submit"
