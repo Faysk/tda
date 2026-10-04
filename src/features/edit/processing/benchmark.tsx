@@ -39,7 +39,7 @@ const LABELS: Record<(typeof PROFILES)[number], string> = {
 	"qwen-quality": "Qwen Quality",
 };
 
-type BenchmarkStepState = "complete" | "failed" | "current" | "pending";
+type BenchmarkStepState = "complete" | "failed" | "current" | "pending" | "stopped" | "not_attempted";
 
 function benchmarkStepLabel(state: BenchmarkStepState): string {
 	return {
@@ -47,6 +47,8 @@ function benchmarkStepLabel(state: BenchmarkStepState): string {
 		failed: "falhou",
 		current: "em execução",
 		pending: "pendente",
+		stopped: "interrompido",
+		not_attempted: "não tentado",
 	}[state];
 }
 
@@ -1009,6 +1011,41 @@ export function ProcessingBenchmark({
 	const latestEvent = activeEvents.at(-1) ?? null;
 	const latestActivity = latestEvent ? presentJobEvent(latestEvent) : null;
 
+	const problemEvents =
+		latestProblem && observedJobId === latestProblem.id
+			? events.filter(
+					(event) =>
+						event.attempt === null || event.attempt === latestProblem.attempt,
+				)
+			: [];
+	const problemProfileOutcomes = new Map<
+		(typeof PROFILES)[number],
+		{ status: "completed" | "failed"; errorCode: string | null }
+	>();
+	for (const event of problemEvents) {
+		if (event.code !== "BENCHMARK_PROFILE_OUTCOME") continue;
+		const profileId = event.data.profile_id;
+		const profileStatus = event.data.status;
+		if (
+			typeof profileId !== "string" ||
+			!PROFILES.includes(profileId as (typeof PROFILES)[number]) ||
+			(profileStatus !== "completed" && profileStatus !== "failed")
+		)
+			continue;
+		problemProfileOutcomes.set(profileId as (typeof PROFILES)[number], {
+			status: profileStatus,
+			errorCode:
+				typeof event.data.error_code === "string" ? event.data.error_code : null,
+		});
+	}
+	const problemStoppedIndex =
+		latestProblem &&
+		latestProblem.status !== "cancelled" &&
+		problemEvents.length > 0 &&
+		problemProfileOutcomes.size < PROFILES.length
+			? problemProfileOutcomes.size
+			: null;
+
 	const preparationLabel =
 		preparation?.active && preparation.profileId
 			? `${LABELS[preparation.profileId]} · ${preparation.title}`
@@ -1445,6 +1482,45 @@ export function ProcessingBenchmark({
 								: `Tentativa ${latestProblem.attempt}`}
 						</p>
 					</div>
+					{problemEvents.length > 0 ? (
+						<ol
+							className={styles.runSteps}
+							aria-label="Estado dos quatro perfis na execução interrompida"
+						>
+							{PROFILES.map((id, index) => {
+								const outcome = problemProfileOutcomes.get(id);
+								const state: BenchmarkStepState = outcome
+									? outcome.status === "completed"
+										? "complete"
+										: "failed"
+									: index === problemStoppedIndex
+										? "stopped"
+										: "not_attempted";
+								const icon =
+									state === "complete"
+										? "✓"
+										: state === "failed"
+											? "×"
+											: state === "stopped"
+												? "!"
+												: index + 1;
+								return (
+									<li
+										key={id}
+										className={styles.runStep}
+										data-state={state}
+										aria-label={`${LABELS[id]} · ${benchmarkStepLabel(state)}`}
+									>
+										<i aria-hidden="true">{icon}</i>
+										<span>
+											{LABELS[id]}
+											<small>{benchmarkStepLabel(state)}</small>
+										</span>
+									</li>
+								);
+							})}
+						</ol>
+					) : null}
 					<Button
 						type="button"
 						variant="tertiary"
