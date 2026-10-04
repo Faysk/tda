@@ -19,11 +19,17 @@ const SOURCE = "craig-" + "a".repeat(64);
 function assembly(): SessionAssembly {
 	return {
 		schemaVersion: "tda_session_assembly_v1",
+		canonicalizationVersion: "tda_session_assembly_canonical_v1",
+		timingPolicyVersion: "tda_session_timeline_v1",
+		segmentBoundaryPolicy: "segment_start_owner_v1",
 		assemblyId: "1".repeat(64),
 		campaignId: "yuhara-main",
 		sessionId: "sessao-1118",
 		inputsSha256: "1".repeat(64),
 		timelineFingerprintSha256: "2".repeat(64),
+		timelineStrategy: null,
+		wallClock: null,
+		unknownIntervalCount: null,
 		participantMappingSha256: "3".repeat(64),
 		participantApprovalBlocked: false,
 		transcriptSha256: "4".repeat(64),
@@ -43,6 +49,7 @@ function assembly(): SessionAssembly {
 				trimEndSeconds: null,
 				overlapResolution: null,
 				overlapBoundarySeconds: null,
+				physicalIntervalState: null,
 			},
 		],
 	};
