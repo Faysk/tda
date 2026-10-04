@@ -461,7 +461,7 @@
 .overviewTop {
 	display: grid;
 	grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
-	align-items: stretch;
+	align-items: start;
 	gap: 10px;
 	min-width: 0;
 }
@@ -486,7 +486,8 @@
 }
 
 .submissionCard {
-	height: 100%;
+	align-self: start;
+	height: auto;
 	margin: 0;
 }
 
