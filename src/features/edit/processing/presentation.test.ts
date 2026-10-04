@@ -161,6 +161,31 @@ describe("processing presentation", () => {
 		).toContain("2 runs incompletos");
 	});
 
+	it("presents partial Benchmark state and profile continuation without manual Quality advice", () => {
+		expect(presentJobError("BENCHMARK_PARTIAL")).toContain("comparação 4/4");
+		const event = presentJobEvent({
+			seq: 50,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_OUTCOME",
+			at: "2026-10-04T19:26:44Z",
+			level: "warning",
+			data: {
+				profile_id: "qwen-fast",
+				status: "failed",
+				error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+				recoverable: true,
+				attempted_count: 3,
+				successful_count: 2,
+				failed_count: 1,
+			},
+		});
+		expect(event.title).toContain("Qwen Fast falhou");
+		expect(event.title).toContain("continuará");
+		expect(event.detail).toContain("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN");
+		expect(event.detail).toContain("tentados 3/4");
+		expect(event.title).not.toContain("selecione Qwen Quality");
+	});
+
 	it("labels canonical processing stages", () => {
 		expect(stageLabels.transcription).toBe("Transcrição");
 		expect(stageLabels.runtime_bootstrap).toBe("Inicializando runtime local");
