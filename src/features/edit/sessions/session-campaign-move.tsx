@@ -260,8 +260,12 @@ export function SessionCampaignMovePanel({
 		runPreflightWith(next);
 	}
 
-	function commitMove() {
-		if (!preview || preview.status !== "ready") return;
+	function commitMove(recoverUnresolved = false) {
+		if (
+			(!preview || preview.status !== "ready") &&
+			!(recoverUnresolved && operationId && recoveryNotice)
+		)
+			return;
 		const stableOperationId = operationId ?? crypto.randomUUID();
 		if (!operationId) setOperationId(stableOperationId);
 		setError(null);
@@ -378,9 +382,16 @@ export function SessionCampaignMovePanel({
 					</div>
 
 					{recoveryNotice ? (
-						<p className={styles.recoveryNotice} role="status">
-							{recoveryNotice}
-						</p>
+						<div className={styles.recoveryNotice} role="status">
+							<span>{recoveryNotice}</span>
+							<button
+								type="button"
+								disabled={pending || !operationId}
+								onClick={() => commitMove(true)}
+							>
+								{pending ? "Reconciliando…" : "Reconciliar operação pendente"}
+							</button>
+						</div>
 					) : null}
 					{error ? <p className={styles.error} role="alert">{error}</p> : null}
 
