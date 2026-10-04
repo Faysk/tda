@@ -181,11 +181,16 @@ export function SessionRecordingComposer({
 				(cause.code === "timeout" || cause.code === "unreachable")
 					? cause.code
 					: undefined;
+			if (availabilityFailure && onError) {
+				setLocalError(null);
+				setLocalTechnicalCode(null);
+				setLocalSeverity(null);
+				onError(message, availabilityFailure);
+				return;
+			}
 			setLocalError(message);
 			setLocalTechnicalCode(recovery.technicalCode);
 			setLocalSeverity(recovery.severity);
-			if (recovery.severity === "error")
-				onError?.(message, availabilityFailure);
 		},
 		[onError, workspace],
 	);
