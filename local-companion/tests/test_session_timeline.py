@@ -7,6 +7,7 @@ import pytest
 from tda_companion.session_timeline import (
     project_trusted_absolute_time,
     automatic_placements,
+    confirmed_sequence_placements,
     classify_start_time,
     enrich_workspace_timeline,
     package_duration_seconds,
@@ -114,6 +115,65 @@ def test_automatic_placement_requires_every_source_to_have_absolute_time():
     with pytest.raises(ValueError, match="SESSION_WORKSPACE_TIMELINE_NOT_TRUSTED"):
         automatic_placements(parts, ambiguous)
 
+
+
+def test_confirmed_sequence_uses_editorial_continuity_without_inventing_missing_clock():
+    parts = [
+        part(1, 0, offset=None),
+        part(2, 1, offset=None),
+        part(3, 2, offset=None),
+    ]
+    source_facts = dict(
+        [
+            facts(1, start=None, duration=60.0),
+            facts(2, start="2026-09-27T20:00:00Z", duration=60.0),
+            facts(3, start="2026-09-27T20:01:10Z", duration=30.0),
+        ]
+    )
+
+    placements = confirmed_sequence_placements(parts, source_facts)
+
+    assert [item["source_id"] for item in placements] == [
+        f"craig-{1:064x}",
+        f"craig-{2:064x}",
+        f"craig-{3:064x}",
+    ]
+    assert [item["session_offset_seconds"] for item in placements] == [
+        0.0,
+        60.0,
+        130.0,
+    ]
+    assert [item["gap_confirmed"] for item in placements] == [False, False, True]
+
+
+def test_confirmed_sequence_preserves_proven_overlap_for_explicit_resolution():
+    parts = [part(1, 0, offset=None), part(2, 1, offset=None)]
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:00:00Z", duration=60.0),
+            facts(2, start="2026-09-27T20:00:50Z", duration=60.0),
+        ]
+    )
+
+    placements = confirmed_sequence_placements(parts, source_facts)
+
+    assert [item["session_offset_seconds"] for item in placements] == [0.0, 50.0]
+    assert placements[1]["gap_confirmed"] is False
+
+
+def test_confirmed_sequence_rejects_user_order_that_trusted_time_proves_reversed():
+    parts = [part(1, 0, offset=None), part(2, 1, offset=None)]
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:10:00Z", duration=60.0),
+            facts(2, start="2026-09-27T20:00:00Z", duration=60.0),
+        ]
+    )
+
+    with pytest.raises(
+        ValueError, match="SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION"
+    ):
+        confirmed_sequence_placements(parts, source_facts)
 
 def test_equal_absolute_starts_require_manual_order_instead_of_synthetic_tiebreak():
     parts = [
