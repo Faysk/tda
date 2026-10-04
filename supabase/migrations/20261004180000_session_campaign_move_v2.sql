@@ -1062,8 +1062,35 @@ begin
            or v_destination_media.byte_size <> v_source_media.byte_size
            or v_destination_media.width <> v_source_media.width
            or v_destination_media.height <> v_source_media.height
+           or v_destination_media.staged_bucket <> v_prepared->>'stagedBucket'
            or v_destination_media.object_key <> v_expected_destination_key
            or v_destination_media.read_back_verified is not true then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+
+        if v_prepared->>'status' = 'verified_public'
+           and v_destination_media.status = 'staged' then
+          update public.media_assets ma
+          set
+            status = 'verified_public',
+            public_bucket = nullif(v_prepared->>'publicBucket', ''),
+            public_object_key = nullif(v_prepared->>'publicObjectKey', ''),
+            public_delivery_verified = coalesce(
+              (v_prepared->>'publicDeliveryVerified')::boolean,
+              false
+            ),
+            public_verified_at =
+              nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+            updated_at = clock_timestamp()
+          where ma.id = v_destination_asset_id
+            and ma.campaign_id = v_destination.id
+            and ma.status = 'staged'
+            and ma.read_back_verified = true;
+
+          if not found then
+            return jsonb_build_object('status', 'media_prepare_stale');
+          end if;
+        elsif v_destination_media.status = 'retired' then
           return jsonb_build_object('status', 'media_prepare_stale');
         end if;
       else
