@@ -249,6 +249,31 @@ def test_automatic_derivation_never_overwrites_manual_timing(tmp_path):
             manual["revision"],
         )
 
+    with pytest.raises(
+        Conflict, match="SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE"
+    ):
+        store.apply_confirmed_session_timeline(
+            "campaign-a",
+            "session-a",
+            [
+                {
+                    "part_id": first["part_id"],
+                    "source_id": first["source_id"],
+                    "ordinal": 0,
+                    "session_offset_seconds": 0.0,
+                    "gap_confirmed": False,
+                },
+                {
+                    "part_id": second["part_id"],
+                    "source_id": second["source_id"],
+                    "ordinal": 1,
+                    "session_offset_seconds": 60.0,
+                    "gap_confirmed": False,
+                },
+            ],
+            manual["revision"],
+        )
+
 
 
 def test_automatic_derivation_never_overwrites_confirmed_sequence(tmp_path):
