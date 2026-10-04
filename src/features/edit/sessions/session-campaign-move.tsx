@@ -22,7 +22,7 @@ export type SessionCampaignMoveTransport = Readonly<{
 	) => ReturnType<typeof preflightSessionCampaignMoveAction>;
 	commit: (
 		request: MoveCommitRequest,
-	) => ReturnType<typeof moveSessionCampaignMoveAction>;
+	) => ReturnType<typeof moveSessionCampaignAction>;
 }>;
 
 const DEFAULT_TRANSPORT: SessionCampaignMoveTransport = {
