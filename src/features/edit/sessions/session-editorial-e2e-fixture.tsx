@@ -186,7 +186,8 @@ function SyntheticCoverEditor({
 
 export function SessionEditorialE2EFixture({
 	segmentCount = BASE_SEGMENTS.length,
-}: Readonly<{ segmentCount?: number }>) {
+	moveBackendReady = true,
+}: Readonly<{ segmentCount?: number; moveBackendReady?: boolean }>) {
 	const segments = useMemo(() => buildSyntheticSegments(segmentCount), [segmentCount]);
 	const initialDraft = useMemo(() => freshDraft(), []);
 	const draftRef = useRef<SessionEditorialDraft>(initialDraft);
@@ -410,143 +411,156 @@ export function SessionEditorialE2EFixture({
 	}
 
 	return (
-		<main className={workbenchStyles.shell} style={{ display: "grid", gap: "2rem" }}>
-			<header className={workbenchStyles.workbenchHeader}>
-				<div>
-					<h1 className={workbenchStyles.workbenchTitle}>Session Editorial E2E</h1>
-					<p className={workbenchStyles.muted}>
-						Fixture sintética. Nenhum dado, credencial, mídia ou transcrição real é
-						carregado.
-					</p>
-				</div>
-			</header>
-
-			<section aria-label="Controles sintéticos de falha" data-testid="session-editorial-failure-controls">
-				<label>
-					<input
-						checked={editable}
-						onChange={(event) => setEditable(event.currentTarget.checked)}
-						type="checkbox"
-					/>
-					Permitir edição
-				</label>
-				<label>
-					<input
-						checked={publishable}
-						onChange={(event) => setPublishable(event.currentTarget.checked)}
-						type="checkbox"
-					/>
-					Permitir publicação
-				</label>
-				<button onClick={simulateTranscriptRevision} type="button">
-					Simular nova revisão de transcrição
-				</button>
-				<button onClick={simulateRemoteDraft} type="button">
-					Simular save concorrente
-				</button>
-				<button
-					onClick={() => {
-						loseNextResponseRef.current = true;
-					}}
-					type="button"
-				>
-					Perder próxima resposta de publicação
-				</button>
-				<button
-					onClick={() => {
-						failNextCoverPromotionRef.current = true;
-					}}
-					type="button"
-				>
-					Falhar próxima promoção da capa
-				</button>
-				<button
-					onClick={() => {
-						loseNextMoveResponseRef.current = true;
-					}}
-					type="button"
-				>
-					Perder próxima resposta de move
-				</button>
-				<output data-testid="synthetic-move-operation-ids">
-					{moveOperationIds.join("|")}
-				</output>
-				<output data-testid="remote-draft-revision">{remoteRevision}</output>
-			</section>
-
-			<SessionCampaignMovePanel
-				sessionId={SESSION_ID}
-				sourceSessionId="synthetic-editorial"
-				sourceCampaignSlug="campanha-a"
-				sourceCampaignName="Campanha A"
-				destinations={[
-					{
-						technicalSlug: "campanha-b",
-						routeKey: "campanha-b",
-						name: "Campanha B",
-					},
-					{
-						technicalSlug: "campanha-bloqueada",
-						routeKey: "campanha-bloqueada",
-						name: "Campanha bloqueada",
-					},
-				]}
-				transport={moveTransport}
-			/>
-
-			<section aria-label="Workspace editorial privado" data-testid="session-editorial-workspace-frame">
-				<SessionEditWorkspace
-					transcript={{
-						downloadHref: "/e2e-fixtures/session-editorial/transcript",
-						segments,
-						sourceLabel: "Revisão privada sintética · r1",
-					}}
-					editorial={{
-						editable,
-						initial: {
-							...initialDraft,
-							currentTranscriptRevisionId: transcriptRevisionId,
-							transcriptChanged:
-								initialDraft.baseTranscriptRevisionId !== transcriptRevisionId,
-						},
-						initialPublication: {
-							currentPublicationId: null,
-							currentVersion: 0,
-						},
-						publicationAvailable: true,
-						publishable,
-						sessionId: SESSION_ID,
-						transport,
-					}}
-					editorialUnavailable={null}
-				/>
-			</section>
-
-			<section
-				aria-label="Superfície pública sintética"
-				data-testid="synthetic-public-session"
+		<>
+			<main
+				className={[workbenchStyles.shell, workbenchStyles.sessionShell].join(" ")}
+				data-testid="session-editorial-shell"
 			>
-				<h2>Snapshot público</h2>
-				{publicSnapshot ? (
-					<article
-						data-public-description={publicSnapshot.shortDescription}
-						data-public-version={publicSnapshot.version}
-					>
-						<p>{publicSnapshot.arc}</p>
-						<h3>{publicSnapshot.title}</h3>
-						<time>{publicSnapshot.sessionDate}</time>
-						<p>{publicSnapshot.shortDescription}</p>
-						<StoryMarkdown
-							source={publicSnapshot.fullSummary}
-							title={publicSnapshot.title}
-						/>
-						<small>{publicSnapshot.coverAssetId}</small>
-					</article>
-				) : (
-					<p>Nenhuma publicação pública.</p>
-				)}
-			</section>
-		</main>
+				<header className={[workbenchStyles.workbenchHeader, workbenchStyles.sessionHeader].join(" ")}>
+								<div>
+									<h1 className={workbenchStyles.workbenchTitle}>Session Editorial E2E</h1>
+									<p className={workbenchStyles.muted}>
+										Fixture sintética. Nenhum dado, credencial, mídia ou transcrição real é
+										carregado.
+									</p>
+								</div>
+							</header>
+				<div className={workbenchStyles.sessionNotice} role="status">
+					<strong>Privado no Edit</strong>
+					<span>Fixture sintética; salvar draft não publica.</span>
+				</div>
+				<div className={workbenchStyles.sessionMove}>
+					<SessionCampaignMovePanel
+									sessionId={SESSION_ID}
+									sourceSessionId="synthetic-editorial"
+									sourceCampaignSlug="campanha-a"
+									sourceCampaignName="Campanha A"
+									destinations={[
+										{
+											technicalSlug: "campanha-b",
+											routeKey: "campanha-b",
+											name: "Campanha B",
+										},
+										{
+											technicalSlug: "campanha-bloqueada",
+											routeKey: "campanha-bloqueada",
+											name: "Campanha bloqueada",
+										},
+									]}
+									backendReady={moveBackendReady}
+									transport={moveTransport}
+								/>
+				</div>
+				<div className={workbenchStyles.sessionWorkspace}>
+					<section aria-label="Workspace editorial privado" data-testid="session-editorial-workspace-frame">
+									<SessionEditWorkspace
+										transcript={{
+											downloadHref: "/e2e-fixtures/session-editorial/transcript",
+											segments,
+											sourceLabel: "Revisão privada sintética · r1",
+										}}
+										editorial={{
+											editable,
+											initial: {
+												...initialDraft,
+												currentTranscriptRevisionId: transcriptRevisionId,
+												transcriptChanged:
+													initialDraft.baseTranscriptRevisionId !== transcriptRevisionId,
+											},
+											initialPublication: {
+												currentPublicationId: null,
+												currentVersion: 0,
+											},
+											publicationAvailable: true,
+											publishable,
+											sessionId: SESSION_ID,
+											transport,
+										}}
+										editorialUnavailable={null}
+									/>
+								</section>
+				</div>
+			</main>
+
+			<div className={workbenchStyles.shell} style={{ display: "grid", gap: "2rem" }}>
+				<section aria-label="Controles sintéticos de falha" data-testid="session-editorial-failure-controls">
+								<label>
+									<input
+										checked={editable}
+										onChange={(event) => setEditable(event.currentTarget.checked)}
+										type="checkbox"
+									/>
+									Permitir edição
+								</label>
+								<label>
+									<input
+										checked={publishable}
+										onChange={(event) => setPublishable(event.currentTarget.checked)}
+										type="checkbox"
+									/>
+									Permitir publicação
+								</label>
+								<button onClick={simulateTranscriptRevision} type="button">
+									Simular nova revisão de transcrição
+								</button>
+								<button onClick={simulateRemoteDraft} type="button">
+									Simular save concorrente
+								</button>
+								<button
+									onClick={() => {
+										loseNextResponseRef.current = true;
+									}}
+									type="button"
+								>
+									Perder próxima resposta de publicação
+								</button>
+								<button
+									onClick={() => {
+										failNextCoverPromotionRef.current = true;
+									}}
+									type="button"
+								>
+									Falhar próxima promoção da capa
+								</button>
+								<button
+									onClick={() => {
+										loseNextMoveResponseRef.current = true;
+									}}
+									type="button"
+								>
+									Perder próxima resposta de move
+								</button>
+								<output data-testid="synthetic-move-operation-ids">
+									{moveOperationIds.join("|")}
+								</output>
+								<output data-testid="remote-draft-revision">{remoteRevision}</output>
+							</section>
+				<section
+								aria-label="Superfície pública sintética"
+								data-testid="synthetic-public-session"
+							>
+								<h2>Snapshot público</h2>
+								{publicSnapshot ? (
+									<article
+										data-public-description={publicSnapshot.shortDescription}
+										data-public-version={publicSnapshot.version}
+									>
+										<p>{publicSnapshot.arc}</p>
+										<h3>{publicSnapshot.title}</h3>
+										<time>{publicSnapshot.sessionDate}</time>
+										<p>{publicSnapshot.shortDescription}</p>
+										<StoryMarkdown
+											source={publicSnapshot.fullSummary}
+											title={publicSnapshot.title}
+										/>
+										<small>{publicSnapshot.coverAssetId}</small>
+									</article>
+								) : (
+									<p>Nenhuma publicação pública.</p>
+								)}
+							</section>
+			</div>
+		</>
 	);
 }
 
