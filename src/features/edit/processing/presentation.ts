@@ -145,6 +145,7 @@ export const jobLabels: Record<JobStatus, string> = {
 	interrupted: "Interrompido",
 };
 export const stageLabels: Record<string, string> = {
+	benchmark_partial: "Benchmark parcial",
 	queued: "Aguardando execução",
 	runtime_validation: "Validando runtime e gate físico",
 	runtime_bootstrap: "Inicializando runtime local",
