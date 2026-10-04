@@ -408,7 +408,7 @@ function SegmentEditor({
 			</div>
 
 			<div className={styles.segmentSide}>
-				<label className={styles.fieldLabel}>
+				<div className={styles.fieldLabel}>
 					Revisão
 					<Select
 						disabled={!editable}
@@ -426,7 +426,7 @@ function SegmentEditor({
 						}))}
 						ariaLabel="Revisão"
 					/>
-				</label>
+				</div>
 				{editable ? (
 					<Button
 						disabled={!dirty || editor.phase === "conflict"}
