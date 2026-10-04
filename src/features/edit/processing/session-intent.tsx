@@ -9,6 +9,7 @@ import {
 } from "./session-composer-model";
 import type { SessionAssembly } from "./session-composer-protocol";
 import {
+	clearSessionComposerRecoveryPointer,
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
 	SESSION_COMPOSER_CHANGE_EVENT,
@@ -108,6 +109,7 @@ type Props = Readonly<{
 	onOpenTechnical?: (target?: SessionRecoveryTarget) => void;
 	onSelectSource?: () => void;
 	onReviewAssembly?: (assembly: SessionAssembly) => void;
+	onNewTranscription?: () => void;
 }>;
 
 function supported(capabilities: readonly string[]): boolean {
@@ -206,6 +208,7 @@ export function SessionIntentCoordinator({
 	onOpenTechnical,
 	onSelectSource,
 	onReviewAssembly,
+	onNewTranscription,
 }: Props) {
 	const enabled = supported(capabilities);
 	const [workspace, setWorkspace] = useState<SessionWorkspace | null>(null);
@@ -1142,6 +1145,38 @@ export function SessionIntentCoordinator({
 		onReviewAssembly(assembly);
 	}
 
+	function startNewTranscription() {
+		if (busy || disabled || !assembly) return;
+		try {
+			clearSessionComposerRecoveryPointer(window.localStorage, campaignId);
+		} catch {
+			// Browser storage is recovery-only; completed Agent data remains authoritative.
+		}
+		processedRequest.current = null;
+		pendingSubmissions.current.clear();
+		intentEnqueueKeys.current.clear();
+		intentJobIds.current.clear();
+		intentRunIds.current.clear();
+		enqueueRecoveryBlocked.current.clear();
+		intentReceiptIdentity.current = null;
+		intentReceipt.current = null;
+		approvedVariantSources.current.clear();
+		excludedSources.current.clear();
+		setWorkspace(null);
+		setMapping(null);
+		setRunsBySource(new Map());
+		setJobs([]);
+		setAssembly(null);
+		setActiveRequest(null);
+		setBlocker(null);
+		setRecovery(null);
+		setLocalError(null);
+		setLive(null);
+		onActiveChange?.(false);
+		onNewTranscription?.();
+		window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
+	}
+
 	if (!enabled || (!workspace && !request)) return null;
 
 	const activeJobs = workspace
@@ -1188,7 +1223,7 @@ export function SessionIntentCoordinator({
 						{workspace?.sessionId ?? request?.sessionId ?? "Sessão"}
 					</h3>
 				</div>
-				{progress.total ? (
+				{progress.total && !assembly ? (
 					<strong>
 						{progress.completed}/{progress.total} concluída
 						{progress.total === 1 ? "" : "s"}
@@ -1196,7 +1231,7 @@ export function SessionIntentCoordinator({
 				) : null}
 			</div>
 
-			{workspace?.parts.length ? (
+			{workspace?.parts.length && !assembly ? (
 				<ol className={styles.progressList} aria-label="Progresso das gravações">
 					{workspace.parts.map((part, index) => {
 						const runs = runsBySource.get(part.sourceId) ?? [];
@@ -1584,14 +1619,24 @@ export function SessionIntentCoordinator({
 							{assembly.parts.length === 1 ? "gravação" : "gravações"}
 						</span>
 					</div>
-					<Button
-						type="button"
-						variant="primary"
-						disabled={busy || !onReviewAssembly}
-						onClick={() => void openReview()}
-					>
-						Revisar transcrição
-					</Button>
+					<div className={styles.blockerActions}>
+						<Button
+							type="button"
+							variant="primary"
+							disabled={busy || !onReviewAssembly}
+							onClick={() => void openReview()}
+						>
+							Revisar transcrição
+						</Button>
+						<Button
+							type="button"
+							variant="secondary"
+							disabled={busy}
+							onClick={startNewTranscription}
+						>
+							Nova transcrição
+						</Button>
+					</div>
 				</div>
 			) : null}
 
