@@ -54,18 +54,20 @@ export function sessionCampaignMoveOperationalRecord(
 		record.operationId = input.operationId.toLowerCase();
 	}
 	if (
+		typeof input.contractVersion === "number" &&
 		Number.isSafeInteger(input.contractVersion) &&
-		Number(input.contractVersion) >= 1 &&
-		Number(input.contractVersion) <= 32
+		input.contractVersion >= 1 &&
+		input.contractVersion <= 32
 	) {
-		record.contractVersion = Number(input.contractVersion);
+		record.contractVersion = input.contractVersion;
 	}
 	if (
+		typeof input.preparedAssets === "number" &&
 		Number.isSafeInteger(input.preparedAssets) &&
-		Number(input.preparedAssets) >= 0 &&
-		Number(input.preparedAssets) <= 1000
+		input.preparedAssets >= 0 &&
+		input.preparedAssets <= 1000
 	) {
-		record.preparedAssets = Number(input.preparedAssets);
+		record.preparedAssets = input.preparedAssets;
 	}
 	if (input.reason) {
 		record.reason = REASONS.has(input.reason) ? input.reason : "unknown";
