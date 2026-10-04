@@ -1527,7 +1527,18 @@ def create_app(
                             "succeeded",
                             "cancelled",
                         }:
-                            raise WorkerProcessError("WORKER_RESULT_INCOMPLETE")
+                            partial_terminal = (
+                                body["kind"] == "benchmark.craig"
+                                and outcome.payload.get("schema_version")
+                                == "tda_processing_benchmark_v2"
+                                and outcome.payload.get("outcome") == "partial"
+                                and final_state["status"] == "failed"
+                                and final_state.get("result_available") is True
+                                and isinstance(final_state.get("error"), dict)
+                                and final_state["error"].get("code") == "BENCHMARK_PARTIAL"
+                            )
+                            if not partial_terminal:
+                                raise WorkerProcessError("WORKER_RESULT_INCOMPLETE")
                         log(
                             "info",
                             "worker",
