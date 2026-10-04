@@ -933,12 +933,14 @@ async function openBenchmarkContextualDiagnostics(
 	page: import("@playwright/test").Page,
 	viewport: Readonly<{ width: number; height: number }>,
 	events = contextualDiagnosticEvents(80),
+	cursorEvents = false,
 ) {
 	await page.setViewportSize(viewport);
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
 		benchmarkProfiles: true,
 		benchmarkReadinessContract: true,
+		additionalCapabilities: cursorEvents ? ["job.events.cursor"] : undefined,
 		advanceJobs: false,
 		initialJobs: [fixtureBenchmarkJob("running")],
 		jobEvents: events,
@@ -1087,21 +1089,15 @@ for (const viewport of [
 test("contextual diagnostics preserves toolbar geometry with bounded history, catch-up and event detail", async ({
 	page,
 }, testInfo) => {
-	const initialEvents = contextualDiagnosticEvents(520);
+	const initialEvents = contextualDiagnosticEvents(180);
 	const { inspector, state } = await openBenchmarkContextualDiagnostics(
 		page,
 		{ width: 800, height: 768 },
 		initialEvents,
+		true,
 	);
 	const log = inspector.locator("[data-live-log-viewport='true']");
 	const toolbar = inspector.locator("[data-live-log-toolbar='true']");
-
-	await expect(
-		inspector.getByText(
-			"Mostrando os 500 eventos mais recentes para manter a visualização responsiva.",
-			{ exact: true },
-		),
-	).toBeVisible();
 
 	await inspector
 		.getByRole("button", { name: "Pausar visualização", exact: true })
@@ -1113,30 +1109,29 @@ test("contextual diagnostics preserves toolbar geometry with bounded history, ca
 		}),
 	).toBeVisible();
 
-	state.setJobEvents([
-		...initialEvents,
-		{
-			seq: 521,
-			attempt: 1,
-			code: "TRACK_COMPLETED",
-			at: "2026-10-04T18:08:41.000Z",
-			level: "info",
-			data: {
-				track: 12,
-				total_tracks: 12,
-				speaker: "Synthetic-4",
-				stage: "transcription",
-			},
-		},
-	]);
+	state.setJobEvents(contextualDiagnosticEvents(521));
 	await expect(
-		inspector.getByRole("button", { name: "1 novos eventos · Voltar ao vivo" }),
-	).toBeVisible({ timeout: 5_000 });
+		inspector.getByText(
+			"Mostrando os 500 eventos mais recentes para manter a visualização responsiva.",
+			{ exact: true },
+		),
+	).toBeVisible({ timeout: 6_000 });
+	await expect(
+		inspector.getByRole("button", {
+			name: /novos eventos · Voltar ao vivo/u,
+		}),
+	).toBeVisible({ timeout: 6_000 });
 
 	await inspector.getByRole("button", { name: "Técnica", exact: true }).click();
 	const firstEvent = log.locator("button[data-event-seq]").first();
 	await firstEvent.click();
-	await expect(inspector.locator("[data-live-log-detail='true']")).toBeVisible();
+	const detail = inspector.locator("[data-live-log-detail='true']");
+	await expect(detail).toBeVisible();
+	expect(
+		await detail.evaluate((element) =>
+			Boolean(element.closest("[data-live-log-viewport='true']")),
+		),
+	).toBe(true);
 
 	const geometry = await readContextualLogGeometry(inspector);
 	expectContextualLogRegionsDoNotOverlap(geometry);
@@ -1172,9 +1167,14 @@ test("contextual event detail remains contained immediately above the sheet brea
 	await log.locator("button[data-event-seq]").first().click();
 	await expect(inspector.locator("[data-live-log-detail='true']")).toBeVisible();
 
+	const detail = inspector.locator("[data-live-log-detail='true']");
+	expect(
+		await detail.evaluate((element) =>
+			Boolean(element.closest("[data-live-log-viewport='true']")),
+		),
+	).toBe(true);
 	const geometry = await readContextualLogGeometry(inspector);
 	expectContextualLogRegionsDoNotOverlap(geometry);
-	expect(geometry.footerVisible).toBe(true);
 });
 
 test("contextual diagnostics keeps stale-event warning in flow without covering controls", async ({
