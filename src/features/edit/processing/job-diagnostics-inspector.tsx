@@ -53,6 +53,14 @@ const SAFE_EVENT_DATA_KEYS = new Set([
 	"worker_sha256",
 	"downloaded_bytes",
 	"device",
+	"profile",
+	"index",
+	"successful_count",
+	"error_code",
+	"recoverable",
+	"scope",
+	"continued",
+	"strategy",
 ]);
 
 function formatDateTime(value: string | null | undefined): string {
@@ -159,6 +167,50 @@ export function JobDiagnosticsInspector({
 	const visibleEvents =
 		eventsReady && job ? jobDiagnosticEventsForAttempt(events, job.attempt) : [];
 	const jobKey = job ? `${job.id}:${job.attempt}` : "";
+	const benchmarkProfileRows = (() => {
+		if (job?.kind !== "benchmark.craig") return [];
+		const order = [
+			"whisper-turbo",
+			"whisper-detailed",
+			"qwen-fast",
+			"qwen-quality",
+		] as const;
+		const labels = {
+			"whisper-turbo": "Whisper Turbo",
+			"whisper-detailed": "Whisper Detailed",
+			"qwen-fast": "Qwen Fast",
+			"qwen-quality": "Qwen Quality",
+		} as const;
+		const states = new Map<
+			(typeof order)[number],
+			{ status: "pendente" | "executando" | "concluído" | "falhou"; error: string | null }
+		>(order.map((profileId) => [profileId, { status: "pendente", error: null }]));
+		for (const event of visibleEvents) {
+			const profileId =
+				typeof event.data.profile === "string" &&
+				order.includes(event.data.profile as (typeof order)[number])
+					? (event.data.profile as (typeof order)[number])
+					: null;
+			if (!profileId) continue;
+			if (event.code === "BENCHMARK_PROFILE_STARTED")
+				states.set(profileId, { status: "executando", error: null });
+			if (event.code === "BENCHMARK_PROFILE_COMPLETED")
+				states.set(profileId, { status: "concluído", error: null });
+			if (event.code === "BENCHMARK_PROFILE_FAILED")
+				states.set(profileId, {
+					status: "falhou",
+					error:
+						typeof event.data.error_code === "string"
+							? event.data.error_code
+							: null,
+				});
+		}
+		return order.map((profileId) => ({
+			profileId,
+			label: labels[profileId],
+			...states.get(profileId)!,
+		}));
+	})();
 	const profile = useMemo(
 		() =>
 			job?.context?.profileId
@@ -338,6 +390,19 @@ export function JobDiagnosticsInspector({
 									<dd>{job.progress ? `${job.progress.completed}/${job.progress.total} ${job.progress.unit}` : "—"}</dd>
 								</div>
 							</dl>
+							{benchmarkProfileRows.length ? (
+								<dl className={styles.jobDetails} aria-label="Estado dos perfis do Benchmark">
+									{benchmarkProfileRows.map((item) => (
+										<div key={item.profileId}>
+											<dt>{item.label}</dt>
+											<dd>
+												{item.status}
+												{item.error ? ` · ${item.error}` : ""}
+											</dd>
+										</div>
+									))}
+								</dl>
+							) : null}
 						</section>
 
 						<details className={styles.jobDiagnosticsExecution}>
