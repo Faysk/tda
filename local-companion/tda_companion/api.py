@@ -36,7 +36,7 @@ from .benchmark_evidence import (
     BenchmarkEvidenceError,
     load_bundle as load_benchmark_bundle,
     private_export_zip,
-    telemetry_summary_from_bytes,
+    telemetry_summary,
     verified_profile_bytes,
 )
 from .benchmark_quality import (
@@ -2409,18 +2409,18 @@ def create_app(
         profile_id: Literal["whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"],
         artifact: Literal["transcript", "metrics", "events", "telemetry"],
     ):
-        try:
-            payload = verified_profile_bytes(data_root, benchmark_id, profile_id, artifact)
-        except BenchmarkEvidenceError as exc:
-            return error(str(exc), 409, False)
         if artifact == "telemetry":
             try:
                 return JSONResponse(
-                    telemetry_summary_from_bytes(payload),
+                    telemetry_summary(data_root, benchmark_id, profile_id),
                     headers={"Cache-Control": "no-store"},
                 )
             except BenchmarkEvidenceError as exc:
                 return error(str(exc), 409, False)
+        try:
+            payload = verified_profile_bytes(data_root, benchmark_id, profile_id, artifact)
+        except BenchmarkEvidenceError as exc:
+            return error(str(exc), 409, False)
         media_type = "application/x-ndjson" if artifact == "events" else "application/json"
         return Response(content=payload, media_type=media_type, headers={"Cache-Control": "no-store"})
 
