@@ -24,12 +24,12 @@ def _artifact(version: str) -> dict[str, str]:
     }
 
 
-def test_qwen_1_0_17_remains_valid_for_transcription_but_not_benchmark():
+def test_qwen_1_0_18_remains_valid_for_transcription_but_not_benchmark():
     assert MIN_COMPATIBLE_QWEN_RUNTIME_VERSION == "1.0.12"
-    assert MIN_BENCHMARK_QWEN_RUNTIME_VERSION == "1.0.18"
-    assert qwen_runtime_version_compatible("1.0.17") is True
-    assert qwen_runtime_benchmark_compatible("1.0.17") is False
-    assert qwen_runtime_benchmark_compatible("1.0.18") is True
+    assert MIN_BENCHMARK_QWEN_RUNTIME_VERSION == "1.0.19"
+    assert qwen_runtime_version_compatible("1.0.18") is True
+    assert qwen_runtime_benchmark_compatible("1.0.18") is False
+    assert qwen_runtime_benchmark_compatible("1.0.19") is True
 
 
 def test_qwen_profile_catalog_separates_transcription_and_benchmark_readiness(
@@ -46,7 +46,7 @@ def test_qwen_profile_catalog_separates_transcription_and_benchmark_readiness(
         "inspect_qwen_runtime",
         lambda _root, verify_worker=False: {
             "status": "ready",
-            "version": "1.0.17",
+            "version": "1.0.18",
             "worker_sha256": "a" * 64,
         },
     )
@@ -84,7 +84,7 @@ def test_supervisor_blocks_old_qwen_before_benchmark_worker_launch(
     monkeypatch,
     tmp_path: Path,
 ):
-    artifact = _artifact("1.0.17")
+    artifact = _artifact("1.0.18")
     monkeypatch.setattr(
         supervisor_module,
         "inspect_qwen_physical_gate",
@@ -98,8 +98,8 @@ def test_supervisor_blocks_old_qwen_before_benchmark_worker_launch(
         "inspect_qwen_runtime",
         lambda _root, verify_worker=False: {
             "status": "ready",
-            "version": "1.0.17",
-            "worker": str(tmp_path / "Runtime" / "qwen" / "1.0.17" / "worker.exe"),
+            "version": "1.0.18",
+            "worker": str(tmp_path / "Runtime" / "qwen" / "1.0.18" / "worker.exe"),
             **artifact,
         },
     )
