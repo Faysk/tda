@@ -72,7 +72,7 @@ export function TranscriptInventory({
 						autoComplete="off"
 					/>
 				</label>
-				<label className={styles.control}>
+				<div className={styles.control}>
 					<span>Cobertura</span>
 					<Select
 						value={coverage}
@@ -85,8 +85,8 @@ export function TranscriptInventory({
 						ariaLabel="Cobertura"
 						compact
 					/>
-				</label>
-				<label className={styles.control}>
+				</div>
+				<div className={styles.control}>
 					<span>Ordenar</span>
 					<Select
 						value={sort}
@@ -95,7 +95,7 @@ export function TranscriptInventory({
 						ariaLabel="Ordenar sessões"
 						compact
 					/>
-				</label>
+				</div>
 				<p className={styles.resultCount} role="status" aria-live="polite">
 					{visibleSessions.length === sessions.length
 						? String(sessions.length) +
