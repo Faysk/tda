@@ -1072,14 +1072,21 @@ for (const viewport of [
 			);
 		}
 
-		if (
-			(viewport.width === 759 && viewport.height === 568) ||
-			(viewport.width === 761 && viewport.height === 701)
-		) {
+		let receiptName: string | null = null;
+		if (viewport.name === "sheet-short") {
+			receiptName = "contextual-diagnostics-sheet-mobile-759x568.png";
+		} else if (viewport.name === "drawer-edge") {
+			receiptName = "contextual-diagnostics-drawer-compact-761x701.png";
+		} else if (viewport.name === "drawer-compact") {
+			receiptName = "contextual-diagnostics-toolbar-wrapped-800x768.png";
+		} else if (viewport.name === "height-edge-short") {
+			receiptName = "contextual-diagnostics-viewport-short-1024x700.png";
+		} else if (viewport.name === "notebook") {
+			receiptName = "contextual-diagnostics-drawer-desktop-1366x768.png";
+		}
+		if (receiptName) {
 			await page.screenshot({
-				path: testInfo.outputPath(
-					`contextual-diagnostics-${viewport.width}x${viewport.height}.png`,
-				),
+				path: testInfo.outputPath(receiptName),
 				fullPage: false,
 			});
 		}
@@ -1121,6 +1128,10 @@ test("contextual diagnostics preserves toolbar geometry with bounded history, ca
 			name: /novos eventos · Voltar ao vivo/u,
 		}),
 	).toBeVisible({ timeout: 6_000 });
+	await page.screenshot({
+		path: testInfo.outputPath("contextual-diagnostics-paused-catch-up.png"),
+		fullPage: false,
+	});
 
 	await inspector.getByRole("button", { name: "Técnica", exact: true }).click();
 	const firstEvent = log.locator("button[data-event-seq]").first();
@@ -1150,7 +1161,7 @@ test("contextual diagnostics preserves toolbar geometry with bounded history, ca
 	expect(Math.abs(toolbarTopAfter - toolbarTopBefore)).toBeLessThanOrEqual(1);
 
 	await page.screenshot({
-		path: testInfo.outputPath("contextual-diagnostics-paused-detail.png"),
+		path: testInfo.outputPath("contextual-diagnostics-event-detail.png"),
 		fullPage: false,
 	});
 });
