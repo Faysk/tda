@@ -1026,8 +1026,9 @@ export async function installCompanionFixture(
 		if (options.benchmarkEvidence && path.startsWith(`/benchmarks/${BENCHMARK_ID}/profiles/`)) {
 			const match = /^\/benchmarks\/[^/]+\/profiles\/(whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)\/(transcript|metrics|telemetry)$/u.exec(path);
 			if (!match) return invalidRequest(route);
-			const profileId = match[1]!;
-			const artifact = match[2]!;
+			const profileId = match[1];
+			const artifact = match[2];
+			if (!profileId || !artifact) return invalidRequest(route);
 			const profileIndex = benchmarkProfileIds.indexOf(
 				profileId as (typeof benchmarkProfileIds)[number],
 			);
