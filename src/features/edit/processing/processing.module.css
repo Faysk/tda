@@ -1717,6 +1717,11 @@
 	min-width: min(260px, 70vw);
 	padding-inline: 8px;
 }
+.logToolbar .logSelect {
+	width: auto;
+	min-width: 128px;
+	flex: 0 1 180px;
+}
 .logToolbar select,
 .logToolbar button {
 	padding-inline: 8px;
