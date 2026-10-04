@@ -6,13 +6,14 @@ import os
 import re
 import threading
 import time
+import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Callable, Literal
 
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import VERSION
@@ -43,6 +44,12 @@ from .benchmark_bundles import (
     finalize_benchmark_bundle,
     load_benchmark_bundle,
     read_benchmark_transcript,
+)
+from .benchmark_evidence import (
+    BenchmarkEvidenceError,
+    derived_artifact,
+    transcript_snapshot,
+    write_private_evidence_zip,
 )
 from .craig import CraigPackageError
 from .craig_ingest import (
@@ -117,8 +124,9 @@ _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
 )
 _BROWSER_BENCHMARK_PATH = re.compile(
     r"^/api/v1/benchmarks/benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}"
-    r"(?:/(?:reference|references|quality|profiles/"
-    r"(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)/(?:transcript|reference-draft)"
+    r"(?:/(?:reference|quality|export\\.zip|profiles/"
+    r"(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)"
+    r"/(?:transcript|snapshot|reference-draft|artifacts/(?:json|txt|txt-plain|vtt|srt))"
     r"|quality/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)/inspection))?$"
 )
 _BROWSER_BENCHMARK_REFERENCE_WRITE = re.compile(
@@ -156,11 +164,10 @@ def _browser_route_allowed(method: str, path: str) -> bool:
         return method in {"GET", "POST"}
     if _BROWSER_SESSION_ASSEMBLY_PATH.fullmatch(path) is not None:
         return method in {"GET", "POST"}
+    if _BROWSER_BENCHMARK_REFERENCE_WRITE.fullmatch(path) is not None:
+        return method == "POST"
     if _BROWSER_BENCHMARK_PATH.fullmatch(path) is not None:
-        return method == "GET" or (
-            method == "POST"
-            and _BROWSER_BENCHMARK_REFERENCE_WRITE.fullmatch(path) is not None
-        )
+        return method == "GET"
     match = _BROWSER_JOB_PATH.fullmatch(path)
     if match is None:
         return False
@@ -1611,6 +1618,26 @@ def create_app(
     async def missing(_, exc):
         return error("JOB_NOT_FOUND", 404)
 
+    @app.exception_handler(BenchmarkEvidenceError)
+    async def benchmark_evidence_error(_, exc: BenchmarkEvidenceError):
+        code = str(exc)
+        status = (
+            404
+            if code
+            in {
+                "BENCHMARK_BUNDLE_NOT_FOUND",
+                "BENCHMARK_PROFILE_NOT_FOUND",
+                "BENCHMARK_PROFILE_MANIFEST_MISSING",
+            }
+            else 409
+        )
+        safe_code = (
+            code
+            if re.fullmatch(r"[A-Z0-9_]{1,96}", code)
+            else "BENCHMARK_EVIDENCE_INVALID"
+        )
+        return error(safe_code, status, False)
+
     @app.exception_handler(RequestValidationError)
     async def invalid(_, exc):
         return error("INVALID_REQUEST", 422)
@@ -2697,6 +2724,70 @@ def create_app(
             content=payload,
             media_type="application/json",
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/snapshot")
+    def benchmark_profile_snapshot(benchmark_id: str, profile_id: str):
+        return transcript_snapshot(data_root, benchmark_id, profile_id)
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/profiles/{profile_id}/artifacts/{format_name}")
+    def benchmark_profile_artifact(
+        benchmark_id: str,
+        profile_id: str,
+        format_name: Literal["json", "txt", "txt-plain", "vtt", "srt"],
+    ):
+        payload, media_type, artifact_name = derived_artifact(
+            data_root,
+            benchmark_id,
+            profile_id,
+            format_name,
+        )
+        filename = f"TDA-Benchmark-{benchmark_id}-{profile_id}-{artifact_name}"
+        return Response(
+            content=payload,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    @app.get("/api/v1/benchmarks/{benchmark_id}/export.zip")
+    def benchmark_private_evidence_export(benchmark_id: str):
+        export_root = resolved_cache_root / "benchmark-exports"
+        export_root.mkdir(parents=True, exist_ok=True)
+        handle = tempfile.NamedTemporaryFile(
+            prefix="tda-benchmark-",
+            suffix=".zip",
+            dir=export_root,
+            delete=False,
+        )
+        path = Path(handle.name)
+        handle.close()
+        try:
+            write_private_evidence_zip(data_root, benchmark_id, path)
+        except BaseException:
+            path.unlink(missing_ok=True)
+            raise
+
+        def stream_archive():
+            try:
+                with path.open("rb") as source:
+                    while chunk := source.read(1024 * 1024):
+                        yield chunk
+            finally:
+                path.unlink(missing_ok=True)
+
+        filename = f"TDA-Benchmark-{benchmark_id}-private-evidence.zip"
+        return StreamingResponse(
+            stream_archive(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
         )
 
     @app.get("/api/v1/benchmarks/{benchmark_id}/reference")

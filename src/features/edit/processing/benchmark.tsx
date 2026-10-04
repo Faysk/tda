@@ -15,6 +15,7 @@ import {
 	type TranscriptionProfileState,
 } from "./protocol";
 import { LocalBridge } from "./bridge";
+import { BenchmarkEvidenceWorkspace } from "./benchmark-evidence";
 import { BenchmarkQualityLab } from "./benchmark-quality";
 import { presentJobEvent, stageLabels } from "./presentation";
 import {
@@ -132,17 +133,45 @@ function bridgeMessage(error: unknown, fallback: string): string {
 	);
 }
 
+function formatBenchmarkHistoryDate(value: string): string {
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) return "data indisponível";
+	return new Intl.DateTimeFormat("pt-PT", {
+		day: "2-digit",
+		month: "2-digit",
+		hour: "2-digit",
+		minute: "2-digit",
+	}).format(parsed);
+}
+
 function ResultCard({
 	result,
+	updatedAt,
 	bridge,
 	connected,
 	qualityEnabled,
+	onCompare,
+	onFiles,
+	onExport,
+	onDiagnostics,
 }: Readonly<{
 	result: BenchmarkResult;
+	updatedAt: string;
 	bridge: LocalBridge;
 	connected: boolean;
 	qualityEnabled: boolean;
+	onCompare: () => void;
+	onFiles: () => void;
+	onExport: () => void;
+	onDiagnostics: () => void;
 }>) {
+	const gpu = result.profiles
+		.map((profile) => profile.executionLineage?.gpu?.model)
+		.find(Boolean);
+	const hasEvidence =
+		result.benchmarkId !== null &&
+		result.bundleSizeBytes !== null &&
+		result.profiles.every((profile) => profile.artifactAvailable);
 	return (
 		<article className={styles.resultCard}>
 			<header className={styles.resultHeader}>
@@ -153,62 +182,101 @@ function ResultCard({
 				<StatusPill tone="success">Concluído</StatusPill>
 			</header>
 			<div className={styles.receiptFacts}>
+				<span>{formatBenchmarkHistoryDate(updatedAt)}</span>
 				<span title={result.sampleIdentitySha256}>
 					Sample SHA {result.sampleIdentitySha256.slice(0, 12)}…
 				</span>
 				<span>{result.trackCount} tracks</span>
-				<span>{formatSeconds(result.audioWorkSeconds)} de trabalho de áudio</span>
-				<span>{result.prepared ? "Artefatos preparados" : "Preparação desconhecida"}</span>
-				<span>Worker novo por perfil · model load incluído</span>
-			</div>
-			<div className={styles.tableWrap}>
-				<table>
-					<thead>
-						<tr>
-							<th>Perfil</th>
-							<th>Tempo</th>
-							<th>RTF</th>
-							<th>× realtime</th>
-							<th>Palavras</th>
-							<th>Segmentos</th>
-							<th>Avisos</th>
-							<th>Runtime / compute</th>
-						</tr>
-					</thead>
-					<tbody>
-						{result.profiles.map((profile) => (
-							<tr key={profile.profileId}>
-								<th scope="row">{LABELS[profile.profileId]}</th>
-								<td>{formatSeconds(profile.processingSeconds)}</td>
-								<td>{profile.rtf === null ? "—" : profile.rtf.toFixed(3)}</td>
-								<td>{formatRealtime(profile.rtf)}</td>
-								<td>{profile.wordCount}</td>
-								<td>{profile.segmentCount}</td>
-								<td>{profile.warningCount}</td>
-								<td>
-									{[
-										profile.executionLineage?.runtimeVersion,
-										profile.computeType,
-										profile.executionLineage?.gpu?.model,
-									]
-										.filter(Boolean)
-										.join(" · ") || "—"}
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
-			<div className={styles.qualityNotice}>
-				<strong>
-					{result.benchmarkId ? "Evidência de transcript preservada." : "Benchmark histórico."}
-				</strong>
+				<span>{gpu ?? "GPU não registrada"}</span>
+				<span>4/4 perfis</span>
 				<span>
-					{result.benchmarkId
-						? `Bundle local imutável · ${result.bundleSizeBytes === null ? "tamanho indisponível" : formatSubmissionBytes(result.bundleSizeBytes)} · conteúdo carregado somente quando solicitado.`
-						: "Transcript artifacts were not preserved for this historical benchmark."}
+					{hasEvidence
+						? `bundle ${formatSubmissionBytes(result.bundleSizeBytes ?? 0)} · evidência preservada`
+						: "receipt performance-only · transcrições não preservadas"}
 				</span>
 			</div>
+			{hasEvidence ? (
+				<div className={styles.activeActions}>
+					<Button size="sm" variant="secondary" onClick={onCompare}>
+						Comparar transcrições
+					</Button>
+					<Button size="sm" variant="tertiary" onClick={onFiles}>
+						Arquivos / evidências
+					</Button>
+					<Button size="sm" variant="tertiary" onClick={onExport}>
+						Exportar ZIP
+					</Button>
+				</div>
+			) : (
+				<p className={styles.loading}>
+					Artefatos de transcrição não preservados nesta execução. As métricas do
+					receipt continuam disponíveis abaixo.
+				</p>
+			)}
+			<details className={styles.resultDetails}>
+				<summary>Métricas dos quatro perfis</summary>
+				<div className={styles.tableWrap}>
+					<table>
+						<thead>
+							<tr>
+								<th>Perfil</th>
+								<th>Tempo</th>
+								<th>RTF</th>
+								<th>× realtime</th>
+								<th>Palavras</th>
+								<th>Segmentos</th>
+								<th>Avisos</th>
+								<th>Runtime / compute</th>
+							</tr>
+						</thead>
+						<tbody>
+							{result.profiles.map((profile) => (
+								<tr key={profile.profileId}>
+									<th scope="row">{LABELS[profile.profileId]}</th>
+									<td>{formatSeconds(profile.processingSeconds)}</td>
+									<td>{profile.rtf === null ? "—" : profile.rtf.toFixed(3)}</td>
+									<td>{formatRealtime(profile.rtf)}</td>
+									<td>{profile.wordCount}</td>
+									<td>{profile.segmentCount}</td>
+									<td>{profile.warningCount}</td>
+									<td>
+										{[
+											profile.executionLineage?.runtimeVersion,
+											profile.computeType,
+											profile.executionLineage?.gpu?.model,
+										]
+											.filter(Boolean)
+											.join(" · ") || "—"}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+				<div className={styles.receiptFacts}>
+					<span>
+						Integridade: {hasEvidence
+							? "hashes validados sob demanda ao abrir ou exportar"
+							: "sem artefatos preservados para validar"}
+					</span>
+					<span>
+						Formatos: {hasEvidence
+							? "JSON · TXT · TXT simples · WebVTT · SRT"
+							: "indisponíveis nesta execução"}
+					</span>
+					<span>
+						Bundle: {hasEvidence
+							? formatSubmissionBytes(result.bundleSizeBytes ?? 0)
+							: "não preservado"}
+					</span>
+					<span>Referência de qualidade: {qualityEnabled ? "gerida localmente abaixo" : "contrato indisponível"}</span>
+				</div>
+				<div className={styles.activeActions}>
+					<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+						Abrir Diagnóstico
+					</Button>
+				</div>
+			</details>
 			<BenchmarkQualityLab
 				result={result}
 				bridge={bridge}
@@ -315,6 +383,11 @@ export function ProcessingBenchmark({
 	const [error, setError] = useState<string | null>(null);
 	const [status, setStatus] = useState<string | null>(null);
 	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
+	const [evidenceView, setEvidenceView] = useState<{
+		result: BenchmarkResult;
+		mode: "compare" | "files";
+		promptExport: boolean;
+	} | null>(null);
 	const [acceptedJob, setAcceptedJob] = useState<LocalJob | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
 	const request = useRef<AbortController | null>(null);
@@ -1261,6 +1334,17 @@ export function ProcessingBenchmark({
 				</section>
 			) : null}
 
+			{evidenceView ? (
+				<BenchmarkEvidenceWorkspace
+					key={`${evidenceView.result.jobId}:${evidenceView.mode}:${evidenceView.promptExport ? "export" : "browse"}`}
+					bridge={bridge}
+					result={evidenceView.result}
+					initialMode={evidenceView.mode}
+					promptExport={evidenceView.promptExport}
+					onClose={() => setEvidenceView(null)}
+				/>
+			) : null}
+
 			<section className={styles.history}>
 				<div className={styles.historyHeader}>
 					<div>
@@ -1275,9 +1359,32 @@ export function ProcessingBenchmark({
 							<ResultCard
 								key={job.id}
 								result={results[job.id]!}
+								updatedAt={job.updated_at}
 								bridge={bridge}
 								connected={connected}
 								qualityEnabled={benchmarkQualitySupported}
+								onCompare={() =>
+									setEvidenceView({
+										result: results[job.id]!,
+										mode: "compare",
+										promptExport: false,
+									})
+								}
+								onFiles={() =>
+									setEvidenceView({
+										result: results[job.id]!,
+										mode: "files",
+										promptExport: false,
+									})
+								}
+								onExport={() =>
+									setEvidenceView({
+										result: results[job.id]!,
+										mode: "files",
+										promptExport: true,
+									})
+								}
+								onDiagnostics={() => onOpenDiagnostics(job)}
 							/>
 						) : (
 							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>

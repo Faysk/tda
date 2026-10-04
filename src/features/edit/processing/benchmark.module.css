@@ -866,6 +866,25 @@
 	font-weight: 700;
 }
 
+.resultDetails {
+	min-width: 0;
+	border-top: 1px solid var(--ds-border-subtle);
+	padding-top: 7px;
+}
+
+.resultDetails summary {
+	width: fit-content;
+	cursor: pointer;
+	color: var(--ds-foreground-muted);
+	font-size: 0.72rem;
+	font-weight: 650;
+}
+
+.resultDetails[open] summary {
+	margin-bottom: 8px;
+	color: var(--ds-foreground);
+}
+
 .qualityNotice {
 	display: flex;
 	gap: 8px;
