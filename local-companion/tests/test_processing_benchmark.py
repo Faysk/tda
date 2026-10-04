@@ -39,6 +39,77 @@ def test_benchmark_idempotency_reuses_ambiguous_retry_but_allows_a_new_deliberat
     assert second["id"] != first["id"]
 
 
+def test_partial_benchmark_is_persisted_and_retry_resets_attempt_progress(tmp_path):
+    store = Store(tmp_path)
+    body = {
+        "kind": "benchmark.craig",
+        "campaign_id": "benchmark-local",
+        "session_id": "benchmark-local",
+        "source_id": "craig-" + "a" * 64,
+        "glossary": "",
+        "context": "",
+        "units": 4,
+        "sample_seconds": 300.0,
+        "sample_identity_sha256": "b" * 64,
+        "track_count": 1,
+        "audio_work_seconds": 300.0,
+        "profiles": [
+            "whisper-turbo",
+            "whisper-detailed",
+            "qwen-fast",
+            "qwen-quality",
+        ],
+        "prepared": True,
+    }
+    submitted = store.submit("benchmark-partial-retry", body)
+    job_id, attempt = store.claim()
+    assert job_id == submitted["id"]
+
+    for completed in range(1, 5):
+        assert store.progress(
+            job_id,
+            attempt,
+            completed=completed,
+            total=4,
+            stage="benchmark",
+        )
+
+    partial = {
+        "schema_version": "tda_processing_benchmark_v2",
+        "kind": "benchmark.craig",
+        "status": "partial",
+        "attempted_count": 4,
+        "completed_count": 3,
+        "failed_count": 1,
+    }
+    assert store.complete_partial_benchmark(job_id, attempt, partial) is True
+
+    terminal = store.get(job_id)
+    assert terminal["status"] == "failed"
+    assert terminal["stage"] == "partial"
+    assert terminal["progress"] == {
+        "completed": 4,
+        "total": 4,
+        "unit": "profiles",
+    }
+    assert terminal["error"] == {
+        "code": "BENCHMARK_PARTIAL",
+        "recoverable": True,
+    }
+    assert terminal["result_available"] is True
+    assert store.result(job_id)["status"] == "partial"
+
+    retried = store.action(job_id, "retry")
+    assert retried["status"] == "queued"
+    assert retried["progress"] == {
+        "completed": 0,
+        "total": 4,
+        "unit": "profiles",
+    }
+    assert retried["result_available"] is False
+    assert retried["error"] is None
+
+
 def test_benchmark_worker_command_requires_exact_five_minute_sample():
     command = WorkerRunCommand(
         job_id="benchmark-profile",
