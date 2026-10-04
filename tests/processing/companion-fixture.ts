@@ -1438,7 +1438,7 @@ export async function installCompanionFixture(
 					profile("qwen-fast", "qwen3"),
 					profile("qwen-quality", "qwen3"),
 				],
-			});;
+			};
 			if (!options.benchmarkPartialResult)
 				return json(route, completeResult);
 
