@@ -439,7 +439,9 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await run.click();
 	await expect.poll(() => state.jobPostCount).toBe(1);
 	await expect(panel.getByText("Benchmark em andamento")).toBeVisible();
-	await expect(panel.getByText("0 de 4 perfis concluídos")).toBeVisible();
+	await expect(
+		panel.getByText("Tentados 0/4 · Concluídos 0 · Falharam 0"),
+	).toBeVisible();
 
 	const diagnosticsButton = panel.getByRole("button", { name: "Ver log / Diagnóstico" });
 	await diagnosticsButton.click();
@@ -494,14 +496,14 @@ test("Whisper 1.1.9 stays transcription-ready but requires benchmark evidence ru
 	expect(state.jobPostCount).toBe(0);
 });
 
-test("Qwen 1.0.17 stays transcription-ready but requires benchmark evidence runtime", async ({
+test("Qwen 1.0.18 stays transcription-ready but requires benchmark evidence runtime", async ({
 	page,
 }) => {
 	const state = await installCompanionFixture(page, {
 		benchmarkProfiles: true,
 		profileReady: true,
 		qwenBenchmarkRuntimeUpgradeRequired: true,
-		qwenRuntimeVersion: "1.0.17",
+		qwenRuntimeVersion: "1.0.18",
 		advanceJobs: false,
 	});
 	const panel = await openBenchmark(page);
@@ -643,6 +645,206 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 	await expect.poll(() => state.job?.status).toBe("cancelled");
 	await expect(panel.getByText("Benchmark cancelado")).toBeVisible();
 	await expect(panel.getByRole("button", { name: "Ver log / Diagnóstico" })).toBeVisible();
+});
+
+test("running benchmark keeps a failed profile visible while the next profile continues", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureBenchmarkJob("running", {
+				stage: "benchmark",
+				progress: { completed: 3, total: 4, unit: "profiles" },
+			}),
+		],
+		jobEvents: [
+			{
+				seq: 10,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T19:20:00Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					successful_count: 0,
+					failed_count: 0,
+					total_profiles: 4,
+				},
+			},
+			{
+				seq: 11,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-04T19:20:30Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					successful_count: 1,
+					failed_count: 0,
+					total_profiles: 4,
+				},
+			},
+			{
+				seq: 12,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T19:20:31Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-detailed",
+					attempted_count: 2,
+					successful_count: 1,
+					failed_count: 0,
+					total_profiles: 4,
+				},
+			},
+			{
+				seq: 13,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-04T19:21:01Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-detailed",
+					attempted_count: 2,
+					successful_count: 2,
+					failed_count: 0,
+					total_profiles: 4,
+				},
+			},
+			{
+				seq: 14,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T19:21:02Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "qwen-fast",
+					attempted_count: 3,
+					successful_count: 2,
+					failed_count: 0,
+					total_profiles: 4,
+				},
+			},
+			{
+				seq: 15,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_FAILED",
+				at: "2026-10-04T19:21:40Z",
+				level: "warning",
+				data: {
+					stage: "benchmark",
+					profile: "qwen-fast",
+					attempted_count: 3,
+					successful_count: 2,
+					failed_count: 1,
+					total_profiles: 4,
+					error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+					recoverable: true,
+					scope: "profile",
+				},
+			},
+			{
+				seq: 16,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T19:21:41Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "qwen-quality",
+					attempted_count: 4,
+					successful_count: 2,
+					failed_count: 1,
+					total_profiles: 4,
+				},
+			},
+		],
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(
+		panel.getByText("Tentados 4/4 · Concluídos 2 · Falharam 1"),
+	).toBeVisible();
+	await expect(panel.getByText("Qwen Fast · falhou")).toBeVisible();
+	await expect(panel.getByText("Qwen Quality · executando")).toBeVisible();
+	await expect(
+		panel.getByText(/continua automaticamente com os perfis independentes restantes/u),
+	).toBeVisible();
+});
+
+test("partial benchmark remains diagnostic history and never masquerades as 4/4", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkEvidence: true,
+		benchmarkPartialResult: true,
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureBenchmarkJob("succeeded", {
+				stage: "benchmark_partial",
+				progress: { completed: 4, total: 4, unit: "profiles" },
+			}),
+		],
+		jobEvents: [
+			{
+				seq: 15,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_FAILED",
+				at: "2026-10-04T19:21:40Z",
+				level: "warning",
+				data: {
+					stage: "benchmark",
+					profile: "qwen-fast",
+					attempted_count: 3,
+					successful_count: 2,
+					failed_count: 1,
+					total_profiles: 4,
+					error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+					recoverable: true,
+					scope: "profile",
+				},
+			},
+		],
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel.getByText("Parcial", { exact: true })).toBeVisible();
+	await expect(panel.getByText("Benchmark parcial · mesma amostra")).toBeVisible();
+	await expect(panel.getByText("Tentados 4/4")).toBeVisible();
+	await expect(panel.getByText("Concluídos 3/4")).toBeVisible();
+	await expect(panel.getByText("Falharam 1")).toBeVisible();
+	await expect(panel.getByText("Qwen Fast · falhou · QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")).toBeVisible();
+	await expect(
+		panel.getByText(/Os demais perfis independentes foram tentados automaticamente/u),
+	).toBeVisible();
+	await expect(panel.getByText("bundle 4/4 não criado")).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Comparar transcrições" }),
+	).toHaveCount(0);
+	await expect(
+		panel.getByText(/selecione Qwen Quality no formulário/u),
+	).toHaveCount(0);
+
+	await panel.getByRole("button", { name: "Abrir Diagnóstico" }).click();
+	const inspector = page
+		.locator("dialog")
+		.filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(inspector.getByText("Parcial", { exact: true })).toBeVisible();
+	await expect(inspector).toContainText("Benchmark parcial");
 });
 
 test("completed benchmark loads a comparable receipt while failed history remains inspectable", async ({
