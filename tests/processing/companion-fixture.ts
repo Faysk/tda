@@ -1124,7 +1124,7 @@ export async function installCompanionFixture(
 			const engine = profileId.startsWith("whisper-") ? "whisper" : "qwen3";
 			const quality = profileId.endsWith("quality") || profileId.endsWith("detailed");
 			const runtimeFamily = engine === "whisper" ? "whisper" : "qwen";
-			const runtimeVersion = engine === "whisper" ? "1.1.10" : "1.0.18";
+			const runtimeVersion = engine === "whisper" ? "1.1.10" : "1.0.19";
 			const runtimeId =
 				engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers";
 			return json(route, {
@@ -1411,12 +1411,12 @@ export async function installCompanionFixture(
 					companion_version: "0.3.18",
 					runtime_family: engine === "whisper" ? "whisper" : "qwen",
 					runtime_version: options.benchmarkEvidence
-						? engine === "whisper" ? "1.1.10" : "1.0.18"
+						? engine === "whisper" ? "1.1.10" : "1.0.19"
 						: engine === "whisper" ? "1.1.7" : "1.0.12",
 					runtime_artifact: {
 						runtime_id: engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
 						version: options.benchmarkEvidence
-							? engine === "whisper" ? "1.1.10" : "1.0.18"
+							? engine === "whisper" ? "1.1.10" : "1.0.19"
 							: engine === "whisper" ? "1.1.7" : "1.0.12",
 						worker_sha256: "c".repeat(64),
 						archive_sha256: "d".repeat(64),
@@ -1442,6 +1442,73 @@ export async function installCompanionFixture(
 						}
 					: {}),
 			});
+			const benchmarkPartial =
+				state.job?.status === "failed" &&
+				typeof state.job.error === "object" &&
+				state.job.error !== null &&
+				(state.job.error as Record<string, unknown>).code === "BENCHMARK_PARTIAL";
+			if (benchmarkPartial) {
+				return json(route, {
+					schema_version: "tda_processing_benchmark_v2",
+					kind: "benchmark.craig",
+					job_id: "benchmark-job-1",
+					source_id: CRAIG_SOURCE_ID,
+					campaign_id: "benchmark-local",
+					session_id: "benchmark-local",
+					sample_identity_sha256: "b".repeat(64),
+					sample_seconds: 300,
+					execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+					outcome: "partial",
+					attempted_count: 4,
+					completed_count: 3,
+					failed_count: 1,
+					track_count: 2,
+					audio_work_seconds: 600,
+					prepared: true,
+					benchmark_id: "benchmark-benchmark-job-1-a1",
+					bundle_manifest_sha256: null,
+					bundle_size_bytes: null,
+					profiles: [
+						profile("whisper-turbo", "whisper"),
+						profile("whisper-detailed", "whisper"),
+						profile("qwen-quality", "qwen3"),
+					],
+					profile_outcomes: [
+						{
+							schema_version: "tda_benchmark_profile_outcome_v1",
+							profile_id: "whisper-turbo",
+							status: "completed",
+							artifact_available: true,
+							error: null,
+						},
+						{
+							schema_version: "tda_benchmark_profile_outcome_v1",
+							profile_id: "whisper-detailed",
+							status: "completed",
+							artifact_available: true,
+							error: null,
+						},
+						{
+							schema_version: "tda_benchmark_profile_outcome_v1",
+							profile_id: "qwen-fast",
+							status: "failed",
+							artifact_available: false,
+							error: {
+								code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+								recoverable: true,
+								scope: "profile",
+							},
+						},
+						{
+							schema_version: "tda_benchmark_profile_outcome_v1",
+							profile_id: "qwen-quality",
+							status: "completed",
+							artifact_available: true,
+							error: null,
+						},
+					],
+				});
+			}
 			return json(route, {
 				schema_version: "tda_processing_benchmark_v1",
 				kind: "benchmark.craig",
