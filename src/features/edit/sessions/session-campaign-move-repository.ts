@@ -115,13 +115,27 @@ function boundaryParams(input: MoveBoundaryInput) {
 	};
 }
 
-export async function sessionCampaignMoveBackendReady(): Promise<boolean> {
+export type SessionCampaignMoveOperationalHealth = Readonly<{
+	ready: boolean;
+	contractVersion: number | null;
+}>;
+
+export async function readSessionCampaignMoveOperationalHealth(): Promise<SessionCampaignMoveOperationalHealth> {
 	const client = editDataClient();
-	if (!client) return false;
-	const { data, error } = await client.rpc("session_campaign_move_contract");
-	if (error) return false;
+	if (!client) return { ready: false, contractVersion: null };
+	const { data, error } = await client.rpc("session_campaign_move_operational_health");
+	if (error) return { ready: false, contractVersion: null };
 	const row = record(data);
-	return Number(row?.version) >= 2;
+	const version = Number(row?.contractVersion);
+	return {
+		ready: row?.ready === true && version === 2,
+		contractVersion: Number.isSafeInteger(version) ? version : null,
+	};
+}
+
+export async function sessionCampaignMoveBackendReady(): Promise<boolean> {
+	const health = await readSessionCampaignMoveOperationalHealth();
+	return health.ready;
 }
 
 export async function preflightSessionCampaignMove(input: MoveBoundaryInput) {
