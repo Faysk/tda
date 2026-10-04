@@ -786,6 +786,124 @@ def test_queue_row_deletion_does_not_remove_completed_bundle(tmp_path: Path):
 
 
 
+def test_partial_benchmark_result_readback_verifies_profile_artifacts_without_completed_bundle(
+    tmp_path: Path,
+):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    job_id = "partial-readback-job"
+    sample_identity = benchmark_sample_identity(_package())
+    all_receipts = _profile_receipts(data_root, job_id, 1)
+    receipts = [all_receipts[0], all_receipts[1], all_receipts[3]]
+    benchmark_id = benchmark_id_for(job_id, 1)
+    body = {
+        "kind": "benchmark.craig",
+        "campaign_id": "benchmark-local",
+        "session_id": "benchmark-local",
+        "source_id": SOURCE_ID,
+        "glossary": "",
+        "context": "",
+        "units": 4,
+        "sample_seconds": 300.0,
+        "sample_identity_sha256": sample_identity,
+        "track_count": 1,
+        "audio_work_seconds": 300.0,
+        "profiles": list(BENCHMARK_PROFILES),
+        "prepared": True,
+    }
+    store = Store(data_root)
+    submitted = store.submit("partial-readback-key", body)
+    claimed_id, attempt = store.claim()
+    assert claimed_id == submitted["id"]
+    assert claimed_id == job_id or claimed_id != ""
+    for completed in range(1, 5):
+        assert store.progress(
+            claimed_id,
+            attempt,
+            completed=completed,
+            total=4,
+            stage="benchmark",
+        )
+    # Persisted profile artifacts were created for the intended benchmark id above,
+    # so bind the queue result to the actual submitted id with fresh artifacts.
+    if claimed_id != job_id:
+        all_receipts = _profile_receipts(data_root, claimed_id, attempt)
+        receipts = [all_receipts[0], all_receipts[1], all_receipts[3]]
+        benchmark_id = benchmark_id_for(claimed_id, attempt)
+
+    result = {
+        "schema_version": "tda_processing_benchmark_v2",
+        "kind": "benchmark.craig",
+        "status": "partial",
+        "job_id": claimed_id,
+        "source_id": SOURCE_ID,
+        "campaign_id": "benchmark-local",
+        "session_id": "benchmark-local",
+        "sample_identity_sha256": sample_identity,
+        "sample_seconds": 300.0,
+        "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+        "track_count": 1,
+        "audio_work_seconds": 300.0,
+        "prepared": True,
+        "benchmark_id": benchmark_id,
+        "bundle_manifest_sha256": None,
+        "bundle_size_bytes": None,
+        "profiles": receipts,
+        "profile_outcomes": [
+            {
+                "profile_id": "whisper-turbo",
+                "status": "completed",
+                "artifact_available": True,
+                "receipt_index": 0,
+            },
+            {
+                "profile_id": "whisper-detailed",
+                "status": "completed",
+                "artifact_available": True,
+                "receipt_index": 1,
+            },
+            {
+                "profile_id": "qwen-fast",
+                "status": "failed",
+                "artifact_available": False,
+                "error": {
+                    "code": "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+                    "recoverable": True,
+                    "scope": "profile",
+                },
+            },
+            {
+                "profile_id": "qwen-quality",
+                "status": "completed",
+                "artifact_available": True,
+                "receipt_index": 2,
+            },
+        ],
+        "attempted_count": 4,
+        "completed_count": 3,
+        "failed_count": 1,
+    }
+    assert store.complete_partial_benchmark(claimed_id, attempt, result)
+    assert not (benchmark_root(data_root, benchmark_id) / "benchmark.json").exists()
+
+    token = "p" * 43
+    origin = "https://panel.example"
+    app = create_app(data_root, token, {origin}, run_worker=False)
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.get(
+            f"/api/v1/jobs/{claimed_id}/result",
+            headers={"Authorization": f"Bearer {token}", "Origin": origin},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["schema_version"] == "tda_processing_benchmark_v2"
+        assert payload["status"] == "partial"
+        assert payload["completed_count"] == 3
+        assert payload["failed_count"] == 1
+        assert payload["bundle_manifest_sha256"] is None
+        assert payload["bundle_size_bytes"] is None
+
+
 def test_benchmark_content_endpoints_are_authenticated_lazy_and_profile_scoped(tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
