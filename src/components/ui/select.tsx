@@ -96,6 +96,10 @@ export function Select<T extends string>({
 	const baseId = useId();
 	const listboxId = `${baseId}-listbox`;
 	const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+	const portalHost =
+		typeof document !== "undefined"
+			? (triggerRef.current?.closest("dialog[open]") ?? document.body)
+			: null;
 
 	useEffect(() => {
 		if (value !== undefined || !name) return;
@@ -314,7 +318,7 @@ export function Select<T extends string>({
 				</svg>
 			</button>
 
-			{open && typeof document !== "undefined"
+			{open && portalHost
 				? createPortal(
 						<div
 							ref={listboxRef}
