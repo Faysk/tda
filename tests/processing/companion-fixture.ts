@@ -1054,15 +1054,17 @@ export async function installCompanionFixture(
 				const limit = Number.isSafeInteger(requestedLimit)
 					? Math.max(1, Math.min(200, requestedLimit))
 					: 200;
-				const after = Number(url.searchParams.get("after_seq"));
-				const before = Number(url.searchParams.get("before_seq"));
+				const afterParam = url.searchParams.get("after_seq");
+				const beforeParam = url.searchParams.get("before_seq");
+				const after = afterParam === null ? null : Number(afterParam);
+				const before = beforeParam === null ? null : Number(beforeParam);
 				let pageEvents: Record<string, unknown>[];
 				let hasMore = false;
-				if (Number.isSafeInteger(after) && after >= 0) {
+				if (after !== null && Number.isSafeInteger(after) && after >= 0) {
 					const candidates = events.filter((event) => sequence(event) > after);
 					pageEvents = candidates.slice(0, limit);
 					hasMore = candidates.length > pageEvents.length;
-				} else if (Number.isSafeInteger(before) && before >= 0) {
+				} else if (before !== null && Number.isSafeInteger(before) && before >= 0) {
 					const candidates = events.filter((event) => sequence(event) < before);
 					pageEvents = candidates.slice(Math.max(0, candidates.length - limit));
 					hasMore = candidates.length > pageEvents.length;
