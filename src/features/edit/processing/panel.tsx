@@ -33,7 +33,10 @@ import { ProcessingController } from "./controller";
 import { JobDiagnosticsInspector } from "./job-diagnostics-inspector";
 import { LocalReviewWorkspace } from "./local-review";
 import { serializeLocalRunKey } from "./local-run-key";
-import { SessionAssemblyResults } from "./session-assembly-results";
+import {
+	SessionAssemblyResults,
+	type SessionAssemblyReviewFocus,
+} from "./session-assembly-results";
 import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
 import { ProcessingQueueView } from "./queue-view";
@@ -347,6 +350,8 @@ export function ProcessingPanel({
 	const [customActivityBarks, setCustomActivityBarks] = useState<readonly ActivityBark[]>([]);
 	const [resultFocus, setResultFocus] = useState<Readonly<{ key: string; requestId: number }> | null>(null);
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
+	const [sessionReviewFocus, setSessionReviewFocus] =
+		useState<SessionAssemblyReviewFocus | null>(null);
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
 	const [campaignSelection, setCampaignSelection] = useState(campaignId);
@@ -542,6 +547,15 @@ export function ProcessingPanel({
 		setView(next);
 		if (leavingDiagnostics) void controller.observeJob(null);
 		if (next === "results") void controller.refresh("results");
+	}
+
+	function openSessionAssemblyReview(sessionId: string, assemblyId: string) {
+		setSessionReviewFocus((current) => ({
+			sessionId,
+			assemblyId,
+			requestId: (current?.requestId ?? 0) + 1,
+		}));
+		activateView("results");
 	}
 
 	async function openJobResult(job: LocalJob): Promise<string | null> {
@@ -1073,6 +1087,7 @@ export function ProcessingPanel({
 									className={styles.submissionCard}
 									compact={Boolean(activeJob || queued.length)}
 									onOpenDiagnostics={() => activateView("diagnostics")}
+									onOpenSessionReview={openSessionAssemblyReview}
 									runs={state.localRuns}
 									benchmarks={state.benchmarkResults}
 									system={state.system}
@@ -1210,6 +1225,7 @@ export function ProcessingPanel({
 							<SessionAssemblyResults
 								campaignId={campaignId}
 								capabilities={state.capabilities.capabilities}
+								focusReview={sessionReviewFocus}
 							/>
 						) : null}
 						{unboundRuns.length ? (
