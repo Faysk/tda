@@ -1064,7 +1064,10 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 
 	// #1471: the review must resolve canonical semantic tokens in both themes,
 	// not fall back to transparent/un-styled legacy aliases.
-	const themeStyles: Record<string, { background: string; border: string; color: string }> = {};
+	const themeStyles: Record<
+		string,
+		{ background: string; border: string; color: string }
+	> = {};
 	for (const theme of ["dark", "light"] as const) {
 		await page.evaluate((nextTheme) => {
 			document.documentElement.dataset.theme = nextTheme;
