@@ -891,6 +891,9 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 		mimeType: "application/zip",
 		buffer: Buffer.from("PK-single"),
 	});
+	await expect(
+		page.getByText(/gravações serão reunidas em uma única sessão/u),
+	).toHaveCount(0);
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
@@ -1030,6 +1033,43 @@ test("stale Markdown import preserves the working copy and never overwrites sile
 	expect(multi.reviewStatus).toBe("draft");
 });
 
+test("twenty ZIPs keep the multi-session preview usable on mobile", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0],
+	});
+
+	await openProcessing(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.getByLabel("Export do Craig").setInputFiles(
+		Array.from({ length: 20 }, (_, index) => ({
+			name: `parte-${String(index + 1).padStart(2, "0")}.zip`,
+			mimeType: "application/zip",
+			buffer: Buffer.from(`PK-preview-${index + 1}`),
+		})),
+	);
+
+	await expect(
+		page.getByText("20 gravações serão reunidas em uma única sessão"),
+	).toBeVisible();
+	await expect(
+		page.getByLabel("Gravações selecionadas").getByRole("listitem"),
+	).toHaveCount(20);
+	await expect(
+		page.getByRole("button", { name: "Mover parte-20.zip para cima" }),
+	).toBeEnabled();
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+		),
+	).toBeTruthy();
+});
+
 test("manual session order is preserved without triggering automatic timeline override", async ({
 	page,
 }) => {
@@ -1102,9 +1142,11 @@ test("three ZIPs become one session intent with missing clocks by confirming the
 		page.getByText(/Horário real: usado somente quando confiável/u),
 	).toBeVisible();
 
-	await page
-		.getByRole("button", { name: "Mover parte-3.zip para cima" })
-		.click();
+	const moveThirdUp = page.getByRole("button", {
+		name: "Mover parte-3.zip para cima",
+	});
+	await moveThirdUp.focus();
+	await page.keyboard.press("Enter");
 	const rows = page.getByLabel("Gravações selecionadas").getByRole("listitem");
 	await expect(rows.nth(0)).toContainText("1. parte-1.zip");
 	await expect(rows.nth(1)).toContainText("2. parte-3.zip");
