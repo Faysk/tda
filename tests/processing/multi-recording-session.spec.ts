@@ -1059,6 +1059,79 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 	await expect(page.locator("[data-session-assembly-editor='true']")).toBeVisible();
 });
 
+test("8k-fala session review stays bounded and edits only the active row", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0],
+		reviewSegmentCount: 8_000,
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles({
+		name: "sessao-longa.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-long-review"),
+	});
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("8.000 falas");
+	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+
+	const review = page.getByRole("region", {
+		name: "Revisão da transcrição da sessão",
+	});
+	await expect(review).toBeVisible();
+	await expect(review).toContainText("8.000 falas");
+	await expect(review).toHaveAttribute("data-review-page-size", "60");
+
+	const timeline = review.locator("[data-transcript-timeline='true']");
+	await expect(timeline.locator("[data-assembly-segment]")).toHaveCount(60);
+	await expect(review.locator("textarea")).toHaveCount(0);
+	const scroll = await timeline.evaluate((element) => ({
+		overflowY: getComputedStyle(element).overflowY,
+		clientHeight: element.clientHeight,
+		scrollHeight: element.scrollHeight,
+	}));
+	expect(["auto", "scroll"]).toContain(scroll.overflowY);
+	expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
+	expect(scroll.clientHeight).toBeLessThanOrEqual(700);
+
+	const firstTrigger = review.locator(
+		`[data-assembly-edit-trigger="${SEGMENT_ID}"]`,
+	);
+	await firstTrigger.click();
+	await expect(review.locator("textarea")).toHaveCount(1);
+	await expect(
+		review.locator(`[data-assembly-speaker-input="${SEGMENT_ID}"]`),
+	).toBeFocused();
+	await page.keyboard.press("Escape");
+	await expect(review.locator("textarea")).toHaveCount(0);
+	await expect(firstTrigger).toBeFocused();
+
+	await review.getByRole("button", { name: "Próxima página" }).click();
+	await expect(review.getByText("Página 2 de 134", { exact: true })).toBeVisible();
+	await expect(review.getByText("Trecho 61", { exact: true })).toBeVisible();
+	await expect(timeline.locator("[data-assembly-segment]")).toHaveCount(60);
+
+	await review.getByLabel("Buscar na transcrição").fill("Trecho 8000");
+	await expect(review.getByText("1 falas encontradas", { exact: true })).toBeVisible();
+	await expect(review.getByText("Trecho 8000", { exact: true })).toBeVisible();
+	await expect(timeline.locator("[data-assembly-segment]")).toHaveCount(1);
+
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+		),
+	).toBeTruthy();
+});
+
 test("trusted midnight stays visible while unavailable wall-clock stays absent", async ({
 	page,
 }) => {
