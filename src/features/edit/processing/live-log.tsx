@@ -469,6 +469,7 @@ export function ProcessingLiveLog({
 					]}
 					onChange={(value) => setLevel(value as typeof level)}
 					ariaLabel="Filtrar por nível"
+					className={styles.logSelect}
 					compact
 				/>
 				<Select
@@ -479,6 +480,7 @@ export function ProcessingLiveLog({
 					]}
 					onChange={setCode}
 					ariaLabel="Filtrar por code"
+					className={styles.logSelect}
 					compact
 				/>
 				<Select
@@ -489,6 +491,7 @@ export function ProcessingLiveLog({
 					]}
 					onChange={setSpeaker}
 					ariaLabel="Filtrar por speaker"
+					className={styles.logSelect}
 					compact
 				/>
 				<Select
@@ -499,6 +502,7 @@ export function ProcessingLiveLog({
 					]}
 					onChange={setTrack}
 					ariaLabel="Filtrar por track"
+					className={styles.logSelect}
 					compact
 				/>
 				<button type="button" onClick={togglePause}>
