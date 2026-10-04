@@ -421,7 +421,8 @@ export function ProcessingQueueView({
 														</Button>
 													) : null}
 													{job.status === "succeeded" &&
-													job.result_available ? (
+													job.result_available &&
+													job.kind !== "benchmark.craig" ? (
 														<Button
 															size="sm"
 															disabled={pending === "result"}
