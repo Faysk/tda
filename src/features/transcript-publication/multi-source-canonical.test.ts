@@ -117,6 +117,51 @@ describe("multi-source transcript publication contract", () => {
 		expect(payload).not.toHaveProperty("run_id");
 	});
 
+	it("preserves user-confirmed sequence provenance without inventing wall-clock gaps", () => {
+		const input = requestValue(3);
+		Object.assign(input.assembly as Record<string, unknown>, {
+			canonicalizationVersion: "tda_session_assembly_canonical_v2",
+			timingPolicyVersion: "tda_session_timeline_v2",
+			timelineStrategy: "user_confirmed_sequence",
+			wallClock: "partial",
+			unknownIntervalCount: 1,
+		});
+		Object.assign(input.assembly.parts[0] as Record<string, unknown>, {
+			physicalIntervalState: "first",
+		});
+		Object.assign(input.assembly.parts[1] as Record<string, unknown>, {
+			physicalIntervalState: "trusted_absolute",
+		});
+		Object.assign(input.assembly.parts[2] as Record<string, unknown>, {
+			physicalIntervalState: "unknown",
+		});
+
+		const result = preparePublication(JSON.stringify(input));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		const provenance = result.value.provenance;
+		if (!provenance) throw new Error("expected assembly provenance");
+		expect(provenance).toMatchObject({
+			canonicalization_version: "tda_session_assembly_canonical_v2",
+			timing_policy_version: "tda_session_timeline_v2",
+			timeline_strategy: "user_confirmed_sequence",
+			wall_clock: "partial",
+			unknown_interval_count: 1,
+		});
+		expect(provenance.parts.map((part) => part.physical_interval_state)).toEqual([
+			"first",
+			"trusted_absolute",
+			"unknown",
+		]);
+
+		const tampered = structuredClone(input);
+		tampered.assembly.unknownIntervalCount = 0;
+		expect(preparePublication(JSON.stringify(tampered))).toEqual({
+			ok: false,
+			reason: "invalid_payload",
+		});
+	});
+
 	it("preserves trusted wall-clock provenance for each assembly source", () => {
 		const input = requestValue(2);
 		Object.assign(input.review.segments[0] as Record<string, unknown>, {
