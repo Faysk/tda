@@ -335,6 +335,31 @@ def save_reference(
     if seed_profile is not None and seed_profile not in PROFILES:
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_PROFILE_INVALID")
     tracks = _safe_reference_tracks(request.get("tracks"))
+    sample = manifest.get("sample")
+    if not isinstance(sample, dict):
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_IDENTITY_MISMATCH")
+    sample_start = sample.get("start_seconds")
+    sample_end = sample.get("end_seconds")
+    sample_tracks_raw = sample.get("tracks")
+    if (
+        isinstance(sample_start, bool)
+        or not isinstance(sample_start, (int, float))
+        or isinstance(sample_end, bool)
+        or not isinstance(sample_end, (int, float))
+        or not isinstance(sample_tracks_raw, list)
+    ):
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_IDENTITY_MISMATCH")
+    sample_track_numbers = {
+        item.get("number")
+        for item in sample_tracks_raw
+        if isinstance(item, dict) and isinstance(item.get("number"), int)
+    }
+    for track in tracks:
+        if track["track_number"] not in sample_track_numbers:
+            raise BenchmarkQualityError("BENCHMARK_REFERENCE_TRACK_SAMPLE_MISMATCH")
+        for turn in track.get("turns", []):
+            if float(turn["start"]) < float(sample_start) or float(turn["end"]) > float(sample_end):
+                raise BenchmarkQualityError("BENCHMARK_REFERENCE_TURN_OUT_OF_SAMPLE")
     terms = _safe_terms(request.get("terms"))
     capability = "timed_turns" if all(isinstance(track.get("turns"), list) for track in tracks) else "text"
     payload = {"tracks": tracks, "terms": terms}
