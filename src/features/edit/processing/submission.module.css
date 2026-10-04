@@ -528,6 +528,17 @@
 	text-align: left;
 }
 
+.card[data-layout="compact"] .metaRow {
+	grid-template-columns: 1fr;
+}
+
+.card[data-layout="compact"] .advanced,
+.card[data-layout="compact"] .advanced[open] {
+	grid-column: 1;
+	width: 100%;
+	justify-self: stretch;
+}
+
 .card[data-layout="compact"] .fileFacts {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
