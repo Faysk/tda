@@ -403,7 +403,7 @@ export function PermissionsDirectoryView({
 						placeholder="Nome, função ou ferramenta"
 					/>
 				</div>
-				<label className={styles.filterField}>
+				<div className={styles.filterField}>
 					<span>Função</span>
 					<Select
 						value={roleFilter}
@@ -412,8 +412,8 @@ export function PermissionsDirectoryView({
 						ariaLabel="Filtrar por função"
 						compact
 					/>
-				</label>
-				<label className={styles.filterField}>
+				</div>
+				<div className={styles.filterField}>
 					<span>Acesso</span>
 					<Select
 						value={accessFilter}
@@ -422,7 +422,7 @@ export function PermissionsDirectoryView({
 						ariaLabel="Filtrar por acesso"
 						compact
 					/>
-				</label>
+				</div>
 				<p className={styles.muted} role="status">
 					{people.length} de {directory.people.length}
 				</p>
