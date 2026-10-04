@@ -575,6 +575,7 @@ declare
   v_existing public.session_campaign_move_operations%rowtype;
   v_source_id uuid;
   v_destination_id uuid;
+  v_destination_visibility text;
   v_preflight jsonb;
   v_participant_links bigint := 0;
   v_session_grants bigint := 0;
@@ -609,7 +610,8 @@ begin
   end if;
 
   select id into v_source_id from public.campaigns where slug=p_source_campaign_slug;
-  select id into v_destination_id from public.campaigns where slug=p_destination_campaign_slug;
+  select id, visibility into v_destination_id, v_destination_visibility
+  from public.campaigns where slug=p_destination_campaign_slug;
   if v_source_id is null or v_destination_id is null then
     return jsonb_build_object('status','not_found','contractVersion',2);
   end if;
@@ -777,15 +779,26 @@ begin
     set
       campaign_id=v_destination_id,
       object_key=v_prep.destination_object_key,
+      status=case
+        when v_destination_visibility='private' and ma.status='verified_public' then 'staged'
+        else ma.status
+      end,
+      public_bucket=case
+        when v_destination_visibility='private' then null
+        else ma.public_bucket
+      end,
       public_object_key=case
+        when v_destination_visibility='private' then null
         when ma.status='verified_public' then v_prep.destination_public_object_key
         else ma.public_object_key
       end,
       public_delivery_verified=case
+        when v_destination_visibility='private' then false
         when ma.status='verified_public' then v_prep.public_verified_at is not null
         else ma.public_delivery_verified
       end,
       public_verified_at=case
+        when v_destination_visibility='private' then null
         when ma.status='verified_public' then v_prep.public_verified_at
         else ma.public_verified_at
       end,
@@ -803,6 +816,8 @@ begin
   set
     campaign_id=v_destination_id,
     metadata=case
+      when v_destination_visibility='private' then
+        (coalesce(s.metadata,'{}'::jsonb) - 'coverImageUrl' - 'heroImageUrl')
       when exists (
         select 1
         from public.session_editorial_drafts d
