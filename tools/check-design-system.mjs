@@ -271,6 +271,16 @@ for (const token of retiredReviewAliases) {
 	}
 }
 
+// Processing must use the canonical semantic control focus token. The shorter
+// alias was never part of the reboot token contract and silently invalidates
+// outline declarations when used in CSS Modules.
+for (const filePath of sourceFiles("src/features/edit/processing")) {
+	const source = fs.readFileSync(filePath, "utf8");
+	if (source.includes("var(--ds-focus-ring)") || source.includes("--ds-focus-ring:")) {
+		fail(`undefined processing token --ds-focus-ring is present in ${filePath}`);
+	}
+}
+
 const packageJson = fs.readFileSync("package.json", "utf8");
 if (/"tailwindcss"\s*:/.test(packageJson)) {
 	fail("Tailwind was added without a dedicated architecture decision");
