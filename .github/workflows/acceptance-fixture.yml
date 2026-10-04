@@ -1384,7 +1384,7 @@ jobs:
             "BENCHMARK_EXPORT_AUDIO_PRESENT",
             "HumanReferenceJson",
             "quality_measured",
-            "private_export_kept_local = $true",
+            'private_export_kept_local = $true',
             "contains_transcript = $false"
           )) {
             if (-not $benchmarkGate.Contains($required)) {
