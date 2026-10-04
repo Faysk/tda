@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import BinaryIO, Callable, TextIO
 
 from .asr_models import ModelRegistryError, get_profile
+from .benchmark_diagnostics import build_worker_benchmark_diagnostics
 from .attempt_fence import AttemptFenceError, claim_attempt_outcome
 from .asr_whisper import WhisperRuntimeError, transcribe_craig_package
 from .benchmark_bundles import (
@@ -282,6 +283,7 @@ def _run_craig(
                 raise TranscriptionRunError("BENCHMARK_FRESH_PROCESSING_METRICS_REQUIRED")
             benchmark_metrics = stats.processing_metrics
             lineage = capture_execution_lineage(document)
+            worker_diagnostics = build_worker_benchmark_diagnostics(document)
             sample_identity_sha256 = benchmark_sample_identity(
                 package,
                 benchmark_sample_seconds,
@@ -326,6 +328,7 @@ def _run_craig(
                     "track_count": stats.track_count,
                     "warning_count": len(document.warnings),
                     "execution_lineage": lineage,
+                    "benchmark_diagnostics": worker_diagnostics,
                 },
             )
             return 0

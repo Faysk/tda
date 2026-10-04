@@ -33,6 +33,9 @@ _SOURCE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MAX_MANIFEST_BYTES = 512 * 1024
 _MAX_TRANSCRIPT_BYTES = 512 * 1024 * 1024
+_MAX_BENCHMARK_METRICS_BYTES = 512 * 1024
+_MAX_BENCHMARK_EVENTS_BYTES = 4 * 1024 * 1024 + 8 * 1024
+_MAX_BENCHMARK_TELEMETRY_BYTES = 2 * 1024 * 1024
 _COPY_CHUNK = 1024 * 1024
 
 
@@ -134,6 +137,12 @@ def _profile_root(data_root: Path, benchmark_id: str, profile_id: str) -> Path:
     if result.parent != profiles:
         raise BenchmarkBundleError("BENCHMARK_PROFILE_PATH_INVALID")
     return result
+
+
+def benchmark_profile_root(data_root: Path, benchmark_id: str, profile_id: str) -> Path:
+    """Return the validated owned root for one Benchmark profile."""
+
+    return _profile_root(data_root, benchmark_id, profile_id)
 
 
 def _sha256_file(path: Path) -> str:
@@ -585,13 +594,75 @@ def write_benchmark_profile(
         raise
 
 
+def _benchmark_diagnostics_descriptor(
+    data_root: Path,
+    benchmark_id: str,
+    profile_id: str,
+) -> dict[str, Any] | None:
+    root = _profile_root(data_root, benchmark_id, profile_id)
+    metrics_path = root / "metrics.json"
+    events_path = root / "events.jsonl"
+    telemetry_path = root / "telemetry.jsonl"
+
+    for candidate in (metrics_path, events_path, telemetry_path):
+        if _is_reparse_point(candidate):
+            raise BenchmarkBundleError("BENCHMARK_DIAGNOSTIC_ARTIFACT_INVALID")
+
+    present = {
+        "metrics": metrics_path.exists(),
+        "events": events_path.exists(),
+        "telemetry": telemetry_path.exists(),
+    }
+    if not any(present.values()):
+        return None
+    if not present["metrics"] or not present["events"]:
+        raise BenchmarkBundleError("BENCHMARK_DIAGNOSTIC_ARTIFACT_INCOMPLETE")
+
+    def descriptor(path: Path, artifact: str, maximum: int) -> dict[str, Any]:
+        payload = _bounded_bytes(
+            path,
+            maximum=maximum,
+            missing_code="BENCHMARK_DIAGNOSTIC_ARTIFACT_MISSING",
+            invalid_code="BENCHMARK_DIAGNOSTIC_ARTIFACT_INVALID",
+        )
+        return {
+            "artifact": artifact,
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "size_bytes": len(payload),
+        }
+
+    telemetry = (
+        descriptor(
+            telemetry_path,
+            f"profiles/{profile_id}/telemetry.jsonl",
+            _MAX_BENCHMARK_TELEMETRY_BYTES,
+        )
+        if present["telemetry"]
+        else None
+    )
+    return {
+        "metrics": descriptor(
+            metrics_path,
+            f"profiles/{profile_id}/metrics.json",
+            _MAX_BENCHMARK_METRICS_BYTES,
+        ),
+        "events": descriptor(
+            events_path,
+            f"profiles/{profile_id}/events.jsonl",
+            _MAX_BENCHMARK_EVENTS_BYTES,
+        ),
+        "telemetry": telemetry,
+    }
+
+
 def _artifact_descriptor(
     *,
+    data_root: Path,
     benchmark_id: str,
     profile_id: str,
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    return {
+    value: dict[str, Any] = {
         "profile_id": profile_id,
         "profile_manifest": {
             "artifact": f"profiles/{profile_id}/profile.json",
@@ -604,6 +675,10 @@ def _artifact_descriptor(
             "size_bytes": metadata["transcript_size_bytes"],
         },
     }
+    diagnostics = _benchmark_diagnostics_descriptor(data_root, benchmark_id, profile_id)
+    if diagnostics is not None:
+        value["diagnostics"] = diagnostics
+    return value
 
 
 def _validate_text_fingerprint(value: object, code: str) -> dict[str, Any]:
@@ -625,6 +700,12 @@ def _bundle_size_bytes(
         profile_manifest = item["profile_manifest"]
         transcript = item["transcript"]
         total += int(profile_manifest["size_bytes"]) + int(transcript["size_bytes"])
+        diagnostics = item.get("diagnostics")
+        if isinstance(diagnostics, dict):
+            for key in ("metrics", "events", "telemetry"):
+                artifact = diagnostics.get(key)
+                if isinstance(artifact, dict):
+                    total += int(artifact["size_bytes"])
     return total
 
 
@@ -750,6 +831,13 @@ def load_benchmark_bundle(data_root: Path, benchmark_id: str) -> dict[str, Any]:
             or not transcript_path.is_file()
         ):
             raise BenchmarkBundleError("BENCHMARK_BUNDLE_ARTIFACT_MISMATCH")
+        actual_diagnostics = _benchmark_diagnostics_descriptor(
+            data_root,
+            benchmark_id,
+            expected,
+        )
+        if entry.get("diagnostics") != actual_diagnostics:
+            raise BenchmarkBundleError("BENCHMARK_BUNDLE_DIAGNOSTIC_ARTIFACT_MISMATCH")
         verified_entries.append(entry)
 
     return {
@@ -907,6 +995,7 @@ def finalize_benchmark_bundle(
             raise BenchmarkBundleError("BENCHMARK_BUNDLE_PROFILE_RECEIPT_MISMATCH")
         artifacts.append(
             _artifact_descriptor(
+                data_root=data_root,
                 benchmark_id=benchmark_id,
                 profile_id=expected_profile,
                 metadata=metadata,
