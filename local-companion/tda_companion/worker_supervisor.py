@@ -48,15 +48,20 @@ class WorkerOutcome:
 # operational failures recoverable for a deliberate retry of that same job, but
 # that does not prove it is safe to continue a multi-profile comparison. Only
 # errors whose scope is known to be isolated to one profile belong here.
-_BENCHMARK_PROFILE_LOCAL_ERROR_CODES = frozenset(
-    {
-        "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
-    }
-)
+_BENCHMARK_PROFILE_LOCAL_ERROR_CODES = {
+    "qwen-fast": frozenset({"QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"}),
+    "qwen-quality": frozenset({"QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"}),
+}
 
 
-def _benchmark_profile_error_isolated(exc: WorkerProcessError) -> bool:
-    return exc.recoverable and exc.code in _BENCHMARK_PROFILE_LOCAL_ERROR_CODES
+def _benchmark_profile_error_isolated(
+    profile_id: str,
+    exc: WorkerProcessError,
+) -> bool:
+    return (
+        exc.recoverable
+        and exc.code in _BENCHMARK_PROFILE_LOCAL_ERROR_CODES.get(profile_id, frozenset())
+    )
 
 
 def default_worker_command() -> list[str]:
@@ -800,7 +805,7 @@ class WorkerSupervisor:
                             diagnostics_exc.code,
                             recoverable=False,
                         ) from exc
-                if not _benchmark_profile_error_isolated(exc):
+                if not _benchmark_profile_error_isolated(profile_id, exc):
                     raise
                 failed_count += 1
                 profile_outcomes.append(
