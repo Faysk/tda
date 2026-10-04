@@ -28,6 +28,7 @@ on:
       - 'local-companion/tda_companion/qwen_runtime.py'
       - 'local-companion/tda_companion/asr_worker.py'
       - 'local-companion/tda_companion/benchmark_bundles.py'
+      - 'local-companion/tda_companion/benchmark_diagnostics.py'
       - 'local-companion/tda_companion/worker_supervisor.py'
       - 'local-companion/tests/test_qwen_runtime.py'
       - 'local-companion/tests/test_qwen_worker_routing.py'
@@ -59,6 +60,7 @@ on:
       - 'local-companion/tda_companion/qwen_runtime.py'
       - 'local-companion/tda_companion/asr_worker.py'
       - 'local-companion/tda_companion/benchmark_bundles.py'
+      - 'local-companion/tda_companion/benchmark_diagnostics.py'
       - 'local-companion/tda_companion/worker_supervisor.py'
 
 concurrency:
