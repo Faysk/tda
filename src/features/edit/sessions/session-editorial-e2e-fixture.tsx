@@ -452,7 +452,11 @@ export function SessionEditorialE2EFixture({
 								/>
 				</div>
 				<div className={workbenchStyles.sessionWorkspace}>
-					<section aria-label="Workspace editorial privado" data-testid="session-editorial-workspace-frame">
+					<section
+						aria-label="Workspace editorial privado"
+						className={workbenchStyles.sessionWorkspaceFrame}
+						data-testid="session-editorial-workspace-frame"
+					>
 									<SessionEditWorkspace
 										transcript={{
 											downloadHref: "/e2e-fixtures/session-editorial/transcript",
