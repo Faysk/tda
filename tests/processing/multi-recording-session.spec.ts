@@ -134,7 +134,9 @@ async function installMultiRecordingRoutes(
 				assembly_segment_id:
 					index === 0
 						? SEGMENT_ID
-						: (index + 10).toString(16).padStart(64, "0").slice(-64),
+						: index < 6
+							? (index + 10).toString(16).repeat(64)
+							: (index + 10).toString(16).padStart(64, "0").slice(-64),
 				part_id: PART_IDS[attachedIndex] ?? PART_IDS[0],
 				source_id: sourceId,
 				run_id: `run-${SOURCE_IDS.indexOf(sourceId) + 1}`,
