@@ -1,16 +1,26 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
 	moveSessionCampaignAction,
 	preflightSessionCampaignMoveAction,
 } from "./session-campaign-move-actions";
 import {
+	EMPTY_SESSION_CAMPAIGN_MOVE_DECISIONS,
+	type SessionCampaignMoveDecisionState,
 	type SessionCampaignMoveDestination,
+	type SessionCampaignMovePlanClassification,
 	type SessionCampaignMovePreview,
+	requiredSessionCampaignMoveDecisions,
 	sessionCampaignMoveConsequenceLabel,
+	sessionCampaignMovePlanHeading,
 } from "./session-campaign-move-model";
+import {
+	clearSessionCampaignMoveRecovery,
+	persistSessionCampaignMoveRecovery,
+	readSessionCampaignMoveRecovery,
+} from "./session-campaign-move-recovery";
 import styles from "./session-campaign-move.module.css";
 
 type MovePreflightRequest = Parameters<typeof preflightSessionCampaignMoveAction>[0];
@@ -40,25 +50,40 @@ type Props = Readonly<{
 	transport?: SessionCampaignMoveTransport;
 }>;
 
+const PLAN_ORDER: readonly SessionCampaignMovePlanClassification[] = [
+	"auto",
+	"external_prepare",
+	"decision",
+	"historical",
+];
+
 function failureLabel(reason: string): string {
 	switch (reason) {
 		case "forbidden":
 		case "profile_unresolved":
-			return "Seu perfil não possui autorização nas duas campanhas.";
+			return "Seu perfil não possui autorização suficiente para concluir esta transferência.";
 		case "conflict":
-			return "A sessão mudou de campanha ou identidade enquanto você trabalhava. Recarregue a página.";
+			return "A sessão mudou enquanto você trabalhava. Recarregue o preflight antes de confirmar.";
 		case "operation_conflict":
-			return "Este identificador de operação já foi usado para outra mudança.";
+			return "Esta identidade de operação pertence a outra transferência. Gere um novo preflight.";
+		case "decision_required":
+			return "Confirme as reconciliações obrigatórias antes de mover.";
+		case "preparation_required":
+			return "A mídia ainda precisa ser preparada no destino.";
+		case "preparation_conflict":
+			return "A capa mudou depois da preparação. Rode o preflight novamente.";
+		case "cover_unverified":
+			return "A capa não passou pela cópia/read-back no namespace de destino. Nada foi movido.";
 		case "blocked":
-			return "A mudança está bloqueada pelas dependências atuais.";
+			return "A mudança continua bloqueada por dependências que não podem ser reconciliadas automaticamente.";
 		case "not_found":
 			return "A sessão ou uma das campanhas não está mais disponível.";
 		case "validation":
 			return "Os dados da mudança ficaram inválidos. Recarregue e tente novamente.";
 		case "dependency_unavailable":
-			return "Mover campanha está temporariamente indisponível neste ambiente. Nenhuma alteração foi aplicada.";
+			return "Mover campanha está temporariamente indisponível neste ambiente. Nenhuma alteração parcial deve ser assumida.";
 		default:
-			return "Não foi possível confirmar a mudança agora. Nenhuma alteração parcial deve ser assumida.";
+			return "Não foi possível confirmar a mudança agora. Confira o estado atual antes de iniciar outra operação.";
 	}
 }
 
@@ -76,6 +101,9 @@ export function SessionCampaignMovePanel({
 	const [preview, setPreview] = useState<SessionCampaignMovePreview | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [operationId, setOperationId] = useState<string | null>(null);
+	const [decisions, setDecisions] = useState<SessionCampaignMoveDecisionState>(
+		EMPTY_SESSION_CAMPAIGN_MOVE_DECISIONS,
+	);
 	const [recovery, setRecovery] = useState<Readonly<{
 		href: string;
 		destinationName: string;
@@ -86,6 +114,50 @@ export function SessionCampaignMovePanel({
 		() => destinations.find((item) => item.technicalSlug === destination),
 		[destinations, destination],
 	);
+	const requiredDecisions = requiredSessionCampaignMoveDecisions(preview);
+	const decisionsReady =
+		(!requiredDecisions.unlinkParticipantEntities ||
+			decisions.unlinkParticipantEntities) &&
+		(!requiredDecisions.revokeSessionGrants || decisions.revokeSessionGrants) &&
+		(!requiredDecisions.acknowledgeHistoricalPublication ||
+			decisions.acknowledgeHistoricalPublication);
+	const groupedPlan = useMemo(
+		() =>
+			PLAN_ORDER.map((classification) => ({
+				classification,
+				items: (preview?.plan ?? []).filter(
+					(item) => item.classification === classification,
+				),
+			})).filter((group) => group.items.length > 0),
+		[preview],
+	);
+
+	useEffect(() => {
+		const stored = readSessionCampaignMoveRecovery(sessionId);
+		if (!stored) return;
+		if (
+			stored.sessionId !== sessionId ||
+			stored.sourceSessionId !== sourceSessionId ||
+			stored.sourceCampaignSlug !== sourceCampaignSlug ||
+			!destinations.some(
+				(item) => item.technicalSlug === stored.destinationCampaignSlug,
+			)
+		) {
+			clearSessionCampaignMoveRecovery(sessionId);
+			return;
+		}
+		setDestination(stored.destinationCampaignSlug);
+		setOperationId(stored.operationId);
+		setDecisions(EMPTY_SESSION_CAMPAIGN_MOVE_DECISIONS);
+		setError(
+			"Há uma transferência pendente desta sessão. Rode o preflight e confirme novamente; a mesma operationId será reutilizada.",
+		);
+	}, [
+		destinations,
+		sessionId,
+		sourceCampaignSlug,
+		sourceSessionId,
+	]);
 
 	if (!destinations.length) return null;
 
@@ -98,8 +170,8 @@ export function SessionCampaignMovePanel({
 			>
 				<strong>Mover campanha indisponível</strong>
 				<span>
-					A operação ainda não está ativa neste ambiente. A sessão continua em{" "}
-					{sourceCampaignName}.
+					O backend deste ambiente ainda não possui o contrato v2. A sessão
+					continua em {sourceCampaignName}.
 				</span>
 			</section>
 		);
@@ -112,10 +184,16 @@ export function SessionCampaignMovePanel({
 		destinationCampaignSlug: destination,
 	};
 
+	function resetMoveIntent() {
+		setOperationId(null);
+		setDecisions(EMPTY_SESSION_CAMPAIGN_MOVE_DECISIONS);
+		setRecovery(null);
+		clearSessionCampaignMoveRecovery(sessionId);
+	}
+
 	function runPreflight() {
 		setError(null);
 		setPreview(null);
-		setOperationId(null);
 		setRecovery(null);
 		startTransition(async () => {
 			const result = await transport.preflight(request);
@@ -128,21 +206,39 @@ export function SessionCampaignMovePanel({
 	}
 
 	function commitMove() {
-		if (!preview || preview.status !== "ready") return;
+		if (preview?.status !== "ready" || !decisionsReady) return;
 		const stableOperationId = operationId ?? crypto.randomUUID();
 		if (!operationId) setOperationId(stableOperationId);
+		const intent = {
+			version: 1 as const,
+			sessionId,
+			sourceSessionId,
+			sourceCampaignSlug,
+			destinationCampaignSlug: destination,
+			operationId: stableOperationId,
+		};
+		persistSessionCampaignMoveRecovery(intent);
 		setError(null);
 		startTransition(async () => {
 			try {
 				const result = await transport.commit({
 					...request,
 					operationId: stableOperationId,
+					decisions,
 				});
 				if (!result.ok) {
 					if ("preview" in result && result.preview) setPreview(result.preview);
+					if (
+						result.reason === "operation_conflict" ||
+						result.reason === "validation"
+					) {
+						clearSessionCampaignMoveRecovery(sessionId);
+						setOperationId(null);
+					}
 					setError(failureLabel(result.reason));
 					return;
 				}
+				clearSessionCampaignMoveRecovery(sessionId);
 				if (result.cachePending) {
 					setError(null);
 					setRecovery({
@@ -157,7 +253,7 @@ export function SessionCampaignMovePanel({
 				router.refresh();
 			} catch {
 				setError(
-					"A resposta se perdeu. Use “Confirmar mudança” novamente: o mesmo operationId será reutilizado com segurança.",
+					"A resposta se perdeu. O intent foi preservado nesta aba; rode o preflight e confirme novamente para reutilizar a mesma operação com segurança.",
 				);
 			}
 		});
@@ -175,7 +271,7 @@ export function SessionCampaignMovePanel({
 						<strong id="session-move-title">Mover para outra campanha</strong>
 						<small>Atual: {sourceCampaignName}</small>
 					</span>
-					<span className={styles.summaryHint}>Operação separada do draft editorial</span>
+					<span className={styles.summaryHint}>Preflight → preparo → commit atômico</span>
 				</summary>
 
 				<div className={styles.body}>
@@ -189,8 +285,7 @@ export function SessionCampaignMovePanel({
 									setDestination(event.currentTarget.value);
 									setPreview(null);
 									setError(null);
-									setOperationId(null);
-									setRecovery(null);
+									resetMoveIntent();
 								}}
 								disabled={pending || Boolean(recovery)}
 							>
@@ -220,7 +315,7 @@ export function SessionCampaignMovePanel({
 							</span>
 							<span>
 								A sessão já mudou de campanha no banco. A revalidação de cache/delivery
-								 ficou pendente; isso não desfaz o commit.
+								ficou pendente; isso não desfaz o commit.
 							</span>
 							<button
 								type="button"
@@ -236,29 +331,114 @@ export function SessionCampaignMovePanel({
 
 					{preview ? (
 						<div className={styles.preview} data-status={preview.status}>
-							<h3>{preview.status === "ready" ? "Pronta para confirmar" : "Mudança bloqueada"}</h3>
+							<h3>
+								{preview.status === "ready"
+									? "Plano de transferência"
+									: "Mudança bloqueada"}
+							</h3>
+
 							{preview.blockers.length ? (
-								<ul>
-									{preview.blockers.map((blocker) => (
-										<li key={blocker.code}>
-											<strong>{blocker.message}</strong>
-											<span>{blocker.count} dependência(s) · {blocker.code}</span>
-										</li>
-									))}
-								</ul>
-							) : (
-								<ul>
-									{preview.consequences.map((item) => (
-										<li key={item}>{sessionCampaignMoveConsequenceLabel(item)}</li>
-									))}
-								</ul>
-							)}
+								<section aria-label="Bloqueadores">
+									<strong>Precisa ser resolvido antes</strong>
+									<ul>
+										{preview.blockers.map((blocker) => (
+											<li key={blocker.code}>
+												<strong>{blocker.message}</strong>
+												<details>
+													<summary>Detalhes técnicos</summary>
+													<span>{blocker.count} · {blocker.code}</span>
+												</details>
+											</li>
+										))}
+									</ul>
+								</section>
+							) : null}
+
+							{groupedPlan.map((group) => (
+								<section
+									key={group.classification}
+									aria-label={sessionCampaignMovePlanHeading(group.classification)}
+								>
+									<strong>{sessionCampaignMovePlanHeading(group.classification)}</strong>
+									<ul>
+										{group.items.map((item) => (
+											<li key={item.family}>
+												<span>{item.message}</span>
+												<small>{item.count} · {item.family}</small>
+											</li>
+										))}
+									</ul>
+								</section>
+							))}
+
+							{requiredDecisions.unlinkParticipantEntities ? (
+								<label>
+									<input
+										type="checkbox"
+										checked={decisions.unlinkParticipantEntities}
+										onChange={(event) =>
+											setDecisions((current) => ({
+												...current,
+												unlinkParticipantEntities: event.currentTarget.checked,
+											}))
+										}
+									/>
+									Desvincular entities narrativas dos participantes, preservando os participantes e seus nomes históricos.
+								</label>
+							) : null}
+							{requiredDecisions.revokeSessionGrants ? (
+								<label>
+									<input
+										type="checkbox"
+										checked={decisions.revokeSessionGrants}
+										onChange={(event) =>
+											setDecisions((current) => ({
+												...current,
+												revokeSessionGrants: event.currentTarget.checked,
+											}))
+										}
+									/>
+									Revogar grants específicos desta sessão antes de transferir o boundary.
+								</label>
+							) : null}
+							{requiredDecisions.acknowledgeHistoricalPublication ? (
+								<label>
+									<input
+										type="checkbox"
+										checked={decisions.acknowledgeHistoricalPublication}
+										onChange={(event) =>
+											setDecisions((current) => ({
+												...current,
+												acknowledgeHistoricalPublication:
+													event.currentTarget.checked,
+											}))
+										}
+									/>
+									Entendo que a campanha de destino é privada: a sessão deixa o discovery público, enquanto o snapshot e a mídia já publicados permanecem como histórico imutável.
+								</label>
+							) : null}
+
+							{preview.consequences.length ? (
+								<section aria-label="Consequências da transferência">
+									<strong>Consequências da transferência</strong>
+									<ul>
+										{preview.consequences.map((item) => (
+											<li key={item}>{sessionCampaignMoveConsequenceLabel(item)}</li>
+										))}
+									</ul>
+								</section>
+							) : null}
+
 							{preview.status === "ready" ? (
-								<button type="button" onClick={commitMove} disabled={pending}>
+								<button
+									type="button"
+									onClick={commitMove}
+									disabled={pending || !decisionsReady}
+								>
 									{pending
 										? recovery
 											? "Revalidando…"
-											: "Movendo…"
+											: "Preparando e movendo…"
 										: recovery
 											? "Revalidar caches"
 											: `Confirmar mudança para ${selected?.name ?? "destino"}`}

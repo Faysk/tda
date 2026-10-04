@@ -39,6 +39,16 @@ export type VerifiedSessionCoverUpload = Readonly<{
 	readBackVerified: true;
 }>;
 
+export type PreparedSessionCoverCampaignMove = Readonly<{
+	sourceObjectKey: string;
+	destinationObjectKey: string;
+	sha256: string;
+	stagedBucket: string;
+	publicObjectKey: string | null;
+	publicUrl: string | null;
+	publicVerifiedAt: string | null;
+}>;
+
 type S3Error = Readonly<{
 	name?: string;
 	$metadata?: Readonly<{ httpStatusCode?: number }>;
@@ -81,6 +91,12 @@ function stagingClient(): S3Client {
 	return process.env.VERCEL_ENV === "production"
 		? privateMediaClient()
 		: mediaClient();
+}
+
+function clientForStagingBucket(bucket: string): S3Client {
+	if (bucket === WORLD_ENTITY_MEDIA_PRIVATE_BUCKET) return privateMediaClient();
+	if (bucket === WORLD_ENTITY_MEDIA_PREVIEW_BUCKET) return mediaClient();
+	failure("STAGING_BUCKET_NOT_ALLOWED");
 }
 
 async function exactObjectBytes(
@@ -308,4 +324,102 @@ export async function promoteSessionCover(input: {
 		},
 		maxPixels: SESSION_COVER_MEDIA_MAX_PIXELS,
 	});
+}
+
+
+/**
+ * Materializes one immutable session-cover asset under a destination campaign
+ * namespace without deleting the source object. PostgreSQL commits ownership
+ * only after this function's read-back evidence has been persisted.
+ */
+export async function prepareSessionCoverCampaignMove(input: {
+	sourceCampaignSlug: string;
+	destinationCampaignSlug: string;
+	sessionId: string;
+	stagedBucket: string;
+	sourceObjectKey: string;
+	sha256: string;
+	mimeType: SessionCoverMediaMime;
+	bytes: number;
+	width: number;
+	height: number;
+	verifiedPublic: boolean;
+}): Promise<PreparedSessionCoverCampaignMove> {
+	const extension = input.mimeType === "image/png" ? "png" : "webp";
+	const expectedSourceKey = sessionCoverObjectKey({
+		campaignSlug: input.sourceCampaignSlug,
+		sessionId: input.sessionId,
+		sha256: input.sha256,
+		extension,
+	});
+	const destinationObjectKey = sessionCoverObjectKey({
+		campaignSlug: input.destinationCampaignSlug,
+		sessionId: input.sessionId,
+		sha256: input.sha256,
+		extension,
+	});
+	if (
+		!expectedSourceKey ||
+		!destinationObjectKey ||
+		expectedSourceKey !== input.sourceObjectKey ||
+		expectedSourceKey === destinationObjectKey
+	) {
+		failure("CAMPAIGN_MOVE_SCOPE_MISMATCH");
+	}
+
+	const client = clientForStagingBucket(input.stagedBucket);
+	const bytes = await exactObjectBytes(
+		client,
+		input.stagedBucket,
+		input.sourceObjectKey,
+		input.bytes,
+	);
+	const info = inspectWorldEntityImage(bytes);
+	if (
+		info.sha256 !== input.sha256 ||
+		info.mimeType !== input.mimeType ||
+		info.bytes !== input.bytes ||
+		info.width !== input.width ||
+		info.height !== input.height ||
+		info.width * info.height > SESSION_COVER_MEDIA_MAX_PIXELS
+	) {
+		failure("CAMPAIGN_MOVE_SOURCE_INTEGRITY_FAILED");
+	}
+
+	await putImmutableCover(
+		client,
+		input.stagedBucket,
+		destinationObjectKey,
+		bytes,
+		info,
+	);
+
+	if (!input.verifiedPublic) {
+		return {
+			sourceObjectKey: input.sourceObjectKey,
+			destinationObjectKey,
+			sha256: input.sha256,
+			stagedBucket: input.stagedBucket,
+			publicObjectKey: null,
+			publicUrl: null,
+			publicVerifiedAt: null,
+		};
+	}
+
+	const promoted = await promoteGovernedImageObject({
+		stagedBucket: input.stagedBucket,
+		objectKey: destinationObjectKey,
+		expectedObjectKey: destinationObjectKey,
+		info,
+		maxPixels: SESSION_COVER_MEDIA_MAX_PIXELS,
+	});
+	return {
+		sourceObjectKey: input.sourceObjectKey,
+		destinationObjectKey,
+		sha256: input.sha256,
+		stagedBucket: input.stagedBucket,
+		publicObjectKey: promoted.publicObjectKey,
+		publicUrl: promoted.publicUrl,
+		publicVerifiedAt: promoted.verifiedAt,
+	};
 }

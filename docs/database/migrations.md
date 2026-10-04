@@ -1925,3 +1925,36 @@ Rollback lógico:
 - antes de qualquer move confirmado, rollback começa desabilitando a ação na aplicação;
 - depois de receipts existentes, não apagar histórico para simular rollback;
 - correções futuras devem ser migrations forward-only, sem editar esta migration aplicada.
+
+
+## `20261004180000_session_campaign_move_v2`
+
+**Estado:** migration forward-only de #1454/#1455/#1456/#1457/#1458/#1459/#1460/#1462. O merge no Git não comprova aplicação remota; Production continua exigindo rollout governado, migration history, advisors e read-back no mesmo SHA.
+
+Objetivo:
+
+- versionar o boundary de move como `session_campaign_move_contract().version = 2`;
+- classificar relações diretas com `sessions` em registry default-deny e falhar fechado quando surgir FK não classificada;
+- permitir transferência atômica de ownership de transcript revisions/receipts/events, drafts editoriais, publications modernas e seus receipts sem regenerar IDs, hashes, revisions, versions ou timestamps;
+- preservar `audit_log` e `ai_usage_ledger` como atribuição histórica;
+- exigir decisão explícita para participant→entity e grants `scope_type=session`;
+- exigir preparação/read-back de capas no namespace R2 do destino antes do commit;
+- demover asset público e remover pointers públicos da session quando o destino é privado;
+- preservar receipt durável e replay por `operation_id`.
+
+Segurança e concorrência:
+
+- RPCs públicas do browser permanecem revogadas; `service_role` executa somente o contract/preflight/commit governados;
+- commit trava a session e as famílias que podem introduzir blockers enquanto reexecuta o preflight;
+- origem/destino, lifecycle, identidade e capabilities são revalidados no banco;
+- blocker, preparação ausente, decisão ausente ou drift de schema resultam em zero commit da transferência;
+- nenhum conteúdo narrativo é gravado nos receipts de move/media.
+
+Validação sintética:
+
+- `supabase/tests/session_campaign_move_v2_fixture.sql` cria sessions populadas sem narrativa real;
+- `supabase/tests/session_campaign_move_v2.sql` cobre registry drift, lineage, múltiplos drafts, participant/grant decisions, mídia preparada, published→private, published→public, preservação de hashes/histórico e replay;
+- `tools/session-campaign-move-db.py` executa v1 + v2 num PostgreSQL 16 descartável;
+- `.github/workflows/campaign-isolation.yml` inclui o gate DB e os contratos TypeScript da UI v2.
+
+Rollback é forward-only: desabilitar o consumer v2 antes de qualquer correção; não editar/apagar receipts, revisions, publications ou objetos fonte para “voltar” ao estado anterior. Objetos R2 de origem são preservados no caminho crítico e qualquer limpeza posterior precisa provar ausência de referência.

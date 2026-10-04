@@ -18,6 +18,7 @@ export type EditableSessionCampaign = Readonly<{
 	routeKey: string;
 	name: string;
 	lifecycle: "active" | "archived";
+	visibility: "public" | "private";
 }>;
 
 export type EditableSessionCampaignsResult =
@@ -42,18 +43,23 @@ function parseCampaign(
 		row.lifecycle === "active" || row.lifecycle === "archived"
 			? row.lifecycle
 			: null;
+	const visibility =
+		row.visibility === "public" || row.visibility === "private"
+			? row.visibility
+			: null;
 	if (
 		!id ||
 		!technicalSlug ||
 		!routeKey ||
 		!name ||
 		!lifecycle ||
+		!visibility ||
 		!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(technicalSlug) ||
 		!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(routeKey)
 	) {
 		return null;
 	}
-	return { id, technicalSlug, routeKey, name, lifecycle };
+	return { id, technicalSlug, routeKey, name, lifecycle, visibility };
 }
 
 export async function readEditableSessionCampaigns(
@@ -66,7 +72,7 @@ export async function readEditableSessionCampaigns(
 
 	const { data, error } = await client
 		.from("campaigns")
-		.select("id,slug,public_slug,name,lifecycle")
+		.select("id,slug,public_slug,name,lifecycle,visibility")
 		.order("name")
 		.order("slug");
 	if (error || !Array.isArray(data)) {

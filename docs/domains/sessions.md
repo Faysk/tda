@@ -236,3 +236,32 @@ O rollout multi-campaign possui uma janela em que o app pode estar mais novo que
 - `status=published` permanece obrigatório nos dois caminhos. `ready_for_review` não é publicado por compatibilidade.
 
 Quando o registry está disponível, o caminho legado não participa da decisão e as regras `lifecycle=active` + `visibility=public` continuam sendo a autoridade de exposição.
+
+
+### Campaign move v2 — sessões populadas
+
+A evolução de #1129 preserva o mesmo boundary `preflight -> confirmação -> commit`, mas o backend expõe um contrato versionado `session_campaign_move_contract().version = 2`.
+
+Regras de ownership:
+
+- `sessions.id` e `source_session_id` não mudam;
+- transcript revisions, receipts/events, drafts editoriais, publications modernas e seus receipts tratam `campaign_id` como **ownership atual** e acompanham a session;
+- conteúdo imutável, hashes, revision/version numbers, operation IDs, ator e timestamps não são regenerados pelo move;
+- `audit_log` e `ai_usage_ledger` preservam a campaign histórica registrada na época do evento/custo;
+- datasets cuja identidade deriva apenas de `session_id` acompanham a session sem rewrite;
+- toda FK direta nova para `sessions` precisa de policy explícita no registry; relação não classificada falha fechada.
+
+Publicação ativa pode acompanhar a session sem criar uma publication artificial. O snapshot histórico continua com o mesmo ID, payload hash, `cover_url` e timestamp; somente o ownership relacional passa para o destino. A rota pública canônica muda para a campaign destino, e a cache invalidation cobre Home, diretório/arquivo agregado, archives de origem/destino, detalhes canônicos e aliases legados.
+
+Capas governadas usam preparo externo antes do commit: os bytes são materializados no namespace R2 da destination, hash/MIME/decode/read-back (e public delivery quando aplicável) são confirmados e um receipt sanitizado é persistido. O objeto da origem não é apagado no caminho crítico. O commit PostgreSQL só troca o ownership/key do `media_asset` quando o receipt da mesma `operation_id` confere.
+
+Reconciliações que mudam semântica continuam explícitas:
+
+- participant ligado a entity da origem exige confirmação para remover apenas o vínculo `character_entity_id`; nome/participant/provenance permanecem;
+- session-scoped grants exigem `campaign.permissions.manage` e confirmação explícita para revogação;
+- entity mentions, canon com vínculos narrativos e publicações legadas públicas continuam hard blockers até possuírem uma política de reconciliação própria;
+- capa legada ativa precisa ser substituída por asset governado antes do move.
+
+A `operation_id` é durável. Resposta perdida reutiliza a mesma intenção; a UI guarda intent bounded na aba e o servidor consegue redirecionar um deep link antigo a partir do receipt do ator quando o commit já ocorreu. Isso não amplia discovery: receipt recovery é actor/source scoped e o destino ainda precisa estar autorizado.
+
+O gate sintético de v2 usa uma session populada com lineage, múltiplos drafts, receipts, cover, publication ativa, decisão de participant/grant, replay e drift estrutural. Nenhum teste de campaign move lê narrativa privada de Production nem executa mutation remota.
