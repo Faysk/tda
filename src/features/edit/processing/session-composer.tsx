@@ -1088,6 +1088,7 @@ export function SessionRecordingComposer({
 												]}
 												onChange={(value) => void selectRun(part, value)}
 												ariaLabel={`Run da gravação ${index + 1}`}
+												compact
 											/>
 										</label>
 										<details
