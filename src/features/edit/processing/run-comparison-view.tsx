@@ -308,7 +308,7 @@ export function RunComparisonView({
 						value={trackFilter}
 						options={[
 							{ value: "all", label: "Todas" },
-							...tracks.map((track) => ({ value: track, label: `Track ${track}` })),
+							...tracks.map((track) => ({ value: String(track), label: `Track ${track}` })),
 						]}
 						onChange={setTrackFilter}
 						ariaLabel="Filtrar comparação por track"
