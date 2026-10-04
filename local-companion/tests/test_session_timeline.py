@@ -654,6 +654,26 @@ def test_sequence_proven_overlap_remains_fail_closed_until_explicit_boundary():
     assert workspace["timeline"]["unresolved_overlap_count"] == 1
 
 
+def test_sequence_rejects_reverse_trusted_anchors_even_with_unknown_part_between():
+    raw_parts = [
+        part(1, 0, offset=None),
+        part(2, 1, offset=None),
+        part(3, 2, offset=None),
+    ]
+    source_facts = dict(
+        [
+            facts(1, start="2026-10-04T22:00:00Z", duration=30.0),
+            facts(2, start=None, duration=30.0),
+            facts(3, start="2026-10-04T21:00:00Z", duration=30.0),
+        ]
+    )
+
+    with pytest.raises(
+        ValueError, match="SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT"
+    ):
+        user_confirmed_sequence_placements(raw_parts, source_facts)
+
+
 def test_sequence_rejects_trusted_reverse_order_instead_of_hiding_conflict():
     raw_parts = [part(2, 0, offset=None), part(1, 1, offset=None)]
     source_facts = dict(
