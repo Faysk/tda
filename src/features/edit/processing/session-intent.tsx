@@ -1296,9 +1296,9 @@ export function SessionIntentCoordinator({
 						);
 					})}
 				</ol>
-			) : (
+			) : !assembly ? (
 				<p className={styles.waiting}>Preparando as gravações desta sessão…</p>
-			)}
+			) : null}
 
 			{recovery ? (
 				<RecoveryGuideCard
@@ -1316,7 +1316,7 @@ export function SessionIntentCoordinator({
 				/>
 			) : null}
 
-			{workspace?.parts.length && workspace.parts.length > 1 ? (
+			{workspace?.parts.length && workspace.parts.length > 1 && !assembly ? (
 				<p className={styles.outputHint}>A saída será uma única transcrição da sessão.</p>
 			) : null}
 
