@@ -198,10 +198,6 @@ export function SessionAssemblyReview({
 	const visible = matches.slice(pageStart, pageStart + PAGE_SIZE);
 	const pageEnd = pageStart + visible.length;
 
-	useEffect(() => {
-		setPage(0);
-		setEditingId(null);
-	}, [normalizedQuery]);
 
 	useEffect(() => {
 		if (page !== safePage) setPage(safePage);
@@ -396,7 +392,11 @@ export function SessionAssemblyReview({
 					<input
 						type="search"
 						value={query}
-						onChange={(event) => setQuery(event.currentTarget.value)}
+						onChange={(event) => {
+							setQuery(event.currentTarget.value);
+							setPage(0);
+							setEditingId(null);
+						}}
 						placeholder="Participante, texto ou origem"
 					/>
 				</label>
@@ -468,7 +468,7 @@ export function SessionAssemblyReview({
 				className={styles.transcriptViewport}
 				data-assembly-transcript-viewport="true"
 				data-page-size={PAGE_SIZE}
-				tabIndex={0}
+				role="region"
 				aria-label="Timeline da transcrição"
 			>
 				{visible.length ? (
@@ -514,15 +514,7 @@ export function SessionAssemblyReview({
 									</button>
 
 									{editing ? (
-										<div
-											className={styles.segmentEditor}
-											onKeyDown={(event) => {
-												if (event.key === "Escape") {
-													event.preventDefault();
-													closeSegmentEditor(segment.assemblySegmentId);
-												}
-											}}
-										>
+										<div className={styles.segmentEditor}>
 											<div className={styles.editorFields}>
 												<label>
 													<span>Participante</span>
