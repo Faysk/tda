@@ -327,6 +327,8 @@ export async function commitSessionCampaignMove(
 		p_decisions: {
 			unlinkParticipantEntities: input.decisions.unlinkParticipantEntities,
 			revokeSessionGrants: input.decisions.revokeSessionGrants,
+			acknowledgeHistoricalPublication:
+				input.decisions.acknowledgeHistoricalPublication,
 		},
 	});
 	if (error) return { ok: false as const, reason: "dependency_unavailable" as const };
