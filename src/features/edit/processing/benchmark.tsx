@@ -1019,6 +1019,23 @@ export function ProcessingBenchmark({
 		}
 	}
 
+	async function repeatPartialBenchmark(result: BenchmarkPartialResult) {
+		if (
+			source?.sourceId === result.sourceId &&
+			allProfilesReady &&
+			sampleEligible &&
+			connected &&
+			!active
+		) {
+			await runBenchmark();
+			return;
+		}
+		setStatus(
+			"Selecione novamente o ZIP desta fonte para iniciar um novo benchmark completo.",
+		);
+		fileInput.current?.click();
+	}
+
 	const activeEvents =
 		active && observedJobId === active.id
 			? events.filter(
@@ -1372,7 +1389,7 @@ export function ProcessingBenchmark({
 				) : null}
 			</section>
 
-			{active ? (
+			{active && activeAttemptState ? (
 				<section className={styles.activeCard} aria-live="polite">
 					<div className={styles.activeCopy}>
 						<span className={styles.eyebrow}>Benchmark em andamento</span>
@@ -1384,42 +1401,41 @@ export function ProcessingBenchmark({
 									: "Finalizando"}
 						</h3>
 						<p>
-							{active.progress
-								? `${active.progress.completed} de ${active.progress.total} perfis concluídos`
-								: "Preparando execução"}
-							{active.stage ? ` · ${stageLabels[active.stage] ?? active.stage}` : ""}
+							Tentados {activeAttemptState.attemptedCount}/4 · Concluídos{" "}
+							{activeAttemptState.completedCount} · Falharam{" "}
+							{activeAttemptState.failedCount}
+							{currentProfile ? " · Atual: " + LABELS[currentProfile] : ""}
+							{active.stage ? " · " + (stageLabels[active.stage] ?? active.stage) : ""}
 						</p>
 						{latestActivity && latestEvent ? (
 							<small>
 								{latestActivity.title}
-								{latestActivity.detail ? ` · ${latestActivity.detail}` : ""}
+								{latestActivity.detail ? " · " + latestActivity.detail : ""}
 								{" · "}
 								{formatClock(latestEvent.at)}
 							</small>
 						) : (
-							<small>Job {active.id.slice(0, 12)}… · atualizado {formatClock(active.updated_at)}</small>
+							<small>
+								Job {active.id.slice(0, 12)}… · atualizado{" "}
+								{formatClock(active.updated_at)}
+							</small>
 						)}
 					</div>
-					<ol className={styles.runSteps} aria-label="Progresso dos quatro perfis">
-						{PROFILES.map((id, index) => {
-							const stepState =
-								index < completed
-									? "complete"
-									: active.status === "running" && index === Math.min(completed, PROFILES.length - 1)
-										? "current"
-										: "pending";
-							return (
-								<li
-									key={id}
-									className={styles.runStep}
-									data-state={stepState}
-									aria-current={stepState === "current" ? "step" : undefined}
-								>
-									<i aria-hidden="true">{stepState === "complete" ? "✓" : index + 1}</i>
-									<span>{LABELS[id]}</span>
-								</li>
-							);
-						})}
+					<ol className={styles.runSteps} aria-label="Estado dos quatro perfis">
+						{activeAttemptState.profiles.map((profile) => (
+							<li
+								key={profile.profileId}
+								className={styles.runStep}
+								data-state={profile.status}
+								aria-current={profile.status === "running" ? "step" : undefined}
+							>
+								<i aria-hidden="true">{profileRunIcon(profile)}</i>
+								<span>
+									{LABELS[profile.profileId]} · {profileRunLabel(profile)}
+									{profile.errorCode ? " · " + profile.errorCode : ""}
+								</span>
+							</li>
+						))}
 					</ol>
 					<div className={styles.activeActions}>
 						<Button
@@ -1441,6 +1457,13 @@ export function ProcessingBenchmark({
 						</Button>
 					</div>
 				</section>
+			) : latestPartialResult && latestJob ? (
+				<PartialResultCard
+					result={latestPartialResult}
+					updatedAt={latestJob.updated_at}
+					onDiagnostics={() => onOpenDiagnostics(latestJob)}
+					onRepeat={() => void repeatPartialBenchmark(latestPartialResult)}
+				/>
 			) : latestProblem ? (
 				<section className={styles.problemCard} role="status">
 					<div>
@@ -1450,12 +1473,13 @@ export function ProcessingBenchmark({
 								? "Benchmark cancelado"
 								: latestProblem.status === "interrupted"
 									? "Benchmark interrompido"
-									: "Benchmark falhou"}
+									: "Benchmark falhou globalmente"}
 						</h3>
 						<p>
 							{latestProblem.error?.code
-								? `${latestProblem.error.code} · tentativa ${latestProblem.attempt}`
-								: `Tentativa ${latestProblem.attempt}`}
+								? latestProblem.error.code + " · tentativa " + latestProblem.attempt
+								: "Tentativa " + latestProblem.attempt}
+							{" · os perfis posteriores não são marcados como falha de engine."}
 						</p>
 					</div>
 					<Button
@@ -1483,50 +1507,70 @@ export function ProcessingBenchmark({
 				<div className={styles.historyHeader}>
 					<div>
 						<span className={styles.eyebrow}>Histórico local</span>
-						<h2>Receipts comparáveis</h2>
+						<h2>Execuções com receipt</h2>
 					</div>
-					<span>{latestCompleted.length} concluído{latestCompleted.length === 1 ? "" : "s"}</span>
+					<span>
+						{latestCompleted.length} comparável
+						{latestCompleted.length === 1 ? "" : "eis"} ·{" "}
+						{resultJobs.length - latestCompleted.length} parcial
+						{resultJobs.length - latestCompleted.length === 1 ? "" : "is"}
+					</span>
 				</div>
-				{latestCompleted.length ? (
-					latestCompleted.slice(0, 10).map((job) =>
-						results[job.id] ? (
+				{resultJobs.length ? (
+					resultJobs.slice(0, 20).map((job) => {
+						const result = results[job.id];
+						if (!result)
+							return (
+								<p key={job.id} className={styles.loading}>
+									Carregando receipt {job.id.slice(0, 8)}…
+								</p>
+							);
+						if (result.schemaVersion === "tda_processing_benchmark_partial_v1")
+							return (
+								<PartialResultCard
+									key={job.id}
+									result={result}
+									updatedAt={job.updated_at}
+									onDiagnostics={() => onOpenDiagnostics(job)}
+									onRepeat={() => void repeatPartialBenchmark(result)}
+								/>
+							);
+						return (
 							<ResultCard
 								key={job.id}
-								result={results[job.id]!}
+								result={result}
 								updatedAt={job.updated_at}
 								bridge={bridge}
 								connected={connected}
 								qualityEnabled={benchmarkQualitySupported}
 								onCompare={() =>
 									setEvidenceView({
-										result: results[job.id]!,
+										result,
 										mode: "compare",
 										promptExport: false,
 									})
 								}
 								onFiles={() =>
 									setEvidenceView({
-										result: results[job.id]!,
+										result,
 										mode: "files",
 										promptExport: false,
 									})
 								}
 								onExport={() =>
 									setEvidenceView({
-										result: results[job.id]!,
+										result,
 										mode: "files",
 										promptExport: true,
 									})
 								}
 								onDiagnostics={() => onOpenDiagnostics(job)}
 							/>
-						) : (
-							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>
-						),
-					)
+						);
+					})
 				) : (
 					<p className={styles.empty}>
-						Nenhum benchmark concluído neste Companion.
+						Nenhum benchmark com receipt neste Companion.
 					</p>
 				)}
 			</section>
