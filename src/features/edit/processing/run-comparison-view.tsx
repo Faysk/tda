@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Select } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import type { LocalReview, LocalRunSummary } from "./protocol";
 import {
 	compareRunPerformanceSemantics,
