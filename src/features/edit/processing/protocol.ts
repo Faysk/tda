@@ -1001,7 +1001,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const row = record(value);
 	if (row.schema_version !== "tda_session_workspace_v1") return invalid();
 	if (!Array.isArray(row.parts) || row.parts.length > 64) return invalid();
-	const orderingMode = text(row.ordering_mode, 16);
+	const orderingMode = text(row.ordering_mode, 24);
 	if (!["attachment", "automatic", "manual", "confirmed_sequence"].includes(orderingMode))
 		return invalid();
 	const parts = row.parts.map((raw, index) => {
@@ -1010,7 +1010,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		const sourceId = identifier(part.source_id);
 		const ordinal = nonNegativeInteger(part.ordinal);
 		const sourceState = text(part.source_state, 16);
-		const timelineMode = text(part.timeline_mode, 16);
+		const timelineMode = text(part.timeline_mode, 24);
 		const startConfidence = text(part.source_start_confidence, 32);
 		const relation = text(part.relation_to_previous, 24);
 		const overlapResolution =
