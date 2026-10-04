@@ -263,10 +263,10 @@
 }
 
 .metaRow {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: start;
+	gap: 8px 16px;
 	min-width: 0;
 	border-top: 1px solid var(--ds-border-subtle);
 	padding-top: 4px;
@@ -420,7 +420,18 @@
 }
 
 .advanced {
+	min-width: min(360px, 46vw);
 	border-top: 0;
+	justify-self: end;
+}
+
+.advanced[open] {
+	grid-column: 1 / -1;
+	width: 100%;
+	min-width: 0;
+	justify-self: stretch;
+	padding-top: 4px;
+	border-top: 1px solid var(--ds-border-subtle);
 }
 
 .advanced summary {
@@ -476,6 +487,18 @@
 	color: var(--ds-danger);
 }
 
+.card[data-state="active"] {
+	padding-block: 10px;
+}
+
+.card[data-state="active"] .heading {
+	margin-bottom: 2px;
+}
+
+.card[data-state="active"] .technical {
+	margin-top: 6px;
+}
+
 .card[data-layout="compact"] {
 	padding: 12px;
 }
@@ -507,10 +530,19 @@
 
 .card[data-layout="compact"] .profileSummary,
 .card[data-layout="compact"] .profileMeta,
-.card[data-layout="compact"] .submitRow,
-.card[data-layout="compact"] .metaRow {
+.card[data-layout="compact"] .submitRow {
 	align-items: stretch;
 	flex-direction: column;
+}
+
+.card[data-layout="compact"] .metaRow {
+	grid-template-columns: 1fr;
+}
+
+.card[data-layout="compact"] .advanced {
+	width: 100%;
+	min-width: 0;
+	justify-self: stretch;
 }
 
 .card[data-layout="compact"] .profileSummary small {
@@ -550,11 +582,20 @@
 	.profileSummary,
 	.profileMeta,
 	.submitRow,
-	.metaRow,
 	.readiness,
 	.blocked {
 		align-items: stretch;
 		flex-direction: column;
+	}
+
+	.metaRow {
+		grid-template-columns: 1fr;
+	}
+
+	.advanced {
+		width: 100%;
+		min-width: 0;
+		justify-self: stretch;
 	}
 
 	.profileSummary small {
