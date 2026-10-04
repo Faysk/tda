@@ -1023,6 +1023,7 @@ def test_glossary_hit_on_wrong_track_is_not_counted_as_correct():
     assert glossary["recall"] == 0.0
     assert glossary["precision"] == 0.0
 
+
 def test_private_glossary_inspection_counts_wrong_track_as_miss_and_extra(
     monkeypatch,
     tmp_path,
