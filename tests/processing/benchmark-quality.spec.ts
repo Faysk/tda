@@ -217,13 +217,14 @@ test("quality evidence remains keyboard-usable and overflow-free at the 200 perc
 	});
 	await assertNoHorizontalOverflow(page);
 
+	const nextDifference = evidence.getByRole("button", { name: "Próxima diferença →" });
+	await nextDifference.click();
+	await expect(evidence.locator('[data-active="true"]:focus')).toHaveCount(1);
+
 	const selector = evidence.getByLabel("Perfil A");
 	await selector.focus();
 	await expect(selector).toBeFocused();
 	await page.keyboard.press("ArrowUp");
 	await expect(selector).toBeFocused();
-
-	const nextDifference = evidence.getByRole("button", { name: "Próxima diferença →" });
-	await nextDifference.click();
-	await expect(evidence.locator('[data-active="true"]:focus')).toHaveCount(1);
+	await expect(selector).not.toHaveValue("");
 });
