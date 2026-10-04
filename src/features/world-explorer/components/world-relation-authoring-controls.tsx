@@ -85,7 +85,7 @@ export function WorldRelationAuthoringControls({
 							{source?.name ?? "Origem"} → {target?.name ?? "Destino"}
 						</small>
 					</header>
-					<label>
+					<div>
 						<span>Tipo</span>
 						<Select
 							value={relationType}
@@ -98,8 +98,8 @@ export function WorldRelationAuthoringControls({
 							compact
 							required
 						/>
-					</label>
-					<label>
+					</div>
+					<div>
 						<span>Visibilidade</span>
 						<Select
 							value={visibility}
@@ -111,7 +111,7 @@ export function WorldRelationAuthoringControls({
 							ariaLabel="Visibilidade da ligação"
 							compact
 						/>
-					</label>
+					</div>
 					{visibility === "public_campaign" || visibility === "public_web" ? (
 						<p className={styles.reviewNotice}>
 							Publicação pública continua sujeita à fonte canônica e revisão existentes.
