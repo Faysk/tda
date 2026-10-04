@@ -16,6 +16,7 @@ import type { SessionCampaignMoveOptions } from "./session-campaign-move-model";
 import {
 	commitSessionCampaignMove,
 	preflightSessionCampaignMove,
+	readCommittedSessionCampaignMove,
 } from "./session-campaign-move-repository";
 
 const UUID =
@@ -116,6 +117,36 @@ export async function moveSessionCampaignAction(
 		return { ok: false as const, reason: "validation" as const };
 	const access = await authorizedRequest(request);
 	if (!access.ok) return access;
+
+	const recovered = await readCommittedSessionCampaignMove({
+		actorProfileId: access.profileId,
+		sessionId: request.sessionId,
+		sourceSessionId: request.sourceSessionId,
+		sourceCampaignId: access.source.id,
+		destinationCampaignId: access.destination.id,
+		operationId: request.operationId,
+		options: request.options,
+	});
+	if (recovered?.ok === false) return recovered;
+	if (recovered?.ok) {
+		const cachePending = invalidateMovePaths({
+			sourceCampaignSlug: access.source.technicalSlug,
+			sourceRouteKey: access.source.routeKey,
+			destinationCampaignSlug: access.destination.technicalSlug,
+			destinationRouteKey: access.destination.routeKey,
+			sourceSessionId: request.sourceSessionId,
+		});
+		return {
+			ok: true as const,
+			replayed: true,
+			publicationState: recovered.publicationState,
+			cachePending,
+			destinationHref: editSessionDetailHref(
+				access.destination.technicalSlug,
+				request.sourceSessionId,
+			),
+		};
+	}
 
 	const authoritative = await preflightSessionCampaignMove({
 		authUserId: access.authUserId,
