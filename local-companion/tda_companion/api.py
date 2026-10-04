@@ -1049,6 +1049,63 @@ def create_app(
                                 total=int(message.payload["total"]),
                                 stage=str(message.payload.get("stage") or "transcription"),
                             )
+                            if body["kind"] == "benchmark.craig":
+                                profile_id = message.payload.get("profile_id")
+                                profile_status = message.payload.get("profile_status")
+                                successful_count = message.payload.get("successful_count")
+                                failed_count = message.payload.get("failed_count")
+                                attempted_count = message.payload.get("attempted_count")
+                                if (
+                                    profile_id not in _BENCHMARK_PROFILES
+                                    or profile_status not in {"completed", "failed"}
+                                    or isinstance(successful_count, bool)
+                                    or not isinstance(successful_count, int)
+                                    or isinstance(failed_count, bool)
+                                    or not isinstance(failed_count, int)
+                                    or isinstance(attempted_count, bool)
+                                    or not isinstance(attempted_count, int)
+                                    or attempted_count != expected
+                                    or successful_count < 0
+                                    or failed_count < 0
+                                    or successful_count + failed_count != attempted_count
+                                ):
+                                    raise WorkerProcessError(
+                                        "BENCHMARK_PROFILE_PROGRESS_INVALID",
+                                        recoverable=False,
+                                    )
+                                event_data = {
+                                    "profile_id": profile_id,
+                                    "status": profile_status,
+                                    "attempted_count": attempted_count,
+                                    "successful_count": successful_count,
+                                    "failed_count": failed_count,
+                                }
+                                error_code = message.payload.get("error_code")
+                                recoverable = message.payload.get("recoverable")
+                                if error_code is not None:
+                                    if (
+                                        not isinstance(error_code, str)
+                                        or re.fullmatch(r"[A-Z0-9_]{1,96}", error_code) is None
+                                    ):
+                                        raise WorkerProcessError(
+                                            "BENCHMARK_PROFILE_PROGRESS_INVALID",
+                                            recoverable=False,
+                                        )
+                                    event_data["error_code"] = error_code
+                                if recoverable is not None:
+                                    if not isinstance(recoverable, bool):
+                                        raise WorkerProcessError(
+                                            "BENCHMARK_PROFILE_PROGRESS_INVALID",
+                                            recoverable=False,
+                                        )
+                                    event_data["recoverable"] = recoverable
+                                store.record_worker_event(
+                                    job_id,
+                                    attempt,
+                                    "BENCHMARK_PROFILE_OUTCOME",
+                                    event_data,
+                                    level="warning" if profile_status == "failed" else "info",
+                                )
 
                     def observe_event(message) -> None:
                         if message.type == "ready":
