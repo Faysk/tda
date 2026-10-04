@@ -104,6 +104,26 @@ describe("session workspace protocol", () => {
 		expect(JSON.stringify(parsed)).not.toContain("transcript");
 	});
 
+	it("parses confirmed editorial sequence provenance", () => {
+		const raw = workspace([
+			recordingPart({
+				timeline_mode: "confirmed_sequence",
+				source_start_time: null,
+				source_start_confidence: "missing",
+				source_start_utc: null,
+			}),
+		]);
+		raw.ordering_mode = "confirmed_sequence";
+		raw.timeline.all_sources_trusted = false;
+		raw.timeline.automatic_order_available = false;
+
+		const parsed = parseSessionWorkspace(raw);
+
+		expect(parsed.orderingMode).toBe("confirmed_sequence");
+		expect(parsed.parts[0].timelineMode).toBe("confirmed_sequence");
+		expect(parsed.parts[0].sourceStartConfidence).toBe("missing");
+	});
+
 	it("parses explicit fail-closed order conflicts", () => {
 		const raw = workspace([
 			recordingPart({
@@ -380,12 +400,18 @@ describe("session workspace bridge", () => {
 			2,
 			signal(),
 		);
+		await bridge.confirmSessionSequence(
+			"yuhara-main",
+			"session-42",
+			3,
+			signal(),
+		);
 		await bridge.updateSessionPartTiming(
 			"yuhara-main",
 			"session-42",
 			{
 				partId: partA,
-				expectedRevision: 3,
+				expectedRevision: 4,
 				sessionOffsetSeconds: 120,
 				trimStartSeconds: 5,
 				trimEndSeconds: 60,
@@ -399,7 +425,7 @@ describe("session workspace bridge", () => {
 			"yuhara-main",
 			"session-42",
 			partA,
-			4,
+			5,
 			signal(),
 		);
 
@@ -408,6 +434,7 @@ describe("session workspace bridge", () => {
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/reorder`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/timeline/derive`,
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/timeline/sequence`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/timing`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/detach`,
 		]);
@@ -415,8 +442,11 @@ describe("session workspace bridge", () => {
 			expected_revision: 2,
 		});
 		expect(JSON.parse(String(request.mock.calls[4][1]?.body))).toEqual({
-			part_id: partA,
 			expected_revision: 3,
+		});
+		expect(JSON.parse(String(request.mock.calls[5][1]?.body))).toEqual({
+			part_id: partA,
+			expected_revision: 4,
 			session_offset_seconds: 120,
 			trim_start_seconds: 5,
 			trim_end_seconds: 60,
