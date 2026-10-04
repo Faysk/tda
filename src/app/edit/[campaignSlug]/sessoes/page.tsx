@@ -3,7 +3,7 @@ import Form from "next/form";
 import { notFound } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
-import { FormSubmitButton, StatusPill } from "@/components/ui";
+import { FormSubmitButton, Select, StatusPill } from "@/components/ui";
 import { requireCampaignCapability } from "@/features/auth/server";
 import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import { editSessionDetailHref, editSessionLibraryHref, readEditableSessionCampaigns } from "@/features/campaigns/sessions";
@@ -178,47 +178,63 @@ export default async function EditSessionsPage({
 				</label>
 				<label>
 					<span>Estado</span>
-					<select className={styles.control} defaultValue={filters.state} name="estado">
-						<option value="all">Todos os estados</option>
-						<option value="prepared">Com transcrição preparada</option>
-						<option value="unprepared">Sem transcrição preparada</option>
-						<option value="ready_for_review">Aguardando edição</option>
-						<option value="reviewing">Em edição</option>
-						<option value="approved">Pronto para publicar</option>
-						<option value="published">Publicado</option>
-						<option value="archived">Arquivado</option>
-					</select>
+					<Select
+						name="estado"
+						defaultValue={filters.state}
+						options={[
+							{ value: "all", label: "Todos os estados" },
+							{ value: "prepared", label: "Com transcrição preparada" },
+							{ value: "unprepared", label: "Sem transcrição preparada" },
+							{ value: "ready_for_review", label: "Aguardando edição" },
+							{ value: "reviewing", label: "Em edição" },
+							{ value: "approved", label: "Pronto para publicar" },
+							{ value: "published", label: "Publicado" },
+							{ value: "archived", label: "Arquivado" },
+						]}
+						ariaLabel="Estado"
+						compact
+					/>
 				</label>
 				<label>
 					<span>Publicação</span>
-					<select
-						className={styles.control}
-						defaultValue={filters.publication}
+					<Select
 						name="publicacao"
-					>
-						<option value="all">Todas</option>
-						<option value="published">Publicadas no site</option>
-						<option value="unpublished">Ainda não publicadas</option>
-					</select>
+						defaultValue={filters.publication}
+						options={[
+							{ value: "all", label: "Todas" },
+							{ value: "published", label: "Publicadas no site" },
+							{ value: "unpublished", label: "Ainda não publicadas" },
+						]}
+						ariaLabel="Publicação"
+						compact
+					/>
 				</label>
 				<label>
 					<span>Arco</span>
-					<select className={styles.control} defaultValue={filters.arc} name="arco">
-						<option value="all">Todos os arcos</option>
-						{arcs.map((arc) => (
-							<option key={arc} value={arc}>
-								{arc}
-							</option>
-						))}
-					</select>
+					<Select
+						name="arco"
+						defaultValue={filters.arc}
+						options={[
+							{ value: "all", label: "Todos os arcos" },
+							...arcs.map((arc) => ({ value: arc, label: arc })),
+						]}
+						ariaLabel="Arco"
+						compact
+					/>
 				</label>
 				<label>
 					<span>Ordenar</span>
-					<select className={styles.control} defaultValue={filters.sort} name="ordem">
-						<option value="date-desc">Sessões mais recentes</option>
-						<option value="date-asc">Sessões mais antigas</option>
-						<option value="title">Título</option>
-					</select>
+					<Select
+						name="ordem"
+						defaultValue={filters.sort}
+						options={[
+							{ value: "date-desc", label: "Sessões mais recentes" },
+							{ value: "date-asc", label: "Sessões mais antigas" },
+							{ value: "title", label: "Título" },
+						]}
+						ariaLabel="Ordenar"
+						compact
+					/>
 				</label>
 				<div className={styles.libraryFilterActions}>
 					<FormSubmitButton
