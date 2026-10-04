@@ -200,6 +200,127 @@ describe("processing benchmark contract", () => {
 		expect(JSON.stringify(result)).not.toContain("segments\":");
 	});
 
+	it("parses a partial benchmark without turning it into a complete 4/4 bundle", () => {
+		const benchmarkId = "benchmark-benchmark-job-a1";
+		const sampleIdentity = "b".repeat(64);
+		const profile = (profileId: string, engine: "whisper" | "qwen3") => ({
+			kind: "benchmark.profile",
+			schema_version: "tda_benchmark_profile_v1",
+			benchmark_id: benchmarkId,
+			sample_identity_sha256: sampleIdentity,
+			transcript_sha256: "e".repeat(64),
+			transcript_size_bytes: 4096,
+			artifact_available: true,
+			profile_id: profileId,
+			engine,
+			model: "model",
+			model_revision: "revision",
+			device: "cuda",
+			compute_type: "float16",
+			alignment: "native",
+			sample_seconds: 300,
+			audio_work_seconds: 300,
+			session_duration_seconds: 300,
+			processing_timing_version: "engine_processing_v1",
+			processing_seconds: 30,
+			rtf: 0.1,
+			word_count: 10,
+			segment_count: 2,
+			track_count: 1,
+			warning_count: 0,
+			execution_lineage: {
+				schema_version: "tda_execution_lineage_v1",
+				companion_version: "0.3.18",
+				runtime_family: engine === "whisper" ? "whisper" : "qwen",
+				runtime_version: engine === "whisper" ? "1.1.10" : "1.0.18",
+				runtime_artifact: {
+					runtime_id: engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
+					version: engine === "whisper" ? "1.1.10" : "1.0.18",
+					worker_sha256: "c".repeat(64),
+					archive_sha256: "d".repeat(64),
+				},
+				device: "cuda:0",
+				compute_type: "float16",
+				gpu: {
+					vendor: "NVIDIA",
+					index: 0,
+					model: "Synthetic GPU",
+					vram_total_bytes: 8 * 1024 * 1024 * 1024,
+					compute_capability: "8.9",
+					driver_version: "synthetic",
+				},
+			},
+		});
+		const result = parseBenchmarkResult(
+			{
+				schema_version: "tda_processing_benchmark_v2",
+				kind: "benchmark.craig",
+				status: "partial",
+				job_id: "benchmark-job",
+				source_id: "craig-" + "a".repeat(64),
+				campaign_id: "benchmark-local",
+				session_id: "benchmark-local",
+				sample_identity_sha256: sampleIdentity,
+				sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				track_count: 1,
+				audio_work_seconds: 300,
+				prepared: true,
+				benchmark_id: benchmarkId,
+				bundle_manifest_sha256: null,
+				bundle_size_bytes: null,
+				profiles: [
+					profile("whisper-turbo", "whisper"),
+					profile("whisper-detailed", "whisper"),
+					profile("qwen-quality", "qwen3"),
+				],
+				profile_outcomes: [
+					{ profile_id: "whisper-turbo", status: "completed", artifact_available: true, receipt_index: 0 },
+					{ profile_id: "whisper-detailed", status: "completed", artifact_available: true, receipt_index: 1 },
+					{
+						profile_id: "qwen-fast",
+						status: "failed",
+						artifact_available: false,
+						error: {
+							code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+							recoverable: true,
+							scope: "profile",
+						},
+					},
+					{ profile_id: "qwen-quality", status: "completed", artifact_available: true, receipt_index: 2 },
+				],
+				attempted_count: 4,
+				completed_count: 3,
+				failed_count: 1,
+			},
+			"benchmark-job",
+		);
+
+		expect(result.schemaVersion).toBe("tda_processing_benchmark_v2");
+		expect(result.status).toBe("partial");
+		expect(result.attemptedCount).toBe(4);
+		expect(result.completedCount).toBe(3);
+		expect(result.failedCount).toBe(1);
+		expect(result.bundleManifestSha256).toBeNull();
+		expect(result.bundleSizeBytes).toBeNull();
+		expect(result.profileOutcomes[2]).toEqual({
+			profileId: "qwen-fast",
+			status: "failed",
+			artifactAvailable: false,
+			receiptIndex: null,
+			error: {
+				code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+				recoverable: true,
+				scope: "profile",
+			},
+		});
+		expect(result.profiles.map((item) => item.profileId)).toEqual([
+			"whisper-turbo",
+			"whisper-detailed",
+			"qwen-quality",
+		]);
+	});
+
 	it("rejects benchmark receipts without exact runtime and GPU evidence", () => {
 		const profile = (profileId: string, engine: "whisper" | "qwen3") => ({
 			kind: "benchmark.profile",
