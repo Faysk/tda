@@ -83,7 +83,11 @@ function errorMessage(cause: unknown): string {
 		SESSION_WORKSPACE_TIMELINE_ORDER_AMBIGUOUS:
 			"Os horários não estabelecem uma ordem segura. Use os botões de ordem e informe o início manualmente.",
 		SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION:
-			"Os horários colidem e não autorizam ordem automática. Confirme a ordem manualmente.",
+			"Os horários entram em conflito com a sequência escolhida. Confirme qual gravação vem primeiro.",
+		SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE:
+			"A ordem desta sessão já possui um ajuste manual. O TDA preservou sua decisão e não recalculou os horários automaticamente.",
+		SESSION_WORKSPACE_SOURCE_DURATION_UNAVAILABLE:
+			"Não foi possível ler a duração de uma gravação. Restaure o ZIP correspondente para continuar.",
 		SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID:
 			"O corte precisa ficar dentro do overlap real entre as duas gravações.",
 		SESSION_ASSEMBLY_TIMELINE_NOT_READY:
@@ -104,7 +108,8 @@ function errorMessage(cause: unknown): string {
 			"O Companion demorou demais para responder. O workspace persistido foi preservado.",
 		unreachable:
 			"O Companion ficou indisponível. O workspace persistido foi preservado.",
-	}[code] ?? ("Operação local não concluída · " + code);
+	}[code] ??
+		"Não foi possível concluir esta etapa local. O estado salvo foi preservado; use os detalhes técnicos para diagnóstico se o problema continuar.";
 }
 
 function short(value: string | null | undefined, size = 10): string {
@@ -120,6 +125,19 @@ function formatSeconds(value: number | null): string {
 	if (hours) return hours + "h " + String(minutes).padStart(2, "0") + "m";
 	if (minutes) return minutes + "m " + String(rest).padStart(2, "0") + "s";
 	return rest + "s";
+}
+
+function timelineStateLabel(
+	state: SessionWorkspace["timeline"]["state"],
+): string {
+	return {
+		ready: "pronta",
+		needs_timing: "ordem precisa de confirmação",
+		gap_unconfirmed: "intervalo conhecido",
+		overlap_unresolved: "sobreposição precisa de decisão",
+		order_conflict: "ordem em conflito",
+		source_invalid: "gravação precisa ser restaurada",
+	}[state];
 }
 
 function partTime(part: SessionWorkspacePart): string {
@@ -512,6 +530,19 @@ export function SessionRecordingComposer({
 					signal,
 				),
 			"Cronologia recalculada a partir dos horários confiáveis.",
+		);
+	}
+
+	async function confirmCurrentOrder() {
+		await mutate(
+			(current, signal) =>
+				bridge.confirmSessionSequence(
+					current.campaignId,
+					current.sessionId,
+					current.revision,
+					signal,
+				),
+			"Ordem confirmada. A timeline contínua foi montada sem inventar horários reais ausentes.",
 		);
 	}
 
@@ -936,14 +967,20 @@ export function SessionRecordingComposer({
 					{workspace.parts.length > 1 ? (
 						<div className={styles.timelineSummary} data-state={workspace.timeline.state}>
 							<div>
-								<strong>Cronologia · {workspace.timeline.state}</strong>
+								<strong>Cronologia · {timelineStateLabel(workspace.timeline.state)}</strong>
 								<span>
 									{workspace.timeline.gapCount} gaps · {workspace.timeline.overlapCount} overlaps · {workspace.timeline.orderConflictCount} conflitos de ordem
 								</span>
 							</div>
-							{workspace.timeline.automaticOrderAvailable && workspace.timeline.state !== "ready" ? (
+							{workspace.timeline.automaticOrderAvailable &&
+							workspace.orderingMode === "attachment" &&
+							workspace.timeline.state !== "ready" ? (
 								<Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void deriveTimeline()}>
 									Usar horários confiáveis
+								</Button>
+							) : workspace.timeline.state === "needs_timing" ? (
+								<Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void confirmCurrentOrder()}>
+									Usar esta ordem
 								</Button>
 							) : null}
 						</div>
