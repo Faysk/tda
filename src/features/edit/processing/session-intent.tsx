@@ -341,7 +341,6 @@ export function SessionIntentCoordinator({
 			setLocalError(null);
 			setBlocker(null);
 			enqueueRecoveryBlocked.current.clear();
-			setReview(null);
 			setAssembly(null);
 			setActiveRequest(intent);
 			try {
