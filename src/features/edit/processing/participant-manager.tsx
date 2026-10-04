@@ -15,7 +15,7 @@ export function ParticipantManager({ segments, disabled, onApply }: Readonly<{
 	const [name, setName] = useState("");
 	const [preview, setPreview] = useState<ParticipantRename | null>(null);
 	const [message, setMessage] = useState("");
-	const selectRoot = useRef<HTMLLabelElement>(null);
+	const selectRoot = useRef<HTMLDivElement>(null);
 	const group = groups.find((item) => item.key === selected);
 	const preserved = group ? segments.filter((segment) => segment.trackNumber === group.trackNumber && segment.speaker !== group.speaker) : [];
 	function cancel() {
