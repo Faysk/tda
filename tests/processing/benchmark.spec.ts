@@ -997,6 +997,39 @@ test("partial benchmark remains diagnostic history and never masquerades as 4/4"
 	await expect(inspector).toContainText("Benchmark parcial");
 });
 
+test("partial benchmark can start a fresh deliberate run when the same source is still selected", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkEvidence: true,
+		benchmarkPartialResult: true,
+		profileReady: true,
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+	await chooseZip(panel);
+	await analyze(panel);
+	await panel
+		.getByRole("button", { name: "Executar benchmark de 5 minutos" })
+		.click();
+	await expect.poll(() => state.jobPostCount).toBe(1);
+
+	state.setJob(
+		fixtureBenchmarkJob("succeeded", {
+			stage: "benchmark_partial",
+			progress: { completed: 4, total: 4, unit: "profiles" },
+		}),
+	);
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
+
+	const rerun = panel.getByRole("button", { name: "Executar novo benchmark" });
+	await expect(rerun).toBeEnabled();
+	await rerun.click();
+	await expect.poll(() => state.jobPostCount).toBe(2);
+});
+
+
 test("completed benchmark loads a comparable receipt while failed history remains inspectable", async ({
 	page,
 }) => {
