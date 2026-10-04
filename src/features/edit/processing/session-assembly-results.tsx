@@ -349,7 +349,6 @@ export function SessionAssemblyResults({
 						bridge={bridge}
 						assembly={activeAssembly}
 						review={review}
-						disabled={busy}
 						onChange={(next) =>
 							setReviewSelection({
 								sessionId: activeAssembly.sessionId,
