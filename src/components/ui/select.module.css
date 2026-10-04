@@ -97,6 +97,19 @@
 	transform: rotate(180deg);
 }
 
+.compact .trigger {
+	min-height: 34px;
+	padding-inline: 8px;
+	border-radius: var(--ds-radius-sm);
+	font-size: 0.72rem;
+}
+
+.compact .option {
+	min-height: 34px;
+	padding: 6px 8px;
+	font-size: 0.72rem;
+}
+
 .popover {
 	position: absolute;
 	top: calc(100% + 7px);
