@@ -14,13 +14,27 @@ export type SessionCampaignMoveCacheInput = Readonly<{
 export function sessionCampaignMoveRevalidationPaths(
 	input: SessionCampaignMoveCacheInput,
 ): readonly string[] {
+	const sourcePublicRoot =
+		`/campanhas/${encodeURIComponent(input.sourceRouteKey)}/sessoes`;
+	const destinationPublicRoot =
+		`/campanhas/${encodeURIComponent(input.destinationRouteKey)}/sessoes`;
+	const sessionKey = encodeURIComponent(input.sourceSessionId);
 	return [
+		"/",
+		"/campanhas",
+		"/campanhas/sessoes",
+		"/sessoes",
+		`/sessoes/${sessionKey}`,
 		editSessionLibraryHref(input.sourceCampaignSlug),
 		editSessionLibraryHref(input.destinationCampaignSlug),
 		editSessionDetailHref(input.sourceCampaignSlug, input.sourceSessionId),
-		editSessionDetailHref(input.destinationCampaignSlug, input.sourceSessionId),
-		"/sessoes",
-		`/campanhas/${encodeURIComponent(input.sourceRouteKey)}/sessoes`,
-		`/campanhas/${encodeURIComponent(input.destinationRouteKey)}/sessoes`,
+		editSessionDetailHref(
+			input.destinationCampaignSlug,
+			input.sourceSessionId,
+		),
+		sourcePublicRoot,
+		destinationPublicRoot,
+		`${sourcePublicRoot}/${sessionKey}`,
+		`${destinationPublicRoot}/${sessionKey}`,
 	];
 }
