@@ -10,7 +10,8 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import { Button, Select } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import {
 	ProcessingCampaignValidationError,
 	validateProcessingCampaignForEnqueue,
