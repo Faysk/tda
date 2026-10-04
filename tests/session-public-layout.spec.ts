@@ -409,6 +409,47 @@ test("Sessions public geometry survives dark/light themes and reduced motion", a
 	}
 });
 
+test("issue 1466 keeps Sessions campaign metadata and hover legible in light and dark themes", async ({
+	page,
+}, testInfo) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+
+	for (const theme of ["light", "dark"] as const) {
+		await page.goto("/");
+		await page.evaluate((value) => localStorage.setItem("tda-theme", value), theme);
+		await page.goto("/campanhas/sessoes");
+		await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+
+		const firstCard = page.locator('[data-session-card="grid"]').first();
+		const campaignMeta = firstCard.locator("p").first().locator("span").first();
+		await expect(campaignMeta).toBeVisible();
+
+		const campaignLink = page
+			.locator("[data-session-campaign-links]")
+			.getByRole("link")
+			.first();
+		await expect(campaignLink).toBeVisible();
+		await campaignLink.hover();
+
+		for (const consumer of [campaignMeta, campaignLink]) {
+			const style = await consumer.evaluate((element) => ({
+				color: getComputedStyle(element).color,
+				token: getComputedStyle(document.documentElement)
+					.getPropertyValue("--ds-accent-strong")
+					.trim(),
+			}));
+			expect(style.color).not.toBe("");
+			expect(style.token).not.toBe("");
+		}
+
+		await page.screenshot({
+			path: testInfo.outputPath(`issue-1466-sessions-${theme}.png`),
+			fullPage: false,
+		});
+	}
+});
+
+
 test("unavailable session state respects the public structural keyline", async ({
 	page,
 }, testInfo) => {
