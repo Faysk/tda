@@ -814,6 +814,23 @@ export function SessionIntentCoordinator({
 				return;
 			}
 
+			if (
+				workspace.parts.length === 1 &&
+				workspace.timeline.state === "needs_timing"
+			) {
+				await bridge.confirmSessionSequence(
+					workspace.campaignId,
+					workspace.sessionId,
+					workspace.revision,
+					controller.signal,
+				);
+				await loadSnapshot(workspace.sessionId, controller.signal);
+				announce(
+					"A única gravação foi posicionada no início da sessão sem inventar horário real.",
+				);
+				return;
+			}
+
 			if (workspace.timeline.state === "gap_unconfirmed") {
 				let current = workspace;
 				for (const part of current.parts) {
