@@ -259,20 +259,16 @@ async function installMultiRecordingRoutes(
 			relation_seconds:
 				index === 0
 					? null
-					: attached.length <= 1 || timelineDerived || sequenceConfirmed
+					: (timelineDerived || sequenceConfirmed) && !options.untrustedTimeline
 						? 0
 						: null,
 			overlap_resolution_valid: true,
 			physical_interval_state:
 				index === 0
 					? "first"
-					: timelineDerived
-						? "trusted_absolute"
-						: sequenceConfirmed
-							? options.untrustedTimeline
-								? "unknown"
-								: "trusted_absolute"
-							: "unknown",
+					: options.untrustedTimeline
+						? "unknown"
+						: "trusted_absolute",
 			created_at: NOW,
 			updated_at: NOW,
 		})),
@@ -288,7 +284,7 @@ async function installMultiRecordingRoutes(
 						: "unresolved",
 			wall_clock: options.untrustedTimeline ? "unavailable" : "trusted",
 			unknown_interval_count:
-				attached.length > 1 && !timelineDerived
+				attached.length > 1 && options.untrustedTimeline
 					? attached.length - 1
 					: 0,
 			state:
