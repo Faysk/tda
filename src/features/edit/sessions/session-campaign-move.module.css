@@ -465,3 +465,34 @@
 		justify-self: stretch;
 	}
 }
+
+
+.recoveryNotice {
+	display: grid;
+	gap: 8px;
+}
+
+.recoveryNotice button {
+	justify-self: start;
+	min-height: 34px;
+	padding: 6px 9px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-surface-raised);
+	color: var(--ds-foreground);
+	font: inherit;
+	font-size: 0.72rem;
+	cursor: pointer;
+}
+
+.recoveryNotice button:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+	.recoveryNotice button {
+		justify-self: stretch;
+		width: 100%;
+	}
+}
