@@ -514,6 +514,58 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+
+  benchmark-quality-gate:
+    name: benchmark-quality-gate
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.processing == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.3.4
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: '0.12.17'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: uv venv --python 3.12.14
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - name: Benchmark evidence and quality Python contracts
+        run: >-
+          .venv/bin/python -m pytest -q
+          local-companion/tests/test_benchmark_bundles.py
+          local-companion/tests/test_benchmark_diagnostics.py
+          local-companion/tests/test_benchmark_evidence.py
+          local-companion/tests/test_benchmark_quality.py
+          local-companion/tests/test_benchmark_quality_api.py
+          local-companion/tests/test_processing_benchmark.py
+      - name: Benchmark evidence Web contracts
+        run: >-
+          pnpm exec vitest run
+          src/features/edit/processing/benchmark-evidence.test.ts
+          src/features/edit/processing/benchmark-quality-protocol.test.ts
+          src/features/edit/processing/run-comparison.test.ts
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Benchmark evidence browser matrix
+        run: pnpm exec playwright test --config playwright.benchmark-quality.config.ts
+
   multi-recording-gate:
     name: multi-recording-gate
     needs: classify-changes
@@ -801,6 +853,7 @@ jobs:
       - navigation-e2e
       - companion-domain
       - processing-e2e
+      - benchmark-quality-gate
       - multi-recording-gate
       - session-workflow-gate
       - lembra-e2e
@@ -825,6 +878,8 @@ jobs:
           COMPANION_RESULT: ${{ needs.companion-domain.result }}
           PROCESSING_RELEVANT: ${{ needs.classify-changes.outputs.processing }}
           PROCESSING_RESULT: ${{ needs.processing-e2e.result }}
+          BENCHMARK_QUALITY_RELEVANT: ${{ needs.classify-changes.outputs.processing }}
+          BENCHMARK_QUALITY_RESULT: ${{ needs.benchmark-quality-gate.result }}
           MULTI_RECORDING_RELEVANT: ${{ needs.classify-changes.outputs.processing == 'true' || needs.classify-changes.outputs.db == 'true' || contains(needs.classify-changes.outputs.files_json, 'src/features/transcript-publication/') || contains(needs.classify-changes.outputs.files_json, 'transcript_multi_source_provenance') || contains(needs.classify-changes.outputs.files_json, 'multi-recording') }}
           MULTI_RECORDING_RESULT: ${{ needs.multi-recording-gate.result }}
           SESSION_WORKFLOW_RELEVANT: ${{ needs.classify-changes.outputs.processing == 'true' || contains(needs.classify-changes.outputs.files_json, 'src/features/transcript-review/') || contains(needs.classify-changes.outputs.files_json, 'src/features/transcript-publication/') || contains(needs.classify-changes.outputs.files_json, 'session-assembly') || contains(needs.classify-changes.outputs.files_json, 'multi-recording-session.spec.ts') }}
@@ -878,6 +933,12 @@ jobs:
             test "$PROCESSING_RESULT" = "success"
           else
             test "$PROCESSING_RESULT" = "skipped"
+          fi
+
+          if [[ "$BENCHMARK_QUALITY_RELEVANT" == "true" ]]; then
+            test "$BENCHMARK_QUALITY_RESULT" = "success"
+          else
+            test "$BENCHMARK_QUALITY_RESULT" = "skipped"
           fi
 
           if [[ "$MULTI_RECORDING_RELEVANT" == "true" ]]; then
