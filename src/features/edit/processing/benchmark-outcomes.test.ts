@@ -186,6 +186,98 @@ describe("deriveBenchmarkAttemptUiState", () => {
 		expect(state.failedCount).toBe(0);
 	});
 
+	it("can fail the first profile and continue with the next independent profile", () => {
+		const state = deriveBenchmarkAttemptUiState(job(), [
+			event(1, "BENCHMARK_PROFILE_STARTED", "whisper-turbo"),
+			event(2, "BENCHMARK_PROFILE_FAILED", "whisper-turbo", {
+				error_code: "PROFILE_LOCAL_TEST_FAILURE",
+				recoverable: true,
+				scope: "profile",
+				continuation: "continue",
+			}),
+			event(3, "BENCHMARK_PROFILE_STARTED", "whisper-detailed"),
+		]);
+		expect(state.profiles.map((item) => item.status)).toEqual([
+			"failed",
+			"running",
+			"pending",
+			"pending",
+		]);
+		expect(state.attemptedCount).toBe(2);
+		expect(state.completedCount).toBe(0);
+		expect(state.failedCount).toBe(1);
+		expect(state.currentProfile).toBe("whisper-detailed");
+	});
+
+	it("keeps a last-profile failure distinct from the three accepted profiles", () => {
+		const state = deriveBenchmarkAttemptUiState(
+			job("failed", {
+				error: { code: "BENCHMARK_PARTIAL", recoverable: false },
+			}),
+			[
+				event(1, "BENCHMARK_PROFILE_STARTED", "whisper-turbo"),
+				event(2, "BENCHMARK_PROFILE_COMPLETED", "whisper-turbo"),
+				event(3, "BENCHMARK_PROFILE_STARTED", "whisper-detailed"),
+				event(4, "BENCHMARK_PROFILE_COMPLETED", "whisper-detailed"),
+				event(5, "BENCHMARK_PROFILE_STARTED", "qwen-fast"),
+				event(6, "BENCHMARK_PROFILE_COMPLETED", "qwen-fast"),
+				event(7, "BENCHMARK_PROFILE_STARTED", "qwen-quality"),
+				event(8, "BENCHMARK_PROFILE_FAILED", "qwen-quality", {
+					error_code: "PROFILE_LOCAL_TEST_FAILURE",
+					recoverable: true,
+					scope: "profile",
+					continuation: "continue",
+				}),
+			],
+		);
+		expect(state.profiles.map((item) => item.status)).toEqual([
+			"completed",
+			"completed",
+			"completed",
+			"failed",
+		]);
+		expect(state.attemptedCount).toBe(4);
+		expect(state.completedCount).toBe(3);
+		expect(state.failedCount).toBe(1);
+	});
+
+	it("represents two independent profile-local failures without promoting the attempt", () => {
+		const state = deriveBenchmarkAttemptUiState(
+			job("failed", {
+				error: { code: "BENCHMARK_PARTIAL", recoverable: false },
+			}),
+			[
+				event(1, "BENCHMARK_PROFILE_STARTED", "whisper-turbo"),
+				event(2, "BENCHMARK_PROFILE_COMPLETED", "whisper-turbo"),
+				event(3, "BENCHMARK_PROFILE_STARTED", "whisper-detailed"),
+				event(4, "BENCHMARK_PROFILE_FAILED", "whisper-detailed", {
+					error_code: "PROFILE_LOCAL_TEST_FAILURE",
+					recoverable: true,
+					scope: "profile",
+					continuation: "continue",
+				}),
+				event(5, "BENCHMARK_PROFILE_STARTED", "qwen-fast"),
+				event(6, "BENCHMARK_PROFILE_FAILED", "qwen-fast", {
+					error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+					recoverable: true,
+					scope: "profile",
+					continuation: "continue",
+				}),
+				event(7, "BENCHMARK_PROFILE_STARTED", "qwen-quality"),
+				event(8, "BENCHMARK_PROFILE_COMPLETED", "qwen-quality"),
+			],
+		);
+		expect(state.profiles.map((item) => item.status)).toEqual([
+			"completed",
+			"failed",
+			"failed",
+			"completed",
+		]);
+		expect(state.attemptedCount).toBe(4);
+		expect(state.completedCount).toBe(2);
+		expect(state.failedCount).toBe(2);
+	});
+
 	it("keeps the scalar progress mapping only as a legacy fallback", () => {
 		const state = deriveBenchmarkAttemptUiState(
 			job("running", {
