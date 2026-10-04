@@ -25,6 +25,19 @@ function healthyFixtures() {
     SESSION_PATH +
     '">Abrir memória</a><p>Arquivo público de sessões</p></main>';
   return new Map([
+    [
+      "/api/health",
+      response(
+        "/api/health",
+        JSON.stringify({
+          ok: true,
+          features: {
+            sessionCampaignMoveV2: true,
+            sessionCampaignMoveContractVersion: 2,
+          },
+        }),
+      ),
+    ],
     ["/", response("/", "<main>Arquivo vivo das sessões</main>")],
     [
       "/campanhas",
@@ -60,6 +73,34 @@ function assertSmokeError(error, code) {
     error.code === code
   );
 }
+
+test("fails closed when campaign move v2 health regresses", async () => {
+  const fixtures = healthyFixtures();
+  fixtures.set(
+    "/api/health",
+    response(
+      "/api/health",
+      JSON.stringify({
+        ok: true,
+        features: {
+          sessionCampaignMoveV2: false,
+          sessionCampaignMoveContractVersion: 2,
+        },
+      }),
+    ),
+  );
+
+  await assert.rejects(
+    runPublicReleaseSmoke({
+      baseUrl: ORIGIN,
+      sourceSha: SHA,
+      phase: "staged",
+      requestImpl: requester(fixtures),
+      logger: () => {},
+    }),
+    (error) => assertSmokeError(error, "session_campaign_move_not_ready"),
+  );
+});
 
 test("rejects HTTP 200 when public content is an unavailable state", async () => {
   const fixtures = healthyFixtures();
@@ -119,7 +160,7 @@ test("allows an explicitly valid empty public archive without turning dependency
 
   assert.equal(result.empty, true);
   assert.equal(result.sessionPath, null);
-  assert.deepEqual(seen, ["/", "/campanhas", "/sessoes", "/campanhas/sessoes"]);
+  assert.deepEqual(seen, ["/api/health", "/", "/campanhas", "/sessoes", "/campanhas/sessoes"]);
 
   fixtures.set(
     "/campanhas/sessoes",
