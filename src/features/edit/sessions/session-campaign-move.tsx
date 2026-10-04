@@ -3,11 +3,6 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-	clearStaleActionRecovery,
-	persistStaleActionRecovery,
-	readStaleActionRecovery,
-} from "@/features/edit/stale-action-recovery";
-import {
 	moveSessionCampaignAction,
 	preflightSessionCampaignMoveAction,
 } from "./session-campaign-move-actions";
@@ -23,6 +18,11 @@ import {
 	sessionCampaignMoveRecoveryKey,
 	validSessionCampaignMoveRecoveryIntent,
 } from "./session-campaign-move-model";
+import {
+	clearSessionCampaignMoveRecovery,
+	persistSessionCampaignMoveRecovery,
+	readSessionCampaignMoveRecovery,
+} from "./session-campaign-move-recovery";
 import styles from "./session-campaign-move.module.css";
 
 type MovePreflightRequest = Parameters<typeof preflightSessionCampaignMoveAction>[0];
@@ -99,7 +99,6 @@ export function SessionCampaignMovePanel({
 	transport = DEFAULT_TRANSPORT,
 }: Props) {
 	const router = useRouter();
-	const recoveryKey = sessionCampaignMoveRecoveryKey(sessionId);
 	const [destination, setDestination] = useState(destinations[0]?.technicalSlug ?? "");
 	const [preview, setPreview] = useState<SessionCampaignMovePreview | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -134,7 +133,7 @@ export function SessionCampaignMovePanel({
 	);
 
 	useEffect(() => {
-		const stored = readStaleActionRecovery<unknown>(recoveryKey);
+		const stored = readSessionCampaignMoveRecovery(sessionId);
 		if (!validSessionCampaignMoveRecoveryIntent(stored)) return;
 		if (
 			stored.sessionId !== sessionId ||
@@ -144,18 +143,17 @@ export function SessionCampaignMovePanel({
 				(item) => item.technicalSlug === stored.destinationCampaignSlug,
 			)
 		) {
-			clearStaleActionRecovery(recoveryKey);
+			clearSessionCampaignMoveRecovery(sessionId);
 			return;
 		}
 		setDestination(stored.destinationCampaignSlug);
 		setOperationId(stored.operationId);
-		setDecisions(stored.decisions);
+		setDecisions(EMPTY_SESSION_CAMPAIGN_MOVE_DECISIONS);
 		setError(
 			"Há uma transferência pendente desta sessão. Rode o preflight e confirme novamente; a mesma operationId será reutilizada.",
 		);
 	}, [
 		destinations,
-		recoveryKey,
 		sessionId,
 		sourceCampaignSlug,
 		sourceSessionId,
@@ -190,7 +188,7 @@ export function SessionCampaignMovePanel({
 		setOperationId(null);
 		setDecisions(EMPTY_SESSION_CAMPAIGN_MOVE_DECISIONS);
 		setRecovery(null);
-		clearStaleActionRecovery(recoveryKey);
+		clearSessionCampaignMoveRecovery(sessionId);
 	}
 
 	function runPreflight() {
@@ -218,9 +216,8 @@ export function SessionCampaignMovePanel({
 			sourceCampaignSlug,
 			destinationCampaignSlug: destination,
 			operationId: stableOperationId,
-			decisions,
 		};
-		persistStaleActionRecovery(recoveryKey, intent);
+		persistSessionCampaignMoveRecovery(intent);
 		setError(null);
 		startTransition(async () => {
 			try {
@@ -235,13 +232,13 @@ export function SessionCampaignMovePanel({
 						result.reason === "operation_conflict" ||
 						result.reason === "validation"
 					) {
-						clearStaleActionRecovery(recoveryKey);
+						clearSessionCampaignMoveRecovery(sessionId);
 						setOperationId(null);
 					}
 					setError(failureLabel(result.reason));
 					return;
 				}
-				clearStaleActionRecovery(recoveryKey);
+				clearSessionCampaignMoveRecovery(sessionId);
 				if (result.cachePending) {
 					setError(null);
 					setRecovery({
