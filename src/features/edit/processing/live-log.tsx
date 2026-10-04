@@ -411,111 +411,111 @@ export function ProcessingLiveLog({
 		<section
 			className={styles.liveLogExplorer}
 			aria-label="Explorador de eventos do processamento"
+			data-live-log-explorer="true"
 		>
-			<div className={styles.logHeader}>
-				<div>
-					<h3>{live ? "Log em tempo real" : "Histórico de eventos"}</h3>
-					<span>
-						{paused
-							? "visualização pausada"
-							: live
-								? "● ao vivo"
-								: historyCount(snapshot.length)}
-					</span>
+			<div className={styles.liveLogControls} data-live-log-controls="true">
+				<div className={styles.logHeader}>
+					<div>
+						<h3>{live ? "Log em tempo real" : "Histórico de eventos"}</h3>
+						<span>
+							{paused
+								? "visualização pausada"
+								: live
+									? "● ao vivo"
+									: historyCount(snapshot.length)}
+						</span>
+					</div>
+					<fieldset className={styles.logModeSwitch}>
+						<legend className={styles.visuallyHidden}>Apresentação do log</legend>
+						<button
+							type="button"
+							aria-pressed={mode === "humanized"}
+							onClick={() => changeMode("humanized")}
+						>
+							Humanizada
+						</button>
+						<button
+							type="button"
+							aria-pressed={mode === "technical"}
+							onClick={() => changeMode("technical")}
+						>
+							Técnica
+						</button>
+					</fieldset>
 				</div>
-				<fieldset className={styles.logModeSwitch}>
-					<legend className={styles.visuallyHidden}>Apresentação do log</legend>
-					<button
-						type="button"
-						aria-pressed={mode === "humanized"}
-						onClick={() => changeMode("humanized")}
-					>
-						Humanizada
-					</button>
-					<button
-						type="button"
-						aria-pressed={mode === "technical"}
-						onClick={() => changeMode("technical")}
-					>
-						Técnica
-					</button>
-				</fieldset>
-			</div>
 
-			{stale ? (
-				<p role="status">
-					Eventos desatualizados. O último histórico disponível foi preservado.
+				{stale ? (
+					<p role="status">
+						Eventos desatualizados. O último histórico disponível foi preservado.
+					</p>
+				) : null}
+
+				<div className={styles.logToolbar} data-live-log-toolbar="true">
+					<label>
+						<span className={styles.visuallyHidden}>Filtrar eventos</span>
+						<input
+							className={styles.logSearch}
+							value={query}
+							onChange={(event) => setQuery(event.target.value)}
+							placeholder="Buscar code, speaker, stage…"
+						/>
+					</label>
+					<select
+						value={level}
+						onChange={(event) =>
+							setLevel(event.target.value as typeof level)
+						}
+						aria-label="Filtrar por nível"
+					>
+						<option value="all">Todos os níveis</option>
+						<option value="info">Info</option>
+						<option value="warning">Warning</option>
+						<option value="error">Erro</option>
+					</select>
+					<select
+						value={code}
+						onChange={(event) => setCode(event.target.value)}
+						aria-label="Filtrar por code"
+					>
+						<option value="all">Todos os codes</option>
+						{codeOptions.map((value) => (
+							<option key={value} value={value}>{value}</option>
+						))}
+					</select>
+					<select
+						value={speaker}
+						onChange={(event) => setSpeaker(event.target.value)}
+						aria-label="Filtrar por speaker"
+					>
+						<option value="all">Todos os speakers</option>
+						{speakerOptions.map((value) => (
+							<option key={value} value={value}>{value}</option>
+						))}
+					</select>
+					<select
+						value={track}
+						onChange={(event) => setTrack(event.target.value)}
+						aria-label="Filtrar por track"
+					>
+						<option value="all">Todas as tracks</option>
+						{trackOptions.map((value) => (
+							<option key={value} value={value}>Track {value}</option>
+						))}
+					</select>
+					<button type="button" onClick={togglePause}>
+						{paused ? "Retomar visualização" : "Pausar visualização"}
+					</button>
+				</div>
+
+				<p className={styles.visuallyHidden} role="status" aria-live="polite">
+					{assistiveAnnouncement}
 				</p>
-			) : null}
-
-			<div className={styles.logToolbar}>
-				<label>
-					<span className={styles.visuallyHidden}>Filtrar eventos</span>
-					<input
-						className={styles.logSearch}
-						value={query}
-						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Buscar code, speaker, stage…"
-					/>
-				</label>
-				<select
-					value={level}
-					onChange={(event) =>
-						setLevel(event.target.value as typeof level)
-					}
-					aria-label="Filtrar por nível"
-				>
-					<option value="all">Todos os níveis</option>
-					<option value="info">Info</option>
-					<option value="warning">Warning</option>
-					<option value="error">Erro</option>
-				</select>
-				<select
-					value={code}
-					onChange={(event) => setCode(event.target.value)}
-					aria-label="Filtrar por code"
-				>
-					<option value="all">Todos os codes</option>
-					{codeOptions.map((value) => (
-						<option key={value} value={value}>{value}</option>
-					))}
-				</select>
-				<select
-					value={speaker}
-					onChange={(event) => setSpeaker(event.target.value)}
-					aria-label="Filtrar por speaker"
-				>
-					<option value="all">Todos os speakers</option>
-					{speakerOptions.map((value) => (
-						<option key={value} value={value}>{value}</option>
-					))}
-				</select>
-				<select
-					value={track}
-					onChange={(event) => setTrack(event.target.value)}
-					aria-label="Filtrar por track"
-				>
-					<option value="all">Todas as tracks</option>
-					{trackOptions.map((value) => (
-						<option key={value} value={value}>Track {value}</option>
-					))}
-				</select>
-				<button type="button" onClick={togglePause}>
-					{paused ? "Retomar visualização" : "Pausar visualização"}
-				</button>
 			</div>
-
-			<p className={styles.visuallyHidden} role="status" aria-live="polite">
-				{assistiveAnnouncement}
-			</p>
 
 			<div
 				ref={scroller}
-				className={`${styles.log} ${rows.length ? "" : styles.logEmpty}`}
-				role="log"
-				aria-label="Eventos do processamento local"
-				aria-live="off"
-				aria-relevant="additions"
+				className={styles.liveLogViewport}
+				data-live-log-viewport="true"
 				onScroll={(event) => {
 					const node = event.currentTarget;
 					nearBottom.current =
@@ -523,150 +523,158 @@ export function ProcessingLiveLog({
 					if (!nearBottom.current && live && !paused) pauseVisualization();
 				}}
 			>
-				{rows.length ? (
-					rows.map((row) => {
-						if (row.kind === "group") {
-							const first = row.events[0];
-							const last = row.events.at(-1);
-							if (!first || !last) return null;
+				<div
+					className={`${styles.log} ${rows.length ? "" : styles.logEmpty}`}
+					role="log"
+					aria-label="Eventos do processamento local"
+					aria-live="off"
+					aria-relevant="additions"
+					data-live-log-events="true"
+				>
+					{rows.length ? (
+						rows.map((row) => {
+							if (row.kind === "group") {
+								const first = row.events[0];
+								const last = row.events.at(-1);
+								if (!first || !last) return null;
+								const animate =
+									live &&
+									!paused &&
+									!reducedMotion &&
+									!filtersActive &&
+									(animationCutoffSeq.current === null ||
+										last.seq > animationCutoffSeq.current);
+								const humanizedGroup = humanText(
+									last,
+									job,
+									system,
+									activityCatalog,
+								);
+								const groupTitle = `${humanizedGroup.title} · × ${row.events.length}`;
+								return (
+									<button
+										type="button"
+										key={`group-${first.seq}-${last.seq}`}
+										className={styles.logEntry}
+										data-level="info"
+										data-event-seq={last.seq}
+										onClick={() => setSelectedSeq(last.seq)}
+									>
+										<time dateTime={last.at}>{formatTime(last.at)}</time>
+										<div>
+											<span>
+												<PacedHumanText
+													text={groupTitle}
+													animate={animate}
+													durationMs={typeDurationMs}
+												/>
+											</span>
+											<small>
+												seq {first.seq}–{last.seq} · evento mais recente no inspector
+											</small>
+										</div>
+									</button>
+								);
+							}
+
+							const factual = presentJobEvent(row.event);
+							const presented =
+								mode === "humanized"
+									? humanText(row.event, job, system, activityCatalog)
+									: factual;
+							const urgent = liveLogEventIsUrgent(row.event);
 							const animate =
 								live &&
 								!paused &&
 								!reducedMotion &&
 								!filtersActive &&
+								!urgent &&
 								(animationCutoffSeq.current === null ||
-									last.seq > animationCutoffSeq.current);
-							const humanizedGroup = humanText(
-								last,
-								job,
-								system,
-								activityCatalog,
-							);
-							const groupTitle = `${humanizedGroup.title} · × ${row.events.length}`;
+									row.event.seq > animationCutoffSeq.current);
 							return (
 								<button
 									type="button"
-									key={`group-${first.seq}-${last.seq}`}
-									className={styles.logEntry}
-									data-level="info"
-									data-event-seq={last.seq}
-									onClick={() => setSelectedSeq(last.seq)}
+									className={`${styles.logEntry} ${
+										mode === "technical" && animate ? styles.logEntryReveal : ""
+									}`}
+									key={row.event.seq}
+									data-level={row.event.level}
+									data-event-seq={row.event.seq}
+									onClick={() => setSelectedSeq(row.event.seq)}
 								>
-									<time dateTime={last.at}>{formatTime(last.at)}</time>
+									<time dateTime={row.event.at}>
+										{formatTime(row.event.at)}
+									</time>
 									<div>
 										<span>
-											<PacedHumanText
-												text={groupTitle}
-												animate={animate}
-												durationMs={typeDurationMs}
-											/>
+											{mode === "humanized" ? (
+												<PacedHumanText
+													text={presented.title}
+													animate={animate}
+													durationMs={typeDurationMs}
+												/>
+											) : (
+												presented.title
+											)}
 										</span>
-										<small>
-											seq {first.seq}–{last.seq} · evento mais recente no
-											inspector
-										</small>
+										{presented.detail ? <small>{presented.detail}</small> : null}
+										{mode === "technical" ? (
+											<small>
+												{row.event.code} · seq {row.event.seq}
+											</small>
+										) : null}
 									</div>
 								</button>
 							);
-						}
+						})
+					) : (
+						<p>Nenhum evento corresponde aos filtros atuais.</p>
+					)}
+				</div>
 
-						const factual = presentJobEvent(row.event);
-						const presented =
-							mode === "humanized"
-								? humanText(row.event, job, system, activityCatalog)
-								: factual;
-						const urgent = liveLogEventIsUrgent(row.event);
-						const animate =
-							live &&
-							!paused &&
-							!reducedMotion &&
-							!filtersActive &&
-							!urgent &&
-							(animationCutoffSeq.current === null ||
-								row.event.seq > animationCutoffSeq.current);
-						return (
-							<button
-								type="button"
-								className={`${styles.logEntry} ${
-									mode === "technical" && animate ? styles.logEntryReveal : ""
-								}`}
-								key={row.event.seq}
-								data-level={row.event.level}
-								data-event-seq={row.event.seq}
-								onClick={() => setSelectedSeq(row.event.seq)}
-							>
-								<time dateTime={row.event.at}>
-									{formatTime(row.event.at)}
-								</time>
-								<div>
-									<span>
-										{mode === "humanized" ? (
-											<PacedHumanText
-												text={presented.title}
-												animate={animate}
-												durationMs={typeDurationMs}
-											/>
-										) : (
-											presented.title
-										)}
-									</span>
-									{presented.detail ? (
-										<small>{presented.detail}</small>
-									) : null}
-									{mode === "technical" ? (
-										<small>
-											{row.event.code} · seq {row.event.seq}
-										</small>
-									) : null}
-								</div>
-							</button>
-						);
-					})
-				) : (
-					<p>Nenhum evento corresponde aos filtros atuais.</p>
-				)}
+				{selected ? (
+					<details className={styles.logInspector} open data-live-log-detail="true">
+						<summary>Detalhe · {selected.code}</summary>
+						<dl>
+							<div>
+								<dt>Seq</dt>
+								<dd>{selected.seq}</dd>
+							</div>
+							<div>
+								<dt>Attempt</dt>
+								<dd>{selected.attempt ?? "—"}</dd>
+							</div>
+							<div>
+								<dt>Nível</dt>
+								<dd>{selected.level}</dd>
+							</div>
+							<div>
+								<dt>Timestamp</dt>
+								<dd>{selected.at}</dd>
+							</div>
+						</dl>
+						<pre>{JSON.stringify(selected.data, null, 2)}</pre>
+					</details>
+				) : null}
 			</div>
 
-			{events.length > MAX_VISIBLE_EVENTS ? (
-				<p className={styles.logBoundedNote} role="status">
-					Mostrando os {MAX_VISIBLE_EVENTS} eventos mais recentes para manter a visualização responsiva.
-				</p>
-			) : null}
+			<div className={styles.liveLogFooter} data-live-log-footer="true">
+				{events.length > MAX_VISIBLE_EVENTS ? (
+					<p className={styles.logBoundedNote} role="status">
+						Mostrando os {MAX_VISIBLE_EVENTS} eventos mais recentes para manter a visualização responsiva.
+					</p>
+				) : null}
 
-			{paused && newEventCount > 0 ? (
-				<button
-					type="button"
-					className={styles.logCatchup}
-					onClick={catchUp}
-				>
-					{newEventCount} novos eventos · Voltar ao vivo
-				</button>
-			) : null}
-
-			{selected ? (
-				<details className={styles.logInspector} open>
-					<summary>Detalhe · {selected.code}</summary>
-					<dl>
-						<div>
-							<dt>Seq</dt>
-							<dd>{selected.seq}</dd>
-						</div>
-						<div>
-							<dt>Attempt</dt>
-							<dd>{selected.attempt ?? "—"}</dd>
-						</div>
-						<div>
-							<dt>Nível</dt>
-							<dd>{selected.level}</dd>
-						</div>
-						<div>
-							<dt>Timestamp</dt>
-							<dd>{selected.at}</dd>
-						</div>
-					</dl>
-					<pre>{JSON.stringify(selected.data, null, 2)}</pre>
-				</details>
-			) : null}
+				{paused && newEventCount > 0 ? (
+					<button
+						type="button"
+						className={styles.logCatchup}
+						onClick={catchUp}
+					>
+						{newEventCount} novos eventos · Voltar ao vivo
+					</button>
+				) : null}
+			</div>
 		</section>
 	);
 }

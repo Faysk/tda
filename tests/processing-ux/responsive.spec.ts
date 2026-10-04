@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
 	failedJob,
+	fixtureBenchmarkJob,
 	fixtureJob,
 	installCompanionFixture,
 } from "../processing/companion-fixture";
@@ -459,7 +460,7 @@ test("desktop diagnostics gives the log its own scroll owner", async ({ page }) 
 	await openRunningWorkspace(page, 1920, 1080);
 	await page.getByRole("tab", { name: "Diagnóstico" }).click();
 
-	const log = page.getByRole("log");
+	const log = page.locator("[data-live-log-viewport='true']");
 	await expect(log).toBeVisible();
 	const ownership = await log.evaluate((element) => {
 		const style = getComputedStyle(element);
@@ -902,4 +903,381 @@ test("processing tab transitions never leak a page scroll lock across mobile and
 			);
 		}
 	}
+});
+
+
+function contextualDiagnosticEvents(count: number) {
+	const base = Date.parse("2026-10-04T18:00:00.000Z");
+	return Array.from({ length: count }, (_, index) => ({
+		seq: index + 1,
+		attempt: 1,
+		code:
+			index === 0
+				? "SYNTHETIC_DIAGNOSTIC_EVENT_WITH_AN_INTENTIONALLY_LONG_CODE"
+				: "TRACK_STARTED",
+		at: new Date(base + index * 1_000).toISOString(),
+		level: "info" as const,
+		data: {
+			track: (index % 12) + 1,
+			total_tracks: 12,
+			speaker:
+				index === 0
+					? "Synthetic speaker with an intentionally long display name"
+					: `Synthetic-${(index % 4) + 1}`,
+			stage: "transcription",
+		},
+	}));
+}
+
+async function openBenchmarkContextualDiagnostics(
+	page: import("@playwright/test").Page,
+	viewport: Readonly<{ width: number; height: number }>,
+	events = contextualDiagnosticEvents(80),
+	cursorEvents = false,
+) {
+	await page.setViewportSize(viewport);
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		benchmarkProfiles: true,
+		benchmarkReadinessContract: true,
+		additionalCapabilities: cursorEvents ? ["job.events.cursor"] : undefined,
+		advanceJobs: false,
+		initialJobs: [fixtureBenchmarkJob("running")],
+		jobEvents: events,
+	});
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Benchmark", exact: true }).click();
+	const benchmark = page.getByRole("tabpanel", { name: "Benchmark", exact: true });
+	const opener = benchmark.getByRole("button", {
+		name: "Ver log / Diagnóstico",
+		exact: true,
+	});
+	await opener.click();
+	const inspector = page.locator("dialog[data-job-diagnostics='contextual']");
+	await expect(inspector).toBeVisible();
+	await expect(
+		inspector.getByRole("heading", { name: "Diagnóstico · benchmark-local" }),
+	).toBeVisible();
+	return { inspector, opener, state, events };
+}
+
+async function readContextualLogGeometry(
+	inspector: import("@playwright/test").Locator,
+) {
+	return inspector.evaluate((dialog) => {
+		const required = (selector: string) => {
+			const element = dialog.querySelector<HTMLElement>(selector);
+			if (!element) throw new Error(`Missing geometry target: ${selector}`);
+			return element;
+		};
+		const controls = required("[data-live-log-controls='true']");
+		const toolbar = required("[data-live-log-toolbar='true']");
+		const log = required("[data-live-log-viewport='true']");
+		const footer = required("[data-live-log-footer='true']");
+		const host = required("[data-job-diagnostics-log='true']");
+		const shell = required("[data-job-diagnostics-shell='true']");
+		const dialogBox = dialog.getBoundingClientRect();
+		const controlsBox = controls.getBoundingClientRect();
+		const toolbarBox = toolbar.getBoundingClientRect();
+		const logBox = log.getBoundingClientRect();
+		const footerBox = footer.getBoundingClientRect();
+		const hostBox = host.getBoundingClientRect();
+		const footerVisible =
+			getComputedStyle(footer).display !== "none" && footer.getClientRects().length > 0;
+		return {
+			dialogLeft: dialogBox.left,
+			dialogRight: dialogBox.right,
+			dialogScrollWidth: dialog.scrollWidth,
+			dialogClientWidth: dialog.clientWidth,
+			controlsBottom: controlsBox.bottom,
+			toolbarLeft: toolbarBox.left,
+			toolbarRight: toolbarBox.right,
+			toolbarBottom: toolbarBox.bottom,
+			logTop: logBox.top,
+			logBottom: logBox.bottom,
+			footerTop: footerVisible ? footerBox.top : null,
+			footerBottom: footerVisible ? footerBox.bottom : null,
+			hostBottom: hostBox.bottom,
+			footerVisible,
+			logOverflowY: getComputedStyle(log).overflowY,
+			shellOverflowY: getComputedStyle(shell).overflowY,
+			shellScrollHeight: shell.scrollHeight,
+			shellClientHeight: shell.clientHeight,
+		};
+	});
+}
+
+function expectContextualLogRegionsDoNotOverlap(
+	geometry: Awaited<ReturnType<typeof readContextualLogGeometry>>,
+) {
+	expect(geometry.controlsBottom).toBeLessThanOrEqual(geometry.logTop + 1);
+	expect(geometry.toolbarBottom).toBeLessThanOrEqual(geometry.logTop + 1);
+	expect(geometry.toolbarLeft).toBeGreaterThanOrEqual(geometry.dialogLeft - 1);
+	expect(geometry.toolbarRight).toBeLessThanOrEqual(geometry.dialogRight + 1);
+	expect(geometry.dialogScrollWidth).toBeLessThanOrEqual(
+		geometry.dialogClientWidth + 1,
+	);
+	if (
+		geometry.footerVisible &&
+		geometry.footerTop !== null &&
+		geometry.footerBottom !== null
+	) {
+		expect(geometry.logBottom).toBeLessThanOrEqual(geometry.footerTop + 1);
+		expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.hostBottom + 1);
+	} else {
+		expect(geometry.logBottom).toBeLessThanOrEqual(geometry.hostBottom + 1);
+	}
+}
+
+for (const viewport of [
+	{ name: "sheet-short", width: 759, height: 568 },
+	{ name: "sheet-edge", width: 760, height: 701 },
+	{ name: "drawer-edge", width: 761, height: 701 },
+	{ name: "drawer-compact", width: 800, height: 768 },
+	{ name: "drawer-wide-compact", width: 900, height: 900 },
+	{ name: "height-edge-short", width: 1024, height: 700 },
+	{ name: "height-edge-normal", width: 1024, height: 701 },
+	{ name: "notebook", width: 1366, height: 768 },
+	{ name: "full-hd", width: 1920, height: 1080 },
+] as const) {
+	test(`contextual diagnostics keeps Live Log controls separate at ${viewport.name} ${viewport.width}x${viewport.height}`, async ({
+		page,
+	}, testInfo) => {
+		const { inspector } = await openBenchmarkContextualDiagnostics(page, viewport);
+		const pause = inspector.getByRole("button", {
+			name: "Pausar visualização",
+			exact: true,
+		});
+		await pause.click();
+		await expect(
+			inspector.getByRole("button", {
+				name: "Retomar visualização",
+				exact: true,
+			}),
+		).toBeVisible();
+
+		const geometry = await readContextualLogGeometry(inspector);
+		expectContextualLogRegionsDoNotOverlap(geometry);
+		expect(["auto", "scroll"]).toContain(geometry.shellOverflowY);
+		expect(["auto", "scroll"]).toContain(geometry.logOverflowY);
+		if (viewport.height <= 568) {
+			expect(geometry.shellScrollHeight).toBeGreaterThan(
+				geometry.shellClientHeight,
+			);
+		}
+		if (viewport.width === 1920 && viewport.height === 1080) {
+			expect(geometry.shellScrollHeight).toBeLessThanOrEqual(
+				geometry.shellClientHeight + 1,
+			);
+		}
+
+		if (
+			(viewport.width === 759 && viewport.height === 568) ||
+			(viewport.width === 761 && viewport.height === 701)
+		) {
+			await page.screenshot({
+				path: testInfo.outputPath(
+					`contextual-diagnostics-${viewport.width}x${viewport.height}.png`,
+				),
+				fullPage: false,
+			});
+		}
+	});
+}
+
+test("contextual diagnostics preserves toolbar geometry with bounded history, catch-up and event detail", async ({
+	page,
+}, testInfo) => {
+	const initialEvents = contextualDiagnosticEvents(180);
+	const { inspector, state } = await openBenchmarkContextualDiagnostics(
+		page,
+		{ width: 800, height: 768 },
+		initialEvents,
+		true,
+	);
+	const log = inspector.locator("[data-live-log-viewport='true']");
+	const toolbar = inspector.locator("[data-live-log-toolbar='true']");
+
+	await inspector
+		.getByRole("button", { name: "Pausar visualização", exact: true })
+		.click();
+	await expect(
+		inspector.getByRole("button", {
+			name: "Retomar visualização",
+			exact: true,
+		}),
+	).toBeVisible();
+
+	state.setJobEvents(contextualDiagnosticEvents(521));
+	await expect(
+		inspector.getByText(
+			"Mostrando os 500 eventos mais recentes para manter a visualização responsiva.",
+			{ exact: true },
+		),
+	).toBeVisible({ timeout: 6_000 });
+	await expect(
+		inspector.getByRole("button", {
+			name: /novos eventos · Voltar ao vivo/u,
+		}),
+	).toBeVisible({ timeout: 6_000 });
+
+	await inspector.getByRole("button", { name: "Técnica", exact: true }).click();
+	const firstEvent = log.locator("button[data-event-seq]").first();
+	await firstEvent.click();
+	const detail = inspector.locator("[data-live-log-detail='true']");
+	await expect(detail).toBeVisible();
+	expect(
+		await detail.evaluate((element) =>
+			Boolean(element.closest("[data-live-log-viewport='true']")),
+		),
+	).toBe(true);
+
+	const geometry = await readContextualLogGeometry(inspector);
+	expectContextualLogRegionsDoNotOverlap(geometry);
+	expect(geometry.footerVisible).toBe(true);
+
+	const toolbarTopBefore = await toolbar.evaluate(
+		(element) => element.getBoundingClientRect().top,
+	);
+	await log.evaluate((element) => {
+		element.scrollTop = element.scrollHeight;
+	});
+	await page.waitForTimeout(50);
+	const toolbarTopAfter = await toolbar.evaluate(
+		(element) => element.getBoundingClientRect().top,
+	);
+	expect(Math.abs(toolbarTopAfter - toolbarTopBefore)).toBeLessThanOrEqual(1);
+
+	await page.screenshot({
+		path: testInfo.outputPath("contextual-diagnostics-paused-detail.png"),
+		fullPage: false,
+	});
+});
+
+test("contextual event detail remains contained immediately above the sheet breakpoint", async ({
+	page,
+}) => {
+	const { inspector } = await openBenchmarkContextualDiagnostics(
+		page,
+		{ width: 761, height: 701 },
+	);
+	await inspector.getByRole("button", { name: "Técnica", exact: true }).click();
+	const log = inspector.locator("[data-live-log-viewport='true']");
+	await log.locator("button[data-event-seq]").first().click();
+	await expect(inspector.locator("[data-live-log-detail='true']")).toBeVisible();
+
+	const detail = inspector.locator("[data-live-log-detail='true']");
+	expect(
+		await detail.evaluate((element) =>
+			Boolean(element.closest("[data-live-log-viewport='true']")),
+		),
+	).toBe(true);
+	const geometry = await readContextualLogGeometry(inspector);
+	expectContextualLogRegionsDoNotOverlap(geometry);
+});
+
+test("contextual diagnostics keeps stale-event warning in flow without covering controls", async ({
+	page,
+}) => {
+	const { inspector } = await openBenchmarkContextualDiagnostics(
+		page,
+		{ width: 761, height: 701 },
+	);
+	await page.route("**/api/v1/jobs/benchmark-job-1/events*", (route) =>
+		route.fulfill({
+			status: 503,
+			contentType: "application/json",
+			headers: {
+				"Access-Control-Allow-Origin": "http://127.0.0.1:3102",
+				"Cache-Control": "no-store",
+			},
+			body: JSON.stringify({
+				error: { code: "SYNTHETIC_EVENTS_STALE", recoverable: true },
+			}),
+		}),
+	);
+
+	await expect(
+		inspector.getByText(
+			"Eventos desatualizados. O último histórico disponível foi preservado.",
+			{ exact: true },
+		),
+	).toBeVisible({ timeout: 6_000 });
+
+	const geometry = await readContextualLogGeometry(inspector);
+	expectContextualLogRegionsDoNotOverlap(geometry);
+	await expect(
+		inspector.getByRole("button", {
+			name: "Pausar visualização",
+			exact: true,
+		}),
+	).toBeVisible();
+});
+
+test("contextual diagnostics keeps keyboard focus reachable and restores the benchmark opener", async ({
+	page,
+}) => {
+	const { inspector, opener } = await openBenchmarkContextualDiagnostics(
+		page,
+		{ width: 761, height: 701 },
+	);
+	const pause = inspector.getByRole("button", {
+		name: "Pausar visualização",
+		exact: true,
+	});
+	await pause.focus();
+	await expect(pause).toBeFocused();
+
+	const [dialogBox, controlBox] = await Promise.all([
+		inspector.boundingBox(),
+		pause.boundingBox(),
+	]);
+	expect(dialogBox).not.toBeNull();
+	expect(controlBox).not.toBeNull();
+	expect(controlBox?.x ?? -1).toBeGreaterThanOrEqual((dialogBox?.x ?? 0) - 1);
+	expect(
+		(controlBox?.x ?? 0) + (controlBox?.width ?? 0),
+	).toBeLessThanOrEqual(
+		(dialogBox?.x ?? 0) + (dialogBox?.width ?? 0) + 1,
+	);
+
+	await page.keyboard.press("Escape");
+	await expect(inspector).not.toBeVisible();
+	await expect(opener).toBeFocused();
+});
+
+test("global Diagnostics host keeps the same structured Live Log contract", async ({
+	page,
+}) => {
+	await openRunningWorkspace(page, 1920, 1080);
+	await page.getByRole("tab", { name: "Diagnóstico", exact: true }).click();
+	const diagnostics = page.getByRole("tabpanel", {
+		name: "Diagnóstico",
+		exact: true,
+	});
+	const explorer = diagnostics.locator("[data-live-log-explorer='true']");
+	const controls = explorer.locator("[data-live-log-controls='true']");
+	const toolbar = explorer.locator("[data-live-log-toolbar='true']");
+	const log = explorer.locator("[data-live-log-viewport='true']");
+	await expect(explorer).toBeVisible();
+	await expect(controls).toBeVisible();
+	await expect(toolbar).toBeVisible();
+	await expect(log).toBeVisible();
+
+	const geometry = await explorer.evaluate((element) => {
+		const controls = element.querySelector<HTMLElement>("[data-live-log-controls='true']");
+		const toolbar = element.querySelector<HTMLElement>("[data-live-log-toolbar='true']");
+		const log = element.querySelector<HTMLElement>("[data-live-log-viewport='true']");
+		if (!controls || !toolbar || !log) throw new Error("Structured Live Log regions are missing");
+		return {
+			controlsBottom: controls.getBoundingClientRect().bottom,
+			toolbarBottom: toolbar.getBoundingClientRect().bottom,
+			logTop: log.getBoundingClientRect().top,
+			overflowY: getComputedStyle(log).overflowY,
+		};
+	});
+	expect(geometry.controlsBottom).toBeLessThanOrEqual(geometry.logTop + 1);
+	expect(geometry.toolbarBottom).toBeLessThanOrEqual(geometry.logTop + 1);
+	expect(["auto", "scroll"]).toContain(geometry.overflowY);
 });
