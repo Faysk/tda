@@ -36,6 +36,32 @@ function repoPath(filePath) {
 	return filePath.replaceAll("\\", "/");
 }
 
+function srgbChannel(value) {
+	const channel = value / 255;
+	return channel <= 0.04045
+		? channel / 12.92
+		: ((channel + 0.055) / 1.055) ** 2.4;
+}
+
+function relativeLuminance(hex) {
+	const normalized = hex.replace("#", "");
+	if (!/^[0-9a-f]{6}$/iu.test(normalized)) {
+		fail(`contrast check requires a six-digit hex color, got ${hex}`);
+	}
+	const red = srgbChannel(Number.parseInt(normalized.slice(0, 2), 16));
+	const green = srgbChannel(Number.parseInt(normalized.slice(2, 4), 16));
+	const blue = srgbChannel(Number.parseInt(normalized.slice(4, 6), 16));
+	return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function contrastRatio(foreground, background) {
+	const a = relativeLuminance(foreground);
+	const b = relativeLuminance(background);
+	const lighter = Math.max(a, b);
+	const darker = Math.min(a, b);
+	return (lighter + 0.05) / (darker + 0.05);
+}
+
 const officialAssets = {
 	"favicon.svg":
 		"59d3f1be2c9569afddbae6a944eb023bd2327a06ebfec12bfa28d83def7e149e",
@@ -154,7 +180,7 @@ const canonicalTokenValues = [
 	["--ds-foreground-soft", "#4f4b44"],
 	["--ds-foreground-muted", "#625d55"],
 	["--ds-accent", "#805817"],
-	["--ds-accent-strong", "#9a6a1d"],
+	["--ds-accent-strong", "#6b4913"],
 	["--ds-accent-muted", "rgba(128, 88, 23, 0.11)"],
 	["--ds-accent-contrast", "#fffdf8"],
 	["--ds-action-primary-bg", "#805817"],
@@ -181,6 +207,20 @@ const canonicalTokenValues = [
 for (const [token, value] of canonicalTokenValues) {
 	if (!tokenCss.includes(`${token}: ${value};`)) {
 		fail(`missing canonical token value ${token}: ${value}`);
+	}
+}
+
+const normalTextContrastPairs = [
+	["light accent-strong on canvas", "#6b4913", "#f3efe7"],
+	["light accent-strong on canvas-subtle", "#6b4913", "#fffdf8"],
+	["light accent-strong on surface", "#6b4913", "#e9e3d8"],
+	["light accent-strong on surface-hover", "#6b4913", "#ffffff"],
+	["light accent-strong on surface-elevated", "#6b4913", "#fffdf8"],
+];
+for (const [label, foreground, background] of normalTextContrastPairs) {
+	const ratio = contrastRatio(foreground, background);
+	if (ratio < 4.5) {
+		fail(`${label} must reach 4.5:1 for normal UI text; got ${ratio.toFixed(2)}:1`);
 	}
 }
 
@@ -245,6 +285,24 @@ for (const filePath of sourceFiles("src")) {
 const packageJson = fs.readFileSync("package.json", "utf8");
 if (/"tailwindcss"\s*:/.test(packageJson)) {
 	fail("Tailwind was added without a dedicated architecture decision");
+}
+
+const designSystemCss = fs.readFileSync("src/app/design-system.css", "utf8");
+for (const requiredNativeSelectContract of [
+	"select {\\n\\tcolor-scheme: dark;",
+	"select option,\\nselect optgroup {",
+	":root[data-theme=\\\"light\\\"] select {\\n\\tcolor-scheme: light;",
+]) {
+	if (!designSystemCss.includes(requiredNativeSelectContract.replaceAll("\\\\n", "\n").replaceAll('\\\"', '"'))) {
+		fail(`design-system native select theme contract missing: ${requiredNativeSelectContract}`);
+	}
+}
+
+for (const filePath of sourceFiles("src")) {
+	const source = fs.readFileSync(filePath, "utf8");
+	if (/box-shadow\s*:\s*var\(--ds-control-focus-ring\)\s*;/u.test(source)) {
+		fail(`focus-ring color token is used as a bare box-shadow in ${filePath}`);
+	}
 }
 
 const layout = fs.readFileSync("src/app/layout.tsx", "utf8");
