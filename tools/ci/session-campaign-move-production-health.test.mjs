@@ -9,6 +9,7 @@ import {
 const PROJECT_REF = "dmrqnbdvbkfqzctcerbx";
 const URL = `https://${PROJECT_REF}.supabase.co`;
 const SECRET = "s".repeat(64);
+const ACCESS_TOKEN = "sbp_" + "a".repeat(48);
 
 function healthy() {
 	return {
@@ -57,26 +58,50 @@ test("parses only the two required Production variables without shell evaluation
 	});
 });
 
-test("accepts only the fail-closed v2 Production health contract and never logs credentials", async () => {
+test("uses the Management API read-only query when the PAT is available and never logs credentials", async () => {
 	const seen = [];
 	const lines = [];
 	const result = await verifySessionCampaignMoveProductionHealth({
 		supabaseUrl: URL,
-		secretKey: SECRET,
+		secretKey: "[SENSITIVE]",
+		accessToken: ACCESS_TOKEN,
 		projectRef: PROJECT_REF,
 		phase: "pre_promote",
-		fetchImpl: fetcher(healthy(), 200, seen),
+		fetchImpl: fetcher([{ health: healthy() }], 201, seen),
 		logger: (line) => lines.push(line),
 	});
 	assert.equal(result.ok, true);
 	assert.equal(seen.length, 1);
 	assert.equal(
 		seen[0].url,
+		`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`,
+	);
+	assert.equal(seen[0].init.headers.authorization, `Bearer ${ACCESS_TOKEN}`);
+	assert.deepEqual(JSON.parse(seen[0].init.body), {
+		query: "select public.session_campaign_move_release_health() as health",
+		read_only: true,
+	});
+	assert.equal(lines.join("\n").includes(ACCESS_TOKEN), false);
+	assert.equal(lines.join("\n").includes(SECRET), false);
+	assert.equal(lines.join("\n").includes(URL), false);
+});
+
+test("falls back to service-role PostgREST when a Management API token is unavailable", async () => {
+	const seen = [];
+	const result = await verifySessionCampaignMoveProductionHealth({
+		supabaseUrl: URL,
+		secretKey: SECRET,
+		projectRef: PROJECT_REF,
+		phase: "canonical",
+		fetchImpl: fetcher(healthy(), 200, seen),
+		logger: () => {},
+	});
+	assert.equal(result.ok, true);
+	assert.equal(
+		seen[0].url,
 		`${URL}/rest/v1/rpc/session_campaign_move_release_health`,
 	);
 	assert.equal(seen[0].init.headers.apikey, SECRET);
-	assert.equal(lines.join("\n").includes(SECRET), false);
-	assert.equal(lines.join("\n").includes(URL), false);
 });
 
 test("fails closed for drift, grant regression and wrong project", async () => {
@@ -84,6 +109,7 @@ test("fails closed for drift, grant regression and wrong project", async () => {
 		verifySessionCampaignMoveProductionHealth({
 			supabaseUrl: URL,
 			secretKey: SECRET,
+			accessToken: ACCESS_TOKEN,
 			projectRef: PROJECT_REF,
 			phase: "canonical",
 			fetchImpl: fetcher({ ...healthy(), registryDriftCount: 1 }),
@@ -98,6 +124,7 @@ test("fails closed for drift, grant regression and wrong project", async () => {
 		verifySessionCampaignMoveProductionHealth({
 			supabaseUrl: URL,
 			secretKey: SECRET,
+			accessToken: ACCESS_TOKEN,
 			projectRef: PROJECT_REF,
 			phase: "canonical",
 			fetchImpl: fetcher(grantRegression),
@@ -110,6 +137,7 @@ test("fails closed for drift, grant regression and wrong project", async () => {
 		verifySessionCampaignMoveProductionHealth({
 			supabaseUrl: "https://other.supabase.co",
 			secretKey: SECRET,
+			accessToken: ACCESS_TOKEN,
 			projectRef: PROJECT_REF,
 			phase: "canonical",
 			fetchImpl: fetcher(),
