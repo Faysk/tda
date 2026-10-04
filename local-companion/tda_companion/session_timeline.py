@@ -9,7 +9,7 @@ from typing import Any, Iterable
 TIMING_POLICY_VERSION = "tda_session_timeline_v1"
 SEGMENT_BOUNDARY_POLICY = "segment_start_owner_v1"
 _START_CONFIDENCES = frozenset({"trusted_absolute", "ambiguous", "opaque", "missing"})
-_TIMELINE_MODES = frozenset({"unresolved", "automatic", "manual"})
+_TIMELINE_MODES = frozenset({"unresolved", "automatic", "manual", "confirmed_sequence"})
 _OVERLAP_RESOLUTIONS = frozenset({"prefer_earlier_until", "prefer_later_from"})
 _EPSILON = 1e-9
 
@@ -155,6 +155,76 @@ def automatic_placements(
         }
         for ordinal, (epoch, part_id, source_id) in enumerate(sortable)
     ]
+
+
+def confirmed_sequence_placements(
+    parts: Iterable[dict[str, Any]],
+    source_facts: dict[str, dict[str, Any]],
+) -> list[dict[str, object]]:
+    """Place parts in the user-confirmed order without inventing wall-clock time.
+
+    Trusted adjacent timestamps preserve factual gaps/overlaps. Whenever either
+    side lacks trusted absolute time, the next part is placed contiguously in the
+    editorial timeline and the missing physical interval stays unknown.
+    """
+    rows = list(parts)
+    if not rows:
+        return []
+
+    placements: list[dict[str, object]] = []
+    previous_facts: dict[str, Any] | None = None
+    previous_offset = 0.0
+    previous_duration = 0.0
+
+    for ordinal, part in enumerate(rows):
+        source_id = str(part["source_id"])
+        facts = source_facts.get(source_id, {})
+        if facts.get("source_state") != "ready":
+            raise ValueError("SESSION_WORKSPACE_SOURCE_UNAVAILABLE")
+        duration = _number(facts.get("duration_seconds"))
+        if duration is None:
+            raise ValueError("SESSION_WORKSPACE_SOURCE_DURATION_UNAVAILABLE")
+
+        gap_confirmed = False
+        if ordinal == 0:
+            offset = 0.0
+        else:
+            offset = previous_offset + previous_duration
+            current_epoch = _number(facts.get("start_epoch_seconds"))
+            previous_epoch = (
+                _number(previous_facts.get("start_epoch_seconds"))
+                if previous_facts is not None
+                else None
+            )
+            trusted_pair = (
+                previous_facts is not None
+                and previous_facts.get("start_confidence") == "trusted_absolute"
+                and facts.get("start_confidence") == "trusted_absolute"
+                and previous_epoch is not None
+                and current_epoch is not None
+            )
+            if trusted_pair:
+                physical_delta = current_epoch - (previous_epoch + previous_duration)
+                candidate = offset + physical_delta
+                if candidate < -_EPSILON:
+                    raise ValueError("SESSION_WORKSPACE_TIMELINE_ORDER_COLLISION")
+                offset = max(0.0, candidate)
+                gap_confirmed = physical_delta > _EPSILON
+
+        placements.append(
+            {
+                "part_id": str(part["part_id"]),
+                "source_id": source_id,
+                "ordinal": ordinal,
+                "session_offset_seconds": offset,
+                "gap_confirmed": gap_confirmed,
+            }
+        )
+        previous_facts = facts
+        previous_offset = offset
+        previous_duration = duration
+
+    return placements
 
 
 def _number(value: object) -> float | None:
