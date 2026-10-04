@@ -83,6 +83,16 @@ async function expectNoHorizontalOverflow(page: Page, label: string) {
 	expect(overflow, `${label}: horizontal overflow`).toBeLessThanOrEqual(1);
 }
 
+async function selectArchiveValue(page: Page, name: string, value: string) {
+	const trigger = page.getByRole("button", { name, exact: true });
+	await trigger.click();
+	const listbox = page.getByRole("listbox", { name, exact: true });
+	await expect(listbox).toBeVisible();
+	const option = listbox.locator(`[role="option"][data-value="${CSS.escape(value)}"]`);
+	await expect(option).toHaveCount(1);
+	await option.click();
+}
+
 async function expectDecodedImage(container: Locator, label: string) {
 	const image = container.locator("img").first();
 	await expect(image, `${label}: image element`).toBeVisible();
@@ -142,7 +152,7 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 		page.getByRole("region", { name: "Sessões publicadas de todas as campanhas" }),
 	).toBeVisible();
 	await expect(page.locator("[data-session-card]")).toHaveCount(4);
-	const filter = page.getByLabel("Filtrar por campanha");
+	const filter = page.getByRole("button", { name: "Filtrar por campanha" });
 	await expect(filter).toBeVisible();
 	await expect(
 		page.locator("[data-session-card]").filter({ hasText: CAMPAIGN_A.name }).first(),
@@ -151,7 +161,7 @@ test("[sessions] aggregate and campaign-scoped archives expose different semanti
 		page.locator("[data-session-card]").filter({ hasText: CAMPAIGN_B.name }).first(),
 	).toBeVisible();
 
-	await filter.selectOption(CAMPAIGN_B.route);
+	await selectArchiveValue(page, "Filtrar por campanha", CAMPAIGN_B.route);
 	await expect(
 		page.getByRole("heading", { name: "A memória global mais recente vem da campanha B" }),
 	).toBeVisible();
