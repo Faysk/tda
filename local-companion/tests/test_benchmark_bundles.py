@@ -161,6 +161,8 @@ def _profile_receipts(data_root: Path, job_id: str, attempt: int, count: int = 4
         )
         receipts.append(
             {
+                "kind": "benchmark.profile",
+                "schema_version": "tda_benchmark_profile_v1",
                 "profile_id": profile_id,
                 "benchmark_id": artifact["benchmark_id"],
                 "sample_identity_sha256": sample_identity,
