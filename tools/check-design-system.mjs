@@ -5,6 +5,26 @@ function fail(message) {
 	throw new Error(`Design system check failed: ${message}`);
 }
 
+
+function relativeLuminance(hex) {
+	const channels = hex
+		.replace("#", "")
+		.match(/.{2}/gu)
+		.map((pair) => Number.parseInt(pair, 16) / 255)
+		.map((value) =>
+			value <= 0.04045
+				? value / 12.92
+				: ((value + 0.055) / 1.055) ** 2.4,
+		);
+	return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrastRatio(foreground, background) {
+	const light = Math.max(relativeLuminance(foreground), relativeLuminance(background));
+	const dark = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+	return (light + 0.05) / (dark + 0.05);
+}
+
 function sourceFiles(root) {
 	const files = [];
 	for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
@@ -154,7 +174,7 @@ const canonicalTokenValues = [
 	["--ds-foreground-soft", "#4f4b44"],
 	["--ds-foreground-muted", "#625d55"],
 	["--ds-accent", "#805817"],
-	["--ds-accent-strong", "#9a6a1d"],
+	["--ds-accent-strong", "#6b4913"],
 	["--ds-accent-muted", "rgba(128, 88, 23, 0.11)"],
 	["--ds-accent-contrast", "#fffdf8"],
 	["--ds-action-primary-bg", "#805817"],
@@ -181,6 +201,19 @@ const canonicalTokenValues = [
 for (const [token, value] of canonicalTokenValues) {
 	if (!tokenCss.includes(`${token}: ${value};`)) {
 		fail(`missing canonical token value ${token}: ${value}`);
+	}
+}
+
+
+const normalTextContrastPairs = [
+	["light accent-strong on canvas", "#6b4913", "#f3efe7"],
+	["light accent-strong on surface", "#6b4913", "#e9e3d8"],
+	["light accent-strong on elevated", "#6b4913", "#fffdf8"],
+];
+for (const [label, foreground, background] of normalTextContrastPairs) {
+	const ratio = contrastRatio(foreground, background);
+	if (ratio < 4.5) {
+		fail(`${label} contrast ${ratio.toFixed(2)} is below 4.5:1`);
 	}
 }
 
@@ -218,6 +251,27 @@ const rebootSemanticExtensions = [
 for (const [token, value] of rebootSemanticExtensions) {
 	if (!tokenCss.includes(`${token}: ${value};`)) {
 		fail(`missing reboot semantic extension ${token}: ${value}`);
+	}
+}
+
+for (const filePath of sourceFiles("src")) {
+	const source = fs.readFileSync(filePath, "utf8");
+	if (/box-shadow\s*:\s*var\(--ds-control-focus-ring\)\s*;/u.test(source)) {
+		fail(
+			`color-only --ds-control-focus-ring used as a complete box-shadow in ${filePath}`,
+		);
+	}
+}
+
+const nativeControlCss = fs.readFileSync("src/app/design-system.css", "utf8");
+for (const requiredNativeSelectContract of [
+	"select option,",
+	"background: var(--ds-surface-elevated);",
+	"color: var(--ds-foreground);",
+	'root[data-theme="light"] select',
+]) {
+	if (!nativeControlCss.includes(requiredNativeSelectContract)) {
+		fail(`native select theme contract missing ${requiredNativeSelectContract}`);
 	}
 }
 
