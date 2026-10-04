@@ -263,10 +263,10 @@
 }
 
 .metaRow {
-	display: flex;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
+	gap: 8px 12px;
 	min-width: 0;
 	border-top: 1px solid var(--ds-border-subtle);
 	padding-top: 4px;
@@ -420,7 +420,17 @@
 }
 
 .advanced {
+	min-width: 0;
 	border-top: 0;
+	justify-self: end;
+}
+
+.advanced[open] {
+	grid-column: 1 / -1;
+	width: 100%;
+	justify-self: stretch;
+	padding-top: 4px;
+	border-top: 1px solid var(--ds-border-subtle);
 }
 
 .advanced summary {
@@ -516,6 +526,17 @@
 .card[data-layout="compact"] .profileSummary small {
 	max-width: none;
 	text-align: left;
+}
+
+.card[data-layout="compact"] .metaRow {
+	grid-template-columns: 1fr;
+}
+
+.card[data-layout="compact"] .advanced,
+.card[data-layout="compact"] .advanced[open] {
+	grid-column: 1;
+	width: 100%;
+	justify-self: stretch;
 }
 
 .card[data-layout="compact"] .fileFacts {
@@ -768,5 +789,74 @@
 
 	.fileList :global(.ds-action) {
 		width: 100%;
+	}
+}
+
+
+.intentSummary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 6px;
+	padding: 8px 9px;
+	border-block: 1px solid var(--ds-border-subtle);
+	color: var(--ds-foreground);
+}
+
+.intentSummary > div {
+	display: grid;
+	min-width: 0;
+	gap: 2px;
+}
+
+.intentSummary strong {
+	overflow: hidden;
+	font-size: 0.78rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.intentSummary span,
+.intentSummary small {
+	color: var(--ds-foreground-muted);
+	font-size: 0.7rem;
+	line-height: 1.4;
+}
+
+.intentSummary small {
+	max-width: 46ch;
+	text-align: right;
+}
+
+.card[data-intent-fixed="true"] .form {
+	display: none;
+}
+
+.card[data-intent-fixed="true"] .heading {
+	margin-bottom: 2px;
+}
+
+@container processing-workspace (max-width: 720px) {
+	.metaRow {
+		grid-template-columns: 1fr;
+		align-items: stretch;
+	}
+
+	.advanced,
+	.advanced[open] {
+		grid-column: 1;
+		width: 100%;
+		justify-self: stretch;
+	}
+
+	.intentSummary {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.intentSummary small {
+		max-width: none;
+		text-align: left;
 	}
 }
