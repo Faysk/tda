@@ -198,7 +198,7 @@ def _smoke_worker_benchmark_contract(worker: Path, version: str) -> dict:
                 "cpu": False,
                 "benchmark_mode": True,
                 "benchmark_sample_seconds": 300.0,
-                "benchmark_id": "1" * 64,
+                "benchmark_id": "benchmark-" + "1" * 32,
                 "benchmark_sample_identity_sha256": "2" * 64,
             },
         },
