@@ -433,6 +433,36 @@ export function SessionIntentCoordinator({
 						controller.signal,
 					);
 				}
+
+				// When the current intent names the complete workspace, its visible
+				// ZIP sequence is explicit user authority. Reconcile a recovered
+				// workspace to that order instead of silently keeping stale order.
+				const desiredIds = desired.map((source) => source.sourceId);
+				if (
+					desiredIds.length === next.parts.length &&
+					desiredIds.every((sourceId) =>
+						next.parts.some((part) => part.sourceId === sourceId),
+					)
+				) {
+					const desiredPartIds = desiredIds.map(
+						(sourceId) =>
+							next.parts.find((part) => part.sourceId === sourceId)!.partId,
+					);
+					const currentPartIds = next.parts.map((part) => part.partId);
+					if (
+						desiredPartIds.some(
+							(partId, index) => partId !== currentPartIds[index],
+						)
+					) {
+						next = await bridge.reorderSessionParts(
+							campaignId,
+							intent.sessionId,
+							desiredPartIds,
+							next.revision,
+							controller.signal,
+						);
+					}
+				}
 				await loadSnapshot(intent.sessionId, controller.signal);
 				announce(
 					desired.length === 1
