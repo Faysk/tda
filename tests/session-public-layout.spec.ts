@@ -336,6 +336,42 @@ test("Sessions archive keyline survives a 200%-equivalent reflow viewport", asyn
 	await expectNoHorizontalOverflow(page);
 });
 
+test("Sessions archive owns filter popup colors instead of native select rendering", async ({ page }, testInfo) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+	await page.emulateMedia({ colorScheme: "light" });
+	await page.goto("/");
+	await page.evaluate(() => localStorage.setItem("tda-theme", "dark"));
+	await page.goto("/campanhas/sessoes");
+
+	const toolbar = page.locator("[data-session-archive-toolbar]");
+	await expect(toolbar.locator("select")).toHaveCount(0);
+	for (const name of ["Filtrar por campanha", "Filtrar por arco", "Ordenar por"]) {
+		const trigger = toolbar.getByRole("button", { name, exact: true });
+		await expect(trigger).toBeVisible();
+		await trigger.click();
+		const listbox = toolbar.getByRole("listbox", { name, exact: true });
+		await expect(listbox).toBeVisible();
+		const styles = await listbox.evaluate((element) => {
+			const listStyle = getComputedStyle(element);
+			const option = element.querySelector<HTMLElement>('[role="option"]');
+			return {
+				background: listStyle.backgroundColor,
+				color: option ? getComputedStyle(option).color : "",
+			};
+		});
+		expect(styles.background).not.toBe("rgba(0, 0, 0, 0)");
+		expect(styles.color).not.toBe("");
+		await listbox.press("Escape");
+		await expect(trigger).toBeFocused();
+	}
+
+	await toolbar.getByRole("button", { name: "Filtrar por arco" }).click();
+	await page.screenshot({
+		path: testInfo.outputPath("session-archive-themed-filter-popup.png"),
+		fullPage: false,
+	});
+});
+
 test("Sessions public geometry survives dark/light themes and reduced motion", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.emulateMedia({ reducedMotion: "reduce" });
