@@ -175,6 +175,7 @@ export function SessionAssemblyReview({
 	const [receipt, setReceipt] = useState<PublicationReceiptView | null>(null);
 	const [pending, setPending] = useState<PendingPublication | null>(null);
 	const timelineRef = useRef<HTMLOListElement>(null);
+	const restoreFocusId = useRef<string | null>(null);
 
 	useEffect(() => {
 		setBaseline(review);
@@ -231,20 +232,23 @@ export function SessionAssemblyReview({
 		if (pageIndex >= pageCount) setPageIndex(pageCount - 1);
 	}, [pageCount, pageIndex]);
 
+	useEffect(() => {
+		if (editingId !== null || !restoreFocusId.current) return;
+		const targetId = restoreFocusId.current;
+		restoreFocusId.current = null;
+		window.requestAnimationFrame(() => {
+			document
+				.querySelector<HTMLElement>(
+					`[data-assembly-edit-trigger="${targetId}"]`,
+				)
+				?.focus();
+		});
+	}, [editingId]);
+
 	function updateQuery(value: string) {
 		setQuery(value);
 		setPageIndex(0);
 		timelineRef.current?.scrollTo({ top: 0 });
-	}
-
-	function focusSegmentTrigger(assemblySegmentId: string) {
-		window.requestAnimationFrame(() => {
-			document
-				.querySelector<HTMLElement>(
-					`[data-assembly-edit-trigger="${assemblySegmentId}"]`,
-				)
-				?.focus();
-		});
 	}
 
 	function beginEdit(segment: SessionAssemblyReviewSegment) {
@@ -262,10 +266,9 @@ export function SessionAssemblyReview({
 	}
 
 	function cancelEdit() {
-		const current = editingId;
+		if (editingId) restoreFocusId.current = editingId;
 		setEditingId(null);
 		setSegmentDraft(null);
-		if (current) focusSegmentTrigger(current);
 	}
 
 	function applyEdit(segment: SessionAssemblyReviewSegment) {
@@ -288,9 +291,9 @@ export function SessionAssemblyReview({
 			setDirty(true);
 			setReceipt(null);
 		}
+		restoreFocusId.current = segment.assemblySegmentId;
 		setEditingId(null);
 		setSegmentDraft(null);
-		focusSegmentTrigger(segment.assemblySegmentId);
 	}
 
 	function changePage(next: number) {
