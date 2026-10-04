@@ -82,6 +82,7 @@ from .session_assemblies import (
 from .store import Conflict, Store
 from .session_timeline import (
     automatic_placements,
+    confirmed_sequence_placements,
     classify_start_time,
     enrich_workspace_timeline,
     package_duration_seconds,
@@ -116,7 +117,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/derive|participants|intent))?$"
+    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/(?:derive|sequence)|participants|intent))?$"
 )
 _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/"
@@ -2168,6 +2169,29 @@ def create_app(
             raise Conflict(str(exc)) from exc
         return session_workspace_response(
             store.apply_automatic_session_timeline(
+                campaign_id,
+                session_id,
+                placements,
+                body.expected_revision,
+            )
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/timeline/sequence")
+    def confirm_session_workspace_sequence(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceDeriveTimelineRequest,
+    ):
+        current = store.session_workspace(campaign_id, session_id)
+        facts = session_workspace_source_facts(current)
+        if any(value["source_state"] != "ready" for value in facts.values()):
+            raise Conflict("SESSION_WORKSPACE_SOURCE_UNAVAILABLE")
+        try:
+            placements = confirmed_sequence_placements(current["parts"], facts)
+        except ValueError as exc:
+            raise Conflict(str(exc)) from exc
+        return session_workspace_response(
+            store.apply_confirmed_session_timeline(
                 campaign_id,
                 session_id,
                 placements,
