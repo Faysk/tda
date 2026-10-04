@@ -1,11 +1,15 @@
 import { createHash } from "node:crypto";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { ActionLink, StatusPill } from "@/components/ui";
 import { requireCampaignCapability } from "@/features/auth/server";
-import { editSessionLibraryHref, readEditableSessionCampaigns } from "@/features/campaigns/sessions";
+import {
+	editSessionDetailHref,
+	editSessionLibraryHref,
+	readEditableSessionCampaigns,
+} from "@/features/campaigns/sessions";
 import {
 	authorizeCampaignCapability,
 	EDIT_CAPABILITIES,
@@ -17,6 +21,7 @@ import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import { SessionEditWorkspace } from "@/features/edit/sessions/session-edit-workspace";
 import { SessionCampaignMovePanel } from "@/features/edit/sessions/session-campaign-move";
 import {
+	readRecoveredSessionCampaignMoveDestination,
 	sessionCampaignMoveBackendReady,
 } from "@/features/edit/sessions/session-campaign-move-repository";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
@@ -109,7 +114,29 @@ export default async function EditSessionPage({ params }: PageProps) {
 	} catch {
 		return <UnavailableTranscript backHref={backHref} />;
 	}
-	if (!session) notFound();
+	if (!session) {
+		const recovered = accessContext.profileId
+			? await readRecoveredSessionCampaignMoveDestination({
+					actorProfileId: accessContext.profileId,
+					sourceCampaignId: campaign.id,
+					sourceSessionId,
+				})
+			: null;
+		const currentCampaign = recovered
+			? eligible.campaigns.find(
+					(item) => item.id === recovered.currentCampaignId,
+				)
+			: null;
+		if (currentCampaign && currentCampaign.technicalSlug !== campaignSlug) {
+			redirect(
+				editSessionDetailHref(
+					currentCampaign.technicalSlug,
+					sourceSessionId,
+				),
+			);
+		}
+		notFound();
+	}
 
 	let snapshot: Awaited<ReturnType<typeof readTranscriptSnapshot>>;
 	try {
