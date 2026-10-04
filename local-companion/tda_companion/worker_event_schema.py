@@ -256,6 +256,23 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         required=("stage", "track", "total_tracks", "failure_class"),
         level="error",
     ),
+    "BENCHMARK_PROFILE_STARTED": _schema(
+        "stage", "profile", "index", "total", "successful_count",
+        required=("stage", "profile", "index", "total", "successful_count"),
+    ),
+    "BENCHMARK_PROFILE_COMPLETED": _schema(
+        "stage", "profile", "index", "total", "successful_count",
+        required=("stage", "profile", "index", "total", "successful_count"),
+    ),
+    "BENCHMARK_PROFILE_FAILED": _schema(
+        "stage", "profile", "index", "total", "successful_count",
+        "error_code", "recoverable", "scope", "continued",
+        required=(
+            "stage", "profile", "index", "total", "successful_count",
+            "error_code", "recoverable", "scope", "continued",
+        ),
+        level="warning",
+    ),
     "SOURCE_VALIDATED": _schema(
         "stage", "track_count", required=("stage", "track_count")
     ),
@@ -277,7 +294,7 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
 _POSITIVE_INT_FIELDS = frozenset(
     {
         "track", "total_tracks", "segment", "attempt",
-        "track_count", "count", "sample_count",
+        "track_count", "count", "sample_count", "index", "total",
     }
 )
 _NONNEGATIVE_INT_FIELDS = frozenset(
@@ -285,11 +302,13 @@ _NONNEGATIVE_INT_FIELDS = frozenset(
         "window", "aligned_reused", "text_reused", "text_compat_reused",
         "text_prefix_windows_reused", "reused_window_count", "durable_window_count",
         "pending_asr", "aligned_item", "aligned_word_count", "owned_word_count",
-        "completed_window_count", "completed_segment_count",
+        "completed_window_count", "completed_segment_count", "successful_count",
     }
 )
 _BYTE_FIELDS = frozenset({"downloaded_bytes", "total_bytes"})
-_BOOL_FIELDS = frozenset({"preloaded", "memory_error", "first_window", "last_window"})
+_BOOL_FIELDS = frozenset(
+    {"preloaded", "memory_error", "first_window", "last_window", "recoverable", "continued"}
+)
 _SECONDS_FIELDS = frozenset(
     {
         "context_seconds", "window_start_seconds", "window_end_seconds",
@@ -299,7 +318,7 @@ _SECONDS_FIELDS = frozenset(
     }
 )
 _SIGNED_SECONDS_FIELDS = frozenset({"relative_start_seconds", "relative_end_seconds"})
-_TOKEN_FIELDS = frozenset({"profile", "device", "compute_type"})
+_TOKEN_FIELDS = frozenset({"profile", "device", "compute_type", "scope", "strategy"})
 _RUNTIME_FIELDS = frozenset({"runtime_version", "source_runtime_version"})
 _HASH_FIELDS = frozenset({"worker_sha256", "source_signature_sha256"})
 _DBFS_FIELDS = frozenset(
@@ -333,7 +352,7 @@ def _sanitize_field(key: str, value: object) -> Scalar | None:
         return value if isinstance(value, str) and _STAGE.fullmatch(value) else None
     if key == "speaker":
         return _safe_text(value, 160)
-    if key == "failure_class":
+    if key in {"failure_class", "error_code"}:
         return value if isinstance(value, str) and _UPPER_CODE.fullmatch(value) else None
     if key == "reason":
         return value if isinstance(value, str) and value in _SAFE_REASON else None
