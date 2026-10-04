@@ -117,7 +117,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/derive|participants|intent))?$"
+    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/(?:derive|confirm-sequence)|participants|intent))?$"
 )
 _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/"
@@ -1711,6 +1711,7 @@ def create_app(
             "transcription.session-workspace",
             "transcription.session-intent",
             "transcription.session-timeline",
+            "transcription.session-sequence",
             "transcription.session-participants",
             "transcription.session-assembly",
             "transcription.session-assembly.review",
