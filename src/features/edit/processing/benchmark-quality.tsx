@@ -525,6 +525,7 @@ export function BenchmarkQualityLab({
 								}))}
 								onChange={(value) => setSeedProfile(value as TranscriptionProfileId)}
 								ariaLabel="Transcript-base"
+								compact
 								disabled={!connected || loading}
 							/>
 						</label>
