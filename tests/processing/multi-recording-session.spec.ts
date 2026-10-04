@@ -993,7 +993,7 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 		name: "Revisão da transcrição da sessão",
 	});
 	await expect(reviewOwner).toBeVisible();
-	await expect(reviewOwner).toBeFocused();
+	await expect(page.getByRole("tab", { name: "Resultados" })).toBeFocused();
 	await expect(review).toBeVisible();
 	await expect(review).toContainText("1 falas");
 	await expect(
