@@ -694,7 +694,7 @@ class Store:
                 db.execute(
                     """
                     UPDATE session_recording_parts
-                    SET session_offset_seconds=0,updated=?
+                    SET timeline_mode='automatic',session_offset_seconds=0,updated=?
                     WHERE campaign_id=? AND session_id=? AND part_id=?
                     """,
                     (
@@ -703,6 +703,14 @@ class Store:
                         row["session_id"],
                         parts[0]["part_id"],
                     ),
+                )
+                db.execute(
+                    """
+                    UPDATE session_workspaces
+                    SET ordering_mode='attachment'
+                    WHERE campaign_id=? AND session_id=?
+                    """,
+                    (row["campaign_id"], row["session_id"]),
                 )
             bumped = self._bump_session_workspace(
                 db, row["campaign_id"], row["session_id"], row["revision"]
