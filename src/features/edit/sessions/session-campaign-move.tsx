@@ -208,7 +208,7 @@ export function SessionCampaignMovePanel({
 	}
 
 	function commitMove() {
-		if (!preview || preview.status !== "ready" || !decisionsReady) return;
+		if (preview?.status !== "ready" || !decisionsReady) return;
 		const stableOperationId = operationId ?? crypto.randomUUID();
 		if (!operationId) setOperationId(stableOperationId);
 		const intent = {
