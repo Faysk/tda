@@ -696,6 +696,47 @@ class WorkerSupervisor:
                 )
             )
 
+        def emit_profile_event(
+            code: str,
+            profile_id: str,
+            index: int,
+            *,
+            error_code: str | None = None,
+            recoverable: bool | None = None,
+            scope: str | None = None,
+            continuation: str | None = None,
+        ) -> None:
+            if on_event is None:
+                return
+            payload = {
+                "code": code,
+                "stage": "benchmark",
+                "profile": profile_id,
+                "attempted_count": index,
+                "completed_count": len(receipts),
+                "failed_count": sum(
+                    1 for item in profile_outcomes if item.get("status") == "failed"
+                ),
+            }
+            if error_code is not None:
+                payload.update(
+                    {
+                        "error_code": error_code,
+                        "recoverable": bool(recoverable),
+                        "scope": scope or "benchmark",
+                        "continuation": continuation or "stop",
+                    }
+                )
+            on_event(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=index - 1,
+                    type="event",
+                    payload=payload,
+                )
+            )
+
         for index, profile_id in enumerate(profiles, start=1):
             if is_cancelled is not None and is_cancelled():
                 return WorkerOutcome(
@@ -721,6 +762,7 @@ class WorkerSupervisor:
             )
             if diagnostics is not None:
                 diagnostics.start()
+            emit_profile_event("BENCHMARK_PROFILE_STARTED", profile_id, index)
 
             try:
                 outcome = self.run_craig(
@@ -746,6 +788,28 @@ class WorkerSupervisor:
                         diagnostics.finalize(status="failed", error_code=exc.code)
                     except BenchmarkDiagnosticsError:
                         pass
+                profile_outcomes.append(
+                    {
+                        "profile_id": profile_id,
+                        "status": "failed",
+                        "error": {
+                            "code": exc.code,
+                            "recoverable": False,
+                            "scope": "benchmark",
+                        },
+                        "artifact_available": False,
+                        "continuation": {"decision": "stop", "reason": "benchmark_global"},
+                    }
+                )
+                emit_profile_event(
+                    "BENCHMARK_PROFILE_FAILED",
+                    profile_id,
+                    index,
+                    error_code=exc.code,
+                    recoverable=False,
+                    scope="benchmark",
+                    continuation="stop",
+                )
                 raise WorkerProcessError(exc.code, recoverable=False) from exc
             except WorkerProcessError as exc:
                 if diagnostics is not None:
@@ -762,6 +826,28 @@ class WorkerSupervisor:
                             recoverable=False,
                         ) from exc
                 if not _benchmark_profile_failure_is_local(exc):
+                    profile_outcomes.append(
+                        {
+                            "profile_id": profile_id,
+                            "status": "failed",
+                            "error": {
+                                "code": exc.code,
+                                "recoverable": exc.recoverable,
+                                "scope": "benchmark",
+                            },
+                            "artifact_available": False,
+                            "continuation": {"decision": "stop", "reason": "benchmark_global"},
+                        }
+                    )
+                    emit_profile_event(
+                        "BENCHMARK_PROFILE_FAILED",
+                        profile_id,
+                        index,
+                        error_code=exc.code,
+                        recoverable=exc.recoverable,
+                        scope="benchmark",
+                        continuation="stop",
+                    )
                     raise
                 profile_outcomes.append(
                     {
@@ -779,6 +865,15 @@ class WorkerSupervisor:
                         },
                     }
                 )
+                emit_profile_event(
+                    "BENCHMARK_PROFILE_FAILED",
+                    profile_id,
+                    index,
+                    error_code=exc.code,
+                    recoverable=exc.recoverable,
+                    scope="profile",
+                    continuation="continue",
+                )
                 commit_attempted_progress(index)
                 continue
             except Exception:
@@ -790,6 +885,28 @@ class WorkerSupervisor:
                         )
                     except BenchmarkDiagnosticsError:
                         pass
+                profile_outcomes.append(
+                    {
+                        "profile_id": profile_id,
+                        "status": "failed",
+                        "error": {
+                            "code": "BENCHMARK_PROFILE_SUPERVISOR_FAILED",
+                            "recoverable": False,
+                            "scope": "benchmark",
+                        },
+                        "artifact_available": False,
+                        "continuation": {"decision": "stop", "reason": "benchmark_global"},
+                    }
+                )
+                emit_profile_event(
+                    "BENCHMARK_PROFILE_FAILED",
+                    profile_id,
+                    index,
+                    error_code="BENCHMARK_PROFILE_SUPERVISOR_FAILED",
+                    recoverable=False,
+                    scope="benchmark",
+                    continuation="stop",
+                )
                 raise
 
             if outcome.terminal != "result":
@@ -819,6 +936,28 @@ class WorkerSupervisor:
                         receipt=receipt,
                         error_code="BENCHMARK_PROFILE_RESULT_INVALID",
                     )
+                profile_outcomes.append(
+                    {
+                        "profile_id": profile_id,
+                        "status": "failed",
+                        "error": {
+                            "code": "BENCHMARK_PROFILE_RESULT_INVALID",
+                            "recoverable": False,
+                            "scope": "benchmark",
+                        },
+                        "artifact_available": False,
+                        "continuation": {"decision": "stop", "reason": "benchmark_global"},
+                    }
+                )
+                emit_profile_event(
+                    "BENCHMARK_PROFILE_FAILED",
+                    profile_id,
+                    index,
+                    error_code="BENCHMARK_PROFILE_RESULT_INVALID",
+                    recoverable=False,
+                    scope="benchmark",
+                    continuation="stop",
+                )
                 raise WorkerProcessError("BENCHMARK_PROFILE_RESULT_INVALID", recoverable=False)
             if not _benchmark_profile_evidence_valid(
                 receipt,
@@ -837,6 +976,28 @@ class WorkerSupervisor:
                         receipt=receipt,
                         error_code="BENCHMARK_PROFILE_EVIDENCE_INVALID",
                     )
+                profile_outcomes.append(
+                    {
+                        "profile_id": profile_id,
+                        "status": "failed",
+                        "error": {
+                            "code": "BENCHMARK_PROFILE_EVIDENCE_INVALID",
+                            "recoverable": False,
+                            "scope": "benchmark",
+                        },
+                        "artifact_available": False,
+                        "continuation": {"decision": "stop", "reason": "benchmark_global"},
+                    }
+                )
+                emit_profile_event(
+                    "BENCHMARK_PROFILE_FAILED",
+                    profile_id,
+                    index,
+                    error_code="BENCHMARK_PROFILE_EVIDENCE_INVALID",
+                    recoverable=False,
+                    scope="benchmark",
+                    continuation="stop",
+                )
                 raise WorkerProcessError("BENCHMARK_PROFILE_EVIDENCE_INVALID", recoverable=False)
 
             if diagnostics is not None:
@@ -858,6 +1019,7 @@ class WorkerSupervisor:
                     "artifact_available": True,
                 }
             )
+            emit_profile_event("BENCHMARK_PROFILE_COMPLETED", profile_id, index)
             commit_attempted_progress(index)
 
         if len(receipts) != len(profiles):
