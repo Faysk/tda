@@ -978,7 +978,8 @@ export function SessionRecordingComposer({
 								<Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void deriveTimeline()}>
 									Usar horários confiáveis
 								</Button>
-							) : workspace.timeline.state === "needs_timing" ? (
+							) : workspace.timeline.state === "needs_timing" &&
+							capabilities.includes("transcription.session-sequence") ? (
 								<Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void confirmCurrentOrder()}>
 									Usar esta ordem
 								</Button>
