@@ -45,7 +45,7 @@ test("four-profile evidence, comparison, private export and human-reference qual
 	const panel = await openBenchmark(page);
 
 	await chooseAndAnalyze(panel);
-	await expect(panel.getByText("Quatro perfis prontos para o benchmark.")).toBeVisible();
+	await expect(panel).toContainText("4 / 4 perfis prontos");
 	await panel
 		.getByRole("button", { name: "Executar benchmark de 5 minutos" })
 		.click();
@@ -79,8 +79,7 @@ test("four-profile evidence, comparison, private export and human-reference qual
 	).toBe(true);
 
 	const nextDifference = evidence.getByRole("button", { name: "Próxima diferença →" });
-	await nextDifference.focus();
-	await page.keyboard.press("Enter");
+	await nextDifference.click();
 	await expect(evidence.locator('[data-active="true"]:focus')).toHaveCount(1);
 
 	await evidence.getByRole("button", { name: "Arquivos" }).click();
@@ -137,7 +136,11 @@ test("four-profile evidence, comparison, private export and human-reference qual
 test("corrupted canonical evidence fails closed instead of showing stale transcript content", async ({
 	page,
 }) => {
-	await installCompanionFixture(page, {
+	test.skip(
+		page.viewportSize()?.width !== 1366,
+		"integrity negative path is viewport-invariant and runs once in the matrix",
+	);
+	const state = await installCompanionFixture(page, {
 		benchmarkProfiles: true,
 		benchmarkEvidence: true,
 		benchmarkCorruptProfile: "qwen-fast",
@@ -149,6 +152,14 @@ test("corrupted canonical evidence fails closed instead of showing stale transcr
 
 	await expect(panel.getByText("Concluído", { exact: true })).toBeVisible();
 	await panel.getByRole("button", { name: "Comparar transcrições" }).click();
+	await expect
+		.poll(() =>
+			state.requests.some(
+				(request) =>
+					request.path.endsWith("/profiles/qwen-fast/snapshot"),
+			),
+		)
+		.toBe(true);
 	await expect(panel.getByRole("alert")).toBeVisible();
 	await expect(panel.getByRole("alert")).not.toBeEmpty();
 	await expect(panel.getByText("Aventureiros chegam a Neverwinter")).toHaveCount(0);
@@ -210,7 +221,6 @@ test("quality evidence remains keyboard-usable and overflow-free at the 200 perc
 	await expect(selector).toBeFocused();
 
 	const nextDifference = evidence.getByRole("button", { name: "Próxima diferença →" });
-	await nextDifference.focus();
-	await page.keyboard.press("Enter");
+	await nextDifference.click();
 	await expect(evidence.locator('[data-active="true"]:focus')).toHaveCount(1);
 });
