@@ -305,6 +305,13 @@ O workspace e a Session Assembly persistem de forma versionada e determinística
 Offset manual continua disponível nos controles técnicos para exceções reais. A
 decisão temporal entra na provenance/hash da assembly.
 
+Compatibilidade de rollout: a Web continua aceitando workspaces com
+`tda_session_timeline_v1` emitidos pelo Stable anterior. Nessa combinação não se
+inventa provenance v2 e o CTA de sequência confirmada permanece oculto. O fallback
+`user_confirmed_sequence` só é habilitado quando o Agent anuncia explicitamente a
+capability `transcription.session-sequence`; workspaces v2 usam
+`tda_session_timeline_v2`.
+
 ## Gaps
 
 Exemplo:
