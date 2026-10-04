@@ -111,11 +111,8 @@
 }
 
 .popover {
-	position: absolute;
-	top: calc(100% + 7px);
-	right: 0;
-	left: 0;
-	z-index: 80;
+	position: fixed;
+	z-index: 1000;
 	display: grid;
 	max-height: min(320px, 46dvh);
 	overflow-y: auto;
@@ -127,11 +124,6 @@
 	outline: 0;
 	backdrop-filter: blur(18px);
 	overscroll-behavior: contain;
-}
-
-.embedded .popover {
-	left: -58px;
-	min-width: calc(100% + 58px);
 }
 
 .option {
