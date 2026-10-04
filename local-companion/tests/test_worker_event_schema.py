@@ -177,6 +177,57 @@ def test_qwen_empty_window_recovery_events_preserve_safe_profile_metadata():
     assert recovered.drift_reason is None
 
 
+
+def test_benchmark_profile_events_preserve_only_bounded_outcome_metadata():
+    failed = sanitize_worker_event(
+        {
+            "code": "BENCHMARK_PROFILE_FAILED",
+            "stage": "benchmark",
+            "profile": "qwen-fast",
+            "attempted_count": 3,
+            "completed_count": 2,
+            "failed_count": 1,
+            "error_code": "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+            "recoverable": True,
+            "scope": "profile",
+            "continuation": "continue",
+            "text": "private transcript",
+            "path": "C:/private/audio.flac",
+        }
+    )
+
+    assert failed.code == "BENCHMARK_PROFILE_FAILED"
+    assert failed.level == "warning"
+    assert failed.data == {
+        "stage": "benchmark",
+        "profile": "qwen-fast",
+        "attempted_count": 3,
+        "completed_count": 2,
+        "failed_count": 1,
+        "error_code": "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+        "recoverable": True,
+        "scope": "profile",
+        "continuation": "continue",
+    }
+    assert failed.drift_reason == "unexpected_or_invalid_field"
+    assert failed.rejected_field_count == 2
+
+    completed = sanitize_worker_event(
+        {
+            "code": "BENCHMARK_PROFILE_COMPLETED",
+            "stage": "benchmark",
+            "profile": "whisper-turbo",
+            "attempted_count": 1,
+            "completed_count": 1,
+            "failed_count": 0,
+        }
+    )
+    assert completed.code == "BENCHMARK_PROFILE_COMPLETED"
+    assert completed.drift_reason is None
+    assert completed.data["completed_count"] == 1
+
+
+
 def test_unknown_or_malformed_event_code_never_persists_raw_code_or_payload():
     for payload in (
         {"code": "PRIVATE_WORDS_FROM_TRANSCRIPT", "detail": "segredo"},
