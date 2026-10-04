@@ -274,6 +274,20 @@ jobs:
         if: ${{ steps.plan.outputs.migrations == 'true' }}
         run: bash tools/ci/apply-production-migrations.sh
 
+      - name: Verify session campaign move database health before promotion
+        shell: bash
+        env:
+          HEALTH_ENV_FILE: ${{ runner.temp }}/tda-session-campaign-move-production.env
+        run: |
+          set -euo pipefail
+          umask 077
+          trap 'rm -f "$HEALTH_ENV_FILE"' EXIT
+          vercel env pull "$HEALTH_ENV_FILE" --environment=production --token="$VERCEL_TOKEN" >/dev/null
+          node tools/ci/session-campaign-move-production-health.mjs \
+            --env-file "$HEALTH_ENV_FILE" \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --phase pre_promote
+
       - name: Install Playwright Chromium when canonical media changed
         if: ${{ steps.plan.outputs.media_publish == 'true' }}
         run: pnpm exec playwright install --with-deps chromium
@@ -384,6 +398,20 @@ jobs:
             echo "::error::World Media unauthenticated canonical probe returned an unexpected body"
             exit 1
           fi
+
+      - name: Verify session campaign move database health after promotion
+        shell: bash
+        env:
+          HEALTH_ENV_FILE: ${{ runner.temp }}/tda-session-campaign-move-production.env
+        run: |
+          set -euo pipefail
+          umask 077
+          trap 'rm -f "$HEALTH_ENV_FILE"' EXIT
+          vercel env pull "$HEALTH_ENV_FILE" --environment=production --token="$VERCEL_TOKEN" >/dev/null
+          node tools/ci/session-campaign-move-production-health.mjs \
+            --env-file "$HEALTH_ENV_FILE" \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --phase canonical
 
       - name: Record post-promotion recovery action
         if: ${{ failure() && steps.promote.outcome == 'success' }}
