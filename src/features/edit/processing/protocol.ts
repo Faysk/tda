@@ -426,11 +426,11 @@ type BenchmarkResultBase = {
 
 export type BenchmarkCompleteResult = BenchmarkResultBase & {
 	schemaVersion: "tda_processing_benchmark_v1";
-	status: "completed";
-	profileOutcomes: readonly BenchmarkProfileOutcome[];
-	attemptedCount: 4;
-	completedCount: 4;
-	failedCount: 0;
+	status?: "completed";
+	profileOutcomes?: readonly BenchmarkProfileOutcome[];
+	attemptedCount?: 4;
+	completedCount?: 4;
+	failedCount?: 0;
 };
 
 export type BenchmarkPartialResult = BenchmarkResultBase & {
@@ -2331,7 +2331,7 @@ function benchmarkResultBase(row: Record<string, unknown>, jobId: string) {
 		sampleSeconds,
 		executionMode:
 			row.execution_mode === "prepared_artifacts_fresh_worker_per_profile_v1"
-				? row.execution_mode
+				? ("prepared_artifacts_fresh_worker_per_profile_v1" as const)
 				: invalid(),
 		trackCount: nonNegativeInteger(row.track_count),
 		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
