@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { LocalBridge } from "./bridge";
 import { SessionAssemblyReview } from "./session-assembly-review";
 import {
+	focusedSessionAssemblyIsReady,
 	retainSessionAssemblyReview,
 	shouldApplySessionAssemblyResult,
+	type SessionAssemblyReviewFocus,
 	type SessionAssemblyReviewSelection,
 } from "./session-assembly-results-model";
 import {
@@ -15,12 +17,6 @@ import {
 } from "./session-composer-storage";
 import type { SessionAssemblyListItem } from "./session-composer-protocol";
 import styles from "./session-assembly-results.module.css";
-
-export type SessionAssemblyReviewFocus = Readonly<{
-	sessionId: string;
-	assemblyId: string;
-	requestId: number;
-}>;
 
 type Props = Readonly<{
 	campaignId: string;
@@ -193,11 +189,13 @@ export function SessionAssemblyResults({
 
 	useEffect(() => {
 		if (
-			!focusReview ||
-			busy ||
-			handledFocusRequest.current === focusReview.requestId ||
-			sessionId !== focusReview.sessionId ||
-			!assemblies.some((item) => item.assemblyId === focusReview.assemblyId)
+			!focusedSessionAssemblyIsReady({
+				focus: focusReview,
+				currentSessionId: sessionId,
+				assemblyIds: assemblies.map((item) => item.assemblyId),
+				handledRequestId: handledFocusRequest.current,
+				busy,
+			})
 		)
 			return;
 		handledFocusRequest.current = focusReview.requestId;
