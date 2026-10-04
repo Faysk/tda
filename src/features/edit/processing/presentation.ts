@@ -136,6 +136,13 @@ export function presentJobError(
 	return known[code] ?? code.replaceAll("_", " ").toLocaleLowerCase("pt-BR");
 }
 
+export function presentBenchmarkPartialProfileError(code: string): string {
+	if (code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN") {
+		return "O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não tratou o trecho como silêncio nem inventou texto. Os demais perfis independentes foram tentados automaticamente; esta execução ficou parcial e não é uma comparação 4/4.";
+	}
+	return presentJobError(code, "benchmark.craig");
+}
+
 export const jobLabels: Record<JobStatus, string> = {
 	queued: "Na fila",
 	running: "Processando",
