@@ -148,7 +148,8 @@ def test_qwen_empty_window_recovery_events_preserve_safe_profile_metadata():
             "track": 2,
             "total_tracks": 4,
             "window": 217,
-            "profile": "qwen-quality",
+            "profile": "qwen-fast",
+            "strategy": "same-profile-2x30s",
             "count": 2,
             "start_seconds": 11664.0,
             "end_seconds": 11724.0,
@@ -156,7 +157,8 @@ def test_qwen_empty_window_recovery_events_preserve_safe_profile_metadata():
         }
     )
     assert started.code == "QWEN_EMPTY_WINDOW_RECOVERY_STARTED"
-    assert started.data["profile"] == "qwen-quality"
+    assert started.data["profile"] == "qwen-fast"
+    assert started.data["strategy"] == "same-profile-2x30s"
     assert started.data["count"] == 2
     assert "text" not in started.data
 
@@ -167,13 +169,16 @@ def test_qwen_empty_window_recovery_events_preserve_safe_profile_metadata():
             "track": 2,
             "total_tracks": 4,
             "window": 217,
-            "profile": "qwen-quality",
+            "profile": "qwen-fast",
+            "strategy": "same-profile-2x30s",
             "count": 2,
             "start_seconds": 11664.0,
             "end_seconds": 11724.0,
         }
     )
     assert recovered.code == "QWEN_EMPTY_WINDOW_RECOVERED"
+    assert recovered.data["profile"] == "qwen-fast"
+    assert recovered.data["strategy"] == "same-profile-2x30s"
     assert recovered.drift_reason is None
 
 
