@@ -406,7 +406,7 @@ def _right_context_alignment_window(
     )
 
 
-def _recover_quality_empty_window_with_subwindows(
+def _recover_empty_window_with_subwindows(
     window: AudioWindow,
     asr_session: AsrSession,
     *,
@@ -417,15 +417,16 @@ def _recover_quality_empty_window_with_subwindows(
     track_number: int,
     total_tracks: int,
 ) -> tuple[str, str] | None:
-    """Retry one signal-bearing full Quality window as two bounded in-window halves.
+    """Retry one signal-bearing full Qwen window as two bounded in-window halves.
 
-    Recovery is deliberately limited to qwen-quality and to canonical full
-    windows. It never borrows neighboring audio, so the recovered text keeps the
-    original window's provenance/ownership. Each half is independently fenced
-    for near-digital silence; any signal-bearing half that still returns empty
-    keeps the job fail-closed.
+    Recovery is deliberately limited to the active canonical Qwen profile and
+    to canonical full windows. It never switches model/profile or borrows
+    neighboring audio, so the recovered text keeps the original window's
+    provenance/ownership. Each half is independently fenced for near-digital
+    silence; any signal-bearing half that still returns empty keeps the job
+    fail-closed.
     """
-    if profile_id != "qwen-quality" or not math.isclose(
+    if profile_id not in {"qwen-fast", "qwen-quality"} or not math.isclose(
         window.end - window.start,
         QWEN_WINDOW_SECONDS,
         abs_tol=0.001,
@@ -451,6 +452,7 @@ def _recover_quality_empty_window_with_subwindows(
             "total_tracks": total_tracks,
             "window": window.index,
             "profile": profile_id,
+            "strategy": "2x30_same_profile",
             "count": 2,
             "start_seconds": window.start,
             "end_seconds": window.end,
@@ -513,6 +515,7 @@ def _recover_quality_empty_window_with_subwindows(
             "total_tracks": total_tracks,
             "window": window.index,
             "profile": profile_id,
+            "strategy": "2x30_same_profile",
             "count": 2,
             "start_seconds": window.start,
             "end_seconds": window.end,
@@ -958,7 +961,7 @@ def transcribe_craig_package_qwen_strict(
                         )
                         if not text.strip():
                             report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
-                            recovered = _recover_quality_empty_window_with_subwindows(
+                            recovered = _recover_empty_window_with_subwindows(
                                 window,
                                 asr_session,
                                 profile_id=profile.id,
