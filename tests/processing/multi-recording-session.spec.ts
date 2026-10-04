@@ -731,6 +731,8 @@ async function installMultiRecordingRoutes(
 				campaign_id: CAMPAIGN,
 				session_id: SESSION,
 				canonicalization_version: "tda_session_assembly_canonical_v2",
+				timing_policy_version: "tda_session_timeline_v2",
+				segment_boundary_policy: "segment_start_owner_v1",
 				inputs_sha256: ASSEMBLY_ID,
 				timeline_fingerprint_sha256: "f".repeat(64),
 				timeline_strategy: sequenceConfirmed
