@@ -2197,7 +2197,7 @@
 	}
 
 	.jobDiagnosticsShell {
-		grid-template-rows: auto auto auto auto auto minmax(180px, 1fr) auto;
+		grid-template-rows: auto auto auto auto auto minmax(min-content, 1fr) auto;
 		padding: 10px;
 	}
 
