@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
@@ -98,6 +99,9 @@ export default async function EditSessionPage({ params }: PageProps) {
 	const moveBackendReady = moveDestinations.length > 0
 		? await sessionCampaignMoveBackendReady()
 		: false;
+	const moveRecoveryScope = createHash("sha256")
+		.update("tda-session-campaign-move:" + (accessContext.profileId ?? "unresolved"))
+		.digest("hex");
 
 	let session: Awaited<ReturnType<typeof findEditSessionBySourceId>>;
 	try {
@@ -189,6 +193,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 					sourceCampaignName={campaign.name}
 					destinations={moveDestinations}
 					backendReady={moveBackendReady}
+					recoveryScope={moveRecoveryScope}
 				/>
 			</div>
 
