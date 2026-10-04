@@ -139,21 +139,22 @@ export type SessionWorkspacePart = {
 	relationToPrevious: SessionPartRelation;
 	relationSeconds: number | null;
 	overlapResolutionValid: boolean;
-	physicalIntervalState: SessionPhysicalIntervalState;
+	physicalIntervalState: SessionPhysicalIntervalState | null;
 	createdAt: string;
 	updatedAt: string;
 };
 export type SessionWorkspaceTimeline = {
-	policyVersion: "tda_session_timeline_v2";
+	policyVersion: "tda_session_timeline_v1" | "tda_session_timeline_v2";
 	segmentBoundaryPolicy: "segment_start_owner_v1";
 	fingerprintSha256: string;
 	strategy:
 		| "unresolved"
 		| "trusted_absolute"
 		| "user_confirmed_sequence"
-		| "manual_offsets";
-	wallClock: "unavailable" | "partial" | "trusted";
-	unknownIntervalCount: number;
+		| "manual_offsets"
+		| null;
+	wallClock: "unavailable" | "partial" | "trusted" | null;
+	unknownIntervalCount: number | null;
 	state:
 		| "ready"
 		| "needs_timing"
@@ -1030,7 +1031,11 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			part.overlap_resolution === null || part.overlap_resolution === undefined
 				? null
 				: text(part.overlap_resolution, 32);
-		const physicalIntervalState = text(part.physical_interval_state, 32);
+		const physicalIntervalState =
+			part.physical_interval_state === null ||
+			part.physical_interval_state === undefined
+				? null
+				: text(part.physical_interval_state, 32);
 		if (!/^[0-9a-f]{32}$/u.test(partId)) return invalid();
 		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
 		if (ordinal !== index) return invalid();
@@ -1055,6 +1060,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		)
 			return invalid();
 		if (
+			physicalIntervalState !== null &&
 			!["first", "trusted_absolute", "unknown", "manual"].includes(
 				physicalIntervalState,
 			)
@@ -1098,7 +1104,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			relationSeconds: nullableNonNegativeNumber(part.relation_seconds),
 			overlapResolutionValid: boolean(part.overlap_resolution_valid),
 			physicalIntervalState:
-				physicalIntervalState as SessionPhysicalIntervalState,
+				physicalIntervalState as SessionPhysicalIntervalState | null,
 			createdAt: isoDate(part.created_at),
 			updatedAt: isoDate(part.updated_at),
 		} satisfies SessionWorkspacePart;
@@ -1112,19 +1118,25 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const policyVersion = text(timeline.policy_version, 40);
 	const segmentBoundaryPolicy = text(timeline.segment_boundary_policy, 40);
 	const state = text(timeline.state, 32);
-	const strategy = text(timeline.strategy, 32);
-	const wallClock = text(timeline.wall_clock, 16);
-	if (policyVersion !== "tda_session_timeline_v2") return invalid();
+	const timelineV2 = policyVersion === "tda_session_timeline_v2";
+	if (!timelineV2 && policyVersion !== "tda_session_timeline_v1") return invalid();
+	const strategy = timelineV2 ? text(timeline.strategy, 32) : null;
+	const wallClock = timelineV2 ? text(timeline.wall_clock, 16) : null;
 	if (
+		timelineV2 &&
 		![
 			"unresolved",
 			"trusted_absolute",
 			"user_confirmed_sequence",
 			"manual_offsets",
-		].includes(strategy)
+		].includes(strategy ?? "")
 	)
 		return invalid();
-	if (!["unavailable", "partial", "trusted"].includes(wallClock)) return invalid();
+	if (
+		timelineV2 &&
+		!["unavailable", "partial", "trusted"].includes(wallClock ?? "")
+	)
+		return invalid();
 	if (segmentBoundaryPolicy !== "segment_start_owner_v1") return invalid();
 	if (
 		![
@@ -1152,7 +1164,9 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		timeline.unresolved_overlap_count,
 	);
 	const unconfirmedGapCount = nonNegativeInteger(timeline.unconfirmed_gap_count);
-	const unknownIntervalCount = nonNegativeInteger(timeline.unknown_interval_count);
+	const unknownIntervalCount = timelineV2
+		? nonNegativeInteger(timeline.unknown_interval_count)
+		: null;
 	const observedGapCount = parts.filter(
 		(part) => part.relationToPrevious === "gap",
 	).length;
@@ -1170,18 +1184,23 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		(part) =>
 			part.relationToPrevious === "gap" &&
 			!part.gapConfirmed &&
-			part.physicalIntervalState !== "trusted_absolute",
+			(!timelineV2 || part.physicalIntervalState !== "trusted_absolute"),
 	).length;
 	const observedUnknownIntervalCount = parts.filter(
 		(part) => part.physicalIntervalState === "unknown",
 	).length;
+	if (
+		timelineV2 &&
+		parts.some((part) => part.physicalIntervalState === null)
+	)
+		return invalid();
 	if (
 		gapCount !== observedGapCount ||
 		overlapCount !== observedOverlapCount ||
 		orderConflictCount !== observedOrderConflictCount ||
 		unresolvedOverlapCount !== observedUnresolvedOverlapCount ||
 		unconfirmedGapCount !== observedUnconfirmedGapCount ||
-		unknownIntervalCount !== observedUnknownIntervalCount
+		(timelineV2 && unknownIntervalCount !== observedUnknownIntervalCount)
 	)
 		return invalid();
 
@@ -1195,7 +1214,8 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		updatedAt: isoDate(row.updated_at),
 		parts,
 		timeline: {
-			policyVersion: "tda_session_timeline_v2",
+			policyVersion:
+				policyVersion as SessionWorkspaceTimeline["policyVersion"],
 			segmentBoundaryPolicy: "segment_start_owner_v1",
 			fingerprintSha256: sha256(timeline.fingerprint_sha256),
 			strategy: strategy as SessionWorkspaceTimeline["strategy"],
