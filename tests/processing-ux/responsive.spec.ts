@@ -1158,6 +1158,44 @@ test("contextual diagnostics preserves toolbar geometry with bounded history, ca
 	});
 });
 
+test("contextual diagnostics keeps stale-event warning in flow without covering controls", async ({
+	page,
+}) => {
+	const { inspector } = await openBenchmarkContextualDiagnostics(
+		page,
+		{ width: 761, height: 701 },
+	);
+	await page.route("**/api/v1/jobs/benchmark-job-1/events*", (route) =>
+		route.fulfill({
+			status: 503,
+			contentType: "application/json",
+			headers: {
+				"Access-Control-Allow-Origin": "http://127.0.0.1:3102",
+				"Cache-Control": "no-store",
+			},
+			body: JSON.stringify({
+				error: { code: "SYNTHETIC_EVENTS_STALE", recoverable: true },
+			}),
+		}),
+	);
+
+	await expect(
+		inspector.getByText(
+			"Eventos desatualizados. O último histórico disponível foi preservado.",
+			{ exact: true },
+		),
+	).toBeVisible({ timeout: 6_000 });
+
+	const geometry = await readContextualLogGeometry(inspector);
+	expectContextualLogRegionsDoNotOverlap(geometry);
+	await expect(
+		inspector.getByRole("button", {
+			name: "Pausar visualização",
+			exact: true,
+		}),
+	).toBeVisible();
+});
+
 test("contextual diagnostics keeps keyboard focus reachable and restores the benchmark opener", async ({
 	page,
 }) => {
