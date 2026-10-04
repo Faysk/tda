@@ -231,6 +231,11 @@ export function SessionAssemblyResults({
 			);
 			return;
 		}
+		if (
+			activeAssembly?.assemblyId === focus.assembly.assemblyId &&
+			reviewSelection?.review.assemblyId === focus.assembly.assemblyId
+		)
+			return;
 		sessionIdRef.current = focus.sessionId;
 		setSessionId(focus.sessionId);
 		void refresh(focus.sessionId);
@@ -247,6 +252,7 @@ export function SessionAssemblyResults({
 		loadReview,
 		refresh,
 		reviewDirty,
+		reviewSelection,
 	]);
 
 	const review =
