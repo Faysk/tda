@@ -104,11 +104,20 @@ export function sessionAssemblyReadiness(
 
 export function partRelationLabel(part: SessionWorkspacePart): string {
 	if (part.relationToPrevious === "first") return "Primeira gravação";
-	if (part.relationToPrevious === "contiguous") return "Continuação sem gap detectável";
+	if (part.physicalIntervalState === "unknown")
+		return "Continuidade editorial · intervalo real desconhecido";
+	if (part.relationToPrevious === "contiguous")
+		return part.physicalIntervalState === "trusted_absolute"
+			? "Horários confiáveis indicam continuidade"
+			: "Continuação definida";
 	if (part.relationToPrevious === "gap")
-		return "Gap de " + Math.round(part.relationSeconds ?? 0) + " s";
+		return (part.physicalIntervalState === "trusted_absolute" ? "Gap comprovado de " : "Gap definido de ") +
+			Math.round(part.relationSeconds ?? 0) +
+			" s";
 	if (part.relationToPrevious === "overlap")
-		return "Overlap de " + Math.round(part.relationSeconds ?? 0) + " s";
+		return (part.physicalIntervalState === "trusted_absolute" ? "Overlap comprovado de " : "Overlap definido de ") +
+			Math.round(part.relationSeconds ?? 0) +
+			" s";
 	if (part.relationToPrevious === "order_conflict")
 		return "Ordem temporal em conflito";
 	return "Cronologia ainda não resolvida";
