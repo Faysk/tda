@@ -754,7 +754,7 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 
 	await workspace.getByRole("tab", { name: "Execução" }).click();
 	await expect(workspace.getByText("NVIDIA GeForce RTX 4070 Laptop GPU").first()).toBeVisible();
-	await expect(workspace.getByText(/1\.0\.12|1\.1\.7/u).first()).toBeVisible();
+	await expect(workspace.getByText(/1\.0\.18|1\.1\.10/u).first()).toBeVisible();
 
 	await workspace.getByRole("button", { name: "Arquivos" }).click();
 	await expect(workspace.getByText("Arquivos privados locais.")).toBeVisible();
