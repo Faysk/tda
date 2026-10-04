@@ -628,6 +628,11 @@ export function ProcessingBenchmark({
 	}, [acceptedJob, benchmarkJobs]);
 
 	useEffect(() => {
+		if (!connected || !latestProblem || observedJobId !== null) return;
+		void onObserve(latestProblem.id);
+	}, [connected, latestProblem, observedJobId, onObserve]);
+
+	useEffect(() => {
 		const missing = resultJobs
 			.slice(0, 20)
 			.filter((job) => results[job.id] === undefined);
