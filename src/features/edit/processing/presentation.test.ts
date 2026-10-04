@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	presentBenchmarkPartialProfileError,
 	presentConnectionError,
 	presentJobError,
 	presentJobEvent,
@@ -74,6 +75,12 @@ describe("processing presentation", () => {
 		).toBe(
 			"O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. O Benchmark registrou a falha deste perfil e continua automaticamente com os perfis independentes restantes.",
 		);
+		expect(
+			presentBenchmarkPartialProfileError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"),
+		).toContain("foram tentados automaticamente");
+		expect(
+			presentBenchmarkPartialProfileError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"),
+		).toContain("não é uma comparação 4/4");
 		expect(presentJobError("WHISPER_RUNTIME_UNAVAILABLE")).toContain(
 			"Whisper",
 		);
