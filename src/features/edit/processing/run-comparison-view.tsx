@@ -302,7 +302,7 @@ export function RunComparisonView({
 					/>
 					<span>Somente divergências</span>
 				</label>
-				<label>
+				<div>
 					<span>Track</span>
 					<Select
 						value={trackFilter}
@@ -314,8 +314,8 @@ export function RunComparisonView({
 						ariaLabel="Filtrar comparação por track"
 						compact
 					/>
-				</label>
-				<label>
+				</div>
+				<div>
 					<span>Participante</span>
 					<Select
 						value={speakerFilter}
@@ -327,7 +327,7 @@ export function RunComparisonView({
 						ariaLabel="Filtrar comparação por participante"
 						compact
 					/>
-				</label>
+				</div>
 				<fieldset className={styles.timeRange}>
 					<legend>Faixa na sessão (s)</legend>
 					<label>
