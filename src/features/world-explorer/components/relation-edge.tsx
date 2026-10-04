@@ -3,6 +3,7 @@
 import {
 	BaseEdge,
 	EdgeLabelRenderer,
+	ViewportPortal,
 	getBezierPath,
 	type EdgeProps,
 	useInternalNode,
@@ -162,6 +163,17 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 		? STYLE_DASHES[customStyle.lineStyle]
 		: RELATION_DASHES[family];
 
+	// Keep interaction in React Flow's native edge SVG, but paint the visible
+	// relation inside ViewportPortal. The portal shares the viewport transform
+	// with nodes, so it does not drift during pan/zoom like EdgeLabelRenderer,
+	// while avoiding the Chromium paint failure previously observed in the native
+	// edge SVG composition.
+	const paintPadding = Math.max(120, routeOffset * 3, Math.abs(bendOffset) + 80);
+	const paintLeft = Math.min(sourceX, targetX) - paintPadding;
+	const paintTop = Math.min(sourceY, targetY) - paintPadding;
+	const paintWidth = Math.max(1, Math.abs(targetX - sourceX) + paintPadding * 2);
+	const paintHeight = Math.max(1, Math.abs(targetY - sourceY) + paintPadding * 2);
+
 	return (
 		<>
 			<BaseEdge
@@ -175,57 +187,76 @@ export function WorldRelationEdge(props: EdgeProps<WorldFlowEdge>) {
 					strokeOpacity: 0,
 				}}
 			/>
-			{semantic.showHalo ? (
-				<path
-					d={path}
-					fill="none"
-					stroke="var(--ds-canvas)"
-					strokeWidth={strokeWidth + 3}
-					strokeOpacity={dimmed ? 0.04 : active ? 0.7 : 0.3}
-					strokeDasharray={dash}
-					vectorEffect="non-scaling-stroke"
-					strokeLinecap="round"
-					pointerEvents="none"
-					data-world-edge-halo={props.id}
-				/>
-			) : null}
-			<path
-				d={path}
-				fill="none"
-				stroke={stroke}
-				strokeWidth={strokeWidth}
-				strokeOpacity={strokeOpacity}
-				strokeDasharray={dash}
-				vectorEffect="non-scaling-stroke"
-				strokeLinecap="round"
-				markerEnd={props.markerEnd}
-				pointerEvents="none"
-				data-family={family}
-				data-edge-curve="bezier"
-				data-edge-anchor={floating ? "floating" : "handle"}
-				data-edge-bend={bendOffset}
-				data-world-edge-active={active ? "true" : "false"}
-				data-world-edge={props.id}
-				data-world-semantic-zoom={semanticZoom}
-			/>
-			{semantic.showMotion && active && !dimmed ? (
-				<path
-					d={path}
-					className={effects.flowMotion}
-					fill="none"
-					stroke={motionStroke}
-					strokeWidth={Math.max(2, Math.min(3.4, baseWidth - 0.2))}
-					strokeOpacity={0.98}
-					strokeDasharray="1 11"
-					strokeDashoffset="0"
-					vectorEffect="non-scaling-stroke"
-					strokeLinecap="round"
-					pointerEvents="none"
-					data-family={family}
-					data-motion-contrast="bright"
-					data-world-edge-motion={props.id}
-				/>
-			) : null}
+			<ViewportPortal>
+				<svg
+					viewBox={`${paintLeft} ${paintTop} ${paintWidth} ${paintHeight}`}
+					width={paintWidth}
+					height={paintHeight}
+					style={{
+						position: "absolute",
+						left: paintLeft,
+						top: paintTop,
+						overflow: "visible",
+						pointerEvents: "none",
+						zIndex: 1,
+					}}
+					aria-hidden="true"
+					data-world-edge-layer="viewport"
+					data-world-edge-paint-layer={props.id}
+				>
+					{semantic.showHalo ? (
+						<path
+							d={path}
+							fill="none"
+							stroke="var(--ds-canvas)"
+							strokeWidth={strokeWidth + 3}
+							strokeOpacity={dimmed ? 0.04 : active ? 0.7 : 0.3}
+							strokeDasharray={dash}
+							vectorEffect="non-scaling-stroke"
+							strokeLinecap="round"
+							pointerEvents="none"
+							data-world-edge-halo={props.id}
+						/>
+					) : null}
+					<path
+						d={path}
+						fill="none"
+						stroke={stroke}
+						strokeWidth={strokeWidth}
+						strokeOpacity={strokeOpacity}
+						strokeDasharray={dash}
+						vectorEffect="non-scaling-stroke"
+						strokeLinecap="round"
+						markerEnd={props.markerEnd}
+						pointerEvents="none"
+						data-family={family}
+						data-edge-curve="bezier"
+						data-edge-anchor={floating ? "floating" : "handle"}
+						data-edge-bend={bendOffset}
+						data-world-edge-active={active ? "true" : "false"}
+						data-world-edge={props.id}
+						data-world-semantic-zoom={semanticZoom}
+					/>
+					{semantic.showMotion && active && !dimmed ? (
+						<path
+							d={path}
+							className={effects.flowMotion}
+							fill="none"
+							stroke={motionStroke}
+							strokeWidth={Math.max(2, Math.min(3.4, baseWidth - 0.2))}
+							strokeOpacity={0.98}
+							strokeDasharray="1 11"
+							strokeDashoffset="0"
+							vectorEffect="non-scaling-stroke"
+							strokeLinecap="round"
+							pointerEvents="none"
+							data-family={family}
+							data-motion-contrast="bright"
+							data-world-edge-motion={props.id}
+						/>
+					) : null}
+				</svg>
+			</ViewportPortal>
 			<EdgeLabelRenderer>
 				{item && semantic.showLabel ? (
 					<div
