@@ -67,6 +67,8 @@ describe("contextual job diagnostic privacy contract", () => {
 				failed_count: 1,
 				error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
 				recoverable: true,
+				scope: "profile",
+				continued: true,
 				transcript: "private words",
 				audio_path: "C:\\private\\audio.wav",
 			},
@@ -79,6 +81,8 @@ describe("contextual job diagnostic privacy contract", () => {
 			failed_count: 1,
 			error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
 			recoverable: true,
+			scope: "profile",
+			continued: true,
 		});
 		expect(JSON.stringify(sanitized)).not.toContain("private words");
 		expect(JSON.stringify(sanitized)).not.toContain("audio.wav");
