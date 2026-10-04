@@ -289,6 +289,119 @@ function ResultCard({
 	);
 }
 
+function profileRunLabel(state: BenchmarkProfileUiState): string {
+	return {
+		pending: "pendente",
+		running: "executando",
+		completed: "concluído",
+		failed: "falhou",
+		cancelled: "cancelado",
+		not_attempted: "não tentado",
+	}[state.status];
+}
+
+function profileRunIcon(state: BenchmarkProfileUiState): string {
+	return {
+		pending: "○",
+		running: "●",
+		completed: "✓",
+		failed: "✕",
+		cancelled: "■",
+		not_attempted: "–",
+	}[state.status];
+}
+
+function PartialResultCard({
+	result,
+	updatedAt,
+	onDiagnostics,
+	onRepeat,
+}: Readonly<{
+	result: BenchmarkPartialResult;
+	updatedAt: string;
+	onDiagnostics: () => void;
+	onRepeat: () => void;
+}>) {
+	const failedProfiles = result.profiles.filter(
+		(profile) => profile.status === "failed",
+	);
+	const qwenUncertain = failedProfiles.find(
+		(profile) =>
+			profile.status === "failed" &&
+			profile.error.code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+	);
+	return (
+		<article className={[styles.resultCard, styles.partialCard].join(" ")}>
+			<header className={styles.resultHeader}>
+				<div>
+					<span className={styles.eyebrow}>Benchmark local · attempt parcial</span>
+					<h3>
+						{result.completedCount} de {result.attemptedCount} perfis concluíram
+					</h3>
+				</div>
+				<StatusPill tone="warning">Parcial</StatusPill>
+			</header>
+			<div className={styles.receiptFacts}>
+				<span>{formatBenchmarkHistoryDate(updatedAt)}</span>
+				<span>Tentados {result.attemptedCount}/4</span>
+				<span>Concluídos {result.completedCount}</span>
+				<span>Falharam {result.failedCount}</span>
+				<span>Sem bundle comparável 4/4</span>
+			</div>
+			<ol className={styles.runSteps} aria-label="Resultado dos quatro perfis">
+				{result.profiles.map((profile) => {
+					const state: BenchmarkProfileUiState =
+						profile.status === "completed"
+							? {
+									profileId: profile.profileId,
+									status: "completed",
+									errorCode: null,
+									recoverable: null,
+									scope: null,
+									continuation: null,
+									artifactAvailable: true,
+								}
+							: {
+									profileId: profile.profileId,
+									status: "failed",
+									errorCode: profile.error.code,
+									recoverable: profile.error.recoverable,
+									scope: profile.error.scope,
+									continuation: profile.continuation.decision,
+									artifactAvailable: false,
+								};
+					return (
+						<li
+							key={profile.profileId}
+							className={styles.runStep}
+							data-state={state.status}
+						>
+							<i aria-hidden="true">{profileRunIcon(state)}</i>
+							<span>
+								{LABELS[profile.profileId]} · {profileRunLabel(state)}
+								{state.errorCode ? " · " + state.errorCode : ""}
+							</span>
+						</li>
+					);
+				})}
+			</ol>
+			<p className={styles.partialExplanation}>
+				{qwenUncertain
+					? "O Qwen detectou sinal de áudio, mas não conseguiu reconhecer um trecho com segurança. O TDA não tratou isso como silêncio nem inventou texto. Os demais perfis independentes foram tentados automaticamente; este attempt não será apresentado como comparação 4/4."
+					: "Os resultados válidos foram preservados, mas pelo menos um perfil falhou de forma isolada. Este attempt permanece parcial e não entra nas comparações 4/4."}
+			</p>
+			<div className={styles.activeActions}>
+				<Button size="sm" variant="primary" onClick={onRepeat}>
+					Executar novo benchmark
+				</Button>
+				<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+					Ver log / Diagnóstico
+				</Button>
+			</div>
+		</article>
+	);
+}
+
 function ProfileReadiness({
 	profile,
 	id,
