@@ -2058,20 +2058,34 @@ class Store:
                         ):
                             raise Conflict("TRANSCRIPTION_WORK_ALREADY_ACTIVE")
                 status = "queued"
-                # Queue progress restarts from zero for the new attempt.
-                # Engines may reuse validated per-track checkpoints, but every
-                # reused track must be replayed as fresh sequential progress before
-                # this attempt can commit its own immutable result.
-                if body["kind"] == "transcription.craig":
+                # Queue progress restarts from zero for every retryable processing
+                # attempt. Engines may reuse validated checkpoints/artifacts, but
+                # progress and partial Benchmark results belong to one attempt only.
+                if body["kind"] in {"transcription.craig", "benchmark.craig"}:
                     completed = 0
             now = utc_now()
             db.execute(
                 "UPDATE jobs SET status=?,stage=?,completed=?,error=NULL,error_recoverable=1,"
+                "result=CASE WHEN ?='queued' THEN NULL ELSE result END,"
                 "attempt_started_at=CASE WHEN ?='queued' THEN NULL ELSE attempt_started_at END,"
                 "attempt_finished_at=CASE WHEN ?='queued' THEN NULL WHEN ?='cancelled' THEN ? ELSE attempt_finished_at END,"
                 "stage_started_at=CASE WHEN ?='queued' THEN NULL ELSE ? END,"
                 "timing_state=CASE WHEN ?='queued' THEN NULL ELSE timing_state END,updated=? WHERE id=?",
-                (status, status, completed, status, status, status, now, status, now, status, now, job_id),
+                (
+                    status,
+                    status,
+                    completed,
+                    status,
+                    status,
+                    status,
+                    status,
+                    now,
+                    status,
+                    now,
+                    status,
+                    now,
+                    job_id,
+                ),
             )
             self.event(
                 db,
@@ -2166,11 +2180,18 @@ class Store:
                 "UPDATE jobs SET completed=?,stage=?,stage_started_at=CASE WHEN stage<>? THEN ? ELSE stage_started_at END,updated=? WHERE id=?",
                 (completed, stage, stage, now, now, job_id),
             )
+            unit = (
+                "tracks"
+                if body["kind"] == "transcription.craig"
+                else "profiles"
+                if body["kind"] == "benchmark.craig"
+                else "items"
+            )
             self.event(
                 db,
                 job_id,
                 "UNIT_COMMITTED",
-                {"completed": completed, "total": total, "unit": "tracks"},
+                {"completed": completed, "total": total, "unit": unit},
                 attempt=attempt,
             )
             return True
@@ -2195,6 +2216,39 @@ class Store:
                 job_id,
                 "SUCCEEDED",
                 {"total": body["units"]},
+                attempt=attempt,
+            )
+            return True
+
+    def complete_partial_benchmark(self, job_id, attempt, result):
+        encoded = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with self.tx() as db:
+            row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            if not row or row["status"] != "running" or row["attempt"] != attempt:
+                return False
+            body = json.loads(row["body"])
+            if body.get("kind") != "benchmark.craig":
+                raise Conflict("BENCHMARK_PARTIAL_KIND_INVALID")
+            if row["completed"] != body["units"]:
+                raise Conflict("WORKER_RESULT_INCOMPLETE")
+            now = utc_now()
+            db.execute(
+                "UPDATE jobs SET status='failed',stage='complete',result=?,"
+                "error='BENCHMARK_PARTIAL',error_recoverable=1,"
+                "attempt_finished_at=?,stage_started_at=?,updated=? WHERE id=?",
+                (encoded, now, now, now, job_id),
+            )
+            self.event(
+                db,
+                job_id,
+                "BENCHMARK_PARTIAL",
+                {
+                    "completed": int(result.get("completed_count", 0)),
+                    "failed": int(result.get("failed_count", 0)),
+                    "attempted": int(result.get("attempted_count", 0)),
+                    "total": body["units"],
+                },
+                level="warning",
                 attempt=attempt,
             )
             return True
