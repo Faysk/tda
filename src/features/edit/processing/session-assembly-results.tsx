@@ -280,7 +280,7 @@ export function SessionAssemblyResults({
 									type="button"
 									size="sm"
 									variant={selected ? "secondary" : "tertiary"}
-									disabled={busy}
+									disabled={reviewBusy}
 									onClick={() => void openReview(assembly.assemblyId)}
 								>
 									{selected ? "Revisão aberta" : "Abrir revisão"}
