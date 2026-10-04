@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectThemedSelectValue, selectThemedOption } from "../helpers/themed-select";
 import {
 	fixtureBenchmarkJob,
 	installCompanionFixture,
@@ -1049,7 +1050,7 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	state.setJob(fixtureBenchmarkJob("failed"));
 	await refresh.click();
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
-	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false })).toBeVisible();
+	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false }).first()).toBeVisible();
 	await expect(panel.getByText("sem receipt comparável", { exact: false })).toBeVisible();
 });
 
@@ -1112,8 +1113,8 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 	).toHaveCount(1);
 
 	const leftSelector = workspace.getByLabel("Perfil A");
-	await leftSelector.selectOption("whisper-turbo");
-	await expect(leftSelector).toHaveValue("whisper-turbo");
+	await selectThemedOption(page, leftSelector, "whisper-turbo");
+	await expectThemedSelectValue(leftSelector, "whisper-turbo");
 	await expect
 		.poll(() =>
 			state.requests.some((request) =>
