@@ -658,7 +658,8 @@ class Store:
             db.execute(
                 """
                 UPDATE session_recording_parts
-                SET gap_confirmed=0,overlap_resolution=NULL,
+                SET timeline_mode='unresolved',session_offset_seconds=NULL,
+                    gap_confirmed=0,overlap_resolution=NULL,
                     overlap_boundary_seconds=NULL,updated=?
                 WHERE campaign_id=? AND session_id=?
                 """,
@@ -741,7 +742,8 @@ class Store:
             db.execute(
                 """
                 UPDATE session_recording_parts
-                SET gap_confirmed=0,overlap_resolution=NULL,
+                SET timeline_mode='unresolved',session_offset_seconds=NULL,
+                    gap_confirmed=0,overlap_resolution=NULL,
                     overlap_boundary_seconds=NULL,updated=?
                 WHERE campaign_id=? AND session_id=?
                 """,
@@ -969,6 +971,113 @@ class Store:
                 )
             db.execute(
                 "UPDATE session_workspaces SET ordering_mode='automatic' "
+                "WHERE campaign_id=? AND session_id=?",
+                (row["campaign_id"], row["session_id"]),
+            )
+            bumped = self._bump_session_workspace(
+                db, row["campaign_id"], row["session_id"], row["revision"]
+            )
+            return self._session_workspace_dto(db, bumped)
+
+    def apply_confirmed_session_timeline(
+        self,
+        campaign_id,
+        session_id,
+        placements,
+        expected_revision,
+    ):
+        if not isinstance(placements, (list, tuple)) or len(placements) > 64:
+            raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+        normalized = []
+        for raw in placements:
+            if not isinstance(raw, dict):
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+            ordinal = raw.get("ordinal")
+            if (
+                isinstance(ordinal, bool)
+                or not isinstance(ordinal, int)
+                or ordinal < 0
+                or ordinal >= 64
+            ):
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+            gap_confirmed = raw.get("gap_confirmed", False)
+            if not isinstance(gap_confirmed, bool):
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+            normalized.append(
+                {
+                    "part_id": self._workspace_part_id(raw.get("part_id")),
+                    "source_id": self._workspace_source_id(raw.get("source_id")),
+                    "ordinal": ordinal,
+                    "session_offset_seconds": self._workspace_seconds(
+                        raw.get("session_offset_seconds"), "SESSION_OFFSET"
+                    ),
+                    "gap_confirmed": gap_confirmed,
+                }
+            )
+        if sorted(item["ordinal"] for item in normalized) != list(range(len(normalized))):
+            raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+        if len({item["part_id"] for item in normalized}) != len(normalized):
+            raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            current = db.execute(
+                """
+                SELECT part_id,source_id,ordinal,timeline_mode,session_offset_seconds,
+                       gap_confirmed,overlap_resolution,overlap_boundary_seconds
+                FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=?
+                ORDER BY ordinal ASC,part_id ASC
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchall()
+            if len(current) != len(normalized):
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+            by_part = {part["part_id"]: part for part in current}
+            if set(by_part) != {item["part_id"] for item in normalized}:
+                raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+            for item in normalized:
+                current_part = by_part[item["part_id"]]
+                if (
+                    current_part["source_id"] != item["source_id"]
+                    or current_part["ordinal"] != item["ordinal"]
+                ):
+                    raise Conflict("SESSION_WORKSPACE_TIMELINE_INVALID")
+
+            already_applied = row["ordering_mode"] == "confirmed_sequence" and all(
+                by_part[item["part_id"]]["timeline_mode"] == "confirmed_sequence"
+                and by_part[item["part_id"]]["session_offset_seconds"]
+                == item["session_offset_seconds"]
+                and bool(by_part[item["part_id"]]["gap_confirmed"])
+                == item["gap_confirmed"]
+                and by_part[item["part_id"]]["overlap_resolution"] is None
+                and by_part[item["part_id"]]["overlap_boundary_seconds"] is None
+                for item in normalized
+            )
+            if already_applied:
+                return self._session_workspace_dto(db, row)
+
+            now = utc_now()
+            for item in normalized:
+                db.execute(
+                    """
+                    UPDATE session_recording_parts
+                    SET timeline_mode='confirmed_sequence',session_offset_seconds=?,
+                        gap_confirmed=?,overlap_resolution=NULL,
+                        overlap_boundary_seconds=NULL,updated=?
+                    WHERE part_id=?
+                    """,
+                    (
+                        item["session_offset_seconds"],
+                        int(item["gap_confirmed"]),
+                        now,
+                        item["part_id"],
+                    ),
+                )
+            db.execute(
+                "UPDATE session_workspaces SET ordering_mode='confirmed_sequence' "
                 "WHERE campaign_id=? AND session_id=?",
                 (row["campaign_id"], row["session_id"]),
             )
