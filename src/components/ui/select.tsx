@@ -3,10 +3,13 @@
 import {
 	useEffect,
 	useId,
+	useLayoutEffect,
 	useRef,
 	useState,
+	type CSSProperties,
 	type KeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { classNames } from "./class-names";
 import styles from "./select.module.css";
 
@@ -82,6 +85,7 @@ export function Select<T extends string>({
 	const currentValue = value ?? internalValue;
 	const [open, setOpen] = useState(false);
 	const [requiredMissing, setRequiredMissing] = useState(false);
+	const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({});
 	const selectedIndex = options.findIndex((option) => option.value === currentValue);
 	const [activeIndex, setActiveIndex] = useState(
 		selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(options),
@@ -117,10 +121,57 @@ export function Select<T extends string>({
 		return () => form.removeEventListener("submit", handleSubmit);
 	}, [currentValue, required]);
 
+	useLayoutEffect(() => {
+		if (!open) return;
+		const updatePosition = () => {
+			const trigger = triggerRef.current;
+			if (!trigger) return;
+			const rect = trigger.getBoundingClientRect();
+			const viewportPadding = 8;
+			const gap = 7;
+			const preferredMaxHeight = Math.min(320, window.innerHeight * 0.46);
+			const preferredWidth = rect.width + (embedded ? 58 : 0);
+			const width = Math.min(
+				Math.max(rect.width, preferredWidth),
+				Math.max(120, window.innerWidth - viewportPadding * 2),
+			);
+			const naturalLeft = rect.left - (embedded ? 58 : 0);
+			const left = Math.min(
+				Math.max(viewportPadding, naturalLeft),
+				Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
+			);
+			const below = window.innerHeight - rect.bottom - gap - viewportPadding;
+			const above = rect.top - gap - viewportPadding;
+			const openUp = below < Math.min(180, preferredMaxHeight) && above > below;
+			const available = Math.max(96, openUp ? above : below);
+			setPopoverStyle({
+				left,
+				width,
+				maxHeight: Math.min(preferredMaxHeight, available),
+				...(openUp
+					? { bottom: window.innerHeight - rect.top + gap, top: "auto" }
+					: { top: rect.bottom + gap, bottom: "auto" }),
+			});
+		};
+		updatePosition();
+		window.addEventListener("resize", updatePosition);
+		window.addEventListener("scroll", updatePosition, true);
+		return () => {
+			window.removeEventListener("resize", updatePosition);
+			window.removeEventListener("scroll", updatePosition, true);
+		};
+	}, [embedded, open]);
+
 	useEffect(() => {
 		if (!open) return;
 		const handlePointerDown = (event: PointerEvent) => {
-			if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+			const target = event.target as Node;
+			if (
+				!rootRef.current?.contains(target) &&
+				!listboxRef.current?.contains(target)
+			) {
+				setOpen(false);
+			}
 		};
 		document.addEventListener("pointerdown", handlePointerDown);
 		return () => document.removeEventListener("pointerdown", handlePointerDown);
@@ -263,46 +314,50 @@ export function Select<T extends string>({
 				</svg>
 			</button>
 
-			{open ? (
-				<div
-					ref={listboxRef}
-					id={listboxId}
-					className={styles.popover}
-					role="listbox"
-					aria-label={ariaLabel}
-					aria-activedescendant={
-						activeIndex >= 0 ? `${baseId}-option-${activeIndex}` : undefined
-					}
-					tabIndex={-1}
-					onKeyDown={handleListboxKeyDown}
-				>
-					{options.map((option, index) => (
-						<button
-							key={option.value}
-							id={`${baseId}-option-${index}`}
-							type="button"
-							className={classNames(
-								styles.option,
-								index === activeIndex ? styles.optionActive : undefined,
-							)}
-							role="option"
-							data-value={option.value}
-							aria-selected={option.value === currentValue}
-							disabled={option.disabled}
+			{open && typeof document !== "undefined"
+				? createPortal(
+						<div
+							ref={listboxRef}
+							id={listboxId}
+							className={styles.popover}
+							style={popoverStyle}
+							role="listbox"
+							aria-label={ariaLabel}
+							aria-activedescendant={
+								activeIndex >= 0 ? `${baseId}-option-${activeIndex}` : undefined
+							}
 							tabIndex={-1}
-							onMouseEnter={() => !option.disabled && setActiveIndex(index)}
-							onClick={() => choose(index)}
+							onKeyDown={handleListboxKeyDown}
 						>
-							<span>{option.label}</span>
-							{option.value === currentValue ? (
-								<svg viewBox="0 0 16 16" aria-hidden="true">
-									<path d="m3.5 8 2.8 2.8 6.2-6.2" />
-								</svg>
-							) : null}
-						</button>
-					))}
-				</div>
-			) : null}
+							{options.map((option, index) => (
+								<button
+									key={option.value}
+									id={`${baseId}-option-${index}`}
+									type="button"
+									className={classNames(
+										styles.option,
+										index === activeIndex ? styles.optionActive : undefined,
+									)}
+									role="option"
+									data-value={option.value}
+									aria-selected={option.value === currentValue}
+									disabled={option.disabled}
+									tabIndex={-1}
+									onMouseEnter={() => !option.disabled && setActiveIndex(index)}
+									onClick={() => choose(index)}
+								>
+									<span>{option.label}</span>
+									{option.value === currentValue ? (
+										<svg viewBox="0 0 16 16" aria-hidden="true">
+											<path d="m3.5 8 2.8 2.8 6.2-6.2" />
+										</svg>
+									) : null}
+								</button>
+							))}
+						</div>,
+						document.body,
+					)
+				: null}
 		</div>
 	);
 }
