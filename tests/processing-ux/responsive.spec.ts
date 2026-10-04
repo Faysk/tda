@@ -1023,6 +1023,8 @@ function expectContextualLogRegionsDoNotOverlap(
 	) {
 		expect(geometry.logBottom).toBeLessThanOrEqual(geometry.footerTop + 1);
 		expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.hostBottom + 1);
+	} else {
+		expect(geometry.logBottom).toBeLessThanOrEqual(geometry.hostBottom + 1);
 	}
 }
 
