@@ -23,3 +23,39 @@ export function shouldApplySessionAssemblyResult(input: Readonly<{
 		input.requestSessionId === input.currentSessionId
 	);
 }
+
+
+export type SessionAssemblyReviewFocus = Readonly<{
+	sessionId: string;
+	assemblyId: string;
+	requestId: number;
+}>;
+
+export function nextSessionAssemblyReviewFocus(
+	current: SessionAssemblyReviewFocus | null,
+	sessionId: string,
+	assemblyId: string,
+): SessionAssemblyReviewFocus {
+	return {
+		sessionId,
+		assemblyId,
+		requestId: (current?.requestId ?? 0) + 1,
+	};
+}
+
+export function focusedSessionAssemblyIsReady(input: Readonly<{
+	focus: SessionAssemblyReviewFocus | null;
+	currentSessionId: string | null;
+	assemblyIds: readonly string[];
+	handledRequestId: number;
+	busy: boolean;
+}>): boolean {
+	const { focus, currentSessionId, assemblyIds, handledRequestId, busy } = input;
+	return Boolean(
+		focus &&
+			!busy &&
+			focus.requestId !== handledRequestId &&
+			currentSessionId === focus.sessionId &&
+			assemblyIds.includes(focus.assemblyId),
+	);
+}
