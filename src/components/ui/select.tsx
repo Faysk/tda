@@ -319,6 +319,7 @@ export function Select<T extends string>({
 							ref={listboxRef}
 							id={listboxId}
 							className={styles.popover}
+							data-select-popover="true"
 							style={popoverStyle}
 							role="listbox"
 							aria-label={ariaLabel}
