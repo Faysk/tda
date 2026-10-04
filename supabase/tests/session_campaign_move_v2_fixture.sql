@@ -451,3 +451,114 @@ set
     'https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000021/cover/' || repeat('e',64) || '.webp'
   )
 where id='41000000-0000-4000-8000-000000000021';
+
+
+-- Second published fixture remains in the source until the test promotes the
+-- destination campaign to public. It covers public -> public transfer.
+insert into public.sessions(
+  id,campaign_id,title,status,source_system,source_session_id,metadata
+)
+select
+  '41000000-0000-4000-8000-000000000022',
+  c.id,
+  'Move published public v2',
+  'published',
+  'local_companion',
+  'move-published-public-v2',
+  '{}'::jsonb
+from public.campaigns c
+where c.slug='yuhara-main';
+
+insert into public.transcript_revisions(
+  id,campaign_id,session_id,revision_number,payload_sha256
+)
+select
+  '51000000-0000-4000-8000-000000000023',
+  c.id,
+  '41000000-0000-4000-8000-000000000022',
+  1,
+  repeat('1',64)
+from public.campaigns c where c.slug='yuhara-main';
+
+update public.sessions
+set current_transcript_revision_id='51000000-0000-4000-8000-000000000023'
+where id='41000000-0000-4000-8000-000000000022';
+
+insert into public.media_assets(
+  id,campaign_id,role_hint,status,staged_bucket,object_key,sha256,mime_type,
+  byte_size,width,height,read_back_verified,public_bucket,public_object_key,
+  public_delivery_verified,public_verified_at
+)
+select
+  '54000000-0000-4000-8000-000000000022',
+  c.id,
+  'session_cover',
+  'verified_public',
+  'tda-media-preview',
+  'campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000022/cover/' || repeat('2',64) || '.webp',
+  repeat('2',64),
+  'image/webp',
+  128,
+  16,
+  16,
+  true,
+  'tda-media-public',
+  'campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000022/cover/' || repeat('2',64) || '.webp',
+  true,
+  clock_timestamp()
+from public.campaigns c where c.slug='yuhara-main';
+
+insert into public.session_editorial_drafts(
+  id,campaign_id,session_id,revision,base_transcript_revision_id,cover_asset_id
+)
+select
+  '52000000-0000-4000-8000-000000000023',
+  c.id,
+  '41000000-0000-4000-8000-000000000022',
+  1,
+  '51000000-0000-4000-8000-000000000023',
+  '54000000-0000-4000-8000-000000000022'
+from public.campaigns c where c.slug='yuhara-main';
+
+update public.sessions
+set current_editorial_draft_id='52000000-0000-4000-8000-000000000023'
+where id='41000000-0000-4000-8000-000000000022';
+
+insert into public.session_publications(
+  id,campaign_id,session_id,version,draft_id,base_transcript_revision_id,
+  cover_asset_id,cover_url,payload_sha256
+)
+select
+  '53000000-0000-4000-8000-000000000022',
+  c.id,
+  '41000000-0000-4000-8000-000000000022',
+  1,
+  '52000000-0000-4000-8000-000000000023',
+  '51000000-0000-4000-8000-000000000023',
+  '54000000-0000-4000-8000-000000000022',
+  'https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000022/cover/' || repeat('2',64) || '.webp',
+  repeat('3',64)
+from public.campaigns c where c.slug='yuhara-main';
+
+insert into public.session_publication_operations(
+  operation_id,campaign_id,session_id,draft_id,publication_id,payload_sha256
+)
+select
+  '56000000-0000-4000-8000-000000000022',
+  c.id,
+  '41000000-0000-4000-8000-000000000022',
+  '52000000-0000-4000-8000-000000000023',
+  '53000000-0000-4000-8000-000000000022',
+  repeat('3',64)
+from public.campaigns c where c.slug='yuhara-main';
+
+update public.sessions
+set
+  current_session_publication_id='53000000-0000-4000-8000-000000000022',
+  metadata=jsonb_build_object(
+    'coverImageUrl',
+    'https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000022/cover/' || repeat('2',64) || '.webp',
+    'heroImageUrl',
+    'https://media.dnd.faysk.dev/campaigns/yuhara-main/sessions/41000000-0000-4000-8000-000000000022/cover/' || repeat('2',64) || '.webp'
+  )
+where id='41000000-0000-4000-8000-000000000022';
