@@ -1302,6 +1302,11 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 		},
 	});
 
+	await page.getByRole("tab", { name: "Visão geral" }).click();
+	await expect(page.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toBeVisible();
 	await expect(page.getByLabel("ID da sessão")).toBeDisabled();
 
