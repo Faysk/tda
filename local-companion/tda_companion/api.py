@@ -1215,20 +1215,16 @@ def create_app(
                         final_state = store.get(job_id)
                         if outcome.terminal == "result" and body["kind"] == "benchmark.craig":
                             payload = outcome.payload
-                            if (
-                                payload.get("schema_version") != "tda_processing_benchmark_v1"
-                                or payload.get("kind") != "benchmark.craig"
-                                or payload.get("source_id") != body["source_id"]
-                                or payload.get("sample_identity_sha256")
-                                != body["sample_identity_sha256"]
-                                or payload.get("sample_seconds") != body["sample_seconds"]
-                                or payload.get("execution_mode")
-                                != "prepared_artifacts_fresh_worker_per_profile_v1"
-                                or not isinstance(payload.get("profiles"), list)
-                                or len(payload["profiles"]) != len(_BENCHMARK_PROFILES)
-                                or [item.get("profile_id") for item in payload["profiles"]]
-                                != list(_BENCHMARK_PROFILES)
-                            ):
+                            common_valid = (
+                                payload.get("kind") == "benchmark.craig"
+                                and payload.get("source_id") == body["source_id"]
+                                and payload.get("sample_identity_sha256")
+                                == body["sample_identity_sha256"]
+                                and payload.get("sample_seconds") == body["sample_seconds"]
+                                and payload.get("execution_mode")
+                                == "prepared_artifacts_fresh_worker_per_profile_v1"
+                            )
+                            if not common_valid:
                                 raise WorkerProcessError(
                                     "BENCHMARK_RESULT_INVALID",
                                     recoverable=False,
@@ -1238,10 +1234,20 @@ def create_app(
                                     "info",
                                     "worker",
                                     "BENCHMARK_RESULT_DISCARDED_AFTER_CANCEL",
-                                    "Benchmark profiles finished after cancellation; no completed bundle was committed",
+                                    "Benchmark profiles finished after cancellation; no terminal result was committed",
                                     {"job_id": job_id, "attempt": attempt},
                                 )
-                            else:
+                            elif payload.get("schema_version") == "tda_processing_benchmark_v1":
+                                if (
+                                    not isinstance(payload.get("profiles"), list)
+                                    or len(payload["profiles"]) != len(_BENCHMARK_PROFILES)
+                                    or [item.get("profile_id") for item in payload["profiles"]]
+                                    != list(_BENCHMARK_PROFILES)
+                                ):
+                                    raise WorkerProcessError(
+                                        "BENCHMARK_RESULT_INVALID",
+                                        recoverable=False,
+                                    )
                                 try:
                                     with source_gate:
                                         _, package = staged_package(
@@ -1286,6 +1292,89 @@ def create_app(
                                 if not store.complete(job_id, attempt, result):
                                     raise WorkerProcessError("WORKER_STALE_ATTEMPT")
                                 final_state = store.get(job_id)
+                            elif payload.get("schema_version") == "tda_processing_benchmark_partial_v1":
+                                outcomes = payload.get("profile_outcomes")
+                                attempted_count = payload.get("attempted_count")
+                                completed_count = payload.get("completed_count")
+                                failed_count = payload.get("failed_count")
+                                if (
+                                    payload.get("status") != "partial"
+                                    or not isinstance(outcomes, list)
+                                    or len(outcomes) != len(_BENCHMARK_PROFILES)
+                                    or [item.get("profile_id") for item in outcomes]
+                                    != list(_BENCHMARK_PROFILES)
+                                    or attempted_count != len(_BENCHMARK_PROFILES)
+                                    or isinstance(completed_count, bool)
+                                    or not isinstance(completed_count, int)
+                                    or isinstance(failed_count, bool)
+                                    or not isinstance(failed_count, int)
+                                    or completed_count < 0
+                                    or failed_count < 1
+                                    or completed_count + failed_count != len(_BENCHMARK_PROFILES)
+                                ):
+                                    raise WorkerProcessError(
+                                        "BENCHMARK_RESULT_INVALID",
+                                        recoverable=False,
+                                    )
+                                for item in outcomes:
+                                    profile_id = item.get("profile_id")
+                                    status = item.get("status")
+                                    if status == "completed":
+                                        receipt = item.get("receipt")
+                                        if (
+                                            not isinstance(receipt, dict)
+                                            or receipt.get("schema_version") != "tda_benchmark_profile_v1"
+                                            or receipt.get("profile_id") != profile_id
+                                            or receipt.get("benchmark_id") != payload.get("benchmark_id")
+                                            or receipt.get("sample_identity_sha256")
+                                            != payload.get("sample_identity_sha256")
+                                            or receipt.get("artifact_available") is not True
+                                        ):
+                                            raise WorkerProcessError(
+                                                "BENCHMARK_RESULT_INVALID",
+                                                recoverable=False,
+                                            )
+                                    elif status == "failed":
+                                        error_payload = item.get("error")
+                                        if (
+                                            not isinstance(error_payload, dict)
+                                            or error_payload.get("scope") != "profile"
+                                            or error_payload.get("recoverable") is not True
+                                            or not isinstance(error_payload.get("code"), str)
+                                            or item.get("artifact_available") is not False
+                                        ):
+                                            raise WorkerProcessError(
+                                                "BENCHMARK_RESULT_INVALID",
+                                                recoverable=False,
+                                            )
+                                    else:
+                                        raise WorkerProcessError(
+                                            "BENCHMARK_RESULT_INVALID",
+                                            recoverable=False,
+                                        )
+                                result = {
+                                    **payload,
+                                    "job_id": job_id,
+                                    "campaign_id": body["campaign_id"],
+                                    "session_id": body["session_id"],
+                                    "track_count": body["track_count"],
+                                    "audio_work_seconds": body["audio_work_seconds"],
+                                    "prepared": body["prepared"],
+                                }
+                                if not store.complete_partial(
+                                    job_id,
+                                    attempt,
+                                    result,
+                                    completed_count=completed_count,
+                                    failed_count=failed_count,
+                                ):
+                                    raise WorkerProcessError("WORKER_STALE_ATTEMPT")
+                                final_state = store.get(job_id)
+                            else:
+                                raise WorkerProcessError(
+                                    "BENCHMARK_RESULT_INVALID",
+                                    recoverable=False,
+                                )
                         if outcome.terminal == "result" and body["kind"] == "transcription.craig":
                             if final_state["status"] == "cancelled":
                                 log(
@@ -1341,6 +1430,7 @@ def create_app(
                             )
                         if outcome.terminal == "result" and final_state["status"] not in {
                             "succeeded",
+                            "partial",
                             "cancelled",
                         }:
                             raise WorkerProcessError("WORKER_RESULT_INCOMPLETE")
