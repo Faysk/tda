@@ -136,12 +136,33 @@ Os tokens semânticos do pacote v1.0 são a base oficial do reboot e vivem opera
 | foreground-soft | `--ds-foreground-soft` | `#4f4b44` |
 | foreground-muted | `--ds-foreground-muted` | `#625d55` |
 | accent | `--ds-accent` | `#805817` |
-| accent-strong | `--ds-accent-strong` | `#9a6a1d` |
+| accent-strong | `--ds-accent-strong` | `#6b4913` |
 | action-primary-bg | `--ds-action-primary-bg` | `#805817` |
 | danger | `--ds-danger` | `#9a3025` |
 | success | `--ds-success` | `#326c42` |
 
 `tools/check-design-system.mjs` verifica o contrato completo de valores do v1 em toda execução de `pnpm check`.
+
+### Hardening de contraste e controles — 2026-10-04
+
+A auditoria #1465–#1467 tornou explícitos três contratos que antes dependiam demais do navegador:
+
+- no tema claro, `--ds-accent-strong` usa `#6b4913`; como texto normal ele mantém pelo menos 4,5:1 contra canvas, canvas-subtle, surface, surface-hover e surface-elevated;
+- `--ds-control-focus-ring` é **um token de cor**, não um valor completo de `box-shadow`; consumidores devem usá-lo em `outline` ou compor offsets/espalhamento explicitamente;
+- popups de escolha do app não dependem mais de `<select>` nativo: toda superfície TSX de produto usa o primitive compartilhado `Select`, porque Chromium/Windows, Firefox e WebKit podem delegar a pintura do popup ao SO e ignorar parcialmente CSS de `option`.
+
+O checker de Design System falha se o contraste de `accent-strong` cair abaixo do contrato, se o token de foco voltar a ser usado como `box-shadow: var(--ds-control-focus-ring)` sem geometria de sombra ou se um `<select>` nativo reaparecer em uma superfície TSX de aplicação.
+
+#### Política de seleção
+
+O primitive `Select` é o contrato único para escolhas discretas no produto:
+
+- controla popup, hover, seleção, foco, disabled e contraste em dark/light independentemente do tema do SO;
+- suporta modo controlado e não controlado, `name`/serialização por `FormData`, reset de formulário e bloqueio de submit quando um valor obrigatório ainda não foi escolhido;
+- usa listbox acessível por teclado e portal ancorado ao viewport, evitando clipping e disputas de stacking context com cards, dialogs e workspaces;
+- `compact` preserva a densidade dos workspaces operacionais sem reintroduzir popup nativo.
+
+O CSS global de `select/option` permanece apenas como defesa para HTML externo/legado fora das superfícies TSX governadas. Ele **não** é considerado solução de tema para novos controles do produto.
 
 ## Extensão promovida — borda de controle
 
@@ -168,6 +189,8 @@ O próprio pacote forneceu `tokens/proposed-extensions.css`. O reboot promove:
 | ambos | `--ds-control-focus-ring` | `var(--ds-accent-strong)` | foco oficial |
 
 Essa é uma **extensão do reboot promovida a partir do pack**, não uma alegação de que o token fazia parte de `tda-design-tokens.css` v1.0.
+
+O contrato de `--ds-control-focus-ring` é cromático: `outline: 2px solid var(--ds-control-focus-ring)` é válido; para shadow, use uma forma completa como `box-shadow: 0 0 0 2px var(--ds-control-focus-ring)`. Uma cor isolada não é gramática válida de `box-shadow`.
 
 Separadores e contornos puramente decorativos continuam usando `--ds-border`/`--ds-border-subtle`.
 

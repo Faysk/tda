@@ -33,6 +33,21 @@ async function assertNoHorizontalOverflow(page: import("@playwright/test").Page)
 	expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth + 2);
 }
 
+async function chooseThemedSelect(
+	page: import("@playwright/test").Page,
+	trigger: import("@playwright/test").Locator,
+	label: string,
+	value: string,
+) {
+	await trigger.click();
+	const listbox = page.getByRole("listbox", { name: label });
+	await expect(listbox).toBeVisible();
+	const option = listbox.locator(`[role="option"][data-value="${value}"]`);
+	await expect(option).toHaveCount(1);
+	await option.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "false");
+}
+
 test("four-profile evidence, comparison, private export and human-reference quality form one coherent local journey", async ({
 	page,
 }) => {
@@ -83,11 +98,11 @@ test("four-profile evidence, comparison, private export and human-reference qual
 	).toBe(true);
 
 	const profileB = evidence.getByLabel("Perfil B");
-	await profileB.selectOption("whisper-turbo");
+	await chooseThemedSelect(page, profileB, "Perfil B", "whisper-turbo");
 	await expect(evidence.getByRole("status")).toContainText(
 		"Carregando transcrições selecionadas",
 	);
-	await expect(profileB).toHaveValue("whisper-turbo");
+	await expect(profileB).toContainText("Whisper Turbo");
 	await expect
 		.poll(() =>
 			state.requests.some((request) =>
@@ -249,9 +264,16 @@ test("quality evidence remains keyboard-usable and overflow-free at the 200 perc
 	await expect(evidence.locator('[data-active="true"]:focus')).toHaveCount(1);
 
 	const selector = evidence.getByLabel("Perfil A");
+	const originalLabel = (await selector.textContent())?.trim();
 	await selector.focus();
 	await expect(selector).toBeFocused();
-	await page.keyboard.press("ArrowUp");
+	await page.keyboard.press("ArrowDown");
+	await expect(selector).toHaveAttribute("aria-expanded", "true");
+	const listbox = page.getByRole("listbox", { name: "Perfil A" });
+	await expect(listbox).toBeVisible();
+	await page.keyboard.press("ArrowDown");
+	await page.keyboard.press("Enter");
 	await expect(selector).toBeFocused();
-	await expect(selector).not.toHaveValue("");
+	await expect(selector).toHaveAttribute("aria-expanded", "false");
+	expect((await selector.textContent())?.trim()).not.toBe(originalLabel);
 });

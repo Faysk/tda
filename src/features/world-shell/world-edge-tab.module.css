@@ -49,9 +49,8 @@
 }
 
 .tab:focus-visible {
-	outline: 2px solid var(--ds-accent);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 3px;
-	box-shadow: var(--ds-control-focus-ring);
 }
 
 @media (hover: hover) and (pointer: fine) {

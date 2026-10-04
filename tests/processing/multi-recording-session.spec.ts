@@ -5,6 +5,7 @@ import {
 	UI_ORIGIN,
 } from "./companion-fixture";
 import { renderTranscriptMarkdownV1 } from "../../src/features/transcript-review/markdown-contract";
+import { expectThemedSelectValue } from "../helpers/themed-select";
 
 const CAMPAIGN = "yuhara-main";
 const SESSION = "sessao-42";
@@ -1725,7 +1726,7 @@ test("ambiguous enqueue reuses the same idempotency identity and reconnect keeps
 	const submissionForm = page.locator("form").filter({
 		has: page.getByLabel("Export do Craig"),
 	});
-	await expect(submissionForm.getByLabel("Perfil")).toHaveValue("whisper-detailed");
+	await expectThemedSelectValue(submissionForm.getByLabel("Perfil"), "whisper-detailed");
 	const secondKeys = multi.keysFor(SOURCE_IDS[1] ?? "");
 	expect(secondKeys).toHaveLength(2);
 	expect(secondKeys[0]).toBe(secondKeys[1]);

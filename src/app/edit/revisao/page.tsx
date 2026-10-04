@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
-import { FormSubmitButton } from "@/components/ui";
+import { FormSubmitButton, Select } from "@/components/ui";
 import { currentAccess } from "@/features/auth/server";
 import {
 	readAuthorizedCampaigns,
@@ -120,25 +120,20 @@ function CampaignPicker({
 			<form className={styles.campaignPicker} method="get">
 				<label htmlFor="review-campaign">
 					<span>Campanha</span>
-					<select
+					<Select
 						id="review-campaign"
 						name="campanha"
 						required
 						defaultValue={selected ?? ""}
-					>
-						<option value="" disabled>
-							Selecione…
-						</option>
-						{campaigns.map((campaign) => (
-							<option
-								key={campaign.technicalSlug}
-								value={campaign.technicalSlug}
-							>
-								{campaign.name}
-								{campaign.lifecycle === "archived" ? " (arquivada)" : ""}
-							</option>
-						))}
-					</select>
+						options={[
+							{ value: "", label: "Selecione…", disabled: true },
+							...campaigns.map((campaign) => ({
+								value: campaign.technicalSlug,
+								label: `${campaign.name}${campaign.lifecycle === "archived" ? " (arquivada)" : ""}`,
+							})),
+						]}
+						ariaLabel="Campanha"
+					/>
 				</label>
 				<button type="submit">
 					{selected ? "Trocar campanha" : "Abrir revisão"}
@@ -440,38 +435,37 @@ export default async function NarrativeReviewPage({
 											<label htmlFor={"decision-" + candidate.id}>
 												Decisão
 											</label>
-											<select
+											<Select
 												id={"decision-" + candidate.id}
 												name="decision"
 												required
 												defaultValue=""
-											>
-												<option value="" disabled>
-													Escolha depois de conferir as fontes
-												</option>
-												{canManage ? (
-													<>
-														<option value="rejected">Rejeitar</option>
-														<option value="interpretation">
-															Interpretação, não fato
-														</option>
-														<option value="possible_hook">
-															Possível gancho futuro
-														</option>
-														<option value="retcon_pending">
-															Retcon/conflito pendente
-														</option>
-														<option value="private">
-															Privado / fora da memória compartilhada
-														</option>
-													</>
-												) : null}
-												{canApprove ? (
-													<option value="approved_canon">
-														Aprovar como cânone em revisão
-													</option>
-												) : null}
-											</select>
+												options={[
+													{
+														value: "",
+														label: "Escolha depois de conferir as fontes",
+														disabled: true,
+													},
+													...(canManage
+														? [
+																{ value: "rejected", label: "Rejeitar" },
+																{ value: "interpretation", label: "Interpretação, não fato" },
+																{ value: "possible_hook", label: "Possível gancho futuro" },
+																{ value: "retcon_pending", label: "Retcon/conflito pendente" },
+																{ value: "private", label: "Privado / fora da memória compartilhada" },
+															]
+														: []),
+													...(canApprove
+														? [
+																{
+																	value: "approved_canon",
+																	label: "Aprovar como cânone em revisão",
+																},
+															]
+														: []),
+												]}
+												ariaLabel="Decisão"
+											/>
 
 											<label htmlFor={"notes-" + candidate.id}>
 												Nota da decisão (opcional)

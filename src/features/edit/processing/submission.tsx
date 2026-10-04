@@ -11,6 +11,7 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import {
 	ProcessingCampaignValidationError,
 	validateProcessingCampaignForEnqueue,
@@ -1211,21 +1212,20 @@ export function ProcessingSubmission({
 									: "Sugestão vem do nome do ZIP quando o campo está vazio. Sempre editável antes de compor."}
 							</small>
 						</label>
-						<label>
+						<div>
 							<span>Perfil</span>
-							<select
+							<Select
 								value={profile}
-								onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
+								options={availableProfiles.map((item) => ({
+									value: item.id,
+									label: submissionProfileLabel(item.id),
+								}))}
+								onChange={(value) => setProfile(value as TranscriptionProfileId)}
+								ariaLabel="Perfil"
 								disabled={busy || Boolean(intentRequest)}
 								required
-							>
-								{availableProfiles.map((item) => (
-									<option key={item.id} value={item.id}>
-										{submissionProfileLabel(item.id)}
-									</option>
-								))}
-							</select>
-						</label>
+							/>
+						</div>
 						<div className={styles.submitRow}>
 							<Button
 								type="submit"

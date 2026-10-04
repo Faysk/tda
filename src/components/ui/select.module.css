@@ -1,6 +1,11 @@
 .root {
 	position: relative;
+	width: 100%;
 	min-width: 0;
+}
+
+.root[data-open="true"] {
+	z-index: 120;
 }
 
 .trigger {
@@ -33,7 +38,7 @@
 .trigger:focus-visible,
 .trigger[aria-expanded="true"] {
 	border-color: var(--ds-accent);
-	box-shadow: var(--ds-control-focus-ring);
+	box-shadow: 0 0 0 2px var(--ds-control-focus-ring);
 	outline: 0;
 }
 
@@ -56,19 +61,24 @@
 	box-shadow: none;
 }
 
-.embedded .trigger:hover,
-.embedded .trigger:focus-visible,
-.embedded .trigger[aria-expanded="true"] {
+.embedded .trigger:hover {
 	border: 0;
 	background: var(--ds-surface-hover);
 	box-shadow: none;
 }
 
+.embedded .trigger:focus-visible,
+.embedded .trigger[aria-expanded="true"] {
+	border: 0;
+	background: var(--ds-surface-hover);
+	box-shadow: inset 0 0 0 2px var(--ds-control-focus-ring);
+	outline: 0;
+}
+
 .value {
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .chevron {
@@ -86,12 +96,24 @@
 	transform: rotate(180deg);
 }
 
+.compact .trigger {
+	min-height: 34px;
+	padding-inline: 8px;
+	border-radius: var(--ds-radius-sm);
+	font-size: 0.72rem;
+}
+
+.compact .option {
+	min-height: 34px;
+	padding: 6px 8px;
+	font-size: 0.72rem;
+}
+
 .popover {
-	position: absolute;
-	top: calc(100% + 7px);
-	right: 0;
-	left: 0;
-	z-index: 80;
+	position: fixed;
+	z-index: 1000;
+	inset: auto;
+	margin: 0;
 	display: grid;
 	max-height: min(320px, 46dvh);
 	overflow-y: auto;
@@ -103,11 +125,6 @@
 	outline: 0;
 	backdrop-filter: blur(18px);
 	overscroll-behavior: contain;
-}
-
-.embedded .popover {
-	left: -58px;
-	min-width: calc(100% + 58px);
 }
 
 .option {
@@ -132,9 +149,8 @@
 
 .option span {
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .option svg {

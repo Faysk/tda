@@ -4,6 +4,7 @@ import {
 	type BrowserContext,
 	type APIRequestContext,
 } from "@playwright/test";
+import { selectThemedOption } from "../../tests/helpers/themed-select";
 
 const path = "/edit/yuhara-main/permissions";
 const api = "/api/edit/yuhara-main/permissions";
@@ -168,9 +169,10 @@ test("governed console shows people, human access, filters and technical details
 	await expect(page.getByRole("row", { name: /Pessoa reader/u })).toHaveCount(0);
 	await search.fill("");
 
-	await page.getByRole("combobox", { name: "Filtrar por acesso" }).selectOption("without");
+	const accessFilter = page.getByRole("button", { name: "Filtrar por acesso" });
+	await selectThemedOption(page, accessFilter, "without");
 	await expect(page.getByRole("row", { name: /Pessoa member/u })).toBeVisible();
-	await page.getByRole("combobox", { name: "Filtrar por acesso" }).selectOption("all");
+	await selectThemedOption(page, accessFilter, "all");
 
 	const technical = page
 		.getByRole("row", { name: /Pessoa technical/u })

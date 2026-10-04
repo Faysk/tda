@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { selectThemedOption } from "./helpers/themed-select";
 
 const FIXTURE = "/e2e-fixtures/campaign-manager";
 const DESTINO_ID = "11111111-1111-4111-8111-111111111111";
@@ -99,7 +100,7 @@ test("create, update, archive and reactivate keep the manager journey local", as
 	const create = page.locator("[data-campaign-create]");
 	await create.locator(":scope > summary").click();
 	await create.getByRole("textbox", { name: "Nome", exact: true }).fill("Campanha Nova");
-	await create.getByLabel("Quem pode ver").selectOption("private");
+	await selectThemedOption(page, create.getByLabel("Quem pode ver"), "private");
 	await create.getByLabel("Apresentação").fill("Uma campanha sintética para o journey E2E.");
 	await create.getByLabel("Endereço público").fill("campanha-nova");
 	await create.getByRole("button", { name: "Criar campanha" }).click();

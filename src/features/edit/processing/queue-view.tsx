@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatedProgress } from "@/components/ui/animated-progress";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { StatusPill, type StatusTone } from "@/components/ui/status";
 import {
 	jobLabels,
@@ -248,21 +249,19 @@ export function ProcessingQueueView({
 					/>
 				</label>
 
-				<label className={styles.sort}>
+				<div className={styles.sort}>
 					<span>Ordenar</span>
-					<select
+					<Select
 						value={sort}
-						onChange={(event) =>
-							setSort(event.currentTarget.value as QueueSort)
-						}
-					>
-						{queueSortOptions.map((item) => (
-							<option key={item.id} value={item.id}>
-								{item.label}
-							</option>
-						))}
-					</select>
-				</label>
+						options={queueSortOptions.map((item) => ({
+							value: item.id,
+							label: item.label,
+						}))}
+						onChange={(value) => setSort(value as QueueSort)}
+						ariaLabel="Ordenar fila"
+						compact
+					/>
+				</div>
 
 				<span className={styles.count} aria-live="polite">
 					{rows.length === jobs.length

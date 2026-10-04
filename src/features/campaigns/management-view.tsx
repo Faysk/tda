@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { OperationalPageHeader } from "@/components/operational-page-header";
+import { Select } from "@/components/ui";
 import { RecoverableActionForm } from "@/features/edit/recoverable-action-form";
 import styles from "@/app/edit/campanhas/page.module.css";
 import { CampaignCoverEditor } from "./campaign-cover-editor";
@@ -187,24 +188,25 @@ export function CampaignManagementView({
 											}
 										/>
 									</label>
-									<label>
+									<div>
 										<span>Quem pode ver</span>
-										<select
+										<Select
 											name="visibility"
 											defaultValue="private"
-											aria-invalid={
-												fieldError(feedback, "visibility", null) || undefined
-											}
-											aria-describedby={
+											options={[
+												{ value: "private", label: "Privada" },
+												{ value: "public", label: "Pública" },
+											]}
+											ariaLabel="Quem pode ver"
+											ariaInvalid={fieldError(feedback, "visibility", null)}
+											ariaDescribedBy={
 												fieldError(feedback, "visibility", null)
 													? "campaign-create-feedback"
 													: undefined
 											}
-										>
-											<option value="private">Privada</option>
-											<option value="public">Pública</option>
-										</select>
-									</label>
+											required
+										/>
+									</div>
 									<label className={styles.full}>
 										<span>Apresentação</span>
 										<textarea
@@ -438,19 +440,22 @@ export function CampaignManagementView({
 																				}
 																			/>
 																		</label>
-																		<label>
+																		<div>
 																			<span>Quem pode ver</span>
-																			<select
+																			<Select
 																				name="visibility"
 																				defaultValue={campaign.visibility}
-																				aria-invalid={
-																					fieldError(
-																						feedback,
-																						"visibility",
-																						campaign.id,
-																					) || undefined
-																				}
-																				aria-describedby={
+																				options={[
+																					{ value: "private", label: "Privada" },
+																					{ value: "public", label: "Pública" },
+																				]}
+																				ariaLabel={`Quem pode ver ${campaign.name}`}
+																				ariaInvalid={fieldError(
+																					feedback,
+																					"visibility",
+																					campaign.id,
+																				)}
+																				ariaDescribedBy={
 																					fieldError(
 																						feedback,
 																						"visibility",
@@ -459,11 +464,9 @@ export function CampaignManagementView({
 																						? feedbackId
 																						: undefined
 																				}
-																			>
-																				<option value="private">Privada</option>
-																				<option value="public">Pública</option>
-																			</select>
-																		</label>
+																				required
+																			/>
+																		</div>
 																		<label className={styles.full}>
 																			<span>Apresentação</span>
 																			<textarea
