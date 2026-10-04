@@ -787,6 +787,23 @@
 	border-color: var(--ds-success);
 }
 
+.runStep[data-state="failed"] {
+	color: var(--ds-danger);
+	font-weight: 700;
+}
+
+.runStep[data-state="failed"] i {
+	border-color: var(--ds-danger);
+}
+
+.runStep > span > small {
+	display: block;
+	margin-top: 1px;
+	color: inherit;
+	font-size: 0.62rem;
+	font-weight: 500;
+}
+
 .runStep[data-state="current"] {
 	color: var(--ds-foreground);
 	font-weight: 700;
@@ -826,6 +843,21 @@
 	border: 1px solid var(--ds-border-subtle);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface);
+}
+
+.partialNotice {
+	display: grid;
+	gap: 5px;
+	padding: 10px 12px;
+	border-left: 3px solid var(--ds-warning);
+	background: color-mix(in srgb, var(--ds-canvas-subtle) 92%, var(--ds-warning) 8%);
+	color: var(--ds-foreground-muted);
+	font-size: 0.74rem;
+	line-height: 1.45;
+}
+
+.partialNotice strong {
+	color: var(--ds-foreground);
 }
 
 .receiptFacts {
