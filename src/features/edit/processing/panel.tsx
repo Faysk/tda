@@ -1376,7 +1376,12 @@ export function ProcessingPanel({
 											</div>
 											<div>
 												<dt>Estado</dt>
-												<dd>{jobLabels[observedJob.status]}</dd>
+												<dd>
+									{observedJob.kind === "benchmark.craig" &&
+									observedJob.stage === "benchmark_partial"
+										? "Parcial"
+										: jobLabels[observedJob.status]}
+								</dd>
 											</div>
 											<div>
 												<dt>Etapa</dt>
