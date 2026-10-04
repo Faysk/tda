@@ -489,6 +489,13 @@ def _verified_bundle_manifest_bytes(
     return payload
 
 
+def _write_zip_entry(archive: zipfile.ZipFile, name: str, payload: bytes) -> None:
+    info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.external_attr = 0o600 << 16
+    archive.writestr(info, payload)
+
+
 def write_private_evidence_zip(
     data_root: Path,
     benchmark_id: str,
@@ -496,65 +503,6 @@ def write_private_evidence_zip(
 ) -> None:
     bundle = _bundle(data_root, benchmark_id)
     prefix = f"TDA-Benchmark-{benchmark_id}"
-    entries: list[tuple[str, bytes]] = [
-        (
-            f"{prefix}/benchmark.json",
-            _verified_bundle_manifest_bytes(data_root, benchmark_id, bundle),
-        )
-    ]
-    for profile_id in PROFILE_IDS:
-        profile_manifest, profile_manifest_bytes = _profile_manifest(
-            data_root,
-            benchmark_id,
-            profile_id,
-            bundle=bundle,
-        )
-        _bundle_value, document, canonical = load_verified_transcript(
-            data_root,
-            benchmark_id,
-            profile_id,
-        )
-        entries.extend(
-            [
-                (
-                    f"{prefix}/profiles/{profile_id}/profile.json",
-                    profile_manifest_bytes,
-                ),
-                (
-                    f"{prefix}/profiles/{profile_id}/transcript.json",
-                    canonical,
-                ),
-                (
-                    f"{prefix}/profiles/{profile_id}/transcript.txt",
-                    transcript_txt(document),
-                ),
-                (
-                    f"{prefix}/profiles/{profile_id}/transcript.vtt",
-                    transcript_vtt(document),
-                ),
-                (
-                    f"{prefix}/profiles/{profile_id}/transcript.srt",
-                    transcript_srt(document),
-                ),
-                (
-                    f"{prefix}/profiles/{profile_id}/metrics.json",
-                    _derived_metrics(
-                        bundle=bundle,
-                        document=document,
-                        profile_manifest=profile_manifest,
-                    ),
-                ),
-                (
-                    f"{prefix}/profiles/{profile_id}/events.jsonl",
-                    _derived_events(
-                        bundle=bundle,
-                        document=document,
-                        profile_manifest=profile_manifest,
-                    ),
-                ),
-            ]
-        )
-
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(
         destination,
@@ -562,8 +510,44 @@ def write_private_evidence_zip(
         compression=zipfile.ZIP_DEFLATED,
         compresslevel=9,
     ) as archive:
-        for name, payload in entries:
-            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o600 << 16
-            archive.writestr(info, payload)
+        _write_zip_entry(
+            archive,
+            f"{prefix}/benchmark.json",
+            _verified_bundle_manifest_bytes(data_root, benchmark_id, bundle),
+        )
+        for profile_id in PROFILE_IDS:
+            profile_manifest, profile_manifest_bytes = _profile_manifest(
+                data_root,
+                benchmark_id,
+                profile_id,
+                bundle=bundle,
+            )
+            _bundle_value, document, canonical = load_verified_transcript(
+                data_root,
+                benchmark_id,
+                profile_id,
+            )
+            base = f"{prefix}/profiles/{profile_id}"
+            _write_zip_entry(archive, f"{base}/profile.json", profile_manifest_bytes)
+            _write_zip_entry(archive, f"{base}/transcript.json", canonical)
+            _write_zip_entry(archive, f"{base}/transcript.txt", transcript_txt(document))
+            _write_zip_entry(archive, f"{base}/transcript.vtt", transcript_vtt(document))
+            _write_zip_entry(archive, f"{base}/transcript.srt", transcript_srt(document))
+            _write_zip_entry(
+                archive,
+                f"{base}/metrics.json",
+                _derived_metrics(
+                    bundle=bundle,
+                    document=document,
+                    profile_manifest=profile_manifest,
+                ),
+            )
+            _write_zip_entry(
+                archive,
+                f"{base}/events.jsonl",
+                _derived_events(
+                    bundle=bundle,
+                    document=document,
+                    profile_manifest=profile_manifest,
+                ),
+            )
