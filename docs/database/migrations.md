@@ -1958,3 +1958,17 @@ Validação sintética:
 - `.github/workflows/campaign-isolation.yml` inclui o gate DB e os contratos TypeScript da UI v2.
 
 Rollback é forward-only: desabilitar o consumer v2 antes de qualquer correção; não editar/apagar receipts, revisions, publications ou objetos fonte para “voltar” ao estado anterior. Objetos R2 de origem são preservados no caminho crítico e qualquer limpeza posterior precisa provar ausência de referência.
+
+
+## `20261004182700_retire_session_campaign_move_v1_commit`
+
+**Estado:** hardening forward-only de #1475. Depois da ativação do contract v2, o preflight compartilhado pode considerar uma session populada migrável; por isso o commit legado v1, que alterava somente `sessions.campaign_id`, não pode continuar acessível a Server Actions antigas/stale.
+
+Objetivo:
+
+- preservar a função v1 fisicamente para migration history/compatibilidade de schema;
+- revogar `EXECUTE` de `public`, `anon`, `authenticated` e `service_role` em `move_session_campaign_atomic(...)`;
+- manter `preflight_session_campaign_move(...)` e `move_session_campaign_v2_atomic(...)` como o boundary suportado;
+- garantir que skew de rollout ou aba antiga falhe antes de executar qualquer write parcial.
+
+O gate PostgreSQL chama deliberadamente o commit v1 sob `service_role` e exige `insufficient_privilege`, além de reexecutar a corrida concorrente pelo commit v2. Rollback não deve reabrir o v1; compatibilidade deve ser restaurada corrigindo o consumidor v2 para frente.
