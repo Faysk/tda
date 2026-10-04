@@ -124,7 +124,7 @@ begin
         'destinationAssetId','54000000-0000-4000-8000-000000000021',
         'sha256',repeat('a',64),
         'mimeType','image/webp',
-        'status','verified_public',
+        'status','staged',
         'stagedBucket','tda-media-private',
         'objectKey',
           'campaigns/antes-que-seja-tarde/sessions/41000000-0000-4000-8000-000000000020/cover/' ||
@@ -132,12 +132,10 @@ begin
         'bytes','128',
         'width','16',
         'height','8',
-        'publicBucket','tda-media-public',
-        'publicObjectKey',
-          'campaigns/antes-que-seja-tarde/sessions/41000000-0000-4000-8000-000000000020/cover/' ||
-          repeat('a',64) || '.webp',
-        'publicDeliveryVerified',true,
-        'publicVerifiedAt','2026-10-04T12:00:00Z'
+        'publicBucket',null,
+        'publicObjectKey',null,
+        'publicDeliveryVerified',false,
+        'publicVerifiedAt',null
       )
     )
   );
@@ -228,12 +226,14 @@ begin
     where ma.id='54000000-0000-4000-8000-000000000021'
       and ma.campaign_id=v_destination
       and ma.role_hint='session_cover'
-      and ma.status='verified_public'
+      and ma.status='staged'
       and ma.read_back_verified
-      and ma.public_delivery_verified
-      and ma.public_object_key=ma.object_key
+      and ma.public_bucket is null
+      and ma.public_object_key is null
+      and ma.public_delivery_verified is false
+      and ma.public_verified_at is null
   ) then
-    raise exception 'destination cover receipt was not materialized';
+    raise exception 'private destination cover was not staged without public delivery';
   end if;
 
   if (
