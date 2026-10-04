@@ -1131,31 +1131,46 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 			};
 		});
 
-		const visibleColor = (value: string) => {
-			expect(value).not.toBe("transparent");
-			expect(value).not.toBe("rgba(0, 0, 0, 0)");
+		const scenarioLabel =
+			`${scenario.theme} ${scenario.width}x${scenario.height}`;
+		const visibleColor = (value: string, label: string) => {
+			expect(value, `${scenarioLabel} · ${label}`).not.toBe("transparent");
+			expect(value, `${scenarioLabel} · ${label}`).not.toBe(
+				"rgba(0, 0, 0, 0)",
+			);
 		};
-		visibleColor(computed.container.background);
-		visibleColor(computed.container.borderColor);
+		visibleColor(computed.container.background, "container background");
+		visibleColor(computed.container.borderColor, "container border");
 		expect(computed.container.borderWidth).not.toBe("0px");
 		expect(computed.container.radius).not.toBe("0px");
 
-		for (const field of [computed.search, computed.participant, computed.textarea]) {
-			visibleColor(field.background);
-			visibleColor(field.borderColor);
-			expect(field.borderWidth).not.toBe("0px");
+		for (const [label, field] of [
+			["search", computed.search],
+			["participant", computed.participant],
+			["textarea", computed.textarea],
+		] as const) {
+			visibleColor(field.background, `${label} background`);
+			visibleColor(field.borderColor, `${label} border`);
+			expect(field.borderWidth, `${scenarioLabel} · ${label} border width`).not.toBe(
+				"0px",
+			);
 		}
 		expect(computed.search.outlineStyle).toBe("solid");
 		expect(computed.search.outlineWidth).toBe("2px");
-		visibleColor(computed.search.outlineColor);
+		visibleColor(computed.search.outlineColor, "search focus outline");
 
-		for (const state of [computed.notice, computed.error]) {
-			visibleColor(state.background);
-			visibleColor(state.color);
-			visibleColor(state.borderColor);
-			expect(state.borderWidth).not.toBe("0px");
+		for (const [label, state] of [
+			["notice", computed.notice],
+			["error", computed.error],
+		] as const) {
+			visibleColor(state.background, `${label} background`);
+			visibleColor(state.color, `${label} foreground`);
+			visibleColor(state.borderColor, `${label} border`);
+			expect(state.borderWidth, `${scenarioLabel} · ${label} border width`).not.toBe(
+				"0px",
+			);
 		}
-		visibleColor(computed.divider.borderColor);
+		visibleColor(computed.divider.borderColor, "segment divider");
 		expect(computed.divider.borderWidth).not.toBe("0px");
 		expect(computed.horizontalOverflow).toBeLessThanOrEqual(1);
 	}
