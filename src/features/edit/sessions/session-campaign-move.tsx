@@ -118,7 +118,9 @@ export function SessionCampaignMovePanel({
 	const decisionsReady =
 		(!requiredDecisions.unlinkParticipantEntities ||
 			decisions.unlinkParticipantEntities) &&
-		(!requiredDecisions.revokeSessionGrants || decisions.revokeSessionGrants);
+		(!requiredDecisions.revokeSessionGrants || decisions.revokeSessionGrants) &&
+		(!requiredDecisions.acknowledgeHistoricalPublication ||
+			decisions.acknowledgeHistoricalPublication);
 	const groupedPlan = useMemo(
 		() =>
 			PLAN_ORDER.map((classification) => ({
@@ -132,7 +134,7 @@ export function SessionCampaignMovePanel({
 
 	useEffect(() => {
 		const stored = readSessionCampaignMoveRecovery(sessionId);
-		if (!validSessionCampaignMoveRecoveryIntent(stored)) return;
+		if (!stored) return;
 		if (
 			stored.sessionId !== sessionId ||
 			stored.sourceSessionId !== sourceSessionId ||
@@ -397,6 +399,22 @@ export function SessionCampaignMovePanel({
 										}
 									/>
 									Revogar grants específicos desta sessão antes de transferir o boundary.
+								</label>
+							) : null}
+							{requiredDecisions.acknowledgeHistoricalPublication ? (
+								<label>
+									<input
+										type="checkbox"
+										checked={decisions.acknowledgeHistoricalPublication}
+										onChange={(event) =>
+											setDecisions((current) => ({
+												...current,
+												acknowledgeHistoricalPublication:
+													event.currentTarget.checked,
+											}))
+										}
+									/>
+									Entendo que a campanha de destino é privada: a sessão deixa o discovery público, enquanto o snapshot e a mídia já publicados permanecem como histórico imutável.
 								</label>
 							) : null}
 
