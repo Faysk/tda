@@ -44,18 +44,33 @@ export type CanonicalMultiSourcePart = Readonly<{
 	trim_end_seconds: number | null;
 	overlap_resolution: "prefer_earlier_until" | "prefer_later_from" | null;
 	overlap_boundary_seconds: number | null;
+	physical_interval_state?:
+		| "first"
+		| "trusted_absolute"
+		| "unknown"
+		| "manual";
 }>;
 
 export type CanonicalMultiSourceProvenance = Readonly<{
 	schema_version: typeof MULTI_SOURCE_PROVENANCE_VERSION;
 	assembly_schema_version: "tda_session_assembly_v1";
-	canonicalization_version: "tda_session_assembly_canonical_v1";
+	canonicalization_version:
+		| "tda_session_assembly_canonical_v1"
+		| "tda_session_assembly_canonical_v2";
 	assembly_id: string;
 	inputs_sha256: string;
 	campaign_id: string;
 	session_id: string;
 	transcript_sha256: string;
-	timing_policy_version: "tda_session_timeline_v1";
+	timing_policy_version:
+		| "tda_session_timeline_v1"
+		| "tda_session_timeline_v2";
+	timeline_strategy?:
+		| "trusted_absolute"
+		| "user_confirmed_sequence"
+		| "manual_offsets";
+	wall_clock?: "unavailable" | "partial" | "trusted";
+	unknown_interval_count?: number;
 	segment_boundary_policy: "segment_start_owner_v1";
 	timeline_fingerprint_sha256: string;
 	participant_mapping_schema_version: "tda_session_participant_mapping_v1";
@@ -190,6 +205,10 @@ export function prepareMultiSourceCanonicalPublication(
 			"timingPolicyVersion",
 			"segmentBoundaryPolicy",
 			"timelineFingerprintSha256",
+			...(assembly.canonicalizationVersion ===
+			"tda_session_assembly_canonical_v2"
+				? ["timelineStrategy", "wallClock", "unknownIntervalCount"]
+				: []),
 			"participantMappingSchemaVersion",
 			"participantMappingPolicy",
 			"participantMappingSha256",
@@ -216,12 +235,48 @@ export function prepareMultiSourceCanonicalPublication(
 		SHA256,
 	);
 	const rawParts = Array.isArray(assembly.parts) ? assembly.parts : null;
+	const canonicalizationVersion =
+		assembly.canonicalizationVersion === "tda_session_assembly_canonical_v1" ||
+		assembly.canonicalizationVersion === "tda_session_assembly_canonical_v2"
+			? assembly.canonicalizationVersion
+			: null;
+	const timingPolicyVersion =
+		assembly.timingPolicyVersion === "tda_session_timeline_v1" ||
+		assembly.timingPolicyVersion === "tda_session_timeline_v2"
+			? assembly.timingPolicyVersion
+			: null;
+	const timelineStrategy =
+		canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+		["trusted_absolute", "user_confirmed_sequence", "manual_offsets"].includes(
+			String(assembly.timelineStrategy),
+		)
+			? (assembly.timelineStrategy as
+					| "trusted_absolute"
+					| "user_confirmed_sequence"
+					| "manual_offsets")
+			: null;
+	const wallClock =
+		canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+		["unavailable", "partial", "trusted"].includes(String(assembly.wallClock))
+			? (assembly.wallClock as "unavailable" | "partial" | "trusted")
+			: null;
+	const unknownIntervalCount =
+		canonicalizationVersion === "tda_session_assembly_canonical_v2"
+			? integer(assembly.unknownIntervalCount, 0, MAX_PARTS - 1)
+			: null;
 	if (
 		!campaignSlug ||
 		!sourceSessionId ||
 		assembly.schemaVersion !== "tda_session_assembly_v1" ||
-		assembly.canonicalizationVersion !== "tda_session_assembly_canonical_v1" ||
-		assembly.timingPolicyVersion !== "tda_session_timeline_v1" ||
+		!canonicalizationVersion ||
+		!timingPolicyVersion ||
+		(canonicalizationVersion === "tda_session_assembly_canonical_v1" &&
+			timingPolicyVersion !== "tda_session_timeline_v1") ||
+		(canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+			(timingPolicyVersion !== "tda_session_timeline_v2" ||
+				!timelineStrategy ||
+				!wallClock ||
+				unknownIntervalCount === null)) ||
 		assembly.segmentBoundaryPolicy !== "segment_start_owner_v1" ||
 		assembly.participantMappingSchemaVersion !==
 			"tda_session_participant_mapping_v1" ||
@@ -261,6 +316,9 @@ export function prepareMultiSourceCanonicalPublication(
 				"trimEndSeconds",
 				"overlapResolution",
 				"overlapBoundarySeconds",
+				...(canonicalizationVersion === "tda_session_assembly_canonical_v2"
+					? ["physicalIntervalState"]
+					: []),
 			])
 		)
 			return { ok: false, reason: "invalid_payload" };
@@ -287,6 +345,17 @@ export function prepareMultiSourceCanonicalPublication(
 			part.overlapBoundarySeconds === null
 				? null
 				: finite(part.overlapBoundarySeconds, 0, 604800);
+		const physicalIntervalState =
+			canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+			["first", "trusted_absolute", "unknown", "manual"].includes(
+				String(part.physicalIntervalState),
+			)
+				? (part.physicalIntervalState as
+						| "first"
+						| "trusted_absolute"
+						| "unknown"
+						| "manual")
+				: null;
 
 		if (
 			!partId ||
@@ -305,7 +374,11 @@ export function prepareMultiSourceCanonicalPublication(
 			overlapResolution === undefined ||
 			(part.overlapBoundarySeconds !== null &&
 				overlapBoundarySeconds === null) ||
-			((overlapResolution === null) !== (overlapBoundarySeconds === null))
+			((overlapResolution === null) !== (overlapBoundarySeconds === null)) ||
+			(canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+				(!physicalIntervalState ||
+					(ordinal === 0 && physicalIntervalState !== "first") ||
+					(ordinal > 0 && physicalIntervalState === "first")))
 		)
 			return { ok: false, reason: "invalid_payload" };
 
@@ -323,6 +396,9 @@ export function prepareMultiSourceCanonicalPublication(
 			trim_end_seconds: trimEndSeconds,
 			overlap_resolution: overlapResolution,
 			overlap_boundary_seconds: overlapBoundarySeconds,
+			...(physicalIntervalState
+				? { physical_interval_state: physicalIntervalState }
+				: {}),
 		});
 	}
 
@@ -557,16 +633,32 @@ export function prepareMultiSourceCanonicalPublication(
 		);
 	});
 
+	const observedUnknownIntervals = canonicalParts.filter(
+		(part) => part.physical_interval_state === "unknown",
+	).length;
+	if (
+		canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+		unknownIntervalCount !== observedUnknownIntervals
+	)
+		return { ok: false, reason: "invalid_payload" };
+
 	const provenance: CanonicalMultiSourceProvenance = {
 		schema_version: MULTI_SOURCE_PROVENANCE_VERSION,
 		assembly_schema_version: "tda_session_assembly_v1",
-		canonicalization_version: "tda_session_assembly_canonical_v1",
+		canonicalization_version: canonicalizationVersion,
 		assembly_id: assemblyId,
 		inputs_sha256: inputsSha256,
 		campaign_id: assemblyCampaignId,
 		session_id: assemblySessionId,
 		transcript_sha256: assemblyTranscriptSha256,
-		timing_policy_version: "tda_session_timeline_v1",
+		timing_policy_version: timingPolicyVersion,
+		...(canonicalizationVersion === "tda_session_assembly_canonical_v2"
+			? {
+					timeline_strategy: timelineStrategy!,
+					wall_clock: wallClock!,
+					unknown_interval_count: unknownIntervalCount!,
+				}
+			: {}),
 		segment_boundary_policy: "segment_start_owner_v1",
 		timeline_fingerprint_sha256: timelineFingerprintSha256,
 		participant_mapping_schema_version:

@@ -42,8 +42,9 @@ Em 2026-09-28, os slices locais de workspace, cronologia, reconciliação de par
 - sources Craig independentes e imutáveis;
 - deduplicação exata por conteúdo;
 - ordenação temporal automática somente com evidência confiável;
-- ordem/offset manual quando necessário;
-- gaps explícitos;
+- ordem confirmada pelo usuário como continuidade editorial quando wall-clock é insuficiente;
+- offset manual como ferramenta avançada, não requisito do caminho feliz;
+- gaps explícitos e preservados quando comprovados;
 - overlaps com resolução explícita;
 - participant reconciliation entre reconnects;
 - seleção de um run terminal por part;
@@ -279,11 +280,30 @@ A presença de uma string não é suficiente. Timestamp sem timezone ou valor op
 
 Horário parseável sem referência absoluta suficiente (por exemplo `21:00:00`) é `ambiguous`, não `opaque`. Duas recording parts com o mesmo instante absoluto também não estabelecem ordem relativa; nesse caso a ordem/offset precisam de confirmação manual em vez de um tie-break autoritativo por ID.
 
-### Manual override
+### Ordem confirmada e manual override
 
-Quando a evidência é insuficiente, o usuário define ordem/offset.
+Quando a evidência absoluta é insuficiente, o caminho feliz não exige digitar segundos.
+O usuário confirma a ordem visual das recording parts e o Agent deriva uma timeline
+editorial contínua por duração acumulada. Essa decisão é persistida como
+`timeline_strategy=user_confirmed_sequence`.
 
-A decisão entra na provenance/hash da assembly.
+A continuidade editorial **não** afirma que houve zero segundos físicos entre duas
+capturas. Cada adjacência sem prova temporal fica com intervalo físico
+`unknown`, enquanto `wall_clock` permanece `unavailable` ou `partial`.
+Se duas parts adjacentes possuem timestamps absolutos confiáveis, a geometria real
+continua soberana: gap comprovado é preservado e overlap comprovado continua
+fail-closed até boundary explícito.
+
+O workspace e a Session Assembly persistem de forma versionada e determinística:
+- `timeline_strategy=trusted_absolute|user_confirmed_sequence|manual_offsets`;
+- `wall_clock=unavailable|partial|trusted`;
+- `unknown_interval_count=N`;
+- fingerprint inclui estratégia, ordem, offsets derivados, trims e decisões de relação;
+- reorder/detach invalida somente a geometria derivada da sequência e exige nova
+  confirmação, sem alterar source, run ou disparar ASR.
+
+Offset manual continua disponível nos controles técnicos para exceções reais. A
+decisão temporal entra na provenance/hash da assembly.
 
 ## Gaps
 
@@ -300,7 +320,8 @@ Regras:
 - não fabricar fala;
 - não encostar timelines artificialmente;
 - mostrar warning factual;
-- assembly pode aceitar gap explícito se o usuário confirmar.
+- gap derivado de timestamps absolutos confiáveis é factual e não exige confirmação redundante;
+- gap criado por offset manual continua exigindo confirmação quando necessário.
 
 ## Overlaps
 
@@ -529,6 +550,8 @@ O Web deve:
 - reutilizar gravações já concluídas;
 - reprocessar somente falhas;
 - aplicar ordem temporal confiável e gaps comprovados automaticamente;
+- quando wall-clock for insuficiente, pedir uma confirmação simples da ordem e seguir
+  com continuidade editorial sem fabricar intervalo físico;
 - selecionar automaticamente o resultado quando existe authority inequívoca;
 - montar a Session Assembly automaticamente assim que as invariantes permitem;
 - apresentar o resultado final como uma transcrição contínua pronta para review.
@@ -566,8 +589,9 @@ regra de que áudio bruto continua local e sob controle explícito.
 
 - **same `recording_id`, bytes diferentes:** manter ambas ou escolher uma;
 - **dois ou mais resultados elegíveis sem authority da intenção:** escolher um;
-- **ordem temporal sem evidência suficiente / overlap:** resolver somente a
-  ambiguidade;
+- **ordem temporal sem evidência suficiente:** confirmar a ordem exibida, sem
+  preencher segundos manualmente;
+- **overlap comprovado:** resolver boundary/corte explicitamente;
 - **participant mapping bloqueado:** confirmar a pessoa correta.
 
 Essas exceções abrem/indicam os controles técnicos existentes, mas o caminho
@@ -678,7 +702,8 @@ Não migrar destrutivamente:
 - #848 — Session Assembly imutável + review base — implementado;
 - #849 — composer Web multi-recording — implementado via #940;
 - #851 — provenance multi-source na publicação cloud — implementado via #946;
-- #852 — gate E2E/recovery sintético amplo — implementado via #967.
+- #852 — gate E2E/recovery sintético amplo — implementado via #967;
+- #1441 — sequência confirmada sem wall-clock confiável — implementação nesta entrega.
 
 Epic: #843.
 

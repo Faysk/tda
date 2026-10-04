@@ -37,6 +37,7 @@ function recordingPart(overrides: Record<string, unknown> = {}) {
 		relation_to_previous: "first",
 		relation_seconds: 0,
 		overlap_resolution_valid: false,
+		physical_interval_state: "first",
 		created_at: "2026-09-27T22:30:00Z",
 		updated_at: "2026-09-27T22:30:00Z",
 		...overrides,
@@ -54,9 +55,12 @@ function workspace(parts = [recordingPart()]) {
 		updated_at: "2026-09-27T22:31:00Z",
 		parts,
 		timeline: {
-			policy_version: "tda_session_timeline_v1",
+			policy_version: "tda_session_timeline_v2",
 			segment_boundary_policy: "segment_start_owner_v1",
 			fingerprint_sha256: "f".repeat(64),
+			strategy: "manual_offsets",
+			wall_clock: "trusted",
+			unknown_interval_count: 0,
 			state: "ready",
 			all_sources_trusted: true,
 			automatic_order_available: true,
@@ -94,9 +98,12 @@ describe("session workspace protocol", () => {
 				},
 			],
 			timeline: {
-				policyVersion: "tda_session_timeline_v1",
+				policyVersion: "tda_session_timeline_v2",
 				segmentBoundaryPolicy: "segment_start_owner_v1",
 				fingerprintSha256: "f".repeat(64),
+				strategy: "manual_offsets",
+				wallClock: "trusted",
+				unknownIntervalCount: 0,
 				state: "ready",
 			},
 		});
@@ -123,6 +130,7 @@ describe("session workspace protocol", () => {
 				effective_end_seconds: 30,
 				relation_to_previous: "order_conflict",
 				relation_seconds: null,
+				physical_interval_state: "manual",
 			}),
 		]);
 		raw.timeline.state = "order_conflict";
@@ -189,6 +197,7 @@ describe("session workspace protocol", () => {
 				effective_end_seconds: 7201,
 				relation_to_previous: "gap",
 				relation_seconds: 1,
+				physical_interval_state: "manual",
 				gap_confirmed: true,
 			}),
 		]);
@@ -351,6 +360,7 @@ describe("session workspace bridge", () => {
 						source_id: sourceA,
 						ordinal: 1,
 						relation_to_previous: "contiguous",
+						physical_interval_state: "manual",
 					}),
 				]);
 			}

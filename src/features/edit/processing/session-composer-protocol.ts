@@ -14,15 +14,30 @@ export type SessionAssemblyPart = {
 	trimEndSeconds: number | null;
 	overlapResolution: "prefer_earlier_until" | "prefer_later_from" | null;
 	overlapBoundarySeconds: number | null;
+	physicalIntervalState: "first" | "trusted_absolute" | "unknown" | "manual" | null;
 };
 
 export type SessionAssembly = {
 	schemaVersion: "tda_session_assembly_v1";
+	canonicalizationVersion:
+		| "tda_session_assembly_canonical_v1"
+		| "tda_session_assembly_canonical_v2";
+	timingPolicyVersion:
+		| "tda_session_timeline_v1"
+		| "tda_session_timeline_v2";
+	segmentBoundaryPolicy: "segment_start_owner_v1";
 	assemblyId: string;
 	campaignId: string;
 	sessionId: string;
 	inputsSha256: string;
 	timelineFingerprintSha256: string;
+	timelineStrategy:
+		| "trusted_absolute"
+		| "user_confirmed_sequence"
+		| "manual_offsets"
+		| null;
+	wallClock: "unavailable" | "partial" | "trusted" | null;
+	unknownIntervalCount: number | null;
 	participantMappingSha256: string;
 	participantApprovalBlocked: boolean;
 	transcriptSha256: string;
@@ -175,30 +190,99 @@ function parseAssemblyPart(value: unknown, expectedOrdinal: number): SessionAsse
 		trimEndSeconds: nullableNumber(row.trim_end_seconds),
 		overlapResolution: overlap as SessionAssemblyPart["overlapResolution"],
 		overlapBoundarySeconds: nullableNumber(row.overlap_boundary_seconds),
+		physicalIntervalState: (() => {
+			const state = optionalString(row.physical_interval_state, 32);
+			if (
+				state !== null &&
+				!["first", "trusted_absolute", "unknown", "manual"].includes(state)
+			)
+				return invalid();
+			return state as SessionAssemblyPart["physicalIntervalState"];
+		})(),
 	};
 }
 
 export function parseSessionAssembly(value: unknown): SessionAssembly {
 	const row = object(value);
+	if (row.schema_version !== "tda_session_assembly_v1" || row.status !== "completed")
+		return invalid();
+	const canonicalizationVersion = string(row.canonicalization_version, 48);
 	if (
-		row.schema_version !== "tda_session_assembly_v1" ||
-		row.status !== "completed" ||
-		row.canonicalization_version !== "tda_session_assembly_canonical_v1"
+		canonicalizationVersion !== "tda_session_assembly_canonical_v1" &&
+		canonicalizationVersion !== "tda_session_assembly_canonical_v2"
 	)
 		return invalid();
 	if (!Array.isArray(row.parts) || row.parts.length < 1 || row.parts.length > 64)
 		return invalid();
 	const parts = row.parts.map((part, index) => parseAssemblyPart(part, index));
+	const timingPolicyVersion = string(row.timing_policy_version, 48);
+	if (
+		(canonicalizationVersion === "tda_session_assembly_canonical_v1" &&
+			timingPolicyVersion !== "tda_session_timeline_v1") ||
+		(canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+			timingPolicyVersion !== "tda_session_timeline_v2") ||
+		row.segment_boundary_policy !== "segment_start_owner_v1"
+	)
+		return invalid();
 	const assemblyId = hex(row.assembly_id, 64);
 	const inputsSha256 = hex(row.inputs_sha256, 64);
 	if (assemblyId !== inputsSha256) return invalid();
+	const timelineStrategy =
+		canonicalizationVersion === "tda_session_assembly_canonical_v2"
+			? (() => {
+					const strategy = string(row.timeline_strategy, 32);
+					if (
+						![
+							"trusted_absolute",
+							"user_confirmed_sequence",
+							"manual_offsets",
+						].includes(strategy)
+					)
+						return invalid();
+					return strategy as Exclude<SessionAssembly["timelineStrategy"], null>;
+				})()
+			: null;
+	const wallClock =
+		canonicalizationVersion === "tda_session_assembly_canonical_v2"
+			? (() => {
+					const state = string(row.wall_clock, 16);
+					if (!["unavailable", "partial", "trusted"].includes(state))
+						return invalid();
+					return state as Exclude<SessionAssembly["wallClock"], null>;
+				})()
+			: null;
+	const unknownIntervalCount =
+		canonicalizationVersion === "tda_session_assembly_canonical_v2"
+			? integer(row.unknown_interval_count, 0, Math.max(0, parts.length - 1))
+			: null;
+	if (canonicalizationVersion === "tda_session_assembly_canonical_v2") {
+		if (
+			parts.some(
+				(part, index) =>
+					part.physicalIntervalState === null ||
+					(index === 0 && part.physicalIntervalState !== "first") ||
+					(index > 0 && part.physicalIntervalState === "first"),
+			) ||
+			parts.filter((part) => part.physicalIntervalState === "unknown").length !==
+				unknownIntervalCount
+		)
+			return invalid();
+	}
 	return {
 		schemaVersion: "tda_session_assembly_v1",
+		canonicalizationVersion:
+			canonicalizationVersion as SessionAssembly["canonicalizationVersion"],
+		timingPolicyVersion:
+			timingPolicyVersion as SessionAssembly["timingPolicyVersion"],
+		segmentBoundaryPolicy: "segment_start_owner_v1",
 		assemblyId,
 		campaignId: id(row.campaign_id, 128),
 		sessionId: id(row.session_id, 128),
 		inputsSha256,
 		timelineFingerprintSha256: hex(row.timeline_fingerprint_sha256, 64),
+		timelineStrategy,
+		wallClock,
+		unknownIntervalCount,
 		participantMappingSha256: hex(row.participant_mapping_sha256, 64),
 		participantApprovalBlocked: bool(row.participant_approval_blocked),
 		transcriptSha256: hex(row.transcript_sha256, 64),

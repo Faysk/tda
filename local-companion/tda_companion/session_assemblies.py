@@ -23,7 +23,9 @@ from .transcription_runs import (
 
 ASSEMBLY_SCHEMA_VERSION = "tda_session_assembly_v1"
 ASSEMBLY_TRANSCRIPT_SCHEMA_VERSION = "tda_session_assembly_transcript_v1"
-ASSEMBLY_CANONICALIZATION_VERSION = "tda_session_assembly_canonical_v1"
+ASSEMBLY_CANONICALIZATION_VERSION = "tda_session_assembly_canonical_v2"
+LEGACY_ASSEMBLY_CANONICALIZATION_VERSION = "tda_session_assembly_canonical_v1"
+LEGACY_TIMING_POLICY_VERSION = "tda_session_timeline_v1"
 ASSEMBLY_LIST_SCHEMA_VERSION = "tda_session_assemblies_v1"
 _MAX_PARTS = 64
 _MAX_SEGMENTS = 100_000
@@ -415,6 +417,9 @@ def _canonical_inputs(
         "timing_policy_version": timeline.get("policy_version"),
         "segment_boundary_policy": timeline.get("segment_boundary_policy"),
         "timeline_fingerprint_sha256": timeline.get("fingerprint_sha256"),
+        "timeline_strategy": timeline.get("strategy"),
+        "wall_clock": timeline.get("wall_clock"),
+        "unknown_interval_count": timeline.get("unknown_interval_count"),
         "participant_mapping_schema_version": participant_mapping.get("schema_version"),
         "participant_mapping_policy": participant_mapping.get("policy"),
         "participant_mapping_sha256": mapping_sha,
@@ -434,6 +439,7 @@ def _canonical_inputs(
                 "source_start_utc": part.get("source_start_utc"),
                 "trim_start_seconds": part.get("trim_start_seconds", 0.0),
                 "trim_end_seconds": part.get("trim_end_seconds"),
+                "physical_interval_state": part.get("physical_interval_state"),
                 "overlap_resolution": part.get("overlap_resolution"),
                 "overlap_boundary_seconds": part.get("overlap_boundary_seconds"),
             }
@@ -551,6 +557,9 @@ def build_session_assembly(
         "timing_policy_version": inputs["timing_policy_version"],
         "segment_boundary_policy": inputs["segment_boundary_policy"],
         "timeline_fingerprint_sha256": inputs["timeline_fingerprint_sha256"],
+        "timeline_strategy": inputs["timeline_strategy"],
+        "wall_clock": inputs["wall_clock"],
+        "unknown_interval_count": inputs["unknown_interval_count"],
         "participant_mapping_schema_version": inputs["participant_mapping_schema_version"],
         "participant_mapping_policy": inputs["participant_mapping_policy"],
         "participant_mapping_sha256": mapping_sha,
@@ -599,15 +608,21 @@ def load_session_assembly(
         "SESSION_ASSEMBLY_NOT_FOUND",
         "SESSION_ASSEMBLY_MANIFEST_INVALID",
     )
+    canonicalization_version = manifest.get("canonicalization_version")
+    timing_policy_version = manifest.get("timing_policy_version")
     if (
         manifest.get("schema_version") != ASSEMBLY_SCHEMA_VERSION
         or manifest.get("status") != "completed"
         or manifest.get("assembly_id") != assembly_id
         or manifest.get("campaign_id") != campaign_id
         or manifest.get("session_id") != session_id
-        or manifest.get("canonicalization_version") != ASSEMBLY_CANONICALIZATION_VERSION
+        or canonicalization_version
+        not in {
+            ASSEMBLY_CANONICALIZATION_VERSION,
+            LEGACY_ASSEMBLY_CANONICALIZATION_VERSION,
+        }
         or manifest.get("inputs_sha256") != assembly_id
-        or manifest.get("timing_policy_version") != TIMING_POLICY_VERSION
+        or timing_policy_version not in {TIMING_POLICY_VERSION, LEGACY_TIMING_POLICY_VERSION}
         or manifest.get("segment_boundary_policy") != SEGMENT_BOUNDARY_POLICY
         or not isinstance(manifest.get("timeline_fingerprint_sha256"), str)
         or _SHA256.fullmatch(manifest["timeline_fingerprint_sha256"]) is None
@@ -624,6 +639,32 @@ def load_session_assembly(
         or not isinstance(manifest.get("parts"), list)
         or not 1 <= len(manifest["parts"]) <= _MAX_PARTS
     ):
+        raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
+    if canonicalization_version == ASSEMBLY_CANONICALIZATION_VERSION:
+        if (
+            timing_policy_version != TIMING_POLICY_VERSION
+            or manifest.get("timeline_strategy")
+            not in {"trusted_absolute", "user_confirmed_sequence", "manual_offsets"}
+            or manifest.get("wall_clock") not in {"unavailable", "partial", "trusted"}
+            or isinstance(manifest.get("unknown_interval_count"), bool)
+            or not isinstance(manifest.get("unknown_interval_count"), int)
+            or manifest["unknown_interval_count"] < 0
+            or manifest["unknown_interval_count"] >= len(manifest["parts"])
+        ):
+            raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
+        physical_states = []
+        for index, part in enumerate(manifest["parts"]):
+            if not isinstance(part, dict):
+                raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
+            state = part.get("physical_interval_state")
+            if state not in {"first", "trusted_absolute", "unknown", "manual"}:
+                raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
+            if (index == 0 and state != "first") or (index > 0 and state == "first"):
+                raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
+            physical_states.append(state)
+        if physical_states.count("unknown") != manifest["unknown_interval_count"]:
+            raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
+    elif timing_policy_version != LEGACY_TIMING_POLICY_VERSION:
         raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
     if verify_transcript:
         payload = _bounded_bytes(
