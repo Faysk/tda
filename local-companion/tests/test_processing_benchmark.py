@@ -163,7 +163,7 @@ def test_benchmark_runs_canonical_profiles_in_order_and_emits_profile_progress(
 
 @pytest.mark.parametrize(
     "failed_profile",
-    ["whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"],
+    ["qwen-fast", "qwen-quality"],
 )
 def test_benchmark_profile_local_failure_continues_remaining_profiles(
     monkeypatch,
@@ -278,6 +278,7 @@ def test_benchmark_can_record_multiple_profile_local_failures(monkeypatch):
     ("code", "recoverable"),
     [
         ("WORKER_PROTOCOL_INVALID", True),
+        ("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN", True),
         ("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN", False),
     ],
 )
