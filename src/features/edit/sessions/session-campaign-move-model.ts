@@ -99,10 +99,6 @@ export function requiredSessionCampaignMoveDecisions(
 	};
 }
 
-export function sessionCampaignMoveRecoveryKey(sessionId: string): string {
-	return `session-campaign-move:${sessionId}`;
-}
-
 export function validSessionCampaignMoveRecoveryIntent(
 	value: unknown,
 ): value is SessionCampaignMoveRecoveryIntent {
