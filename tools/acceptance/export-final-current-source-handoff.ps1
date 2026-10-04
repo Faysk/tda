@@ -9,6 +9,7 @@ Set-StrictMode -Version Latest
 $RequiredFiles = @(
   "tools/acceptance/run-processing-final-acceptance.ps1",
   "tools/acceptance/run-processing-benchmark-physical-gate.ps1",
+  "tools/acceptance/verify-processing-benchmark-quality-handoff.ps1",
   "tools/acceptance/run-processing-stable-smoke.ps1",
   "tools/acceptance/run-final-current-source-acceptance.ps1",
   "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
