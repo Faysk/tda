@@ -60,6 +60,8 @@ const SAFE_EVENT_DATA_KEYS = new Set([
 	"failed_count",
 	"error_code",
 	"recoverable",
+	"scope",
+	"continued",
 ]);
 
 function formatDateTime(value: string | null | undefined): string {
