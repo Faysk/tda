@@ -107,6 +107,7 @@ def test_whisper_runtime_workflow_tracks_worker_dependency_closure():
         "local-companion/tda_companion/atomic_storage.py",
         "local-companion/tda_companion/attempt_fence.py",
         "local-companion/tda_companion/benchmark_bundles.py",
+        "local-companion/tda_companion/benchmark_diagnostics.py",
     }
     for path in required:
         assert value.count(path) == 2, f"whisper-runtime.yml must watch {path} on PR and push"
@@ -126,6 +127,7 @@ def test_qwen_runtime_workflows_track_the_strict_worker_dependency_closure():
         "local-companion/tda_companion/atomic_storage.py",
         "local-companion/tda_companion/attempt_fence.py",
         "local-companion/tda_companion/benchmark_bundles.py",
+        "local-companion/tda_companion/benchmark_diagnostics.py",
     }
     for name in ("qwen-runtime.yml", "qwen-runtime-package.yml"):
         value = _workflow(name)
