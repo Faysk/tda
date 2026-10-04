@@ -64,6 +64,7 @@ export function SessionAssemblyResults({
 	const editorRef = useRef<HTMLElement>(null);
 	const focusedRequestId = useRef(0);
 	const [busy, setBusy] = useState(false);
+	const [reviewDirty, setReviewDirty] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
 	const refresh = useCallback(
@@ -309,8 +310,14 @@ export function SessionAssemblyResults({
 									variant={selected ? "primary" : "secondary"}
 									disabled={busy}
 									onClick={() => {
-										if (sessionId)
-											void loadReview(sessionId, assembly.assemblyId);
+										if (!sessionId || selected) return;
+										if (reviewDirty) {
+											setError(
+												"Salve ou descarte as alterações da revisão atual antes de abrir outra assembly.",
+											);
+											return;
+										}
+										void loadReview(sessionId, assembly.assemblyId);
 									}}
 								>
 									{selected ? "Revisão aberta" : "Abrir revisão"}
@@ -340,6 +347,7 @@ export function SessionAssemblyResults({
 								review: next,
 							})
 						}
+						onDirtyChange={setReviewDirty}
 					/>
 				</section>
 			) : null}
