@@ -153,6 +153,24 @@ A auditoria #1465–#1467 tornou explícitos três contratos que antes dependiam
 
 O checker de Design System falha se o contraste de `accent-strong` cair abaixo do contrato ou se o token de foco voltar a ser usado como `box-shadow: var(--ds-control-focus-ring)` sem geometria de sombra.
 
+#### Política e inventário de `select` nativo
+
+A escolha entre o primitive `Select` e o controle nativo é intencional, não estética por acaso:
+
+- filtros públicos de navegação/arquivo, em que o popup faz parte da composição visual e precisa sobreviver a app-theme diferente do tema do SO, usam o `Select` compartilhado;
+- selects de formulário e controles operacionais densos podem permanecer nativos quando a semântica HTML, serialização de `FormData` ou integração direta com formulários é mais importante que possuir a superfície do popup;
+- todo select nativo herda o contrato global de `color-scheme`, `option` e `optgroup`; nenhuma superfície deve depender da paleta default do host para legibilidade.
+
+Inventário auditado nesta rodada que permanece nativo por contrato de formulário/operação:
+
+- criação e administração de campanhas: `src/features/campaigns/campaign-create-dialog.tsx` e `src/app/edit/campanhas`;
+- entradas operacionais de campanha: `src/app/edit/processamento`, `src/app/transcricoes` e `src/features/edit/review`;
+- permissões: `src/features/edit/permissions`;
+- Processamento/qualidade: Benchmark Evidence, Benchmark, Local Review, Queue, Run Comparison e controles auxiliares de `processing.module.css`;
+- navegação interna de sessão longa ("Ir para uma seção"), que preserva o select nativo por semântica simples de salto.
+
+O arquivo público de Sessões é deliberadamente diferente: campanha, arco e ordenação usam o primitive compartilhado, e o checker falha se um `<select>` nativo voltar a `src/components/session-list.tsx`.
+
 ## Extensão promovida — borda de controle
 
 ### Extensão operacional — warning (#607)
