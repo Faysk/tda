@@ -312,6 +312,9 @@ export function ProcessingQueueView({
 								const error = job.error
 									? presentJobError(job.error.code)
 									: null;
+								const partialBenchmark =
+									job.kind === "benchmark.craig" &&
+									job.error?.code === "BENCHMARK_PARTIAL";
 								const detailsId = `queue-job-details-${job.id}`;
 								return (
 									<Fragment key={job.id}>
@@ -349,8 +352,8 @@ export function ProcessingQueueView({
 												data-label="Estado"
 												className={styles.statusCell}
 											>
-												<StatusPill tone={jobTone(job.status)}>
-													{jobLabels[job.status]}
+												<StatusPill tone={partialBenchmark ? "warning" : jobTone(job.status)}>
+													{partialBenchmark ? "Parcial" : jobLabels[job.status]}
 												</StatusPill>
 												{error ? (
 													<span className={styles.errorInline}>{error}</span>
