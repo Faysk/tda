@@ -260,7 +260,8 @@ from (
     ('41000000-0000-4000-8000-000000000012'::uuid,'Move concurrent','ready_for_review','move-concurrent','{}'::jsonb),
     ('41000000-0000-4000-8000-000000000020'::uuid,'Move populated','published','move-populated','{}'::jsonb),
     ('41000000-0000-4000-8000-000000000021'::uuid,'Move manual reconciliation','ready_for_review','move-manual','{}'::jsonb),
-    ('41000000-0000-4000-8000-000000000022'::uuid,'Move canon hard block','ready_for_review','move-canon-hard','{}'::jsonb)
+    ('41000000-0000-4000-8000-000000000022'::uuid,'Move canon hard block','ready_for_review','move-canon-hard','{}'::jsonb),
+    ('41000000-0000-4000-8000-000000000023'::uuid,'Move concurrent v2','ready_for_review','move-concurrent-v2','{}'::jsonb)
 ) seed(id,title,status,source_id,metadata)
 cross join public.campaigns campaign
 where campaign.slug='yuhara-main';
