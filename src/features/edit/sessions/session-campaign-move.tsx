@@ -15,8 +15,6 @@ import {
 	requiredSessionCampaignMoveDecisions,
 	sessionCampaignMoveConsequenceLabel,
 	sessionCampaignMovePlanHeading,
-	sessionCampaignMoveRecoveryKey,
-	validSessionCampaignMoveRecoveryIntent,
 } from "./session-campaign-move-model";
 import {
 	clearSessionCampaignMoveRecovery,
