@@ -61,6 +61,8 @@ export function SessionAssemblyResults({
 	const sessionIdRef = useRef<string | null>(null);
 	const refreshGeneration = useRef(0);
 	const reviewGeneration = useRef(0);
+	const editorRef = useRef<HTMLDivElement>(null);
+	const focusedRequestId = useRef(0);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -237,6 +239,18 @@ export function SessionAssemblyResults({
 		review !== null &&
 		activeAssembly.assemblyId === review.assemblyId;
 
+	useEffect(() => {
+		if (
+			!editorOpen ||
+			!focus ||
+			focus.requestId <= focusedRequestId.current
+		)
+			return;
+		focusedRequestId.current = focus.requestId;
+		editorRef.current?.focus({ preventScroll: true });
+		editorRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+	}, [editorOpen, focus]);
+
 	return (
 		<section
 			className={styles.section}
@@ -309,6 +323,7 @@ export function SessionAssemblyResults({
 
 			{editorOpen && activeAssembly && review ? (
 				<div
+					ref={editorRef}
 					className={styles.editor}
 					data-assembly-review-owner="results"
 					tabIndex={-1}
