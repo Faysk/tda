@@ -37,6 +37,19 @@ class WorkerProcessError(RuntimeError):
         self.recoverable = recoverable
 
 
+_BENCHMARK_PROFILE_LOCAL_FAILURE_CODES = frozenset(
+    {
+        "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+    }
+)
+
+
+def _benchmark_profile_failure_can_continue(exc: WorkerProcessError) -> bool:
+    """Return whether a worker failure is proven isolated to one benchmark profile."""
+
+    return exc.recoverable and exc.code in _BENCHMARK_PROFILE_LOCAL_FAILURE_CODES
+
+
 @dataclass(frozen=True)
 class WorkerOutcome:
     terminal: str
@@ -661,6 +674,45 @@ class WorkerSupervisor:
         profiles = BENCHMARK_PROFILES
         benchmark_id = benchmark_id_for(job_id, attempt)
         receipts: list[dict] = []
+        profile_outcomes: list[dict] = []
+
+        def emit_profile_event(code: str, *, index: int, profile_id: str, **data: object) -> None:
+            if on_event is None:
+                return
+            on_event(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=index - 1,
+                    type="event",
+                    payload={
+                        "code": code,
+                        "stage": "benchmark",
+                        "profile": profile_id,
+                        "index": index,
+                        "total": len(profiles),
+                        **data,
+                    },
+                )
+            )
+
+        def commit_profile_attempt(index: int) -> None:
+            on_progress(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=index - 1,
+                    type="progress",
+                    payload={
+                        "completed": index,
+                        "total": len(profiles),
+                        "unit": "profiles",
+                        "stage": "benchmark",
+                        "successful": len(receipts),
+                    },
+                )
+            )
+
         for index, profile_id in enumerate(profiles, start=1):
             if is_cancelled is not None and is_cancelled():
                 return WorkerOutcome(
@@ -686,6 +738,12 @@ class WorkerSupervisor:
             )
             if diagnostics is not None:
                 diagnostics.start()
+            emit_profile_event(
+                "BENCHMARK_PROFILE_STARTED",
+                index=index,
+                profile_id=profile_id,
+                successful_count=len(receipts),
+            )
 
             try:
                 outcome = self.run_craig(
@@ -721,7 +779,32 @@ class WorkerSupervisor:
                             diagnostics_exc.code,
                             recoverable=False,
                         ) from exc
-                raise
+                if not _benchmark_profile_failure_can_continue(exc):
+                    raise
+                profile_outcomes.append(
+                    {
+                        "profile_id": profile_id,
+                        "status": "failed",
+                        "artifact_available": False,
+                        "error": {
+                            "code": exc.code,
+                            "recoverable": True,
+                            "scope": "profile",
+                        },
+                    }
+                )
+                emit_profile_event(
+                    "BENCHMARK_PROFILE_FAILED",
+                    index=index,
+                    profile_id=profile_id,
+                    error_code=exc.code,
+                    recoverable=True,
+                    scope="profile",
+                    continued=True,
+                    successful_count=len(receipts),
+                )
+                commit_profile_attempt(index)
+                continue
             except Exception:
                 if diagnostics is not None:
                     try:
@@ -790,32 +873,57 @@ class WorkerSupervisor:
                 except BenchmarkDiagnosticsError as exc:
                     raise WorkerProcessError(exc.code, recoverable=False) from exc
 
+            receipt_index = len(receipts)
             receipts.append(receipt)
-            on_progress(
-                WorkerMessage.create(
-                    job_id=job_id,
-                    attempt=attempt,
-                    seq=index - 1,
-                    type="progress",
-                    payload={
-                        "completed": index,
-                        "total": len(profiles),
-                        "unit": "profiles",
-                        "stage": "benchmark",
-                    },
-                )
+            profile_outcomes.append(
+                {
+                    "profile_id": profile_id,
+                    "status": "completed",
+                    "artifact_available": True,
+                    "receipt_index": receipt_index,
+                }
             )
+            emit_profile_event(
+                "BENCHMARK_PROFILE_COMPLETED",
+                index=index,
+                profile_id=profile_id,
+                successful_count=len(receipts),
+            )
+            commit_profile_attempt(index)
+
+        if len(receipts) == len(profiles):
+            return WorkerOutcome(
+                terminal="result",
+                payload={
+                    "schema_version": "tda_processing_benchmark_v1",
+                    "kind": "benchmark.craig",
+                    "source_id": source_id,
+                    "benchmark_id": benchmark_id,
+                    "sample_identity_sha256": sample_identity_sha256,
+                    "sample_seconds": sample_seconds,
+                    "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                    "profiles": receipts,
+                },
+                returncode=0,
+            )
+
+        failed_count = len(profile_outcomes) - len(receipts)
         return WorkerOutcome(
             terminal="result",
             payload={
-                "schema_version": "tda_processing_benchmark_v1",
+                "schema_version": "tda_processing_benchmark_v2",
                 "kind": "benchmark.craig",
+                "status": "partial",
                 "source_id": source_id,
                 "benchmark_id": benchmark_id,
                 "sample_identity_sha256": sample_identity_sha256,
                 "sample_seconds": sample_seconds,
                 "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
                 "profiles": receipts,
+                "profile_outcomes": profile_outcomes,
+                "attempted_count": len(profile_outcomes),
+                "completed_count": len(receipts),
+                "failed_count": failed_count,
             },
             returncode=0,
         )
