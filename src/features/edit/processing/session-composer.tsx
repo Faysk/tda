@@ -980,7 +980,8 @@ export function SessionRecordingComposer({
 							</div>
 							<div className={styles.headerActions}>
 								{workspace.timeline.automaticOrderAvailable &&
-								workspace.timeline.strategy !== "trusted_absolute" ? (
+								workspace.timeline.strategy !== "trusted_absolute" &&
+								workspace.timeline.strategy !== "manual_offsets" ? (
 									<Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void deriveTimeline()}>
 										Usar horários confiáveis
 									</Button>
