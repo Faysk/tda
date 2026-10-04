@@ -344,7 +344,9 @@ function PartialResultCard({
 			{failed.map((item) => (
 				<p key={item.profileId} className={styles.loading}>
 					<strong>{LABELS[item.profileId]}:</strong>{" "}
-					{item.error ? presentJobError(item.error.code) : "Falha do perfil."}
+					{item.error
+						? presentJobError(item.error.code, "benchmark.craig")
+						: "Falha do perfil."}
 				</p>
 			))}
 			<div className={styles.activeActions}>
@@ -486,7 +488,7 @@ export function ProcessingBenchmark({
 		(acceptedJob && ["queued", "running"].includes(acceptedJob.status)
 			? acceptedJob
 			: undefined);
-	const latestCompleted = benchmarkJobs.filter(
+	const latestResults = benchmarkJobs.filter(
 		(job) => job.status === "succeeded" && job.result_available,
 	);
 	const latestJob = benchmarkJobs[0];
@@ -554,7 +556,7 @@ export function ProcessingBenchmark({
 	}, [acceptedJob, benchmarkJobs]);
 
 	useEffect(() => {
-		const missing = latestCompleted
+		const missing = latestResults
 			.slice(0, 10)
 			.filter((job) => results[job.id] === undefined);
 		if (!connected || missing.length === 0) return;
@@ -577,7 +579,7 @@ export function ProcessingBenchmark({
 			}));
 		});
 		return () => controller.abort();
-	}, [bridge, connected, latestCompleted, results]);
+	}, [bridge, connected, latestResults, results]);
 
 	useEffect(() => () => request.current?.abort(), []);
 
@@ -956,15 +958,74 @@ export function ProcessingBenchmark({
 		}
 	}
 
-	const completed = active?.progress?.completed ?? 0;
-	const currentProfile =
-		active?.status === "running" ? PROFILES[Math.min(completed, 3)] : null;
+	const progressTerminalCount = active?.progress?.completed ?? 0;
 	const activeEvents =
 		active && observedJobId === active.id
 			? events.filter(
 					(event) => event.attempt === null || event.attempt === active.attempt,
 				)
 			: [];
+	const benchmarkProfileEvents = activeEvents.filter((event) =>
+		[
+			"BENCHMARK_PROFILE_STARTED",
+			"BENCHMARK_PROFILE_COMPLETED",
+			"BENCHMARK_PROFILE_FAILED",
+		].includes(event.code),
+	);
+	const hasProfileLifecycle = benchmarkProfileEvents.length > 0;
+	const activeStepStates = new Map<
+		(typeof PROFILES)[number],
+		"pending" | "current" | "complete" | "failed"
+	>(PROFILES.map((profile) => [profile, "pending"]));
+	if (hasProfileLifecycle) {
+		for (const event of benchmarkProfileEvents) {
+			const rawProfile = event.data.profile;
+			if (
+				typeof rawProfile !== "string" ||
+				!PROFILES.includes(rawProfile as (typeof PROFILES)[number])
+			)
+				continue;
+			const profile = rawProfile as (typeof PROFILES)[number];
+			if (event.code === "BENCHMARK_PROFILE_STARTED")
+				activeStepStates.set(profile, "current");
+			if (event.code === "BENCHMARK_PROFILE_COMPLETED")
+				activeStepStates.set(profile, "complete");
+			if (event.code === "BENCHMARK_PROFILE_FAILED")
+				activeStepStates.set(profile, "failed");
+		}
+	} else {
+		PROFILES.forEach((profile, index) => {
+			activeStepStates.set(
+				profile,
+				index < progressTerminalCount
+					? "complete"
+					: active?.status === "running" &&
+						  index === Math.min(progressTerminalCount, PROFILES.length - 1)
+						? "current"
+						: "pending",
+			);
+		});
+	}
+	const currentProfile =
+		PROFILES.find((profile) => activeStepStates.get(profile) === "current") ?? null;
+	const latestProfileEvent = benchmarkProfileEvents.at(-1) ?? null;
+	const eventNumber = (key: string): number | null => {
+		const value = latestProfileEvent?.data[key];
+		return typeof value === "number" && Number.isFinite(value) ? value : null;
+	};
+	const attemptedProfiles =
+		eventNumber("attempted_count") ??
+		(hasProfileLifecycle
+			? [...activeStepStates.values()].filter((state) => state !== "pending").length
+			: progressTerminalCount);
+	const successfulProfiles =
+		eventNumber("successful_count") ??
+		(hasProfileLifecycle
+			? [...activeStepStates.values()].filter((state) => state === "complete").length
+			: progressTerminalCount);
+	const failedProfiles =
+		eventNumber("failed_count") ??
+		[...activeStepStates.values()].filter((state) => state === "failed").length;
 	const latestEvent = activeEvents.at(-1) ?? null;
 	const latestActivity = latestEvent ? presentJobEvent(latestEvent) : null;
 
@@ -1320,8 +1381,8 @@ export function ProcessingBenchmark({
 									: "Finalizando"}
 						</h3>
 						<p>
-							{active.progress
-								? `${active.progress.completed} de ${active.progress.total} perfis concluídos`
+							{active.progress || hasProfileLifecycle
+								? `Tentados ${attemptedProfiles}/${PROFILES.length} · Concluídos ${successfulProfiles} · Falharam ${failedProfiles}`
 								: "Preparando execução"}
 							{active.stage ? ` · ${stageLabels[active.stage] ?? active.stage}` : ""}
 						</p>
@@ -1338,12 +1399,15 @@ export function ProcessingBenchmark({
 					</div>
 					<ol className={styles.runSteps} aria-label="Progresso dos quatro perfis">
 						{PROFILES.map((id, index) => {
-							const stepState =
-								index < completed
-									? "complete"
-									: active.status === "running" && index === Math.min(completed, PROFILES.length - 1)
-										? "current"
-										: "pending";
+							const stepState = activeStepStates.get(id) ?? "pending";
+							const stateLabel =
+								stepState === "complete"
+									? "concluído"
+									: stepState === "failed"
+										? "falhou"
+										: stepState === "current"
+											? "executando"
+											: "pendente";
 							return (
 								<li
 									key={id}
@@ -1351,8 +1415,14 @@ export function ProcessingBenchmark({
 									data-state={stepState}
 									aria-current={stepState === "current" ? "step" : undefined}
 								>
-									<i aria-hidden="true">{stepState === "complete" ? "✓" : index + 1}</i>
-									<span>{LABELS[id]}</span>
+									<i aria-hidden="true">
+										{stepState === "complete"
+											? "✓"
+											: stepState === "failed"
+												? "×"
+												: index + 1}
+									</i>
+									<span>{LABELS[id]} · {stateLabel}</span>
 								</li>
 							);
 						})}
@@ -1419,50 +1489,59 @@ export function ProcessingBenchmark({
 				<div className={styles.historyHeader}>
 					<div>
 						<span className={styles.eyebrow}>Histórico local</span>
-						<h2>Receipts comparáveis</h2>
+						<h2>Histórico de benchmark</h2>
 					</div>
-					<span>{latestCompleted.length} concluído{latestCompleted.length === 1 ? "" : "s"}</span>
+					<span>{latestResults.length} execução{latestResults.length === 1 ? "" : "ões"}</span>
 				</div>
-				{latestCompleted.length ? (
-					latestCompleted.slice(0, 10).map((job) =>
+				{latestResults.length ? (
+					latestResults.slice(0, 10).map((job) =>
 						results[job.id] ? (
-							<ResultCard
-								key={job.id}
-								result={results[job.id]!}
-								updatedAt={job.updated_at}
-								bridge={bridge}
-								connected={connected}
-								qualityEnabled={benchmarkQualitySupported}
-								onCompare={() =>
-									setEvidenceView({
-										result: results[job.id]!,
-										mode: "compare",
-										promptExport: false,
-									})
-								}
-								onFiles={() =>
-									setEvidenceView({
-										result: results[job.id]!,
-										mode: "files",
-										promptExport: false,
-									})
-								}
-								onExport={() =>
-									setEvidenceView({
-										result: results[job.id]!,
-										mode: "files",
-										promptExport: true,
-									})
-								}
-								onDiagnostics={() => onOpenDiagnostics(job)}
-							/>
+							results[job.id]!.outcome === "partial" ? (
+								<PartialResultCard
+									key={job.id}
+									result={results[job.id]!}
+									updatedAt={job.updated_at}
+									onDiagnostics={() => onOpenDiagnostics(job)}
+								/>
+							) : (
+								<ResultCard
+									key={job.id}
+									result={results[job.id]!}
+									updatedAt={job.updated_at}
+									bridge={bridge}
+									connected={connected}
+									qualityEnabled={benchmarkQualitySupported}
+									onCompare={() =>
+										setEvidenceView({
+											result: results[job.id]!,
+											mode: "compare",
+											promptExport: false,
+										})
+									}
+									onFiles={() =>
+										setEvidenceView({
+											result: results[job.id]!,
+											mode: "files",
+											promptExport: false,
+										})
+									}
+									onExport={() =>
+										setEvidenceView({
+											result: results[job.id]!,
+											mode: "files",
+											promptExport: true,
+										})
+									}
+									onDiagnostics={() => onOpenDiagnostics(job)}
+								/>
+							)
 						) : (
 							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>
 						),
 					)
 				) : (
 					<p className={styles.empty}>
-						Nenhum benchmark concluído neste Companion.
+						Nenhum benchmark registrado neste Companion.
 					</p>
 				)}
 			</section>
