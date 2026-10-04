@@ -15,6 +15,7 @@ import { readSessionPublicationContext } from "@/features/edit/sessions/session-
 import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import { SessionEditWorkspace } from "@/features/edit/sessions/session-edit-workspace";
 import { SessionCampaignMovePanel } from "@/features/edit/sessions/session-campaign-move";
+import { sessionCampaignMoveBackendReady } from "@/features/edit/sessions/session-campaign-move-repository";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
 import styles from "@/features/edit/workbench.module.css";
 import { formatSessionDate } from "@/features/sessions/model";
@@ -92,6 +93,9 @@ export default async function EditSessionPage({ params }: PageProps) {
 				name: item.name,
 			}))
 		: [];
+	const moveBackendReady = moveDestinations.length > 0
+		? await sessionCampaignMoveBackendReady()
+		: false;
 
 	let session: Awaited<ReturnType<typeof findEditSessionBySourceId>>;
 	try {
@@ -138,7 +142,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 
 	return (
 		<section className={[styles.shell, styles.sessionShell].join(" ")}>
-			<header className={styles.workbenchHeader}>
+			<header className={[styles.workbenchHeader, styles.sessionHeader].join(" ")}>
 				<div>
 					<Link className={styles.muted} href={backHref}>
 						← Sessões de {campaign.name}
@@ -165,19 +169,23 @@ export default async function EditSessionPage({ params }: PageProps) {
 				</div>
 			</header>
 
-			<div className={draftStyles.privateNotice} role="status">
+			<div className={[draftStyles.privateNotice, styles.sessionNotice].join(" ")} role="status">
 				<strong>Privado no Edit</strong>
 				<span>Salvar o draft ou trocar a capa não publica no site.</span>
 			</div>
 
-			<SessionCampaignMovePanel
-				sessionId={session.id}
-				sourceSessionId={session.sourceSessionId}
-				sourceCampaignSlug={campaignSlug}
-				sourceCampaignName={campaign.name}
-				destinations={moveDestinations}
-			/>
+			<div className={styles.sessionMove}>
+				<SessionCampaignMovePanel
+					sessionId={session.id}
+					sourceSessionId={session.sourceSessionId}
+					sourceCampaignSlug={campaignSlug}
+					sourceCampaignName={campaign.name}
+					destinations={moveDestinations}
+					backendReady={moveBackendReady}
+				/>
+			</div>
 
+			<div className={styles.sessionWorkspace}>
 			<SessionEditWorkspace
 				transcript={{
 					downloadHref,
@@ -240,6 +248,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 								}
 				}
 			/>
+			</div>
 		</section>
 	);
 }
