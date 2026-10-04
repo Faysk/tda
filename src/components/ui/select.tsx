@@ -27,6 +27,7 @@ export type SelectProps<T extends string> = Readonly<{
 	className?: string;
 	disabled?: boolean;
 	embedded?: boolean;
+	compact?: boolean;
 	name?: string;
 	required?: boolean;
 }>;
@@ -67,6 +68,7 @@ export function Select<T extends string>({
 	className,
 	disabled = false,
 	embedded = false,
+	compact = false,
 	name,
 	required = false,
 }: SelectProps<T>) {
@@ -202,7 +204,12 @@ export function Select<T extends string>({
 	return (
 		<div
 			ref={rootRef}
-			className={classNames(styles.root, embedded ? styles.embedded : undefined, className)}
+			className={classNames(
+				styles.root,
+				embedded ? styles.embedded : undefined,
+				compact ? styles.compact : undefined,
+				className,
+			)}
 			data-open={open ? "true" : "false"}
 		>
 			{name ? (
