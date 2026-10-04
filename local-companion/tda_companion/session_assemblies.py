@@ -652,6 +652,18 @@ def load_session_assembly(
             or manifest["unknown_interval_count"] >= len(manifest["parts"])
         ):
             raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
+        physical_states = []
+        for index, part in enumerate(manifest["parts"]):
+            if not isinstance(part, dict):
+                raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
+            state = part.get("physical_interval_state")
+            if state not in {"first", "trusted_absolute", "unknown", "manual"}:
+                raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
+            if (index == 0 and state != "first") or (index > 0 and state == "first"):
+                raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
+            physical_states.append(state)
+        if physical_states.count("unknown") != manifest["unknown_interval_count"]:
+            raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
     elif timing_policy_version != LEGACY_TIMING_POLICY_VERSION:
         raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
     if verify_transcript:
