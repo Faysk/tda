@@ -290,6 +290,55 @@ def test_mirror_reason_is_an_enum_not_an_arbitrary_short_string():
     assert invalid.data["reason"] == "invalid_required_field"
 
 
+def test_benchmark_profile_lifecycle_events_keep_only_safe_metadata():
+    failed = sanitize_worker_event(
+        {
+            "code": "BENCHMARK_PROFILE_FAILED",
+            "stage": "benchmark",
+            "profile": "qwen-fast",
+            "index": 3,
+            "total": 4,
+            "successful_count": 2,
+            "error_code": "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+            "recoverable": True,
+            "scope": "profile",
+            "continued": True,
+            "text": "private transcript",
+            "path": "C:/private/audio.flac",
+        }
+    )
+
+    assert failed.code == "BENCHMARK_PROFILE_FAILED"
+    assert failed.level == "warning"
+    assert failed.data == {
+        "stage": "benchmark",
+        "profile": "qwen-fast",
+        "index": 3,
+        "total": 4,
+        "successful_count": 2,
+        "error_code": "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+        "recoverable": True,
+        "scope": "profile",
+        "continued": True,
+    }
+    assert failed.drift_reason == "unexpected_or_invalid_field"
+
+    recovery = sanitize_worker_event(
+        {
+            "code": "QWEN_EMPTY_WINDOW_RECOVERY_STARTED",
+            "stage": "transcription",
+            "track": 1,
+            "total_tracks": 4,
+            "window": 2,
+            "profile": "qwen-fast",
+            "count": 2,
+            "strategy": "split_2x30",
+        }
+    )
+    assert recovery.code == "QWEN_EMPTY_WINDOW_RECOVERY_STARTED"
+    assert recovery.data["strategy"] == "split_2x30"
+
+
 def test_all_current_literal_worker_event_codes_are_registered():
     package_root = Path(schema_module.__file__).resolve().parent
     files = (
