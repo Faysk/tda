@@ -411,8 +411,10 @@ export function ProcessingLiveLog({
 		<section
 			className={styles.liveLogExplorer}
 			aria-label="Explorador de eventos do processamento"
+			data-live-log-explorer="true"
 		>
-			<div className={styles.logHeader}>
+			<div className={styles.liveLogControls} data-live-log-controls="true">
+				<div className={styles.logHeader}>
 				<div>
 					<h3>{live ? "Log em tempo real" : "Histórico de eventos"}</h3>
 					<span>
@@ -448,7 +450,7 @@ export function ProcessingLiveLog({
 				</p>
 			) : null}
 
-			<div className={styles.logToolbar}>
+				<div className={styles.logToolbar} data-live-log-toolbar="true">
 				<label>
 					<span className={styles.visuallyHidden}>Filtrar eventos</span>
 					<input
@@ -505,12 +507,14 @@ export function ProcessingLiveLog({
 				</button>
 			</div>
 
-			<p className={styles.visuallyHidden} role="status" aria-live="polite">
-				{assistiveAnnouncement}
-			</p>
+				<p className={styles.visuallyHidden} role="status" aria-live="polite">
+					{assistiveAnnouncement}
+				</p>
+			</div>
 
 			<div
 				ref={scroller}
+				data-live-log-viewport="true"
 				className={`${styles.log} ${rows.length ? "" : styles.logEmpty}`}
 				role="log"
 				aria-label="Eventos do processamento local"
@@ -627,6 +631,7 @@ export function ProcessingLiveLog({
 				)}
 			</div>
 
+			<div className={styles.liveLogFooter} data-live-log-footer="true">
 			{events.length > MAX_VISIBLE_EVENTS ? (
 				<p className={styles.logBoundedNote} role="status">
 					Mostrando os {MAX_VISIBLE_EVENTS} eventos mais recentes para manter a visualização responsiva.
@@ -644,7 +649,7 @@ export function ProcessingLiveLog({
 			) : null}
 
 			{selected ? (
-				<details className={styles.logInspector} open>
+				<details className={styles.logInspector} open data-live-log-detail="true">
 					<summary>Detalhe · {selected.code}</summary>
 					<dl>
 						<div>
@@ -667,6 +672,7 @@ export function ProcessingLiveLog({
 					<pre>{JSON.stringify(selected.data, null, 2)}</pre>
 				</details>
 			) : null}
+			</div>
 		</section>
 	);
 }
