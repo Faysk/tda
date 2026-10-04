@@ -21,10 +21,11 @@ export const queueSortOptions: readonly { id: QueueSort; label: string }[] = [
 const statusOrder: Record<LocalJob["status"], number> = {
 	running: 0,
 	queued: 1,
-	failed: 2,
-	interrupted: 3,
-	succeeded: 4,
-	cancelled: 5,
+	partial: 2,
+	failed: 3,
+	interrupted: 4,
+	succeeded: 5,
+	cancelled: 6,
 };
 
 const knownProfiles: Record<string, string> = {
@@ -91,7 +92,7 @@ export function queueFilterCount(
 	if (filter === "all") return jobs.length;
 	return jobs.filter((job) => {
 		if (filter === "active") return job.status === "running" || job.status === "queued";
-		if (filter === "attention") return job.status === "failed" || job.status === "interrupted";
+		if (filter === "attention") return job.status === "partial" || job.status === "failed" || job.status === "interrupted";
 		if (filter === "completed") return job.status === "succeeded";
 		return job.status === "cancelled";
 	}).length;
@@ -100,7 +101,7 @@ export function queueFilterCount(
 function matchesFilter(job: LocalJob, filter: QueueFilter): boolean {
 	if (filter === "all") return true;
 	if (filter === "active") return job.status === "running" || job.status === "queued";
-	if (filter === "attention") return job.status === "failed" || job.status === "interrupted";
+	if (filter === "attention") return job.status === "partial" || job.status === "failed" || job.status === "interrupted";
 	if (filter === "completed") return job.status === "succeeded";
 	return job.status === "cancelled";
 }
