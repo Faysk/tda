@@ -1280,8 +1280,8 @@ def inspect_quality_errors(
                 "reference_occurrences": reference_occurrences,
                 "hypothesis_occurrences": hypothesis_occurrences,
                 "correct_occurrences": correct,
-                "missed_occurrences": max(reference_occurrences - hypothesis_occurrences, 0),
-                "extra_occurrences": max(hypothesis_occurrences - reference_occurrences, 0),
+                "missed_occurrences": max(reference_occurrences - correct, 0),
+                "extra_occurrences": max(hypothesis_occurrences - correct, 0),
             }
         )
 
