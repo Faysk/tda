@@ -69,6 +69,7 @@ export function presentJobError(code: string): string {
 		WORKER_HEARTBEAT_TIMEOUT: "O worker local parou de responder.",
 		WORKER_EXECUTION_FAILED: "O worker local encontrou uma falha inesperada.",
 		BENCHMARK_RESULT_INVALID: "O benchmark terminou com um receipt inconsistente e foi descartado.",
+		BENCHMARK_PARTIAL: "Um ou mais perfis não concluíram, mas o Benchmark tentou os perfis independentes restantes e preservou os resultados válidos. A comparação 4/4 não foi concluída.",
 		BENCHMARK_SAMPLE_TOO_SHORT: "A fonte não possui 5 minutos completos em todas as tracks.",
 		BENCHMARK_PROFILES_NOT_READY: "Os quatro perfis precisam estar preparados antes do benchmark.",
 		BENCHMARK_RESOURCE_BUSY: "Há outro processamento local usando os recursos necessários para o benchmark.",
@@ -217,6 +218,35 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 	const totalTracks = numberData(event, "total_tracks");
 
 	switch (event.code) {
+		case "BENCHMARK_PROFILE_OUTCOME": {
+			const profileId = textData(event, "profile_id");
+			const status = textData(event, "status");
+			const errorCode = textData(event, "error_code");
+			const attempted = numberData(event, "attempted_count");
+			const successful = numberData(event, "successful_count");
+			const failed = numberData(event, "failed_count");
+			const labels: Record<string, string> = {
+				"whisper-turbo": "Whisper Turbo",
+				"whisper-detailed": "Whisper Detailed",
+				"qwen-fast": "Qwen Fast",
+				"qwen-quality": "Qwen Quality",
+			};
+			const label = profileId ? labels[profileId] ?? profileId : "Perfil";
+			return {
+				title:
+					status === "failed"
+						? `${label} falhou; o Benchmark continuará com os perfis independentes restantes.`
+						: `${label} concluiu o benchmark.`,
+				detail: [
+					errorCode,
+					attempted !== null ? `tentados ${attempted}/4` : null,
+					successful !== null ? `concluídos ${successful}` : null,
+					failed !== null ? `falharam ${failed}` : null,
+				]
+					.filter(Boolean)
+					.join(" · ") || undefined,
+			};
+		}
 		case "DUPLICATE_SUBMISSION_REUSED":
 			return {
 				title: "A mesma transcrição já estava ativa; o TDA reutilizou o trabalho existente.",
