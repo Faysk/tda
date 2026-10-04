@@ -158,6 +158,15 @@ def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, m
             "Authorization": f"Bearer {session.json()['token']}",
             "Origin": ORIGIN,
         }
+        browser_capabilities = client.get(
+            "/api/v1/capabilities",
+            headers=browser_headers,
+        )
+        assert browser_capabilities.status_code == 200
+        assert (
+            "transcription.session-sequence"
+            in browser_capabilities.json()["capabilities"]
+        )
 
         created = client.post(
             "/api/v1/session-workspaces/campaign-a/session-a",
@@ -172,6 +181,16 @@ def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, m
         )
         assert attached.status_code == 200
         assert attached.json()["parts"][0]["source_id"] == SOURCE_A
+
+        # Domain validation should reject a one-part sequence, but the browser
+        # credential must be authorized to reach the new endpoint first.
+        sequence = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a/timeline/confirm-sequence",
+            headers=browser_headers,
+            json={"expected_revision": attached.json()["revision"]},
+        )
+        assert sequence.status_code == 409
+        assert sequence.json()["error"]["code"] == "SESSION_WORKSPACE_SEQUENCE_INVALID"
 
 
 
