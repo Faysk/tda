@@ -66,8 +66,9 @@ async function requestHealthViaManagementApi({
 				authorization: `Bearer ${accessToken}`,
 			},
 			body: JSON.stringify({
+				// Keep this query fixed/read-only. The Management API endpoint is
+				// privileged, so never accept SQL from argv/env/user input here.
 				query: "select public.session_campaign_move_release_health() as health",
-				read_only: true,
 			}),
 			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 		},
