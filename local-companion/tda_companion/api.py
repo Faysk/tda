@@ -1464,10 +1464,18 @@ def create_app(
                                 "Worker did not acknowledge cancellation within the grace period and was stopped",
                                 {"job_id": job_id},
                             )
-                        if outcome.terminal == "result" and final_state["status"] not in {
-                            "succeeded",
-                            "cancelled",
-                        }:
+                        partial_benchmark_terminal = (
+                            body["kind"] == "benchmark.craig"
+                            and final_state["status"] == "failed"
+                            and final_state.get("result_available") is True
+                            and isinstance(final_state.get("error"), dict)
+                            and final_state["error"].get("code") == "BENCHMARK_PARTIAL"
+                        )
+                        if (
+                            outcome.terminal == "result"
+                            and final_state["status"] not in {"succeeded", "cancelled"}
+                            and not partial_benchmark_terminal
+                        ):
                             raise WorkerProcessError("WORKER_RESULT_INCOMPLETE")
                         log(
                             "info",
@@ -2805,6 +2813,35 @@ def create_app(
                 )
             ):
                 raise Conflict("RESULT_ARTIFACT_MISMATCH")
+            return value
+
+        if (
+            isinstance(value, dict)
+            and value.get("schema_version") == "tda_processing_benchmark_v2"
+        ):
+            state = store.get(job_id)
+            body = store.body(job_id)
+            if (
+                value.get("status") != "partial"
+                or value.get("job_id") != job_id
+                or state.get("status") != "failed"
+                or not state.get("result_available")
+                or not isinstance(state.get("error"), dict)
+                or state["error"].get("code") != "BENCHMARK_PARTIAL"
+                or not _partial_benchmark_payload_valid(value, body)
+            ):
+                raise Conflict("RESULT_ARTIFACT_MISMATCH")
+            try:
+                for receipt in value["profiles"]:
+                    verify_benchmark_profile_receipt(
+                        data_root,
+                        benchmark_id=str(value["benchmark_id"]),
+                        source_id=str(value["source_id"]),
+                        sample_identity_sha256=str(value["sample_identity_sha256"]),
+                        receipt=receipt,
+                    )
+            except BenchmarkBundleError as exc:
+                raise Conflict("RESULT_ARTIFACT_UNAVAILABLE") from exc
             return value
 
         transcription = value.get("transcription") if isinstance(value, dict) else None
