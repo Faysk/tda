@@ -37,12 +37,21 @@ const consolidationStages = new Set([
 	"complete",
 ]);
 
-function jobTone(status: LocalJob["status"]): StatusTone {
-	if (status === "succeeded") return "success";
-	if (status === "failed") return "danger";
-	if (status === "interrupted") return "warning";
-	if (status === "running") return "accent";
+function isPartialBenchmark(job: Pick<LocalJob, "kind" | "stage">): boolean {
+	return job.kind === "benchmark.craig" && job.stage === "benchmark_partial";
+}
+
+function jobTone(job: Pick<LocalJob, "status" | "kind" | "stage">): StatusTone {
+	if (isPartialBenchmark(job)) return "warning";
+	if (job.status === "succeeded") return "success";
+	if (job.status === "failed") return "danger";
+	if (job.status === "interrupted") return "warning";
+	if (job.status === "running") return "accent";
 	return "neutral";
+}
+
+function jobStatusLabel(job: Pick<LocalJob, "status" | "kind" | "stage">): string {
+	return isPartialBenchmark(job) ? "Parcial" : jobLabels[job.status];
 }
 
 function progressPercent(job: LocalJob): number | null {

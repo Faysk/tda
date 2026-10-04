@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
 	failedJob,
+	fixtureBenchmarkJob,
 	fixtureJob,
 	installCompanionFixture,
 } from "./companion-fixture";
@@ -22,6 +23,31 @@ async function openQueue(page: import("@playwright/test").Page) {
 	await expect(queue.locator("[data-processing-queue='true']")).toBeVisible();
 	return queue;
 }
+
+test("fila apresenta benchmark parcial como Parcial e não oferece resultado editorial", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		benchmarkPartialResult: true,
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureBenchmarkJob("succeeded", {
+				stage: "benchmark_partial",
+				progress: { completed: 4, total: 4, unit: "profiles" },
+			}),
+		],
+	});
+
+	const queue = await openQueue(page);
+	await queue.getByRole("button", { name: /Todos/ }).click();
+	const row = queue.locator("tbody > tr[data-status]").filter({ hasText: "benchmark-local" });
+	await expect(row).toContainText("Parcial");
+	await expect(row).toContainText("Benchmark parcial");
+	await expect(row.getByRole("button", { name: "Abrir resultado" })).toHaveCount(0);
+});
+
 
 test("fila abre em Ativos e mantém histórico terminal fora do recorte padrão", async ({
 	page,
