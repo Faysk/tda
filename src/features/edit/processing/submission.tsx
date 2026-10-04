@@ -217,6 +217,7 @@ export function ProcessingSubmission({
 	recoveryScope = null,
 	onDraftStateChange,
 	onOpenDiagnostics,
+	onOpenSessionReview,
 	runs = EMPTY_RUNS,
 	benchmarks = EMPTY_BENCHMARKS,
 	system = null,
@@ -227,6 +228,7 @@ export function ProcessingSubmission({
 	recoveryScope?: string | null;
 	onDraftStateChange?: (active: boolean) => void;
 	onOpenDiagnostics?: () => void;
+	onOpenSessionReview?: (sessionId: string, assemblyId: string) => void;
 	runs?: readonly LocalRunSummary[];
 	benchmarks?: readonly BenchmarkResult[];
 	system?: SystemSnapshot | null;
@@ -1403,6 +1405,7 @@ export function ProcessingSubmission({
 						onError={handleChildError}
 						onOpenTechnical={openTechnicalRecovery}
 						onSelectSource={openSourceRecovery}
+						onOpenReview={onOpenSessionReview}
 					/>
 					{composerActive ? (
 						<details
