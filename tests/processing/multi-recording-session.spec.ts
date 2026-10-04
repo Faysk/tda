@@ -80,6 +80,7 @@ type FixtureOptions = Readonly<{
 		| null
 	)[];
 	failReviewSaveOnce?: boolean;
+	untrustedTimeline?: boolean;
 }>;
 
 async function installMultiRecordingRoutes(
@@ -89,6 +90,7 @@ async function installMultiRecordingRoutes(
 	let uploadIndex = 0;
 	let revision = 0;
 	let timelineDerived = false;
+	let sequenceConfirmed = false;
 	let agentOfflineOnce = false;
 	let failNextSecondSourceEnqueue = false;
 	const analyzed = new Set<string>();
@@ -198,7 +200,13 @@ async function installMultiRecordingRoutes(
 		session_id: SESSION,
 		revision,
 		ordering_mode:
-			attached.length <= 1 ? "attachment" : timelineDerived ? "automatic" : "attachment",
+			attached.length <= 1
+				? "attachment"
+				: timelineDerived
+					? "automatic"
+					: sequenceConfirmed
+						? "manual"
+						: "attachment",
 		created_at: NOW,
 		updated_at: NOW,
 		parts: attached.map((sourceId, index) => ({
@@ -208,46 +216,91 @@ async function installMultiRecordingRoutes(
 			selected_run_id: selected.get(sourceId) ?? null,
 			source_state: "ready",
 			timeline_mode:
-				attached.length <= 1 ? "automatic" : timelineDerived ? "automatic" : "unresolved",
+				attached.length <= 1
+					? "automatic"
+					: timelineDerived
+						? "automatic"
+						: sequenceConfirmed
+							? "sequence"
+							: "unresolved",
 			session_offset_seconds:
-				attached.length <= 1 || timelineDerived ? index * 300 : null,
+				attached.length <= 1 || timelineDerived || sequenceConfirmed
+					? index * 300
+					: null,
 			trim_start_seconds: 0,
 			trim_end_seconds: null,
 			gap_confirmed: false,
 			overlap_resolution: null,
 			overlap_boundary_seconds: null,
-			source_start_time: `2026-09-29T2${index}:00:00Z`,
-			source_start_confidence: "trusted_absolute",
-			source_start_utc: `2026-09-29T2${index}:00:00Z`,
+			source_start_time: options.untrustedTimeline
+				? null
+				: `2026-09-29T2${index}:00:00Z`,
+			source_start_confidence: options.untrustedTimeline
+				? "missing"
+				: "trusted_absolute",
+			source_start_utc: options.untrustedTimeline
+				? null
+				: `2026-09-29T2${index}:00:00Z`,
 			source_duration_seconds: 300,
 			effective_start_seconds:
-				attached.length <= 1 || timelineDerived ? index * 300 : null,
+				attached.length <= 1 || timelineDerived || sequenceConfirmed
+					? index * 300
+					: null,
 			effective_end_seconds:
-				attached.length <= 1 || timelineDerived ? (index + 1) * 300 : null,
+				attached.length <= 1 || timelineDerived || sequenceConfirmed
+					? (index + 1) * 300
+					: null,
 			relation_to_previous:
 				index === 0
 					? "first"
-					: attached.length <= 1 || timelineDerived
+					: attached.length <= 1 || timelineDerived || sequenceConfirmed
 						? "contiguous"
 						: "unknown",
 			relation_seconds:
 				index === 0
 					? null
-					: attached.length <= 1 || timelineDerived
+					: attached.length <= 1 || timelineDerived || sequenceConfirmed
 						? 0
 						: null,
 			overlap_resolution_valid: true,
+			physical_interval_state:
+				index === 0
+					? "first"
+					: timelineDerived
+						? "trusted_absolute"
+						: sequenceConfirmed
+							? options.untrustedTimeline
+								? "unknown"
+								: "trusted_absolute"
+							: "unknown",
 			created_at: NOW,
 			updated_at: NOW,
 		})),
 		timeline: {
-			policy_version: "tda_session_timeline_v1",
+			policy_version: "tda_session_timeline_v2",
 			segment_boundary_policy: "segment_start_owner_v1",
 			fingerprint_sha256: "f".repeat(64),
+			strategy:
+				attached.length <= 1 || timelineDerived
+					? "trusted_absolute"
+					: sequenceConfirmed
+						? "user_confirmed_sequence"
+						: "unresolved",
+			wall_clock: options.untrustedTimeline ? "unavailable" : "trusted",
+			unknown_interval_count:
+				attached.length > 1 && !timelineDerived
+					? attached.length - 1
+					: 0,
 			state:
-				attached.length <= 1 || timelineDerived ? "ready" : "needs_timing",
-			all_sources_trusted: true,
-			automatic_order_available: attached.length > 1 && !timelineDerived,
+				attached.length <= 1 || timelineDerived || sequenceConfirmed
+					? "ready"
+					: "needs_timing",
+			all_sources_trusted: !options.untrustedTimeline,
+			automatic_order_available:
+				attached.length > 1 &&
+				!timelineDerived &&
+				!sequenceConfirmed &&
+				!options.untrustedTimeline,
 			gap_count: 0,
 			overlap_count: 0,
 			order_conflict_count: 0,
@@ -434,6 +487,7 @@ async function installMultiRecordingRoutes(
 				attached = [...attached, payload.source_id];
 				revision += 1;
 				timelineDerived = false;
+				sequenceConfirmed = false;
 			}
 			return json(route, workspace());
 		}
@@ -443,6 +497,23 @@ async function installMultiRecordingRoutes(
 			request.method() === "POST"
 		) {
 			timelineDerived = true;
+			revision += 1;
+			return json(route, workspace());
+		}
+		if (
+			path ===
+				`/session-workspaces/${CAMPAIGN}/${SESSION}/timeline/confirm-sequence` &&
+			request.method() === "POST"
+		) {
+			const payload = request.postDataJSON() as { expected_revision: number };
+			if (payload.expected_revision !== revision)
+				return json(
+					route,
+					{ error: { code: "SESSION_WORKSPACE_REVISION_CONFLICT" } },
+					409,
+				);
+			sequenceConfirmed = true;
+			timelineDerived = false;
 			revision += 1;
 			return json(route, workspace());
 		}
@@ -663,9 +734,17 @@ async function installMultiRecordingRoutes(
 				status: "completed",
 				campaign_id: CAMPAIGN,
 				session_id: SESSION,
-				canonicalization_version: "tda_session_assembly_canonical_v1",
+				canonicalization_version: "tda_session_assembly_canonical_v2",
 				inputs_sha256: ASSEMBLY_ID,
 				timeline_fingerprint_sha256: "f".repeat(64),
+				timeline_strategy: sequenceConfirmed
+					? "user_confirmed_sequence"
+					: "trusted_absolute",
+				wall_clock: options.untrustedTimeline ? "unavailable" : "trusted",
+				unknown_interval_count:
+					sequenceConfirmed && options.untrustedTimeline
+						? Math.max(0, attached.length - 1)
+						: 0,
 				participant_mapping_sha256: "8".repeat(64),
 				participant_approval_blocked: false,
 				transcript_artifact: "transcript.json",
@@ -688,6 +767,12 @@ async function installMultiRecordingRoutes(
 					trim_end_seconds: null,
 					overlap_resolution: null,
 					overlap_boundary_seconds: null,
+					physical_interval_state:
+						index === 0
+							? "first"
+							: sequenceConfirmed && options.untrustedTimeline
+								? "unknown"
+								: "trusted_absolute",
 				})),
 			});
 		}
@@ -799,6 +884,9 @@ async function installMultiRecordingRoutes(
 		},
 		get assemblyBuilt() {
 			return assemblyBuilt;
+		},
+		get sequenceConfirmed() {
+			return sequenceConfirmed;
 		},
 		get reviewStatus() {
 			return reviewStatus;
@@ -1126,6 +1214,69 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 			).toBeTruthy();
 		}
 	}
+});
+
+test("three ZIPs without trusted timestamps use confirmed order, survive reload, and never require manual seconds", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1, 2],
+		untrustedTimeline: true,
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "parte-sem-hora-1.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-no-clock-a"),
+		},
+		{
+			name: "parte-sem-hora-2.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-no-clock-b"),
+		},
+		{
+			name: "parte-sem-hora-3.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-no-clock-c"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	const confirm = intent.getByRole("button", {
+		name: "Usar esta ordem para montar a sessão",
+	});
+	await expect(confirm).toBeVisible();
+	await expect(intent).toContainText(
+		"o intervalo real continuará marcado como desconhecido",
+	);
+	await expect(page.getByLabel(/Início na sessão/u)).toHaveCount(0);
+
+	await confirm.click();
+	await expect(intent).toContainText("Transcrição pronta");
+	expect(multi.sequenceConfirmed).toBe(true);
+	expect(multi.assemblyBuilt).toBe(true);
+	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
+	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
+	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
+
+	await page.reload();
+	const recovered = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(recovered).toContainText("Transcrição pronta");
+	await expect(
+		recovered.getByRole("button", {
+			name: "Usar esta ordem para montar a sessão",
+		}),
+	).toHaveCount(0);
+	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
+	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
+	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
 });
 
 test("mixed valid and invalid files keep independent state and valid ZIPs still run", async ({
