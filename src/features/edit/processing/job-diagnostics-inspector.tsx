@@ -7,7 +7,7 @@ import type { ActivityBark } from "./activity-barks";
 import { ProcessingLiveLog } from "./live-log";
 import {
 	jobLabels,
-	presentJobError,
+	presentJobErrorForJob,
 	stageLabels,
 } from "./presentation";
 import type {
@@ -53,6 +53,14 @@ const SAFE_EVENT_DATA_KEYS = new Set([
 	"worker_sha256",
 	"downloaded_bytes",
 	"device",
+	"profile",
+	"attempted_count",
+	"completed_count",
+	"failed_count",
+	"error_code",
+	"recoverable",
+	"scope",
+	"continuation",
 ]);
 
 function formatDateTime(value: string | null | undefined): string {
