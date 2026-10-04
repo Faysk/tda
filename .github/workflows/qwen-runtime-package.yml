@@ -1,8 +1,8 @@
 name: Qwen Runtime Package
-# #1236 release refresh: emit a fresh main-push Qwen 1.0.18 package and dispatch Runtime RC explicitly after the verified package succeeds.
+# #1491 release refresh: emit a fresh main-push Qwen 1.0.19 package and dispatch Runtime RC explicitly after the verified package succeeds.
 # #489 exact-source refresh: keep the physical-promotion runtime build bound to current main.
 # #557 Runtime RC drift fencing mirrors this workflow's runtime inputs; keep the policy coverage aligned.
-# #1236/#1268 physical-validation refresh: bind the Qwen 1.0.18 pre-ASR silence safety + signal-bearing fail-closed candidate to its exact main source.
+# #1491 physical-validation refresh: bind the Qwen 1.0.19 pre-ASR silence safety + signal-bearing fail-closed candidate to its exact main source.
 
 on:
   workflow_dispatch:
@@ -131,12 +131,12 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Restore Runtime RC for the #1413 Qwen 1.0.18 Benchmark evidence candidate
+      - name: Restore Runtime RC for the #1491 Qwen 1.0.19 bounded Fast recovery candidate
         shell: bash
         run: |
           set -euo pipefail
           WORKFLOW="runtime-rc.yml"
-          REPAIR_VERSION="1.0.18"
+          REPAIR_VERSION="1.0.19"
           STABLE_TAG="companion-qwen-runtime-v$REPAIR_VERSION"
 
           RUNTIME_VERSION="$(
