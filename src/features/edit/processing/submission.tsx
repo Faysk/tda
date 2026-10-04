@@ -64,6 +64,11 @@ import {
 	type SessionTranscriptionIntent,
 } from "./session-intent";
 import {
+	sessionRecoveryForError,
+	sessionRecoveryPrimaryText,
+	type SessionRecoveryTarget,
+} from "./session-recovery";
+import {
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
 	type SessionComposerPendingSubmission,
@@ -188,7 +193,15 @@ function localOperationMessage(code: string | null): string {
 				? "Uma faixa do ZIP Craig é inválida ou excede os limites aceitos."
 				: code.startsWith("CRAIG_MANIFEST_")
 					? "A cópia local da fonte não corresponde mais ao manifesto verificado. Reenvie o ZIP original."
-					: `Operação local não concluída · ${code}`);
+					: code.startsWith("SESSION_WORKSPACE_") ||
+							code.startsWith("SESSION_ASSEMBLY_")
+						? sessionRecoveryPrimaryText(
+								sessionRecoveryForError(
+									new BridgeError("conflict", code),
+									null,
+								),
+							)
+						: "Não foi possível concluir esta operação local. Abra o Diagnóstico se o problema continuar.");
 }
 
 type PendingStage = "validating" | "preparing" | "submitting";
@@ -235,6 +248,8 @@ export function ProcessingSubmission({
 		useState<SessionTranscriptionIntent | null>(null);
 	const [composerActive, setComposerActive] = useState(false);
 	const [technicalOpen, setTechnicalOpen] = useState(false);
+	const [technicalTarget, setTechnicalTarget] =
+		useState<SessionRecoveryTarget | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [pendingStage, setPendingStage] = useState<PendingStage | null>(null);
 	const [dragActive, setDragActive] = useState(false);
@@ -267,6 +282,22 @@ export function ProcessingSubmission({
 		},
 		[],
 	);
+
+	const openTechnicalRecovery = useCallback((target?: SessionRecoveryTarget) => {
+		setTechnicalTarget(target ?? null);
+		setTechnicalOpen(true);
+	}, []);
+
+	const openSourceRecovery = useCallback(() => {
+		setIntentRequest(null);
+		setFiles([]);
+		setError(null);
+		setRecoveryNotice(null);
+		setStatus(
+			"Selecione novamente o ZIP original. O workspace da sessão permanece preservado enquanto a fonte local é restaurada.",
+		);
+		window.requestAnimationFrame(() => fileInput.current?.click());
+	}, []);
 
 	useEffect(() => {
 		return () => request.current?.abort();
@@ -1370,7 +1401,8 @@ export function ProcessingSubmission({
 						}}
 						onStatus={setStatus}
 						onError={handleChildError}
-						onOpenTechnical={() => setTechnicalOpen(true)}
+						onOpenTechnical={openTechnicalRecovery}
+						onSelectSource={openSourceRecovery}
 					/>
 					{composerActive ? (
 						<details
@@ -1398,6 +1430,7 @@ export function ProcessingSubmission({
 								profileReady={selectedProfileState?.ready === true}
 								recoveryScope={recoveryScope}
 								disabled={busy || requestTooLarge}
+								recoveryFocusTarget={technicalTarget}
 								onActiveChange={setComposerActive}
 								onRestoreSessionId={(value) =>
 									setSessionId((current) => current || value)

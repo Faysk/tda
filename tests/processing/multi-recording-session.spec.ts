@@ -81,6 +81,9 @@ type FixtureOptions = Readonly<{
 	)[];
 	failReviewSaveOnce?: boolean;
 	untrustedTimeline?: boolean;
+	timelineDeriveErrorCode?: string | null;
+	sequenceConfirmedInitially?: boolean;
+	invalidSourceIndex?: number | null;
 	sourceStartOrder?: readonly number[];
 	initialTimelineState?: "needs_timing" | "overlap_unresolved" | "order_conflict";
 }>;
@@ -92,7 +95,7 @@ async function installMultiRecordingRoutes(
 	let uploadIndex = 0;
 	let revision = 0;
 	let timelineDerived = false;
-	let sequenceConfirmed = false;
+	let sequenceConfirmed = options.sequenceConfirmedInitially ?? false;
 	let agentOfflineOnce = false;
 	let failNextSecondSourceEnqueue = false;
 	const analyzed = new Set<string>();
@@ -117,6 +120,7 @@ async function installMultiRecordingRoutes(
 	const postKeys = new Map<string, string[]>();
 	const acceptedKeys = new Map<string, string>();
 	let failedOnce = false;
+	let timelineDeriveCount = 0;
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
 
 	const baseReviewRows = () =>
@@ -231,7 +235,10 @@ async function installMultiRecordingRoutes(
 			source_id: sourceId,
 			ordinal: index,
 			selected_run_id: selected.get(sourceId) ?? null,
-			source_state: "ready",
+			source_state:
+				SOURCE_IDS.indexOf(sourceId) === options.invalidSourceIndex
+					? "invalid"
+					: "ready",
 			timeline_mode:
 				attached.length <= 1
 					? "automatic"
@@ -299,9 +306,14 @@ async function installMultiRecordingRoutes(
 					? attached.length - 1
 					: 0,
 			state:
-				attached.length <= 1 || timelineDerived || sequenceConfirmed
-					? "ready"
-					: (options.initialTimelineState ?? "needs_timing"),
+				attached.some(
+					(sourceId) =>
+						SOURCE_IDS.indexOf(sourceId) === options.invalidSourceIndex,
+				)
+					? "source_invalid"
+					: attached.length <= 1 || timelineDerived || sequenceConfirmed
+						? "ready"
+						: (options.initialTimelineState ?? "needs_timing"),
 			all_sources_trusted: !options.untrustedTimeline,
 			automatic_order_available:
 				attached.length > 1 &&
@@ -495,7 +507,7 @@ async function installMultiRecordingRoutes(
 				attached = [...attached, payload.source_id];
 				revision += 1;
 				timelineDerived = false;
-				sequenceConfirmed = false;
+				sequenceConfirmed = options.sequenceConfirmedInitially ?? false;
 			}
 			return json(route, workspace());
 		}
@@ -504,6 +516,19 @@ async function installMultiRecordingRoutes(
 				`/session-workspaces/${CAMPAIGN}/${SESSION}/timeline/derive` &&
 			request.method() === "POST"
 		) {
+			timelineDeriveCount += 1;
+			if (options.timelineDeriveErrorCode) {
+				return json(
+					route,
+					{
+						error: {
+							code: options.timelineDeriveErrorCode,
+							recoverable: true,
+						},
+					},
+					409,
+				);
+			}
 			if (options.sourceStartOrder) {
 				const rank = (sourceId: string) => {
 					const sourceIndex = SOURCE_IDS.indexOf(sourceId);
@@ -905,6 +930,9 @@ async function installMultiRecordingRoutes(
 		},
 		get sequenceConfirmed() {
 			return sequenceConfirmed;
+		},
+		get timelineDeriveCount() {
+			return timelineDeriveCount;
 		},
 		get reviewStatus() {
 			return reviewStatus;
@@ -1369,6 +1397,170 @@ test("confirmed overlap remains the exceptional chronology state", async ({ page
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(intent.getByRole("alert")).toContainText("sobreposição comprovada");
 	await expect(intent).not.toContainText("Transcrição pronta");
+});
+
+test("a ready confirmed sequence stays informational and is never auto-derived", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		sequenceConfirmedInitially: true,
+		timelineDeriveErrorCode: "SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE",
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "manual-a.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-ready-manual-a"),
+		},
+		{
+			name: "manual-b.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-ready-manual-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Ordem definida manualmente.");
+	await expect(intent).toContainText(
+		"Vamos preservar a sequência escolhida por você.",
+	);
+	await expect(intent).toContainText("Transcrição pronta");
+	await expect(
+		intent.getByText("SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE", {
+			exact: true,
+		}),
+	).toHaveCount(0);
+	expect(multi.timelineDeriveCount).toBe(0);
+	expect(multi.assemblyBuilt).toBe(true);
+});
+
+test("manual timeline override stays human, actionable and recoverable at 390x844", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		timelineDeriveErrorCode: "SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE",
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "parte-a.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-manual-a"),
+		},
+		{
+			name: "parte-b.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-manual-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	let intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	const recovery = intent.locator('[data-severity="warning"]').filter({
+		hasText: "A ordem desta sessão já possui um ajuste manual.",
+	});
+	await expect(recovery).toBeVisible();
+	await expect(recovery).toContainText(
+		"O TDA preservou sua decisão e não alterou os horários automaticamente.",
+	);
+	await expect(
+		recovery.getByRole("button", { name: "Revisar ordem" }),
+	).toBeVisible();
+	await expect(recovery.locator("strong")).not.toContainText("SESSION_WORKSPACE");
+
+	const technical = recovery.locator("details");
+	await expect(technical).not.toHaveAttribute("open", "");
+	await technical.getByText("Diagnóstico", { exact: true }).click();
+	await expect(
+		technical.getByText("SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE", {
+			exact: true,
+		}),
+	).toBeVisible();
+
+	await recovery.getByRole("button", { name: "Revisar ordem" }).click();
+	const reorder = page.getByRole("button", {
+		name: "Mover gravação 1 para baixo",
+	});
+	await expect(reorder).toBeVisible();
+	await expect(reorder).toBeFocused();
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth + 1,
+		),
+	).toBe(true);
+
+	await page.reload();
+	intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toBeVisible();
+	await expect(
+		intent.getByText("A ordem desta sessão já possui um ajuste manual.", {
+			exact: true,
+		}),
+	).toBeVisible();
+	await expect(
+		intent.getByRole("button", { name: "Revisar ordem" }),
+	).toBeVisible();
+});
+
+test("source recovery opens the ZIP picker while the workspace remains active", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 0],
+		invalidSourceIndex: 0,
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles({
+		name: "fonte-original.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-source-recovery-a"),
+	});
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	let intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent.getByRole("alert")).toContainText(
+		"Uma gravação local precisa ser restaurada.",
+	);
+	const choose = intent.getByRole("button", { name: "Selecionar ZIP original" });
+	await expect(choose).toBeEnabled();
+
+	const chooserPromise = page.waitForEvent("filechooser");
+	await choose.click();
+	const chooser = await chooserPromise;
+	await chooser.setFiles({
+		name: "fonte-original.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-source-recovery-b"),
+	});
+
+	await expect(page.getByLabel("Gravações selecionadas")).toContainText(
+		"fonte-original.zip",
+	);
+	await expect(
+		page.getByRole("button", { name: "Transcrever sessão" }),
+	).toBeEnabled();
+	intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toBeVisible();
 });
 
 test("mixed valid and invalid files keep independent state and valid ZIPs still run", async ({
