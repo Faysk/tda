@@ -164,6 +164,7 @@ export const stageLabels: Record<string, string> = {
 	transcription: "Transcrição",
 	consolidating: "Consolidação",
 	complete: "Resultado preparado",
+	benchmark_partial: "Benchmark parcial",
 	failed: "Falha na execução",
 	cancelled: "Cancelado",
 	interrupted: "Execução interrompida",
@@ -217,6 +218,53 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 	const totalTracks = numberData(event, "total_tracks");
 
 	switch (event.code) {
+		case "BENCHMARK_PROFILE_STARTED": {
+			const profile = textData(event, "profile");
+			return {
+				title: profile
+					? `Benchmark iniciou ${profile}.`
+					: "Benchmark iniciou o próximo perfil.",
+				detail: "Os perfis são executados de forma independente sobre a mesma amostra.",
+			};
+		}
+		case "BENCHMARK_PROFILE_COMPLETED": {
+			const profile = textData(event, "profile");
+			const completedCount = numberData(event, "completed_count");
+			return {
+				title: profile
+					? `Benchmark concluiu ${profile}.`
+					: "Benchmark concluiu um perfil.",
+				detail:
+					completedCount !== null
+						? `${completedCount} perfil${completedCount === 1 ? "" : "is"} concluído${completedCount === 1 ? "" : "s"} com receipt aceito.`
+						: undefined,
+			};
+		}
+		case "BENCHMARK_PROFILE_FAILED": {
+			const profile = textData(event, "profile");
+			const errorCode = textData(event, "error_code");
+			const scope = textData(event, "scope");
+			const continuation = textData(event, "continuation");
+			if (
+				errorCode === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN" &&
+				scope === "profile" &&
+				continuation === "continue"
+			)
+				return {
+					title: `${profile ?? "Qwen"} falhou neste trecho sem inventar texto.`,
+					detail:
+						"O Benchmark registrou a falha deste perfil e continuará automaticamente com os perfis restantes.",
+				};
+			return {
+				title: profile
+					? `Benchmark registrou falha em ${profile}.`
+					: "Benchmark registrou falha de perfil.",
+				detail:
+					errorCode
+						? `${errorCode} · ${continuation === "continue" ? "continuação segura" : "execução interrompida"}`
+						: undefined,
+			};
+		}
 		case "DUPLICATE_SUBMISSION_REUSED":
 			return {
 				title: "A mesma transcrição já estava ativa; o TDA reutilizou o trabalho existente.",
