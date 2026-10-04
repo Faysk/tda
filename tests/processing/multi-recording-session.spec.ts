@@ -1023,7 +1023,6 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	const multi = await installMultiRecordingRoutes(page, {
 		uploadSequence: [0, 1, 2],
 		failOnceSourceIndex: 2,
-		sourceStartOrder: [2, 0, 1],
 	});
 
 	await openProcessing(page);
