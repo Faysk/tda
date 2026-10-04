@@ -150,6 +150,7 @@ def test_qwen_empty_window_recovery_events_preserve_safe_profile_metadata():
             "window": 217,
             "profile": "qwen-quality",
             "count": 2,
+            "strategy": "split_2x30s",
             "start_seconds": 11664.0,
             "end_seconds": 11724.0,
             "text": "private transcript",
@@ -158,6 +159,7 @@ def test_qwen_empty_window_recovery_events_preserve_safe_profile_metadata():
     assert started.code == "QWEN_EMPTY_WINDOW_RECOVERY_STARTED"
     assert started.data["profile"] == "qwen-quality"
     assert started.data["count"] == 2
+    assert started.data["strategy"] == "split_2x30s"
     assert "text" not in started.data
 
     recovered = sanitize_worker_event(
@@ -169,11 +171,13 @@ def test_qwen_empty_window_recovery_events_preserve_safe_profile_metadata():
             "window": 217,
             "profile": "qwen-quality",
             "count": 2,
+            "strategy": "split_2x30s",
             "start_seconds": 11664.0,
             "end_seconds": 11724.0,
         }
     )
     assert recovered.code == "QWEN_EMPTY_WINDOW_RECOVERED"
+    assert recovered.data["strategy"] == "split_2x30s"
     assert recovered.drift_reason is None
 
 
