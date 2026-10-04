@@ -413,6 +413,53 @@ export type BenchmarkResult = {
 	profiles: readonly BenchmarkProfileResult[];
 };
 
+export type BenchmarkPartialProfileOutcome =
+	| {
+			profileId: TranscriptionProfileId;
+			status: "completed";
+			artifactAvailable: true;
+			transcriptSha256: string;
+			transcriptSizeBytes: number;
+	  }
+	| {
+			profileId: TranscriptionProfileId;
+			status: "failed";
+			artifactAvailable: false;
+			error: {
+				code: string;
+				recoverable: true;
+				scope: "profile";
+			};
+			continuation: {
+				decision: "continue";
+				reason: "profile_local_allowlist";
+			};
+	  };
+
+export type BenchmarkPartialResult = {
+	schemaVersion: "tda_processing_benchmark_partial_v1";
+	status: "partial";
+	jobId: string;
+	sourceId: string;
+	campaignId: string;
+	sessionId: string;
+	sampleIdentitySha256: string;
+	sampleSeconds: number;
+	executionMode: "prepared_artifacts_fresh_worker_per_profile_v1";
+	trackCount: number;
+	audioWorkSeconds: number;
+	prepared: boolean;
+	benchmarkId: string;
+	bundleManifestSha256: null;
+	bundleSizeBytes: null;
+	attemptedCount: number;
+	completedCount: number;
+	failedCount: number;
+	profiles: readonly BenchmarkPartialProfileOutcome[];
+};
+
+export type BenchmarkAttemptResult = BenchmarkResult | BenchmarkPartialResult;
+
 export type BenchmarkEvidenceSummary = {
 	schemaVersion: "tda_benchmark_bundle_v1";
 	benchmarkId: string;
@@ -2317,6 +2364,137 @@ export function parseBenchmarkResult(
 		bundleSizeBytes,
 		profiles: parsed,
 	};
+}
+
+export function parseBenchmarkPartialResult(
+	value: unknown,
+	jobId: string,
+): BenchmarkPartialResult {
+	const row = record(value);
+	if (
+		row.schema_version !== "tda_processing_benchmark_partial_v1" ||
+		row.status !== "partial" ||
+		row.kind !== "benchmark.craig"
+	)
+		return invalid();
+	if (identifier(row.job_id) !== jobId) return invalid();
+
+	const sampleSeconds = nonNegativeNumber(row.sample_seconds);
+	if (sampleSeconds !== 300) return invalid();
+	const benchmarkId = benchmarkIdentifier(row.benchmark_id);
+	const sampleIdentitySha256 = sha256(row.sample_identity_sha256);
+	if (row.bundle_manifest_sha256 !== null || row.bundle_size_bytes !== null)
+		return invalid();
+
+	const rawProfiles = row.profiles;
+	if (!Array.isArray(rawProfiles) || rawProfiles.length !== 4) return invalid();
+	const expected: readonly TranscriptionProfileId[] = [
+		"whisper-turbo",
+		"whisper-detailed",
+		"qwen-fast",
+		"qwen-quality",
+	];
+	const profiles = rawProfiles.map((raw, index): BenchmarkPartialProfileOutcome => {
+		const item = record(raw);
+		const profileId = transcriptionProfile(item.profile_id);
+		if (profileId !== expected[index]) return invalid();
+		if (item.status === "completed") {
+			if (item.artifact_available !== true) return invalid();
+			const receipt = record(item.receipt);
+			if (
+				receipt.schema_version !== "tda_benchmark_profile_v1" ||
+				transcriptionProfile(receipt.profile_id) !== profileId ||
+				benchmarkIdentifier(receipt.benchmark_id) !== benchmarkId ||
+				sha256(receipt.sample_identity_sha256) !== sampleIdentitySha256 ||
+				receipt.artifact_available !== true
+			)
+				return invalid();
+			const transcriptSizeBytes = nonNegativeInteger(receipt.transcript_size_bytes);
+			if (transcriptSizeBytes <= 0) return invalid();
+			return {
+				profileId,
+				status: "completed",
+				artifactAvailable: true,
+				transcriptSha256: sha256(receipt.transcript_sha256),
+				transcriptSizeBytes,
+			};
+		}
+		if (item.status !== "failed" || item.artifact_available !== false)
+			return invalid();
+		const error = record(item.error);
+		const continuation = record(item.continuation);
+		const code = text(error.code, 96);
+		if (
+			!/^[A-Z0-9_]{1,96}$/u.test(code) ||
+			error.recoverable !== true ||
+			error.scope !== "profile" ||
+			continuation.decision !== "continue" ||
+			continuation.reason !== "profile_local_allowlist"
+		)
+			return invalid();
+		return {
+			profileId,
+			status: "failed",
+			artifactAvailable: false,
+			error: { code, recoverable: true, scope: "profile" },
+			continuation: {
+				decision: "continue",
+				reason: "profile_local_allowlist",
+			},
+		};
+	});
+
+	const attemptedCount = nonNegativeInteger(row.attempted_count);
+	const completedCount = nonNegativeInteger(row.completed_count);
+	const failedCount = nonNegativeInteger(row.failed_count);
+	const actualCompleted = profiles.filter((item) => item.status === "completed").length;
+	const actualFailed = profiles.filter((item) => item.status === "failed").length;
+	if (
+		attemptedCount !== expected.length ||
+		completedCount !== actualCompleted ||
+		failedCount !== actualFailed ||
+		completedCount + failedCount !== attemptedCount ||
+		failedCount < 1 ||
+		completedCount >= expected.length
+	)
+		return invalid();
+
+	return {
+		schemaVersion: "tda_processing_benchmark_partial_v1",
+		status: "partial",
+		jobId,
+		sourceId: identifier(row.source_id),
+		campaignId: identifier(row.campaign_id),
+		sessionId: identifier(row.session_id),
+		sampleIdentitySha256,
+		sampleSeconds,
+		executionMode:
+			row.execution_mode === "prepared_artifacts_fresh_worker_per_profile_v1"
+				? row.execution_mode
+				: invalid(),
+		trackCount: nonNegativeInteger(row.track_count),
+		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
+		prepared: boolean(row.prepared),
+		benchmarkId,
+		bundleManifestSha256: null,
+		bundleSizeBytes: null,
+		attemptedCount,
+		completedCount,
+		failedCount,
+		profiles,
+	};
+}
+
+export function parseBenchmarkAttemptResult(
+	value: unknown,
+	jobId: string,
+): BenchmarkAttemptResult {
+	const row = record(value);
+	if (row.schema_version === "tda_processing_benchmark_v1")
+		return parseBenchmarkResult(value, jobId);
+	if (row.schema_version === "tda_processing_benchmark_partial_v1")
+		return parseBenchmarkPartialResult(value, jobId);
+	throw new BridgeError("incompatible");
 }
 
 export function parseBenchmarkEvidenceSummary(
