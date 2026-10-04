@@ -97,7 +97,16 @@ export type SessionTimestampConfidence =
 	| "ambiguous"
 	| "opaque"
 	| "missing";
-export type SessionTimelineMode = "unresolved" | "automatic" | "manual";
+export type SessionTimelineMode =
+	| "unresolved"
+	| "automatic"
+	| "manual"
+	| "sequence";
+export type SessionPhysicalIntervalState =
+	| "first"
+	| "trusted_absolute"
+	| "unknown"
+	| "manual";
 export type SessionOverlapResolution =
 	| "prefer_earlier_until"
 	| "prefer_later_from";
@@ -130,13 +139,22 @@ export type SessionWorkspacePart = {
 	relationToPrevious: SessionPartRelation;
 	relationSeconds: number | null;
 	overlapResolutionValid: boolean;
+	physicalIntervalState: SessionPhysicalIntervalState | null;
 	createdAt: string;
 	updatedAt: string;
 };
 export type SessionWorkspaceTimeline = {
-	policyVersion: "tda_session_timeline_v1";
+	policyVersion: "tda_session_timeline_v1" | "tda_session_timeline_v2";
 	segmentBoundaryPolicy: "segment_start_owner_v1";
 	fingerprintSha256: string;
+	strategy:
+		| "unresolved"
+		| "trusted_absolute"
+		| "user_confirmed_sequence"
+		| "manual_offsets"
+		| null;
+	wallClock: "unavailable" | "partial" | "trusted" | null;
+	unknownIntervalCount: number | null;
 	state:
 		| "ready"
 		| "needs_timing"
@@ -1013,11 +1031,16 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			part.overlap_resolution === null || part.overlap_resolution === undefined
 				? null
 				: text(part.overlap_resolution, 32);
+		const physicalIntervalState =
+			part.physical_interval_state === null ||
+			part.physical_interval_state === undefined
+				? null
+				: text(part.physical_interval_state, 32);
 		if (!/^[0-9a-f]{32}$/u.test(partId)) return invalid();
 		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
 		if (ordinal !== index) return invalid();
 		if (sourceState !== "ready" && sourceState !== "invalid") return invalid();
-		if (!["unresolved", "automatic", "manual"].includes(timelineMode))
+		if (!["unresolved", "automatic", "manual", "sequence"].includes(timelineMode))
 			return invalid();
 		if (
 			!["trusted_absolute", "ambiguous", "opaque", "missing"].includes(
@@ -1034,6 +1057,13 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		if (
 			overlapResolution !== null &&
 			!["prefer_earlier_until", "prefer_later_from"].includes(overlapResolution)
+		)
+			return invalid();
+		if (
+			physicalIntervalState !== null &&
+			!["first", "trusted_absolute", "unknown", "manual"].includes(
+				physicalIntervalState,
+			)
 		)
 			return invalid();
 		return {
@@ -1073,6 +1103,8 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			relationToPrevious: relation as SessionPartRelation,
 			relationSeconds: nullableNonNegativeNumber(part.relation_seconds),
 			overlapResolutionValid: boolean(part.overlap_resolution_valid),
+			physicalIntervalState:
+				physicalIntervalState as SessionPhysicalIntervalState | null,
 			createdAt: isoDate(part.created_at),
 			updatedAt: isoDate(part.updated_at),
 		} satisfies SessionWorkspacePart;
@@ -1086,7 +1118,25 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const policyVersion = text(timeline.policy_version, 40);
 	const segmentBoundaryPolicy = text(timeline.segment_boundary_policy, 40);
 	const state = text(timeline.state, 32);
-	if (policyVersion !== "tda_session_timeline_v1") return invalid();
+	const timelineV2 = policyVersion === "tda_session_timeline_v2";
+	if (!timelineV2 && policyVersion !== "tda_session_timeline_v1") return invalid();
+	const strategy = timelineV2 ? text(timeline.strategy, 32) : null;
+	const wallClock = timelineV2 ? text(timeline.wall_clock, 16) : null;
+	if (
+		timelineV2 &&
+		![
+			"unresolved",
+			"trusted_absolute",
+			"user_confirmed_sequence",
+			"manual_offsets",
+		].includes(strategy ?? "")
+	)
+		return invalid();
+	if (
+		timelineV2 &&
+		!["unavailable", "partial", "trusted"].includes(wallClock ?? "")
+	)
+		return invalid();
 	if (segmentBoundaryPolicy !== "segment_start_owner_v1") return invalid();
 	if (
 		![
@@ -1114,6 +1164,9 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		timeline.unresolved_overlap_count,
 	);
 	const unconfirmedGapCount = nonNegativeInteger(timeline.unconfirmed_gap_count);
+	const unknownIntervalCount = timelineV2
+		? nonNegativeInteger(timeline.unknown_interval_count)
+		: null;
 	const observedGapCount = parts.filter(
 		(part) => part.relationToPrevious === "gap",
 	).length;
@@ -1128,14 +1181,26 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			part.relationToPrevious === "overlap" && !part.overlapResolutionValid,
 	).length;
 	const observedUnconfirmedGapCount = parts.filter(
-		(part) => part.relationToPrevious === "gap" && !part.gapConfirmed,
+		(part) =>
+			part.relationToPrevious === "gap" &&
+			!part.gapConfirmed &&
+			(!timelineV2 || part.physicalIntervalState !== "trusted_absolute"),
 	).length;
+	const observedUnknownIntervalCount = parts.filter(
+		(part) => part.physicalIntervalState === "unknown",
+	).length;
+	if (
+		timelineV2 &&
+		parts.some((part) => part.physicalIntervalState === null)
+	)
+		return invalid();
 	if (
 		gapCount !== observedGapCount ||
 		overlapCount !== observedOverlapCount ||
 		orderConflictCount !== observedOrderConflictCount ||
 		unresolvedOverlapCount !== observedUnresolvedOverlapCount ||
-		unconfirmedGapCount !== observedUnconfirmedGapCount
+		unconfirmedGapCount !== observedUnconfirmedGapCount ||
+		(timelineV2 && unknownIntervalCount !== observedUnknownIntervalCount)
 	)
 		return invalid();
 
@@ -1149,9 +1214,13 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		updatedAt: isoDate(row.updated_at),
 		parts,
 		timeline: {
-			policyVersion: "tda_session_timeline_v1",
+			policyVersion:
+				policyVersion as SessionWorkspaceTimeline["policyVersion"],
 			segmentBoundaryPolicy: "segment_start_owner_v1",
 			fingerprintSha256: sha256(timeline.fingerprint_sha256),
+			strategy: strategy as SessionWorkspaceTimeline["strategy"],
+			wallClock: wallClock as SessionWorkspaceTimeline["wallClock"],
+			unknownIntervalCount,
 			state: state as SessionWorkspaceTimeline["state"],
 			allSourcesTrusted: boolean(timeline.all_sources_trusted),
 			automaticOrderAvailable: boolean(timeline.automatic_order_available),

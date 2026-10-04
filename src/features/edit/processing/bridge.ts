@@ -553,6 +553,20 @@ export class LocalBridge {
 			),
 		);
 	}
+	async confirmSessionSequence(
+		campaignId: string,
+		sessionId: string,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/timeline/confirm-sequence`,
+				signal,
+				{ expected_revision: expectedRevision },
+			),
+		);
+	}
 	async deriveSessionTimeline(
 		campaignId: string,
 		sessionId: string,

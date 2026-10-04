@@ -100,6 +100,7 @@ def workspace_for(runs):
                 "gap_confirmed": False,
                 "overlap_resolution": None,
                 "overlap_boundary_seconds": None,
+                "physical_interval_state": "first" if ordinal == 0 else "manual",
                 "relation_to_previous": "first" if ordinal == 0 else "contiguous",
             }
         )
@@ -111,8 +112,11 @@ def workspace_for(runs):
         "ordering_mode": "manual",
         "parts": parts,
         "timeline": {
-            "policy_version": "tda_session_timeline_v1",
+            "policy_version": "tda_session_timeline_v2",
             "segment_boundary_policy": "segment_start_owner_v1",
+            "strategy": "manual_offsets",
+            "wall_clock": "unavailable",
+            "unknown_interval_count": 0,
             "fingerprint_sha256": hashlib.sha256(
                 repr([(row["source_id"], row["session_offset_seconds"]) for row in parts]).encode()
             ).hexdigest(),
@@ -187,7 +191,11 @@ def test_session_assembly_builds_bounded_parts_deterministically(tmp_path, count
     assert len(first["parts"]) == count
     assert first["segment_count"] == count
     assert first["inputs_sha256"] == first["assembly_id"]
-    assert first["timing_policy_version"] == "tda_session_timeline_v1"
+    assert first["timing_policy_version"] == "tda_session_timeline_v2"
+    assert first["canonicalization_version"] == "tda_session_assembly_canonical_v2"
+    assert first["timeline_strategy"] == "manual_offsets"
+    assert first["wall_clock"] == "unavailable"
+    assert first["unknown_interval_count"] == 0
     assert first["segment_boundary_policy"] == "segment_start_owner_v1"
     assert first["participant_mapping_schema_version"] == "tda_session_participant_mapping_v1"
     assert first["participant_mapping_policy"] == "strong_discord_or_manual_v1"
@@ -480,3 +488,107 @@ def test_session_assembly_identity_includes_absolute_time_authority(tmp_path):
 
     assert shifted["assembly_id"] != first["assembly_id"]
     assert shifted["transcript_sha256"] != first["transcript_sha256"]
+
+
+
+def test_sequence_assembly_provenance_changes_identity_without_mutating_source_runs(tmp_path):
+    data_root = tmp_path / "Data"
+    runs = [stage_run(data_root, 1), stage_run(data_root, 2), stage_run(data_root, 3)]
+    base = workspace_for(runs)
+    base["timeline"].update(
+        strategy="user_confirmed_sequence",
+        wall_clock="partial",
+        unknown_interval_count=1,
+    )
+    for index, row in enumerate(base["parts"]):
+        row["timeline_mode"] = "sequence"
+        row["physical_interval_state"] = (
+            "first" if index == 0 else "trusted_absolute" if index == 1 else "unknown"
+        )
+        row["session_offset_seconds"] = float(index * 10)
+    base["timeline"]["fingerprint_sha256"] = hashlib.sha256(
+        b"sequence-order-a"
+    ).hexdigest()
+
+    first = build(data_root, runs, workspace=base)
+    first_sources = [
+        (row["source_id"], row["source_sha256"], row["run_id"], row["transcript_sha256"])
+        for row in first["parts"]
+    ]
+    assert first["timeline_strategy"] == "user_confirmed_sequence"
+    assert first["wall_clock"] == "partial"
+    assert first["unknown_interval_count"] == 1
+    assert first["parts"][2]["physical_interval_state"] == "unknown"
+
+    reordered = workspace_for([runs[1], runs[0], runs[2]])
+    reordered["timeline"].update(
+        strategy="user_confirmed_sequence",
+        wall_clock="partial",
+        unknown_interval_count=1,
+        fingerprint_sha256=hashlib.sha256(b"sequence-order-b").hexdigest(),
+    )
+    for index, row in enumerate(reordered["parts"]):
+        row["timeline_mode"] = "sequence"
+        row["physical_interval_state"] = (
+            "first" if index == 0 else "trusted_absolute" if index == 1 else "unknown"
+        )
+        row["session_offset_seconds"] = float(index * 10)
+
+    changed = build(data_root, [runs[1], runs[0], runs[2]], workspace=reordered)
+    assert changed["assembly_id"] != first["assembly_id"]
+    assert load_session_assembly(
+        data_root,
+        "campaign-a",
+        "session-a",
+        first["assembly_id"],
+        verify_transcript=True,
+    )["assembly_id"] == first["assembly_id"]
+
+    changed_by_source = {
+        row["source_id"]: (
+            row["source_sha256"],
+            row["run_id"],
+            row["transcript_sha256"],
+        )
+        for row in changed["parts"]
+    }
+    for source_id_value, source_sha, run_id, transcript_sha in first_sources:
+        assert changed_by_source[source_id_value] == (
+            source_sha,
+            run_id,
+            transcript_sha,
+        )
+
+
+def test_sequence_fingerprint_change_creates_new_immutable_assembly(tmp_path):
+    data_root = tmp_path / "Data"
+    runs = [stage_run(data_root, 1), stage_run(data_root, 2)]
+    workspace = workspace_for(runs)
+    workspace["timeline"].update(
+        strategy="user_confirmed_sequence",
+        wall_clock="unavailable",
+        unknown_interval_count=1,
+        fingerprint_sha256=hashlib.sha256(b"sequence-v1").hexdigest(),
+    )
+    for index, row in enumerate(workspace["parts"]):
+        row["timeline_mode"] = "sequence"
+        row["physical_interval_state"] = "first" if index == 0 else "unknown"
+
+    first = build(data_root, runs, workspace=workspace)
+    changed_workspace = {
+        **workspace,
+        "parts": [dict(row) for row in workspace["parts"]],
+        "timeline": {
+            **workspace["timeline"],
+            "fingerprint_sha256": hashlib.sha256(b"sequence-v2").hexdigest(),
+        },
+    }
+    second = build(data_root, runs, workspace=changed_workspace)
+
+    assert second["assembly_id"] != first["assembly_id"]
+    assert first["transcript_sha256"] == second["transcript_sha256"]
+    listing = list_session_assemblies(data_root, "campaign-a", "session-a")
+    assert {row["assembly_id"] for row in listing["assemblies"]} == {
+        first["assembly_id"],
+        second["assembly_id"],
+    }

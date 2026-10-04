@@ -341,3 +341,190 @@ def test_geometry_change_invalidates_stale_current_and_following_relations(tmp_p
     )
     assert changed_second["parts"][2]["overlap_resolution"] is None
     assert changed_second["parts"][2]["overlap_boundary_seconds"] is None
+
+
+
+def test_user_confirmed_sequence_persists_restart_and_reorder_invalidates_only_derived_timing(tmp_path):
+    store = Store(tmp_path)
+    workspace = store.ensure_session_workspace("campaign-seq", "session-seq")
+    for seed in (1, 2, 3):
+        workspace = store.attach_session_source(
+            "campaign-seq",
+            "session-seq",
+            source_id(seed),
+            workspace["revision"],
+        )
+
+    middle = workspace["parts"][1]
+    workspace = store.select_session_part_run(
+        "campaign-seq",
+        "session-seq",
+        middle["part_id"],
+        "run-middle-stable",
+        workspace["revision"],
+    )
+    placements = [
+        {
+            "part_id": row["part_id"],
+            "source_id": row["source_id"],
+            "ordinal": index,
+            "session_offset_seconds": offset,
+        }
+        for index, (row, offset) in enumerate(
+            zip(workspace["parts"], (0.0, 30.0, 75.0), strict=True)
+        )
+    ]
+    confirmed = store.apply_user_confirmed_session_sequence(
+        "campaign-seq",
+        "session-seq",
+        placements,
+        workspace["revision"],
+    )
+
+    assert confirmed["ordering_mode"] == "manual"
+    assert [row["timeline_mode"] for row in confirmed["parts"]] == [
+        "sequence",
+        "sequence",
+        "sequence",
+    ]
+    assert [row["session_offset_seconds"] for row in confirmed["parts"]] == [
+        0.0,
+        30.0,
+        75.0,
+    ]
+
+    restarted = Store(tmp_path).session_workspace("campaign-seq", "session-seq")
+    assert [row["timeline_mode"] for row in restarted["parts"]] == [
+        "sequence",
+        "sequence",
+        "sequence",
+    ]
+    assert [row["session_offset_seconds"] for row in restarted["parts"]] == [
+        0.0,
+        30.0,
+        75.0,
+    ]
+
+    reordered_ids = [
+        restarted["parts"][1]["part_id"],
+        restarted["parts"][0]["part_id"],
+        restarted["parts"][2]["part_id"],
+    ]
+    reordered = Store(tmp_path).reorder_session_parts(
+        "campaign-seq",
+        "session-seq",
+        reordered_ids,
+        restarted["revision"],
+    )
+
+    assert [row["part_id"] for row in reordered["parts"]] == reordered_ids
+    assert [row["timeline_mode"] for row in reordered["parts"]] == [
+        "unresolved",
+        "unresolved",
+        "unresolved",
+    ]
+    assert [row["session_offset_seconds"] for row in reordered["parts"]] == [
+        None,
+        None,
+        None,
+    ]
+    selected_by_source = {
+        row["source_id"]: row["selected_run_id"] for row in reordered["parts"]
+    }
+    assert selected_by_source[source_id(2)] == "run-middle-stable"
+    assert selected_by_source[source_id(1)] is None
+    assert selected_by_source[source_id(3)] is None
+
+    reconfirmed = Store(tmp_path).apply_user_confirmed_session_sequence(
+        "campaign-seq",
+        "session-seq",
+        [
+            {
+                "part_id": row["part_id"],
+                "source_id": row["source_id"],
+                "ordinal": index,
+                "session_offset_seconds": offset,
+            }
+            for index, (row, offset) in enumerate(
+                zip(reordered["parts"], (0.0, 45.0, 75.0), strict=True)
+            )
+        ],
+        reordered["revision"],
+    )
+    assert [row["timeline_mode"] for row in reconfirmed["parts"]] == [
+        "sequence",
+        "sequence",
+        "sequence",
+    ]
+    assert [row["session_offset_seconds"] for row in reconfirmed["parts"]] == [
+        0.0,
+        45.0,
+        75.0,
+    ]
+
+
+def test_detaching_confirmed_sequence_back_to_one_part_restores_single_source_mode(tmp_path):
+    store = Store(tmp_path)
+    workspace = _workspace_with_two_parts(store)
+    placements = [
+        {
+            "part_id": row["part_id"],
+            "source_id": row["source_id"],
+            "ordinal": index,
+            "session_offset_seconds": float(index * 30),
+        }
+        for index, row in enumerate(workspace["parts"])
+    ]
+    confirmed = store.apply_user_confirmed_session_sequence(
+        "campaign-a",
+        "session-a",
+        placements,
+        workspace["revision"],
+    )
+
+    remaining = store.detach_session_part(
+        "campaign-a",
+        "session-a",
+        confirmed["parts"][1]["part_id"],
+        confirmed["revision"],
+    )
+
+    assert remaining["ordering_mode"] == "attachment"
+    assert len(remaining["parts"]) == 1
+    assert remaining["parts"][0]["timeline_mode"] == "automatic"
+    assert remaining["parts"][0]["session_offset_seconds"] == 0
+
+
+def test_confirmed_sequence_is_cas_guarded_and_idempotent(tmp_path):
+    store = Store(tmp_path)
+    workspace = _workspace_with_two_parts(store)
+    placements = [
+        {
+            "part_id": row["part_id"],
+            "source_id": row["source_id"],
+            "ordinal": index,
+            "session_offset_seconds": float(index * 60),
+        }
+        for index, row in enumerate(workspace["parts"])
+    ]
+    confirmed = store.apply_user_confirmed_session_sequence(
+        "campaign-a",
+        "session-a",
+        placements,
+        workspace["revision"],
+    )
+    repeated = store.apply_user_confirmed_session_sequence(
+        "campaign-a",
+        "session-a",
+        placements,
+        confirmed["revision"],
+    )
+    assert repeated["revision"] == confirmed["revision"]
+
+    with pytest.raises(Conflict, match="SESSION_WORKSPACE_REVISION_CONFLICT"):
+        store.apply_user_confirmed_session_sequence(
+            "campaign-a",
+            "session-a",
+            placements,
+            workspace["revision"],
+        )

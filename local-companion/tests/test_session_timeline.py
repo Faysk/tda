@@ -12,6 +12,7 @@ from tda_companion.session_timeline import (
     package_duration_seconds,
     segment_owner_at_boundary,
     validate_overlap_boundary,
+    user_confirmed_sequence_placements,
 )
 
 
@@ -528,3 +529,206 @@ def test_project_trusted_absolute_time_rechecks_claimed_trust():
         "trusted_absolute",
         44,
     ) is None
+
+
+
+def _sequence_workspace(count: int, source_facts: dict[str, dict[str, object]]):
+    raw_parts = [part(seed, seed - 1, offset=None) for seed in range(1, count + 1)]
+    placements = user_confirmed_sequence_placements(raw_parts, source_facts)
+    by_part = {row["part_id"]: row for row in placements}
+    resolved_parts = [
+        {
+            **row,
+            "timeline_mode": "sequence",
+            "session_offset_seconds": by_part[row["part_id"]]["session_offset_seconds"],
+        }
+        for row in raw_parts
+    ]
+    return enrich_workspace_timeline(
+        {
+            "schema_version": "tda_session_workspace_v1",
+            "campaign_id": "campaign-sequence",
+            "session_id": "session-sequence",
+            "revision": count,
+            "ordering_mode": "manual",
+            "created_at": "2026-10-04T00:00:00Z",
+            "updated_at": "2026-10-04T00:00:00Z",
+            "parts": resolved_parts,
+        },
+        source_facts,
+    )
+
+
+@pytest.mark.parametrize("count", [2, 3, 20])
+def test_user_confirmed_sequence_builds_continuous_editorial_timeline_without_wall_clock(count):
+    source_facts = dict(
+        facts(seed, start=None, duration=float(10 + seed))
+        for seed in range(1, count + 1)
+    )
+
+    first = _sequence_workspace(count, source_facts)
+    second = _sequence_workspace(count, source_facts)
+
+    expected_offsets = []
+    cursor = 0.0
+    for seed in range(1, count + 1):
+        expected_offsets.append(cursor)
+        cursor += float(10 + seed)
+
+    assert [row["session_offset_seconds"] for row in first["parts"]] == expected_offsets
+    assert first["timeline"]["policy_version"] == "tda_session_timeline_v2"
+    assert first["timeline"]["strategy"] == "user_confirmed_sequence"
+    assert first["timeline"]["wall_clock"] == "unavailable"
+    assert first["timeline"]["unknown_interval_count"] == count - 1
+    assert first["timeline"]["state"] == "ready"
+    assert all(
+        row["relation_to_previous"] == "contiguous"
+        for row in first["parts"][1:]
+    )
+    assert all(
+        row["physical_interval_state"] == "unknown"
+        for row in first["parts"][1:]
+    )
+    assert first["timeline"]["fingerprint_sha256"] == second["timeline"]["fingerprint_sha256"]
+
+
+def test_user_confirmed_reorder_changes_timeline_fingerprint_deterministically():
+    source_facts = dict(
+        facts(seed, start=None, duration=float(10 + seed))
+        for seed in range(1, 4)
+    )
+    first = _sequence_workspace(3, source_facts)
+
+    raw_parts = [
+        part(2, 0, offset=None),
+        part(1, 1, offset=None),
+        part(3, 2, offset=None),
+    ]
+    placements = user_confirmed_sequence_placements(raw_parts, source_facts)
+    by_part = {row["part_id"]: row for row in placements}
+    reordered = enrich_workspace_timeline(
+        {
+            "schema_version": "tda_session_workspace_v1",
+            "campaign_id": "campaign-sequence",
+            "session_id": "session-sequence",
+            "revision": 4,
+            "ordering_mode": "manual",
+            "created_at": "2026-10-04T00:00:00Z",
+            "updated_at": "2026-10-04T00:00:00Z",
+            "parts": [
+                {
+                    **row,
+                    "timeline_mode": "sequence",
+                    "session_offset_seconds": by_part[row["part_id"]][
+                        "session_offset_seconds"
+                    ],
+                }
+                for row in raw_parts
+            ],
+        },
+        source_facts,
+    )
+    repeated = enrich_workspace_timeline(
+        {**reordered, "parts": [dict(row) for row in reordered["parts"]]},
+        source_facts,
+    )
+
+    assert reordered["timeline"]["fingerprint_sha256"] != first["timeline"]["fingerprint_sha256"]
+    assert repeated["timeline"]["fingerprint_sha256"] == reordered["timeline"]["fingerprint_sha256"]
+
+
+def test_sequence_preserves_trusted_gap_and_does_not_require_manual_gap_confirmation():
+    raw_parts = [part(1, 0, offset=None), part(2, 1, offset=None)]
+    source_facts = dict(
+        [
+            facts(1, start="2026-10-04T20:00:00Z", duration=60.0),
+            facts(2, start="2026-10-04T20:11:00Z", duration=30.0),
+        ]
+    )
+    placements = user_confirmed_sequence_placements(raw_parts, source_facts)
+    assert [row["session_offset_seconds"] for row in placements] == [0.0, 660.0]
+    workspace = _sequence_workspace(2, source_facts)
+
+    assert workspace["parts"][1]["relation_to_previous"] == "gap"
+    assert workspace["parts"][1]["relation_seconds"] == 600.0
+    assert workspace["parts"][1]["physical_interval_state"] == "trusted_absolute"
+    assert workspace["parts"][1]["gap_confirmed"] is False
+    assert workspace["timeline"]["unconfirmed_gap_count"] == 0
+    assert workspace["timeline"]["unknown_interval_count"] == 0
+    assert workspace["timeline"]["wall_clock"] == "trusted"
+    assert workspace["timeline"]["state"] == "ready"
+
+
+def test_sequence_partial_wall_clock_keeps_unknown_interval_explicit_not_zero():
+    source_facts = dict(
+        [
+            facts(1, start="2026-10-04T23:59:30+01:00", duration=30.0),
+            facts(2, start="2026-10-05T00:00:00+01:00", duration=45.0),
+            facts(3, start=None, duration=20.0),
+        ]
+    )
+    workspace = _sequence_workspace(3, source_facts)
+
+    assert [row["session_offset_seconds"] for row in workspace["parts"]] == [
+        0.0,
+        30.0,
+        75.0,
+    ]
+    assert workspace["timeline"]["wall_clock"] == "partial"
+    assert workspace["timeline"]["unknown_interval_count"] == 1
+    assert workspace["parts"][1]["physical_interval_state"] == "trusted_absolute"
+    assert workspace["parts"][2]["physical_interval_state"] == "unknown"
+    assert workspace["parts"][2]["relation_to_previous"] == "contiguous"
+    assert workspace["parts"][2]["relation_seconds"] is None
+    assert workspace["parts"][2]["source_start_utc"] is None
+
+
+def test_sequence_proven_overlap_remains_fail_closed_until_explicit_boundary():
+    source_facts = dict(
+        [
+            facts(1, start="2026-10-04T20:00:00Z", duration=60.0),
+            facts(2, start="2026-10-04T20:00:50Z", duration=60.0),
+        ]
+    )
+    workspace = _sequence_workspace(2, source_facts)
+
+    assert workspace["parts"][1]["relation_to_previous"] == "overlap"
+    assert workspace["parts"][1]["relation_seconds"] == 10.0
+    assert workspace["parts"][1]["physical_interval_state"] == "trusted_absolute"
+    assert workspace["timeline"]["state"] == "overlap_unresolved"
+    assert workspace["timeline"]["unresolved_overlap_count"] == 1
+
+
+def test_sequence_rejects_reverse_trusted_anchors_even_with_unknown_part_between():
+    raw_parts = [
+        part(1, 0, offset=None),
+        part(2, 1, offset=None),
+        part(3, 2, offset=None),
+    ]
+    source_facts = dict(
+        [
+            facts(1, start="2026-10-04T22:00:00Z", duration=30.0),
+            facts(2, start=None, duration=30.0),
+            facts(3, start="2026-10-04T21:00:00Z", duration=30.0),
+        ]
+    )
+
+    with pytest.raises(
+        ValueError, match="SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT"
+    ):
+        user_confirmed_sequence_placements(raw_parts, source_facts)
+
+
+def test_sequence_rejects_trusted_reverse_order_instead_of_hiding_conflict():
+    raw_parts = [part(2, 0, offset=None), part(1, 1, offset=None)]
+    source_facts = dict(
+        [
+            facts(1, start="2026-10-04T20:00:00Z", duration=30.0),
+            facts(2, start="2026-10-04T20:01:00Z", duration=30.0),
+        ]
+    )
+
+    with pytest.raises(
+        ValueError, match="SESSION_WORKSPACE_TIMELINE_ORDER_CONFLICT"
+    ):
+        user_confirmed_sequence_placements(raw_parts, source_facts)
