@@ -110,7 +110,8 @@ def test_trusted_absolute_times_derive_order_offsets_gaps_and_overlaps(
         assert workspace["timeline"]["gap_count"] == 1
         assert workspace["timeline"]["overlap_count"] == 1
         assert workspace["timeline"]["unresolved_overlap_count"] == 1
-        assert workspace["timeline"]["unconfirmed_gap_count"] == 1
+        assert workspace["timeline"]["unconfirmed_gap_count"] == 0
+        assert workspace["parts"][1]["physical_interval_state"] == "trusted_absolute"
         assert workspace["timeline"]["segment_boundary_policy"] == "segment_start_owner_v1"
         assert workspace["timeline"]["state"] == "overlap_unresolved"
         before_resolution = workspace["timeline"]["fingerprint_sha256"]
