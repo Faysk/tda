@@ -1385,7 +1385,7 @@ jobs:
             "HumanReferenceJson",
             "quality_measured",
             'private_export_kept_local = $true',
-            "contains_transcript = $false"
+            'contains_transcript = $false'
           )) {
             if (-not $benchmarkGate.Contains($required)) {
               throw ("BENCHMARK_GATE_COMPATIBILITY_CONTRACT_MISSING:" + $required)
