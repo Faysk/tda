@@ -397,7 +397,7 @@ test("lost move response reuses operation id and recovers cache without hiding c
 	const preflight = page.getByRole("button", { name: "Pré-validar mudança" });
 	await selector.selectOption("campanha-b");
 	await preflight.click();
-	await expect(page.getByRole("heading", { name: "Pronta para confirmar" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Plano de transferência" })).toBeVisible();
 
 	await page.getByRole("button", { name: "Perder próxima resposta de move" }).click();
 	const confirm = page.getByRole("button", { name: "Confirmar mudança para Campanha B" });
