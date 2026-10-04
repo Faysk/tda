@@ -172,10 +172,10 @@ def _profile_receipt(profile_id: str) -> dict:
         "execution_lineage": {
             "schema_version": "tda_execution_lineage_v1",
             "runtime_family": "whisper" if engine == "whisper" else "qwen",
-            "runtime_version": "1.1.10" if engine == "whisper" else "1.0.18",
+            "runtime_version": "1.1.10" if engine == "whisper" else "1.0.19",
             "runtime_artifact": {
                 "runtime_id": "whisper-ctranslate2" if engine == "whisper" else "qwen3-transformers",
-                "version": "1.1.10" if engine == "whisper" else "1.0.18",
+                "version": "1.1.10" if engine == "whisper" else "1.0.19",
                 "worker_sha256": "a" * 64,
                 "archive_sha256": "b" * 64,
             },
