@@ -236,6 +236,54 @@ export async function readCommittedSessionCampaignMove(input: Readonly<{
 	};
 }
 
+export async function readRecoveredSessionCampaignMoveDestination(input: Readonly<{
+	actorProfileId: string;
+	sourceCampaignId: string;
+	sourceSessionId: string;
+}>) {
+	const client = editDataClient();
+	if (!client) return null;
+
+	const { data: receipt, error: receiptError } = await client
+		.from("session_campaign_move_operations")
+		.select("session_id,destination_campaign_id,committed_at")
+		.eq("actor_profile_id", input.actorProfileId)
+		.eq("source_campaign_id", input.sourceCampaignId)
+		.eq("source_session_id", input.sourceSessionId)
+		.eq("contract_version", SESSION_CAMPAIGN_MOVE_CONTRACT_V2)
+		.order("committed_at", { ascending: false })
+		.limit(1)
+		.maybeSingle();
+	if (
+		receiptError ||
+		!receipt ||
+		typeof receipt.session_id !== "string"
+	) {
+		return null;
+	}
+
+	// A session can move more than once. Resolve the receipt back to the live
+	// session row instead of trusting the receipt's historical destination.
+	const { data: session, error: sessionError } = await client
+		.from("sessions")
+		.select("id,campaign_id,source_session_id")
+		.eq("id", receipt.session_id)
+		.eq("source_session_id", input.sourceSessionId)
+		.maybeSingle();
+	if (
+		sessionError ||
+		!session ||
+		typeof session.campaign_id !== "string"
+	) {
+		return null;
+	}
+
+	return {
+		sessionId: receipt.session_id,
+		currentCampaignId: session.campaign_id,
+	};
+}
+
 export async function commitSessionCampaignMove(
 	input: MoveBoundaryInput &
 		Readonly<{
