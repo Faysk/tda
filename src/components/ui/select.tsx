@@ -16,14 +16,19 @@ export type SelectOption<T extends string = string> = Readonly<{
 	disabled?: boolean;
 }>;
 
-type SelectProps<T extends string> = Readonly<{
-	value: T;
+export type SelectProps<T extends string> = Readonly<{
+	value?: T;
+	defaultValue?: T;
 	options: readonly SelectOption<T>[];
-	onChange: (value: T) => void;
+	onChange?: (value: T) => void;
 	ariaLabel: string;
+	ariaDescribedBy?: string;
+	ariaInvalid?: boolean;
 	className?: string;
 	disabled?: boolean;
 	embedded?: boolean;
+	name?: string;
+	required?: boolean;
 }>;
 
 function firstEnabledIndex<T extends string>(options: readonly SelectOption<T>[]) {
@@ -53,15 +58,26 @@ function nextEnabledIndex<T extends string>(
 
 export function Select<T extends string>({
 	value,
+	defaultValue,
 	options,
 	onChange,
 	ariaLabel,
+	ariaDescribedBy,
+	ariaInvalid,
 	className,
 	disabled = false,
 	embedded = false,
+	name,
+	required = false,
 }: SelectProps<T>) {
+	const fallbackValue =
+		defaultValue ??
+		options.find((option) => !option.disabled)?.value ??
+		("" as T);
+	const [internalValue, setInternalValue] = useState<T>(fallbackValue);
+	const currentValue = value ?? internalValue;
 	const [open, setOpen] = useState(false);
-	const selectedIndex = options.findIndex((option) => option.value === value);
+	const selectedIndex = options.findIndex((option) => option.value === currentValue);
 	const [activeIndex, setActiveIndex] = useState(
 		selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(options),
 	);
@@ -102,7 +118,8 @@ export function Select<T extends string>({
 	function choose(index: number) {
 		const option = options[index];
 		if (!option || option.disabled) return;
-		onChange(option.value);
+		if (value === undefined) setInternalValue(option.value);
+		onChange?.(option.value);
 		closeAndFocusTrigger();
 	}
 
@@ -177,7 +194,17 @@ export function Select<T extends string>({
 		<div
 			ref={rootRef}
 			className={classNames(styles.root, embedded ? styles.embedded : undefined, className)}
+			data-open={open ? "true" : "false"}
 		>
+			{name ? (
+				<input
+					type="hidden"
+					name={name}
+					value={currentValue}
+					disabled={disabled}
+					data-select-hidden-input="true"
+				/>
+			) : null}
 			<button
 				ref={triggerRef}
 				type="button"
@@ -186,6 +213,9 @@ export function Select<T extends string>({
 				aria-haspopup="listbox"
 				aria-expanded={open}
 				aria-controls={listboxId}
+				aria-describedby={ariaDescribedBy}
+				aria-invalid={ariaInvalid || undefined}
+				aria-required={required || undefined}
 				disabled={disabled}
 				onClick={() => setOpen((current) => !current)}
 				onKeyDown={handleTriggerKeyDown}
@@ -220,14 +250,14 @@ export function Select<T extends string>({
 							)}
 							role="option"
 							data-value={option.value}
-							aria-selected={option.value === value}
+							aria-selected={option.value === currentValue}
 							disabled={option.disabled}
 							tabIndex={-1}
 							onMouseEnter={() => !option.disabled && setActiveIndex(index)}
 							onClick={() => choose(index)}
 						>
 							<span>{option.label}</span>
-							{option.value === value ? (
+							{option.value === currentValue ? (
 								<svg viewBox="0 0 16 16" aria-hidden="true">
 									<path d="m3.5 8 2.8 2.8 6.2-6.2" />
 								</svg>
