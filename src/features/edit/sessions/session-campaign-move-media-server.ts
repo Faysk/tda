@@ -305,6 +305,16 @@ export async function prepareSessionCampaignMoveCover(input: Readonly<{
 	}
 
 	const destinationAssetId = existing?.destinationAssetId ?? randomUUID();
+	if (source.status === "staged" && existing) {
+		return {
+			kind: "prepared",
+			cover: {
+				...existing,
+				sourceAssetId: coverReference,
+				destinationAssetId,
+			},
+		};
+	}
 	if (source.status === "verified_public") {
 		const promoted = await promoteGovernedImageObject({
 			stagedBucket: staged.bucket,
