@@ -235,8 +235,10 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 			return {
 				title:
 					status === "failed"
-						? `${label} falhou; o Benchmark continuará com os perfis independentes restantes.`
-						: `${label} concluiu o benchmark.`,
+						? attempted !== null && attempted >= 4
+							? `${label} falhou neste perfil; os demais perfis independentes já foram tentados.`
+							: `${label} falhou neste perfil; o Benchmark continuará com os perfis independentes restantes.`
+						: `${label} concluiu sua execução no Benchmark.`,
 				detail: [
 					errorCode,
 					attempted !== null ? `tentados ${attempted}/4` : null,
