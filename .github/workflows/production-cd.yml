@@ -460,6 +460,7 @@ jobs:
           - Migrations applied: \`$MIGRATIONS\`
           - Changed media publication lifecycle: \`$MEDIA\`
           - Staged + canonical semantic public smoke: PASS
+          - Session campaign move release health: pre-promote + canonical PASS
           EOF
 
           if gh release view "$RELEASE_ID" >/dev/null 2>&1; then
