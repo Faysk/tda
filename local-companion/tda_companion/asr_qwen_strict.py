@@ -501,6 +501,7 @@ def _recover_empty_window_with_subwindows(
                 "window": window.index,
                 "profile": profile_id,
                 "count": 2,
+                "strategy": "split_2x30s",
                 "start_seconds": window.start,
                 "end_seconds": window.end,
             }
