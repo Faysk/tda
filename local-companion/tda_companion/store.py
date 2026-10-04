@@ -936,7 +936,10 @@ class Store:
                 """,
                 (row["campaign_id"], row["session_id"]),
             ).fetchall()
-            if any(part["timeline_mode"] == "manual" for part in current):
+            if any(
+                part["timeline_mode"] in {"manual", "confirmed_sequence"}
+                for part in current
+            ):
                 raise Conflict("SESSION_WORKSPACE_TIMELINE_MANUAL_OVERRIDE")
             by_part = {part["part_id"]: part for part in current}
             if set(by_part) != {item["part_id"] for item in normalized}:
