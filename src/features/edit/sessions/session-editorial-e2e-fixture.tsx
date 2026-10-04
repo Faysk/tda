@@ -347,10 +347,21 @@ export function SessionEditorialE2EFixture({
 					sourceSessionId: request.sourceSessionId,
 					sourceCampaignSlug: request.sourceCampaignSlug,
 					destinationCampaignSlug: request.destinationCampaignSlug,
+					contractVersion: "tda_session_campaign_move_v2" as const,
 					blockers: [{
 						code: "synthetic_binding",
 						count: 1,
 						message: "Dependência sintética impede o move.",
+					}],
+					planItems: [{
+						code: "synthetic_binding",
+						family: "synthetic",
+						classification: "hard_block" as const,
+						resolved: false,
+						count: 1,
+						message: "Dependência sintética impede o move.",
+						actionId: null,
+						selectedPolicy: null,
 					}],
 					consequences: [],
 				}
@@ -360,7 +371,18 @@ export function SessionEditorialE2EFixture({
 					sourceSessionId: request.sourceSessionId,
 					sourceCampaignSlug: request.sourceCampaignSlug,
 					destinationCampaignSlug: request.destinationCampaignSlug,
+					contractVersion: "tda_session_campaign_move_v2" as const,
 					blockers: [],
+					planItems: [{
+						code: "synthetic_session",
+						family: "session",
+						classification: "auto" as const,
+						resolved: true,
+						count: 1,
+						message: "Estado sintético acompanha a sessão.",
+						actionId: null,
+						selectedPolicy: null,
+					}],
 					consequences: [
 						"edit_url_changes",
 						"campaign_scope_changes",
@@ -385,6 +407,7 @@ export function SessionEditorialE2EFixture({
 			return {
 				ok: true as const,
 				replayed,
+				publicationState: "unchanged" as const,
 				cachePending,
 				destinationHref:
 					`/e2e-fixtures/session-editorial?move=committed&operationId=${encodeURIComponent(request.operationId)}`,
@@ -448,6 +471,7 @@ export function SessionEditorialE2EFixture({
 										},
 									]}
 									backendReady={moveBackendReady}
+									recoveryScope={"a".repeat(64)}
 									transport={moveTransport}
 								/>
 				</div>
