@@ -1156,7 +1156,10 @@ test("stale Markdown import preserves the working copy and never overwrites sile
 
 test("multi-ZIP preflight explains one session, reorders accessibly, and carries order into progress", async ({ page }) => {
 	await installCompanionFixture(page, { profileReady: true, reviewEnabled: true });
-	await installMultiRecordingRoutes(page, { uploadSequence: [0, 1, 2] });
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1, 2],
+		failOnceSourceIndex: 2,
+	});
 	await openProcessing(page);
 	await page.getByLabel("Export do Craig").setInputFiles([
 		{ name: "ordem-1.zip", mimeType: "application/zip", buffer: Buffer.from("PK-order-a") },
@@ -1178,8 +1181,13 @@ test("multi-ZIP preflight explains one session, reorders accessibly, and carries
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("2/3 concluídas");
+	await expect(
+		intent.getByLabel("Progresso das gravações").getByRole("listitem").nth(0),
+	).toContainText("ordem-3.zip");
+	await intent.getByRole("button", { name: "Reprocessar 1 gravação" }).click();
 	await expect(intent).toContainText("Transcrição pronta");
-	await expect(intent.getByLabel("Progresso das gravações").getByRole("listitem").nth(0)).toContainText("ordem-3.zip");
+	await expect(intent.getByLabel("Progresso das gravações")).toHaveCount(0);
 });
 
 test("three ZIPs become one session intent, retry only the failed recording, auto-assemble and open review", async ({
@@ -1230,6 +1238,8 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 
 	await intent.getByRole("button", { name: "Reprocessar 1 gravação" }).click();
 	await expect(intent).toContainText("Transcrição pronta");
+	await expect(intent.getByLabel("Progresso das gravações")).toHaveCount(0);
+	await expect(intent.getByRole("button", { name: "Nova transcrição" })).toBeVisible();
 	expect(multi.retryCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.attachedSources).toEqual(SOURCE_IDS.slice(0, 3));
@@ -1345,11 +1355,14 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 		"true",
 	);
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toBeVisible();
-	await expect(page.getByLabel("ID da sessão")).toBeDisabled();
+	await expect(page.getByLabel("ID da sessão")).toBeHidden();
 
 	if (testInfo.project.name === "desktop") {
 		for (const viewport of [
+			{ width: 320, height: 640 },
 			{ width: 390, height: 844 },
+			{ width: 768, height: 1024 },
+			{ width: 1366, height: 768 },
 			{ width: 1440, height: 900 },
 			{ width: 1920, height: 1080 },
 			// 200% zoom equivalent of the 1440×900 critical viewport.
@@ -1364,6 +1377,11 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 			).toBeTruthy();
 		}
 	}
+
+	await intent.getByRole("button", { name: "Nova transcrição" }).click();
+	await expect(intent).toHaveCount(0);
+	await expect(input).toBeVisible();
+	await expect(page.getByLabel("ID da sessão")).toBeEnabled();
 });
 
 test("8k session review stays bounded, paged and edits only the active utterance", async ({ page }) => {
