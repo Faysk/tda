@@ -1315,7 +1315,7 @@ export function SessionIntentCoordinator({
 					<div className={styles.blockerActions}>
 						{blocker.state === "needs_timing" &&
 						capabilities.includes("transcription.session-sequence") &&
-						workspace.parts.every((part) => part.timelineMode !== "manual") ? (
+						workspace?.parts.every((part) => part.timelineMode !== "manual") === true ? (
 							<Button
 								type="button"
 								size="sm"
@@ -1328,7 +1328,7 @@ export function SessionIntentCoordinator({
 						) : null}
 						{(blocker.state !== "needs_timing" ||
 							!capabilities.includes("transcription.session-sequence") ||
-							workspace.parts.some((part) => part.timelineMode === "manual")) &&
+							workspace?.parts.some((part) => part.timelineMode === "manual") === true) &&
 						onOpenTechnical ? (
 							<Button
 								type="button"
