@@ -51,15 +51,23 @@ export function sessionAssemblyPublicationRequestBody(
 		},
 		assembly: {
 			schemaVersion: "tda_session_assembly_v1",
-			canonicalizationVersion: "tda_session_assembly_canonical_v1",
+			canonicalizationVersion: assembly.canonicalizationVersion,
 			assemblyId: assembly.assemblyId,
 			inputsSha256: assembly.inputsSha256,
 			campaignId: assembly.campaignId,
 			sessionId: assembly.sessionId,
 			transcriptSha256: assembly.transcriptSha256,
-			timingPolicyVersion: "tda_session_timeline_v1",
-			segmentBoundaryPolicy: "segment_start_owner_v1",
+			timingPolicyVersion: assembly.timingPolicyVersion,
+			segmentBoundaryPolicy: assembly.segmentBoundaryPolicy,
 			timelineFingerprintSha256: assembly.timelineFingerprintSha256,
+			...(assembly.canonicalizationVersion ===
+			"tda_session_assembly_canonical_v2"
+				? {
+						timelineStrategy: assembly.timelineStrategy,
+						wallClock: assembly.wallClock,
+						unknownIntervalCount: assembly.unknownIntervalCount,
+					}
+				: {}),
 			participantMappingSchemaVersion:
 				"tda_session_participant_mapping_v1",
 			participantMappingPolicy: "strong_discord_or_manual_v1",
@@ -76,6 +84,10 @@ export function sessionAssemblyPublicationRequestBody(
 				trimEndSeconds: part.trimEndSeconds,
 				overlapResolution: part.overlapResolution,
 				overlapBoundarySeconds: part.overlapBoundarySeconds,
+				...(assembly.canonicalizationVersion ===
+				"tda_session_assembly_canonical_v2"
+					? { physicalIntervalState: part.physicalIntervalState }
+					: {}),
 			})),
 		},
 		review: {
