@@ -84,7 +84,7 @@ A prontidão do Whisper possui dois níveis explícitos:
 
 A versão `1.1.5` nunca deve ser reconstruída, sobrescrita ou republicada com bytes novos. O reparo é sempre uma nova versão imutável.
 
-Como `benchmark_bundles.py` é importado pelo worker empacotado, alterar esse contrato muda bytes do runtime. Os manifests 1.1.10/1.0.18 e as fences RC/Stable incluem esse arquivo na closure de build; runtimes anteriores não podem ser reclassificados como evidence-capable apenas por atualização do Agent. O Companion `0.3.18` anuncia `processing.benchmark.runtime-readiness-v2` e separa `ready` de `benchmark_ready`; consumidores antigos ou respostas sem esse contrato devem falhar fechados para benchmark, sem bloquear transcrição normal.
+Como `benchmark_bundles.py` e, na integração de #1414, `benchmark_diagnostics.py` são importados pelo worker empacotado, alterar qualquer um desses contratos muda bytes do runtime. Os manifests 1.1.10/1.0.18 e as fences RC/Stable incluem essa closure na decisão de build; runtimes anteriores não podem ser reclassificados como evidence-capable apenas por atualização do Agent. O Companion `0.3.18` anuncia `processing.benchmark.runtime-readiness-v2` e separa `ready` de `benchmark_ready`; consumidores antigos ou respostas sem esse contrato devem falhar fechados para benchmark, sem bloquear transcrição normal.
 
 A preparação iniciada pelo Benchmark usa `purpose=benchmark`. Ela pode reutilizar modelos/cache já íntegros, mas só considera o runtime pronto quando a versão ativa satisfaz o contrato de benchmark. Se a Stable ainda for `1.1.5`, o fluxo pode instalar um RC `1.1.7` publicado e verificado; isso não autoriza promovê-lo a Stable.
 
