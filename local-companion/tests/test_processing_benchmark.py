@@ -51,6 +51,8 @@ def test_benchmark_worker_command_requires_exact_five_minute_sample():
             "context": "",
             "cpu": False,
             "benchmark_mode": True,
+            "benchmark_id": benchmark_id_for("benchmark-profile", 1),
+            "benchmark_sample_identity_sha256": "b" * 64,
             "benchmark_sample_seconds": 300.0,
         },
     )
