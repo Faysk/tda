@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { actionStyles, Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import { wallClockPresentation } from "../../transcript-review/time-contract";
@@ -174,8 +174,20 @@ export function SessionAssemblyReview({
 	const [error, setError] = useState<string | null>(null);
 	const [receipt, setReceipt] = useState<PublicationReceiptView | null>(null);
 	const [pending, setPending] = useState<PendingPublication | null>(null);
+	const appliedReviewIdentity = useRef<string | null>(null);
 
 	useEffect(() => {
+		const reviewIdentity = [
+			review.assemblyId,
+			review.baseTranscriptSha256,
+			review.persistence,
+			review.draftRevision ?? "base",
+			review.draftSha256 ?? "base",
+			review.status,
+			review.approvalCurrent ? "approved" : "current",
+		].join(":");
+		if (appliedReviewIdentity.current === reviewIdentity) return;
+		appliedReviewIdentity.current = reviewIdentity;
 		setBaseline(review);
 		setSegments(review.segments.map((segment) => ({ ...segment })));
 		setDirty(false);
