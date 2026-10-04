@@ -176,7 +176,7 @@ export default async function EditSessionsPage({
 						type="search"
 					/>
 				</label>
-				<label>
+				<div>
 					<span>Estado</span>
 					<Select
 						name="estado"
@@ -194,8 +194,8 @@ export default async function EditSessionsPage({
 						ariaLabel="Estado"
 						compact
 					/>
-				</label>
-				<label>
+				</div>
+				<div>
 					<span>Publicação</span>
 					<Select
 						name="publicacao"
@@ -208,8 +208,8 @@ export default async function EditSessionsPage({
 						ariaLabel="Publicação"
 						compact
 					/>
-				</label>
-				<label>
+				</div>
+				<div>
 					<span>Arco</span>
 					<Select
 						name="arco"
@@ -221,8 +221,8 @@ export default async function EditSessionsPage({
 						ariaLabel="Arco"
 						compact
 					/>
-				</label>
-				<label>
+				</div>
+				<div>
 					<span>Ordenar</span>
 					<Select
 						name="ordem"
@@ -235,7 +235,7 @@ export default async function EditSessionsPage({
 						ariaLabel="Ordenar"
 						compact
 					/>
-				</label>
+				</div>
 				<div className={styles.libraryFilterActions}>
 					<FormSubmitButton
 						className={styles.librarySubmit}
