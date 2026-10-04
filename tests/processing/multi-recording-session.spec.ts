@@ -1044,11 +1044,19 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 	expect(multi.assemblyBuilt).toBe(true);
 
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		intent.getByRole("region", { name: "Revisão da transcrição da sessão" }),
+	).toHaveCount(0);
 	const review = page.getByRole("region", {
 		name: "Revisão da transcrição da sessão",
 	});
 	await expect(review).toBeVisible();
 	await expect(review).toContainText("1 falas");
+	await expect(page.locator("[data-session-assembly-editor='true']")).toBeVisible();
 });
 
 test("trusted midnight stays visible while unavailable wall-clock stays absent", async ({
@@ -1091,15 +1099,15 @@ test("trusted midnight stays visible while unavailable wall-clock stays absent",
 		name: "Revisão da transcrição da sessão",
 	});
 	await expect(review.locator("time")).toHaveCount(1);
-	await expect(review.locator("time")).toContainText(
-		"2026-09-29 · 23:59:59 +01:00",
-	);
-	await expect(
-		review.locator("li > :not(details)").getByText(/Track 1/iu),
-	).toHaveCount(0);
-	await expect(
-		review.locator("details").getByText(/track 1/iu),
-	).toHaveCount(2);
+	await expect(review.locator("time")).toContainText("23:59:59");
+	await expect(review.getByText(/Track 1/iu)).toHaveCount(0);
+
+	const firstRow = review.getByRole("button", { name: /Editar fala de Participante/u }).first();
+	await firstRow.click();
+	await review.getByText("Proveniência", { exact: true }).click();
+	await expect(review.getByText(/track 1/iu)).toBeVisible();
+	await review.getByRole("button", { name: "Cancelar" }).click();
+	await expect(firstRow).toBeFocused();
 });
 
 test("stale Markdown import preserves the working copy and never overwrites silently", async ({
@@ -1337,9 +1345,14 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 		},
 	});
 
+	await page.getByRole("tab", { name: "Visão geral" }).click();
+	await expect(intent).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Sessão local" })).toBeVisible();
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toBeVisible();
-	await expect(page.getByLabel("ID da sessão")).toBeDisabled();
+	await expect(page.getByLabel("ID da sessão")).toHaveCount(0);
 
+	await page.getByRole("tab", { name: "Resultados" }).click();
+	await expect(review).toBeVisible();
 	if (testInfo.project.name === "desktop") {
 		for (const viewport of [
 			{ width: 390, height: 844 },
@@ -1349,7 +1362,7 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 			{ width: 720, height: 450 },
 		]) {
 			await page.setViewportSize(viewport);
-			await expect(intent).toBeVisible();
+			await expect(review).toBeVisible();
 			expect(
 				await page.evaluate(
 					() => document.documentElement.scrollWidth <= window.innerWidth + 1,
@@ -1788,7 +1801,8 @@ test("ambiguous enqueue reuses the same idempotency identity and reconnect keeps
 	});
 	await expect(recovered).toBeVisible();
 	await expect(recovered).toContainText("Transcrição pronta");
-	await expect(page.getByLabel("ID da sessão")).toHaveValue(SESSION);
+	await expect(page.getByLabel("ID da sessão")).toHaveCount(0);
+	await expect(page.getByRole("heading", { name: "Sessão local" })).toBeVisible();
 	const submissionForm = page.locator("form").filter({
 		has: page.getByLabel("Export do Craig"),
 	});
@@ -1886,7 +1900,8 @@ test("reload recovers the Agent workspace and does not expose technical controls
 	const recovered = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(recovered).toBeVisible();
 	await expect(recovered).toContainText("Transcrição pronta");
-	await expect(page.getByLabel("ID da sessão")).toHaveValue(SESSION);
+	await expect(page.getByLabel("ID da sessão")).toHaveCount(0);
+	await expect(page.getByRole("heading", { name: "Sessão local" })).toBeVisible();
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toBeVisible();
 	await expect(
 		page.getByRole("button", { name: /Processar pendentes/u }),
