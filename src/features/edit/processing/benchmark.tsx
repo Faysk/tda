@@ -130,14 +130,27 @@ function bridgeMessage(error: unknown, fallback: string): string {
 	);
 }
 
+function formatBenchmarkHistoryDate(value: string): string {
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) return "data indisponível";
+	return new Intl.DateTimeFormat("pt-PT", {
+		day: "2-digit",
+		month: "2-digit",
+		hour: "2-digit",
+		minute: "2-digit",
+	}).format(parsed);
+}
+
 function ResultCard({
 	result,
+	updatedAt,
 	onCompare,
 	onFiles,
 	onExport,
 	onDiagnostics,
 }: Readonly<{
 	result: BenchmarkResult;
+	updatedAt: string;
 	onCompare: () => void;
 	onFiles: () => void;
 	onExport: () => void;
@@ -160,6 +173,7 @@ function ResultCard({
 				<StatusPill tone="success">Concluído</StatusPill>
 			</header>
 			<div className={styles.receiptFacts}>
+				<span>{formatBenchmarkHistoryDate(updatedAt)}</span>
 				<span title={result.sampleIdentitySha256}>
 					Sample SHA {result.sampleIdentitySha256.slice(0, 12)}…
 				</span>
@@ -1331,6 +1345,7 @@ export function ProcessingBenchmark({
 							<ResultCard
 								key={job.id}
 								result={results[job.id]!}
+								updatedAt={job.updated_at}
 								onCompare={() =>
 									setEvidenceView({
 										result: results[job.id]!,
