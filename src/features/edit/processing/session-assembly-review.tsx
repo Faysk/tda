@@ -228,13 +228,14 @@ export function SessionAssemblyReview({
 		baseline.approvalCurrent;
 
 	useEffect(() => {
-		setPageIndex(0);
-		timelineRef.current?.scrollTo({ top: 0 });
-	}, [normalizedQuery]);
-
-	useEffect(() => {
 		if (pageIndex >= pageCount) setPageIndex(pageCount - 1);
 	}, [pageCount, pageIndex]);
+
+	function updateQuery(value: string) {
+		setQuery(value);
+		setPageIndex(0);
+		timelineRef.current?.scrollTo({ top: 0 });
+	}
 
 	function focusSegmentTrigger(assemblySegmentId: string) {
 		window.requestAnimationFrame(() => {
@@ -451,7 +452,7 @@ export function SessionAssemblyReview({
 						type="search"
 						value={query}
 						disabled={hasOpenSegmentEditor}
-						onChange={(event) => setQuery(event.currentTarget.value)}
+						onChange={(event) => updateQuery(event.currentTarget.value)}
 						placeholder="Participante, texto ou origem"
 					/>
 				</label>
