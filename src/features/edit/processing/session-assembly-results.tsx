@@ -64,7 +64,8 @@ export function SessionAssemblyResults({
 	const reviewGeneration = useRef(0);
 	const handledFocusRequest = useRef(0);
 	const editorRef = useRef<HTMLDivElement>(null);
-	const [busy, setBusy] = useState(false);
+	const [refreshing, setRefreshing] = useState(false);
+	const [reviewBusy, setReviewBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
 	const refresh = useCallback(async () => {
@@ -86,11 +87,11 @@ export function SessionAssemblyResults({
 		if (!nextSession) {
 			setAssemblies([]);
 			setError(null);
-			setBusy(false);
+			setRefreshing(false);
 			return;
 		}
 		const controller = new AbortController();
-		setBusy(true);
+		setRefreshing(true);
 		setError(null);
 		try {
 			const listing = await bridge.sessionAssemblies(
@@ -127,7 +128,7 @@ export function SessionAssemblyResults({
 					currentSessionId: sessionIdRef.current,
 				})
 			)
-				setBusy(false);
+				setRefreshing(false);
 		}
 	}, [bridge, campaignId, enabled, focus?.sessionId]);
 
@@ -140,7 +141,7 @@ export function SessionAssemblyResults({
 			setReviewSelection(null);
 			setSelectedAssembly(null);
 			setStatus(null);
-			setBusy(true);
+			setReviewBusy(true);
 			setError(null);
 			try {
 				const [assembly, nextReview] = await Promise.all([
@@ -190,7 +191,7 @@ export function SessionAssemblyResults({
 						currentSessionId: sessionIdRef.current,
 					})
 				)
-					setBusy(false);
+					setReviewBusy(false);
 			}
 		},
 		[bridge, campaignId],
@@ -244,7 +245,7 @@ export function SessionAssemblyResults({
 					type="button"
 					size="sm"
 					variant="tertiary"
-					disabled={busy}
+					disabled={refreshing}
 					onClick={() => void refresh()}
 				>
 					Atualizar
@@ -295,7 +296,7 @@ export function SessionAssemblyResults({
 						bridge={bridge}
 						assembly={selectedAssembly}
 						review={review}
-						disabled={busy}
+						disabled={reviewBusy}
 						onChange={(next) =>
 							setReviewSelection({ sessionId: selectedAssembly.sessionId, review: next })
 						}
