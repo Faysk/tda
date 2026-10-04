@@ -774,6 +774,12 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 	await expect(dialog).toBeVisible();
 	await expect(dialog).toContainText("não faz upload para a nuvem");
 
+	await page.evaluate(() => {
+		Object.defineProperty(window, "showSaveFilePicker", {
+			value: undefined,
+			configurable: true,
+		});
+	});
 	const downloadPromise = page.waitForEvent("download");
 	await dialog.getByRole("button", { name: "Exportar ZIP privado" }).click();
 	const download = await downloadPromise;
