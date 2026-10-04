@@ -317,7 +317,7 @@ export function JobDiagnosticsInspector({
 							<strong>{stageLabels[job.stage] ?? job.stage}</strong>
 							{job.error ? (
 								<span data-tone="danger">
-									{presentJobError(job.error.code)}
+									{presentJobErrorForJob(job)}
 									{" · "}
 									<code>{job.error.code}</code>
 									{job.error.recoverable ? " · recuperável" : " · não recuperável"}
