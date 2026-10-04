@@ -30,6 +30,35 @@ export type SessionCampaignMoveTelemetryInput = Readonly<{
 	preparedAssets?: number;
 }>;
 
+const OUTCOMES = new Set<SessionCampaignMoveTelemetryOutcome>([
+	"ready",
+	"blocked",
+	"prepared",
+	"moved",
+	"replay",
+	"cache_pending",
+	"success",
+	"forbidden",
+	"not_found",
+	"conflict",
+	"operation_conflict",
+	"decision_required",
+	"preparation_required",
+	"preparation_conflict",
+	"cover_unverified",
+	"dependency_unavailable",
+	"validation",
+	"error",
+]);
+
+export function sessionCampaignMoveTelemetryOutcome(
+	value: unknown,
+): SessionCampaignMoveTelemetryOutcome {
+	return typeof value === "string" && OUTCOMES.has(value as SessionCampaignMoveTelemetryOutcome)
+		? (value as SessionCampaignMoveTelemetryOutcome)
+		: "error";
+}
+
 export function sessionCampaignMoveTelemetryEvent(
 	input: SessionCampaignMoveTelemetryInput,
 ) {
