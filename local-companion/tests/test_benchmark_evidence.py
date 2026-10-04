@@ -62,7 +62,7 @@ def _lineage(profile_id: str) -> dict:
         "runtime_family": family,
         "runtime_version": "1.2.3",
         "runtime_artifact": {
-            "runtime_id": f"{family}-test",
+            "runtime_id": "whisper-ctranslate2" if family == "whisper" else "qwen3-transformers",
             "version": "1.2.3",
             "worker_sha256": "1" * 64,
             "archive_sha256": "2" * 64,
@@ -143,6 +143,7 @@ def _document_tracks(
     stats = stats_for_tracks(
         tracks_value,
         processing_seconds=30.0,
+        turn_count=len(turns),
         processing_metrics=processing,
     )
     return TranscriptDocument(
