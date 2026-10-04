@@ -8,6 +8,7 @@ on:
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "tools/acceptance/run-processing-final-acceptance.ps1"
       - "tools/acceptance/run-processing-benchmark-physical-gate.ps1"
+      - "tools/acceptance/verify-processing-benchmark-quality-handoff.ps1"
       - "tools/acceptance/run-processing-stable-smoke.ps1"
       - "tools/acceptance/run-final-current-source-acceptance.ps1"
       - "tools/acceptance/run-qwen-recovery-physical-gate.ps1"
@@ -27,6 +28,7 @@ on:
       - "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1"
       - "tools/acceptance/run-processing-final-acceptance.ps1"
       - "tools/acceptance/run-processing-benchmark-physical-gate.ps1"
+      - "tools/acceptance/verify-processing-benchmark-quality-handoff.ps1"
       - "tools/acceptance/run-processing-stable-smoke.ps1"
       - "tools/acceptance/run-final-current-source-acceptance.ps1"
       - "tools/acceptance/run-qwen-recovery-physical-gate.ps1"
@@ -61,6 +63,7 @@ jobs:
             "tools/acceptance/run-recovery-candidate-1585a932-auto.ps1",
             "tools/acceptance/run-processing-final-acceptance.ps1",
             "tools/acceptance/run-processing-benchmark-physical-gate.ps1",
+            "tools/acceptance/verify-processing-benchmark-quality-handoff.ps1",
             "tools/acceptance/run-processing-stable-smoke.ps1",
             "tools/acceptance/run-final-current-source-acceptance.ps1",
             "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
@@ -1280,6 +1283,7 @@ jobs:
           foreach ($relative in @(
             "tools/acceptance/run-processing-final-acceptance.ps1",
             "tools/acceptance/run-processing-benchmark-physical-gate.ps1",
+            "tools/acceptance/verify-processing-benchmark-quality-handoff.ps1",
             "tools/acceptance/run-processing-stable-smoke.ps1",
             "tools/acceptance/run-final-current-source-acceptance.ps1",
             "tools/acceptance/run-qwen-recovery-physical-gate.ps1",
@@ -1363,6 +1367,7 @@ jobs:
           }
 
           $benchmarkGate = Get-Content -LiteralPath (Join-Path $out "tools\acceptance\run-processing-benchmark-physical-gate.ps1") -Raw
+          $benchmarkGate += Get-Content -LiteralPath (Join-Path $out "tools\acceptance\verify-processing-benchmark-quality-handoff.ps1") -Raw
           foreach ($required in @(
             "Assert-RuntimeCandidateCompatibility",
             '([Version]"1.1.7")',
@@ -1373,7 +1378,14 @@ jobs:
             "source_sha =",
             "source_tree_sha =",
             "archive_sha256 =",
-            "worker_sha256 ="
+            "worker_sha256 =",
+            "Assert-BenchmarkEvidence",
+            "BENCHMARK_EVIDENCE_TRANSCRIPT_HASH_MISMATCH",
+            "BENCHMARK_EXPORT_AUDIO_PRESENT",
+            "HumanReferenceJson",
+            "quality_measured",
+            'private_export_kept_local = $true',
+            'receipt_contains_transcript = $false'
           )) {
             if (-not $benchmarkGate.Contains($required)) {
               throw ("BENCHMARK_GATE_COMPATIBILITY_CONTRACT_MISSING:" + $required)
