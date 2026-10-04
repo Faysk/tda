@@ -592,6 +592,51 @@ def test_user_confirmed_sequence_builds_continuous_editorial_timeline_without_wa
     assert first["timeline"]["fingerprint_sha256"] == second["timeline"]["fingerprint_sha256"]
 
 
+def test_user_confirmed_reorder_changes_timeline_fingerprint_deterministically():
+    source_facts = dict(
+        facts(seed, start=None, duration=float(10 + seed))
+        for seed in range(1, 4)
+    )
+    first = _sequence_workspace(3, source_facts)
+
+    raw_parts = [
+        part(2, 0, offset=None),
+        part(1, 1, offset=None),
+        part(3, 2, offset=None),
+    ]
+    placements = user_confirmed_sequence_placements(raw_parts, source_facts)
+    by_part = {row["part_id"]: row for row in placements}
+    reordered = enrich_workspace_timeline(
+        {
+            "schema_version": "tda_session_workspace_v1",
+            "campaign_id": "campaign-sequence",
+            "session_id": "session-sequence",
+            "revision": 4,
+            "ordering_mode": "manual",
+            "created_at": "2026-10-04T00:00:00Z",
+            "updated_at": "2026-10-04T00:00:00Z",
+            "parts": [
+                {
+                    **row,
+                    "timeline_mode": "sequence",
+                    "session_offset_seconds": by_part[row["part_id"]][
+                        "session_offset_seconds"
+                    ],
+                }
+                for row in raw_parts
+            ],
+        },
+        source_facts,
+    )
+    repeated = enrich_workspace_timeline(
+        {**reordered, "parts": [dict(row) for row in reordered["parts"]]},
+        source_facts,
+    )
+
+    assert reordered["timeline"]["fingerprint_sha256"] != first["timeline"]["fingerprint_sha256"]
+    assert repeated["timeline"]["fingerprint_sha256"] == reordered["timeline"]["fingerprint_sha256"]
+
+
 def test_sequence_preserves_trusted_gap_and_does_not_require_manual_gap_confirmation():
     raw_parts = [part(1, 0, offset=None), part(2, 1, offset=None)]
     source_facts = dict(
