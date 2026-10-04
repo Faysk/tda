@@ -420,12 +420,15 @@ def test_strict_qwen_rejects_empty_asr_when_window_has_signal(
 
 
 
-def test_quality_empty_full_window_recovers_with_two_bounded_in_window_halves(
+@pytest.mark.parametrize("profile_id", ["qwen-fast", "qwen-quality"])
+def test_empty_full_window_recovers_with_two_bounded_same_profile_halves(
     tmp_path: Path,
+    profile_id: str,
 ):
     package, root = _package(tmp_path)
     reports: list[dict] = []
     calls = 0
+    seen_plans: list[str] = []
 
     class Asr:
         def transcribe(self, audio, *, prompt: str):
@@ -451,29 +454,35 @@ def test_quality_empty_full_window_recovers_with_two_bounded_in_window_halves(
         def close(self):
             pass
 
-    def quality_plan(_profile_id: str) -> QwenPlan:
+    def selected_plan(requested_profile_id: str) -> QwenPlan:
+        assert requested_profile_id == profile_id
         return QwenPlan(
-            profile_id="qwen-quality",
+            profile_id=profile_id,
             device="cuda",
             dtype="bfloat16",
             compute_capability="8.9",
         )
 
-    def quality_model_prepare(_models_root: Path, profile):
-        assert profile == get_profile("qwen-quality")
-        return Path("quality-model")
+    def selected_model_prepare(_models_root: Path, profile):
+        assert profile == get_profile(profile_id)
+        return Path(f"{profile_id}-model")
+
+    def selected_asr_factory(_root: Path, plan: QwenPlan):
+        seen_plans.append(plan.profile_id)
+        assert plan.profile_id == profile_id
+        return Asr()
 
     audio = [0.1, -0.1] * 160
     document = transcribe_craig_package_qwen_strict(
         package,
         root,
         tmp_path / "Models",
-        profile_id="qwen-quality",
+        profile_id=profile_id,
         checkpoints=False,
-        plan_resolver=quality_plan,
-        model_prepare=quality_model_prepare,
+        plan_resolver=selected_plan,
+        model_prepare=selected_model_prepare,
         aligner_prepare=_aligner_prepare,
-        asr_session_factory=lambda _root, _plan: Asr(),
+        asr_session_factory=selected_asr_factory,
         aligner_session_factory=lambda _root, _plan: Aligner(),
         window_reader=lambda _path: iter(
             [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
@@ -483,20 +492,36 @@ def test_quality_empty_full_window_recovers_with_two_bounded_in_window_halves(
     )
 
     assert calls == 3
+    assert seen_plans == [profile_id]
     assert [
         word.text
         for segment in document.tracks[0].segments
         for word in segment.words
     ] == ["primeira", "segunda"]
-    codes = [item.get("code") for item in reports]
-    assert codes.count("QWEN_WINDOW_EMPTY_ASR_REJECTED") == 1
-    assert codes.count("QWEN_EMPTY_WINDOW_RECOVERY_STARTED") == 1
-    assert codes.count("QWEN_EMPTY_WINDOW_RECOVERED") == 1
-    assert "QWEN_EMPTY_WINDOW_RECOVERY_FAILED" not in codes
+    recovery = [
+        item
+        for item in reports
+        if item.get("code")
+        in {
+            "QWEN_EMPTY_WINDOW_RECOVERY_STARTED",
+            "QWEN_EMPTY_WINDOW_RECOVERED",
+        }
+    ]
+    assert [item["code"] for item in recovery] == [
+        "QWEN_EMPTY_WINDOW_RECOVERY_STARTED",
+        "QWEN_EMPTY_WINDOW_RECOVERED",
+    ]
+    assert all(item["profile"] == profile_id for item in recovery)
+    assert all(item["strategy"] == "split_2x30s" for item in recovery)
+    assert not any(
+        item.get("code") == "QWEN_EMPTY_WINDOW_RECOVERY_FAILED" for item in reports
+    )
 
 
-def test_quality_empty_full_window_recovery_remains_fail_closed_when_half_is_empty(
+@pytest.mark.parametrize("profile_id", ["qwen-fast", "qwen-quality"])
+def test_empty_full_window_recovery_remains_fail_closed_when_signal_half_is_empty(
     tmp_path: Path,
+    profile_id: str,
 ):
     package, root = _package(tmp_path)
     reports: list[dict] = []
@@ -511,17 +536,18 @@ def test_quality_empty_full_window_recovery_remains_fail_closed_when_half_is_emp
         def close(self):
             pass
 
-    def quality_plan(_profile_id: str) -> QwenPlan:
+    def selected_plan(requested_profile_id: str) -> QwenPlan:
+        assert requested_profile_id == profile_id
         return QwenPlan(
-            profile_id="qwen-quality",
+            profile_id=profile_id,
             device="cuda",
             dtype="bfloat16",
             compute_capability="8.9",
         )
 
-    def quality_model_prepare(_models_root: Path, profile):
-        assert profile == get_profile("qwen-quality")
-        return Path("quality-model")
+    def selected_model_prepare(_models_root: Path, profile):
+        assert profile == get_profile(profile_id)
+        return Path(f"{profile_id}-model")
 
     audio = [0.1, -0.1] * 160
     with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
@@ -529,14 +555,18 @@ def test_quality_empty_full_window_recovery_remains_fail_closed_when_half_is_emp
             package,
             root,
             tmp_path / "Models",
-            profile_id="qwen-quality",
+            profile_id=profile_id,
             checkpoints=False,
-            plan_resolver=quality_plan,
-            model_prepare=quality_model_prepare,
+            plan_resolver=selected_plan,
+            model_prepare=selected_model_prepare,
             aligner_prepare=lambda _root: (_ for _ in ()).throw(
                 AssertionError("failed subwindow recovery must stop before alignment")
             ),
-            asr_session_factory=lambda _root, _plan: Asr(),
+            asr_session_factory=lambda _root, plan: (
+                Asr()
+                if plan.profile_id == profile_id
+                else (_ for _ in ()).throw(AssertionError("profile switched during recovery"))
+            ),
             aligner_session_factory=lambda *_args: (_ for _ in ()).throw(
                 AssertionError("failed subwindow recovery must stop before aligner creation")
             ),
@@ -547,12 +577,68 @@ def test_quality_empty_full_window_recovery_remains_fail_closed_when_half_is_emp
         )
 
     assert calls == 2
-    codes = [item.get("code") for item in reports]
-    assert codes.count("QWEN_WINDOW_EMPTY_ASR_REJECTED") == 1
-    assert codes.count("QWEN_EMPTY_WINDOW_RECOVERY_STARTED") == 1
-    assert codes.count("QWEN_EMPTY_WINDOW_RECOVERY_FAILED") == 1
-    assert "QWEN_EMPTY_WINDOW_RECOVERED" not in codes
+    failed = next(
+        item for item in reports if item.get("code") == "QWEN_EMPTY_WINDOW_RECOVERY_FAILED"
+    )
+    assert failed["profile"] == profile_id
+    assert failed["strategy"] == "split_2x30s"
+    assert "text" not in failed
+    assert "audio" not in failed
+    assert not any(item.get("code") == "QWEN_EMPTY_WINDOW_RECOVERED" for item in reports)
 
+
+def test_fast_empty_full_window_recovery_accepts_silent_half_without_fabricating_text(
+    tmp_path: Path,
+):
+    package, root = _package(tmp_path)
+    reports: list[dict] = []
+    calls = 0
+
+    class Asr:
+        def transcribe(self, audio, *, prompt: str):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return "", "Portuguese"
+            assert max(abs(float(value)) for value in audio) > 0
+            return "fala real", "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, _audio, text: str, _language: str):
+            assert text == "fala real"
+            return [{"text": "fala real", "start_time": 31.0, "end_time": 32.0}]
+
+        def close(self):
+            pass
+
+    audio = ([0.0] * 160) + ([0.1, -0.1] * 80)
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=_aligner_prepare,
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: Aligner(),
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
+        ),
+        report=reports.append,
+    )
+
+    assert calls == 2
+    assert document.stats.word_count == 2
+    recovered = next(
+        item for item in reports if item.get("code") == "QWEN_EMPTY_WINDOW_RECOVERED"
+    )
+    assert recovered["profile"] == "qwen-fast"
+    assert recovered["strategy"] == "split_2x30s"
 
 def test_strict_qwen_mixed_tracks_keep_silent_timeline_and_voiced_identity(tmp_path: Path):
     package, root = _two_track_package(tmp_path)
