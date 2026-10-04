@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { actionStyles, Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
 import { StatusPill } from "@/components/ui/status";
 import {
 	PublicationClientError,
@@ -1487,30 +1488,43 @@ export function LocalReviewWorkspace({
 						</label>
 						<label data-results-filter-start="true">
 							<span>Perfil</span>
-							<select value={profileFilter} onChange={(event) => setProfileFilter(event.target.value)}>
-								<option value="all">Todos</option>
-								{profiles.map((profile) => (
-									<option key={profile} value={profile}>{profile}</option>
-								))}
-							</select>
+							<Select
+								value={profileFilter}
+								options={[
+									{ value: "all", label: "Todos" },
+									...profiles.map((profile) => ({ value: profile, label: profile })),
+								]}
+								onChange={setProfileFilter}
+								ariaLabel="Filtrar resultados por perfil"
+							/>
 						</label>
 						<label>
 							<span>Revisão</span>
-							<select value={reviewFilter} onChange={(event) => setReviewFilter(event.target.value)}>
-								<option value="all">Todas</option>
-								<option value="unknown">Sem revisão</option>
-								<option value="draft">Draft</option>
-								<option value="reviewed">Revisado</option>
-								<option value="approved_local">Aprovado localmente</option>
-							</select>
+							<Select
+								value={reviewFilter}
+								options={[
+									{ value: "all", label: "Todas" },
+									{ value: "unknown", label: "Sem revisão" },
+									{ value: "draft", label: "Draft" },
+									{ value: "reviewed", label: "Revisado" },
+									{ value: "approved_local", label: "Aprovado localmente" },
+								]}
+								onChange={setReviewFilter}
+								ariaLabel="Filtrar por revisão"
+							/>
 						</label>
 						<label>
 							<span>Ordenar</span>
-							<select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as "newest" | "oldest" | "fastest")}>
-								<option value="newest">Mais recentes</option>
-								<option value="oldest">Mais antigos</option>
-								<option value="fastest">Processamento mais rápido</option>
-							</select>
+							<Select
+								value={sortOrder}
+								options={[
+									{ value: "newest", label: "Mais recentes" },
+									{ value: "oldest", label: "Mais antigos" },
+									{ value: "fastest", label: "Processamento mais rápido" },
+								]}
+								onChange={(value) => setSortOrder(value as "newest" | "oldest" | "fastest")}
+								ariaLabel="Ordenar resultados"
+							/>
 						</label>
 					</div>
 					<div className={styles.libraryWorkspace}>
@@ -1589,12 +1603,18 @@ export function LocalReviewWorkspace({
 												<small>Comparação A/B requer um Companion compatível com leitura imutável do run.</small>
 											) : comparisonCandidates.length ? (
 												<>
-													<select aria-label="Segundo run para comparação" value={effectiveComparisonTargetKey} onChange={(event) => setComparisonTargetKey(event.target.value)}>
-														{comparisonCandidates.map((run) => {
+													<Select
+														value={effectiveComparisonTargetKey}
+														options={comparisonCandidates.map((run) => {
 															const key = serializeLocalRunKey(localRunKey(run));
-															return <option key={key} value={key}>{run.profileId} · {formatDate(run.completedAt)}</option>;
+															return {
+																value: key,
+																label: `${run.profileId} · ${formatDate(run.completedAt)}`,
+															};
 														})}
-													</select>
+														onChange={setComparisonTargetKey}
+														ariaLabel="Segundo run para comparação"
+													/>
 													<Button size="sm" variant="tertiary" disabled={comparisonBusy} onClick={() => void startComparison()}>
 														{comparisonBusy ? "Carregando…" : "Comparar"}
 													</Button>
