@@ -460,7 +460,7 @@ test("desktop diagnostics gives the log its own scroll owner", async ({ page }) 
 	await openRunningWorkspace(page, 1920, 1080);
 	await page.getByRole("tab", { name: "Diagnóstico" }).click();
 
-	const log = page.getByRole("log");
+	const log = page.locator("[data-live-log-viewport='true']");
 	await expect(log).toBeVisible();
 	const ownership = await log.evaluate((element) => {
 		const style = getComputedStyle(element);
