@@ -1929,7 +1929,7 @@ Rollback lógico:
 
 ## `20261004180000_session_campaign_move_v2`
 
-**Estado:** migration forward-only de #1454/#1455/#1456/#1457/#1458/#1459/#1460/#1462. O merge no Git não comprova aplicação remota; Production continua exigindo rollout governado, migration history, advisors e read-back no mesmo SHA.
+**Estado:** aplicada em Production por PR #1464 / `main@981095a742280163e451a0fb15d001a54ad0a88e`, release `prod-981095a74228`, com Production CD #37224181889, migration history exato, advisors e read-back do contract v2/registry no mesmo rollout. O boundary foi endurecido em seguida por #1475/PR #1477.
 
 Objetivo:
 
@@ -1962,7 +1962,7 @@ Rollback é forward-only: desabilitar o consumer v2 antes de qualquer correção
 
 ## `20261004182700_retire_session_campaign_move_v1_commit`
 
-**Estado:** hardening forward-only de #1475. Depois da ativação do contract v2, o preflight compartilhado pode considerar uma session populada migrável; por isso o commit legado v1, que alterava somente `sessions.campaign_id`, não pode continuar acessível a Server Actions antigas/stale.
+**Estado:** aplicada em Production por PR #1477 / `main@5f6a446e74ef35c89397c8675ed2e661c83e7a86`, release `prod-5f6a446e74ef`, com Production CD #37224929719 e read-back confirmando o commit v1 sem `EXECUTE` para roles da aplicação. Depois da ativação do contract v2, o preflight compartilhado pode considerar uma session populada migrável; por isso o commit legado v1, que alterava somente `sessions.campaign_id`, não pode continuar acessível a Server Actions antigas/stale.
 
 Objetivo:
 
