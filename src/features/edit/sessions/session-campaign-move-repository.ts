@@ -299,10 +299,11 @@ export async function prepareSessionCampaignMoveMedia(
 				.eq("operation_id", input.operationId)
 				.eq("asset_id", asset.id)
 				.maybeSingle();
+			const existingRecord = record(existing);
 			if (
 				existingError ||
-				!record(existing) ||
-				!samePreparation(record(existing)!, prepared, input, asset.id)
+				!existingRecord ||
+				!samePreparation(existingRecord, prepared, input, asset.id)
 			) {
 				return { ok: false as const, reason: "operation_conflict" as const };
 			}
