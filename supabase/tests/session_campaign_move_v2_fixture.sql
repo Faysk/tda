@@ -2,6 +2,9 @@
 -- Applied after the v1 fixture/migration. It mirrors the relational shape used
 -- by the v2 transfer boundary without copying Production narrative data.
 
+alter table public.participants
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
+
 alter table public.transcript_revisions
   add column if not exists parent_revision_id uuid references public.transcript_revisions(id) on delete restrict,
   add column if not exists revision_number bigint not null default 1,
@@ -57,6 +60,12 @@ create table if not exists public.roll20_events (
 create table if not exists public.session_markers (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.sessions(id) on delete cascade
+);
+
+create table if not exists public.canon_candidates (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  related_entity_ids uuid[] not null default '{}'::uuid[]
 );
 
 create table if not exists public.quote_candidates (
