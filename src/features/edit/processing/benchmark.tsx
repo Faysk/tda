@@ -1505,6 +1505,27 @@ export function ProcessingBenchmark({
 								: "Tentativa " + latestProblem.attempt}
 							{" · os perfis posteriores não são marcados como falha de engine."}
 						</p>
+						{latestProblemAttemptState ? (
+							<>
+								<div className={styles.receiptFacts}>
+									<span>Tentados {latestProblemAttemptState.attemptedCount}/4</span>
+									<span>Concluídos {latestProblemAttemptState.completedCount}</span>
+									<span>Falharam {latestProblemAttemptState.failedCount}</span>
+									<span>Pendentes {latestProblemAttemptState.pendingCount}</span>
+								</div>
+								<ol className={styles.runSteps} aria-label="Estado terminal dos quatro perfis">
+									{latestProblemAttemptState.profiles.map((profile) => (
+										<li key={profile.profileId} className={styles.runStep} data-state={profile.status}>
+											<i aria-hidden="true">{profileRunIcon(profile)}</i>
+											<span>
+												{LABELS[profile.profileId]} · {profileRunLabel(profile)}
+												{profile.errorCode ? " · " + profile.errorCode : ""}
+											</span>
+										</li>
+									))}
+								</ol>
+							</>
+						) : null}
 					</div>
 					<Button
 						type="button"
