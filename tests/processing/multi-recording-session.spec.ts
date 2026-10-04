@@ -813,7 +813,7 @@ async function installMultiRecordingRoutes(
 								assembly_id: ASSEMBLY_ID,
 								transcript_sha256: TRANSCRIPT_SHA,
 								inputs_sha256: ASSEMBLY_ID,
-								segment_count: attached.length,
+								segment_count: options.reviewSegmentCount ?? attached.length,
 								part_count: attached.length,
 								participant_approval_blocked: false,
 								created_at: NOW,
@@ -860,7 +860,7 @@ async function installMultiRecordingRoutes(
 				transcript_artifact: "transcript.json",
 				transcript_sha256: TRANSCRIPT_SHA,
 				transcript_size_bytes: 512,
-				segment_count: attached.length,
+				segment_count: options.reviewSegmentCount ?? attached.length,
 				created_at: NOW,
 				parts: attached.map((sourceId, index) => ({
 					part_id: PART_IDS[index],
