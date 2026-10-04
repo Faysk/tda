@@ -263,6 +263,7 @@ export type JobStatus =
 	| "queued"
 	| "running"
 	| "succeeded"
+	| "partial"
 	| "failed"
 	| "cancelled"
 	| "interrupted";
@@ -411,6 +412,36 @@ export type BenchmarkResult = {
 	bundleManifestSha256: string | null;
 	bundleSizeBytes: number | null;
 	profiles: readonly BenchmarkProfileResult[];
+};
+
+export type BenchmarkPartialProfileOutcome = {
+	profileId: TranscriptionProfileId;
+	status: "completed" | "failed";
+	error: null | {
+		code: string;
+		recoverable: boolean;
+		scope: "profile";
+	};
+	artifactAvailable: boolean;
+};
+
+export type BenchmarkPartialResult = {
+	schemaVersion: "tda_processing_benchmark_partial_v1";
+	jobId: string;
+	sourceId: string;
+	campaignId: string;
+	sessionId: string;
+	sampleIdentitySha256: string;
+	sampleSeconds: number;
+	executionMode: "prepared_artifacts_fresh_worker_per_profile_v1";
+	trackCount: number;
+	audioWorkSeconds: number;
+	prepared: boolean;
+	benchmarkId: string;
+	attemptedCount: number;
+	completedCount: number;
+	failedCount: number;
+	profileOutcomes: readonly BenchmarkPartialProfileOutcome[];
 };
 
 export type BenchmarkEvidenceSummary = {
@@ -1434,6 +1465,7 @@ export function parseJob(value: unknown): LocalJob {
 			"queued",
 			"running",
 			"succeeded",
+			"partial",
 			"failed",
 			"cancelled",
 			"interrupted",
@@ -1603,6 +1635,7 @@ export function parseJobListPage(value: unknown): JobListPage {
 		"queued",
 		"running",
 		"succeeded",
+		"partial",
 		"failed",
 		"cancelled",
 		"interrupted",
@@ -2316,6 +2349,104 @@ export function parseBenchmarkResult(
 		bundleManifestSha256,
 		bundleSizeBytes,
 		profiles: parsed,
+	};
+}
+
+export function parseBenchmarkPartialResult(
+	value: unknown,
+	jobId: string,
+): BenchmarkPartialResult {
+	const row = record(value);
+	if (row.schema_version !== "tda_processing_benchmark_partial_v1")
+		throw new BridgeError("incompatible");
+	if (identifier(row.job_id) !== jobId) return invalid();
+	if (row.kind !== "benchmark.craig" || row.status !== "partial") return invalid();
+	const sampleSeconds = nonNegativeNumber(row.sample_seconds);
+	if (sampleSeconds !== 300) return invalid();
+	const executionMode =
+		row.execution_mode === "prepared_artifacts_fresh_worker_per_profile_v1"
+			? row.execution_mode
+			: invalid();
+	const attemptedCount = nonNegativeInteger(row.attempted_count);
+	const completedCount = nonNegativeInteger(row.completed_count);
+	const failedCount = nonNegativeInteger(row.failed_count);
+	if (
+		attemptedCount !== 4 ||
+		completedCount + failedCount !== attemptedCount ||
+		failedCount < 1
+	)
+		return invalid();
+	const rawOutcomes = row.profile_outcomes;
+	if (!Array.isArray(rawOutcomes) || rawOutcomes.length !== 4) return invalid();
+	const expected: readonly TranscriptionProfileId[] = [
+		"whisper-turbo",
+		"whisper-detailed",
+		"qwen-fast",
+		"qwen-quality",
+	];
+	const profileOutcomes = rawOutcomes.map(
+		(raw, index): BenchmarkPartialProfileOutcome => {
+			const item = record(raw);
+			const profileId = transcriptionProfile(item.profile_id);
+			if (profileId !== expected[index]) return invalid();
+			if (item.status === "completed") {
+				const receipt = record(item.receipt);
+				if (
+					receipt.schema_version !== "tda_benchmark_profile_v1" ||
+					transcriptionProfile(receipt.profile_id) !== profileId ||
+					receipt.benchmark_id !== row.benchmark_id ||
+					receipt.sample_identity_sha256 !== row.sample_identity_sha256 ||
+					receipt.artifact_available !== true ||
+					item.artifact_available !== true
+				)
+					return invalid();
+				return {
+					profileId,
+					status: "completed",
+					error: null,
+					artifactAvailable: true,
+				};
+			}
+			if (item.status !== "failed" || item.artifact_available !== false) return invalid();
+			const error = record(item.error);
+			if (error.scope !== "profile") return invalid();
+			return {
+				profileId,
+				status: "failed",
+				error: {
+					code: text(error.code, 96),
+					recoverable: boolean(error.recoverable),
+					scope: "profile",
+				},
+				artifactAvailable: false,
+			};
+		},
+	);
+	if (
+		profileOutcomes.filter((item) => item.status === "completed").length !== completedCount ||
+		profileOutcomes.filter((item) => item.status === "failed").length !== failedCount
+	)
+		return invalid();
+	const benchmarkId = text(row.benchmark_id, 196);
+	if (!/^benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}$/u.test(benchmarkId))
+		return invalid();
+	return {
+		schemaVersion: "tda_processing_benchmark_partial_v1",
+		jobId,
+		sourceId: identifier(row.source_id),
+		campaignId: identifier(row.campaign_id),
+		sessionId: identifier(row.session_id),
+		sampleIdentitySha256: sha256(row.sample_identity_sha256),
+		sampleSeconds,
+		executionMode,
+		trackCount: nonNegativeInteger(row.track_count),
+		audioWorkSeconds: nonNegativeNumber(row.audio_work_seconds),
+		prepared: boolean(row.prepared),
+		benchmarkId,
+		attemptedCount,
+		completedCount,
+		failedCount,
+		profileOutcomes,
 	};
 }
 
