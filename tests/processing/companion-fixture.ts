@@ -66,6 +66,7 @@ export type CompanionFixtureOptions = {
 	benchmarkPreparationFailureProfile?: string | null;
 	benchmarkReadinessContract?: boolean;
 	benchmarkEvidence?: boolean;
+	benchmarkPartialResult?: boolean;
 	benchmarkSnapshotDelayMs?: number;
 	benchmarkCorruptProfile?: "whisper-turbo" | "whisper-detailed" | "qwen-fast" | "qwen-quality";
 	whisperBenchmarkRuntimeUpgradeRequired?: boolean;
@@ -1382,6 +1383,63 @@ export async function installCompanionFixture(
 			request.method() === "GET"
 		) {
 			return json(route, qualitySummary());
+		}
+
+		if (path === "/jobs/benchmark-job-1/result" && options.benchmarkPartialResult) {
+			const completedProfile = (profileId: string) => ({
+				profile_id: profileId,
+				status: "completed",
+				artifact_available: true,
+				receipt: {
+					schema_version: "tda_benchmark_profile_v1",
+					profile_id: profileId,
+					benchmark_id: benchmarkId,
+					sample_identity_sha256: "b".repeat(64),
+					artifact_available: true,
+					transcript_sha256: "f".repeat(64),
+					transcript_size_bytes: 2048,
+				},
+			});
+			return json(route, {
+				schema_version: "tda_processing_benchmark_partial_v1",
+				kind: "benchmark.craig",
+				status: "partial",
+				job_id: "benchmark-job-1",
+				source_id: CRAIG_SOURCE_ID,
+				campaign_id: "benchmark-local",
+				session_id: "benchmark-local",
+				sample_identity_sha256: "b".repeat(64),
+				sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				track_count: 2,
+				audio_work_seconds: 600,
+				prepared: true,
+				benchmark_id: benchmarkId,
+				bundle_manifest_sha256: null,
+				bundle_size_bytes: null,
+				attempted_count: 4,
+				completed_count: 3,
+				failed_count: 1,
+				profiles: [
+					completedProfile("whisper-turbo"),
+					completedProfile("whisper-detailed"),
+					{
+						profile_id: "qwen-fast",
+						status: "failed",
+						artifact_available: false,
+						error: {
+							code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+							recoverable: true,
+							scope: "profile",
+						},
+						continuation: {
+							decision: "continue",
+							reason: "profile_local_allowlist",
+						},
+					},
+					completedProfile("qwen-quality"),
+				],
+			});
 		}
 
 		if (path === "/jobs/benchmark-job-1/result") {
