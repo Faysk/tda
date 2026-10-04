@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { selectThemedOption } from "./helpers/themed-select";
 
 const PRIVATE_MARKER = "NEVER_PUBLIC_TRANSCRIPT_MARKER_9F3A";
 
