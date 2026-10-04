@@ -69,9 +69,56 @@ describe("processing presentation", () => {
 		expect(presentJobError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")).toBe(
 			"O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. Se este job usou Qwen Fast, selecione Qwen Quality no formulário e envie a mesma sessão novamente.",
 		);
+		expect(
+			presentJobError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN", "benchmark.craig"),
+		).toBe(
+			"O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. O Benchmark registrou a falha deste perfil e continua automaticamente com os perfis independentes restantes.",
+		);
 		expect(presentJobError("WHISPER_RUNTIME_UNAVAILABLE")).toContain(
 			"Whisper",
 		);
+	});
+
+	it("presents Benchmark profile-local continuation events factually", () => {
+		const failed = presentJobEvent({
+			seq: 30,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_FAILED",
+			at: "2026-10-04T19:26:43Z",
+			level: "warning",
+			data: {
+				stage: "benchmark",
+				profile: "qwen-fast",
+				attempted_count: 3,
+				successful_count: 2,
+				failed_count: 1,
+				total_profiles: 4,
+				error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+				recoverable: true,
+				scope: "profile",
+			},
+		});
+		expect(failed.title).toContain("qwen-fast");
+		expect(failed.title).toContain("continuará");
+		expect(failed.detail).toContain("não vai tratá-lo como silêncio");
+
+		const completed = presentJobEvent({
+			seq: 31,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_COMPLETED",
+			at: "2026-10-04T19:27:00Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "qwen-quality",
+				attempted_count: 4,
+				successful_count: 3,
+				failed_count: 1,
+				total_profiles: 4,
+			},
+		});
+		expect(completed.title).toContain("qwen-quality");
+		expect(completed.detail).toContain("3 de 4");
 	});
 
 	it("explains physical ASR execution failures", () => {
