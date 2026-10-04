@@ -101,9 +101,9 @@ security invoker
 set search_path = pg_catalog, public
 as $tda_move$
 begin
-  if new.origin_campaign_id is null then
-    new.origin_campaign_id := new.campaign_id;
-  end if;
+  -- Origin attribution is database-owned. Callers cannot forge a different
+  -- origin at insert time; later campaign moves update campaign_id only.
+  new.origin_campaign_id := new.campaign_id;
   return new;
 end;
 $tda_move$;
