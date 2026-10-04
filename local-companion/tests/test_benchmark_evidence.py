@@ -37,6 +37,7 @@ from tda_companion.benchmark_bundles import (
 
 from tda_companion.benchmark_quality import (
     BenchmarkQualityError,
+    _timing_metrics,
     normalize_text,
     quality_summary,
     save_reference,
@@ -757,6 +758,83 @@ def test_level_two_reference_exposes_timing_speaker_overlap_and_provenance(tmp_p
     assert timing["overlap_recall"] == 0.0
     assert timing["hypothesis_timing"]["alignment_backend"] == "native"
     assert timing["hypothesis_timing"]["timestamp_granularity"] == "segment_aligned"
+
+
+def test_timing_matching_does_not_use_speaker_as_pairing_priority():
+    near_segment = TranscriptSegment(id="near", start=10.0, end=20.0, text="fala")
+    far_segment = TranscriptSegment(id="far", start=10.0, end=16.0, text="fala")
+    track = TranscriptTrack(
+        number=1,
+        speaker="track-speaker",
+        source_filename="1.flac",
+        source_sha256="b" * 64,
+        duration_seconds=300.0,
+        segments=(near_segment, far_segment),
+    )
+    document = TranscriptDocument(
+        recording_id="recording",
+        source_sha256="a" * 64,
+        language="pt",
+        engine=TranscriptEngine(
+            engine="whisper",
+            model="model",
+            profile="whisper-turbo",
+            device="cuda:0",
+            compute_type="float16",
+            alignment="native",
+        ),
+        tracks=(track,),
+        turns=(
+            TranscriptTurn(
+                id="near-turn",
+                speaker="Bob",
+                start=10.0,
+                end=20.0,
+                text="fala",
+                segments=(TranscriptSegmentRef(track_number=1, segment_id="near"),),
+                overlaps_other_speaker=False,
+            ),
+            TranscriptTurn(
+                id="far-turn",
+                speaker="Alice",
+                start=10.0,
+                end=16.0,
+                text="fala",
+                segments=(TranscriptSegmentRef(track_number=1, segment_id="far"),),
+                overlaps_other_speaker=False,
+            ),
+        ),
+        stats=stats_for_tracks(
+            (track,),
+            processing_seconds=1.0,
+            session_duration_seconds=300.0,
+        ),
+    )
+    timing = _timing_metrics(
+        [
+            {
+                "track_number": 1,
+                "speaker": "Alice",
+                "text": "fala",
+                "turns": [
+                    {
+                        "start": 10.0,
+                        "end": 20.0,
+                        "speaker": "Alice",
+                        "text": "fala",
+                        "overlaps_other_speaker": False,
+                    }
+                ],
+            }
+        ],
+        document,
+    )
+
+    assert timing is not None
+    assert timing["matched_turns"] == 1
+    assert timing["speaker_accuracy"] == 0.0
+    assert timing["boundary_p95_seconds"] == 0.0
+    assert timing["unmatched_hypothesis_turns"] == 1
 
 
 def test_reference_is_cas_versioned_and_quality_receipt_contains_no_reference_text(tmp_path: Path):
