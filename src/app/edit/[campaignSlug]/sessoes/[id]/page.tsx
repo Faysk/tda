@@ -15,7 +15,9 @@ import { readSessionPublicationContext } from "@/features/edit/sessions/session-
 import { findEditSessionBySourceId } from "@/features/edit/sessions/repository";
 import { SessionEditWorkspace } from "@/features/edit/sessions/session-edit-workspace";
 import { SessionCampaignMovePanel } from "@/features/edit/sessions/session-campaign-move";
-import { sessionCampaignMoveBackendReady } from "@/features/edit/sessions/session-campaign-move-repository";
+import {
+	sessionCampaignMoveBackendReady,
+} from "@/features/edit/sessions/session-campaign-move-repository";
 import { readTranscriptSnapshot } from "@/features/edit/transcript/repository";
 import styles from "@/features/edit/workbench.module.css";
 import { formatSessionDate } from "@/features/sessions/model";
@@ -142,7 +144,9 @@ export default async function EditSessionPage({ params }: PageProps) {
 
 	return (
 		<section className={[styles.shell, styles.sessionShell].join(" ")}>
-			<header className={[styles.workbenchHeader, styles.sessionHeader].join(" ")}>
+			<header
+				className={[styles.workbenchHeader, styles.sessionHeader].join(" ")}
+			>
 				<div>
 					<Link className={styles.muted} href={backHref}>
 						← Sessões de {campaign.name}
@@ -169,7 +173,10 @@ export default async function EditSessionPage({ params }: PageProps) {
 				</div>
 			</header>
 
-			<div className={[draftStyles.privateNotice, styles.sessionNotice].join(" ")} role="status">
+			<div
+				className={[draftStyles.privateNotice, styles.sessionNotice].join(" ")}
+				role="status"
+			>
 				<strong>Privado no Edit</strong>
 				<span>Salvar o draft ou trocar a capa não publica no site.</span>
 			</div>
@@ -186,7 +193,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 			</div>
 
 			<div className={styles.sessionWorkspace}>
-			<SessionEditWorkspace
+				<SessionEditWorkspace
 				transcript={{
 					downloadHref,
 					editable:
@@ -247,7 +254,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 										"A sessão precisa de uma revisão de transcrição preparada antes da edição editorial.",
 								}
 				}
-			/>
+				/>
 			</div>
 		</section>
 	);
