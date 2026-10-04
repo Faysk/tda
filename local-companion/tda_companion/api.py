@@ -39,6 +39,7 @@ from .benchmark_quality import (
 from .browser_session import BrowserSessionManager
 from .benchmark_bundles import (
     BenchmarkBundleError,
+    benchmark_id_for,
     benchmark_sample_descriptor,
     claim_benchmark_outcome,
     finalize_benchmark_bundle,
@@ -1306,7 +1307,7 @@ def create_app(
                                     or len(outcomes) != len(_BENCHMARK_PROFILES)
                                     or not isinstance(successful_profiles, list)
                                     or not isinstance(partial_benchmark_id, str)
-                                    or not partial_benchmark_id.startswith("benchmark-")
+                                    or partial_benchmark_id != benchmark_id_for(job_id, attempt)
                                     or [item.get("profile_id") for item in outcomes]
                                     != list(_BENCHMARK_PROFILES)
                                 ):
