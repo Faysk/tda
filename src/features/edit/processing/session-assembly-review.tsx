@@ -49,6 +49,7 @@ type Props = Readonly<{
 	disabled?: boolean;
 	onChange: (review: SessionAssemblyReviewSummary) => void;
 	onStatus?: (message: string) => void;
+	onUnsavedChange?: (active: boolean) => void;
 }>;
 
 function pendingKey(assemblyId: string): string {
@@ -165,6 +166,7 @@ export function SessionAssemblyReview({
 	disabled = false,
 	onChange,
 	onStatus,
+	onUnsavedChange,
 }: Props) {
 	const [baseline, setBaseline] = useState(review);
 	const [segments, setSegments] = useState<SessionAssemblyReviewSegment[]>(() =>
@@ -224,6 +226,18 @@ export function SessionAssemblyReview({
 	const visible = matches.slice(visibleStart, visibleStart + PAGE_SIZE);
 	const visibleEnd = visibleStart + visible.length;
 	const hasOpenSegmentEditor = editingId !== null;
+
+	useEffect(() => {
+		onUnsavedChange?.(dirty || hasOpenSegmentEditor);
+	}, [dirty, hasOpenSegmentEditor, onUnsavedChange]);
+
+	useEffect(
+		() => () => {
+			onUnsavedChange?.(false);
+		},
+		[onUnsavedChange],
+	);
+
 	const canApprove =
 		!disabled &&
 		!busy &&
