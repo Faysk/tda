@@ -23,6 +23,7 @@ from tda_companion.benchmark_bundles import (
     finalize_benchmark_bundle,
     load_benchmark_bundle,
     read_benchmark_transcript,
+    verify_benchmark_profile_receipt,
     write_benchmark_profile,
 )
 from tda_companion.store import Store
@@ -170,6 +171,36 @@ def _profile_receipts(data_root: Path, job_id: str, attempt: int, count: int = 4
             }
         )
     return receipts
+
+
+def test_single_profile_receipt_can_be_verified_without_completed_bundle(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    job_id = "partial-profile-job"
+    receipt = _profile_receipts(data_root, job_id, 1, count=1)[0]
+    benchmark_id = benchmark_id_for(job_id, 1)
+
+    metadata = verify_benchmark_profile_receipt(
+        data_root,
+        benchmark_id=benchmark_id,
+        source_id=SOURCE_ID,
+        sample_identity_sha256=benchmark_sample_identity(_package()),
+        receipt=receipt,
+    )
+
+    assert metadata["transcript_sha256"] == receipt["transcript_sha256"]
+    assert not (benchmark_root(data_root, benchmark_id) / "benchmark.json").exists()
+
+    tampered = dict(receipt)
+    tampered["transcript_sha256"] = "0" * 64
+    with pytest.raises(BenchmarkBundleError, match="BENCHMARK_PROFILE_RECEIPT_MISMATCH"):
+        verify_benchmark_profile_receipt(
+            data_root,
+            benchmark_id=benchmark_id,
+            source_id=SOURCE_ID,
+            sample_identity_sha256=benchmark_sample_identity(_package()),
+            receipt=tampered,
+        )
 
 
 def _finalize(data_root: Path, job_id: str = "benchmark-job", attempt: int = 1) -> dict:
