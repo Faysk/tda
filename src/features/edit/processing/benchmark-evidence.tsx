@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, Select } from "@/components/ui";
 import { Dialog } from "@/components/ui/dialog";
 import { LocalBridge } from "./bridge";
 import { processingStageLabels, type EngineProcessingMetrics } from "./engine-metrics";
@@ -495,41 +495,29 @@ export function BenchmarkEvidenceWorkspace({
 						<div className={styles.selectors}>
 							<label>
 								Perfil A
-								<select
+								<Select
 									value={leftProfile}
-									onChange={(event) =>
-										setLeftProfile(event.target.value as TranscriptionProfileId)
-									}
-								>
-									{result.profiles.map((profile) => (
-										<option
-											key={profile.profileId}
-											value={profile.profileId}
-											disabled={profile.profileId === rightProfile}
-										>
-											{LABELS[profile.profileId]}
-										</option>
-									))}
-								</select>
+									options={result.profiles.map((profile) => ({
+										value: profile.profileId,
+										label: LABELS[profile.profileId],
+										disabled: profile.profileId === rightProfile,
+									}))}
+									onChange={(value) => setLeftProfile(value as TranscriptionProfileId)}
+									ariaLabel="Perfil A"
+								/>
 							</label>
 							<label>
 								Perfil B
-								<select
+								<Select
 									value={rightProfile}
-									onChange={(event) =>
-										setRightProfile(event.target.value as TranscriptionProfileId)
-									}
-								>
-									{result.profiles.map((profile) => (
-										<option
-											key={profile.profileId}
-											value={profile.profileId}
-											disabled={profile.profileId === leftProfile}
-										>
-											{LABELS[profile.profileId]}
-										</option>
-									))}
-								</select>
+									options={result.profiles.map((profile) => ({
+										value: profile.profileId,
+										label: LABELS[profile.profileId],
+										disabled: profile.profileId === leftProfile,
+									}))}
+									onChange={(value) => setRightProfile(value as TranscriptionProfileId)}
+									ariaLabel="Perfil B"
+								/>
 							</label>
 							{leftProfile === rightProfile ? (
 								<span className={styles.muted}>
@@ -587,21 +575,27 @@ export function BenchmarkEvidenceWorkspace({
 									<div className={styles.filters}>
 										<label>
 											Track
-											<select value={track} onChange={(event) => setTrack(event.target.value)}>
-												<option value="all">Todas</option>
-												{tracks.map((value) => (
-													<option key={value} value={value}>Track {value}</option>
-												))}
-											</select>
+											<Select
+												value={track}
+												options={[
+													{ value: "all", label: "Todas" },
+													...tracks.map((value) => ({ value, label: `Track ${value}` })),
+												]}
+												onChange={setTrack}
+												ariaLabel="Filtrar por track"
+											/>
 										</label>
 										<label>
 											Speaker
-											<select value={speaker} onChange={(event) => setSpeaker(event.target.value)}>
-												<option value="all">Todos</option>
-												{speakers.map((value) => (
-													<option key={value} value={value}>{value}</option>
-												))}
-											</select>
+											<Select
+												value={speaker}
+												options={[
+													{ value: "all", label: "Todos" },
+													...speakers.map((value) => ({ value, label: value })),
+												]}
+												onChange={setSpeaker}
+												ariaLabel="Filtrar por speaker"
+											/>
 										</label>
 										<label>
 											De (s)
