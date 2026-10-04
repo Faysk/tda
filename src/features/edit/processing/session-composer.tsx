@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Select } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { renderTranscriptMarkdownV1 } from "../../transcript-review/markdown-contract";
 import { LocalBridge } from "./bridge";
 import {
