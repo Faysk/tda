@@ -902,6 +902,10 @@ declare
   v_expected_source_key text;
   v_expected_destination_key text;
   v_extension text;
+  v_participant_unlinks bigint := 0;
+  v_entity_detaches bigint := 0;
+  v_canon_detaches bigint := 0;
+  v_grant_count bigint := 0;
 begin
   p_options := coalesce(p_options, '{}'::jsonb);
   if p_operation_id is null
@@ -1322,6 +1326,12 @@ begin
     and campaign_id = v_source.id;
 
   if p_options->>'participantEntityPolicy' = 'unlink' then
+    select count(*)
+    into v_participant_unlinks
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null;
+
     insert into public.session_campaign_move_artifacts(
       operation_id, artifact_kind, artifact_id, related_artifact_id,
       source_campaign_id, destination_campaign_id
@@ -1345,6 +1355,11 @@ begin
   end if;
 
   if p_options->>'entityMentionPolicy' = 'detach_from_session' then
+    select count(*)
+    into v_entity_detaches
+    from public.entity_mentions em
+    where em.session_id = p_session_id;
+
     insert into public.session_campaign_move_artifacts(
       operation_id, artifact_kind, artifact_id, related_artifact_id,
       source_campaign_id, destination_campaign_id
@@ -1375,6 +1390,12 @@ begin
       return jsonb_build_object('status', 'blocked');
     end if;
 
+    select count(*)
+    into v_canon_detaches
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0;
+
     insert into public.session_campaign_move_artifacts(
       operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
     )
@@ -1391,6 +1412,13 @@ begin
   end if;
 
   if p_options->>'sessionGrantPolicy' in ('preserve', 'revoke') then
+    select count(*)
+    into v_grant_count
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible');
+
     insert into public.session_campaign_move_artifacts(
       operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
     )
@@ -1463,6 +1491,43 @@ begin
       )
       on conflict do nothing;
     end if;
+  end if;
+
+  if v_participant_unlinks > 0
+     or v_entity_detaches > 0
+     or v_canon_detaches > 0
+     or v_grant_count > 0 then
+    insert into public.audit_log(
+      campaign_id,
+      session_id,
+      actor_id,
+      action,
+      table_name,
+      record_id,
+      old_value,
+      new_value
+    ) values (
+      v_destination.id,
+      p_session_id,
+      p_actor_profile_id,
+      'session.campaign.move.reconcile',
+      'sessions',
+      p_session_id,
+      jsonb_build_object(
+        'campaignId', v_source.id,
+        'participantEntityLinks', v_participant_unlinks,
+        'entityMentions', v_entity_detaches,
+        'canonCandidateEntityLinks', v_canon_detaches,
+        'sessionGrants', v_grant_count
+      ),
+      jsonb_build_object(
+        'campaignId', v_destination.id,
+        'participantEntityPolicy', p_options->>'participantEntityPolicy',
+        'entityMentionPolicy', p_options->>'entityMentionPolicy',
+        'canonPolicy', p_options->>'canonPolicy',
+        'sessionGrantPolicy', p_options->>'sessionGrantPolicy'
+      )
+    );
   end if;
 
   update public.sessions s
