@@ -1180,9 +1180,10 @@ export async function installCompanionFixture(
 						end: 3,
 						timeline_start: 1,
 						timeline_end: 3,
-						text: quality
-							? "Aventureiros chegam a Neverwinter"
-							: "Aventureiros chegam a Never winter",
+						text:
+							profileId === "whisper-turbo" || quality
+								? "Aventureiros chegam a Neverwinter"
+								: "Aventureiros chegam a Never winter",
 						speaker: "Alice",
 						word_count: 4,
 						timing_precision: engine === "qwen3" ? "word" : "segment",
