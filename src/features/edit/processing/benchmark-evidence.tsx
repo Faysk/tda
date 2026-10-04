@@ -581,7 +581,7 @@ export function BenchmarkEvidenceWorkspace({
 												value={track}
 												options={[
 													{ value: "all", label: "Todas" },
-													...tracks.map((value) => ({ value, label: `Track ${value}` })),
+													...tracks.map((value) => ({ value: String(value), label: `Track ${value}` })),
 												]}
 												onChange={setTrack}
 												ariaLabel="Filtrar por track"
