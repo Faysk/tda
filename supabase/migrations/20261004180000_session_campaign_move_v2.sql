@@ -722,8 +722,9 @@ begin
     set
       metadata=jsonb_set(
         coalesce(p.metadata,'{}'::jsonb),
-        '{campaignMoveDetachedEntityId}',
-        to_jsonb(p.character_entity_id::text),
+        '{campaignMoveDetachedEntityIds}',
+        coalesce(p.metadata->'campaignMoveDetachedEntityIds','[]'::jsonb)
+          || jsonb_build_array(p.character_entity_id::text),
         true
       ),
       character_entity_id=null
