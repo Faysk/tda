@@ -53,7 +53,6 @@ export type SessionCampaignMoveRecoveryIntent = Readonly<{
 	sourceCampaignSlug: string;
 	destinationCampaignSlug: string;
 	operationId: string;
-	decisions: SessionCampaignMoveDecisionState;
 }>;
 
 export function sessionCampaignMoveConsequenceLabel(code: string): string {
@@ -109,19 +108,12 @@ export function validSessionCampaignMoveRecoveryIntent(
 ): value is SessionCampaignMoveRecoveryIntent {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
 	const row = value as Record<string, unknown>;
-	const decisions =
-		row.decisions && typeof row.decisions === "object" && !Array.isArray(row.decisions)
-			? (row.decisions as Record<string, unknown>)
-			: null;
 	return (
 		row.version === 1 &&
 		typeof row.sessionId === "string" &&
 		typeof row.sourceSessionId === "string" &&
 		typeof row.sourceCampaignSlug === "string" &&
 		typeof row.destinationCampaignSlug === "string" &&
-		typeof row.operationId === "string" &&
-		Boolean(decisions) &&
-		typeof decisions?.unlinkParticipantEntities === "boolean" &&
-		typeof decisions?.revokeSessionGrants === "boolean"
+		typeof row.operationId === "string"
 	);
 }
