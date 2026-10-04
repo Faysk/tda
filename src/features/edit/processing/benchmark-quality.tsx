@@ -515,7 +515,7 @@ export function BenchmarkQualityLab({
 						</p>
 					</div>
 					<div className={styles.referenceActions}>
-						<label>
+						<div>
 							<span>Transcript-base</span>
 							<Select
 								value={seedProfile}
@@ -528,7 +528,7 @@ export function BenchmarkQualityLab({
 								compact
 								disabled={!connected || loading}
 							/>
-						</label>
+						</div>
 						<Button
 							type="button"
 							variant="tertiary"
