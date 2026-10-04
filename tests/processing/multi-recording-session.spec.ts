@@ -1362,8 +1362,14 @@ test("8k session review stays bounded, paged and edits only the active utterance
 
 	await viewport.locator("[data-assembly-segment-trigger]").first().click();
 	await expect(viewport.locator("textarea")).toHaveCount(1);
+	await viewport.getByLabel("Texto").fill("Trecho descartado");
+	await viewport.getByRole("button", { name: "Cancelar" }).click();
+	await expect(viewport.locator("textarea")).toHaveCount(0);
+	await expect(viewport.getByText("Trecho 1", { exact: true })).toBeVisible();
+
+	await viewport.locator("[data-assembly-segment-trigger]").first().click();
 	await viewport.getByLabel("Texto").fill("Trecho editado no viewport");
-	await viewport.getByRole("button", { name: "Concluir edição" }).click();
+	await viewport.getByRole("button", { name: "Aplicar" }).click();
 	await expect(viewport.locator("textarea")).toHaveCount(0);
 	await expect(viewport.getByText("Trecho editado no viewport", { exact: true })).toBeVisible();
 
