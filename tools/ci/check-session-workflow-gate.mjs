@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 const files = [
   ".github/workflows/ci.yml",
@@ -63,17 +63,32 @@ const forbiddenSensitivePatterns = [
 
 const artifactTextExtensions = new Set([".md", ".txt", ".json", ".log"]);
 function scanRuntimeArtifacts(root) {
-  if (!existsSync(root)) return;
-  for (const entry of readdirSync(root)) {
-    const path = `${root}/${entry}`;
-    const stat = statSync(path);
-    if (stat.isDirectory()) {
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") return;
+    throw error;
+  }
+
+  for (const entry of entries) {
+    const path = `${root}/${entry.name}`;
+    if (entry.isDirectory()) {
       scanRuntimeArtifacts(path);
       continue;
     }
-    const extension = entry.slice(entry.lastIndexOf(".")).toLowerCase();
+    if (!entry.isFile()) continue;
+
+    const extension = entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase();
     if (!artifactTextExtensions.has(extension)) continue;
-    const value = readFileSync(path, "utf8");
+
+    let value;
+    try {
+      value = readFileSync(path, "utf8");
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
+      throw error;
+    }
     for (const pattern of [...forbiddenPathPatterns, ...forbiddenSensitivePatterns]) {
       if (pattern.test(value)) {
         throw new Error(`SESSION_WORKFLOW_GATE_PRIVATE_ARTIFACT:${path}:${pattern.source}`);
