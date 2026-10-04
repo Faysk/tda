@@ -1575,6 +1575,32 @@ export function ProcessingBenchmark({
 				</div>
 				{historyJobs.length ? (
 					historyJobs.map((job) => {
+						if (!job.result_available) {
+							const terminalLabel =
+								job.status === "cancelled"
+									? "Cancelado"
+									: job.status === "interrupted"
+										? "Interrompido"
+										: job.status === "failed"
+											? "Falhou"
+											: "Resultado indisponível";
+							return (
+								<article key={job.id} className={styles.problemCard}>
+									<div>
+										<span className={styles.eyebrow}>Tentativa {job.attempt}</span>
+										<h3>{terminalLabel}</h3>
+										<p>
+											{formatBenchmarkHistoryDate(job.updated_at)}
+											{job.error?.code ? " · " + job.error.code : ""}
+											{" · sem receipt comparável"}
+										</p>
+									</div>
+									<Button size="sm" variant="tertiary" onClick={() => onOpenDiagnostics(job)}>
+										Diagnóstico
+									</Button>
+								</article>
+							);
+						}
 						const result = results[job.id];
 						if (!result)
 							return (
@@ -1627,7 +1653,7 @@ export function ProcessingBenchmark({
 					})
 				) : (
 					<p className={styles.empty}>
-						Nenhum benchmark com receipt neste Companion.
+						Nenhuma execução terminal do Benchmark neste Companion.
 					</p>
 				)}
 			</section>
