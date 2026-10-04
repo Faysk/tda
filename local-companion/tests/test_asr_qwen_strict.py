@@ -705,6 +705,7 @@ def test_fast_empty_full_window_recovery_honors_cancel_between_halves(
     assert "QWEN_EMPTY_WINDOW_RECOVERY_FAILED" not in codes
     assert "QWEN_EMPTY_WINDOW_RECOVERED" not in codes
 
+
 def test_strict_qwen_mixed_tracks_keep_silent_timeline_and_voiced_identity(tmp_path: Path):
     package, root = _two_track_package(tmp_path)
     reports: list[dict] = []
