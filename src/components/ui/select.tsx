@@ -129,10 +129,6 @@ export function Select<T extends string>({
 
 	useLayoutEffect(() => {
 		if (!open) return;
-		const popover = listboxRef.current;
-		if (popover?.showPopover && !popover.matches(":popover-open")) {
-			popover.showPopover();
-		}
 		const updatePosition = () => {
 			const trigger = triggerRef.current;
 			if (!trigger) return;
@@ -169,11 +165,18 @@ export function Select<T extends string>({
 		return () => {
 			window.removeEventListener("resize", updatePosition);
 			window.removeEventListener("scroll", updatePosition, true);
-			if (popover?.hidePopover && popover.matches(":popover-open")) {
-				popover.hidePopover();
-			}
 		};
 	}, [embedded, open]);
+
+	useEffect(() => {
+		if (!open) return;
+		const popover = listboxRef.current;
+		if (!popover?.showPopover) return;
+		if (!popover.matches(":popover-open")) popover.showPopover();
+		return () => {
+			if (popover.matches(":popover-open")) popover.hidePopover();
+		};
+	}, [open]);
 
 	useEffect(() => {
 		if (!open) return;
