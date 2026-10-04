@@ -111,6 +111,7 @@ type Props = Readonly<{
 	) => void;
 	onOpenTechnical?: (target?: SessionRecoveryTarget) => void;
 	onSelectSource?: () => void;
+	onReviewAssembly?: (assembly: SessionAssembly) => void;
 }>;
 
 function supported(capabilities: readonly string[]): boolean {
@@ -208,6 +209,7 @@ export function SessionIntentCoordinator({
 	onError,
 	onOpenTechnical,
 	onSelectSource,
+	onReviewAssembly,
 }: Props) {
 	const enabled = supported(capabilities);
 	const [workspace, setWorkspace] = useState<SessionWorkspace | null>(null);
@@ -1143,6 +1145,10 @@ export function SessionIntentCoordinator({
 
 	async function openReview() {
 		if (!workspace || !assembly || busy || disabled) return;
+		if (onReviewAssembly) {
+			onReviewAssembly(assembly);
+			return;
+		}
 		const controller = new AbortController();
 		setBusy(true);
 		try {
