@@ -1242,7 +1242,7 @@ def test_benchmark_api_rejects_unauthorized_wrong_ids_and_corrupt_artifacts(tmp_
         assert unauthorized.json()["error"]["code"] == "UNAUTHORIZED"
 
         missing = client.get(
-            f"/api/v1/benchmarks/benchmark-{'0' * 32}",
+            "/api/v1/benchmarks/benchmark-missing-a1",
             headers=headers,
         )
         assert missing.status_code == 409
