@@ -1569,17 +1569,12 @@ export function ProcessingBenchmark({
 				<div className={styles.historyHeader}>
 					<div>
 						<span className={styles.eyebrow}>Histórico local</span>
-						<h2>Execuções com receipt</h2>
+						<h2>Execuções do Benchmark</h2>
 					</div>
-					<span>
-						{latestCompleted.length} comparável
-						{latestCompleted.length === 1 ? "" : "eis"} ·{" "}
-						{resultJobs.length - latestCompleted.length} parcial
-						{resultJobs.length - latestCompleted.length === 1 ? "" : "is"}
-					</span>
+					<span>{historyJobs.length} execução{historyJobs.length === 1 ? "" : "ões"} terminal{historyJobs.length === 1 ? "" : "is"}</span>
 				</div>
-				{resultJobs.length ? (
-					resultJobs.slice(0, 20).map((job) => {
+				{historyJobs.length ? (
+					historyJobs.map((job) => {
 						const result = results[job.id];
 						if (!result)
 							return (
