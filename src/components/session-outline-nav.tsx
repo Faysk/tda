@@ -40,7 +40,11 @@ export function SessionOutlineNav({
 				const visible = records
 					.filter((record) => record.isIntersecting)
 					.sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top);
-				const id = visible[0]?.target.id;
+				if (!visible.length) return;
+
+				const hashId = decodeURIComponent(window.location.hash.slice(1));
+				const explicitTarget = visible.find((record) => record.target.id === hashId);
+				const id = explicitTarget?.target.id ?? visible[0]?.target.id;
 				if (id) setActiveId(id);
 			},
 			{ rootMargin: "-18% 0px -68% 0px", threshold: 0 },
