@@ -590,7 +590,7 @@ test("benchmark continues after a profile-local Qwen failure and finishes as Par
 	await refresh.click();
 
 	await expect(panel).toContainText(
-		"Tentados 4/4 · Concluídos 2 · Falharam 1 · Atual: Qwen Quality",
+		"Tentados 4/4 · Concluídos 2 · Falharam 1 · Pendentes 0 · Atual: Qwen Quality",
 	);
 	const fastLive = panel.locator("[data-state='failed']").filter({ hasText: "Qwen Fast" });
 	const qualityLive = panel.locator("[data-state='running']").filter({ hasText: "Qwen Quality" });
@@ -848,6 +848,22 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 		benchmarkProfiles: true,
 		profileReady: true,
 		advanceJobs: false,
+		jobEvents: [
+			{
+				seq: 1,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T20:00:01Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					completed_count: 0,
+					failed_count: 0,
+				},
+			},
+		],
 	});
 	const panel = await openBenchmark(page);
 	await chooseZip(panel);
@@ -858,6 +874,18 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 	await panel.getByRole("button", { name: "Cancelar benchmark" }).click();
 	await expect.poll(() => state.job?.status).toBe("cancelled");
 	await expect(panel.getByText("Benchmark cancelado")).toBeVisible();
+	await expect(
+		panel.locator("[data-state='cancelled']").filter({ hasText: "Whisper Turbo" }),
+	).toBeVisible();
+	await expect(
+		panel.locator("[data-state='not_attempted']").filter({ hasText: "Whisper Detailed" }),
+	).toBeVisible();
+	await expect(
+		panel.locator("[data-state='not_attempted']").filter({ hasText: "Qwen Fast" }),
+	).toBeVisible();
+	await expect(
+		panel.locator("[data-state='not_attempted']").filter({ hasText: "Qwen Quality" }),
+	).toBeVisible();
 	await expect(panel.getByRole("button", { name: "Ver log / Diagnóstico" })).toBeVisible();
 });
 
