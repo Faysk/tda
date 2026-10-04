@@ -8,6 +8,7 @@ import {
 	type SessionCampaignMoveClassification,
 	type SessionCampaignMoveOptions,
 	type SessionCampaignMovePlanItem,
+	sessionCampaignMoveOptionsKey,
 	type SessionCampaignMovePreview,
 } from "./session-campaign-move-model";
 
@@ -176,6 +177,63 @@ export async function preflightSessionCampaignMove(input: MoveBoundaryInput) {
 			? row.status
 			: "dependency_unavailable";
 	return { ok: false as const, reason };
+}
+
+export async function readCommittedSessionCampaignMove(input: Readonly<{
+	actorProfileId: string;
+	sessionId: string;
+	sourceSessionId: string;
+	sourceCampaignId: string;
+	destinationCampaignId: string;
+	operationId: string;
+	options: SessionCampaignMoveOptions;
+}>) {
+	const client = editDataClient();
+	if (!client)
+		return {
+			ok: false as const,
+			reason: "dependency_unavailable" as const,
+		};
+
+	const { data, error } = await client
+		.from("session_campaign_move_operations")
+		.select(
+			"operation_id,session_id,source_campaign_id,destination_campaign_id,source_session_id,actor_profile_id,contract_version,decisions",
+		)
+		.eq("operation_id", input.operationId)
+		.maybeSingle();
+	if (error)
+		return {
+			ok: false as const,
+			reason: "dependency_unavailable" as const,
+		};
+	if (!data) return null;
+
+	const decisions = record(data.decisions);
+	const expectedKey = sessionCampaignMoveOptionsKey(input.options);
+	const actualKey = decisions
+		? sessionCampaignMoveOptionsKey(decisions as SessionCampaignMoveOptions)
+		: null;
+	if (
+		data.contract_version !== SESSION_CAMPAIGN_MOVE_CONTRACT_V2 ||
+		data.session_id !== input.sessionId ||
+		data.source_session_id !== input.sourceSessionId ||
+		data.source_campaign_id !== input.sourceCampaignId ||
+		data.destination_campaign_id !== input.destinationCampaignId ||
+		data.actor_profile_id !== input.actorProfileId ||
+		actualKey !== expectedKey
+	) {
+		return { ok: false as const, reason: "operation_conflict" as const };
+	}
+
+	return {
+		ok: true as const,
+		replayed: true,
+		publicationState:
+			input.options.publishedPolicy === "unpublish"
+				? ("unpublished" as const)
+				: ("unchanged" as const),
+	};
 }
 
 export async function commitSessionCampaignMove(
