@@ -1078,7 +1078,7 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 			const participantInput = style("li[data-assembly-segment] input");
 			const textArea = style("li[data-assembly-segment] textarea");
 			const noticeStyle = getComputedStyle(
-				requireElement<HTMLElement>('[role="status"]'),
+				requireElement<HTMLElement>('p[role="status"]'),
 			);
 			const errorStyle = getComputedStyle(
 				requireElement<HTMLElement>('[role="alert"]'),
