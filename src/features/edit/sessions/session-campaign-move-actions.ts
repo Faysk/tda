@@ -175,6 +175,7 @@ export async function moveSessionCampaignAction(
 			sourceCampaignSlug: access.source.technicalSlug,
 			destinationCampaignId: access.destination.id,
 			destinationCampaignSlug: access.destination.technicalSlug,
+			destinationPublic: access.destination.visibility === "public",
 		});
 		if (prepared.kind === "prepared") preparedCover = prepared.cover;
 		if (
