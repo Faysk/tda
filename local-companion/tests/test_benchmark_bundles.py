@@ -23,6 +23,7 @@ from tda_companion.benchmark_bundles import (
     finalize_benchmark_bundle,
     load_benchmark_bundle,
     read_benchmark_transcript,
+    verify_benchmark_profile_receipt,
     write_benchmark_profile,
 )
 from tda_companion.store import Store
@@ -391,6 +392,86 @@ def test_profile_artifacts_commit_before_top_manifest_and_bundle_is_separate(tmp
     assert str(tmp_path) not in manifest_text
     assert bundle["context"]["sha256"] == hashlib.sha256("contexto privado".encode()).hexdigest()
     assert bundle["glossary"]["sha256"] == hashlib.sha256("Valyndra".encode()).hexdigest()
+
+
+def test_partial_profile_receipts_remain_hash_verifiable_without_completed_bundle(
+    tmp_path: Path,
+):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    job_id = "partial-profile-verification"
+    package = _package()
+    sample_identity = benchmark_sample_identity(package)
+    receipts = _profile_receipts(data_root, job_id, 1, count=3)
+    benchmark_id = benchmark_id_for(job_id, 1)
+    root = benchmark_root(data_root, benchmark_id)
+
+    assert not (root / "benchmark.json").exists()
+    for receipt in receipts:
+        verify_benchmark_profile_receipt(
+            data_root,
+            benchmark_id=benchmark_id,
+            source_id=SOURCE_ID,
+            source_sha256=SOURCE_SHA,
+            sample_identity_sha256=sample_identity,
+            receipt=receipt,
+        )
+
+    transcript = root / "profiles" / receipts[1]["profile_id"] / "transcript.json"
+    payload = bytearray(transcript.read_bytes())
+    payload[-2] = payload[-2] ^ 1
+    transcript.write_bytes(payload)
+
+    with pytest.raises(
+        BenchmarkBundleError,
+        match="BENCHMARK_BUNDLE_ARTIFACT_MISMATCH",
+    ):
+        verify_benchmark_profile_receipt(
+            data_root,
+            benchmark_id=benchmark_id,
+            source_id=SOURCE_ID,
+            source_sha256=SOURCE_SHA,
+            sample_identity_sha256=sample_identity,
+            receipt=receipts[1],
+        )
+
+    assert not (root / "benchmark.json").exists()
+
+
+def test_partial_profile_receipt_rejects_wrong_sample_or_source_identity(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    job_id = "partial-profile-identity"
+    package = _package()
+    sample_identity = benchmark_sample_identity(package)
+    receipt = _profile_receipts(data_root, job_id, 1, count=1)[0]
+    benchmark_id = benchmark_id_for(job_id, 1)
+
+    with pytest.raises(
+        BenchmarkBundleError,
+        match="BENCHMARK_BUNDLE_PROFILE_RECEIPT_INVALID",
+    ):
+        verify_benchmark_profile_receipt(
+            data_root,
+            benchmark_id=benchmark_id,
+            source_id=SOURCE_ID,
+            source_sha256=SOURCE_SHA,
+            sample_identity_sha256="f" * 64,
+            receipt=receipt,
+        )
+
+    with pytest.raises(
+        BenchmarkBundleError,
+        match="BENCHMARK_BUNDLE_PROFILE_RECEIPT_MISMATCH",
+    ):
+        verify_benchmark_profile_receipt(
+            data_root,
+            benchmark_id=benchmark_id,
+            source_id=SOURCE_ID,
+            source_sha256="e" * 64,
+            sample_identity_sha256=sample_identity,
+            receipt=receipt,
+        )
 
 
 @pytest.mark.parametrize("completed_profiles", [1, 2, 3])
