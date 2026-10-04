@@ -1006,18 +1006,3729 @@ begin
       v_prepared := p_options->'preparedCover';
 
       if v_prepared is null
-         or coalesce(v_prepared->>'sourceAssetId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-         or coalesce(v_prepared->>'destinationAssetId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+         or coalesce(v_prepared->>'sourceAssetId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
+
+      select *
+      into v_source_media
+      from public.media_assets ma
+      where ma.id = v_source_asset_id
+        and ma.campaign_id = v_source.id
+        and ma.role_hint = 'session_cover'
+        and ma.status in ('staged', 'verified_public')
+        and ma.read_back_verified = true;
+
+      if not found
+         or v_source_media.sha256 <> v_prepared->>'sha256'
+         or v_source_media.mime_type <> v_prepared->>'mimeType'
+         or v_source_media.byte_size <> (v_prepared->>'bytes')::bigint
+         or v_source_media.width <> (v_prepared->>'width')::integer
+         or v_source_media.height <> (v_prepared->>'height')::integer then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      v_extension := case when v_source_media.mime_type = 'image/png' then 'png' else 'webp' end;
+      v_expected_source_key :=
+        'campaigns/' || p_source_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+      v_expected_destination_key :=
+        'campaigns/' || p_destination_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+
+      if v_source_media.object_key <> v_expected_source_key
+         or v_prepared->>'objectKey' <> v_expected_destination_key then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      select *
+      into v_destination_media
+      from public.media_assets ma
+      where ma.id = v_destination_asset_id;
+
+      if found then
+        if v_destination_media.campaign_id <> v_destination.id
+           or v_destination_media.role_hint <> 'session_cover'
+           or v_destination_media.sha256 <> v_source_media.sha256
+           or v_destination_media.mime_type <> v_source_media.mime_type
+           or v_destination_media.byte_size <> v_source_media.byte_size
+           or v_destination_media.width <> v_source_media.width
+           or v_destination_media.height <> v_source_media.height
+           or v_destination_media.staged_bucket <> v_prepared->>'stagedBucket'
+           or v_destination_media.object_key <> v_expected_destination_key
+           or v_destination_media.read_back_verified is not true then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+
+        if v_destination.visibility <> 'public'
+           and v_destination_media.status = 'verified_public' then
+          update public.media_assets ma
+          set
+            status = 'staged',
+            public_bucket = null,
+            public_object_key = null,
+            public_delivery_verified = false,
+            public_verified_at = null,
+            updated_at = clock_timestamp()
+          where ma.id = v_destination_asset_id
+            and ma.campaign_id = v_destination.id
+            and ma.status = 'verified_public'
+            and ma.read_back_verified = true;
+
+          if not found then
+            return jsonb_build_object('status', 'media_prepare_stale');
+          end if;
+
+          select *
+          into v_destination_media
+          from public.media_assets ma
+          where ma.id = v_destination_asset_id
+            and ma.campaign_id = v_destination.id;
+        end if;
+
+        if v_prepared->>'status' = 'verified_public'
+           and v_destination_media.status = 'staged' then
+          update public.media_assets ma
+          set
+            status = 'verified_public',
+            public_bucket = nullif(v_prepared->>'publicBucket', ''),
+            public_object_key = nullif(v_prepared->>'publicObjectKey', ''),
+            public_delivery_verified = coalesce(
+              (v_prepared->>'publicDeliveryVerified')::boolean,
+              false
+            ),
+            public_verified_at =
+              nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+            updated_at = clock_timestamp()
+          where ma.id = v_destination_asset_id
+            and ma.campaign_id = v_destination.id
+            and ma.status = 'staged'
+            and ma.read_back_verified = true;
+
+          if not found then
+            return jsonb_build_object('status', 'media_prepare_stale');
+          end if;
+        elsif v_destination_media.status = 'retired' then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      else
+        insert into public.media_assets(
+          id,
+          campaign_id,
+          media_kind,
+          role_hint,
+          status,
+          staged_bucket,
+          object_key,
+          sha256,
+          mime_type,
+          byte_size,
+          width,
+          height,
+          read_back_verified,
+          public_bucket,
+          public_object_key,
+          public_delivery_verified,
+          public_verified_at,
+          created_by
+        ) values (
+          v_destination_asset_id,
+          v_destination.id,
+          'image',
+          'session_cover',
+          v_prepared->>'status',
+          v_prepared->>'stagedBucket',
+          v_prepared->>'objectKey',
+          v_prepared->>'sha256',
+          v_prepared->>'mimeType',
+          (v_prepared->>'bytes')::bigint,
+          (v_prepared->>'width')::integer,
+          (v_prepared->>'height')::integer,
+          true,
+          nullif(v_prepared->>'publicBucket', ''),
+          nullif(v_prepared->>'publicObjectKey', ''),
+          coalesce((v_prepared->>'publicDeliveryVerified')::boolean, false),
+          nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+          p_actor_profile_id
+        );
+      end if;
+
+      if v_prepared->>'status' = 'verified_public' then
+        select *
+        into v_destination_media
+        from public.media_assets ma
+        where ma.id = v_destination_asset_id
+          and ma.campaign_id = v_destination.id
+          and ma.status = 'verified_public'
+          and ma.public_bucket = 'tda-media-public'
+          and ma.public_object_key = ma.object_key
+          and ma.public_delivery_verified = true
+          and ma.public_verified_at is not null;
+
+        if not found then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      end if;
+
+      v_bridge_cover := v_destination_asset_id::text;
+    elsif v_bridge_cover is not null then
+      if p_options->>'legacyCoverPolicy' <> 'clear_current' then
+        return jsonb_build_object('status', 'blocked');
+      end if;
+      v_bridge_cover := null;
+    end if;
+
+    select coalesce(max(d.revision), 0) + 1
+    into v_bridge_revision
+    from public.session_editorial_drafts d
+    where d.session_id = p_session_id;
+
+    v_bridge_draft_id := gen_random_uuid();
+
+    insert into public.session_editorial_drafts(
+      id,
+      campaign_id,
+      session_id,
+      revision,
+      base_transcript_revision_id,
+      cover_asset_id,
+      arc,
+      title,
+      summary_short,
+      summary_full,
+      actor_profile_id,
+      created_at,
+      session_date,
+      session_date_captured
+    ) values (
+      v_bridge_draft_id,
+      v_destination.id,
+      p_session_id,
+      v_bridge_revision,
+      v_current_draft.base_transcript_revision_id,
+      v_bridge_cover,
+      v_current_draft.arc,
+      v_current_draft.title,
+      v_current_draft.summary_short,
+      v_current_draft.summary_full,
+      p_actor_profile_id,
+      clock_timestamp(),
+      v_current_draft.session_date,
+      v_current_draft.session_date_captured
+    );
+  end if;
+
+  insert into public.session_campaign_move_operations(
+    operation_id,
+    session_id,
+    source_campaign_id,
+    destination_campaign_id,
+    source_session_id,
+    actor_profile_id,
+    contract_version,
+    decisions
+  ) values (
+    p_operation_id,
+    p_session_id,
+    v_source.id,
+    v_destination.id,
+    p_source_session_id,
+    p_actor_profile_id,
+    'tda_session_campaign_move_v2',
+    v_decisions
+  );
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select
+    p_operation_id,
+    'transcript_revision',
+    tr.id,
+    v_source.id,
+    v_destination.id
+  from public.transcript_revisions tr
+  where tr.session_id = p_session_id
+    and tr.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_revisions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_receipt', r.id, v_source.id, v_destination.id
+  from public.transcript_publication_receipts r
+  where r.session_id = p_session_id
+    and r.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_receipts
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_event', e.id, v_source.id, v_destination.id
+  from public.transcript_publication_events e
+  where e.session_id = p_session_id
+    and e.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_events
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if to_regclass('public.transcript_assembly_publication_receipts') is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'transcript_assembly_receipt', r.id, v_source.id, v_destination.id
+    from public.transcript_assembly_publication_receipts r
+    where r.session_id = p_session_id
+      and r.campaign_id = v_source.id
+    on conflict do nothing;
+
+    update public.transcript_assembly_publication_receipts
+    set campaign_id = v_destination.id
+    where session_id = p_session_id
+      and campaign_id = v_source.id;
+  end if;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication', sp.id, v_source.id, v_destination.id
+  from public.session_publications sp
+  where sp.session_id = p_session_id
+    and sp.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publications
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication_operation', spo.operation_id, v_source.id, v_destination.id
+  from public.session_publication_operations spo
+  where spo.session_id = p_session_id
+    and spo.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publication_operations
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.discord_interactions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.table_notes
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if p_options->>'participantEntityPolicy' = 'unlink' then
+    select count(*)
+    into v_participant_unlinks
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'participant_entity_unlink',
+      p.id,
+      p.character_entity_id,
+      v_source.id,
+      v_destination.id
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null
+    on conflict do nothing;
+
+    update public.participants
+    set character_entity_id = null
+    where session_id = p_session_id
+      and character_entity_id is not null;
+  end if;
+
+  if p_options->>'entityMentionPolicy' = 'detach_from_session' then
+    select count(*)
+    into v_entity_detaches
+    from public.entity_mentions em
+    where em.session_id = p_session_id;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'entity_mention_detach',
+      em.id,
+      em.entity_id,
+      v_source.id,
+      v_destination.id
+    from public.entity_mentions em
+    where em.session_id = p_session_id
+    on conflict do nothing;
+
+    update public.entity_mentions
+    set session_id = null
+    where session_id = p_session_id;
+  end if;
+
+  if p_options->>'canonPolicy' = 'detach_entity_links' then
+    if exists (
+      select 1
+      from public.canon_entries ce
+      join public.canon_candidates cc on cc.id = ce.source_candidate_id
+      where cc.session_id = p_session_id
+    ) then
+      return jsonb_build_object('status', 'blocked');
+    end if;
+
+    select count(*)
+    into v_canon_detaches
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'canon_candidate_entity_detach', cc.id, v_source.id, v_destination.id
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0
+    on conflict do nothing;
+
+    update public.canon_candidates
+    set related_entity_ids = null
+    where session_id = p_session_id
+      and coalesce(cardinality(related_entity_ids), 0) > 0;
+  end if;
+
+  if p_options->>'sessionGrantPolicy' in ('preserve', 'revoke') then
+    select count(*)
+    into v_grant_count
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible');
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      case
+        when p_options->>'sessionGrantPolicy' = 'revoke'
+          then 'session_grant_revoke'
+        else 'session_grant_preserve'
+      end,
+      ra.id,
+      v_source.id,
+      v_destination.id
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible')
+    on conflict do nothing;
+
+    if p_options->>'sessionGrantPolicy' = 'revoke' then
+      update public.role_assignments
+      set
+        status = 'revoked',
+        revoked_by = p_actor_profile_id,
+        updated_at = clock_timestamp()
+      where scope_type = 'session'
+        and scope_id = p_session_id::text
+        and status in ('active', 'eligible');
+    end if;
+  end if;
+
+  if v_session.current_session_publication_id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'active_session_publication_unpublish',
+      v_session.current_session_publication_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+  end if;
+
+  if v_current_draft.id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'editorial_draft_bridge',
+      v_current_draft.id,
+      v_bridge_draft_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+
+    if v_source_asset_id is not null and v_destination_asset_id is not null then
+      insert into public.session_campaign_move_artifacts(
+        operation_id, artifact_kind, artifact_id, related_artifact_id,
+        source_campaign_id, destination_campaign_id
+      ) values (
+        p_operation_id,
+        'session_cover_rehome',
+        v_source_asset_id,
+        v_destination_asset_id,
+        v_source.id,
+        v_destination.id
+      )
+      on conflict do nothing;
+    end if;
+  end if;
+
+  if v_participant_unlinks > 0
+     or v_entity_detaches > 0
+     or v_canon_detaches > 0
+     or v_grant_count > 0 then
+    insert into public.audit_log(
+      campaign_id,
+      session_id,
+      actor_id,
+      action,
+      table_name,
+      record_id,
+      old_value,
+      new_value
+    ) values (
+      v_destination.id,
+      p_session_id,
+      p_actor_profile_id,
+      'session.campaign.move.reconcile',
+      'sessions',
+      p_session_id,
+      jsonb_build_object(
+        'campaignId', v_source.id,
+        'participantEntityLinks', v_participant_unlinks,
+        'entityMentions', v_entity_detaches,
+        'canonCandidateEntityLinks', v_canon_detaches,
+        'sessionGrants', v_grant_count
+      ),
+      jsonb_build_object(
+        'campaignId', v_destination.id,
+        'participantEntityPolicy', p_options->>'participantEntityPolicy',
+        'entityMentionPolicy', p_options->>'entityMentionPolicy',
+        'canonPolicy', p_options->>'canonPolicy',
+        'sessionGrantPolicy', p_options->>'sessionGrantPolicy'
+      )
+    );
+  end if;
+
+  update public.sessions s
+  set
+    campaign_id = v_destination.id,
+    current_editorial_draft_id = coalesce(v_bridge_draft_id, s.current_editorial_draft_id),
+    current_session_publication_id =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then null
+        else s.current_session_publication_id
+      end,
+    status =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then 'approved'
+        else s.status
+      end,
+    metadata =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+        then (coalesce(s.metadata, '{}'::jsonb) - 'coverImageUrl' - 'heroImageUrl')
+        else s.metadata
+      end,
+    updated_at = clock_timestamp()
+  where s.id = p_session_id
+    and s.campaign_id = v_source.id
+    and s.source_session_id = p_source_session_id;
+
+  if not found then
+    raise exception 'session campaign authority changed while locked';
+  end if;
+
+  insert into public.audit_log(
+    campaign_id,
+    session_id,
+    actor_id,
+    action,
+    table_name,
+    record_id,
+    old_value,
+    new_value
+  ) values (
+    v_destination.id,
+    p_session_id,
+    p_actor_profile_id,
+    'session.campaign.move.v2',
+    'sessions',
+    p_session_id,
+    jsonb_build_object(
+      'campaignId', v_source.id,
+      'campaignSlug', p_source_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'published', v_session.current_session_publication_id is not null or v_session.status = 'published'
+    ),
+    jsonb_build_object(
+      'campaignId', v_destination.id,
+      'campaignSlug', p_destination_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'publicationPolicy', p_options->>'publishedPolicy',
+      'bridgeDraftId', v_bridge_draft_id,
+      'contractVersion', 'tda_session_campaign_move_v2'
+    )
+  );
+
+  return jsonb_build_object(
+    'status', 'moved',
+    'contractVersion', 'tda_session_campaign_move_v2',
+    'sessionId', p_session_id,
+    'sourceSessionId', p_source_session_id,
+    'sourceCampaignSlug', p_source_campaign_slug,
+    'destinationCampaignSlug', p_destination_campaign_slug,
+    'operationId', p_operation_id,
+    'bridgeDraftId', v_bridge_draft_id,
+    'publicationState',
+      case
+        when v_session.current_session_publication_id is not null or v_session.status = 'published'
+          then 'unpublished'
+        else 'unchanged'
+      end
+  );
+end;
+$tda_move$;
+
+comment on function public.session_campaign_move_contract_v2() is
+  'Sanitized server-only capability probe for the v2 populated-session move boundary.';
+comment on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) is
+  'Server-only v2 preflight. Produces a structured migration plan and requires explicit decisions for public/entity/grant boundaries.';
+comment on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) is
+  'Server-only v2 commit. Revalidates/locks source, preserves immutable history attribution, migrates current transcript ownership, creates a bridge draft, reconciles explicit decisions and commits the session move atomically.';
+
+revoke all on function public.session_campaign_move_set_origin_campaign() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_registry_drift() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_contract_v2() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_decisions(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_options_valid(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_plan_v2(uuid,uuid,uuid,text,text,uuid,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) from public, anon, authenticated, service_role;
+
+grant execute on function public.session_campaign_move_contract_v2() to service_role;
+grant execute on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) to service_role;
+grant execute on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) to service_role;
+
+commit;
+
+         or coalesce(v_prepared->>'destinationAssetId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
+
+      select *
+      into v_source_media
+      from public.media_assets ma
+      where ma.id = v_source_asset_id
+        and ma.campaign_id = v_source.id
+        and ma.role_hint = 'session_cover'
+        and ma.status in ('staged', 'verified_public')
+        and ma.read_back_verified = true;
+
+      if not found
+         or v_source_media.sha256 <> v_prepared->>'sha256'
+         or v_source_media.mime_type <> v_prepared->>'mimeType'
+         or v_source_media.byte_size <> (v_prepared->>'bytes')::bigint
+         or v_source_media.width <> (v_prepared->>'width')::integer
+         or v_source_media.height <> (v_prepared->>'height')::integer then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      v_extension := case when v_source_media.mime_type = 'image/png' then 'png' else 'webp' end;
+      v_expected_source_key :=
+        'campaigns/' || p_source_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+      v_expected_destination_key :=
+        'campaigns/' || p_destination_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+
+      if v_source_media.object_key <> v_expected_source_key
+         or v_prepared->>'objectKey' <> v_expected_destination_key then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      select *
+      into v_destination_media
+      from public.media_assets ma
+      where ma.id = v_destination_asset_id;
+
+      if found then
+        if v_destination_media.campaign_id <> v_destination.id
+           or v_destination_media.role_hint <> 'session_cover'
+           or v_destination_media.sha256 <> v_source_media.sha256
+           or v_destination_media.mime_type <> v_source_media.mime_type
+           or v_destination_media.byte_size <> v_source_media.byte_size
+           or v_destination_media.width <> v_source_media.width
+           or v_destination_media.height <> v_source_media.height
+           or v_destination_media.staged_bucket <> v_prepared->>'stagedBucket'
+           or v_destination_media.object_key <> v_expected_destination_key
+           or v_destination_media.read_back_verified is not true then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+
+        if v_prepared->>'status' = 'verified_public'
+           and v_destination_media.status = 'staged' then
+          update public.media_assets ma
+          set
+            status = 'verified_public',
+            public_bucket = nullif(v_prepared->>'publicBucket', ''),
+            public_object_key = nullif(v_prepared->>'publicObjectKey', ''),
+            public_delivery_verified = coalesce(
+              (v_prepared->>'publicDeliveryVerified')::boolean,
+              false
+            ),
+            public_verified_at =
+              nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+            updated_at = clock_timestamp()
+          where ma.id = v_destination_asset_id
+            and ma.campaign_id = v_destination.id
+            and ma.status = 'staged'
+            and ma.read_back_verified = true;
+
+          if not found then
+            return jsonb_build_object('status', 'media_prepare_stale');
+          end if;
+        elsif v_destination_media.status = 'retired' then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      else
+        insert into public.media_assets(
+          id,
+          campaign_id,
+          media_kind,
+          role_hint,
+          status,
+          staged_bucket,
+          object_key,
+          sha256,
+          mime_type,
+          byte_size,
+          width,
+          height,
+          read_back_verified,
+          public_bucket,
+          public_object_key,
+          public_delivery_verified,
+          public_verified_at,
+          created_by
+        ) values (
+          v_destination_asset_id,
+          v_destination.id,
+          'image',
+          'session_cover',
+          v_prepared->>'status',
+          v_prepared->>'stagedBucket',
+          v_prepared->>'objectKey',
+          v_prepared->>'sha256',
+          v_prepared->>'mimeType',
+          (v_prepared->>'bytes')::bigint,
+          (v_prepared->>'width')::integer,
+          (v_prepared->>'height')::integer,
+          true,
+          nullif(v_prepared->>'publicBucket', ''),
+          nullif(v_prepared->>'publicObjectKey', ''),
+          coalesce((v_prepared->>'publicDeliveryVerified')::boolean, false),
+          nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+          p_actor_profile_id
+        );
+      end if;
+
+      if v_prepared->>'status' = 'verified_public' then
+        select *
+        into v_destination_media
+        from public.media_assets ma
+        where ma.id = v_destination_asset_id
+          and ma.campaign_id = v_destination.id
+          and ma.status = 'verified_public'
+          and ma.public_bucket = 'tda-media-public'
+          and ma.public_object_key = ma.object_key
+          and ma.public_delivery_verified = true
+          and ma.public_verified_at is not null;
+
+        if not found then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      end if;
+
+      v_bridge_cover := v_destination_asset_id::text;
+    elsif v_bridge_cover is not null then
+      if p_options->>'legacyCoverPolicy' <> 'clear_current' then
+        return jsonb_build_object('status', 'blocked');
+      end if;
+      v_bridge_cover := null;
+    end if;
+
+    select coalesce(max(d.revision), 0) + 1
+    into v_bridge_revision
+    from public.session_editorial_drafts d
+    where d.session_id = p_session_id;
+
+    v_bridge_draft_id := gen_random_uuid();
+
+    insert into public.session_editorial_drafts(
+      id,
+      campaign_id,
+      session_id,
+      revision,
+      base_transcript_revision_id,
+      cover_asset_id,
+      arc,
+      title,
+      summary_short,
+      summary_full,
+      actor_profile_id,
+      created_at,
+      session_date,
+      session_date_captured
+    ) values (
+      v_bridge_draft_id,
+      v_destination.id,
+      p_session_id,
+      v_bridge_revision,
+      v_current_draft.base_transcript_revision_id,
+      v_bridge_cover,
+      v_current_draft.arc,
+      v_current_draft.title,
+      v_current_draft.summary_short,
+      v_current_draft.summary_full,
+      p_actor_profile_id,
+      clock_timestamp(),
+      v_current_draft.session_date,
+      v_current_draft.session_date_captured
+    );
+  end if;
+
+  insert into public.session_campaign_move_operations(
+    operation_id,
+    session_id,
+    source_campaign_id,
+    destination_campaign_id,
+    source_session_id,
+    actor_profile_id,
+    contract_version,
+    decisions
+  ) values (
+    p_operation_id,
+    p_session_id,
+    v_source.id,
+    v_destination.id,
+    p_source_session_id,
+    p_actor_profile_id,
+    'tda_session_campaign_move_v2',
+    v_decisions
+  );
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select
+    p_operation_id,
+    'transcript_revision',
+    tr.id,
+    v_source.id,
+    v_destination.id
+  from public.transcript_revisions tr
+  where tr.session_id = p_session_id
+    and tr.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_revisions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_receipt', r.id, v_source.id, v_destination.id
+  from public.transcript_publication_receipts r
+  where r.session_id = p_session_id
+    and r.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_receipts
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_event', e.id, v_source.id, v_destination.id
+  from public.transcript_publication_events e
+  where e.session_id = p_session_id
+    and e.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_events
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if to_regclass('public.transcript_assembly_publication_receipts') is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'transcript_assembly_receipt', r.id, v_source.id, v_destination.id
+    from public.transcript_assembly_publication_receipts r
+    where r.session_id = p_session_id
+      and r.campaign_id = v_source.id
+    on conflict do nothing;
+
+    update public.transcript_assembly_publication_receipts
+    set campaign_id = v_destination.id
+    where session_id = p_session_id
+      and campaign_id = v_source.id;
+  end if;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication', sp.id, v_source.id, v_destination.id
+  from public.session_publications sp
+  where sp.session_id = p_session_id
+    and sp.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publications
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication_operation', spo.operation_id, v_source.id, v_destination.id
+  from public.session_publication_operations spo
+  where spo.session_id = p_session_id
+    and spo.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publication_operations
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.discord_interactions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.table_notes
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if p_options->>'participantEntityPolicy' = 'unlink' then
+    select count(*)
+    into v_participant_unlinks
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'participant_entity_unlink',
+      p.id,
+      p.character_entity_id,
+      v_source.id,
+      v_destination.id
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null
+    on conflict do nothing;
+
+    update public.participants
+    set character_entity_id = null
+    where session_id = p_session_id
+      and character_entity_id is not null;
+  end if;
+
+  if p_options->>'entityMentionPolicy' = 'detach_from_session' then
+    select count(*)
+    into v_entity_detaches
+    from public.entity_mentions em
+    where em.session_id = p_session_id;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'entity_mention_detach',
+      em.id,
+      em.entity_id,
+      v_source.id,
+      v_destination.id
+    from public.entity_mentions em
+    where em.session_id = p_session_id
+    on conflict do nothing;
+
+    update public.entity_mentions
+    set session_id = null
+    where session_id = p_session_id;
+  end if;
+
+  if p_options->>'canonPolicy' = 'detach_entity_links' then
+    if exists (
+      select 1
+      from public.canon_entries ce
+      join public.canon_candidates cc on cc.id = ce.source_candidate_id
+      where cc.session_id = p_session_id
+    ) then
+      return jsonb_build_object('status', 'blocked');
+    end if;
+
+    select count(*)
+    into v_canon_detaches
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'canon_candidate_entity_detach', cc.id, v_source.id, v_destination.id
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0
+    on conflict do nothing;
+
+    update public.canon_candidates
+    set related_entity_ids = null
+    where session_id = p_session_id
+      and coalesce(cardinality(related_entity_ids), 0) > 0;
+  end if;
+
+  if p_options->>'sessionGrantPolicy' in ('preserve', 'revoke') then
+    select count(*)
+    into v_grant_count
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible');
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      case
+        when p_options->>'sessionGrantPolicy' = 'revoke'
+          then 'session_grant_revoke'
+        else 'session_grant_preserve'
+      end,
+      ra.id,
+      v_source.id,
+      v_destination.id
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible')
+    on conflict do nothing;
+
+    if p_options->>'sessionGrantPolicy' = 'revoke' then
+      update public.role_assignments
+      set
+        status = 'revoked',
+        revoked_by = p_actor_profile_id,
+        updated_at = clock_timestamp()
+      where scope_type = 'session'
+        and scope_id = p_session_id::text
+        and status in ('active', 'eligible');
+    end if;
+  end if;
+
+  if v_session.current_session_publication_id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'active_session_publication_unpublish',
+      v_session.current_session_publication_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+  end if;
+
+  if v_current_draft.id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'editorial_draft_bridge',
+      v_current_draft.id,
+      v_bridge_draft_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+
+    if v_source_asset_id is not null and v_destination_asset_id is not null then
+      insert into public.session_campaign_move_artifacts(
+        operation_id, artifact_kind, artifact_id, related_artifact_id,
+        source_campaign_id, destination_campaign_id
+      ) values (
+        p_operation_id,
+        'session_cover_rehome',
+        v_source_asset_id,
+        v_destination_asset_id,
+        v_source.id,
+        v_destination.id
+      )
+      on conflict do nothing;
+    end if;
+  end if;
+
+  if v_participant_unlinks > 0
+     or v_entity_detaches > 0
+     or v_canon_detaches > 0
+     or v_grant_count > 0 then
+    insert into public.audit_log(
+      campaign_id,
+      session_id,
+      actor_id,
+      action,
+      table_name,
+      record_id,
+      old_value,
+      new_value
+    ) values (
+      v_destination.id,
+      p_session_id,
+      p_actor_profile_id,
+      'session.campaign.move.reconcile',
+      'sessions',
+      p_session_id,
+      jsonb_build_object(
+        'campaignId', v_source.id,
+        'participantEntityLinks', v_participant_unlinks,
+        'entityMentions', v_entity_detaches,
+        'canonCandidateEntityLinks', v_canon_detaches,
+        'sessionGrants', v_grant_count
+      ),
+      jsonb_build_object(
+        'campaignId', v_destination.id,
+        'participantEntityPolicy', p_options->>'participantEntityPolicy',
+        'entityMentionPolicy', p_options->>'entityMentionPolicy',
+        'canonPolicy', p_options->>'canonPolicy',
+        'sessionGrantPolicy', p_options->>'sessionGrantPolicy'
+      )
+    );
+  end if;
+
+  update public.sessions s
+  set
+    campaign_id = v_destination.id,
+    current_editorial_draft_id = coalesce(v_bridge_draft_id, s.current_editorial_draft_id),
+    current_session_publication_id =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then null
+        else s.current_session_publication_id
+      end,
+    status =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then 'approved'
+        else s.status
+      end,
+    metadata =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+        then (coalesce(s.metadata, '{}'::jsonb) - 'coverImageUrl' - 'heroImageUrl')
+        else s.metadata
+      end,
+    updated_at = clock_timestamp()
+  where s.id = p_session_id
+    and s.campaign_id = v_source.id
+    and s.source_session_id = p_source_session_id;
+
+  if not found then
+    raise exception 'session campaign authority changed while locked';
+  end if;
+
+  insert into public.audit_log(
+    campaign_id,
+    session_id,
+    actor_id,
+    action,
+    table_name,
+    record_id,
+    old_value,
+    new_value
+  ) values (
+    v_destination.id,
+    p_session_id,
+    p_actor_profile_id,
+    'session.campaign.move.v2',
+    'sessions',
+    p_session_id,
+    jsonb_build_object(
+      'campaignId', v_source.id,
+      'campaignSlug', p_source_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'published', v_session.current_session_publication_id is not null or v_session.status = 'published'
+    ),
+    jsonb_build_object(
+      'campaignId', v_destination.id,
+      'campaignSlug', p_destination_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'publicationPolicy', p_options->>'publishedPolicy',
+      'bridgeDraftId', v_bridge_draft_id,
+      'contractVersion', 'tda_session_campaign_move_v2'
+    )
+  );
+
+  return jsonb_build_object(
+    'status', 'moved',
+    'contractVersion', 'tda_session_campaign_move_v2',
+    'sessionId', p_session_id,
+    'sourceSessionId', p_source_session_id,
+    'sourceCampaignSlug', p_source_campaign_slug,
+    'destinationCampaignSlug', p_destination_campaign_slug,
+    'operationId', p_operation_id,
+    'bridgeDraftId', v_bridge_draft_id,
+    'publicationState',
+      case
+        when v_session.current_session_publication_id is not null or v_session.status = 'published'
+          then 'unpublished'
+        else 'unchanged'
+      end
+  );
+end;
+$tda_move$;
+
+comment on function public.session_campaign_move_contract_v2() is
+  'Sanitized server-only capability probe for the v2 populated-session move boundary.';
+comment on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) is
+  'Server-only v2 preflight. Produces a structured migration plan and requires explicit decisions for public/entity/grant boundaries.';
+comment on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) is
+  'Server-only v2 commit. Revalidates/locks source, preserves immutable history attribution, migrates current transcript ownership, creates a bridge draft, reconciles explicit decisions and commits the session move atomically.';
+
+revoke all on function public.session_campaign_move_set_origin_campaign() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_registry_drift() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_contract_v2() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_decisions(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_options_valid(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_plan_v2(uuid,uuid,uuid,text,text,uuid,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) from public, anon, authenticated, service_role;
+
+grant execute on function public.session_campaign_move_contract_v2() to service_role;
+grant execute on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) to service_role;
+grant execute on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) to service_role;
+
+commit;
+
          or (v_prepared->>'sourceAssetId')::uuid <> v_source_asset_id
-         or coalesce(v_prepared->>'sha256', '') !~ '^[0-9a-f]{64}$'
+         or coalesce(v_prepared->>'sha256', '') !~ '^[0-9a-f]{64}
+
+      select *
+      into v_source_media
+      from public.media_assets ma
+      where ma.id = v_source_asset_id
+        and ma.campaign_id = v_source.id
+        and ma.role_hint = 'session_cover'
+        and ma.status in ('staged', 'verified_public')
+        and ma.read_back_verified = true;
+
+      if not found
+         or v_source_media.sha256 <> v_prepared->>'sha256'
+         or v_source_media.mime_type <> v_prepared->>'mimeType'
+         or v_source_media.byte_size <> (v_prepared->>'bytes')::bigint
+         or v_source_media.width <> (v_prepared->>'width')::integer
+         or v_source_media.height <> (v_prepared->>'height')::integer then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      v_extension := case when v_source_media.mime_type = 'image/png' then 'png' else 'webp' end;
+      v_expected_source_key :=
+        'campaigns/' || p_source_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+      v_expected_destination_key :=
+        'campaigns/' || p_destination_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+
+      if v_source_media.object_key <> v_expected_source_key
+         or v_prepared->>'objectKey' <> v_expected_destination_key then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      select *
+      into v_destination_media
+      from public.media_assets ma
+      where ma.id = v_destination_asset_id;
+
+      if found then
+        if v_destination_media.campaign_id <> v_destination.id
+           or v_destination_media.role_hint <> 'session_cover'
+           or v_destination_media.sha256 <> v_source_media.sha256
+           or v_destination_media.mime_type <> v_source_media.mime_type
+           or v_destination_media.byte_size <> v_source_media.byte_size
+           or v_destination_media.width <> v_source_media.width
+           or v_destination_media.height <> v_source_media.height
+           or v_destination_media.staged_bucket <> v_prepared->>'stagedBucket'
+           or v_destination_media.object_key <> v_expected_destination_key
+           or v_destination_media.read_back_verified is not true then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+
+        if v_prepared->>'status' = 'verified_public'
+           and v_destination_media.status = 'staged' then
+          update public.media_assets ma
+          set
+            status = 'verified_public',
+            public_bucket = nullif(v_prepared->>'publicBucket', ''),
+            public_object_key = nullif(v_prepared->>'publicObjectKey', ''),
+            public_delivery_verified = coalesce(
+              (v_prepared->>'publicDeliveryVerified')::boolean,
+              false
+            ),
+            public_verified_at =
+              nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+            updated_at = clock_timestamp()
+          where ma.id = v_destination_asset_id
+            and ma.campaign_id = v_destination.id
+            and ma.status = 'staged'
+            and ma.read_back_verified = true;
+
+          if not found then
+            return jsonb_build_object('status', 'media_prepare_stale');
+          end if;
+        elsif v_destination_media.status = 'retired' then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      else
+        insert into public.media_assets(
+          id,
+          campaign_id,
+          media_kind,
+          role_hint,
+          status,
+          staged_bucket,
+          object_key,
+          sha256,
+          mime_type,
+          byte_size,
+          width,
+          height,
+          read_back_verified,
+          public_bucket,
+          public_object_key,
+          public_delivery_verified,
+          public_verified_at,
+          created_by
+        ) values (
+          v_destination_asset_id,
+          v_destination.id,
+          'image',
+          'session_cover',
+          v_prepared->>'status',
+          v_prepared->>'stagedBucket',
+          v_prepared->>'objectKey',
+          v_prepared->>'sha256',
+          v_prepared->>'mimeType',
+          (v_prepared->>'bytes')::bigint,
+          (v_prepared->>'width')::integer,
+          (v_prepared->>'height')::integer,
+          true,
+          nullif(v_prepared->>'publicBucket', ''),
+          nullif(v_prepared->>'publicObjectKey', ''),
+          coalesce((v_prepared->>'publicDeliveryVerified')::boolean, false),
+          nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+          p_actor_profile_id
+        );
+      end if;
+
+      if v_prepared->>'status' = 'verified_public' then
+        select *
+        into v_destination_media
+        from public.media_assets ma
+        where ma.id = v_destination_asset_id
+          and ma.campaign_id = v_destination.id
+          and ma.status = 'verified_public'
+          and ma.public_bucket = 'tda-media-public'
+          and ma.public_object_key = ma.object_key
+          and ma.public_delivery_verified = true
+          and ma.public_verified_at is not null;
+
+        if not found then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      end if;
+
+      v_bridge_cover := v_destination_asset_id::text;
+    elsif v_bridge_cover is not null then
+      if p_options->>'legacyCoverPolicy' <> 'clear_current' then
+        return jsonb_build_object('status', 'blocked');
+      end if;
+      v_bridge_cover := null;
+    end if;
+
+    select coalesce(max(d.revision), 0) + 1
+    into v_bridge_revision
+    from public.session_editorial_drafts d
+    where d.session_id = p_session_id;
+
+    v_bridge_draft_id := gen_random_uuid();
+
+    insert into public.session_editorial_drafts(
+      id,
+      campaign_id,
+      session_id,
+      revision,
+      base_transcript_revision_id,
+      cover_asset_id,
+      arc,
+      title,
+      summary_short,
+      summary_full,
+      actor_profile_id,
+      created_at,
+      session_date,
+      session_date_captured
+    ) values (
+      v_bridge_draft_id,
+      v_destination.id,
+      p_session_id,
+      v_bridge_revision,
+      v_current_draft.base_transcript_revision_id,
+      v_bridge_cover,
+      v_current_draft.arc,
+      v_current_draft.title,
+      v_current_draft.summary_short,
+      v_current_draft.summary_full,
+      p_actor_profile_id,
+      clock_timestamp(),
+      v_current_draft.session_date,
+      v_current_draft.session_date_captured
+    );
+  end if;
+
+  insert into public.session_campaign_move_operations(
+    operation_id,
+    session_id,
+    source_campaign_id,
+    destination_campaign_id,
+    source_session_id,
+    actor_profile_id,
+    contract_version,
+    decisions
+  ) values (
+    p_operation_id,
+    p_session_id,
+    v_source.id,
+    v_destination.id,
+    p_source_session_id,
+    p_actor_profile_id,
+    'tda_session_campaign_move_v2',
+    v_decisions
+  );
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select
+    p_operation_id,
+    'transcript_revision',
+    tr.id,
+    v_source.id,
+    v_destination.id
+  from public.transcript_revisions tr
+  where tr.session_id = p_session_id
+    and tr.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_revisions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_receipt', r.id, v_source.id, v_destination.id
+  from public.transcript_publication_receipts r
+  where r.session_id = p_session_id
+    and r.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_receipts
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_event', e.id, v_source.id, v_destination.id
+  from public.transcript_publication_events e
+  where e.session_id = p_session_id
+    and e.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_events
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if to_regclass('public.transcript_assembly_publication_receipts') is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'transcript_assembly_receipt', r.id, v_source.id, v_destination.id
+    from public.transcript_assembly_publication_receipts r
+    where r.session_id = p_session_id
+      and r.campaign_id = v_source.id
+    on conflict do nothing;
+
+    update public.transcript_assembly_publication_receipts
+    set campaign_id = v_destination.id
+    where session_id = p_session_id
+      and campaign_id = v_source.id;
+  end if;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication', sp.id, v_source.id, v_destination.id
+  from public.session_publications sp
+  where sp.session_id = p_session_id
+    and sp.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publications
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication_operation', spo.operation_id, v_source.id, v_destination.id
+  from public.session_publication_operations spo
+  where spo.session_id = p_session_id
+    and spo.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publication_operations
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.discord_interactions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.table_notes
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if p_options->>'participantEntityPolicy' = 'unlink' then
+    select count(*)
+    into v_participant_unlinks
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'participant_entity_unlink',
+      p.id,
+      p.character_entity_id,
+      v_source.id,
+      v_destination.id
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null
+    on conflict do nothing;
+
+    update public.participants
+    set character_entity_id = null
+    where session_id = p_session_id
+      and character_entity_id is not null;
+  end if;
+
+  if p_options->>'entityMentionPolicy' = 'detach_from_session' then
+    select count(*)
+    into v_entity_detaches
+    from public.entity_mentions em
+    where em.session_id = p_session_id;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'entity_mention_detach',
+      em.id,
+      em.entity_id,
+      v_source.id,
+      v_destination.id
+    from public.entity_mentions em
+    where em.session_id = p_session_id
+    on conflict do nothing;
+
+    update public.entity_mentions
+    set session_id = null
+    where session_id = p_session_id;
+  end if;
+
+  if p_options->>'canonPolicy' = 'detach_entity_links' then
+    if exists (
+      select 1
+      from public.canon_entries ce
+      join public.canon_candidates cc on cc.id = ce.source_candidate_id
+      where cc.session_id = p_session_id
+    ) then
+      return jsonb_build_object('status', 'blocked');
+    end if;
+
+    select count(*)
+    into v_canon_detaches
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'canon_candidate_entity_detach', cc.id, v_source.id, v_destination.id
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0
+    on conflict do nothing;
+
+    update public.canon_candidates
+    set related_entity_ids = null
+    where session_id = p_session_id
+      and coalesce(cardinality(related_entity_ids), 0) > 0;
+  end if;
+
+  if p_options->>'sessionGrantPolicy' in ('preserve', 'revoke') then
+    select count(*)
+    into v_grant_count
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible');
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      case
+        when p_options->>'sessionGrantPolicy' = 'revoke'
+          then 'session_grant_revoke'
+        else 'session_grant_preserve'
+      end,
+      ra.id,
+      v_source.id,
+      v_destination.id
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible')
+    on conflict do nothing;
+
+    if p_options->>'sessionGrantPolicy' = 'revoke' then
+      update public.role_assignments
+      set
+        status = 'revoked',
+        revoked_by = p_actor_profile_id,
+        updated_at = clock_timestamp()
+      where scope_type = 'session'
+        and scope_id = p_session_id::text
+        and status in ('active', 'eligible');
+    end if;
+  end if;
+
+  if v_session.current_session_publication_id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'active_session_publication_unpublish',
+      v_session.current_session_publication_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+  end if;
+
+  if v_current_draft.id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'editorial_draft_bridge',
+      v_current_draft.id,
+      v_bridge_draft_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+
+    if v_source_asset_id is not null and v_destination_asset_id is not null then
+      insert into public.session_campaign_move_artifacts(
+        operation_id, artifact_kind, artifact_id, related_artifact_id,
+        source_campaign_id, destination_campaign_id
+      ) values (
+        p_operation_id,
+        'session_cover_rehome',
+        v_source_asset_id,
+        v_destination_asset_id,
+        v_source.id,
+        v_destination.id
+      )
+      on conflict do nothing;
+    end if;
+  end if;
+
+  if v_participant_unlinks > 0
+     or v_entity_detaches > 0
+     or v_canon_detaches > 0
+     or v_grant_count > 0 then
+    insert into public.audit_log(
+      campaign_id,
+      session_id,
+      actor_id,
+      action,
+      table_name,
+      record_id,
+      old_value,
+      new_value
+    ) values (
+      v_destination.id,
+      p_session_id,
+      p_actor_profile_id,
+      'session.campaign.move.reconcile',
+      'sessions',
+      p_session_id,
+      jsonb_build_object(
+        'campaignId', v_source.id,
+        'participantEntityLinks', v_participant_unlinks,
+        'entityMentions', v_entity_detaches,
+        'canonCandidateEntityLinks', v_canon_detaches,
+        'sessionGrants', v_grant_count
+      ),
+      jsonb_build_object(
+        'campaignId', v_destination.id,
+        'participantEntityPolicy', p_options->>'participantEntityPolicy',
+        'entityMentionPolicy', p_options->>'entityMentionPolicy',
+        'canonPolicy', p_options->>'canonPolicy',
+        'sessionGrantPolicy', p_options->>'sessionGrantPolicy'
+      )
+    );
+  end if;
+
+  update public.sessions s
+  set
+    campaign_id = v_destination.id,
+    current_editorial_draft_id = coalesce(v_bridge_draft_id, s.current_editorial_draft_id),
+    current_session_publication_id =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then null
+        else s.current_session_publication_id
+      end,
+    status =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then 'approved'
+        else s.status
+      end,
+    metadata =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+        then (coalesce(s.metadata, '{}'::jsonb) - 'coverImageUrl' - 'heroImageUrl')
+        else s.metadata
+      end,
+    updated_at = clock_timestamp()
+  where s.id = p_session_id
+    and s.campaign_id = v_source.id
+    and s.source_session_id = p_source_session_id;
+
+  if not found then
+    raise exception 'session campaign authority changed while locked';
+  end if;
+
+  insert into public.audit_log(
+    campaign_id,
+    session_id,
+    actor_id,
+    action,
+    table_name,
+    record_id,
+    old_value,
+    new_value
+  ) values (
+    v_destination.id,
+    p_session_id,
+    p_actor_profile_id,
+    'session.campaign.move.v2',
+    'sessions',
+    p_session_id,
+    jsonb_build_object(
+      'campaignId', v_source.id,
+      'campaignSlug', p_source_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'published', v_session.current_session_publication_id is not null or v_session.status = 'published'
+    ),
+    jsonb_build_object(
+      'campaignId', v_destination.id,
+      'campaignSlug', p_destination_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'publicationPolicy', p_options->>'publishedPolicy',
+      'bridgeDraftId', v_bridge_draft_id,
+      'contractVersion', 'tda_session_campaign_move_v2'
+    )
+  );
+
+  return jsonb_build_object(
+    'status', 'moved',
+    'contractVersion', 'tda_session_campaign_move_v2',
+    'sessionId', p_session_id,
+    'sourceSessionId', p_source_session_id,
+    'sourceCampaignSlug', p_source_campaign_slug,
+    'destinationCampaignSlug', p_destination_campaign_slug,
+    'operationId', p_operation_id,
+    'bridgeDraftId', v_bridge_draft_id,
+    'publicationState',
+      case
+        when v_session.current_session_publication_id is not null or v_session.status = 'published'
+          then 'unpublished'
+        else 'unchanged'
+      end
+  );
+end;
+$tda_move$;
+
+comment on function public.session_campaign_move_contract_v2() is
+  'Sanitized server-only capability probe for the v2 populated-session move boundary.';
+comment on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) is
+  'Server-only v2 preflight. Produces a structured migration plan and requires explicit decisions for public/entity/grant boundaries.';
+comment on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) is
+  'Server-only v2 commit. Revalidates/locks source, preserves immutable history attribution, migrates current transcript ownership, creates a bridge draft, reconciles explicit decisions and commits the session move atomically.';
+
+revoke all on function public.session_campaign_move_set_origin_campaign() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_registry_drift() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_contract_v2() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_decisions(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_options_valid(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_plan_v2(uuid,uuid,uuid,text,text,uuid,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) from public, anon, authenticated, service_role;
+
+grant execute on function public.session_campaign_move_contract_v2() to service_role;
+grant execute on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) to service_role;
+grant execute on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) to service_role;
+
+commit;
+
          or coalesce(v_prepared->>'mimeType', '') not in ('image/png', 'image/webp')
          or coalesce(v_prepared->>'status', '') not in ('staged', 'verified_public')
          or coalesce(v_prepared->>'stagedBucket', '') not in ('tda-media-preview', 'tda-media-private')
          or coalesce(v_prepared->>'objectKey', '') = ''
-         or coalesce(v_prepared->>'bytes', '') !~ '^[0-9]{1,12}$'
-         or coalesce(v_prepared->>'width', '') !~ '^[0-9]{1,6}$'
-         or coalesce(v_prepared->>'height', '') !~ '^[0-9]{1,6}$' then
+         or coalesce(v_prepared->>'bytes', '') !~ '^[0-9]{1,12}
+
+      select *
+      into v_source_media
+      from public.media_assets ma
+      where ma.id = v_source_asset_id
+        and ma.campaign_id = v_source.id
+        and ma.role_hint = 'session_cover'
+        and ma.status in ('staged', 'verified_public')
+        and ma.read_back_verified = true;
+
+      if not found
+         or v_source_media.sha256 <> v_prepared->>'sha256'
+         or v_source_media.mime_type <> v_prepared->>'mimeType'
+         or v_source_media.byte_size <> (v_prepared->>'bytes')::bigint
+         or v_source_media.width <> (v_prepared->>'width')::integer
+         or v_source_media.height <> (v_prepared->>'height')::integer then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      v_extension := case when v_source_media.mime_type = 'image/png' then 'png' else 'webp' end;
+      v_expected_source_key :=
+        'campaigns/' || p_source_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+      v_expected_destination_key :=
+        'campaigns/' || p_destination_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+
+      if v_source_media.object_key <> v_expected_source_key
+         or v_prepared->>'objectKey' <> v_expected_destination_key then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      select *
+      into v_destination_media
+      from public.media_assets ma
+      where ma.id = v_destination_asset_id;
+
+      if found then
+        if v_destination_media.campaign_id <> v_destination.id
+           or v_destination_media.role_hint <> 'session_cover'
+           or v_destination_media.sha256 <> v_source_media.sha256
+           or v_destination_media.mime_type <> v_source_media.mime_type
+           or v_destination_media.byte_size <> v_source_media.byte_size
+           or v_destination_media.width <> v_source_media.width
+           or v_destination_media.height <> v_source_media.height
+           or v_destination_media.staged_bucket <> v_prepared->>'stagedBucket'
+           or v_destination_media.object_key <> v_expected_destination_key
+           or v_destination_media.read_back_verified is not true then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+
+        if v_prepared->>'status' = 'verified_public'
+           and v_destination_media.status = 'staged' then
+          update public.media_assets ma
+          set
+            status = 'verified_public',
+            public_bucket = nullif(v_prepared->>'publicBucket', ''),
+            public_object_key = nullif(v_prepared->>'publicObjectKey', ''),
+            public_delivery_verified = coalesce(
+              (v_prepared->>'publicDeliveryVerified')::boolean,
+              false
+            ),
+            public_verified_at =
+              nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+            updated_at = clock_timestamp()
+          where ma.id = v_destination_asset_id
+            and ma.campaign_id = v_destination.id
+            and ma.status = 'staged'
+            and ma.read_back_verified = true;
+
+          if not found then
+            return jsonb_build_object('status', 'media_prepare_stale');
+          end if;
+        elsif v_destination_media.status = 'retired' then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      else
+        insert into public.media_assets(
+          id,
+          campaign_id,
+          media_kind,
+          role_hint,
+          status,
+          staged_bucket,
+          object_key,
+          sha256,
+          mime_type,
+          byte_size,
+          width,
+          height,
+          read_back_verified,
+          public_bucket,
+          public_object_key,
+          public_delivery_verified,
+          public_verified_at,
+          created_by
+        ) values (
+          v_destination_asset_id,
+          v_destination.id,
+          'image',
+          'session_cover',
+          v_prepared->>'status',
+          v_prepared->>'stagedBucket',
+          v_prepared->>'objectKey',
+          v_prepared->>'sha256',
+          v_prepared->>'mimeType',
+          (v_prepared->>'bytes')::bigint,
+          (v_prepared->>'width')::integer,
+          (v_prepared->>'height')::integer,
+          true,
+          nullif(v_prepared->>'publicBucket', ''),
+          nullif(v_prepared->>'publicObjectKey', ''),
+          coalesce((v_prepared->>'publicDeliveryVerified')::boolean, false),
+          nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+          p_actor_profile_id
+        );
+      end if;
+
+      if v_prepared->>'status' = 'verified_public' then
+        select *
+        into v_destination_media
+        from public.media_assets ma
+        where ma.id = v_destination_asset_id
+          and ma.campaign_id = v_destination.id
+          and ma.status = 'verified_public'
+          and ma.public_bucket = 'tda-media-public'
+          and ma.public_object_key = ma.object_key
+          and ma.public_delivery_verified = true
+          and ma.public_verified_at is not null;
+
+        if not found then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      end if;
+
+      v_bridge_cover := v_destination_asset_id::text;
+    elsif v_bridge_cover is not null then
+      if p_options->>'legacyCoverPolicy' <> 'clear_current' then
+        return jsonb_build_object('status', 'blocked');
+      end if;
+      v_bridge_cover := null;
+    end if;
+
+    select coalesce(max(d.revision), 0) + 1
+    into v_bridge_revision
+    from public.session_editorial_drafts d
+    where d.session_id = p_session_id;
+
+    v_bridge_draft_id := gen_random_uuid();
+
+    insert into public.session_editorial_drafts(
+      id,
+      campaign_id,
+      session_id,
+      revision,
+      base_transcript_revision_id,
+      cover_asset_id,
+      arc,
+      title,
+      summary_short,
+      summary_full,
+      actor_profile_id,
+      created_at,
+      session_date,
+      session_date_captured
+    ) values (
+      v_bridge_draft_id,
+      v_destination.id,
+      p_session_id,
+      v_bridge_revision,
+      v_current_draft.base_transcript_revision_id,
+      v_bridge_cover,
+      v_current_draft.arc,
+      v_current_draft.title,
+      v_current_draft.summary_short,
+      v_current_draft.summary_full,
+      p_actor_profile_id,
+      clock_timestamp(),
+      v_current_draft.session_date,
+      v_current_draft.session_date_captured
+    );
+  end if;
+
+  insert into public.session_campaign_move_operations(
+    operation_id,
+    session_id,
+    source_campaign_id,
+    destination_campaign_id,
+    source_session_id,
+    actor_profile_id,
+    contract_version,
+    decisions
+  ) values (
+    p_operation_id,
+    p_session_id,
+    v_source.id,
+    v_destination.id,
+    p_source_session_id,
+    p_actor_profile_id,
+    'tda_session_campaign_move_v2',
+    v_decisions
+  );
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select
+    p_operation_id,
+    'transcript_revision',
+    tr.id,
+    v_source.id,
+    v_destination.id
+  from public.transcript_revisions tr
+  where tr.session_id = p_session_id
+    and tr.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_revisions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_receipt', r.id, v_source.id, v_destination.id
+  from public.transcript_publication_receipts r
+  where r.session_id = p_session_id
+    and r.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_receipts
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_event', e.id, v_source.id, v_destination.id
+  from public.transcript_publication_events e
+  where e.session_id = p_session_id
+    and e.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_events
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if to_regclass('public.transcript_assembly_publication_receipts') is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'transcript_assembly_receipt', r.id, v_source.id, v_destination.id
+    from public.transcript_assembly_publication_receipts r
+    where r.session_id = p_session_id
+      and r.campaign_id = v_source.id
+    on conflict do nothing;
+
+    update public.transcript_assembly_publication_receipts
+    set campaign_id = v_destination.id
+    where session_id = p_session_id
+      and campaign_id = v_source.id;
+  end if;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication', sp.id, v_source.id, v_destination.id
+  from public.session_publications sp
+  where sp.session_id = p_session_id
+    and sp.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publications
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication_operation', spo.operation_id, v_source.id, v_destination.id
+  from public.session_publication_operations spo
+  where spo.session_id = p_session_id
+    and spo.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publication_operations
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.discord_interactions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.table_notes
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if p_options->>'participantEntityPolicy' = 'unlink' then
+    select count(*)
+    into v_participant_unlinks
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'participant_entity_unlink',
+      p.id,
+      p.character_entity_id,
+      v_source.id,
+      v_destination.id
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null
+    on conflict do nothing;
+
+    update public.participants
+    set character_entity_id = null
+    where session_id = p_session_id
+      and character_entity_id is not null;
+  end if;
+
+  if p_options->>'entityMentionPolicy' = 'detach_from_session' then
+    select count(*)
+    into v_entity_detaches
+    from public.entity_mentions em
+    where em.session_id = p_session_id;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'entity_mention_detach',
+      em.id,
+      em.entity_id,
+      v_source.id,
+      v_destination.id
+    from public.entity_mentions em
+    where em.session_id = p_session_id
+    on conflict do nothing;
+
+    update public.entity_mentions
+    set session_id = null
+    where session_id = p_session_id;
+  end if;
+
+  if p_options->>'canonPolicy' = 'detach_entity_links' then
+    if exists (
+      select 1
+      from public.canon_entries ce
+      join public.canon_candidates cc on cc.id = ce.source_candidate_id
+      where cc.session_id = p_session_id
+    ) then
+      return jsonb_build_object('status', 'blocked');
+    end if;
+
+    select count(*)
+    into v_canon_detaches
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'canon_candidate_entity_detach', cc.id, v_source.id, v_destination.id
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0
+    on conflict do nothing;
+
+    update public.canon_candidates
+    set related_entity_ids = null
+    where session_id = p_session_id
+      and coalesce(cardinality(related_entity_ids), 0) > 0;
+  end if;
+
+  if p_options->>'sessionGrantPolicy' in ('preserve', 'revoke') then
+    select count(*)
+    into v_grant_count
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible');
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      case
+        when p_options->>'sessionGrantPolicy' = 'revoke'
+          then 'session_grant_revoke'
+        else 'session_grant_preserve'
+      end,
+      ra.id,
+      v_source.id,
+      v_destination.id
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible')
+    on conflict do nothing;
+
+    if p_options->>'sessionGrantPolicy' = 'revoke' then
+      update public.role_assignments
+      set
+        status = 'revoked',
+        revoked_by = p_actor_profile_id,
+        updated_at = clock_timestamp()
+      where scope_type = 'session'
+        and scope_id = p_session_id::text
+        and status in ('active', 'eligible');
+    end if;
+  end if;
+
+  if v_session.current_session_publication_id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'active_session_publication_unpublish',
+      v_session.current_session_publication_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+  end if;
+
+  if v_current_draft.id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'editorial_draft_bridge',
+      v_current_draft.id,
+      v_bridge_draft_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+
+    if v_source_asset_id is not null and v_destination_asset_id is not null then
+      insert into public.session_campaign_move_artifacts(
+        operation_id, artifact_kind, artifact_id, related_artifact_id,
+        source_campaign_id, destination_campaign_id
+      ) values (
+        p_operation_id,
+        'session_cover_rehome',
+        v_source_asset_id,
+        v_destination_asset_id,
+        v_source.id,
+        v_destination.id
+      )
+      on conflict do nothing;
+    end if;
+  end if;
+
+  if v_participant_unlinks > 0
+     or v_entity_detaches > 0
+     or v_canon_detaches > 0
+     or v_grant_count > 0 then
+    insert into public.audit_log(
+      campaign_id,
+      session_id,
+      actor_id,
+      action,
+      table_name,
+      record_id,
+      old_value,
+      new_value
+    ) values (
+      v_destination.id,
+      p_session_id,
+      p_actor_profile_id,
+      'session.campaign.move.reconcile',
+      'sessions',
+      p_session_id,
+      jsonb_build_object(
+        'campaignId', v_source.id,
+        'participantEntityLinks', v_participant_unlinks,
+        'entityMentions', v_entity_detaches,
+        'canonCandidateEntityLinks', v_canon_detaches,
+        'sessionGrants', v_grant_count
+      ),
+      jsonb_build_object(
+        'campaignId', v_destination.id,
+        'participantEntityPolicy', p_options->>'participantEntityPolicy',
+        'entityMentionPolicy', p_options->>'entityMentionPolicy',
+        'canonPolicy', p_options->>'canonPolicy',
+        'sessionGrantPolicy', p_options->>'sessionGrantPolicy'
+      )
+    );
+  end if;
+
+  update public.sessions s
+  set
+    campaign_id = v_destination.id,
+    current_editorial_draft_id = coalesce(v_bridge_draft_id, s.current_editorial_draft_id),
+    current_session_publication_id =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then null
+        else s.current_session_publication_id
+      end,
+    status =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then 'approved'
+        else s.status
+      end,
+    metadata =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+        then (coalesce(s.metadata, '{}'::jsonb) - 'coverImageUrl' - 'heroImageUrl')
+        else s.metadata
+      end,
+    updated_at = clock_timestamp()
+  where s.id = p_session_id
+    and s.campaign_id = v_source.id
+    and s.source_session_id = p_source_session_id;
+
+  if not found then
+    raise exception 'session campaign authority changed while locked';
+  end if;
+
+  insert into public.audit_log(
+    campaign_id,
+    session_id,
+    actor_id,
+    action,
+    table_name,
+    record_id,
+    old_value,
+    new_value
+  ) values (
+    v_destination.id,
+    p_session_id,
+    p_actor_profile_id,
+    'session.campaign.move.v2',
+    'sessions',
+    p_session_id,
+    jsonb_build_object(
+      'campaignId', v_source.id,
+      'campaignSlug', p_source_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'published', v_session.current_session_publication_id is not null or v_session.status = 'published'
+    ),
+    jsonb_build_object(
+      'campaignId', v_destination.id,
+      'campaignSlug', p_destination_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'publicationPolicy', p_options->>'publishedPolicy',
+      'bridgeDraftId', v_bridge_draft_id,
+      'contractVersion', 'tda_session_campaign_move_v2'
+    )
+  );
+
+  return jsonb_build_object(
+    'status', 'moved',
+    'contractVersion', 'tda_session_campaign_move_v2',
+    'sessionId', p_session_id,
+    'sourceSessionId', p_source_session_id,
+    'sourceCampaignSlug', p_source_campaign_slug,
+    'destinationCampaignSlug', p_destination_campaign_slug,
+    'operationId', p_operation_id,
+    'bridgeDraftId', v_bridge_draft_id,
+    'publicationState',
+      case
+        when v_session.current_session_publication_id is not null or v_session.status = 'published'
+          then 'unpublished'
+        else 'unchanged'
+      end
+  );
+end;
+$tda_move$;
+
+comment on function public.session_campaign_move_contract_v2() is
+  'Sanitized server-only capability probe for the v2 populated-session move boundary.';
+comment on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) is
+  'Server-only v2 preflight. Produces a structured migration plan and requires explicit decisions for public/entity/grant boundaries.';
+comment on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) is
+  'Server-only v2 commit. Revalidates/locks source, preserves immutable history attribution, migrates current transcript ownership, creates a bridge draft, reconciles explicit decisions and commits the session move atomically.';
+
+revoke all on function public.session_campaign_move_set_origin_campaign() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_registry_drift() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_contract_v2() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_decisions(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_options_valid(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_plan_v2(uuid,uuid,uuid,text,text,uuid,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) from public, anon, authenticated, service_role;
+
+grant execute on function public.session_campaign_move_contract_v2() to service_role;
+grant execute on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) to service_role;
+grant execute on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) to service_role;
+
+commit;
+
+         or coalesce(v_prepared->>'width', '') !~ '^[0-9]{1,6}
+
+      select *
+      into v_source_media
+      from public.media_assets ma
+      where ma.id = v_source_asset_id
+        and ma.campaign_id = v_source.id
+        and ma.role_hint = 'session_cover'
+        and ma.status in ('staged', 'verified_public')
+        and ma.read_back_verified = true;
+
+      if not found
+         or v_source_media.sha256 <> v_prepared->>'sha256'
+         or v_source_media.mime_type <> v_prepared->>'mimeType'
+         or v_source_media.byte_size <> (v_prepared->>'bytes')::bigint
+         or v_source_media.width <> (v_prepared->>'width')::integer
+         or v_source_media.height <> (v_prepared->>'height')::integer then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      v_extension := case when v_source_media.mime_type = 'image/png' then 'png' else 'webp' end;
+      v_expected_source_key :=
+        'campaigns/' || p_source_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+      v_expected_destination_key :=
+        'campaigns/' || p_destination_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+
+      if v_source_media.object_key <> v_expected_source_key
+         or v_prepared->>'objectKey' <> v_expected_destination_key then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      select *
+      into v_destination_media
+      from public.media_assets ma
+      where ma.id = v_destination_asset_id;
+
+      if found then
+        if v_destination_media.campaign_id <> v_destination.id
+           or v_destination_media.role_hint <> 'session_cover'
+           or v_destination_media.sha256 <> v_source_media.sha256
+           or v_destination_media.mime_type <> v_source_media.mime_type
+           or v_destination_media.byte_size <> v_source_media.byte_size
+           or v_destination_media.width <> v_source_media.width
+           or v_destination_media.height <> v_source_media.height
+           or v_destination_media.staged_bucket <> v_prepared->>'stagedBucket'
+           or v_destination_media.object_key <> v_expected_destination_key
+           or v_destination_media.read_back_verified is not true then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+
+        if v_prepared->>'status' = 'verified_public'
+           and v_destination_media.status = 'staged' then
+          update public.media_assets ma
+          set
+            status = 'verified_public',
+            public_bucket = nullif(v_prepared->>'publicBucket', ''),
+            public_object_key = nullif(v_prepared->>'publicObjectKey', ''),
+            public_delivery_verified = coalesce(
+              (v_prepared->>'publicDeliveryVerified')::boolean,
+              false
+            ),
+            public_verified_at =
+              nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+            updated_at = clock_timestamp()
+          where ma.id = v_destination_asset_id
+            and ma.campaign_id = v_destination.id
+            and ma.status = 'staged'
+            and ma.read_back_verified = true;
+
+          if not found then
+            return jsonb_build_object('status', 'media_prepare_stale');
+          end if;
+        elsif v_destination_media.status = 'retired' then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      else
+        insert into public.media_assets(
+          id,
+          campaign_id,
+          media_kind,
+          role_hint,
+          status,
+          staged_bucket,
+          object_key,
+          sha256,
+          mime_type,
+          byte_size,
+          width,
+          height,
+          read_back_verified,
+          public_bucket,
+          public_object_key,
+          public_delivery_verified,
+          public_verified_at,
+          created_by
+        ) values (
+          v_destination_asset_id,
+          v_destination.id,
+          'image',
+          'session_cover',
+          v_prepared->>'status',
+          v_prepared->>'stagedBucket',
+          v_prepared->>'objectKey',
+          v_prepared->>'sha256',
+          v_prepared->>'mimeType',
+          (v_prepared->>'bytes')::bigint,
+          (v_prepared->>'width')::integer,
+          (v_prepared->>'height')::integer,
+          true,
+          nullif(v_prepared->>'publicBucket', ''),
+          nullif(v_prepared->>'publicObjectKey', ''),
+          coalesce((v_prepared->>'publicDeliveryVerified')::boolean, false),
+          nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+          p_actor_profile_id
+        );
+      end if;
+
+      if v_prepared->>'status' = 'verified_public' then
+        select *
+        into v_destination_media
+        from public.media_assets ma
+        where ma.id = v_destination_asset_id
+          and ma.campaign_id = v_destination.id
+          and ma.status = 'verified_public'
+          and ma.public_bucket = 'tda-media-public'
+          and ma.public_object_key = ma.object_key
+          and ma.public_delivery_verified = true
+          and ma.public_verified_at is not null;
+
+        if not found then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      end if;
+
+      v_bridge_cover := v_destination_asset_id::text;
+    elsif v_bridge_cover is not null then
+      if p_options->>'legacyCoverPolicy' <> 'clear_current' then
+        return jsonb_build_object('status', 'blocked');
+      end if;
+      v_bridge_cover := null;
+    end if;
+
+    select coalesce(max(d.revision), 0) + 1
+    into v_bridge_revision
+    from public.session_editorial_drafts d
+    where d.session_id = p_session_id;
+
+    v_bridge_draft_id := gen_random_uuid();
+
+    insert into public.session_editorial_drafts(
+      id,
+      campaign_id,
+      session_id,
+      revision,
+      base_transcript_revision_id,
+      cover_asset_id,
+      arc,
+      title,
+      summary_short,
+      summary_full,
+      actor_profile_id,
+      created_at,
+      session_date,
+      session_date_captured
+    ) values (
+      v_bridge_draft_id,
+      v_destination.id,
+      p_session_id,
+      v_bridge_revision,
+      v_current_draft.base_transcript_revision_id,
+      v_bridge_cover,
+      v_current_draft.arc,
+      v_current_draft.title,
+      v_current_draft.summary_short,
+      v_current_draft.summary_full,
+      p_actor_profile_id,
+      clock_timestamp(),
+      v_current_draft.session_date,
+      v_current_draft.session_date_captured
+    );
+  end if;
+
+  insert into public.session_campaign_move_operations(
+    operation_id,
+    session_id,
+    source_campaign_id,
+    destination_campaign_id,
+    source_session_id,
+    actor_profile_id,
+    contract_version,
+    decisions
+  ) values (
+    p_operation_id,
+    p_session_id,
+    v_source.id,
+    v_destination.id,
+    p_source_session_id,
+    p_actor_profile_id,
+    'tda_session_campaign_move_v2',
+    v_decisions
+  );
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select
+    p_operation_id,
+    'transcript_revision',
+    tr.id,
+    v_source.id,
+    v_destination.id
+  from public.transcript_revisions tr
+  where tr.session_id = p_session_id
+    and tr.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_revisions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_receipt', r.id, v_source.id, v_destination.id
+  from public.transcript_publication_receipts r
+  where r.session_id = p_session_id
+    and r.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_receipts
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_event', e.id, v_source.id, v_destination.id
+  from public.transcript_publication_events e
+  where e.session_id = p_session_id
+    and e.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_events
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if to_regclass('public.transcript_assembly_publication_receipts') is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'transcript_assembly_receipt', r.id, v_source.id, v_destination.id
+    from public.transcript_assembly_publication_receipts r
+    where r.session_id = p_session_id
+      and r.campaign_id = v_source.id
+    on conflict do nothing;
+
+    update public.transcript_assembly_publication_receipts
+    set campaign_id = v_destination.id
+    where session_id = p_session_id
+      and campaign_id = v_source.id;
+  end if;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication', sp.id, v_source.id, v_destination.id
+  from public.session_publications sp
+  where sp.session_id = p_session_id
+    and sp.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publications
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication_operation', spo.operation_id, v_source.id, v_destination.id
+  from public.session_publication_operations spo
+  where spo.session_id = p_session_id
+    and spo.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publication_operations
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.discord_interactions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.table_notes
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if p_options->>'participantEntityPolicy' = 'unlink' then
+    select count(*)
+    into v_participant_unlinks
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'participant_entity_unlink',
+      p.id,
+      p.character_entity_id,
+      v_source.id,
+      v_destination.id
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null
+    on conflict do nothing;
+
+    update public.participants
+    set character_entity_id = null
+    where session_id = p_session_id
+      and character_entity_id is not null;
+  end if;
+
+  if p_options->>'entityMentionPolicy' = 'detach_from_session' then
+    select count(*)
+    into v_entity_detaches
+    from public.entity_mentions em
+    where em.session_id = p_session_id;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'entity_mention_detach',
+      em.id,
+      em.entity_id,
+      v_source.id,
+      v_destination.id
+    from public.entity_mentions em
+    where em.session_id = p_session_id
+    on conflict do nothing;
+
+    update public.entity_mentions
+    set session_id = null
+    where session_id = p_session_id;
+  end if;
+
+  if p_options->>'canonPolicy' = 'detach_entity_links' then
+    if exists (
+      select 1
+      from public.canon_entries ce
+      join public.canon_candidates cc on cc.id = ce.source_candidate_id
+      where cc.session_id = p_session_id
+    ) then
+      return jsonb_build_object('status', 'blocked');
+    end if;
+
+    select count(*)
+    into v_canon_detaches
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'canon_candidate_entity_detach', cc.id, v_source.id, v_destination.id
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0
+    on conflict do nothing;
+
+    update public.canon_candidates
+    set related_entity_ids = null
+    where session_id = p_session_id
+      and coalesce(cardinality(related_entity_ids), 0) > 0;
+  end if;
+
+  if p_options->>'sessionGrantPolicy' in ('preserve', 'revoke') then
+    select count(*)
+    into v_grant_count
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible');
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      case
+        when p_options->>'sessionGrantPolicy' = 'revoke'
+          then 'session_grant_revoke'
+        else 'session_grant_preserve'
+      end,
+      ra.id,
+      v_source.id,
+      v_destination.id
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible')
+    on conflict do nothing;
+
+    if p_options->>'sessionGrantPolicy' = 'revoke' then
+      update public.role_assignments
+      set
+        status = 'revoked',
+        revoked_by = p_actor_profile_id,
+        updated_at = clock_timestamp()
+      where scope_type = 'session'
+        and scope_id = p_session_id::text
+        and status in ('active', 'eligible');
+    end if;
+  end if;
+
+  if v_session.current_session_publication_id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'active_session_publication_unpublish',
+      v_session.current_session_publication_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+  end if;
+
+  if v_current_draft.id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'editorial_draft_bridge',
+      v_current_draft.id,
+      v_bridge_draft_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+
+    if v_source_asset_id is not null and v_destination_asset_id is not null then
+      insert into public.session_campaign_move_artifacts(
+        operation_id, artifact_kind, artifact_id, related_artifact_id,
+        source_campaign_id, destination_campaign_id
+      ) values (
+        p_operation_id,
+        'session_cover_rehome',
+        v_source_asset_id,
+        v_destination_asset_id,
+        v_source.id,
+        v_destination.id
+      )
+      on conflict do nothing;
+    end if;
+  end if;
+
+  if v_participant_unlinks > 0
+     or v_entity_detaches > 0
+     or v_canon_detaches > 0
+     or v_grant_count > 0 then
+    insert into public.audit_log(
+      campaign_id,
+      session_id,
+      actor_id,
+      action,
+      table_name,
+      record_id,
+      old_value,
+      new_value
+    ) values (
+      v_destination.id,
+      p_session_id,
+      p_actor_profile_id,
+      'session.campaign.move.reconcile',
+      'sessions',
+      p_session_id,
+      jsonb_build_object(
+        'campaignId', v_source.id,
+        'participantEntityLinks', v_participant_unlinks,
+        'entityMentions', v_entity_detaches,
+        'canonCandidateEntityLinks', v_canon_detaches,
+        'sessionGrants', v_grant_count
+      ),
+      jsonb_build_object(
+        'campaignId', v_destination.id,
+        'participantEntityPolicy', p_options->>'participantEntityPolicy',
+        'entityMentionPolicy', p_options->>'entityMentionPolicy',
+        'canonPolicy', p_options->>'canonPolicy',
+        'sessionGrantPolicy', p_options->>'sessionGrantPolicy'
+      )
+    );
+  end if;
+
+  update public.sessions s
+  set
+    campaign_id = v_destination.id,
+    current_editorial_draft_id = coalesce(v_bridge_draft_id, s.current_editorial_draft_id),
+    current_session_publication_id =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then null
+        else s.current_session_publication_id
+      end,
+    status =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then 'approved'
+        else s.status
+      end,
+    metadata =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+        then (coalesce(s.metadata, '{}'::jsonb) - 'coverImageUrl' - 'heroImageUrl')
+        else s.metadata
+      end,
+    updated_at = clock_timestamp()
+  where s.id = p_session_id
+    and s.campaign_id = v_source.id
+    and s.source_session_id = p_source_session_id;
+
+  if not found then
+    raise exception 'session campaign authority changed while locked';
+  end if;
+
+  insert into public.audit_log(
+    campaign_id,
+    session_id,
+    actor_id,
+    action,
+    table_name,
+    record_id,
+    old_value,
+    new_value
+  ) values (
+    v_destination.id,
+    p_session_id,
+    p_actor_profile_id,
+    'session.campaign.move.v2',
+    'sessions',
+    p_session_id,
+    jsonb_build_object(
+      'campaignId', v_source.id,
+      'campaignSlug', p_source_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'published', v_session.current_session_publication_id is not null or v_session.status = 'published'
+    ),
+    jsonb_build_object(
+      'campaignId', v_destination.id,
+      'campaignSlug', p_destination_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'publicationPolicy', p_options->>'publishedPolicy',
+      'bridgeDraftId', v_bridge_draft_id,
+      'contractVersion', 'tda_session_campaign_move_v2'
+    )
+  );
+
+  return jsonb_build_object(
+    'status', 'moved',
+    'contractVersion', 'tda_session_campaign_move_v2',
+    'sessionId', p_session_id,
+    'sourceSessionId', p_source_session_id,
+    'sourceCampaignSlug', p_source_campaign_slug,
+    'destinationCampaignSlug', p_destination_campaign_slug,
+    'operationId', p_operation_id,
+    'bridgeDraftId', v_bridge_draft_id,
+    'publicationState',
+      case
+        when v_session.current_session_publication_id is not null or v_session.status = 'published'
+          then 'unpublished'
+        else 'unchanged'
+      end
+  );
+end;
+$tda_move$;
+
+comment on function public.session_campaign_move_contract_v2() is
+  'Sanitized server-only capability probe for the v2 populated-session move boundary.';
+comment on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) is
+  'Server-only v2 preflight. Produces a structured migration plan and requires explicit decisions for public/entity/grant boundaries.';
+comment on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) is
+  'Server-only v2 commit. Revalidates/locks source, preserves immutable history attribution, migrates current transcript ownership, creates a bridge draft, reconciles explicit decisions and commits the session move atomically.';
+
+revoke all on function public.session_campaign_move_set_origin_campaign() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_registry_drift() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_contract_v2() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_decisions(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_options_valid(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_plan_v2(uuid,uuid,uuid,text,text,uuid,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) from public, anon, authenticated, service_role;
+
+grant execute on function public.session_campaign_move_contract_v2() to service_role;
+grant execute on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) to service_role;
+grant execute on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) to service_role;
+
+commit;
+
+         or coalesce(v_prepared->>'height', '') !~ '^[0-9]{1,6}
+
+      select *
+      into v_source_media
+      from public.media_assets ma
+      where ma.id = v_source_asset_id
+        and ma.campaign_id = v_source.id
+        and ma.role_hint = 'session_cover'
+        and ma.status in ('staged', 'verified_public')
+        and ma.read_back_verified = true;
+
+      if not found
+         or v_source_media.sha256 <> v_prepared->>'sha256'
+         or v_source_media.mime_type <> v_prepared->>'mimeType'
+         or v_source_media.byte_size <> (v_prepared->>'bytes')::bigint
+         or v_source_media.width <> (v_prepared->>'width')::integer
+         or v_source_media.height <> (v_prepared->>'height')::integer then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      v_extension := case when v_source_media.mime_type = 'image/png' then 'png' else 'webp' end;
+      v_expected_source_key :=
+        'campaigns/' || p_source_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+      v_expected_destination_key :=
+        'campaigns/' || p_destination_campaign_slug || '/sessions/' ||
+        lower(p_session_id::text) || '/cover/' || v_source_media.sha256 || '.' || v_extension;
+
+      if v_source_media.object_key <> v_expected_source_key
+         or v_prepared->>'objectKey' <> v_expected_destination_key then
+        return jsonb_build_object('status', 'media_prepare_stale');
+      end if;
+
+      select *
+      into v_destination_media
+      from public.media_assets ma
+      where ma.id = v_destination_asset_id;
+
+      if found then
+        if v_destination_media.campaign_id <> v_destination.id
+           or v_destination_media.role_hint <> 'session_cover'
+           or v_destination_media.sha256 <> v_source_media.sha256
+           or v_destination_media.mime_type <> v_source_media.mime_type
+           or v_destination_media.byte_size <> v_source_media.byte_size
+           or v_destination_media.width <> v_source_media.width
+           or v_destination_media.height <> v_source_media.height
+           or v_destination_media.staged_bucket <> v_prepared->>'stagedBucket'
+           or v_destination_media.object_key <> v_expected_destination_key
+           or v_destination_media.read_back_verified is not true then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+
+        if v_prepared->>'status' = 'verified_public'
+           and v_destination_media.status = 'staged' then
+          update public.media_assets ma
+          set
+            status = 'verified_public',
+            public_bucket = nullif(v_prepared->>'publicBucket', ''),
+            public_object_key = nullif(v_prepared->>'publicObjectKey', ''),
+            public_delivery_verified = coalesce(
+              (v_prepared->>'publicDeliveryVerified')::boolean,
+              false
+            ),
+            public_verified_at =
+              nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+            updated_at = clock_timestamp()
+          where ma.id = v_destination_asset_id
+            and ma.campaign_id = v_destination.id
+            and ma.status = 'staged'
+            and ma.read_back_verified = true;
+
+          if not found then
+            return jsonb_build_object('status', 'media_prepare_stale');
+          end if;
+        elsif v_destination_media.status = 'retired' then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      else
+        insert into public.media_assets(
+          id,
+          campaign_id,
+          media_kind,
+          role_hint,
+          status,
+          staged_bucket,
+          object_key,
+          sha256,
+          mime_type,
+          byte_size,
+          width,
+          height,
+          read_back_verified,
+          public_bucket,
+          public_object_key,
+          public_delivery_verified,
+          public_verified_at,
+          created_by
+        ) values (
+          v_destination_asset_id,
+          v_destination.id,
+          'image',
+          'session_cover',
+          v_prepared->>'status',
+          v_prepared->>'stagedBucket',
+          v_prepared->>'objectKey',
+          v_prepared->>'sha256',
+          v_prepared->>'mimeType',
+          (v_prepared->>'bytes')::bigint,
+          (v_prepared->>'width')::integer,
+          (v_prepared->>'height')::integer,
+          true,
+          nullif(v_prepared->>'publicBucket', ''),
+          nullif(v_prepared->>'publicObjectKey', ''),
+          coalesce((v_prepared->>'publicDeliveryVerified')::boolean, false),
+          nullif(v_prepared->>'publicVerifiedAt', '')::timestamptz,
+          p_actor_profile_id
+        );
+      end if;
+
+      if v_prepared->>'status' = 'verified_public' then
+        select *
+        into v_destination_media
+        from public.media_assets ma
+        where ma.id = v_destination_asset_id
+          and ma.campaign_id = v_destination.id
+          and ma.status = 'verified_public'
+          and ma.public_bucket = 'tda-media-public'
+          and ma.public_object_key = ma.object_key
+          and ma.public_delivery_verified = true
+          and ma.public_verified_at is not null;
+
+        if not found then
+          return jsonb_build_object('status', 'media_prepare_stale');
+        end if;
+      end if;
+
+      v_bridge_cover := v_destination_asset_id::text;
+    elsif v_bridge_cover is not null then
+      if p_options->>'legacyCoverPolicy' <> 'clear_current' then
+        return jsonb_build_object('status', 'blocked');
+      end if;
+      v_bridge_cover := null;
+    end if;
+
+    select coalesce(max(d.revision), 0) + 1
+    into v_bridge_revision
+    from public.session_editorial_drafts d
+    where d.session_id = p_session_id;
+
+    v_bridge_draft_id := gen_random_uuid();
+
+    insert into public.session_editorial_drafts(
+      id,
+      campaign_id,
+      session_id,
+      revision,
+      base_transcript_revision_id,
+      cover_asset_id,
+      arc,
+      title,
+      summary_short,
+      summary_full,
+      actor_profile_id,
+      created_at,
+      session_date,
+      session_date_captured
+    ) values (
+      v_bridge_draft_id,
+      v_destination.id,
+      p_session_id,
+      v_bridge_revision,
+      v_current_draft.base_transcript_revision_id,
+      v_bridge_cover,
+      v_current_draft.arc,
+      v_current_draft.title,
+      v_current_draft.summary_short,
+      v_current_draft.summary_full,
+      p_actor_profile_id,
+      clock_timestamp(),
+      v_current_draft.session_date,
+      v_current_draft.session_date_captured
+    );
+  end if;
+
+  insert into public.session_campaign_move_operations(
+    operation_id,
+    session_id,
+    source_campaign_id,
+    destination_campaign_id,
+    source_session_id,
+    actor_profile_id,
+    contract_version,
+    decisions
+  ) values (
+    p_operation_id,
+    p_session_id,
+    v_source.id,
+    v_destination.id,
+    p_source_session_id,
+    p_actor_profile_id,
+    'tda_session_campaign_move_v2',
+    v_decisions
+  );
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select
+    p_operation_id,
+    'transcript_revision',
+    tr.id,
+    v_source.id,
+    v_destination.id
+  from public.transcript_revisions tr
+  where tr.session_id = p_session_id
+    and tr.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_revisions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_receipt', r.id, v_source.id, v_destination.id
+  from public.transcript_publication_receipts r
+  where r.session_id = p_session_id
+    and r.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_receipts
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'transcript_publication_event', e.id, v_source.id, v_destination.id
+  from public.transcript_publication_events e
+  where e.session_id = p_session_id
+    and e.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.transcript_publication_events
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if to_regclass('public.transcript_assembly_publication_receipts') is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'transcript_assembly_receipt', r.id, v_source.id, v_destination.id
+    from public.transcript_assembly_publication_receipts r
+    where r.session_id = p_session_id
+      and r.campaign_id = v_source.id
+    on conflict do nothing;
+
+    update public.transcript_assembly_publication_receipts
+    set campaign_id = v_destination.id
+    where session_id = p_session_id
+      and campaign_id = v_source.id;
+  end if;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication', sp.id, v_source.id, v_destination.id
+  from public.session_publications sp
+  where sp.session_id = p_session_id
+    and sp.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publications
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  insert into public.session_campaign_move_artifacts(
+    operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+  )
+  select p_operation_id, 'session_publication_operation', spo.operation_id, v_source.id, v_destination.id
+  from public.session_publication_operations spo
+  where spo.session_id = p_session_id
+    and spo.campaign_id = v_source.id
+  on conflict do nothing;
+
+  update public.session_publication_operations
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.discord_interactions
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  update public.table_notes
+  set campaign_id = v_destination.id
+  where session_id = p_session_id
+    and campaign_id = v_source.id;
+
+  if p_options->>'participantEntityPolicy' = 'unlink' then
+    select count(*)
+    into v_participant_unlinks
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'participant_entity_unlink',
+      p.id,
+      p.character_entity_id,
+      v_source.id,
+      v_destination.id
+    from public.participants p
+    where p.session_id = p_session_id
+      and p.character_entity_id is not null
+    on conflict do nothing;
+
+    update public.participants
+    set character_entity_id = null
+    where session_id = p_session_id
+      and character_entity_id is not null;
+  end if;
+
+  if p_options->>'entityMentionPolicy' = 'detach_from_session' then
+    select count(*)
+    into v_entity_detaches
+    from public.entity_mentions em
+    where em.session_id = p_session_id;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      'entity_mention_detach',
+      em.id,
+      em.entity_id,
+      v_source.id,
+      v_destination.id
+    from public.entity_mentions em
+    where em.session_id = p_session_id
+    on conflict do nothing;
+
+    update public.entity_mentions
+    set session_id = null
+    where session_id = p_session_id;
+  end if;
+
+  if p_options->>'canonPolicy' = 'detach_entity_links' then
+    if exists (
+      select 1
+      from public.canon_entries ce
+      join public.canon_candidates cc on cc.id = ce.source_candidate_id
+      where cc.session_id = p_session_id
+    ) then
+      return jsonb_build_object('status', 'blocked');
+    end if;
+
+    select count(*)
+    into v_canon_detaches
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0;
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select p_operation_id, 'canon_candidate_entity_detach', cc.id, v_source.id, v_destination.id
+    from public.canon_candidates cc
+    where cc.session_id = p_session_id
+      and coalesce(cardinality(cc.related_entity_ids), 0) > 0
+    on conflict do nothing;
+
+    update public.canon_candidates
+    set related_entity_ids = null
+    where session_id = p_session_id
+      and coalesce(cardinality(related_entity_ids), 0) > 0;
+  end if;
+
+  if p_options->>'sessionGrantPolicy' in ('preserve', 'revoke') then
+    select count(*)
+    into v_grant_count
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible');
+
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    )
+    select
+      p_operation_id,
+      case
+        when p_options->>'sessionGrantPolicy' = 'revoke'
+          then 'session_grant_revoke'
+        else 'session_grant_preserve'
+      end,
+      ra.id,
+      v_source.id,
+      v_destination.id
+    from public.role_assignments ra
+    where ra.scope_type = 'session'
+      and ra.scope_id = p_session_id::text
+      and ra.status in ('active', 'eligible')
+    on conflict do nothing;
+
+    if p_options->>'sessionGrantPolicy' = 'revoke' then
+      update public.role_assignments
+      set
+        status = 'revoked',
+        revoked_by = p_actor_profile_id,
+        updated_at = clock_timestamp()
+      where scope_type = 'session'
+        and scope_id = p_session_id::text
+        and status in ('active', 'eligible');
+    end if;
+  end if;
+
+  if v_session.current_session_publication_id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'active_session_publication_unpublish',
+      v_session.current_session_publication_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+  end if;
+
+  if v_current_draft.id is not null then
+    insert into public.session_campaign_move_artifacts(
+      operation_id, artifact_kind, artifact_id, related_artifact_id,
+      source_campaign_id, destination_campaign_id
+    ) values (
+      p_operation_id,
+      'editorial_draft_bridge',
+      v_current_draft.id,
+      v_bridge_draft_id,
+      v_source.id,
+      v_destination.id
+    )
+    on conflict do nothing;
+
+    if v_source_asset_id is not null and v_destination_asset_id is not null then
+      insert into public.session_campaign_move_artifacts(
+        operation_id, artifact_kind, artifact_id, related_artifact_id,
+        source_campaign_id, destination_campaign_id
+      ) values (
+        p_operation_id,
+        'session_cover_rehome',
+        v_source_asset_id,
+        v_destination_asset_id,
+        v_source.id,
+        v_destination.id
+      )
+      on conflict do nothing;
+    end if;
+  end if;
+
+  if v_participant_unlinks > 0
+     or v_entity_detaches > 0
+     or v_canon_detaches > 0
+     or v_grant_count > 0 then
+    insert into public.audit_log(
+      campaign_id,
+      session_id,
+      actor_id,
+      action,
+      table_name,
+      record_id,
+      old_value,
+      new_value
+    ) values (
+      v_destination.id,
+      p_session_id,
+      p_actor_profile_id,
+      'session.campaign.move.reconcile',
+      'sessions',
+      p_session_id,
+      jsonb_build_object(
+        'campaignId', v_source.id,
+        'participantEntityLinks', v_participant_unlinks,
+        'entityMentions', v_entity_detaches,
+        'canonCandidateEntityLinks', v_canon_detaches,
+        'sessionGrants', v_grant_count
+      ),
+      jsonb_build_object(
+        'campaignId', v_destination.id,
+        'participantEntityPolicy', p_options->>'participantEntityPolicy',
+        'entityMentionPolicy', p_options->>'entityMentionPolicy',
+        'canonPolicy', p_options->>'canonPolicy',
+        'sessionGrantPolicy', p_options->>'sessionGrantPolicy'
+      )
+    );
+  end if;
+
+  update public.sessions s
+  set
+    campaign_id = v_destination.id,
+    current_editorial_draft_id = coalesce(v_bridge_draft_id, s.current_editorial_draft_id),
+    current_session_publication_id =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then null
+        else s.current_session_publication_id
+      end,
+    status =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+          then 'approved'
+        else s.status
+      end,
+    metadata =
+      case
+        when s.current_session_publication_id is not null or s.status = 'published'
+        then (coalesce(s.metadata, '{}'::jsonb) - 'coverImageUrl' - 'heroImageUrl')
+        else s.metadata
+      end,
+    updated_at = clock_timestamp()
+  where s.id = p_session_id
+    and s.campaign_id = v_source.id
+    and s.source_session_id = p_source_session_id;
+
+  if not found then
+    raise exception 'session campaign authority changed while locked';
+  end if;
+
+  insert into public.audit_log(
+    campaign_id,
+    session_id,
+    actor_id,
+    action,
+    table_name,
+    record_id,
+    old_value,
+    new_value
+  ) values (
+    v_destination.id,
+    p_session_id,
+    p_actor_profile_id,
+    'session.campaign.move.v2',
+    'sessions',
+    p_session_id,
+    jsonb_build_object(
+      'campaignId', v_source.id,
+      'campaignSlug', p_source_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'published', v_session.current_session_publication_id is not null or v_session.status = 'published'
+    ),
+    jsonb_build_object(
+      'campaignId', v_destination.id,
+      'campaignSlug', p_destination_campaign_slug,
+      'sourceSessionId', p_source_session_id,
+      'publicationPolicy', p_options->>'publishedPolicy',
+      'bridgeDraftId', v_bridge_draft_id,
+      'contractVersion', 'tda_session_campaign_move_v2'
+    )
+  );
+
+  return jsonb_build_object(
+    'status', 'moved',
+    'contractVersion', 'tda_session_campaign_move_v2',
+    'sessionId', p_session_id,
+    'sourceSessionId', p_source_session_id,
+    'sourceCampaignSlug', p_source_campaign_slug,
+    'destinationCampaignSlug', p_destination_campaign_slug,
+    'operationId', p_operation_id,
+    'bridgeDraftId', v_bridge_draft_id,
+    'publicationState',
+      case
+        when v_session.current_session_publication_id is not null or v_session.status = 'published'
+          then 'unpublished'
+        else 'unchanged'
+      end
+  );
+end;
+$tda_move$;
+
+comment on function public.session_campaign_move_contract_v2() is
+  'Sanitized server-only capability probe for the v2 populated-session move boundary.';
+comment on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) is
+  'Server-only v2 preflight. Produces a structured migration plan and requires explicit decisions for public/entity/grant boundaries.';
+comment on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) is
+  'Server-only v2 commit. Revalidates/locks source, preserves immutable history attribution, migrates current transcript ownership, creates a bridge draft, reconciles explicit decisions and commits the session move atomically.';
+
+revoke all on function public.session_campaign_move_set_origin_campaign() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_registry_drift() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_contract_v2() from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_decisions(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_options_valid(jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_plan_v2(uuid,uuid,uuid,text,text,uuid,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) from public, anon, authenticated, service_role;
+
+grant execute on function public.session_campaign_move_contract_v2() to service_role;
+grant execute on function public.preflight_session_campaign_move_v2(uuid,uuid,text,text,uuid,text,jsonb) to service_role;
+grant execute on function public.move_session_campaign_atomic_v2(uuid,uuid,text,text,uuid,text,uuid,jsonb) to service_role;
+
+commit;
+ then
         return jsonb_build_object('status', 'media_prepare_required');
+      end if;
+
+      -- A private destination must never gain a newly public session-cover
+      -- object as a side effect of moving an already-public source session.
+      if v_destination.visibility <> 'public'
+         and v_prepared->>'status' = 'verified_public' then
+        return jsonb_build_object('status', 'media_prepare_stale');
       end if;
 
       v_destination_asset_id := (v_prepared->>'destinationAssetId')::uuid;
