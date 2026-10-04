@@ -83,15 +83,15 @@ test("four-profile evidence, comparison, private export and human-reference qual
 	).toBe(true);
 
 	const profileB = evidence.getByLabel("Perfil B");
-	await profileB.selectOption("whisper-detailed");
+	await profileB.selectOption("whisper-turbo");
 	await expect(evidence.getByRole("status")).toContainText(
 		"Carregando transcrições selecionadas",
 	);
-	await expect(profileB).toHaveValue("whisper-detailed");
+	await expect(profileB).toHaveValue("whisper-turbo");
 	await expect
 		.poll(() =>
 			state.requests.some((request) =>
-				request.path.endsWith("/profiles/whisper-detailed/snapshot"),
+				request.path.endsWith("/profiles/whisper-turbo/snapshot"),
 			),
 		)
 		.toBe(true);
