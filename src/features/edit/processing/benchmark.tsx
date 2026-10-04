@@ -539,6 +539,11 @@ export function ProcessingBenchmark({
 	const latestCompleted = benchmarkJobs.filter(
 		(job) => job.status === "succeeded" && job.result_available,
 	);
+	const historyJobs = benchmarkJobs
+		.filter((job) =>
+			["succeeded", "failed", "cancelled", "interrupted"].includes(job.status),
+		)
+		.slice(0, 20);
 	const latestJob = benchmarkJobs[0];
 	const latestResult = latestJob ? results[latestJob.id] : undefined;
 	const latestResultPending = Boolean(
