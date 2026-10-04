@@ -289,6 +289,7 @@ def test_benchmark_continues_after_allowlisted_profile_local_failure(
     supervisor = WorkerSupervisor()
     seen: list[str] = []
     progress: list[int] = []
+    events = []
     failed_profile = BENCHMARK_PROFILES[failure_index]
 
     def fake_run_craig(self, *, profile_id, **_kwargs):
@@ -315,6 +316,7 @@ def test_benchmark_continues_after_allowlisted_profile_local_failure(
         sample_identity_sha256="b" * 64,
         sample_seconds=300.0,
         on_progress=lambda message: progress.append(message.payload["completed"]),
+        on_event=events.append,
     )
 
     assert outcome.terminal == "partial"
@@ -322,6 +324,18 @@ def test_benchmark_continues_after_allowlisted_profile_local_failure(
     assert outcome.payload["status"] == "partial"
     assert seen == list(BENCHMARK_PROFILES)
     assert progress == [1, 2, 3, 4]
+    event_codes = [message.payload["code"] for message in events]
+    assert event_codes.count("BENCHMARK_PROFILE_STARTED") == 4
+    assert event_codes.count("BENCHMARK_PROFILE_COMPLETED") == 3
+    assert event_codes.count("BENCHMARK_PROFILE_FAILED") == 1
+    failure_event = next(
+        message.payload for message in events
+        if message.payload["code"] == "BENCHMARK_PROFILE_FAILED"
+    )
+    assert failure_event["profile"] == failed_profile
+    assert failure_event["error_code"] == "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"
+    assert failure_event["scope"] == "profile"
+    assert failure_event["continuation"] == "continue"
     assert outcome.payload["attempted_count"] == 4
     assert outcome.payload["completed_count"] == 3
     assert outcome.payload["failed_count"] == 1
