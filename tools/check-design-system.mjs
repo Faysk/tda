@@ -298,9 +298,15 @@ for (const requiredNativeSelectContract of [
 	}
 }
 
-const publicSessionList = fs.readFileSync("src/components/session-list.tsx", "utf8");
-if (/<select(?:\s|>)/u.test(publicSessionList)) {
-	fail("public Sessions filters must use the shared themed Select instead of a native select popup");
+const nativeSelectFiles = sourceFiles("src").filter((filePath) => {
+	if (!filePath.endsWith(".tsx")) return false;
+	const source = fs.readFileSync(filePath, "utf8");
+	return /<select(?:\s|>)/u.test(source);
+});
+if (nativeSelectFiles.length) {
+	fail(
+		`native select popup is forbidden in application TSX; use the shared themed Select: ${nativeSelectFiles.join(", ")}`,
+	);
 }
 
 for (const filePath of sourceFiles("src")) {
