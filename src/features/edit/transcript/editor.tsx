@@ -410,22 +410,22 @@ function SegmentEditor({
 			<div className={styles.segmentSide}>
 				<label className={styles.fieldLabel}>
 					Revisão
-					<select
-						className={styles.control}
+					<Select
 						disabled={!editable}
-						onChange={(event) =>
+						onChange={(value) =>
 							setEditor((current) =>
 								editTranscriptDraft(current, {
-									reviewStatus: event.target.value as TranscriptReviewStatus,
+									reviewStatus: value as TranscriptReviewStatus,
 								}),
 							)
 						}
 						value={draft.reviewStatus}
-					>
-						{Object.entries(statusLabels).map(([value, label]) => (
-							<option key={value} value={value}>{label}</option>
-						))}
-					</select>
+						options={Object.entries(statusLabels).map(([value, label]) => ({
+							value,
+							label,
+						}))}
+						ariaLabel="Revisão"
+					/>
 				</label>
 				{editable ? (
 					<Button
