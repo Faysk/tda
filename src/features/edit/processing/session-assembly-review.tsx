@@ -271,9 +271,11 @@ export function SessionAssemblyReview({
 					(item) => item.assemblySegmentId === segment.assemblySegmentId,
 				);
 				if (index < 0) return current;
+				const currentSegment = current[index];
+				if (!currentSegment) return current;
 				const next = [...current];
 				next[index] = {
-					...current[index],
+					...currentSegment,
 					speaker: editingDraft.speaker,
 					text: editingDraft.text,
 					reviewed: true,
