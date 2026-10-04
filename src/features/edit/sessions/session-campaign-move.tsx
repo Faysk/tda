@@ -528,7 +528,7 @@ export function SessionCampaignMovePanel({
 										O servidor vai revalidar o mesmo plano, preparar a mídia
 										quando necessário e só então executar o commit.
 									</span>
-									<button type="button" onClick={commitMove} disabled={pending}>
+									<button type="button" onClick={() => commitMove()} disabled={pending}>
 										{pending
 											? "Movendo…"
 											: `Confirmar mudança para ${selected?.name ?? "destino"}`}
