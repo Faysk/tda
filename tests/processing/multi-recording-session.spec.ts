@@ -1010,6 +1010,65 @@ test("stale Markdown import preserves the working copy and never overwrites sile
 	expect(multi.reviewStatus).toBe("draft");
 });
 
+test("three ZIPs become one session intent with missing clocks by confirming the visible order", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1, 2],
+		untrustedSourceIndexes: [0, 1, 2],
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "parte-1.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-order-a"),
+		},
+		{
+			name: "parte-2.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-order-b"),
+		},
+		{
+			name: "parte-3.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-order-c"),
+		},
+	]);
+
+	await expect(
+		page.getByText("3 gravações serão reunidas em uma única sessão"),
+	).toBeVisible();
+	await expect(
+		page.getByText(/Horário real: usado somente quando confiável/u),
+	).toBeVisible();
+
+	await page
+		.getByRole("button", { name: "Mover parte-3.zip para cima" })
+		.click();
+	const rows = page.getByLabel("Gravações selecionadas").getByRole("listitem");
+	await expect(rows.nth(0)).toContainText("1. parte-1.zip");
+	await expect(rows.nth(1)).toContainText("2. parte-3.zip");
+	await expect(rows.nth(2)).toContainText("3. parte-2.zip");
+
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent.getByRole("alert")).toContainText(
+		"Algumas gravações não possuem horário confiável.",
+	);
+	await expect(intent).not.toContainText("SESSION_WORKSPACE_");
+	await intent.getByRole("button", { name: "Usar esta ordem" }).click();
+
+	await expect(intent).toContainText("Transcrição pronta");
+	expect(multi.assemblyBuilt).toBe(true);
+	expect(multi.attachedSources).toHaveLength(3);
+});
+
 test("three ZIPs become one session intent, retry only the failed recording, auto-assemble and open review", async ({
 	page,
 }, testInfo) => {
@@ -1043,6 +1102,10 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	]);
 
 	await expect(page.getByLabel("Gravações selecionadas").getByRole("listitem")).toHaveCount(3);
+	await expect(
+		page.getByText("3 gravações serão reunidas em uma única sessão"),
+	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Mover sessao-42-parte-2.zip para cima" })).toBeEnabled();
 	await expect(page.getByRole("button", { name: "Transcrever sessão" })).toBeEnabled();
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 
