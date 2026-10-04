@@ -142,7 +142,13 @@ def _lineage(profile_id: str) -> dict:
     }
 
 
-def _commit_bundle(data_root: Path, job_id: str = "benchmark-job", attempt: int = 1) -> dict:
+def _commit_bundle(
+    data_root: Path,
+    job_id: str = "benchmark-job",
+    attempt: int = 1,
+    *,
+    with_diagnostics: bool = False,
+) -> dict:
     package = _package()
     identity = benchmark_sample_identity(package)
     receipts: list[dict] = []
@@ -157,6 +163,49 @@ def _commit_bundle(data_root: Path, job_id: str = "benchmark-job", attempt: int 
             sample_seconds=300.0,
             execution_lineage=_lineage(profile_id),
         )
+        if with_diagnostics:
+            profile_root = (
+                benchmark_root(data_root, artifact["benchmark_id"])
+                / "profiles"
+                / profile_id
+            )
+            (profile_root / "metrics.json").write_bytes(
+                json.dumps(
+                    {
+                        "schema_version": "tda_benchmark_diagnostics_metrics_v1",
+                        "profile_id": profile_id,
+                        "gpu_average_percent": 42.0,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            )
+            (profile_root / "events.jsonl").write_text(
+                json.dumps(
+                    {
+                        "seq": 1,
+                        "profile_id": profile_id,
+                        "event": "PROFILE_COMPLETED",
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (profile_root / "telemetry.jsonl").write_text(
+                json.dumps(
+                    {
+                        "seq": 1,
+                        "profile_id": profile_id,
+                        "gpu_utilization_percent": 42.0,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+                encoding="utf-8",
+            )
         receipts.append(
             {
                 "profile_id": profile_id,
@@ -280,6 +329,32 @@ def test_private_zip_is_deterministic_exact_and_contains_no_audio(tmp_path: Path
         assert "ALIGNMENT_FALLBACK" in events
         assert "glossário privado" not in events
         assert "contexto privado" not in events
+
+
+def test_private_zip_preserves_bound_diagnostics_and_optional_telemetry(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    bundle = _commit_bundle(data_root, job_id="diagnostics-job", with_diagnostics=True)
+    benchmark_id = bundle["benchmark_id"]
+    destination = tmp_path / "diagnostics.zip"
+
+    summary = public_bundle_summary(data_root, benchmark_id)
+    assert summary["telemetry_available"] is True
+
+    write_private_evidence_zip(data_root, benchmark_id, destination)
+    with zipfile.ZipFile(destination) as archive:
+        prefix = f"TDA-Benchmark-{benchmark_id}"
+        for profile_id in BENCHMARK_PROFILES:
+            profile_root = (
+                benchmark_root(data_root, benchmark_id)
+                / "profiles"
+                / profile_id
+            )
+            base = f"{prefix}/profiles/{profile_id}"
+            for filename in ("metrics.json", "events.jsonl", "telemetry.jsonl"):
+                assert archive.read(f"{base}/{filename}") == (
+                    profile_root / filename
+                ).read_bytes()
 
 
 def test_corrupted_canonical_transcript_fails_closed_on_read_and_export(tmp_path: Path):
