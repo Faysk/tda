@@ -618,7 +618,7 @@
 .sessionPreviewHeader span,
 .orderHeading span,
 .sessionOrderHelp,
-.sessionSummary span {
+.sessionSummary li {
 	color: var(--ds-foreground-muted);
 	font-size: 0.7rem;
 	line-height: 1.4;
@@ -628,9 +628,12 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: 5px 12px;
+	padding: 0;
+	margin: 0;
+	list-style: none;
 }
 
-.sessionSummary span {
+.sessionSummary li {
 	color: var(--ds-foreground-soft);
 }
 
