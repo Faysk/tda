@@ -1690,17 +1690,46 @@
 
 .liveLogExplorer {
 	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
 	gap: 8px;
+	min-width: 0;
 	min-height: 0;
 }
+
+.liveLogControls,
+.liveLogFooter {
+	display: grid;
+	min-width: 0;
+	min-height: 0;
+}
+
+.liveLogControls {
+	gap: 8px;
+}
+
+.liveLogFooter {
+	gap: 6px;
+}
+
+.liveLogFooter:empty {
+	display: none;
+}
+
 .liveLogExplorer .logHeader {
 	align-items: flex-start;
 }
+
 .logToolbar {
 	display: flex;
+	min-width: 0;
 	align-items: center;
 	gap: 6px;
 	flex-wrap: wrap;
+}
+
+.logToolbar > label {
+	min-width: min(220px, 100%);
+	flex: 1 1 240px;
 }
 .logToolbar .logSearch,
 .logToolbar select,
@@ -1714,7 +1743,8 @@
 	font-size: 0.72rem;
 }
 .logToolbar .logSearch {
-	min-width: min(260px, 70vw);
+	width: 100%;
+	min-width: 0;
 	padding-inline: 8px;
 }
 .logToolbar select,
@@ -1722,6 +1752,7 @@
 	padding-inline: 8px;
 }
 .liveLogExplorer .log {
+	min-height: 0;
 	max-height: min(52vh, 620px);
 	overflow: auto;
 }
@@ -2107,7 +2138,7 @@
 
 .jobDiagnosticsLog {
 	min-height: 0;
-	overflow: hidden;
+	overflow: visible;
 	padding: 10px;
 	border: 1px solid var(--ds-border-subtle);
 	border-radius: var(--ds-radius-md);
@@ -2117,13 +2148,17 @@
 .jobDiagnosticsLog > .liveLogExplorer {
 	height: 100%;
 	min-height: 0;
-	grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .jobDiagnosticsLog .log {
-	max-height: none;
 	min-height: 0;
-	height: 100%;
+	max-height: none;
+	overscroll-behavior: contain;
+}
+
+.jobDiagnosticsLog .logInspector {
+	max-height: min(26dvh, 240px);
+	overflow: auto;
 	overscroll-behavior: contain;
 }
 
@@ -2183,13 +2218,27 @@
 	}
 
 	.jobDiagnosticsShell {
-		grid-template-rows: auto auto auto auto auto minmax(220px, auto) auto;
+		grid-template-rows: auto auto auto auto auto auto auto;
 		overflow-y: auto;
 		overscroll-behavior: contain;
 	}
 
 	.jobDiagnosticsLog {
-		min-height: 220px;
+		min-height: 0;
+	}
+
+	.jobDiagnosticsLog > .liveLogExplorer {
+		height: auto;
+	}
+
+	.jobDiagnosticsLog .log {
+		max-height: none;
+		overflow: visible;
+	}
+
+	.jobDiagnosticsLog .logInspector {
+		max-height: none;
+		overflow: visible;
 	}
 }
 
