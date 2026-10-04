@@ -55,6 +55,35 @@ path escape, symlink/junction ou identidade divergente falham fechados. Apagar o
 job da fila não apaga o bundle. Nenhum áudio é copiado para essa árvore e o
 Benchmark continua fora dos Results editoriais/publicáveis.
 
+Cada perfil também preserva diagnóstico estruturado no mesmo diretório:
+`metrics.json`, `events.jsonl` e `telemetry.jsonl` quando o sampler está
+disponível. `metrics.json` inclui todos os `stage_seconds` de
+`engine_processing_v1`, total/RTF, fator realtime marcado como derivado, contagens,
+proveniência fresh/reused, lineage de modelo/runtime/GPU, fingerprint de
+contexto/glossário e timing autoritativo do supervisor. Preparação externa continua
+explicitamente fora do timing da engine.
+
+`events.jsonl` é capturado no boundary supervisor↔worker depois de validação do
+protocolo e da sequência. Transições de stage, warnings, errors, recovery e terminal
+ficam estruturadas por código; progress/heartbeat/eventos repetitivos podem ser
+agregados em `BENCHMARK_EVENT_AGGREGATE` com count, primeiro/último worker seq e
+janela relativa. O orçamento é limitado e evidência obrigatória excedida falha
+fechado, em vez de ser silenciosamente truncada e chamada de raw.
+
+A telemetria é best-effort, por padrão a cada ~1 s e limitada a 900 amostras por
+perfil. A GPU é casada por UUID/PCI físico reportado pela execução, não pelo ordinal
+NVML isolado. Cobertura, amostras esperadas/capturadas e motivo de ausência são
+persistidos; VRAM e utilização GPU, CPU e RAM são agregados sobre a janela completa.
+Temperatura/potência permanecem `null` enquanto a API local não as expuser com
+semântica confiável. Falha do sampler não falha a transcrição.
+
+O `benchmark.json` final inclui caminho, SHA-256 e tamanho desses diagnósticos para
+cada perfil, tornando-os parte verificável da identidade do bundle. Persistência usa
+allowlist e não recebe dump de environment, PATH/cwd, paths de instalação,
+hostname/usuário, Authorization/cookies/tokens, speaker, filenames, áudio nem texto
+da transcrição. Contexto e glossário entram apenas como hash + comprimento; o log
+global `companion.log` não é copiado nem fatiado como evidência.
+
 O receipt da fila permanece pequeno e metadata-only. Transcripts privados só são
 lidos por endpoints tipados e ações explícitas da tab Benchmark. A Web pode
 comparar qualquer par entre Whisper Turbo, Whisper Detailed, Qwen Fast e Qwen
