@@ -276,8 +276,13 @@ for (const token of retiredReviewAliases) {
 // outline declarations when used in CSS Modules.
 for (const filePath of sourceFiles("src/features/edit/processing")) {
 	const source = fs.readFileSync(filePath, "utf8");
-	if (source.includes("var(--ds-focus-ring)") || source.includes("--ds-focus-ring:")) {
-		fail(`undefined processing token --ds-focus-ring is present in ${filePath}`);
+	if (
+		source.includes("var(--ds-focus-ring)") ||
+		source.includes("--ds-focus-ring:")
+	) {
+		fail(
+			`undefined processing token --ds-focus-ring is present in ${filePath}`,
+		);
 	}
 }
 
