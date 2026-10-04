@@ -306,15 +306,13 @@ def enrich_workspace_timeline(
         physical_interval_state = "first"
         if previous is not None:
             previous_mode = previous.get("timeline_mode", "unresolved")
-            if (
-                mode in {"automatic", "sequence"}
-                and previous_mode in {"automatic", "sequence"}
-                and start_confidence == "trusted_absolute"
+            if mode == "manual" or previous_mode == "manual":
+                physical_interval_state = "manual"
+            elif (
+                start_confidence == "trusted_absolute"
                 and previous.get("source_start_confidence") == "trusted_absolute"
             ):
                 physical_interval_state = "trusted_absolute"
-            elif mode == "manual" or previous_mode == "manual":
-                physical_interval_state = "manual"
             else:
                 physical_interval_state = "unknown"
                 unknown_interval_count += 1
@@ -339,7 +337,9 @@ def enrich_workspace_timeline(
                         unconfirmed_gap_count += 1
                 elif abs(delta) <= _EPSILON:
                     relation = "contiguous"
-                    relation_seconds = 0.0
+                    relation_seconds = (
+                        None if physical_interval_state == "unknown" else 0.0
+                    )
                 else:
                     overlap_start = max(previous_start_value, effective_start)
                     overlap_end = min(previous_end_value, effective_end)
