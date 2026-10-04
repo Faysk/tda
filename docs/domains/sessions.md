@@ -257,7 +257,7 @@ Uma capa moderna é campaign-owned no banco e também no namespace físico:
 
 `campaigns/<technical_slug>/sessions/<session_id>/cover/<sha>.(png|webp)`.
 
-Por isso o fluxo é `preflight -> prepare/read-back -> DB commit -> cleanup assíncrono/lifecycle`. O prepare copia bytes imutáveis para a chave destination, verifica hash/MIME/dimensões/read-back e, se a capa já era pública, também verifica a delivery pública destination. O objeto da origem não é apagado no caminho crítico.
+Por isso o fluxo é `preflight -> prepare/read-back -> DB commit -> cleanup assíncrono/lifecycle`. O prepare copia bytes imutáveis para a chave destination e verifica hash/MIME/dimensões/read-back. Uma capa já pública só é promovida no namespace destination quando a **destination campaign também é pública**; destination privada recebe somente o objeto staged e metadata sem public delivery. O banco revalida essa regra no commit e rejeita receipt público para destination privada. O objeto da origem não é apagado no caminho crítico.
 
 O commit recebe apenas um receipt de mídia verificado e materializa/reutiliza o `media_asset` destination antes de criar o bridge draft. Referência de capa legado exige decisão explícita `legacyCoverPolicy=clear_current`; o histórico antigo permanece intacto e o current bridge começa sem capa.
 
@@ -272,7 +272,7 @@ O v2 nunca clona narrativa por nome.
 
 ### Idempotência, recovery e caches
 
-O commit usa `operation_id` durável, row lock, receipt e audit sanitizado. A identidade unresolved também é persistida de forma bounded no navegador, scoped por hash opaco do profile + session + origem + destino; reload/deploy pode reutilizar o mesmo operation id e reconciliar um commit cuja resposta se perdeu. Nenhum transcript, resumo, grant ou URL privada entra nesse storage.
+O commit usa `operation_id` durável, row lock, receipt e audit sanitizado. A identidade unresolved também é persistida de forma bounded no navegador, scoped por hash opaco do profile + session + origem + destino; reload/deploy pode reutilizar o mesmo operation id e reconciliar um commit cuja resposta se perdeu. Se o commit já moveu a session e o navegador recarrega o deep link antigo antes de receber a resposta, o servidor usa o receipt actor-scoped para reencontrar a session pelo ID estável e redireciona somente para uma campaign que o actor ainda pode ler. Nenhum transcript, resumo, grant ou URL privada entra nesse storage.
 
 Dois movers concorrentes serializam no row lock; o writer stale recebe `conflict`. Alterar o conjunto de decisões com o mesmo `operation_id` retorna `operation_conflict`.
 
