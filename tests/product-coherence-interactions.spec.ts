@@ -276,10 +276,16 @@ test("[interaction] authenticated navigation distinguishes zero, one and many ca
 	({ panel } = await openGlobalMenu(page));
 	const selector = panel.getByLabel("Campanha das ferramentas");
 	await expect(selector).toBeVisible();
-	await expect(selector.locator("option")).toHaveCount(3);
+	await selector.click();
+	const campaignListbox = page.getByRole("listbox", {
+		name: "Campanha das ferramentas",
+	});
+	await expect(campaignListbox.getByRole("option")).toHaveCount(3);
 	await expect(
-		selector.locator("option").filter({ hasText: CAMPAIGN_B.name }),
-	).toHaveText(CAMPAIGN_B.name);
+		campaignListbox.getByRole("option", { name: CAMPAIGN_B.name, exact: true }),
+	).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(selector).toBeFocused();
 });
 
 test("[interaction] 320/390/desktop/200%-proxy keep campaign controls reachable and unclipped", async ({
