@@ -24,7 +24,7 @@ GPU_UUID = "GPU-11111111-1111-1111-1111-111111111111"
 OTHER_GPU_UUID = "GPU-22222222-2222-2222-2222-222222222222"
 RUNTIME_ARTIFACT = {
     "runtime_id": "whisper-ctranslate2",
-    "version": "1.1.8",
+    "version": "1.1.10",
     "worker_sha256": "c" * 64,
     "archive_sha256": "d" * 64,
 }
@@ -61,7 +61,7 @@ def _lineage(*, qwen: bool = False) -> dict:
     artifact = {
         **RUNTIME_ARTIFACT,
         "runtime_id": "qwen3-transformers" if qwen else "whisper-ctranslate2",
-        "version": "1.0.12" if qwen else "1.1.8",
+        "version": "1.0.18" if qwen else "1.1.10",
     }
     return {
         "schema_version": "tda_execution_lineage_v1",

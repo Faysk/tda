@@ -462,7 +462,7 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await expect(diagnosticsButton).toBeFocused();
 });
 
-test("Whisper 1.1.5 stays transcription-ready but requires benchmark preparation", async ({
+test("Whisper 1.1.9 stays transcription-ready but requires benchmark evidence runtime", async ({
 	page,
 }) => {
 	const state = await installCompanionFixture(page, {
@@ -476,6 +476,39 @@ test("Whisper 1.1.5 stays transcription-ready but requires benchmark preparation
 	await expect(panel).toContainText("2 / 4 perfis prontos para benchmark");
 	await expect(
 		panel.getByText("Whisper Runtime precisa ser atualizado para benchmark."),
+	).toHaveCount(2);
+
+	await chooseZip(panel);
+	await analyze(panel);
+	const prepare = panel.getByRole("button", {
+		name: /Preparar 2 perfis pendentes/u,
+	});
+	await expect(prepare).toBeEnabled();
+	await prepare.click();
+
+	await expect.poll(() => state.preparationPostCount).toBe(2);
+	await expect(panel).toContainText("4 / 4 perfis prontos para benchmark");
+	await expect(
+		panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }),
+	).toBeEnabled();
+	expect(state.jobPostCount).toBe(0);
+});
+
+test("Qwen 1.0.17 stays transcription-ready but requires benchmark evidence runtime", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		qwenBenchmarkRuntimeUpgradeRequired: true,
+		qwenRuntimeVersion: "1.0.17",
+		advanceJobs: false,
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel).toContainText("2 / 4 perfis prontos para benchmark");
+	await expect(
+		panel.getByText("Qwen Runtime precisa ser atualizado para benchmark."),
 	).toHaveCount(2);
 
 	await chooseZip(panel);

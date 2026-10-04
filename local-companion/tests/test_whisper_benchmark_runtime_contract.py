@@ -17,11 +17,13 @@ from tda_companion.worker_supervisor import WorkerProcessError, WorkerSupervisor
 
 def test_whisper_1_1_5_remains_valid_for_transcription_but_not_benchmark():
     assert MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION == "1.1.4"
-    assert MIN_BENCHMARK_WHISPER_RUNTIME_VERSION == "1.1.7"
+    assert MIN_BENCHMARK_WHISPER_RUNTIME_VERSION == "1.1.10"
     assert whisper_runtime_version_compatible("1.1.5") is True
     assert whisper_runtime_benchmark_compatible("1.1.5") is False
     assert whisper_runtime_benchmark_compatible("1.1.6") is False
-    assert whisper_runtime_benchmark_compatible("1.1.7") is True
+    assert whisper_runtime_benchmark_compatible("1.1.7") is False
+    assert whisper_runtime_benchmark_compatible("1.1.9") is False
+    assert whisper_runtime_benchmark_compatible("1.1.10") is True
 
 
 @pytest.mark.parametrize(
@@ -29,7 +31,9 @@ def test_whisper_1_1_5_remains_valid_for_transcription_but_not_benchmark():
     [
         ("1.1.5", False, "WHISPER_BENCHMARK_RUNTIME_REQUIRED"),
         ("1.1.6", False, "WHISPER_BENCHMARK_RUNTIME_REQUIRED"),
-        ("1.1.7", True, None),
+        ("1.1.7", False, "WHISPER_BENCHMARK_RUNTIME_REQUIRED"),
+        ("1.1.9", False, "WHISPER_BENCHMARK_RUNTIME_REQUIRED"),
+        ("1.1.10", True, None),
     ],
 )
 def test_profile_catalog_separates_transcription_and_benchmark_readiness(
@@ -105,8 +109,8 @@ def test_benchmark_preparation_does_not_reuse_immutable_whisper_1_1_5(
     def install_rc(*_args, **_kwargs):
         nonlocal active_version
         calls["rc"] += 1
-        active_version = "1.1.7"
-        return {"version": "1.1.7", "channel": "rc"}
+        active_version = "1.1.10"
+        return {"version": "1.1.10", "channel": "rc"}
 
     monkeypatch.setattr(preparation, "inspect_whisper_runtime", inspect)
     monkeypatch.setattr(
@@ -130,7 +134,7 @@ def test_benchmark_preparation_does_not_reuse_immutable_whisper_1_1_5(
         tmp_path / "Cache",
         require_benchmark_compatibility=True,
     )
-    assert benchmark["version"] == "1.1.7"
+    assert benchmark["version"] == "1.1.10"
     assert calls == {"stable_download": 0, "rc": 1}
 
 

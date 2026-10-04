@@ -32,6 +32,7 @@ from .qwen_runtime_updates import (
     qwen_runtime_update_available,
 )
 from .runtime_compat import (
+    qwen_runtime_benchmark_compatible,
     qwen_runtime_version_compatible,
     whisper_runtime_benchmark_compatible,
     whisper_runtime_version_compatible,
@@ -221,8 +222,18 @@ def profile_catalog(
                         gate.get("reason")
                         or f"QWEN_GATE_{str(gate.get('status') or 'missing').upper()}"
                     )
-            benchmark_ready = ready
-            benchmark_reason = reason
+            benchmark_ready = (
+                ready
+                and runtime_version is not None
+                and qwen_runtime_benchmark_compatible(runtime_version)
+            )
+            benchmark_reason = (
+                None
+                if benchmark_ready
+                else "QWEN_BENCHMARK_RUNTIME_REQUIRED"
+                if ready
+                else reason
+            )
         result.append(
             {
                 "id": profile_id,
@@ -352,10 +363,19 @@ def _install_qwen_runtime(
     cache_root: Path,
     *,
     is_cancelled: Callable[[], bool] | None = None,
+    require_benchmark_compatibility: bool = False,
 ) -> dict[str, object]:
+    def ready_for_purpose(state: dict[str, object]) -> bool:
+        if not _runtime_ready(state, "qwen"):
+            return False
+        if not require_benchmark_compatibility:
+            return True
+        version = state.get("version")
+        return isinstance(version, str) and qwen_runtime_benchmark_compatible(version)
+
     _check_cancelled(is_cancelled)
     state = inspect_qwen_runtime(runtime_root, verify_worker=True)
-    if _runtime_ready(state, "qwen"):
+    if ready_for_purpose(state):
         try:
             _probe_qwen_runtime(runtime_root, is_cancelled)
             return {
@@ -376,8 +396,13 @@ def _install_qwen_runtime(
         manifest = fetch_qwen_runtime_manifest()
         current = state.get("version") if state.get("status") == "ready" else None
         current_value = current if isinstance(current, str) else None
+        manifest_compatible = (
+            qwen_runtime_benchmark_compatible(manifest.version)
+            if require_benchmark_compatibility
+            else qwen_runtime_version_compatible(manifest.version)
+        )
         if (
-            qwen_runtime_version_compatible(manifest.version)
+            manifest_compatible
             and qwen_runtime_update_available(current_value, manifest)
         ):
             target = runtime_root / "qwen" / manifest.version
@@ -402,7 +427,7 @@ def _install_qwen_runtime(
             )
             _check_cancelled(is_cancelled)
         state = inspect_qwen_runtime(runtime_root, verify_worker=True)
-        if _runtime_ready(state, "qwen"):
+        if ready_for_purpose(state):
             try:
                 _probe_qwen_runtime(runtime_root, is_cancelled)
                 return {
@@ -442,8 +467,12 @@ def _install_qwen_runtime(
             raise ProfilePreparationError(_error_code(exc)) from exc
         raise ProfilePreparationError(_error_code(exc)) from exc
     state = inspect_qwen_runtime(runtime_root, verify_worker=True)
-    if not _runtime_ready(state, "qwen"):
-        raise ProfilePreparationError("QWEN_RUNTIME_INSTALL_VERIFY_FAILED")
+    if not ready_for_purpose(state):
+        raise ProfilePreparationError(
+            "QWEN_BENCHMARK_RUNTIME_REQUIRED"
+            if require_benchmark_compatibility and _runtime_ready(state, "qwen")
+            else "QWEN_RUNTIME_INSTALL_VERIFY_FAILED"
+        )
     return {"status": "ready", "accepted": True, **result}
 
 
@@ -830,6 +859,11 @@ class ProfilePreparationManager:
                     self.runtime_root,
                     self.cache_root,
                     is_cancelled=self._should_stop,
+                    **(
+                        {"require_benchmark_compatibility": True}
+                        if purpose == "benchmark"
+                        else {}
+                    ),
                 )
                 self._set(
                     "qwen_probe",

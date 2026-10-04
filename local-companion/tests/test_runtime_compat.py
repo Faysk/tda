@@ -5,9 +5,13 @@ from pathlib import Path
 
 from tda_companion.rc_runtime_artifacts import RC_QWEN_VERSION, RC_WHISPER_VERSION
 from tda_companion.runtime_compat import (
+    MIN_BENCHMARK_QWEN_RUNTIME_VERSION,
+    MIN_BENCHMARK_WHISPER_RUNTIME_VERSION,
     MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
     MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+    qwen_runtime_benchmark_compatible,
     qwen_runtime_version_compatible,
+    whisper_runtime_benchmark_compatible,
 )
 
 
@@ -38,3 +42,12 @@ def test_current_runtime_builds_are_not_older_than_companion_minimums():
     assert version_tuple(whisper) >= version_tuple(MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION)
     assert RC_QWEN_VERSION == qwen
     assert RC_WHISPER_VERSION == whisper
+
+
+def test_benchmark_evidence_requires_new_runtime_contracts():
+    assert MIN_BENCHMARK_QWEN_RUNTIME_VERSION == "1.0.18"
+    assert qwen_runtime_benchmark_compatible("1.0.17") is False
+    assert qwen_runtime_benchmark_compatible("1.0.18") is True
+    assert MIN_BENCHMARK_WHISPER_RUNTIME_VERSION == "1.1.10"
+    assert whisper_runtime_benchmark_compatible("1.1.9") is False
+    assert whisper_runtime_benchmark_compatible("1.1.10") is True

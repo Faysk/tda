@@ -17,7 +17,10 @@ from .benchmark_diagnostics import BenchmarkDiagnosticsError, BenchmarkProfileDi
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import inspect_qwen_runtime
 from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
-from .runtime_compat import whisper_runtime_benchmark_compatible
+from .runtime_compat import (
+    qwen_runtime_benchmark_compatible,
+    whisper_runtime_benchmark_compatible,
+)
 from .worker_protocol import (
     MAX_LINE_BYTES,
     WorkerCancelCommand,
@@ -70,6 +73,13 @@ def _benchmark_profile_evidence_valid(
         "whisper-ctranslate2" if expected_family == "whisper" else "qwen3-transformers"
     )
     runtime_version = lineage.get("runtime_version")
+    runtime_is_benchmark_compatible = (
+        whisper_runtime_benchmark_compatible(runtime_version)
+        if expected_family == "whisper" and isinstance(runtime_version, str)
+        else qwen_runtime_benchmark_compatible(runtime_version)
+        if expected_family == "qwen" and isinstance(runtime_version, str)
+        else False
+    )
     artifact = lineage.get("runtime_artifact")
     gpu = lineage.get("gpu")
     device = lineage.get("device")
@@ -85,6 +95,7 @@ def _benchmark_profile_evidence_valid(
         and receipt.get("sample_seconds") == 300.0
         and lineage.get("runtime_family") == expected_family
         and isinstance(runtime_version, str)
+        and runtime_is_benchmark_compatible
         and isinstance(artifact, dict)
         and artifact.get("runtime_id") == expected_runtime_id
         and artifact.get("version") == runtime_version
@@ -583,6 +594,13 @@ class WorkerSupervisor:
             worker_value = state.get("worker")
             if state.get("status") != "ready" or not isinstance(worker_value, str):
                 raise WorkerProcessError("QWEN_RUNTIME_UNAVAILABLE")
+            if benchmark_sample_seconds is not None:
+                runtime_version = state.get("version")
+                if (
+                    not isinstance(runtime_version, str)
+                    or not qwen_runtime_benchmark_compatible(runtime_version)
+                ):
+                    raise WorkerProcessError("QWEN_BENCHMARK_RUNTIME_REQUIRED")
             worker = Path(worker_value)
             artifact = runtime_artifact(state, family="qwen", version=worker.parent.name)
             if artifact is None or artifact != gate.get("runtime_artifact"):

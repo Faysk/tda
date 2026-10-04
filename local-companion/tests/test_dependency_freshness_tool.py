@@ -196,7 +196,7 @@ def test_whisper_pyav_compatibility_exception_is_exact_and_runtime_owned():
 
     assert pins["whisper/av"] == "18.1.0"
     assert sources["whisper/av"] == ["whisper-windows-x64.json"]
-    assert pins["qwen/av"] == "19.0.0"
+    assert pins["qwen/av"] == "19.0.1"
     assert sources["qwen/av"] == ["qwen-windows-x64.json"]
     assert exceptions["whisper/av"]["version"] == pins["whisper/av"]
     assert "Faster-Whisper 1.2.1" in exceptions["whisper/av"]["reason"]
