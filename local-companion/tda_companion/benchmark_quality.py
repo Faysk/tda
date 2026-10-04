@@ -503,7 +503,7 @@ def _timing_metrics(reference_tracks: Sequence[Mapping[str, Any]], document: Tra
         available = list(enumerate(hypotheses.get(number, [])))
         used: set[int] = set()
         for ref in track.get("turns", []):
-            candidates: list[tuple[int, float, int, dict[str, Any]]] = []
+            candidates: list[tuple[float, float, int, dict[str, Any]]] = []
             for index, hyp in available:
                 if index in used:
                     continue
@@ -511,12 +511,8 @@ def _timing_metrics(reference_tracks: Sequence[Mapping[str, Any]], document: Tra
                 union = max(float(ref["end"]), hyp["end"]) - min(float(ref["start"]), hyp["start"])
                 iou = intersection / union if union > 0 else 0.0
                 if iou >= 0.1:
-                    candidates.append((
-                        1 if str(ref["speaker"]) == str(hyp["speaker"]) else 0,
-                        iou,
-                        index,
-                        hyp,
-                    ))
+                    boundary_error = abs(float(ref["start"]) - hyp["start"]) + abs(float(ref["end"]) - hyp["end"])
+                    candidates.append((iou, -boundary_error, index, hyp))
             if not candidates:
                 unmatched += 1
                 if ref.get("overlaps_other_speaker"):
