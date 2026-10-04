@@ -177,6 +177,41 @@ def test_qwen_empty_window_recovery_events_preserve_safe_profile_metadata():
     assert recovered.drift_reason is None
 
 
+def test_benchmark_profile_failure_event_preserves_only_safe_continuation_metadata():
+    event = sanitize_worker_event(
+        {
+            "code": "BENCHMARK_PROFILE_FAILED",
+            "stage": "benchmark",
+            "profile": "qwen-fast",
+            "attempted_count": 3,
+            "successful_count": 2,
+            "failed_count": 1,
+            "total_profiles": 4,
+            "error_code": "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+            "recoverable": True,
+            "scope": "profile",
+            "text": "private transcript",
+            "path": "C:/private/audio.flac",
+        }
+    )
+
+    assert event.code == "BENCHMARK_PROFILE_FAILED"
+    assert event.level == "warning"
+    assert event.data == {
+        "stage": "benchmark",
+        "profile": "qwen-fast",
+        "attempted_count": 3,
+        "successful_count": 2,
+        "failed_count": 1,
+        "total_profiles": 4,
+        "error_code": "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+        "recoverable": True,
+        "scope": "profile",
+    }
+    assert event.drift_reason == "unexpected_or_invalid_field"
+    assert "private" not in repr(event).lower()
+
+
 def test_unknown_or_malformed_event_code_never_persists_raw_code_or_payload():
     for payload in (
         {"code": "PRIVATE_WORDS_FROM_TRANSCRIPT", "detail": "segredo"},
