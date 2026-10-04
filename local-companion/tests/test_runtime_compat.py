@@ -45,9 +45,9 @@ def test_current_runtime_builds_are_not_older_than_companion_minimums():
 
 
 def test_benchmark_evidence_requires_new_runtime_contracts():
-    assert MIN_BENCHMARK_QWEN_RUNTIME_VERSION == "1.0.18"
-    assert qwen_runtime_benchmark_compatible("1.0.17") is False
-    assert qwen_runtime_benchmark_compatible("1.0.18") is True
+    assert MIN_BENCHMARK_QWEN_RUNTIME_VERSION == "1.0.19"
+    assert qwen_runtime_benchmark_compatible("1.0.18") is False
+    assert qwen_runtime_benchmark_compatible("1.0.19") is True
     assert MIN_BENCHMARK_WHISPER_RUNTIME_VERSION == "1.1.10"
     assert whisper_runtime_benchmark_compatible("1.1.9") is False
     assert whisper_runtime_benchmark_compatible("1.1.10") is True

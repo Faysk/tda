@@ -632,6 +632,7 @@ def test_fast_empty_full_window_recovery_accepts_silent_half_without_fabricating
         window_reader=lambda _path: iter(
             [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
         ),
+        energy_reader=lambda *_args: -10.0,
         report=reports.append,
     )
 

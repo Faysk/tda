@@ -127,6 +127,10 @@ function benchmark(
 	const lineage = run(rtf).executionLineage;
 	return {
 		schemaVersion: "tda_processing_benchmark_v1",
+		outcome: "completed",
+		attemptedCount: 1,
+		completedCount: 1,
+		failedCount: 0,
 		jobId: `benchmark-${rtf}`,
 		sourceId: "craig-source",
 		campaignId: "benchmark-local",
@@ -164,6 +168,14 @@ function benchmark(
 				transcriptSizeBytes: null,
 				artifactAvailable: false,
 				...overrides,
+			},
+		],
+		profileOutcomes: [
+			{
+				profileId: "qwen-quality",
+				status: "completed",
+				artifactAvailable: false,
+				error: null,
 			},
 		],
 	};
