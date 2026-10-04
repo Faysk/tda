@@ -170,6 +170,8 @@ export async function moveSessionCampaignAction(
 	try {
 		const prepared = await prepareSessionCampaignMoveCover({
 			client,
+			operationId: request.operationId,
+			actorProfileId: access.profileId,
 			sessionId: request.sessionId,
 			sourceCampaignId: access.source.id,
 			sourceCampaignSlug: access.source.technicalSlug,
@@ -189,13 +191,15 @@ export async function moveSessionCampaignAction(
 			};
 		}
 	} catch (error) {
-		console.error(
-			"[edit] session campaign move media prepare failed",
-			error instanceof Error ? error.message : "unknown_error",
-		);
+		const message =
+			error instanceof Error ? error.message : "unknown_error";
+		console.error("[edit] session campaign move media prepare failed", message);
 		return {
 			ok: false as const,
-			reason: "media_prepare_unavailable" as const,
+			reason:
+				message === "SESSION_CAMPAIGN_MOVE_MEDIA_PREPARATION_CONFLICT"
+					? ("operation_conflict" as const)
+					: ("media_prepare_unavailable" as const),
 		};
 	}
 
