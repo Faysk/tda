@@ -37,6 +37,13 @@ const preview: SessionCampaignMovePreview = {
 			message: "Revogar grants.",
 			action: "revoke_session_grants",
 		},
+		{
+			family: "historical_publication_retention",
+			classification: "decision",
+			count: 1,
+			message: "Reconhecer retenção histórica.",
+			action: "acknowledge_historical_publication",
+		},
 	],
 	consequences: [],
 };
@@ -46,6 +53,7 @@ describe("session campaign move model", () => {
 		expect(requiredSessionCampaignMoveDecisions(preview)).toEqual({
 			unlinkParticipantEntities: true,
 			revokeSessionGrants: true,
+			acknowledgeHistoricalPublication: true,
 		});
 		expect(requiredSessionCampaignMoveDecisions(null)).toEqual(
 			EMPTY_SESSION_CAMPAIGN_MOVE_DECISIONS,
