@@ -154,7 +154,7 @@ const canonicalTokenValues = [
 	["--ds-foreground-soft", "#4f4b44"],
 	["--ds-foreground-muted", "#625d55"],
 	["--ds-accent", "#805817"],
-	["--ds-accent-strong", "#9a6a1d"],
+	["--ds-accent-strong", "#6b4913"],
 	["--ds-accent-muted", "rgba(128, 88, 23, 0.11)"],
 	["--ds-accent-contrast", "#fffdf8"],
 	["--ds-action-primary-bg", "#805817"],
@@ -181,6 +181,85 @@ const canonicalTokenValues = [
 for (const [token, value] of canonicalTokenValues) {
 	if (!tokenCss.includes(`${token}: ${value};`)) {
 		fail(`missing canonical token value ${token}: ${value}`);
+	}
+}
+
+function hexRgb(hex) {
+	const match = /^#([0-9a-f]{6})$/iu.exec(hex);
+	if (!match) fail(`expected six-digit hex color, got ${hex}`);
+	return [0, 2, 4].map((offset) => Number.parseInt(match[1].slice(offset, offset + 2), 16) / 255);
+}
+
+function relativeLuminance(hex) {
+	const [red, green, blue] = hexRgb(hex).map((channel) =>
+		channel <= 0.04045
+			? channel / 12.92
+			: ((channel + 0.055) / 1.055) ** 2.4,
+	);
+	return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function contrastRatio(foreground, background) {
+	const first = relativeLuminance(foreground);
+	const second = relativeLuminance(background);
+	const lighter = Math.max(first, second);
+	const darker = Math.min(first, second);
+	return (lighter + 0.05) / (darker + 0.05);
+}
+
+const lightThemeBlock = /:root\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/u.exec(tokenCss)?.[1];
+if (!lightThemeBlock) fail("explicit light theme block is missing");
+
+function lightHexToken(token) {
+	const escaped = token.replace(/[.*+?^${}()|[\]\\]/gu, "\\for (const [token, value] of canonicalTokenValues) {
+	if (!tokenCss.includes(`${token}: ${value};`)) {
+		fail(`missing canonical token value ${token}: ${value}`);
+	}
+}
+");
+	const match = new RegExp(`${escaped}:\\s*(#[0-9a-fA-F]{6})\\s*;`, "u").exec(lightThemeBlock);
+	if (!match) fail(`light theme token ${token} must be a six-digit hex color`);
+	return match[1];
+}
+
+const lightAccentStrong = lightHexToken("--ds-accent-strong");
+for (const surfaceToken of ["--ds-canvas", "--ds-surface", "--ds-surface-elevated"]) {
+	const surface = lightHexToken(surfaceToken);
+	const ratio = contrastRatio(lightAccentStrong, surface);
+	if (ratio < 4.5) {
+		fail(
+			`light --ds-accent-strong contrast on ${surfaceToken} must be >= 4.5:1, got ${ratio.toFixed(2)}:1`,
+		);
+	}
+}
+
+for (const filePath of sourceFiles("src")) {
+	const source = fs.readFileSync(filePath, "utf8");
+	if (source.includes("box-shadow: var(--ds-control-focus-ring)")) {
+		fail(
+			`--ds-control-focus-ring is a color token and cannot be used as a complete box-shadow in ${filePath}`,
+		);
+	}
+}
+
+const sessionAssemblyReviewCss = fs.readFileSync(
+	"src/features/edit/processing/session-assembly-review.module.css",
+	"utf8",
+);
+for (const alias of [
+	"--border-subtle",
+	"--radius-lg",
+	"--surface-raised",
+	"--text-muted",
+	"--radius-md",
+	"--surface",
+	"--focus-ring",
+	"--surface-muted",
+	"--status-danger-surface",
+	"--status-danger-text",
+]) {
+	if (sessionAssemblyReviewCss.includes(`var(${alias})`)) {
+		fail(`SessionAssemblyReview still uses undefined legacy token ${alias}`);
 	}
 }
 
