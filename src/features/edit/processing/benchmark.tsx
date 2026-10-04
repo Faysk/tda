@@ -1002,15 +1002,18 @@ export function ProcessingBenchmark({
 		}
 	}
 
-	const completed = active?.progress?.completed ?? 0;
-	const currentProfile =
-		active?.status === "running" ? PROFILES[Math.min(completed, 3)] : null;
 	const activeEvents =
 		active && observedJobId === active.id
 			? events.filter(
 					(event) => event.attempt === null || event.attempt === active.attempt,
 				)
 			: [];
+	const liveState = deriveBenchmarkLiveState(
+		activeEvents,
+		active?.progress?.completed ?? 0,
+		active?.status ?? "queued",
+	);
+	const currentProfile = liveState.currentProfile;
 	const latestEvent = activeEvents.at(-1) ?? null;
 	const latestActivity = latestEvent ? presentJobEvent(latestEvent) : null;
 
