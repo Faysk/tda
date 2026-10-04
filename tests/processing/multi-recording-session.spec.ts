@@ -1195,6 +1195,8 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(intent).toBeVisible();
+	await expect(page.locator("[data-processing-intent-summary='true']")).toBeVisible();
+	await expect(page.getByLabel("Export do Craig")).toBeHidden();
 	await expect(intent).toContainText("2/3 concluídas");
 	await expect(intent.getByRole("alert")).toContainText("Uma gravação falhou.");
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
