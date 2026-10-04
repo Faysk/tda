@@ -1107,8 +1107,8 @@ export async function installCompanionFixture(
 						execution_device: {
 							kind: "cuda",
 							logical_index: 0,
-							physical_uuid: "GPU-SYNTHETIC",
-							pci_bus_id: "0000:01:00.0",
+							physical_uuid: "GPU-11111111-1111-1111-1111-111111111111",
+							pci_bus_id: "00000000:01:00.0",
 						},
 						compute_type: "float16",
 						gpu: {
