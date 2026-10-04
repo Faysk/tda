@@ -19,7 +19,7 @@ create table if not exists public.session_campaign_move_operations (
 );
 
 alter table public.session_campaign_move_operations enable row level security;
-revoke all on table public.session_campaign_move_operations from public, anon, authenticated;
+revoke all on table public.session_campaign_move_operations from public, anon, authenticated, service_role;
 grant select, insert on table public.session_campaign_move_operations to service_role;
 
 create or replace function public.session_campaign_move_dependency_count(
@@ -476,12 +476,10 @@ comment on function public.move_session_campaign_atomic(uuid,uuid,text,text,uuid
 comment on table public.session_campaign_move_operations is
   'Durable idempotency receipts for #1129 session campaign moves. Contains identities only; never transcript text.';
 
-revoke all on function public.session_campaign_move_dependency_count(text,text,uuid) from public, anon, authenticated;
-revoke all on function public.session_campaign_move_blockers(uuid,uuid) from public, anon, authenticated;
-revoke all on function public.preflight_session_campaign_move(uuid,uuid,text,text,uuid,text) from public, anon, authenticated;
-revoke all on function public.move_session_campaign_atomic(uuid,uuid,text,text,uuid,text,uuid) from public, anon, authenticated;
-grant execute on function public.session_campaign_move_dependency_count(text,text,uuid) to service_role;
-grant execute on function public.session_campaign_move_blockers(uuid,uuid) to service_role;
+revoke all on function public.session_campaign_move_dependency_count(text,text,uuid) from public, anon, authenticated, service_role;
+revoke all on function public.session_campaign_move_blockers(uuid,uuid) from public, anon, authenticated, service_role;
+revoke all on function public.preflight_session_campaign_move(uuid,uuid,text,text,uuid,text) from public, anon, authenticated, service_role;
+revoke all on function public.move_session_campaign_atomic(uuid,uuid,text,text,uuid,text,uuid) from public, anon, authenticated, service_role;
 grant execute on function public.preflight_session_campaign_move(uuid,uuid,text,text,uuid,text) to service_role;
 grant execute on function public.move_session_campaign_atomic(uuid,uuid,text,text,uuid,text,uuid) to service_role;
 
