@@ -40,6 +40,29 @@ type CoverAssetRow = Readonly<{
 	public_verified_at: unknown;
 }>;
 
+type MoveCoverPreparationRow = Readonly<{
+	operation_id: unknown;
+	source_asset_id: unknown;
+	destination_asset_id: unknown;
+	session_id: unknown;
+	source_campaign_id: unknown;
+	destination_campaign_id: unknown;
+	actor_profile_id: unknown;
+	source_object_key: unknown;
+	destination_object_key: unknown;
+	sha256: unknown;
+	mime_type: unknown;
+	byte_size: unknown;
+	width: unknown;
+	height: unknown;
+	status: unknown;
+	staged_bucket: unknown;
+	public_bucket: unknown;
+	public_object_key: unknown;
+	public_delivery_verified: unknown;
+	public_verified_at: unknown;
+}>;
+
 export type PreparedSessionCampaignMoveCover = Readonly<{
 	sourceAssetId: string;
 	destinationAssetId: string;
@@ -180,8 +203,208 @@ async function destinationAsset(
 	return (data as CoverAssetRow | null) ?? null;
 }
 
+async function preparationByOperation(
+	client: SupabaseClient,
+	operationId: string,
+	sourceAssetId: string,
+): Promise<MoveCoverPreparationRow | null> {
+	const { data, error } = await client
+		.from("session_campaign_move_media_preparations")
+		.select(
+			"operation_id,source_asset_id,destination_asset_id,session_id,source_campaign_id,destination_campaign_id,actor_profile_id,source_object_key,destination_object_key,sha256,mime_type,byte_size,width,height,status,staged_bucket,public_bucket,public_object_key,public_delivery_verified,public_verified_at",
+		)
+		.eq("operation_id", operationId)
+		.eq("source_asset_id", sourceAssetId)
+		.maybeSingle();
+	if (error) throw new Error("SESSION_CAMPAIGN_MOVE_MEDIA_PREPARATION_LOOKUP");
+	return (data as MoveCoverPreparationRow | null) ?? null;
+}
+
+function preparedFromReceipt(
+	row: MoveCoverPreparationRow,
+	input: Readonly<{
+		operationId: string;
+		actorProfileId: string;
+		sessionId: string;
+		sourceCampaignId: string;
+		destinationCampaignId: string;
+		destinationPublic: boolean;
+	}>,
+	source: PreparedSessionCampaignMoveCover,
+	destinationKey: string,
+): PreparedSessionCampaignMoveCover | null {
+	const destinationAssetId =
+		typeof row.destination_asset_id === "string" &&
+		isSessionCoverUuid(row.destination_asset_id)
+			? row.destination_asset_id
+			: null;
+	const status =
+		row.status === "staged" || row.status === "verified_public"
+			? row.status
+			: null;
+	const mimeType = isSessionCoverMime(row.mime_type) ? row.mime_type : null;
+	const sha256 = isSessionCoverSha256(row.sha256) ? row.sha256 : null;
+	const bytes = positiveInteger(row.byte_size);
+	const width = positiveInteger(row.width);
+	const height = positiveInteger(row.height);
+	const stagedBucket =
+		typeof row.staged_bucket === "string" ? row.staged_bucket : null;
+	const publicBucket =
+		typeof row.public_bucket === "string" ? row.public_bucket : null;
+	const publicObjectKey =
+		typeof row.public_object_key === "string" ? row.public_object_key : null;
+	const publicVerifiedAt =
+		typeof row.public_verified_at === "string" && row.public_verified_at
+			? row.public_verified_at
+			: null;
+	const publicDeliveryVerified = row.public_delivery_verified === true;
+
+	if (
+		row.operation_id !== input.operationId ||
+		row.source_asset_id !== source.sourceAssetId ||
+		!destinationAssetId ||
+		row.session_id !== input.sessionId ||
+		row.source_campaign_id !== input.sourceCampaignId ||
+		row.destination_campaign_id !== input.destinationCampaignId ||
+		row.actor_profile_id !== input.actorProfileId ||
+		row.source_object_key !== source.objectKey ||
+		row.destination_object_key !== destinationKey ||
+		sha256 !== source.sha256 ||
+		mimeType !== source.mimeType ||
+		bytes !== source.bytes ||
+		width !== source.width ||
+		height !== source.height ||
+		!status ||
+		!stagedBucket ||
+		(!input.destinationPublic && status === "verified_public")
+	) {
+		return null;
+	}
+
+	if (
+		status === "verified_public" &&
+		(publicBucket !== WORLD_ENTITY_MEDIA_PUBLIC_BUCKET ||
+			publicObjectKey !== destinationKey ||
+			!publicDeliveryVerified ||
+			!publicVerifiedAt)
+	) {
+		return null;
+	}
+	if (
+		status === "staged" &&
+		(publicBucket !== null ||
+			publicObjectKey !== null ||
+			publicDeliveryVerified ||
+			publicVerifiedAt !== null)
+	) {
+		return null;
+	}
+
+	return {
+		sourceAssetId: source.sourceAssetId,
+		destinationAssetId,
+		sha256,
+		mimeType,
+		status,
+		stagedBucket,
+		objectKey: destinationKey,
+		bytes,
+		width,
+		height,
+		publicBucket,
+		publicObjectKey,
+		publicDeliveryVerified,
+		publicVerifiedAt,
+	};
+}
+
+async function verifyPreparedBytes(
+	cover: PreparedSessionCampaignMoveCover,
+): Promise<void> {
+	const bucket =
+		cover.status === "verified_public" && cover.publicBucket
+			? cover.publicBucket
+			: cover.stagedBucket;
+	const bytes = await readWorldEntityMediaObject({
+		bucket,
+		objectKey: cover.objectKey,
+	});
+	const inspected = inspectWorldEntityImage(bytes);
+	if (
+		inspected.sha256 !== cover.sha256 ||
+		inspected.mimeType !== cover.mimeType ||
+		inspected.bytes !== cover.bytes ||
+		inspected.width !== cover.width ||
+		inspected.height !== cover.height ||
+		inspected.width * inspected.height > SESSION_COVER_MEDIA_MAX_PIXELS
+	) {
+		throw new Error("SESSION_CAMPAIGN_MOVE_MEDIA_PREPARATION_STALE");
+	}
+}
+
+async function persistPreparationReceipt(
+	client: SupabaseClient,
+	input: Readonly<{
+		operationId: string;
+		actorProfileId: string;
+		sessionId: string;
+		sourceCampaignId: string;
+		destinationCampaignId: string;
+	}>,
+	source: PreparedSessionCampaignMoveCover,
+	cover: PreparedSessionCampaignMoveCover,
+): Promise<PreparedSessionCampaignMoveCover> {
+	const row = {
+		operation_id: input.operationId,
+		source_asset_id: cover.sourceAssetId,
+		destination_asset_id: cover.destinationAssetId,
+		session_id: input.sessionId,
+		source_campaign_id: input.sourceCampaignId,
+		destination_campaign_id: input.destinationCampaignId,
+		actor_profile_id: input.actorProfileId,
+		source_object_key: source.objectKey,
+		destination_object_key: cover.objectKey,
+		sha256: cover.sha256,
+		mime_type: cover.mimeType,
+		byte_size: cover.bytes,
+		width: cover.width,
+		height: cover.height,
+		status: cover.status,
+		staged_bucket: cover.stagedBucket,
+		public_bucket: cover.publicBucket,
+		public_object_key: cover.publicObjectKey,
+		public_delivery_verified: cover.publicDeliveryVerified,
+		public_verified_at: cover.publicVerifiedAt,
+	};
+	const { error } = await client
+		.from("session_campaign_move_media_preparations")
+		.insert(row);
+	if (!error) return cover;
+
+	const raced = await preparationByOperation(
+		client,
+		input.operationId,
+		cover.sourceAssetId,
+	);
+	const recovered = raced
+		? preparedFromReceipt(
+				raced,
+				{ ...input, destinationPublic: cover.status === "verified_public" },
+				source,
+				cover.objectKey,
+			)
+		: null;
+	if (!recovered) {
+		throw new Error("SESSION_CAMPAIGN_MOVE_MEDIA_PREPARATION_CONFLICT");
+	}
+	await verifyPreparedBytes(recovered);
+	return recovered;
+}
+
 export async function prepareSessionCampaignMoveCover(input: Readonly<{
 	client: SupabaseClient;
+	operationId: string;
+	actorProfileId: string;
 	sessionId: string;
 	sourceCampaignId: string;
 	sourceCampaignSlug: string;
@@ -244,6 +467,25 @@ export async function prepareSessionCampaignMoveCover(input: Readonly<{
 	});
 	if (!destinationKey)
 		throw new Error("SESSION_CAMPAIGN_MOVE_MEDIA_DESTINATION_KEY");
+
+	const receipt = await preparationByOperation(
+		input.client,
+		input.operationId,
+		coverReference,
+	);
+	if (receipt) {
+		const recovered = preparedFromReceipt(
+			receipt,
+			input,
+			source,
+			destinationKey,
+		);
+		if (!recovered) {
+			throw new Error("SESSION_CAMPAIGN_MOVE_MEDIA_PREPARATION_CONFLICT");
+		}
+		await verifyPreparedBytes(recovered);
+		return { kind: "prepared", cover: recovered };
+	}
 
 	const readBucket =
 		source.status === "verified_public" && source.publicBucket
@@ -313,18 +555,19 @@ export async function prepareSessionCampaignMoveCover(input: Readonly<{
 			(!input.destinationPublic && existing.status === "staged")
 		)
 	) {
+		const cover: PreparedSessionCampaignMoveCover = {
+			...existing,
+			sourceAssetId: coverReference,
+			destinationAssetId,
+			status: "staged",
+			publicBucket: null,
+			publicObjectKey: null,
+			publicDeliveryVerified: false,
+			publicVerifiedAt: null,
+		};
 		return {
 			kind: "prepared",
-			cover: {
-				...existing,
-				sourceAssetId: coverReference,
-				destinationAssetId,
-				status: "staged",
-				publicBucket: null,
-				publicObjectKey: null,
-				publicDeliveryVerified: false,
-				publicVerifiedAt: null,
-			},
+			cover: await persistPreparationReceipt(input.client, input, source, cover),
 		};
 	}
 	if (source.status === "verified_public" && input.destinationPublic) {
@@ -335,44 +578,46 @@ export async function prepareSessionCampaignMoveCover(input: Readonly<{
 			info: staged,
 			maxPixels: SESSION_COVER_MEDIA_MAX_PIXELS,
 		});
-		return {
-			kind: "prepared",
-			cover: {
-				sourceAssetId: coverReference,
-				destinationAssetId,
-				sha256: staged.sha256,
-				mimeType: staged.mimeType,
-				status: "verified_public",
-				stagedBucket: staged.bucket,
-				objectKey: staged.objectKey,
-				bytes: staged.bytes,
-				width: staged.width,
-				height: staged.height,
-				publicBucket: promoted.publicBucket,
-				publicObjectKey: promoted.publicObjectKey,
-				publicDeliveryVerified: true,
-				publicVerifiedAt: promoted.verifiedAt,
-			},
-		};
-	}
-
-	return {
-		kind: "prepared",
-		cover: {
+		const cover: PreparedSessionCampaignMoveCover = {
 			sourceAssetId: coverReference,
 			destinationAssetId,
 			sha256: staged.sha256,
 			mimeType: staged.mimeType,
-			status: "staged",
+			status: "verified_public",
 			stagedBucket: staged.bucket,
 			objectKey: staged.objectKey,
 			bytes: staged.bytes,
 			width: staged.width,
 			height: staged.height,
-			publicBucket: null,
-			publicObjectKey: null,
-			publicDeliveryVerified: false,
-			publicVerifiedAt: null,
-		},
+			publicBucket: promoted.publicBucket,
+			publicObjectKey: promoted.publicObjectKey,
+			publicDeliveryVerified: true,
+			publicVerifiedAt: promoted.verifiedAt,
+		};
+		return {
+			kind: "prepared",
+			cover: await persistPreparationReceipt(input.client, input, source, cover),
+		};
+	}
+
+	const cover: PreparedSessionCampaignMoveCover = {
+		sourceAssetId: coverReference,
+		destinationAssetId,
+		sha256: staged.sha256,
+		mimeType: staged.mimeType,
+		status: "staged",
+		stagedBucket: staged.bucket,
+		objectKey: staged.objectKey,
+		bytes: staged.bytes,
+		width: staged.width,
+		height: staged.height,
+		publicBucket: null,
+		publicObjectKey: null,
+		publicDeliveryVerified: false,
+		publicVerifiedAt: null,
+	};
+	return {
+		kind: "prepared",
+		cover: await persistPreparationReceipt(input.client, input, source, cover),
 	};
 }
