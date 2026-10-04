@@ -477,6 +477,7 @@ def _recover_empty_window_with_subwindows(
                     "total_tracks": total_tracks,
                     "window": window.index,
                     "profile": profile_id,
+                    "strategy": "2x30_same_profile",
                     "count": 2,
                     "attempt": subwindow_index,
                     "start_seconds": window.start,
