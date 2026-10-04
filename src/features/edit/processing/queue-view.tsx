@@ -358,8 +358,8 @@ export function ProcessingQueueView({
 												data-label="Estado"
 												className={styles.statusCell}
 											>
-												<StatusPill tone={jobTone(job.status)}>
-													{jobLabels[job.status]}
+												<StatusPill tone={jobTone(job)}>
+													{jobStatusLabel(job)}
 												</StatusPill>
 												{error ? (
 													<span className={styles.errorInline}>{error}</span>
