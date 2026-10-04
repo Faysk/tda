@@ -73,7 +73,7 @@ export function SessionOutlineNav({
 				</summary>
 				<div className={styles.panel}>
 					{compact ? (
-						<label className={styles.selectLabel}>
+						<div className={styles.selectLabel}>
 							<span>Ir para um trecho</span>
 							<Select
 								value={activeId}
@@ -81,7 +81,7 @@ export function SessionOutlineNav({
 								onChange={navigate}
 								ariaLabel="Ir para uma seção"
 							/>
-						</label>
+						</div>
 					) : (
 						<ol className={styles.list}>
 							{entries.map((entry) => (
