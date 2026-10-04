@@ -5,6 +5,7 @@ import {
 	UI_ORIGIN,
 } from "./companion-fixture";
 import { renderTranscriptMarkdownV1 } from "../../src/features/transcript-review/markdown-contract";
+import { expectThemedSelectValue } from "../helpers/themed-select";
 
 const CAMPAIGN = "yuhara-main";
 const SESSION = "sessao-42";
