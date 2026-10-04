@@ -288,6 +288,14 @@
 	line-height: 1.4;
 }
 
+.editorActions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 6px;
+	flex: 0 0 auto;
+}
+
 .empty {
 	margin: 0;
 	padding: 24px 12px;
@@ -347,8 +355,12 @@
 		text-align: center;
 	}
 
-	.editorFooter :global(.ds-action) {
+	.editorActions {
 		width: 100%;
+	}
+
+	.editorActions :global(.ds-action) {
+		flex: 1 1 0;
 	}
 }
 
