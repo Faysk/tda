@@ -6,7 +6,8 @@ param(
     [Parameter(Mandatory = $true)][string]$QwenRuntimeCandidateManifest,
     [string]$RequireGpuName = "RTX 4070",
     [ValidateRange(1024, 65535)][int]$Port = 8765,
-    [string]$OutputRoot = ""
+    [string]$OutputRoot = "",
+    [string]$HumanReferenceJson = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,6 +16,7 @@ Set-StrictMode -Version Latest
 $Origin = "https://dnd.faysk.dev"
 $RequiredProfiles = @("whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality")
 $ReceiptSchema = "tda_processing_1233_physical_acceptance_v1"
+. (Join-Path $PSScriptRoot "verify-processing-benchmark-quality-handoff.ps1")
 
 function Fail([string]$Code) {
     throw [InvalidOperationException]::new($Code)
@@ -327,7 +329,10 @@ function Assert-BenchmarkResult(
         [string](Get-OptionalPropertyValue $Result "job_id") -ne $JobId -or
         [string](Get-OptionalPropertyValue $Result "kind") -ne "benchmark.craig" -or
         [double](Get-OptionalPropertyValue $Result "sample_seconds") -ne 300.0 -or
-        [string](Get-OptionalPropertyValue $Result "execution_mode") -ne "prepared_artifacts_fresh_worker_per_profile_v1" -or
+        [string](Get-OptionalPropertyValue $Result "execution_mode") -notin @(
+            "prepared_artifacts_fresh_worker_per_profile_v1",
+            "prepared_artifacts_fresh_worker_per_profile+async_telemetry_v2"
+        ) -or
         (Get-OptionalPropertyValue $Result "prepared") -ne $true
     ) { Fail "BENCHMARK_RESULT_INVALID" }
 
@@ -473,6 +478,7 @@ try {
     [void](Wait-Benchmark $token $jobId)
     $result = Invoke-AgentJson $token "GET" "/jobs/$jobId/result"
     $profiles = Assert-BenchmarkResult $result $jobId $whisperCandidate $qwenCandidate
+    $evidence = Assert-BenchmarkEvidence $token $result $root $HumanReferenceJson
 
     Write-Json $receiptPath ([ordered]@{
         schema = $ReceiptSchema
@@ -492,6 +498,7 @@ try {
             qwen = $qwenInstalled
         }
         profiles = $profiles
+        evidence = $evidence
         contains_audio = $false
         contains_transcript = $false
         contains_token = $false
@@ -523,7 +530,7 @@ try {
 
 Write-Host ("Sanitized benchmark receipt: " + $receiptPath) -ForegroundColor Cyan
 if ($passed) {
-    Write-Host "PROCESSING #1233 BENCHMARK: PASS" -ForegroundColor Green
+    Write-Host "PROCESSING #1233 + #1417 BENCHMARK EVIDENCE: PASS" -ForegroundColor Green
     exit 0
 }
 exit 1
