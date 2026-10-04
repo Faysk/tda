@@ -147,8 +147,16 @@
 
 .waiting,
 .error,
-.live {
+.live,
+.outputHint {
 	margin: 0;
+}
+
+.outputHint {
+	color: var(--ds-foreground-soft);
+	font-size: 0.72rem;
+	font-weight: 650;
+	line-height: 1.4;
 }
 
 .error {

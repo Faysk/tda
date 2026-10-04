@@ -81,6 +81,8 @@ type FixtureOptions = Readonly<{
 	)[];
 	failReviewSaveOnce?: boolean;
 	untrustedTimeline?: boolean;
+	sourceStartOrder?: readonly number[];
+	initialTimelineState?: "needs_timing" | "overlap_unresolved" | "order_conflict";
 }>;
 
 async function installMultiRecordingRoutes(
@@ -194,6 +196,21 @@ async function installMultiRecordingRoutes(
 		};
 	};
 
+
+	const sourceTiming = (sourceId: string) => {
+		const sourceIndex = SOURCE_IDS.indexOf(sourceId);
+		if (options.untrustedTimeline)
+			return { confidence: "missing" as const, start: null as string | null };
+		const configuredRank = options.sourceStartOrder?.indexOf(sourceIndex) ?? -1;
+		const attachedRank = attached.indexOf(sourceId);
+		const rank = configuredRank >= 0 ? configuredRank : Math.max(attachedRank, 0);
+		const hour = (20 + rank).toString().padStart(2, "0");
+		return {
+			confidence: "trusted_absolute" as const,
+			start: `2026-09-29T${hour}:00:00Z`,
+		};
+	};
+
 	const workspace = () => ({
 		schema_version: "tda_session_workspace_v1",
 		campaign_id: CAMPAIGN,
@@ -232,15 +249,9 @@ async function installMultiRecordingRoutes(
 			gap_confirmed: false,
 			overlap_resolution: null,
 			overlap_boundary_seconds: null,
-			source_start_time: options.untrustedTimeline
-				? null
-				: `2026-09-29T2${index}:00:00Z`,
-			source_start_confidence: options.untrustedTimeline
-				? "missing"
-				: "trusted_absolute",
-			source_start_utc: options.untrustedTimeline
-				? null
-				: `2026-09-29T2${index}:00:00Z`,
+			source_start_time: sourceTiming(sourceId).start,
+			source_start_confidence: sourceTiming(sourceId).confidence,
+			source_start_utc: sourceTiming(sourceId).start,
 			source_duration_seconds: 300,
 			effective_start_seconds:
 				attached.length <= 1 || timelineDerived || sequenceConfirmed
@@ -290,7 +301,7 @@ async function installMultiRecordingRoutes(
 			state:
 				attached.length <= 1 || timelineDerived || sequenceConfirmed
 					? "ready"
-					: "needs_timing",
+					: (options.initialTimelineState ?? "needs_timing"),
 			all_sources_trusted: !options.untrustedTimeline,
 			automatic_order_available:
 				attached.length > 1 &&
@@ -493,6 +504,14 @@ async function installMultiRecordingRoutes(
 				`/session-workspaces/${CAMPAIGN}/${SESSION}/timeline/derive` &&
 			request.method() === "POST"
 		) {
+			if (options.sourceStartOrder) {
+				const rank = (sourceId: string) => {
+					const sourceIndex = SOURCE_IDS.indexOf(sourceId);
+					const value = options.sourceStartOrder?.indexOf(sourceIndex) ?? -1;
+					return value >= 0 ? value : Number.MAX_SAFE_INTEGER;
+				};
+				attached = [...attached].sort((left, right) => rank(left) - rank(right));
+			}
 			timelineDerived = true;
 			revision += 1;
 			return json(route, workspace());
@@ -919,6 +938,8 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 		mimeType: "application/zip",
 		buffer: Buffer.from("PK-single"),
 	});
+	await expect(page.getByText(/gravações serão unidas em uma única sessão/u)).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /Mover sessao-42\.zip/u })).toHaveCount(0);
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
@@ -1056,6 +1077,34 @@ test("stale Markdown import preserves the working copy and never overwrites sile
 		review.getByText("Trecho 1 preservado após conflito"),
 	).toBeVisible();
 	expect(multi.reviewStatus).toBe("draft");
+});
+
+test("multi-ZIP preflight explains one session, reorders accessibly, and carries order into progress", async ({ page }) => {
+	await installCompanionFixture(page, { profileReady: true, reviewEnabled: true });
+	await installMultiRecordingRoutes(page, { uploadSequence: [0, 1, 2] });
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{ name: "ordem-1.zip", mimeType: "application/zip", buffer: Buffer.from("PK-order-a") },
+		{ name: "ordem-2.zip", mimeType: "application/zip", buffer: Buffer.from("PK-order-b") },
+		{ name: "ordem-3.zip", mimeType: "application/zip", buffer: Buffer.from("PK-order-c") },
+	]);
+	const selected = page.getByLabel("Gravações selecionadas");
+	await expect(page.getByText("3 gravações serão unidas em uma única sessão")).toBeVisible();
+	await expect(page.getByText("Ordem da sessão", { exact: true })).toBeVisible();
+	await expect(page.getByText(/sequência abaixo é sua ordem editorial/u)).toBeVisible();
+	await expect(page.getByText(/horário real só é usado quando o Craig fornece um horário confiável/iu)).toBeVisible();
+	const moveThirdUp = page.getByRole("button", { name: "Mover ordem-3.zip para cima" });
+	await moveThirdUp.focus();
+	await page.keyboard.press("Enter");
+	await page.keyboard.press("Enter");
+	await expect(selected.getByRole("listitem").nth(0)).toContainText("ordem-3.zip");
+	await page.setViewportSize({ width: 390, height: 844 });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBeTruthy();
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	await expect(intent.getByLabel("Progresso das gravações").getByRole("listitem").nth(0)).toContainText("ordem-3.zip");
 });
 
 test("three ZIPs become one session intent, retry only the failed recording, auto-assemble and open review", async ({
@@ -1215,6 +1264,28 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	}
 });
 
+test("trusted Craig chronology never silently replaces the editorial order", async ({ page }) => {
+	await installCompanionFixture(page, { profileReady: true, reviewEnabled: true });
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		sourceStartOrder: [1, 0],
+	});
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{ name: "editorial-1.zip", mimeType: "application/zip", buffer: Buffer.from("PK-editorial-a") },
+		{ name: "editorial-2.zip", mimeType: "application/zip", buffer: Buffer.from("PK-editorial-b") },
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent.getByText("Os horários Craig indicam uma ordem diferente.")).toBeVisible();
+	await expect(intent).toContainText("Você definiu: editorial-1.zip → editorial-2.zip");
+	await expect(intent).toContainText("Horário real confiável: editorial-2.zip → editorial-1.zip");
+	await expect(intent).not.toContainText("Transcrição pronta");
+	await intent.getByRole("button", { name: "Usar horários Craig" }).click();
+	await expect(intent).toContainText("Transcrição pronta");
+	expect(multi.attachedSources).toEqual([SOURCE_IDS[1], SOURCE_IDS[0]]);
+});
+
 test("three ZIPs without trusted timestamps use confirmed order, survive reload, and never require manual seconds", async ({
 	page,
 }) => {
@@ -1252,6 +1323,10 @@ test("three ZIPs without trusted timestamps use confirmed order, survive reload,
 		name: "Usar esta ordem para montar a sessão",
 	});
 	await expect(confirm).toBeVisible();
+	await expect(
+		intent.getByRole("status").filter({ hasText: "Confirme a ordem das gravações." }),
+	).toBeVisible();
+	await expect(intent.getByRole("alert")).toHaveCount(0);
 	await expect(intent).toContainText(
 		"o intervalo real continuará marcado como desconhecido",
 	);
@@ -1276,6 +1351,24 @@ test("three ZIPs without trusted timestamps use confirmed order, survive reload,
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
+});
+
+test("confirmed overlap remains the exceptional chronology state", async ({ page }) => {
+	await installCompanionFixture(page, { profileReady: true, reviewEnabled: true });
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		untrustedTimeline: true,
+		initialTimelineState: "overlap_unresolved",
+	});
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{ name: "overlap-1.zip", mimeType: "application/zip", buffer: Buffer.from("PK-overlap-a") },
+		{ name: "overlap-2.zip", mimeType: "application/zip", buffer: Buffer.from("PK-overlap-b") },
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent.getByRole("alert")).toContainText("sobreposição comprovada");
+	await expect(intent).not.toContainText("Transcrição pronta");
 });
 
 test("mixed valid and invalid files keep independent state and valid ZIPs still run", async ({

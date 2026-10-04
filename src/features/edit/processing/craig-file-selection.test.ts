@@ -2,7 +2,9 @@ import { describe, expect, test } from "vitest";
 import {
 	appendCraigFiles,
 	markExactSourceDuplicates,
+	moveCraigFileSelection,
 	removeCraigFileSelection,
+	reorderCraigFileSelection,
 	uniqueStagedCraigSources,
 } from "./craig-file-selection";
 import type { CraigSource } from "./protocol";
@@ -64,6 +66,35 @@ describe("Craig multi-file selection", () => {
 			"a.zip",
 			"c.zip",
 		]);
+	});
+
+	test("reorders the editorial session sequence deterministically", () => {
+		let sequence = 0;
+		const selections = appendCraigFiles(
+			[],
+			[file("a.zip"), file("b.zip"), file("c.zip")],
+			() => `id-${++sequence}`,
+		);
+		expect(
+			reorderCraigFileSelection(selections, "id-3", 0).map((item) => item.file.name),
+		).toEqual(["c.zip", "a.zip", "b.zip"]);
+		expect(
+			moveCraigFileSelection(selections, "id-2", -1).map((item) => item.file.name),
+		).toEqual(["b.zip", "a.zip", "c.zip"]);
+		expect(
+			moveCraigFileSelection(selections, "id-2", 1).map((item) => item.file.name),
+		).toEqual(["a.zip", "c.zip", "b.zip"]);
+	});
+
+	test("keeps boundary moves stable even with twenty ZIPs", () => {
+		let sequence = 0;
+		const selections = appendCraigFiles(
+			[],
+			Array.from({ length: 20 }, (_, index) => file(`part-${index + 1}.zip`)),
+			() => `id-${++sequence}`,
+		);
+		expect(moveCraigFileSelection(selections, "id-1", -1)).toEqual(selections);
+		expect(moveCraigFileSelection(selections, "id-20", 1)).toEqual(selections);
 	});
 
 	test("marks exact staged source duplicates while preserving one canonical source", () => {

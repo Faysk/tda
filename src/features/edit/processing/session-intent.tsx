@@ -24,6 +24,8 @@ import {
 	intentProgress,
 	recordingVariantConflicts,
 	retryableIntentJob,
+	trustedTimelineOrderDiffers,
+	trustedTimelineSourceOrder,
 	uniqueIntentSources,
 } from "./session-intent-model";
 import {
@@ -71,6 +73,7 @@ type Blocker =
 			sourceId: string;
 			runIds: readonly string[];
 	  }>
+	| Readonly<{ kind: "trusted_order"; sourceIds: readonly string[] }>
 	| Readonly<{ kind: "timeline"; state: SessionWorkspace["timeline"]["state"] }>
 	| Readonly<{ kind: "participants"; count: number }>
 	| Readonly<{ kind: "failed"; sourceIds: readonly string[] }>
@@ -588,6 +591,7 @@ export function SessionIntentCoordinator({
 			assembly ||
 			blocker?.kind === "variant" ||
 			blocker?.kind === "runs" ||
+			blocker?.kind === "trusted_order" ||
 			blocker?.kind === "timeline" ||
 			blocker?.kind === "participants" ||
 			blocker?.kind === "enqueue" ||
@@ -788,8 +792,17 @@ export function SessionIntentCoordinator({
 
 			if (
 				workspace.timeline.automaticOrderAvailable &&
-				workspace.orderingMode !== "automatic"
+				workspace.orderingMode === "attachment"
 			) {
+				const trustedOrder = trustedTimelineSourceOrder(workspace);
+				const editorialOrder = workspace.parts.map((part) => part.sourceId);
+				if (
+					trustedOrder &&
+					trustedTimelineOrderDiffers(workspace, editorialOrder)
+				) {
+					setBlocker({ kind: "trusted_order", sourceIds: trustedOrder });
+					return;
+				}
 				await bridge.deriveSessionTimeline(
 					workspace.campaignId,
 					workspace.sessionId,
@@ -797,7 +810,7 @@ export function SessionIntentCoordinator({
 					controller.signal,
 				);
 				await loadSnapshot(workspace.sessionId, controller.signal);
-				announce("Cronologia confiável aplicada automaticamente.");
+				announce("Horários Craig confiáveis confirmaram a ordem escolhida.");
 				return;
 			}
 
@@ -886,6 +899,28 @@ export function SessionIntentCoordinator({
 	useEffect(() => {
 		void advance();
 	}, [advance]);
+
+	async function applyTrustedTimelineOrder() {
+		if (!workspace || blocker?.kind !== "trusted_order" || busy || disabled) return;
+		const controller = new AbortController();
+		setBusy(true);
+		setLocalError(null);
+		try {
+			await bridge.deriveSessionTimeline(
+				workspace.campaignId,
+				workspace.sessionId,
+				workspace.revision,
+				controller.signal,
+			);
+			setBlocker(null);
+			await loadSnapshot(workspace.sessionId, controller.signal);
+			announce("Ordem por horário Craig aplicada após sua confirmação.");
+		} catch (cause) {
+			fail(cause);
+		} finally {
+			setBusy(false);
+		}
+	}
 
 	async function confirmCurrentOrder() {
 		if (
@@ -1140,7 +1175,9 @@ export function SessionIntentCoordinator({
 									</strong>
 									<small>
 										{state === "completed"
-											? "concluída"
+											? intentJobIds.current.has(part.sourceId)
+												? "concluída"
+												: "resultado existente reutilizado"
 											: state === "running"
 												? job?.progress
 													? `transcrevendo · ${job.progress.completed}/${job.progress.total} ${job.progress.unit}`
@@ -1173,6 +1210,10 @@ export function SessionIntentCoordinator({
 			) : (
 				<p className={styles.waiting}>Preparando as gravações desta sessão…</p>
 			)}
+
+			{workspace?.parts.length && workspace.parts.length > 1 ? (
+				<p className={styles.outputHint}>A saída será uma única transcrição da sessão.</p>
+			) : null}
 
 			{blocker?.kind === "variant" ? (
 				<div className={styles.blocker} role="alert" tabIndex={-1}>
@@ -1236,8 +1277,55 @@ export function SessionIntentCoordinator({
 				</div>
 			) : null}
 
+			{blocker?.kind === "trusted_order" && workspace ? (
+				<div className={styles.blocker} role="status">
+					<div>
+						<strong>Os horários Craig indicam uma ordem diferente.</strong>
+						<span>
+							Você definiu:{" "}
+							{workspace.parts
+								.map((part) => sourceLabel(part.sourceId, activeRequest, workspace))
+								.join(" → ")}.
+							 Horário real confiável:{" "}
+							{blocker.sourceIds
+								.map((sourceId) => sourceLabel(sourceId, activeRequest, workspace))
+								.join(" → ")}. O TDA não troca isso silenciosamente.
+						</span>
+					</div>
+					<div className={styles.blockerActions}>
+						<Button
+							type="button"
+							size="sm"
+							variant="secondary"
+							disabled={busy}
+							onClick={() => void applyTrustedTimelineOrder()}
+						>
+							Usar horários Craig
+						</Button>
+						{onOpenTechnical ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="tertiary"
+								disabled={busy}
+								onClick={onOpenTechnical}
+							>
+								Revisar ordem
+							</Button>
+						) : null}
+					</div>
+				</div>
+			) : null}
+
 			{blocker?.kind === "timeline" ? (
-				<div className={styles.blocker} role="alert">
+				<div
+					className={styles.blocker}
+					role={
+						blocker.state === "overlap_unresolved" || blocker.state === "order_conflict"
+							? "alert"
+							: "status"
+					}
+				>
 					<div>
 						<strong>
 							{blocker.state === "overlap_unresolved"

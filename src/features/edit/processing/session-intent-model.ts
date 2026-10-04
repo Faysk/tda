@@ -134,6 +134,40 @@ export function recordingVariantConflicts(
 	return conflicts;
 }
 
+export function trustedTimelineSourceOrder(
+	workspace: SessionWorkspace,
+): readonly string[] | null {
+	if (!workspace.timeline.automaticOrderAvailable || workspace.parts.length < 2)
+		return null;
+	const values = workspace.parts.map((part) => {
+		if (
+			part.sourceStartConfidence !== "trusted_absolute" ||
+			!part.sourceStartUtc
+		)
+			return null;
+		const epoch = Date.parse(part.sourceStartUtc);
+		return Number.isFinite(epoch) ? { sourceId: part.sourceId, epoch } : null;
+	});
+	if (values.some((value) => value === null)) return null;
+	const trusted = values.filter(
+		(value): value is Readonly<{ sourceId: string; epoch: number }> => value !== null,
+	);
+	if (new Set(trusted.map((value) => value.epoch)).size !== trusted.length) return null;
+	return [...trusted]
+		.sort((left, right) => left.epoch - right.epoch || left.sourceId.localeCompare(right.sourceId))
+		.map((value) => value.sourceId);
+}
+
+export function trustedTimelineOrderDiffers(
+	workspace: SessionWorkspace,
+	editorialOrder: readonly string[] = workspace.parts.map((part) => part.sourceId),
+): boolean {
+	const trusted = trustedTimelineSourceOrder(workspace);
+	if (!trusted) return false;
+	if (trusted.length !== editorialOrder.length) return true;
+	return trusted.some((sourceId, index) => editorialOrder[index] !== sourceId);
+}
+
 export function retryableIntentJob(
 	jobs: readonly LocalJob[],
 	sourceId: string,
