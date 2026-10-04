@@ -10,7 +10,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, Select } from "@/components/ui";
 import {
 	ProcessingCampaignValidationError,
 	validateProcessingCampaignForEnqueue,
@@ -1213,18 +1213,17 @@ export function ProcessingSubmission({
 						</label>
 						<label>
 							<span>Perfil</span>
-							<select
+							<Select
 								value={profile}
-								onChange={(event) => setProfile(event.target.value as TranscriptionProfileId)}
+								options={availableProfiles.map((item) => ({
+									value: item.id,
+									label: submissionProfileLabel(item.id),
+								}))}
+								onChange={(value) => setProfile(value as TranscriptionProfileId)}
+								ariaLabel="Perfil"
 								disabled={busy || Boolean(intentRequest)}
 								required
-							>
-								{availableProfiles.map((item) => (
-									<option key={item.id} value={item.id}>
-										{submissionProfileLabel(item.id)}
-									</option>
-								))}
-							</select>
+							/>
 						</label>
 						<div className={styles.submitRow}>
 							<Button
