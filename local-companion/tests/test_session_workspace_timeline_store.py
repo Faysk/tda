@@ -463,6 +463,38 @@ def test_user_confirmed_sequence_persists_restart_and_reorder_invalidates_only_d
     ]
 
 
+def test_detaching_confirmed_sequence_back_to_one_part_restores_single_source_mode(tmp_path):
+    store = Store(tmp_path)
+    workspace = _workspace_with_two_parts(store)
+    placements = [
+        {
+            "part_id": row["part_id"],
+            "source_id": row["source_id"],
+            "ordinal": index,
+            "session_offset_seconds": float(index * 30),
+        }
+        for index, row in enumerate(workspace["parts"])
+    ]
+    confirmed = store.apply_user_confirmed_session_sequence(
+        "campaign-a",
+        "session-a",
+        placements,
+        workspace["revision"],
+    )
+
+    remaining = store.detach_session_part(
+        "campaign-a",
+        "session-a",
+        confirmed["parts"][1]["part_id"],
+        confirmed["revision"],
+    )
+
+    assert remaining["ordering_mode"] == "attachment"
+    assert len(remaining["parts"]) == 1
+    assert remaining["parts"][0]["timeline_mode"] == "automatic"
+    assert remaining["parts"][0]["session_offset_seconds"] == 0
+
+
 def test_confirmed_sequence_is_cas_guarded_and_idempotent(tmp_path):
     store = Store(tmp_path)
     workspace = _workspace_with_two_parts(store)
