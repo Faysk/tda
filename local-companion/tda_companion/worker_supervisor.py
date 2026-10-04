@@ -37,6 +37,17 @@ class WorkerProcessError(RuntimeError):
         self.recoverable = recoverable
 
 
+# Only explicitly classified, profile-local failures may let Benchmark continue.
+# Unknown/recoverable worker failures remain benchmark-global and fail closed.
+_BENCHMARK_PROFILE_LOCAL_ERRORS = frozenset({
+    "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+})
+
+
+def _benchmark_profile_failure_can_continue(exc: WorkerProcessError) -> bool:
+    return exc.recoverable and exc.code in _BENCHMARK_PROFILE_LOCAL_ERRORS
+
+
 @dataclass(frozen=True)
 class WorkerOutcome:
     terminal: str
@@ -661,6 +672,44 @@ class WorkerSupervisor:
         profiles = BENCHMARK_PROFILES
         benchmark_id = benchmark_id_for(job_id, attempt)
         receipts: list[dict] = []
+        profile_outcomes: list[dict] = []
+
+        def report_profile_outcome(
+            index: int,
+            profile_id: str,
+            *,
+            status: str,
+            error_code: str | None = None,
+            recoverable: bool | None = None,
+        ) -> None:
+            failed_count = sum(
+                1 for item in profile_outcomes if item.get("status") == "failed"
+            )
+            payload: dict[str, object] = {
+                "completed": index,
+                "total": len(profiles),
+                "unit": "profiles",
+                "stage": "benchmark",
+                "profile_id": profile_id,
+                "profile_status": status,
+                "attempted_count": index,
+                "successful_count": len(receipts),
+                "failed_count": failed_count,
+            }
+            if error_code is not None:
+                payload["error_code"] = error_code
+            if recoverable is not None:
+                payload["recoverable"] = recoverable
+            on_progress(
+                WorkerMessage.create(
+                    job_id=job_id,
+                    attempt=attempt,
+                    seq=index - 1,
+                    type="progress",
+                    payload=payload,
+                )
+            )
+
         for index, profile_id in enumerate(profiles, start=1):
             if is_cancelled is not None and is_cancelled():
                 return WorkerOutcome(
@@ -721,7 +770,29 @@ class WorkerSupervisor:
                             diagnostics_exc.code,
                             recoverable=False,
                         ) from exc
-                raise
+                if not _benchmark_profile_failure_can_continue(exc):
+                    raise
+                profile_outcomes.append(
+                    {
+                        "schema_version": "tda_benchmark_profile_outcome_v1",
+                        "profile_id": profile_id,
+                        "status": "failed",
+                        "artifact_available": False,
+                        "error": {
+                            "code": exc.code,
+                            "recoverable": True,
+                            "scope": "profile",
+                        },
+                    }
+                )
+                report_profile_outcome(
+                    index,
+                    profile_id,
+                    status="failed",
+                    error_code=exc.code,
+                    recoverable=True,
+                )
+                continue
             except Exception:
                 if diagnostics is not None:
                     try:
@@ -791,31 +862,53 @@ class WorkerSupervisor:
                     raise WorkerProcessError(exc.code, recoverable=False) from exc
 
             receipts.append(receipt)
-            on_progress(
-                WorkerMessage.create(
-                    job_id=job_id,
-                    attempt=attempt,
-                    seq=index - 1,
-                    type="progress",
-                    payload={
-                        "completed": index,
-                        "total": len(profiles),
-                        "unit": "profiles",
-                        "stage": "benchmark",
-                    },
-                )
+            profile_outcomes.append(
+                {
+                    "schema_version": "tda_benchmark_profile_outcome_v1",
+                    "profile_id": profile_id,
+                    "status": "completed",
+                    "artifact_available": True,
+                    "error": None,
+                }
             )
+            report_profile_outcome(index, profile_id, status="completed")
+
+        if len(receipts) == len(profiles):
+            return WorkerOutcome(
+                terminal="result",
+                payload={
+                    "schema_version": "tda_processing_benchmark_v1",
+                    "kind": "benchmark.craig",
+                    "source_id": source_id,
+                    "benchmark_id": benchmark_id,
+                    "sample_identity_sha256": sample_identity_sha256,
+                    "sample_seconds": sample_seconds,
+                    "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                    "profiles": receipts,
+                },
+                returncode=0,
+            )
+
+        failed_count = sum(
+            1 for item in profile_outcomes if item.get("status") == "failed"
+        )
         return WorkerOutcome(
             terminal="result",
             payload={
-                "schema_version": "tda_processing_benchmark_v1",
+                "schema_version": "tda_processing_benchmark_v2",
                 "kind": "benchmark.craig",
                 "source_id": source_id,
                 "benchmark_id": benchmark_id,
                 "sample_identity_sha256": sample_identity_sha256,
                 "sample_seconds": sample_seconds,
                 "execution_mode": "prepared_artifacts_fresh_worker_per_profile_v1",
+                "outcome": "partial",
+                "attempted_count": len(profile_outcomes),
+                "completed_count": len(receipts),
+                "failed_count": failed_count,
                 "profiles": receipts,
+                "profile_outcomes": profile_outcomes,
             },
             returncode=0,
         )
+
