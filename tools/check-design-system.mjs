@@ -289,11 +289,11 @@ if (/"tailwindcss"\s*:/.test(packageJson)) {
 
 const designSystemCss = fs.readFileSync("src/app/design-system.css", "utf8");
 for (const requiredNativeSelectContract of [
-	"select {\\n\\tcolor-scheme: dark;",
-	"select option,\\nselect optgroup {",
-	":root[data-theme=\\\"light\\\"] select {\\n\\tcolor-scheme: light;",
+	"select {\n\tcolor-scheme: dark;",
+	"select option,\nselect optgroup {",
+	':root[data-theme="light"] select {\n\tcolor-scheme: light;',
 ]) {
-	if (!designSystemCss.includes(requiredNativeSelectContract.replaceAll("\\\\n", "\n").replaceAll('\\\"', '"'))) {
+	if (!designSystemCss.includes(requiredNativeSelectContract)) {
 		fail(`design-system native select theme contract missing: ${requiredNativeSelectContract}`);
 	}
 }
