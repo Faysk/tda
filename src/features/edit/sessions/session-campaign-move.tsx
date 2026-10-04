@@ -423,8 +423,12 @@ export function SessionCampaignMovePanel({
 									disabled={pending || !decisionsReady}
 								>
 									{pending
-										? "Preparando e movendo…"
-										: `Confirmar mudança para ${selected?.name ?? "destino"}`}
+										? recovery
+											? "Revalidando…"
+											: "Preparando e movendo…"
+										: recovery
+											? "Revalidar caches"
+											: `Confirmar mudança para ${selected?.name ?? "destino"}`}
 								</button>
 							) : null}
 						</div>
