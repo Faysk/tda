@@ -70,8 +70,8 @@ def _lineage(profile_id: str) -> dict:
         "device": "cuda:0",
         "execution_device": {
             "kind": "cuda",
-            "physical_uuid": "GPU-test",
-            "pci_bus_id": "0000:01:00.0",
+            "physical_uuid": "GPU-11111111-1111-1111-1111-111111111111",
+            "pci_bus_id": "00000000:01:00.0",
         },
         "compute_type": "float16",
         "gpu": {
