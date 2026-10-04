@@ -211,13 +211,12 @@ const lightThemeBlock = /:root\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/u.exec(t
 if (!lightThemeBlock) fail("explicit light theme block is missing");
 
 function lightHexToken(token) {
-	const escaped = token.replace(/[.*+?^${}()|[\]\\]/gu, "\\for (const [token, value] of canonicalTokenValues) {
-	if (!tokenCss.includes(`${token}: ${value};`)) {
-		fail(`missing canonical token value ${token}: ${value}`);
-	}
-}
-");
-	const match = new RegExp(`${escaped}:\\s*(#[0-9a-fA-F]{6})\\s*;`, "u").exec(lightThemeBlock);
+	const declaration = lightThemeBlock
+		.split("\n")
+		.map((line) => line.trim())
+		.find((line) => line.startsWith(`${token}:`));
+	if (!declaration) fail(`light theme token ${token} is missing`);
+	const match = /^--[a-z0-9-]+:\s*(#[0-9a-f]{6});$/iu.exec(declaration);
 	if (!match) fail(`light theme token ${token} must be a six-digit hex color`);
 	return match[1];
 }
