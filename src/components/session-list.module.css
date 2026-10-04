@@ -28,9 +28,7 @@
 	backdrop-filter: blur(18px);
 }
 
-.search,
-.selectField,
-.sortField select {
+.search {
 	min-height: 48px;
 	border: 1px solid var(--ds-control-border);
 	border-radius: var(--ds-radius-md);
@@ -72,33 +70,25 @@
 	color: var(--ds-foreground-muted);
 }
 
-.search:focus-within,
-.selectField:focus-within,
-.sortField select:focus-visible {
+.search:focus-within {
 	border-color: var(--ds-accent);
-	box-shadow: var(--ds-control-focus-ring);
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
 }
 
 .selectField {
-	display: flex;
-	align-items: center;
-	overflow: hidden;
+	min-width: 0;
 }
 
-.selectField select,
-.sortField select {
-	width: 100%;
-	font-family: var(--ds-font-ui);
+.selectField > button,
+.sortSelect > button {
+	min-height: 48px;
+	background: var(--ds-surface);
 	font-size: 0.82rem;
 }
 
-.selectField select {
-	height: 46px;
-	padding: 0 38px 0 14px;
-	border: 0;
-	outline: 0;
-	background: transparent;
-	color: var(--ds-foreground);
+.sortSelect {
+	min-width: 150px;
 }
 
 .toolbarEnd {
@@ -124,11 +114,6 @@
 	font-weight: 600;
 }
 
-.sortField select {
-	min-width: 150px;
-	padding: 0 34px 0 12px;
-	outline: 0;
-}
 
 .viewToggle {
 	display: flex;
@@ -173,9 +158,8 @@
 .cardLink:focus-visible,
 .sessionText a:focus-visible,
 .rowAction:focus-visible {
-	outline: 2px solid var(--ds-accent);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 3px;
-	box-shadow: var(--ds-control-focus-ring);
 }
 
 .viewToggle button.activeView {
@@ -755,7 +739,7 @@
 		flex: 1;
 	}
 
-	.sortField select {
+	.sortSelect > button {
 		min-width: 0;
 	}
 
@@ -786,7 +770,7 @@
 		display: block;
 	}
 
-	.sortField select {
+	.sortSelect > button {
 		height: 46px;
 	}
 
@@ -889,9 +873,8 @@
 }
 
 .campaignLinks a:focus-visible {
-	outline: 2px solid var(--ds-accent);
+	outline: 2px solid var(--ds-control-focus-ring);
 	outline-offset: 2px;
-	box-shadow: var(--ds-control-focus-ring);
 }
 
 .toolbarWithCampaign {
