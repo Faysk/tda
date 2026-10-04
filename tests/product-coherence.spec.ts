@@ -88,9 +88,15 @@ async function selectArchiveValue(page: Page, name: string, value: string) {
 	await trigger.click();
 	const listbox = page.getByRole("listbox", { name, exact: true });
 	await expect(listbox).toBeVisible();
-	const option = listbox.locator(`[role="option"][data-value="${CSS.escape(value)}"]`);
-	await expect(option).toHaveCount(1);
-	await option.click();
+	const options = listbox.getByRole("option");
+	for (let index = 0; index < (await options.count()); index += 1) {
+		const option = options.nth(index);
+		if ((await option.getAttribute("data-value")) === value) {
+			await option.click();
+			return;
+		}
+	}
+	throw new Error(`Select option ${value} not found in ${name}`);
 }
 
 async function expectDecodedImage(container: Locator, label: string) {
