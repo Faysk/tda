@@ -66,6 +66,7 @@ export type CompanionFixtureOptions = {
 	benchmarkPreparationFailureProfile?: string | null;
 	benchmarkReadinessContract?: boolean;
 	benchmarkEvidence?: boolean;
+	benchmarkPartialResult?: boolean;
 	benchmarkSnapshotDelayMs?: number;
 	benchmarkCorruptProfile?: "whisper-turbo" | "whisper-detailed" | "qwen-fast" | "qwen-quality";
 	whisperBenchmarkRuntimeUpgradeRequired?: boolean;
@@ -232,7 +233,7 @@ export async function installCompanionFixture(
 		options.benchmarkReadyProfiles ??
 			(options.profileReady ? [...benchmarkProfileIds] : []),
 	);
-	let qwenRuntimeVersion = options.qwenRuntimeVersion === undefined ? (options.benchmarkProfiles ? "1.0.18" : "1.0.12") : options.qwenRuntimeVersion;
+	let qwenRuntimeVersion = options.qwenRuntimeVersion === undefined ? (options.benchmarkProfiles ? "1.0.19" : "1.0.12") : options.qwenRuntimeVersion;
 	const qwenStableVersion = options.qwenRuntimeStableVersion ?? "1.0.12";
 	let qwenMaintenanceSequence = 0;
 	let qwenRuntimeRecoveredFromInitialUpdate = false;
@@ -913,7 +914,7 @@ export async function installCompanionFixture(
 						options.whisperBenchmarkRuntimeUpgradeRequired = false;
 					if (preparationProfile.startsWith("qwen-")) {
 						options.qwenBenchmarkRuntimeUpgradeRequired = false;
-						qwenRuntimeVersion = "1.0.18";
+						qwenRuntimeVersion = "1.0.19";
 					}
 				} else prepared = true;
 			}
@@ -1093,7 +1094,7 @@ export async function installCompanionFixture(
 			const engine = profileId.startsWith("whisper-") ? "whisper" : "qwen3";
 			const quality = profileId.endsWith("quality") || profileId.endsWith("detailed");
 			const runtimeFamily = engine === "whisper" ? "whisper" : "qwen";
-			const runtimeVersion = engine === "whisper" ? "1.1.10" : "1.0.18";
+			const runtimeVersion = engine === "whisper" ? "1.1.10" : "1.0.19";
 			const runtimeId =
 				engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers";
 			return json(route, {
@@ -1380,12 +1381,12 @@ export async function installCompanionFixture(
 					companion_version: "0.3.18",
 					runtime_family: engine === "whisper" ? "whisper" : "qwen",
 					runtime_version: options.benchmarkEvidence
-						? engine === "whisper" ? "1.1.10" : "1.0.18"
+						? engine === "whisper" ? "1.1.10" : "1.0.19"
 						: engine === "whisper" ? "1.1.7" : "1.0.12",
 					runtime_artifact: {
 						runtime_id: engine === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers",
 						version: options.benchmarkEvidence
-							? engine === "whisper" ? "1.1.10" : "1.0.18"
+							? engine === "whisper" ? "1.1.10" : "1.0.19"
 							: engine === "whisper" ? "1.1.7" : "1.0.12",
 						worker_sha256: "c".repeat(64),
 						archive_sha256: "d".repeat(64),
@@ -1411,7 +1412,7 @@ export async function installCompanionFixture(
 						}
 					: {}),
 			});
-			return json(route, {
+			const completeResult = {
 				schema_version: "tda_processing_benchmark_v1",
 				kind: "benchmark.craig",
 				job_id: "benchmark-job-1",
@@ -1436,6 +1437,64 @@ export async function installCompanionFixture(
 					profile("whisper-detailed", "whisper"),
 					profile("qwen-fast", "qwen3"),
 					profile("qwen-quality", "qwen3"),
+				],
+			});;
+			if (!options.benchmarkPartialResult)
+				return json(route, completeResult);
+
+			const completedProfiles = [
+				profile("whisper-turbo", "whisper"),
+				profile("whisper-detailed", "whisper"),
+				profile("qwen-quality", "qwen3"),
+			];
+			const [turbo, detailed, quality] = completedProfiles;
+			return json(route, {
+				schema_version: "tda_processing_benchmark_v2",
+				kind: "benchmark.craig",
+				status: "partial",
+				job_id: "benchmark-job-1",
+				source_id: CRAIG_SOURCE_ID,
+				campaign_id: "benchmark-local",
+				session_id: "benchmark-local",
+				sample_identity_sha256: "b".repeat(64),
+				sample_seconds: 300,
+				execution_mode: "prepared_artifacts_fresh_worker_per_profile_v1",
+				track_count: 2,
+				audio_work_seconds: 600,
+				prepared: true,
+				partial_benchmark_id: benchmarkId,
+				benchmark_id: null,
+				bundle_manifest_sha256: null,
+				bundle_size_bytes: null,
+				attempted_count: 4,
+				completed_count: 3,
+				failed_count: 1,
+				profiles: completedProfiles,
+				profile_outcomes: [
+					{
+						profile_id: "whisper-turbo",
+						status: "completed",
+						receipt: turbo,
+					},
+					{
+						profile_id: "whisper-detailed",
+						status: "completed",
+						receipt: detailed,
+					},
+					{
+						profile_id: "qwen-fast",
+						status: "failed",
+						error: {
+							code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+							recoverable: true,
+							scope: "profile",
+						},
+					},
+					{
+						profile_id: "qwen-quality",
+						status: "completed",
+						receipt: quality,
+					},
 				],
 			});
 		}
