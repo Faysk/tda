@@ -97,6 +97,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Navegação global do TDA](features/global-navigation.md) — marca + avatar compõem o chrome flutuante; avatar abre navegação/conta/aparência/ferramentas e capabilities privadas continuam subordinadas aos guards server-side.
 - [Edit Workbench / administração](features/edit-workbench.md)
 - [Processamento local no Edit](features/local-processing.md) — UI/adapters, ensaio sintético e gates de integração.
+- [Benchmark ASR — referência humana e métricas objetivas](features/processing-benchmark-quality.md) — referência humana local versionada, WER/CER/S-D-I/glossário e timing condicionado, sem publicação nem vencedor automático.
 - [Sessões com múltiplas gravações Craig](features/multi-recording-sessions.md) — contrato implementado para Recording Parts, Session Assembly, gaps/overlaps, participants e provenance multi-source.
 - [TDA Companion v0.3 — Desktop, Agent e ASR](features/companion-desktop-asr-v0.3.md) — Agent/Desktop, worker subprocess, ingest Craig e perfis ASR locais.
 - [Personagens e NPCs](features/characters-and-npcs.md)

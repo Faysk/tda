@@ -48,8 +48,21 @@ import {
 	type SessionAssemblyReviewSegment,
 	type SessionAssemblyReviewSummary,
 } from "./session-composer-protocol";
+import {
+	type BenchmarkReferenceSaveInput,
+	parseBenchmarkQualityInspection,
+	parseBenchmarkQualitySummary,
+	parseBenchmarkReference,
+	parseBenchmarkReferenceDraft,
+	parseBenchmarkReferenceResponse,
+	parseBenchmarkReferenceStatus,
+	serializeBenchmarkReferenceSave,
+} from "./benchmark-quality-protocol";
 
 const LOCAL_REVIEW_BODY_MAX_BYTES = 32 * 1024 * 1024;
+const LOCAL_BENCHMARK_REFERENCE_BODY_MAX_BYTES = 16 * 1024 * 1024;
+const LOCAL_BENCHMARK_REFERENCE_RESPONSE_MAX_BYTES = 32 * 1024 * 1024;
+const BENCHMARK_ID_PATTERN = /^benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}$/u;
 
 type PairingMode = "none" | "legacy" | "browser";
 
@@ -240,6 +253,64 @@ export class LocalBridge {
 				error instanceof BridgeError &&
 				error.code === "unauthorized" &&
 				!publicRequest &&
+				pairingMode === "browser" &&
+				!signal.aborted
+			) {
+				await this.bootstrap(signal);
+				timedOut = false;
+				return await requestOnce();
+			}
+			if (error instanceof BridgeError) throw error;
+			throw new BridgeError(timedOut ? "timeout" : "unreachable");
+		}
+	}
+
+	private async benchmarkReferenceJson(
+		path: string,
+		signal: AbortSignal,
+		body?: unknown,
+	) {
+		let timedOut = false;
+		const requestOnce = async () => {
+			const timeout = AbortSignal.timeout(30_000);
+			const serialized = body === undefined ? null : serializedJsonBody(body);
+			if (
+				serialized &&
+				serialized.byteLength > LOCAL_BENCHMARK_REFERENCE_BODY_MAX_BYTES
+			)
+				throw new BridgeError("payload_too_large");
+			const headers: Record<string, string> = {
+				Accept: "application/json",
+				Authorization: `Bearer ${this.token()}`,
+			};
+			if (serialized) headers["Content-Type"] = "application/json";
+			try {
+				const response = await this.request(`${LOCAL_API}${path}`, {
+					method: serialized === null ? "GET" : "POST",
+					headers,
+					body: serialized?.body,
+					mode: "cors",
+					credentials: "omit",
+					redirect: "error",
+					cache: "no-store",
+					referrerPolicy: "no-referrer",
+					signal: AbortSignal.any([signal, timeout]),
+				});
+				return await this.responseJson(
+					response,
+					LOCAL_BENCHMARK_REFERENCE_RESPONSE_MAX_BYTES,
+				);
+			} catch (error) {
+				if (timeout.aborted && !signal.aborted) timedOut = true;
+				throw error;
+			}
+		};
+		try {
+			return await requestOnce();
+		} catch (error) {
+			if (
+				error instanceof BridgeError &&
+				error.code === "unauthorized" &&
 				pairingMode === "browser" &&
 				!signal.aborted
 			) {
@@ -895,6 +966,94 @@ export class LocalBridge {
 			await this.json(`/jobs/${identifier(id)}/result`, signal),
 			id,
 		);
+	}
+	async benchmarkReference(benchmarkId: string, signal: AbortSignal) {
+		if (!BENCHMARK_ID_PATTERN.test(benchmarkId))
+			throw new BridgeError("invalid_response");
+		return parseBenchmarkReferenceResponse(
+			await this.benchmarkReferenceJson(
+				`/benchmarks/${benchmarkId}/reference`,
+				signal,
+			),
+		);
+	}
+
+	async benchmarkReferenceDraft(
+		benchmarkId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		signal: AbortSignal,
+	) {
+		if (!BENCHMARK_ID_PATTERN.test(benchmarkId))
+			throw new BridgeError("invalid_response");
+		return parseBenchmarkReferenceDraft(
+			await this.benchmarkReferenceJson(
+				`/benchmarks/${benchmarkId}/profiles/${profileId}/reference-draft`,
+				signal,
+			),
+		);
+	}
+
+	async saveBenchmarkReference(
+		benchmarkId: string,
+		input: BenchmarkReferenceSaveInput,
+		signal: AbortSignal,
+	) {
+		if (!BENCHMARK_ID_PATTERN.test(benchmarkId))
+			throw new BridgeError("invalid_response");
+		const raw = record(
+			await this.benchmarkReferenceJson(
+				`/benchmarks/${benchmarkId}/references`,
+				signal,
+				serializeBenchmarkReferenceSave(input),
+			),
+		);
+		if (raw.schema_version !== "tda_benchmark_reference_save_v1")
+			throw new BridgeError("invalid_response");
+		const reference = parseBenchmarkReference(raw.reference);
+		const status = parseBenchmarkReferenceStatus(raw.status);
+		const quality =
+			raw.quality === null || raw.quality === undefined
+				? null
+				: parseBenchmarkQualitySummary(raw.quality);
+		if (
+			reference.benchmarkId !== benchmarkId ||
+			status.benchmarkId !== benchmarkId ||
+			(quality && quality.benchmarkId !== benchmarkId)
+		)
+			throw new BridgeError("invalid_response");
+		return { reference, status, quality };
+	}
+
+	async benchmarkQuality(benchmarkId: string, signal: AbortSignal) {
+		if (!BENCHMARK_ID_PATTERN.test(benchmarkId))
+			throw new BridgeError("invalid_response");
+		const value = parseBenchmarkQualitySummary(
+			await this.benchmarkReferenceJson(
+				`/benchmarks/${benchmarkId}/quality`,
+				signal,
+			),
+		);
+		if (value.benchmarkId !== benchmarkId)
+			throw new BridgeError("invalid_response");
+		return value;
+	}
+
+	async benchmarkQualityInspection(
+		benchmarkId: string,
+		profileId: CraigTranscriptionInput["profileId"],
+		signal: AbortSignal,
+	) {
+		if (!BENCHMARK_ID_PATTERN.test(benchmarkId))
+			throw new BridgeError("invalid_response");
+		const value = parseBenchmarkQualityInspection(
+			await this.benchmarkReferenceJson(
+				`/benchmarks/${benchmarkId}/quality/${profileId}/inspection`,
+				signal,
+			),
+		);
+		if (value.benchmarkId !== benchmarkId || value.profileId !== profileId)
+			throw new BridgeError("invalid_response");
+		return value;
 	}
 	async result(id: string, signal: AbortSignal) {
 		return parseResultSummary(

@@ -15,6 +15,7 @@ import {
 	type TranscriptionProfileState,
 } from "./protocol";
 import { LocalBridge } from "./bridge";
+import { BenchmarkQualityLab } from "./benchmark-quality";
 import { presentJobEvent, stageLabels } from "./presentation";
 import {
 	formatSubmissionBytes,
@@ -131,7 +132,17 @@ function bridgeMessage(error: unknown, fallback: string): string {
 	);
 }
 
-function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
+function ResultCard({
+	result,
+	bridge,
+	connected,
+	qualityEnabled,
+}: Readonly<{
+	result: BenchmarkResult;
+	bridge: LocalBridge;
+	connected: boolean;
+	qualityEnabled: boolean;
+}>) {
 	return (
 		<article className={styles.resultCard}>
 			<header className={styles.resultHeader}>
@@ -198,13 +209,12 @@ function ResultCard({ result }: Readonly<{ result: BenchmarkResult }>) {
 						: "Transcript artifacts were not preserved for this historical benchmark."}
 				</span>
 			</div>
-			<div className={styles.qualityNotice}>
-				<strong>Qualidade não medida.</strong>
-				<span>
-					Este benchmark compara performance. Sem transcrição humana de referência,
-					WER/omissões/inserções não são calculados e nenhum perfil recebe vencedor automático.
-				</span>
-			</div>
+			<BenchmarkQualityLab
+				result={result}
+				bridge={bridge}
+				connected={connected}
+				enabled={qualityEnabled}
+			/>
 		</article>
 	);
 }
@@ -347,6 +357,11 @@ export function ProcessingBenchmark({
 	const benchmarkContractSupported =
 		capabilities?.capabilities.includes("processing.benchmark.runtime-readiness-v2") ??
 		false;
+	const benchmarkQualitySupported = Boolean(
+		capabilities?.capabilities.includes("processing.benchmark.evidence-v1") &&
+			capabilities.capabilities.includes("processing.benchmark.reference-v1") &&
+			capabilities.capabilities.includes("processing.benchmark.quality-v1"),
+	);
 	const readyCount = benchmarkContractSupported
 		? profileStates.filter((item) => item?.benchmarkReady).length
 		: 0;
@@ -1257,7 +1272,13 @@ export function ProcessingBenchmark({
 				{latestCompleted.length ? (
 					latestCompleted.slice(0, 10).map((job) =>
 						results[job.id] ? (
-							<ResultCard key={job.id} result={results[job.id]!} />
+							<ResultCard
+								key={job.id}
+								result={results[job.id]!}
+								bridge={bridge}
+								connected={connected}
+								qualityEnabled={benchmarkQualitySupported}
+							/>
 						) : (
 							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>
 						),

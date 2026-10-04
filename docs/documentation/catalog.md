@@ -148,6 +148,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Sessões compostas por múltiplas gravações Craig](../features/multi-recording-sessions.md) | sessions / processing / transcripts | implementação funcional e gate E2E/recovery concluídos | 2026-09-30 |
 | [Feature — Músicas e performances](../features/music-performances.md) | narrative-memory/media | preparado/em desenho | 2026-09-06 |
 | [Pipipi — lore cinematográfica pioneira](../features/pipipi-lore.md) | narrative-memory / frontend | implementação, QA e publicação em production concluídos | 2026-09-29 |
+| [Benchmark ASR — referência humana e métricas objetivas](../features/processing-benchmark-quality.md) | Processamento local / Companion / qualidade ASR | implementado pela #1416 sobre o bundle canônico da #1413 | 2026-10-04 |
 | [Feature — Quests e ganchos](../features/quests-hooks.md) | narrative-memory | preparado/em desenho | 2026-09-06 |
 | [Feature — contrato de dados para relações](../features/relations-data-contract.md) | narrative-memory / database / security | fundação física aplicada; provenance/review e vocabulário factual continuam em evolução | 2026-09-19 |
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | fundação física e autoria factual implementadas; provenance/review integrado ao fluxo editorial; dataset público real ainda depende de curadoria e ativação deliberada | 2026-09-16 |
@@ -233,4 +234,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-152 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+153 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
