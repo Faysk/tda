@@ -972,8 +972,18 @@ def finalize_bundle(
             or current.get("attempt") != attempt
             or current.get("source_id") != source_id
             or current.get("sample_identity_sha256") != sample_identity_sha256
+            or current.get("sample_seconds") != sample_seconds
+            or current.get("execution_mode") != execution_mode
+            or current.get("context") != _hash_private_text(context)
+            or current.get("glossary") != _hash_private_text(glossary)
         ):
             raise BenchmarkEvidenceError("BENCHMARK_ALREADY_EXISTS")
+        _validate_sample_descriptor(
+            sample_descriptor,
+            source_sha256=str(current.get("source_sha256") or ""),
+            sample_seconds=sample_seconds,
+            sample_identity_sha256=sample_identity_sha256,
+        )
         descriptor = _descriptor(root / "benchmark.json")
         return {
             "benchmark_id": benchmark_id,
@@ -1222,6 +1232,7 @@ def load_bundle(data_root: Path, benchmark_id: str) -> dict[str, Any]:
             raise BenchmarkEvidenceError("BENCHMARK_TRANSCRIPT_INVALID") from exc
         if document.source_sha256.lower() != manifest.get("source_sha256") or document.engine.profile != profile_id:
             raise BenchmarkEvidenceError("BENCHMARK_TRANSCRIPT_IDENTITY_MISMATCH")
+        _validate_transcript_paths(document)
     return manifest
 def _profile_entry(manifest: Mapping[str, Any], profile_id: str) -> Mapping[str, Any]:
     if profile_id not in PROFILES:
