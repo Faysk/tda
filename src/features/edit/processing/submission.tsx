@@ -1053,7 +1053,7 @@ export function ProcessingSubmission({
 									◐ Horário real só é usado quando o Craig fornece um horário confiável
 								</span>
 								<span role="listitem">
-									✓ Gap conhecido é informação; só uma sobreposição real pode exigir decisão
+									✓ Gap conhecido é informação; overlap confirmado pode exigir decisão
 								</span>
 							</div>
 							<p className={styles.sessionOrderHelp}>
