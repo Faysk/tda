@@ -11,6 +11,8 @@ import {
 	intentProgress,
 	recordingVariantConflicts,
 	retryableIntentJob,
+	trustedTimelineOrderDiffers,
+	trustedTimelineSourceOrder,
 	uniqueIntentSources,
 } from "./session-intent-model";
 
@@ -188,6 +190,53 @@ describe("session intent model", () => {
 		).toEqual({ total: 4, waiting: 1, running: 1, completed: 1, failed: 1 });
 		expect(retryableIntentJob([job(c, "failed")], c)?.status).toBe("failed");
 		expect(retryableIntentJob([job(b, "running")], b)).toBeNull();
+	});
+
+	test("compares trusted wall-clock order with editorial order without inventing timestamps", () => {
+		const a = "craig-" + "a".repeat(64);
+		const b = "craig-" + "b".repeat(64);
+		const first = {
+			...part(a),
+			sourceStartConfidence: "trusted_absolute" as const,
+			sourceStartUtc: "2026-10-04T21:00:00Z",
+		};
+		const second = {
+			...part(b),
+			sourceStartConfidence: "trusted_absolute" as const,
+			sourceStartUtc: "2026-10-04T20:00:00Z",
+		};
+		const base = workspace([first, second]);
+		const value: SessionWorkspace = {
+			...base,
+			orderingMode: "attachment",
+			timeline: { ...base.timeline, automaticOrderAvailable: true },
+		};
+		expect(trustedTimelineSourceOrder(value)).toEqual([b, a]);
+		expect(trustedTimelineOrderDiffers(value, [a, b])).toBe(true);
+		expect(trustedTimelineOrderDiffers(value, [b, a])).toBe(false);
+	});
+
+	test("does not infer trusted chronology from missing clocks", () => {
+		const a = "craig-" + "a".repeat(64);
+		const b = "craig-" + "b".repeat(64);
+		const first = {
+			...part(a),
+			sourceStartConfidence: "trusted_absolute" as const,
+			sourceStartUtc: "2026-10-04T20:00:00Z",
+		};
+		const second = {
+			...part(b),
+			sourceStartConfidence: "missing" as const,
+			sourceStartUtc: null,
+		};
+		const base = workspace([first, second]);
+		const value: SessionWorkspace = {
+			...base,
+			orderingMode: "attachment",
+			timeline: { ...base.timeline, automaticOrderAvailable: true },
+		};
+		expect(trustedTimelineSourceOrder(value)).toBeNull();
+		expect(trustedTimelineOrderDiffers(value, [a, b])).toBe(false);
 	});
 
 	test("flags only same-recording byte variants", () => {

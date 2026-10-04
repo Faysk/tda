@@ -44,7 +44,9 @@ import {
 import {
 	appendCraigFiles,
 	markExactSourceDuplicates,
+	moveCraigFileSelection,
 	removeCraigFileSelection,
+	reorderCraigFileSelection,
 	replaceCraigFileSelection,
 	stageableCraigFiles,
 	type CraigFileSelection,
@@ -236,6 +238,7 @@ export function ProcessingSubmission({
 	const [busy, setBusy] = useState(false);
 	const [pendingStage, setPendingStage] = useState<PendingStage | null>(null);
 	const [dragActive, setDragActive] = useState(false);
+	const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
 	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [status, setStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -506,6 +509,25 @@ export function ProcessingSubmission({
 	function removeFile(id: string) {
 		if (busy || intentRequest) return;
 		setFiles((current) => removeCraigFileSelection(current, id));
+	}
+
+	function moveFile(id: string, direction: -1 | 1) {
+		if (busy || intentRequest) return;
+		setFiles((current) => moveCraigFileSelection(current, id, direction));
+	}
+
+	function handleOrderDrop(event: DragEvent<HTMLLIElement>, targetId: string) {
+		event.preventDefault();
+		if (busy || intentRequest) return;
+		const movingId = event.dataTransfer.getData("text/plain") || draggedFileId;
+		setDraggedFileId(null);
+		if (!movingId || movingId === targetId) return;
+		setFiles((current) => {
+			const targetIndex = current.findIndex((item) => item.id === targetId);
+			return targetIndex < 0
+				? current
+				: reorderCraigFileSelection(current, movingId, targetIndex);
+		});
 	}
 
 	function handleDrop(event: DragEvent<HTMLButtonElement>) {
@@ -1008,10 +1030,73 @@ export function ProcessingSubmission({
 						</button>
 					</div>
 
+					{files.length > 1 ? (
+						<section
+							className={styles.sessionPreview}
+							aria-labelledby="multi-session-preview-title"
+						>
+							<div className={styles.sessionPreviewHeader}>
+								<div>
+									<strong id="multi-session-preview-title">
+										{files.length} gravações serão unidas em uma única sessão
+									</strong>
+									<span>A saída será uma única transcrição contínua da sessão.</span>
+								</div>
+							</div>
+							<ul
+								className={styles.sessionSummary}
+								aria-label="Resumo da montagem da sessão"
+							>
+								<li>✓ Ordem da sessão definida</li>
+								<li>
+									◐ Horário real só é usado quando o Craig fornece um horário confiável
+								</li>
+								<li>
+									✓ Gap conhecido é informação; overlap confirmado pode exigir decisão
+								</li>
+							</ul>
+							<p className={styles.sessionOrderHelp}>
+								A sequência abaixo é sua ordem editorial. Quando não houver horário confiável,
+								 ela será preservada. Se horários Craig confiáveis indicarem outra ordem, o
+								 TDA mostrará a diferença antes de trocar.
+							</p>
+							<div className={styles.orderHeading}>
+								<strong>Ordem da sessão</strong>
+								<span>
+									{intentRequest
+										? "A transcrição já começou; qualquer mudança agora exige uma ação explícita."
+										: "Arraste as gravações ou use os botões Mover para cima/baixo."}
+								</span>
+							</div>
+						</section>
+					) : null}
+
 					{files.length ? (
-						<ul className={styles.fileList} aria-label="Gravações selecionadas">
+						<ol
+							className={styles.fileList}
+							aria-label="Gravações selecionadas"
+							aria-describedby={files.length > 1 ? "multi-session-preview-title" : undefined}
+						>
 							{files.map((item, index) => (
-								<li key={item.id} data-state={item.state}>
+								<li
+									key={item.id}
+									data-state={item.state}
+									data-dragging={draggedFileId === item.id ? "true" : "false"}
+									draggable={files.length > 1 && !busy && !intentRequest}
+									onDragStart={(event) => {
+										if (busy || intentRequest || files.length < 2) return;
+										setDraggedFileId(item.id);
+										event.dataTransfer.effectAllowed = "move";
+										event.dataTransfer.setData("text/plain", item.id);
+									}}
+									onDragOver={(event) => {
+										if (busy || intentRequest || files.length < 2) return;
+										event.preventDefault();
+										event.dataTransfer.dropEffect = "move";
+									}}
+									onDrop={(event) => handleOrderDrop(event, item.id)}
+									onDragEnd={() => setDraggedFileId(null)}
+								>
 									<div>
 										<strong title={item.file.name}>
 											{index + 1}. {item.file.name}
@@ -1030,25 +1115,49 @@ export function ProcessingSubmission({
 																? "arquivo inválido"
 																: "falha local"}
 										</span>
-										{item.error ? (
-											<small role="alert">{item.error}</small>
-										) : null}
+										{item.error ? <small role="alert">{item.error}</small> : null}
 									</div>
 									{!intentRequest ? (
-										<Button
-											type="button"
-											size="sm"
-											variant="tertiary"
-											disabled={busy}
-											aria-label={`Remover ${item.file.name}`}
-											onClick={() => removeFile(item.id)}
-										>
-											Remover
-										</Button>
+										<div className={styles.fileActions}>
+											{files.length > 1 ? (
+												<>
+													<Button
+														type="button"
+														size="sm"
+														variant="tertiary"
+														disabled={busy || index === 0}
+														aria-label={`Mover ${item.file.name} para cima`}
+														onClick={() => moveFile(item.id, -1)}
+													>
+														Mover para cima
+													</Button>
+													<Button
+														type="button"
+														size="sm"
+														variant="tertiary"
+														disabled={busy || index === files.length - 1}
+														aria-label={`Mover ${item.file.name} para baixo`}
+														onClick={() => moveFile(item.id, 1)}
+													>
+														Mover para baixo
+													</Button>
+												</>
+											) : null}
+											<Button
+												type="button"
+												size="sm"
+												variant="tertiary"
+												disabled={busy}
+												aria-label={`Remover ${item.file.name}`}
+												onClick={() => removeFile(item.id)}
+											>
+												Remover
+											</Button>
+										</div>
 									) : null}
 								</li>
 							))}
-						</ul>
+						</ol>
 					) : null}
 
 					<div className={styles.identityGrid}>
