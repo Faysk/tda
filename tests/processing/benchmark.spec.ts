@@ -650,17 +650,26 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 test("running benchmark keeps a failed profile visible while the next profile continues", async ({
 	page,
 }) => {
-	await installCompanionFixture(page, {
+	const state = await installCompanionFixture(page, {
 		benchmarkProfiles: true,
 		profileReady: true,
 		advanceJobs: false,
-		initialJobs: [
-			fixtureBenchmarkJob("running", {
-				stage: "benchmark",
-				progress: { completed: 3, total: 4, unit: "profiles" },
-			}),
-		],
-		jobEvents: [
+	});
+	const panel = await openBenchmark(page);
+	await chooseZip(panel);
+	await analyze(panel);
+	await panel
+		.getByRole("button", { name: "Executar benchmark de 5 minutos" })
+		.click();
+	await expect.poll(() => state.jobPostCount).toBe(1);
+
+	state.setJob(
+		fixtureBenchmarkJob("running", {
+			stage: "benchmark",
+			progress: { completed: 3, total: 4, unit: "profiles" },
+		}),
+	);
+	state.setJobEvents([
 			{
 				seq: 10,
 				attempt: 1,
@@ -769,9 +778,8 @@ test("running benchmark keeps a failed profile visible while the next profile co
 					total_profiles: 4,
 				},
 			},
-		],
-	});
-	const panel = await openBenchmark(page);
+	]);
+	await page.getByRole("button", { name: "Atualizar estado" }).click();
 
 	await expect(
 		panel.getByText("Tentados 4/4 · Concluídos 2 · Falharam 1"),
