@@ -1067,7 +1067,7 @@ export function SessionRecordingComposer({
 									</div>
 
 									<div className={styles.partControls}>
-										<label
+										<div
 							data-session-recovery-target={
 								part.selectedRunId === null ? "run" : undefined
 							}
@@ -1090,7 +1090,7 @@ export function SessionRecordingComposer({
 												ariaLabel={`Run da gravação ${index + 1}`}
 												compact
 											/>
-										</label>
+										</div>
 										<details
 							data-session-recovery-target={
 								part.sessionOffsetSeconds === null ||
@@ -1126,7 +1126,7 @@ export function SessionRecordingComposer({
 										className={styles.overlapControls}
 										data-session-recovery-target="overlap"
 									>
-														<label>
+														<div>
 															<span>Regra do overlap</span>
 															<Select
 																value={overlapDraft.resolution}
@@ -1149,7 +1149,7 @@ export function SessionRecordingComposer({
 																}))}
 																ariaLabel="Regra do overlap"
 															/>
-														</label>
+														</div>
 														<label>
 															<span>Boundary na sessão (s)</span>
 															<input
@@ -1199,7 +1199,7 @@ export function SessionRecordingComposer({
 											{conflict.observationIds.map((observationId) => {
 												const observation = mapping.observations.find((item) => item.observationId === observationId);
 												return (
-													<label key={observationId}>
+													<div key={observationId}>
 														<span>{observation?.rawSpeaker ?? "Observação"} · gravação {(observation?.partOrdinal ?? 0) + 1}</span>
 														<Select
 															value={participantDrafts[observationId] ?? mapping.manualAssignments.find((item) => item.observationId === observationId)?.participantId ?? ""}
@@ -1213,7 +1213,7 @@ export function SessionRecordingComposer({
 															onChange={(value) => setParticipantDrafts((current) => ({ ...current, [observationId]: value }))}
 															ariaLabel={`Participante para ${observation?.rawSpeaker ?? "observação"}`}
 														/>
-													</label>
+													</div>
 												);
 											})}
 										</fieldset>
