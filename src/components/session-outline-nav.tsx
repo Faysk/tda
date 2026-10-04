@@ -52,13 +52,12 @@ export function SessionOutlineNav({
 	function navigate(id: string) {
 		const target = document.getElementById(id);
 		if (!target) return;
-		const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 		window.location.hash = id;
+		target.focus({ preventScroll: true });
 		target.scrollIntoView({
 			block: "start",
-			behavior: reducedMotion ? "auto" : "smooth",
+			behavior: "auto",
 		});
-		requestAnimationFrame(() => target.focus({ preventScroll: true }));
 		setActiveId(id);
 	}
 
