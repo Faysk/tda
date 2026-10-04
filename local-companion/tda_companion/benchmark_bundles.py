@@ -594,6 +594,47 @@ def write_benchmark_profile(
         raise
 
 
+def verify_benchmark_profile_receipt(
+    data_root: Path,
+    *,
+    benchmark_id: str,
+    source_id: str,
+    source_sha256: str,
+    sample_identity_sha256: str,
+    receipt: dict[str, Any],
+) -> None:
+    """Verify one completed profile artifact without creating a 4/4 bundle."""
+
+    if not isinstance(receipt, dict):
+        raise BenchmarkBundleError("BENCHMARK_BUNDLE_PROFILE_RECEIPT_INVALID")
+    profile_id = receipt.get("profile_id")
+    if profile_id not in BENCHMARK_PROFILES:
+        raise BenchmarkBundleError("BENCHMARK_PROFILE_INVALID")
+    if not isinstance(source_id, str) or _SOURCE_ID.fullmatch(source_id) is None:
+        raise BenchmarkBundleError("BENCHMARK_SOURCE_ID_INVALID")
+    source_sha256 = _sha256_value(source_sha256, "BENCHMARK_SOURCE_SHA256_INVALID")
+    _sha256_value(sample_identity_sha256, "BENCHMARK_SAMPLE_IDENTITY_INVALID")
+    if (
+        receipt.get("benchmark_id") != benchmark_id
+        or receipt.get("sample_identity_sha256") != sample_identity_sha256
+        or receipt.get("artifact_available") is not True
+    ):
+        raise BenchmarkBundleError("BENCHMARK_BUNDLE_PROFILE_RECEIPT_INVALID")
+
+    metadata = _profile_manifest_metadata(data_root, benchmark_id, profile_id)
+    _verify_profile_transcript_bytes(data_root, benchmark_id, profile_id, metadata)
+    profile_manifest = metadata["manifest"]
+    if (
+        profile_manifest.get("source_id") != source_id
+        or profile_manifest.get("source_sha256") != source_sha256
+        or profile_manifest.get("sample_identity_sha256") != sample_identity_sha256
+        or metadata["transcript_sha256"] != receipt.get("transcript_sha256")
+        or metadata["transcript_size_bytes"] != receipt.get("transcript_size_bytes")
+        or profile_manifest.get("execution_lineage") != receipt.get("execution_lineage")
+    ):
+        raise BenchmarkBundleError("BENCHMARK_BUNDLE_PROFILE_RECEIPT_MISMATCH")
+
+
 def _benchmark_diagnostics_descriptor(
     data_root: Path,
     benchmark_id: str,
