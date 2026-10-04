@@ -1029,26 +1029,55 @@ export async function installCompanionFixture(
 			});
 		}
 		if (path === "/jobs/benchmark-job-1/events") {
-			return json(route, {
-				events:
-					options.jobEvents ??
-					(state.job?.status === "running"
-						? [
-								{
-									seq: 2,
-									attempt: 1,
-									code: "TRACK_STARTED",
-									at: "2026-09-20T18:00:01Z",
-									level: "info",
-									data: {
-										track: 1,
-										total_tracks: 4,
-										speaker: "Whisper Detailed",
-									},
+			const events =
+				jobEvents ??
+				(state.job?.status === "running"
+					? [
+							{
+								seq: 2,
+								attempt: 1,
+								code: "TRACK_STARTED",
+								at: "2026-09-20T18:00:01Z",
+								level: "info",
+								data: {
+									track: 1,
+									total_tracks: 4,
+									speaker: "Whisper Detailed",
 								},
-							]
-						: []),
-			});
+							},
+						]
+					: []);
+			if ((options.additionalCapabilities ?? []).includes("job.events.cursor")) {
+				const sequence = (event: Record<string, unknown>) =>
+					typeof event.seq === "number" ? event.seq : -1;
+				const requestedLimit = Number(url.searchParams.get("limit") ?? 200);
+				const limit = Number.isSafeInteger(requestedLimit)
+					? Math.max(1, Math.min(200, requestedLimit))
+					: 200;
+				const after = Number(url.searchParams.get("after_seq"));
+				const before = Number(url.searchParams.get("before_seq"));
+				let pageEvents: Record<string, unknown>[];
+				let hasMore = false;
+				if (Number.isSafeInteger(after) && after >= 0) {
+					const candidates = events.filter((event) => sequence(event) > after);
+					pageEvents = candidates.slice(0, limit);
+					hasMore = candidates.length > pageEvents.length;
+				} else if (Number.isSafeInteger(before) && before >= 0) {
+					const candidates = events.filter((event) => sequence(event) < before);
+					pageEvents = candidates.slice(Math.max(0, candidates.length - limit));
+					hasMore = candidates.length > pageEvents.length;
+				} else {
+					pageEvents = events.slice(Math.max(0, events.length - limit));
+					hasMore = events.length > pageEvents.length;
+				}
+				return json(route, {
+					events: pageEvents,
+					has_more: hasMore,
+					next_after_seq: pageEvents.length ? sequence(pageEvents.at(-1)!) : null,
+					next_before_seq: pageEvents.length ? sequence(pageEvents[0]!) : null,
+				});
+			}
+			return json(route, { events });
 		}
 		if (
 			options.benchmarkEvidence &&
