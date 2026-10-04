@@ -282,6 +282,28 @@ for (const filePath of sourceFiles("src")) {
 	}
 }
 
+const sessionAssemblyReviewCss = fs.readFileSync(
+	"src/features/edit/processing/session-assembly-review.module.css",
+	"utf8",
+);
+const forbiddenSessionReviewAliases = [
+	"--border-subtle",
+	"--radius-lg",
+	"--surface-raised",
+	"--text-muted",
+	"--radius-md",
+	"--surface",
+	"--focus-ring",
+	"--surface-muted",
+	"--status-danger-surface",
+	"--status-danger-text",
+];
+for (const token of forbiddenSessionReviewAliases) {
+	if (sessionAssemblyReviewCss.includes(`var(${token})`)) {
+		fail(`SessionAssemblyReview uses undefined legacy token ${token}`);
+	}
+}
+
 const packageJson = fs.readFileSync("package.json", "utf8");
 if (/"tailwindcss"\s*:/.test(packageJson)) {
 	fail("Tailwind was added without a dedicated architecture decision");
