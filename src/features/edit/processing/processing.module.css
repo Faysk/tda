@@ -1634,6 +1634,19 @@
 	margin: 0;
 }
 
+.diagnosticsRecoveryActions {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 6px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.diagnosticsRecoveryActions :global(.ds-action) {
+	width: 100%;
+	justify-content: center;
+}
+
 .diagnosticsEventPane > .liveLogExplorer {
 	min-height: 0;
 }
