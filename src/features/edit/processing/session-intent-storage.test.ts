@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+	clearSessionIntentReceipt,
 	createSessionIntentReceipt,
 	loadSessionIntentReceipt,
 	saveSessionIntentReceipt,
@@ -87,6 +88,39 @@ describe("session intent recovery receipt", () => {
 		expect(serialized).not.toContain("audio");
 		expect(serialized).not.toContain("mesa de quinta");
 		expect(serialized).not.toContain("Yuhara");
+	});
+
+	test("fresh start can drop the old orchestration receipt without touching other sessions", async () => {
+		const storage = new MemoryStorage();
+		const identity = await sessionIntentReceiptIdentity({
+			profileScope: "profile-42:yuhara-main",
+			campaignId: "yuhara-main",
+			sessionId: "sessao-42",
+		});
+		const other = await sessionIntentReceiptIdentity({
+			profileScope: "profile-42:yuhara-main",
+			campaignId: "yuhara-main",
+			sessionId: "sessao-43",
+		});
+		for (const target of [identity, other]) {
+			const receipt = createSessionIntentReceipt(
+				target,
+				{
+					requestId: `intent-${target.sessionId}`,
+					sourceIds: [SOURCE_A],
+					profileId: "whisper-detailed",
+					contextSha256: "a".repeat(64),
+					glossarySha256: "b".repeat(64),
+				},
+				NOW,
+			);
+			expect(saveSessionIntentReceipt(storage, target, receipt, NOW)).toBe(true);
+		}
+
+		clearSessionIntentReceipt(storage, identity);
+
+		expect(loadSessionIntentReceipt(storage, identity, NOW + 1)).toBeNull();
+		expect(loadSessionIntentReceipt(storage, other, NOW + 1)).not.toBeNull();
 	});
 
 	test("scope hash prevents another signed-in profile from loading the receipt", async () => {
