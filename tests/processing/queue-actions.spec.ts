@@ -52,7 +52,7 @@ for (const viewport of [
 			popup.getByRole("button", { name: "Detalhes", exact: true }),
 		).toBeFocused();
 		await expect(
-			popup.getByRole("button", { name: "Começar novo", exact: true }),
+			popup.getByRole("button", { name: "Nova transcrição", exact: true }),
 		).toBeVisible();
 		await expect(
 			popup.getByRole("button", { name: "Abrir Diagnóstico", exact: true }),
