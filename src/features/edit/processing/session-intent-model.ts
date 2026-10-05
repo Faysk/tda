@@ -1,3 +1,4 @@
+import { CRAIG_TRACK_POLICY_VERSION } from "./protocol";
 import type {
 	LocalJob,
 	LocalRunSummary,
@@ -21,6 +22,8 @@ export type IntentRunContract = Readonly<{
 	profileContractSha256: string;
 	contextSha256: string;
 	glossarySha256: string;
+	trackPolicy: typeof CRAIG_TRACK_POLICY_VERSION;
+	includeBotTracks: boolean;
 }>;
 
 export type IntentRunChoice =
@@ -117,7 +120,9 @@ export function runMatchesIntent(
 		run.contextSha256 !== null &&
 		run.contextSha256 === contract.contextSha256 &&
 		run.glossarySha256 !== null &&
-		run.glossarySha256 === contract.glossarySha256
+		run.glossarySha256 === contract.glossarySha256 &&
+		run.trackPolicy === contract.trackPolicy &&
+		run.includeBotTracks === contract.includeBotTracks
 	);
 }
 
