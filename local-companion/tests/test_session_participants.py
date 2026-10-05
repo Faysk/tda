@@ -169,7 +169,7 @@ def test_same_label_with_distinct_discord_ids_never_merges_or_infers_profile():
     )
 
 
-def test_partial_identity_with_same_label_is_ambiguous_until_manual_resolution():
+def test_partial_identity_with_same_label_stays_source_local_without_blocking():
     a = source("a")
     b = source("b")
     value = workspace([part("1" * 32, a, 0), part("2" * 32, b, 1)])
@@ -179,11 +179,15 @@ def test_partial_identity_with_same_label_is_ambiguous_until_manual_resolution()
     }
 
     unresolved = resolve_session_participants(value, packages)
-    assert unresolved["approval_blocked"] is True
-    assert any(
-        conflict["code"] == "LABEL_PARTIAL_IDENTITY"
+    assert unresolved["approval_blocked"] is False
+    partial = next(
+        conflict
         for conflict in unresolved["conflicts"]
+        if conflict["code"] == "LABEL_PARTIAL_IDENTITY"
     )
+    assert partial["severity"] == "warning"
+    assert partial["requires_resolution"] is False
+    assert len(unresolved["participants"]) == 2
 
     observations = unresolved["observations"]
     strong = next(row for row in observations if row["discord_id"] == "111")
@@ -206,7 +210,7 @@ def test_partial_identity_with_same_label_is_ambiguous_until_manual_resolution()
     assert resolved["mapping_sha256"] != unresolved["mapping_sha256"]
 
 
-def test_label_only_cross_source_match_never_auto_merges_but_manual_same_or_different_resolves():
+def test_label_only_cross_source_match_stays_separate_but_manual_merge_is_available():
     a = source("a")
     b = source("b")
     value = workspace([part("1" * 32, a, 0), part("2" * 32, b, 1)])
@@ -215,12 +219,15 @@ def test_label_only_cross_source_match_never_auto_merges_but_manual_same_or_diff
         b: package(track(9, "Guest", username="Guest")),
     }
     unresolved = resolve_session_participants(value, packages)
-    assert unresolved["approval_blocked"] is True
+    assert unresolved["approval_blocked"] is False
     assert len(unresolved["participants"]) == 2
-    assert any(
-        conflict["code"] == "LABEL_ONLY_CROSS_SOURCE_AMBIGUOUS"
+    label_conflict = next(
+        conflict
         for conflict in unresolved["conflicts"]
+        if conflict["code"] == "LABEL_ONLY_CROSS_SOURCE_AMBIGUOUS"
     )
+    assert label_conflict["severity"] == "warning"
+    assert label_conflict["requires_resolution"] is False
 
     observations = unresolved["observations"]
     merged_id = "a" * 32
