@@ -1035,7 +1035,7 @@ test("terminal global Benchmark failure restores failed and not-attempted profil
 		.filter({ hasText: "Diagnóstico do processamento" });
 	await expect(inspector).toBeVisible();
 	await expect(
-		inspector.getByRole("button", { name: "Começar novo" }),
+		inspector.getByRole("button", { name: "Executar novo benchmark" }),
 	).toBeVisible();
 	await expect(
 		inspector.getByRole("button", { name: "Repetir trabalho" }),
