@@ -3,7 +3,7 @@
 > Status: accepted
 > Data: 2026-09-15
 > Owner: Edit / processamento local / transcript-sync
-> Última revisão: 2026-09-15
+> Última revisão: 2026-10-05
 > Relacionados: ADR-0003, ADR-0007, ADR-0013, `docs/features/local-processing.md`, `docs/features/transcript-review-publication.md`, `docs/integrations/transcript-import.md`
 
 ## Contexto
@@ -80,9 +80,11 @@ A ativação/restauração é registrada como evento editorial leve.
 
 Delete pode remover run/draft/revision conforme o escopo explícito. A current revision não sofre hard delete por uma ação genérica.
 
-### 10. Lixeira local simples
+### 10. Lixeira local simples — decisão histórica substituída
 
-Deletes locais comuns passam por Trash com retenção padrão de 7 dias. Isso é proteção de UX, não requisito de compliance.
+A decisão original desta seção era: deletes locais comuns passariam por Trash com retenção padrão de 7 dias.
+
+**Superseded em 2026-10-05 por ADR-0021 somente para a semântica de delete local.** O contrato vigente usa confirmação explícita, `tda_local_run_delete_receipt_v1`, tombstone autoritativo e quarantine/cleanup crash-safe. A quarantine interna não é lixeira de produto e não oferece restore de 7 dias.
 
 ### 11. Áudio bruto permanece local
 
@@ -167,7 +169,7 @@ Robusto demais para a necessidade do projeto e aumenta custo sem benefício prop
 
 ## Relação com decisões anteriores
 
-Este ADR **complementa**, não revoga:
+Este ADR **complementa**, não revoga, as decisões anteriores abaixo. A semântica específica de delete local da seção 10 foi posteriormente substituída por ADR-0021:
 
 - ADR-0003: processamento pesado local e produto cloud;
 - ADR-0007: Edit como workbench administrativo;
