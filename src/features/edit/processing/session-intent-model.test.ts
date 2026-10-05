@@ -9,6 +9,7 @@ import type {
 import {
 	chooseIntentRun,
 	intentProgress,
+	runMatchesIntent,
 	recordingVariantConflicts,
 	retryableIntentJob,
 	trustedTimelineOrderDiffers,
@@ -76,11 +77,26 @@ function workspace(parts: SessionWorkspacePart[]): SessionWorkspace {
 	};
 }
 
-function run(sourceId: string, runId: string): LocalRunSummary {
+const CONTRACT = {
+	profileId: "whisper-detailed",
+	profileContractSha256: "b".repeat(64),
+	contextSha256: "c".repeat(64),
+	glossarySha256: "d".repeat(64),
+} as const;
+
+function run(
+	sourceId: string,
+	runId: string,
+	overrides: Partial<LocalRunSummary> = {},
+): LocalRunSummary {
 	return {
 		runId,
 		sourceId,
+		sourceSha256: sourceId.replace(/^craig-/u, ""),
 		profileId: "whisper-detailed",
+		profileContractSha256: CONTRACT.profileContractSha256,
+		contextSha256: CONTRACT.contextSha256,
+		glossarySha256: CONTRACT.glossarySha256,
 		engine: "faster-whisper",
 		model: "large-v3",
 		modelRevision: null,
@@ -106,6 +122,7 @@ function run(sourceId: string, runId: string): LocalRunSummary {
 		},
 		publicationTarget: null,
 		review: null,
+		...overrides,
 	};
 }
 
@@ -148,31 +165,69 @@ describe("session intent model", () => {
 		).toEqual(["craig-a", "craig-b"]);
 	});
 
-	test("selects the run produced by this intent before considering historical ambiguity", () => {
+	test("selects the run produced by this intent before historical reuse", () => {
 		const sourceId = "craig-" + "1".repeat(64);
 		const target = part(sourceId);
-		const runs = [run(sourceId, "run-old"), run(sourceId, "run-intent")];
-		expect(chooseIntentRun(target, runs, "run-intent")).toEqual({
+		const runs = [
+			run(sourceId, "run-old", { profileId: "qwen-quality" }),
+			run(sourceId, "run-intent", { profileId: "qwen-quality" }),
+		];
+		expect(chooseIntentRun(target, runs, "run-intent", CONTRACT)).toEqual({
 			kind: "automatic",
 			runId: "run-intent",
 			reason: "intent_job",
 		});
-		expect(chooseIntentRun(target, runs, null)).toEqual({
-			kind: "ambiguous",
-			runIds: ["run-old", "run-intent"],
-		});
 	});
 
-	test("reuses one existing run and preserves an already selected run", () => {
+	test("reuses only a historical run with the exact intent contract", () => {
 		const sourceId = "craig-" + "2".repeat(64);
-		expect(chooseIntentRun(part(sourceId), [run(sourceId, "run-only")], null)).toEqual({
+		const exact = run(sourceId, "run-exact");
+		expect(runMatchesIntent(exact, sourceId, CONTRACT)).toBe(true);
+		expect(chooseIntentRun(part(sourceId), [exact], null, CONTRACT)).toEqual({
 			kind: "automatic",
-			runId: "run-only",
-			reason: "single_run",
+			runId: "run-exact",
+			reason: "exact_match",
 		});
+
+		for (const incompatible of [
+			run(sourceId, "profile", { profileId: "qwen-quality" }),
+			run(sourceId, "recipe", { profileContractSha256: "e".repeat(64) }),
+			run(sourceId, "context", { contextSha256: "e".repeat(64) }),
+			run(sourceId, "glossary", { glossarySha256: "e".repeat(64) }),
+			run(sourceId, "legacy-recipe", { profileContractSha256: null }),
+			run(sourceId, "legacy-context", { contextSha256: null }),
+			run(sourceId, "legacy-glossary", { glossarySha256: null }),
+		]) {
+			expect(chooseIntentRun(part(sourceId), [incompatible], null, CONTRACT)).toEqual({
+				kind: "missing",
+			});
+		}
+	});
+
+	test("revalidates a persisted selected run against a new intent", () => {
+		const sourceId = "craig-" + "3".repeat(64);
+		const selected = run(sourceId, "run-chosen", { profileId: "qwen-quality" });
 		expect(
-			chooseIntentRun(part(sourceId, "run-chosen"), [run(sourceId, "run-other")], null),
+			chooseIntentRun(part(sourceId, "run-chosen"), [selected], null, CONTRACT),
+		).toEqual({ kind: "missing" });
+		expect(
+			chooseIntentRun(part(sourceId, "run-chosen"), [selected], null, null),
 		).toEqual({ kind: "selected", runId: "run-chosen" });
+	});
+
+	test("chooses the newest exact historical run deterministically", () => {
+		const sourceId = "craig-" + "4".repeat(64);
+		const older = run(sourceId, "run-a", {
+			completedAt: "2026-09-29T00:00:00.000Z",
+		});
+		const newer = run(sourceId, "run-b", {
+			completedAt: "2026-09-30T00:00:00.000Z",
+		});
+		expect(chooseIntentRun(part(sourceId), [older, newer], null, CONTRACT)).toEqual({
+			kind: "automatic",
+			runId: "run-b",
+			reason: "exact_match",
+		});
 	});
 
 	test("reports session-level progress without retranscribing completed parts", () => {
@@ -186,6 +241,7 @@ describe("session intent model", () => {
 				workspace([part(a), part(b), part(c), part(d)]),
 				runs,
 				[job(b, "running"), job(c, "failed")],
+				CONTRACT,
 			),
 		).toEqual({ total: 4, waiting: 1, running: 1, completed: 1, failed: 1 });
 		expect(retryableIntentJob([job(c, "failed")], c)?.status).toBe("failed");
