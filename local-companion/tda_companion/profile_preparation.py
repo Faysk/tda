@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Callable
 from uuid import uuid4
 
-from .asr_models import get_profile, inspect_model_install
+from .asr_models import get_profile, inspect_model_install, profile_contract_sha256
 from .asr_runtime import inspect_whisper_runtime, install_whisper_runtime_archive
 from .asr_runtime_updates import (
     download_whisper_runtime,
@@ -246,6 +246,7 @@ def profile_catalog(
                 "benchmark_reason": benchmark_reason,
                 "model": profile.model_id,
                 "model_revision": profile.revision,
+                "profile_contract_sha256": profile_contract_sha256(profile),
                 "runtime_version": runtime_version,
                 "runtime_worker_sha256": runtime_worker_sha256,
                 "compute_type": compute_type,
