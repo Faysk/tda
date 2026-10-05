@@ -7,11 +7,9 @@ import {
 	latestJobForSource,
 	sessionAssemblyReadiness,
 } from "./session-composer-model";
-import type {
-	SessionAssembly,
-	SessionAssemblyReviewSummary,
-} from "./session-composer-protocol";
+import type { SessionAssembly } from "./session-composer-protocol";
 import {
+	clearSessionComposerRecoveryPointer,
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
 	SESSION_COMPOSER_CHANGE_EVENT,
@@ -45,7 +43,6 @@ import type {
 	TranscriptionProfileId,
 } from "./protocol";
 import { BridgeError } from "./protocol";
-import { SessionAssemblyReview } from "./session-assembly-review";
 import {
 	sessionRecoveryForError,
 	sessionTimelineRecovery,
@@ -111,6 +108,8 @@ type Props = Readonly<{
 	) => void;
 	onOpenTechnical?: (target?: SessionRecoveryTarget) => void;
 	onSelectSource?: () => void;
+	onReviewAssembly?: (assembly: SessionAssembly) => void;
+	onNewTranscription?: () => void;
 }>;
 
 function supported(capabilities: readonly string[]): boolean {
@@ -208,6 +207,8 @@ export function SessionIntentCoordinator({
 	onError,
 	onOpenTechnical,
 	onSelectSource,
+	onReviewAssembly,
+	onNewTranscription,
 }: Props) {
 	const enabled = supported(capabilities);
 	const [workspace, setWorkspace] = useState<SessionWorkspace | null>(null);
@@ -217,7 +218,6 @@ export function SessionIntentCoordinator({
 	>(new Map());
 	const [jobs, setJobs] = useState<readonly LocalJob[]>([]);
 	const [assembly, setAssembly] = useState<SessionAssembly | null>(null);
-	const [review, setReview] = useState<SessionAssemblyReviewSummary | null>(null);
 	const [activeRequest, setActiveRequest] =
 		useState<SessionTranscriptionIntent | null>(null);
 	const [blocker, setBlocker] = useState<Blocker | null>(null);
@@ -344,7 +344,6 @@ export function SessionIntentCoordinator({
 			setLocalError(null);
 			setBlocker(null);
 			enqueueRecoveryBlocked.current.clear();
-			setReview(null);
 			setAssembly(null);
 			setActiveRequest(intent);
 			try {
@@ -1141,24 +1140,41 @@ export function SessionIntentCoordinator({
 		void begin(activeRequest);
 	}
 
-	async function openReview() {
-		if (!workspace || !assembly || busy || disabled) return;
-		const controller = new AbortController();
-		setBusy(true);
+	function openReview() {
+		if (!assembly || busy || disabled || !onReviewAssembly) return;
+		onReviewAssembly(assembly);
+	}
+
+	function startNewTranscription() {
+		if (busy || disabled || !assembly) return;
 		try {
-			const next = await bridge.sessionAssemblyReview(
-				workspace.campaignId,
-				workspace.sessionId,
-				assembly.assemblyId,
-				controller.signal,
-			);
-			setReview(next);
-			announce("Transcrição contínua carregada e pronta para revisão.");
-		} catch (cause) {
-			fail(cause);
-		} finally {
-			setBusy(false);
+			clearSessionComposerRecoveryPointer(window.localStorage, campaignId);
+		} catch {
+			// Browser storage is recovery-only; completed Agent data remains authoritative.
 		}
+		processedRequest.current = null;
+		pendingSubmissions.current.clear();
+		intentEnqueueKeys.current.clear();
+		intentJobIds.current.clear();
+		intentRunIds.current.clear();
+		enqueueRecoveryBlocked.current.clear();
+		intentReceiptIdentity.current = null;
+		intentReceipt.current = null;
+		approvedVariantSources.current.clear();
+		excludedSources.current.clear();
+		setWorkspace(null);
+		setMapping(null);
+		setRunsBySource(new Map());
+		setJobs([]);
+		setAssembly(null);
+		setActiveRequest(null);
+		setBlocker(null);
+		setRecovery(null);
+		setLocalError(null);
+		setLive(null);
+		onActiveChange?.(false);
+		onNewTranscription?.();
+		window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
 	}
 
 	if (!enabled || (!workspace && !request)) return null;
@@ -1207,7 +1223,7 @@ export function SessionIntentCoordinator({
 						{workspace?.sessionId ?? request?.sessionId ?? "Sessão"}
 					</h3>
 				</div>
-				{progress.total ? (
+				{progress.total && !assembly ? (
 					<strong>
 						{progress.completed}/{progress.total} concluída
 						{progress.total === 1 ? "" : "s"}
@@ -1215,7 +1231,7 @@ export function SessionIntentCoordinator({
 				) : null}
 			</div>
 
-			{workspace?.parts.length ? (
+			{workspace?.parts.length && !assembly ? (
 				<ol className={styles.progressList} aria-label="Progresso das gravações">
 					{workspace.parts.map((part, index) => {
 						const runs = runsBySource.get(part.sourceId) ?? [];
@@ -1280,9 +1296,9 @@ export function SessionIntentCoordinator({
 						);
 					})}
 				</ol>
-			) : (
+			) : !assembly ? (
 				<p className={styles.waiting}>Preparando as gravações desta sessão…</p>
-			)}
+			) : null}
 
 			{recovery ? (
 				<RecoveryGuideCard
@@ -1300,7 +1316,7 @@ export function SessionIntentCoordinator({
 				/>
 			) : null}
 
-			{workspace?.parts.length && workspace.parts.length > 1 ? (
+			{workspace?.parts.length && workspace.parts.length > 1 && !assembly ? (
 				<p className={styles.outputHint}>A saída será uma única transcrição da sessão.</p>
 			) : null}
 
@@ -1603,26 +1619,25 @@ export function SessionIntentCoordinator({
 							{assembly.parts.length === 1 ? "gravação" : "gravações"}
 						</span>
 					</div>
-					<Button
-						type="button"
-						variant="primary"
-						disabled={busy}
-						onClick={() => void openReview()}
-					>
-						Revisar transcrição
-					</Button>
+					<div className={styles.blockerActions}>
+						<Button
+							type="button"
+							variant="primary"
+							disabled={busy || !onReviewAssembly}
+							onClick={() => void openReview()}
+						>
+							Revisar transcrição
+						</Button>
+						<Button
+							type="button"
+							variant="secondary"
+							disabled={busy}
+							onClick={startNewTranscription}
+						>
+							Nova transcrição
+						</Button>
+					</div>
 				</div>
-			) : null}
-
-			{review && assembly ? (
-				<SessionAssemblyReview
-					bridge={bridge}
-					assembly={assembly}
-					review={review}
-					disabled={busy || disabled}
-					onChange={setReview}
-					onStatus={announce}
-				/>
 			) : null}
 
 			{activeJobs.length ? (

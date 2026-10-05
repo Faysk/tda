@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { actionStyles, Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import { wallClockPresentation } from "../../transcript-review/time-contract";
@@ -24,7 +24,7 @@ import {
 import { PublicationClientError, type PublicationReceiptView } from "./publication-client";
 import styles from "./session-assembly-review.module.css";
 
-const ROW_LIMIT = 200;
+const PAGE_SIZE = 60;
 const PENDING_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
@@ -43,6 +43,7 @@ type Props = Readonly<{
 	review: SessionAssemblyReviewSummary;
 	disabled?: boolean;
 	onChange: (review: SessionAssemblyReviewSummary) => void;
+	onDirtyChange?: (dirty: boolean) => void;
 	onStatus?: (message: string) => void;
 }>;
 
@@ -154,6 +155,7 @@ export function SessionAssemblyReview({
 	review,
 	disabled = false,
 	onChange,
+	onDirtyChange,
 	onStatus,
 }: Props) {
 	const [baseline, setBaseline] = useState(review);
@@ -162,18 +164,49 @@ export function SessionAssemblyReview({
 	);
 	const [dirty, setDirty] = useState(false);
 	const [query, setQuery] = useState("");
+	const [page, setPage] = useState(0);
+	const [editingDraft, setEditingDraft] = useState<Readonly<{
+		assemblySegmentId: string;
+		speaker: string;
+		text: string;
+	}> | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [receipt, setReceipt] = useState<PublicationReceiptView | null>(null);
 	const [pending, setPending] = useState<PendingPublication | null>(null);
+	const appliedReviewIdentity = useRef<string | null>(null);
 
 	useEffect(() => {
+		const reviewIdentity = [
+			review.assemblyId,
+			review.baseTranscriptSha256,
+			review.persistence,
+			review.draftRevision ?? "base",
+			review.draftSha256 ?? "base",
+			review.status,
+			review.approvalCurrent ? "approved" : "current",
+		].join(":");
+		if (appliedReviewIdentity.current === reviewIdentity) return;
+		appliedReviewIdentity.current = reviewIdentity;
 		setBaseline(review);
 		setSegments(review.segments.map((segment) => ({ ...segment })));
 		setDirty(false);
+		setPage(0);
+		setEditingDraft(null);
 		setReceipt(null);
 		setPending(loadPending(review.assemblyId));
 	}, [review]);
+
+	useEffect(() => {
+		onDirtyChange?.(dirty || editingDraft !== null);
+	}, [dirty, editingDraft, onDirtyChange]);
+
+	useEffect(
+		() => () => {
+			onDirtyChange?.(false);
+		},
+		[onDirtyChange],
+	);
 
 	const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
 	const matches = useMemo(
@@ -188,11 +221,22 @@ export function SessionAssemblyReview({
 			}),
 		[normalizedQuery, segments],
 	);
-	const visible = matches.slice(0, ROW_LIMIT);
+	const pageCount = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+	const safePage = Math.min(page, pageCount - 1);
+	const pageStart = safePage * PAGE_SIZE;
+	const visible = matches.slice(pageStart, pageStart + PAGE_SIZE);
+	const pageEnd = pageStart + visible.length;
+
+
+	useEffect(() => {
+		if (page !== safePage) setPage(safePage);
+	}, [page, safePage]);
+
 	const canApprove =
 		!disabled &&
 		!busy &&
 		!dirty &&
+		editingDraft === null &&
 		baseline.persistence === "persisted" &&
 		baseline.status !== "approved_local" &&
 		!baseline.approvalBlocked;
@@ -200,24 +244,81 @@ export function SessionAssemblyReview({
 		!disabled &&
 		!busy &&
 		!dirty &&
+		editingDraft === null &&
 		baseline.persistence === "persisted" &&
 		baseline.status === "approved_local" &&
 		baseline.approvalCurrent;
 
-	function editSegment(
-		assemblySegmentId: string,
-		field: "speaker" | "text",
-		value: string,
-	) {
-		setSegments((current) =>
-			current.map((segment) =>
-				segment.assemblySegmentId === assemblySegmentId
-					? { ...segment, [field]: value, reviewed: true }
-					: segment,
-			),
-		);
-		setDirty(true);
-		setReceipt(null);
+	function focusSegmentTrigger(assemblySegmentId: string) {
+		window.requestAnimationFrame(() => {
+			const trigger = [
+				...document.querySelectorAll<HTMLButtonElement>(
+					"[data-assembly-segment-trigger]",
+				),
+			].find(
+				(element) =>
+					element.dataset.assemblySegmentTrigger === assemblySegmentId,
+			);
+			trigger?.focus();
+		});
+	}
+
+	function openSegmentEditor(segment: SessionAssemblyReviewSegment) {
+		setEditingDraft({
+			assemblySegmentId: segment.assemblySegmentId,
+			speaker: segment.speaker,
+			text: segment.text,
+		});
+	}
+
+	function cancelSegmentEditor(assemblySegmentId: string) {
+		setEditingDraft(null);
+		focusSegmentTrigger(assemblySegmentId);
+	}
+
+	function applySegmentEditor(segment: SessionAssemblyReviewSegment) {
+		if (
+			!editingDraft ||
+			editingDraft.assemblySegmentId !== segment.assemblySegmentId
+		)
+			return;
+		const changed =
+			editingDraft.speaker !== segment.speaker ||
+			editingDraft.text !== segment.text;
+		if (changed) {
+			setSegments((current) => {
+				const index = current.findIndex(
+					(item) => item.assemblySegmentId === segment.assemblySegmentId,
+				);
+				if (index < 0) return current;
+				const currentSegment = current[index];
+				if (!currentSegment) return current;
+				const next = [...current];
+				next[index] = {
+					...currentSegment,
+					speaker: editingDraft.speaker,
+					text: editingDraft.text,
+					reviewed: true,
+				};
+				return next;
+			});
+			setDirty(true);
+			setReceipt(null);
+		}
+		setEditingDraft(null);
+		focusSegmentTrigger(segment.assemblySegmentId);
+	}
+
+
+	function changePage(nextPage: number) {
+		setEditingDraft(null);
+		setPage(Math.max(0, Math.min(pageCount - 1, nextPage)));
+		window.requestAnimationFrame(() => {
+			const viewport = document.querySelector<HTMLElement>(
+				"[data-assembly-transcript-viewport='true']",
+			);
+			if (viewport) viewport.scrollTop = 0;
+		});
 	}
 
 	function applySaved(next: SessionAssemblyReviewSummary, message: string) {
@@ -307,7 +408,9 @@ export function SessionAssemblyReview({
 			<header className={styles.header}>
 				<div>
 					<span className={styles.eyebrow}>Revisão contínua</span>
-					<h3>Transcrição da sessão</h3>
+					<h3 data-assembly-review-focus-target="true" tabIndex={-1}>
+						Transcrição da sessão
+					</h3>
 					<p>
 						{baseline.segmentCount.toLocaleString("pt-BR")} falas ·{" "}
 						{baseline.reviewedSegments.toLocaleString("pt-BR")} revisadas · Assembly{" "}
@@ -331,7 +434,12 @@ export function SessionAssemblyReview({
 							Abrir sessão no Edit
 						</a>
 					) : dirty ? (
-						<Button size="sm" variant="primary" disabled={busy || disabled} onClick={() => void save("reviewed")}>
+						<Button
+						size="sm"
+						variant="primary"
+						disabled={busy || disabled || editingDraft !== null}
+						onClick={() => void save("reviewed")}
+					>
 							{busy ? "Salvando…" : "Salvar alterações"}
 						</Button>
 					) : canApprove ? (
@@ -352,7 +460,12 @@ export function SessionAssemblyReview({
 					<input
 						type="search"
 						value={query}
-						onChange={(event) => setQuery(event.currentTarget.value)}
+						onChange={(event) => {
+							setQuery(event.currentTarget.value);
+							setPage(0);
+							setEditingDraft(null);
+						}}
+						disabled={editingDraft !== null}
 						placeholder="Participante, texto ou origem"
 					/>
 				</label>
@@ -362,7 +475,7 @@ export function SessionAssemblyReview({
 					title={assembly.sessionId}
 					fileIdentity={assembly.sessionId}
 					dirty={dirty}
-					disabled={disabled || busy}
+					disabled={disabled || busy || editingDraft !== null}
 					onApply={(result) => {
 						setSegments((current) => [
 							...applySessionAssemblyMarkdownImport(current, result),
@@ -387,70 +500,161 @@ export function SessionAssemblyReview({
 			<div className={styles.summary}>
 				<strong>{matches.length.toLocaleString("pt-BR")} falas encontradas</strong>
 				<span>
-					{matches.length > ROW_LIMIT
-						? "Mostrando as primeiras " +
-							ROW_LIMIT.toLocaleString("pt-BR") +
-							" para manter a interface responsiva."
-						: "Todas as falas encontradas estão visíveis."}
+					{matches.length
+						? `${(pageStart + 1).toLocaleString("pt-BR")}–${pageEnd.toLocaleString("pt-BR")} de ${matches.length.toLocaleString("pt-BR")}`
+						: "Nenhuma fala corresponde à busca."}
 				</span>
 			</div>
 
-			<ol className={styles.segments}>
-				{visible.map((segment) => {
-					const wallClock = segment.absoluteTime
-						? wallClockPresentation(segment.absoluteTime.startIso)
-						: null;
-					return (
-						<li key={segment.assemblySegmentId} data-assembly-segment={segment.assemblySegmentId}>
-							<div className={styles.segmentMeta}>
-								<span>{elapsed(segment.start)}</span>
-								{wallClock ? (
-									<time dateTime={segment.absoluteTime?.startIso} title={wallClock.accessible}>
-										{wallClock.date} · {wallClock.clock} {wallClock.offset}
-									</time>
-								) : null}
-							</div>
-							<label>
-								<span>Participante</span>
-								<input
-									value={segment.speaker}
-									disabled={disabled || busy}
-									onChange={(event) =>
-										editSegment(
-											segment.assemblySegmentId,
-											"speaker",
-											event.currentTarget.value,
-										)
-									}
-								/>
-							</label>
-							<label>
-								<span>Texto</span>
-								<textarea
-									rows={3}
-									value={segment.text}
-									disabled={disabled || busy}
-									onChange={(event) =>
-										editSegment(
-											segment.assemblySegmentId,
-											"text",
-											event.currentTarget.value,
-										)
-									}
-								/>
-							</label>
-							<details>
-								<summary>Proveniência</summary>
-								<small>
-									Part {segment.partId} · source {segment.sourceId} · run{" "}
-									{segment.runId} · track {segment.trackNumber} · segmento{" "}
-									{segment.sourceSegmentId}
-								</small>
-							</details>
-						</li>
-					);
-				})}
-			</ol>
+			{pageCount > 1 ? (
+				<nav className={styles.pagination} aria-label="Navegação da transcrição">
+					<Button
+						type="button"
+						size="sm"
+						variant="tertiary"
+						disabled={safePage === 0 || editingDraft !== null}
+						onClick={() => changePage(safePage - 1)}
+					>
+						Anterior
+					</Button>
+					<span>
+						Página {(safePage + 1).toLocaleString("pt-BR")} de{" "}
+						{pageCount.toLocaleString("pt-BR")}
+					</span>
+					<Button
+						type="button"
+						size="sm"
+						variant="tertiary"
+						disabled={safePage >= pageCount - 1 || editingDraft !== null}
+						onClick={() => changePage(safePage + 1)}
+					>
+						Próxima
+					</Button>
+				</nav>
+			) : null}
+
+			<section
+				className={styles.transcriptViewport}
+				data-assembly-transcript-viewport="true"
+				data-page-size={PAGE_SIZE}
+				aria-label="Timeline da transcrição"
+			>
+				{visible.length ? (
+					<ol className={styles.segments}>
+						{visible.map((segment, index) => {
+							const wallClock = segment.absoluteTime
+								? wallClockPresentation(segment.absoluteTime.startIso)
+								: null;
+							const editing =
+								editingDraft?.assemblySegmentId === segment.assemblySegmentId;
+							return (
+								<li
+									key={segment.assemblySegmentId}
+									data-assembly-segment={segment.assemblySegmentId}
+									data-editing={editing ? "true" : "false"}
+								>
+									<button
+										type="button"
+										className={styles.segmentRow}
+										data-assembly-segment-trigger={segment.assemblySegmentId}
+										aria-expanded={editing}
+										aria-label={`Editar fala ${pageStart + index + 1} de ${matches.length}: ${segment.speaker}`}
+										disabled={
+											editingDraft !== null &&
+											editingDraft.assemblySegmentId !== segment.assemblySegmentId
+										}
+										onClick={() => {
+											if (!editing) openSegmentEditor(segment);
+										}}
+									>
+										<span className={styles.segmentMeta}>
+											<span>{elapsed(segment.start)}</span>
+											{wallClock ? (
+												<time
+													dateTime={segment.absoluteTime?.startIso}
+													title={wallClock.accessible}
+												>
+													{wallClock.date} · {wallClock.clock} {wallClock.offset}
+												</time>
+											) : null}
+										</span>
+										<strong className={styles.segmentSpeaker}>{segment.speaker}</strong>
+										<span className={styles.segmentText}>{segment.text}</span>
+									</button>
+
+									{editing ? (
+										<div className={styles.segmentEditor}>
+											<div className={styles.editorFields}>
+												<label>
+													<span>Participante</span>
+													<input
+														value={editingDraft?.speaker ?? segment.speaker}
+														disabled={disabled || busy}
+														onChange={(event) =>
+															setEditingDraft((current) =>
+																current
+																	? { ...current, speaker: event.currentTarget.value }
+																	: current,
+															)
+														}
+													/>
+												</label>
+												<label>
+													<span>Texto</span>
+													<textarea
+														rows={4}
+														value={editingDraft?.text ?? segment.text}
+														disabled={disabled || busy}
+														onChange={(event) =>
+															setEditingDraft((current) =>
+																current
+																	? { ...current, text: event.currentTarget.value }
+																	: current,
+															)
+														}
+													/>
+												</label>
+											</div>
+											<div className={styles.editorFooter}>
+												<details>
+													<summary>Proveniência</summary>
+													<small>
+														Part {segment.partId} · source {segment.sourceId} · run{" "}
+														{segment.runId} · track {segment.trackNumber} · segmento{" "}
+														{segment.sourceSegmentId}
+													</small>
+												</details>
+												<div className={styles.editorActions}>
+													<Button
+														type="button"
+														size="sm"
+														variant="tertiary"
+														onClick={() =>
+															cancelSegmentEditor(segment.assemblySegmentId)
+														}
+													>
+														Cancelar
+													</Button>
+													<Button
+														type="button"
+														size="sm"
+														variant="secondary"
+														onClick={() => applySegmentEditor(segment)}
+													>
+														Aplicar
+													</Button>
+												</div>
+											</div>
+										</div>
+									) : null}
+								</li>
+							);
+						})}
+					</ol>
+				) : (
+					<p className={styles.empty}>Nenhuma fala corresponde à busca atual.</p>
+				)}
+			</section>
 		</section>
 	);
 }

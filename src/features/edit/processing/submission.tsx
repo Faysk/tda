@@ -217,6 +217,7 @@ export function ProcessingSubmission({
 	recoveryScope = null,
 	onDraftStateChange,
 	onOpenDiagnostics,
+	onReviewSessionAssembly,
 	runs = EMPTY_RUNS,
 	benchmarks = EMPTY_BENCHMARKS,
 	system = null,
@@ -227,6 +228,9 @@ export function ProcessingSubmission({
 	recoveryScope?: string | null;
 	onDraftStateChange?: (active: boolean) => void;
 	onOpenDiagnostics?: () => void;
+	onReviewSessionAssembly?: (
+		assembly: import("./session-composer-protocol").SessionAssembly,
+	) => void;
 	runs?: readonly LocalRunSummary[];
 	benchmarks?: readonly BenchmarkResult[];
 	system?: SystemSnapshot | null;
@@ -245,9 +249,13 @@ export function ProcessingSubmission({
 	const [files, setFiles] = useState<readonly CraigFileSelection[]>([]);
 	const source =
 		files.find((item) => item.source && item.state === "valid")?.source ?? null;
+	const exactDuplicateCount = files.filter(
+		(item) => item.state === "duplicate",
+	).length;
 	const [intentRequest, setIntentRequest] =
 		useState<SessionTranscriptionIntent | null>(null);
 	const [composerActive, setComposerActive] = useState(false);
+	const [sourceRecoveryActive, setSourceRecoveryActive] = useState(false);
 	const [technicalOpen, setTechnicalOpen] = useState(false);
 	const [technicalTarget, setTechnicalTarget] =
 		useState<SessionRecoveryTarget | null>(null);
@@ -290,7 +298,9 @@ export function ProcessingSubmission({
 	}, []);
 
 	const openSourceRecovery = useCallback(() => {
+		setSourceRecoveryActive(true);
 		setIntentRequest(null);
+		setAdvancedOpen(false);
 		setFiles([]);
 		setError(null);
 		setRecoveryNotice(null);
@@ -298,6 +308,22 @@ export function ProcessingSubmission({
 			"Selecione novamente o ZIP original. O workspace da sessão permanece preservado enquanto a fonte local é restaurada.",
 		);
 		window.requestAnimationFrame(() => fileInput.current?.click());
+	}, []);
+
+	const startNewTranscription = useCallback(() => {
+		setIntentRequest(null);
+		setComposerActive(false);
+		setSourceRecoveryActive(false);
+		setFiles([]);
+		setSessionId("");
+		setContext("");
+		setGlossary("");
+		setAdvancedOpen(false);
+		setTechnicalOpen(false);
+		setTechnicalTarget(null);
+		setError(null);
+		setRecoveryNotice(null);
+		setStatus("Pronto para iniciar uma nova transcrição.");
 	}, []);
 
 	useEffect(() => {
@@ -309,6 +335,7 @@ export function ProcessingSubmission({
 			request.current?.abort();
 			setCapabilities(null);
 			setProfile("");
+			setSourceRecoveryActive(false);
 			setCapabilityError(null);
 			setRecoveryNotice(null);
 			return;
@@ -843,6 +870,7 @@ export function ProcessingSubmission({
 				);
 				confirmSessionComposerPendingSubmission(window.localStorage, pending);
 				fallbackPending.current = null;
+				setSourceRecoveryActive(false);
 				setFiles([]);
 				setStatus(
 					`Job ${job.id} confirmado no Companion · ${job.status === "succeeded" ? "concluído" : "acompanhe na fila"}.`,
@@ -856,6 +884,8 @@ export function ProcessingSubmission({
 					? "Iniciando a transcrição da sessão…"
 					: `Iniciando a transcrição da sessão com ${stagedSources.length} gravações…`,
 			);
+			setSourceRecoveryActive(false);
+			setAdvancedOpen(false);
 			setIntentRequest({
 				id: crypto.randomUUID(),
 				sessionId,
@@ -958,6 +988,11 @@ export function ProcessingSubmission({
 			className={className ? `${styles.card} ${className}` : styles.card}
 			data-craig-composer="true"
 			data-layout={compact ? "compact" : "default"}
+			data-intent-fixed={
+				(intentRequest || composerActive) && !sourceRecoveryActive
+					? "true"
+					: "false"
+			}
 			aria-labelledby="new-local-transcription"
 		>
 			<div className={styles.heading}>
@@ -1222,7 +1257,7 @@ export function ProcessingSubmission({
 								}))}
 								onChange={(value) => setProfile(value as TranscriptionProfileId)}
 								ariaLabel="Perfil"
-								disabled={busy || Boolean(intentRequest)}
+								disabled={busy || composerActive || Boolean(intentRequest)}
 								required
 							/>
 						</div>
@@ -1354,7 +1389,7 @@ export function ProcessingSubmission({
 										onChange={(event) =>
 												setContext(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
 										}
-										disabled={busy || Boolean(intentRequest)}
+										disabled={busy || composerActive || Boolean(intentRequest)}
 										placeholder="Contexto curto da sessão/campanha para reconhecimento."
 									/>
 								</label>
@@ -1365,7 +1400,7 @@ export function ProcessingSubmission({
 										onChange={(event) =>
 												setGlossary(truncateUnicodeScalars(event.target.value, TRANSCRIPTION_TEXT_MAX_CHARS))
 										}
-										disabled={busy || Boolean(intentRequest)}
+										disabled={busy || composerActive || Boolean(intentRequest)}
 										placeholder="Personagens, NPCs, lugares e termos difíceis."
 									/>
 								</label>
@@ -1380,6 +1415,20 @@ export function ProcessingSubmission({
 					) : null}
 				</form>
 			)}
+
+			{intentRequest || composerActive ? (
+				<div className={styles.intentSummary} role="status" data-processing-intent-summary="true">
+					<div>
+						<strong>{sessionId}</strong>
+						<span>
+							{files.length
+								? `${files.length} ${files.length === 1 ? "gravação" : "gravações"}${exactDuplicateCount === 1 ? " · 1 duplicata exata · será reutilizada uma vez" : exactDuplicateCount > 1 ? ` · ${exactDuplicateCount} duplicatas exatas · serão reutilizadas uma vez cada` : ""} · ${profile ? submissionProfileLabel(profile) : "perfil preservado"}`
+								: `Gravações preservadas no Companion · ${profile ? submissionProfileLabel(profile) : "perfil preservado"}`}
+						</span>
+					</div>
+					<small>A intenção da sessão está fixada; acompanhe progresso e decisões abaixo.</small>
+				</div>
+			) : null}
 
 			{capabilities ? (
 				<>
@@ -1403,6 +1452,8 @@ export function ProcessingSubmission({
 						onError={handleChildError}
 						onOpenTechnical={openTechnicalRecovery}
 						onSelectSource={openSourceRecovery}
+						onReviewAssembly={onReviewSessionAssembly}
+						onNewTranscription={startNewTranscription}
 					/>
 					{composerActive ? (
 						<details

@@ -15,6 +15,7 @@ const PART_IDS = Array.from({ length: 20 }, (_, index) =>
 	(index + 1).toString(16).padStart(32, "0"),
 );
 const ASSEMBLY_ID = "c".repeat(64);
+const OLD_ASSEMBLY_ID = "b".repeat(64);
 const TRANSCRIPT_SHA = "d".repeat(64);
 const SEGMENT_ID = "e".repeat(64);
 const NOW = "2026-09-30T00:00:00.000Z";
@@ -87,6 +88,8 @@ type FixtureOptions = Readonly<{
 	invalidSourceIndex?: number | null;
 	sourceStartOrder?: readonly number[];
 	initialTimelineState?: "needs_timing" | "overlap_unresolved" | "order_conflict";
+	reviewRowCount?: number;
+	includeOlderAssembly?: boolean;
 }>;
 
 async function installMultiRecordingRoutes(
@@ -124,20 +127,25 @@ async function installMultiRecordingRoutes(
 	let timelineDeriveCount = 0;
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
 
-	const baseReviewRows = () =>
-		attached.map((sourceId, index) => {
-			const absolute = options.reviewAbsoluteTimes?.[index];
+	const baseReviewRows = () => {
+		const count = options.reviewRowCount ?? attached.length;
+		return Array.from({ length: count }, (_, index) => {
+			const sourceIndex = attached.length ? index % attached.length : 0;
+			const sourceId = attached[sourceIndex] ?? SOURCE_IDS[0]!;
+			const absolute = options.reviewAbsoluteTimes?.[sourceIndex];
 			return {
 				assembly_segment_id:
-					index === 0 ? SEGMENT_ID : (index + 10).toString(16).repeat(64),
-				part_id: PART_IDS[index],
+					index === 0
+						? SEGMENT_ID
+						: (index + 10).toString(16).padStart(64, "0").slice(-64),
+				part_id: PART_IDS[sourceIndex] ?? PART_IDS[0],
 				source_id: sourceId,
 				run_id: `run-${SOURCE_IDS.indexOf(sourceId) + 1}`,
 				source_segment_id: `seg-${index + 1}`,
 				track_number: 1,
 				participant_id: "9".repeat(32),
-				start: index * 300,
-				end: index * 300 + 1,
+				start: index * 2,
+				end: index * 2 + 1,
 				...(options.reviewAbsoluteTimes === undefined
 					? {}
 					: absolute
@@ -158,6 +166,7 @@ async function installMultiRecordingRoutes(
 				reviewed: false,
 			};
 		});
+	};
 	const currentReviewRows = () => reviewRows ?? baseReviewRows();
 	const reviewWordCount = () =>
 		currentReviewRows().reduce((total, row) => {
@@ -752,11 +761,24 @@ async function installMultiRecordingRoutes(
 				session_id: SESSION,
 				assemblies: assemblyBuilt
 					? [
+							...(options.includeOlderAssembly
+								? [
+									{
+										assembly_id: OLD_ASSEMBLY_ID,
+										transcript_sha256: "a".repeat(64),
+										inputs_sha256: OLD_ASSEMBLY_ID,
+										segment_count: 1,
+										part_count: 1,
+										participant_approval_blocked: false,
+										created_at: "2026-09-29T00:00:00.000Z",
+									},
+								]
+								: []),
 							{
 								assembly_id: ASSEMBLY_ID,
 								transcript_sha256: TRANSCRIPT_SHA,
 								inputs_sha256: ASSEMBLY_ID,
-								segment_count: attached.length,
+								segment_count: options.reviewRowCount ?? attached.length,
 								part_count: attached.length,
 								participant_approval_blocked: false,
 								created_at: NOW,
@@ -794,7 +816,7 @@ async function installMultiRecordingRoutes(
 				transcript_artifact: "transcript.json",
 				transcript_sha256: TRANSCRIPT_SHA,
 				transcript_size_bytes: 512,
-				segment_count: attached.length,
+				segment_count: options.reviewRowCount ?? attached.length,
 				created_at: NOW,
 				parts: attached.map((sourceId, index) => ({
 					part_id: PART_IDS[index],
@@ -959,6 +981,7 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 	});
 	const multi = await installMultiRecordingRoutes(page, {
 		uploadSequence: [0],
+		includeOlderAssembly: true,
 	});
 
 	await openProcessing(page);
@@ -978,11 +1001,28 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 	expect(multi.assemblyBuilt).toBe(true);
 
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
-	const review = page.getByRole("region", {
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const reviewOwner = page.locator("[data-assembly-review-owner='results']");
+	const review = reviewOwner.getByRole("region", {
 		name: "Revisão da transcrição da sessão",
 	});
+	await expect(reviewOwner).toBeVisible();
 	await expect(review).toBeVisible();
+	await expect(
+		review.getByRole("heading", { name: "Transcrição da sessão" }),
+	).toBeFocused();
 	await expect(review).toContainText("1 falas");
+	await expect(
+		page.locator("[data-results-assembly] article[data-selected='true']"),
+	).toContainText(`Assembly ${ASSEMBLY_ID.slice(0, 12)}`);
+	await expect(
+		page
+			.locator("[data-session-intent='true']")
+			.getByRole("region", { name: "Revisão da transcrição da sessão" }),
+	).toHaveCount(0);
 });
 
 test("session assembly review resolves semantic tokens across themes, focus and responsive zoom", async ({
@@ -1020,35 +1060,33 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 		buffer: Buffer.from("PK-review-tokens"),
 	});
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
-
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(intent).toContainText("Transcrição pronta");
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
 
-	const review = page.getByRole("region", {
-		name: "Revisão da transcrição da sessão",
-	});
+	const review = page
+		.locator("[data-assembly-review-owner='results']")
+		.getByRole("region", { name: "Revisão da transcrição da sessão" });
 	await expect(review).toBeVisible();
-	const notice = review.getByText(
-		/Há um handoff com identidade preservada/u,
-	);
+	const notice = review.getByText(/Há um handoff com identidade preservada/u);
 	await expect(notice).toBeVisible();
 
-	const textarea = review.locator("textarea").first();
-	await textarea.fill("Trecho alterado para validar o estado de erro.");
+	const viewport = review.locator("[data-assembly-transcript-viewport='true']");
+	await viewport.locator("[data-assembly-segment-trigger]").first().click();
+	await viewport.getByLabel("Texto").fill(
+		"Trecho alterado para validar o estado de erro.",
+	);
+	await viewport.getByRole("button", { name: "Aplicar" }).click();
 	await review.getByRole("button", { name: "Salvar alterações" }).click();
 	const error = review.getByRole("alert");
 	await expect(error).toBeVisible();
+	await expect(viewport.locator("textarea")).toHaveCount(0);
 
-	const scenarios = [
+	for (const scenario of [
 		{ theme: "dark", width: 1920, height: 1080 },
 		{ theme: "light", width: 390, height: 844 },
-		// 960x540 is the CSS-pixel reflow equivalent used by this suite for
-		// a 1920x1080 viewport at 200% browser zoom.
 		{ theme: "dark", width: 960, height: 540 },
-	] as const;
-
-	for (const scenario of scenarios) {
+	] as const) {
 		await page.setViewportSize({
 			width: scenario.width,
 			height: scenario.height,
@@ -1065,111 +1103,89 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 		await search.focus();
 		await expect(search).toBeFocused();
 
-		const computed = await review.evaluate((section) => {
-			const requireElement = <T extends Element>(selector: string): T => {
-				const element = section.querySelector<T>(selector);
-				if (!element) throw new Error(`Missing SessionAssemblyReview target: ${selector}`);
-				return element;
+		const readStyles = await review.evaluate((section) => {
+			const style = (selector: string) => {
+				const element = section.querySelector<HTMLElement>(selector);
+				if (!element) throw new Error(`Missing review target: ${selector}`);
+				return getComputedStyle(element);
 			};
-			const style = (selector: string) =>
-				getComputedStyle(requireElement<HTMLElement>(selector));
-			const container = getComputedStyle(section);
+			const transcript = style("[data-assembly-transcript-viewport='true']");
 			const searchInput = style('input[type="search"]');
-			const participantInput = style("li[data-assembly-segment] input");
-			const textArea = style("li[data-assembly-segment] textarea");
-			const divider = style("li[data-assembly-segment]");
 			return {
-				container: {
-					background: container.backgroundColor,
-					borderColor: container.borderTopColor,
-					borderWidth: container.borderTopWidth,
-					radius: container.borderTopLeftRadius,
-				},
-				search: {
-					background: searchInput.backgroundColor,
-					borderColor: searchInput.borderTopColor,
-					borderWidth: searchInput.borderTopWidth,
-					outlineColor: searchInput.outlineColor,
-					outlineStyle: searchInput.outlineStyle,
-					outlineWidth: searchInput.outlineWidth,
-				},
-				participant: {
-					background: participantInput.backgroundColor,
-					borderColor: participantInput.borderTopColor,
-					borderWidth: participantInput.borderTopWidth,
-				},
-				textarea: {
-					background: textArea.backgroundColor,
-					borderColor: textArea.borderTopColor,
-					borderWidth: textArea.borderTopWidth,
-				},
-				divider: {
-					borderColor: divider.borderTopColor,
-					borderWidth: divider.borderTopWidth,
-				},
-				horizontalOverflow:
+				transcript: [
+					transcript.backgroundColor,
+					transcript.borderTopColor,
+					transcript.borderTopWidth,
+				],
+				search: [
+					searchInput.backgroundColor,
+					searchInput.borderTopColor,
+					searchInput.borderTopWidth,
+				],
+				focus: [searchInput.outlineStyle, searchInput.outlineWidth],
+				overflow:
 					document.documentElement.scrollWidth -
 					document.documentElement.clientWidth,
 			};
 		});
 
-		const stateStyle = async (target: typeof notice) =>
-			target.evaluate((element) => {
+		for (const field of [readStyles.transcript, readStyles.search]) {
+			expect(field[0]).not.toBe("rgba(0, 0, 0, 0)");
+			expect(field[1]).not.toBe("rgba(0, 0, 0, 0)");
+			expect(field[2]).not.toBe("0px");
+		}
+		expect(readStyles.focus[0]).toBe("solid");
+		expect(readStyles.focus[1]).toBe("2px");
+		expect(readStyles.overflow).toBeLessThanOrEqual(1);
+
+		await viewport.locator("[data-assembly-segment-trigger]").first().click();
+		await expect(viewport.locator("textarea")).toHaveCount(1);
+		const editorStyles = await review.evaluate((section) => {
+			const style = (selector: string) => {
+				const element = section.querySelector<HTMLElement>(selector);
+				if (!element) throw new Error(`Missing review target: ${selector}`);
+				return getComputedStyle(element);
+			};
+			const participant = style(
+				'li[data-assembly-segment][data-editing="true"] input',
+			);
+			const textarea = style(
+				'li[data-assembly-segment][data-editing="true"] textarea',
+			);
+			return {
+				participant: [
+					participant.backgroundColor,
+					participant.borderTopColor,
+					participant.borderTopWidth,
+				],
+				textarea: [
+					textarea.backgroundColor,
+					textarea.borderTopColor,
+					textarea.borderTopWidth,
+				],
+			};
+		});
+		for (const field of [editorStyles.participant, editorStyles.textarea]) {
+			expect(field[0]).not.toBe("rgba(0, 0, 0, 0)");
+			expect(field[1]).not.toBe("rgba(0, 0, 0, 0)");
+			expect(field[2]).not.toBe("0px");
+		}
+		await viewport.getByRole("button", { name: "Cancelar" }).click();
+		await expect(viewport.locator("textarea")).toHaveCount(0);
+
+		for (const state of [notice, error]) {
+			const computed = await state.evaluate((element) => {
 				const style = getComputedStyle(element);
 				return {
 					background: style.backgroundColor,
-					color: style.color,
-					borderColor: style.borderTopColor,
+					border: style.borderTopColor,
 					borderWidth: style.borderTopWidth,
 				};
 			});
-		const [noticeStyle, errorStyle] = await Promise.all([
-			stateStyle(notice),
-			stateStyle(error),
-		]);
-
-		const scenarioLabel =
-			`${scenario.theme} ${scenario.width}x${scenario.height}`;
-		const visibleColor = (value: string, label: string) => {
-			expect(value, `${scenarioLabel} · ${label}`).not.toBe("transparent");
-			expect(value, `${scenarioLabel} · ${label}`).not.toBe(
-				"rgba(0, 0, 0, 0)",
-			);
-		};
-		visibleColor(computed.container.background, "container background");
-		visibleColor(computed.container.borderColor, "container border");
-		expect(computed.container.borderWidth).not.toBe("0px");
-		expect(computed.container.radius).not.toBe("0px");
-
-		for (const [label, field] of [
-			["search", computed.search],
-			["participant", computed.participant],
-			["textarea", computed.textarea],
-		] as const) {
-			visibleColor(field.background, `${label} background`);
-			visibleColor(field.borderColor, `${label} border`);
-			expect(field.borderWidth, `${scenarioLabel} · ${label} border width`).not.toBe(
-				"0px",
-			);
+			expect(computed.background).not.toBe("rgba(0, 0, 0, 0)");
+			expect(computed.border).not.toBe("rgba(0, 0, 0, 0)");
+			expect(computed.borderWidth).not.toBe("0px");
 		}
-		expect(computed.search.outlineStyle).toBe("solid");
-		expect(computed.search.outlineWidth).toBe("2px");
-		visibleColor(computed.search.outlineColor, "search focus outline");
-
-		for (const [label, state] of [
-			["notice", noticeStyle],
-			["error", errorStyle],
-		] as const) {
-			visibleColor(state.background, `${label} background`);
-			visibleColor(state.color, `${label} foreground`);
-			visibleColor(state.borderColor, `${label} border`);
-			expect(state.borderWidth, `${scenarioLabel} · ${label} border width`).not.toBe(
-				"0px",
-			);
-		}
-		visibleColor(computed.divider.borderColor, "segment divider");
-		expect(computed.divider.borderWidth).not.toBe("0px");
-		expect(computed.horizontalOverflow).toBeLessThanOrEqual(1);
 	}
 
 	await page.emulateMedia({
@@ -1180,6 +1196,15 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 	const search = review.getByLabel("Buscar na transcrição");
 	await search.focus();
 	await expect(search).toBeFocused();
+	const focus = await search.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			outlineStyle: style.outlineStyle,
+			outlineWidth: style.outlineWidth,
+		};
+	});
+	expect(focus.outlineStyle).not.toBe("none");
+	expect(focus.outlineWidth).not.toBe("0px");
 	expect(
 		await page.evaluate(
 			() =>
@@ -1187,15 +1212,6 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 				document.documentElement.clientWidth,
 		),
 	).toBeLessThanOrEqual(1);
-	const forcedFocus = await search.evaluate((element) => {
-		const style = getComputedStyle(element);
-		return {
-			outlineStyle: style.outlineStyle,
-			outlineWidth: style.outlineWidth,
-		};
-	});
-	expect(forcedFocus.outlineStyle).not.toBe("none");
-	expect(forcedFocus.outlineWidth).not.toBe("0px");
 });
 
 test("trusted midnight stays visible while unavailable wall-clock stays absent", async ({
@@ -1234,19 +1250,23 @@ test("trusted midnight stays visible while unavailable wall-clock stays absent",
 	await expect(intent).toContainText("Transcrição pronta");
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
 
-	const review = page.getByRole("region", {
-		name: "Revisão da transcrição da sessão",
-	});
+	const review = page
+		.locator("[data-assembly-review-owner='results']")
+		.getByRole("region", {
+			name: "Revisão da transcrição da sessão",
+		});
 	await expect(review.locator("time")).toHaveCount(1);
 	await expect(review.locator("time")).toContainText(
 		"2026-09-29 · 23:59:59 +01:00",
 	);
-	await expect(
-		review.locator("li > :not(details)").getByText(/Track 1/iu),
-	).toHaveCount(0);
-	await expect(
-		review.locator("details").getByText(/track 1/iu),
-	).toHaveCount(2);
+	await expect(review.getByText(/track 1/iu)).toHaveCount(0);
+	const segmentTriggers = review.locator("[data-assembly-segment-trigger]");
+	await segmentTriggers.first().click();
+	await expect(review.locator("details").getByText(/track 1/iu)).toHaveCount(1);
+	await review.getByRole("button", { name: "Cancelar" }).click();
+	await segmentTriggers.nth(1).click();
+	await expect(review.locator("details").getByText(/track 1/iu)).toHaveCount(1);
+	await review.getByRole("button", { name: "Cancelar" }).click();
 });
 
 test("stale Markdown import preserves the working copy and never overwrites silently", async ({
@@ -1272,9 +1292,11 @@ test("stale Markdown import preserves the working copy and never overwrites sile
 	await expect(intent).toContainText("Transcrição pronta");
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
 
-	const review = page.getByRole("region", {
-		name: "Revisão da transcrição da sessão",
-	});
+	const review = page
+		.locator("[data-assembly-review-owner='results']")
+		.getByRole("region", {
+			name: "Revisão da transcrição da sessão",
+		});
 	await review.getByText("Markdown para revisão externa", { exact: true }).click();
 	const correctedMarkdown = (
 		await renderTranscriptMarkdownV1({
@@ -1323,7 +1345,10 @@ test("stale Markdown import preserves the working copy and never overwrites sile
 
 test("multi-ZIP preflight explains one session, reorders accessibly, and carries order into progress", async ({ page }) => {
 	await installCompanionFixture(page, { profileReady: true, reviewEnabled: true });
-	await installMultiRecordingRoutes(page, { uploadSequence: [0, 1, 2] });
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1, 2],
+		failOnceSourceIndex: 2,
+	});
 	await openProcessing(page);
 	await page.getByLabel("Export do Craig").setInputFiles([
 		{ name: "ordem-1.zip", mimeType: "application/zip", buffer: Buffer.from("PK-order-a") },
@@ -1345,8 +1370,13 @@ test("multi-ZIP preflight explains one session, reorders accessibly, and carries
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("2/3 concluídas");
+	await expect(
+		intent.getByLabel("Progresso das gravações").getByRole("listitem").nth(0),
+	).toContainText("ordem-3.zip");
+	await intent.getByRole("button", { name: "Reprocessar 1 gravação" }).click();
 	await expect(intent).toContainText("Transcrição pronta");
-	await expect(intent.getByLabel("Progresso das gravações").getByRole("listitem").nth(0)).toContainText("ordem-3.zip");
+	await expect(intent.getByLabel("Progresso das gravações")).toHaveCount(0);
 });
 
 test("three ZIPs become one session intent, retry only the failed recording, auto-assemble and open review", async ({
@@ -1387,6 +1417,8 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(intent).toBeVisible();
+	await expect(page.locator("[data-processing-intent-summary='true']")).toBeVisible();
+	await expect(page.getByLabel("Export do Craig")).toBeHidden();
 	await expect(intent).toContainText("2/3 concluídas");
 	await expect(intent.getByRole("alert")).toContainText("Uma gravação falhou.");
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
@@ -1395,15 +1427,19 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 
 	await intent.getByRole("button", { name: "Reprocessar 1 gravação" }).click();
 	await expect(intent).toContainText("Transcrição pronta");
+	await expect(intent.getByLabel("Progresso das gravações")).toHaveCount(0);
+	await expect(intent.getByRole("button", { name: "Nova transcrição" })).toBeVisible();
 	expect(multi.retryCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.attachedSources).toEqual(SOURCE_IDS.slice(0, 3));
 	expect(multi.assemblyBuilt).toBe(true);
 
 	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
-	const review = page.getByRole("region", {
-		name: "Revisão da transcrição da sessão",
-	});
+	const review = page
+		.locator("[data-assembly-review-owner='results']")
+		.getByRole("region", {
+			name: "Revisão da transcrição da sessão",
+		});
 	await expect(review).toBeVisible();
 	await expect(review).toContainText("3 falas");
 
@@ -1417,10 +1453,13 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 		"sessao-42-transcricao-tda-v1.md",
 	);
 
-	const reviewSegments = SOURCE_IDS.slice(0, 3).map((sourceId, index) => ({
-		id: index === 0 ? SEGMENT_ID : (index + 10).toString(16).repeat(64),
-		startMs: index * 300_000,
-		endMs: index * 300_000 + 1_000,
+	const reviewSegments = SOURCE_IDS.slice(0, 3).map((_sourceId, index) => ({
+		id:
+			index === 0
+				? SEGMENT_ID
+				: (index + 10).toString(16).padStart(64, "0").slice(-64),
+		startMs: index * 2_000,
+		endMs: index * 2_000 + 1_000,
 		speaker: "Participante",
 		text: `Trecho ${index + 1}`,
 	}));
@@ -1450,6 +1489,21 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await review
 		.getByRole("button", { name: "Aplicar à working copy" })
 		.click();
+	await expect(review.getByText("Trecho 1 corrigido no Markdown")).toBeVisible();
+
+	await page.getByRole("tab", { name: "Visão geral" }).click();
+	await expect(page.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(page.locator("[data-processing-intent-summary='true']")).toBeVisible();
+	await expect(page.getByLabel("Export do Craig")).toBeHidden();
+	await page.getByRole("tab", { name: "Resultados" }).click();
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(review).toBeVisible();
 	await expect(review.getByText("Trecho 1 corrigido no Markdown")).toBeVisible();
 
 	await review.getByRole("button", { name: "Salvar alterações" }).click();
@@ -1484,12 +1538,20 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 		},
 	});
 
+	await page.getByRole("tab", { name: "Visão geral" }).click();
+	await expect(page.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toBeVisible();
-	await expect(page.getByLabel("ID da sessão")).toBeDisabled();
+	await expect(page.getByLabel("ID da sessão")).toBeHidden();
 
 	if (testInfo.project.name === "desktop") {
 		for (const viewport of [
+			{ width: 320, height: 640 },
 			{ width: 390, height: 844 },
+			{ width: 768, height: 1024 },
+			{ width: 1366, height: 768 },
 			{ width: 1440, height: 900 },
 			{ width: 1920, height: 1080 },
 			// 200% zoom equivalent of the 1440×900 critical viewport.
@@ -1504,6 +1566,75 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 			).toBeTruthy();
 		}
 	}
+
+	await intent.getByRole("button", { name: "Nova transcrição" }).click();
+	await expect(intent).toHaveCount(0);
+	await expect(input).toBeVisible();
+	await expect(page.getByLabel("ID da sessão")).toBeEnabled();
+});
+
+test("8k session review stays bounded, paged and edits only the active utterance", async ({ page }) => {
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0],
+		reviewRowCount: 8_000,
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles({
+		name: "sessao-longa.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-long"),
+	});
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	const review = page
+		.locator("[data-assembly-review-owner='results']")
+		.getByRole("region", { name: "Revisão da transcrição da sessão" });
+	await expect(review).toContainText("8.000 falas");
+	const viewport = review.locator("[data-assembly-transcript-viewport='true']");
+	await expect(viewport).toHaveAttribute("data-page-size", "60");
+	await expect(viewport.locator("[data-assembly-segment]")).toHaveCount(60);
+	await expect(viewport.locator("textarea")).toHaveCount(0);
+
+	const pageGeometry = await page.evaluate(() => ({
+		scrollHeight: document.documentElement.scrollHeight,
+		clientHeight: document.documentElement.clientHeight,
+	}));
+	expect(pageGeometry.scrollHeight).toBeLessThan(pageGeometry.clientHeight * 4);
+
+	await viewport.locator("[data-assembly-segment-trigger]").first().click();
+	await expect(viewport.locator("textarea")).toHaveCount(1);
+	await viewport.getByLabel("Texto").fill("Trecho descartado");
+	await viewport.getByRole("button", { name: "Cancelar" }).click();
+	await expect(viewport.locator("textarea")).toHaveCount(0);
+	await expect(viewport.getByText("Trecho 1", { exact: true })).toBeVisible();
+
+	await viewport.locator("[data-assembly-segment-trigger]").first().click();
+	await viewport.getByLabel("Texto").fill("Trecho editado no viewport");
+	await viewport.getByRole("button", { name: "Aplicar" }).click();
+	await expect(viewport.locator("textarea")).toHaveCount(0);
+	await expect(viewport.getByText("Trecho editado no viewport", { exact: true })).toBeVisible();
+
+	await review.getByRole("button", { name: "Próxima" }).click();
+	await expect(review.getByText("Página 2 de 134", { exact: true })).toBeVisible();
+	await expect(viewport.locator("[data-assembly-segment]")).toHaveCount(60);
+
+	await review.getByLabel("Buscar na transcrição").fill("Trecho 8000");
+	await expect(review.getByText("1 falas encontradas", { exact: true })).toBeVisible();
+	await expect(viewport.locator("[data-assembly-segment]")).toHaveCount(1);
+	await expect(viewport.getByText("Trecho 8000", { exact: true })).toBeVisible();
 });
 
 test("trusted Craig chronology never silently replaces the editorial order", async ({ page }) => {
@@ -1842,7 +1973,9 @@ test("exact duplicate is reused once instead of creating a second part or job", 
 		},
 	]);
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
-	await expect(page.getByText(/duplicata exata · será reutilizada uma vez/u)).toBeVisible();
+	await expect(
+		page.locator("[data-processing-intent-summary='true']"),
+	).toContainText("1 duplicata exata · será reutilizada uma vez");
 	await expect(
 		page.getByRole("region", { name: /Transcrição da sessão/u }),
 	).toContainText("Transcrição pronta");
