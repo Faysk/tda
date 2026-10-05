@@ -135,8 +135,8 @@ Uma PR que altera comportamento relevante deve responder:
 5. O documento separa Current behavior, Legacy compatibility, Historical implementation notes e Future backlog quando essas categorias coexistem?
 6. Existe migration/rollback quando necessário?
 7. A feature catalog/roadmap precisa mudar de status?
-7. Há nova decisão arquitetural que merece ADR?
-8. Há novo risco operacional ou de segurança?
+8. Há nova decisão arquitetural que merece ADR?
+9. Há novo risco operacional ou de segurança?
 
 Se alguma resposta exigir mudança documental, ela deve acontecer na mesma PR ou ficar explicitamente dependente da frente dona, sem duplicação.
 
