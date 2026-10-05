@@ -22,6 +22,11 @@ from .benchmark_bundles import (
 )
 from .craig import CraigPackageError
 from .craig_runtime import load_craig_package
+from .craig_track_policy import (
+    CRAIG_TRACK_POLICY_VERSION,
+    apply_craig_track_policy,
+    craig_track_policy_sha256,
+)
 from .execution_device import reset_execution_device
 from .execution_lineage import capture_execution_lineage
 from .engine_metrics import fresh_calibration_sample
@@ -192,6 +197,13 @@ def _run_craig(
             },
         )
         package = load_craig_package(package_root, verify_tracks=False)
+        ignored_track_numbers: tuple[int, ...] = ()
+        include_bot_tracks = bool(command.payload.get("include_bot_tracks", False))
+        if not benchmark_mode:
+            package, ignored_track_numbers = apply_craig_track_policy(
+                package,
+                include_bot_tracks=include_bot_tracks,
+            )
         removed_runs = 0 if benchmark_mode else remove_incomplete_runs(package_root)
         if removed_runs:
             emitter.emit(
@@ -208,8 +220,18 @@ def _run_craig(
                 "code": "SOURCE_VALIDATED",
                 "stage": "source_validation",
                 "track_count": len(package.tracks),
+                "ignored_bot_track_count": len(ignored_track_numbers),
             },
         )
+        if ignored_track_numbers:
+            emitter.emit(
+                "event",
+                {
+                    "code": "CRAIG_BOT_TRACKS_IGNORED",
+                    "stage": "source_validation",
+                    "track_numbers": list(ignored_track_numbers),
+                },
+            )
         profile = get_profile(str(command.payload["profile_id"]))
 
         # Preserve a valid pre-runs transcript before any compatibility mirror can
@@ -359,6 +381,12 @@ def _run_craig(
             attempt=command.attempt,
             glossary=str(command.payload.get("glossary") or ""),
             context=str(command.payload.get("context") or ""),
+            track_policy=CRAIG_TRACK_POLICY_VERSION,
+            track_policy_sha256=craig_track_policy_sha256(
+                include_bot_tracks=include_bot_tracks
+            ),
+            include_bot_tracks=include_bot_tracks,
+            ignored_track_numbers=ignored_track_numbers,
             execution_lineage=execution_lineage,
             before_commit=reserve_run_commit,
         )
