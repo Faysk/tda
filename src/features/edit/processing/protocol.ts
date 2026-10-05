@@ -179,8 +179,8 @@ export type SessionWorkspace = {
 	orderingMode: "attachment" | "automatic" | "manual";
 	createdAt: string;
 	updatedAt: string;
-	freshStartAt: string | null;
-	freshStartExcludedJobIds: readonly string[];
+	freshStartAt?: string | null;
+	freshStartExcludedJobIds?: readonly string[];
 	parts: SessionWorkspacePart[];
 	timeline: SessionWorkspaceTimeline;
 };
