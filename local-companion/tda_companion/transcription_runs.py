@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable
 from .atomic_storage import AtomicStorageError, atomic_write, confirm_existing_file
 
+from .asr_models import profile_contract_sha256
 from .transcript import TranscriptDocument, TranscriptValidationError
 
 RUN_SCHEMA_VERSION = "tda_transcription_run_v1"
@@ -416,6 +417,7 @@ def _manifest_for_document(
         "job_id": job_id,
         "attempt": attempt,
         "profile_id": engine.profile,
+        "profile_contract_sha256": profile_contract_sha256(engine.profile),
         "engine": engine.engine,
         "model": engine.model,
         "model_revision": engine.model_revision,
@@ -700,6 +702,10 @@ def _validate_manifest(
     profile_id = value.get("profile_id")
     if not isinstance(profile_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", profile_id):
         raise TranscriptionRunError("TRANSCRIPTION_RUN_PROFILE_INVALID")
+    for name in ("profile_contract_sha256", "context_sha256", "glossary_sha256"):
+        item = value.get(name)
+        if item is not None and (not isinstance(item, str) or not _SHA256.fullmatch(item)):
+            raise TranscriptionRunError("TRANSCRIPTION_RUN_METADATA_INVALID")
     # A corrupt historical summary must not poison every sibling in the Web
     # response. This is metadata-only; listing never needs to parse the transcript.
     for name, maximum in (("engine", 64), ("model", 256), ("model_revision", 256),
@@ -803,7 +809,11 @@ def _public_summary(value: dict[str, Any]) -> dict[str, Any]:
         "origin": value.get("origin"),
         "status": "completed",
         "source_id": value["source_id"],
+        "source_sha256": value["source_sha256"],
         "profile_id": value["profile_id"],
+        "profile_contract_sha256": value.get("profile_contract_sha256"),
+        "context_sha256": value.get("context_sha256"),
+        "glossary_sha256": value.get("glossary_sha256"),
         "engine": value.get("engine"),
         "model": value.get("model"),
         "model_revision": value.get("model_revision"),
