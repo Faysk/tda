@@ -94,6 +94,7 @@ type FixtureOptions = Readonly<{
 	reviewRowCount?: number;
 	includeOlderAssembly?: boolean;
 	participantProjectionUnavailable?: boolean;
+	preexistingRunIndexes?: readonly number[];
 }>;
 
 async function installMultiRecordingRoutes(
@@ -756,10 +757,15 @@ async function installMultiRecordingRoutes(
 			const sourceId = runMatch[1]!;
 			const index = SOURCE_IDS.indexOf(sourceId);
 			const completed = jobsBySource.get(sourceId)?.status === "succeeded";
+			const preexisting =
+				index >= 0 && (options.preexistingRunIndexes?.includes(index) ?? false);
 			return json(route, {
 				schema_version: "tda_transcription_runs_v1",
 				source_id: sourceId,
-				runs: index >= 0 && completed ? [runFor(sourceId, index)] : [],
+				runs:
+					index >= 0 && (completed || preexisting)
+						? [runFor(sourceId, index)]
+						: [],
 			});
 		}
 		if (
@@ -1439,6 +1445,9 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await intent.getByRole("button", { name: "Reprocessar 1 gravação" }).click();
 	await expect(intent).toContainText("Transcrição pronta");
 	await expect(intent.getByLabel("Progresso das gravações")).toHaveCount(0);
+	await expect(page.locator("[data-processing-intent-summary='true']")).toHaveCount(0);
+	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
 	await expect(intent.getByRole("button", { name: "Nova transcrição" })).toBeVisible();
 	expect(multi.retryCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
@@ -1507,7 +1516,11 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 		"aria-selected",
 		"true",
 	);
-	await expect(page.locator("[data-processing-intent-summary='true']")).toBeVisible();
+	await expect(page.locator("[data-processing-intent-summary='true']")).toHaveCount(0);
+	await expect(
+		page.getByRole("region", { name: /Transcrição da sessão/u }),
+	).toContainText("Transcrição pronta");
+	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
 	await expect(page.getByLabel("Export do Craig")).toBeHidden();
 	await page.getByRole("tab", { name: "Resultados" }).click();
 	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
@@ -1554,7 +1567,7 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 		"aria-selected",
 		"true",
 	);
-	await expect(page.getByText("Detalhes técnicos", { exact: false })).toBeVisible();
+	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
 	await expect(page.getByLabel("ID da sessão")).toBeHidden();
 
 	if (testInfo.project.name === "desktop") {
@@ -2001,12 +2014,11 @@ test("exact duplicate is reused once instead of creating a second part or job", 
 		},
 	]);
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
-	await expect(
-		page.locator("[data-processing-intent-summary='true']"),
-	).toContainText("1 duplicata exata · será reutilizada uma vez");
-	await expect(
-		page.getByRole("region", { name: /Transcrição da sessão/u }),
-	).toContainText("Transcrição pronta");
+	const completed = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(completed).toContainText("Transcrição pronta");
+	await expect(page.locator("[data-processing-intent-summary='true']")).toHaveCount(0);
+	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
 	expect(multi.attachedSources).toEqual([SOURCE_IDS[0]]);
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
 });
@@ -2195,10 +2207,78 @@ test("reload recovers the Agent workspace and does not expose technical controls
 	await expect(recovered).toBeVisible();
 	await expect(recovered).toContainText("Transcrição pronta");
 	await expect(page.getByLabel("ID da sessão")).toHaveValue(SESSION);
-	await expect(page.getByText("Detalhes técnicos", { exact: false })).toBeVisible();
+	await expect(page.locator("[data-processing-intent-summary='true']")).toHaveCount(0);
+	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
 	await expect(
 		page.getByRole("button", { name: /Processar pendentes/u }),
 	).not.toBeVisible();
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
 });
+
+test("fully automatic Craig multi-ZIP reuses exact work and asks only for real ambiguity", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		// The operator selects A then B, but Craig's trusted clock proves B then A.
+		sourceStartOrder: [1, 0],
+		// A already has a run with the exact current intent fingerprint.
+		preexistingRunIndexes: [0],
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "craig-part-a.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-automation-a"),
+		},
+		{
+			name: "craig-part-b.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-automation-b"),
+		},
+	]);
+
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	await expect(intent.getByRole("button", { name: "Revisar transcrição" })).toBeVisible();
+
+	// Exact existing work is reused; only the missing source is sent to ASR.
+	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(0);
+	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
+
+	// Trusted Craig chronology wins automatically over attachment order.
+	expect(multi.timelineDeriveCount).toBeGreaterThan(0);
+	expect(multi.attachedSources).toEqual([SOURCE_IDS[1], SOURCE_IDS[0]]);
+
+	// Deterministic internals never become operator gates in the completed state.
+	await expect(intent.getByText(/Carregue o mapa de participantes/u)).toHaveCount(0);
+	await expect(intent.getByText(/Resolver participantes/u)).toHaveCount(0);
+	await expect(intent.getByRole("button", { name: /Usar horários Craig/u })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
+	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
+	await expect(page.locator("[data-processing-intent-summary='true']")).toHaveCount(0);
+
+	expect(multi.assemblyBuilt).toBe(true);
+
+	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+	await expect(page.getByRole("tab", { name: "Resultados" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(
+		page
+			.locator("[data-assembly-review-owner='results']")
+			.getByRole("region", { name: "Revisão da transcrição da sessão" }),
+	).toBeVisible();
+});
+

@@ -255,6 +255,7 @@ export function ProcessingSubmission({
 	const [intentRequest, setIntentRequest] =
 		useState<SessionTranscriptionIntent | null>(null);
 	const [composerActive, setComposerActive] = useState(false);
+	const [sessionCompleted, setSessionCompleted] = useState(false);
 	const [sourceRecoveryActive, setSourceRecoveryActive] = useState(false);
 	const [technicalOpen, setTechnicalOpen] = useState(false);
 	const [technicalTarget, setTechnicalTarget] =
@@ -299,6 +300,7 @@ export function ProcessingSubmission({
 
 	const openSourceRecovery = useCallback(() => {
 		setSourceRecoveryActive(true);
+		setSessionCompleted(false);
 		setIntentRequest(null);
 		setAdvancedOpen(false);
 		setFiles([]);
@@ -313,6 +315,7 @@ export function ProcessingSubmission({
 	const startNewTranscription = useCallback(() => {
 		setIntentRequest(null);
 		setComposerActive(false);
+		setSessionCompleted(false);
 		setSourceRecoveryActive(false);
 		setFiles([]);
 		setSessionId("");
@@ -885,6 +888,9 @@ export function ProcessingSubmission({
 					: `Iniciando a transcrição da sessão com ${stagedSources.length} gravações…`,
 			);
 			setSourceRecoveryActive(false);
+			setSessionCompleted(false);
+			setTechnicalOpen(false);
+			setTechnicalTarget(null);
 			setAdvancedOpen(false);
 			setIntentRequest({
 				id: crypto.randomUUID(),
@@ -1416,7 +1422,7 @@ export function ProcessingSubmission({
 				</form>
 			)}
 
-			{intentRequest || composerActive ? (
+			{(intentRequest || composerActive) && !sessionCompleted ? (
 				<div className={styles.intentSummary} role="status" data-processing-intent-summary="true">
 					<div>
 						<strong>{sessionId}</strong>
@@ -1454,8 +1460,15 @@ export function ProcessingSubmission({
 						onSelectSource={openSourceRecovery}
 						onReviewAssembly={onReviewSessionAssembly}
 						onNewTranscription={startNewTranscription}
+						onCompletedChange={(completed) => {
+							setSessionCompleted(completed);
+							if (completed) {
+								setTechnicalOpen(false);
+								setTechnicalTarget(null);
+							}
+						}}
 					/>
-					{composerActive ? (
+					{composerActive && !sessionCompleted ? (
 						<details
 							className={styles.technical}
 							open={technicalOpen}

@@ -107,6 +107,7 @@ type Props = Readonly<{
 	onSelectSource?: () => void;
 	onReviewAssembly?: (assembly: SessionAssembly) => void;
 	onNewTranscription?: () => void;
+	onCompletedChange?: (completed: boolean) => void;
 }>;
 
 function supported(capabilities: readonly string[]): boolean {
@@ -206,6 +207,7 @@ export function SessionIntentCoordinator({
 	onSelectSource,
 	onReviewAssembly,
 	onNewTranscription,
+	onCompletedChange,
 }: Props) {
 	const enabled = supported(capabilities);
 	const [workspace, setWorkspace] = useState<SessionWorkspace | null>(null);
@@ -236,6 +238,10 @@ export function SessionIntentCoordinator({
 	const intentReceipt = useRef<SessionIntentReceipt | null>(null);
 	const approvedVariantSources = useRef(new Set<string>());
 	const excludedSources = useRef(new Set<string>());
+
+	useEffect(() => {
+		onCompletedChange?.(assembly !== null);
+	}, [assembly, onCompletedChange]);
 
 	const announce = useCallback(
 		(message: string) => {
@@ -1305,7 +1311,7 @@ export function SessionIntentCoordinator({
 				/>
 			) : null}
 
-			{timelineNotice ? (
+			{!assembly && timelineNotice ? (
 				<RecoveryGuideCard
 					recovery={timelineNotice}
 					disabled={busy || disabled}
