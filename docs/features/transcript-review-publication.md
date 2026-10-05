@@ -270,7 +270,7 @@ escritas concorrentes, SHA alterado com revision igual, revisão zero histórica
 preconditions ausentes/inválidas, falha de replace e separação de runs. Os testes
 de navegador verificam os estados ephemeral/persistido e Agent antigo sem edição.
 
-### Integridade local validada em candidato — 2026-09-26
+### Historical implementation note — integridade local validada — 2026-09-26
 
 As correções de [#666](https://github.com/Faysk/tda/issues/666) e
 [#673](https://github.com/Faysk/tda/issues/673) usam um snapshot único por operação
