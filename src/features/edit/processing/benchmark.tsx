@@ -1596,6 +1596,7 @@ export function ProcessingBenchmark({
 							<Button
 								type="button"
 								variant="tertiary"
+								className={styles.dangerAction}
 								onClick={() => onDelete(latestProblem)}
 							>
 								Descartar trabalho
