@@ -1168,6 +1168,9 @@ test("recoverable global Benchmark failure retries the same job from zero progre
 	await expect(panel).toContainText(
 		"Tentados 0/4 · Concluídos 0 · Falharam 0 · Pendentes 4",
 	);
+	await expect(
+		panel.getByText("Benchmark concluiu whisper-detailed.", { exact: true }),
+	).toHaveCount(0);
 	expect(state.job).toMatchObject({
 		id: "benchmark-job-1",
 		status: "queued",
