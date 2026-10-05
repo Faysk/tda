@@ -433,7 +433,9 @@ export function JobDiagnosticsInspector({
 									variant={job.status === "succeeded" ? "secondary" : "primary"}
 									onClick={() => onStartNew(job)}
 								>
-									Começar novo
+									{job.kind === "benchmark.craig"
+										? "Executar novo benchmark"
+										: "Nova transcrição"}
 								</Button>
 							) : null}
 							{recoveryActions?.canRetry ? (
