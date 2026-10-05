@@ -788,9 +788,14 @@ test("non-recoverable Overview attention never offers Retry as a recovery shortc
 	await expect(
 		inspector.getByRole("button", { name: "Começar novo" }),
 	).toBeVisible();
+	const discard = inspector.getByRole("button", { name: "Descartar trabalho" });
+	await expect(discard).toBeVisible();
+	await discard.click();
+	await expect(inspector).not.toBeVisible();
 	await expect(
-		inspector.getByRole("button", { name: "Descartar trabalho" }),
+		page.getByRole("heading", { name: "Descartar este trabalho?" }),
 	).toBeVisible();
+	await page.getByRole("button", { name: "Voltar" }).click();
 });
 
 test("telemetry stale preserva o último snapshot e orienta sem zerar valores", async ({ page }) => {
