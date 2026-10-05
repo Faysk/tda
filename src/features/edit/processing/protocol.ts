@@ -179,6 +179,7 @@ export type SessionWorkspace = {
 	orderingMode: "attachment" | "automatic" | "manual";
 	createdAt: string;
 	updatedAt: string;
+	freshStartAt: string | null;
 	parts: SessionWorkspacePart[];
 	timeline: SessionWorkspaceTimeline;
 };
@@ -1262,6 +1263,10 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		orderingMode: orderingMode as SessionWorkspace["orderingMode"],
 		createdAt: isoDate(row.created_at),
 		updatedAt: isoDate(row.updated_at),
+		freshStartAt:
+			row.fresh_start_at === undefined || row.fresh_start_at === null
+				? null
+				: isoDate(row.fresh_start_at),
 		parts,
 		timeline: {
 			policyVersion:
