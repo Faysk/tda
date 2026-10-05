@@ -519,6 +519,7 @@ class WorkerSupervisor:
         glossary: str,
         context: str,
         cpu: bool,
+        include_bot_tracks: bool = False,
         benchmark_sample_seconds: float | None = None,
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
@@ -539,6 +540,7 @@ class WorkerSupervisor:
                 "glossary": glossary,
                 "context": context,
                 "cpu": cpu,
+                "include_bot_tracks": include_bot_tracks,
                 **(
                     {
                         "benchmark_mode": True,
