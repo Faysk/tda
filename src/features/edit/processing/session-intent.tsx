@@ -8,6 +8,7 @@ import {
 	latestJobForSource,
 	sessionAssemblyReadiness,
 	workspaceGenerationEligible,
+	workspaceJobGenerationEligible,
 } from "./session-composer-model";
 import type { SessionAssembly } from "./session-composer-protocol";
 import {
@@ -328,7 +329,7 @@ export function SessionIntentCoordinator({
 				mapping: nextMapping,
 				runsBySource: new Map(runPairs),
 				jobs: jobPage.jobs.filter((job) =>
-					workspaceGenerationEligible(next, job.updated_at),
+					workspaceJobGenerationEligible(next, job),
 				),
 			};
 			if (!signal.aborted) {
