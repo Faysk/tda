@@ -27,6 +27,7 @@ import {
 } from "./queue-model";
 import styles from "./queue-view.module.css";
 import { QueueActions } from "./queue-actions";
+import { terminalRecoveryActions } from "./terminal-recovery";
 
 const consolidationStages = new Set([
 	"energy_analysis",
@@ -134,6 +135,7 @@ type Props = Readonly<{
 	onCancel: (job: LocalJob) => void;
 	onRetry: (job: LocalJob) => void;
 	onResult: (job: LocalJob) => void;
+	onStartNew: (job: LocalJob) => void;
 	onDelete: (job: LocalJob) => void;
 	onDiagnostics: (job: LocalJob) => void;
 }>;
@@ -148,6 +150,7 @@ export function ProcessingQueueView({
 	onCancel,
 	onRetry,
 	onResult,
+	onStartNew,
 	onDelete,
 	onDiagnostics,
 }: Props) {
@@ -312,6 +315,7 @@ export function ProcessingQueueView({
 									? presentJobError(job.error.code)
 									: null;
 								const detailsId = `queue-job-details-${job.id}`;
+								const recoveryActions = terminalRecoveryActions(job, canDelete);
 								return (
 									<Fragment key={job.id}>
 										<tr
@@ -449,6 +453,17 @@ export function ProcessingQueueView({
 																>
 																	Copiar ID
 																</button>
+																{recoveryActions.canStartNew ? (
+																	<button
+																		type="button"
+																		onClick={() => {
+																			close();
+																			onStartNew(job);
+																		}}
+																	>
+																		Começar novo
+																	</button>
+																) : null}
 																<button
 																	type="button"
 																	onClick={() => {
