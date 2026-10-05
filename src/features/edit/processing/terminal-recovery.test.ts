@@ -82,6 +82,24 @@ describe("terminal recovery actions", () => {
 		);
 	});
 
+	test("does not offer Start New for synthetic maintenance jobs", () => {
+		const synthetic: LocalJob = {
+			...job("failed", true),
+			id: "synthetic-failed",
+			kind: "synthetic.fixture",
+			progress: { completed: 0, total: 1, unit: "items" },
+			context: {
+				campaignId: "synthetic-campaign",
+				sessionId: "synthetic-session",
+				sourceId: "synthetic-source",
+			},
+		};
+		const value = terminalRecoveryActions(synthetic, true);
+		expect(value.canStartNew).toBe(false);
+		expect(value.canRetry).toBe(true);
+		expect(value.canDiscard).toBe(true);
+	});
+
 	test("inherits the existing futile-retry guard for Qwen Fast uncertain signal", () => {
 		const uncertain: LocalJob = {
 			...job("failed", true, "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"),
