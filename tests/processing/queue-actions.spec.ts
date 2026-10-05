@@ -84,7 +84,7 @@ for (const viewport of [
 		await expect(popup).toHaveCount(0);
 		await expect(last).toBeFocused();
 		await page.keyboard.press("Enter");
-		await popup.getByRole("button", { name: "Excluir", exact: true }).focus();
+		await popup.getByRole("button", { name: "Descartar", exact: true }).focus();
 		await page.keyboard.press("Tab");
 		await expect(popup).toHaveCount(0);
 		expect(
