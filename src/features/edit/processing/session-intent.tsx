@@ -20,6 +20,7 @@ import {
 import {
 	chooseIntentRun,
 	intentProgress,
+	type IntentRunContract,
 	recordingVariantConflicts,
 	retryableIntentJob,
 	trustedTimelineOrderDiffers,
@@ -41,6 +42,7 @@ import type {
 	SessionParticipantMapping,
 	SessionWorkspace,
 	TranscriptionProfileId,
+	type TranscriptionProfileState,
 } from "./protocol";
 import { BridgeError } from "./protocol";
 import {
@@ -63,6 +65,8 @@ export type SessionTranscriptionIntent = Readonly<{
 	profile: TranscriptionProfileId;
 	context: string;
 	glossary: string;
+	contextSha256?: string;
+	glossarySha256?: string;
 }>;
 
 type Blocker =
@@ -95,6 +99,7 @@ type Props = Readonly<{
 	bridge: LocalBridge;
 	campaignId: string;
 	capabilities: readonly string[];
+	profileCatalog: readonly TranscriptionProfileState[];
 	request: SessionTranscriptionIntent | null;
 	recoveryScope: string | null;
 	disabled?: boolean;
@@ -197,6 +202,7 @@ export function SessionIntentCoordinator({
 	bridge,
 	campaignId,
 	capabilities,
+	profileCatalog,
 	request,
 	recoveryScope,
 	disabled = false,
@@ -420,7 +426,12 @@ export function SessionIntentCoordinator({
 					},
 					controller.signal,
 				);
-				setActiveRequest(normalizedIntent);
+				const resolvedIntent: SessionTranscriptionIntent = {
+					...normalizedIntent,
+					contextSha256: localIntent.contextSha256,
+					glossarySha256: localIntent.glossarySha256,
+				};
+				setActiveRequest(resolvedIntent);
 				saveRecoveryPointer(campaignId, intent.sessionId);
 				if (recoveryScope) {
 					try {
@@ -549,6 +560,8 @@ export function SessionIntentCoordinator({
 							profile: localIntent.profileId,
 							context: localIntent.context,
 							glossary: localIntent.glossary,
+							contextSha256: localIntent.contextSha256,
+							glossarySha256: localIntent.glossarySha256,
 						};
 						setActiveRequest(restored);
 						onRestoreIntent?.(restored);
@@ -610,9 +623,28 @@ export function SessionIntentCoordinator({
 		};
 	}, [enabled, loadSnapshot, pollingSessionId]);
 
+	const exactRunContract = useMemo<IntentRunContract | null | undefined>(() => {
+		if (!activeRequest) return undefined;
+		const profileState = profileCatalog.find(
+			(item) => item.id === activeRequest.profile,
+		);
+		if (
+			!profileState?.profileContractSha256 ||
+			!activeRequest.contextSha256 ||
+			!activeRequest.glossarySha256
+		)
+			return null;
+		return {
+			profileId: activeRequest.profile,
+			profileContractSha256: profileState.profileContractSha256,
+			contextSha256: activeRequest.contextSha256,
+			glossarySha256: activeRequest.glossarySha256,
+		};
+	}, [activeRequest, profileCatalog]);
+
 	const progress = useMemo(
-		() => intentProgress(workspace, runsBySource, jobs),
-		[jobs, runsBySource, workspace],
+		() => intentProgress(workspace, runsBySource, jobs, exactRunContract),
+		[exactRunContract, jobs, runsBySource, workspace],
 	);
 
 	const advance = useCallback(async () => {
@@ -698,6 +730,7 @@ export function SessionIntentCoordinator({
 					part,
 					runsBySource.get(part.sourceId) ?? [],
 					intentRunIds.current.get(part.sourceId),
+					exactRunContract,
 				);
 				if (choice.kind === "automatic") {
 					await bridge.selectSessionPartRun(
@@ -726,7 +759,15 @@ export function SessionIntentCoordinator({
 
 			const failedSources = workspace.parts
 				.filter((part) => retryableIntentJob(jobs, part.sourceId))
-				.filter((part) => (runsBySource.get(part.sourceId)?.length ?? 0) === 0)
+				.filter(
+					(part) =>
+						chooseIntentRun(
+							part,
+							runsBySource.get(part.sourceId) ?? [],
+							intentRunIds.current.get(part.sourceId),
+							exactRunContract,
+						).kind === "missing",
+				)
 				.map((part) => part.sourceId);
 			if (failedSources.length) {
 				setBlocker({ kind: "failed", sourceIds: failedSources });
@@ -744,8 +785,12 @@ export function SessionIntentCoordinator({
 
 			const missing = workspace.parts.filter(
 				(part) =>
-					!part.selectedRunId &&
-					(runsBySource.get(part.sourceId)?.length ?? 0) === 0,
+					chooseIntentRun(
+						part,
+						runsBySource.get(part.sourceId) ?? [],
+						intentRunIds.current.get(part.sourceId),
+						exactRunContract,
+					).kind === "missing",
 			);
 			if (missing.length) {
 				if (!activeRequest) {
@@ -928,6 +973,7 @@ export function SessionIntentCoordinator({
 		persistIntentReceipt,
 		recoveryScope,
 		runsBySource,
+		exactRunContract,
 		workspace,
 	]);
 
@@ -1026,7 +1072,15 @@ export function SessionIntentCoordinator({
 		try {
 			let retried = 0;
 			for (const part of workspace.parts) {
-				if ((runsBySource.get(part.sourceId)?.length ?? 0) > 0) continue;
+				if (
+					chooseIntentRun(
+						part,
+						runsBySource.get(part.sourceId) ?? [],
+						intentRunIds.current.get(part.sourceId),
+						exactRunContract,
+					).kind !== "missing"
+				)
+					continue;
 				const job = retryableIntentJob(jobs, part.sourceId);
 				if (!job) continue;
 				const next = await bridge.jobAction(job.id, "retry", controller.signal);
