@@ -16,9 +16,16 @@ export type IntentProgress = Readonly<{
 	failed: number;
 }>;
 
+export type IntentRunContract = Readonly<{
+	profileId: string;
+	profileContractSha256: string;
+	contextSha256: string;
+	glossarySha256: string;
+}>;
+
 export type IntentRunChoice =
 	| Readonly<{ kind: "selected"; runId: string }>
-	| Readonly<{ kind: "automatic"; runId: string; reason: "intent_job" | "single_run" }>
+	| Readonly<{ kind: "automatic"; runId: string; reason: "intent_job" | "exact_match" }>
 	| Readonly<{ kind: "ambiguous"; runIds: readonly string[] }>
 	| Readonly<{ kind: "missing" }>;
 
@@ -44,6 +51,7 @@ export function intentProgress(
 	workspace: SessionWorkspace | null,
 	runsBySource: ReadonlyMap<string, readonly LocalRunSummary[]>,
 	jobs: readonly LocalJob[],
+	contract: IntentRunContract | null = null,
 ): IntentProgress {
 	const counts = {
 		total: workspace?.parts.length ?? 0,
@@ -55,7 +63,14 @@ export function intentProgress(
 	if (!workspace) return counts;
 
 	for (const part of workspace.parts) {
-		if (part.selectedRunId || (runsBySource.get(part.sourceId)?.length ?? 0) > 0) {
+		const partRuns = runsBySource.get(part.sourceId) ?? [];
+		const selected = part.selectedRunId
+			? partRuns.find((run) => run.runId === part.selectedRunId) ?? null
+			: null;
+		if (
+			(selected && (!contract || runMatchesIntent(runWithSource(selected), part.sourceId, contract))) ||
+			(contract && partRuns.some((run) => runMatchesIntent(runWithSource(run), part.sourceId, contract)))
+		) {
 			counts.completed += 1;
 			continue;
 		}
@@ -77,20 +92,69 @@ export function intentProgress(
 	return counts;
 }
 
+function sourceSha256(sourceId: string): string | null {
+	const match = /^craig-([a-f0-9]{64})$/u.exec(sourceId);
+	return match?.[1] ?? null;
+}
+
+function runWithSource(run: LocalRunSummary): LocalRunSummary {
+	return run;
+}
+
+export function runMatchesIntent(
+	run: LocalRunSummary,
+	sourceId: string,
+	contract: IntentRunContract,
+): boolean {
+	const expectedSourceSha256 = sourceSha256(sourceId);
+	return Boolean(
+		expectedSourceSha256 &&
+		run.sourceId === sourceId &&
+		run.sourceSha256 === expectedSourceSha256 &&
+		run.profileId === contract.profileId &&
+		run.profileContractSha256 !== null &&
+		run.profileContractSha256 === contract.profileContractSha256 &&
+		run.contextSha256 !== null &&
+		run.contextSha256 === contract.contextSha256 &&
+		run.glossarySha256 !== null &&
+		run.glossarySha256 === contract.glossarySha256
+	);
+}
+
+function newestExactRun(
+	runs: readonly LocalRunSummary[],
+	sourceId: string,
+	contract: IntentRunContract,
+): LocalRunSummary | null {
+	const exact = runs.filter((run) => runMatchesIntent(run, sourceId, contract));
+	if (!exact.length) return null;
+	return [...exact].sort((left, right) => {
+		const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0;
+		const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0;
+		return rightTime - leftTime || right.runId.localeCompare(left.runId);
+	})[0] ?? null;
+}
+
 export function chooseIntentRun(
 	part: SessionWorkspacePart,
 	runs: readonly LocalRunSummary[],
 	intentRunId: string | null | undefined,
+	contract: IntentRunContract | null = null,
 ): IntentRunChoice {
-	if (part.selectedRunId) return { kind: "selected", runId: part.selectedRunId };
 	if (intentRunId && runs.some((run) => run.runId === intentRunId))
 		return { kind: "automatic", runId: intentRunId, reason: "intent_job" };
-	const onlyRun = runs.length === 1 ? runs[0] : undefined;
-	if (onlyRun)
-		return { kind: "automatic", runId: onlyRun.runId, reason: "single_run" };
-	if (runs.length > 1)
-		return { kind: "ambiguous", runIds: runs.map((run) => run.runId) };
-	return { kind: "missing" };
+
+	if (part.selectedRunId) {
+		const selected = runs.find((run) => run.runId === part.selectedRunId);
+		if (selected && (!contract || runMatchesIntent(selected, part.sourceId, contract)))
+			return { kind: "selected", runId: part.selectedRunId };
+	}
+
+	if (!contract) return { kind: "missing" };
+	const exact = newestExactRun(runs, part.sourceId, contract);
+	return exact
+		? { kind: "automatic", runId: exact.runId, reason: "exact_match" }
+		: { kind: "missing" };
 }
 
 export function uniqueIntentSources<T extends Readonly<{ sourceId: string }>>(
