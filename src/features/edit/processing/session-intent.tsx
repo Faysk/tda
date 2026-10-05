@@ -43,7 +43,7 @@ import type {
 	TranscriptionProfileId,
 	type TranscriptionProfileState,
 } from "./protocol";
-import { BridgeError } from "./protocol";
+import { BridgeError, CRAIG_TRACK_POLICY_VERSION } from "./protocol";
 import {
 	sessionRecoveryForError,
 	sessionTimelineRecovery,
@@ -64,6 +64,7 @@ export type SessionTranscriptionIntent = Readonly<{
 	profile: TranscriptionProfileId;
 	context: string;
 	glossary: string;
+	includeBotTracks?: boolean;
 	contextSha256?: string;
 	glossarySha256?: string;
 }>;
@@ -637,6 +638,8 @@ export function SessionIntentCoordinator({
 			profileContractSha256: profileState.profileContractSha256,
 			contextSha256: activeRequest.contextSha256,
 			glossarySha256: activeRequest.glossarySha256,
+			trackPolicy: CRAIG_TRACK_POLICY_VERSION,
+			includeBotTracks: activeRequest.includeBotTracks === true,
 		};
 	}, [activeRequest, profileCatalog]);
 
@@ -680,6 +683,7 @@ export function SessionIntentCoordinator({
 							profileId: activeRequest.profile,
 							glossary: activeRequest.glossary,
 							context: activeRequest.context,
+							includeBotTracks: activeRequest.includeBotTracks === true,
 						},
 						key,
 						controller.signal,
@@ -806,6 +810,7 @@ export function SessionIntentCoordinator({
 						activeRequest.glossary,
 						activeRequest.context,
 						false,
+						activeRequest.includeBotTracks === true,
 					]);
 					const submission = await resolveSessionComposerPendingSubmission({
 						storage: window.localStorage,
