@@ -12,6 +12,7 @@ from uuid import uuid4
 
 MODEL_MARKER = ".tda-model.json"
 MODEL_MARKER_SCHEMA = "tda_model_install_v1"
+ASR_RECIPE_CONTRACT_VERSION = "tda_asr_recipe_v1"
 _COPY_CHUNK = 1024 * 1024
 
 QWEN_FORCED_ALIGNER_MODEL_ID = "Qwen/Qwen3-ForcedAligner-0.6B-hf"
@@ -113,8 +114,36 @@ def get_profile(profile_id: str) -> AsrProfile:
         raise ModelRegistryError("ASR_PROFILE_UNKNOWN") from exc
 
 
+def profile_contract_sha256(profile: AsrProfile | str) -> str:
+    """Fingerprint output-affecting profile semantics for exact run reuse."""
+    value = get_profile(profile) if isinstance(profile, str) else profile
+    payload = {
+        "schema": ASR_RECIPE_CONTRACT_VERSION,
+        "profile_id": value.id,
+        "engine": value.engine,
+        "model_id": value.model_id,
+        "revision": value.revision,
+        "language": value.language,
+        "alignment": value.alignment,
+        "alignment_revision": value.alignment_revision,
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def public_profiles() -> list[dict[str, str | None]]:
-    return [profile.public_dict() for profile in _PROFILES]
+    return [
+        {
+            **profile.public_dict(),
+            "profile_contract_sha256": profile_contract_sha256(profile),
+        }
+        for profile in _PROFILES
+    ]
 
 
 def model_path(models_root: Path, profile: AsrProfile | str) -> Path:
