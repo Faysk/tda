@@ -14,6 +14,12 @@ from typing import Any, Callable
 from .atomic_storage import AtomicStorageError, atomic_write, confirm_existing_file
 
 from .transcript import TranscriptDocument, TranscriptValidationError
+from .transcription_intent import (
+    INTENT_FINGERPRINT_SCHEMA,
+    TranscriptionIntentFingerprintError,
+    compatibility_fingerprint,
+    fingerprint_for_run_manifest,
+)
 
 RUN_SCHEMA_VERSION = "tda_transcription_run_v1"
 RUN_LIST_SCHEMA_VERSION = "tda_transcription_runs_v1"
@@ -406,6 +412,16 @@ def _manifest_for_document(
     document.validate()
     engine = document.engine
     stats = document.stats
+    context_sha256 = _sha256_text(context)
+    glossary_sha256 = _sha256_text(glossary)
+    try:
+        intent_fingerprint = compatibility_fingerprint(
+            profile_id=engine.profile,
+            context_sha256=context_sha256,
+            glossary_sha256=glossary_sha256,
+        )
+    except TranscriptionIntentFingerprintError as exc:
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_INTENT_FINGERPRINT_INVALID") from exc
     manifest = {
         "schema_version": RUN_SCHEMA_VERSION,
         "run_id": run_id,
@@ -423,8 +439,10 @@ def _manifest_for_document(
         "compute_type": engine.compute_type,
         "alignment": engine.alignment,
         "language": document.language,
-        "context_sha256": _sha256_text(context),
-        "glossary_sha256": _sha256_text(glossary),
+        "context_sha256": context_sha256,
+        "glossary_sha256": glossary_sha256,
+        "intent_fingerprint_schema": INTENT_FINGERPRINT_SCHEMA,
+        "intent_fingerprint": intent_fingerprint,
         "transcript_schema_version": document.schema_version,
         "artifact": "transcript.json",
         "transcript_sha256": transcript_sha256,
@@ -742,6 +760,10 @@ def _validate_manifest(
         if (isinstance(item, bool) or not isinstance(item, int if count else (int, float))
                 or item < 0 or item > 2**53 - 1 or not math.isfinite(item)):
             raise TranscriptionRunError("TRANSCRIPTION_RUN_STATS_INVALID")
+    try:
+        fingerprint_for_run_manifest(value)
+    except TranscriptionIntentFingerprintError as exc:
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_INTENT_FINGERPRINT_INVALID") from exc
     digest = value.get("transcript_sha256")
     size = value.get("transcript_size_bytes")
     if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
@@ -813,6 +835,8 @@ def _public_summary(value: dict[str, Any]) -> dict[str, Any]:
         "language": value.get("language"),
         "job_id": value.get("job_id"),
         "attempt": value.get("attempt"),
+        "intent_fingerprint_schema": value.get("intent_fingerprint_schema"),
+        "intent_fingerprint": fingerprint_for_run_manifest(value),
         "transcript_sha256": value["transcript_sha256"],
         "transcript_size_bytes": value["transcript_size_bytes"],
         "created_at": value.get("created_at"),
