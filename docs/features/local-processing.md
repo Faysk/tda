@@ -1,13 +1,28 @@
 # Processamento local no Edit
 
-> Status: ASR local implementado; arquitetura de runs/revisão/publicação aprovada; sync cloud ainda desativado
+> Status: ASR/runs/revisão e publicação explícita implementados; auto-sync do job permanece `not_configured`
 > Owner: Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro
-> Última revisão: 2026-09-28
+> Última revisão: 2026-10-05
 > Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento`, `local-companion/tda_companion`, [spec de revisão/publicação](transcript-review-publication.md) e testes associados
 
 `/edit/[campaign]/processamento` é a superfície operacional canônica para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
 
 O contrato editorial pós-processamento é definido em [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) e em ADR-0016. A regra central é: **concluir ASR não publica nada**.
+
+## Current behavior — 2026-10-05
+
+- a linha de código do Companion é **0.3.18**; versão no código não prova, sozinha, que os mesmos bytes já foram promovidos como Stable;
+- transcrição normal exige no mínimo **Whisper Runtime 1.1.4** e **Qwen Runtime 1.0.12**; o Benchmark atual usa gates separados (**Whisper >= 1.1.10**, **Qwen >= 1.0.18**);
+- um job concluído produz resultado/run local e continua declarando `sync.status = "not_configured"`; **não existe auto-sync pós-ASR**;
+- revisão local, CAS, comparação de runs, handoff e publicação cloud **explícita** possuem implementação própria. Isso não muda a regra de que concluir ASR não publica;
+- o fluxo Craig aceita **1..N ZIPs**. Seleção, staging seguro, validação e preparação determinística fazem parte da própria intenção **Transcrever sessão**; não existe CTA separado **Analisar ZIP** no happy path atual;
+- `Processar pendentes`, seleção manual de run, boundary e `Montar transcrição da sessão` continuam disponíveis como controles técnicos/recovery quando existe ambiguidade ou recuperação real, mas não competem com o estado concluído determinístico;
+- histórico de candidatos/PRs abaixo é provenance de implementação, não autoridade sobre versão/runtime/comportamento corrente.
+
+### Legacy compatibility
+
+Espelhos `staging/<source>/transcript.json`, runs legados e contracts de rollout explicitamente aceitos continuam suportados onde o código mantém leitura compatível. Compatibilidade não torna o formato antigo a authority atual.
+
 
 ## Campaign context no processamento
 
@@ -35,7 +50,7 @@ A URL canônica é `/edit/[campaign]/processamento`. O entrypoint `/edit/process
 
 ## Estado atual
 
-### Overview — candidato #580
+### Histórico de implementação — Overview — candidato #580
 
 A Overview dá precedência ao job em execução e à submissão. Progresso com
 denominador válido pode começar em `0%`; sem denominador, a etapa permanece
@@ -118,10 +133,9 @@ performance-only e nunca têm transcript reconstruído por inferência.
 
 Validação deste comportamento: `tests/processing/panel.spec.ts` cobre progresso
 zero, ausência de denominador e a separação entre job ativo e métricas de run
-terminal. Este estado descreve o candidato de código; não implica integração ou
-publicação.
+terminal. Esta nota registra o candidato histórico citado no heading; não substitui o bloco **Current behavior** acima nem prova publicação de artefato.
 
-### Command bar — candidato #608 / #622
+### Histórico de implementação — Command bar — candidato #608 / #622
 
 A barra persistente condensa lifecycle, telemetria da máquina, contadores e ações
 contextuais; detalhes de hardware/versão ficam em Diagnóstico. Falha de uma amostra
@@ -142,7 +156,7 @@ Validação usa fixtures sintéticas em desktop/mobile, falhas independentes por
 domínio, recuperação parcial, inventário fora de ordem, temas e reduced motion.
 Merge não confirma publicação; não há mudança de banco, áudio ou formato de run.
 
-A base vigente e o candidato **TDA Companion 0.3.14** desta entrega cobrem:
+A base vigente do **TDA Companion 0.3.18** cobre:
 
 - workbench próprio do Edit;
 - conexão automática com o Agent em `http://127.0.0.1:8765/api/v1` via sessão temporária origin-bound;
@@ -164,13 +178,13 @@ A base vigente e o candidato **TDA Companion 0.3.14** desta entrega cobrem:
 - endpoint local autenticado `GET /api/v1/sources/<source_id>/runs` com apenas metadados sanitizados;
 - resultado do job com `sync.status = "not_configured"`.
 
-O processamento Craig já é ASR real ponta a ponta no Agent, iniciado pela Web e acompanhado tanto na Web quanto no Desktop. `synthetic.fixture` continua existindo somente como ensaio sintético quando anunciado. Sincronização/publicação cloud permanece desativada: conclusão local não implica importação, revisão, canon ou publicação.
+O processamento Craig já é ASR real ponta a ponta no Agent, iniciado pela Web e acompanhado tanto na Web quanto no Desktop. `synthetic.fixture` continua existindo somente como ensaio sintético quando anunciado. O auto-sync do job permanece desativado (`sync.status = "not_configured"`). Revisão/handoff/publicação explícita existem em slices próprios; conclusão local, por si só, não implica importação, canon ou publicação.
 
-### Versão instalável versus candidato de código
+### Histórico de implementação — Versão instalável versus candidato de código
 
-A linha de código desta entrega é o **TDA Companion 0.3.14**. Esse número identifica os bytes candidatos desta revisão, mas não deve ser descrito como release publicada antes de integração em `main` e publicação do RC correspondente pelo pipeline.
+A linha de código desta revisão é o **TDA Companion 0.3.18**. Esse número identifica a versão declarada pelos fontes; não deve ser usado como prova de que um MSI/RC/Stable específico foi publicado ou fisicamente aceito. Evidência de release continua artefato/hash-specific.
 
-O Companion 0.3.14 exige no mínimo **Whisper Runtime 1.1.4** e **Qwen Runtime 1.0.7**. Durante rollout RC, o primeiro uso aceita somente o candidato publicado exato e verificado da versão compatível; um manifest Stable abaixo do mínimo é ignorado, não baixado como etapa intermediária. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
+O Companion 0.3.18 exige para **transcrição normal** no mínimo **Whisper Runtime 1.1.4** e **Qwen Runtime 1.0.12**. A prontidão do **Benchmark** é separada e exige **Whisper >= 1.1.10** e **Qwen >= 1.0.18**. Durante rollout RC, o primeiro uso aceita somente o artefato publicado exato e verificado da versão compatível; um manifest abaixo do mínimo não vira etapa intermediária. Gate físico por perfil continua obrigatório quando o aceite de release exige evidência da GPU real.
 
 ## Runs locais imutáveis — Slice 1
 
@@ -201,7 +215,7 @@ Regras implementadas:
 - `run.json` é escrito somente depois do transcript final e funciona como commit do run concluído;
 - diretório parcial/sem `run.json` não aparece como resultado concluído;
 - hash integral pode revalidar o transcript do run;
-- a listagem normal valida estrutura/tamanho sem rehash pesado a cada poll; publish futuro deve voltar a verificar hash integral antes de confiar nos bytes;
+- a listagem normal valida estrutura/tamanho sem rehash pesado a cada poll; handoff/publicação explícita deve revalidar hash integral antes de confiar nos bytes;
 - contexto e glossário são representados no manifest por SHA-256 neste corte, sem expor o texto na listagem;
 - transcript legado válido é copiado byte a byte para um run histórico e o original é preservado;
 - mirror da raiz cujo hash já corresponde a um run existente não cria falso run legado duplicado;
@@ -220,7 +234,7 @@ Craig source
   └── tentativa interrompida — sem run concluído promovido
 ```
 
-Cada run concluído preserva seu output bruto. Correções humanas futuras criarão revision derivada. A biblioteca local poderá comparar runs antes de publicar e continuará útil depois da primeira publicação para reprocessar, substituir ou restaurar conteúdo.
+Cada run concluído preserva seu output bruto. Correções humanas criam revision derivada. A biblioteca local pode comparar runs antes de publicar e continua útil depois da primeira publicação para reprocessar, substituir ou restaurar uma published revision sem alterar o run bruto.
 
 ## Download e instalação
 
@@ -293,12 +307,7 @@ necessária e enqueue idempotente do job. A interface continua expondo cada stag
 e suas falhas factuais, mas não exige um botão de “continuar” entre etapas que
 não carregam uma nova decisão humana.
 
-A análise isolada do ZIP permanece disponível como ação secundária somente para
-o caso em que o operador quer montar uma sessão com várias gravações antes de
-processá-las. Estimativas podem aparecer assim que a source staged existe, mas
-não viram uma confirmação obrigatória no caminho simples. Estados bloqueados,
-incluindo incompatibilidade de runtime, continuam fail-closed antes de upload,
-preparação ou criação de job quando o contrato de segurança assim exigir.
+Para 1..N ZIPs, **não existe uma ação secundária separada “Analisar ZIP”** no formulário atual. O submit da intenção faz staging/validação das sources e segue automaticamente para as etapas determinísticas; em multi-recording, o mesmo fluxo cria/recupera a intenção de sessão. Estimativas podem aparecer quando a source staged existe, mas não viram uma confirmação obrigatória. Estados bloqueados, incluindo incompatibilidade de runtime, continuam fail-closed antes de preparação ou criação de job quando o contrato de segurança assim exigir.
 
 ## Estimativa local calibrada de processamento
 
@@ -496,7 +505,7 @@ A candidata histórica de transcript import contém primitives úteis de hash/id
 
 Neste Slice 1, runs concluídos e source/staging permanecem locais até ação futura explícita de cleanup. Não foi adicionada limpeza automática de runs.
 
-Trash de 7 dias, archive e painel de armazenamento pertencem ao Slice 6. Quando entrarem, limpeza de source não poderá apagar transcrições concluídas implicitamente e deverá explicar quando novo processamento exigirá selecionar o ZIP Craig novamente.
+ADR-0021 substituiu a antiga promessa de Trash local de 7 dias: **Excluir resultado local** é uma ação confirmada e destrutiva, protegida por tombstone + cleanup crash-safe; `.delete-trash` é quarantine transacional e não oferece restore. Archive e painel de armazenamento permanecem capacidades separadas/futuras. Limpeza de source não pode apagar transcrições concluídas implicitamente e deve explicar quando novo processamento exigirá selecionar o ZIP Craig novamente.
 
 ## Validação
 
@@ -544,7 +553,7 @@ Slices futuros devem acrescentar testes para:
 
 Esses testes automatizados não substituem o gate de qualidade/desempenho em GPU física. A aprovação física final dos perfis que a exigem deve registrar runtime/model revision, GPU/VRAM observada, elapsed/RTF e avaliação qualitativa adequada ao perfil.
 
-### Métricas animadas — candidato #601 / PR #623
+### Histórico de implementação — Métricas animadas — candidato #601 / PR #623
 
 A barra interpola somente os números visuais de GPU/CPU/RAM por 350–700 ms,
 com easing sem overshoot. O controller, o timestamp da amostra e o `meter`
@@ -563,7 +572,7 @@ Validação: testes sintéticos do interpolador e navegador cobrem rebase,
 telemetria acessível, cancelamento em aba oculta, movimento reduzido, reset
 de tentativa e largura estável. A validação local/CI não publica o frontend.
 
-### Fila operacional — candidato #610 / PR #624
+### Histórico de implementação — Fila operacional — candidato #610 / PR #624
 
 A Fila usa tabela HTML no desktop, com rolagem e cabeçalho próprios, e linhas
 empilhadas no mobile. O recorte inicial contém ativos; filtros locais de atenção,
