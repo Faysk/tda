@@ -146,9 +146,9 @@ export function sessionAssemblyReadiness(
 	if (workspace.parts.some((part) => !part.selectedRunId))
 		reasons.push("Selecione um resultado para cada gravação.");
 	if (!mapping)
-		reasons.push("Carregue o mapa de participantes.");
+		reasons.push("Atualizando a identificação dos participantes.");
 	else if (mapping.approvalBlocked)
-		reasons.push("Resolva os participantes ambíguos.");
+		reasons.push("Restaure a identificação das gravações locais.");
 	return { ready: reasons.length === 0, reasons };
 }
 
