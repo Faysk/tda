@@ -672,6 +672,118 @@ test("atenção na command bar abre a fila já focada no problema", async ({ pag
 	).toBeVisible();
 });
 
+test("Overview attention exposes New, safe Retry, Diagnostics and Discard without conflating them", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [failedJob()],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	const overview = page.getByRole("tabpanel", { name: "Visão geral" });
+	const attention = overview.getByRole("region", { name: "Precisa de atenção" });
+
+	await expect(attention).toBeVisible();
+	await expect(attention).toContainText("QWEN_ALIGNMENT_REQUIRED");
+	await expect(
+		attention.getByRole("button", { name: "Nova transcrição" }),
+	).toBeVisible();
+	await expect(
+		attention.getByRole("button", { name: "Repetir trabalho" }),
+	).toBeVisible();
+	await expect(
+		attention.getByRole("button", { name: "Diagnóstico" }),
+	).toBeVisible();
+	await expect(
+		attention.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
+
+	await attention.getByRole("button", { name: "Diagnóstico" }).click();
+	const inspector = page.locator("dialog[data-job-diagnostics='contextual']");
+	await expect(inspector).toBeVisible();
+	await expect(
+		inspector.getByRole("button", { name: "Nova transcrição" }),
+	).toBeVisible();
+	await expect(
+		inspector.getByRole("button", { name: "Repetir trabalho" }),
+	).toBeVisible();
+	await expect(
+		inspector.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
+
+	const retryRequestsBefore = state.requests.filter((request) =>
+		request.path.endsWith("/retry"),
+	).length;
+	await inspector.getByRole("button", { name: "Nova transcrição" }).click();
+	await expect(inspector).not.toBeVisible();
+	await expect(page.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	expect(
+		state.requests.filter((request) => request.path.endsWith("/retry")).length,
+	).toBe(retryRequestsBefore);
+
+	await attention.getByRole("button", { name: "Descartar trabalho" }).click();
+	await expect(
+		page.getByRole("heading", { name: "Descartar este trabalho?" }),
+	).toBeVisible();
+	await expect(page.getByRole("dialog")).toContainText(
+		"Resultados locais, evidências concluídas",
+	);
+	await page.getByRole("button", { name: "Descartar trabalho" }).click();
+
+	await expect.poll(() => state.jobDeleteCount).toBe(1);
+	await expect(attention).toHaveCount(0);
+});
+
+test("non-recoverable attention never offers Retry as a recovery shortcut", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			failedJob({
+				error: { code: "WORKER_PROGRESS_GAP", recoverable: false },
+			}),
+		],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	const overview = page.getByRole("tabpanel", { name: "Visão geral" });
+	const attention = overview.getByRole("region", { name: "Precisa de atenção" });
+
+	await expect(attention).toBeVisible();
+	await expect(
+		attention.getByRole("button", { name: "Nova transcrição" }),
+	).toBeVisible();
+	await expect(
+		attention.getByRole("button", { name: "Repetir trabalho" }),
+	).toHaveCount(0);
+	await expect(
+		attention.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
+
+	await attention.getByRole("button", { name: "Diagnóstico" }).click();
+	const inspector = page.locator("dialog[data-job-diagnostics='contextual']");
+	await expect(inspector).toBeVisible();
+	await expect(inspector).toContainText("WORKER_PROGRESS_GAP");
+	await expect(
+		inspector.getByRole("button", { name: "Repetir trabalho" }),
+	).toHaveCount(0);
+	await expect(
+		inspector.getByRole("button", { name: "Nova transcrição" }),
+	).toBeVisible();
+	await expect(
+		inspector.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
+});
+
 test("telemetry stale preserva o último snapshot e orienta sem zerar valores", async ({ page }) => {
 	await installCompanionFixture(page, {
 		profileReady: true,
