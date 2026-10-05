@@ -191,6 +191,7 @@ export type SessionTranscriptionIntentState = {
 	glossary: string;
 	contextSha256: string;
 	glossarySha256: string;
+	compatibilityFingerprint: string | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -550,6 +551,7 @@ export type LocalRunSummary = {
 	executionLineage: LocalExecutionLineage | null;
 	language: string | null;
 	completedAt: string | null;
+	intentFingerprint: string | null;
 	transcriptSha256: string;
 	transcriptSizeBytes: number;
 	stats: {
@@ -1305,6 +1307,11 @@ export function parseSessionTranscriptionIntent(
 		glossary: localText(row.glossary),
 		contextSha256: sha256(row.context_sha256),
 		glossarySha256: sha256(row.glossary_sha256),
+		compatibilityFingerprint:
+			row.compatibility_fingerprint === undefined ||
+			row.compatibility_fingerprint === null
+				? null
+				: sha256(row.compatibility_fingerprint),
 		createdAt: isoDate(row.created_at),
 		updatedAt: isoDate(row.updated_at),
 	};
@@ -2033,6 +2040,11 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 			executionLineage: parseExecutionLineage(item.execution_lineage),
 			language: nullableText(item.language, 32),
 			completedAt: nullableIsoDate(item.completed_at),
+			intentFingerprint:
+				item.intent_fingerprint === undefined ||
+				item.intent_fingerprint === null
+					? null
+					: sha256(item.intent_fingerprint),
 			transcriptSha256,
 			transcriptSizeBytes: (() => {
 				const size = nonNegativeInteger(item.transcript_size_bytes);
