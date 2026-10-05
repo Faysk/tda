@@ -145,10 +145,11 @@ export function sessionAssemblyReadiness(
 		reasons.push("Restaure as gravações locais inválidas.");
 	if (workspace.parts.some((part) => !part.selectedRunId))
 		reasons.push("Selecione um resultado para cada gravação.");
-	if (!mapping)
-		reasons.push("Carregue o mapa de participantes.");
-	else if (mapping.approvalBlocked)
-		reasons.push("Resolva os participantes ambíguos.");
+	// Participant reconciliation is derived by the Agent again at Assembly build
+	// time. A missing Web projection or source-local participant ambiguity is not
+	// a reason to block a transcript whose source/track provenance is intact.
+	// Approval policy remains represented on the immutable Assembly/review.
+	void mapping;
 	return { ready: reasons.length === 0, reasons };
 }
 
