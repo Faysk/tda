@@ -518,6 +518,9 @@ export function ProcessingPanel({
 			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
 	const canDeleteRuns = supportsCompletedRunDelete(state.health?.service_version);
+	const observedRecovery = observedJob
+		? terminalRecoveryActions(observedJob, canDeleteJobs)
+		: null;
 	const activeJobClockKey = activeJob ? `${activeJob.id}:${activeJob.attempt}` : null;
 
 	useEffect(() => {
@@ -1546,6 +1549,82 @@ export function ProcessingPanel({
 										</p>
 									)}
 
+									{observedJob ? (
+										<div
+											className={styles.diagnosticsRecoveryActions}
+											aria-label="Ações do trabalho observado"
+										>
+											{observedRecovery?.canStartNew ? (
+												<Button
+													size="sm"
+													variant={observedRecovery.canRetry ? "tertiary" : "primary"}
+													onClick={() => startNewWork(observedJob)}
+												>
+													{observedJob.kind === "benchmark.craig"
+														? "Executar novo benchmark"
+														: "Nova transcrição"}
+												</Button>
+											) : null}
+											{observedRecovery?.canRetry ? (
+												<Button
+													size="sm"
+													variant="tertiary"
+													disabled={
+														state.mutation?.kind === "retry" &&
+														state.mutation.targetId === observedJob.id
+													}
+													onClick={() =>
+														setConfirmation({ id: observedJob.id, action: "retry" })
+													}
+												>
+													{state.mutation?.kind === "retry" &&
+													state.mutation.targetId === observedJob.id
+														? "Repetindo…"
+														: observedJob.kind === "benchmark.craig"
+															? "Repetir tentativa"
+															: "Repetir trabalho"}
+												</Button>
+											) : null}
+											{["queued", "running"].includes(observedJob.status) ? (
+												<Button
+													size="sm"
+													variant="tertiary"
+													className={styles.dangerAction}
+													disabled={
+														state.mutation?.kind === "cancel" &&
+														state.mutation.targetId === observedJob.id
+													}
+													onClick={() =>
+														setConfirmation({ id: observedJob.id, action: "cancel" })
+													}
+												>
+													{state.mutation?.kind === "cancel" &&
+													state.mutation.targetId === observedJob.id
+														? "Cancelando…"
+														: "Cancelar trabalho"}
+												</Button>
+											) : null}
+											{observedRecovery?.canDiscard ? (
+												<Button
+													size="sm"
+													variant="tertiary"
+													className={styles.dangerAction}
+													disabled={
+														state.mutation?.kind === "delete" &&
+														state.mutation.targetId === observedJob.id
+													}
+													onClick={() =>
+														setConfirmation({ id: observedJob.id, action: "delete" })
+													}
+												>
+													{state.mutation?.kind === "delete" &&
+													state.mutation.targetId === observedJob.id
+														? "Descartando…"
+														: "Descartar trabalho"}
+												</Button>
+											) : null}
+										</div>
+									) : null}
 
 									<details className={styles.systemDetails}>
 										<summary>Companion e máquina</summary>
