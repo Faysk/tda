@@ -210,6 +210,41 @@ def test_gap_overlap_and_resolution_are_explicit_and_deterministic():
     validate_overlap_boundary(first, first["parts"][2]["part_id"])
 
 
+def test_trusted_automatic_overlap_preserves_both_without_manual_boundary():
+    source_facts = dict(
+        [
+            facts(1, start="2026-09-27T20:00:00Z", duration=60.0),
+            facts(2, start="2026-09-27T20:00:50Z", duration=60.0),
+        ]
+    )
+    first = part(1, 0, offset=0.0)
+    second = part(2, 1, offset=50.0)
+    first["timeline_mode"] = "automatic"
+    second["timeline_mode"] = "automatic"
+    workspace = {
+        "schema_version": "tda_session_workspace_v1",
+        "campaign_id": "campaign-auto-overlap",
+        "session_id": "session-auto-overlap",
+        "revision": 2,
+        "ordering_mode": "automatic",
+        "created_at": "2026-09-27T22:00:00Z",
+        "updated_at": "2026-09-27T22:00:00Z",
+        "parts": [first, second],
+    }
+
+    enriched = enrich_workspace_timeline(workspace, source_facts)
+
+    overlap = enriched["parts"][1]
+    assert overlap["relation_to_previous"] == "overlap"
+    assert overlap["physical_interval_state"] == "trusted_absolute"
+    assert overlap["overlap_resolution"] == "preserve_both_exact_v1"
+    assert overlap["overlap_boundary_seconds"] is None
+    assert overlap["overlap_resolution_valid"] is True
+    assert enriched["timeline"]["unresolved_overlap_count"] == 0
+    assert enriched["timeline"]["state"] == "ready"
+    validate_overlap_boundary(enriched, overlap["part_id"])
+
+
 def test_unresolved_overlap_blocks_readiness_and_trim_changes_fingerprint():
     source_facts = dict(
         [
