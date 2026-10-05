@@ -10,6 +10,10 @@ Use este modelo para documentação técnica ou de domínio nova. Remova seçõe
 > Última revisão: YYYY-MM-DD
 > Fonte de verdade: caminho/schema/serviço
 
+## Current behavior
+
+Resuma primeiro o contrato implementado/vigente. Um mantenedor deve conseguir descobrir o comportamento atual sem ler o diário histórico.
+
 ## Objetivo
 
 O que este documento define e o que ele não define.
@@ -56,9 +60,13 @@ Principais failure modes, idempotência, retry, rollback e como detectar inconsi
 
 Logs, métricas, auditoria e sinais de saúde.
 
-## Compatibilidade / legado
+## Legacy compatibility
 
-Dependências temporárias, divergências conhecidas e condição para remoção.
+Dependências temporárias, formatos/paths ainda aceitos e condição para remoção. Declare a authority corrente e não apresente legacy como comportamento preferencial.
+
+## Historical implementation notes
+
+Snapshots datados, issues/PRs, candidatos e evidências que valem como provenance, não como contrato atual.
 
 ## Validação
 
@@ -68,9 +76,9 @@ Testes, queries ou critérios verificáveis.
 
 Riscos conhecidos e por que ainda não foram resolvidos.
 
-## Futuro
+## Future backlog / unresolved decisions
 
-Próximos passos aprovados; separar claramente de ideias não aprovadas.
+Próximos passos ainda não entregues e decisões explicitamente abertas; não repetir capability já implementada como futura.
 
 ## Referências
 
