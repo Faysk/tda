@@ -1,3 +1,4 @@
+import { queueRetryAvailable } from "./queue-model";
 import type {
 	LocalJob,
 	LocalRunSummary,
@@ -224,7 +225,7 @@ export function trustedTimelineOrderDiffers(
 	return trusted.some((sourceId, index) => editorialOrder[index] !== sourceId);
 }
 
-export function retryableIntentJob(
+export function terminalIntentJob(
 	jobs: readonly LocalJob[],
 	sourceId: string,
 ): LocalJob | null {
@@ -235,4 +236,12 @@ export function retryableIntentJob(
 		job.status === "interrupted"
 		? job
 		: null;
+}
+
+export function retryableIntentJob(
+	jobs: readonly LocalJob[],
+	sourceId: string,
+): LocalJob | null {
+	const job = terminalIntentJob(jobs, sourceId);
+	return job && queueRetryAvailable(job) ? job : null;
 }
