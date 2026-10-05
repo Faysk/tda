@@ -310,7 +310,9 @@ export function SessionIntentCoordinator({
 					async (part) =>
 						[
 							part.sourceId,
-							await bridge.localRuns(part.sourceId, signal),
+							(await bridge.localRuns(part.sourceId, signal)).filter((run) =>
+								workspaceGenerationEligible(next, run.completedAt),
+							),
 						] as const,
 				),
 			);
@@ -324,7 +326,9 @@ export function SessionIntentCoordinator({
 				workspace: next,
 				mapping: nextMapping,
 				runsBySource: new Map(runPairs),
-				jobs: jobPage.jobs,
+				jobs: jobPage.jobs.filter((job) =>
+					workspaceGenerationEligible(next, job.updated_at),
+				),
 			};
 			if (!signal.aborted) {
 				setWorkspace(snapshot.workspace);
