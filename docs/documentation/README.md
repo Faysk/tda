@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: documentação/arquitetura
-> Última revisão: 2026-09-07
+> Última revisão: 2026-10-05
 > Fonte de verdade: `docs/README.md`, catálogo gerado e documentos donos
 
 Este diretório define **como a documentação do TDA é mantida**. A documentação faz parte do produto: mudança relevante sem documentação correspondente é mudança incompleta.
@@ -49,6 +49,40 @@ Exemplos válidos:
 - `publicado em Production #N; smoke registrado no runbook/histórico`.
 
 Evitar frases como `implementado`, `vigente` ou `em produção` para resumir uma PR aberta sem qualificar o estágio. Uma PR aberta pode atualizar o `Status:` do próprio candidato para descrever sua maturidade, mas índices gerais da `main` não devem promover essa mudança antes da integração.
+
+## Taxonomia obrigatória dentro de documentos vivos
+
+Documentos donos que acumulam evolução ao longo do tempo devem tornar semanticamente distinguíveis estas quatro categorias, sem obrigar arquivos pequenos a criar quatro seções vazias:
+
+1. **Current behavior** — contrato implementado/vigente que um mantenedor pode usar hoje;
+2. **Legacy compatibility** — formato, endpoint, fallback ou controle ainda aceito apenas para leitura, rollout, recovery ou interoperabilidade;
+3. **Historical implementation notes** — snapshots datados, PRs, issues, candidatos, medições e decisões anteriores preservados como provenance;
+4. **Future backlog / unresolved decisions** — trabalho ainda não entregue ou decisão ainda aberta.
+
+Regras:
+- o caminho de leitura principal deve explicar o comportamento corrente sem exigir reconstruir uma sequência de PRs;
+- títulos como `candidato #123` não funcionam como status corrente; quando preservados, precisam estar sob histórico;
+- uma compatibilidade legacy deve declarar qual é a authority atual e por que o legado ainda é aceito;
+- backlog futuro não pode descrever como ausente uma capability já integrada;
+- divergência entre ADR accepted e produto não é corrigida silenciosamente em feature doc: emendar/superseder a decisão primeiro;
+- versões de serviço/runtime devem ter fonte dona; duplicações necessárias precisam apontar para essa authority;
+- `api_version`, schema version e service/runtime version são identidades distintas e não podem ser inferidas umas das outras.
+
+### Exemplo de leitura
+
+```md
+## Current behavior
+...
+
+## Legacy compatibility
+...
+
+## Historical implementation notes
+...
+
+## Future backlog / unresolved decisions
+...
+```
 
 ## Tipos de documento
 
@@ -113,6 +147,8 @@ Uma PR que altera comportamento relevante deve responder:
 6. A feature catalog/roadmap precisa mudar de status?
 7. Há nova decisão arquitetural que merece ADR?
 8. Há novo risco operacional ou de segurança?
+9. O documento mistura current behavior, legacy, histórico ou futuro sem rótulo claro?
+10. Alguma versão/issue/PR histórica está sendo usada como se fosse authority corrente?
 
 Se alguma resposta exigir mudança documental, ela deve acontecer na mesma PR ou ficar explicitamente dependente da frente dona, sem duplicação.
 
