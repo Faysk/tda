@@ -233,7 +233,7 @@ export type SessionParticipantAssignment = {
 };
 export type SessionParticipantMapping = {
 	schemaVersion: "tda_session_participant_mapping_v1";
-	policy: "strong_discord_or_manual_v1";
+	policy: "strong_discord_or_manual_v1" | "strong_discord_or_local_v2";
 	campaignId: string;
 	sessionId: string;
 	workspaceRevision: number;
@@ -1323,7 +1323,11 @@ export function parseSessionParticipantMapping(
 	const row = record(value);
 	if (row.schema_version !== "tda_session_participant_mapping_v1")
 		return invalid();
-	if (row.policy !== "strong_discord_or_manual_v1") return invalid();
+	if (
+		row.policy !== "strong_discord_or_manual_v1" &&
+		row.policy !== "strong_discord_or_local_v2"
+	)
+		return invalid();
 	if (!Array.isArray(row.observations) || row.observations.length > 16384)
 		return invalid();
 	if (!Array.isArray(row.participants) || row.participants.length > 16384)
@@ -1468,7 +1472,7 @@ export function parseSessionParticipantMapping(
 
 	return {
 		schemaVersion: "tda_session_participant_mapping_v1",
-		policy: "strong_discord_or_manual_v1",
+		policy: row.policy,
 		campaignId: identifier(row.campaign_id),
 		sessionId: identifier(row.session_id),
 		workspaceRevision: nonNegativeInteger(row.workspace_revision),
