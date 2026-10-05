@@ -165,7 +165,7 @@ describe("session intent model", () => {
 		});
 		expect(chooseIntentRun(target, runs, null, "f".repeat(64))).toEqual({
 			kind: "automatic",
-			runId: "run-intent",
+			runId: "run-old",
 			reason: "exact_match",
 		});
 	});
