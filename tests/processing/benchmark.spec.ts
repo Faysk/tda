@@ -899,7 +899,7 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 test("terminal global Benchmark failure restores failed and not-attempted profile states", async ({
 	page,
 }) => {
-	await installCompanionFixture(page, {
+	const state = await installCompanionFixture(page, {
 		benchmarkProfiles: true,
 		profileReady: true,
 		advanceJobs: false,
