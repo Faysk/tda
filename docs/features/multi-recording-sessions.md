@@ -371,9 +371,10 @@ Ordem de confiança:
 1. preservar sempre source + track + raw speaker;
 2. Discord ID da track, quando presente e consistente, é evidência forte;
 3. username/label é evidência auxiliar;
-4. mapear para participant somente quando inequívoco ou confirmado;
-5. ambiguity permanece explícita;
-6. nunca criar profile global por match textual.
+4. quando identidade forte faltar, manter uma identidade `local_observation` por source/track;
+5. ambiguity cross-source permanece explícita como advisory, sem bloquear Assembly;
+6. manual merge/split continua disponível como override editorial;
+7. nunca criar profile global por match textual.
 
 O mapping participa da identity da assembly.
 
@@ -387,7 +388,8 @@ Regras implementadas:
 - Discord ID exato pode agrupar observações dentro da mesma session;
 - username/label só produz evidência auxiliar e conflitos; não faz merge automático quando a identidade forte falta;
 - mesmo label com Discord IDs distintos permanece em participants distintos;
-- label igual com identidade ausente/parcial bloqueia aprovação até decisão manual;
+- label igual com identidade ausente/parcial **não** autoriza merge: as observações permanecem separadas e a ambiguidade vira warning;
+- a falta de identidade cross-source, por si só, não bloqueia Assembly nem review porque `source_id + track_number + raw_speaker` preservam autoria local;
 - decisões manuais são full-replacement, CAS-guarded pelo `workspace.revision`, persistidas localmente e sobrevivem a restart;
 - o mapping recebe SHA-256 determinístico para entrar na provenance da futura Session Assembly;
 - nenhuma resolução cria ou preenche `profile_id` global.
@@ -615,7 +617,7 @@ regra de que áudio bruto continua local e sob controle explícito.
 - **ordem temporal sem evidência suficiente:** confirmar a ordem exibida, sem
   preencher segundos manualmente;
 - **overlap comprovado:** resolver boundary/corte explicitamente;
-- **participant mapping bloqueado:** confirmar a pessoa correta.
+- **identidade realmente contraditória que impeça atribuição local segura:** corrigir a source/metadata; label-only ambiguity permanece advisory e pode ser unificada depois.
 
 Essas exceções abrem/indicam os controles técnicos existentes, mas o caminho
 feliz não exige attach manual, `Processar pendentes`, seleção de run por part
