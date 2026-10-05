@@ -88,6 +88,11 @@ def apply_craig_track_selection(
     tracks = tuple(track for track in package.tracks if track.number in wanted)
     if len(tracks) != len(wanted):
         raise CraigTrackPolicyError("TRANSCRIPTION_TRACK_POLICY_MISMATCH")
+    # Avoid reconstructing the package when the policy keeps every track. Besides
+    # being cheaper, this keeps the helper compatible with package-like test and
+    # adapter objects while production CraigPackage values remain immutable.
+    if tracks == tuple(package.tracks):
+        return package
     return replace(package, tracks=tracks)
 
 
