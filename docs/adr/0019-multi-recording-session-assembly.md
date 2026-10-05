@@ -5,6 +5,8 @@
 > Decisores: proprietário / maintainers TDA
 > Supersede: —
 > Superseded por: —
+> Última revisão: 2026-10-05
+> Emenda: #1508/#1513/PR #1527 — overlap factual confiável usa policy conservadora automática
 
 ## Contexto
 
@@ -84,7 +86,7 @@ A assembly:
 - preserva source/run hashes;
 - transforma timestamps locais em timeline global por regras versionadas;
 - registra gaps;
-- exige resolução explícita de overlaps ambíguos;
+- resolve automaticamente overlaps factuais quando a evidência suporta a policy conservadora e exige ação humana somente para ambiguidade editorial real;
 - preserva participant mapping;
 - gera transcript canônico e hash;
 - torna-se uma base válida para review.
@@ -107,9 +109,13 @@ Reconciliação usa provenance da track e participant mapping explícito. Nickna
 
 Não compactar a timeline para esconder períodos sem gravação.
 
-### Overlap não recebe fuzzy dedupe automático
+### Overlap usa preservação conservadora, sem fuzzy dedupe
 
-A primeira implementação usa resolução/boundary explícito e determinístico. Heurísticas futuras podem sugerir, nunca remover conteúdo silenciosamente.
+Overlap factual com geometria confiável usa `preserve_both_exact_v1`: ambas as capturas permanecem disponíveis por default. A Assembly só colapsa duplicata quando há identidade forte, texto normalizado idêntico e timing trusted compatível, preservando provenance das duas origens.
+
+Qualquer diferença de texto, identidade fraca/local ou timing incerto preserva ambas as falas. Boundary/manual trim permanece ferramenta avançada para a ambiguidade que realmente exigir decisão editorial.
+
+Similaridade fuzzy nunca é autoridade para remover conteúdo.
 
 ### Assembly é diferente de run
 
@@ -152,7 +158,7 @@ O review single-source atual pode coexistir com review por assembly enquanto a u
 - Source/run não são reescritos pela composição.
 - Partial assembly não é publicável.
 - Gap não fabrica conteúdo.
-- Overlap unresolved não é aprovado/publicado.
+- overlap resolvido deterministicamente por `preserve_both_exact_v1` pode seguir sem gate humano; ambiguidade realmente unresolved não é aprovada/publicada.
 - Track number não identifica participant entre sources.
 - Mudança da composição cria nova assembly.
 - Review/approval ligam-se ao snapshot exato.
@@ -181,7 +187,7 @@ A implementação respeita este ADR quando:
 - review e publication preservam provenance;
 - nenhum áudio/path privado é sincronizado.
 
-O gate completo está em #852.
+#852 permanece o gate histórico amplo da fundação multi-recording. A evolução de automação Craig é coordenada por #1508; #1515/PR #1532 prova o happy path zero-interrupção integrado por PR #1531.
 
 ## Estado de adoção
 
@@ -191,8 +197,11 @@ A adoção deste ADR não elimina o lifecycle próprio de distribuição do Comp
 
 ## Referências
 
-- #843 — epic multi-recording;
-- #844, #845, #846, #848, #849, #851 e #852 — backlog executável;
+- #843 — fundação/epic multi-recording;
+- #844, #845, #846, #848, #849, #851 e #852 — slices/gate da fundação;
+- #1508 e #1509–#1516 — evolução para automação Craig;
+- #1513 / PR #1527 — policy conservadora de overlap;
+- #1515 / PR #1532, integrada por PR #1531 — gate do happy path zero-interrupção;
 - ADR-0003 — processamento pesado local;
 - ADR-0013 — Companion/ASR;
 - ADR-0016 — runs imutáveis, revisão e publicação;

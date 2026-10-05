@@ -2,8 +2,8 @@
 
 > Status: implementação funcional e gate E2E/recovery concluídos
 > Owner: sessions / processing / transcripts
-> Última revisão: 2026-10-04
-> Fonte de verdade: este documento, ADR-0019 accepted e epic #843
+> Última revisão: 2026-10-05
+> Fonte de verdade: este documento, ADR-0019 accepted, fundação #843 e evolução de automação Craig #1508
 
 ## Objetivo
 
@@ -32,7 +32,9 @@ O uso real passou a produzir cenários em que uma única sessão possui dois ou 
 
 O domínio cloud já admite múltiplos arquivos/fontes por session. O Companion já possui source Craig content-addressed e múltiplos runs imutáveis por source.
 
-Em 2026-09-28, os slices locais de workspace, cronologia, reconciliação de participantes e Session Assembly estão integrados à `main` (#862, #863/#871, #873 e #907). O composer Web de #849 foi entregue por #940, a provenance cloud multi-source de #851 foi entregue por #946 e o gate E2E/recovery de #852 foi entregue por #967. O rollout Web/cloud foi promovido pelo fluxo normal de Production; a distribuição de novos bytes do Companion continua sendo um lifecycle separado e exige seus próprios gates de release/aceite.
+Em 2026-09-28, #843 entregou a fundação multi-recording: workspace, cronologia, reconciliação de participantes, Session Assembly, composer Web, provenance cloud multi-source e gate #852. Em 2026-10-05, #1508 e #1509–#1516 evoluíram essa fundação para o fluxo Craig automático: metadata estruturada, ordem confiável, participant reconciliation não bloqueante, exact run reuse, overlap conservador, completed state outcome-first e bot filtering. O gate #1515/PR #1532, integrado por PR #1531, prova o happy path zero-interrupção sem controles técnicos concorrendo com **Transcrição pronta**.
+
+O rollout Web/cloud continua separado da distribuição de novos bytes do Companion, que exige seus próprios gates de release/aceite.
 
 ## Escopo
 
@@ -437,9 +439,9 @@ Ordem de confiança:
 
 O mapping participa da identity da assembly.
 
-### Implementação inicial de reconciliação
+### Reconciliação de participantes — schema e policy
 
-O Companion expõe o contrato local versionado `tda_session_participant_mapping_v1`.
+O Companion expõe o schema local versionado `tda_session_participant_mapping_v1`. O schema continua v1, enquanto a policy de decisão corrente é **`strong_discord_or_local_v2`**. Schema e policy têm versionamentos independentes: atualizar a policy não implica renomear o payload.
 
 Regras implementadas:
 - cada observação mantém `source_id + track_number + raw_speaker` e identity Craig disponível;
@@ -724,9 +726,11 @@ Uma sessão com um único ZIP usa exatamente a mesma intenção 1..N. Não exist
 segundo produto escondido para “single-source”; o orquestrador simplesmente
 tem uma gravação para acompanhar.
 
-## Gate sintético de regressão
+## Gates sintéticos de regressão
 
-A #852 consolida as provas do fluxo multi-recording em camadas proporcionais, sem GPU e sem material privado:
+### Fundação histórica — #852
+
+A #852 consolida as provas da fundação multi-recording em camadas proporcionais, sem GPU e sem material privado:
 
 - Companion/SQLite: workspace 1..20 parts, CAS/restart, timeline, participants, assembly atômica e review;
 - Web: composer, selective processing/idempotência, variante por `recording_id`, reload/reconnect e assembly review;
@@ -735,6 +739,19 @@ A #852 consolida as provas do fluxo multi-recording em camadas proporcionais, se
 - `processing-e2e` permanece dono da jornada browser 2 parts e `transcript-import-postgres` permanece dono do scratch PostgreSQL completo.
 
 Esse gate não roda modelo ASR pesado, não usa áudio de campanha e não substitui aceite físico de GPU.
+
+### Happy path Craig atual — #1515 / PR #1532
+
+A evolução #1508 adiciona um gate de produto focado em automação determinística. #1515/PR #1532, integrado por PR #1531, prova:
+
+- 2 ZIPs selecionados como uma intenção única;
+- ordem de seleção diferente da chronology Craig autoritativa;
+- exact run existente reutilizado sem novo ASR;
+- somente a source faltante é processada;
+- participant reconciliation não vira gate manual;
+- Session Assembly é construída automaticamente;
+- o completed state mostra **Transcrição pronta** e **Revisar transcrição**;
+- `Carregue o mapa de participantes`, `Resolver participantes`, `Usar horários Craig`, `Montar transcrição da sessão` e `Detalhes técnicos` não aparecem como próximos passos concorrentes.
 
 ### Gate integrado de review e Markdown
 
@@ -814,7 +831,9 @@ Não migrar destrutivamente:
 - reviews históricos;
 - published revisions anteriores.
 
-## Backlog executável
+## Histórico de implementação e backlog
+
+### Fundação #843
 
 - #844 — recording parts/workspace local — implementado;
 - #845 — cronologia, gaps, overlaps e trims — implementado;
@@ -823,9 +842,21 @@ Não migrar destrutivamente:
 - #849 — composer Web multi-recording — implementado via #940;
 - #851 — provenance multi-source na publicação cloud — implementado via #946;
 - #852 — gate E2E/recovery sintético amplo — implementado via #967;
-- #1441 — sequência confirmada sem wall-clock confiável — implementação nesta entrega.
+- #1441 — sequência confirmada sem wall-clock confiável — implementado.
 
-Epic: #843.
+### Evolução #1508 — automação Craig
+
+- #1509 — metadata Craig estruturada;
+- #1510 — chronology trusted automática;
+- #1511 — participant reconciliation não bloqueante;
+- #1512 — exact run reuse por fingerprint;
+- #1513 — overlap conservador `preserve_both_exact_v1`;
+- #1514 — completed state outcome-first;
+- #1515 / PR #1532 — gate zero-interrupção;
+- #1516 — bot tracks confirmadas ignoradas por default;
+- PR #1531 — integração do completed state e do gate atual.
+
+#843 permanece a fundação arquitetural; #1508 é a evolução atual do fluxo Craig.
 
 ## Critérios de aceite globais
 
@@ -849,4 +880,6 @@ Epic: #843.
 - `docs/domains/processing.md`;
 - `docs/features/local-processing.md`;
 - `docs/features/transcript-review-publication.md`;
-- #843 e issues filhas.
+- #843 — fundação multi-recording;
+- #1508 e #1509–#1516 — evolução de automação Craig;
+- #1531/#1532 — completed state e gate zero-interrupção.

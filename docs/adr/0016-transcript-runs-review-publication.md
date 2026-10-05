@@ -3,7 +3,8 @@
 > Status: accepted
 > Data: 2026-09-15
 > Owner: Edit / processamento local / transcript-sync
-> Última revisão: 2026-09-15
+> Última revisão: 2026-10-05
+> Emenda: 2026-10-05 — delete local confirmado é destrutivo; quarantine/tombstone são mecanismos internos de recovery, não uma lixeira restaurável
 > Relacionados: ADR-0003, ADR-0007, ADR-0013, `docs/features/local-processing.md`, `docs/features/transcript-review-publication.md`, `docs/integrations/transcript-import.md`
 
 ## Contexto
@@ -80,9 +81,13 @@ A ativação/restauração é registrada como evento editorial leve.
 
 Delete pode remover run/draft/revision conforme o escopo explícito. A current revision não sofre hard delete por uma ação genérica.
 
-### 10. Lixeira local simples
+### 10. Exclusão local confirmada
 
-Deletes locais comuns passam por Trash com retenção padrão de 7 dias. Isso é proteção de UX, não requisito de compliance.
+A exclusão local de um run/revisão é **destrutiva depois de confirmação explícita**. O Companion grava primeiro um tombstone/receipt autoritativo e pode usar quarantine transacional durante o cleanup para sobreviver a falha/restart.
+
+Essa quarantine **não é uma lixeira de produto**: não existe retenção de 7 dias nem ação de usuário para restaurar um run excluído. Se o produto voltar a oferecer Trash/Restore no futuro, isso exige nova decisão arquitetural e lifecycle próprio de retenção, listagem, restore, expiração e dependency checks.
+
+Publicação cloud permanece independente: excluir o resultado local não faz unpublish nem remove revisions cloud.
 
 ### 11. Áudio bruto permanece local
 
@@ -141,7 +146,7 @@ Não são requisitos assinatura criptográfica por edição, retenção legal, c
 - transcript-sync precisa evoluir para revision completa;
 - banco precisará separar concorrência de segmento de versionamento editorial da transcrição;
 - comparação temporal/textual exige algoritmo e UI próprios;
-- delete/restore/unpublish aumentam estados de produto a testar.
+- delete local destrutivo, restore de published revision e unpublish aumentam estados de produto a testar.
 
 ## Alternativas rejeitadas
 
@@ -164,6 +169,12 @@ Reduz storage, mas força reprocessamento ou perda de histórico em caso de arre
 ### Event sourcing completo de cada alteração
 
 Robusto demais para a necessidade do projeto e aumenta custo sem benefício proporcional.
+
+## Emenda de 2026-10-05 — semântica de delete local
+
+A decisão original de “Trash local por 7 dias” foi substituída após confronto com o comportamento integrado do Companion. A implementação vigente usa `tda_local_run_delete_receipt_v1`, tombstone autoritativo e quarantine efêmera apenas para tornar o cleanup recuperável/idempotente. Não há UX de listagem/restore dessa quarantine.
+
+Esta emenda preserva o objetivo original de evitar efeitos colaterais cloud e exigir confirmação destrutiva, mas remove uma promessa de restauração que o produto não entrega.
 
 ## Relação com decisões anteriores
 

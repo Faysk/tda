@@ -1,9 +1,15 @@
 # TDA Companion — confiabilidade, manutenção e aceite real
 
-> Status: R1/R2 implementados; R3 C-12/C-13/C-14 implementados em candidato; stable bloqueada até aceite físico do artefato exato
+> Status: contrato de confiabilidade vigente; matriz R1–R4 preservada como histórico de estabilização; aceite físico continua artefato/hash-specific
 > Owner: local-companion / processing / operations
-> Última revisão: 2026-09-13
-> Fonte de verdade: este documento + ADR-0013 + código/receipts do candidato exato
+> Última revisão: 2026-10-05
+> Fonte de verdade: este documento + ADR-0013 + código/receipts do artefato exato + `docs/operations/companion-dependency-policy.md` para versões/runtime
+
+## Current behavior
+
+A linha de código corrente é **Companion 0.3.18**. O contrato de confiabilidade abaixo continua vigente; os números 0.3.2, datas de setembro e estados R1–R4 documentam a evolução que originou o contrato e não devem ser usados como service version atual.
+
+Versões mínimas de runtime/benchmark são autoridade de `companion-dependency-policy.md`. Aceite físico continua vinculado ao artefato/hash exato: CI, merge em `main` ou versão declarada no código não substituem receipt físico quando o gate o exige.
 
 ## Objetivo
 
@@ -11,7 +17,7 @@ Definir a correção estrutural dos problemas encontrados no teste físico do TD
 
 A implementação é dividida em R1–R4. Integração em `Preview`, merge em `main` ou publicação de uma release não significam aceite físico. **Stable só pode apontar para o mesmo artefato/hash que passou a jornada instalada e o gate ASR aplicável.**
 
-### Estado de implementação em 2026-09-13
+### Historical implementation note — estado em 2026-09-13
 
 - R1 e R2 formam a base atual de confiabilidade do candidato: recovery/identidade do Agent, saída programática, boundary Craig, rede tipada, manifest versionado, manutenção observável, rollback MSI, WebView2 e diagnóstico por capability.
 - C-12 está implementado com harness da jornada instalada e receipt sanitizado ligado ao source SHA/MSI. O `pass=true` real continua pendente até execução no Windows físico.
