@@ -278,6 +278,7 @@ class Store:
             ),
         ).fetchone()
         fresh_start_at = None
+        fresh_start_excluded_job_ids = []
         if fresh_start is not None:
             try:
                 parsed_fresh_start = json.loads(fresh_start["value"])
@@ -285,6 +286,21 @@ class Store:
                 parsed_fresh_start = None
             if isinstance(parsed_fresh_start, str):
                 fresh_start_at = parsed_fresh_start
+            elif isinstance(parsed_fresh_start, dict):
+                candidate_at = parsed_fresh_start.get("started_at")
+                candidate_jobs = parsed_fresh_start.get("excluded_job_ids", [])
+                if isinstance(candidate_at, str):
+                    fresh_start_at = candidate_at
+                if (
+                    isinstance(candidate_jobs, list)
+                    and len(candidate_jobs) <= 10_000
+                    and all(
+                        isinstance(job_id, str)
+                        and 1 <= len(job_id) <= 128
+                        for job_id in candidate_jobs
+                    )
+                ):
+                    fresh_start_excluded_job_ids = candidate_jobs
         parts = db.execute(
             """
             SELECT part_id,source_id,ordinal,selected_run_id,
@@ -306,6 +322,7 @@ class Store:
             "created_at": row["created"],
             "updated_at": row["updated"],
             "fresh_start_at": fresh_start_at,
+            "fresh_start_excluded_job_ids": fresh_start_excluded_job_ids,
             "parts": [
                 {
                     "part_id": part["part_id"],
@@ -578,21 +595,28 @@ class Store:
 
             # A fresh-start cutoff is only safe when no matching job can still
             # finish after the cutoff and accidentally become part of the new
-            # generation.
+            # generation. We also snapshot all prior job ids so a later manual
+            # retry of historical evidence never becomes current merely because
+            # its updated_at changed after the reset.
+            excluded_job_ids = []
             for candidate in db.execute(
-                "SELECT body FROM jobs WHERE status IN ('queued','running')"
+                "SELECT id,body,status FROM jobs ORDER BY updated,id"
             ).fetchall():
                 try:
                     body = json.loads(candidate["body"])
                 except (TypeError, json.JSONDecodeError):
                     continue
-                if (
+                matches_workspace = (
                     body.get("kind") == "transcription.craig"
                     and body.get("campaign_id") == row["campaign_id"]
                     and body.get("session_id") == row["session_id"]
                     and body.get("source_id") in source_ids
-                ):
+                )
+                if not matches_workspace:
+                    continue
+                if candidate["status"] in ("queued", "running"):
                     raise Conflict("SESSION_WORKSPACE_RESET_ACTIVE_JOBS")
+                excluded_job_ids.append(candidate["id"])
 
             now = utc_now()
             db.execute(
@@ -632,7 +656,15 @@ class Store:
                     self._session_workspace_fresh_start_setting_key(
                         row["campaign_id"], row["session_id"]
                     ),
-                    json.dumps(now),
+                    json.dumps(
+                        {
+                            "schema_version": "tda_session_workspace_fresh_start_v1",
+                            "started_at": now,
+                            "excluded_job_ids": excluded_job_ids,
+                        },
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
                 ),
             )
             bumped = self._bump_session_workspace(
