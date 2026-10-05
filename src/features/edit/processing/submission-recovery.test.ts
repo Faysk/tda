@@ -179,6 +179,7 @@ describe("pending Craig submission recovery", () => {
 
 	it("fresh session restart clears every unresolved enqueue identity for that session only", async () => {
 		const storage = new MemoryStorage();
+		const now = Date.now();
 		const first = await identity({ sourceId });
 		const second = await identity({
 			sourceId: `craig-${"b".repeat(64)}`,
@@ -188,9 +189,9 @@ describe("pending Craig submission recovery", () => {
 			sessionId: "sessao-other",
 			requestSignature: "other-session",
 		});
-		savePendingSubmission(storage, first, "key-first", 2_800_000);
-		savePendingSubmission(storage, second, "key-second", 2_800_001);
-		savePendingSubmission(storage, otherSession, "key-other", 2_800_002);
+		savePendingSubmission(storage, first, "key-first", now);
+		savePendingSubmission(storage, second, "key-second", now + 1);
+		savePendingSubmission(storage, otherSession, "key-other", now + 2);
 
 		await clearPendingSubmissionsForSession(storage, {
 			profileScope: "private-profile-id:yuhara-main",
@@ -198,10 +199,10 @@ describe("pending Craig submission recovery", () => {
 			sessionId: "sessao-42",
 		});
 
-		expect(loadPendingSubmission(storage, first, 2_800_003)).toBeNull();
-		expect(loadPendingSubmission(storage, second, 2_800_003)).toBeNull();
+		expect(loadPendingSubmission(storage, first, now + 3)).toBeNull();
+		expect(loadPendingSubmission(storage, second, now + 3)).toBeNull();
 		expect(
-			loadPendingSubmission(storage, otherSession, 2_800_003)?.idempotencyKey,
+			loadPendingSubmission(storage, otherSession, now + 3)?.idempotencyKey,
 		).toBe("key-other");
 	});
 
