@@ -25,6 +25,7 @@ import {
 	intentProgress,
 	recordingVariantConflicts,
 	retryableIntentJob,
+	terminalIntentJob,
 	uniqueIntentSources,
 } from "./session-intent-model";
 import {
@@ -748,7 +749,7 @@ export function SessionIntentCoordinator({
 			}
 
 			const failedSources = workspace.parts
-				.filter((part) => retryableIntentJob(jobs, part.sourceId))
+				.filter((part) => terminalIntentJob(jobs, part.sourceId))
 				.filter(
 					(part) =>
 						chooseIntentRun(
@@ -1375,6 +1376,12 @@ export function SessionIntentCoordinator({
 					blocker.runIds.includes(run.runId),
 				)
 			: [];
+	const retryableFailedSourceIds =
+		blocker?.kind === "failed"
+			? blocker.sourceIds.filter((sourceId) =>
+					Boolean(retryableIntentJob(jobs, sourceId)),
+				)
+			: [];
 	const timelineRecovery = sessionTimelineRecovery(workspace);
 	const timelineBlockerRecovery =
 		blocker?.kind === "timeline" ? timelineRecovery : null;
@@ -1638,22 +1645,25 @@ export function SessionIntentCoordinator({
 								: `${blocker.sourceIds.length} gravações falharam.`}
 						</strong>
 						<span>
-							Você pode reaproveitar o que já terminou ou descartar o estado
-							desta sessão e processar todas as gravações novamente.
+							{retryableFailedSourceIds.length
+								? "Você pode repetir apenas as tentativas recuperáveis, ou descartar o estado desta sessão e processar todas as gravações novamente."
+								: "Essas tentativas não podem ser repetidas com segurança. Para não reaproveitar o estado anterior, descarte esta geração e processe todas as gravações novamente."}
 						</span>
 					</div>
 					<div className={styles.blockerActions}>
-						<Button
-							type="button"
-							size="sm"
-							variant="secondary"
-							disabled={busy}
-							onClick={() => void retryFailed()}
-						>
-							{blocker.sourceIds.length === 1
-								? "Reprocessar 1 gravação"
-								: `Reprocessar ${blocker.sourceIds.length} gravações`}
-						</Button>
+						{retryableFailedSourceIds.length ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="secondary"
+								disabled={busy}
+								onClick={() => void retryFailed()}
+							>
+								{retryableFailedSourceIds.length === 1
+									? "Reprocessar 1 gravação"
+									: `Reprocessar ${retryableFailedSourceIds.length} gravações`}
+							</Button>
+						) : null}
 						{capabilities.includes("transcription.session-workspace.reset") ? (
 							<Button
 								type="button"
