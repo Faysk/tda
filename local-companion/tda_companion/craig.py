@@ -179,7 +179,7 @@ def parse_info_text(text: str) -> dict[str, object]:
                 label_value = stripped[len(prefix) :].strip() or None
                 value[key] = label_value
                 if key in {"guild", "channel", "requester"} and label_value:
-                    trailing_id = re.search(r"\((?P<id>[^()]+)\)\s*$", label_value)
+                    trailing_id = re.search(r"\((?P<id>[0-9]{1,32})\)\s*$", label_value)
                     if trailing_id:
                         value[f"{key}_id"] = trailing_id.group("id").strip()
                 matched_label = True
@@ -262,7 +262,7 @@ def _parse_raw_metadata_header(
     try:
         with archive.open(member, "r") as source:
             prefix = source.readline(MAX_RAW_HEADER_BYTES + 1)
-    except (OSError, RuntimeError, zipfile.BadZipFile):
+    except (OSError, RuntimeError, NotImplementedError, zipfile.BadZipFile):
         return None, "CRAIG_RAW_METADATA_READ_FAILED"
     newline = prefix.find(b"\n")
     if newline < 0:
