@@ -20,6 +20,7 @@ import { LocalBridge } from "./bridge";
 import { BenchmarkEvidenceWorkspace } from "./benchmark-evidence";
 import { BenchmarkQualityLab } from "./benchmark-quality";
 import { presentJobEvent, stageLabels } from "./presentation";
+import { terminalRecoveryActions } from "./terminal-recovery";
 import {
 	formatSubmissionBytes,
 	profileReadinessCopy,
@@ -467,6 +468,9 @@ export function ProcessingBenchmark({
 	observedJobId,
 	onRefresh,
 	onCancel,
+	onRetry,
+	onDelete,
+	canDelete,
 	onObserve,
 	onOpenDiagnostics,
 }: Readonly<{
@@ -477,6 +481,9 @@ export function ProcessingBenchmark({
 	observedJobId: string | null;
 	onRefresh: () => void;
 	onCancel: (jobId: string) => void | Promise<void>;
+	onRetry: (job: LocalJob) => void;
+	onDelete: (job: LocalJob) => void;
+	canDelete: boolean;
 	onObserve: (jobId: string) => void | Promise<void>;
 	onOpenDiagnostics: (job: LocalJob) => void;
 }>) {
@@ -568,6 +575,9 @@ export function ProcessingBenchmark({
 		latestProblem && latestProblemEvents.length > 0
 			? deriveBenchmarkAttemptUiState(latestProblem, latestProblemEvents)
 			: null;
+	const latestProblemRecovery = latestProblem
+		? terminalRecoveryActions(latestProblem, canDelete)
+		: null;
 	const profileStates = PROFILES.map(
 		(id) => catalog.find((item) => item.id === id) ?? null,
 	);
@@ -1041,9 +1051,14 @@ export function ProcessingBenchmark({
 		}
 	}
 
-	async function repeatPartialBenchmark(result: BenchmarkPartialResult) {
+	async function startFreshBenchmark(sourceId: string | null) {
+		// A deliberate new benchmark must never reuse an ambiguous submission key
+		// or the lifecycle of a terminal job. The staged Craig source may be reused,
+		// but the accepted job identity is always new.
+		pending.current = null;
 		if (
-			source?.sourceId === result.sourceId &&
+			sourceId &&
+			source?.sourceId === sourceId &&
 			allProfilesReady &&
 			sampleEligible &&
 			connected &&
@@ -1055,7 +1070,15 @@ export function ProcessingBenchmark({
 		setStatus(
 			"Selecione novamente o ZIP desta fonte para iniciar um novo benchmark completo.",
 		);
+		if (fileInput.current) fileInput.current.value = "";
+		setFile(null);
+		setSource(null);
+		setPreparation(null);
 		fileInput.current?.click();
+	}
+
+	async function repeatPartialBenchmark(result: BenchmarkPartialResult) {
+		await startFreshBenchmark(result.sourceId);
 	}
 
 	const activeEvents =
@@ -1546,13 +1569,45 @@ export function ProcessingBenchmark({
 							</>
 						) : null}
 					</div>
-					<Button
-						type="button"
-						variant="tertiary"
-						onClick={() => onOpenDiagnostics(latestProblem)}
-					>
-						Ver log / Diagnóstico
-					</Button>
+					<div className={styles.activeActions}>
+						{latestProblemRecovery?.canStartNew ? (
+							<Button
+								type="button"
+								variant="primary"
+								onClick={() =>
+									void startFreshBenchmark(latestProblem.context?.sourceId ?? null)
+								}
+							>
+								{latestProblemRecovery.newLabel}
+							</Button>
+						) : null}
+						{latestProblemRecovery?.canRetry ? (
+							<Button
+								type="button"
+								variant="tertiary"
+								onClick={() => onRetry(latestProblem)}
+							>
+								{latestProblemRecovery.retryLabel}
+							</Button>
+						) : null}
+						<Button
+							type="button"
+							variant="tertiary"
+							onClick={() => onOpenDiagnostics(latestProblem)}
+						>
+							Ver log / Diagnóstico
+						</Button>
+						{latestProblemRecovery?.canDiscard ? (
+							<Button
+								type="button"
+								variant="tertiary"
+								className={styles.dangerAction}
+								onClick={() => onDelete(latestProblem)}
+							>
+								{latestProblemRecovery.discardLabel}
+							</Button>
+						) : null}
+					</div>
 				</section>
 			) : null}
 
