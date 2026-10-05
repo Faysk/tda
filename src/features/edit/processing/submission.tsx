@@ -1436,6 +1436,7 @@ export function ProcessingSubmission({
 						bridge={bridge}
 						campaignId={campaignId}
 						capabilities={capabilities.capabilities}
+						profileCatalog={capabilities.transcription.catalog}
 						request={intentRequest}
 						recoveryScope={recoveryScope}
 						disabled={busy || requestTooLarge}
