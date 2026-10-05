@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from .craig import (
     CraigIdentity,
+    CraigNote,
     CraigPackage,
     CraigPackageError,
     CraigTrack,
@@ -89,7 +90,48 @@ def _identity(value: Any) -> CraigIdentity | None:
         value.get("discriminator"), "CRAIG_MANIFEST_IDENTITY_INVALID", maximum=32
     )
     discord_id = _optional_text(value.get("discord_id"), "CRAIG_MANIFEST_IDENTITY_INVALID", maximum=64)
-    return CraigIdentity(username=username, discriminator=discriminator, discord_id=discord_id)
+    global_name = _optional_text(
+        value.get("global_name"), "CRAIG_MANIFEST_IDENTITY_INVALID", maximum=160
+    )
+    bot = value.get("bot")
+    unknown = value.get("unknown")
+    if bot is not None and not isinstance(bot, bool):
+        raise CraigPackageError("CRAIG_MANIFEST_IDENTITY_INVALID")
+    if unknown is not None and not isinstance(unknown, bool):
+        raise CraigPackageError("CRAIG_MANIFEST_IDENTITY_INVALID")
+    return CraigIdentity(
+        username=username,
+        discriminator=discriminator,
+        discord_id=discord_id,
+        global_name=global_name,
+        bot=bot,
+        unknown=unknown,
+    )
+
+
+def _notes(value: Any) -> tuple[CraigNote, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or len(value) > 10_000:
+        raise CraigPackageError("CRAIG_MANIFEST_NOTES_INVALID")
+    result: list[CraigNote] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise CraigPackageError("CRAIG_MANIFEST_NOTES_INVALID")
+        offset = item.get("offset_seconds")
+        text = item.get("text")
+        if (
+            isinstance(offset, bool)
+            or not isinstance(offset, (int, float))
+            or not math.isfinite(float(offset))
+            or float(offset) < 0
+            or not isinstance(text, str)
+            or not text.strip()
+            or len(text) > 4096
+        ):
+            raise CraigPackageError("CRAIG_MANIFEST_NOTES_INVALID")
+        result.append(CraigNote(offset_seconds=float(offset), text=text.strip()))
+    return tuple(result)
 
 
 def _portable_legacy_filename(value: str) -> bool:
@@ -235,4 +277,35 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         tracks=tuple(tracks),
         info_present=bool(value.get("info_present")),
         raw_dat_present=bool(value.get("raw_dat_present")),
+        guild_id=_optional_text(
+            value.get("guild_id"), "CRAIG_MANIFEST_GUILD_INVALID", maximum=64
+        ),
+        channel_id=_optional_text(
+            value.get("channel_id"), "CRAIG_MANIFEST_CHANNEL_INVALID", maximum=64
+        ),
+        requester_id=_optional_text(
+            value.get("requester_id"), "CRAIG_MANIFEST_REQUESTER_INVALID", maximum=64
+        ),
+        notes=_notes(value.get("notes")),
+        metadata_consistency=(
+            value.get("metadata_consistency")
+            if value.get("metadata_consistency")
+            in {"consistent", "partial", "conflicting", "unavailable"}
+            else "unavailable"
+        ),
+        raw_metadata_state=(
+            value.get("raw_metadata_state")
+            if value.get("raw_metadata_state")
+            in {"parsed", "missing", "invalid", "oversized"}
+            else "missing"
+        ),
+        metadata_sources=(
+            tuple(
+                item
+                for item in value.get("metadata_sources", [])
+                if item in {"info_txt", "raw_dat_header"}
+            )
+            if isinstance(value.get("metadata_sources"), list)
+            else ()
+        ),
     )
