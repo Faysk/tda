@@ -2,8 +2,8 @@
 
 > Status: implementação funcional e gate E2E/recovery concluídos
 > Owner: sessions / processing / transcripts
-> Última revisão: 2026-10-04
-> Fonte de verdade: este documento, ADR-0019 accepted e epic #843
+> Última revisão: 2026-10-05
+> Fonte de verdade: este documento, ADR-0019 + ADR-0022, epic fundacional #843 e evolução de automação #1508
 
 ## Objetivo
 
@@ -32,7 +32,32 @@ O uso real passou a produzir cenários em que uma única sessão possui dois ou 
 
 O domínio cloud já admite múltiplos arquivos/fontes por session. O Companion já possui source Craig content-addressed e múltiplos runs imutáveis por source.
 
-Em 2026-09-28, os slices locais de workspace, cronologia, reconciliação de participantes e Session Assembly estão integrados à `main` (#862, #863/#871, #873 e #907). O composer Web de #849 foi entregue por #940, a provenance cloud multi-source de #851 foi entregue por #946 e o gate E2E/recovery de #852 foi entregue por #967. O rollout Web/cloud foi promovido pelo fluxo normal de Production; a distribuição de novos bytes do Companion continua sendo um lifecycle separado e exige seus próprios gates de release/aceite.
+A fundação multi-recording de #843 foi integrada incrementalmente: workspace/parts, timeline, participant mapping, Session Assembly, composer Web, provenance cloud e gate E2E/recovery (#852). Em 05/10/2026, a epic **#1508** completou a evolução do happy path Craig com #1509–#1516: metadata estruturada, chronology autoritativa automática, participant reconciliation não bloqueante, exact run reuse, overlap conservador automático, bot policy e orquestração sem gates técnicos quando não existe ambiguidade real. PR #1531 tornou o estado concluído autoritativo na Overview e PR #1532 fechou o gate zero-interrupção.
+
+## Current behavior — 2026-10-05
+
+O caminho normal é **1..N ZIPs Craig → uma intenção de sessão → reuso/processamento seletivo → Assembly automática → Revisar transcrição**.
+
+Quando a evidência é suficiente, o sistema executa automaticamente:
+
+- staging/validação das sources;
+- exact run reuse pela intenção/fingerprint vigente;
+- chronology Craig autoritativa;
+- participant reconciliation;
+- `preserve_both_exact_v1` para overlap factual confiável;
+- collapse somente de duplicata comprovada pela policy conservadora;
+- build da Session Assembly e entrada no estado **Transcrição pronta**.
+
+O operador é interrompido apenas quando resta uma decisão real: variante de source, falta/conflito de evidência temporal, escolha entre resultados sem authority ou resolução editorial avançada. `Processar pendentes`, seleção manual de run, boundary/trims e `Montar transcrição da sessão` continuam disponíveis para recovery/advanced controls, não como sequência obrigatória do happy path.
+
+### Legacy compatibility
+
+- authority temporal corrente: **`tda_session_timeline_v2`**;
+- `tda_session_timeline_v1` continua aceito somente para leitura/rollout compatível;
+- schema de participant mapping permanece **`tda_session_participant_mapping_v1`**;
+- a policy de reconciliação corrente é **`strong_discord_or_local_v2`**; schema e policy possuem versionamentos independentes.
+
+
 
 ## Escopo
 
@@ -126,7 +151,7 @@ Ela referencia exatamente:
 
 Assembly é base válida para review; não é um run ASR.
 
-## Arquitetura alvo
+## Arquitetura vigente
 
 ```text
 Session
@@ -437,9 +462,9 @@ Ordem de confiança:
 
 O mapping participa da identity da assembly.
 
-### Implementação inicial de reconciliação
+### Reconciliação vigente
 
-O Companion expõe o contrato local versionado `tda_session_participant_mapping_v1`.
+O Companion expõe o schema local versionado `tda_session_participant_mapping_v1`. A policy vigente é `strong_discord_or_local_v2`; manter o schema em v1 não significa usar uma policy antiga.
 
 Regras implementadas:
 - cada observação mantém `source_id + track_number + raw_speaker` e identity Craig disponível;
@@ -724,17 +749,28 @@ Uma sessão com um único ZIP usa exatamente a mesma intenção 1..N. Não exist
 segundo produto escondido para “single-source”; o orquestrador simplesmente
 tem uma gravação para acompanhar.
 
-## Gate sintético de regressão
+## Gates de regressão
 
-A #852 consolida as provas do fluxo multi-recording em camadas proporcionais, sem GPU e sem material privado:
+### Fundação — #852
 
-- Companion/SQLite: workspace 1..20 parts, CAS/restart, timeline, participants, assembly atômica e review;
-- Web: composer, selective processing/idempotência, variante por `recording_id`, reload/reconnect e assembly review;
-- publication: canonicalização multi-source, payload sanitizado e PostgreSQL scratch para replay, stale-current, replace, restore/unpublish e rollback atômico;
-- `multi-recording-gate`: job focado do CI que executa os contratos Companion/Web/publication relevantes e um guardrail de fixtures/paths privados;
-- `processing-e2e` permanece dono da jornada browser 2 parts e `transcript-import-postgres` permanece dono do scratch PostgreSQL completo.
+#852 continua sendo o gate fundacional de workspace/timeline/participants/Assembly/publication multi-source. Ele prova contratos sintéticos sem GPU nem material privado e permanece histórico útil para a arquitetura de #843.
 
-Esse gate não roda modelo ASR pesado, não usa áudio de campanha e não substitui aceite físico de GPU.
+### Happy path automático — #1515 / PR #1532
+
+O gate atual da evolução #1508 é #1515, entregue pelo PR #1532 e integrado no delivery de #1531. A jornada sintética prova:
+
+- 2 ZIPs como uma única intenção;
+- ordem selecionada diferente da chronology Craig autoritativa;
+- um run existente reutilizado somente por exact fingerprint;
+- somente a source faltante enviada ao ASR;
+- chronology e participants resolvidos sem gate manual;
+- Assembly construída automaticamente;
+- estado terminal **Transcrição pronta**;
+- **Revisar transcrição** abre Results.
+
+O happy path deve provar a ausência de CTAs/mensagens técnicas concorrentes como **Carregue o mapa de participantes**, **Resolver participantes**, **Usar horários Craig**, **Montar transcrição da sessão** e **Detalhes técnicos** como próximo passo.
+
+Esses gates não executam modelo pesado nem usam material privado e não substituem aceite físico de GPU/runtime.
 
 ### Gate integrado de review e Markdown
 
@@ -814,18 +850,31 @@ Não migrar destrutivamente:
 - reviews históricos;
 - published revisions anteriores.
 
-## Backlog executável
+## Historical delivery map
+
+### Fundação #843
 
 - #844 — recording parts/workspace local — implementado;
 - #845 — cronologia, gaps, overlaps e trims — implementado;
-- #846 — participant reconciliation entre parts — implementado;
+- #846 — participant reconciliation — implementado;
 - #848 — Session Assembly imutável + review base — implementado;
-- #849 — composer Web multi-recording — implementado via #940;
-- #851 — provenance multi-source na publicação cloud — implementado via #946;
-- #852 — gate E2E/recovery sintético amplo — implementado via #967;
-- #1441 — sequência confirmada sem wall-clock confiável — implementação nesta entrega.
+- #849/#940 — composer Web — implementado;
+- #851/#946 — provenance multi-source na publicação — implementado;
+- #852/#967 — gate E2E/recovery fundacional — implementado;
+- #1441 — sequência confirmada sem wall-clock confiável — implementado.
 
-Epic: #843.
+### Evolução #1508 — concluída em 05/10/2026
+
+- #1509 — metadata `raw.dat`/notes — concluído;
+- #1510 — chronology Craig autoritativa automática — concluído;
+- #1511 — participant reconciliation automática e não bloqueante — concluído;
+- #1512 — exact run reuse por fingerprint — concluído;
+- #1513 — overlap comprovado reconciliado sem perder fala única — concluído;
+- #1514 — remoção dos gates técnicos do happy path — concluído via #1531;
+- #1515 — gate E2E da automação — concluído via #1532;
+- #1516 — bot tracks ignoradas por default com provenance/override — concluído.
+
+ADR-0022 é a decisão vigente para overlap. #843 permanece a fundação arquitetural; #1508 é a evolução atual do produto, não um substituto que apaga o histórico.
 
 ## Critérios de aceite globais
 
@@ -845,8 +894,11 @@ Epic: #843.
 
 - ADR-0016 — runs/review/publicação;
 - ADR-0019 — decisão accepted de multi-recording/session assembly;
+- ADR-0022 — policy vigente de overlap conservador automático;
 - `docs/domains/sessions.md`;
 - `docs/domains/processing.md`;
 - `docs/features/local-processing.md`;
 - `docs/features/transcript-review-publication.md`;
-- #843 e issues filhas.
+- #843 — fundação multi-recording;
+- #1508 e #1509–#1516 — automação Craig atual;
+- PR #1531 e PR #1532 — completed state e gate zero-interrupção.
