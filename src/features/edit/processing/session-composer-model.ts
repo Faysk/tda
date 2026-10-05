@@ -44,6 +44,21 @@ export function moveSessionPart(
 	return next;
 }
 
+export function workspaceGenerationEligible(
+	workspace: SessionWorkspace | null,
+	timestamp: string | null | undefined,
+): boolean {
+	if (!workspace?.freshStartAt) return true;
+	if (!timestamp) return false;
+	const cutoff = Date.parse(workspace.freshStartAt);
+	const observed = Date.parse(timestamp);
+	return (
+		Number.isFinite(cutoff) &&
+		Number.isFinite(observed) &&
+		observed >= cutoff
+	);
+}
+
 export function latestJobForSource(
 	jobs: readonly LocalJob[],
 	sourceId: string,
