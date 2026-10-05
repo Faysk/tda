@@ -53,8 +53,8 @@ function workspace(parts = [recordingPart()]) {
 		ordering_mode: "manual",
 		created_at: "2026-09-27T22:30:00Z",
 		updated_at: "2026-09-27T22:31:00Z",
-		fresh_start_at: null,
-		fresh_start_excluded_job_ids: [],
+		fresh_start_at: null as string | null,
+		fresh_start_excluded_job_ids: [] as string[],
 		parts,
 		timeline: {
 			policy_version: "tda_session_timeline_v2",
