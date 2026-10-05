@@ -45,7 +45,7 @@ Em 2026-09-28, os slices locais de workspace, cronologia, reconciliação de par
 - ordem confirmada pelo usuário como continuidade editorial quando wall-clock é insuficiente;
 - offset manual como ferramenta avançada, não requisito do caminho feliz;
 - gaps explícitos e preservados quando comprovados;
-- overlaps com resolução explícita;
+- overlaps factuais preservados automaticamente, com dedupe apenas quando a duplicação é comprovada; boundary manual permanece escape hatch;
 - participant reconciliation entre reconnects;
 - seleção de um run terminal por part;
 - selective reprocessing;
@@ -291,8 +291,10 @@ A continuidade editorial **não** afirma que houve zero segundos físicos entre 
 capturas. Cada adjacência sem prova temporal fica com intervalo físico
 `unknown`, enquanto `wall_clock` permanece `unavailable` ou `partial`.
 Se duas parts adjacentes possuem timestamps absolutos confiáveis, a geometria real
-continua soberana: gap comprovado é preservado e overlap comprovado continua
-fail-closed até boundary explícito.
+continua soberana: gap comprovado é preservado e overlap comprovado entra em
+`preserve_both_exact_v1`: ambas as capturas permanecem disponíveis e a Assembly
+só colapsa duplicatas que tenham identidade forte, texto normalizado idêntico e
+timing trusted compatível.
 
 O workspace e a Session Assembly persistem de forma versionada e determinística:
 - `timeline_strategy=trusted_absolute|user_confirmed_sequence|manual_offsets`;
@@ -340,18 +342,34 @@ Part B              22:28 ───────── 00:10
                     overlap 2m
 ```
 
-Overlap não recebe fuzzy dedupe automático.
+Overlap não recebe fuzzy dedupe automático nem corte destrutivo por default.
 
-Primeiro corte:
+Quando a geometria é `trusted_absolute`, a resolução derivada é
+`preserve_both_exact_v1`:
+- os segmentos das duas recordings entram na composição;
+- uma duplicata só é colapsada quando pertence à mesma identidade forte
+  (Discord ID ou merge manual explícito), tem texto normalizado idêntico e início/fim
+  globais dentro da tolerância estrita da policy;
+- o segmento preservado registra provenance das duas origens e a versão
+  `trusted_overlap_exact_text_v1`;
+- qualquer diferença de texto, identidade fraca/local ou timing incerto preserva
+  **ambas** as falas.
+
+Isso privilegia false negatives (uma duplicata extra para revisar) sobre false
+positives (fala real perdida). Similaridade textual aproximada nunca é autoridade.
+
+Boundary manual continua como ferramenta avançada/legacy:
 - preferir part anterior até boundary;
 - preferir part posterior a partir de boundary;
 - trims manuais equivalentes.
 
-A UI pode sugerir boundary, mas unresolved overlap bloqueia `approved_local`/publish.
+O intervalo de overlap é sempre a interseção real `[max(starts), min(ends)]`. Um
+boundary fora dessa interseção é inválido. Se a ordem manual trouxer duas parts
+disjuntas em ordem temporal inversa, isso é `order_conflict`, não overlap
+artificial, e permanece fail-closed.
 
-O intervalo de overlap é sempre a interseção real `[max(starts), min(ends)]`. Um boundary fora dessa interseção é inválido. Se a ordem manual trouxer duas parts disjuntas em ordem temporal inversa, isso é `order_conflict`, não overlap artificial, e permanece fail-closed.
-
-A política de ownership no boundary precisa ser determinística e versionada, inclusive quando um segmento cruza o corte.
+A policy de overlap entra no fingerprint/canonicalização da Assembly. Assemblies
+anteriores continuam imutáveis.
 
 Confirmações de gap e resoluções de overlap pertencem à relação entre adjacências, não à part isolada. Reorder/detach invalidam decisões relacionais persistidas; mudanças de offset/trim invalidam decisões antigas da geometria afetada para que uma confirmação não “teleporte” silenciosamente para outro par ou outro overlap.
 
@@ -559,8 +577,9 @@ Agent ordena e aplica offsets automaticamente, sem pedir confirmação redundant
 Uma ordem manual **já explicitamente persistida** continua sendo override humano e
 não é sobrescrita. `ambiguous`, `opaque` e `missing` são estados neutros:
 não viram erro por si sós e nunca autorizam horário inventado. Gap comprovado é
-informação; overlap real não resolvido continua sendo uma exceção que pede
-decisão.
+informação; overlap factual confiável é preservado e reconciliado de forma
+conservadora. Só um overlap sem evidência suficiente para aplicação segura da
+policy automática sobe como exceção.
 
 O Web deve:
 
@@ -569,7 +588,8 @@ O Web deve:
 - preservar os demais quando um ZIP é inválido;
 - deduplicar bytes idênticos por `source_id` sem criar trabalho duplicado;
 - pedir decisão somente para variantes reais de mesmo `recording_id`, cronologia
-  ambígua/overlap, participante ambíguo ou múltiplos resultados elegíveis;
+  ambígua, overlap que permaneça realmente irresolúvel, conflito de source/metadata
+  ou múltiplos resultados elegíveis;
 - preparar runtime/modelo uma vez por intenção quando necessário;
 - enfileirar somente gravações sem resultado elegível;
 - reutilizar gravações já concluídas;
@@ -616,7 +636,7 @@ regra de que áudio bruto continua local e sob controle explícito.
 - **dois ou mais resultados elegíveis sem authority da intenção:** escolher um;
 - **ordem temporal sem evidência suficiente:** confirmar a ordem exibida, sem
   preencher segundos manualmente;
-- **overlap comprovado:** resolver boundary/corte explicitamente;
+- **overlap sem prova suficiente para a policy conservadora:** preservar conteúdo e, somente se ainda houver uma decisão editorial real, oferecer boundary/corte avançado;
 - **identidade realmente contraditória que impeça atribuição local segura:** corrigir a source/metadata; label-only ambiguity permanece advisory e pode ser unificada depois.
 
 Essas exceções abrem/indicam os controles técnicos existentes, mas o caminho
