@@ -802,6 +802,42 @@ def _validate_manifest(
         fingerprint_for_run_manifest(value)
     except TranscriptionIntentFingerprintError as exc:
         raise TranscriptionRunError("TRANSCRIPTION_RUN_INTENT_FINGERPRINT_INVALID") from exc
+
+    track_policy_version = value.get("track_policy_version")
+    included_track_numbers = value.get("included_track_numbers")
+    ignored_track_numbers = value.get("ignored_track_numbers")
+    policy_fields_present = any(
+        item is not None
+        for item in (
+            track_policy_version,
+            included_track_numbers,
+            ignored_track_numbers,
+        )
+    )
+    if policy_fields_present:
+        if (
+            track_policy_version not in SUPPORTED_TRACK_POLICY_VERSIONS
+            or not isinstance(included_track_numbers, list)
+            or not isinstance(ignored_track_numbers, list)
+        ):
+            raise TranscriptionRunError("TRANSCRIPTION_RUN_TRACK_POLICY_INVALID")
+        try:
+            included = normalize_track_numbers(
+                included_track_numbers,
+                code="TRANSCRIPTION_RUN_TRACK_POLICY_INVALID",
+            )
+            ignored = normalize_track_numbers(
+                ignored_track_numbers,
+                code="TRANSCRIPTION_RUN_TRACK_POLICY_INVALID",
+            )
+        except CraigTrackPolicyError as exc:
+            raise TranscriptionRunError("TRANSCRIPTION_RUN_TRACK_POLICY_INVALID") from exc
+        if (
+            set(included) & set(ignored)
+            or len(included) != stats.get("track_count")
+        ):
+            raise TranscriptionRunError("TRANSCRIPTION_RUN_TRACK_POLICY_INVALID")
+
     digest = value.get("transcript_sha256")
     size = value.get("transcript_size_bytes")
     if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
@@ -875,6 +911,9 @@ def _public_summary(value: dict[str, Any]) -> dict[str, Any]:
         "attempt": value.get("attempt"),
         "intent_fingerprint_schema": value.get("intent_fingerprint_schema"),
         "intent_fingerprint": fingerprint_for_run_manifest(value),
+        "track_policy_version": value.get("track_policy_version"),
+        "included_track_numbers": value.get("included_track_numbers"),
+        "ignored_track_numbers": value.get("ignored_track_numbers"),
         "transcript_sha256": value["transcript_sha256"],
         "transcript_size_bytes": value["transcript_size_bytes"],
         "created_at": value.get("created_at"),
