@@ -261,7 +261,7 @@ def _parse_raw_metadata_header(
     """Read only Craig's bounded JSON prefix from raw.dat; never materialize its audio."""
     try:
         with archive.open(member, "r") as source:
-            prefix = source.read(MAX_RAW_HEADER_BYTES + 1)
+            prefix = source.readline(MAX_RAW_HEADER_BYTES + 1)
     except (OSError, RuntimeError, zipfile.BadZipFile):
         return None, "CRAIG_RAW_METADATA_READ_FAILED"
     newline = prefix.find(b"\n")
