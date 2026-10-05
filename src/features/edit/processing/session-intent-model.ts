@@ -51,7 +51,7 @@ export function intentProgress(
 	workspace: SessionWorkspace | null,
 	runsBySource: ReadonlyMap<string, readonly LocalRunSummary[]>,
 	jobs: readonly LocalJob[],
-	contract: IntentRunContract | null = null,
+	contract: IntentRunContract | null | undefined = undefined,
 ): IntentProgress {
 	const counts = {
 		total: workspace?.parts.length ?? 0,
@@ -68,8 +68,12 @@ export function intentProgress(
 			? partRuns.find((run) => run.runId === part.selectedRunId) ?? null
 			: null;
 		if (
-			(selected && (!contract || runMatchesIntent(runWithSource(selected), part.sourceId, contract))) ||
-			(contract && partRuns.some((run) => runMatchesIntent(runWithSource(run), part.sourceId, contract)))
+			(selected &&
+				(contract === undefined ||
+					(contract !== null && runMatchesIntent(selected, part.sourceId, contract)))) ||
+			(contract !== null &&
+				contract !== undefined &&
+				partRuns.some((run) => runMatchesIntent(run, part.sourceId, contract)))
 		) {
 			counts.completed += 1;
 			continue;
@@ -95,10 +99,6 @@ export function intentProgress(
 function sourceSha256(sourceId: string): string | null {
 	const match = /^craig-([a-f0-9]{64})$/u.exec(sourceId);
 	return match?.[1] ?? null;
-}
-
-function runWithSource(run: LocalRunSummary): LocalRunSummary {
-	return run;
 }
 
 export function runMatchesIntent(
@@ -139,14 +139,18 @@ export function chooseIntentRun(
 	part: SessionWorkspacePart,
 	runs: readonly LocalRunSummary[],
 	intentRunId: string | null | undefined,
-	contract: IntentRunContract | null = null,
+	contract: IntentRunContract | null | undefined = undefined,
 ): IntentRunChoice {
 	if (intentRunId && runs.some((run) => run.runId === intentRunId))
 		return { kind: "automatic", runId: intentRunId, reason: "intent_job" };
 
 	if (part.selectedRunId) {
 		const selected = runs.find((run) => run.runId === part.selectedRunId);
-		if (selected && (!contract || runMatchesIntent(selected, part.sourceId, contract)))
+		if (
+			selected &&
+			(contract === undefined ||
+				(contract !== null && runMatchesIntent(selected, part.sourceId, contract)))
+		)
 			return { kind: "selected", runId: part.selectedRunId };
 	}
 
