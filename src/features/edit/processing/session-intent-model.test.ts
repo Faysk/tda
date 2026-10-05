@@ -211,7 +211,7 @@ describe("session intent model", () => {
 			chooseIntentRun(part(sourceId, "run-chosen"), [selected], null, CONTRACT),
 		).toEqual({ kind: "missing" });
 		expect(
-			chooseIntentRun(part(sourceId, "run-chosen"), [selected], null, null),
+			chooseIntentRun(part(sourceId, "run-chosen"), [selected], null, undefined),
 		).toEqual({ kind: "selected", runId: "run-chosen" });
 	});
 
