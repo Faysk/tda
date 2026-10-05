@@ -53,8 +53,7 @@ describe("terminal recovery actions", () => {
 		["succeeded", null, false],
 	] as const)(
 		"%s exposes new/discard while retry follows recoverability",
-		(status, recoverable, retry),
-		() => {
+		(status, recoverable, retry) => {
 			const value = terminalRecoveryActions(job(status, recoverable), true);
 			expect(value).toEqual({
 				canStartNew: true,
