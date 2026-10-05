@@ -78,6 +78,43 @@ def test_active_job_cannot_be_deleted_through_local_api(tmp_path: Path):
         assert still_there.status_code == 200
 
 
+def test_deleting_one_terminal_job_preserves_a_newer_job(tmp_path: Path):
+    client, data = _client(tmp_path)
+    with client:
+        old_job = _submit(client, "delete-old-terminal")
+        store = Store(data)
+        old_claim = store.claim()
+        assert old_claim is not None
+        assert old_claim[0] == old_job["id"]
+        store.fail(*old_claim, "WORKER_EXECUTION_FAILED")
+
+        new_job = _submit(client, "delete-new-independent")
+        assert new_job["id"] != old_job["id"]
+
+        response = client.post(
+            f"/api/v1/jobs/{old_job['id']}/delete",
+            headers=HEADERS,
+            json={},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"deleted": True, "id": old_job["id"]}
+
+        old_missing = client.get(
+            f"/api/v1/jobs/{old_job['id']}",
+            headers=HEADERS,
+        )
+        assert old_missing.status_code == 404
+
+        new_preserved = client.get(
+            f"/api/v1/jobs/{new_job['id']}",
+            headers=HEADERS,
+        )
+        assert new_preserved.status_code == 200
+        assert new_preserved.json()["id"] == new_job["id"]
+        assert new_preserved.json()["status"] == "queued"
+
+
 def _visibility_package(data: Path) -> Path:
     package = data / "staging" / BODY["source_id"]
     package.mkdir(parents=True, exist_ok=True)
