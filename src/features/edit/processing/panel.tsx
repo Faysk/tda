@@ -521,6 +521,10 @@ export function ProcessingPanel({
 	const observedRecovery = observedJob
 		? terminalRecoveryActions(observedJob, canDeleteJobs)
 		: null;
+	const confirmationJob =
+		confirmation && "id" in confirmation
+			? (state.jobs.find((job) => job.id === confirmation.id) ?? null)
+			: null;
 	const activeJobClockKey = activeJob ? `${activeJob.id}:${activeJob.attempt}` : null;
 
 	useEffect(() => {
@@ -1882,7 +1886,9 @@ export function ProcessingPanel({
 								: confirmation.action === "cancel"
 									? `O cancelamento será enviado ao trabalho ${confirmation.id}.`
 									: confirmation.action === "delete"
-										? `O trabalho ${confirmation.id}, seus eventos e a referência de resultado na fila serão excluídos. As transcrições em Resultados, revisões, evidências de Benchmark, modelos, sessão Craig e checkpoints serão preservados.`
+										? confirmationJob?.result_available
+											? `O trabalho ${confirmation.id}, seus eventos e a referência de resultado na fila serão excluídos. As transcrições em Resultados, revisões, evidências de Benchmark, modelos, sessão Craig e checkpoints serão preservados.`
+											: `O trabalho ${confirmation.id} e seu histórico operacional serão removidos da fila. Nenhum resultado concluído será removido porque esta execução não produziu um; transcrições, revisões, evidências de Benchmark, modelos, sessão Craig e checkpoints permanecem preservados.`
 										: `Uma nova tentativa será criada para ${confirmation.id}; checkpoints compatíveis serão reutilizados quando disponíveis, sem prometer retomada exata de toda etapa.`}
 						</p>
 						<div className={styles.dialogActions}>
