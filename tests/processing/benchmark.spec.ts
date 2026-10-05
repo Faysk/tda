@@ -1062,6 +1062,59 @@ test("terminal global Benchmark failure restores failed and not-attempted profil
 	await expect(panel.getByText("Benchmark falhou globalmente")).toHaveCount(0);
 });
 
+test("recoverable global Benchmark failure retries the same job from zero progress", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureBenchmarkJob("failed", {
+				stage: "failed",
+				progress: { completed: 2, total: 4, unit: "profiles" },
+				error: {
+					code: "WORKER_EXECUTION_FAILED",
+					recoverable: true,
+				},
+				result_available: false,
+			}),
+		],
+	});
+	const panel = await openBenchmark(page);
+
+	const retry = panel.getByRole("button", { name: "Repetir tentativa" });
+	await expect(retry).toBeVisible();
+	await retry.click();
+
+	const confirmation = page
+		.locator("dialog")
+		.filter({ hasText: "Repetir este trabalho?" });
+	await expect(confirmation).toBeVisible();
+	await confirmation.getByRole("button", { name: "Confirmar" }).click();
+
+	await expect
+		.poll(() =>
+			state.requests.some(
+				(request) =>
+					request.method === "POST" &&
+					request.path === "/jobs/benchmark-job-1/retry",
+			),
+		)
+		.toBe(true);
+	await expect(panel.getByText("Benchmark em andamento")).toBeVisible();
+	await expect(panel.getByText("Aguardando worker local")).toBeVisible();
+	await expect(panel).toContainText(
+		"Tentados 0/4 · Concluídos 0 · Falharam 0 · Pendentes 4",
+	);
+	expect(state.job).toMatchObject({
+		id: "benchmark-job-1",
+		status: "queued",
+		attempt: 2,
+		progress: { completed: 0, total: 4, unit: "profiles" },
+	});
+});
+
 test("completed benchmark loads a comparable receipt while failed history remains inspectable", async ({
 	page,
 }) => {
