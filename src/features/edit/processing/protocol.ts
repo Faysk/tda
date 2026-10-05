@@ -180,6 +180,7 @@ export type SessionWorkspace = {
 	createdAt: string;
 	updatedAt: string;
 	freshStartAt: string | null;
+	freshStartExcludedJobIds: readonly string[];
 	parts: SessionWorkspacePart[];
 	timeline: SessionWorkspaceTimeline;
 };
@@ -1255,6 +1256,24 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	)
 		return invalid();
 
+	const rawFreshStartExcludedJobIds =
+		row.fresh_start_excluded_job_ids === undefined
+			? []
+			: row.fresh_start_excluded_job_ids;
+	if (
+		!Array.isArray(rawFreshStartExcludedJobIds) ||
+		rawFreshStartExcludedJobIds.length > 10_000
+	)
+		return invalid();
+	const freshStartExcludedJobIds = rawFreshStartExcludedJobIds.map((value) =>
+		identifier(value),
+	);
+	if (
+		new Set(freshStartExcludedJobIds).size !==
+		freshStartExcludedJobIds.length
+	)
+		return invalid();
+
 	return {
 		schemaVersion: "tda_session_workspace_v1",
 		campaignId: identifier(row.campaign_id),
@@ -1267,6 +1286,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			row.fresh_start_at === undefined || row.fresh_start_at === null
 				? null
 				: isoDate(row.fresh_start_at),
+		freshStartExcludedJobIds,
 		parts,
 		timeline: {
 			policyVersion:
