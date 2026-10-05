@@ -1428,7 +1428,11 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(intent).toBeVisible();
-	await expect(page.locator("[data-processing-intent-summary='true']")).toBeVisible();
+	await expect(page.locator("[data-processing-intent-summary='true']")).toHaveCount(0);
+	await expect(
+		page.getByRole("region", { name: /Transcrição da sessão/u }),
+	).toContainText("Transcrição pronta");
+	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
 	await expect(page.getByLabel("Export do Craig")).toBeHidden();
 	await expect(intent).toContainText("2/3 concluídas");
 	await expect(intent.getByRole("alert")).toContainText("Uma gravação falhou.");
@@ -1439,6 +1443,9 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await intent.getByRole("button", { name: "Reprocessar 1 gravação" }).click();
 	await expect(intent).toContainText("Transcrição pronta");
 	await expect(intent.getByLabel("Progresso das gravações")).toHaveCount(0);
+	await expect(page.locator("[data-processing-intent-summary='true']")).toHaveCount(0);
+	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
 	await expect(intent.getByRole("button", { name: "Nova transcrição" })).toBeVisible();
 	expect(multi.retryCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
@@ -2001,12 +2008,11 @@ test("exact duplicate is reused once instead of creating a second part or job", 
 		},
 	]);
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
-	await expect(
-		page.locator("[data-processing-intent-summary='true']"),
-	).toContainText("1 duplicata exata · será reutilizada uma vez");
-	await expect(
-		page.getByRole("region", { name: /Transcrição da sessão/u }),
-	).toContainText("Transcrição pronta");
+	const completed = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(completed).toContainText("Transcrição pronta");
+	await expect(page.locator("[data-processing-intent-summary='true']")).toHaveCount(0);
+	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
 	expect(multi.attachedSources).toEqual([SOURCE_IDS[0]]);
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
 });
@@ -2195,7 +2201,9 @@ test("reload recovers the Agent workspace and does not expose technical controls
 	await expect(recovered).toBeVisible();
 	await expect(recovered).toContainText("Transcrição pronta");
 	await expect(page.getByLabel("ID da sessão")).toHaveValue(SESSION);
-	await expect(page.getByText("Detalhes técnicos", { exact: false })).toBeVisible();
+	await expect(page.locator("[data-processing-intent-summary='true']")).toHaveCount(0);
+	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
 	await expect(
 		page.getByRole("button", { name: /Processar pendentes/u }),
 	).not.toBeVisible();
