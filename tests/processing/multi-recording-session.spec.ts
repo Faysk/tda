@@ -93,6 +93,7 @@ type FixtureOptions = Readonly<{
 	initialTimelineState?: "needs_timing" | "overlap_unresolved" | "order_conflict";
 	reviewRowCount?: number;
 	includeOlderAssembly?: boolean;
+	participantProjectionUnavailable?: boolean;
 }>;
 
 async function installMultiRecordingRoutes(
@@ -603,6 +604,12 @@ async function installMultiRecordingRoutes(
 			path === `/session-workspaces/${CAMPAIGN}/${SESSION}/participants` &&
 			request.method() === "GET"
 		) {
+			if (options.participantProjectionUnavailable)
+				return json(
+					route,
+					{ error: { code: "SESSION_PARTICIPANTS_PROJECTION_UNAVAILABLE" } },
+					503,
+				);
 			return json(route, {
 				schema_version: "tda_session_participant_mapping_v1",
 				policy: "strong_discord_or_manual_v1",
@@ -1659,6 +1666,25 @@ test("trusted Craig chronology automatically replaces attachment order before as
 	await expect(intent.getByText("Os horários Craig indicam uma ordem diferente.")).toHaveCount(0);
 	expect(multi.timelineDeriveCount).toBeGreaterThan(0);
 	expect(multi.attachedSources).toEqual([SOURCE_IDS[1], SOURCE_IDS[0]]);
+});
+
+test("participant projection failure never becomes a fake manual mapping gate", async ({ page }) => {
+	await installCompanionFixture(page, { profileReady: true, reviewEnabled: true });
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		participantProjectionUnavailable: true,
+	});
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{ name: "participant-a.zip", mimeType: "application/zip", buffer: Buffer.from("PK-participant-a") },
+		{ name: "participant-b.zip", mimeType: "application/zip", buffer: Buffer.from("PK-participant-b") },
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	await expect(intent).not.toContainText("Carregue o mapa de participantes");
+	await expect(intent).not.toContainText("Resolver participantes");
+	expect(multi.assemblyBuilt).toBe(true);
 });
 
 test("three ZIPs without trusted timestamps use confirmed order, survive reload, and never require manual seconds", async ({
