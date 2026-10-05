@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import type { LocalBridge } from "./bridge";
 import {
 	latestJobForSource,
 	sessionAssemblyReadiness,
+	workspaceGenerationEligible,
 } from "./session-composer-model";
 import type { SessionAssembly } from "./session-composer-protocol";
 import {
@@ -25,6 +27,7 @@ import {
 	uniqueIntentSources,
 } from "./session-intent-model";
 import {
+	clearSessionIntentReceipt,
 	createSessionIntentReceipt,
 	loadSessionIntentReceipt,
 	saveSessionIntentReceipt,
@@ -225,6 +228,7 @@ export function SessionIntentCoordinator({
 	const [live, setLive] = useState<string | null>(null);
 	const [localError, setLocalError] = useState<string | null>(null);
 	const [recovery, setRecovery] = useState<SessionRecoveryGuide | null>(null);
+	const [freshStartOpen, setFreshStartOpen] = useState(false);
 	const processedRequest = useRef<string | null>(null);
 	const advancing = useRef(false);
 	const pendingSubmissions = useRef(
