@@ -26,6 +26,7 @@ export type TranscriptionProfileState = {
 	benchmarkReason?: string | null;
 	model?: string | null;
 	modelRevision?: string | null;
+	profileContractSha256?: string | null;
 	runtimeVersion?: string | null;
 	runtimeWorkerSha256?: string | null;
 	computeType?: string | null;
@@ -544,6 +545,10 @@ export type LocalRunSummary = {
 	engine: string | null;
 	model: string | null;
 	modelRevision: string | null;
+	sourceSha256: string;
+	profileContractSha256: string | null;
+	contextSha256: string | null;
+	glossarySha256: string | null;
 	device: string | null;
 	computeType: string | null;
 	alignment: string | null;
@@ -873,6 +878,11 @@ export function parseCapabilities(value: unknown): Capabilities {
 					benchmarkReason,
 					model: nullableText(item.model, 256),
 					modelRevision: nullableText(item.model_revision, 128),
+					profileContractSha256:
+						item.profile_contract_sha256 === null ||
+						item.profile_contract_sha256 === undefined
+							? null
+							: sha256(item.profile_contract_sha256),
 					runtimeVersion: nullableText(item.runtime_version, 64),
 					runtimeWorkerSha256:
 						item.runtime_worker_sha256 === null || item.runtime_worker_sha256 === undefined
@@ -895,6 +905,7 @@ export function parseCapabilities(value: unknown): Capabilities {
 				benchmarkReady: false,
 				benchmarkPreparationRequired: false,
 				benchmarkReason: "BENCHMARK_RUNTIME_CONTRACT_REQUIRED",
+				profileContractSha256: null,
 			}));
 		}
 
@@ -2023,7 +2034,21 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 		return {
 			runId,
 			sourceId,
+			sourceSha256: sha256(item.source_sha256),
 			profileId: text(item.profile_id, 64),
+			profileContractSha256:
+				item.profile_contract_sha256 === null ||
+				item.profile_contract_sha256 === undefined
+					? null
+					: sha256(item.profile_contract_sha256),
+			contextSha256:
+				item.context_sha256 === null || item.context_sha256 === undefined
+					? null
+					: sha256(item.context_sha256),
+			glossarySha256:
+				item.glossary_sha256 === null || item.glossary_sha256 === undefined
+					? null
+					: sha256(item.glossary_sha256),
 			engine: nullableText(item.engine, 64),
 			model: nullableText(item.model, 256),
 			modelRevision: nullableText(item.model_revision, 256),
