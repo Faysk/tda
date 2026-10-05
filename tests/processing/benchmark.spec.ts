@@ -682,6 +682,7 @@ test("benchmark continues after a profile-local Qwen failure and finishes as Par
 	await expect.poll(() => state.jobPostCount).toBe(2);
 	expect(state.idempotencyKeys).toHaveLength(2);
 	expect(state.idempotencyKeys[1]).not.toBe(originalKey);
+	expect(state.job?.id).toBe("benchmark-job-2");
 });
 
 test("Whisper 1.1.9 stays transcription-ready but requires benchmark evidence runtime", async ({
