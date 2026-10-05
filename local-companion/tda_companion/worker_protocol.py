@@ -105,6 +105,7 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
             "glossary",
             "context",
             "cpu",
+            "include_bot_tracks",
             "benchmark_mode",
             "benchmark_sample_seconds",
         }
@@ -121,6 +122,9 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
         cpu = payload.get("cpu", False)
         if not isinstance(cpu, bool):
             raise WorkerProtocolError("WORKER_CPU_FLAG_INVALID")
+        include_bot_tracks = payload.get("include_bot_tracks", False)
+        if not isinstance(include_bot_tracks, bool):
+            raise WorkerProtocolError("WORKER_BOT_TRACK_FLAG_INVALID")
         benchmark_mode = payload.get("benchmark_mode", False)
         if not isinstance(benchmark_mode, bool):
             raise WorkerProtocolError("WORKER_BENCHMARK_MODE_INVALID")
@@ -141,6 +145,7 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
             "glossary": glossary,
             "context": context,
             "cpu": cpu,
+            "include_bot_tracks": include_bot_tracks,
         }
         if benchmark_mode:
             normalized["benchmark_mode"] = True
