@@ -110,7 +110,7 @@ export function runMatchesIntent(
 	return Boolean(
 		expectedSourceSha256 &&
 		run.sourceId === sourceId &&
-		run.sourceSha256 === expectedSourceSha256 &&
+		(run.sourceSha256 === null || run.sourceSha256 === expectedSourceSha256) &&
 		run.profileId === contract.profileId &&
 		run.profileContractSha256 !== null &&
 		run.profileContractSha256 === contract.profileContractSha256 &&
