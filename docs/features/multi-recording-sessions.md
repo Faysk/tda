@@ -226,6 +226,47 @@ O schema final pode diferir.
 - restart recupera workspace;
 - listagens são sanitizadas.
 
+## Metadata Craig como evidência auxiliar
+
+A source continua sendo identificada pelos bytes do ZIP. Metadata Craig melhora a
+automação, mas não substitui a identidade content-addressed nem vira requisito
+artificial para transcrever áudio válido.
+
+Quando disponíveis, o Companion normaliza duas fontes locais:
+
+- `info.txt`: recording id, guild/channel/requester, `start_time`, tracks e notes;
+- primeira linha JSON de `raw.dat`: metadata estruturada antes do payload Ogg
+  original, incluindo IDs Discord, `globalName`, `bot` e `unknown`.
+
+O header de `raw.dat` é lido de forma bounded (até 256 KiB e somente até o
+primeiro newline). O payload de áudio bruto não é materializado no staging e não é
+enviado para cloud.
+
+Quando `info.txt` e `raw.dat` existem juntos, campos fortes são cruzados.
+Conflito de horário ou identidade não é resolvido por preferência silenciosa:
+a evidência conflitante deixa de ser promovida como authority. Ausência,
+malformação bounded ou falta de campos opcionais no `raw.dat` não invalida tracks
+FLAC que continuam seguras e suficientes para processamento.
+
+Notes Craig são preservadas como markers locais timestamped. Elas podem enriquecer
+a revisão/diagnóstico, mas não alteram por si só speaker, texto ASR ou cronologia.
+
+### Tracks Craig marcadas como bot
+
+A policy padrão de transcrição é `exclude_confirmed_craig_bots_v1`:
+
+- somente `bot=true` comprovado pela metadata Craig é excluído;
+- nickname, label ou heurística textual nunca classificam uma track como bot;
+- `unknown=true` continua elegível;
+- todas as tracks permanecem na source imutável;
+- o job/run registra policy e números de tracks incluídas/ignoradas;
+- `audio_work_seconds` e progresso representam somente o trabalho enviado ao ASR;
+- `all_tracks_v1` permanece como override explícito quando for necessário incluir
+  bots.
+
+A track policy faz parte da compatibilidade do run. Um resultado all-tracks não é
+exact-match de uma intenção que exclui bots, e vice-versa.
+
 ## Deduplicação
 
 ### Duplicate exata
@@ -416,9 +457,38 @@ O detach de uma recording part remove somente as decisões manuais pertencentes 
 
 ## Seleção de runs e reprocessamento
 
-Cada part escolhe um run terminal íntegro.
+Cada part escolhe um run terminal íntegro. Reuso automático só acontece quando o
+Agent consegue provar compatibilidade exata com a intenção atual.
 
-A UI pode sugerir o run mais recente/selecionado, mas a decisão é explícita quando houver alternativas relevantes.
+Runs novos recebem `tda_transcription_intent_fingerprint_v1`, calculado sobre
+inputs semânticos que podem mudar o resultado:
+
+- profile e identidade engine/model/revision;
+- language;
+- alignment + revision;
+- recipe version;
+- track-policy version;
+- SHA-256 de contexto;
+- SHA-256 de glossário.
+
+Job id, attempt, horário de conclusão e GPU UUID são fatos operacionais e não
+tornam dois outputs semanticamente diferentes por si só.
+
+Prioridade de seleção:
+
+1. run produzido/reconciliado pela própria intenção corrente;
+2. run histórico com fingerprint **exatamente igual**;
+3. nenhum exact match: processar somente aquela source;
+4. múltiplos exact matches com transcript SHA diferente: pedir decisão, não escolher
+   silenciosamente.
+
+Um singleton histórico não é reutilizado só por ser o único disponível. Runs
+legados sem fingerprint continuam íntegros/revisáveis, mas não viram evidência
+automática de equivalência.
+
+Um `selected_run_id` persistido também é revalidado quando uma nova intenção muda
+profile/contexto/glossário/policy. Isso impede que uma sessão apresentada como
+Whisper Detailed use silenciosamente um run Qwen antigo.
 
 Reprocessar uma part:
 - cria novo job/run apenas daquela source;
@@ -426,7 +496,12 @@ Reprocessar uma part:
 - permite criar uma nova assembly com a nova seleção;
 - não muta assembly anterior.
 
-Misturar runs Qwen/Whisper entre parts é tecnicamente possível se cada run for válido. A provenance precisa tornar isso claro; o produto não interpreta automaticamente “mix” como melhor qualidade.
+**Reprocessar do zero** permanece uma ação explícita mesmo quando existe exact
+match; ela cria novo trabalho sem apagar o run reutilizável anterior.
+
+Misturar runs Qwen/Whisper entre parts continua tecnicamente representável, mas
+somente após escolha explícita. A provenance precisa deixar o mix claro; o produto
+não interpreta automaticamente uma combinação de engines como melhor qualidade.
 
 ## Contrato da Session Assembly
 
