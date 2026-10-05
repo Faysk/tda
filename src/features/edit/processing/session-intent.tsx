@@ -1473,10 +1473,10 @@ export function SessionIntentCoordinator({
 			{blocker?.kind === "participants" ? (
 				<div className={styles.blocker} role="alert">
 					<div>
-						<strong>Há participante ambíguo nesta sessão.</strong>
+						<strong>Não foi possível ler a identidade de uma gravação.</strong>
 						<span>
-							{blocker.count} conflito{blocker.count === 1 ? "" : "s"} precisa
-							{blocker.count === 1 ? "" : "m"} de uma decisão antes da montagem final.
+							As falas preservadas continuam intactas, mas o Companion precisa
+							restaurar a projeção das tracks antes de montar a sessão.
 						</span>
 					</div>
 					{onOpenTechnical ? (
@@ -1486,7 +1486,7 @@ export function SessionIntentCoordinator({
 							variant="secondary"
 							onClick={() => onOpenTechnical("participants")}
 						>
-							Resolver participantes
+							Ver recuperação
 						</Button>
 					) : null}
 				</div>
