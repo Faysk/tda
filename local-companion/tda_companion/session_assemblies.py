@@ -772,7 +772,7 @@ def load_session_assembly(
         or not 1 <= len(manifest["parts"]) <= _MAX_PARTS
     ):
         raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
-    if canonicalization_version == ASSEMBLY_CANONICALIZATION_VERSION:
+    if canonicalization_version in {ASSEMBLY_CANONICALIZATION_VERSION, "tda_session_assembly_canonical_v2"}:
         if (
             timing_policy_version != TIMING_POLICY_VERSION
             or manifest.get("timeline_strategy")
