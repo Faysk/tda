@@ -820,7 +820,7 @@ class Store:
     def _workspace_overlap_resolution(value):
         if value is None:
             return None
-        if value not in {"prefer_earlier_until", "prefer_later_from"}:
+        if value not in {"prefer_earlier_until", "prefer_later_from", "preserve_both_exact_v1"}:
             raise Conflict("SESSION_WORKSPACE_OVERLAP_RESOLUTION_INVALID")
         return value
 
