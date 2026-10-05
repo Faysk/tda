@@ -14,6 +14,22 @@ Use este modelo para documentação técnica ou de domínio nova. Remova seçõe
 
 O que este documento define e o que ele não define.
 
+## Current behavior
+
+Contrato vigente/implementado na baseline indicada no cabeçalho. Se o documento não descreve runtime atual, remover esta seção.
+
+## Legacy compatibility
+
+Formatos/policies antigos ainda aceitos e a razão da compatibilidade. Remover se não houver legado relevante.
+
+## Historical implementation notes
+
+Snapshots datados de candidatos, PRs ou incidentes que ajudam a explicar a evolução, sem competir com o contrato vigente.
+
+## Future backlog / unresolved decisions
+
+Somente capacidades ainda futuras ou decisões abertas. Não manter aqui trabalho já implementado.
+
 ## Contexto
 
 Por que isso existe; problemas que resolve; dependências relevantes.
@@ -56,10 +72,6 @@ Principais failure modes, idempotência, retry, rollback e como detectar inconsi
 
 Logs, métricas, auditoria e sinais de saúde.
 
-## Compatibilidade / legado
-
-Dependências temporárias, divergências conhecidas e condição para remoção.
-
 ## Validação
 
 Testes, queries ou critérios verificáveis.
@@ -67,10 +79,6 @@ Testes, queries ou critérios verificáveis.
 ## Riscos e dívida técnica
 
 Riscos conhecidos e por que ainda não foram resolvidos.
-
-## Futuro
-
-Próximos passos aprovados; separar claramente de ideias não aprovadas.
 
 ## Referências
 
