@@ -130,6 +130,9 @@ async function installMultiRecordingRoutes(
 	const acceptedKeys = new Map<string, string>();
 	let failedOnce = false;
 	let timelineDeriveCount = 0;
+	let freshStartAt: string | null = null;
+	let freshStartExcludedJobIds: string[] = [];
+	let resetCount = 0;
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
 
 	const baseReviewRows = () => {
@@ -244,7 +247,9 @@ async function installMultiRecordingRoutes(
 						? "manual"
 						: "attachment",
 		created_at: NOW,
-		updated_at: NOW,
+		updated_at: freshStartAt ?? NOW,
+		fresh_start_at: freshStartAt,
+		fresh_start_excluded_job_ids: freshStartExcludedJobIds,
 		parts: attached.map((sourceId, index) => ({
 			part_id: PART_IDS[index],
 			source_id: sourceId,
@@ -368,7 +373,10 @@ async function installMultiRecordingRoutes(
 					? { code: "FIXTURE_TRANSCRIPTION_FAILED", recoverable: true }
 					: null,
 			result_available: item.status === "succeeded",
-			updated_at: NOW,
+			updated_at:
+				freshStartAt && !freshStartExcludedJobIds.includes(item.id)
+					? "2026-10-05T00:00:01.000Z"
+					: NOW,
 			attempt: item.attempt,
 			context: {
 				campaign_id: CAMPAIGN,
@@ -412,6 +420,7 @@ async function installMultiRecordingRoutes(
 					"transcription.prepare",
 					"transcription.review",
 					"transcription.session-workspace",
+					"transcription.session-workspace.reset",
 					"transcription.session-intent",
 					"transcription.session-timeline",
 					"transcription.session-sequence",
@@ -495,6 +504,37 @@ async function installMultiRecordingRoutes(
 						{ error: { code: "SESSION_TRANSCRIPTION_INTENT_NOT_FOUND" } },
 						404,
 					);
+		}
+
+		if (
+			path === `/session-workspaces/${CAMPAIGN}/${SESSION}/reset` &&
+			request.method() === "POST"
+		) {
+			const body = request.postDataJSON() as { expected_revision: number };
+			if (body.expected_revision !== revision)
+				return json(
+					route,
+					{ error: { code: "SESSION_WORKSPACE_REVISION_CONFLICT" } },
+					409,
+				);
+			const active = [...jobsBySource.values()].some(
+				(job) => job.status === "queued" || job.status === "running",
+			);
+			if (active)
+				return json(
+					route,
+					{ error: { code: "SESSION_WORKSPACE_RESET_ACTIVE_JOBS" } },
+					409,
+				);
+			freshStartExcludedJobIds = [...jobsBySource.values()].map((job) => job.id);
+			freshStartAt = "2026-10-05T00:00:00.000Z";
+			selected.clear();
+			timelineDerived = false;
+			sequenceConfirmed = false;
+			assemblyBuilt = false;
+			resetCount += 1;
+			revision += 1;
+			return json(route, workspace());
 		}
 
 		if (path === `/session-workspaces/${CAMPAIGN}/${SESSION}`) {
@@ -756,16 +796,26 @@ async function installMultiRecordingRoutes(
 		if (runMatch && request.method() === "GET") {
 			const sourceId = runMatch[1]!;
 			const index = SOURCE_IDS.indexOf(sourceId);
-			const completed = jobsBySource.get(sourceId)?.status === "succeeded";
+			const currentJob = jobsBySource.get(sourceId);
+			const completed = currentJob?.status === "succeeded";
 			const preexisting =
 				index >= 0 && (options.preexistingRunIndexes?.includes(index) ?? false);
+			const run =
+				index >= 0
+					? {
+							...runFor(sourceId, index),
+							completed_at:
+								freshStartAt &&
+								currentJob &&
+								!freshStartExcludedJobIds.includes(currentJob.id)
+									? "2026-10-05T00:00:02.000Z"
+									: NOW,
+						}
+					: null;
 			return json(route, {
 				schema_version: "tda_transcription_runs_v1",
 				source_id: sourceId,
-				runs:
-					index >= 0 && (completed || preexisting)
-						? [runFor(sourceId, index)]
-						: [],
+				runs: index >= 0 && (completed || preexisting) && run ? [run] : [],
 			});
 		}
 		if (
@@ -973,6 +1023,9 @@ async function installMultiRecordingRoutes(
 		},
 		get timelineDeriveCount() {
 			return timelineDeriveCount;
+		},
+		get resetCount() {
+			return resetCount;
 		},
 		get reviewStatus() {
 			return reviewStatus;
