@@ -98,6 +98,11 @@ from .transcription_runs import (
     recover_deleted_run_cleanup,
     run_id_for,
 )
+from .track_policy import (
+    CraigTrackPolicyError,
+    policy_for_request,
+    select_craig_tracks,
+)
 from .whisper_runtime_maintenance import (
     WhisperRuntimeMaintenanceError,
     rollback_whisper_runtime,
@@ -215,6 +220,7 @@ class CraigTranscriptionJobRequest(BaseModel):
     glossary: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
     context: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
     cpu: bool = False
+    include_bot_tracks: bool = False
 
 
 JobRequest = Annotated[
@@ -893,9 +899,15 @@ def create_app(
             or manifest.get("transcript_sha256") != digest
             or manifest.get("context_sha256") != _sha256_text(body.get("context"))
             or manifest.get("glossary_sha256") != _sha256_text(body.get("glossary"))
+            or manifest.get("track_policy_version") != body.get("track_policy_version")
+            or manifest.get("included_track_numbers") != body.get("included_track_numbers")
+            or manifest.get("ignored_track_numbers") != body.get("ignored_track_numbers")
             or not isinstance(manifest.get("stats"), dict)
             or manifest["stats"].get("track_count") != body.get("units")
-            or len(package.tracks) != body.get("units")
+            or len(body.get("included_track_numbers") or []) != body.get("units")
+            or len(package.tracks)
+            != len(body.get("included_track_numbers") or [])
+            + len(body.get("ignored_track_numbers") or [])
         ):
             raise WorkerProcessError("WORKER_RESULT_RUN_MISMATCH", recoverable=False)
 
@@ -1271,6 +1283,7 @@ def create_app(
                                 glossary=body.get("glossary", ""),
                                 context=body.get("context", ""),
                                 cpu=bool(body.get("cpu", False)),
+                                track_policy_version=str(body.get("track_policy_version") or ""),
                                 on_progress=commit_progress,
                                 on_event=observe_event,
                                 is_cancelled=is_cancelled,
@@ -2567,15 +2580,36 @@ def create_app(
                     )
                     if not whisper_model_ready(model):
                         raise Conflict("WHISPER_MODEL_PREPARATION_REQUIRED")
-                payload["units"] = len(package.tracks)
+                try:
+                    track_policy_version = policy_for_request(
+                        include_bot_tracks=body.include_bot_tracks,
+                    )
+                    selection = select_craig_tracks(
+                        package,
+                        policy_version=track_policy_version,
+                        require_eligible=True,
+                    )
+                except CraigTrackPolicyError as exc:
+                    raise Conflict(str(exc)) from None
+                included_numbers = set(selection.included_track_numbers)
+                included_tracks = [
+                    track for track in package.tracks
+                    if track.number in included_numbers
+                ]
+                payload.update(
+                    track_policy_version=selection.policy_version,
+                    included_track_numbers=list(selection.included_track_numbers),
+                    ignored_track_numbers=list(selection.ignored_track_numbers),
+                    units=len(included_tracks),
+                )
                 durations = [
                     float(track.duration_seconds)
-                    for track in package.tracks
+                    for track in included_tracks
                     if isinstance(track.duration_seconds, (int, float))
                     and not isinstance(track.duration_seconds, bool)
                     and track.duration_seconds >= 0
                 ]
-                if len(durations) == len(package.tracks):
+                if len(durations) == len(included_tracks):
                     payload["audio_work_seconds"] = sum(durations)
                     payload["track_durations_seconds"] = durations
                 value = store.submit(idempotency_key, payload)
@@ -2851,9 +2885,15 @@ def create_app(
             or manifest.get("transcript_sha256") != digest
             or manifest.get("context_sha256") != _sha256_text(body.get("context"))
             or manifest.get("glossary_sha256") != _sha256_text(body.get("glossary"))
+            or manifest.get("track_policy_version") != body.get("track_policy_version")
+            or manifest.get("included_track_numbers") != body.get("included_track_numbers")
+            or manifest.get("ignored_track_numbers") != body.get("ignored_track_numbers")
             or not isinstance(manifest.get("stats"), dict)
             or manifest["stats"].get("track_count") != body.get("units")
-            or len(package.tracks) != body.get("units")
+            or len(body.get("included_track_numbers") or []) != body.get("units")
+            or len(package.tracks)
+            != len(body.get("included_track_numbers") or [])
+            + len(body.get("ignored_track_numbers") or [])
         ):
             raise Conflict("RESULT_ARTIFACT_MISMATCH")
         return value
