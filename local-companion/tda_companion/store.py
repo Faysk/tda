@@ -12,6 +12,7 @@ from uuid import uuid4
 from .execution_device import sanitize_execution_device
 from .legacy.artifacts import sha256_json, utc_now
 from .legacy.publication import build_publication_bundle
+from .transcription_intent import compatibility_fingerprint
 
 
 _ACTIVITY_METRICS = frozenset(
@@ -415,6 +416,11 @@ class Store:
             "glossary": row["glossary"],
             "context_sha256": row["context_sha256"],
             "glossary_sha256": row["glossary_sha256"],
+            "compatibility_fingerprint": compatibility_fingerprint(
+                profile_id=row["profile_id"],
+                context_sha256=row["context_sha256"],
+                glossary_sha256=row["glossary_sha256"],
+            ),
             "created_at": row["created"],
             "updated_at": row["updated"],
         }
