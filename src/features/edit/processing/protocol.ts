@@ -252,6 +252,8 @@ export type CraigBenchmarkInput = {
 	context: string;
 };
 
+export const CRAIG_TRACK_POLICY_VERSION = "exclude_confirmed_craig_bots_v1";
+
 export type CraigTranscriptionInput = {
 	campaignId: string;
 	sessionId: string;
@@ -259,6 +261,7 @@ export type CraigTranscriptionInput = {
 	profileId: TranscriptionProfileId;
 	glossary: string;
 	context: string;
+	includeBotTracks?: boolean;
 };
 export type JobStatus =
 	| "queued"
@@ -549,6 +552,10 @@ export type LocalRunSummary = {
 	profileContractSha256: string | null;
 	contextSha256: string | null;
 	glossarySha256: string | null;
+	trackPolicy: string | null;
+	trackPolicySha256: string | null;
+	includeBotTracks: boolean | null;
+	ignoredTrackNumbers: readonly number[];
 	device: string | null;
 	computeType: string | null;
 	alignment: string | null;
@@ -2052,6 +2059,18 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 				item.glossary_sha256 === null || item.glossary_sha256 === undefined
 					? null
 					: sha256(item.glossary_sha256),
+			trackPolicy: nullableText(item.track_policy, 96),
+			trackPolicySha256:
+				item.track_policy_sha256 === null || item.track_policy_sha256 === undefined
+					? null
+					: sha256(item.track_policy_sha256),
+			includeBotTracks:
+				item.include_bot_tracks === null || item.include_bot_tracks === undefined
+					? null
+					: boolean(item.include_bot_tracks),
+			ignoredTrackNumbers: Array.isArray(item.ignored_track_numbers)
+				? item.ignored_track_numbers.map((value) => nonNegativeInteger(value))
+				: [],
 			engine: nullableText(item.engine, 64),
 			model: nullableText(item.model, 256),
 			modelRevision: nullableText(item.model_revision, 256),
