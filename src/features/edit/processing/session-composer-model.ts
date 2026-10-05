@@ -12,6 +12,14 @@ export type ComposerReadiness = {
 	reasons: readonly string[];
 };
 
+export type SessionProcessingProgress = {
+	total: number;
+	completed: number;
+	active: number;
+	attention: number;
+	waiting: number;
+};
+
 export function supportsSessionComposer(capabilities: readonly string[]): boolean {
 	const required = [
 		"transcription.session-workspace",
@@ -82,6 +90,48 @@ export function pendingSourceIds(
 		.map((part) => part.sourceId);
 }
 
+export function sessionProcessingProgress(
+	workspace: SessionWorkspace | null,
+	runsBySource: ReadonlyMap<string, readonly LocalRunSummary[]>,
+	jobs: readonly LocalJob[] = [],
+): SessionProcessingProgress {
+	const progress: SessionProcessingProgress = {
+		total: workspace?.parts.length ?? 0,
+		completed: 0,
+		active: 0,
+		attention: 0,
+		waiting: 0,
+	};
+	if (!workspace) return progress;
+
+	for (const part of workspace.parts) {
+		const runs = runsForPart(runsBySource, part);
+		if (part.selectedRunId || runs.length > 0) {
+			progress.completed += 1;
+			continue;
+		}
+		if (part.sourceState !== "ready") {
+			progress.attention += 1;
+			continue;
+		}
+		const job = latestJobForSource(jobs, part.sourceId);
+		if (job?.status === "queued" || job?.status === "running") {
+			progress.active += 1;
+			continue;
+		}
+		if (
+			job?.status === "failed" ||
+			job?.status === "cancelled" ||
+			job?.status === "interrupted"
+		) {
+			progress.attention += 1;
+			continue;
+		}
+		progress.waiting += 1;
+	}
+	return progress;
+}
+
 export function sessionAssemblyReadiness(
 	workspace: SessionWorkspace | null,
 	mapping: SessionParticipantMapping | null,
@@ -129,13 +179,50 @@ export function partStatusLabel(
 	job: LocalJob | null,
 ): string {
 	if (part.sourceState !== "ready") return "Fonte local inválida";
+	const hasPreservedResult = Boolean(part.selectedRunId) || runs.length > 0;
+	if (hasPreservedResult) {
+		if (job?.status === "running")
+			return "Resultado preservado · nova tentativa processando";
+		if (job?.status === "queued")
+			return "Resultado preservado · nova tentativa na fila";
+		if (part.selectedRunId) return "Resultado selecionado";
+		return runs.length === 1
+			? "Resultado disponível"
+			: runs.length + " resultados disponíveis";
+	}
 	if (job?.status === "running") return "Processando";
 	if (job?.status === "queued") return "Na fila";
-	if (job?.status === "failed") return job.error?.recoverable ? "Falhou · pode tentar de novo" : "Falhou";
+	if (job?.status === "failed")
+		return job.error?.recoverable ? "Falhou · pode tentar de novo" : "Falhou";
 	if (job?.status === "interrupted") return "Interrompido";
-	if (part.selectedRunId) return "Resultado selecionado";
-	if (runs.length > 0) return runs.length === 1 ? "Resultado disponível" : runs.length + " resultados disponíveis";
+	if (job?.status === "cancelled") return "Cancelado";
 	return "Ainda não processada";
+}
+
+export function partAttemptNotice(
+	part: SessionWorkspacePart,
+	runs: readonly LocalRunSummary[],
+	job: LocalJob | null,
+): string | null {
+	if ((!part.selectedRunId && runs.length === 0) || !job) return null;
+	if (job.status === "failed")
+		return job.error?.recoverable
+			? "A última tentativa falhou, mas o resultado anterior está preservado e pode continuar sendo usado."
+			: "A última tentativa falhou, mas o resultado anterior está preservado.";
+	if (job.status === "interrupted" || job.status === "cancelled")
+		return "A última tentativa foi interrompida, mas o resultado anterior está preservado.";
+	return null;
+}
+
+export function timelineStateLabel(
+	state: SessionWorkspace["timeline"]["state"],
+): string {
+	if (state === "ready") return "Cronologia pronta";
+	if (state === "needs_timing") return "Confirme a ordem das gravações";
+	if (state === "gap_unconfirmed") return "Confirme o intervalo entre gravações";
+	if (state === "overlap_unresolved") return "Resolva a sobreposição entre gravações";
+	if (state === "order_conflict") return "Os horários indicam uma ordem diferente";
+	return "Cronologia precisa de revisão";
 }
 
 
