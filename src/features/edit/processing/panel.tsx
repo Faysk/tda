@@ -1563,11 +1563,10 @@ export function ProcessingPanel({
 									)}
 
 									{observedJob ? (
-										<div
-											className={styles.diagnosticsRecoveryActions}
-											role="group"
-											aria-label="Ações do trabalho observado"
-										>
+										<fieldset className={styles.diagnosticsRecoveryActions}>
+											<legend className={styles.visuallyHidden}>
+												Ações do trabalho observado
+											</legend>
 											{observedRecovery?.canStartNew ? (
 												<Button
 													size="sm"
@@ -1637,7 +1636,7 @@ export function ProcessingPanel({
 														: "Descartar trabalho"}
 												</Button>
 											) : null}
-										</div>
+										</fieldset>
 									) : null}
 
 									<details className={styles.systemDetails}>
