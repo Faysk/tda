@@ -181,6 +181,48 @@ def _body(source_id: str = "craig-source") -> dict:
     }
 
 
+def test_api_passes_checkpoint_free_policy_to_fresh_transcription_worker(
+    monkeypatch,
+    tmp_path: Path,
+):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage(data_root)
+    _prepare_whisper(tmp_path)
+    observed = []
+
+    def fake_run_craig(self, **kwargs):
+        del self
+        observed.append(kwargs["reuse_checkpoints"])
+        raise WorkerProcessError("FRESH_POLICY_CAPTURED", recoverable=True)
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=True,
+        models_root=tmp_path / "Models",
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "fresh-no-checkpoints"},
+            json={**_body(), "reuse_checkpoints": False},
+        )
+        assert response.status_code == 200
+        job_id = response.json()["id"]
+        failed = _wait_for_job(client, job_id, "failed")
+        assert failed["error"] == {
+            "code": "FRESH_POLICY_CAPTURED",
+            "recoverable": True,
+        }
+
+    assert observed == [False]
+    assert Store(data_root).body(job_id)["reuse_checkpoints"] is False
+
+
 def test_api_queues_staged_craig_with_real_track_count_and_redacted_context(tmp_path: Path):
     data_root = tmp_path / "Data"
     data_root.mkdir()
