@@ -1571,7 +1571,7 @@ export function ProcessingPanel({
 											{observedRecovery?.canStartNew ? (
 												<Button
 													size="sm"
-													variant={observedRecovery.canRetry ? "tertiary" : "primary"}
+													variant="primary"
 													onClick={() => startNewWork(observedJob)}
 												>
 													{observedJob.kind === "benchmark.craig"
@@ -1582,7 +1582,7 @@ export function ProcessingPanel({
 											{observedRecovery?.canRetry ? (
 												<Button
 													size="sm"
-													variant="tertiary"
+													variant="secondary"
 													disabled={
 														state.mutation?.kind === "retry" &&
 														state.mutation.targetId === observedJob.id
