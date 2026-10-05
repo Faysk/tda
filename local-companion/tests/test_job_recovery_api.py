@@ -71,6 +71,9 @@ def test_benchmark_retry_endpoint_resets_progress_for_the_new_attempt(tmp_path: 
         retried = response.json()
         assert retried["id"] == job_id
         assert retried["status"] == "queued"
+        # Retry resets the next attempt's operational progress immediately, but
+        # claim() remains the authority that allocates/increments attempt.
+        assert retried["attempt"] == first_attempt
         assert retried["progress"] == {
             "completed": 0,
             "total": 4,
