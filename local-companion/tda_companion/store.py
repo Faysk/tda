@@ -1663,6 +1663,9 @@ class Store:
                 "glossary": body.get("glossary", ""),
                 "context": body.get("context", ""),
                 "cpu": bool(body.get("cpu", False)),
+                "track_policy_version": body.get("track_policy_version"),
+                "included_track_numbers": body.get("included_track_numbers"),
+                "ignored_track_numbers": body.get("ignored_track_numbers"),
                 "units": body.get("units"),
             }
         )
