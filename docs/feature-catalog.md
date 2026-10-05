@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-05
 > Fonte de verdade: `Faysk/tda@main`, specs e documentos donos
 
 Este catálogo consolida a direção do TDA sem transformar automaticamente ideias históricas em schema. As referências históricas citadas abaixo vivem no legado `Faysk/dnd-scribe`.
@@ -22,9 +22,9 @@ Estados:
 | Multi-campaign / workspaces isolados | arquitetura aprovada; implementação planejada | [ADR-0020](adr/0020-first-class-campaigns.md) + [contrato de rotas/boundaries](architecture/multi-campaign.md) + epic #1122: UUID relacional, technical slug estável, public route key separada, lifecycle active/archived e rollout aditivo; segunda campaign ainda não é afirmada como ativa/aplicada |
 | Navegação global / conta | arquitetura aprovada; projeção de Auth, launcher, avatar e retirada dos hubs integrados; gate completo de QA pendente | [Contrato canônico](features/global-navigation.md), epic #879, PR #886, PR #890, PR #902 e PR #908; #884 fecha a matriz responsiva/teclado/visual |
 | Edit Workbench / administração | arquitetura aprovada; implementação incremental iniciada | spec em `features/edit-workbench.md`, ADR-0007, paridade viva do `dnd-scribe`; shell/transcript e leitura com revision já avançaram, persistence/Auth canônicos ainda não convergiram |
-| Processamento local no Edit | ASR local real implementado; sync cloud desativado | [Contrato da tela e gates](features/local-processing.md), ADR-0003 e ADR-0013; Craig real roda localmente em Qwen/Whisper, conclusão local não publica |
-| Runs/revisão/publicação de transcrição | arquitetura aprovada; implementação pendente | [Contrato editorial completo](features/transcript-review-publication.md) + ADR-0016: runs imutáveis, comparação A/B, revisão derivada, publish explícito, revisions cloud, restore/unpublish/delete |
-| Sessões com múltiplas gravações Craig | implementado na `main`; Web/cloud publicados; rollout do Companion segue lifecycle próprio | [Contrato multi-recording](features/multi-recording-sessions.md) + ADR-0019 accepted + #843: sources/runs independentes, Session Assembly imutável, review e provenance multi-source |
+| Processamento local no Edit | ASR/runs/revisão local implementados; auto-sync do job `not_configured`; publicação explícita separada | [Contrato da tela e gates](features/local-processing.md), ADR-0003 e ADR-0013; Craig roda localmente em Qwen/Whisper, conclusão ASR não publica por efeito colateral |
+| Runs/revisão/publicação de transcrição | runs/revisão/comparação/handoff/publicação explícita implementados; backlog futuro separado | [Contrato editorial completo](features/transcript-review-publication.md) + ADR-0016/ADR-0021: runs imutáveis, revisão derivada, publish explícito, revisions cloud e delete local tombstoned/crash-safe |
+| Sessões com múltiplas gravações Craig | implementado na `main`; happy path automático gated; rollout do Companion segue lifecycle próprio | [Contrato multi-recording](features/multi-recording-sessions.md) + ADR-0019/ADR-0022 + #843/#1508: sources/runs independentes, Assembly imutável, chronology/participants/overlap automáticos quando determinísticos |
 | Perfis/jogadores | implementado no schema | `profiles`, identidade Supabase Auth, campaign membership e RBAC; maturidade do schema não implica que todo recorte de acesso administrativo esteja concluído |
 | Personagens jogáveis (PCs) | preparado | `entities(type=pc)` + `profile_characters` + `participants.character_entity_id`; Astel, Dandelion e Screacky já canonicalizados |
 | NPCs | preparado | `entities(type=npc)`; não precisam de profile humano |
