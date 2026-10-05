@@ -497,7 +497,15 @@ export function ProcessingPanel({
 		: (campaignRuns[0] ?? null);
 	const observedJobExact =
 		diagnosticJobs.find((job) => job.id === state.observedJobId) ?? null;
-	const observedJob = observedJobExact ?? activeJob;
+	const diagnosticFallbackJob =
+		activeJob ??
+		diagnosticJobs.find((job) => ["running", "queued"].includes(job.status)) ??
+		diagnosticJobs.find((job) => ["failed", "interrupted"].includes(job.status)) ??
+		diagnosticJobs.find((job) => job.status === "cancelled") ??
+		null;
+	const diagnosticFallbackJobId = diagnosticFallbackJob?.id ?? null;
+	const observedJobExactId = observedJobExact?.id ?? null;
+	const observedJob = observedJobExact ?? diagnosticFallbackJob;
 	const diagnosticInspectorJob =
 		diagnosticInspectorJobId === null
 			? null
@@ -532,6 +540,24 @@ export function ProcessingPanel({
 		const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
 		return () => window.clearInterval(timer);
 	}, [activeJobClockKey]);
+
+	useEffect(() => {
+		if (
+			view !== "diagnostics" ||
+			observedJobExactId !== null ||
+			diagnosticFallbackJobId === null
+		)
+			return;
+		// The main Diagnostics tab is a working surface, not an empty landing
+		// page. When nothing was explicitly selected, observe the most relevant
+		// local job so terminal recovery actions and its event stream stay aligned.
+		void controller.observeJob(diagnosticFallbackJobId);
+	}, [
+		controller,
+		diagnosticFallbackJobId,
+		observedJobExactId,
+		view,
+	]);
 
 	async function confirm() {
 		const choice = confirmation;
