@@ -99,6 +99,7 @@ from .transcription_runs import (
     run_id_for,
 )
 from .track_policy import (
+    ALL_TRACKS_POLICY_VERSION,
     CraigTrackPolicyError,
     policy_for_request,
     select_craig_tracks,
@@ -860,6 +861,49 @@ def create_app(
             "sync": {"status": "not_configured"},
         }
 
+    def run_track_policy_matches_job(
+        manifest: dict,
+        body: dict,
+        package,
+    ) -> bool:
+        """Validate run track-policy provenance, preserving pre-policy queued jobs.
+
+        Jobs persisted before Craig bot filtering had no policy fields and always
+        processed every staged track.  Treat that absence as the historical
+        all-tracks contract; never reinterpret an old queued/recovered job using
+        the new default exclusion policy.
+        """
+        units = body.get("units")
+        if isinstance(units, bool) or not isinstance(units, int) or units < 0:
+            return False
+
+        policy = body.get("track_policy_version")
+        included = body.get("included_track_numbers")
+        ignored = body.get("ignored_track_numbers")
+        if policy is None:
+            if units != len(package.tracks):
+                return False
+            manifest_policy = manifest.get("track_policy_version")
+            if manifest_policy is None:
+                # Historical run written before explicit track-policy provenance.
+                return True
+            return (
+                manifest_policy == ALL_TRACKS_POLICY_VERSION
+                and manifest.get("included_track_numbers")
+                == [track.number for track in package.tracks]
+                and manifest.get("ignored_track_numbers") == []
+            )
+
+        return (
+            manifest.get("track_policy_version") == policy
+            and isinstance(included, list)
+            and isinstance(ignored, list)
+            and manifest.get("included_track_numbers") == included
+            and manifest.get("ignored_track_numbers") == ignored
+            and len(included) == units
+            and len(package.tracks) == len(included) + len(ignored)
+        )
+
     def finalize_transcription_result(
         job_id: str,
         attempt: int,
@@ -899,15 +943,9 @@ def create_app(
             or manifest.get("transcript_sha256") != digest
             or manifest.get("context_sha256") != _sha256_text(body.get("context"))
             or manifest.get("glossary_sha256") != _sha256_text(body.get("glossary"))
-            or manifest.get("track_policy_version") != body.get("track_policy_version")
-            or manifest.get("included_track_numbers") != body.get("included_track_numbers")
-            or manifest.get("ignored_track_numbers") != body.get("ignored_track_numbers")
+            or not run_track_policy_matches_job(manifest, body, package)
             or not isinstance(manifest.get("stats"), dict)
             or manifest["stats"].get("track_count") != body.get("units")
-            or len(body.get("included_track_numbers") or []) != body.get("units")
-            or len(package.tracks)
-            != len(body.get("included_track_numbers") or [])
-            + len(body.get("ignored_track_numbers") or [])
         ):
             raise WorkerProcessError("WORKER_RESULT_RUN_MISMATCH", recoverable=False)
 
@@ -1274,19 +1312,25 @@ def create_app(
                                 is_cancelled=is_cancelled,
                             )
                         elif body["kind"] == "transcription.craig":
+                            run_craig_kwargs = {
+                                "job_id": job_id,
+                                "attempt": attempt,
+                                "source_id": body["source_id"],
+                                "profile_id": body["profile_id"],
+                                "glossary": body.get("glossary", ""),
+                                "context": body.get("context", ""),
+                                "cpu": bool(body.get("cpu", False)),
+                                "on_progress": commit_progress,
+                                "on_event": observe_event,
+                                "is_cancelled": is_cancelled,
+                            }
+                            if body.get("track_policy_version") is not None:
+                                run_craig_kwargs["track_policy_version"] = str(
+                                    body["track_policy_version"]
+                                )
                             outcome = await asyncio.to_thread(
                                 worker_supervisor.run_craig,
-                                job_id=job_id,
-                                attempt=attempt,
-                                source_id=body["source_id"],
-                                profile_id=body["profile_id"],
-                                glossary=body.get("glossary", ""),
-                                context=body.get("context", ""),
-                                cpu=bool(body.get("cpu", False)),
-                                track_policy_version=str(body.get("track_policy_version") or ""),
-                                on_progress=commit_progress,
-                                on_event=observe_event,
-                                is_cancelled=is_cancelled,
+                                **run_craig_kwargs,
                             )
                         elif body["kind"] == "benchmark.craig":
                             outcome = await asyncio.to_thread(
@@ -2885,15 +2929,9 @@ def create_app(
             or manifest.get("transcript_sha256") != digest
             or manifest.get("context_sha256") != _sha256_text(body.get("context"))
             or manifest.get("glossary_sha256") != _sha256_text(body.get("glossary"))
-            or manifest.get("track_policy_version") != body.get("track_policy_version")
-            or manifest.get("included_track_numbers") != body.get("included_track_numbers")
-            or manifest.get("ignored_track_numbers") != body.get("ignored_track_numbers")
+            or not run_track_policy_matches_job(manifest, body, package)
             or not isinstance(manifest.get("stats"), dict)
             or manifest["stats"].get("track_count") != body.get("units")
-            or len(body.get("included_track_numbers") or []) != body.get("units")
-            or len(package.tracks)
-            != len(body.get("included_track_numbers") or [])
-            + len(body.get("ignored_track_numbers") or [])
         ):
             raise Conflict("RESULT_ARTIFACT_MISMATCH")
         return value
