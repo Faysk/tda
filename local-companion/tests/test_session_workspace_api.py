@@ -220,6 +220,7 @@ def test_session_workspace_reset_starts_fresh_generation_without_deleting_histor
         assert fresh["revision"] == workspace["revision"] + 1
         assert fresh["ordering_mode"] == "attachment"
         assert fresh["fresh_start_at"]
+        assert fresh["fresh_start_excluded_job_ids"] == [old_job["id"]]
         assert all(part["selected_run_id"] is None for part in fresh["parts"])
         assert all(part["timeline_mode"] == "unresolved" for part in fresh["parts"])
         assert all(part["session_offset_seconds"] is None for part in fresh["parts"])
