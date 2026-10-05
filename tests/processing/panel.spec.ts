@@ -729,13 +729,14 @@ test("Overview attention exposes New, safe Retry, Diagnostics and Discard withou
 	).toBe(retryRequestsBefore);
 
 	await attention.getByRole("button", { name: "Descartar trabalho" }).click();
-	await expect(
-		page.getByRole("heading", { name: "Descartar este trabalho?" }),
-	).toBeVisible();
-	await expect(page.getByRole("dialog")).toContainText(
+	const discardDialog = page
+		.getByRole("dialog")
+		.filter({ hasText: "Descartar este trabalho?" });
+	await expect(discardDialog).toBeVisible();
+	await expect(discardDialog).toContainText(
 		"Nenhum resultado concluído será removido",
 	);
-	await page.getByRole("button", { name: "Descartar trabalho" }).click();
+	await discardDialog.getByRole("button", { name: "Descartar trabalho" }).click();
 
 	await expect
 		.poll(
