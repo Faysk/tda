@@ -2,6 +2,8 @@
 
 > Status: accepted
 > Data: 2026-10-05
+> Owner: Edit / processing / transcripts
+> Última revisão: 2026-10-05
 > Decisores: proprietário / maintainers TDA
 > Supersede: ADR-0019 (somente a decisão boundary-first de overlap)
 > Superseded por: —
