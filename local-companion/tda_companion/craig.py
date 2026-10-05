@@ -8,7 +8,7 @@ import shutil
 import stat
 import zipfile
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
@@ -176,7 +176,12 @@ def parse_info_text(text: str) -> dict[str, object]:
         matched_label = False
         for prefix, key in labels.items():
             if stripped.startswith(prefix):
-                value[key] = stripped[len(prefix) :].strip() or None
+                label_value = stripped[len(prefix) :].strip() or None
+                value[key] = label_value
+                if key in {"guild", "channel", "requester"} and label_value:
+                    trailing_id = re.search(r"\((?P<id>[^()]+)\)\s*$", label_value)
+                    if trailing_id:
+                        value[f"{key}_id"] = trailing_id.group("id").strip()
                 matched_label = True
                 in_tracks = False
                 in_notes = False
@@ -361,7 +366,7 @@ def _canonical_instant(value: object) -> str | None:
         return text
     if instant.tzinfo is None:
         return text
-    return instant.isoformat()
+    return instant.astimezone(timezone.utc).isoformat()
 
 
 def _merge_strong_value(
@@ -397,11 +402,11 @@ def _identity_by_number(value: dict[str, object]) -> dict[int, dict[str, object]
 
 def _merged_identity(
     number: int,
-    info_value: dict[str, object],
-    raw_value: dict[str, object] | None,
+    info_tracks: dict[int, dict[str, object]],
+    raw_tracks: dict[int, dict[str, object]],
 ) -> tuple[CraigIdentity | None, bool]:
-    info_row = _identity_by_number(info_value).get(number)
-    raw_row = _identity_by_number(raw_value or {}).get(number)
+    info_row = info_tracks.get(number)
+    raw_row = raw_tracks.get(number)
     if info_row is None and raw_row is None:
         return None, False
 
@@ -602,28 +607,41 @@ def ingest_craig_zip(
                 raw_value, raw_warning = _parse_raw_metadata_header(archive, raw_member)
                 raw_parsed = raw_value is not None
 
+            info_identity_map = _identity_by_number(info_value)
+            raw_identity_map = _identity_by_number(raw_value or {})
             output_tracks: list[CraigTrack] = []
             tracks_root = staging / "tracks"
             tracks_root.mkdir()
-            for index, (member, number, speaker) in enumerate(tracks):
+            for member, number, speaker in tracks:
                 source_filename = _member_name(member)
                 physical_filename = physical_track_filename(number)
                 target = tracks_root / physical_filename
                 digest = _copy_member(archive, member, target)
                 identity, identity_conflict = _merged_identity(
                     number,
-                    info_value,
-                    raw_value,
+                    info_identity_map,
+                    raw_identity_map,
+                )
+                info_track_id = (
+                    _bounded_text(
+                        info_identity_map[number].get("discord_id"),
+                        maximum=64,
+                    )
+                    if number in info_identity_map
+                    else None
+                )
+                raw_track_id = (
+                    _bounded_text(
+                        raw_identity_map[number].get("discord_id"),
+                        maximum=64,
+                    )
+                    if number in raw_identity_map
+                    else None
                 )
                 if identity_conflict:
                     metadata_warnings.append(f"CRAIG_TRACK_IDENTITY_CONFLICT:{number}")
                     metadata_conflicts += 1
-                elif (
-                    identity is not None
-                    and identity.discord_id is not None
-                    and _identity_by_number(info_value).get(number)
-                    and _identity_by_number(raw_value or {}).get(number)
-                ):
+                elif info_track_id and raw_track_id:
                     metadata_compared += 1
                 output_tracks.append(
                     CraigTrack(
@@ -639,24 +657,54 @@ def ingest_craig_zip(
                     )
                 )
 
-        recording_id, recording_conflict = _merge_strong_value(
-            info_value.get("recording_id"),
-            raw_value.get("recording_id") if raw_value else None,
+        strong_fields = (
+            (
+                "recording_id",
+                "CRAIG_RECORDING_ID_CONFLICT",
+                lambda value: value,
+            ),
+            (
+                "start_time",
+                "CRAIG_START_TIME_CONFLICT",
+                _canonical_instant,
+            ),
+            (
+                "guild_id",
+                "CRAIG_GUILD_ID_CONFLICT",
+                lambda value: value,
+            ),
+            (
+                "channel_id",
+                "CRAIG_CHANNEL_ID_CONFLICT",
+                lambda value: value,
+            ),
+            (
+                "requester_id",
+                "CRAIG_REQUESTER_ID_CONFLICT",
+                lambda value: value,
+            ),
         )
-        start_time, start_conflict = _merge_strong_value(
-            info_value.get("start_time"),
-            raw_value.get("start_time") if raw_value else None,
-            canonicalize=_canonical_instant,
-        )
-        for conflict, warning in (
-            (recording_conflict, "CRAIG_RECORDING_ID_CONFLICT"),
-            (start_conflict, "CRAIG_START_TIME_CONFLICT"),
-        ):
+        merged_strong: dict[str, str | None] = {}
+        for key, warning, canonicalize in strong_fields:
+            info_field = info_value.get(key)
+            raw_field = raw_value.get(key) if raw_value else None
+            merged, conflict = _merge_strong_value(
+                info_field,
+                raw_field,
+                canonicalize=canonicalize,
+            )
+            merged_strong[key] = merged
             if conflict:
                 metadata_conflicts += 1
                 metadata_warnings.append(warning)
-            elif info_present and raw_parsed:
+            elif (
+                _bounded_text(info_field, maximum=512) is not None
+                and _bounded_text(raw_field, maximum=512) is not None
+            ):
                 metadata_compared += 1
+
+        recording_id = merged_strong["recording_id"]
+        start_time = merged_strong["start_time"]
         if raw_warning:
             metadata_warnings.append(raw_warning)
 
@@ -697,21 +745,9 @@ def ingest_craig_zip(
             tracks=tuple(output_tracks),
             info_present=info_present,
             raw_dat_present=raw_present,
-            guild_id=(
-                _bounded_text(raw_value.get("guild_id"), maximum=128)
-                if raw_value
-                else None
-            ),
-            channel_id=(
-                _bounded_text(raw_value.get("channel_id"), maximum=128)
-                if raw_value
-                else None
-            ),
-            requester_id=(
-                _bounded_text(raw_value.get("requester_id"), maximum=128)
-                if raw_value
-                else None
-            ),
+            guild_id=merged_strong["guild_id"],
+            channel_id=merged_strong["channel_id"],
+            requester_id=merged_strong["requester_id"],
             notes=tuple(notes),
             raw_metadata_parsed=raw_parsed,
             metadata_consistency=_metadata_state(
