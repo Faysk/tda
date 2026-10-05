@@ -36,6 +36,7 @@ import { serializeLocalRunKey } from "./local-run-key";
 import { SessionAssemblyResults } from "./session-assembly-results";
 import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
+import { terminalRecoveryActions } from "./terminal-recovery";
 import { ProcessingQueueView } from "./queue-view";
 import { ProcessingSubmission } from "./submission";
 import {
@@ -636,7 +637,17 @@ export function ProcessingPanel({
 
 	function startNewWork(job: LocalJob) {
 		closeJobDiagnostics(false);
-		activateView(job.kind === "benchmark.craig" ? "benchmark" : "overview");
+		const destination = job.kind === "benchmark.craig" ? "benchmark" : "overview";
+		activateView(destination);
+		requestAnimationFrame(() => {
+			document
+				.querySelector(
+					destination === "benchmark"
+						? "[data-benchmark-source-picker='true']"
+						: "[data-craig-composer='true']",
+				)
+				?.scrollIntoView({ block: "nearest" });
+		});
 	}
 
 	function openAttentionQueue() {
@@ -1107,6 +1118,101 @@ export function ProcessingPanel({
 								/>
 							</fieldset>
 						</div>
+						{attention.length ? (
+							<section
+								className={styles.overviewAttention}
+								aria-labelledby="processing-attention-title"
+							>
+								<div className={styles.sectionHeading}>
+									<div>
+										<h2 id="processing-attention-title">Precisa de atenção</h2>
+										<span>
+											{attention.length} {attention.length === 1 ? "trabalho" : "trabalhos"} com falha ou interrupção
+										</span>
+									</div>
+									<Button size="sm" variant="tertiary" onClick={openAttentionQueue}>
+										Ver todos
+									</Button>
+								</div>
+								<div className={styles.overviewAttentionList}>
+									{attention.slice(0, 3).map((job) => {
+										const recovery = terminalRecoveryActions(job, canDeleteJobs);
+										const pending =
+											state.mutation?.targetId === job.id
+												? state.mutation.kind
+												: null;
+										return (
+											<article
+												key={job.id}
+												className={styles.overviewAttentionItem}
+												data-job-id={job.id}
+											>
+												<div>
+													<strong>{presentJobTitle(job)}</strong>
+													<span>
+														{job.error
+															? `${presentJobError(job.error.code)} · ${job.error.code}`
+															: jobLabels[job.status]}
+														{" · "}tentativa {job.attempt}
+													</span>
+												</div>
+												<div className={styles.overviewAttentionActions}>
+													{recovery.canStartNew ? (
+														<Button
+															size="sm"
+															variant={recovery.canRetry ? "tertiary" : "primary"}
+															onClick={() => startNewWork(job)}
+														>
+															{job.kind === "benchmark.craig"
+																? "Executar novo benchmark"
+																: "Nova transcrição"}
+														</Button>
+													) : null}
+													{recovery.canRetry ? (
+														<Button
+															size="sm"
+															variant="tertiary"
+															disabled={pending === "retry"}
+															onClick={() =>
+																setConfirmation({ id: job.id, action: "retry" })
+															}
+														>
+															{pending === "retry"
+																? "Repetindo…"
+																: job.kind === "benchmark.craig"
+																	? "Repetir tentativa"
+																	: "Repetir trabalho"}
+														</Button>
+													) : null}
+													<Button
+														size="sm"
+														variant="tertiary"
+														onClick={() => openJobDiagnostics(job)}
+													>
+														Diagnóstico
+													</Button>
+													{recovery.canDiscard ? (
+														<Button
+															size="sm"
+															variant="tertiary"
+															className={styles.dangerAction}
+															disabled={pending === "delete"}
+															onClick={() =>
+																setConfirmation({ id: job.id, action: "delete" })
+															}
+														>
+															{pending === "delete"
+																? "Descartando…"
+																: "Descartar trabalho"}
+														</Button>
+													) : null}
+												</div>
+											</article>
+										);
+									})}
+								</div>
+							</section>
+						) : null}
 						{latestCompletedRun ? (
 							<section
 								className={styles.overviewMetrics}
