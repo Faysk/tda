@@ -1784,7 +1784,8 @@ export function SessionIntentCoordinator({
 							Cancelar novas execuções
 						</Button>
 					) : null}
-					{capabilities.includes("transcription.session-workspace.reset") ? (
+					{capabilities.includes("transcription.session-workspace.reset") &&
+					blocker?.kind !== "failed" ? (
 						<Button
 							type="button"
 							size="sm"
