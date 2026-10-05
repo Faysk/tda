@@ -127,6 +127,7 @@ async function installMultiRecordingRoutes(
 	const retryCount = new Map<string, number>();
 	const postedSources: string[] = [];
 	const postKeys = new Map<string, string[]>();
+	const postReuseCheckpoints = new Map<string, Array<boolean | undefined>>();
 	const acceptedKeys = new Map<string, string>();
 	let failedOnce = false;
 	let timelineDeriveCount = 0;
@@ -681,7 +682,10 @@ async function installMultiRecordingRoutes(
 			});
 		}
 		if (path === "/jobs" && request.method() === "POST") {
-			const payload = request.postDataJSON() as { source_id: string };
+			const payload = request.postDataJSON() as {
+				source_id: string;
+				reuse_checkpoints?: boolean;
+			};
 			const index = SOURCE_IDS.indexOf(payload.source_id);
 			const key = request.headers()["idempotency-key"] ?? "";
 			postedSources.push(payload.source_id);
@@ -689,6 +693,10 @@ async function installMultiRecordingRoutes(
 			postKeys.set(payload.source_id, [
 				...(postKeys.get(payload.source_id) ?? []),
 				key,
+			]);
+			postReuseCheckpoints.set(payload.source_id, [
+				...(postReuseCheckpoints.get(payload.source_id) ?? []),
+				payload.reuse_checkpoints,
 			]);
 			const acceptedKey = acceptedKeys.get(payload.source_id);
 			if (
@@ -1002,6 +1010,9 @@ async function installMultiRecordingRoutes(
 		},
 		keysFor(sourceId: string) {
 			return [...(postKeys.get(sourceId) ?? [])];
+		},
+		reuseCheckpointsFor(sourceId: string) {
+			return [...(postReuseCheckpoints.get(sourceId) ?? [])];
 		},
 		get postedSources() {
 			return [...postedSources];
@@ -1504,6 +1515,8 @@ test("fresh restart ignores preserved runs and creates new jobs for every record
 	await expect.poll(() => multi.postCount(SOURCE_IDS[0]!)).toBe(1);
 	await expect.poll(() => multi.postCount(SOURCE_IDS[1]!)).toBe(2);
 	expect(multi.retryCount(SOURCE_IDS[1]!)).toBe(0);
+	expect(multi.reuseCheckpointsFor(SOURCE_IDS[0]!)).toEqual([false]);
+	expect(multi.reuseCheckpointsFor(SOURCE_IDS[1]!)).toEqual([undefined, false]);
 	const newKey = multi.keysFor(SOURCE_IDS[1]!).at(-1);
 	expect(newKey).toBeTruthy();
 	expect(newKey).not.toBe(oldKey);
