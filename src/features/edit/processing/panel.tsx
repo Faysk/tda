@@ -1756,9 +1756,10 @@ export function ProcessingPanel({
 				onRetry={(job) =>
 					setConfirmation({ id: job.id, action: "retry" })
 				}
-				onDelete={(job) =>
-					setConfirmation({ id: job.id, action: "delete" })
-				}
+				onDelete={(job) => {
+					closeJobDiagnostics(false);
+					setConfirmation({ id: job.id, action: "delete" });
+				}}
 				onCancel={(job) =>
 					setConfirmation({ id: job.id, action: "cancel" })
 				}
