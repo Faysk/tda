@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: produto / arquitetura
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-05
 > Fonte de verdade: `Faysk/tda@main`, `feature-catalog.md`, documentos donos, `delivery/inventory.md` e `operations/deployments.md`
 
 Este roadmap coordena **ordem, dependências e prioridade de produto**. Ele não substitui as specs nem os runbooks donos de cada área. O [inventário de entregas](delivery/inventory.md) é o registro operacional único de estágio/evidência; aqui ficam somente prioridade, direção e dependências entre frentes.
@@ -11,9 +11,9 @@ Estágio de entrega segue [Documentação viva](documentation/README.md): branch
 
 ## Base observável e prioridade atual
 
-A `main` consultada nesta revisão está em `43307c819877fffe018a7dfbe1ed214892c4bd21`. A linha local do Companion possui candidato 0.3.4 RC publicado pelo pipeline controlado; promoção stable continua dependente dos gates físicos/receipts correspondentes. O histórico de deployments públicos do site permanece em [operations/deployments.md](operations/deployments.md) e o estado concreto de entregas em [delivery/inventory.md](delivery/inventory.md).
+A `main` consultada nesta revisão está em `cb831568d6db5edbc687c1506fa22469b6e7a41e`. A linha de código local do Companion está em **0.3.18**; isso não afirma que um MSI/RC/Stable específico foi promovido ou fisicamente aceito. Promoção continua dependente dos gates/receipts correspondentes do artefato exato. O histórico de deployments públicos do site permanece em [operations/deployments.md](operations/deployments.md) e o estado concreto de entregas em [delivery/inventory.md](delivery/inventory.md).
 
-ASR Craig real já existe localmente com perfis Qwen/Whisper. O próximo contrato de produto não é enviar o resultado automaticamente: ADR-0016 e [Runs/revisão/publicação](features/transcript-review-publication.md) definem múltiplos runs locais, auditoria/comparação antes do publish e revisions cloud substituíveis/restauráveis. A importação cloud continua deliberadamente negada até esse lifecycle ser implementado e reconciliado com authorization/persistence.
+ASR Craig real já existe localmente com perfis Qwen/Whisper. ADR-0016 e [Runs/revisão/publicação](features/transcript-review-publication.md) já possuem implementação de múltiplos runs locais, revisão/CAS, comparação e publicação explícita versionada. O resultado do job continua sem auto-sync (`sync.status = "not_configured"`): concluir ASR não publica. Importer legado continua deliberadamente separado/negado e não deve ser confundido com o handoff/publicação explícita atual.
 
 Migration integrada continua não sendo tratada como migration aplicada. Estados concretos e evidências ficam nos documentos operacionais donos.
 
@@ -80,7 +80,7 @@ Há evidência operacional anterior de OAuth real, conta autorizada, navegação
 
 ### R4 — Operação local, revisão e sync
 
-**Estado:** ASR local real disponível; lifecycle de revisão/publicação aprovado; sync cloud ainda desativado.
+**Estado:** ASR local, runs/revisão e publicação explícita implementados; auto-sync ao concluir job permanece desativado (`not_configured`).
 
 Processamento pesado e áudio bruto continuam locais. Cloud não vira requisito para transcrição bruta. O mesmo Craig deve poder gerar múltiplos runs imutáveis; comparação/revisão escolhem o candidato; somente ação explícita publica.
 
@@ -95,7 +95,7 @@ source Craig
   -> current revision
 ```
 
-Carteiro reaproveita hashes/idempotência/receipt da fundação existente, mas não ativa importação direta sobre `transcript_segments` antes de haver versionamento editorial completo.
+Carteiro/publication reaproveita hashes, idempotência e receipts do lifecycle versionado existente. O importer legado direto permanece separado e não é ativado como atalho para contornar revisão/publicação explícita.
 
 ### R5 — Memória estruturada e perfis
 
