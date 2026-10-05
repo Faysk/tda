@@ -157,6 +157,30 @@ function pruneScope(storage: Storage, profileScopeHash: string, now: number) {
 	}
 }
 
+export async function clearPendingSubmissionsForSession(
+	storage: Storage,
+	input: Readonly<{
+		profileScope: string;
+		campaignId: string;
+		sessionId: string;
+	}>,
+): Promise<void> {
+	const profileScopeHash = await sha256(input.profileScope);
+	for (const key of ownedKeys(storage, profileScopeHash)) {
+		const record = parseRecord(storage.getItem(key), Date.now());
+		if (!record) {
+			storage.removeItem(key);
+			continue;
+		}
+		if (
+			record.profileScope === profileScopeHash &&
+			record.campaignId === input.campaignId &&
+			record.sessionId === input.sessionId
+		)
+			storage.removeItem(key);
+	}
+}
+
 export function loadPendingSubmission(
 	storage: Storage,
 	identity: PendingSubmissionRecoveryIdentity,
