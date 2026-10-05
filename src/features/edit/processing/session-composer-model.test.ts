@@ -12,6 +12,7 @@ function workspace(freshStartAt: string | null): SessionWorkspace {
 		createdAt: "2026-10-05T20:00:00.000Z",
 		updatedAt: "2026-10-05T20:00:00.000Z",
 		freshStartAt,
+		freshStartExcludedJobIds: [],
 		parts: [],
 		timeline: {
 			policyVersion: "tda_session_timeline_v2",
