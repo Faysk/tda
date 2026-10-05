@@ -1,9 +1,9 @@
 # Transcrição — runs locais, revisão, comparação e publicação versionada
 
-> Status: arquitetura aprovada; implementação pendente
+> Status: runs/revisão/comparação/handoff/publicação explícita implementados; backlog futuro identificado separadamente
 > Owner: Edit / processamento local / transcript-sync
-> Última revisão: 2026-10-01
-> Fonte de verdade: esta spec, ADR-0016, `local-companion/tda_companion`, `src/features/transcript-sync` e contratos do Edit
+> Última revisão: 2026-10-05
+> Fonte de verdade: esta spec, ADR-0016, ADR-0021, `local-companion/tda_companion`, `src/features/edit/processing`, `src/features/transcript-publication` e contratos do Edit
 
 ## Rollout Production — estado operacional
 
@@ -89,7 +89,36 @@ As rotas privadas canônicas são `/edit/[campaign]/transcricoes` e `/edit/[camp
 A query seleciona intenção, nunca autoridade; slug/hidden input forjado falha fechado.
 ## Objetivo
 
-### Preservação de legados e listagem — candidato #674
+### Current behavior — 2026-10-05
+
+O lifecycle vigente já possui implementação real em slices separados:
+
+- **runs locais imutáveis/versionados** por source/tentativa;
+- biblioteca de Resultados e **comparação A/B** entre runs;
+- revisão local derivada do run bruto, com save/approval protegido por CAS;
+- publication target/handoff explícito e recuperação de intenção/receipt;
+- publicação cloud versionada com current revision e tratamento de stale-current;
+- publicação de Session Assembly multi-source preservando provenance;
+- delete local confirmado conforme **ADR-0021**: tombstone + quarantine/cleanup crash-safe, **sem Trash restaurável de 7 dias**.
+
+O auto-sync do resultado de job continua `sync.status = "not_configured"`. Isso é deliberado e **não** significa ausência de handoff/publicação explícita. Concluir ASR nunca publica por efeito colateral.
+
+### Legacy compatibility
+
+- `transcript.json` raiz e outras projeções 0.3.x podem permanecer legíveis quando o código declara compatibilidade;
+- runs/reviews históricos são preservados e não recebem metadata inventada;
+- compatibilidade de leitura não torna o formato legado a authority atual.
+
+### Historical implementation notes
+
+Seções marcadas como **Histórico de implementação** registram candidatos/PRs/testes de uma etapa específica. Elas servem como provenance e não substituem o contrato corrente acima.
+
+### Future backlog / unresolved decisions
+
+Capacidades ainda não implementadas devem aparecer explicitamente como futuras. Archive/painel de armazenamento continuam separados; uma futura lixeira restaurável exigiria decisão posterior que substituísse ADR-0021.
+
+
+### Histórico de implementação — Preservação de legados e listagem — candidato #674
 
 A classificação do `transcript.json` raiz ocorre na manutenção de startup e antes
 de qualquer substituição pelo mirror, sob o mesmo lock de arquivo entre processos
@@ -115,7 +144,7 @@ no escopo de #661. O mirror permanece para consumidores legados; não se remove
 nenhum consumidor nesta entrega. Rollback não deve reinstalar um writer que
 sobrescreva raiz não preservada; manter o gate ou suspender atualização de mirrors.
 
-### Política central de gravação — candidato #671
+### Histórico de implementação — Política central de gravação — candidato #671
 
 `atomic_storage.atomic_write` separa três classes versionadas. Os callers continuam
 donos de confinement, schema, locks e CAS; o helper não transforma paths externos
@@ -178,7 +207,7 @@ Rollback de código não apaga destinos/partials para simular sucesso; reabrir,
 verificar integridade e manter a mesma identidade de operação. Novos sidecars
 autoritativos devem usar essa política e registrar a garantia efetivamente obtida.
 
-### Strings editoriais — candidato #668
+### Histórico de implementação — Strings editoriais — candidato #668
 
 `review_string_rules_v1` mede comprimento por valores escalares Unicode: texto
 até 100.000, participante até 160. Surrogates isolados são inválidos. A verificação
@@ -220,7 +249,7 @@ Companion novo. Reverter parsers para UTF-16 pode tornar revisões válidas ileg
 manter leitores compatíveis no rollback, sem reescrever dados para ajustá-los.
 Esta entrega não publica revisões, não migra o banco e não altera saída ASR.
 
-### Snapshot e primeiro save — candidato #669 / #672
+### Histórico de implementação — Snapshot e primeiro save — candidato #669 / #672
 
 A resposta de revisão anuncia `snapshot_contract=tda_local_review_cas_v1`.
 Sem arquivo de draft, GET retorna `persistence=ephemeral_base`, revisão/SHA/datas
@@ -259,7 +288,7 @@ escritas concorrentes, SHA alterado com revision igual, revisão zero histórica
 preconditions ausentes/inválidas, falha de replace e separação de runs. Os testes
 de navegador verificam os estados ephemeral/persistido e Agent antigo sem edição.
 
-### Integridade local validada em candidato — 2026-09-26
+### Histórico de implementação — Integridade local validada em candidato — 2026-09-26
 
 As correções de [#666](https://github.com/Faysk/tda/issues/666) e
 [#673](https://github.com/Faysk/tda/issues/673) usam um snapshot único por operação
@@ -325,15 +354,16 @@ Este é um sistema para memória de campanha de RPG, não um sistema bancário. 
 
 Na `main` vigente nesta revisão:
 
-- o Companion já faz ingest Craig local content-addressed;
-- os perfis `qwen-quality`, `qwen-fast`, `whisper-detailed` e `whisper-turbo` existem no pipeline local;
-- o worker grava `transcript.json` local somente ao terminar e usa escrita atômica;
-- o resultado atual declara `sync.status = "not_configured"`;
-- o endpoint cloud de importação continua deliberadamente negado em produção;
-- concluir um job **não publica** e não envia transcript integral como efeito colateral;
-- existe fundação server-side para leitura/edição de segmentos e existe uma candidata de importação atômica, mas ela não está ativada como fluxo produtivo.
+- ingest Craig local é content-addressed e os perfis Qwen/Whisper produzem runs locais imutáveis;
+- múltiplos runs versionados por source já existem e podem ser listados/revisados/comparados;
+- revisão humana usa draft/revision derivada e preserva o output bruto;
+- o resultado de job continua declarando `sync.status = "not_configured"`;
+- concluir job não envia transcript integral nem publica automaticamente;
+- handoff/publicação explícita possuem contratos e endpoints próprios, com capability, preflight, receipt/readback, idempotência e current revision;
+- Session Assembly multi-source possui handoff/publicação explícita própria;
+- delete local segue ADR-0021; quarantine interna de cleanup não é lixeira restaurável.
 
-Esta spec define o **contrato-alvo aprovado** para evoluir esse estado. Ela não declara que runs versionados, comparação A/B, revisions cloud ou lixeira já estão implementados. Nenhuma migration é autorizada apenas por este documento.
+Esta spec é a **fonte de contrato do lifecycle atual** e também mantém, em seções explicitamente rotuladas, compatibilidade legada, provenance histórica e backlog futuro. Nenhuma migration, rollout ou publicação real deve ser inferida apenas por uma frase de arquitetura; estados `implementado`, `integrado` e `publicado/aplicado` continuam distintos.
 
 ## Princípios de produto
 
@@ -949,87 +979,67 @@ Se cair durante publish:
 
 O usuário nunca deve precisar reprocessar áudio só porque a publicação falhou.
 
-## Delete, archive e lixeira
+## Delete, archive e armazenamento local
 
-Delete precisa existir, mas cada ação deve explicar o seu alcance.
+As ações locais e cloud possuem escopos independentes. A UI deve dizer claramente o que será removido.
 
-### Excluir run local
+### Excluir run local — comportamento vigente
 
-Remove aquele run e suas revisões locais dependentes que o usuário escolher remover.
+Conforme ADR-0021, **Excluir resultado local** é uma ação confirmada e destrutiva para aquele run/revisão local dependente.
 
-Default:
+Contrato:
 
-- mover para lixeira local;
-- retenção padrão de 7 dias;
-- permitir Restaurar;
-- apagar definitivamente após prazo ou ação **Esvaziar lixeira**.
+- o Companion valida identidade/hash/dependências antes do commit;
+- grava `tda_local_run_delete_receipt_v1` antes do cleanup físico;
+- o tombstone torna o run não elegível/visível;
+- bytes podem passar por `.delete-trash/<operation_id>` apenas como quarantine transacional;
+- startup/recovery conclui cleanup interrompido;
+- a quarantine não tem retenção de 7 dias, listagem nem ação **Restaurar**;
+- source, outros runs e conteúdo cloud permanecem preservados salvo ação separada;
+- publicação pendente/ambígua continua bloqueando delete quando o contrato exigir.
 
-Runs publicados não devem ser apagados localmente sem aviso de que a cópia cloud permanecerá disponível.
+Runs publicados podem ser removidos localmente, mas a confirmação deve informar que a cópia/revision cloud não é apagada por essa operação.
 
 ### Excluir draft local
 
-Remove apenas revision/draft ainda não publicado.
+Remove apenas revision/draft local não publicado conforme o escopo explícito e os dependency checks aplicáveis.
 
-### Arquivar
+### Archive — capacidade separada
 
-Arquivar esconde da visão principal sem apagar bytes.
-
-Útil para sessões antigas ou experimentos que o usuário quer manter.
+Archive, quando implementado na superfície correspondente, apenas esconde/organiza resultados; não deve ser confundido com delete nem inventar retenção.
 
 ### Remover publicação
 
-Define `current_revision = null` ou estado equivalente, mantendo revisions cloud para restauração.
+Define `current_revision = null` ou estado equivalente, mantendo revisions cloud para restauração posterior. É uma ação cloud/editorial separada de delete local.
 
 ### Excluir revision cloud inativa
 
-Permitido com confirmação quando não for a current revision.
+Pode ser permitido com confirmação e contrato próprio quando não for a current revision.
 
-Pode apagar conteúdo pesado da revision e manter somente evento/tombstone mínimo se a implementação achar útil para histórico. Não é necessário retenção legal/audit trail permanente.
+### Revision cloud atual
 
-### Excluir revision atual
-
-A UI deve oferecer escolhas explícitas:
-
-```text
-Esta é a revisão atualmente publicada.
-
-[ Restaurar anterior ]
-[ Remover publicação ]
-[ Cancelar ]
-```
-
-Hard delete da current revision não deve acontecer como efeito colateral de um clique genérico.
+A current revision não sofre hard delete como efeito colateral de **Excluir resultado local**. Restore/unpublish/substituição continuam ações editoriais explícitas e versionadas.
 
 ### Excluir tudo da sessão
 
-Ação destrutiva separada, com confirmação forte como digitar `EXCLUIR`.
-
-Deve informar exatamente se inclui:
-
-- runs locais;
-- drafts;
-- revisions cloud;
-- source/staging local.
-
-O áudio original externo escolhido pelo usuário não é propriedade do TDA e não deve ser apagado.
+Se existir, deve ser uma ação destrutiva separada e enumerar exatamente runs, drafts, revisions cloud e source/staging afetados. O áudio externo original do usuário não pertence ao TDA.
 
 ## Política de retenção local
 
-Defaults aprovados:
+Defaults correntes:
 
-- runs concluídos: manter até ação do usuário;
-- revisions locais: manter até ação do usuário;
+- runs concluídos: manter até ação explícita do usuário;
+- revisions locais: manter até ação explícita/contrato da superfície;
 - source/staging Craig: manter por default para permitir reprocessamento/comparação;
-- runs falhos/interrompidos: manter enquanto úteis para retry/diagnóstico; UI pode oferecer limpeza em lote;
-- lixeira: 7 dias;
-- modelos/runtimes: gerenciados separadamente;
-- logs: seguem política própria do Companion.
+- runs falhos/interrompidos: manter enquanto úteis para retry/diagnóstico;
+- **não existe Trash de produto com retenção padrão de 7 dias**;
+- modelos/runtimes e logs seguem políticas próprias do Companion.
 
-Configurações futuras podem oferecer limpeza automática, mas não devem remover um resultado não publicado sem comunicar claramente a política.
+Uma futura lixeira restaurável exige nova decisão arquitetural, UX de listagem/restore/expiry e testes de restart/dependency; não pode ser inferida da quarantine transacional atual.
 
 ## Gestão de armazenamento
 
-A UI deve separar consumo por categoria quando mensurável:
+A UI pode separar consumo por categoria quando mensurável:
 
 ```text
 Modelos/runtimes
@@ -1037,14 +1047,9 @@ Fontes/faixas de áudio locais
 Runs/transcrições
 Revisões locais
 Cache
-Lixeira
 ```
 
-Ação útil:
-
-**Limpar áudio/source de sessões processadas**
-
-só deve ser oferecida quando as consequências estiverem claras: resultados continuam disponíveis, mas reprocessar pode exigir selecionar/importar o ZIP Craig novamente.
+Ação de limpeza de source só deve ser oferecida com consequências explícitas: resultados preservados podem continuar legíveis, mas reprocessar pode exigir selecionar/importar novamente o ZIP Craig.
 
 ## Dados permitidos no cloud
 
@@ -1205,9 +1210,11 @@ A mistura seletiva de trechos pode existir depois como **composição local de u
 
 ### Delete acidental
 
-- local vai para Trash por default;
-- current cloud exige ação específica;
-- exclusão total possui confirmação forte.
+- delete local exige confirmação explícita antes do tombstone;
+- tombstone é gravado antes do cleanup para recovery crash-safe;
+- não existe undo local prometido depois da confirmação;
+- current cloud exige ação específica e separada;
+- exclusão total, se existir, possui confirmação forte e escopo enumerado.
 
 ### Disco cheio
 
@@ -1245,7 +1252,9 @@ Revisar/publicar uma transcrição não:
 
 Os pipelines de evidence/canon continuam separados.
 
-## Fases de implementação recomendadas
+## Historical implementation roadmap
+
+> Esta sequência registra como o lifecycle foi fatiado originalmente. Não é o backlog corrente. Runs, revisão, comparação e publicação explícita já possuem implementação; a antiga proposta de Trash no Slice 6 foi substituída por ADR-0021.
 
 ### Slice 1 — runs locais imutáveis
 
@@ -1291,8 +1300,8 @@ Os pipelines de evidence/canon continuam separados.
 
 ### Slice 6 — delete/storage polish
 
-- Trash local 7 dias;
-- archive;
+- delete local confirmado/tombstone conforme ADR-0021 (a proposta histórica de Trash 7 dias foi substituída);
+- archive e painel de armazenamento como capacidades separadas;
 - delete revision inativa;
 - excluir tudo;
 - painel de armazenamento/limpeza.
@@ -1301,7 +1310,7 @@ Não misturar todos esses slices em uma migration/PR gigante.
 
 ## Migração do estado local atual
 
-Quando runs versionados forem implementados, um `transcript.json` legado existente e válido pode ser importado como um run histórico local com metadata conhecida.
+Runs versionados já estão implementados. Um `transcript.json` legado existente e válido pode ser preservado/importado como run histórico local com metadata conhecida quando o fluxo de compatibilidade o classifica com segurança.
 
 Não inventar engine/model/revision que não puder ser comprovada. Campos desconhecidos ficam `unknown`/null conforme o schema alvo permitir.
 
@@ -1326,7 +1335,7 @@ A feature só pode ser chamada de completa quando for possível demonstrar:
 8. restore volta uma revision anterior sem reprocessar áudio;
 9. editar publicado não muda a versão visível antes de novo publish;
 10. remover publicação não exige apagar histórico;
-11. delete local passa por Trash por default;
+11. delete local confirmado usa tombstone + cleanup crash-safe conforme ADR-0021, sem promessa de Trash restaurável;
 12. current revision cloud não é hard-deletada por ação genérica;
 13. nenhuma operação normal envia áudio bruto ao cloud;
 14. conflito concorrente não usa last-write-wins silencioso;
