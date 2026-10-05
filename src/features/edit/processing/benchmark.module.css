@@ -826,6 +826,11 @@
 	gap: 8px;
 }
 
+.dangerAction {
+	border-color: color-mix(in srgb, var(--ds-danger) 70%, var(--ds-control-border)) !important;
+	color: var(--ds-danger) !important;
+}
+
 .history {
 	display: grid;
 	gap: 10px;
