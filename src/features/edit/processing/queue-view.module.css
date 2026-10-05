@@ -344,6 +344,16 @@
 	opacity: 0.6;
 }
 
+.moreMenu .dangerMenuAction {
+	color: var(--ds-danger);
+}
+
+.moreMenu .dangerMenuAction:hover,
+.moreMenu .dangerMenuAction:focus-visible {
+	background: color-mix(in srgb, var(--ds-danger) 10%, transparent);
+	color: var(--ds-danger);
+}
+
 .wideColumn {
 	display: none;
 }
