@@ -1362,7 +1362,7 @@ test("multi-ZIP preflight explains one session, reorders accessibly, and carries
 	const selected = page.getByLabel("Gravações selecionadas");
 	await expect(page.getByText("3 gravações serão unidas em uma única sessão")).toBeVisible();
 	await expect(page.getByText("Ordem da sessão", { exact: true })).toBeVisible();
-	await expect(page.getByText(/sequência abaixo é sua ordem editorial/u)).toBeVisible();
+	await expect(page.getByText(/cronologia factual automaticamente/u)).toBeVisible();
 	await expect(page.getByText(/horário real só é usado quando o Craig fornece um horário confiável/iu)).toBeVisible();
 	const moveThirdUp = page.getByRole("button", { name: "Mover ordem-3.zip para cima" });
 	await moveThirdUp.focus();
