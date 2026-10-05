@@ -10,7 +10,7 @@ TIMING_POLICY_VERSION = "tda_session_timeline_v2"
 SEGMENT_BOUNDARY_POLICY = "segment_start_owner_v1"
 _START_CONFIDENCES = frozenset({"trusted_absolute", "ambiguous", "opaque", "missing"})
 _TIMELINE_MODES = frozenset({"unresolved", "automatic", "manual", "sequence"})
-_OVERLAP_RESOLUTIONS = frozenset({"prefer_earlier_until", "prefer_later_from"})
+_OVERLAP_RESOLUTIONS = frozenset({"prefer_earlier_until", "prefer_later_from", "preserve_both_exact_v1"})
 _EPSILON = 1e-9
 
 
@@ -374,8 +374,20 @@ def enrich_workspace_timeline(
                         overlap_count += 1
                         policy = part.get("overlap_resolution")
                         boundary = _number(part.get("overlap_boundary_seconds"))
+                        if (
+                            policy is None
+                            and physical_interval_state == "trusted_absolute"
+                        ):
+                            # Trusted wall-clock proves the overlap geometry.
+                            # Preserve both recordings and let Assembly collapse
+                            # only exact, strongly-attributed duplicates.
+                            policy = "preserve_both_exact_v1"
                         overlap_resolution_valid = (
-                            policy in _OVERLAP_RESOLUTIONS
+                            policy == "preserve_both_exact_v1"
+                            and physical_interval_state == "trusted_absolute"
+                            and boundary is None
+                        ) or (
+                            policy in {"prefer_earlier_until", "prefer_later_from"}
                             and boundary is not None
                             and overlap_start - _EPSILON <= boundary <= overlap_end + _EPSILON
                         )
@@ -396,6 +408,8 @@ def enrich_workspace_timeline(
             "relation_seconds": relation_seconds,
             "physical_interval_state": physical_interval_state,
             "gap_confirmed": bool(part.get("gap_confirmed", False)),
+            "overlap_resolution": policy if relation == "overlap" else part.get("overlap_resolution"),
+            "overlap_boundary_seconds": boundary if relation == "overlap" else part.get("overlap_boundary_seconds"),
             "overlap_resolution_valid": overlap_resolution_valid,
         }
         enriched_parts.append(enriched)
@@ -498,6 +512,14 @@ def validate_overlap_boundary(
             return
         if part.get("relation_to_previous") != "overlap":
             raise ValueError("SESSION_WORKSPACE_OVERLAP_RESOLUTION_INVALID")
+        if part.get("overlap_resolution") == "preserve_both_exact_v1":
+            if (
+                part.get("physical_interval_state") != "trusted_absolute"
+                or part.get("overlap_boundary_seconds") is not None
+                or part.get("overlap_resolution_valid") is not True
+            ):
+                raise ValueError("SESSION_WORKSPACE_OVERLAP_RESOLUTION_INVALID")
+            return
         if part.get("overlap_resolution_valid") is not True:
             raise ValueError("SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID")
         return
