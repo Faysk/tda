@@ -198,7 +198,6 @@ def parse_info_text(text: str) -> dict[str, object]:
                 assert isinstance(tracks, list)
                 tracks.append(
                     {
-                        "number": len(tracks) + 1,
                         "username": identity.group("name").strip(),
                         "discriminator": identity.group("disc"),
                         "discord_id": identity.group("id").strip()
