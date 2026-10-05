@@ -682,6 +682,7 @@ test("benchmark continues after a profile-local Qwen failure and finishes as Par
 	await expect.poll(() => state.jobPostCount).toBe(2);
 	expect(state.idempotencyKeys).toHaveLength(2);
 	expect(state.idempotencyKeys[1]).not.toBe(originalKey);
+	expect(state.job?.id).toBe("benchmark-job-2");
 });
 
 test("Whisper 1.1.9 stays transcription-ready but requires benchmark evidence runtime", async ({
@@ -893,12 +894,21 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 		panel.locator("[data-state='not_attempted']").filter({ hasText: "Qwen Quality" }),
 	).toBeVisible();
 	await expect(panel.getByRole("button", { name: "Ver log / Diagnóstico" })).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Executar novo benchmark" }),
+	).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Repetir tentativa" }),
+	).toHaveCount(0);
+	await expect(
+		panel.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
 });
 
 test("terminal global Benchmark failure restores failed and not-attempted profile states", async ({
 	page,
 }) => {
-	await installCompanionFixture(page, {
+	const state = await installCompanionFixture(page, {
 		benchmarkProfiles: true,
 		profileReady: true,
 		advanceJobs: false,
@@ -1017,6 +1027,68 @@ test("terminal global Benchmark failure restores failed and not-attempted profil
 	await expect(
 		panel.locator("[data-state='not_attempted']").filter({ hasText: "Qwen Quality" }),
 	).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Executar novo benchmark" }),
+	).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Repetir tentativa" }),
+	).toHaveCount(0);
+	const discard = panel.getByRole("button", { name: "Descartar trabalho" });
+	await expect(discard).toBeVisible();
+	await discard.click();
+	await expect(
+		page.getByRole("heading", { name: "Descartar este trabalho?" }),
+	).toBeVisible();
+	await page.getByRole("button", { name: "Descartar trabalho" }).click();
+	await expect.poll(() => state.jobDeleteCount).toBe(1);
+	await expect.poll(() => state.job).toBeNull();
+	await expect(panel.getByText("Benchmark falhou globalmente")).toHaveCount(0);
+});
+
+test("recoverable global Benchmark failure offers a same-job retry that restarts at zero", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureBenchmarkJob("failed", {
+				progress: { completed: 2, total: 4, unit: "profiles" },
+				error: {
+					code: "WORKER_EXECUTION_FAILED",
+					recoverable: true,
+				},
+				result_available: false,
+			}),
+		],
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(
+		panel.getByRole("button", { name: "Executar novo benchmark" }),
+	).toBeVisible();
+	const retry = panel.getByRole("button", { name: "Repetir tentativa" });
+	await expect(retry).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
+
+	await retry.click();
+	await expect(
+		page.getByRole("heading", { name: "Repetir este trabalho?" }),
+	).toBeVisible();
+	await page.getByRole("button", { name: "Confirmar" }).click();
+
+	await expect.poll(() => state.jobRetryCount).toBe(1);
+	await expect.poll(() => state.job?.status).toBe("queued");
+	expect(state.job?.id).toBe("benchmark-job-1");
+	expect(state.job?.attempt).toBe(2);
+	expect(state.job?.progress).toEqual({
+		completed: 0,
+		total: 4,
+		unit: "profiles",
+	});
 });
 
 test("completed benchmark loads a comparable receipt while failed history remains inspectable", async ({
