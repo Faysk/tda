@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import threading
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -751,3 +752,207 @@ def test_one_unavailable_duration_keeps_both_aggregates_unknown(tmp_path):
     reused = ingest_craig_file(source, data_root)
     assert reused["audio_work_seconds"] is None
     assert reused["session_duration_seconds"] is None
+
+
+def _metadata_zip_bytes(
+    *,
+    info_text: str | None,
+    raw_metadata: dict[str, object] | None,
+    raw_suffix: bytes = b"OggS-test",
+) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("1-Alice.flac", _flac_bytes(60))
+        archive.writestr("2-Bob.flac", _flac_bytes(45))
+        if info_text is not None:
+            archive.writestr("info.txt", info_text.encode("utf-8"))
+        if raw_metadata is not None:
+            archive.writestr(
+                "raw.dat",
+                json.dumps(raw_metadata, separators=(",", ":")).encode("utf-8")
+                + b"\n"
+                + raw_suffix,
+            )
+    return buffer.getvalue()
+
+
+def test_ingest_uses_structured_raw_metadata_and_preserves_info_notes(tmp_path: Path):
+    info = """Recording 4242
+
+Guild: Guild Name
+Channel: Session Room
+Requester: GM
+Start time: 2026-09-19T17:20:40.056Z
+
+Tracks:
+    Alice#0001 (111)
+    Bob#0002 (222)
+Notes:
+    0:01:23: Initiative started
+    1:02:03: Break
+"""
+    raw = {
+        "format": 1,
+        "id": "4242",
+        "guild": "legacy-guild",
+        "guildExtra": {"name": "Guild Name", "id": "guild-1"},
+        "channel": "legacy-channel",
+        "channelExtra": {"name": "Session Room", "id": "channel-1"},
+        "requester": "legacy-requester",
+        "requesterExtra": {
+            "username": "gm-user",
+            "globalName": "GM Global",
+            "discriminator": "0",
+        },
+        "requesterId": "requester-1",
+        "startTime": "2026-09-19T17:20:40.056+00:00",
+        "tracks": {
+            "1": {
+                "id": "111",
+                "username": "alice-user",
+                "globalName": "Alice Global",
+                "discriminator": "0",
+                "bot": False,
+                "unknown": False,
+            },
+            "2": {
+                "id": "222",
+                "username": "music-bot",
+                "globalName": "Music Bot",
+                "discriminator": "0",
+                "bot": True,
+                "unknown": False,
+            },
+        },
+    }
+    source = tmp_path / "metadata.zip"
+    source.write_bytes(_metadata_zip_bytes(info_text=info, raw_metadata=raw))
+
+    result = ingest_craig_file(source, tmp_path / "Data")
+    package = load_craig_package(
+        tmp_path / "Data" / "staging" / result["source_id"],
+        verify_tracks=True,
+    )
+
+    assert package.recording_id == "4242"
+    assert package.start_time == "2026-09-19T17:20:40.056Z"
+    assert package.guild_id == "guild-1"
+    assert package.channel_id == "channel-1"
+    assert package.requester_id == "requester-1"
+    assert package.raw_dat_present is True
+    assert package.raw_metadata_present is True
+    assert package.metadata_consistency == "consistent"
+    assert package.metadata_warnings == ()
+    assert [(note.offset_seconds, note.text) for note in package.notes] == [
+        (83.0, "Initiative started"),
+        (3723.0, "Break"),
+    ]
+    assert package.tracks[0].identity is not None
+    assert package.tracks[0].identity.discord_id == "111"
+    assert package.tracks[0].identity.username == "alice-user"
+    assert package.tracks[0].identity.global_name == "Alice Global"
+    assert package.tracks[0].identity.bot is False
+    assert package.tracks[1].identity is not None
+    assert package.tracks[1].identity.bot is True
+
+
+def test_raw_metadata_can_enrich_package_without_info_txt(tmp_path: Path):
+    raw = {
+        "format": 1,
+        "id": "raw-only",
+        "guildExtra": {"name": "Guild", "id": "guild-2"},
+        "channelExtra": {"name": "Room", "id": "channel-2"},
+        "requesterExtra": {"username": "gm", "discriminator": "0"},
+        "requesterId": "requester-2",
+        "startTime": "2026-09-20T01:02:03+00:00",
+        "tracks": {
+            "1": {
+                "id": "333",
+                "username": "alice",
+                "discriminator": "0",
+                "unknown": False,
+            },
+            "2": {
+                "id": "444",
+                "username": "bob",
+                "discriminator": "0",
+                "unknown": True,
+            },
+        },
+    }
+    source = tmp_path / "raw-only.zip"
+    source.write_bytes(_metadata_zip_bytes(info_text=None, raw_metadata=raw))
+
+    result = ingest_craig_file(source, tmp_path / "Data")
+    package = load_craig_package(
+        tmp_path / "Data" / "staging" / result["source_id"],
+        verify_tracks=True,
+    )
+
+    assert package.info_present is False
+    assert package.raw_metadata_present is True
+    assert package.metadata_consistency == "partial"
+    assert package.recording_id == "raw-only"
+    assert package.start_time == "2026-09-20T01:02:03+00:00"
+    assert package.tracks[0].identity.discord_id == "333"
+    assert package.tracks[1].identity.unknown is True
+
+
+def test_conflicting_info_and_raw_metadata_stays_explicit(tmp_path: Path):
+    info = """Recording info-id
+
+Start time: 2026-09-20T01:00:00Z
+
+Tracks:
+    Alice#0001 (111)
+    Bob#0002 (222)
+"""
+    raw = {
+        "id": "raw-id",
+        "startTime": "2026-09-20T02:00:00Z",
+        "tracks": {
+            "1": {"id": "999", "username": "alice", "unknown": False},
+            "2": {"id": "222", "username": "bob", "unknown": False},
+        },
+    }
+    source = tmp_path / "conflict.zip"
+    source.write_bytes(_metadata_zip_bytes(info_text=info, raw_metadata=raw))
+
+    result = ingest_craig_file(source, tmp_path / "Data")
+    package = load_craig_package(
+        tmp_path / "Data" / "staging" / result["source_id"],
+        verify_tracks=True,
+    )
+
+    assert package.metadata_consistency == "conflicting"
+    assert "CRAIG_METADATA_RECORDING_ID_CONFLICT" in package.metadata_warnings
+    assert "CRAIG_METADATA_START_TIME_CONFLICT" in package.metadata_warnings
+    assert "CRAIG_METADATA_TRACK_ID_CONFLICT:1" in package.metadata_warnings
+    # Conflicting raw metadata is preserved for diagnostics, but info remains the
+    # source-level display/time value until chronology decides whether it is trusted.
+    assert package.recording_id == "info-id"
+    assert package.start_time == "2026-09-20T01:00:00Z"
+
+
+def test_malformed_or_unbounded_raw_header_does_not_discard_valid_flacs(tmp_path: Path):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("1-Alice.flac", _flac_bytes(10))
+        archive.writestr(
+            "raw.dat",
+            b"{" + b"x" * (craig_module.MAX_RAW_HEADER_BYTES + 32),
+        )
+    source = tmp_path / "bad-raw.zip"
+    source.write_bytes(buffer.getvalue())
+
+    result = ingest_craig_file(source, tmp_path / "Data")
+    package = load_craig_package(
+        tmp_path / "Data" / "staging" / result["source_id"],
+        verify_tracks=True,
+    )
+
+    assert package.raw_dat_present is True
+    assert package.raw_metadata_present is False
+    assert package.metadata_consistency == "raw_invalid"
+    assert package.metadata_warnings == ("CRAIG_RAW_HEADER_INVALID",)
+    assert len(package.tracks) == 1
