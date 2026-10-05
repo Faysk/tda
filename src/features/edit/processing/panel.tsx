@@ -1163,7 +1163,7 @@ export function ProcessingPanel({
 													{recovery.canStartNew ? (
 														<Button
 															size="sm"
-															variant={recovery.canRetry ? "tertiary" : "primary"}
+															variant="primary"
 															onClick={() => startNewWork(job)}
 														>
 															{job.kind === "benchmark.craig"
@@ -1174,7 +1174,7 @@ export function ProcessingPanel({
 													{recovery.canRetry ? (
 														<Button
 															size="sm"
-															variant="tertiary"
+															variant="secondary"
 															disabled={pending === "retry"}
 															onClick={() =>
 																setConfirmation({ id: job.id, action: "retry" })
