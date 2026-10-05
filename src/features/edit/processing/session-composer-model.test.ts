@@ -1,6 +1,69 @@
 import { describe, expect, it } from "vitest";
-import type { SessionWorkspace } from "./protocol";
-import { workspaceGenerationEligible } from "./session-composer-model";
+import type { LocalJob, SessionWorkspace, SessionWorkspacePart } from "./protocol";
+import {
+	workspaceGenerationEligible,
+	workspaceJobGenerationEligible,
+} from "./session-composer-model";
+
+const SOURCE_ID = "craig-" + "a".repeat(64);
+
+function part(sourceId = SOURCE_ID): SessionWorkspacePart {
+	return {
+		partId: "p".repeat(32),
+		sourceId,
+		ordinal: 0,
+		selectedRunId: null,
+		sourceState: "ready",
+		timelineMode: "automatic",
+		sessionOffsetSeconds: 0,
+		trimStartSeconds: 0,
+		trimEndSeconds: null,
+		gapConfirmed: false,
+		overlapResolution: null,
+		overlapBoundarySeconds: null,
+		sourceStartTime: null,
+		sourceStartConfidence: "missing",
+		sourceStartUtc: null,
+		sourceDurationSeconds: 1,
+		effectiveStartSeconds: 0,
+		effectiveEndSeconds: 1,
+		relationToPrevious: "first",
+		relationSeconds: null,
+		overlapResolutionValid: true,
+		physicalIntervalState: "first",
+		createdAt: "2026-10-05T20:00:00.000Z",
+		updatedAt: "2026-10-05T20:00:00.000Z",
+	};
+}
+
+function job(overrides: Partial<LocalJob> = {}): LocalJob {
+	return {
+		id: "job-current",
+		kind: "transcription.craig",
+		status: "failed",
+		stage: "failed",
+		progress: null,
+		error: { code: "FIXTURE", recoverable: true },
+		result_available: false,
+		updated_at: "2026-10-05T20:00:00.001Z",
+		attempt: 1,
+		context: {
+			campaignId: "campaign",
+			sessionId: "session",
+			sourceId: SOURCE_ID,
+		},
+		timing: {
+			schemaVersion: "tda_job_timing_v1",
+			attemptStartedAt: null,
+			attemptFinishedAt: null,
+			attemptElapsedSeconds: null,
+			stageStartedAt: null,
+			stageElapsedSeconds: null,
+			tracks: [],
+		},
+		...overrides,
+	};
+}
 
 function workspace(freshStartAt: string | null): SessionWorkspace {
 	return {
@@ -13,7 +76,7 @@ function workspace(freshStartAt: string | null): SessionWorkspace {
 		updatedAt: "2026-10-05T20:00:00.000Z",
 		freshStartAt,
 		freshStartExcludedJobIds: [],
-		parts: [],
+		parts: [part()],
 		timeline: {
 			policyVersion: "tda_session_timeline_v2",
 			segmentBoundaryPolicy: "segment_start_owner_v1",
@@ -56,5 +119,64 @@ describe("workspaceGenerationEligible", () => {
 		expect(
 			workspaceGenerationEligible(value, "2026-10-05T20:00:00.001Z"),
 		).toBe(true);
+	});
+
+	it("accepts only transcription jobs owned by this campaign/session/source generation", () => {
+		const current = workspace("2026-10-05T20:00:00.000Z");
+		expect(workspaceJobGenerationEligible(current, job())).toBe(true);
+		expect(
+			workspaceJobGenerationEligible(
+				current,
+				job({
+					id: "job-other-session",
+					context: {
+						campaignId: "campaign",
+						sessionId: "other-session",
+						sourceId: SOURCE_ID,
+					},
+				}),
+			),
+		).toBe(false);
+		expect(
+			workspaceJobGenerationEligible(
+				current,
+				job({
+					id: "job-other-campaign",
+					context: {
+						campaignId: "other-campaign",
+						sessionId: "session",
+						sourceId: SOURCE_ID,
+					},
+				}),
+			),
+		).toBe(false);
+		expect(
+			workspaceJobGenerationEligible(
+				current,
+				job({
+					id: "job-other-source",
+					context: {
+						campaignId: "campaign",
+						sessionId: "session",
+						sourceId: "craig-" + "b".repeat(64),
+					},
+				}),
+			),
+		).toBe(false);
+		expect(
+			workspaceJobGenerationEligible(
+				{ ...current, freshStartExcludedJobIds: ["job-current"] },
+				job(),
+			),
+		).toBe(false);
+		expect(
+			workspaceJobGenerationEligible(
+				current,
+				job({
+					id: "job-old",
+					updated_at: "2026-10-05T19:59:59.999Z",
+				}),
+			),
+		).toBe(false);
 	});
 });
