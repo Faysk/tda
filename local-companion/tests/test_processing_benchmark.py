@@ -456,6 +456,107 @@ def _benchmark_body() -> dict:
     }
 
 
+@pytest.mark.parametrize("completed_before_failure", range(4))
+def test_benchmark_retry_resets_attempt_progress_before_new_sequence(
+    tmp_path,
+    completed_before_failure,
+):
+    store = Store(tmp_path)
+    queued = store.submit(
+        f"benchmark-retry-{completed_before_failure}",
+        _benchmark_body(),
+    )
+    claimed = store.claim()
+    assert claimed is not None
+    job_id, attempt = claimed
+    assert job_id == queued["id"]
+    assert attempt == 1
+
+    for completed in range(1, completed_before_failure + 1):
+        assert store.progress(
+            job_id,
+            attempt,
+            completed=completed,
+            total=4,
+            stage="benchmark",
+        )
+
+    store.fail(
+        job_id,
+        attempt,
+        "WORKER_EXECUTION_FAILED",
+        recoverable=True,
+    )
+    failed = store.get(job_id)
+    assert failed["status"] == "failed"
+    assert failed["progress"]["completed"] == completed_before_failure
+
+    retried = store.action(job_id, "retry")
+    assert retried["status"] == "queued"
+    assert retried["stage"] == "queued"
+    assert retried["attempt"] == 1
+    assert retried["progress"] == {
+        "completed": 0,
+        "total": 4,
+        "unit": "profiles",
+    }
+    assert retried["timing"]["attempt_started_at"] is None
+    assert retried["timing"]["attempt_finished_at"] is None
+    assert retried["timing"]["stage_started_at"] is None
+
+    claimed_again = store.claim()
+    assert claimed_again == (job_id, 2)
+
+    for completed in range(1, 5):
+        assert store.progress(
+            job_id,
+            2,
+            completed=completed,
+            total=4,
+            stage="benchmark",
+        )
+
+    running = store.get(job_id)
+    assert running["attempt"] == 2
+    assert running["progress"] == {
+        "completed": 4,
+        "total": 4,
+        "unit": "profiles",
+    }
+
+    events = store.events(job_id)
+    attempt_one = [event for event in events if event["attempt"] == 1]
+    attempt_two = [event for event in events if event["attempt"] == 2]
+    assert any(event["code"] == "WORKER_EXECUTION_FAILED" for event in attempt_one)
+    assert sum(event["code"] == "UNIT_COMMITTED" for event in attempt_one) == completed_before_failure
+    assert sum(event["code"] == "UNIT_COMMITTED" for event in attempt_two) == 4
+
+
+def test_benchmark_progress_gap_remains_fail_closed(tmp_path):
+    store = Store(tmp_path)
+    queued = store.submit("benchmark-real-gap", _benchmark_body())
+    claimed = store.claim()
+    assert claimed is not None
+    job_id, attempt = claimed
+    assert job_id == queued["id"]
+
+    with pytest.raises(Conflict, match="WORKER_PROGRESS_MISMATCH"):
+        store.progress(
+            job_id,
+            attempt,
+            completed=2,
+            total=4,
+            stage="benchmark",
+        )
+
+    state = store.get(job_id)
+    assert state["progress"] == {
+        "completed": 0,
+        "total": 4,
+        "unit": "profiles",
+    }
+
+
 def _partial_result() -> dict:
     profiles = []
     for profile_id in BENCHMARK_PROFILES:
