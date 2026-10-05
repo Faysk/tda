@@ -1449,6 +1449,67 @@ test("multi-ZIP preflight explains one session, reorders accessibly, and carries
 	await expect(intent.getByLabel("Progresso das gravações")).toHaveCount(0);
 });
 
+test("fresh restart ignores preserved runs and creates new jobs for every recording", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		preexistingRunIndexes: [0],
+		failOnceSourceIndex: 1,
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "sessao-42-parte-1.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-fresh-a"),
+		},
+		{
+			name: "sessao-42-parte-2.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-fresh-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("1/2 concluídas");
+	await expect(
+		intent.getByRole("button", { name: "Reprocessar 1 gravação" }),
+	).toBeVisible();
+	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(0);
+	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
+	const oldKey = multi.keysFor(SOURCE_IDS[1]!)[0];
+
+	await intent
+		.getByRole("button", { name: "Recomeçar do zero" })
+		.first()
+		.click();
+	const dialog = page
+		.getByRole("dialog")
+		.filter({ hasText: "Recomeçar esta sessão do zero?" });
+	await expect(dialog).toContainText(
+		"não serão reutilizados nesta nova execução",
+	);
+	await dialog
+		.getByRole("button", { name: "Descartar estado e recomeçar" })
+		.click();
+
+	await expect.poll(() => multi.resetCount).toBe(1);
+	await expect.poll(() => multi.postCount(SOURCE_IDS[0]!)).toBe(1);
+	await expect.poll(() => multi.postCount(SOURCE_IDS[1]!)).toBe(2);
+	expect(multi.retryCount(SOURCE_IDS[1]!)).toBe(0);
+	const newKey = multi.keysFor(SOURCE_IDS[1]!).at(-1);
+	expect(newKey).toBeTruthy();
+	expect(newKey).not.toBe(oldKey);
+	await expect(intent).toContainText("Transcrição pronta");
+});
+
 test("three ZIPs become one session intent, retry only the failed recording, auto-assemble and open review", async ({
 	page,
 }, testInfo) => {
