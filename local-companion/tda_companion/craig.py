@@ -17,6 +17,7 @@ from .flac_metadata import flac_duration_seconds
 TRACK_NAME = re.compile(r"^(?P<track>[1-9][0-9]*)-(?P<speaker>.+)\.flac$", re.IGNORECASE)
 MAX_ENTRIES = 256
 MAX_INFO_BYTES = 1024 * 1024
+MAX_RAW_HEADER_BYTES = 256 * 1024
 MAX_TRACK_BYTES = 16 * 1024**3
 MAX_TOTAL_BYTES = 64 * 1024**3
 MAX_COMPRESSION_RATIO = 150.0
@@ -32,6 +33,15 @@ class CraigIdentity:
     username: str
     discriminator: str | None
     discord_id: str | None
+    global_name: str | None = None
+    bot: bool | None = None
+    unknown: bool | None = None
+
+
+@dataclass(frozen=True)
+class CraigNote:
+    offset_seconds: float
+    text: str
 
 
 @dataclass(frozen=True)
@@ -61,6 +71,13 @@ class CraigPackage:
     tracks: tuple[CraigTrack, ...]
     info_present: bool
     raw_dat_present: bool
+    guild_id: str | None = None
+    channel_id: str | None = None
+    requester_id: str | None = None
+    notes: tuple[CraigNote, ...] = ()
+    raw_metadata_present: bool = False
+    metadata_consistency: str = "unavailable"
+    metadata_warnings: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -127,10 +144,37 @@ def _copy_member(archive: zipfile.ZipFile, info: zipfile.ZipInfo, target: Path) 
     return digest.hexdigest()
 
 
+def _clean_metadata_text(value: object, *, maximum: int = 512) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text or len(text) > maximum or "\x00" in text:
+        return None
+    return text
+
+
+def _parse_note_line(value: str) -> dict[str, object] | None:
+    match = re.fullmatch(
+        r"(?P<hours>[0-9]+):(?P<minutes>[0-5][0-9]):(?P<seconds>[0-5][0-9]):\\s*(?P<text>.+)",
+        value.strip(),
+    )
+    if match is None:
+        return None
+    text = _clean_metadata_text(match.group("text"), maximum=4096)
+    if text is None:
+        return None
+    offset = (
+        int(match.group("hours")) * 3600
+        + int(match.group("minutes")) * 60
+        + int(match.group("seconds"))
+    )
+    return {"offset_seconds": float(offset), "text": text}
+
+
 def parse_info_text(text: str) -> dict[str, object]:
     """Parse Craig's public info.txt format without depending on Discord APIs."""
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    value: dict[str, object] = {"tracks": []}
+    value: dict[str, object] = {"tracks": [], "notes": []}
     if lines and lines[0].startswith("Recording "):
         value["recording_id"] = lines[0][len("Recording ") :].strip() or None
 
@@ -141,16 +185,28 @@ def parse_info_text(text: str) -> dict[str, object]:
         "Start time:": "start_time",
     }
     in_tracks = False
+    in_notes = False
     for line in lines[1:]:
         stripped = line.strip()
         if not stripped:
             continue
         if stripped == "Tracks:":
             in_tracks = True
+            in_notes = False
             continue
         if stripped == "Notes:":
             in_tracks = False
+            in_notes = True
             continue
+
+        if in_notes:
+            note = _parse_note_line(stripped)
+            if note is not None:
+                notes = value["notes"]
+                assert isinstance(notes, list)
+                notes.append(note)
+            continue
+
         matched_label = False
         for prefix, key in labels.items():
             if stripped.startswith(prefix):
@@ -160,18 +216,149 @@ def parse_info_text(text: str) -> dict[str, object]:
                 break
         if matched_label or not in_tracks:
             continue
-        identity = re.match(r"^(?P<name>.+?)(?:#(?P<disc>[^\s()]+))?\s+\((?P<id>[^()]+)\)$", stripped)
+
+        # Newer exported info may carry an explicit user id in parentheses.
+        identity = re.match(
+            r"^(?P<name>.+?)(?:#(?P<disc>[^\\s()]+))?\\s+\\((?P<id>[^()]+)\\)$",
+            stripped,
+        )
+        # Older Craig infotxt output contains username#discriminator only.
+        if identity is None:
+            identity = re.match(
+                r"^(?P<name>.+?)(?:#(?P<disc>[^\\s()]+))?$",
+                stripped,
+            )
         if identity:
             tracks = value["tracks"]
             assert isinstance(tracks, list)
+            groups = identity.groupdict()
             tracks.append(
                 {
                     "username": identity.group("name").strip(),
-                    "discriminator": identity.group("disc"),
-                    "discord_id": identity.group("id").strip(),
+                    "discriminator": groups.get("disc"),
+                    "discord_id": (
+                        groups.get("id").strip()
+                        if isinstance(groups.get("id"), str) and groups.get("id").strip()
+                        else None
+                    ),
                 }
             )
     return value
+
+
+def _read_raw_dat_header(
+    archive: zipfile.ZipFile,
+    member: zipfile.ZipInfo | None,
+) -> tuple[dict[str, object] | None, str | None]:
+    """Read only Craig's bounded JSON metadata prefix from raw.dat."""
+    if member is None:
+        return None, None
+    try:
+        with archive.open(member, "r") as handle:
+            line = handle.readline(MAX_RAW_HEADER_BYTES + 1)
+    except (OSError, RuntimeError, zipfile.BadZipFile):
+        return None, "CRAIG_RAW_HEADER_READ_FAILED"
+    if not line or len(line) > MAX_RAW_HEADER_BYTES or not line.endswith(b"\n"):
+        return None, "CRAIG_RAW_HEADER_INVALID"
+    try:
+        decoded = line.decode("utf-8")
+        value = json.loads(decoded)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None, "CRAIG_RAW_HEADER_INVALID"
+    if not isinstance(value, dict):
+        return None, "CRAIG_RAW_HEADER_INVALID"
+    return value, None
+
+
+def _raw_tracks(value: dict[str, object] | None) -> dict[int, dict[str, object]]:
+    if value is None:
+        return {}
+    raw = value.get("tracks")
+    rows: list[tuple[object, object]]
+    if isinstance(raw, dict):
+        rows = list(raw.items())
+    elif isinstance(raw, list):
+        rows = [(None, item) for item in raw]
+    else:
+        return {}
+
+    result: dict[int, dict[str, object]] = {}
+    for key, item in rows:
+        if not isinstance(item, dict):
+            continue
+        number_value = item.get("track", key)
+        try:
+            number = int(number_value) if not isinstance(number_value, bool) else 0
+        except (TypeError, ValueError):
+            number = 0
+        if number < 1 or number > 1_000_000 or number in result:
+            continue
+        username = _clean_metadata_text(item.get("username"), maximum=160)
+        discord_id = _clean_metadata_text(item.get("id"), maximum=128)
+        if username is None and discord_id is None:
+            continue
+        result[number] = {
+            "username": username,
+            "discriminator": _clean_metadata_text(item.get("discriminator"), maximum=64),
+            "discord_id": discord_id,
+            "global_name": _clean_metadata_text(item.get("globalName"), maximum=160),
+            "bot": item.get("bot") if isinstance(item.get("bot"), bool) else None,
+            "unknown": item.get("unknown") if isinstance(item.get("unknown"), bool) else None,
+        }
+    return result
+
+
+def _raw_extra_id(value: dict[str, object] | None, key: str) -> str | None:
+    if value is None:
+        return None
+    extra = value.get(key)
+    if not isinstance(extra, dict):
+        return None
+    return _clean_metadata_text(extra.get("id"), maximum=128)
+
+
+def _raw_extra_name(value: dict[str, object] | None, key: str) -> str | None:
+    if value is None:
+        return None
+    extra = value.get(key)
+    if not isinstance(extra, dict):
+        return None
+    return _clean_metadata_text(extra.get("name"), maximum=512)
+
+
+def _raw_requester_name(value: dict[str, object] | None) -> str | None:
+    if value is None:
+        return None
+    extra = value.get("requesterExtra")
+    if isinstance(extra, dict):
+        username = _clean_metadata_text(extra.get("username"), maximum=160)
+        global_name = _clean_metadata_text(extra.get("globalName"), maximum=160)
+        if global_name:
+            return global_name
+        if username:
+            return username
+    return _clean_metadata_text(value.get("requester"), maximum=512)
+
+
+def _instant(value: object) -> datetime | None:
+    text = _clean_metadata_text(value, maximum=128)
+    if text is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed
+
+
+def _times_equivalent(left: object, right: object) -> bool:
+    a = _instant(left)
+    b = _instant(right)
+    if a is not None and b is not None:
+        return a == b
+    return left == right
 
 
 def _safe_start_time(value: object) -> str | None:
@@ -187,7 +374,13 @@ def _safe_start_time(value: object) -> str | None:
     return text
 
 
-def inspect_craig_zip(source_zip: Path) -> tuple[list[tuple[zipfile.ZipInfo, int, str]], zipfile.ZipInfo | None, bool]:
+def inspect_craig_zip(
+    source_zip: Path,
+) -> tuple[
+    list[tuple[zipfile.ZipInfo, int, str]],
+    zipfile.ZipInfo | None,
+    zipfile.ZipInfo | None,
+]:
     source_zip = source_zip.resolve()
     if not source_zip.is_file():
         raise CraigPackageError("CRAIG_ARCHIVE_NOT_FOUND")
@@ -204,7 +397,7 @@ def inspect_craig_zip(source_zip: Path) -> tuple[list[tuple[zipfile.ZipInfo, int
         tracks: list[tuple[zipfile.ZipInfo, int, str]] = []
         seen_numbers: set[int] = set()
         info_member: zipfile.ZipInfo | None = None
-        raw_present = False
+        raw_member: zipfile.ZipInfo | None = None
         names: set[str] = set()
         for item in infos:
             name = _member_name(item)
@@ -239,14 +432,14 @@ def inspect_craig_zip(source_zip: Path) -> tuple[list[tuple[zipfile.ZipInfo, int
                     raise CraigPackageError("CRAIG_INFO_SIZE_LIMIT")
                 info_member = item
             elif folded == "raw.dat":
-                raw_present = True
+                raw_member = item
             else:
                 raise CraigPackageError("CRAIG_ARCHIVE_UNEXPECTED_FILE")
 
         if not tracks:
             raise CraigPackageError("CRAIG_ARCHIVE_NO_TRACKS")
         tracks.sort(key=lambda value: value[1])
-        return tracks, info_member, raw_present
+        return tracks, info_member, raw_member
 
 
 def ingest_craig_zip(
@@ -263,7 +456,7 @@ def ingest_craig_zip(
     """
     source_zip = source_zip.resolve()
     destination = destination.resolve()
-    tracks, info_member, raw_present = inspect_craig_zip(source_zip)
+    tracks, info_member, raw_member = inspect_craig_zip(source_zip)
     if source_sha256 is None:
         source_sha = _sha256_file(source_zip)
     else:
@@ -284,9 +477,13 @@ def ingest_craig_zip(
     staging.mkdir(parents=True, exist_ok=False)
 
     try:
-        info_value: dict[str, object] = {"tracks": []}
+        info_value: dict[str, object] = {"tracks": [], "notes": []}
         info_present = info_member is not None
+        raw_present = raw_member is not None
+        raw_value: dict[str, object] | None = None
+        raw_warning: str | None = None
         with zipfile.ZipFile(source_zip, "r") as archive:
+            raw_value, raw_warning = _read_raw_dat_header(archive, raw_member)
             if info_member is not None:
                 raw_info = archive.read(info_member)
                 if len(raw_info) > MAX_INFO_BYTES:
@@ -300,6 +497,27 @@ def ingest_craig_zip(
 
             identities = info_value.get("tracks")
             info_tracks = identities if isinstance(identities, list) else []
+            raw_tracks = _raw_tracks(raw_value)
+            warnings: list[str] = []
+            if raw_warning is not None:
+                warnings.append(raw_warning)
+
+            info_recording_id = _clean_metadata_text(info_value.get("recording_id"), maximum=256)
+            raw_recording_id = _clean_metadata_text(
+                raw_value.get("id") if raw_value is not None else None,
+                maximum=256,
+            )
+            if info_recording_id and raw_recording_id and info_recording_id != raw_recording_id:
+                warnings.append("CRAIG_METADATA_RECORDING_ID_CONFLICT")
+
+            info_start = _clean_metadata_text(info_value.get("start_time"), maximum=128)
+            raw_start = _clean_metadata_text(
+                raw_value.get("startTime") if raw_value is not None else None,
+                maximum=128,
+            )
+            if info_start and raw_start and not _times_equivalent(info_start, raw_start):
+                warnings.append("CRAIG_METADATA_START_TIME_CONFLICT")
+
             output_tracks: list[CraigTrack] = []
             tracks_root = staging / "tracks"
             tracks_root.mkdir()
@@ -308,16 +526,39 @@ def ingest_craig_zip(
                 physical_filename = physical_track_filename(number)
                 target = tracks_root / physical_filename
                 digest = _copy_member(archive, member, target)
+
+                info_row = (
+                    info_tracks[index]
+                    if index < len(info_tracks) and isinstance(info_tracks[index], dict)
+                    else {}
+                )
+                raw_row = raw_tracks.get(number, {})
+                info_discord = _clean_metadata_text(info_row.get("discord_id"), maximum=128)
+                raw_discord = _clean_metadata_text(raw_row.get("discord_id"), maximum=128)
+                if info_discord and raw_discord and info_discord != raw_discord:
+                    warnings.append(f"CRAIG_METADATA_TRACK_ID_CONFLICT:{number}")
+
+                username = (
+                    _clean_metadata_text(raw_row.get("username"), maximum=160)
+                    or _clean_metadata_text(info_row.get("username"), maximum=160)
+                )
                 identity = None
-                if index < len(info_tracks) and isinstance(info_tracks[index], dict):
-                    row = info_tracks[index]
-                    username = row.get("username")
-                    if isinstance(username, str) and username.strip():
-                        identity = CraigIdentity(
-                            username=username.strip(),
-                            discriminator=row.get("discriminator") if isinstance(row.get("discriminator"), str) else None,
-                            discord_id=row.get("discord_id") if isinstance(row.get("discord_id"), str) else None,
-                        )
+                if username is not None or raw_discord is not None or info_discord is not None:
+                    identity = CraigIdentity(
+                        username=username or speaker,
+                        discriminator=(
+                            _clean_metadata_text(raw_row.get("discriminator"), maximum=64)
+                            or _clean_metadata_text(info_row.get("discriminator"), maximum=64)
+                        ),
+                        discord_id=raw_discord or info_discord,
+                        global_name=_clean_metadata_text(raw_row.get("global_name"), maximum=160),
+                        bot=raw_row.get("bot") if isinstance(raw_row.get("bot"), bool) else None,
+                        unknown=(
+                            raw_row.get("unknown")
+                            if isinstance(raw_row.get("unknown"), bool)
+                            else None
+                        ),
+                    )
                 output_tracks.append(
                     CraigTrack(
                         number=number,
@@ -332,18 +573,64 @@ def ingest_craig_zip(
                     )
                 )
 
+        raw_available = raw_value is not None
+        if warnings:
+            metadata_consistency = (
+                "conflicting"
+                if any("CONFLICT" in warning for warning in warnings)
+                else "raw_invalid"
+            )
+        elif info_present and raw_available:
+            metadata_consistency = "consistent"
+        elif info_present or raw_available:
+            metadata_consistency = "partial"
+        else:
+            metadata_consistency = "unavailable"
+
+        notes_value = info_value.get("notes")
+        notes: list[CraigNote] = []
+        if isinstance(notes_value, list):
+            for row in notes_value:
+                if not isinstance(row, dict):
+                    continue
+                offset = row.get("offset_seconds")
+                text = _clean_metadata_text(row.get("text"), maximum=4096)
+                if isinstance(offset, (int, float)) and not isinstance(offset, bool) and offset >= 0 and text:
+                    notes.append(CraigNote(offset_seconds=float(offset), text=text))
+
         package = CraigPackage(
             schema_version="tda_craig_package_v1",
             source_zip=logical_source_name,
             source_sha256=source_sha,
-            recording_id=info_value.get("recording_id") if isinstance(info_value.get("recording_id"), str) else None,
-            guild=info_value.get("guild") if isinstance(info_value.get("guild"), str) else None,
-            channel=info_value.get("channel") if isinstance(info_value.get("channel"), str) else None,
-            requester=info_value.get("requester") if isinstance(info_value.get("requester"), str) else None,
-            start_time=_safe_start_time(info_value.get("start_time")),
+            recording_id=info_recording_id or raw_recording_id,
+            guild=(
+                _clean_metadata_text(info_value.get("guild"), maximum=512)
+                or _raw_extra_name(raw_value, "guildExtra")
+                or _clean_metadata_text(raw_value.get("guild") if raw_value is not None else None, maximum=512)
+            ),
+            channel=(
+                _clean_metadata_text(info_value.get("channel"), maximum=512)
+                or _raw_extra_name(raw_value, "channelExtra")
+                or _clean_metadata_text(raw_value.get("channel") if raw_value is not None else None, maximum=512)
+            ),
+            requester=(
+                _clean_metadata_text(info_value.get("requester"), maximum=512)
+                or _raw_requester_name(raw_value)
+            ),
+            start_time=_safe_start_time(info_start or raw_start),
             tracks=tuple(output_tracks),
             info_present=info_present,
             raw_dat_present=raw_present,
+            guild_id=_raw_extra_id(raw_value, "guildExtra"),
+            channel_id=_raw_extra_id(raw_value, "channelExtra"),
+            requester_id=_clean_metadata_text(
+                raw_value.get("requesterId") if raw_value is not None else None,
+                maximum=128,
+            ),
+            notes=tuple(notes),
+            raw_metadata_present=raw_available,
+            metadata_consistency=metadata_consistency,
+            metadata_warnings=tuple(sorted(set(warnings))),
         )
         manifest = staging / "manifest.json"
         manifest.write_text(
