@@ -168,6 +168,14 @@ describe("session intent model", () => {
 			runId: "run-old",
 			reason: "exact_match",
 		});
+		expect(
+			chooseIntentRun(
+				part(sourceId, "run-intent"),
+				runs,
+				"run-intent",
+				"f".repeat(64),
+			),
+		).toEqual({ kind: "selected", runId: "run-intent" });
 	});
 
 	test("reuses only exact fingerprint matches and revalidates selected runs", () => {
