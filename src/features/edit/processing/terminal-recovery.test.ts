@@ -83,7 +83,7 @@ describe("terminal recovery actions", () => {
 	});
 
 	test("inherits the existing futile-retry guard for Qwen Fast uncertain signal", () => {
-		const uncertain = {
+		const uncertain: LocalJob = {
 			...job("failed", true, "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"),
 			kind: "transcription.craig",
 			context: {
