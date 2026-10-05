@@ -124,7 +124,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/(?:derive|confirm-sequence)|participants|intent))?$"
+    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/(?:derive|confirm-sequence)|participants|intent|reset))?$"
 )
 _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/"
@@ -283,6 +283,11 @@ class SessionTranscriptionIntentRequest(BaseModel):
     ]
     context: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
     glossary: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
+
+
+class SessionWorkspaceResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    expected_revision: int = Field(ge=0)
 
 
 class SessionWorkspaceAttachRequest(BaseModel):
@@ -1898,6 +1903,7 @@ def create_app(
             "transcription.review.base",
             "transcription.target.repair",
             "transcription.session-workspace",
+            "transcription.session-workspace.reset",
             "transcription.session-intent",
             "transcription.session-timeline",
             "transcription.session-sequence",
@@ -2193,6 +2199,20 @@ def create_app(
     ):
         return session_workspace_response(
             store.ensure_session_workspace(campaign_id, session_id)
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/reset")
+    def reset_session_workspace(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceResetRequest,
+    ):
+        return session_workspace_response(
+            store.reset_session_workspace(
+                campaign_id,
+                session_id,
+                body.expected_revision,
+            )
         )
 
     @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}/intent")
