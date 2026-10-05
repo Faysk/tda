@@ -8,13 +8,16 @@ import { LocalBridge } from "./bridge";
 import {
 	latestJobForSource,
 	moveSessionPart,
+	partAttemptNotice,
 	partRelationLabel,
 	partStatusLabel,
 	pendingSourceIds,
 	recordingVariantSourceIds,
 	runsForPart,
 	sessionAssemblyReadiness,
+	sessionProcessingProgress,
 	supportsSessionComposer,
+	timelineStateLabel,
 } from "./session-composer-model";
 import type {
 	SessionAssembly,
@@ -159,6 +162,10 @@ export function SessionRecordingComposer({
 	);
 	const pending = useMemo(
 		() => pendingSourceIds(workspace, runsBySource, jobs),
+		[workspace, runsBySource, jobs],
+	);
+	const processing = useMemo(
+		() => sessionProcessingProgress(workspace, runsBySource, jobs),
 		[workspace, runsBySource, jobs],
 	);
 
@@ -983,7 +990,7 @@ export function SessionRecordingComposer({
 							<div>
 								<strong>
 									{workspace.timeline.strategy === null
-										? `Cronologia · ${workspace.timeline.state}`
+										? timelineStateLabel(workspace.timeline.state)
 										: workspace.timeline.strategy === "user_confirmed_sequence"
 											? "Ordem da sessão confirmada"
 											: workspace.timeline.strategy === "trusted_absolute"
@@ -1006,9 +1013,12 @@ export function SessionRecordingComposer({
 												: " intervalos físicos permanecem desconhecidos.")
 										: ""}
 								</span>
-								<span>
-									{workspace.timeline.gapCount} gap(s) comprovado(s)/definido(s) · {workspace.timeline.overlapCount} overlap(s) · {workspace.timeline.orderConflictCount} conflito(s) de ordem
-								</span>
+								<details className={styles.timelineTechnical}>
+									<summary>Dados da cronologia</summary>
+									<span>
+										Estado {workspace.timeline.state} · {workspace.timeline.gapCount} gap(s) · {workspace.timeline.overlapCount} overlap(s) · {workspace.timeline.orderConflictCount} conflito(s) de ordem
+									</span>
+								</details>
 							</div>
 							<div className={styles.headerActions}>
 								{workspace.timeline.automaticOrderAvailable &&
@@ -1033,6 +1043,7 @@ export function SessionRecordingComposer({
 						{workspace.parts.map((part, index) => {
 							const partRuns = runsForPart(runsBySource, part);
 							const job = latestJobForSource(jobs, part.sourceId);
+							const attemptNotice = partAttemptNotice(part, partRuns, job);
 							const overlapDraft = overlapDrafts[part.partId] ?? {
 								boundary:
 									part.overlapBoundarySeconds === null
@@ -1048,10 +1059,16 @@ export function SessionRecordingComposer({
 										<div className={styles.partCopy}>
 											<strong>{partStatusLabel(part, partRuns, job)}</strong>
 											<span>{partTime(part)} · {partRelationLabel(part)}</span>
-											<small title={part.sourceId}>
-												Fonte {short(part.sourceId, 16)}
-												{job ? " · job " + short(job.id, 8) + " " + job.status : ""}
-											</small>
+											{attemptNotice ? (
+												<span className={styles.attemptNotice}>{attemptNotice}</span>
+											) : null}
+											<details className={styles.partTechnical}>
+												<summary>Dados da execução</summary>
+												<small title={part.sourceId}>
+													Fonte {short(part.sourceId, 16)}
+													{job ? " · job " + short(job.id, 8) + " · " + job.status : ""}
+												</small>
+											</details>
 										</div>
 										<fieldset
 											className={styles.reorder}
@@ -1232,18 +1249,33 @@ export function SessionRecordingComposer({
 					<div className={styles.actions}>
 						<div>
 							<span data-session-composer-progress>
-								{workspace.parts.length - pending.length}/{workspace.parts.length}{" "}
-								{workspace.parts.length === 1 ? "concluída" : "concluídas"}
+								{processing.completed}/{processing.total}{" "}
+								{processing.total === 1 ? "gravação pronta" : "gravações prontas"}
 							</span>
 							<strong>
-								{pending.length
-									? pending.length + (pending.length === 1 ? " gravação" : " gravações") + " sem run concluído"
-									: "Todas as gravações possuem ao menos um run"}
+								{processing.completed === processing.total
+									? "Todas as gravações possuem resultado concluído"
+									: processing.active > 0
+										? processing.active +
+											(processing.active === 1
+												? " gravação está processando"
+												: " gravações estão processando")
+										: processing.attention > 0
+											? processing.attention +
+												(processing.attention === 1
+													? " gravação precisa de atenção"
+													: " gravações precisam de atenção")
+											: processing.waiting +
+												(processing.waiting === 1
+													? " gravação aguarda processamento"
+													: " gravações aguardam processamento")}
 							</strong>
 							<span>
-								{readiness.ready
-									? "Tudo pronto para montar uma assembly imutável."
-									: readiness.reasons.join(" ")}
+								{processing.active > 0
+									? "A montagem final será liberada quando o processamento em andamento terminar."
+									: readiness.ready
+										? "Tudo pronto para montar a transcrição única da sessão."
+										: readiness.reasons.join(" ")}
 							</span>
 						</div>
 						<div>

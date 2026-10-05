@@ -2,10 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { LocalBridge } from "./bridge";
 import {
 	moveSessionPart,
+	partAttemptNotice,
+	partStatusLabel,
 	pendingSourceIds,
 	recordingVariantSourceIds,
 	sessionAssemblyReadiness,
+	sessionProcessingProgress,
 	supportsSessionComposer,
+	timelineStateLabel,
 } from "./session-composer-model";
 import {
 	parseSessionAssembly,
@@ -295,6 +299,59 @@ describe("multi-recording composer model", () => {
 				} as never,
 			]),
 		).toEqual([]);
+	});
+
+	it("reports completed and active recordings separately", () => {
+		const value = workspace(false);
+		const run = { sourceId: sourceA } as LocalRunSummary;
+		const runs = new Map<string, readonly LocalRunSummary[]>([
+			[sourceA, [run]],
+			[sourceB, []],
+		]);
+		const runningJob = {
+			id: "job-running",
+			status: "running",
+			updated_at: "2026-10-05T00:00:00Z",
+			context: {
+				campaignId: "yuhara-main",
+				sessionId: "session-42",
+				sourceId: sourceB,
+			},
+		} as never;
+
+		expect(sessionProcessingProgress(value, runs, [runningJob])).toEqual({
+			total: 2,
+			completed: 1,
+			active: 1,
+			attention: 0,
+			waiting: 0,
+		});
+	});
+
+	it("keeps a preserved run primary when the latest retry failed", () => {
+		const recording = part(partA, sourceA, 0, runA);
+		const run = { sourceId: sourceA, runId: runA } as LocalRunSummary;
+		const failedJob = {
+			id: "job-failed",
+			status: "failed",
+			error: { recoverable: true },
+		} as never;
+
+		expect(partStatusLabel(recording, [run], failedJob)).toBe(
+			"Resultado selecionado",
+		);
+		expect(partAttemptNotice(recording, [run], failedJob)).toBe(
+			"A última tentativa falhou, mas o resultado anterior está preservado e pode continuar sendo usado.",
+		);
+	});
+
+	it("uses human chronology labels instead of raw protocol states", () => {
+		expect(timelineStateLabel("needs_timing")).toBe(
+			"Confirme a ordem das gravações",
+		);
+		expect(timelineStateLabel("overlap_unresolved")).toBe(
+			"Resolva a sobreposição entre gravações",
+		);
 	});
 
 	it("keeps assembly fail-closed until chronology, runs and participants are ready", () => {
