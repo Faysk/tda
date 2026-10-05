@@ -4,7 +4,7 @@
 > Data: 2026-09-27
 > Decisores: proprietário / maintainers TDA
 > Supersede: —
-> Superseded por: —
+> Superseded por: ADR-0022 somente para a decisão boundary-first de overlap
 
 ## Contexto
 
@@ -109,7 +109,9 @@ Não compactar a timeline para esconder períodos sem gravação.
 
 ### Overlap não recebe fuzzy dedupe automático
 
-A primeira implementação usa resolução/boundary explícito e determinístico. Heurísticas futuras podem sugerir, nunca remover conteúdo silenciosamente.
+A invariável original permanece: heurística fuzzy nunca remove conteúdo silenciosamente.
+
+A formulação histórica em que a primeira implementação usava resolução/boundary explícito foi **substituída em 2026-10-05 por ADR-0022**. A policy vigente usa `preserve_both_exact_v1` para overlap factual confiável, preserva ambas as capturas e só colapsa duplicata com prova forte; boundary/trims manuais permanecem fallback para ambiguidade editorial real.
 
 ### Assembly é diferente de run
 
@@ -181,7 +183,7 @@ A implementação respeita este ADR quando:
 - review e publication preservam provenance;
 - nenhum áudio/path privado é sincronizado.
 
-O gate completo está em #852.
+O gate arquitetural inicial está em #852. A evolução de automação Craig de #1508 é protegida por #1515 e pelo PR #1532, integrado em #1531, que prova o happy path sem gates técnicos quando chronology/participants/overlap/Assembly são determinísticos.
 
 ## Estado de adoção
 
@@ -191,8 +193,12 @@ A adoção deste ADR não elimina o lifecycle próprio de distribuição do Comp
 
 ## Referências
 
-- #843 — epic multi-recording;
-- #844, #845, #846, #848, #849, #851 e #852 — backlog executável;
+- #843 — epic fundacional multi-recording;
+- #844, #845, #846, #848, #849, #851 e #852 — slices/gate fundacionais;
+- #1508 e #1509–#1516 — evolução do happy path Craig automático;
+- PR #1527 — overlap conservador;
+- PR #1531/#1532 — completed state e gate zero-interrupção;
+- ADR-0022 — decisão vigente de overlap;
 - ADR-0003 — processamento pesado local;
 - ADR-0013 — Companion/ASR;
 - ADR-0016 — runs imutáveis, revisão e publicação;
