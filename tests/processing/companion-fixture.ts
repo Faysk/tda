@@ -1535,6 +1535,24 @@ export async function installCompanionFixture(
 			state.job = fixtureBenchmarkJob("cancelled");
 			return json(route, state.job);
 		}
+		if (
+			path === "/jobs/benchmark-job-1/retry" &&
+			request.method() === "POST"
+		) {
+			state.job = fixtureBenchmarkJob("queued", {
+				attempt: 2,
+				progress: { completed: 0, total: 4, unit: "profiles" },
+			});
+			jobsReads = 0;
+			return json(route, state.job);
+		}
+		if (
+			path === "/jobs/benchmark-job-1/delete" &&
+			request.method() === "POST"
+		) {
+			state.job = null;
+			return json(route, { deleted: true, id: "benchmark-job-1" });
+		}
 		if (path === "/jobs/craig-job-1/events") {
 			return json(route, {
 				events:
@@ -1590,6 +1608,13 @@ export async function installCompanionFixture(
 			state.job = fixtureJob("queued", { attempt: 2 });
 			jobsReads = 0;
 			return json(route, state.job);
+		}
+		if (
+			path === "/jobs/craig-job-1/delete" &&
+			request.method() === "POST"
+		) {
+			state.job = null;
+			return json(route, { deleted: true, id: "craig-job-1" });
 		}
 		if (path === "/lifecycle" && request.method() === "POST") {
 			const payload = request.postDataJSON() as { action?: string };
