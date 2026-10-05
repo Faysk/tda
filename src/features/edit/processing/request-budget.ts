@@ -12,6 +12,7 @@ export type CraigTranscriptionRequest = Readonly<{
 	glossary: string;
 	context: string;
 	cpu: false;
+	include_bot_tracks: boolean;
 }>;
 
 export function truncateUnicodeScalars(value: string, max: number): string {
@@ -30,6 +31,7 @@ export function buildCraigTranscriptionRequest(
 		glossary: truncateUnicodeScalars(input.glossary, TRANSCRIPTION_TEXT_MAX_CHARS),
 		context: truncateUnicodeScalars(input.context, TRANSCRIPTION_TEXT_MAX_CHARS),
 		cpu: false,
+		include_bot_tracks: input.includeBotTracks === true,
 	};
 }
 
