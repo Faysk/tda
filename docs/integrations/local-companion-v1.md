@@ -2,10 +2,12 @@
 
 > Status: vigente
 > Owner: local-companion/processing
-> Última revisão: 2026-09-24
+> Última revisão: 2026-10-05
 > Fonte de verdade: `local-companion/tda_companion/api.py`, `store.py`, `telemetry.py` e `windows_app.py`
 
-O protocolo wire permanece `api_version="1"`. A versão de serviço deste corte é `0.3.14`. A evolução continua local-first: jobs ASR Craig, eventos, telemetria e sessões de navegador existem no loopback sem transformar autorização local em autorização cloud.
+O protocolo wire permanece `api_version="1"`. A linha de código atual declara `service_version="0.3.18"`. **Esses versionamentos são independentes:** manter wire API v1 não fixa a versão do serviço em 0.3.14 nem em qualquer release histórica.
+
+Jobs ASR Craig, eventos, telemetria e sessões de navegador continuam no loopback sem transformar autorização local em autorização cloud. Versões mínimas de runtimes e gates de benchmark pertencem a [Companion — política de versões e dependências](../operations/companion-dependency-policy.md), não a este protocolo wire.
 
 **Concluir ASR continua sem publicar conteúdo no cloud.**
 
