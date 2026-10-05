@@ -1119,11 +1119,12 @@ export function SessionIntentCoordinator({
 					(job?.status === "queued" || job?.status === "running"),
 			);
 		if (active.length) {
+			const message =
+				"Há gravações ainda na fila ou em processamento. Cancele essas execuções antes de recomeçar do zero.";
 			setFreshStartOpen(false);
 			setRecovery(null);
-			setLocalError(
-				"Há gravações ainda na fila ou em processamento. Cancele essas execuções antes de recomeçar do zero.",
-			);
+			setLocalError(onError ? null : message);
+			onError?.(message);
 			return;
 		}
 
@@ -1255,10 +1256,11 @@ export function SessionIntentCoordinator({
 				cause instanceof BridgeError &&
 				cause.serverCode === "SESSION_WORKSPACE_RESET_ACTIVE_JOBS"
 			) {
+				const message =
+					"Ainda existe uma execução desta sessão na fila ou em processamento. Cancele-a e atualize a sessão antes de recomeçar do zero.";
 				setRecovery(null);
-				setLocalError(
-					"Ainda existe uma execução desta sessão na fila ou em processamento. Cancele-a e atualize a sessão antes de recomeçar do zero.",
-				);
+				setLocalError(onError ? null : message);
+				onError?.(message);
 			} else {
 				fail(cause);
 			}
@@ -1633,21 +1635,34 @@ export function SessionIntentCoordinator({
 								: `${blocker.sourceIds.length} gravações falharam.`}
 						</strong>
 						<span>
-							As gravações concluídas continuam preservadas. A nova tentativa
-							reprocessa somente o que falhou.
+							Você pode reaproveitar o que já terminou ou descartar o estado
+							desta sessão e processar todas as gravações novamente.
 						</span>
 					</div>
-					<Button
-						type="button"
-						size="sm"
-						variant="secondary"
-						disabled={busy}
-						onClick={() => void retryFailed()}
-					>
-						{blocker.sourceIds.length === 1
-							? "Reprocessar 1 gravação"
-							: `Reprocessar ${blocker.sourceIds.length} gravações`}
-					</Button>
+					<div className={styles.blockerActions}>
+						<Button
+							type="button"
+							size="sm"
+							variant="secondary"
+							disabled={busy}
+							onClick={() => void retryFailed()}
+						>
+							{blocker.sourceIds.length === 1
+								? "Reprocessar 1 gravação"
+								: `Reprocessar ${blocker.sourceIds.length} gravações`}
+						</Button>
+						{capabilities.includes("transcription.session-workspace.reset") ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="tertiary"
+								disabled={busy || activeJobs.length > 0}
+								onClick={() => setFreshStartOpen(true)}
+							>
+								Recomeçar do zero
+							</Button>
+						) : null}
+					</div>
 				</div>
 			) : null}
 
@@ -1755,19 +1770,69 @@ export function SessionIntentCoordinator({
 				</div>
 			) : null}
 
-			{activeJobs.length ? (
+			{workspace && !assembly ? (
 				<div className={styles.secondaryActions}>
-					<Button
-						type="button"
-						size="sm"
-						variant="tertiary"
-						disabled={busy}
-						onClick={() => void cancelActive()}
-					>
-						Cancelar novas execuções
-					</Button>
+					{activeJobs.length ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="tertiary"
+							disabled={busy}
+							onClick={() => void cancelActive()}
+						>
+							Cancelar novas execuções
+						</Button>
+					) : null}
+					{capabilities.includes("transcription.session-workspace.reset") ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="tertiary"
+							disabled={busy || activeJobs.length > 0}
+							onClick={() => setFreshStartOpen(true)}
+						>
+							Recomeçar do zero
+						</Button>
+					) : null}
 				</div>
 			) : null}
+
+			<Dialog
+				open={freshStartOpen}
+				title="Recomeçar esta sessão do zero?"
+				description={
+					<p>
+						O TDA vai ignorar todos os resultados e tentativas anteriores desta
+						sessão e criar novas execuções para todas as gravações.
+					</p>
+				}
+				onClose={() => setFreshStartOpen(false)}
+				actions={
+					<>
+						<Button
+							data-dialog-initial-focus
+							variant="secondary"
+							onClick={() => setFreshStartOpen(false)}
+						>
+							Voltar
+						</Button>
+						<Button
+							variant="tertiary"
+							disabled={busy}
+							onClick={() => void restartSessionFromScratch()}
+						>
+							{busy ? "Recomeçando…" : "Descartar estado e recomeçar"}
+						</Button>
+					</>
+				}
+			>
+				<p>
+					Os ZIPs/fontes locais e o histórico antigo serão preservados como
+					evidência, mas não serão reutilizados nesta nova execução. Seleções de
+					resultados, participantes e decisões de cronologia serão resetadas.
+					Publicações na nuvem não são alteradas.
+				</p>
+			</Dialog>
 
 			{localError && !onError ? (
 				<p className={styles.error} role="alert">
