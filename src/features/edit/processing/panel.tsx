@@ -1362,6 +1362,13 @@ export function ProcessingPanel({
 							observedJobId={state.observedJobId}
 							onRefresh={() => void controller.refresh("manual")}
 							onCancel={(jobId) => controller.jobAction(jobId, "cancel")}
+							onRetry={(job) =>
+								setConfirmation({ id: job.id, action: "retry" })
+							}
+							onDelete={(job) =>
+								setConfirmation({ id: job.id, action: "delete" })
+							}
+							canDelete={canDeleteJobs}
 							onObserve={(jobId) => controller.observeJob(jobId)}
 							onOpenDiagnostics={openJobDiagnostics}
 						/>
