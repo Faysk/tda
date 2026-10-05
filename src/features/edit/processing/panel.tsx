@@ -1217,6 +1217,7 @@ export function ProcessingPanel({
 								setConfirmation({ id: job.id, action: "retry" })
 							}
 							onResult={(job) => void openJobResult(job)}
+							onStartNew={startNewWork}
 							onDelete={(job) =>
 								setConfirmation({ id: job.id, action: "delete" })
 							}
