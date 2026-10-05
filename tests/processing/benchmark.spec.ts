@@ -1017,6 +1017,49 @@ test("terminal global Benchmark failure restores failed and not-attempted profil
 	await expect(
 		panel.locator("[data-state='not_attempted']").filter({ hasText: "Qwen Quality" }),
 	).toBeVisible();
+
+	await expect(
+		panel.getByRole("button", { name: "Executar novo benchmark" }),
+	).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Repetir tentativa" }),
+	).toHaveCount(0);
+	await expect(
+		panel.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
+
+	await panel.getByRole("button", { name: "Ver log / Diagnóstico" }).click();
+	const inspector = page
+		.locator("dialog")
+		.filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(
+		inspector.getByRole("button", { name: "Começar novo" }),
+	).toBeVisible();
+	await expect(
+		inspector.getByRole("button", { name: "Repetir trabalho" }),
+	).toHaveCount(0);
+	await expect(
+		inspector.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
+	await inspector.getByRole("button", { name: "Fechar" }).click();
+
+	await panel.getByRole("button", { name: "Descartar trabalho" }).click();
+	const confirmation = page
+		.locator("dialog")
+		.filter({ hasText: "Descartar este trabalho?" });
+	await expect(confirmation).toBeVisible();
+	await confirmation.getByRole("button", { name: "Descartar trabalho" }).click();
+	await expect
+		.poll(() =>
+			state.requests.some(
+				(request) =>
+					request.method === "POST" &&
+					request.path === "/jobs/benchmark-job-1/delete",
+			),
+		)
+		.toBe(true);
+	await expect(panel.getByText("Benchmark falhou globalmente")).toHaveCount(0);
 });
 
 test("completed benchmark loads a comparable receipt while failed history remains inspectable", async ({
