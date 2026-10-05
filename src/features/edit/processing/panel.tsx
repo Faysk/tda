@@ -1538,6 +1538,19 @@ export function ProcessingPanel({
 												<dt>Tentativa</dt>
 												<dd>{observedJob.attempt}</dd>
 											</div>
+											{observedJob.error ? (
+												<div className={styles.detailWide}>
+													<dt>Erro</dt>
+													<dd>
+														{presentJobError(observedJob.error.code)}
+														{" · "}
+														<code>{observedJob.error.code}</code>
+														{observedJob.error.recoverable
+															? " · recuperável"
+															: " · não recuperável"}
+													</dd>
+												</div>
+											) : null}
 											<div>
 												<dt>ID local</dt>
 												<dd className={styles.mono}>{observedJob.id}</dd>
