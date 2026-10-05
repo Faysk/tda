@@ -79,6 +79,7 @@ type FixtureOptions = Readonly<{
 	uploadSequence?: readonly number[];
 	recordingIds?: Readonly<Record<number, string>>;
 	failOnceSourceIndex?: number | null;
+	nonRecoverableSourceIndex?: number | null;
 	runningSourceIndex?: number | null;
 	reviewAbsoluteTimes?: readonly (
 		| Readonly<{ start: string; end: string }>
@@ -371,7 +372,13 @@ async function installMultiRecordingRoutes(
 						: { completed: 0, total: 1, unit: "tracks" },
 			error:
 				item.status === "failed"
-					? { code: "FIXTURE_TRANSCRIPTION_FAILED", recoverable: true }
+					? {
+							code:
+								index === options.nonRecoverableSourceIndex
+									? "WORKER_PROGRESS_GAP"
+									: "FIXTURE_TRANSCRIPTION_FAILED",
+							recoverable: index !== options.nonRecoverableSourceIndex,
+						}
 					: null,
 			result_available: item.status === "succeeded",
 			updated_at:
@@ -1471,6 +1478,7 @@ test("fresh restart ignores preserved runs and creates new jobs for every record
 		uploadSequence: [0, 1],
 		preexistingRunIndexes: [0],
 		failOnceSourceIndex: 1,
+		nonRecoverableSourceIndex: 1,
 	});
 
 	await openProcessing(page);
@@ -1492,7 +1500,8 @@ test("fresh restart ignores preserved runs and creates new jobs for every record
 	await expect(intent).toContainText("1/2 concluídas");
 	await expect(
 		intent.getByRole("button", { name: "Reprocessar 1 gravação" }),
-	).toBeVisible();
+	).toHaveCount(0);
+	await expect(intent).toContainText("não podem ser repetidas com segurança");
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(0);
 	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
 	const oldKey = multi.keysFor(SOURCE_IDS[1]!)[0];
