@@ -109,11 +109,13 @@ def test_trusted_absolute_times_derive_order_offsets_gaps_and_overlaps(
         ]
         assert workspace["timeline"]["gap_count"] == 1
         assert workspace["timeline"]["overlap_count"] == 1
-        assert workspace["timeline"]["unresolved_overlap_count"] == 1
+        assert workspace["timeline"]["unresolved_overlap_count"] == 0
         assert workspace["timeline"]["unconfirmed_gap_count"] == 0
         assert workspace["parts"][1]["physical_interval_state"] == "trusted_absolute"
+        assert workspace["parts"][2]["overlap_resolution"] == "preserve_both_exact_v1"
+        assert workspace["parts"][2]["overlap_resolution_valid"] is True
         assert workspace["timeline"]["segment_boundary_policy"] == "segment_start_owner_v1"
-        assert workspace["timeline"]["state"] == "overlap_unresolved"
+        assert workspace["timeline"]["state"] == "ready"
         before_resolution = workspace["timeline"]["fingerprint_sha256"]
 
         last = workspace["parts"][2]
@@ -278,7 +280,11 @@ def test_overlap_resolution_must_land_inside_actual_overlap(tmp_path: Path, monk
             headers=HEADERS,
         ).json()
         assert unchanged["revision"] == revision
-        assert unchanged["parts"][2]["overlap_resolution"] is None
+        assert (
+            unchanged["parts"][2]["overlap_resolution"]
+            == "preserve_both_exact_v1"
+        )
+        assert unchanged["parts"][2]["overlap_resolution_valid"] is True
 
 
 def test_manual_trim_cannot_extend_beyond_source_duration(tmp_path: Path, monkeypatch):
