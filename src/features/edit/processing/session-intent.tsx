@@ -1558,9 +1558,6 @@ export function SessionIntentCoordinator({
 							{assembly.segmentCount.toLocaleString("pt-BR")} falas ·{" "}
 							{assembly.parts.length}{" "}
 							{assembly.parts.length === 1 ? "gravação" : "gravações"}
-							{mapping?.participants.length
-								? ` · ${mapping.participants.length} ${mapping.participants.length === 1 ? "participante" : "participantes"}`
-								: ""}
 						</span>
 					</div>
 					<div className={styles.blockerActions}>
