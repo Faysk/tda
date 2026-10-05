@@ -270,7 +270,8 @@ def _run_craig(
                 cpu=bool(command.payload.get("cpu", False)),
                 report=report,
                 is_cancelled=cancelled.is_set,
-                checkpoints=not benchmark_mode,
+                checkpoints=not benchmark_mode
+                and bool(command.payload.get("checkpoints", True)),
                 sample_seconds=benchmark_sample_seconds,
             )
         elif profile.engine == "qwen3":
@@ -291,7 +292,8 @@ def _run_craig(
                 context=str(command.payload.get("context") or ""),
                 report=report,
                 is_cancelled=cancelled.is_set,
-                checkpoints=not benchmark_mode,
+                checkpoints=not benchmark_mode
+                and bool(command.payload.get("checkpoints", True)),
                 sample_seconds=benchmark_sample_seconds,
             )
         else:
