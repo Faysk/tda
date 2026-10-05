@@ -63,6 +63,7 @@ export type SessionTranscriptionIntent = Readonly<{
 	profile: TranscriptionProfileId;
 	context: string;
 	glossary: string;
+	compatibilityFingerprint?: string | null;
 }>;
 
 type Blocker =
@@ -420,7 +421,11 @@ export function SessionIntentCoordinator({
 					},
 					controller.signal,
 				);
-				setActiveRequest(normalizedIntent);
+				const authoritativeIntent: SessionTranscriptionIntent = {
+					...normalizedIntent,
+					compatibilityFingerprint: localIntent.compatibilityFingerprint,
+				};
+				setActiveRequest(authoritativeIntent);
 				saveRecoveryPointer(campaignId, intent.sessionId);
 				if (recoveryScope) {
 					try {
@@ -549,6 +554,7 @@ export function SessionIntentCoordinator({
 							profile: localIntent.profileId,
 							context: localIntent.context,
 							glossary: localIntent.glossary,
+							compatibilityFingerprint: localIntent.compatibilityFingerprint,
 						};
 						setActiveRequest(restored);
 						onRestoreIntent?.(restored);
@@ -610,9 +616,10 @@ export function SessionIntentCoordinator({
 		};
 	}, [enabled, loadSnapshot, pollingSessionId]);
 
+	const expectedFingerprint = activeRequest?.compatibilityFingerprint ?? null;
 	const progress = useMemo(
-		() => intentProgress(workspace, runsBySource, jobs),
-		[jobs, runsBySource, workspace],
+		() => intentProgress(workspace, runsBySource, jobs, expectedFingerprint),
+		[expectedFingerprint, jobs, runsBySource, workspace],
 	);
 
 	const advance = useCallback(async () => {
@@ -698,6 +705,7 @@ export function SessionIntentCoordinator({
 					part,
 					runsBySource.get(part.sourceId) ?? [],
 					intentRunIds.current.get(part.sourceId),
+					expectedFingerprint,
 				);
 				if (choice.kind === "automatic") {
 					await bridge.selectSessionPartRun(
@@ -726,7 +734,15 @@ export function SessionIntentCoordinator({
 
 			const failedSources = workspace.parts
 				.filter((part) => retryableIntentJob(jobs, part.sourceId))
-				.filter((part) => (runsBySource.get(part.sourceId)?.length ?? 0) === 0)
+				.filter(
+					(part) =>
+						chooseIntentRun(
+							part,
+							runsBySource.get(part.sourceId) ?? [],
+							intentRunIds.current.get(part.sourceId),
+							expectedFingerprint,
+						).kind === "missing",
+				)
 				.map((part) => part.sourceId);
 			if (failedSources.length) {
 				setBlocker({ kind: "failed", sourceIds: failedSources });
@@ -744,8 +760,12 @@ export function SessionIntentCoordinator({
 
 			const missing = workspace.parts.filter(
 				(part) =>
-					!part.selectedRunId &&
-					(runsBySource.get(part.sourceId)?.length ?? 0) === 0,
+					chooseIntentRun(
+						part,
+						runsBySource.get(part.sourceId) ?? [],
+						intentRunIds.current.get(part.sourceId),
+						expectedFingerprint,
+					).kind === "missing",
 			);
 			if (missing.length) {
 				if (!activeRequest) {
@@ -915,6 +935,7 @@ export function SessionIntentCoordinator({
 	}, [
 		activeRequest,
 		announce,
+		expectedFingerprint,
 		assembly,
 		blocker?.kind,
 		bridge,
@@ -1026,7 +1047,13 @@ export function SessionIntentCoordinator({
 		try {
 			let retried = 0;
 			for (const part of workspace.parts) {
-				if ((runsBySource.get(part.sourceId)?.length ?? 0) > 0) continue;
+				const choice = chooseIntentRun(
+					part,
+					runsBySource.get(part.sourceId) ?? [],
+					intentRunIds.current.get(part.sourceId),
+					expectedFingerprint,
+				);
+				if (choice.kind !== "missing") continue;
 				const job = retryableIntentJob(jobs, part.sourceId);
 				if (!job) continue;
 				const next = await bridge.jobAction(job.id, "retry", controller.signal);
