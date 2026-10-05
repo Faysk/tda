@@ -63,8 +63,16 @@ export function workspaceJobGenerationEligible(
 	workspace: SessionWorkspace | null,
 	job: LocalJob,
 ): boolean {
+	if (!workspace || job.kind !== "transcription.craig") return false;
+	const context = job.context;
+	if (
+		context?.campaignId !== workspace.campaignId ||
+		context?.sessionId !== workspace.sessionId ||
+		!workspace.parts.some((part) => part.sourceId === context.sourceId)
+	)
+		return false;
 	return (
-		!(workspace?.freshStartExcludedJobIds ?? []).includes(job.id) &&
+		!workspace.freshStartExcludedJobIds.includes(job.id) &&
 		workspaceGenerationEligible(workspace, job.updated_at)
 	);
 }
