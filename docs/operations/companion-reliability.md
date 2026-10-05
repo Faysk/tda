@@ -1,9 +1,9 @@
 # TDA Companion — confiabilidade, manutenção e aceite real
 
-> Status: R1/R2 implementados; R3 C-12/C-13/C-14 implementados em candidato; stable bloqueada até aceite físico do artefato exato
+> Status: contrato de reliability vigente; marcos R1–R4 abaixo incluem snapshots históricos e aceite físico continua artefato/hash-specific
 > Owner: local-companion / processing / operations
-> Última revisão: 2026-09-13
-> Fonte de verdade: este documento + ADR-0013 + código/receipts do candidato exato
+> Última revisão: 2026-10-05
+> Fonte de verdade: este documento + ADR-0013 + código/receipts do artefato exato + `companion-dependency-policy.md` para versões/runtime correntes
 
 ## Objetivo
 
@@ -11,7 +11,16 @@ Definir a correção estrutural dos problemas encontrados no teste físico do TD
 
 A implementação é dividida em R1–R4. Integração em `Preview`, merge em `main` ou publicação de uma release não significam aceite físico. **Stable só pode apontar para o mesmo artefato/hash que passou a jornada instalada e o gate ASR aplicável.**
 
-### Estado de implementação em 2026-09-13
+### Current state — 2026-10-05
+
+- a linha de código do Companion é **0.3.18**;
+- o plano R1–R4 permanece como taxonomia/rationale de reliability, mas estados datados de setembro são **historical snapshots**, não uma declaração de que R4 continua “não iniciado” hoje;
+- versões mínimas/benchmark de Whisper e Qwen são authority de [companion-dependency-policy.md](companion-dependency-policy.md) e do código `runtime_compat.py`;
+- receipts antigos provam somente o artefato/hash citado neles; não servem como aceite físico automático da 0.3.18;
+- promoção Stable continua exigindo os mesmos bytes que passaram o gate físico aplicável.
+
+
+### Historical implementation snapshot — 2026-09-13
 
 - R1 e R2 formam a base atual de confiabilidade do candidato: recovery/identidade do Agent, saída programática, boundary Craig, rede tipada, manifest versionado, manutenção observável, rollback MSI, WebView2 e diagnóstico por capability.
 - C-12 está implementado com harness da jornada instalada e receipt sanitizado ligado ao source SHA/MSI. O `pass=true` real continua pendente até execução no Windows físico.
@@ -20,7 +29,7 @@ A implementação é dividida em R1–R4. Integração em `Preview`, merge em `m
 - O aceite instalado agora exige também a observação `background_download_resume`: interromper uma transferência grande real, confirmar continuidade pelo Windows e concluir a mesma transferência após reconexão sem erro técnico cru.
 - R4 não foi iniciado por este marco. C-16 continua exigindo ADR antes de qualquer troca estrutural para `qwen-asr`.
 
-## Contexto observado
+## Historical incident context — Companion 0.3.2
 
 O teste físico da 0.3.2 mostrou uma interface visualmente utilizável, mas a jornada operacional falhou em vários pontos:
 
