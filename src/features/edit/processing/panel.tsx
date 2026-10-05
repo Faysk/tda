@@ -530,8 +530,10 @@ export function ProcessingPanel({
 		setConfirmation(null);
 		if (!choice) return;
 		if (choice.action === "resume") await controller.lifecycle("resume");
-		else if (choice.action === "delete") await controller.deleteJob(choice.id);
-		else {
+		else if (choice.action === "delete") {
+			await controller.deleteJob(choice.id);
+			if (diagnosticInspectorJobId === choice.id) closeJobDiagnostics(false);
+		} else {
 			await controller.jobAction(choice.id, choice.action);
 			if (choice.action === "retry") {
 				const retried = controller
@@ -630,6 +632,11 @@ export function ProcessingPanel({
 		const opener = diagnosticOpener.current;
 		diagnosticOpener.current = null;
 		if (restoreFocus && opener) requestAnimationFrame(() => opener.focus());
+	}
+
+	function startNewWork(job: LocalJob) {
+		closeJobDiagnostics(false);
+		activateView(job.kind === "benchmark.craig" ? "benchmark" : "overview");
 	}
 
 	function openAttentionQueue() {
@@ -1627,18 +1634,23 @@ export function ProcessingPanel({
 				)}
 				pendingAction={
 					state.mutation?.targetId === diagnosticInspectorJobId &&
-					["cancel", "retry", "result"].includes(state.mutation.kind)
-						? (state.mutation.kind as "cancel" | "retry" | "result")
+					["cancel", "retry", "result", "delete"].includes(state.mutation.kind)
+						? (state.mutation.kind as "cancel" | "retry" | "result" | "delete")
 						: null
 				}
+				canDelete={canDeleteJobs}
 				onClose={() => closeJobDiagnostics(true)}
 				onOpenResult={async (job) => {
 					const error = await openJobResult(job);
 					if (!error) closeJobDiagnostics(false);
 					return error;
 				}}
+				onStartNew={startNewWork}
 				onRetry={(job) =>
 					setConfirmation({ id: job.id, action: "retry" })
+				}
+				onDelete={(job) =>
+					setConfirmation({ id: job.id, action: "delete" })
 				}
 				onCancel={(job) =>
 					setConfirmation({ id: job.id, action: "cancel" })
@@ -1661,7 +1673,7 @@ export function ProcessingPanel({
 								: confirmation.action === "cancel"
 									? "Cancelar este trabalho?"
 									: confirmation.action === "delete"
-										? "Excluir este trabalho?"
+										? "Descartar este trabalho?"
 										: "Repetir este trabalho?"}
 						</h2>
 						<p>
@@ -1676,7 +1688,7 @@ export function ProcessingPanel({
 						<div className={styles.dialogActions}>
 							<Button onClick={() => setConfirmation(null)}>Voltar</Button>
 							<Button variant="primary" onClick={() => void confirm()}>
-								{confirmation.action === "delete" ? "Excluir" : "Confirmar"}
+								{confirmation.action === "delete" ? "Descartar trabalho" : "Confirmar"}
 							</Button>
 						</div>
 					</>
