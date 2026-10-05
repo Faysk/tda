@@ -20,6 +20,12 @@ from .transcription_intent import (
     compatibility_fingerprint,
     fingerprint_for_run_manifest,
 )
+from .track_policy import (
+    DEFAULT_TRACK_POLICY_VERSION,
+    SUPPORTED_TRACK_POLICY_VERSIONS,
+    CraigTrackPolicyError,
+    normalize_track_numbers,
+)
 
 RUN_SCHEMA_VERSION = "tda_transcription_run_v1"
 RUN_LIST_SCHEMA_VERSION = "tda_transcription_runs_v1"
@@ -407,6 +413,9 @@ def _manifest_for_document(
     transcript_size_bytes: int,
     glossary: str,
     context: str,
+    track_policy_version: str = DEFAULT_TRACK_POLICY_VERSION,
+    included_track_numbers: tuple[int, ...] | None = None,
+    ignored_track_numbers: tuple[int, ...] | None = None,
     execution_lineage: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     document.validate()
@@ -419,9 +428,29 @@ def _manifest_for_document(
             profile_id=engine.profile,
             context_sha256=context_sha256,
             glossary_sha256=glossary_sha256,
+            track_policy_version=track_policy_version,
         )
     except TranscriptionIntentFingerprintError as exc:
         raise TranscriptionRunError("TRANSCRIPTION_RUN_INTENT_FINGERPRINT_INVALID") from exc
+    resolved_included = (
+        tuple(track.number for track in document.tracks)
+        if included_track_numbers is None
+        else normalize_track_numbers(
+            included_track_numbers,
+            code="TRANSCRIPTION_RUN_TRACK_POLICY_INVALID",
+        )
+    )
+    resolved_ignored = normalize_track_numbers(
+        ignored_track_numbers or (),
+        code="TRANSCRIPTION_RUN_TRACK_POLICY_INVALID",
+    )
+    if (
+        track_policy_version not in SUPPORTED_TRACK_POLICY_VERSIONS
+        or set(resolved_included) & set(resolved_ignored)
+        or len(resolved_included) != stats.track_count
+    ):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_TRACK_POLICY_INVALID")
+
     manifest = {
         "schema_version": RUN_SCHEMA_VERSION,
         "run_id": run_id,
@@ -443,6 +472,9 @@ def _manifest_for_document(
         "glossary_sha256": glossary_sha256,
         "intent_fingerprint_schema": INTENT_FINGERPRINT_SCHEMA,
         "intent_fingerprint": intent_fingerprint,
+        "track_policy_version": track_policy_version,
+        "included_track_numbers": list(resolved_included),
+        "ignored_track_numbers": list(resolved_ignored),
         "transcript_schema_version": document.schema_version,
         "artifact": "transcript.json",
         "transcript_sha256": transcript_sha256,
@@ -478,6 +510,9 @@ def write_completed_run(
     source_id: str | None = None,
     glossary: str = "",
     context: str = "",
+    track_policy_version: str = DEFAULT_TRACK_POLICY_VERSION,
+    included_track_numbers: tuple[int, ...] | None = None,
+    ignored_track_numbers: tuple[int, ...] | None = None,
     execution_lineage: dict[str, Any] | None = None,
     before_commit: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
@@ -507,6 +542,9 @@ def write_completed_run(
             transcript_size_bytes=size,
             glossary=glossary,
             context=context,
+            track_policy_version=track_policy_version,
+            included_track_numbers=included_track_numbers,
+            ignored_track_numbers=ignored_track_numbers,
             execution_lineage=execution_lineage,
         )
         # The caller may reserve the cross-process attempt outcome immediately
