@@ -59,6 +59,16 @@ export function workspaceGenerationEligible(
 	);
 }
 
+export function workspaceJobGenerationEligible(
+	workspace: SessionWorkspace | null,
+	job: LocalJob,
+): boolean {
+	return (
+		!workspace?.freshStartExcludedJobIds.includes(job.id) &&
+		workspaceGenerationEligible(workspace, job.updated_at)
+	);
+}
+
 export function latestJobForSource(
 	jobs: readonly LocalJob[],
 	sourceId: string,
