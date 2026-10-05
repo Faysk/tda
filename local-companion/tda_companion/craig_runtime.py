@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from .craig import (
     CraigIdentity,
+    CraigNote,
     CraigPackage,
     CraigPackageError,
     CraigTrack,
@@ -88,8 +89,70 @@ def _identity(value: Any) -> CraigIdentity | None:
     discriminator = _optional_text(
         value.get("discriminator"), "CRAIG_MANIFEST_IDENTITY_INVALID", maximum=32
     )
-    discord_id = _optional_text(value.get("discord_id"), "CRAIG_MANIFEST_IDENTITY_INVALID", maximum=64)
-    return CraigIdentity(username=username, discriminator=discriminator, discord_id=discord_id)
+    discord_id = _optional_text(
+        value.get("discord_id"),
+        "CRAIG_MANIFEST_IDENTITY_INVALID",
+        maximum=64,
+    )
+    global_name = _optional_text(
+        value.get("global_name"),
+        "CRAIG_MANIFEST_IDENTITY_INVALID",
+        maximum=160,
+    )
+    bot = value.get("bot")
+    unknown = value.get("unknown")
+    if bot is not None and not isinstance(bot, bool):
+        raise CraigPackageError("CRAIG_MANIFEST_IDENTITY_INVALID")
+    if unknown is not None and not isinstance(unknown, bool):
+        raise CraigPackageError("CRAIG_MANIFEST_IDENTITY_INVALID")
+    return CraigIdentity(
+        username=username,
+        discriminator=discriminator,
+        discord_id=discord_id,
+        global_name=global_name,
+        bot=bot,
+        unknown=unknown,
+    )
+
+
+def _notes(value: Any) -> tuple[CraigNote, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or len(value) > 4096:
+        raise CraigPackageError("CRAIG_MANIFEST_NOTES_INVALID")
+    notes: list[CraigNote] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise CraigPackageError("CRAIG_MANIFEST_NOTES_INVALID")
+        offset = item.get("offset_seconds")
+        if (
+            isinstance(offset, bool)
+            or not isinstance(offset, (int, float))
+            or not math.isfinite(float(offset))
+            or float(offset) < 0
+        ):
+            raise CraigPackageError("CRAIG_MANIFEST_NOTES_INVALID")
+        text = _text(
+            item.get("text"),
+            "CRAIG_MANIFEST_NOTES_INVALID",
+            maximum=4096,
+        )
+        notes.append(CraigNote(offset_seconds=float(offset), text=text))
+    return tuple(notes)
+
+
+def _metadata_warnings(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or len(value) > 256:
+        raise CraigPackageError("CRAIG_MANIFEST_METADATA_INVALID")
+    result: list[str] = []
+    for item in value:
+        text = _text(item, "CRAIG_MANIFEST_METADATA_INVALID", maximum=160)
+        if not re.fullmatch(r"[A-Z0-9_:.-]{1,160}", text):
+            raise CraigPackageError("CRAIG_MANIFEST_METADATA_INVALID")
+        result.append(text)
+    return tuple(result)
 
 
 def _portable_legacy_filename(value: str) -> bool:
@@ -222,6 +285,18 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
     if metadata_refresh:
         _refresh_manifest_metadata(manifest_path, value)
 
+    metadata_consistency = value.get("metadata_consistency", "unavailable")
+    if metadata_consistency not in {
+        "consistent",
+        "partial",
+        "conflicting",
+        "unavailable",
+    }:
+        raise CraigPackageError("CRAIG_MANIFEST_METADATA_INVALID")
+    raw_metadata_parsed = value.get("raw_metadata_parsed", False)
+    if not isinstance(raw_metadata_parsed, bool):
+        raise CraigPackageError("CRAIG_MANIFEST_METADATA_INVALID")
+
     tracks.sort(key=lambda item: item.number)
     return CraigPackage(
         schema_version="tda_craig_package_v1",
@@ -235,4 +310,23 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         tracks=tuple(tracks),
         info_present=bool(value.get("info_present")),
         raw_dat_present=bool(value.get("raw_dat_present")),
+        guild_id=_optional_text(
+            value.get("guild_id"),
+            "CRAIG_MANIFEST_METADATA_INVALID",
+            maximum=128,
+        ),
+        channel_id=_optional_text(
+            value.get("channel_id"),
+            "CRAIG_MANIFEST_METADATA_INVALID",
+            maximum=128,
+        ),
+        requester_id=_optional_text(
+            value.get("requester_id"),
+            "CRAIG_MANIFEST_METADATA_INVALID",
+            maximum=128,
+        ),
+        notes=_notes(value.get("notes")),
+        raw_metadata_parsed=raw_metadata_parsed,
+        metadata_consistency=metadata_consistency,
+        metadata_warnings=_metadata_warnings(value.get("metadata_warnings")),
     )
