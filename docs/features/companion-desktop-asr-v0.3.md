@@ -1,8 +1,8 @@
 # TDA Companion v0.3 — Desktop, Agent e ASR
 
-> Status: especificação aceita para implementação; estabilização R1–R4 em andamento
+> Status: contrato v0.3 implementado; snapshots de estabilização permanecem históricos e aceite físico é artefato/hash-specific
 > Owner: local-companion / processing
-> Última revisão: 2026-09-19
+> Última revisão: 2026-10-05
 > ADRs: `docs/adr/0013-companion-agent-desktop-asr.md`, `docs/adr/0017-web-single-entry-loopback-session.md`
 > Confiabilidade: `docs/operations/companion-reliability.md`
 
@@ -10,9 +10,20 @@
 
 **A Web gerencia o trabalho; o Companion gerencia a máquina que executa o trabalho.**
 
+## Current state — 2026-10-05
+
+- a linha de código atual é **TDA Companion 0.3.18**;
+- o wire protocol continua **`api_version="1"`**; wire API e `service_version` evoluem independentemente;
+- Agent/Desktop/worker, sessão loopback origin-bound, fila/eventos, manutenção e ASR multi-engine são capacidades implementadas, não uma arquitetura apenas candidata;
+- mínimos e gates de runtime correntes pertencem a [Companion — política de versões e dependências](../operations/companion-dependency-policy.md), evitando duplicar uma baseline que envelhece neste documento;
+- qualquer afirmação de Stable/aceite físico continua ligada ao **artefato e hash exatos**; versão declarada no código ou CI sintética não prova rollout físico.
+
+### Historical reliability baseline
+
+
 A Web continua responsável por sessões, fila editorial, revisão, resultados e publicação. O Desktop cuida de Agent, saúde, consumo, logs técnicos, diagnóstico, modelos, update, storage e manutenção.
 
-O teste físico da 0.3.2 confirmou que a separação conceitual é correta, mas reprovou a confiabilidade da jornada instalada. O contrato complementar `companion-reliability.md` é obrigatório para lifecycle, rede, manutenção, release e aceite físico.
+O teste físico da **0.3.2** é uma baseline histórica que confirmou a separação conceitual e revelou falhas da jornada instalada daquela época. Ele explica a origem do contrato de `companion-reliability.md`, mas não descreve o estado corrente da linha 0.3.18.
 
 ## Arquitetura
 
