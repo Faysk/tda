@@ -231,6 +231,13 @@ export function saveSessionIntentReceipt(
 	return true;
 }
 
+export function clearSessionIntentReceipt(
+	storage: Storage,
+	identity: SessionIntentReceiptIdentity,
+): void {
+	storage.removeItem(storageKey(identity));
+}
+
 export function loadSessionIntentReceipt(
 	storage: Storage,
 	identity: SessionIntentReceiptIdentity,
