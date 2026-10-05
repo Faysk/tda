@@ -1014,7 +1014,7 @@ export function SessionRecordingComposer({
 										: ""}
 								</span>
 								<details className={styles.timelineTechnical}>
-									<summary>Detalhes técnicos</summary>
+									<summary>Dados da cronologia</summary>
 									<span>
 										Estado {workspace.timeline.state} · {workspace.timeline.gapCount} gap(s) · {workspace.timeline.overlapCount} overlap(s) · {workspace.timeline.orderConflictCount} conflito(s) de ordem
 									</span>
@@ -1063,7 +1063,7 @@ export function SessionRecordingComposer({
 												<span className={styles.attemptNotice}>{attemptNotice}</span>
 											) : null}
 											<details className={styles.partTechnical}>
-												<summary>Detalhes técnicos</summary>
+												<summary>Dados da execução</summary>
 												<small title={part.sourceId}>
 													Fonte {short(part.sourceId, 16)}
 													{job ? " · job " + short(job.id, 8) + " · " + job.status : ""}
