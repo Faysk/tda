@@ -2512,6 +2512,7 @@ test("main Diagnostics exposes safe recovery actions for the observed terminal j
 	const discardDialog = page
 		.getByRole("dialog")
 		.filter({ hasText: "Descartar este trabalho?" });
+	await expect(discardDialog).toContainText("Nenhum resultado concluído será removido");
 	await expect(discardDialog).toContainText("evidências de Benchmark");
 	await discardDialog.getByRole("button", { name: "Voltar" }).click();
 
