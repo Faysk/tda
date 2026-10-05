@@ -1,5 +1,6 @@
 import { LocalBridge } from "./bridge";
 import { supportsTerminalJobDelete } from "./compatibility";
+import { queueRetryAvailable } from "./queue-model";
 import { PROCESSING_REFRESH_POLICY } from "./refresh-policy";
 import {
 	BridgeError,
@@ -828,8 +829,7 @@ export class ProcessingController {
 			!job ||
 			(action === "cancel"
 				? !["queued", "running"].includes(job.status)
-				: !["failed", "interrupted"].includes(job.status) ||
-					!job.error?.recoverable)
+				: !queueRetryAvailable(job))
 		)
 			return;
 
