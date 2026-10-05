@@ -2497,7 +2497,7 @@ test("main Diagnostics exposes safe recovery actions for the observed terminal j
 	await page.getByRole("tab", { name: "Diagnóstico", exact: true }).click();
 
 	const diagnostics = page.getByRole("tabpanel", { name: "Diagnóstico" });
-	const actions = diagnostics.getByLabel("Ações do trabalho observado");
+	const actions = diagnostics.getByRole("group", { name: "Ações do trabalho observado" });
 	await expect(actions.getByRole("button", { name: "Nova transcrição" })).toBeVisible();
 	await expect(actions.getByRole("button", { name: "Repetir trabalho" })).toBeVisible();
 	await expect(actions.getByRole("button", { name: "Descartar trabalho" })).toBeVisible();
@@ -2547,7 +2547,7 @@ test("main Diagnostics keeps non-recoverable Benchmark retry fail-closed", async
 	await page.getByRole("tab", { name: "Diagnóstico", exact: true }).click();
 
 	const diagnostics = page.getByRole("tabpanel", { name: "Diagnóstico" });
-	const actions = diagnostics.getByLabel("Ações do trabalho observado");
+	const actions = diagnostics.getByRole("group", { name: "Ações do trabalho observado" });
 	await expect(
 		actions.getByRole("button", { name: "Executar novo benchmark" }),
 	).toBeVisible();
