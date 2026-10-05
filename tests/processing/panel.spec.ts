@@ -2502,10 +2502,11 @@ test("main Diagnostics exposes safe recovery actions for the observed terminal j
 	await expect(actions.getByRole("button", { name: "Descartar trabalho" })).toBeVisible();
 
 	await actions.getByRole("button", { name: "Repetir trabalho" }).click();
-	await expect(
-		page.getByRole("heading", { name: "Repetir este trabalho?" }),
-	).toBeVisible();
-	await page.getByRole("button", { name: "Voltar" }).click();
+	const retryDialog = page
+		.getByRole("dialog")
+		.filter({ hasText: "Repetir este trabalho?" });
+	await expect(retryDialog).toBeVisible();
+	await retryDialog.getByRole("button", { name: "Voltar" }).click();
 
 	await actions.getByRole("button", { name: "Descartar trabalho" }).click();
 	const discardDialog = page
