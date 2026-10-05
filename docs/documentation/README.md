@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: documentação/arquitetura
-> Última revisão: 2026-09-07
+> Última revisão: 2026-10-05
 > Fonte de verdade: `docs/README.md`, catálogo gerado e documentos donos
 
 Este diretório define **como a documentação do TDA é mantida**. A documentação faz parte do produto: mudança relevante sem documentação correspondente é mudança incompleta.
@@ -41,6 +41,29 @@ Quando uma mudança concreta precisa ser localizada no fluxo de entrega, usar um
 
 `main = Production` significa que `main` é a linha de código aceita para Production; **não significa deploy automático**. Para frontend/hosting, publicação exige deployment deliberado e registro operacional. Para banco, migration versionada/integrada não equivale a migration aplicada. Para configuração remota, código ou documentação não provam alteração do serviço.
 
+## Quatro zonas semânticas em documentos vivos
+
+Documentos longos que acumulam evolução de produto devem distinguir claramente quatro categorias. Não é obrigatório criar quatro headings em toda página curta, mas o leitor não pode precisar adivinhar em qual categoria uma afirmação está.
+
+### Current behavior
+
+Contrato implementado/vigente na linha de código indicada pela **Última revisão**. Deve ser compreensível sem ler diário de PR. Versões, policies e capabilities correntes pertencem aqui.
+
+### Legacy compatibility
+
+Formato/policy antiga que o código ainda aceita deliberadamente. Deve declarar a authority corrente e por que o legado continua legível. **Compatibilidade não torna o legado a regra preferencial.**
+
+### Historical implementation notes
+
+Snapshots de candidatos, PRs, incidentes, testes e decisões anteriores. Preservar provenance é desejável, mas headings como **candidato #N** não podem funcionar como rótulo do estado atual. Data/issue/SHA devem deixar a fotografia inequívoca.
+
+### Future backlog / unresolved decisions
+
+Somente trabalho realmente futuro ou decisão ainda aberta. Capacidade já integrada não permanece descrita como “quando for implementada”. Se uma decisão foi substituída, mover a promessa antiga para histórico e apontar para a decisão posterior.
+
+Regra prática: um fato atual deve ter uma fonte current; uma nota histórica pode explicar **como chegamos aqui**, mas não pode contradizer silenciosamente o bloco Current behavior.
+
+
 Exemplos válidos:
 
 - `implementado na PR #N; validado no SHA X; não integrado e não publicado`;
@@ -65,7 +88,7 @@ Fotografia datada do estado real. Pode ficar desatualizada e deve informar sua d
 Procedimento executável para operação, release, incidente ou recuperação.
 
 ### ADR
-Decisão arquitetural com contexto, decisão, consequências e alternativas. ADR aprovado não deve ser reescrito para fingir que o passado foi diferente; uma nova decisão cria novo ADR que substitui o anterior.
+Decisão arquitetural com contexto, decisão, consequências e alternativas. ADR aprovado não deve ser reescrito para fingir que o passado foi diferente; uma nova decisão cria novo ADR que substitui total ou parcialmente o anterior. O ADR antigo pode receber uma nota explícita de supersession, preservando a formulação histórica.
 
 ### Catálogo
 Inventário de itens com status padronizado: features, tabelas, integrações, migrations.
@@ -109,8 +132,9 @@ Uma PR que altera comportamento relevante deve responder:
 2. Qual documento é dono desse contrato?
 3. O schema/fluxo/estado documentado ainda corresponde ao sistema?
 4. Qual é o estágio de entrega real: branch/PR, validado, `main` ou publicado/aplicado?
-5. Existe migration/rollback quando necessário?
-6. A feature catalog/roadmap precisa mudar de status?
+5. O documento separa Current behavior, Legacy compatibility, Historical implementation notes e Future backlog quando essas categorias coexistem?
+6. Existe migration/rollback quando necessário?
+7. A feature catalog/roadmap precisa mudar de status?
 7. Há nova decisão arquitetural que merece ADR?
 8. Há novo risco operacional ou de segurança?
 
