@@ -7,7 +7,7 @@ from collections import defaultdict
 from typing import Mapping
 
 PARTICIPANT_MAPPING_SCHEMA_VERSION = "tda_session_participant_mapping_v1"
-PARTICIPANT_MAPPING_POLICY = "strong_discord_or_manual_v1"
+PARTICIPANT_MAPPING_POLICY = "strong_discord_or_local_v2"
 _HEX32 = re.compile(r"^[0-9a-f]{32}$")
 
 
@@ -257,19 +257,23 @@ def resolve_session_participants(
             row["discord_id"] is not None for row in rows
         ):
             continue
-        conflict = {
-            "code": (
-                "LABEL_PARTIAL_IDENTITY"
-                if len(discord_ids) == 1
-                else "LABEL_ONLY_CROSS_SOURCE_AMBIGUOUS"
-            ),
-            "severity": "error",
-            "requires_resolution": True,
-            "observation_ids": sorted(str(row["observation_id"]) for row in rows),
-            "label_key": label,
-        }
-        conflicts.append(conflict)
-        approval_blocked = True
+        # A label-only match is not evidence that two source-local observations
+        # are the same human. Keep them separate and surface the ambiguity as an
+        # advisory instead of turning a lack of cross-source identity into an
+        # Assembly/approval blocker. A manual merge remains available later.
+        conflicts.append(
+            {
+                "code": (
+                    "LABEL_PARTIAL_IDENTITY"
+                    if len(discord_ids) == 1
+                    else "LABEL_ONLY_CROSS_SOURCE_AMBIGUOUS"
+                ),
+                "severity": "warning",
+                "requires_resolution": False,
+                "observation_ids": sorted(str(row["observation_id"]) for row in rows),
+                "label_key": label,
+            }
+        )
 
     for track_number, rows in sorted(by_track_number.items()):
         source_ids = {str(row["source_id"]) for row in rows}
