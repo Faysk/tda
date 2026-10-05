@@ -1576,6 +1576,7 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
 	await expect(intent.getByRole("button", { name: "Nova transcrição" })).toBeVisible();
+	await expect(intent.getByRole("button", { name: "Recomeçar do zero" })).toBeVisible();
 	expect(multi.retryCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.attachedSources).toEqual(SOURCE_IDS.slice(0, 3));
