@@ -191,7 +191,7 @@ export type SessionTranscriptionIntentState = {
 	glossary: string;
 	contextSha256: string;
 	glossarySha256: string;
-	compatibilityFingerprint: string | null;
+	compatibilityFingerprint?: string | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -551,7 +551,7 @@ export type LocalRunSummary = {
 	executionLineage: LocalExecutionLineage | null;
 	language: string | null;
 	completedAt: string | null;
-	intentFingerprint: string | null;
+	intentFingerprint?: string | null;
 	transcriptSha256: string;
 	transcriptSizeBytes: number;
 	stats: {
