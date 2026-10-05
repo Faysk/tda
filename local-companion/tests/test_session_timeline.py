@@ -718,7 +718,7 @@ def test_sequence_partial_wall_clock_keeps_unknown_interval_explicit_not_zero():
     assert workspace["parts"][2]["source_start_utc"] is None
 
 
-def test_sequence_proven_overlap_remains_fail_closed_until_explicit_boundary():
+def test_sequence_proven_overlap_uses_conservative_preserve_both_policy():
     source_facts = dict(
         [
             facts(1, start="2026-10-04T20:00:00Z", duration=60.0),
@@ -730,8 +730,10 @@ def test_sequence_proven_overlap_remains_fail_closed_until_explicit_boundary():
     assert workspace["parts"][1]["relation_to_previous"] == "overlap"
     assert workspace["parts"][1]["relation_seconds"] == 10.0
     assert workspace["parts"][1]["physical_interval_state"] == "trusted_absolute"
-    assert workspace["timeline"]["state"] == "overlap_unresolved"
-    assert workspace["timeline"]["unresolved_overlap_count"] == 1
+    assert workspace["parts"][1]["overlap_resolution"] == "preserve_both_exact_v1"
+    assert workspace["parts"][1]["overlap_resolution_valid"] is True
+    assert workspace["timeline"]["state"] == "ready"
+    assert workspace["timeline"]["unresolved_overlap_count"] == 0
 
 
 def test_sequence_rejects_reverse_trusted_anchors_even_with_unknown_part_between():
