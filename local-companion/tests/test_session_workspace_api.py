@@ -268,9 +268,9 @@ def test_participant_mapping_api_uses_discord_identity_and_persists_manual_resol
         assert projection.status_code == 200
         body = projection.json()
         assert body["schema_version"] == "tda_session_participant_mapping_v1"
-        assert body["policy"] == "strong_discord_or_manual_v1"
+        assert body["policy"] == "strong_discord_or_local_v2"
         assert body["workspace_revision"] == workspace["revision"]
-        assert body["approval_blocked"] is True
+        assert body["approval_blocked"] is False
         assert all(
             participant["profile_id"] is None for participant in body["participants"]
         )
