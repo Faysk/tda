@@ -364,10 +364,17 @@ describe("multi-recording composer model", () => {
 		expect(withoutRun.reasons).toContain(
 			"Selecione um resultado para cada gravação.",
 		);
-		const ambiguous = sessionAssemblyReadiness(workspace(), mapping(true));
-		expect(ambiguous.ready).toBe(false);
-		expect(ambiguous.reasons).toContain(
-			"Resolva os participantes ambíguos.",
+		const loadingParticipants = sessionAssemblyReadiness(workspace(), null);
+		expect(loadingParticipants.ready).toBe(false);
+		expect(loadingParticipants.reasons).toContain(
+			"Aguardando identificação automática dos participantes.",
+		);
+		expect(loadingParticipants.reasons.join(" ")).not.toContain("Carregue o mapa");
+
+		const identityConflict = sessionAssemblyReadiness(workspace(), mapping(true));
+		expect(identityConflict.ready).toBe(false);
+		expect(identityConflict.reasons).toContain(
+			"Resolva um conflito de identidade que altera a autoria.",
 		);
 	});
 });
