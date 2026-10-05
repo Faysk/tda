@@ -36,6 +36,7 @@ import { serializeLocalRunKey } from "./local-run-key";
 import { SessionAssemblyResults } from "./session-assembly-results";
 import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
+import { terminalRecoveryActions } from "./terminal-recovery";
 import { ProcessingQueueView } from "./queue-view";
 import { ProcessingSubmission } from "./submission";
 import {
@@ -632,6 +633,27 @@ export function ProcessingPanel({
 		if (restoreFocus && opener) requestAnimationFrame(() => opener.focus());
 	}
 
+	function startNewForJob(job: LocalJob) {
+		closeJobDiagnostics(false);
+		if (job.kind === "benchmark.craig") {
+			activateView("benchmark");
+			requestAnimationFrame(() => {
+				document
+					.querySelector("[data-benchmark-source-picker='true']")
+					?.scrollIntoView({ block: "nearest" });
+			});
+			return;
+		}
+		if (job.kind === "transcription.craig") {
+			activateView("overview");
+			requestAnimationFrame(() => {
+				document
+					.querySelector("[data-processing-overview-top='true']")
+					?.scrollIntoView({ block: "nearest" });
+			});
+		}
+	}
+
 	function openAttentionQueue() {
 		if (view === "diagnostics") void controller.observeJob(null);
 		setResultOpenError(null);
@@ -1100,6 +1122,97 @@ export function ProcessingPanel({
 								/>
 							</fieldset>
 						</div>
+						{attention.length ? (
+							<section
+								className={styles.overviewAttention}
+								aria-labelledby="processing-attention-title"
+							>
+								<div className={styles.sectionHeading}>
+									<div>
+										<h2 id="processing-attention-title">Precisa de atenção</h2>
+										<span>
+											{attention.length} {attention.length === 1 ? "trabalho" : "trabalhos"} com falha ou interrupção
+										</span>
+									</div>
+									<Button size="sm" variant="tertiary" onClick={openAttentionQueue}>
+										Ver todos
+									</Button>
+								</div>
+								<div className={styles.overviewAttentionList}>
+									{attention.slice(0, 3).map((job) => {
+										const recovery = terminalRecoveryActions(job, canDeleteJobs);
+										const pending =
+											state.mutation?.targetId === job.id
+												? state.mutation.kind
+												: null;
+										return (
+											<article
+												key={job.id}
+												className={styles.overviewAttentionItem}
+												data-job-id={job.id}
+											>
+												<div>
+													<strong>{presentJobTitle(job)}</strong>
+													<span>
+														{job.error
+															? `${presentJobError(job.error.code)} · ${job.error.code}`
+															: jobLabels[job.status]}
+														{" · "}tentativa {job.attempt}
+													</span>
+												</div>
+												<div className={styles.overviewAttentionActions}>
+													{recovery.canStartNew ? (
+														<Button
+															size="sm"
+															variant={recovery.canRetry ? "tertiary" : "primary"}
+															onClick={() => startNewForJob(job)}
+														>
+															{recovery.newLabel}
+														</Button>
+													) : null}
+													{recovery.canRetry ? (
+														<Button
+															size="sm"
+															variant="tertiary"
+															disabled={pending === "retry"}
+															onClick={() =>
+																setConfirmation({ id: job.id, action: "retry" })
+															}
+														>
+															{pending === "retry"
+																? "Repetindo…"
+																: recovery.retryLabel}
+														</Button>
+													) : null}
+													<Button
+														size="sm"
+														variant="tertiary"
+														onClick={() => openJobDiagnostics(job)}
+													>
+														Diagnóstico
+													</Button>
+													{recovery.canDiscard ? (
+														<Button
+															size="sm"
+															variant="tertiary"
+															className={styles.dangerAction}
+															disabled={pending === "delete"}
+															onClick={() =>
+																setConfirmation({ id: job.id, action: "delete" })
+															}
+														>
+															{pending === "delete"
+																? "Descartando…"
+																: recovery.discardLabel}
+														</Button>
+													) : null}
+												</div>
+											</article>
+										);
+									})}
+								</div>
+							</section>
+						) : null}
 						{latestCompletedRun ? (
 							<section
 								className={styles.overviewMetrics}
@@ -1362,6 +1475,13 @@ export function ProcessingPanel({
 							observedJobId={state.observedJobId}
 							onRefresh={() => void controller.refresh("manual")}
 							onCancel={(jobId) => controller.jobAction(jobId, "cancel")}
+							onRetry={(job) =>
+								setConfirmation({ id: job.id, action: "retry" })
+							}
+							onDelete={(job) =>
+								setConfirmation({ id: job.id, action: "delete" })
+							}
+							canDelete={canDeleteJobs}
 							onObserve={(jobId) => controller.observeJob(jobId)}
 							onOpenDiagnostics={openJobDiagnostics}
 						/>
@@ -1620,8 +1740,8 @@ export function ProcessingPanel({
 				)}
 				pendingAction={
 					state.mutation?.targetId === diagnosticInspectorJobId &&
-					["cancel", "retry", "result"].includes(state.mutation.kind)
-						? (state.mutation.kind as "cancel" | "retry" | "result")
+					["cancel", "retry", "delete", "result"].includes(state.mutation.kind)
+						? (state.mutation.kind as "cancel" | "retry" | "delete" | "result")
 						: null
 				}
 				onClose={() => closeJobDiagnostics(true)}
@@ -1636,6 +1756,12 @@ export function ProcessingPanel({
 				onCancel={(job) =>
 					setConfirmation({ id: job.id, action: "cancel" })
 				}
+				onNew={startNewForJob}
+				onDelete={(job) => {
+					closeJobDiagnostics(false);
+					setConfirmation({ id: job.id, action: "delete" });
+				}}
+				canDelete={canDeleteJobs}
 			/>
 
 			<dialog
@@ -1654,7 +1780,7 @@ export function ProcessingPanel({
 								: confirmation.action === "cancel"
 									? "Cancelar este trabalho?"
 									: confirmation.action === "delete"
-										? "Excluir este trabalho?"
+										? "Descartar este trabalho?"
 										: "Repetir este trabalho?"}
 						</h2>
 						<p>
@@ -1663,13 +1789,13 @@ export function ProcessingPanel({
 								: confirmation.action === "cancel"
 									? `O cancelamento será enviado ao trabalho ${confirmation.id}.`
 									: confirmation.action === "delete"
-										? `O trabalho ${confirmation.id}, seus eventos e a referência de resultado na fila serão excluídos. As transcrições em Resultados, revisões, modelos, sessão Craig e checkpoints serão preservados.`
+										? `O trabalho ${confirmation.id} e seu histórico operacional serão removidos da fila. Resultados locais, evidências concluídas, revisões, modelos, sessão Craig e checkpoints serão preservados.`
 										: `Uma nova tentativa será criada para ${confirmation.id}; checkpoints compatíveis serão reutilizados quando disponíveis, sem prometer retomada exata de toda etapa.`}
 						</p>
 						<div className={styles.dialogActions}>
 							<Button onClick={() => setConfirmation(null)}>Voltar</Button>
 							<Button variant="primary" onClick={() => void confirm()}>
-								{confirmation.action === "delete" ? "Excluir" : "Confirmar"}
+								{confirmation.action === "delete" ? "Descartar trabalho" : "Confirmar"}
 							</Button>
 						</div>
 					</>
