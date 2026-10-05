@@ -960,9 +960,13 @@ def create_app(
                 or manifest.get("artifact") != "transcript.json"
                 or manifest.get("context_sha256") != _sha256_text(body.get("context"))
                 or manifest.get("glossary_sha256") != _sha256_text(body.get("glossary"))
+                or manifest.get("track_policy") != body.get("track_policy")
+                or manifest.get("track_policy_sha256") != body.get("track_policy_sha256")
+                or manifest.get("include_bot_tracks") is not bool(body.get("include_bot_tracks", False))
+                or manifest.get("ignored_track_numbers") != body.get("ignored_track_numbers", [])
                 or not isinstance(manifest.get("stats"), dict)
                 or manifest["stats"].get("track_count") != body.get("units")
-                    or not isinstance(digest, str)
+                or not isinstance(digest, str)
                 or not _SHA256_PATTERN.fullmatch(digest)
             ):
                 continue
