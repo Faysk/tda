@@ -1,4 +1,5 @@
 import type { LocalJob } from "./protocol";
+import { queueRetryAvailable } from "./queue-model";
 
 export type TerminalRecoveryActions = Readonly<{
 	canStartNew: boolean;
@@ -19,9 +20,7 @@ export function terminalRecoveryActions(
 	canDelete: boolean,
 ): TerminalRecoveryActions {
 	const terminal = TERMINAL_STATUSES.has(job.status);
-	const retryable =
-		(job.status === "failed" || job.status === "interrupted") &&
-		job.error?.recoverable === true;
+	const retryable = queueRetryAvailable(job);
 
 	return {
 		canStartNew: terminal,
