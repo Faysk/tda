@@ -407,6 +407,41 @@ describe("processing state", () => {
 		expect(controller.snapshot().connection).toBe("disconnected");
 		expect(request).toHaveBeenCalledTimes(1);
 	});
+	it("does not send a futile retry when the shared recovery policy rejects it", async () => {
+		const uncertainJob = {
+			...job,
+			kind: "transcription.craig",
+			status: "failed",
+			stage: "failed",
+			progress: { completed: 0, total: 4, unit: "tracks" },
+			error: { code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN", recoverable: true },
+			context: {
+				campaign_id: "campaign",
+				session_id: "session",
+				source_id: "craig-" + "a".repeat(64),
+				profile_id: "qwen-fast",
+			},
+		};
+		const request = vi
+			.fn<typeof fetch>()
+			.mockImplementation(async (url) =>
+				Response.json(
+					String(url).endsWith("/health")
+						? health
+						: String(url).endsWith("/capabilities")
+							? caps
+							: { jobs: [uncertainJob] },
+				),
+			);
+		const controller = new ProcessingController(new LocalBridge(request));
+		await controller.connect(token);
+		request.mockClear();
+
+		await controller.jobAction(uncertainJob.id, "retry");
+
+		expect(request).not.toHaveBeenCalled();
+	});
+
 	it("keeps mutations available during background refresh and ignores late stale reads", async () => {
 		const { request, controller } = fixture();
 		await controller.connect(token);
