@@ -177,20 +177,16 @@ def test_session_workspace_reset_starts_fresh_generation_without_deleting_histor
             assert response.status_code == 200
             workspace = response.json()
 
-        selected = client.post(
-            "/api/v1/session-workspaces/campaign-reset/session-reset/parts/run",
-            headers=HEADERS,
-            json={
-                "part_id": workspace["parts"][0]["part_id"],
-                "run_id": "old-run-a",
-                "expected_revision": workspace["revision"],
-            },
+        store = Store(data_root)
+        workspace = store.select_session_part_run(
+            "campaign-reset",
+            "session-reset",
+            workspace["parts"][0]["part_id"],
+            "old-run-a",
+            workspace["revision"],
         )
-        assert selected.status_code == 200
-        workspace = selected.json()
         assert workspace["parts"][0]["selected_run_id"] == "old-run-a"
 
-        store = Store(data_root)
         old_job = store.submit(
             "old-reset-evidence",
             {
