@@ -402,6 +402,10 @@ def _manifest_for_document(
     transcript_size_bytes: int,
     glossary: str,
     context: str,
+    track_policy: str | None = None,
+    track_policy_sha256: str | None = None,
+    include_bot_tracks: bool | None = None,
+    ignored_track_numbers: tuple[int, ...] = (),
     execution_lineage: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     document.validate()
@@ -427,6 +431,10 @@ def _manifest_for_document(
         "language": document.language,
         "context_sha256": _sha256_text(context),
         "glossary_sha256": _sha256_text(glossary),
+        "track_policy": track_policy,
+        "track_policy_sha256": track_policy_sha256,
+        "include_bot_tracks": include_bot_tracks,
+        "ignored_track_numbers": list(ignored_track_numbers),
         "transcript_schema_version": document.schema_version,
         "artifact": "transcript.json",
         "transcript_sha256": transcript_sha256,
@@ -462,6 +470,10 @@ def write_completed_run(
     source_id: str | None = None,
     glossary: str = "",
     context: str = "",
+    track_policy: str | None = None,
+    track_policy_sha256: str | None = None,
+    include_bot_tracks: bool | None = None,
+    ignored_track_numbers: tuple[int, ...] = (),
     execution_lineage: dict[str, Any] | None = None,
     before_commit: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
@@ -491,6 +503,10 @@ def write_completed_run(
             transcript_size_bytes=size,
             glossary=glossary,
             context=context,
+            track_policy=track_policy,
+            track_policy_sha256=track_policy_sha256,
+            include_bot_tracks=include_bot_tracks,
+            ignored_track_numbers=ignored_track_numbers,
             execution_lineage=execution_lineage,
         )
         # The caller may reserve the cross-process attempt outcome immediately
@@ -702,10 +718,34 @@ def _validate_manifest(
     profile_id = value.get("profile_id")
     if not isinstance(profile_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", profile_id):
         raise TranscriptionRunError("TRANSCRIPTION_RUN_PROFILE_INVALID")
-    for name in ("profile_contract_sha256", "context_sha256", "glossary_sha256"):
+    for name in (
+        "profile_contract_sha256",
+        "context_sha256",
+        "glossary_sha256",
+        "track_policy_sha256",
+    ):
         item = value.get(name)
         if item is not None and (not isinstance(item, str) or not _SHA256.fullmatch(item)):
             raise TranscriptionRunError("TRANSCRIPTION_RUN_METADATA_INVALID")
+    track_policy = value.get("track_policy")
+    if track_policy is not None and (
+        not isinstance(track_policy, str)
+        or not re.fullmatch(r"[a-z0-9_-]{1,96}", track_policy)
+    ):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_METADATA_INVALID")
+    include_bot_tracks = value.get("include_bot_tracks")
+    if include_bot_tracks is not None and not isinstance(include_bot_tracks, bool):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_METADATA_INVALID")
+    ignored_track_numbers = value.get("ignored_track_numbers")
+    if ignored_track_numbers is not None and (
+        not isinstance(ignored_track_numbers, list)
+        or len(ignored_track_numbers) > 256
+        or any(
+            isinstance(item, bool) or not isinstance(item, int) or item < 1
+            for item in ignored_track_numbers
+        )
+    ):
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_METADATA_INVALID")
     # A corrupt historical summary must not poison every sibling in the Web
     # response. This is metadata-only; listing never needs to parse the transcript.
     for name, maximum in (("engine", 64), ("model", 256), ("model_revision", 256),
@@ -814,6 +854,10 @@ def _public_summary(value: dict[str, Any]) -> dict[str, Any]:
         "profile_contract_sha256": value.get("profile_contract_sha256"),
         "context_sha256": value.get("context_sha256"),
         "glossary_sha256": value.get("glossary_sha256"),
+        "track_policy": value.get("track_policy"),
+        "track_policy_sha256": value.get("track_policy_sha256"),
+        "include_bot_tracks": value.get("include_bot_tracks"),
+        "ignored_track_numbers": value.get("ignored_track_numbers", []),
         "engine": value.get("engine"),
         "model": value.get("model"),
         "model_revision": value.get("model_revision"),
