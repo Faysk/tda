@@ -449,6 +449,7 @@ export function JobDiagnosticsInspector({
 								<Button
 									size="sm"
 									variant="tertiary"
+									className={styles.dangerAction}
 									disabled={pendingAction === "delete"}
 									onClick={() => onDelete(job)}
 								>
