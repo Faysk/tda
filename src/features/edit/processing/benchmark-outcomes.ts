@@ -120,9 +120,16 @@ export function deriveBenchmarkAttemptUiState(
 			);
 		}
 	} else {
-		const attemptEvents = events.filter(
-			(event) => event.attempt === null || event.attempt === job.attempt,
-		);
+		// Retry queues a fresh attempt by resetting progress before the worker is
+		// claimed. Until claim() advances job.attempt, the persisted attempt number
+		// still names the previous terminal attempt. Never replay those old profile
+		// events into the queued retry UI; the fresh attempt truthfully starts at 0/4.
+		const attemptEvents =
+			job.status === "queued"
+				? events.filter((event) => event.attempt === null)
+				: events.filter(
+						(event) => event.attempt === null || event.attempt === job.attempt,
+					);
 		let sawProfileEvent = false;
 		for (const event of attemptEvents) {
 			if (

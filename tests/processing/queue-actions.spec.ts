@@ -51,6 +51,15 @@ for (const viewport of [
 		await expect(
 			popup.getByRole("button", { name: "Detalhes", exact: true }),
 		).toBeFocused();
+		await expect(
+			popup.getByRole("button", { name: "Nova transcrição", exact: true }),
+		).toBeVisible();
+		await expect(
+			popup.getByRole("button", { name: "Abrir Diagnóstico", exact: true }),
+		).toBeVisible();
+		await expect(
+			popup.getByRole("button", { name: "Descartar", exact: true }),
+		).toBeVisible();
 		const box = await popup.boundingBox();
 		expect(box).not.toBeNull();
 		if (!box) throw new Error("No popup bounds");
@@ -84,7 +93,7 @@ for (const viewport of [
 		await expect(popup).toHaveCount(0);
 		await expect(last).toBeFocused();
 		await page.keyboard.press("Enter");
-		await popup.getByRole("button", { name: "Excluir", exact: true }).focus();
+		await popup.getByRole("button", { name: "Descartar", exact: true }).focus();
 		await page.keyboard.press("Tab");
 		await expect(popup).toHaveCount(0);
 		expect(

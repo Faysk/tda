@@ -30,6 +30,7 @@ import {
 	deriveBenchmarkAttemptUiState,
 	type BenchmarkProfileUiState,
 } from "./benchmark-outcomes";
+import { terminalRecoveryActions } from "./terminal-recovery";
 import styles from "./benchmark.module.css";
 
 const PROFILES = BENCHMARK_PROFILES;
@@ -467,6 +468,9 @@ export function ProcessingBenchmark({
 	observedJobId,
 	onRefresh,
 	onCancel,
+	onRetry,
+	onDelete,
+	canDelete,
 	onObserve,
 	onOpenDiagnostics,
 }: Readonly<{
@@ -477,6 +481,9 @@ export function ProcessingBenchmark({
 	observedJobId: string | null;
 	onRefresh: () => void;
 	onCancel: (jobId: string) => void | Promise<void>;
+	onRetry: (job: LocalJob) => void;
+	onDelete: (job: LocalJob) => void;
+	canDelete: boolean;
 	onObserve: (jobId: string) => void | Promise<void>;
 	onOpenDiagnostics: (job: LocalJob) => void;
 }>) {
@@ -568,6 +575,9 @@ export function ProcessingBenchmark({
 		latestProblem && latestProblemEvents.length > 0
 			? deriveBenchmarkAttemptUiState(latestProblem, latestProblemEvents)
 			: null;
+	const latestProblemActions = latestProblem
+		? terminalRecoveryActions(latestProblem, canDelete)
+		: null;
 	const profileStates = PROFILES.map(
 		(id) => catalog.find((item) => item.id === id) ?? null,
 	);
@@ -1041,9 +1051,13 @@ export function ProcessingBenchmark({
 		}
 	}
 
-	async function repeatPartialBenchmark(result: BenchmarkPartialResult) {
+	async function startNewBenchmark(sourceId: string | null | undefined) {
+		pending.current = null;
+		setAcceptedJob(null);
+		setError(null);
 		if (
-			source?.sourceId === result.sourceId &&
+			sourceId &&
+			source?.sourceId === sourceId &&
 			allProfilesReady &&
 			sampleEligible &&
 			connected &&
@@ -1058,11 +1072,17 @@ export function ProcessingBenchmark({
 		fileInput.current?.click();
 	}
 
+	async function repeatPartialBenchmark(result: BenchmarkPartialResult) {
+		await startNewBenchmark(result.sourceId);
+	}
+
 	const activeEvents =
 		active && observedJobId === active.id
-			? events.filter(
-					(event) => event.attempt === null || event.attempt === active.attempt,
-				)
+			? active.status === "queued"
+				? events.filter((event) => event.attempt === null)
+				: events.filter(
+						(event) => event.attempt === null || event.attempt === active.attempt,
+					)
 			: [];
 	const activeAttemptState = active
 		? deriveBenchmarkAttemptUiState(active, activeEvents)
@@ -1546,13 +1566,45 @@ export function ProcessingBenchmark({
 							</>
 						) : null}
 					</div>
-					<Button
-						type="button"
-						variant="tertiary"
-						onClick={() => onOpenDiagnostics(latestProblem)}
-					>
-						Ver log / Diagnóstico
-					</Button>
+					<div className={styles.activeActions}>
+						{latestProblemActions?.canStartNew ? (
+							<Button
+								type="button"
+								variant="primary"
+								onClick={() =>
+									void startNewBenchmark(latestProblem.context?.sourceId)
+								}
+							>
+								Executar novo benchmark
+							</Button>
+						) : null}
+						{latestProblemActions?.canRetry ? (
+							<Button
+								type="button"
+								variant="secondary"
+								onClick={() => onRetry(latestProblem)}
+							>
+								Repetir tentativa
+							</Button>
+						) : null}
+						<Button
+							type="button"
+							variant="tertiary"
+							onClick={() => onOpenDiagnostics(latestProblem)}
+						>
+							Ver log / Diagnóstico
+						</Button>
+						{latestProblemActions?.canDiscard ? (
+							<Button
+								type="button"
+								variant="tertiary"
+								className={styles.dangerAction}
+								onClick={() => onDelete(latestProblem)}
+							>
+								Descartar trabalho
+							</Button>
+						) : null}
+					</div>
 				</section>
 			) : null}
 

@@ -588,3 +588,104 @@ def test_store_persists_partial_benchmark_as_failed_result_without_retry_alias(t
     with pytest.raises(Conflict, match="JOB_NOT_RETRYABLE"):
         store.action(job_id, "retry")
 
+@pytest.mark.parametrize("completed_before_failure", range(4))
+def test_benchmark_retry_resets_attempt_scoped_progress_and_accepts_fresh_sequence(
+    tmp_path,
+    completed_before_failure,
+):
+    store = Store(tmp_path)
+    queued = store.submit(
+        f"benchmark-retry-{completed_before_failure}",
+        _benchmark_body(),
+    )
+    claimed = store.claim()
+    assert claimed is not None
+    job_id, attempt = claimed
+    assert job_id == queued["id"]
+    assert attempt == 1
+
+    for completed in range(1, completed_before_failure + 1):
+        assert store.progress(
+            job_id,
+            attempt,
+            completed=completed,
+            total=4,
+            stage="benchmark",
+        )
+
+    store.fail(
+        job_id,
+        attempt,
+        "WORKER_EXECUTION_FAILED",
+        recoverable=True,
+    )
+    before_retry = store.get(job_id)
+    assert before_retry["status"] == "failed"
+    assert before_retry["progress"]["completed"] == completed_before_failure
+
+    retried = store.action(job_id, "retry")
+    assert retried["id"] == job_id
+    assert retried["status"] == "queued"
+    assert retried["stage"] == "queued"
+    assert retried["progress"] == {
+        "completed": 0,
+        "total": 4,
+        "unit": "profiles",
+    }
+    assert retried["attempt"] == attempt
+    assert retried["timing"]["attempt_started_at"] is None
+    assert retried["timing"]["attempt_finished_at"] is None
+    assert retried["timing"]["stage_started_at"] is None
+    assert retried["timing"]["tracks"] == []
+
+    claimed_retry = store.claim()
+    assert claimed_retry == (job_id, 2)
+
+    for completed in range(1, 5):
+        assert store.progress(
+            job_id,
+            2,
+            completed=completed,
+            total=4,
+            stage="benchmark",
+        )
+
+    final_state = store.get(job_id)
+    assert final_state["progress"] == {
+        "completed": 4,
+        "total": 4,
+        "unit": "profiles",
+    }
+
+    events = store.events(job_id)
+    attempts = {
+        event["attempt"]
+        for event in events
+        if event["attempt"] is not None
+    }
+    assert attempts == {1, 2}
+
+
+def test_benchmark_progress_guard_still_rejects_a_real_gap(tmp_path):
+    store = Store(tmp_path)
+    queued = store.submit("benchmark-real-gap", _benchmark_body())
+    claimed = store.claim()
+    assert claimed is not None
+    job_id, attempt = claimed
+    assert job_id == queued["id"]
+
+    with pytest.raises(Conflict, match="WORKER_PROGRESS_MISMATCH"):
+        store.progress(
+            job_id,
+            attempt,
+            completed=2,
+            total=4,
+            stage="benchmark",
+        )
+
+    assert store.get(job_id)["progress"] == {
+        "completed": 0,
+        "total": 4,
+        "unit": "profiles",
+    }
+

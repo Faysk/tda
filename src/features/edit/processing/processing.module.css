@@ -491,6 +491,74 @@
 	margin: 0;
 }
 
+.overviewAttention {
+	display: grid;
+	gap: 8px;
+	min-width: 0;
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.overviewAttention .sectionHeading {
+	align-items: center;
+}
+
+.overviewAttention .sectionHeading > div {
+	display: grid;
+	gap: 2px;
+}
+
+.overviewAttention .sectionHeading > div > span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+}
+
+.overviewAttentionList {
+	display: grid;
+	gap: 6px;
+}
+
+.overviewAttentionItem {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 10px 16px;
+	min-width: 0;
+	padding: 9px 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-inline-start: 3px solid var(--ds-warning);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+}
+
+.overviewAttentionItem > div:first-child {
+	display: grid;
+	gap: 2px;
+	min-width: 0;
+}
+
+.overviewAttentionItem strong {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 0.8rem;
+}
+
+.overviewAttentionItem span {
+	color: var(--ds-foreground-muted);
+	font-size: 0.6875rem;
+	overflow-wrap: anywhere;
+}
+
+.overviewAttentionActions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 6px;
+}
+
 .overviewMetrics {
 	min-width: 0;
 }
@@ -1316,6 +1384,14 @@
 		grid-template-columns: 1fr;
 	}
 
+	.overviewAttentionItem {
+		grid-template-columns: 1fr;
+	}
+
+	.overviewAttentionActions {
+		justify-content: flex-start;
+	}
+
 	.inspector {
 		position: static;
 		max-height: none;
@@ -1556,6 +1632,22 @@
 .diagnosticsSummaryRail > .jobDetails,
 .diagnosticsSummaryRail > .inspectorEmpty {
 	margin: 0;
+}
+
+.diagnosticsRecoveryActions {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 6px;
+	min-inline-size: 0;
+	margin: 0;
+	padding: 0 0 10px;
+	border: 0;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.diagnosticsRecoveryActions > button {
+	width: 100%;
+	justify-content: center;
 }
 
 .diagnosticsEventPane > .liveLogExplorer {

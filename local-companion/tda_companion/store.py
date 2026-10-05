@@ -2067,11 +2067,13 @@ class Store:
                         ):
                             raise Conflict("TRANSCRIPTION_WORK_ALREADY_ACTIVE")
                 status = "queued"
-                # Queue progress restarts from zero for the new attempt.
-                # Engines may reuse validated per-track checkpoints, but every
-                # reused track must be replayed as fresh sequential progress before
-                # this attempt can commit its own immutable result.
-                if body["kind"] == "transcription.craig":
+                # Operational progress is attempt-scoped for both heavy
+                # sequential job kinds. Transcription may reuse validated per-track
+                # checkpoints, but reused tracks are replayed as fresh progress;
+                # Benchmark always restarts its per-attempt profile index at 1/N.
+                # Keeping a previous attempt's scalar here would make the strict
+                # progress fence reject a correct fresh 1/N as out-of-order.
+                if body["kind"] in {"transcription.craig", "benchmark.craig"}:
                     completed = 0
             now = utc_now()
             db.execute(

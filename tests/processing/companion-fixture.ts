@@ -965,7 +965,9 @@ export async function installCompanionFixture(
 					);
 				state.jobPostCount += 1;
 				state.idempotencyKeys.push(idempotencyKey);
-				state.job = fixtureBenchmarkJob("queued");
+				state.job = fixtureBenchmarkJob("queued", {
+					id: `benchmark-job-${state.jobPostCount}`,
+				});
 				submittedJob = true;
 				jobsReads = 0;
 				return json(route, state.job);
@@ -1029,7 +1031,7 @@ export async function installCompanionFixture(
 					: additionalJobs,
 			});
 		}
-		if (path === "/jobs/benchmark-job-1/events") {
+		if (/^\/jobs\/benchmark-job-[A-Za-z0-9_-]+\/events$/u.test(path)) {
 			const events =
 				jobEvents ??
 				(state.job?.status === "running"
@@ -1529,11 +1531,38 @@ export async function installCompanionFixture(
 			});
 		}
 		if (
-			path === "/jobs/benchmark-job-1/cancel" &&
+			/^\/jobs\/benchmark-job-[A-Za-z0-9_-]+\/cancel$/u.test(path) &&
 			request.method() === "POST"
 		) {
-			state.job = fixtureBenchmarkJob("cancelled");
+			const id = path.split("/")[2] ?? "benchmark-job-1";
+			state.job = fixtureBenchmarkJob("cancelled", { id });
 			return json(route, state.job);
+		}
+		if (
+			/^\/jobs\/benchmark-job-[A-Za-z0-9_-]+\/retry$/u.test(path) &&
+			request.method() === "POST"
+		) {
+			const id = path.split("/")[2] ?? "benchmark-job-1";
+			const currentAttempt =
+				typeof state.job?.attempt === "number" ? state.job.attempt : 1;
+			// Mirror the real Store lifecycle: retry resets attempt-scoped progress
+			// immediately, but claim() is what advances the attempt and marks it
+			// running. A queued retry therefore still exposes the previous attempt id.
+			state.job = fixtureBenchmarkJob("queued", {
+				id,
+				attempt: currentAttempt,
+				progress: { completed: 0, total: 4, unit: "profiles" },
+			});
+			jobsReads = 0;
+			return json(route, state.job);
+		}
+		if (
+			/^\/jobs\/benchmark-job-[A-Za-z0-9_-]+\/delete$/u.test(path) &&
+			request.method() === "POST"
+		) {
+			const id = path.split("/")[2] ?? "benchmark-job-1";
+			if (state.job?.id === id) state.job = null;
+			return json(route, { deleted: true, id });
 		}
 		if (path === "/jobs/craig-job-1/events") {
 			return json(route, {
@@ -1590,6 +1619,13 @@ export async function installCompanionFixture(
 			state.job = fixtureJob("queued", { attempt: 2 });
 			jobsReads = 0;
 			return json(route, state.job);
+		}
+		if (
+			path === "/jobs/craig-job-1/delete" &&
+			request.method() === "POST"
+		) {
+			state.job = null;
+			return json(route, { deleted: true, id: "craig-job-1" });
 		}
 		if (path === "/lifecycle" && request.method() === "POST") {
 			const payload = request.postDataJSON() as { action?: string };

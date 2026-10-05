@@ -190,11 +190,14 @@ test("atenção mostra erro em uma linha e move ações raras para overflow", as
 	).toBeVisible();
 
 	const more = row.getByText("Mais", { exact: true });
-	await expect(page.getByRole("button", { name: "Excluir", exact: true })).not.toBeVisible();
+	await expect(page.getByRole("button", { name: "Descartar", exact: true })).not.toBeVisible();
 	await more.click();
-	await expect(page.getByRole("button", { name: "Excluir", exact: true })).toBeVisible();
+	const actions = page.locator("[data-queue-actions='true']");
+	await expect(
+		actions.getByRole("button", { name: "Descartar", exact: true }),
+	).toBeVisible();
 
-	await page.getByRole("button", { name: "Detalhes", exact: true }).click();
+	await actions.getByRole("button", { name: "Detalhes", exact: true }).click();
 	await expect(queue.getByText("QWEN_ALIGNMENT_REQUIRED", { exact: false })).toBeVisible();
 	await expect(queue.getByText("job-failed", { exact: false })).toBeVisible();
 });

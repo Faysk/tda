@@ -682,6 +682,7 @@ test("benchmark continues after a profile-local Qwen failure and finishes as Par
 	await expect.poll(() => state.jobPostCount).toBe(2);
 	expect(state.idempotencyKeys).toHaveLength(2);
 	expect(state.idempotencyKeys[1]).not.toBe(originalKey);
+	expect(state.job?.id).toBe("benchmark-job-2");
 });
 
 test("Whisper 1.1.9 stays transcription-ready but requires benchmark evidence runtime", async ({
@@ -898,7 +899,7 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 test("terminal global Benchmark failure restores failed and not-attempted profile states", async ({
 	page,
 }) => {
-	await installCompanionFixture(page, {
+	const state = await installCompanionFixture(page, {
 		benchmarkProfiles: true,
 		profileReady: true,
 		advanceJobs: false,
@@ -1017,6 +1018,168 @@ test("terminal global Benchmark failure restores failed and not-attempted profil
 	await expect(
 		panel.locator("[data-state='not_attempted']").filter({ hasText: "Qwen Quality" }),
 	).toBeVisible();
+
+	await expect(
+		panel.getByRole("button", { name: "Executar novo benchmark" }),
+	).toBeVisible();
+	await expect(
+		panel.getByRole("button", { name: "Repetir tentativa" }),
+	).toHaveCount(0);
+	await expect(
+		panel.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
+
+	await panel.getByRole("button", { name: "Ver log / Diagnóstico" }).click();
+	const inspector = page
+		.locator("dialog")
+		.filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(
+		inspector.getByRole("button", { name: "Executar novo benchmark" }),
+	).toBeVisible();
+	await expect(
+		inspector.getByRole("button", { name: "Repetir trabalho" }),
+	).toHaveCount(0);
+	await expect(
+		inspector.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
+	await inspector.getByRole("button", { name: "Fechar" }).click();
+
+	await panel.getByRole("button", { name: "Descartar trabalho" }).click();
+	const confirmation = page
+		.locator("dialog")
+		.filter({ hasText: "Descartar este trabalho?" });
+	await expect(confirmation).toBeVisible();
+	await confirmation.getByRole("button", { name: "Descartar trabalho" }).click();
+	await expect
+		.poll(() =>
+			state.requests.some(
+				(request) =>
+					request.method === "POST" &&
+					request.path === "/jobs/benchmark-job-1/delete",
+			),
+		)
+		.toBe(true);
+	await expect(panel.getByText("Benchmark falhou globalmente")).toHaveCount(0);
+});
+
+test("recoverable global Benchmark failure retries the same job from zero progress", async ({
+	page,
+}) => {
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureBenchmarkJob("failed", {
+				stage: "failed",
+				progress: { completed: 2, total: 4, unit: "profiles" },
+				error: {
+					code: "WORKER_EXECUTION_FAILED",
+					recoverable: true,
+				},
+				result_available: false,
+			}),
+		],
+		// The real Store keeps attempt=1 until the retried job is claimed, so
+		// attempt-1 events remain persisted while the retry is queued at 0/4.
+		jobEvents: [
+			{
+				seq: 1,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-05T20:00:01Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					completed_count: 0,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 2,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-05T20:00:02Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					completed_count: 1,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 3,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-05T20:00:03Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-detailed",
+					attempted_count: 2,
+					completed_count: 1,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 4,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-05T20:00:04Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-detailed",
+					attempted_count: 2,
+					completed_count: 2,
+					failed_count: 0,
+				},
+			},
+		],
+	});
+	const panel = await openBenchmark(page);
+
+	const retry = panel.getByRole("button", { name: "Repetir tentativa" });
+	await expect(retry).toBeVisible();
+	await retry.click();
+
+	const confirmation = page
+		.locator("dialog")
+		.filter({ hasText: "Repetir este trabalho?" });
+	await expect(confirmation).toBeVisible();
+	await confirmation.getByRole("button", { name: "Confirmar" }).click();
+
+	await expect
+		.poll(() =>
+			state.requests.some(
+				(request) =>
+					request.method === "POST" &&
+					request.path === "/jobs/benchmark-job-1/retry",
+			),
+		)
+		.toBe(true);
+	await expect(panel.getByText("Benchmark em andamento")).toBeVisible();
+	await expect(panel.getByText("Aguardando worker local")).toBeVisible();
+	await expect(panel).toContainText(
+		"Tentados 0/4 · Concluídos 0 · Falharam 0 · Pendentes 4",
+	);
+	await expect(
+		panel.getByText("Benchmark concluiu whisper-detailed.", { exact: true }),
+	).toHaveCount(0);
+	expect(state.job).toMatchObject({
+		id: "benchmark-job-1",
+		status: "queued",
+		// Retry is queued before claim(), so the persisted attempt number still
+		// refers to the previous terminal attempt. The backend tests prove claim()
+		// advances it exactly once.
+		attempt: 1,
+		progress: { completed: 0, total: 4, unit: "profiles" },
+	});
 });
 
 test("completed benchmark loads a comparable receipt while failed history remains inspectable", async ({

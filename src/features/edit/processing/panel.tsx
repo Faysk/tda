@@ -36,6 +36,7 @@ import { serializeLocalRunKey } from "./local-run-key";
 import { SessionAssemblyResults } from "./session-assembly-results";
 import { publishApprovedLocalReview } from "./publication-client";
 import type { QueueFilter } from "./queue-model";
+import { terminalRecoveryActions } from "./terminal-recovery";
 import { ProcessingQueueView } from "./queue-view";
 import { ProcessingSubmission } from "./submission";
 import {
@@ -496,7 +497,15 @@ export function ProcessingPanel({
 		: (campaignRuns[0] ?? null);
 	const observedJobExact =
 		diagnosticJobs.find((job) => job.id === state.observedJobId) ?? null;
-	const observedJob = observedJobExact ?? activeJob;
+	const diagnosticFallbackJob =
+		activeJob ??
+		diagnosticJobs.find((job) => ["running", "queued"].includes(job.status)) ??
+		diagnosticJobs.find((job) => ["failed", "interrupted"].includes(job.status)) ??
+		diagnosticJobs.find((job) => job.status === "cancelled") ??
+		null;
+	const diagnosticFallbackJobId = diagnosticFallbackJob?.id ?? null;
+	const observedJobExactId = observedJobExact?.id ?? null;
+	const observedJob = observedJobExact ?? diagnosticFallbackJob;
 	const diagnosticInspectorJob =
 		diagnosticInspectorJobId === null
 			? null
@@ -517,6 +526,13 @@ export function ProcessingPanel({
 			: null;
 	const canDeleteJobs = supportsTerminalJobDelete(state.health?.service_version);
 	const canDeleteRuns = supportsCompletedRunDelete(state.health?.service_version);
+	const observedRecovery = observedJob
+		? terminalRecoveryActions(observedJob, canDeleteJobs)
+		: null;
+	const confirmationJob =
+		confirmation && "id" in confirmation
+			? (state.jobs.find((job) => job.id === confirmation.id) ?? null)
+			: null;
 	const activeJobClockKey = activeJob ? `${activeJob.id}:${activeJob.attempt}` : null;
 
 	useEffect(() => {
@@ -525,13 +541,33 @@ export function ProcessingPanel({
 		return () => window.clearInterval(timer);
 	}, [activeJobClockKey]);
 
+	useEffect(() => {
+		if (
+			view !== "diagnostics" ||
+			observedJobExactId !== null ||
+			diagnosticFallbackJobId === null
+		)
+			return;
+		// The main Diagnostics tab is a working surface, not an empty landing
+		// page. When nothing was explicitly selected, observe the most relevant
+		// local job so terminal recovery actions and its event stream stay aligned.
+		void controller.observeJob(diagnosticFallbackJobId);
+	}, [
+		controller,
+		diagnosticFallbackJobId,
+		observedJobExactId,
+		view,
+	]);
+
 	async function confirm() {
 		const choice = confirmation;
 		setConfirmation(null);
 		if (!choice) return;
 		if (choice.action === "resume") await controller.lifecycle("resume");
-		else if (choice.action === "delete") await controller.deleteJob(choice.id);
-		else {
+		else if (choice.action === "delete") {
+			await controller.deleteJob(choice.id);
+			if (diagnosticInspectorJobId === choice.id) closeJobDiagnostics(false);
+		} else {
 			await controller.jobAction(choice.id, choice.action);
 			if (choice.action === "retry") {
 				const retried = controller
@@ -630,6 +666,21 @@ export function ProcessingPanel({
 		const opener = diagnosticOpener.current;
 		diagnosticOpener.current = null;
 		if (restoreFocus && opener) requestAnimationFrame(() => opener.focus());
+	}
+
+	function startNewWork(job: LocalJob) {
+		closeJobDiagnostics(false);
+		const destination = job.kind === "benchmark.craig" ? "benchmark" : "overview";
+		activateView(destination);
+		requestAnimationFrame(() => {
+			document
+				.querySelector(
+					destination === "benchmark"
+						? "[data-benchmark-source-picker='true']"
+						: "[data-craig-composer='true']",
+				)
+				?.scrollIntoView({ block: "nearest" });
+		});
 	}
 
 	function openAttentionQueue() {
@@ -1100,6 +1151,101 @@ export function ProcessingPanel({
 								/>
 							</fieldset>
 						</div>
+						{attention.length ? (
+							<section
+								className={styles.overviewAttention}
+								aria-labelledby="processing-attention-title"
+							>
+								<div className={styles.sectionHeading}>
+									<div>
+										<h2 id="processing-attention-title">Precisa de atenção</h2>
+										<span>
+											{attention.length} {attention.length === 1 ? "trabalho" : "trabalhos"} com falha ou interrupção
+										</span>
+									</div>
+									<Button size="sm" variant="tertiary" onClick={openAttentionQueue}>
+										Ver todos
+									</Button>
+								</div>
+								<div className={styles.overviewAttentionList}>
+									{attention.slice(0, 3).map((job) => {
+										const recovery = terminalRecoveryActions(job, canDeleteJobs);
+										const pending =
+											state.mutation?.targetId === job.id
+												? state.mutation.kind
+												: null;
+										return (
+											<article
+												key={job.id}
+												className={styles.overviewAttentionItem}
+												data-job-id={job.id}
+											>
+												<div>
+													<strong>{presentJobTitle(job)}</strong>
+													<span>
+														{job.error
+															? `${presentJobError(job.error.code)} · ${job.error.code}`
+															: jobLabels[job.status]}
+														{" · "}tentativa {job.attempt}
+													</span>
+												</div>
+												<div className={styles.overviewAttentionActions}>
+													{recovery.canStartNew ? (
+														<Button
+															size="sm"
+															variant="primary"
+															onClick={() => startNewWork(job)}
+														>
+															{job.kind === "benchmark.craig"
+																? "Executar novo benchmark"
+																: "Nova transcrição"}
+														</Button>
+													) : null}
+													{recovery.canRetry ? (
+														<Button
+															size="sm"
+															variant="secondary"
+															disabled={pending === "retry"}
+															onClick={() =>
+																setConfirmation({ id: job.id, action: "retry" })
+															}
+														>
+															{pending === "retry"
+																? "Repetindo…"
+																: job.kind === "benchmark.craig"
+																	? "Repetir tentativa"
+																	: "Repetir trabalho"}
+														</Button>
+													) : null}
+													<Button
+														size="sm"
+														variant="tertiary"
+														onClick={() => openJobDiagnostics(job)}
+													>
+														Diagnóstico
+													</Button>
+													{recovery.canDiscard ? (
+														<Button
+															size="sm"
+															variant="tertiary"
+															className={styles.dangerAction}
+															disabled={pending === "delete"}
+															onClick={() =>
+																setConfirmation({ id: job.id, action: "delete" })
+															}
+														>
+															{pending === "delete"
+																? "Descartando…"
+																: "Descartar trabalho"}
+														</Button>
+													) : null}
+												</div>
+											</article>
+										);
+									})}
+								</div>
+							</section>
+						) : null}
 						{latestCompletedRun ? (
 							<section
 								className={styles.overviewMetrics}
@@ -1210,6 +1356,7 @@ export function ProcessingPanel({
 								setConfirmation({ id: job.id, action: "retry" })
 							}
 							onResult={(job) => void openJobResult(job)}
+							onStartNew={startNewWork}
 							onDelete={(job) =>
 								setConfirmation({ id: job.id, action: "delete" })
 							}
@@ -1362,6 +1509,13 @@ export function ProcessingPanel({
 							observedJobId={state.observedJobId}
 							onRefresh={() => void controller.refresh("manual")}
 							onCancel={(jobId) => controller.jobAction(jobId, "cancel")}
+							onRetry={(job) =>
+								setConfirmation({ id: job.id, action: "retry" })
+							}
+							onDelete={(job) =>
+								setConfirmation({ id: job.id, action: "delete" })
+							}
+							canDelete={canDeleteJobs}
 							onObserve={(jobId) => controller.observeJob(jobId)}
 							onOpenDiagnostics={openJobDiagnostics}
 						/>
@@ -1414,6 +1568,19 @@ export function ProcessingPanel({
 												<dt>Tentativa</dt>
 												<dd>{observedJob.attempt}</dd>
 											</div>
+											{observedJob.error ? (
+												<div className={styles.detailWide}>
+													<dt>Erro</dt>
+													<dd>
+														{presentJobError(observedJob.error.code)}
+														{" · "}
+														<code>{observedJob.error.code}</code>
+														{observedJob.error.recoverable
+															? " · recuperável"
+															: " · não recuperável"}
+													</dd>
+												</div>
+											) : null}
 											<div>
 												<dt>ID local</dt>
 												<dd className={styles.mono}>{observedJob.id}</dd>
@@ -1425,6 +1592,82 @@ export function ProcessingPanel({
 										</p>
 									)}
 
+									{observedJob ? (
+										<fieldset className={styles.diagnosticsRecoveryActions}>
+											<legend className={styles.visuallyHidden}>
+												Ações do trabalho observado
+											</legend>
+											{observedRecovery?.canStartNew ? (
+												<Button
+													size="sm"
+													variant="primary"
+													onClick={() => startNewWork(observedJob)}
+												>
+													{observedJob.kind === "benchmark.craig"
+														? "Executar novo benchmark"
+														: "Nova transcrição"}
+												</Button>
+											) : null}
+											{observedRecovery?.canRetry ? (
+												<Button
+													size="sm"
+													variant="secondary"
+													disabled={
+														state.mutation?.kind === "retry" &&
+														state.mutation.targetId === observedJob.id
+													}
+													onClick={() =>
+														setConfirmation({ id: observedJob.id, action: "retry" })
+													}
+												>
+													{state.mutation?.kind === "retry" &&
+													state.mutation.targetId === observedJob.id
+														? "Repetindo…"
+														: observedJob.kind === "benchmark.craig"
+															? "Repetir tentativa"
+															: "Repetir trabalho"}
+												</Button>
+											) : null}
+											{["queued", "running"].includes(observedJob.status) ? (
+												<Button
+													size="sm"
+													variant="tertiary"
+													className={styles.dangerAction}
+													disabled={
+														state.mutation?.kind === "cancel" &&
+														state.mutation.targetId === observedJob.id
+													}
+													onClick={() =>
+														setConfirmation({ id: observedJob.id, action: "cancel" })
+													}
+												>
+													{state.mutation?.kind === "cancel" &&
+													state.mutation.targetId === observedJob.id
+														? "Cancelando…"
+														: "Cancelar trabalho"}
+												</Button>
+											) : null}
+											{observedRecovery?.canDiscard ? (
+												<Button
+													size="sm"
+													variant="tertiary"
+													className={styles.dangerAction}
+													disabled={
+														state.mutation?.kind === "delete" &&
+														state.mutation.targetId === observedJob.id
+													}
+													onClick={() =>
+														setConfirmation({ id: observedJob.id, action: "delete" })
+													}
+												>
+													{state.mutation?.kind === "delete" &&
+													state.mutation.targetId === observedJob.id
+														? "Descartando…"
+														: "Descartar trabalho"}
+												</Button>
+											) : null}
+										</fieldset>
+									) : null}
 
 									<details className={styles.systemDetails}>
 										<summary>Companion e máquina</summary>
@@ -1620,19 +1863,25 @@ export function ProcessingPanel({
 				)}
 				pendingAction={
 					state.mutation?.targetId === diagnosticInspectorJobId &&
-					["cancel", "retry", "result"].includes(state.mutation.kind)
-						? (state.mutation.kind as "cancel" | "retry" | "result")
+					["cancel", "retry", "result", "delete"].includes(state.mutation.kind)
+						? (state.mutation.kind as "cancel" | "retry" | "result" | "delete")
 						: null
 				}
+				canDelete={canDeleteJobs}
 				onClose={() => closeJobDiagnostics(true)}
 				onOpenResult={async (job) => {
 					const error = await openJobResult(job);
 					if (!error) closeJobDiagnostics(false);
 					return error;
 				}}
+				onStartNew={startNewWork}
 				onRetry={(job) =>
 					setConfirmation({ id: job.id, action: "retry" })
 				}
+				onDelete={(job) => {
+					closeJobDiagnostics(false);
+					setConfirmation({ id: job.id, action: "delete" });
+				}}
 				onCancel={(job) =>
 					setConfirmation({ id: job.id, action: "cancel" })
 				}
@@ -1654,7 +1903,7 @@ export function ProcessingPanel({
 								: confirmation.action === "cancel"
 									? "Cancelar este trabalho?"
 									: confirmation.action === "delete"
-										? "Excluir este trabalho?"
+										? "Descartar este trabalho?"
 										: "Repetir este trabalho?"}
 						</h2>
 						<p>
@@ -1663,13 +1912,19 @@ export function ProcessingPanel({
 								: confirmation.action === "cancel"
 									? `O cancelamento será enviado ao trabalho ${confirmation.id}.`
 									: confirmation.action === "delete"
-										? `O trabalho ${confirmation.id}, seus eventos e a referência de resultado na fila serão excluídos. As transcrições em Resultados, revisões, modelos, sessão Craig e checkpoints serão preservados.`
+										? confirmationJob?.result_available
+											? `O trabalho ${confirmation.id}, seus eventos e a referência de resultado na fila serão excluídos. As transcrições em Resultados, revisões, evidências de Benchmark, modelos, sessão Craig e checkpoints serão preservados.`
+											: `O trabalho ${confirmation.id} e seu histórico operacional serão removidos da fila. Nenhum resultado concluído será removido porque esta execução não produziu um; transcrições, revisões, evidências de Benchmark, modelos, sessão Craig e checkpoints permanecem preservados.`
 										: `Uma nova tentativa será criada para ${confirmation.id}; checkpoints compatíveis serão reutilizados quando disponíveis, sem prometer retomada exata de toda etapa.`}
 						</p>
 						<div className={styles.dialogActions}>
 							<Button onClick={() => setConfirmation(null)}>Voltar</Button>
-							<Button variant="primary" onClick={() => void confirm()}>
-								{confirmation.action === "delete" ? "Excluir" : "Confirmar"}
+							<Button
+								variant={confirmation.action === "delete" ? "tertiary" : "primary"}
+								className={confirmation.action === "delete" ? styles.dangerAction : undefined}
+								onClick={() => void confirm()}
+							>
+								{confirmation.action === "delete" ? "Descartar trabalho" : "Confirmar"}
 							</Button>
 						</div>
 					</>
