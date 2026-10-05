@@ -1102,6 +1102,171 @@ export function SessionIntentCoordinator({
 		}
 	}
 
+	async function restartSessionFromScratch() {
+		if (
+			!workspace ||
+			busy ||
+			disabled ||
+			!capabilities.includes("transcription.session-workspace.reset")
+		)
+			return;
+
+		const active = workspace.parts
+			.map((part) => latestJobForSource(jobs, part.sourceId))
+			.filter(
+				(job): job is LocalJob =>
+					Boolean(job) &&
+					(job?.status === "queued" || job?.status === "running"),
+			);
+		if (active.length) {
+			setFreshStartOpen(false);
+			setRecovery(null);
+			setLocalError(
+				"Há gravações ainda na fila ou em processamento. Cancele essas execuções antes de recomeçar do zero.",
+			);
+			return;
+		}
+
+		const controller = new AbortController();
+		setBusy(true);
+		setLocalError(null);
+		setRecovery(null);
+		try {
+			let seed = activeRequest;
+			if (!seed) {
+				const saved = await bridge.sessionTranscriptionIntent(
+					workspace.campaignId,
+					workspace.sessionId,
+					controller.signal,
+				);
+				seed = {
+					id: saved.requestId,
+					sessionId: workspace.sessionId,
+					sources: workspace.parts.map((part, index) => ({
+						sourceId: part.sourceId,
+						label: `Gravação ${index + 1}`,
+					})),
+					profile: saved.profileId,
+					context: saved.context,
+					glossary: saved.glossary,
+					compatibilityFingerprint: saved.compatibilityFingerprint,
+				};
+			}
+
+			const resetWorkspace = await bridge.resetSessionWorkspace(
+				workspace.campaignId,
+				workspace.sessionId,
+				workspace.revision,
+				controller.signal,
+			);
+			const freshRequestId = crypto.randomUUID();
+			const savedIntent = await bridge.saveSessionTranscriptionIntent(
+				workspace.campaignId,
+				workspace.sessionId,
+				{
+					requestId: freshRequestId,
+					profileId: seed.profile,
+					context: seed.context,
+					glossary: seed.glossary,
+				},
+				controller.signal,
+			);
+			const freshRequest: SessionTranscriptionIntent = {
+				...seed,
+				id: freshRequestId,
+				sessionId: resetWorkspace.sessionId,
+				sources: resetWorkspace.parts.map((part, index) => ({
+					sourceId: part.sourceId,
+					label:
+						seed.sources.find((source) => source.sourceId === part.sourceId)?.label ??
+						`Gravação ${index + 1}`,
+				})),
+				compatibilityFingerprint: savedIntent.compatibilityFingerprint,
+			};
+
+			for (const pending of pendingSubmissions.current.values())
+				confirmSessionComposerPendingSubmission(window.localStorage, pending);
+			pendingSubmissions.current.clear();
+			if (recoveryScope) {
+				try {
+					await clearPendingSubmissionsForSession(window.localStorage, {
+						profileScope: recoveryScope,
+						campaignId: workspace.campaignId,
+						sessionId: workspace.sessionId,
+					});
+				} catch {
+					// Browser recovery cleanup is best-effort; the Agent cutoff is authoritative.
+				}
+			}
+
+			if (intentReceiptIdentity.current) {
+				try {
+					clearSessionIntentReceipt(
+						window.localStorage,
+						intentReceiptIdentity.current,
+					);
+				} catch {
+					// Browser recovery metadata cannot make the Agent reset fail.
+				}
+			}
+			intentEnqueueKeys.current.clear();
+			intentJobIds.current.clear();
+			intentRunIds.current.clear();
+			enqueueRecoveryBlocked.current.clear();
+			approvedVariantSources.current.clear();
+			excludedSources.current.clear();
+			intentReceiptIdentity.current = null;
+			intentReceipt.current = null;
+
+			if (recoveryScope) {
+				try {
+					const identity = await sessionIntentReceiptIdentity({
+						profileScope: recoveryScope,
+						campaignId: workspace.campaignId,
+						sessionId: workspace.sessionId,
+					});
+					const receipt = createSessionIntentReceipt(identity, {
+						requestId: freshRequestId,
+						sourceIds: freshRequest.sources.map((source) => source.sourceId),
+						profileId: freshRequest.profile,
+						contextSha256: savedIntent.contextSha256,
+						glossarySha256: savedIntent.glossarySha256,
+					});
+					intentReceiptIdentity.current = identity;
+					intentReceipt.current = receipt;
+					saveSessionIntentReceipt(window.localStorage, identity, receipt);
+				} catch {
+					// Agent state remains authoritative if browser recovery cannot be persisted.
+				}
+			}
+
+			setAssembly(null);
+			setBlocker(null);
+			setActiveRequest(freshRequest);
+			setFreshStartOpen(false);
+			await loadSnapshot(resetWorkspace.sessionId, controller.signal);
+			announce(
+				"Estado anterior descartado para esta sessão. Reprocessando todas as gravações do zero; os ZIPs locais e o histórico antigo continuam preservados.",
+			);
+			setAdvancePulse((value) => value + 1);
+		} catch (cause) {
+			setFreshStartOpen(false);
+			if (
+				cause instanceof BridgeError &&
+				cause.serverCode === "SESSION_WORKSPACE_RESET_ACTIVE_JOBS"
+			) {
+				setRecovery(null);
+				setLocalError(
+					"Ainda existe uma execução desta sessão na fila ou em processamento. Cancele-a e atualize a sessão antes de recomeçar do zero.",
+				);
+			} else {
+				fail(cause);
+			}
+		} finally {
+			setBusy(false);
+		}
+	}
+
 	async function chooseRun(runId: string) {
 		if (!workspace || blocker?.kind !== "runs" || busy || disabled) return;
 		const part = workspace.parts.find(
