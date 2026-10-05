@@ -706,7 +706,7 @@ test("Overview attention exposes New, safe Retry, Diagnostics and Discard withou
 	const inspector = page.locator("dialog[data-job-diagnostics='contextual']");
 	await expect(inspector).toBeVisible();
 	await expect(
-		inspector.getByRole("button", { name: "Começar novo" }),
+		inspector.getByRole("button", { name: "Nova transcrição" }),
 	).toBeVisible();
 	await expect(
 		inspector.getByRole("button", { name: "Repetir trabalho" }),
@@ -718,7 +718,7 @@ test("Overview attention exposes New, safe Retry, Diagnostics and Discard withou
 	const retryRequestsBefore = state.requests.filter((request) =>
 		request.path.endsWith("/retry"),
 	).length;
-	await inspector.getByRole("button", { name: "Começar novo" }).click();
+	await inspector.getByRole("button", { name: "Nova transcrição" }).click();
 	await expect(inspector).not.toBeVisible();
 	await expect(page.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
 		"aria-selected",
@@ -733,7 +733,7 @@ test("Overview attention exposes New, safe Retry, Diagnostics and Discard withou
 		page.getByRole("heading", { name: "Descartar este trabalho?" }),
 	).toBeVisible();
 	await expect(page.getByRole("dialog")).toContainText(
-		"Resultados locais",
+		"Nenhum resultado concluído será removido",
 	);
 	await page.getByRole("button", { name: "Descartar trabalho" }).click();
 
@@ -787,7 +787,7 @@ test("non-recoverable Overview attention never offers Retry as a recovery shortc
 		inspector.getByRole("button", { name: "Repetir trabalho" }),
 	).toHaveCount(0);
 	await expect(
-		inspector.getByRole("button", { name: "Começar novo" }),
+		inspector.getByRole("button", { name: "Nova transcrição" }),
 	).toBeVisible();
 	const discard = inspector.getByRole("button", { name: "Descartar trabalho" });
 	await expect(discard).toBeVisible();
