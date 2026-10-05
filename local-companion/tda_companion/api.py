@@ -1327,8 +1327,10 @@ def create_app(
                                 "glossary": body.get("glossary", ""),
                                 "context": body.get("context", ""),
                                 "cpu": bool(body.get("cpu", False)),
-                                "reuse_checkpoints": bool(
-                                    body.get("reuse_checkpoints", True)
+                                **(
+                                    {"reuse_checkpoints": False}
+                                    if body.get("reuse_checkpoints") is False
+                                    else {}
                                 ),
                                 "on_progress": commit_progress,
                                 "on_event": observe_event,
