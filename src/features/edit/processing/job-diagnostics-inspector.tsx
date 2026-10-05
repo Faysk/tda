@@ -6,6 +6,7 @@ import { StatusPill } from "@/components/ui/status";
 import type { ActivityBark } from "./activity-barks";
 import { deriveBenchmarkAttemptUiState } from "./benchmark-outcomes";
 import { ProcessingLiveLog } from "./live-log";
+import { terminalRecoveryActions } from "./terminal-recovery";
 import {
 	jobLabels,
 	presentJobError,
@@ -33,10 +34,13 @@ type Props = Readonly<{
 	capabilities: Capabilities | null;
 	activityCatalog: readonly ActivityBark[];
 	expectedPollMs: number;
-	pendingAction: "cancel" | "retry" | "result" | null;
+	pendingAction: "cancel" | "retry" | "result" | "delete" | null;
+	canDelete: boolean;
 	onClose: () => void;
 	onOpenResult: (job: LocalJob) => Promise<string | null>;
+	onStartNew: (job: LocalJob) => void;
 	onRetry: (job: LocalJob) => void;
+	onDelete: (job: LocalJob) => void;
 	onCancel: (job: LocalJob) => void;
 }>;
 
@@ -141,9 +145,12 @@ export function JobDiagnosticsInspector({
 	activityCatalog,
 	expectedPollMs,
 	pendingAction,
+	canDelete,
 	onClose,
 	onOpenResult,
+	onStartNew,
 	onRetry,
+	onDelete,
 	onCancel,
 }: Props) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
@@ -172,6 +179,7 @@ export function JobDiagnosticsInspector({
 		job?.kind === "benchmark.craig"
 			? deriveBenchmarkAttemptUiState(job, visibleEvents)
 			: null;
+	const recoveryActions = job ? terminalRecoveryActions(job, canDelete) : null;
 	const profile = useMemo(
 		() =>
 			job?.context?.profileId
@@ -419,9 +427,32 @@ export function JobDiagnosticsInspector({
 									{pendingAction === "result" ? "Abrindo…" : "Abrir resultado"}
 								</Button>
 							) : null}
-							{["failed", "interrupted"].includes(job.status) && job.error?.recoverable ? (
-								<Button size="sm" disabled={pendingAction === "retry"} onClick={() => onRetry(job)}>
+							{recoveryActions?.canStartNew ? (
+								<Button
+									size="sm"
+									variant={job.status === "succeeded" ? "secondary" : "primary"}
+									onClick={() => onStartNew(job)}
+								>
+									Começar novo
+								</Button>
+							) : null}
+							{recoveryActions?.canRetry ? (
+								<Button
+									size="sm"
+									disabled={pendingAction === "retry"}
+									onClick={() => onRetry(job)}
+								>
 									{pendingAction === "retry" ? "Repetindo…" : "Repetir trabalho"}
+								</Button>
+							) : null}
+							{recoveryActions?.canDiscard ? (
+								<Button
+									size="sm"
+									variant="tertiary"
+									disabled={pendingAction === "delete"}
+									onClick={() => onDelete(job)}
+								>
+									{pendingAction === "delete" ? "Descartando…" : "Descartar trabalho"}
 								</Button>
 							) : null}
 							{["queued", "running"].includes(job.status) ? (
