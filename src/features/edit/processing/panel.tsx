@@ -1565,6 +1565,7 @@ export function ProcessingPanel({
 									{observedJob ? (
 										<div
 											className={styles.diagnosticsRecoveryActions}
+											role="group"
 											aria-label="Ações do trabalho observado"
 										>
 											{observedRecovery?.canStartNew ? (
