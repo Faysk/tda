@@ -257,19 +257,23 @@ def resolve_session_participants(
             row["discord_id"] is not None for row in rows
         ):
             continue
-        conflict = {
-            "code": (
-                "LABEL_PARTIAL_IDENTITY"
-                if len(discord_ids) == 1
-                else "LABEL_ONLY_CROSS_SOURCE_AMBIGUOUS"
-            ),
-            "severity": "error",
-            "requires_resolution": True,
-            "observation_ids": sorted(str(row["observation_id"]) for row in rows),
-            "label_key": label,
-        }
-        conflicts.append(conflict)
-        approval_blocked = True
+        # A textual label is only auxiliary evidence. Keep each weak observation
+        # source-local instead of forcing the operator to decide whether similarly
+        # named tracks are the same human. The transcript remains attributable to
+        # the exact source/track and can be merged manually later if useful.
+        conflicts.append(
+            {
+                "code": (
+                    "LABEL_PARTIAL_IDENTITY"
+                    if len(discord_ids) == 1
+                    else "LABEL_ONLY_CROSS_SOURCE_AMBIGUOUS"
+                ),
+                "severity": "warning",
+                "requires_resolution": False,
+                "observation_ids": sorted(str(row["observation_id"]) for row in rows),
+                "label_key": label,
+            }
+        )
 
     for track_number, rows in sorted(by_track_number.items()):
         source_ids = {str(row["source_id"]) for row in rows}
