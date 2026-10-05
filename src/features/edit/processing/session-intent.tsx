@@ -44,6 +44,7 @@ import type {
 	TranscriptionProfileId,
 } from "./protocol";
 import { BridgeError } from "./protocol";
+import { clearPendingSubmissionsForSession } from "./submission-recovery";
 import {
 	sessionRecoveryForError,
 	sessionTimelineRecovery,
