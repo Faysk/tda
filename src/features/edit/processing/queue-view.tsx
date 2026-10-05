@@ -474,8 +474,8 @@ export function ProcessingQueueView({
 																		}}
 																	>
 																		{pending === "delete"
-																			? "Excluindo…"
-																			: "Excluir"}
+																			? "Descartando…"
+																			: "Descartar"}
 																	</button>
 																) : null}
 															</>
