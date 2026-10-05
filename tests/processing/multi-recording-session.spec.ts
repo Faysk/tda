@@ -1073,7 +1073,6 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 
 	const viewport = review.locator("[data-assembly-transcript-viewport='true']");
 	await viewport.locator("[data-assembly-segment-trigger]").first().click();
-	await expect(viewport.locator("textarea")).toHaveCount(1);
 	await viewport.getByLabel("Texto").fill(
 		"Trecho alterado para validar o estado de erro.",
 	);
@@ -1081,9 +1080,7 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 	await review.getByRole("button", { name: "Salvar alterações" }).click();
 	const error = review.getByRole("alert");
 	await expect(error).toBeVisible();
-
-	await viewport.locator("[data-assembly-segment-trigger]").first().click();
-	await expect(viewport.locator("textarea")).toHaveCount(1);
+	await expect(viewport.locator("textarea")).toHaveCount(0);
 
 	for (const scenario of [
 		{ theme: "dark", width: 1920, height: 1080 },
@@ -1106,7 +1103,7 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 		await search.focus();
 		await expect(search).toBeFocused();
 
-		const styles = await review.evaluate((section) => {
+		const readStyles = await review.evaluate((section) => {
 			const style = (selector: string) => {
 				const element = section.querySelector<HTMLElement>(selector);
 				if (!element) throw new Error(`Missing review target: ${selector}`);
@@ -1114,17 +1111,17 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 			};
 			const transcript = style("[data-assembly-transcript-viewport='true']");
 			const searchInput = style('input[type="search"]');
-			const participant = style(
-				'li[data-assembly-segment][data-editing="true"] input',
-			);
-			const textarea = style(
-				'li[data-assembly-segment][data-editing="true"] textarea',
-			);
 			return {
-				transcript: [transcript.backgroundColor, transcript.borderTopColor, transcript.borderTopWidth],
-				search: [searchInput.backgroundColor, searchInput.borderTopColor, searchInput.borderTopWidth],
-				participant: [participant.backgroundColor, participant.borderTopColor, participant.borderTopWidth],
-				textarea: [textarea.backgroundColor, textarea.borderTopColor, textarea.borderTopWidth],
+				transcript: [
+					transcript.backgroundColor,
+					transcript.borderTopColor,
+					transcript.borderTopWidth,
+				],
+				search: [
+					searchInput.backgroundColor,
+					searchInput.borderTopColor,
+					searchInput.borderTopWidth,
+				],
 				focus: [searchInput.outlineStyle, searchInput.outlineWidth],
 				overflow:
 					document.documentElement.scrollWidth -
@@ -1132,27 +1129,57 @@ test("session assembly review resolves semantic tokens across themes, focus and 
 			};
 		});
 
-		for (const field of [
-			styles.transcript,
-			styles.search,
-			styles.participant,
-			styles.textarea,
-		]) {
+		for (const field of [readStyles.transcript, readStyles.search]) {
 			expect(field[0]).not.toBe("rgba(0, 0, 0, 0)");
 			expect(field[1]).not.toBe("rgba(0, 0, 0, 0)");
 			expect(field[2]).not.toBe("0px");
 		}
-		expect(styles.focus[0]).toBe("solid");
-		expect(styles.focus[1]).toBe("2px");
-		expect(styles.overflow).toBeLessThanOrEqual(1);
+		expect(readStyles.focus[0]).toBe("solid");
+		expect(readStyles.focus[1]).toBe("2px");
+		expect(readStyles.overflow).toBeLessThanOrEqual(1);
+
+		await viewport.locator("[data-assembly-segment-trigger]").first().click();
+		await expect(viewport.locator("textarea")).toHaveCount(1);
+		const editorStyles = await review.evaluate((section) => {
+			const style = (selector: string) => {
+				const element = section.querySelector<HTMLElement>(selector);
+				if (!element) throw new Error(`Missing review target: ${selector}`);
+				return getComputedStyle(element);
+			};
+			const participant = style(
+				'li[data-assembly-segment][data-editing="true"] input',
+			);
+			const textarea = style(
+				'li[data-assembly-segment][data-editing="true"] textarea',
+			);
+			return {
+				participant: [
+					participant.backgroundColor,
+					participant.borderTopColor,
+					participant.borderTopWidth,
+				],
+				textarea: [
+					textarea.backgroundColor,
+					textarea.borderTopColor,
+					textarea.borderTopWidth,
+				],
+			};
+		});
+		for (const field of [editorStyles.participant, editorStyles.textarea]) {
+			expect(field[0]).not.toBe("rgba(0, 0, 0, 0)");
+			expect(field[1]).not.toBe("rgba(0, 0, 0, 0)");
+			expect(field[2]).not.toBe("0px");
+		}
+		await viewport.getByRole("button", { name: "Cancelar" }).click();
+		await expect(viewport.locator("textarea")).toHaveCount(0);
 
 		for (const state of [notice, error]) {
 			const computed = await state.evaluate((element) => {
-				const s = getComputedStyle(element);
+				const style = getComputedStyle(element);
 				return {
-					background: s.backgroundColor,
-					border: s.borderTopColor,
-					borderWidth: s.borderTopWidth,
+					background: style.backgroundColor,
+					border: style.borderTopColor,
+					borderWidth: style.borderTopWidth,
 				};
 			});
 			expect(computed.background).not.toBe("rgba(0, 0, 0, 0)");
