@@ -1545,9 +1545,12 @@ export async function installCompanionFixture(
 			const id = path.split("/")[2] ?? "benchmark-job-1";
 			const currentAttempt =
 				typeof state.job?.attempt === "number" ? state.job.attempt : 1;
+			// Mirror the real Store lifecycle: retry resets attempt-scoped progress
+			// immediately, but claim() is what advances the attempt and marks it
+			// running. A queued retry therefore still exposes the previous attempt id.
 			state.job = fixtureBenchmarkJob("queued", {
 				id,
-				attempt: currentAttempt + 1,
+				attempt: currentAttempt,
 				progress: { completed: 0, total: 4, unit: "profiles" },
 			});
 			jobsReads = 0;
