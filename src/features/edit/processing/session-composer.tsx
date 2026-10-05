@@ -19,6 +19,7 @@ import {
 	supportsSessionComposer,
 	timelineStateLabel,
 	workspaceGenerationEligible,
+	workspaceJobGenerationEligible,
 } from "./session-composer-model";
 import type {
 	SessionAssembly,
@@ -274,7 +275,7 @@ export function SessionRecordingComposer({
 			);
 			setJobs(
 				jobPage.jobs.filter((job) =>
-					workspaceGenerationEligible(next, job.updated_at),
+					workspaceJobGenerationEligible(next, job),
 				),
 			);
 		},
