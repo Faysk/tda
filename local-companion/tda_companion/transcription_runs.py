@@ -432,18 +432,21 @@ def _manifest_for_document(
         )
     except TranscriptionIntentFingerprintError as exc:
         raise TranscriptionRunError("TRANSCRIPTION_RUN_INTENT_FINGERPRINT_INVALID") from exc
-    resolved_included = (
-        tuple(track.number for track in document.tracks)
-        if included_track_numbers is None
-        else normalize_track_numbers(
-            included_track_numbers,
+    try:
+        resolved_included = (
+            tuple(track.number for track in document.tracks)
+            if included_track_numbers is None
+            else normalize_track_numbers(
+                included_track_numbers,
+                code="TRANSCRIPTION_RUN_TRACK_POLICY_INVALID",
+            )
+        )
+        resolved_ignored = normalize_track_numbers(
+            ignored_track_numbers or (),
             code="TRANSCRIPTION_RUN_TRACK_POLICY_INVALID",
         )
-    )
-    resolved_ignored = normalize_track_numbers(
-        ignored_track_numbers or (),
-        code="TRANSCRIPTION_RUN_TRACK_POLICY_INVALID",
-    )
+    except CraigTrackPolicyError as exc:
+        raise TranscriptionRunError("TRANSCRIPTION_RUN_TRACK_POLICY_INVALID") from exc
     if (
         track_policy_version not in SUPPORTED_TRACK_POLICY_VERSIONS
         or set(resolved_included) & set(resolved_ignored)
