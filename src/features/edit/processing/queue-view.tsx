@@ -473,15 +473,10 @@ export function ProcessingQueueView({
 																>
 																	Abrir Diagnóstico
 																</button>
-																{canDelete &&
-																[
-																	"succeeded",
-																	"failed",
-																	"interrupted",
-																	"cancelled",
-																].includes(job.status) ? (
+																{recoveryActions.canDiscard ? (
 																	<button
 																		type="button"
+																		className={styles.dangerMenuAction}
 																		disabled={pending === "delete"}
 																		onClick={() => {
 																			close();
