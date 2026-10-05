@@ -200,18 +200,17 @@ def _run_craig(
             },
         )
         source_package = load_craig_package(package_root, verify_tracks=False)
+        explicit_track_policy = command.payload.get("track_policy_version")
         track_policy_version = str(
-            command.payload.get("track_policy_version")
-            or (
-                ALL_TRACKS_POLICY_VERSION
-                if benchmark_mode
-                else DEFAULT_TRACK_POLICY_VERSION
-            )
+            explicit_track_policy or ALL_TRACKS_POLICY_VERSION
         )
         selection = select_craig_tracks(
             source_package,
             policy_version=track_policy_version,
-            require_eligible=True,
+            # A missing policy identifies a pre-policy persisted worker command.
+            # Preserve its historical all-tracks semantics instead of applying
+            # the new bot-exclusion default retroactively.
+            require_eligible=explicit_track_policy is not None,
         )
         package = apply_craig_track_selection(source_package, selection)
         removed_runs = 0 if benchmark_mode else remove_incomplete_runs(package_root)
