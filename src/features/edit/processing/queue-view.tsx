@@ -461,7 +461,9 @@ export function ProcessingQueueView({
 																			onStartNew(job);
 																		}}
 																	>
-																		Começar novo
+																		{job.kind === "benchmark.craig"
+																					? "Executar novo benchmark"
+																					: "Nova transcrição"}
 																	</button>
 																) : null}
 																<button
