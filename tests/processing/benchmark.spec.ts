@@ -1081,6 +1081,66 @@ test("recoverable global Benchmark failure retries the same job from zero progre
 				result_available: false,
 			}),
 		],
+		// The real Store keeps attempt=1 until the retried job is claimed, so
+		// attempt-1 events remain persisted while the retry is queued at 0/4.
+		jobEvents: [
+			{
+				seq: 1,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-05T20:00:01Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					completed_count: 0,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 2,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-05T20:00:02Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					completed_count: 1,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 3,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-05T20:00:03Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-detailed",
+					attempted_count: 2,
+					completed_count: 1,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 4,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-05T20:00:04Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-detailed",
+					attempted_count: 2,
+					completed_count: 2,
+					failed_count: 0,
+				},
+			},
+		],
 	});
 	const panel = await openBenchmark(page);
 
@@ -1111,7 +1171,10 @@ test("recoverable global Benchmark failure retries the same job from zero progre
 	expect(state.job).toMatchObject({
 		id: "benchmark-job-1",
 		status: "queued",
-		attempt: 2,
+		// Retry is queued before claim(), so the persisted attempt number still
+		// refers to the previous terminal attempt. The backend tests prove claim()
+		// advances it exactly once.
+		attempt: 1,
 		progress: { completed: 0, total: 4, unit: "profiles" },
 	});
 });
