@@ -56,6 +56,33 @@ def test_craig_worker_command_roundtrip_uses_opaque_source_id_only():
     assert "root" not in decoded.payload
 
 
+def test_craig_worker_command_can_disable_checkpoint_reuse_explicitly():
+    command = WorkerRunCommand(
+        job_id="job-fresh",
+        attempt=1,
+        kind="transcription.craig",
+        payload={
+            "source_id": "craig-123",
+            "profile_id": "whisper-detailed",
+            "checkpoints": False,
+        },
+    )
+    decoded = WorkerRunCommand.decode(command.encode())
+    assert decoded.payload["checkpoints"] is False
+
+    with pytest.raises(WorkerProtocolError, match="WORKER_CHECKPOINT_FLAG_INVALID"):
+        WorkerRunCommand(
+            job_id="job-fresh-invalid",
+            attempt=1,
+            kind="transcription.craig",
+            payload={
+                "source_id": "craig-123",
+                "profile_id": "whisper-detailed",
+                "checkpoints": "no",
+            },
+        ).encode()
+
+
 def test_craig_worker_command_rejects_paths_and_unknown_fields():
     with pytest.raises(WorkerProtocolError, match="WORKER_SOURCE_ID_INVALID"):
         WorkerRunCommand(
