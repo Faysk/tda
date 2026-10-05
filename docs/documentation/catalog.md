@@ -12,10 +12,10 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Arquitetura](../architecture.md) | arquitetura | vigente | 2026-09-30 |
 | [Modelo de dados canônico](../data-model.md) | Não declarado | Não declarado | Não declarado |
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
-| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-09-30 |
+| [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-10-05 |
 | [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-29 |
 | [Publicação controlada](../releases.md) | operations / release | vigente | 2026-09-20 |
-| [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-09-30 |
+| [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-10-05 |
 
 ## docs/adr
 
