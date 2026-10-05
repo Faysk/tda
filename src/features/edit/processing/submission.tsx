@@ -1123,9 +1123,10 @@ export function ProcessingSubmission({
 								</li>
 							</ul>
 							<p className={styles.sessionOrderHelp}>
-								A sequência abaixo é sua ordem editorial. Quando não houver horário confiável,
-								 ela será preservada. Se horários Craig confiáveis indicarem outra ordem, o
-								 TDA mostrará a diferença antes de trocar.
+								A sequência abaixo é o fallback editorial. Quando os próprios arquivos Craig
+								 fornecerem horários absolutos confiáveis, o TDA usa automaticamente a ordem
+								 factual e preserva gaps reais. Sem essa evidência, a sequência escolhida por
+								 você continua sendo usada.
 							</p>
 							<div className={styles.orderHeading}>
 								<strong>Ordem da sessão</strong>
