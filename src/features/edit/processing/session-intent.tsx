@@ -692,7 +692,7 @@ export function SessionIntentCoordinator({
 						});
 					}
 				} catch {
-					// The run catalog below remains a safe fallback when only one run exists.
+					// The run catalog below remains a safe fallback only for an exact fingerprint match.
 				}
 			}
 
@@ -1263,8 +1263,14 @@ export function SessionIntentCoordinator({
 					{workspace.parts.map((part, index) => {
 						const runs = runsBySource.get(part.sourceId) ?? [];
 						const job = latestJobForSource(jobs, part.sourceId);
+						const choice = chooseIntentRun(
+							part,
+							runs,
+							intentRunIds.current.get(part.sourceId),
+							expectedFingerprint,
+						);
 						const state =
-							part.selectedRunId || runs.length
+							choice.kind === "selected" || choice.kind === "automatic"
 								? "completed"
 								: job?.status === "queued" || job?.status === "running"
 									? "running"
