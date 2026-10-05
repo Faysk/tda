@@ -64,7 +64,7 @@ export function workspaceJobGenerationEligible(
 	job: LocalJob,
 ): boolean {
 	return (
-		!workspace?.freshStartExcludedJobIds.includes(job.id) &&
+		!(workspace?.freshStartExcludedJobIds ?? []).includes(job.id) &&
 		workspaceGenerationEligible(workspace, job.updated_at)
 	);
 }
