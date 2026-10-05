@@ -633,6 +633,10 @@ def test_benchmark_retry_resets_attempt_scoped_progress_and_accepts_fresh_sequen
         "unit": "profiles",
     }
     assert retried["attempt"] == attempt
+    assert retried["timing"]["attempt_started_at"] is None
+    assert retried["timing"]["attempt_finished_at"] is None
+    assert retried["timing"]["stage_started_at"] is None
+    assert retried["timing"]["tracks"] == []
 
     claimed_retry = store.claim()
     assert claimed_retry == (job_id, 2)
