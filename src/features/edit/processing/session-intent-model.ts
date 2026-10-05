@@ -118,8 +118,11 @@ export function chooseIntentRun(
 ): IntentRunChoice {
 	if (intentRunId) {
 		const current = runs.find((run) => run.runId === intentRunId);
-		if (current)
+		if (current) {
+			if (part.selectedRunId === current.runId)
+				return { kind: "selected", runId: current.runId };
 			return { kind: "automatic", runId: current.runId, reason: "intent_job" };
+		}
 	}
 
 	if (part.selectedRunId) {
