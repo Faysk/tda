@@ -118,6 +118,56 @@ def test_two_completed_runs_coexist_without_overwrite(tmp_path: Path):
     ).hexdigest()
 
 
+def test_completed_run_seals_exact_intent_fingerprint_and_catalog_exposes_it(tmp_path: Path):
+    source_sha = "7" * 64
+    package_root = tmp_path / f"craig-{source_sha}"
+    package_root.mkdir()
+
+    first = write_completed_run(
+        package_root,
+        _document(source_sha, "whisper-detailed", "same recipe"),
+        job_id="fingerprint-one",
+        attempt=1,
+        context="mesa",
+        glossary="Yuhara",
+    )
+    second = write_completed_run(
+        package_root,
+        _document(source_sha, "whisper-detailed", "different context"),
+        job_id="fingerprint-two",
+        attempt=1,
+        context="outra mesa",
+        glossary="Yuhara",
+    )
+
+    assert first["intent_fingerprint_schema"] == "tda_transcription_intent_fingerprint_v1"
+    assert len(first["intent_fingerprint"]) == 64
+    assert first["intent_fingerprint"] != second["intent_fingerprint"]
+    listed = {item["run_id"]: item for item in list_runs(package_root)}
+    assert listed[first["run_id"]]["intent_fingerprint"] == first["intent_fingerprint"]
+    assert listed[second["run_id"]]["intent_fingerprint"] == second["intent_fingerprint"]
+
+
+def test_legacy_run_without_persisted_intent_fingerprint_remains_non_exact(tmp_path: Path):
+    source_sha = "6" * 64
+    source_id = f"craig-{source_sha}"
+    package_root = tmp_path / source_id
+    package_root.mkdir()
+    legacy = package_root / "transcript.json"
+    _document(source_sha, "whisper-detailed", "legacy").write_atomic(legacy)
+
+    migrated = migrate_legacy_transcript(
+        package_root,
+        source_id=source_id,
+        source_sha256=source_sha,
+    )
+    assert migrated is not None
+    listed = list_runs(package_root)
+    assert len(listed) == 1
+    assert listed[0]["intent_fingerprint"] is None
+    assert listed[0]["intent_fingerprint_schema"] is None
+
+
 def test_before_commit_fence_runs_after_transcript_but_before_run_marker(tmp_path: Path):
     source_sha = "9" * 64
     package_root = tmp_path / f"craig-{source_sha}"

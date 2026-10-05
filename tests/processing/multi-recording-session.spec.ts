@@ -19,6 +19,7 @@ const OLD_ASSEMBLY_ID = "b".repeat(64);
 const TRANSCRIPT_SHA = "d".repeat(64);
 const SEGMENT_ID = "e".repeat(64);
 const NOW = "2026-09-30T00:00:00.000Z";
+const INTENT_FINGERPRINT = "f".repeat(64);
 
 function json(route: Route, value: unknown, status = 200) {
 	return route.fulfill({
@@ -49,6 +50,8 @@ function runFor(sourceId: string, index: number) {
 		compute_type: "float16",
 		alignment: "native",
 		completed_at: NOW,
+		intent_fingerprint_schema: "tda_transcription_intent_fingerprint_v1",
+		intent_fingerprint: INTENT_FINGERPRINT,
 		transcript_sha256: digest,
 		transcript_size_bytes: 256,
 		stats: {
@@ -473,6 +476,7 @@ async function installMultiRecordingRoutes(
 				glossary: body.glossary,
 				context_sha256: "4".repeat(64),
 				glossary_sha256: "5".repeat(64),
+				compatibility_fingerprint: INTENT_FINGERPRINT,
 				created_at: NOW,
 				updated_at: NOW,
 			};

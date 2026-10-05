@@ -18,7 +18,11 @@ export type IntentProgress = Readonly<{
 
 export type IntentRunChoice =
 	| Readonly<{ kind: "selected"; runId: string }>
-	| Readonly<{ kind: "automatic"; runId: string; reason: "intent_job" | "single_run" }>
+	| Readonly<{
+			kind: "automatic";
+			runId: string;
+			reason: "intent_job" | "exact_match";
+	  }>
 	| Readonly<{ kind: "ambiguous"; runIds: readonly string[] }>
 	| Readonly<{ kind: "missing" }>;
 
@@ -40,10 +44,28 @@ function latestJob(
 	);
 }
 
+function exactRuns(
+	runs: readonly LocalRunSummary[],
+	expectedFingerprint: string | null | undefined,
+): readonly LocalRunSummary[] {
+	if (!expectedFingerprint) return [];
+	return runs.filter((run) => run.intentFingerprint === expectedFingerprint);
+}
+
+function newestRun(runs: readonly LocalRunSummary[]): LocalRunSummary {
+	return [...runs].sort((left, right) => {
+		const completed =
+			Date.parse(right.completedAt ?? "") - Date.parse(left.completedAt ?? "");
+		if (Number.isFinite(completed) && completed !== 0) return completed;
+		return right.runId.localeCompare(left.runId);
+	})[0]!;
+}
+
 export function intentProgress(
 	workspace: SessionWorkspace | null,
 	runsBySource: ReadonlyMap<string, readonly LocalRunSummary[]>,
 	jobs: readonly LocalJob[],
+	expectedFingerprint: string | null | undefined = null,
 ): IntentProgress {
 	const counts = {
 		total: workspace?.parts.length ?? 0,
@@ -55,13 +77,24 @@ export function intentProgress(
 	if (!workspace) return counts;
 
 	for (const part of workspace.parts) {
-		if (part.selectedRunId || (runsBySource.get(part.sourceId)?.length ?? 0) > 0) {
+		const runs = runsBySource.get(part.sourceId) ?? [];
+		const selected = part.selectedRunId
+			? runs.find((run) => run.runId === part.selectedRunId)
+			: undefined;
+		if (
+			(selected && selected.intentFingerprint === expectedFingerprint) ||
+			exactRuns(runs, expectedFingerprint).length > 0
+		) {
 			counts.completed += 1;
 			continue;
 		}
 		const job = latestJob(jobs, part.sourceId);
 		if (job?.status === "queued" || job?.status === "running") {
 			counts.running += 1;
+			continue;
+		}
+		if (job?.status === "succeeded" && job.result_available) {
+			counts.completed += 1;
 			continue;
 		}
 		if (
@@ -81,16 +114,39 @@ export function chooseIntentRun(
 	part: SessionWorkspacePart,
 	runs: readonly LocalRunSummary[],
 	intentRunId: string | null | undefined,
+	expectedFingerprint: string | null | undefined,
 ): IntentRunChoice {
-	if (part.selectedRunId) return { kind: "selected", runId: part.selectedRunId };
-	if (intentRunId && runs.some((run) => run.runId === intentRunId))
-		return { kind: "automatic", runId: intentRunId, reason: "intent_job" };
-	const onlyRun = runs.length === 1 ? runs[0] : undefined;
-	if (onlyRun)
-		return { kind: "automatic", runId: onlyRun.runId, reason: "single_run" };
-	if (runs.length > 1)
-		return { kind: "ambiguous", runIds: runs.map((run) => run.runId) };
-	return { kind: "missing" };
+	if (intentRunId) {
+		const current = runs.find((run) => run.runId === intentRunId);
+		if (current) {
+			if (part.selectedRunId === current.runId)
+				return { kind: "selected", runId: current.runId };
+			return { kind: "automatic", runId: current.runId, reason: "intent_job" };
+		}
+	}
+
+	if (part.selectedRunId) {
+		const selected = runs.find((run) => run.runId === part.selectedRunId);
+		if (
+			selected &&
+			expectedFingerprint &&
+			selected.intentFingerprint === expectedFingerprint
+		)
+			return { kind: "selected", runId: selected.runId };
+	}
+
+	const compatible = exactRuns(runs, expectedFingerprint);
+	if (compatible.length === 0) return { kind: "missing" };
+	if (
+		compatible.length > 1 &&
+		new Set(compatible.map((run) => run.transcriptSha256)).size > 1
+	)
+		return {
+			kind: "ambiguous",
+			runIds: compatible.map((run) => run.runId).sort(),
+		};
+	const chosen = newestRun(compatible);
+	return { kind: "automatic", runId: chosen.runId, reason: "exact_match" };
 }
 
 export function uniqueIntentSources<T extends Readonly<{ sourceId: string }>>(
