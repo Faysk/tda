@@ -5,10 +5,10 @@ import json
 import re
 
 from .asr_models import ModelRegistryError, get_profile
+from .track_policy import DEFAULT_TRACK_POLICY_VERSION
 
 INTENT_FINGERPRINT_SCHEMA = "tda_transcription_intent_fingerprint_v1"
 TRANSCRIPTION_RECIPE_VERSION = "tda_transcription_recipe_v1"
-DEFAULT_TRACK_POLICY_VERSION = "all_tracks_v1"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 

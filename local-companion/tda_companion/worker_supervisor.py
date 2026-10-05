@@ -519,6 +519,7 @@ class WorkerSupervisor:
         glossary: str,
         context: str,
         cpu: bool,
+        track_policy_version: str | None = None,
         benchmark_sample_seconds: float | None = None,
         on_progress: Callable[[WorkerMessage], object],
         on_event: Callable[[WorkerMessage], object] | None = None,
@@ -539,6 +540,11 @@ class WorkerSupervisor:
                 "glossary": glossary,
                 "context": context,
                 "cpu": cpu,
+                **(
+                    {"track_policy_version": track_policy_version}
+                    if track_policy_version is not None
+                    else {}
+                ),
                 **(
                     {
                         "benchmark_mode": True,
