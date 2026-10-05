@@ -2071,7 +2071,7 @@ class Store:
                 # Engines may reuse validated per-track checkpoints, but every
                 # reused track must be replayed as fresh sequential progress before
                 # this attempt can commit its own immutable result.
-                if body["kind"] == "transcription.craig":
+                if body["kind"] in {"transcription.craig", "benchmark.craig"}:
                     completed = 0
             now = utc_now()
             db.execute(
