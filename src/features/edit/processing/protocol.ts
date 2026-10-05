@@ -545,7 +545,7 @@ export type LocalRunSummary = {
 	engine: string | null;
 	model: string | null;
 	modelRevision: string | null;
-	sourceSha256: string;
+	sourceSha256: string | null;
 	profileContractSha256: string | null;
 	contextSha256: string | null;
 	glossarySha256: string | null;
@@ -2034,7 +2034,10 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 		return {
 			runId,
 			sourceId,
-			sourceSha256: sha256(item.source_sha256),
+			sourceSha256:
+				item.source_sha256 === null || item.source_sha256 === undefined
+					? null
+					: sha256(item.source_sha256),
 			profileId: text(item.profile_id, 64),
 			profileContractSha256:
 				item.profile_contract_sha256 === null ||
