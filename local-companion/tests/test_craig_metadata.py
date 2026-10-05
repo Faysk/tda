@@ -137,13 +137,11 @@ def test_parse_info_preserves_timestamped_notes_and_trailing_ids():
     assert parsed["requester_id"] == "30"
     assert parsed["tracks"] == [
         {
-            "number": 1,
             "username": "alice",
             "discriminator": "0",
             "discord_id": "111",
         },
         {
-            "number": 2,
             "username": "musicbot",
             "discriminator": "0",
             "discord_id": "222",
