@@ -1769,6 +1769,16 @@ export function SessionIntentCoordinator({
 						>
 							Nova transcrição
 						</Button>
+						{capabilities.includes("transcription.session-workspace.reset") ? (
+							<Button
+								type="button"
+								variant="tertiary"
+								disabled={busy || activeJobs.length > 0}
+								onClick={() => setFreshStartOpen(true)}
+							>
+								Recomeçar do zero
+							</Button>
+						) : null}
 					</div>
 				</div>
 			) : null}
