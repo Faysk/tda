@@ -1641,7 +1641,7 @@ test("8k session review stays bounded, paged and edits only the active utterance
 	await expect(viewport.getByText("Trecho 8000", { exact: true })).toBeVisible();
 });
 
-test("trusted Craig chronology never silently replaces the editorial order", async ({ page }) => {
+test("trusted Craig chronology automatically replaces attachment order before assembly", async ({ page }) => {
 	await installCompanionFixture(page, { profileReady: true, reviewEnabled: true });
 	const multi = await installMultiRecordingRoutes(page, {
 		uploadSequence: [0, 1],
@@ -1654,12 +1654,10 @@ test("trusted Craig chronology never silently replaces the editorial order", asy
 	]);
 	await page.getByRole("button", { name: "Transcrever sessão" }).click();
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
-	await expect(intent.getByText("Os horários Craig indicam uma ordem diferente.")).toBeVisible();
-	await expect(intent).toContainText("Você definiu: editorial-1.zip → editorial-2.zip");
-	await expect(intent).toContainText("Horário real confiável: editorial-2.zip → editorial-1.zip");
-	await expect(intent).not.toContainText("Transcrição pronta");
-	await intent.getByRole("button", { name: "Usar horários Craig" }).click();
 	await expect(intent).toContainText("Transcrição pronta");
+	await expect(intent.getByRole("button", { name: "Usar horários Craig" })).toHaveCount(0);
+	await expect(intent.getByText("Os horários Craig indicam uma ordem diferente.")).toHaveCount(0);
+	expect(multi.timelineDeriveCount).toBeGreaterThan(0);
 	expect(multi.attachedSources).toEqual([SOURCE_IDS[1], SOURCE_IDS[0]]);
 });
 
