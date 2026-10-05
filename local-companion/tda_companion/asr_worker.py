@@ -33,6 +33,13 @@ from .transcription_runs import (
     write_compatibility_mirror,
     write_completed_run,
 )
+from .track_policy import (
+    ALL_TRACKS_POLICY_VERSION,
+    DEFAULT_TRACK_POLICY_VERSION,
+    CraigTrackPolicyError,
+    apply_craig_track_selection,
+    select_craig_tracks,
+)
 from .worker_protocol import (
     MAX_LINE_BYTES,
     WorkerCancelCommand,
@@ -130,6 +137,7 @@ def _stable_error_code(error: BaseException) -> str:
                 ModelRegistryError,
                 CraigPackageError,
                 TranscriptionRunError,
+                CraigTrackPolicyError,
                 BenchmarkBundleError,
             ),
         ):
@@ -191,7 +199,21 @@ def _run_craig(
                 "profile": str(command.payload["profile_id"]),
             },
         )
-        package = load_craig_package(package_root, verify_tracks=False)
+        source_package = load_craig_package(package_root, verify_tracks=False)
+        track_policy_version = str(
+            command.payload.get("track_policy_version")
+            or (
+                ALL_TRACKS_POLICY_VERSION
+                if benchmark_mode
+                else DEFAULT_TRACK_POLICY_VERSION
+            )
+        )
+        selection = select_craig_tracks(
+            source_package,
+            policy_version=track_policy_version,
+            require_eligible=True,
+        )
+        package = apply_craig_track_selection(source_package, selection)
         removed_runs = 0 if benchmark_mode else remove_incomplete_runs(package_root)
         if removed_runs:
             emitter.emit(
@@ -208,6 +230,9 @@ def _run_craig(
                 "code": "SOURCE_VALIDATED",
                 "stage": "source_validation",
                 "track_count": len(package.tracks),
+                "source_track_count": len(source_package.tracks),
+                "ignored_track_count": len(selection.ignored_track_numbers),
+                "track_policy_version": selection.policy_version,
             },
         )
         profile = get_profile(str(command.payload["profile_id"]))
@@ -359,6 +384,9 @@ def _run_craig(
             attempt=command.attempt,
             glossary=str(command.payload.get("glossary") or ""),
             context=str(command.payload.get("context") or ""),
+            track_policy_version=selection.policy_version,
+            included_track_numbers=selection.included_track_numbers,
+            ignored_track_numbers=selection.ignored_track_numbers,
             execution_lineage=execution_lineage,
             before_commit=reserve_run_commit,
         )
