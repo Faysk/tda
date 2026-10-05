@@ -278,6 +278,38 @@ describe("deriveBenchmarkAttemptUiState", () => {
 		expect(state.failedCount).toBe(2);
 	});
 
+	it("does not replay previous-attempt profile events while a retry is still queued", () => {
+		const previousAttemptEvents = [
+			event(1, "BENCHMARK_PROFILE_STARTED", "whisper-turbo"),
+			event(2, "BENCHMARK_PROFILE_COMPLETED", "whisper-turbo"),
+			event(3, "BENCHMARK_PROFILE_STARTED", "whisper-detailed"),
+			event(4, "BENCHMARK_PROFILE_COMPLETED", "whisper-detailed"),
+		];
+
+		const state = deriveBenchmarkAttemptUiState(
+			job("queued", {
+				stage: "queued",
+				progress: { completed: 0, total: 4, unit: "profiles" },
+				// Store.action(retry) keeps the old attempt number until claim()
+				// allocates the next running attempt.
+				attempt: 1,
+			}),
+			previousAttemptEvents,
+		);
+
+		expect(state.profiles.map((item) => item.status)).toEqual([
+			"pending",
+			"pending",
+			"pending",
+			"pending",
+		]);
+		expect(state.attemptedCount).toBe(0);
+		expect(state.completedCount).toBe(0);
+		expect(state.failedCount).toBe(0);
+		expect(state.pendingCount).toBe(4);
+		expect(state.currentProfile).toBeNull();
+	});
+
 	it("keeps the scalar progress mapping only as a legacy fallback", () => {
 		const state = deriveBenchmarkAttemptUiState(
 			job("running", {
