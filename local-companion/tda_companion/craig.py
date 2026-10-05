@@ -155,7 +155,7 @@ def _clean_metadata_text(value: object, *, maximum: int = 512) -> str | None:
 
 def _parse_note_line(value: str) -> dict[str, object] | None:
     match = re.fullmatch(
-        r"(?P<hours>[0-9]+):(?P<minutes>[0-5][0-9]):(?P<seconds>[0-5][0-9]):\\s*(?P<text>.+)",
+        r"(?P<hours>[0-9]+):(?P<minutes>[0-5][0-9]):(?P<seconds>[0-5][0-9]):\s*(?P<text>.+)",
         value.strip(),
     )
     if match is None:
@@ -219,13 +219,13 @@ def parse_info_text(text: str) -> dict[str, object]:
 
         # Newer exported info may carry an explicit user id in parentheses.
         identity = re.match(
-            r"^(?P<name>.+?)(?:#(?P<disc>[^\\s()]+))?\\s+\\((?P<id>[^()]+)\\)$",
+            r"^(?P<name>.+?)(?:#(?P<disc>[^\s()]+))?\s+\((?P<id>[^()]+)\)$",
             stripped,
         )
         # Older Craig infotxt output contains username#discriminator only.
         if identity is None:
             identity = re.match(
-                r"^(?P<name>.+?)(?:#(?P<disc>[^\\s()]+))?$",
+                r"^(?P<name>.+?)(?:#(?P<disc>[^\s()]+))?$",
                 stripped,
             )
         if identity:
