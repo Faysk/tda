@@ -538,7 +538,7 @@ O caminho normal é:
 ```text
 Sessão
   -> selecionar ou soltar 1..N ZIPs Craig
-  -> confirmar a ordem editorial quando houver 2+ gravações
+  -> confirmar a ordem editorial somente quando a cronologia factual não puder ser provada
   -> escolher profile/contexto/glossário uma vez
   -> Transcrever sessão
   -> acompanhar progresso por gravação
@@ -551,10 +551,11 @@ permite reordenar por pointer ou teclado. Essa ordem representa intenção
 editorial, não uma alegação de relógio real.
 
 Horário Craig só ganha authority quando a classificação é
-`trusted_absolute`. Se a cronologia confiável confirmar a mesma ordem, o Agent
-pode aplicar os offsets automaticamente. Se ela implicar trocar a ordem escolhida,
-o Web mostra a ordem editorial e a ordem por horário e exige ação explícita antes
-de aplicar a troca. `ambiguous`, `opaque` e `missing` são estados neutros:
+`trusted_absolute`. Quando todas as parts possuem instantes absolutos distintos e
+coerentes, essa evidência factual é soberana sobre a ordem de attachment/upload: o
+Agent ordena e aplica offsets automaticamente, sem pedir confirmação redundante.
+Uma ordem manual **já explicitamente persistida** continua sendo override humano e
+não é sobrescrita. `ambiguous`, `opaque` e `missing` são estados neutros:
 não viram erro por si sós e nunca autorizam horário inventado. Gap comprovado é
 informação; overlap real não resolvido continua sendo uma exceção que pede
 decisão.
@@ -571,7 +572,7 @@ O Web deve:
 - enfileirar somente gravações sem resultado elegível;
 - reutilizar gravações já concluídas;
 - reprocessar somente falhas;
-- aplicar cronologia confiável automaticamente somente quando ela não troca silenciosamente a ordem editorial; gaps comprovados continuam sendo informação;
+- aplicar cronologia `trusted_absolute` automaticamente, inclusive quando ela corrige a ordem de attachment; override manual explícito continua soberano e gaps comprovados continuam sendo informação;
 - quando wall-clock for insuficiente, pedir uma confirmação simples da ordem e seguir
   com continuidade editorial sem fabricar intervalo físico;
 - selecionar automaticamente o resultado quando existe authority inequívoca;
