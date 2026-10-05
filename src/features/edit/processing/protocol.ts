@@ -109,7 +109,8 @@ export type SessionPhysicalIntervalState =
 	| "manual";
 export type SessionOverlapResolution =
 	| "prefer_earlier_until"
-	| "prefer_later_from";
+	| "prefer_later_from"
+	| "preserve_both_exact_v1";
 export type SessionPartRelation =
 	| "first"
 	| "unknown"
@@ -1105,7 +1106,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 			return invalid();
 		if (
 			overlapResolution !== null &&
-			!["prefer_earlier_until", "prefer_later_from"].includes(overlapResolution)
+			!["prefer_earlier_until", "prefer_later_from", "preserve_both_exact_v1"].includes(overlapResolution)
 		)
 			return invalid();
 		if (

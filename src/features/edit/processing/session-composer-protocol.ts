@@ -12,7 +12,7 @@ export type SessionAssemblyPart = {
 	sessionOffsetSeconds: number;
 	trimStartSeconds: number;
 	trimEndSeconds: number | null;
-	overlapResolution: "prefer_earlier_until" | "prefer_later_from" | null;
+	overlapResolution: "prefer_earlier_until" | "prefer_later_from" | "preserve_both_exact_v1" | null;
 	overlapBoundarySeconds: number | null;
 	physicalIntervalState: "first" | "trusted_absolute" | "unknown" | "manual" | null;
 };
@@ -21,7 +21,8 @@ export type SessionAssembly = {
 	schemaVersion: "tda_session_assembly_v1";
 	canonicalizationVersion:
 		| "tda_session_assembly_canonical_v1"
-		| "tda_session_assembly_canonical_v2";
+		| "tda_session_assembly_canonical_v2"
+		| "tda_session_assembly_canonical_v3";
 	timingPolicyVersion:
 		| "tda_session_timeline_v1"
 		| "tda_session_timeline_v2";
@@ -169,7 +170,8 @@ function parseAssemblyPart(value: unknown, expectedOrdinal: number): SessionAsse
 	if (
 		overlap !== null &&
 		overlap !== "prefer_earlier_until" &&
-		overlap !== "prefer_later_from"
+		overlap !== "prefer_later_from" &&
+		overlap !== "preserve_both_exact_v1"
 	)
 		return invalid();
 	const ordinal = integer(row.ordinal, 0, 63);
@@ -209,7 +211,8 @@ export function parseSessionAssembly(value: unknown): SessionAssembly {
 	const canonicalizationVersion = string(row.canonicalization_version, 48);
 	if (
 		canonicalizationVersion !== "tda_session_assembly_canonical_v1" &&
-		canonicalizationVersion !== "tda_session_assembly_canonical_v2"
+		canonicalizationVersion !== "tda_session_assembly_canonical_v2" &&
+		canonicalizationVersion !== "tda_session_assembly_canonical_v3"
 	)
 		return invalid();
 	if (!Array.isArray(row.parts) || row.parts.length < 1 || row.parts.length > 64)
@@ -219,7 +222,8 @@ export function parseSessionAssembly(value: unknown): SessionAssembly {
 	if (
 		(canonicalizationVersion === "tda_session_assembly_canonical_v1" &&
 			timingPolicyVersion !== "tda_session_timeline_v1") ||
-		(canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+		((canonicalizationVersion === "tda_session_assembly_canonical_v2" ||
+			canonicalizationVersion === "tda_session_assembly_canonical_v3") &&
 			timingPolicyVersion !== "tda_session_timeline_v2") ||
 		row.segment_boundary_policy !== "segment_start_owner_v1"
 	)
@@ -228,7 +232,8 @@ export function parseSessionAssembly(value: unknown): SessionAssembly {
 	const inputsSha256 = hex(row.inputs_sha256, 64);
 	if (assemblyId !== inputsSha256) return invalid();
 	const timelineStrategy =
-		canonicalizationVersion === "tda_session_assembly_canonical_v2"
+		(canonicalizationVersion === "tda_session_assembly_canonical_v2" ||
+			canonicalizationVersion === "tda_session_assembly_canonical_v3")
 			? (() => {
 					const strategy = string(row.timeline_strategy, 32);
 					if (
@@ -243,7 +248,8 @@ export function parseSessionAssembly(value: unknown): SessionAssembly {
 				})()
 			: null;
 	const wallClock =
-		canonicalizationVersion === "tda_session_assembly_canonical_v2"
+		(canonicalizationVersion === "tda_session_assembly_canonical_v2" ||
+			canonicalizationVersion === "tda_session_assembly_canonical_v3")
 			? (() => {
 					const state = string(row.wall_clock, 16);
 					if (!["unavailable", "partial", "trusted"].includes(state))
@@ -252,10 +258,14 @@ export function parseSessionAssembly(value: unknown): SessionAssembly {
 				})()
 			: null;
 	const unknownIntervalCount =
-		canonicalizationVersion === "tda_session_assembly_canonical_v2"
+		(canonicalizationVersion === "tda_session_assembly_canonical_v2" ||
+			canonicalizationVersion === "tda_session_assembly_canonical_v3")
 			? integer(row.unknown_interval_count, 0, Math.max(0, parts.length - 1))
 			: null;
-	if (canonicalizationVersion === "tda_session_assembly_canonical_v2") {
+	if (
+		canonicalizationVersion === "tda_session_assembly_canonical_v2" ||
+		canonicalizationVersion === "tda_session_assembly_canonical_v3"
+	) {
 		if (
 			parts.some(
 				(part, index) =>

@@ -192,7 +192,7 @@ def test_session_assembly_builds_bounded_parts_deterministically(tmp_path, count
     assert first["segment_count"] == count
     assert first["inputs_sha256"] == first["assembly_id"]
     assert first["timing_policy_version"] == "tda_session_timeline_v2"
-    assert first["canonicalization_version"] == "tda_session_assembly_canonical_v2"
+    assert first["canonicalization_version"] == "tda_session_assembly_canonical_v3"
     assert first["timeline_strategy"] == "manual_offsets"
     assert first["wall_clock"] == "unavailable"
     assert first["unknown_interval_count"] == 0
@@ -211,6 +211,133 @@ def test_session_assembly_builds_bounded_parts_deterministically(tmp_path, count
     assert manifest["transcript_sha256"] == first["transcript_sha256"]
     assert [row["part_ordinal"] for row in transcript["segments"]] == list(range(count))
     assert len({row["assembly_segment_id"] for row in transcript["segments"]}) == count
+
+
+def overlap_workspace(runs):
+    parts = []
+    starts = ["2026-09-27T20:00:00Z", "2026-09-27T20:00:05Z"]
+    offsets = [0.0, 5.0]
+    for ordinal, (source, _root, run_id) in enumerate(runs):
+        parts.append(
+            {
+                "part_id": f"{ordinal + 1:032x}",
+                "source_id": source,
+                "ordinal": ordinal,
+                "selected_run_id": run_id,
+                "timeline_mode": "automatic",
+                "session_offset_seconds": offsets[ordinal],
+                "source_start_time": starts[ordinal],
+                "source_start_confidence": "trusted_absolute",
+                "source_start_utc": starts[ordinal],
+                "trim_start_seconds": 0.0,
+                "trim_end_seconds": None,
+                "gap_confirmed": False,
+                "overlap_resolution": None if ordinal == 0 else "preserve_both_exact_v1",
+                "overlap_boundary_seconds": None,
+                "physical_interval_state": "first" if ordinal == 0 else "trusted_absolute",
+                "relation_to_previous": "first" if ordinal == 0 else "overlap",
+            }
+        )
+    return {
+        "schema_version": "tda_session_workspace_v1",
+        "campaign_id": "campaign-a",
+        "session_id": "session-a",
+        "revision": 2,
+        "ordering_mode": "automatic",
+        "parts": parts,
+        "timeline": {
+            "policy_version": "tda_session_timeline_v2",
+            "segment_boundary_policy": "segment_start_owner_v1",
+            "strategy": "trusted_absolute",
+            "wall_clock": "trusted",
+            "unknown_interval_count": 0,
+            "fingerprint_sha256": hashlib.sha256(b"trusted-overlap").hexdigest(),
+            "state": "ready",
+        },
+    }
+
+
+def test_trusted_overlap_collapses_only_exact_strong_identity_duplicate(tmp_path):
+    data_root = tmp_path / "Data"
+    runs = [
+        stage_run(data_root, 1, start=6.0, text="A porta está aberta."),
+        stage_run(data_root, 2, start=1.0, text="A porta está aberta."),
+    ]
+
+    built = build(data_root, runs, workspace=overlap_workspace(runs))
+    _manifest, transcript = load_session_assembly_transcript(
+        data_root, "campaign-a", "session-a", built["assembly_id"]
+    )
+
+    assert built["canonicalization_version"] == "tda_session_assembly_canonical_v3"
+    assert built["segment_count"] == 1
+    assert transcript["warnings"] == ["OVERLAP_EXACT_DUPLICATES_COLLAPSED:1"]
+    segment = transcript["segments"][0]
+    assert segment["overlap_dedupe_policy"] == "trusted_overlap_exact_text_v1"
+    assert len(segment["duplicate_origins"]) == 2
+    assert {origin["source_id"] for origin in segment["duplicate_origins"]} == {
+        runs[0][0],
+        runs[1][0],
+    }
+
+
+def test_trusted_overlap_preserves_unique_or_uncertain_speech(tmp_path):
+    data_root = tmp_path / "Data"
+    runs = [
+        stage_run(data_root, 1, start=6.0, text="A porta está aberta."),
+        stage_run(data_root, 2, start=1.0, text="Eu entro na sala."),
+    ]
+
+    built = build(data_root, runs, workspace=overlap_workspace(runs))
+    _manifest, transcript = load_session_assembly_transcript(
+        data_root, "campaign-a", "session-a", built["assembly_id"]
+    )
+
+    assert built["segment_count"] == 2
+    assert {row["text"] for row in transcript["segments"]} == {
+        "A porta está aberta.",
+        "Eu entro na sala.",
+    }
+    assert all("duplicate_origins" not in row for row in transcript["segments"])
+
+
+def test_trusted_overlap_same_text_different_identity_is_never_collapsed(tmp_path):
+    data_root = tmp_path / "Data"
+    runs = [
+        stage_run(data_root, 1, start=6.0, text="Sim."),
+        stage_run(data_root, 2, start=1.0, text="Sim."),
+    ]
+    mapping = participant_mapping(runs)
+    observations = mapping["observations"]
+    mapping["participants"] = [
+        {
+            "participant_id": "a" * 32,
+            "resolution": "discord_id",
+            "profile_id": None,
+            "display_speaker": "A",
+            "observation_ids": [observations[0]["observation_id"]],
+        },
+        {
+            "participant_id": "b" * 32,
+            "resolution": "discord_id",
+            "profile_id": None,
+            "display_speaker": "B",
+            "observation_ids": [observations[1]["observation_id"]],
+        },
+    ]
+
+    built = build(
+        data_root,
+        runs,
+        mapping=mapping,
+        workspace=overlap_workspace(runs),
+    )
+    _manifest, transcript = load_session_assembly_transcript(
+        data_root, "campaign-a", "session-a", built["assembly_id"]
+    )
+
+    assert built["segment_count"] == 2
+    assert len(transcript["segments"]) == 2
 
 
 def test_switching_only_one_selected_run_creates_new_assembly_and_preserves_old(tmp_path):

@@ -580,6 +580,26 @@ describe("session assembly web contracts", () => {
 		expect(listing.assemblies[0]?.partCount).toBe(1);
 	});
 
+	it("parses overlap-aware canonical v3 assemblies", () => {
+		const raw = rawAssembly();
+		const parsed = parseSessionAssembly({
+			...raw,
+			canonicalization_version: "tda_session_assembly_canonical_v3",
+			timing_policy_version: "tda_session_timeline_v2",
+			timeline_strategy: "trusted_absolute",
+			wall_clock: "trusted",
+			unknown_interval_count: 0,
+			parts: raw.parts.map((part) => ({
+				...part,
+				overlap_resolution: "preserve_both_exact_v1",
+				physical_interval_state: "first",
+			})),
+		});
+		expect(parsed.canonicalizationVersion).toBe("tda_session_assembly_canonical_v3");
+		expect(parsed.timelineStrategy).toBe("trusted_absolute");
+		expect(parsed.parts[0]?.overlapResolution).toBe("preserve_both_exact_v1");
+	});
+
 	it("loads review authority from the assembly identity, not a source run", () => {
 		const review = parseSessionAssemblyReviewSummary(
 			{

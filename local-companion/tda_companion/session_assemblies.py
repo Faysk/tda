@@ -27,8 +27,10 @@ from .transcription_runs import (
 
 ASSEMBLY_SCHEMA_VERSION = "tda_session_assembly_v1"
 ASSEMBLY_TRANSCRIPT_SCHEMA_VERSION = "tda_session_assembly_transcript_v1"
-ASSEMBLY_CANONICALIZATION_VERSION = "tda_session_assembly_canonical_v2"
-LEGACY_ASSEMBLY_CANONICALIZATION_VERSION = "tda_session_assembly_canonical_v1"
+ASSEMBLY_CANONICALIZATION_VERSION = "tda_session_assembly_canonical_v3"
+LEGACY_ASSEMBLY_CANONICALIZATION_VERSIONS = frozenset({"tda_session_assembly_canonical_v1", "tda_session_assembly_canonical_v2"})
+_OVERLAP_DEDUP_POLICY = "trusted_overlap_exact_text_v1"
+_OVERLAP_TIME_TOLERANCE_SECONDS = 0.35
 LEGACY_TIMING_POLICY_VERSION = "tda_session_timeline_v1"
 ASSEMBLY_LIST_SCHEMA_VERSION = "tda_session_assemblies_v1"
 _MAX_PARTS = 64
@@ -148,7 +150,7 @@ def _source_local_segment(track: Mapping[str, Any], segment: Mapping[str, Any]) 
     return offset + start, offset + end
 
 
-def _participant_index(mapping: Mapping[str, Any]) -> dict[tuple[str, int], tuple[str, str]]:
+def _participant_index(mapping: Mapping[str, Any]) -> dict[tuple[str, int], tuple[str, str, str]]:
     observations = mapping.get("observations")
     participants = mapping.get("participants")
     if not isinstance(observations, list) or not isinstance(participants, list):
@@ -171,18 +173,20 @@ def _participant_index(mapping: Mapping[str, Any]) -> dict[tuple[str, int], tupl
             raise SessionAssemblyError("SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INVALID")
         by_observation[observation_id] = (source_id, track_number)
 
-    index: dict[tuple[str, int], tuple[str, str]] = {}
+    index: dict[tuple[str, int], tuple[str, str, str]] = {}
     for participant in participants:
         if not isinstance(participant, Mapping):
             raise SessionAssemblyError("SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INVALID")
         participant_id = participant.get("participant_id")
         display = participant.get("display_speaker")
+        resolution = participant.get("resolution")
         observation_ids = participant.get("observation_ids")
         if (
             not isinstance(participant_id, str)
             or re.fullmatch(r"[0-9a-f]{32}", participant_id) is None
             or not isinstance(display, str)
             or not display
+            or resolution not in {"manual", "discord_id", "local_observation"}
             or not isinstance(observation_ids, list)
         ):
             raise SessionAssemblyError("SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INVALID")
@@ -190,7 +194,7 @@ def _participant_index(mapping: Mapping[str, Any]) -> dict[tuple[str, int], tupl
             key = by_observation.get(str(observation_id))
             if key is None or key in index:
                 raise SessionAssemblyError("SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INVALID")
-            index[key] = (participant_id, display)
+            index[key] = (participant_id, display, str(resolution))
     if set(index) != set(by_observation.values()):
         raise SessionAssemblyError("SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INCOMPLETE")
     return index
@@ -203,15 +207,17 @@ def _part_bounds(parts: list[Mapping[str, Any]]) -> dict[str, tuple[float | None
         lower: float | None = None
         upper: float | None = None
         if index > 0 and part.get("relation_to_previous") == "overlap":
-            boundary = _number(
-                part.get("overlap_boundary_seconds"),
-                "SESSION_ASSEMBLY_OVERLAP_UNRESOLVED",
-            )
-            assert boundary is not None
-            lower = boundary
-            previous_id = str(parts[index - 1].get("part_id") or "")
-            previous_lower, _ = bounds.get(previous_id, (None, None))
-            bounds[previous_id] = (previous_lower, boundary)
+            resolution = part.get("overlap_resolution")
+            if resolution != "preserve_both_exact_v1":
+                boundary = _number(
+                    part.get("overlap_boundary_seconds"),
+                    "SESSION_ASSEMBLY_OVERLAP_UNRESOLVED",
+                )
+                assert boundary is not None
+                lower = boundary
+                previous_id = str(parts[index - 1].get("part_id") or "")
+                previous_lower, _ = bounds.get(previous_id, (None, None))
+                bounds[previous_id] = (previous_lower, boundary)
         bounds[part_id] = (lower, upper)
     return bounds
 
@@ -225,6 +231,117 @@ def _segment_id(
 ) -> str:
     payload = f"{part_id}\0{source_id}\0{run_id}\0{track_number}\0{source_segment_id}".encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def _normalized_overlap_text(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.split()).casefold()
+
+
+def _segment_origin(segment: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "part_id": segment["part_id"],
+        "source_id": segment["source_id"],
+        "source_sha256": segment["source_sha256"],
+        "run_id": segment["run_id"],
+        "transcript_sha256": segment["transcript_sha256"],
+        "source_segment_id": segment["source_segment_id"],
+        "track_number": segment["track_number"],
+    }
+
+
+def _preserve_overlap_pairs(
+    parts: list[Mapping[str, Any]],
+) -> set[frozenset[str]]:
+    pairs: set[frozenset[str]] = set()
+    for index, part in enumerate(parts):
+        if (
+            index > 0
+            and part.get("relation_to_previous") == "overlap"
+            and part.get("overlap_resolution") == "preserve_both_exact_v1"
+            and part.get("physical_interval_state") == "trusted_absolute"
+        ):
+            pairs.add(
+                frozenset(
+                    {
+                        str(parts[index - 1].get("part_id") or ""),
+                        str(part.get("part_id") or ""),
+                    }
+                )
+            )
+    return pairs
+
+
+def _collapse_proven_overlap_duplicates(
+    segments: list[dict[str, Any]],
+    parts: list[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
+    """Collapse only exact-text duplicates with strong identity and trusted timing.
+
+    False negatives are intentionally preferred over false positives. Anything
+    that is not proven equivalent remains as an independent segment.
+    """
+    preserve_pairs = _preserve_overlap_pairs(parts)
+    if not preserve_pairs:
+        return segments, 0
+
+    kept: list[dict[str, Any]] = []
+    by_identity_text: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    collapsed = 0
+    for segment in segments:
+        resolution = segment.get("participant_resolution")
+        normalized = _normalized_overlap_text(segment.get("text"))
+        if (
+            resolution not in {"discord_id", "manual"}
+            or segment.get("absolute_time_state") != "trusted_absolute"
+            or not normalized
+        ):
+            kept.append(segment)
+            continue
+
+        key = (str(segment["participant_id"]), normalized)
+        match: dict[str, Any] | None = None
+        for candidate in reversed(by_identity_text.get(key, [])):
+            if (
+                candidate.get("absolute_time_state") != "trusted_absolute"
+                or candidate.get("part_id") == segment.get("part_id")
+                or frozenset(
+                    {str(candidate.get("part_id")), str(segment.get("part_id"))}
+                )
+                not in preserve_pairs
+            ):
+                continue
+            if (
+                abs(float(candidate["start"]) - float(segment["start"]))
+                <= _OVERLAP_TIME_TOLERANCE_SECONDS
+                and abs(float(candidate["end"]) - float(segment["end"]))
+                <= _OVERLAP_TIME_TOLERANCE_SECONDS
+            ):
+                match = candidate
+                break
+
+        if match is None:
+            kept.append(segment)
+            by_identity_text.setdefault(key, []).append(segment)
+            continue
+
+        origins = list(match.get("duplicate_origins") or [_segment_origin(match)])
+        origin = _segment_origin(segment)
+        if origin not in origins:
+            origins.append(origin)
+        origins.sort(
+            key=lambda row: (
+                str(row["part_id"]),
+                int(row["track_number"]),
+                str(row["source_segment_id"]),
+            )
+        )
+        match["duplicate_origins"] = origins
+        match["overlap_dedupe_policy"] = _OVERLAP_DEDUP_POLICY
+        collapsed += 1
+
+    return kept, collapsed
 
 
 def _build_transcript(
@@ -274,7 +391,7 @@ def _build_transcript(
             participant = participant_index.get((source_id, track_number))
             if participant is None:
                 raise SessionAssemblyError("SESSION_ASSEMBLY_PARTICIPANT_MAPPING_INCOMPLETE")
-            participant_id, display_speaker = participant
+            participant_id, display_speaker, participant_resolution = participant
             for segment in raw_segments:
                 if not isinstance(segment, Mapping):
                     raise SessionAssemblyError("SESSION_ASSEMBLY_TRANSCRIPT_INVALID")
@@ -362,6 +479,7 @@ def _build_transcript(
                         "source_segment_id": source_segment_id,
                         "track_number": track_number,
                         "participant_id": participant_id,
+                        "participant_resolution": participant_resolution,
                         "speaker": display_speaker,
                         "raw_speaker": raw_speaker,
                         "start": global_start,
@@ -394,6 +512,15 @@ def _build_transcript(
     )
     if len({row["assembly_segment_id"] for row in segments}) != len(segments):
         raise SessionAssemblyError("SESSION_ASSEMBLY_SEGMENT_ID_COLLISION")
+
+    segments, collapsed_overlap_duplicates = _collapse_proven_overlap_duplicates(
+        segments,
+        parts,
+    )
+    if collapsed_overlap_duplicates:
+        warnings.append(
+            f"OVERLAP_EXACT_DUPLICATES_COLLAPSED:{collapsed_overlap_duplicates}"
+        )
 
     return {
         "schema_version": ASSEMBLY_TRANSCRIPT_SCHEMA_VERSION,
@@ -623,7 +750,7 @@ def load_session_assembly(
         or canonicalization_version
         not in {
             ASSEMBLY_CANONICALIZATION_VERSION,
-            LEGACY_ASSEMBLY_CANONICALIZATION_VERSION,
+            *LEGACY_ASSEMBLY_CANONICALIZATION_VERSIONS,
         }
         or manifest.get("inputs_sha256") != assembly_id
         or timing_policy_version not in {TIMING_POLICY_VERSION, LEGACY_TIMING_POLICY_VERSION}
@@ -645,7 +772,7 @@ def load_session_assembly(
         or not 1 <= len(manifest["parts"]) <= _MAX_PARTS
     ):
         raise SessionAssemblyError("SESSION_ASSEMBLY_MANIFEST_INVALID")
-    if canonicalization_version == ASSEMBLY_CANONICALIZATION_VERSION:
+    if canonicalization_version in {ASSEMBLY_CANONICALIZATION_VERSION, "tda_session_assembly_canonical_v2"}:
         if (
             timing_policy_version != TIMING_POLICY_VERSION
             or manifest.get("timeline_strategy")

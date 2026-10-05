@@ -9,6 +9,7 @@ import {
 	type CraigTranscriptionInput,
 	type LocalReviewSegment,
 	type LocalReviewStatus,
+	type SessionOverlapResolution,
 	benchmarkIdentifier,
 	identifier,
 	parseBenchmarkAttemptResult,
@@ -592,10 +593,7 @@ export class LocalBridge {
 			trimStartSeconds?: number;
 			trimEndSeconds?: number | null;
 			gapConfirmed?: boolean;
-			overlapResolution?:
-				| "prefer_earlier_until"
-				| "prefer_later_from"
-				| null;
+			overlapResolution?: SessionOverlapResolution | null;
 			overlapBoundarySeconds?: number | null;
 		}>,
 		signal: AbortSignal,

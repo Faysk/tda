@@ -307,6 +307,7 @@ class SessionWorkspaceTimingRequest(BaseModel):
     overlap_resolution: Literal[
         "prefer_earlier_until",
         "prefer_later_from",
+        "preserve_both_exact_v1",
     ] | None = None
     overlap_boundary_seconds: float | None = Field(default=None, ge=0)
 
