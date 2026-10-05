@@ -1,4 +1,5 @@
 import type { LocalJob } from "./protocol";
+import { processingJobRetryAvailable } from "./terminal-recovery";
 
 export type QueueFilter = "active" | "attention" | "completed" | "cancelled" | "all";
 export type QueueSort = "updated" | "status" | "profile" | "session";
@@ -44,14 +45,7 @@ function updatedMillis(job: LocalJob): number {
 }
 
 export function queueRetryAvailable(job: LocalJob): boolean {
-	return (
-		(job.status === "failed" || job.status === "interrupted") &&
-		job.error?.recoverable === true &&
-		!(
-			job.error.code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN" &&
-			job.context?.profileId === "qwen-fast"
-		)
-	);
+	return processingJobRetryAvailable(job);
 }
 
 export function queueProfileLabel(profileId: string | null | undefined): string {
