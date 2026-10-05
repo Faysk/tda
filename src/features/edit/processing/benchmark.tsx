@@ -1078,9 +1078,11 @@ export function ProcessingBenchmark({
 
 	const activeEvents =
 		active && observedJobId === active.id
-			? events.filter(
-					(event) => event.attempt === null || event.attempt === active.attempt,
-				)
+			? active.status === "queued"
+				? events.filter((event) => event.attempt === null)
+				: events.filter(
+						(event) => event.attempt === null || event.attempt === active.attempt,
+					)
 			: [];
 	const activeAttemptState = active
 		? deriveBenchmarkAttemptUiState(active, activeEvents)
