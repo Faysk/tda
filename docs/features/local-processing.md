@@ -1,8 +1,8 @@
 # Processamento local no Edit
 
-> Status: ASR local implementado; arquitetura de runs/revisão/publicação aprovada; sync cloud ainda desativado
+> Status: ASR local, runs/revisão e publicação explícita implementados; auto-sync de job permanece `not_configured`
 > Owner: Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro
-> Última revisão: 2026-09-28
+> Última revisão: 2026-10-05
 > Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento`, `local-companion/tda_companion`, [spec de revisão/publicação](transcript-review-publication.md) e testes associados
 
 `/edit/[campaign]/processamento` é a superfície operacional canônica para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
@@ -35,7 +35,7 @@ A URL canônica é `/edit/[campaign]/processamento`. O entrypoint `/edit/process
 
 ## Estado atual
 
-### Overview — candidato #580
+### Histórico de implementação — Overview — #580
 
 A Overview dá precedência ao job em execução e à submissão. Progresso com
 denominador válido pode começar em `0%`; sem denominador, a etapa permanece
@@ -121,7 +121,7 @@ zero, ausência de denominador e a separação entre job ativo e métricas de ru
 terminal. Este estado descreve o candidato de código; não implica integração ou
 publicação.
 
-### Command bar — candidato #608 / #622
+### Histórico de implementação — Command bar — #608 / #622
 
 A barra persistente condensa lifecycle, telemetria da máquina, contadores e ações
 contextuais; detalhes de hardware/versão ficam em Diagnóstico. Falha de uma amostra
@@ -142,7 +142,7 @@ Validação usa fixtures sintéticas em desktop/mobile, falhas independentes por
 domínio, recuperação parcial, inventário fora de ordem, temas e reduced motion.
 Merge não confirma publicação; não há mudança de banco, áudio ou formato de run.
 
-A base vigente e o candidato **TDA Companion 0.3.14** desta entrega cobrem:
+A linha de código vigente **TDA Companion 0.3.18** cobre:
 
 - workbench próprio do Edit;
 - conexão automática com o Agent em `http://127.0.0.1:8765/api/v1` via sessão temporária origin-bound;
@@ -166,11 +166,11 @@ A base vigente e o candidato **TDA Companion 0.3.14** desta entrega cobrem:
 
 O processamento Craig já é ASR real ponta a ponta no Agent, iniciado pela Web e acompanhado tanto na Web quanto no Desktop. `synthetic.fixture` continua existindo somente como ensaio sintético quando anunciado. Sincronização/publicação cloud permanece desativada: conclusão local não implica importação, revisão, canon ou publicação.
 
-### Versão instalável versus candidato de código
+### Versão de código versus artefato publicado
 
-A linha de código desta entrega é o **TDA Companion 0.3.14**. Esse número identifica os bytes candidatos desta revisão, mas não deve ser descrito como release publicada antes de integração em `main` e publicação do RC correspondente pelo pipeline.
+A linha de código atual é o **TDA Companion 0.3.18**. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline.
 
-O Companion 0.3.14 exige no mínimo **Whisper Runtime 1.1.4** e **Qwen Runtime 1.0.7**. Durante rollout RC, o primeiro uso aceita somente o candidato publicado exato e verificado da versão compatível; um manifest Stable abaixo do mínimo é ignorado, não baixado como etapa intermediária. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
+O Companion 0.3.18 exige no mínimo **Whisper Runtime 1.1.4** e **Qwen Runtime 1.0.12**. Benchmark usa mínimos próprios mais altos definidos em `runtime_compat.py` e não deve ser confundido com compatibilidade normal. Durante rollout RC, o primeiro uso aceita somente o candidato publicado exato e verificado da versão compatível; um manifest Stable abaixo do mínimo é ignorado, não baixado como etapa intermediária. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
 
 ## Runs locais imutáveis — Slice 1
 
@@ -293,7 +293,7 @@ necessária e enqueue idempotente do job. A interface continua expondo cada stag
 e suas falhas factuais, mas não exige um botão de “continuar” entre etapas que
 não carregam uma nova decisão humana.
 
-A análise isolada do ZIP permanece disponível como ação secundária somente para
+Staging e validação do ZIP fazem parte do submit automático. Não existe CTA separado **Analisar ZIP** no fluxo normal; ferramentas de inspeção/reparo permanecem técnicas/recovery somente para
 o caso em que o operador quer montar uma sessão com várias gravações antes de
 processá-las. Estimativas podem aparecer assim que a source staged existe, mas
 não viram uma confirmação obrigatória no caminho simples. Estados bloqueados,
@@ -496,7 +496,7 @@ A candidata histórica de transcript import contém primitives úteis de hash/id
 
 Neste Slice 1, runs concluídos e source/staging permanecem locais até ação futura explícita de cleanup. Não foi adicionada limpeza automática de runs.
 
-Trash de 7 dias, archive e painel de armazenamento pertencem ao Slice 6. Quando entrarem, limpeza de source não poderá apagar transcrições concluídas implicitamente e deverá explicar quando novo processamento exigirá selecionar o ZIP Craig novamente.
+Archive e painel de armazenamento permanecem backlog separado. Delete local confirmado é destrutivo conforme a emenda de ADR-0016; tombstone/quarantine existem para atomicidade/recovery e não oferecem restore de 7 dias. Limpeza de source não pode apagar transcrições concluídas implicitamente e deve explicar quando novo processamento exigir selecionar o ZIP Craig novamente.
 
 ## Validação
 
@@ -544,7 +544,7 @@ Slices futuros devem acrescentar testes para:
 
 Esses testes automatizados não substituem o gate de qualidade/desempenho em GPU física. A aprovação física final dos perfis que a exigem deve registrar runtime/model revision, GPU/VRAM observada, elapsed/RTF e avaliação qualitativa adequada ao perfil.
 
-### Métricas animadas — candidato #601 / PR #623
+### Histórico de implementação — Métricas animadas — #601 / PR #623
 
 A barra interpola somente os números visuais de GPU/CPU/RAM por 350–700 ms,
 com easing sem overshoot. O controller, o timestamp da amostra e o `meter`
@@ -563,7 +563,7 @@ Validação: testes sintéticos do interpolador e navegador cobrem rebase,
 telemetria acessível, cancelamento em aba oculta, movimento reduzido, reset
 de tentativa e largura estável. A validação local/CI não publica o frontend.
 
-### Fila operacional — candidato #610 / PR #624
+### Histórico de implementação — Fila operacional — #610 / PR #624
 
 A Fila usa tabela HTML no desktop, com rolagem e cabeçalho próprios, e linhas
 empilhadas no mobile. O recorte inicial contém ativos; filtros locais de atenção,
