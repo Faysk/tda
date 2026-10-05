@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
 	CRAIG_SOURCE_ID,
 	failedJob,
+	fixtureBenchmarkJob,
 	fixtureJob,
 	installCompanionFixture,
 	LOCAL_API,
@@ -2479,6 +2480,81 @@ test("Queue per-job diagnostics opens contextually and preserves the Queue view"
 	await expect(
 		page.getByRole("tabpanel", { name: "Diagnóstico" }),
 	).toContainText("Detalhes do processamento");
+});
+
+test("main Diagnostics exposes safe recovery actions for the observed terminal job", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [failedJob()],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Diagnóstico", exact: true }).click();
+
+	const diagnostics = page.getByRole("tabpanel", { name: "Diagnóstico" });
+	const actions = diagnostics.getByLabel("Ações do trabalho observado");
+	await expect(actions.getByRole("button", { name: "Nova transcrição" })).toBeVisible();
+	await expect(actions.getByRole("button", { name: "Repetir trabalho" })).toBeVisible();
+	await expect(actions.getByRole("button", { name: "Descartar trabalho" })).toBeVisible();
+
+	await actions.getByRole("button", { name: "Repetir trabalho" }).click();
+	await expect(
+		page.getByRole("heading", { name: "Repetir este trabalho?" }),
+	).toBeVisible();
+	await page.getByRole("button", { name: "Voltar" }).click();
+
+	await actions.getByRole("button", { name: "Descartar trabalho" }).click();
+	const discardDialog = page
+		.getByRole("dialog")
+		.filter({ hasText: "Descartar este trabalho?" });
+	await expect(discardDialog).toContainText("evidências de Benchmark");
+	await discardDialog.getByRole("button", { name: "Voltar" }).click();
+
+	await actions.getByRole("button", { name: "Nova transcrição" }).click();
+	await expect(page.getByRole("tab", { name: "Visão geral", exact: true })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect(page.locator("[data-craig-composer='true']")).toBeVisible();
+});
+
+test("main Diagnostics keeps non-recoverable Benchmark retry fail-closed", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureBenchmarkJob("failed", {
+				stage: "failed",
+				progress: { completed: 2, total: 4, unit: "profiles" },
+				error: { code: "WORKER_PROGRESS_GAP", recoverable: false },
+				result_available: false,
+			}),
+		],
+	});
+
+	await page.goto("/");
+	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+	await page.getByRole("tab", { name: "Diagnóstico", exact: true }).click();
+
+	const diagnostics = page.getByRole("tabpanel", { name: "Diagnóstico" });
+	const actions = diagnostics.getByLabel("Ações do trabalho observado");
+	await expect(
+		actions.getByRole("button", { name: "Executar novo benchmark" }),
+	).toBeVisible();
+	await expect(
+		actions.getByRole("button", { name: "Repetir tentativa" }),
+	).toHaveCount(0);
+	await expect(
+		actions.getByRole("button", { name: "Descartar trabalho" }),
+	).toBeVisible();
+	await expect(diagnostics).toContainText("WORKER_PROGRESS_GAP");
 });
 
 for (const viewport of [
