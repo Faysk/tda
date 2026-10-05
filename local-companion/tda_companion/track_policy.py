@@ -74,11 +74,13 @@ def select_craig_tracks(
 def apply_craig_track_selection(
     package: CraigPackage,
     selection: CraigTrackSelection,
+    *,
+    require_eligible: bool = True,
 ) -> CraigPackage:
     expected = select_craig_tracks(
         package,
         policy_version=selection.policy_version,
-        require_eligible=True,
+        require_eligible=require_eligible,
     )
     if expected != selection:
         raise CraigTrackPolicyError("TRANSCRIPTION_TRACK_POLICY_MISMATCH")
