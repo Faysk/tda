@@ -465,6 +465,7 @@ def test_browser_session_intent_recovery_keeps_text_in_local_agent(tmp_path: Pat
         assert body["glossary"] == "Yuhara"
         assert len(body["context_sha256"]) == 64
         assert len(body["glossary_sha256"]) == 64
+        assert len(body["compatibility_fingerprint"]) == 64
 
         recovered = client.get(
             "/api/v1/session-workspaces/campaign-intent/session-intent/intent",
