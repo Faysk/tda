@@ -223,7 +223,6 @@ export function SessionIntentCoordinator({
 		useState<SessionTranscriptionIntent | null>(null);
 	const [blocker, setBlocker] = useState<Blocker | null>(null);
 	const [busy, setBusy] = useState(false);
-	const [advancePulse, setAdvancePulse] = useState(0);
 	const [live, setLive] = useState<string | null>(null);
 	const [localError, setLocalError] = useState<string | null>(null);
 	const [recovery, setRecovery] = useState<SessionRecoveryGuide | null>(null);
@@ -645,7 +644,6 @@ export function SessionIntentCoordinator({
 			return;
 		advancing.current = true;
 		const controller = new AbortController();
-		let continueAutomatically = false;
 		try {
 			if (activeRequest) {
 				for (const part of workspace.parts) {
@@ -722,7 +720,6 @@ export function SessionIntentCoordinator({
 					announce(
 						`${sourceLabel(part.sourceId, activeRequest, workspace)} pronta; o resultado inequívoco foi aplicado automaticamente.`,
 					);
-					continueAutomatically = true;
 					return;
 				}
 				if (choice.kind === "ambiguous") {
@@ -869,7 +866,6 @@ export function SessionIntentCoordinator({
 				);
 				await loadSnapshot(workspace.sessionId, controller.signal);
 				announce("Horários Craig confiáveis confirmaram a ordem escolhida.");
-				continueAutomatically = true;
 				return;
 			}
 
@@ -900,7 +896,6 @@ export function SessionIntentCoordinator({
 				}
 				await loadSnapshot(workspace.sessionId, controller.signal);
 				announce("Intervalos comprovados foram preservados sem inventar fala.");
-				continueAutomatically = true;
 				return;
 			}
 
@@ -936,8 +931,6 @@ export function SessionIntentCoordinator({
 			fail(cause);
 		} finally {
 			advancing.current = false;
-			if (continueAutomatically)
-				setAdvancePulse((current) => current + 1);
 		}
 	}, [
 		activeRequest,
@@ -961,7 +954,7 @@ export function SessionIntentCoordinator({
 
 	useEffect(() => {
 		void advance();
-	}, [advance, advancePulse]);
+	}, [advance]);
 
 	async function applyTrustedTimelineOrder() {
 		if (!workspace || blocker?.kind !== "trusted_order" || busy || disabled) return;
