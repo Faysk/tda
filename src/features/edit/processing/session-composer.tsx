@@ -1050,7 +1050,9 @@ export function SessionRecordingComposer({
 										? ""
 										: String(part.overlapBoundarySeconds),
 								resolution:
-									part.overlapResolution ?? "prefer_later_from",
+									part.overlapResolution === "prefer_earlier_until"
+										? "prefer_earlier_until"
+										: "prefer_later_from",
 							};
 							return (
 								<li key={part.partId} className={styles.part}>
