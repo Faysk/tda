@@ -82,6 +82,8 @@ const CONTRACT = {
 	profileContractSha256: "b".repeat(64),
 	contextSha256: "c".repeat(64),
 	glossarySha256: "d".repeat(64),
+	trackPolicy: "exclude_confirmed_craig_bots_v1",
+	includeBotTracks: false,
 } as const;
 
 function run(
@@ -197,6 +199,8 @@ describe("session intent model", () => {
 			run(sourceId, "legacy-recipe", { profileContractSha256: null }),
 			run(sourceId, "legacy-context", { contextSha256: null }),
 			run(sourceId, "legacy-glossary", { glossarySha256: null }),
+			run(sourceId, "track-policy", { trackPolicy: "legacy_policy_v0" }),
+			run(sourceId, "include-bots", { includeBotTracks: true }),
 		]) {
 			expect(chooseIntentRun(part(sourceId), [incompatible], null, CONTRACT)).toEqual({
 				kind: "missing",
