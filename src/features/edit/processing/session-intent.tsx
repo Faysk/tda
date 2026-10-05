@@ -76,7 +76,6 @@ type Blocker =
 			runIds: readonly string[];
 	  }>
 	| Readonly<{ kind: "timeline"; state: SessionWorkspace["timeline"]["state"] }>
-	| Readonly<{ kind: "participants"; count: number }>
 	| Readonly<{ kind: "failed"; sourceIds: readonly string[] }>
 	| Readonly<{ kind: "enqueue"; sourceIds: readonly string[] }>
 	| Readonly<{ kind: "resume"; sourceIds: readonly string[] }>
@@ -84,7 +83,7 @@ type Blocker =
 
 type Snapshot = Readonly<{
 	workspace: SessionWorkspace;
-	mapping: SessionParticipantMapping;
+	mapping: SessionParticipantMapping | null;
 	runsBySource: ReadonlyMap<string, readonly LocalRunSummary[]>;
 	jobs: readonly LocalJob[];
 }>;
@@ -306,7 +305,9 @@ export function SessionIntentCoordinator({
 				),
 			);
 			const [nextMapping, jobPage] = await Promise.all([
-				bridge.sessionParticipants(next.campaignId, next.sessionId, signal),
+				bridge
+					.sessionParticipants(next.campaignId, next.sessionId, signal)
+					.catch(() => null),
 				bridge.jobPage("all", signal, { limit: 200 }),
 			]);
 			const snapshot: Snapshot = {
@@ -627,12 +628,10 @@ export function SessionIntentCoordinator({
 			busy ||
 			advancing.current ||
 			!workspace ||
-			!mapping ||
 			assembly ||
 			blocker?.kind === "variant" ||
 			blocker?.kind === "runs" ||
 			blocker?.kind === "timeline" ||
-			blocker?.kind === "participants" ||
 			blocker?.kind === "enqueue" ||
 			blocker?.kind === "resume" ||
 			blocker?.kind === "source" ||
@@ -897,16 +896,6 @@ export function SessionIntentCoordinator({
 				setBlocker({ kind: "timeline", state: workspace.timeline.state });
 				return;
 			}
-			if (mapping.approvalBlocked) {
-				setBlocker({
-					kind: "participants",
-					count: mapping.conflicts.filter(
-						(conflict) => conflict.requiresResolution,
-					).length,
-				});
-				return;
-			}
-
 			const readiness = sessionAssemblyReadiness(workspace, mapping);
 			if (!readiness.ready) return;
 			const built = await bridge.buildSessionAssembly(
@@ -1452,28 +1441,6 @@ export function SessionIntentCoordinator({
 							</Button>
 						) : null}
 					</div>
-				</div>
-			) : null}
-
-			{blocker?.kind === "participants" ? (
-				<div className={styles.blocker} role="alert">
-					<div>
-						<strong>Há participante ambíguo nesta sessão.</strong>
-						<span>
-							{blocker.count} conflito{blocker.count === 1 ? "" : "s"} precisa
-							{blocker.count === 1 ? "" : "m"} de uma decisão antes da montagem final.
-						</span>
-					</div>
-					{onOpenTechnical ? (
-						<Button
-							type="button"
-							size="sm"
-							variant="secondary"
-							onClick={() => onOpenTechnical("participants")}
-						>
-							Resolver participantes
-						</Button>
-					) : null}
 				</div>
 			) : null}
 
