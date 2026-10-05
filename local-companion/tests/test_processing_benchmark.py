@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
+from fastapi.testclient import TestClient
 
-from tda_companion.api import _benchmark_partial_result_valid
+from tda_companion.api import _benchmark_partial_result_valid, create_app
 from tda_companion.benchmark_bundles import BENCHMARK_PROFILES, benchmark_id_for
 from tda_companion.store import Conflict, Store
 from tda_companion.worker_protocol import WorkerProtocolError, WorkerRunCommand
@@ -530,6 +531,74 @@ def test_benchmark_retry_resets_attempt_progress_before_new_sequence(
     assert any(event["code"] == "WORKER_EXECUTION_FAILED" for event in attempt_one)
     assert sum(event["code"] == "UNIT_COMMITTED" for event in attempt_one) == completed_before_failure
     assert sum(event["code"] == "UNIT_COMMITTED" for event in attempt_two) == 4
+
+
+def test_benchmark_retry_api_resets_stale_progress_before_attempt_two(tmp_path):
+    data = tmp_path / "Data"
+    data.mkdir(parents=True, exist_ok=True)
+    token = "t" * 43
+    origin = "https://dnd.faysk.dev"
+    store = Store(data)
+    queued = store.submit("benchmark-retry-api", _benchmark_body())
+    claimed = store.claim()
+    assert claimed is not None
+    job_id, attempt = claimed
+    assert job_id == queued["id"]
+
+    assert store.progress(
+        job_id,
+        attempt,
+        completed=1,
+        total=4,
+        stage="benchmark",
+    )
+    assert store.progress(
+        job_id,
+        attempt,
+        completed=2,
+        total=4,
+        stage="benchmark",
+    )
+    store.fail(
+        job_id,
+        attempt,
+        "WORKER_EXECUTION_FAILED",
+        recoverable=True,
+    )
+
+    app = create_app(data, token, {origin}, run_worker=False)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Origin": origin,
+    }
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            f"/api/v1/jobs/{job_id}/retry",
+            headers=headers,
+            json={},
+        )
+
+    assert response.status_code == 200
+    retried = response.json()
+    assert retried["id"] == job_id
+    assert retried["attempt"] == attempt
+    assert retried["status"] == "queued"
+    assert retried["stage"] == "queued"
+    assert retried["progress"] == {
+        "completed": 0,
+        "total": 4,
+        "unit": "profiles",
+    }
+
+    claimed_again = store.claim()
+    assert claimed_again == (job_id, attempt + 1)
+    assert store.progress(
+        job_id,
+        attempt + 1,
+        completed=1,
+        total=4,
+        stage="benchmark",
+    )
 
 
 def test_benchmark_progress_gap_remains_fail_closed(tmp_path):
