@@ -21,7 +21,7 @@ from .transcription_intent import (
     fingerprint_for_run_manifest,
 )
 from .track_policy import (
-    DEFAULT_TRACK_POLICY_VERSION,
+    ALL_TRACKS_POLICY_VERSION,
     SUPPORTED_TRACK_POLICY_VERSIONS,
     CraigTrackPolicyError,
     normalize_track_numbers,
@@ -413,7 +413,7 @@ def _manifest_for_document(
     transcript_size_bytes: int,
     glossary: str,
     context: str,
-    track_policy_version: str = DEFAULT_TRACK_POLICY_VERSION,
+    track_policy_version: str = ALL_TRACKS_POLICY_VERSION,
     included_track_numbers: tuple[int, ...] | None = None,
     ignored_track_numbers: tuple[int, ...] | None = None,
     execution_lineage: dict[str, Any] | None = None,
@@ -513,7 +513,7 @@ def write_completed_run(
     source_id: str | None = None,
     glossary: str = "",
     context: str = "",
-    track_policy_version: str = DEFAULT_TRACK_POLICY_VERSION,
+    track_policy_version: str = ALL_TRACKS_POLICY_VERSION,
     included_track_numbers: tuple[int, ...] | None = None,
     ignored_track_numbers: tuple[int, ...] | None = None,
     execution_lineage: dict[str, Any] | None = None,
