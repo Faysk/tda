@@ -18,6 +18,7 @@ import {
 	sessionProcessingProgress,
 	supportsSessionComposer,
 	timelineStateLabel,
+	workspaceGenerationEligible,
 } from "./session-composer-model";
 import type {
 	SessionAssembly,
@@ -251,7 +252,9 @@ export function SessionRecordingComposer({
 			const runPairs = await Promise.all(
 				next.parts.map(async (part) => [
 					part.sourceId,
-					await bridge.localRuns(part.sourceId, signal),
+					(await bridge.localRuns(part.sourceId, signal)).filter((run) =>
+						workspaceGenerationEligible(next, run.completedAt),
+					),
 				] as const),
 			);
 			const [nextMapping, assemblyList, jobPage, sourceCatalog] = await Promise.all([
@@ -264,8 +267,16 @@ export function SessionRecordingComposer({
 			setRunsBySource(new Map(runPairs));
 			setSourcesById(new Map(sourceCatalog.map((source) => [source.sourceId, source])));
 			setMapping(nextMapping);
-			setAssemblies(assemblyList.assemblies);
-			setJobs(jobPage.jobs);
+			setAssemblies(
+				assemblyList.assemblies.filter((assembly) =>
+					workspaceGenerationEligible(next, assembly.createdAt),
+				),
+			);
+			setJobs(
+				jobPage.jobs.filter((job) =>
+					workspaceGenerationEligible(next, job.updated_at),
+				),
+			);
 		},
 		[bridge],
 	);
