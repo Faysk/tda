@@ -212,7 +212,11 @@ def _run_craig(
             # the new bot-exclusion default retroactively.
             require_eligible=explicit_track_policy is not None,
         )
-        package = apply_craig_track_selection(source_package, selection)
+        package = apply_craig_track_selection(
+            source_package,
+            selection,
+            require_eligible=explicit_track_policy is not None,
+        )
         removed_runs = 0 if benchmark_mode else remove_incomplete_runs(package_root)
         if removed_runs:
             emitter.emit(
