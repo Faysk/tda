@@ -274,7 +274,12 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         level="error",
     ),
     "SOURCE_VALIDATED": _schema(
-        "stage", "track_count", required=("stage", "track_count")
+        "stage",
+        "track_count",
+        "source_track_count",
+        "ignored_track_count",
+        "track_policy_version",
+        required=("stage", "track_count"),
     ),
     "INCOMPLETE_RUNS_CLEANED": _schema(
         "stage", "count", required=("stage", "count")
@@ -294,7 +299,7 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
 _POSITIVE_INT_FIELDS = frozenset(
     {
         "track", "total_tracks", "segment", "attempt",
-        "track_count", "count", "sample_count", "attempted_count",
+        "track_count", "source_track_count", "count", "sample_count", "attempted_count",
     }
 )
 _NONNEGATIVE_INT_FIELDS = frozenset(
@@ -303,7 +308,7 @@ _NONNEGATIVE_INT_FIELDS = frozenset(
         "text_prefix_windows_reused", "reused_window_count", "durable_window_count",
         "pending_asr", "aligned_item", "aligned_word_count", "owned_word_count",
         "completed_window_count", "completed_segment_count",
-        "completed_count", "failed_count",
+        "completed_count", "failed_count", "ignored_track_count",
     }
 )
 _BYTE_FIELDS = frozenset({"downloaded_bytes", "total_bytes"})
@@ -320,7 +325,7 @@ _SECONDS_FIELDS = frozenset(
 )
 _SIGNED_SECONDS_FIELDS = frozenset({"relative_start_seconds", "relative_end_seconds"})
 _TOKEN_FIELDS = frozenset(
-    {"profile", "strategy", "scope", "continuation", "device", "compute_type"}
+    {"profile", "strategy", "scope", "continuation", "device", "compute_type", "track_policy_version"}
 )
 _RUNTIME_FIELDS = frozenset({"runtime_version", "source_runtime_version"})
 _HASH_FIELDS = frozenset({"worker_sha256", "source_signature_sha256"})
