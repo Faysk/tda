@@ -15,6 +15,10 @@ from .session_timeline import (
     TIMING_POLICY_VERSION,
     project_trusted_absolute_time,
 )
+from .session_participants import (
+    PARTICIPANT_MAPPING_POLICY,
+    PARTICIPANT_MAPPING_SCHEMA_VERSION,
+)
 from .transcription_runs import (
     TranscriptionRunError,
     load_run,
@@ -626,8 +630,9 @@ def load_session_assembly(
         or manifest.get("segment_boundary_policy") != SEGMENT_BOUNDARY_POLICY
         or not isinstance(manifest.get("timeline_fingerprint_sha256"), str)
         or _SHA256.fullmatch(manifest["timeline_fingerprint_sha256"]) is None
-        or manifest.get("participant_mapping_schema_version") != "tda_session_participant_mapping_v1"
-        or manifest.get("participant_mapping_policy") != "strong_discord_or_manual_v1"
+        or manifest.get("participant_mapping_schema_version") != PARTICIPANT_MAPPING_SCHEMA_VERSION
+        or manifest.get("participant_mapping_policy")
+        not in {PARTICIPANT_MAPPING_POLICY, "strong_discord_or_manual_v1"}
         or not isinstance(manifest.get("participant_mapping_sha256"), str)
         or _SHA256.fullmatch(manifest["participant_mapping_sha256"]) is None
         or not isinstance(manifest.get("transcript_sha256"), str)
