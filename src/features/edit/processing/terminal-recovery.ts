@@ -21,9 +21,11 @@ export function terminalRecoveryActions(
 ): TerminalRecoveryActions {
 	const terminal = TERMINAL_STATUSES.has(job.status);
 	const retryable = queueRetryAvailable(job);
+	const startNewSupported =
+		job.kind === "benchmark.craig" || job.kind === "transcription.craig";
 
 	return {
-		canStartNew: terminal,
+		canStartNew: terminal && startNewSupported,
 		canRetry: retryable,
 		canDiscard: terminal && canDelete,
 		canDiagnose: true,
