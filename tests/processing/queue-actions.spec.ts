@@ -51,6 +51,15 @@ for (const viewport of [
 		await expect(
 			popup.getByRole("button", { name: "Detalhes", exact: true }),
 		).toBeFocused();
+		await expect(
+			popup.getByRole("button", { name: "Começar novo", exact: true }),
+		).toBeVisible();
+		await expect(
+			popup.getByRole("button", { name: "Abrir Diagnóstico", exact: true }),
+		).toBeVisible();
+		await expect(
+			popup.getByRole("button", { name: "Descartar", exact: true }),
+		).toBeVisible();
 		const box = await popup.boundingBox();
 		expect(box).not.toBeNull();
 		if (!box) throw new Error("No popup bounds");
