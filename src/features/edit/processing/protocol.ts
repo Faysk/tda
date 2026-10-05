@@ -262,6 +262,7 @@ export type CraigTranscriptionInput = {
 	profileId: TranscriptionProfileId;
 	glossary: string;
 	context: string;
+	reuseCheckpoints?: boolean;
 };
 export type JobStatus =
 	| "queued"
