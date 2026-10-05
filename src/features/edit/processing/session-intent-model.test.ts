@@ -76,7 +76,12 @@ function workspace(parts: SessionWorkspacePart[]): SessionWorkspace {
 	};
 }
 
-function run(sourceId: string, runId: string): LocalRunSummary {
+function run(
+	sourceId: string,
+	runId: string,
+	intentFingerprint: string | null = "f".repeat(64),
+	transcriptSha256 = "a".repeat(64),
+): LocalRunSummary {
 	return {
 		runId,
 		sourceId,
@@ -90,7 +95,8 @@ function run(sourceId: string, runId: string): LocalRunSummary {
 		executionLineage: null,
 		language: "pt",
 		completedAt: NOW,
-		transcriptSha256: "a".repeat(64),
+		intentFingerprint,
+		transcriptSha256,
 		transcriptSizeBytes: 128,
 		stats: {
 			audioWorkSeconds: 1,
@@ -152,27 +158,81 @@ describe("session intent model", () => {
 		const sourceId = "craig-" + "1".repeat(64);
 		const target = part(sourceId);
 		const runs = [run(sourceId, "run-old"), run(sourceId, "run-intent")];
-		expect(chooseIntentRun(target, runs, "run-intent")).toEqual({
+		expect(chooseIntentRun(target, runs, "run-intent", "f".repeat(64))).toEqual({
 			kind: "automatic",
 			runId: "run-intent",
 			reason: "intent_job",
 		});
-		expect(chooseIntentRun(target, runs, null)).toEqual({
-			kind: "ambiguous",
-			runIds: ["run-old", "run-intent"],
+		expect(chooseIntentRun(target, runs, null, "f".repeat(64))).toEqual({
+			kind: "automatic",
+			runId: "run-intent",
+			reason: "exact_match",
 		});
 	});
 
-	test("reuses one existing run and preserves an already selected run", () => {
+	test("reuses only exact fingerprint matches and revalidates selected runs", () => {
 		const sourceId = "craig-" + "2".repeat(64);
-		expect(chooseIntentRun(part(sourceId), [run(sourceId, "run-only")], null)).toEqual({
+		const exact = run(sourceId, "run-exact", "f".repeat(64));
+		const incompatible = run(sourceId, "run-old", "e".repeat(64));
+		expect(
+			chooseIntentRun(part(sourceId), [incompatible, exact], null, "f".repeat(64)),
+		).toEqual({
 			kind: "automatic",
-			runId: "run-only",
-			reason: "single_run",
+			runId: "run-exact",
+			reason: "exact_match",
 		});
 		expect(
-			chooseIntentRun(part(sourceId, "run-chosen"), [run(sourceId, "run-other")], null),
-		).toEqual({ kind: "selected", runId: "run-chosen" });
+			chooseIntentRun(
+				part(sourceId, "run-old"),
+				[incompatible, exact],
+				null,
+				"f".repeat(64),
+			),
+		).toEqual({
+			kind: "automatic",
+			runId: "run-exact",
+			reason: "exact_match",
+		});
+		expect(
+			chooseIntentRun(
+				part(sourceId, "run-exact"),
+				[incompatible, exact],
+				null,
+				"f".repeat(64),
+			),
+		).toEqual({ kind: "selected", runId: "run-exact" });
+	});
+
+	test("never reuses a legacy or incompatible singleton just because it is the only run", () => {
+		const sourceId = "craig-" + "9".repeat(64);
+		expect(
+			chooseIntentRun(
+				part(sourceId),
+				[run(sourceId, "run-legacy", null)],
+				null,
+				"f".repeat(64),
+			),
+		).toEqual({ kind: "missing" });
+		expect(
+			chooseIntentRun(
+				part(sourceId),
+				[run(sourceId, "run-other-profile", "e".repeat(64))],
+				null,
+				"f".repeat(64),
+			),
+		).toEqual({ kind: "missing" });
+	});
+
+	test("keeps exact runs ambiguous when identical inputs produced different transcripts", () => {
+		const sourceId = "craig-" + "8".repeat(64);
+		const runs = [
+			run(sourceId, "run-a", "f".repeat(64), "a".repeat(64)),
+			run(sourceId, "run-b", "f".repeat(64), "b".repeat(64)),
+		];
+		expect(chooseIntentRun(part(sourceId), runs, null, "f".repeat(64))).toEqual({
+			kind: "ambiguous",
+			runIds: ["run-a", "run-b"],
+		});
 	});
 
 	test("reports session-level progress without retranscribing completed parts", () => {
@@ -186,6 +246,7 @@ describe("session intent model", () => {
 				workspace([part(a), part(b), part(c), part(d)]),
 				runs,
 				[job(b, "running"), job(c, "failed")],
+				"f".repeat(64),
 			),
 		).toEqual({ total: 4, waiting: 1, running: 1, completed: 1, failed: 1 });
 		expect(retryableIntentJob([job(c, "failed")], c)?.status).toBe("failed");
