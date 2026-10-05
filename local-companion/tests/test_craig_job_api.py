@@ -972,6 +972,9 @@ def test_api_preserves_incomplete_worker_contract_failure(monkeypatch, tmp_path:
             attempt=attempt,
             glossary=kwargs["glossary"],
             context=kwargs["context"],
+            track_policy_version=kwargs["track_policy_version"],
+            included_track_numbers=tuple(track.number for track in package.tracks),
+            ignored_track_numbers=(),
         )
         # Intentionally violate the queue contract: the worker returns a valid
         # immutable result without committing any track progress first.
@@ -1114,6 +1117,9 @@ def test_api_finalizes_from_immutable_run_not_legacy_mirror(monkeypatch, tmp_pat
             attempt=attempt,
             glossary=kwargs["glossary"],
             context=kwargs["context"],
+            track_policy_version=kwargs["track_policy_version"],
+            included_track_numbers=tuple(track.number for track in package.tracks),
+            ignored_track_numbers=(),
         )
         (package_root / "transcript.json").write_text("corrupt legacy mirror", encoding="utf-8")
         for completed in range(1, len(package.tracks) + 1):
@@ -1186,6 +1192,9 @@ def test_result_endpoint_rejects_missing_immutable_artifact(monkeypatch, tmp_pat
             attempt=attempt,
             glossary=kwargs["glossary"],
             context=kwargs["context"],
+            track_policy_version=kwargs["track_policy_version"],
+            included_track_numbers=tuple(track.number for track in package.tracks),
+            ignored_track_numbers=(),
         )
         for completed in range(1, len(package.tracks) + 1):
             kwargs["on_progress"](
