@@ -1,8 +1,8 @@
 # TDA Companion v0.3 — Desktop, Agent e ASR
 
-> Status: especificação aceita para implementação; estabilização R1–R4 em andamento
+> Status: arquitetura v0.3 implementada; contrato corrente da linha 0.3.18 com histórico de estabilização preservado
 > Owner: local-companion / processing
-> Última revisão: 2026-09-19
+> Última revisão: 2026-10-05
 > ADRs: `docs/adr/0013-companion-agent-desktop-asr.md`, `docs/adr/0017-web-single-entry-loopback-session.md`
 > Confiabilidade: `docs/operations/companion-reliability.md`
 
@@ -12,7 +12,15 @@
 
 A Web continua responsável por sessões, fila editorial, revisão, resultados e publicação. O Desktop cuida de Agent, saúde, consumo, logs técnicos, diagnóstico, modelos, update, storage e manutenção.
 
-O teste físico da 0.3.2 confirmou que a separação conceitual é correta, mas reprovou a confiabilidade da jornada instalada. O contrato complementar `companion-reliability.md` é obrigatório para lifecycle, rede, manutenção, release e aceite físico.
+A linha de código corrente é **Companion 0.3.18**. O teste físico da 0.3.2 permanece como evidência histórica que motivou a estabilização, não como fotografia do estado atual. O contrato complementar `companion-reliability.md` continua obrigatório para lifecycle, rede, manutenção, release e aceite físico de cada artefato exato.
+
+## Current behavior
+
+- Companion code line: **0.3.18**;
+- wire API: **v1**, independente da service version;
+- mínimos normais de runtime e mínimos de benchmark pertencem a `docs/operations/companion-dependency-policy.md`;
+- integração em `main` não prova que MSI/RC/Stable exato passou aceite físico;
+- incidentes 0.3.2 e marcos R1–R4 abaixo são histórico/rationale quando mencionados por versão/data.
 
 ## Arquitetura
 
