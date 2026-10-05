@@ -141,6 +141,11 @@ def test_new_benchmark_identity_is_independent_from_retry_and_old_job_delete(tmp
             json={},
         )
         assert deleted.status_code == 200
+        receipt = store.terminal_receipt(old["id"])
+        assert receipt is not None
+        assert receipt["job_id"] == old["id"]
+        assert receipt["status"] == "failed"
+        assert receipt["result_available"] is False
 
         preserved = client.get(f"/api/v1/jobs/{new['id']}", headers=HEADERS)
         assert preserved.status_code == 200
