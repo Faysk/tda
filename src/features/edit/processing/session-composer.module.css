@@ -43,7 +43,7 @@
 	border: 0;
 }
 .attachRow, .timelineSummary, .actions, .assemblies, .reviewLoaded {
-	padding: 9px;
+	padding: 8px 9px;
 	border: 1px solid var(--ds-border-subtle);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-canvas-subtle);
@@ -63,8 +63,8 @@
 }
 .part {
 	display: grid;
-	gap: 8px;
-	padding: 9px;
+	gap: 7px;
+	padding: 8px 9px;
 	border: 1px solid var(--ds-border-subtle);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface);
@@ -88,6 +88,34 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.attemptNotice {
+	color: var(--ds-warning) !important;
+	font-weight: 650;
+}
+
+.partTechnical,
+.timelineTechnical {
+	width: fit-content;
+	max-width: 100%;
+	color: var(--ds-foreground-muted);
+}
+
+.partTechnical summary,
+.timelineTechnical summary {
+	cursor: pointer;
+	color: var(--ds-foreground-soft);
+	font-size: 0.68rem;
+	font-weight: 700;
+}
+
+.partTechnical small,
+.timelineTechnical span {
+	display: block;
+	margin-top: 3px;
+	overflow-wrap: anywhere;
+	white-space: normal;
 }
 .partControls {
 	display: grid;
@@ -253,6 +281,11 @@
 	.partControls {
 		grid-template-columns: 1fr;
 		padding-left: 0;
+	}
+
+	.partTechnical,
+	.timelineTechnical {
+		width: 100%;
 	}
 	.timingControls, .overlapControls, .conflictList fieldset {
 		grid-template-columns: 1fr;
