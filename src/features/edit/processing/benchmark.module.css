@@ -774,28 +774,49 @@
 
 .runStep > span {
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: anywhere;
+	line-height: 1.35;
 }
 
-.runStep[data-state="complete"] {
+.runStep[data-state="complete"],
+.runStep[data-state="completed"] {
 	color: var(--ds-success);
 }
 
-.runStep[data-state="complete"] i {
+.runStep[data-state="complete"] i,
+.runStep[data-state="completed"] i {
 	border-color: var(--ds-success);
 }
 
-.runStep[data-state="current"] {
+.runStep[data-state="current"],
+.runStep[data-state="running"] {
 	color: var(--ds-foreground);
 	font-weight: 700;
 }
 
-.runStep[data-state="current"] i {
+.runStep[data-state="current"] i,
+.runStep[data-state="running"] i {
 	border-color: var(--ds-accent);
 	background: var(--ds-accent-muted);
 	color: var(--ds-accent-strong);
+}
+
+.runStep[data-state="failed"] {
+	color: var(--ds-danger);
+	font-weight: 700;
+}
+
+.runStep[data-state="failed"] i {
+	border-color: var(--ds-danger);
+}
+
+.runStep[data-state="cancelled"],
+.runStep[data-state="not_attempted"] {
+	color: var(--ds-foreground-muted);
+}
+
+.runStep[data-state="not_attempted"] {
+	opacity: 0.76;
 }
 
 .activeActions {
@@ -826,6 +847,18 @@
 	border: 1px solid var(--ds-border-subtle);
 	border-radius: var(--ds-radius-md);
 	background: var(--ds-surface);
+}
+
+.partialCard {
+	border-left: 3px solid var(--ds-warning);
+	background: color-mix(in srgb, var(--ds-surface) 94%, var(--ds-warning) 6%);
+}
+
+.partialExplanation {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.75rem;
+	line-height: 1.5;
 }
 
 .receiptFacts {

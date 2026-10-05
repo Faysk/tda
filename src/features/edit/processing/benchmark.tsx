@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import {
 	BridgeError,
+	type BenchmarkAttemptResult,
+	type BenchmarkPartialResult,
 	type BenchmarkResult,
 	type Capabilities,
 	type CraigSource,
@@ -23,14 +25,14 @@ import {
 	profileReadinessCopy,
 	validateCraigFile,
 } from "./submission-model";
+import {
+	BENCHMARK_PROFILES,
+	deriveBenchmarkAttemptUiState,
+	type BenchmarkProfileUiState,
+} from "./benchmark-outcomes";
 import styles from "./benchmark.module.css";
 
-const PROFILES = [
-	"whisper-turbo",
-	"whisper-detailed",
-	"qwen-fast",
-	"qwen-quality",
-] as const;
+const PROFILES = BENCHMARK_PROFILES;
 
 const LABELS: Record<(typeof PROFILES)[number], string> = {
 	"whisper-turbo": "Whisper Turbo",
@@ -287,6 +289,119 @@ function ResultCard({
 	);
 }
 
+function profileRunLabel(state: BenchmarkProfileUiState): string {
+	return {
+		pending: "pendente",
+		running: "executando",
+		completed: "concluído",
+		failed: "falhou",
+		cancelled: "cancelado",
+		not_attempted: "não tentado",
+	}[state.status];
+}
+
+function profileRunIcon(state: BenchmarkProfileUiState): string {
+	return {
+		pending: "○",
+		running: "●",
+		completed: "✓",
+		failed: "✕",
+		cancelled: "■",
+		not_attempted: "–",
+	}[state.status];
+}
+
+function PartialResultCard({
+	result,
+	updatedAt,
+	onDiagnostics,
+	onRepeat,
+}: Readonly<{
+	result: BenchmarkPartialResult;
+	updatedAt: string;
+	onDiagnostics: () => void;
+	onRepeat: () => void;
+}>) {
+	const failedProfiles = result.profiles.filter(
+		(profile) => profile.status === "failed",
+	);
+	const qwenUncertain = failedProfiles.find(
+		(profile) =>
+			profile.status === "failed" &&
+			profile.error.code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+	);
+	return (
+		<article className={[styles.resultCard, styles.partialCard].join(" ")}>
+			<header className={styles.resultHeader}>
+				<div role="status" aria-live="polite">
+					<span className={styles.eyebrow}>Benchmark local · attempt parcial</span>
+					<h3>
+						{result.completedCount} de {result.attemptedCount} perfis concluíram
+					</h3>
+				</div>
+				<StatusPill tone="warning">Parcial</StatusPill>
+			</header>
+			<div className={styles.receiptFacts}>
+				<span>{formatBenchmarkHistoryDate(updatedAt)}</span>
+				<span>Tentados {result.attemptedCount}/4</span>
+				<span>Concluídos {result.completedCount}</span>
+				<span>Falharam {result.failedCount}</span>
+				<span>Sem bundle comparável 4/4</span>
+			</div>
+			<ol className={styles.runSteps} aria-label="Resultado dos quatro perfis">
+				{result.profiles.map((profile) => {
+					const state: BenchmarkProfileUiState =
+						profile.status === "completed"
+							? {
+									profileId: profile.profileId,
+									status: "completed",
+									errorCode: null,
+									recoverable: null,
+									scope: null,
+									continuation: null,
+									artifactAvailable: true,
+								}
+							: {
+									profileId: profile.profileId,
+									status: "failed",
+									errorCode: profile.error.code,
+									recoverable: profile.error.recoverable,
+									scope: profile.error.scope,
+									continuation: profile.continuation.decision,
+									artifactAvailable: false,
+								};
+					return (
+						<li
+							key={profile.profileId}
+							className={styles.runStep}
+							data-state={state.status}
+						>
+							<i aria-hidden="true">{profileRunIcon(state)}</i>
+							<span>
+								{LABELS[profile.profileId]} · {profileRunLabel(state)}
+								{state.errorCode ? " · " + state.errorCode : ""}
+							</span>
+						</li>
+					);
+				})}
+			</ol>
+			<p className={styles.partialExplanation}>
+				{qwenUncertain
+					? "O Qwen detectou sinal de áudio, mas não conseguiu reconhecer um trecho com segurança. O TDA não tratou isso como silêncio nem inventou texto. Os demais perfis independentes foram tentados automaticamente; este attempt não será apresentado como comparação 4/4."
+					: "Os resultados válidos foram preservados, mas pelo menos um perfil falhou de forma isolada. Este attempt permanece parcial e não entra nas comparações 4/4."}
+			</p>
+			<div className={styles.activeActions}>
+				<Button size="sm" variant="primary" onClick={onRepeat}>
+					Executar novo benchmark
+				</Button>
+				<Button size="sm" variant="tertiary" onClick={onDiagnostics}>
+					Ver log / Diagnóstico
+				</Button>
+			</div>
+		</article>
+	);
+}
+
 function ProfileReadiness({
 	profile,
 	id,
@@ -382,7 +497,7 @@ export function ProcessingBenchmark({
 	const qwenRuntimeCheckKey = useRef<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [status, setStatus] = useState<string | null>(null);
-	const [results, setResults] = useState<Record<string, BenchmarkResult>>({});
+	const [results, setResults] = useState<Record<string, BenchmarkAttemptResult>>({});
 	const [evidenceView, setEvidenceView] = useState<{
 		result: BenchmarkResult;
 		mode: "compare" | "files";
@@ -416,14 +531,43 @@ export function ProcessingBenchmark({
 		(acceptedJob && ["queued", "running"].includes(acceptedJob.status)
 			? acceptedJob
 			: undefined);
-	const latestCompleted = benchmarkJobs.filter(
-		(job) => job.status === "succeeded" && job.result_available,
+	const resultJobs = benchmarkJobs.filter(
+		(job) =>
+			job.result_available &&
+			["succeeded", "failed"].includes(job.status),
 	);
+	const historyJobs = benchmarkJobs
+		.filter((job) =>
+			["succeeded", "failed", "cancelled", "interrupted"].includes(job.status),
+		)
+		.slice(0, 20);
 	const latestJob = benchmarkJobs[0];
+	const latestResult = latestJob ? results[latestJob.id] : undefined;
+	const latestResultPending = Boolean(
+		latestJob?.result_available && latestResult === undefined,
+	);
+	const latestPartialResult =
+		latestResult?.schemaVersion === "tda_processing_benchmark_partial_v1"
+			? latestResult
+			: null;
 	const latestProblem =
-		latestJob && ["failed", "cancelled", "interrupted"].includes(latestJob.status)
+		latestJob &&
+		!latestPartialResult &&
+		!latestResultPending &&
+		["failed", "cancelled", "interrupted"].includes(latestJob.status)
 			? latestJob
 			: undefined;
+	const latestProblemEvents =
+		latestProblem && observedJobId === latestProblem.id
+			? events.filter(
+					(event) =>
+						event.attempt === null || event.attempt === latestProblem.attempt,
+				)
+			: [];
+	const latestProblemAttemptState =
+		latestProblem && latestProblemEvents.length > 0
+			? deriveBenchmarkAttemptUiState(latestProblem, latestProblemEvents)
+			: null;
 	const profileStates = PROFILES.map(
 		(id) => catalog.find((item) => item.id === id) ?? null,
 	);
@@ -484,15 +628,23 @@ export function ProcessingBenchmark({
 	}, [acceptedJob, benchmarkJobs]);
 
 	useEffect(() => {
-		const missing = latestCompleted
-			.slice(0, 10)
+		if (!connected || !latestProblem || observedJobId !== null) return;
+		void onObserve(latestProblem.id);
+	}, [connected, latestProblem, observedJobId, onObserve]);
+
+	useEffect(() => {
+		const missing = resultJobs
+			.slice(0, 20)
 			.filter((job) => results[job.id] === undefined);
 		if (!connected || missing.length === 0) return;
 		const controller = new AbortController();
 		void Promise.all(
 			missing.map(async (job) => {
 				try {
-					return [job.id, await bridge.benchmarkResult(job.id, controller.signal)] as const;
+					return [
+						job.id,
+						await bridge.benchmarkAttemptResult(job.id, controller.signal),
+					] as const;
 				} catch {
 					return null;
 				}
@@ -502,12 +654,15 @@ export function ProcessingBenchmark({
 			setResults((current) => ({
 				...current,
 				...Object.fromEntries(
-					loaded.filter((item): item is readonly [string, BenchmarkResult] => item !== null),
+					loaded.filter(
+						(item): item is readonly [string, BenchmarkAttemptResult] =>
+							item !== null,
+					),
 				),
 			}));
 		});
 		return () => controller.abort();
-	}, [bridge, connected, latestCompleted, results]);
+	}, [bridge, connected, resultJobs, results]);
 
 	useEffect(() => () => request.current?.abort(), []);
 
@@ -886,15 +1041,40 @@ export function ProcessingBenchmark({
 		}
 	}
 
-	const completed = active?.progress?.completed ?? 0;
-	const currentProfile =
-		active?.status === "running" ? PROFILES[Math.min(completed, 3)] : null;
+	async function repeatPartialBenchmark(result: BenchmarkPartialResult) {
+		if (
+			source?.sourceId === result.sourceId &&
+			allProfilesReady &&
+			sampleEligible &&
+			connected &&
+			!active
+		) {
+			await runBenchmark();
+			return;
+		}
+		setStatus(
+			"Selecione novamente o ZIP desta fonte para iniciar um novo benchmark completo.",
+		);
+		fileInput.current?.click();
+	}
+
 	const activeEvents =
 		active && observedJobId === active.id
 			? events.filter(
 					(event) => event.attempt === null || event.attempt === active.attempt,
 				)
 			: [];
+	const activeAttemptState = active
+		? deriveBenchmarkAttemptUiState(active, activeEvents)
+		: null;
+	const currentProfile = activeAttemptState?.currentProfile ?? null;
+	const activeUncertainProfile =
+		activeAttemptState?.profiles.find(
+			(profile) =>
+				profile.status === "failed" &&
+				profile.errorCode === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN" &&
+				profile.continuation === "continue",
+		) ?? null;
 	const latestEvent = activeEvents.at(-1) ?? null;
 	const latestActivity = latestEvent ? presentJobEvent(latestEvent) : null;
 
@@ -1238,7 +1418,7 @@ export function ProcessingBenchmark({
 				) : null}
 			</section>
 
-			{active ? (
+			{active && activeAttemptState ? (
 				<section className={styles.activeCard} aria-live="polite">
 					<div className={styles.activeCopy}>
 						<span className={styles.eyebrow}>Benchmark em andamento</span>
@@ -1250,43 +1430,48 @@ export function ProcessingBenchmark({
 									: "Finalizando"}
 						</h3>
 						<p>
-							{active.progress
-								? `${active.progress.completed} de ${active.progress.total} perfis concluídos`
-								: "Preparando execução"}
-							{active.stage ? ` · ${stageLabels[active.stage] ?? active.stage}` : ""}
+							Tentados {activeAttemptState.attemptedCount}/4 · Concluídos{" "}
+							{activeAttemptState.completedCount} · Falharam{" "}
+							{activeAttemptState.failedCount} · Pendentes{" "}
+							{activeAttemptState.pendingCount}
+							{currentProfile ? " · Atual: " + LABELS[currentProfile] : ""}
+							{active.stage ? " · " + (stageLabels[active.stage] ?? active.stage) : ""}
 						</p>
 						{latestActivity && latestEvent ? (
 							<small>
 								{latestActivity.title}
-								{latestActivity.detail ? ` · ${latestActivity.detail}` : ""}
+								{latestActivity.detail ? " · " + latestActivity.detail : ""}
 								{" · "}
 								{formatClock(latestEvent.at)}
 							</small>
 						) : (
-							<small>Job {active.id.slice(0, 12)}… · atualizado {formatClock(active.updated_at)}</small>
+							<small>
+								Job {active.id.slice(0, 12)}… · atualizado{" "}
+								{formatClock(active.updated_at)}
+							</small>
 						)}
 					</div>
-					<ol className={styles.runSteps} aria-label="Progresso dos quatro perfis">
-						{PROFILES.map((id, index) => {
-							const stepState =
-								index < completed
-									? "complete"
-									: active.status === "running" && index === Math.min(completed, PROFILES.length - 1)
-										? "current"
-										: "pending";
-							return (
-								<li
-									key={id}
-									className={styles.runStep}
-									data-state={stepState}
-									aria-current={stepState === "current" ? "step" : undefined}
-								>
-									<i aria-hidden="true">{stepState === "complete" ? "✓" : index + 1}</i>
-									<span>{LABELS[id]}</span>
-								</li>
-							);
-						})}
+					<ol className={styles.runSteps} aria-label="Estado dos quatro perfis">
+						{activeAttemptState.profiles.map((profile) => (
+							<li
+								key={profile.profileId}
+								className={styles.runStep}
+								data-state={profile.status}
+								aria-current={profile.status === "running" ? "step" : undefined}
+							>
+								<i aria-hidden="true">{profileRunIcon(profile)}</i>
+								<span>
+									{LABELS[profile.profileId]} · {profileRunLabel(profile)}
+									{profile.errorCode ? " · " + profile.errorCode : ""}
+								</span>
+							</li>
+						))}
 					</ol>
+					{activeUncertainProfile ? (
+						<p className={styles.partialExplanation}>
+							O Qwen detectou sinal de áudio, mas não conseguiu reconhecer este trecho com segurança. O TDA não vai tratá-lo como silêncio nem inventar texto. O Benchmark registrou a falha deste perfil e continuará automaticamente com os perfis restantes.
+						</p>
+					) : null}
 					<div className={styles.activeActions}>
 						<Button
 							type="button"
@@ -1307,6 +1492,21 @@ export function ProcessingBenchmark({
 						</Button>
 					</div>
 				</section>
+			) : latestPartialResult && latestJob ? (
+				<PartialResultCard
+					result={latestPartialResult}
+					updatedAt={latestJob.updated_at}
+					onDiagnostics={() => onOpenDiagnostics(latestJob)}
+					onRepeat={() => void repeatPartialBenchmark(latestPartialResult)}
+				/>
+			) : latestResultPending ? (
+				<section className={styles.problemCard} role="status">
+					<div>
+						<span className={styles.eyebrow}>Última execução</span>
+						<h3>Carregando resultado do benchmark…</h3>
+						<p>Validando o receipt terminal antes de classificar esta execução.</p>
+					</div>
+				</section>
 			) : latestProblem ? (
 				<section className={styles.problemCard} role="status">
 					<div>
@@ -1316,13 +1516,35 @@ export function ProcessingBenchmark({
 								? "Benchmark cancelado"
 								: latestProblem.status === "interrupted"
 									? "Benchmark interrompido"
-									: "Benchmark falhou"}
+									: "Benchmark falhou globalmente"}
 						</h3>
 						<p>
 							{latestProblem.error?.code
-								? `${latestProblem.error.code} · tentativa ${latestProblem.attempt}`
-								: `Tentativa ${latestProblem.attempt}`}
+								? latestProblem.error.code + " · tentativa " + latestProblem.attempt
+								: "Tentativa " + latestProblem.attempt}
+							{" · os perfis posteriores não são marcados como falha de engine."}
 						</p>
+						{latestProblemAttemptState ? (
+							<>
+								<div className={styles.receiptFacts}>
+									<span>Tentados {latestProblemAttemptState.attemptedCount}/4</span>
+									<span>Concluídos {latestProblemAttemptState.completedCount}</span>
+									<span>Falharam {latestProblemAttemptState.failedCount}</span>
+									<span>Pendentes {latestProblemAttemptState.pendingCount}</span>
+								</div>
+								<ol className={styles.runSteps} aria-label="Estado terminal dos quatro perfis">
+									{latestProblemAttemptState.profiles.map((profile) => (
+										<li key={profile.profileId} className={styles.runStep} data-state={profile.status}>
+											<i aria-hidden="true">{profileRunIcon(profile)}</i>
+											<span>
+												{LABELS[profile.profileId]} · {profileRunLabel(profile)}
+												{profile.errorCode ? " · " + profile.errorCode : ""}
+											</span>
+										</li>
+									))}
+								</ol>
+							</>
+						) : null}
 					</div>
 					<Button
 						type="button"
@@ -1349,50 +1571,91 @@ export function ProcessingBenchmark({
 				<div className={styles.historyHeader}>
 					<div>
 						<span className={styles.eyebrow}>Histórico local</span>
-						<h2>Receipts comparáveis</h2>
+						<h2>Execuções do Benchmark</h2>
 					</div>
-					<span>{latestCompleted.length} concluído{latestCompleted.length === 1 ? "" : "s"}</span>
+					<span>{historyJobs.length} execução{historyJobs.length === 1 ? "" : "ões"} terminal{historyJobs.length === 1 ? "" : "is"}</span>
 				</div>
-				{latestCompleted.length ? (
-					latestCompleted.slice(0, 10).map((job) =>
-						results[job.id] ? (
+				{historyJobs.length ? (
+					historyJobs.map((job) => {
+						if (!job.result_available) {
+							const terminalLabel =
+								job.status === "cancelled"
+									? "Cancelado"
+									: job.status === "interrupted"
+										? "Interrompido"
+										: job.status === "failed"
+											? "Falhou"
+											: "Resultado indisponível";
+							return (
+								<article key={job.id} className={styles.problemCard}>
+									<div>
+										<span className={styles.eyebrow}>Tentativa {job.attempt}</span>
+										<h3>{terminalLabel}</h3>
+										<p>
+											{formatBenchmarkHistoryDate(job.updated_at)}
+											{job.error?.code ? " · " + job.error.code : ""}
+											{" · sem receipt comparável"}
+										</p>
+									</div>
+									<Button size="sm" variant="tertiary" onClick={() => onOpenDiagnostics(job)}>
+										Diagnóstico
+									</Button>
+								</article>
+							);
+						}
+						const result = results[job.id];
+						if (!result)
+							return (
+								<p key={job.id} className={styles.loading}>
+									Carregando receipt {job.id.slice(0, 8)}…
+								</p>
+							);
+						if (result.schemaVersion === "tda_processing_benchmark_partial_v1")
+							return (
+								<PartialResultCard
+									key={job.id}
+									result={result}
+									updatedAt={job.updated_at}
+									onDiagnostics={() => onOpenDiagnostics(job)}
+									onRepeat={() => void repeatPartialBenchmark(result)}
+								/>
+							);
+						return (
 							<ResultCard
 								key={job.id}
-								result={results[job.id]!}
+								result={result}
 								updatedAt={job.updated_at}
 								bridge={bridge}
 								connected={connected}
 								qualityEnabled={benchmarkQualitySupported}
 								onCompare={() =>
 									setEvidenceView({
-										result: results[job.id]!,
+										result,
 										mode: "compare",
 										promptExport: false,
 									})
 								}
 								onFiles={() =>
 									setEvidenceView({
-										result: results[job.id]!,
+										result,
 										mode: "files",
 										promptExport: false,
 									})
 								}
 								onExport={() =>
 									setEvidenceView({
-										result: results[job.id]!,
+										result,
 										mode: "files",
 										promptExport: true,
 									})
 								}
 								onDiagnostics={() => onOpenDiagnostics(job)}
 							/>
-						) : (
-							<p key={job.id} className={styles.loading}>Carregando receipt {job.id.slice(0, 8)}…</p>
-						),
-					)
+						);
+					})
 				) : (
 					<p className={styles.empty}>
-						Nenhum benchmark concluído neste Companion.
+						Nenhuma execução terminal do Benchmark neste Companion.
 					</p>
 				)}
 			</section>

@@ -222,18 +222,18 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         *_TRACK, required=("stage", "track", "total_tracks", "speaker")
     ),
     "QWEN_EMPTY_WINDOW_RECOVERY_STARTED": _schema(
-        "stage", "track", "total_tracks", "window", "profile", "count",
+        "stage", "track", "total_tracks", "window", "profile", "strategy", "count",
         "start_seconds", "end_seconds",
         required=("stage", "track", "total_tracks", "window", "profile", "count"),
     ),
     "QWEN_EMPTY_WINDOW_RECOVERY_FAILED": _schema(
-        "stage", "track", "total_tracks", "window", "profile", "count",
+        "stage", "track", "total_tracks", "window", "profile", "strategy", "count",
         "attempt", "start_seconds", "end_seconds",
         required=("stage", "track", "total_tracks", "window", "profile", "count"),
         level="warning",
     ),
     "QWEN_EMPTY_WINDOW_RECOVERED": _schema(
-        "stage", "track", "total_tracks", "window", "profile", "count",
+        "stage", "track", "total_tracks", "window", "profile", "strategy", "count",
         "start_seconds", "end_seconds",
         required=("stage", "track", "total_tracks", "window", "profile", "count"),
     ),
@@ -320,7 +320,7 @@ _SECONDS_FIELDS = frozenset(
 )
 _SIGNED_SECONDS_FIELDS = frozenset({"relative_start_seconds", "relative_end_seconds"})
 _TOKEN_FIELDS = frozenset(
-    {"profile", "scope", "continuation", "device", "compute_type"}
+    {"profile", "strategy", "scope", "continuation", "device", "compute_type"}
 )
 _RUNTIME_FIELDS = frozenset({"runtime_version", "source_runtime_version"})
 _HASH_FIELDS = frozenset({"worker_sha256", "source_signature_sha256"})

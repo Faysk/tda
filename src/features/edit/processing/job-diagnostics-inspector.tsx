@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status";
 import type { ActivityBark } from "./activity-barks";
+import { deriveBenchmarkAttemptUiState } from "./benchmark-outcomes";
 import { ProcessingLiveLog } from "./live-log";
 import {
 	jobLabels,
@@ -53,6 +54,14 @@ const SAFE_EVENT_DATA_KEYS = new Set([
 	"worker_sha256",
 	"downloaded_bytes",
 	"device",
+	"profile",
+	"attempted_count",
+	"completed_count",
+	"failed_count",
+	"error_code",
+	"recoverable",
+	"scope",
+	"continuation",
 ]);
 
 function formatDateTime(value: string | null | undefined): string {
@@ -159,6 +168,10 @@ export function JobDiagnosticsInspector({
 	const visibleEvents =
 		eventsReady && job ? jobDiagnosticEventsForAttempt(events, job.attempt) : [];
 	const jobKey = job ? `${job.id}:${job.attempt}` : "";
+	const benchmarkAttemptState =
+		job?.kind === "benchmark.craig"
+			? deriveBenchmarkAttemptUiState(job, visibleEvents)
+			: null;
 	const profile = useMemo(
 		() =>
 			job?.context?.profileId
@@ -337,6 +350,31 @@ export function JobDiagnosticsInspector({
 									<dt>Progresso</dt>
 									<dd>{job.progress ? `${job.progress.completed}/${job.progress.total} ${job.progress.unit}` : "—"}</dd>
 								</div>
+								{benchmarkAttemptState ? (
+									<>
+										<div><dt>Perfis tentados</dt><dd>{benchmarkAttemptState.attemptedCount}/4</dd></div>
+										<div><dt>Perfis concluídos</dt><dd>{benchmarkAttemptState.completedCount}</dd></div>
+										<div><dt>Perfis falhos</dt><dd>{benchmarkAttemptState.failedCount}</dd></div>
+										<div className={styles.detailWide}>
+											<dt>Resultados por perfil</dt>
+											<dd>
+												{benchmarkAttemptState.profiles.map((item) => {
+													const details = [
+														item.errorCode,
+														item.scope ? `escopo ${item.scope}` : null,
+														item.recoverable === null
+															? null
+															: item.recoverable
+																? "recuperável"
+																: "não recuperável",
+														item.continuation ? `continuação ${item.continuation}` : null,
+													].filter(Boolean);
+													return `${item.profileId}: ${item.status}${details.length ? " · " + details.join(" · ") : ""}`;
+												}).join(" · ")}
+											</dd>
+										</div>
+									</>
+								) : null}
 							</dl>
 						</section>
 

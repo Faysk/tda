@@ -440,7 +440,7 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await run.click();
 	await expect.poll(() => state.jobPostCount).toBe(1);
 	await expect(panel.getByText("Benchmark em andamento")).toBeVisible();
-	await expect(panel.getByText("0 de 4 perfis concluídos")).toBeVisible();
+	await expect(panel).toContainText("Tentados 0/4 · Concluídos 0 · Falharam 0");
 
 	const diagnosticsButton = panel.getByRole("button", { name: "Ver log / Diagnóstico" });
 	await diagnosticsButton.click();
@@ -461,6 +461,227 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 	await inspector.getByRole("button", { name: "Fechar" }).click();
 	await expect(inspector).not.toBeVisible();
 	await expect(diagnosticsButton).toBeFocused();
+});
+
+test("benchmark continues after a profile-local Qwen failure and finishes as Partial 3/4", async ({
+	page,
+}) => {
+	const profileEvents = [
+		{
+			seq: 1,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_STARTED",
+			at: "2026-10-04T20:00:01Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "whisper-turbo",
+				attempted_count: 1,
+				completed_count: 0,
+				failed_count: 0,
+			},
+		},
+		{
+			seq: 2,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_COMPLETED",
+			at: "2026-10-04T20:00:02Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "whisper-turbo",
+				attempted_count: 1,
+				completed_count: 1,
+				failed_count: 0,
+			},
+		},
+		{
+			seq: 3,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_STARTED",
+			at: "2026-10-04T20:00:03Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "whisper-detailed",
+				attempted_count: 2,
+				completed_count: 1,
+				failed_count: 0,
+			},
+		},
+		{
+			seq: 4,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_COMPLETED",
+			at: "2026-10-04T20:00:04Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "whisper-detailed",
+				attempted_count: 2,
+				completed_count: 2,
+				failed_count: 0,
+			},
+		},
+		{
+			seq: 5,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_STARTED",
+			at: "2026-10-04T20:00:05Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "qwen-fast",
+				attempted_count: 3,
+				completed_count: 2,
+				failed_count: 0,
+			},
+		},
+		{
+			seq: 6,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_FAILED",
+			at: "2026-10-04T20:00:06Z",
+			level: "warning",
+			data: {
+				stage: "benchmark",
+				profile: "qwen-fast",
+				attempted_count: 3,
+				completed_count: 2,
+				failed_count: 1,
+				error_code: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN",
+				recoverable: true,
+				scope: "profile",
+				continuation: "continue",
+			},
+		},
+		{
+			seq: 7,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_STARTED",
+			at: "2026-10-04T20:00:07Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "qwen-quality",
+				attempted_count: 4,
+				completed_count: 2,
+				failed_count: 1,
+			},
+		},
+	];
+	const state = await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+		benchmarkPartialResult: true,
+		jobEvents: profileEvents,
+	});
+	const panel = await openBenchmark(page);
+	await chooseZip(panel);
+	await analyze(panel);
+	await panel.getByRole("button", { name: "Executar benchmark de 5 minutos" }).click();
+
+	state.setJob(
+		fixtureBenchmarkJob("running", {
+			progress: { completed: 3, total: 4, unit: "profiles" },
+		}),
+	);
+	const refresh = page.getByRole("button", { name: "Atualizar estado" });
+	await refresh.click();
+
+	await expect(panel).toContainText(
+		"Tentados 4/4 · Concluídos 2 · Falharam 1 · Pendentes 0 · Atual: Qwen Quality",
+	);
+	const fastLive = panel.locator("[data-state='failed']").filter({ hasText: "Qwen Fast" });
+	const qualityLive = panel.locator("[data-state='running']").filter({ hasText: "Qwen Quality" });
+	await expect(fastLive).toContainText("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN");
+	await expect(fastLive).not.toHaveAttribute("aria-current", "step");
+	await expect(qualityLive).toHaveAttribute("aria-current", "step");
+	await expect(panel).toContainText(
+		"O Benchmark registrou a falha deste perfil e continuará automaticamente com os perfis restantes.",
+	);
+	await expect(panel.getByText(/selecione Qwen Quality/iu)).toHaveCount(0);
+
+	state.setJobEvents([
+		...profileEvents,
+		{
+			seq: 8,
+			attempt: 1,
+			code: "BENCHMARK_PROFILE_COMPLETED",
+			at: "2026-10-04T20:00:08Z",
+			level: "info",
+			data: {
+				stage: "benchmark",
+				profile: "qwen-quality",
+				attempted_count: 4,
+				completed_count: 3,
+				failed_count: 1,
+			},
+		},
+	]);
+	state.setJob(
+		fixtureBenchmarkJob("failed", {
+			stage: "benchmark_partial",
+			progress: { completed: 4, total: 4, unit: "profiles" },
+			error: { code: "BENCHMARK_PARTIAL", recoverable: false },
+			result_available: true,
+			updated_at: "2026-10-04T20:00:09Z",
+		}),
+	);
+	await refresh.click();
+
+	await expect(panel.getByText("Parcial", { exact: true }).first()).toBeVisible();
+	await expect(panel.getByText("3 de 4 perfis concluíram").first()).toBeVisible();
+	await expect(panel.getByText("Tentados 4/4").first()).toBeVisible();
+	await expect(panel.getByText("Concluídos 3").first()).toBeVisible();
+	await expect(panel.getByText("Falharam 1").first()).toBeVisible();
+	await expect(
+		panel.locator("[data-state='failed']").filter({ hasText: "Qwen Fast" }).first(),
+	).toContainText("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN");
+	await expect(
+		panel.locator("[data-state='completed']").filter({ hasText: "Qwen Quality" }).first(),
+	).toBeVisible();
+	await expect(panel.getByText(/selecione Qwen Quality/iu)).toHaveCount(0);
+	await expect(panel.getByRole("button", { name: "Comparar transcrições" })).toHaveCount(0);
+
+	for (const viewport of [
+		{ width: 320, height: 568 },
+		{ width: 683, height: 768 },
+		{ width: 1920, height: 1080 },
+		{ width: 2560, height: 1440 },
+	]) {
+		await page.setViewportSize(viewport);
+		await expect(panel.getByText("Parcial", { exact: true }).first()).toBeVisible();
+		await expect(panel.getByText("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN").first()).toBeVisible();
+		const horizontal = await page.evaluate(() => ({
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		}));
+		expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+	}
+
+	const diagnosticsButton = panel.getByRole("button", { name: "Ver log / Diagnóstico" }).first();
+	await diagnosticsButton.focus();
+	await expect(diagnosticsButton).toBeFocused();
+	await page.keyboard.press("Enter");
+	const inspector = page
+		.locator("dialog")
+		.filter({ hasText: "Diagnóstico do processamento" });
+	await expect(inspector).toBeVisible();
+	await expect(inspector).toContainText("Perfis tentados");
+	await expect(inspector).toContainText("4/4");
+	await expect(inspector).toContainText("qwen-fast: failed · QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN");
+	await inspector.getByRole("button", { name: "Fechar" }).click();
+
+	const rerun = panel.getByRole("button", { name: "Executar novo benchmark" }).first();
+	await rerun.focus();
+	await expect(rerun).toBeFocused();
+	const originalKey = state.idempotencyKeys[0];
+	await page.keyboard.press("Enter");
+	await expect.poll(() => state.jobPostCount).toBe(2);
+	expect(state.idempotencyKeys).toHaveLength(2);
+	expect(state.idempotencyKeys[1]).not.toBe(originalKey);
 });
 
 test("Whisper 1.1.9 stays transcription-ready but requires benchmark evidence runtime", async ({
@@ -633,6 +854,22 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 		benchmarkProfiles: true,
 		profileReady: true,
 		advanceJobs: false,
+		jobEvents: [
+			{
+				seq: 1,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T20:00:01Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					completed_count: 0,
+					failed_count: 0,
+				},
+			},
+		],
 	});
 	const panel = await openBenchmark(page);
 	await chooseZip(panel);
@@ -643,7 +880,143 @@ test("benchmark can be cancelled and the terminal state remains visible", async 
 	await panel.getByRole("button", { name: "Cancelar benchmark" }).click();
 	await expect.poll(() => state.job?.status).toBe("cancelled");
 	await expect(panel.getByText("Benchmark cancelado")).toBeVisible();
+	await expect(
+		panel.locator("[data-state='cancelled']").filter({ hasText: "Whisper Turbo" }),
+	).toBeVisible();
+	await expect(
+		panel.locator("[data-state='not_attempted']").filter({ hasText: "Whisper Detailed" }),
+	).toBeVisible();
+	await expect(
+		panel.locator("[data-state='not_attempted']").filter({ hasText: "Qwen Fast" }),
+	).toBeVisible();
+	await expect(
+		panel.locator("[data-state='not_attempted']").filter({ hasText: "Qwen Quality" }),
+	).toBeVisible();
 	await expect(panel.getByRole("button", { name: "Ver log / Diagnóstico" })).toBeVisible();
+});
+
+test("terminal global Benchmark failure restores failed and not-attempted profile states", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		benchmarkProfiles: true,
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [
+			fixtureBenchmarkJob("failed", {
+				stage: "failed",
+				progress: { completed: 2, total: 4, unit: "profiles" },
+				error: {
+					code: "BENCHMARK_PROFILE_EVIDENCE_INVALID",
+					recoverable: false,
+				},
+				result_available: false,
+			}),
+		],
+		jobEvents: [
+			{
+				seq: 1,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T20:00:01Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					completed_count: 0,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 2,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-04T20:00:02Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-turbo",
+					attempted_count: 1,
+					completed_count: 1,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 3,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T20:00:03Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-detailed",
+					attempted_count: 2,
+					completed_count: 1,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 4,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_COMPLETED",
+				at: "2026-10-04T20:00:04Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "whisper-detailed",
+					attempted_count: 2,
+					completed_count: 2,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 5,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_STARTED",
+				at: "2026-10-04T20:00:05Z",
+				level: "info",
+				data: {
+					stage: "benchmark",
+					profile: "qwen-fast",
+					attempted_count: 3,
+					completed_count: 2,
+					failed_count: 0,
+				},
+			},
+			{
+				seq: 6,
+				attempt: 1,
+				code: "BENCHMARK_PROFILE_FAILED",
+				at: "2026-10-04T20:00:06Z",
+				level: "warning",
+				data: {
+					stage: "benchmark",
+					profile: "qwen-fast",
+					attempted_count: 3,
+					completed_count: 2,
+					failed_count: 1,
+					error_code: "BENCHMARK_PROFILE_EVIDENCE_INVALID",
+					recoverable: false,
+					scope: "benchmark",
+					continuation: "stop",
+				},
+			},
+		],
+	});
+	const panel = await openBenchmark(page);
+
+	await expect(panel.getByText("Benchmark falhou globalmente")).toBeVisible();
+	await expect(panel.getByText("Tentados 3/4")).toBeVisible();
+	await expect(panel.getByText("Concluídos 2")).toBeVisible();
+	await expect(panel.getByText("Falharam 1")).toBeVisible();
+	await expect(panel.getByText("Pendentes 1")).toBeVisible();
+	await expect(
+		panel.locator("[data-state='failed']").filter({ hasText: "Qwen Fast" }),
+	).toContainText("BENCHMARK_PROFILE_EVIDENCE_INVALID");
+	await expect(
+		panel.locator("[data-state='not_attempted']").filter({ hasText: "Qwen Quality" }),
+	).toBeVisible();
 });
 
 test("completed benchmark loads a comparable receipt while failed history remains inspectable", async ({
@@ -677,7 +1050,8 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	state.setJob(fixtureBenchmarkJob("failed"));
 	await refresh.click();
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
-	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false })).toBeVisible();
+	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false }).first()).toBeVisible();
+	await expect(panel.getByText("sem receipt comparável", { exact: false })).toBeVisible();
 });
 
 test("completed benchmark lazily compares transcript evidence and exports a private safe ZIP", async ({

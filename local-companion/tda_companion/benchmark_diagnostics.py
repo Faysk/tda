@@ -65,6 +65,7 @@ _EVENT_VALUE_KEYS = {
     "kind",
     "profile",
     "profile_id",
+    "strategy",
     "track",
     "total_tracks",
     "window",

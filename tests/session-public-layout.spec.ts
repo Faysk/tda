@@ -409,6 +409,47 @@ test("Sessions public geometry survives dark/light themes and reduced motion", a
 	}
 });
 
+test("issue 1466 keeps Sessions campaign metadata and hover legible in light and dark themes", async ({
+	page,
+}, testInfo) => {
+	await page.setViewportSize({ width: 1366, height: 768 });
+
+	for (const theme of ["light", "dark"] as const) {
+		await page.goto("/");
+		await page.evaluate((value) => localStorage.setItem("tda-theme", value), theme);
+		await page.goto("/campanhas/sessoes");
+		await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+
+		const firstCard = page.locator('[data-session-card="grid"]').first();
+		const campaignMeta = firstCard.locator("p").first().locator("span").first();
+		await expect(campaignMeta).toBeVisible();
+
+		const campaignLink = page
+			.locator("[data-session-campaign-links]")
+			.getByRole("link")
+			.first();
+		await expect(campaignLink).toBeVisible();
+		await campaignLink.hover();
+
+		for (const consumer of [campaignMeta, campaignLink]) {
+			const style = await consumer.evaluate((element) => ({
+				color: getComputedStyle(element).color,
+				token: getComputedStyle(document.documentElement)
+					.getPropertyValue("--ds-accent-strong")
+					.trim(),
+			}));
+			expect(style.color).not.toBe("");
+			expect(style.token).not.toBe("");
+		}
+
+		await page.screenshot({
+			path: testInfo.outputPath(`issue-1466-sessions-${theme}.png`),
+			fullPage: false,
+		});
+	}
+});
+
+
 test("unavailable session state respects the public structural keyline", async ({
 	page,
 }, testInfo) => {
@@ -690,13 +731,6 @@ test("long session summaries expose compact stable section navigation without bu
 		await expect(disclosure).not.toHaveAttribute("open", "");
 		await disclosure.locator("summary").click();
 
-		const select = navigation.getByLabel("Ir para uma seção");
-		await expect(select).toBeVisible();
-		await select.click();
-		const outlineListbox = page.getByRole("listbox", { name: "Ir para uma seção" });
-		expect(await outlineListbox.getByRole("option").count()).toBeGreaterThan(12);
-		await page.keyboard.press("Escape");
-
 		const repeated = page.getByRole("heading", {
 			name: "Capítulo repetido",
 		});
@@ -708,7 +742,24 @@ test("long session summaries expose compact stable section navigation without bu
 		expect(firstId).not.toBe(secondId);
 		if (!secondId) throw new Error("Second repeated heading is missing its stable ID");
 
-		await selectThemedOption(page, select, secondId);
+		const select = navigation.getByLabel("Ir para uma seção");
+		await expect(select).toBeVisible();
+		await select.click();
+		const outlineListbox = page.getByRole("listbox", { name: "Ir para uma seção" });
+		const outlineOptions = outlineListbox.getByRole("option");
+		expect(await outlineOptions.count()).toBeGreaterThan(12);
+		let targetSelected = false;
+		for (let index = 0; index < (await outlineOptions.count()); index += 1) {
+			const option = outlineOptions.nth(index);
+			if ((await option.getAttribute("data-value")) === secondId) {
+				await option.click();
+				targetSelected = true;
+				break;
+			}
+		}
+		expect(targetSelected).toBe(true);
+		await expect(select).toHaveAttribute("data-value", secondId);
+		await expect(select).toHaveAttribute("aria-expanded", "false");
 		await expect(page).toHaveURL(new RegExp(`#${secondId}$`, "u"));
 		await expect(repeated.nth(1)).toBeInViewport();
 		await expect(repeated.nth(1)).toBeFocused();

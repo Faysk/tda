@@ -1025,6 +1025,168 @@ test("single ZIP uses the same session journey and opens continuous review", asy
 	).toHaveCount(0);
 });
 
+test("session assembly review resolves semantic tokens across themes, focus and responsive zoom", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	await installMultiRecordingRoutes(page, {
+		uploadSequence: [0],
+		failReviewSaveOnce: true,
+	});
+	await page.addInitScript(
+		({ assemblyId }) => {
+			window.localStorage.setItem(
+				"tda.processing.sessionAssemblyPublication.v1:" + assemblyId,
+				JSON.stringify({
+					schemaVersion: "tda_session_assembly_publication_recovery_v1",
+					assemblyId,
+					operationId: "11111111-1111-4111-8111-111111111111",
+					expectedCurrentRevisionId: null,
+					expectedActorProfileId: "22222222-2222-4222-8222-222222222222",
+					createdAt: new Date().toISOString(),
+				}),
+			);
+		},
+		{ assemblyId: ASSEMBLY_ID },
+	);
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles({
+		name: "sessao-42.zip",
+		mimeType: "application/zip",
+		buffer: Buffer.from("PK-review-tokens"),
+	});
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("Transcrição pronta");
+	await intent.getByRole("button", { name: "Revisar transcrição" }).click();
+
+	const review = page
+		.locator("[data-assembly-review-owner='results']")
+		.getByRole("region", { name: "Revisão da transcrição da sessão" });
+	await expect(review).toBeVisible();
+	const notice = review.getByText(/Há um handoff com identidade preservada/u);
+	await expect(notice).toBeVisible();
+
+	const viewport = review.locator("[data-assembly-transcript-viewport='true']");
+	await viewport.locator("[data-assembly-segment-trigger]").first().click();
+	await expect(viewport.locator("textarea")).toHaveCount(1);
+	await viewport.getByLabel("Texto").fill(
+		"Trecho alterado para validar o estado de erro.",
+	);
+	await viewport.getByRole("button", { name: "Aplicar" }).click();
+	await review.getByRole("button", { name: "Salvar alterações" }).click();
+	const error = review.getByRole("alert");
+	await expect(error).toBeVisible();
+
+	await viewport.locator("[data-assembly-segment-trigger]").first().click();
+	await expect(viewport.locator("textarea")).toHaveCount(1);
+
+	for (const scenario of [
+		{ theme: "dark", width: 1920, height: 1080 },
+		{ theme: "light", width: 390, height: 844 },
+		{ theme: "dark", width: 960, height: 540 },
+	] as const) {
+		await page.setViewportSize({
+			width: scenario.width,
+			height: scenario.height,
+		});
+		await page.emulateMedia({
+			colorScheme: scenario.theme,
+			reducedMotion: "reduce",
+		});
+		await page.evaluate((theme) => {
+			document.documentElement.dataset.theme = theme;
+		}, scenario.theme);
+
+		const search = review.getByLabel("Buscar na transcrição");
+		await search.focus();
+		await expect(search).toBeFocused();
+
+		const styles = await review.evaluate((section) => {
+			const style = (selector: string) => {
+				const element = section.querySelector<HTMLElement>(selector);
+				if (!element) throw new Error(`Missing review target: ${selector}`);
+				return getComputedStyle(element);
+			};
+			const transcript = style("[data-assembly-transcript-viewport='true']");
+			const searchInput = style('input[type="search"]');
+			const participant = style(
+				'li[data-assembly-segment][data-editing="true"] input',
+			);
+			const textarea = style(
+				'li[data-assembly-segment][data-editing="true"] textarea',
+			);
+			return {
+				transcript: [transcript.backgroundColor, transcript.borderTopColor, transcript.borderTopWidth],
+				search: [searchInput.backgroundColor, searchInput.borderTopColor, searchInput.borderTopWidth],
+				participant: [participant.backgroundColor, participant.borderTopColor, participant.borderTopWidth],
+				textarea: [textarea.backgroundColor, textarea.borderTopColor, textarea.borderTopWidth],
+				focus: [searchInput.outlineStyle, searchInput.outlineWidth],
+				overflow:
+					document.documentElement.scrollWidth -
+					document.documentElement.clientWidth,
+			};
+		});
+
+		for (const field of [
+			styles.transcript,
+			styles.search,
+			styles.participant,
+			styles.textarea,
+		]) {
+			expect(field[0]).not.toBe("rgba(0, 0, 0, 0)");
+			expect(field[1]).not.toBe("rgba(0, 0, 0, 0)");
+			expect(field[2]).not.toBe("0px");
+		}
+		expect(styles.focus[0]).toBe("solid");
+		expect(styles.focus[1]).toBe("2px");
+		expect(styles.overflow).toBeLessThanOrEqual(1);
+
+		for (const state of [notice, error]) {
+			const computed = await state.evaluate((element) => {
+				const s = getComputedStyle(element);
+				return {
+					background: s.backgroundColor,
+					border: s.borderTopColor,
+					borderWidth: s.borderTopWidth,
+				};
+			});
+			expect(computed.background).not.toBe("rgba(0, 0, 0, 0)");
+			expect(computed.border).not.toBe("rgba(0, 0, 0, 0)");
+			expect(computed.borderWidth).not.toBe("0px");
+		}
+	}
+
+	await page.emulateMedia({
+		forcedColors: "active",
+		reducedMotion: "reduce",
+	});
+	await page.setViewportSize({ width: 390, height: 844 });
+	const search = review.getByLabel("Buscar na transcrição");
+	await search.focus();
+	await expect(search).toBeFocused();
+	const focus = await search.evaluate((element) => {
+		const style = getComputedStyle(element);
+		return {
+			outlineStyle: style.outlineStyle,
+			outlineWidth: style.outlineWidth,
+		};
+	});
+	expect(focus.outlineStyle).not.toBe("none");
+	expect(focus.outlineWidth).not.toBe("0px");
+	expect(
+		await page.evaluate(
+			() =>
+				document.documentElement.scrollWidth -
+				document.documentElement.clientWidth,
+		),
+	).toBeLessThanOrEqual(1);
+});
+
 test("trusted midnight stays visible while unavailable wall-clock stays absent", async ({
 	page,
 }) => {
