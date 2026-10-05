@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 import time
 import zipfile
@@ -42,6 +43,46 @@ def _stage(data_root: Path, source_id: str = "craig-source") -> None:
     with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_STORED) as archive:
         archive.writestr("1-Alice.flac", b"fLaC-a")
         archive.writestr("2-Bob.flac", b"fLaC-b")
+    ingest_craig_zip(source, data_root / "staging" / source_id)
+
+
+def _stage_with_bot_metadata(
+    data_root: Path,
+    source_id: str,
+    *,
+    all_bots: bool = False,
+) -> None:
+    source = data_root.parent / f"{source_id}.zip"
+    raw = {
+        "format": 1,
+        "id": source_id,
+        "startTime": "2026-10-05T12:00:00Z",
+        "tracks": {
+            "1": {
+                "id": "111",
+                "username": "alice",
+                "globalName": "Alice",
+                "discriminator": "0",
+                "bot": bool(all_bots),
+                "unknown": False,
+            },
+            "2": {
+                "id": "222",
+                "username": "musicbot",
+                "globalName": "Music Bot",
+                "discriminator": "0",
+                "bot": True,
+                "unknown": False,
+            },
+        },
+    }
+    with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("1-Alice.flac", b"fLaC-a")
+        archive.writestr("2-MusicBot.flac", b"fLaC-b")
+        archive.writestr(
+            "raw.dat",
+            json.dumps(raw, separators=(",", ":")).encode("utf-8") + b"\nOggS",
+        )
     ingest_craig_zip(source, data_root / "staging" / source_id)
 
 
@@ -164,6 +205,95 @@ def test_api_queues_staged_craig_with_real_track_count_and_redacted_context(tmp_
         assert "glossary" not in str(job)
         assert "campanha principal" not in str(job)
         assert "transcription.craig" in client.get("/api/v1/capabilities", headers=HEADERS).json()["capabilities"]
+
+
+def test_api_excludes_confirmed_bot_tracks_and_persists_policy(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage_with_bot_metadata(data_root, "craig-bot-policy")
+    _prepare_whisper(tmp_path)
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "bot-policy-default"},
+            json=_body("craig-bot-policy"),
+        )
+        assert response.status_code == 200
+        job = response.json()
+        assert job["progress"] == {"completed": 0, "total": 1, "unit": "tracks"}
+        body = app.state.store.body(job["id"])
+        assert body["track_policy_version"] == "exclude_confirmed_craig_bots_v1"
+        assert body["included_track_numbers"] == [1]
+        assert body["ignored_track_numbers"] == [2]
+        assert body["units"] == 1
+
+
+def test_api_can_explicitly_include_confirmed_bot_tracks(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage_with_bot_metadata(data_root, "craig-bot-override")
+    _prepare_whisper(tmp_path)
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "bot-policy-all"},
+            json={**_body("craig-bot-override"), "include_bot_tracks": True},
+        )
+        assert response.status_code == 200
+        job = response.json()
+        assert job["progress"] == {"completed": 0, "total": 2, "unit": "tracks"}
+        body = app.state.store.body(job["id"])
+        assert body["track_policy_version"] == "all_tracks_v1"
+        assert body["included_track_numbers"] == [1, 2]
+        assert body["ignored_track_numbers"] == []
+
+
+def test_api_fails_closed_when_every_track_is_confirmed_bot(tmp_path: Path):
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    _stage_with_bot_metadata(
+        data_root,
+        "craig-only-bots",
+        all_bots=True,
+    )
+    _prepare_whisper(tmp_path)
+    app = create_app(
+        data_root,
+        TOKEN,
+        {ORIGIN},
+        run_worker=False,
+        models_root=tmp_path / "Models",
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            "/api/v1/jobs",
+            headers={**HEADERS, "Idempotency-Key": "bot-policy-empty"},
+            json=_body("craig-only-bots"),
+        )
+        assert response.status_code == 409
+        assert response.json() == {
+            "error": {
+                "code": "TRANSCRIPTION_NO_ELIGIBLE_TRACKS",
+                "recoverable": True,
+            }
+        }
 
 
 def test_api_rejects_local_paths_unapproved_qwen_and_missing_staged_source(tmp_path: Path):
