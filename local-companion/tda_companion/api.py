@@ -222,6 +222,7 @@ class CraigTranscriptionJobRequest(BaseModel):
     context: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
     cpu: bool = False
     include_bot_tracks: bool = False
+    reuse_checkpoints: bool | None = None
 
 
 JobRequest = Annotated[
@@ -1326,6 +1327,9 @@ def create_app(
                                 "glossary": body.get("glossary", ""),
                                 "context": body.get("context", ""),
                                 "cpu": bool(body.get("cpu", False)),
+                                "reuse_checkpoints": bool(
+                                    body.get("reuse_checkpoints", True)
+                                ),
                                 "on_progress": commit_progress,
                                 "on_event": observe_event,
                                 "is_cancelled": is_cancelled,
@@ -2595,6 +2599,10 @@ def create_app(
     @app.post("/api/v1/jobs")
     async def submit(body: JobRequest, idempotency_key: str = Header(pattern=_ID_PATTERN)):
         payload = body.model_dump()
+        if body.kind == "transcription.craig" and body.reuse_checkpoints is None:
+            # Preserve the legacy job body/signature when the caller did not
+            # request explicit fresh processing.
+            payload.pop("reuse_checkpoints", None)
         if body.kind == "transcription.craig":
             async with dispatch_gate:
                 if qwen_runtime_manager.snapshot().get("active") is True:
