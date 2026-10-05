@@ -354,7 +354,7 @@ describe("multi-recording composer model", () => {
 		);
 	});
 
-	it("keeps assembly fail-closed until chronology, runs and participants are ready", () => {
+	it("gates assembly on chronology, sources and runs but not the Web participant projection", () => {
 		expect(sessionAssemblyReadiness(workspace(), mapping())).toEqual({
 			ready: true,
 			reasons: [],
@@ -364,11 +364,14 @@ describe("multi-recording composer model", () => {
 		expect(withoutRun.reasons).toContain(
 			"Selecione um resultado para cada gravação.",
 		);
-		const ambiguous = sessionAssemblyReadiness(workspace(), mapping(true));
-		expect(ambiguous.ready).toBe(false);
-		expect(ambiguous.reasons).toContain(
-			"Resolva os participantes ambíguos.",
-		);
+		expect(sessionAssemblyReadiness(workspace(), mapping(true))).toEqual({
+			ready: true,
+			reasons: [],
+		});
+		expect(sessionAssemblyReadiness(workspace(), null)).toEqual({
+			ready: true,
+			reasons: [],
+		});
 	});
 });
 
