@@ -4,6 +4,10 @@
     "python": {
       "version": "3.12.14",
       "reason": "Keep the physically accepted Python 3.12.14 Companion/ASR baseline while Companion 0.3.21 preserves the accepted Python baseline across the Qwen recovery and Whisper benchmark-contract control planes; validate Python 3.12.15 in a separately versioned runtime rebuild so accepted runtime identities are not silently mutated."
+    },
+    "qwen/transformers": {
+      "version": "5.18.0",
+      "reason": "Keep the physically accepted Qwen 1.0.18 runtime on Transformers 5.18.0 while the focused Whisper 1.1.10 compatibility and diagnostics fix ships; validate Transformers 5.19.0 separately with offline local-files-only model loading, packaging, and the Qwen physical gate so this unrelated release does not create unaccepted Qwen runtime byte drift."
     }
   }
 }
