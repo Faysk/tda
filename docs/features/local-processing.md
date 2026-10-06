@@ -7,7 +7,7 @@
 
 `/edit/[campaign]/processamento` é a superfície operacional canônica para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
 
-O contrato editorial pós-processamento é definido em [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) e em ADR-0016. A regra central é: **concluir ASR não publica nada**.
+O contrato editorial pós-processamento é definido em [Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md), ADR-0016 e ADR-0021. A regra central é: **concluir ASR não publica nada**.
 
 ## Campaign context no processamento
 
@@ -498,7 +498,7 @@ A candidata histórica de transcript import contém primitives úteis de hash/id
 
 Neste Slice 1, runs concluídos e source/staging permanecem locais até ação futura explícita de cleanup. Não foi adicionada limpeza automática de runs.
 
-Archive e painel de armazenamento permanecem backlog separado. Delete local confirmado é destrutivo conforme a emenda de ADR-0016; tombstone/quarantine existem para atomicidade/recovery e não oferecem restore de 7 dias. Limpeza de source não pode apagar transcrições concluídas implicitamente e deve explicar quando novo processamento exigir selecionar o ZIP Craig novamente.
+Archive e painel de armazenamento permanecem backlog separado. Delete local confirmado é destrutivo conforme ADR-0021; tombstone/quarantine existem para atomicidade/recovery e não oferecem restore de 7 dias. Limpeza de source não pode apagar transcrições concluídas implicitamente e deve explicar quando novo processamento exigir selecionar o ZIP Craig novamente.
 
 ## Validação
 
