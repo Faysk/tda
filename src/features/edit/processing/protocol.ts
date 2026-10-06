@@ -545,6 +545,7 @@ export type LocalRunCatalogPage = {
 export type LocalRunSummary = {
 	runId: string;
 	sourceId: string;
+	jobId?: string | null;
 	profileId: string;
 	engine: string | null;
 	model: string | null;
@@ -2061,6 +2062,10 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 		return {
 			runId,
 			sourceId,
+			jobId:
+				item.job_id === undefined || item.job_id === null
+					? null
+					: identifier(item.job_id),
 			profileId: text(item.profile_id, 64),
 			engine: nullableText(item.engine, 64),
 			model: nullableText(item.model, 256),
