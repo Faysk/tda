@@ -78,7 +78,7 @@ A exceção só pode ser removida quando uma versão posterior do Faster-Whisper
 
 A prontidão do Whisper possui dois níveis explícitos:
 
-- **transcrição normal atual:** exige **Whisper `>=1.1.10`**. O payload Craig corrente pode incluir `track_policy_version` e `checkpoints`; o worker Stable 1.1.5 não conhece esses campos e pode encerrar com EX_USAGE antes de `READY`. O artefato 1.1.5 permanece imutável como evidência histórica, mas não é compatível com o contrato de dispatch atual;
+- **compatibilidade do artefato/rollback:** mantém mínimo Whisper `1.1.4`, para que releases históricas permaneçam verificáveis e selecionáveis por manutenção explícita quando aplicável; **dispatch de transcrição Craig atual:** exige Whisper **`>=1.1.10`**. O payload corrente pode incluir `track_policy_version` e `checkpoints`; o worker Stable 1.1.5 não conhece esses campos e pode encerrar com EX_USAGE antes de `READY`. O artefato 1.1.5 permanece imutável como evidência histórica, mas não é elegível para o protocolo atual;
 - **benchmark de execução/métricas de #1233:** o piso histórico do Whisper é **`>=1.1.7`**. O `1.1.6` foi consumido pela correção de decoder #1234 e teve RC publicado antes do smoke da #1233;
 - **benchmark atual com evidência textual de #1413:** exige worker congelado capaz de persistir o bundle imutável, portanto `benchmark_ready` exige **Whisper `>=1.1.10`** e **Qwen `>=1.0.18`**. Whisper normal e benchmark coincidem em 1.1.10 por motivos diferentes: o primeiro por compatibilidade de protocolo; o segundo pelo contrato de evidência do benchmark.
 
