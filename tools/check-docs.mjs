@@ -77,6 +77,88 @@ if (orphanDocs.length) {
 	);
 }
 
+function repoText(file) {
+	return fs.readFileSync(path.join(root, file), "utf8");
+}
+
+function requireText(file, expected, contract) {
+	if (!repoText(file).includes(expected)) {
+		throw Error(
+			`Documentation contract drift: ${contract} (${file} missing ${JSON.stringify(expected)})`,
+		);
+	}
+}
+
+function forbidText(file, forbidden, contract) {
+	if (repoText(file).includes(forbidden)) {
+		throw Error(
+			`Documentation contract drift: ${contract} (${file} still contains ${JSON.stringify(forbidden)})`,
+		);
+	}
+}
+
+// Low-heuristic guards for facts with a single machine-readable authority.
+// They intentionally do not attempt to infer whether arbitrary prose is current.
+const pyproject = repoText("local-companion/pyproject.toml");
+const packageVersion = pyproject.match(/^version = "([^"]+)"$/m)?.[1];
+const packageInitVersion = repoText("local-companion/tda_companion/__init__.py")
+	.match(/^VERSION = "([^"]+)"$/m)?.[1];
+if (!packageVersion || packageVersion !== packageInitVersion) {
+	throw Error("Companion version sources disagree");
+}
+
+const runtimeCompat = repoText("local-companion/tda_companion/runtime_compat.py");
+const qwenMinimum = runtimeCompat.match(
+	/^MIN_COMPATIBLE_QWEN_RUNTIME_VERSION = "([^"]+)"$/m,
+)?.[1];
+if (!qwenMinimum) throw Error("Could not read Qwen minimum runtime version");
+
+requireText(
+	"docs/features/local-processing.md",
+	`**TDA Companion ${packageVersion}**`,
+	"local-processing must name the current Companion code line",
+);
+requireText(
+	"docs/features/local-processing.md",
+	`**Qwen Runtime ${qwenMinimum}**`,
+	"local-processing must name the current normal Qwen minimum",
+);
+requireText(
+	"docs/integrations/local-companion-v1.md",
+	`service_version="${packageVersion}"`,
+	"wire API documentation must separate API v1 from the current service version",
+);
+forbidText(
+	"docs/features/transcript-review-publication.md",
+	"> Status: arquitetura aprovada; implementação pendente",
+	"transcript lifecycle cannot advertise implemented slices as wholly pending",
+);
+requireText(
+	"docs/features/transcript-review-publication.md",
+	"ADR-0021",
+	"current transcript delete semantics must point to the governing ADR",
+);
+requireText(
+	"docs/features/multi-recording-sessions.md",
+	"tda_session_timeline_v2",
+	"multi-recording must identify the current timing policy",
+);
+requireText(
+	"docs/features/multi-recording-sessions.md",
+	"strong_discord_or_local_v2",
+	"multi-recording must distinguish participant schema from current policy",
+);
+requireText(
+	"docs/features/multi-recording-sessions.md",
+	"ADR-0022",
+	"multi-recording overlap semantics must point to the governing ADR",
+);
+requireText(
+	"docs/documentation/README.md",
+	"## Quatro zonas semânticas em documentos vivos",
+	"documentation governance must separate current, legacy, history and future",
+);
+
 if (
 	JSON.parse(fs.readFileSync("vercel.json", "utf8")).git.deploymentEnabled !==
 	false
