@@ -38,6 +38,32 @@ function Get-PowerShell7 {
 
 function Get-Release([string]$Tag,[string]$Family) {
   if ($Tag -notmatch '^[A-Za-z0-9._-]{1,160}$') { throw "RELEASE_TAG_INVALID" }
+
+  $expectedPrerelease = $true
+  if ($Family -eq "companion") {
+    if ($Tag -notmatch '^companion-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$') {
+      throw "RELEASE_TAG_CHANNEL_INVALID:companion"
+    }
+  } elseif ($Family -eq "whisper") {
+    if ($Tag -match '^companion-whisper-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$') {
+      $expectedPrerelease = $true
+    } elseif ($Tag -match '^companion-whisper-runtime-v[0-9]+\.[0-9]+\.[0-9]+$') {
+      $expectedPrerelease = $false
+    } else {
+      throw "RELEASE_TAG_CHANNEL_INVALID:whisper"
+    }
+  } elseif ($Family -eq "qwen") {
+    if ($Tag -match '^companion-qwen-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$') {
+      $expectedPrerelease = $true
+    } elseif ($Tag -match '^companion-qwen-runtime-v[0-9]+\.[0-9]+\.[0-9]+$') {
+      $expectedPrerelease = $false
+    } else {
+      throw "RELEASE_TAG_CHANNEL_INVALID:qwen"
+    }
+  } else {
+    throw "RELEASE_FAMILY_INVALID"
+  }
+
   try {
     $value = Invoke-RestMethod -UseBasicParsing -Headers @{
       Accept = "application/vnd.github+json"
@@ -47,7 +73,7 @@ function Get-Release([string]$Tag,[string]$Family) {
   if (
     [string]$value.tag_name -ne $Tag -or
     $value.draft -ne $false -or
-    $value.prerelease -ne $true -or
+    $value.prerelease -ne $expectedPrerelease -or
     [string]$value.target_commitish -notmatch '^[a-f0-9]{40}$'
   ) { throw ("RELEASE_IDENTITY_INVALID:" + $Family) }
   $value
@@ -101,12 +127,20 @@ function Assert-CompanionCandidate([object]$Candidate,[object]$Release,[string]$
 
 function Assert-RuntimeCandidate([object]$Candidate,[object]$Release,[string]$Tag,[string]$Family) {
   $runtimeId = if ($Family -eq "whisper") { "whisper-ctranslate2" } else { "qwen3-transformers" }
-  $tagPattern = if ($Family -eq "whisper") {
+  $rcPattern = if ($Family -eq "whisper") {
     '^companion-whisper-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$'
   } else {
     '^companion-qwen-runtime-rc-v[0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12}$'
   }
-  if ($Tag -notmatch $tagPattern) { throw ("RUNTIME_CANDIDATE_TAG_INVALID:" + $Family) }
+  $stablePattern = if ($Family -eq "whisper") {
+    '^companion-whisper-runtime-v[0-9]+\.[0-9]+\.[0-9]+$'
+  } else {
+    '^companion-qwen-runtime-v[0-9]+\.[0-9]+\.[0-9]+$'
+  }
+  $isRc = $Tag -match $rcPattern
+  $isStable = $Tag -match $stablePattern
+  if (-not $isRc -and -not $isStable) { throw ("RUNTIME_RELEASE_TAG_INVALID:" + $Family) }
+
   if (
     [string]$Candidate.schema -ne "tda_runtime_candidate_v1" -or
     [string]$Candidate.family -ne $Family -or
@@ -115,11 +149,22 @@ function Assert-RuntimeCandidate([object]$Candidate,[object]$Release,[string]$Ta
     [string]$Candidate.version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$' -or
     [string]$Candidate.source_sha -notmatch '^[a-f0-9]{40}$' -or
     [string]$Candidate.source_tree_sha -notmatch '^[a-f0-9]{40}$' -or
-    [string]$Candidate.candidate_tag -ne $Tag -or
+    [string]$Candidate.candidate_tag -notmatch $rcPattern -or
     [string]$Candidate.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}$' -or
     [string]$Release.target_commitish -ne [string]$Candidate.source_sha
   ) { throw ("RUNTIME_CANDIDATE_IDENTITY_INVALID:" + $Family) }
-  if (-not $Tag.EndsWith(([string]$Candidate.source_sha).Substring(0,12))) { throw ("RUNTIME_CANDIDATE_TAG_INVALID:" + $Family) }
+
+  if ($isRc) {
+    if ([string]$Candidate.candidate_tag -ne $Tag) { throw ("RUNTIME_CANDIDATE_TAG_INVALID:" + $Family) }
+    if (-not $Tag.EndsWith(([string]$Candidate.source_sha).Substring(0,12))) { throw ("RUNTIME_CANDIDATE_TAG_INVALID:" + $Family) }
+  } else {
+    $stableTagProperty = $Candidate.PSObject.Properties["stable_tag"]
+    if (
+      $null -eq $stableTagProperty -or
+      [string]$stableTagProperty.Value -notmatch $stablePattern -or
+      [string]$stableTagProperty.Value -ne $Tag
+    ) { throw ("RUNTIME_STABLE_TAG_INVALID:" + $Family) }
+  }
 
   $assets = @($Candidate.assets)
   if ($assets.Count -lt 2 -or $assets.Count -gt 4) { throw ("RUNTIME_CANDIDATE_ASSET_COUNT_INVALID:" + $Family) }
@@ -617,7 +662,7 @@ try{
   foreach($file in $rr){
     $v=Read-Json $file.FullName "RUNTIME_RECEIPT_INVALID"
     if([string]$v.schema -ne "tda_runtime_physical_acceptance_v1" -or $v.pass -ne $true -or [string]$v.family -notin @("whisper","qwen") -or $v.contains_audio -ne $false -or $v.contains_transcript -ne $false -or $v.contains_local_paths -ne $false){throw "RUNTIME_RECEIPT_INVALID"}
-    $family=[string]$v.family;$expected=if($family -eq "whisper"){$WhisperRuntimeRcTag}else{$QwenRuntimeRcTag}
+    $family=[string]$v.family;$expected=if($family -eq "whisper"){[string]$wm.candidate_tag}else{[string]$qm.candidate_tag}
     if([string]$v.candidate_tag -ne $expected){throw ("RUNTIME_RECEIPT_TAG_INVALID:"+$family)}
     $byFamily[$family]=$file.FullName
   }
@@ -626,15 +671,15 @@ try{
   $phase="share_bundle"
   Copy-Safe $installedReceipt (Join-Path $shareReceipts "$CompanionRcTag.json")
   Copy-Safe $prPath (Join-Path $shareReceipts "$CompanionRcTag.physical.json")
-  Copy-Safe $byFamily.whisper (Join-Path $shareReceipts "$WhisperRuntimeRcTag.json")
-  Copy-Safe $byFamily.qwen (Join-Path $shareReceipts "$QwenRuntimeRcTag.json")
+  Copy-Safe $byFamily.whisper (Join-Path $shareReceipts "$([string]$wm.candidate_tag).json")
+  Copy-Safe $byFamily.qwen (Join-Path $shareReceipts "$([string]$qm.candidate_tag).json")
 
   $summary=[ordered]@{
     schema="tda_final_current_source_acceptance_v1";pass=$true;accepted_at=[DateTimeOffset]::UtcNow.ToString("o")
     companion=[ordered]@{tag=$CompanionRcTag;source_sha=[string]$cm.source_sha;source_tree_sha=[string]$cm.source_tree_sha;msi_sha256=[string]$cm.assets.msi.sha256;payload_manifest_sha256=[string]$cm.assets.payload_manifest.sha256}
     runtimes=[ordered]@{
-      whisper=[ordered]@{tag=$WhisperRuntimeRcTag;source_sha=[string]$wm.source_sha;runtime_archive_sha256=[string]$wm.runtime_archive_sha256;install_mode="acceptance_direct_archive_v1"}
-      qwen=[ordered]@{tag=$QwenRuntimeRcTag;source_sha=[string]$qm.source_sha;runtime_archive_sha256=[string]$qm.runtime_archive_sha256;install_mode="companion_rc_installer_v1"}
+      whisper=[ordered]@{release_tag=$WhisperRuntimeRcTag;candidate_tag=[string]$wm.candidate_tag;stable_tag=[string]$wm.stable_tag;source_sha=[string]$wm.source_sha;runtime_archive_sha256=[string]$wm.runtime_archive_sha256;install_mode="acceptance_direct_archive_v1"}
+      qwen=[ordered]@{release_tag=$QwenRuntimeRcTag;candidate_tag=[string]$qm.candidate_tag;stable_tag=[string]$qm.stable_tag;source_sha=[string]$qm.source_sha;runtime_archive_sha256=[string]$qm.runtime_archive_sha256;install_mode="companion_rc_installer_v1"}
     }
     gpu_requirement=$RequireGpuName;authenticode_required=[bool]$RequireAuthenticode
     expected_signer_thumbprint=$(if($RequireAuthenticode){($ExpectedSignerThumbprint -replace '\s','').ToUpperInvariant()}else{$null})
@@ -660,8 +705,8 @@ try{
     "===================================",
     ("Status: "+$(if($passed){"PASS"}else{"FAILED"})),
     ("Companion RC: "+$CompanionRcTag),
-    ("Whisper runtime RC: "+$WhisperRuntimeRcTag),
-    ("Qwen runtime RC: "+$QwenRuntimeRcTag),
+    ("Whisper runtime release: "+$WhisperRuntimeRcTag),
+    ("Qwen runtime release: "+$QwenRuntimeRcTag),
     "",
     "The share bundle contains only sanitized receipts and identity/status metadata.",
     "Synthetic fixtures, release assets, tokens, caches, paths and transcripts remain private.",
