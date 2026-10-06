@@ -480,6 +480,30 @@ export class LocalBridge {
 		);
 	}
 
+	async deleteSessionWorkspace(
+		campaignId: string,
+		sessionId: string,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		const value = record(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/delete`,
+				signal,
+				{ expected_revision: expectedRevision },
+			),
+		);
+		if (
+			value.schema_version !== "tda_session_workspace_delete_receipt_v1" ||
+			value.campaign_id !== campaignId ||
+			value.session_id !== sessionId ||
+			value.deleted !== true ||
+			value.cloud_changed !== false
+		)
+			throw new BridgeError("invalid_response");
+		return value;
+	}
+
 	async sessionTranscriptionIntent(
 		campaignId: string,
 		sessionId: string,
