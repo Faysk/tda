@@ -672,6 +672,137 @@ class Store:
             )
             return self._session_workspace_dto(db, bumped)
 
+    def delete_session_workspace(self, campaign_id, session_id, expected_revision):
+        """Delete the local session workspace and terminal queue state.
+
+        Immutable source bytes may remain staged for safe deduplication/maintenance,
+        but a fresh-generation fence survives the deletion so recreating the same
+        session can never reuse jobs/runs/checkpoints from the deleted generation.
+        """
+        with self.tx() as db:
+            row = self._session_workspace_for_update(
+                db, campaign_id, session_id, expected_revision
+            )
+            source_rows = db.execute(
+                """
+                SELECT source_id FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=?
+                ORDER BY ordinal ASC, part_id ASC
+                """,
+                (row["campaign_id"], row["session_id"]),
+            ).fetchall()
+            source_ids = [item["source_id"] for item in source_rows]
+
+            deleted_job_ids = []
+            for candidate in db.execute(
+                "SELECT id,body,status FROM jobs ORDER BY updated,id"
+            ).fetchall():
+                try:
+                    body = json.loads(candidate["body"])
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                if (
+                    body.get("kind") != "transcription.craig"
+                    or body.get("campaign_id") != row["campaign_id"]
+                    or body.get("session_id") != row["session_id"]
+                ):
+                    continue
+                if candidate["status"] in ("queued", "running"):
+                    raise Conflict("SESSION_WORKSPACE_DELETE_ACTIVE_JOBS")
+                deleted_job_ids.append(candidate["id"])
+
+            if len(deleted_job_ids) > 10_000:
+                raise Conflict("SESSION_WORKSPACE_DELETE_TOO_MANY_JOBS")
+
+            now = utc_now()
+            # Keep only the generation fence after deletion. If the operator
+            # chooses the same session id again, historical durable artifacts
+            # cannot become current even if their bytes still exist locally.
+            db.execute(
+                "INSERT INTO settings(key,value) VALUES (?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (
+                    self._session_workspace_fresh_start_setting_key(
+                        row["campaign_id"], row["session_id"]
+                    ),
+                    json.dumps(
+                        {
+                            "schema_version": "tda_session_workspace_fresh_start_v1",
+                            "started_at": now,
+                            "excluded_job_ids": deleted_job_ids,
+                        },
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                ),
+            )
+
+            if deleted_job_ids:
+                placeholders = ",".join("?" for _ in deleted_job_ids)
+                db.execute(
+                    f"DELETE FROM events WHERE job_id IN ({placeholders})",
+                    deleted_job_ids,
+                )
+                db.execute(
+                    f"DELETE FROM job_activity WHERE job_id IN ({placeholders})",
+                    deleted_job_ids,
+                )
+                db.execute(
+                    f"DELETE FROM terminal_job_receipts WHERE job_id IN ({placeholders})",
+                    deleted_job_ids,
+                )
+                db.execute(
+                    f"DELETE FROM idempotency_keys WHERE job_id IN ({placeholders})",
+                    deleted_job_ids,
+                )
+                db.execute(
+                    f"DELETE FROM jobs WHERE id IN ({placeholders})",
+                    deleted_job_ids,
+                )
+
+            db.execute(
+                """
+                DELETE FROM session_participant_assignments
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
+            )
+            db.execute(
+                """
+                DELETE FROM session_recording_parts
+                WHERE campaign_id=? AND session_id=?
+                """,
+                (row["campaign_id"], row["session_id"]),
+            )
+            deleted = db.execute(
+                """
+                DELETE FROM session_workspaces
+                WHERE campaign_id=? AND session_id=? AND revision=?
+                """,
+                (row["campaign_id"], row["session_id"], row["revision"]),
+            ).rowcount
+            if deleted != 1:
+                raise Conflict("SESSION_WORKSPACE_REVISION_CONFLICT")
+            db.execute(
+                "DELETE FROM settings WHERE key=?",
+                (
+                    self._session_intent_setting_key(
+                        row["campaign_id"], row["session_id"]
+                    ),
+                ),
+            )
+
+            return {
+                "schema_version": "tda_session_workspace_delete_receipt_v1",
+                "campaign_id": row["campaign_id"],
+                "session_id": row["session_id"],
+                "deleted": True,
+                "deleted_at": now,
+                "deleted_job_ids": deleted_job_ids,
+                "source_ids": source_ids,
+                "cloud_changed": False,
+            }
+
     def attach_session_source(self, campaign_id, session_id, source_id, expected_revision):
         source_id = self._workspace_source_id(source_id)
         with self.tx() as db:
