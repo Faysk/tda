@@ -59,6 +59,19 @@ export function workspaceGenerationEligible(
 	);
 }
 
+export function workspaceRunGenerationEligible(
+	workspace: SessionWorkspace | null,
+	run: LocalRunSummary,
+): boolean {
+	if (!workspace?.freshStartAt) return true;
+	if (
+		run.jobId &&
+		(workspace.freshStartExcludedJobIds ?? []).includes(run.jobId)
+	)
+		return false;
+	return workspaceGenerationEligible(workspace, run.completedAt);
+}
+
 export function workspaceJobGenerationEligible(
 	workspace: SessionWorkspace | null,
 	job: LocalJob,
