@@ -20,6 +20,7 @@ from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
 from .runtime_compat import (
     qwen_runtime_benchmark_compatible,
     whisper_runtime_benchmark_compatible,
+    whisper_runtime_transcription_compatible,
 )
 from .worker_protocol import (
     MAX_LINE_BYTES,
@@ -806,13 +807,20 @@ class WorkerSupervisor:
             worker_value = state.get("worker")
             if state.get("status") != "ready" or not isinstance(worker_value, str):
                 raise WorkerProcessError("WHISPER_RUNTIME_UNAVAILABLE")
-            if benchmark_sample_seconds is not None:
-                runtime_version = state.get("version")
-                if (
-                    not isinstance(runtime_version, str)
-                    or not whisper_runtime_benchmark_compatible(runtime_version)
-                ):
-                    raise WorkerProcessError("WHISPER_BENCHMARK_RUNTIME_REQUIRED")
+            runtime_version = state.get("version")
+            if (
+                not isinstance(runtime_version, str)
+                or not whisper_runtime_transcription_compatible(runtime_version)
+            ):
+                raise WorkerProcessError(
+                    "WHISPER_RUNTIME_PROTOCOL_REQUIRED",
+                    recoverable=False,
+                )
+            if (
+                benchmark_sample_seconds is not None
+                and not whisper_runtime_benchmark_compatible(runtime_version)
+            ):
+                raise WorkerProcessError("WHISPER_BENCHMARK_RUNTIME_REQUIRED")
             worker = Path(worker_value)
             artifact = runtime_artifact(state, family="whisper", version=worker.parent.name)
             if artifact is None:
