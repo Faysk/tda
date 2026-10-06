@@ -106,6 +106,7 @@ class WorkerProcessError(RuntimeError):
         stderr_truncated: bool = False,
         runtime_version: str | None = None,
         worker_sha256: str | None = None,
+        runtime_probe_status: str | None = None,
     ):
         super().__init__(code)
         self.code = code
@@ -116,6 +117,7 @@ class WorkerProcessError(RuntimeError):
         self.stderr_truncated = stderr_truncated
         self.runtime_version = runtime_version
         self.worker_sha256 = worker_sha256
+        self.runtime_probe_status = runtime_probe_status
 
     def bind_runtime_artifact(self, artifact: dict | None) -> None:
         if not isinstance(artifact, dict):
@@ -139,6 +141,8 @@ class WorkerProcessError(RuntimeError):
             data["runtime_version"] = self.runtime_version
         if self.worker_sha256:
             data["worker_sha256"] = self.worker_sha256
+        if self.runtime_probe_status:
+            data["runtime_probe_status"] = self.runtime_probe_status
         if data or self.stderr_truncated:
             data["stderr_truncated"] = self.stderr_truncated
         return data
@@ -306,6 +310,41 @@ class WorkerSupervisor:
                 process.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 pass
+
+    def _probe_whisper_worker(
+        self,
+        worker: Path,
+        environment_overrides: dict[str, str] | None,
+    ) -> str:
+        """Run the packaged no-model probe after a pre-READY failure."""
+        try:
+            result = subprocess.run(
+                [str(worker), "--probe"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=20.0,
+                check=False,
+                creationflags=self._creationflags(),
+                env=self._environment(environment_overrides),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return "failed"
+        raw = bytes(result.stdout or b"")
+        if result.returncode != 0 or not raw or len(raw) > MAX_LINE_BYTES:
+            return "failed"
+        try:
+            lines = [line for line in raw.decode("utf-8", errors="strict").splitlines() if line.strip()]
+            value = json.loads(lines[-1]) if lines else None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return "failed"
+        return (
+            "passed"
+            if isinstance(value, dict)
+            and value.get("schema") == "tda_whisper_runtime_probe_v1"
+            and value.get("ready") is True
+            else "failed"
+        )
 
     def _environment(
         self,
@@ -850,6 +889,24 @@ class WorkerSupervisor:
             )
         except WorkerProcessError as exc:
             exc.bind_runtime_artifact(runtime_artifact_identity)
+            if (
+                profile_id.startswith("whisper-")
+                and exc.phase == "pre_ready"
+                and runtime_command
+            ):
+                probe_status = self._probe_whisper_worker(
+                    Path(runtime_command[0]),
+                    runtime_environment,
+                )
+                exc.runtime_probe_status = probe_status
+                if probe_status == "failed":
+                    exc.recoverable = False
+                    if exc.failure_class in {
+                        None,
+                        "process_exit_nonzero",
+                        "exit_zero_before_handshake",
+                    }:
+                        exc.failure_class = "runtime_probe_failed"
             raise
 
     def run_benchmark(
