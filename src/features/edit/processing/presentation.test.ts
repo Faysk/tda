@@ -61,6 +61,7 @@ describe("processing presentation", () => {
 	it("explains worker handshake, encoding and runtime failures", () => {
 		expect(presentJobError("WORKER_STDOUT_ENCODING_INVALID")).toContain("codificação");
 		expect(presentJobError("WORKER_READY_REQUIRED")).toContain("handshake");
+		expect(presentJobError("WORKER_EXITED_BEFORE_READY")).toContain("antes do handshake");
 		expect(presentJobError("WORKER_SEQUENCE_GAP")).toContain("sequência");
 		expect(presentJobError("WORKER_RUNTIME_BOOTSTRAP_TIMEOUT")).toContain("inicialização");
 		expect(presentJobError("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")).toContain(
@@ -116,6 +117,25 @@ describe("processing presentation", () => {
 				data: {},
 			}).title,
 		).toContain("handshake");
+		expect(
+			presentJobEvent({
+				seq: 20,
+				attempt: 1,
+				code: "WORKER_PROCESS_DIAGNOSTIC",
+				at: "2026-10-06T13:00:00Z",
+				level: "error",
+				data: {
+					phase: "pre_ready",
+					returncode: 64,
+					failure_class: "command_rejected",
+					runtime_version: "1.1.5",
+				},
+			}),
+		).toEqual({
+			title: "O processo do runtime encerrou antes do handshake.",
+			detail:
+				"runtime 1.1.5 · exit code 64 · classe command_rejected. Nenhum stderr bruto ou caminho local é exposto.",
+		});
 		expect(
 			presentJobEvent({
 				seq: 21,
