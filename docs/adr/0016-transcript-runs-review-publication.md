@@ -3,8 +3,8 @@
 > Status: accepted
 > Data: 2026-09-15
 > Owner: Edit / processamento local / transcript-sync
-> Última revisão: 2026-10-05
-> Emenda: 2026-10-05 — delete local confirmado é destrutivo; quarantine/tombstone são mecanismos internos de recovery, não uma lixeira restaurável
+> Última revisão: 2026-10-06
+> Superseded por: ADR-0021 somente para a semântica de exclusão local
 > Relacionados: ADR-0003, ADR-0007, ADR-0013, `docs/features/local-processing.md`, `docs/features/transcript-review-publication.md`, `docs/integrations/transcript-import.md`
 
 ## Contexto
@@ -81,9 +81,9 @@ A ativação/restauração é registrada como evento editorial leve.
 
 Delete pode remover run/draft/revision conforme o escopo explícito. A current revision não sofre hard delete por uma ação genérica.
 
-### 10. Exclusão local confirmada
+### 10. Exclusão local confirmada — decisão formalizada por ADR-0021
 
-A exclusão local de um run/revisão é **destrutiva depois de confirmação explícita**. O Companion grava primeiro um tombstone/receipt autoritativo e pode usar quarantine transacional durante o cleanup para sobreviver a falha/restart.
+ADR-0021 substitui somente a semântica de exclusão local desta decisão. A exclusão local de um run/revisão é **destrutiva depois de confirmação explícita**. O Companion grava primeiro um tombstone/receipt autoritativo e pode usar quarantine transacional durante o cleanup para sobreviver a falha/restart.
 
 Essa quarantine **não é uma lixeira de produto**: não existe retenção de 7 dias nem ação de usuário para restaurar um run excluído. Se o produto voltar a oferecer Trash/Restore no futuro, isso exige nova decisão arquitetural e lifecycle próprio de retenção, listagem, restore, expiração e dependency checks.
 
@@ -170,15 +170,15 @@ Reduz storage, mas força reprocessamento ou perda de histórico em caso de arre
 
 Robusto demais para a necessidade do projeto e aumenta custo sem benefício proporcional.
 
-## Emenda de 2026-10-05 — semântica de delete local
+## Histórico — semântica de delete local substituída por ADR-0021
 
 A decisão original de “Trash local por 7 dias” foi substituída após confronto com o comportamento integrado do Companion. A implementação vigente usa `tda_local_run_delete_receipt_v1`, tombstone autoritativo e quarantine efêmera apenas para tornar o cleanup recuperável/idempotente. Não há UX de listagem/restore dessa quarantine.
 
-Esta emenda preserva o objetivo original de evitar efeitos colaterais cloud e exigir confirmação destrutiva, mas remove uma promessa de restauração que o produto não entrega.
+ADR-0021 preserva o objetivo original de evitar efeitos colaterais cloud e exigir confirmação destrutiva, mas remove uma promessa de restauração que o produto não entrega.
 
 ## Relação com decisões anteriores
 
-Este ADR **complementa**, não revoga:
+Este ADR **complementa**, não revoga, as decisões abaixo. ADR-0021 substitui apenas a semântica de exclusão local desta decisão:
 
 - ADR-0003: processamento pesado local e produto cloud;
 - ADR-0007: Edit como workbench administrativo;
