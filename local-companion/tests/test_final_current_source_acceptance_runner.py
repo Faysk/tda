@@ -14,8 +14,8 @@ SCRIPT = REPO_ROOT / "tools" / "acceptance" / "run-final-current-source-acceptan
 def test_final_runner_accepts_stable_or_rc_runtime_release_tags():
     text = SCRIPT.read_text(encoding="utf-8")
 
-    assert '[Alias("WhisperRuntimeRcTag")][string]$WhisperRuntimeTag' in text
-    assert '[Alias("QwenRuntimeRcTag")][string]$QwenRuntimeTag' in text
+    assert '[string]$WhisperRuntimeRcTag' in text
+    assert '[string]$QwenRuntimeRcTag' in text
     assert "^companion-whisper-runtime-v[0-9]+" in text
     assert "^companion-qwen-runtime-v[0-9]+" in text
     assert "[string]$Candidate.stable_tag -ne $Tag" in text
