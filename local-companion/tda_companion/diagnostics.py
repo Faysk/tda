@@ -27,6 +27,8 @@ from .qwen_runtime import inspect_qwen_runtime
 from .runtime_compat import (
     MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
     MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+    MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION,
+    whisper_runtime_transcription_compatible,
 )
 from .system_log import SystemLog
 from .telemetry import SystemTelemetry
@@ -223,6 +225,17 @@ def _whisper_runtime_check(paths: CompanionPaths) -> dict[str, Any]:
             "fail",
             "Runtime Whisper falhou na verificação de integridade",
             f"versão {version}" if version else None,
+        )
+    if (
+        not isinstance(version, str)
+        or not whisper_runtime_transcription_compatible(version)
+    ):
+        installed = f"v{version}" if version else "desconhecida"
+        return _check(
+            "whisper_runtime",
+            "fail",
+            "Runtime Whisper não suporta o protocolo de transcrição atual",
+            f"instalado {installed} · protocolo mínimo v{MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION}",
         )
     worker = state.get("worker")
     if not isinstance(worker, str):
