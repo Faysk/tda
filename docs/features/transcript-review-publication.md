@@ -2,8 +2,8 @@
 
 > Status: contrato vigente; runs locais, revisão/CAS, comparação e publicação explícita implementados; backlog futuro separado abaixo
 > Owner: Edit / processamento local / transcript-sync
-> Última revisão: 2026-10-05
-> Fonte de verdade: esta spec, ADR-0016, `local-companion/tda_companion`, `src/features/edit/processing`, `src/features/transcript-publication` e contratos do Edit
+> Última revisão: 2026-10-06
+> Fonte de verdade: esta spec, ADR-0016, ADR-0021, `local-companion/tda_companion`, `src/features/edit/processing`, `src/features/transcript-publication` e contratos do Edit
 
 ## Como ler este documento
 
@@ -970,7 +970,7 @@ Delete existe, mas cada ação deve explicar o seu alcance e não deve ser confu
 
 Remove aquele run e sua revisão local vinculada depois de confirmação explícita. O Companion grava `tda_local_run_delete_receipt_v1` antes do cleanup; tombstone/quarantine tornam a operação idempotente e recuperável após falha/restart.
 
-A quarantine interna **não é uma lixeira de produto**: não há retenção de 7 dias, listagem ou ação **Restaurar** para run local excluído. ADR-0016 foi emendado em 2026-10-05 para registrar essa decisão.
+A quarantine interna **não é uma lixeira de produto**: não há retenção de 7 dias, listagem ou ação **Restaurar** para run local excluído. ADR-0021 formaliza essa semântica e substitui apenas a decisão histórica de Trash local do ADR-0016.
 
 Runs publicados não devem ser apagados localmente sem aviso de que a cópia cloud permanecerá disponível. Delete local não faz unpublish.
 
@@ -978,11 +978,9 @@ Runs publicados não devem ser apagados localmente sem aviso de que a cópia clo
 
 Remove apenas revision/draft ainda não publicado.
 
-### Arquivar
+### Archive — capacidade separada
 
-Arquivar esconde da visão principal sem apagar bytes.
-
-Útil para sessões antigas ou experimentos que o usuário quer manter.
+Archive, quando implementado na superfície correspondente, apenas esconde/organiza resultados; não deve ser confundido com delete nem inventar retenção.
 
 ### Remover publicação
 
@@ -1023,17 +1021,17 @@ O áudio original externo escolhido pelo usuário não é propriedade do TDA e n
 
 ## Política de retenção local
 
-Defaults aprovados:
+Defaults correntes:
 
 - runs concluídos: manter até ação do usuário;
 - revisions locais: manter até ação do usuário;
 - source/staging Craig: manter por default para permitir reprocessamento/comparação;
 - runs falhos/interrompidos: manter enquanto úteis para retry/diagnóstico; UI pode oferecer limpeza em lote;
-- lixeira: 7 dias;
+- **não existe Trash de produto com retenção padrão de 7 dias**;
 - modelos/runtimes: gerenciados separadamente;
 - logs: seguem política própria do Companion.
 
-Configurações futuras podem oferecer limpeza automática, mas não devem remover um resultado não publicado sem comunicar claramente a política.
+Uma futura lixeira restaurável exige nova decisão arquitetural, UX de listagem/restore/expiry e testes de restart/dependency; não pode ser inferida da quarantine transacional atual.
 
 ## Gestão de armazenamento
 
@@ -1045,7 +1043,6 @@ Fontes/faixas de áudio locais
 Runs/transcrições
 Revisões locais
 Cache
-Lixeira
 ```
 
 Ação útil:
