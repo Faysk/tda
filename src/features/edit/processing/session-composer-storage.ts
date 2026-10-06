@@ -94,6 +94,15 @@ export function clearSessionComposerRecoveryPointer(
 	if (campaignId === LEGACY_SINGLE_CAMPAIGN_ID)
 		storage.removeItem(LEGACY_SESSION_COMPOSER_RECOVERY_KEY);
 }
+export function clearSessionComposerPointers(
+	storage: Storage,
+	campaignId: string,
+): void {
+	clearSessionComposerRecoveryPointer(storage, campaignId);
+	storage.removeItem(sessionComposerLastSessionKey(campaignId));
+	if (campaignId === LEGACY_SINGLE_CAMPAIGN_ID)
+		storage.removeItem(LEGACY_SESSION_COMPOSER_LAST_SESSION_KEY);
+}
 export const SESSION_COMPOSER_CHANGE_EVENT =
 	"tda-session-composer-change";
 

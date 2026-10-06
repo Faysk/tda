@@ -59,7 +59,7 @@ foi o primeiro runtime a satisfazer o gate de execução/métricas do benchmark.
 textual imutável: por isso `benchmark_ready` exige Whisper >=1.1.10 e Qwen >=1.0.18.
 Runtimes anteriores continuam compatíveis com transcrição normal quando atendem
 seus mínimos gerais, mas não podem ser anunciados como prontos para o Benchmark
-atual. O Companion 0.3.19 anuncia a capability
+atual. O Companion 0.3.20 anuncia a capability
 `processing.benchmark.runtime-readiness-v2` e publica `benchmark_ready` separado
 de `ready`. Cliente sem essa capability falha fechado para benchmark, sem bloquear
 transcrição normal. A preparação iniciada por esta tab envia `purpose=benchmark`
@@ -142,7 +142,7 @@ Validação usa fixtures sintéticas em desktop/mobile, falhas independentes por
 domínio, recuperação parcial, inventário fora de ordem, temas e reduced motion.
 Merge não confirma publicação; não há mudança de banco, áudio ou formato de run.
 
-A linha de código vigente **TDA Companion 0.3.19** cobre:
+A linha de código vigente **TDA Companion 0.3.20** cobre:
 
 - workbench próprio do Edit;
 - conexão automática com o Agent em `http://127.0.0.1:8765/api/v1` via sessão temporária origin-bound;
@@ -168,9 +168,9 @@ O processamento Craig já é ASR real ponta a ponta no Agent, iniciado pela Web 
 
 ### Versão de código versus artefato publicado
 
-A linha de código atual é o **TDA Companion 0.3.19**. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline.
+A linha de código atual é o **TDA Companion 0.3.20**. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline.
 
-O Companion 0.3.19 exige no mínimo **Whisper Runtime 1.1.4** e **Qwen Runtime 1.0.12**. Benchmark usa mínimos próprios mais altos definidos em `runtime_compat.py` e não deve ser confundido com compatibilidade normal. Durante rollout RC, o primeiro uso aceita somente o candidato publicado exato e verificado da versão compatível; um manifest Stable abaixo do mínimo é ignorado, não baixado como etapa intermediária. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
+O Companion 0.3.20 exige no mínimo **Whisper Runtime 1.1.4** e **Qwen Runtime 1.0.12**. Benchmark usa mínimos próprios mais altos definidos em `runtime_compat.py` e não deve ser confundido com compatibilidade normal. Durante rollout RC, o primeiro uso aceita somente o candidato publicado exato e verificado da versão compatível; um manifest Stable abaixo do mínimo é ignorado, não baixado como etapa intermediária. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
 
 ## Runs locais imutáveis — Slice 1
 
@@ -417,6 +417,8 @@ Disponibilidade atual do Companion e histórico recuperado da sessão são estad
 Falha recuperável/interrupção permite **Repetir trabalho**. Esse retry terminal é diferente da reconciliação de enqueue: ele cria uma nova `attempt`, mas os engines podem reutilizar checkpoints locais por faixa quando a assinatura de source/profile/context/glossary/runtime continua compatível. Cada faixa reutilizada reaparece como progresso da nova tentativa; o checkpoint não reativa a tentativa anterior. Cancelar exige confirmação. Retomar fila confirma que trabalhos pendentes podem voltar a executar; pausar impede novos claims sem interromper o trabalho já ativo.
 
 Em sessões com múltiplas gravações, **Recomeçar do zero** é uma operação diferente de Retry e de **Nova transcrição**. A ação exige confirmação, falha fechada enquanto houver job da sessão queued/running e grava no Companion um corte de geração autoritativo. Seleções de run, participant mapping e decisões de cronologia/composição da workspace são limpas; jobs/runs/assemblies anteriores continuam preservados como evidência, mas ficam inelegíveis para a geração corrente. A Web limpa também as identidades de enqueue/recovery do navegador, cria novas chaves para cada source e envia os jobs da nova geração com reutilização de checkpoint desativada. Os ZIPs/source staged permanecem como entrada local; reset não apaga publicação cloud nem altera outra campaign/session. Job terminal não recuperável nunca é apresentado como Retry seguro: nesse caso o caminho explícito é recomeçar a geração ou abrir o diagnóstico.
+
+**Excluir sessão local** é a operação destrutiva de recuperação quando o operador quer abandonar a sessão local inteira em vez de preservar a geração anterior. Ela exige ausência de jobs queued/running, remove workspace, intent, decisões de composição e estado operacional terminal da sessão no Companion, limpa os ponteiros de recuperação do navegador e volta ao formulário vazio. O Companion mantém um fence técnico mínimo para impedir que artefatos antigos eventualmente ainda presentes no disco sejam elegíveis ou reutilizados ao recriar o mesmo session id. Publicações cloud não são alteradas.
 
 No Qwen strict, a durabilidade é dividida em duas camadas. Depois que todas as janelas de uma **track** terminam o ASR, o texto e idioma por janela são persistidos atomicamente em um checkpoint técnico `tda_qwen_text_checkpoint_v1` antes do forced alignment. Esse artefato vive somente em `.checkpoints/<signature>/qwen-text-v1/`, não é transcript alinhado, não cria `run.json` e nunca é listável/publicável como resultado. Retry compatível pode reaproveitá-lo; antes do reuse o Companion valida schema, assinatura, hash interno, metadados da track e o SHA-256 real do FLAC staged. Mudança de source/perfil/model revision/runtime/receita/contexto/glossário ou dos bytes da track invalida/falha fechado. A granularidade é deliberadamente **por track**: crash no meio de uma track pode repetir aquela track, mas tracks cujo ASR terminou e foi checkpointado não precisam ser retranscritas por falha posterior do aligner.
 
