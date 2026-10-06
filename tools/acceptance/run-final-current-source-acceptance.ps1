@@ -150,7 +150,6 @@ function Assert-RuntimeCandidate([object]$Candidate,[object]$Release,[string]$Ta
     [string]$Candidate.source_sha -notmatch '^[a-f0-9]{40}$' -or
     [string]$Candidate.source_tree_sha -notmatch '^[a-f0-9]{40}$' -or
     [string]$Candidate.candidate_tag -notmatch $rcPattern -or
-    [string]$Candidate.stable_tag -notmatch $stablePattern -or
     [string]$Candidate.runtime_archive_sha256 -notmatch '^[a-f0-9]{64}$' -or
     [string]$Release.target_commitish -ne [string]$Candidate.source_sha
   ) { throw ("RUNTIME_CANDIDATE_IDENTITY_INVALID:" + $Family) }
@@ -159,7 +158,12 @@ function Assert-RuntimeCandidate([object]$Candidate,[object]$Release,[string]$Ta
     if ([string]$Candidate.candidate_tag -ne $Tag) { throw ("RUNTIME_CANDIDATE_TAG_INVALID:" + $Family) }
     if (-not $Tag.EndsWith(([string]$Candidate.source_sha).Substring(0,12))) { throw ("RUNTIME_CANDIDATE_TAG_INVALID:" + $Family) }
   } else {
-    if ([string]$Candidate.stable_tag -ne $Tag) { throw ("RUNTIME_STABLE_TAG_INVALID:" + $Family) }
+    $stableTagProperty = $Candidate.PSObject.Properties["stable_tag"]
+    if (
+      $null -eq $stableTagProperty -or
+      [string]$stableTagProperty.Value -notmatch $stablePattern -or
+      [string]$stableTagProperty.Value -ne $Tag
+    ) { throw ("RUNTIME_STABLE_TAG_INVALID:" + $Family) }
   }
 
   $assets = @($Candidate.assets)
