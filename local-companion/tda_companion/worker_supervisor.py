@@ -119,7 +119,7 @@ class WorkerProcessError(RuntimeError):
             self.worker_sha256 = worker_sha256
 
     def diagnostic_data(self) -> dict[str, str | int | bool]:
-        data: dict[str, str | int | bool] = {"stderr_truncated": self.stderr_truncated}
+        data: dict[str, str | int | bool] = {}
         if self.phase:
             data["phase"] = self.phase
         if self.returncode is not None:
@@ -130,6 +130,8 @@ class WorkerProcessError(RuntimeError):
             data["runtime_version"] = self.runtime_version
         if self.worker_sha256:
             data["worker_sha256"] = self.worker_sha256
+        if data or self.stderr_truncated:
+            data["stderr_truncated"] = self.stderr_truncated
         return data
 
 
