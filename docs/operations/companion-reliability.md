@@ -7,7 +7,7 @@
 
 ## Current behavior
 
-A linha de código corrente é **Companion 0.3.20**. O contrato de confiabilidade abaixo continua vigente; os números 0.3.2, datas de setembro e estados R1–R4 documentam a evolução que originou o contrato e não devem ser usados como service version atual.
+A linha de código corrente é **Companion 0.3.21**. O contrato de confiabilidade abaixo continua vigente; os números 0.3.2, datas de setembro e estados R1–R4 documentam a evolução que originou o contrato e não devem ser usados como service version atual.
 
 Versões mínimas de runtime/benchmark são autoridade de `companion-dependency-policy.md`. Aceite físico continua vinculado ao artefato/hash exato: CI, merge em `main` ou versão declarada no código não substituem receipt físico quando o gate o exige.
 
@@ -336,7 +336,7 @@ O RC `companion-whisper-runtime-rc-v1.1.5-5e38e1e6ff2a` resolveu PyAV 19 transit
 
 A correção não altera nem reempacota a Stable 1.1.5 já promovida. Um novo runtime **1.1.6** fixa PyAV 18.1.0 e introduz gate empacotado WAV+FLAC antes de produzir candidato. `RC_WHISPER_VERSION` também avança para 1.1.6, portanto descoberta/instalação RC deixa de selecionar o candidato defeituoso 1.1.5 sem declarar toda a família 1.1.5 incompatível.
 
-`MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION` permanece 1.1.4: versões Stable anteriormente aceitas continuam suportadas. A identidade confiável é versão **mais** tag/hash/receipt; número de versão sozinho não autoriza reaproveitar bytes de um RC diferente.
+`MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION` permanece **1.1.4** para integridade/formato do artefato e rollback histórico. O dispatch Craig atual tem uma fence separada, `MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION = 1.1.10`, porque workers 1.1.5–1.1.9 não implementam todo o payload corrente. Assim, a Stable 1.1.5 continua verificável e preservável sem ser selecionada para uma transcrição incompatível. A identidade confiável continua sendo versão **mais** tag/hash/receipt; número de versão sozinho não autoriza reaproveitar bytes de um RC diferente.
 
 Promoção 1.1.6 continua obedecendo C-13: os mesmos bytes gerados e validados em CI precisam passar aceite físico nos perfis `whisper-turbo` e `whisper-detailed` antes da troca para Stable. Até lá, o caminho de rollback/recuperação continua sendo a Stable aceita anterior; State/Data/Models não são removidos por troca de runtime.
 

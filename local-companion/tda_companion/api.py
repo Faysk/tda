@@ -69,6 +69,7 @@ from .profile_preparation import (
 from .publication_target import PublicationTargetError, bind_publication_target, repair_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
+from .runtime_compat import whisper_runtime_transcription_compatible
 from .qwen_runtime_maintenance import (
     QwenRuntimeMaintenanceError,
     QwenRuntimeMaintenanceManager,
@@ -1145,7 +1146,7 @@ def create_app(
                             "info",
                             "worker",
                             "WORKER_DISPATCH_PREPARING",
-                            "Validating sealed runtime receipt before worker launch",
+                            "Selected sealed runtime identity; preparing worker launch",
                             {
                                 "job_id": job_id,
                                 **(
@@ -1562,6 +1563,15 @@ def create_app(
                             if body["kind"] in {"transcription.craig", "benchmark.craig"}
                             else "FIXTURE_EXECUTION_FAILED"
                         )
+                        diagnostic = exc.diagnostic_data()
+                        if diagnostic:
+                            store.record_worker_event(
+                                job_id,
+                                attempt,
+                                "WORKER_PROCESS_DIAGNOSTIC",
+                                diagnostic,
+                                level="error",
+                            )
                         store.fail(
                             job_id,
                             attempt,
@@ -1573,7 +1583,11 @@ def create_app(
                             "worker",
                             "WORKER_PROCESS_FAILED",
                             "Worker process failed",
-                            {"job_id": job_id, "worker_code": exc.code},
+                            {
+                                "job_id": job_id,
+                                "worker_code": exc.code,
+                                **diagnostic,
+                            },
                         )
                         await reconcile_durable_run_after_failure(body)
                     except Conflict as exc:
@@ -2668,8 +2682,14 @@ def create_app(
                         resolved_runtime_root,
                         verify_worker=False,
                     )
+                    runtime_version = whisper.get("version")
                     if whisper.get("status") != "ready":
                         raise Conflict("WHISPER_RUNTIME_UNAVAILABLE")
+                    if (
+                        not isinstance(runtime_version, str)
+                        or not whisper_runtime_transcription_compatible(runtime_version)
+                    ):
+                        raise Conflict("WHISPER_RUNTIME_PROTOCOL_REQUIRED")
                     model = await asyncio.to_thread(
                         inspect_model_install,
                         resolved_models_root,

@@ -20,6 +20,7 @@ from .runtime_artifact import RUNTIME_ARTIFACT_ENV, runtime_artifact
 from .runtime_compat import (
     qwen_runtime_benchmark_compatible,
     whisper_runtime_benchmark_compatible,
+    whisper_runtime_transcription_compatible,
 )
 from .worker_protocol import (
     MAX_LINE_BYTES,
@@ -30,11 +31,134 @@ from .worker_protocol import (
 )
 
 
+_STDERR_TAIL_BYTES = 64 * 1024
+
+
+class _BoundedByteTail:
+    def __init__(self, limit: int = _STDERR_TAIL_BYTES):
+        self.limit = limit
+        self._data = bytearray()
+        self._total = 0
+        self._lock = threading.Lock()
+
+    def append(self, chunk: bytes) -> None:
+        if not chunk:
+            return
+        with self._lock:
+            self._total += len(chunk)
+            self._data.extend(chunk)
+            if len(self._data) > self.limit:
+                del self._data[:-self.limit]
+
+    def snapshot(self) -> tuple[bytes, bool]:
+        with self._lock:
+            return bytes(self._data), self._total > len(self._data)
+
+
+def _spawn_failure_class(exc: OSError) -> str:
+    if isinstance(exc, FileNotFoundError):
+        return "executable_missing"
+    if isinstance(exc, PermissionError):
+        return "access_denied"
+    return "spawn_error"
+
+
+def _pre_ready_failure_class(stderr_tail: bytes, returncode: int) -> str:
+    text = stderr_tail.decode("utf-8", errors="replace").casefold()
+    if "unrecognized arguments" in text or "usage:" in text:
+        return "command_rejected"
+    if "modulenotfounderror" in text:
+        return "python_module_missing"
+    if (
+        "dll load failed" in text
+        or ("could not load" in text and ".dll" in text)
+        or "the specified module could not be found" in text
+    ):
+        return "native_dependency"
+    if "failed to execute script" in text or "pyinstaller" in text:
+        return "pyinstaller_boot"
+    if "access is denied" in text or "permission denied" in text:
+        return "access_denied"
+    if returncode == 64:
+        return "command_rejected"
+    if returncode in {
+        0xC000007B,
+        0xC0000135,
+        0xC0000139,
+        -1073741701,
+        -1073741515,
+        -1073741511,
+    }:
+        return "windows_loader"
+    if returncode == 0:
+        return "exit_zero_before_handshake"
+    return "process_exit_nonzero"
+
+
+def _pre_ready_recoverable(failure_class: str) -> bool:
+    return failure_class not in {
+        "command_rejected",
+        "executable_missing",
+        "access_denied",
+        "native_dependency",
+        "python_module_missing",
+        "pyinstaller_boot",
+        "windows_loader",
+    }
+
+
 class WorkerProcessError(RuntimeError):
-    def __init__(self, code: str, *, recoverable: bool = True):
+    def __init__(
+        self,
+        code: str,
+        *,
+        recoverable: bool = True,
+        phase: str | None = None,
+        returncode: int | None = None,
+        failure_class: str | None = None,
+        stderr_truncated: bool = False,
+        runtime_version: str | None = None,
+        worker_sha256: str | None = None,
+        runtime_probe_status: str | None = None,
+    ):
         super().__init__(code)
         self.code = code
         self.recoverable = recoverable
+        self.phase = phase
+        self.returncode = returncode
+        self.failure_class = failure_class
+        self.stderr_truncated = stderr_truncated
+        self.runtime_version = runtime_version
+        self.worker_sha256 = worker_sha256
+        self.runtime_probe_status = runtime_probe_status
+
+    def bind_runtime_artifact(self, artifact: dict | None) -> None:
+        if not isinstance(artifact, dict):
+            return
+        version = artifact.get("version")
+        worker_sha256 = artifact.get("worker_sha256")
+        if self.runtime_version is None and isinstance(version, str):
+            self.runtime_version = version
+        if self.worker_sha256 is None and _is_sha256(worker_sha256):
+            self.worker_sha256 = worker_sha256
+
+    def diagnostic_data(self) -> dict[str, str | int | bool]:
+        data: dict[str, str | int | bool] = {}
+        if self.phase:
+            data["phase"] = self.phase
+        if self.returncode is not None:
+            data["returncode"] = self.returncode
+        if self.failure_class:
+            data["failure_class"] = self.failure_class
+        if self.runtime_version:
+            data["runtime_version"] = self.runtime_version
+        if self.worker_sha256:
+            data["worker_sha256"] = self.worker_sha256
+        if self.runtime_probe_status:
+            data["runtime_probe_status"] = self.runtime_probe_status
+        if data or self.stderr_truncated:
+            data["stderr_truncated"] = self.stderr_truncated
+        return data
 
 
 @dataclass(frozen=True)
@@ -171,15 +295,20 @@ class WorkerSupervisor:
         return subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
 
     @staticmethod
-    def _drain_stderr(stream) -> None:
+    def _capture_stderr(stream, capture: _BoundedByteTail) -> None:
         try:
-            while stream.read(8192):
-                pass
+            while True:
+                chunk = stream.read(8192)
+                if not chunk:
+                    break
+                if isinstance(chunk, str):
+                    chunk = chunk.encode("utf-8", errors="replace")
+                capture.append(bytes(chunk))
         except (OSError, ValueError):
             pass
 
     @staticmethod
-    def _stop_process(process: subprocess.Popen[str]) -> None:
+    def _stop_process(process: subprocess.Popen[bytes]) -> None:
         if process.poll() is not None:
             return
         try:
@@ -194,6 +323,41 @@ class WorkerSupervisor:
                 process.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 pass
+
+    def _probe_whisper_worker(
+        self,
+        worker: Path,
+        environment_overrides: dict[str, str] | None,
+    ) -> str:
+        """Run the packaged no-model probe after a pre-READY failure."""
+        try:
+            result = subprocess.run(
+                [str(worker), "--probe"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=20.0,
+                check=False,
+                creationflags=self._creationflags(),
+                env=self._environment(environment_overrides),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return "failed"
+        raw = bytes(result.stdout or b"")
+        if result.returncode != 0 or not raw or len(raw) > MAX_LINE_BYTES:
+            return "failed"
+        try:
+            lines = [line for line in raw.decode("utf-8", errors="strict").splitlines() if line.strip()]
+            value = json.loads(lines[-1]) if lines else None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return "failed"
+        return (
+            "passed"
+            if isinstance(value, dict)
+            and value.get("schema") == "tda_whisper_runtime_probe_v1"
+            and value.get("ready") is True
+            else "failed"
+        )
 
     def _environment(
         self,
@@ -219,23 +383,27 @@ class WorkerSupervisor:
         process_command: list[str] | None = None,
         environment_overrides: dict[str, str] | None = None,
     ) -> WorkerOutcome:
-        encoded_command = command.encode()
+        encoded_command = command.encode().encode("utf-8")
         executable_command = process_command or self.command_factory()
         if not executable_command or not all(isinstance(item, str) and item for item in executable_command):
             raise WorkerProcessError("WORKER_COMMAND_INVALID")
-        process = subprocess.Popen(
-            executable_command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="strict",
-            bufsize=1,
-            close_fds=True,
-            creationflags=self._creationflags(),
-            env=self._environment(environment_overrides),
-        )
+        try:
+            process = subprocess.Popen(
+                executable_command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=-1,
+                close_fds=True,
+                creationflags=self._creationflags(),
+                env=self._environment(environment_overrides),
+            )
+        except OSError as exc:
+            raise WorkerProcessError(
+                "WORKER_PROCESS_SPAWN_FAILED",
+                phase="spawn",
+                failure_class=_spawn_failure_class(exc),
+            ) from None
         assert process.stdin is not None
         assert process.stdout is not None
         assert process.stderr is not None
@@ -244,6 +412,7 @@ class WorkerSupervisor:
         stdout_decode_error = object()
         lines: queue.Queue[object] = queue.Queue()
         stdout_done = threading.Event()
+        stderr_tail = _BoundedByteTail()
 
         def read_stdout() -> None:
             try:
@@ -251,8 +420,13 @@ class WorkerSupervisor:
                     line = process.stdout.readline(MAX_LINE_BYTES + 1)
                     if not line:
                         break
-                    if len(line) > MAX_LINE_BYTES or not line.endswith("\n"):
+                    if len(line) > MAX_LINE_BYTES or not line.endswith(b"\n"):
                         lines.put(stdout_overflow)
+                        return
+                    try:
+                        line.decode("utf-8", errors="strict")
+                    except UnicodeDecodeError:
+                        lines.put(stdout_decode_error)
                         return
                     lines.put(line)
             except UnicodeError:
@@ -268,8 +442,8 @@ class WorkerSupervisor:
 
         reader = threading.Thread(target=read_stdout, name="tda-worker-stdout", daemon=True)
         stderr_reader = threading.Thread(
-            target=self._drain_stderr,
-            args=(process.stderr,),
+            target=self._capture_stderr,
+            args=(process.stderr, stderr_tail),
             name="tda-worker-stderr",
             daemon=True,
         )
@@ -287,8 +461,32 @@ class WorkerSupervisor:
         stage_started: float | None = None
 
         try:
-            process.stdin.write(encoded_command)
-            process.stdin.flush()
+            try:
+                process.stdin.write(encoded_command)
+                process.stdin.flush()
+            except (BrokenPipeError, OSError, ValueError):
+                try:
+                    returncode = process.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    returncode = process.poll()
+                stderr_reader.join(timeout=0.5)
+                stderr_snapshot, stderr_truncated = stderr_tail.snapshot()
+                if returncode is None:
+                    raise WorkerProcessError(
+                        "WORKER_STDIN_WRITE_FAILED",
+                        phase="pre_ready",
+                        failure_class="stdin_closed_before_handshake",
+                        stderr_truncated=stderr_truncated,
+                    ) from None
+                failure_class = _pre_ready_failure_class(stderr_snapshot, returncode)
+                raise WorkerProcessError(
+                    "WORKER_EXITED_BEFORE_READY",
+                    recoverable=_pre_ready_recoverable(failure_class),
+                    phase="pre_ready",
+                    returncode=returncode,
+                    failure_class=failure_class,
+                    stderr_truncated=stderr_truncated,
+                ) from None
 
             while terminal is None:
                 now = time.monotonic()
@@ -298,7 +496,7 @@ class WorkerSupervisor:
                             WorkerCancelCommand(
                                 job_id=command.job_id,
                                 attempt=command.attempt,
-                            ).encode()
+                            ).encode().encode("utf-8")
                         )
                         process.stdin.flush()
                     except (BrokenPipeError, OSError, ValueError):
@@ -310,7 +508,7 @@ class WorkerSupervisor:
                     cancel_deadline = now + self.cancel_grace
 
                 if not ready and not cancel_sent and now - started > self.startup_timeout:
-                    raise WorkerProcessError("WORKER_START_TIMEOUT")
+                    raise WorkerProcessError("WORKER_START_TIMEOUT", phase="pre_ready")
                 if cancel_deadline is not None and now > cancel_deadline:
                     # Cancellation is a user-requested terminal state, not a worker
                     # failure. Heavy native/CUDA code may not return to Python in
@@ -333,7 +531,7 @@ class WorkerSupervisor:
                     and stage_started is not None
                     and now - stage_started > self.runtime_bootstrap_timeout
                 ):
-                    raise WorkerProcessError("WORKER_RUNTIME_BOOTSTRAP_TIMEOUT")
+                    raise WorkerProcessError("WORKER_RUNTIME_BOOTSTRAP_TIMEOUT", phase="runtime_bootstrap")
                 if (
                     ready
                     and not cancel_sent
@@ -341,7 +539,7 @@ class WorkerSupervisor:
                     and stage_started is not None
                     and now - stage_started > self.model_load_timeout
                 ):
-                    raise WorkerProcessError("WORKER_MODEL_LOAD_TIMEOUT")
+                    raise WorkerProcessError("WORKER_MODEL_LOAD_TIMEOUT", phase="asr")
                 if (
                     ready
                     and not cancel_sent
@@ -374,10 +572,11 @@ class WorkerSupervisor:
                         "WORKER_STDOUT_ENCODING_INVALID",
                         recoverable=False,
                     )
-                if not isinstance(line, str):
+                if not isinstance(line, (str, bytes)):
                     raise WorkerProcessError(
                         "WORKER_PROTOCOL_INVALID",
                         recoverable=False,
+                        phase="protocol",
                     )
 
                 try:
@@ -391,12 +590,14 @@ class WorkerSupervisor:
                     raise WorkerProcessError(
                         str(exc),
                         recoverable=False,
+                        phase="protocol",
                     ) from None
                 expected_seq = 0 if previous_seq is None else previous_seq + 1
                 if message.seq != expected_seq:
                     raise WorkerProcessError(
                         "WORKER_SEQUENCE_GAP",
                         recoverable=False,
+                        phase="protocol",
                     )
                 previous_seq = message.seq
                 last_message = time.monotonic()
@@ -405,11 +606,13 @@ class WorkerSupervisor:
                     raise WorkerProcessError(
                         "WORKER_READY_REQUIRED",
                         recoverable=False,
+                        phase="protocol",
                     )
                 if message.type == "ready" and ready:
                     raise WorkerProcessError(
                         "WORKER_READY_REPLAY",
                         recoverable=False,
+                        phase="protocol",
                     )
                 if on_message is not None:
                     on_message(message)
@@ -459,8 +662,13 @@ class WorkerSupervisor:
                         payload=payload,
                         returncode=process.returncode if process.returncode is not None else -1,
                     )
-                raise WorkerProcessError("WORKER_EXIT_TIMEOUT") from None
+                raise WorkerProcessError(
+                    "WORKER_EXIT_TIMEOUT",
+                    phase="result_teardown" if terminal is not None else ("pre_ready" if not ready else "asr"),
+                ) from None
 
+            stderr_reader.join(timeout=0.5)
+            stderr_snapshot, stderr_truncated = stderr_tail.snapshot()
             if terminal is None:
                 if cancel_sent:
                     return WorkerOutcome(
@@ -468,9 +676,31 @@ class WorkerSupervisor:
                         payload={"stage": "worker_exit_after_cancel", "forced": False},
                         returncode=returncode,
                     )
-                raise WorkerProcessError("WORKER_EXITED_WITHOUT_RESULT")
+                if not ready:
+                    failure_class = _pre_ready_failure_class(stderr_snapshot, returncode)
+                    raise WorkerProcessError(
+                        "WORKER_EXITED_BEFORE_READY",
+                        recoverable=_pre_ready_recoverable(failure_class),
+                        phase="pre_ready",
+                        returncode=returncode,
+                        failure_class=failure_class,
+                        stderr_truncated=stderr_truncated,
+                    )
+                raise WorkerProcessError(
+                    "WORKER_EXITED_WITHOUT_RESULT",
+                    phase="runtime_bootstrap" if active_stage == "runtime_bootstrap" else "asr",
+                    returncode=returncode,
+                    failure_class="process_exit_nonzero" if returncode != 0 else "exit_zero_without_terminal",
+                    stderr_truncated=stderr_truncated,
+                )
             if terminal.type == "result" and returncode != 0:
-                raise WorkerProcessError("WORKER_NONZERO_EXIT")
+                raise WorkerProcessError(
+                    "WORKER_NONZERO_EXIT",
+                    phase="result_teardown",
+                    returncode=returncode,
+                    failure_class="process_exit_nonzero",
+                    stderr_truncated=stderr_truncated,
+                )
             return WorkerOutcome(terminal=terminal.type, payload=terminal.payload, returncode=returncode)
         except BaseException:
             self._stop_process(process)
@@ -577,13 +807,20 @@ class WorkerSupervisor:
             worker_value = state.get("worker")
             if state.get("status") != "ready" or not isinstance(worker_value, str):
                 raise WorkerProcessError("WHISPER_RUNTIME_UNAVAILABLE")
-            if benchmark_sample_seconds is not None:
-                runtime_version = state.get("version")
-                if (
-                    not isinstance(runtime_version, str)
-                    or not whisper_runtime_benchmark_compatible(runtime_version)
-                ):
-                    raise WorkerProcessError("WHISPER_BENCHMARK_RUNTIME_REQUIRED")
+            runtime_version = state.get("version")
+            if (
+                not isinstance(runtime_version, str)
+                or not whisper_runtime_transcription_compatible(runtime_version)
+            ):
+                raise WorkerProcessError(
+                    "WHISPER_RUNTIME_PROTOCOL_REQUIRED",
+                    recoverable=False,
+                )
+            if (
+                benchmark_sample_seconds is not None
+                and not whisper_runtime_benchmark_compatible(runtime_version)
+            ):
+                raise WorkerProcessError("WHISPER_BENCHMARK_RUNTIME_REQUIRED")
             worker = Path(worker_value)
             artifact = runtime_artifact(state, family="whisper", version=worker.parent.name)
             if artifact is None:
@@ -647,24 +884,46 @@ class WorkerSupervisor:
 
         # Preserve compatibility with tests/specialized supervisors that override
         # the historical _run_command signature. The message observer is opt-in.
-        if on_message is None:
+        try:
+            if on_message is None:
+                return self._run_command(
+                    worker_command,
+                    on_progress=on_progress,
+                    on_event=on_event,
+                    is_cancelled=is_cancelled,
+                    process_command=runtime_command,
+                    environment_overrides=runtime_environment,
+                )
             return self._run_command(
                 worker_command,
                 on_progress=on_progress,
                 on_event=on_event,
+                on_message=on_message,
                 is_cancelled=is_cancelled,
                 process_command=runtime_command,
                 environment_overrides=runtime_environment,
             )
-        return self._run_command(
-            worker_command,
-            on_progress=on_progress,
-            on_event=on_event,
-            on_message=on_message,
-            is_cancelled=is_cancelled,
-            process_command=runtime_command,
-            environment_overrides=runtime_environment,
-        )
+        except WorkerProcessError as exc:
+            exc.bind_runtime_artifact(runtime_artifact_identity)
+            if (
+                profile_id.startswith("whisper-")
+                and exc.phase == "pre_ready"
+                and runtime_command
+            ):
+                probe_status = self._probe_whisper_worker(
+                    Path(runtime_command[0]),
+                    runtime_environment,
+                )
+                exc.runtime_probe_status = probe_status
+                if probe_status == "failed":
+                    exc.recoverable = False
+                    if exc.failure_class in {
+                        None,
+                        "process_exit_nonzero",
+                        "exit_zero_before_handshake",
+                    }:
+                        exc.failure_class = "runtime_probe_failed"
+            raise
 
     def run_benchmark(
         self,

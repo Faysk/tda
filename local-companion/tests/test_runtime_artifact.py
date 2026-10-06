@@ -29,13 +29,13 @@ def test_malformed_or_mismatched_identity_is_not_persisted(patch):
 def test_whisper_dispatch_passes_identity_from_same_inspected_marker(tmp_path, monkeypatch):
     from tda_companion import asr_runtime
     from tda_companion.worker_supervisor import WorkerSupervisor, WorkerOutcome
-    from tda_companion.runtime_compat import MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    from tda_companion.runtime_compat import MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION
     archive = tmp_path / 'worker.zip'
     with zipfile.ZipFile(archive, 'w') as out:
         out.writestr('TDAWhisperWorker.exe', b'synthetic worker')
     archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
     runtime_root = tmp_path / 'Runtime'
-    marker = asr_runtime.install_whisper_runtime_archive(archive, runtime_root, version=MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION, expected_sha256=archive_sha)
+    marker = asr_runtime.install_whisper_runtime_archive(archive, runtime_root, version=MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION, expected_sha256=archive_sha)
     monkeypatch.setattr(asr_runtime, '_sha256_file', lambda *_: (_ for _ in ()).throw(AssertionError('dispatch must not rehash sealed worker')))
     supervisor = WorkerSupervisor(data_root=tmp_path/'Data', models_root=tmp_path/'Models', runtime_root=runtime_root)
     observed = {}

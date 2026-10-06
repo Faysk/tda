@@ -125,6 +125,236 @@ def test_worker_process_emits_real_progress_and_result():
     assert messages[-1].payload == {"kind": "synthetic.fixture", "units": 3}
 
 
+def test_supervisor_classifies_exit_racing_initial_stdin_write(tmp_path):
+    script = tmp_path / "close_before_command.py"
+    script.write_text(
+        """
+import os
+import sys
+
+sys.stdin.close()
+os._exit(64)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    with pytest.raises(
+        WorkerProcessError,
+        match="WORKER_EXITED_BEFORE_READY|WORKER_STDIN_WRITE_FAILED",
+    ) as failure:
+        supervisor.run_fixture(
+            job_id="stdin-race",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.phase == "pre_ready"
+    if failure.value.returncode is not None:
+        assert failure.value.returncode == 64
+        assert failure.value.failure_class == "command_rejected"
+
+
+def test_supervisor_classifies_nonzero_exit_before_ready_and_bounds_stderr(tmp_path):
+    script = tmp_path / "exit_before_ready.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerRunCommand
+
+WorkerRunCommand.decode(sys.stdin.buffer.readline())
+sys.stderr.buffer.write(b"x" * (80 * 1024))
+sys.stderr.buffer.flush()
+raise SystemExit(64)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    with pytest.raises(WorkerProcessError, match="WORKER_EXITED_BEFORE_READY") as failure:
+        supervisor.run_fixture(
+            job_id="exit-before-ready",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.phase == "pre_ready"
+    assert failure.value.returncode == 64
+    assert failure.value.failure_class == "command_rejected"
+    assert failure.value.stderr_truncated is True
+    assert failure.value.recoverable is False
+    assert "x" not in str(failure.value.diagnostic_data())
+
+
+def test_supervisor_handles_invalid_utf8_stderr_before_ready(tmp_path):
+    script = tmp_path / "invalid_utf8_stderr.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerRunCommand
+
+WorkerRunCommand.decode(sys.stdin.buffer.readline())
+sys.stderr.buffer.write(b"loader failure: \\xff\\xfe")
+sys.stderr.buffer.flush()
+raise SystemExit(70)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    with pytest.raises(WorkerProcessError, match="WORKER_EXITED_BEFORE_READY") as failure:
+        supervisor.run_fixture(
+            job_id="invalid-stderr",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.phase == "pre_ready"
+    assert failure.value.returncode == 70
+    assert failure.value.failure_class == "process_exit_nonzero"
+    assert failure.value.stderr_truncated is False
+
+
+def test_supervisor_classifies_zero_exit_before_ready(tmp_path):
+    script = tmp_path / "zero_before_ready.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerRunCommand
+
+WorkerRunCommand.decode(sys.stdin.buffer.readline())
+raise SystemExit(0)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    with pytest.raises(WorkerProcessError, match="WORKER_EXITED_BEFORE_READY") as failure:
+        supervisor.run_fixture(
+            job_id="zero-before-ready",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.returncode == 0
+    assert failure.value.failure_class == "exit_zero_before_handshake"
+
+
+def test_whisper_pre_ready_failure_reprobes_runtime_and_blocks_blind_retry(
+    monkeypatch,
+    tmp_path,
+):
+    artifact = {
+        "runtime_id": "whisper-ctranslate2",
+        "version": "1.1.10",
+        "worker_sha256": "a" * 64,
+        "archive_sha256": "b" * 64,
+    }
+    monkeypatch.setattr(
+        supervisor_module,
+        "inspect_whisper_runtime",
+        lambda *_args, **_kwargs: {
+            "status": "ready",
+            "version": "1.1.10",
+            "worker": str(tmp_path / "Runtime" / "whisper" / "1.1.10" / "TDAWhisperWorker.exe"),
+            **artifact,
+        },
+    )
+    monkeypatch.setattr(
+        supervisor_module,
+        "runtime_artifact",
+        lambda *_args, **_kwargs: artifact,
+    )
+    supervisor = WorkerSupervisor(
+        data_root=tmp_path / "Data",
+        models_root=tmp_path / "Models",
+        runtime_root=tmp_path / "Runtime",
+    )
+
+    def fail_before_ready(*_args, **_kwargs):
+        raise WorkerProcessError(
+            "WORKER_EXITED_BEFORE_READY",
+            phase="pre_ready",
+            returncode=70,
+            failure_class="process_exit_nonzero",
+        )
+
+    monkeypatch.setattr(supervisor, "_run_command", fail_before_ready)
+    monkeypatch.setattr(
+        supervisor,
+        "_probe_whisper_worker",
+        lambda *_args, **_kwargs: "failed",
+    )
+
+    with pytest.raises(WorkerProcessError, match="WORKER_EXITED_BEFORE_READY") as failure:
+        supervisor.run_craig(
+            job_id="probe-after-crash",
+            attempt=1,
+            source_id="source-123",
+            profile_id="whisper-detailed",
+            glossary="",
+            context="",
+            cpu=False,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.runtime_probe_status == "failed"
+    assert failure.value.failure_class == "runtime_probe_failed"
+    assert failure.value.recoverable is False
+    assert failure.value.runtime_version == "1.1.10"
+    assert failure.value.worker_sha256 == "a" * 64
+
+
+def test_lightweight_whisper_probe_accepts_only_bounded_ready_receipt(monkeypatch, tmp_path):
+    supervisor = WorkerSupervisor()
+    observed = {}
+
+    def runner(command, **kwargs):
+        observed["command"] = command
+        observed.update(kwargs)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=b'{"schema":"tda_whisper_runtime_probe_v1","ready":true}\n',
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(supervisor_module.subprocess, "run", runner)
+    status = supervisor._probe_whisper_worker(
+        tmp_path / "TDAWhisperWorker.exe",
+        None,
+    )
+
+    assert status == "passed"
+    assert observed["command"][-1] == "--probe"
+    assert observed["stdin"] is subprocess.DEVNULL
+    assert observed["stderr"] is subprocess.DEVNULL
+
+
 def test_supervisor_rejects_terminal_before_ready(tmp_path):
     script = tmp_path / "result_without_ready.py"
     script.write_text(

@@ -73,7 +73,10 @@ export function presentJobError(code: string): string {
 		BENCHMARK_PROFILES_NOT_READY: "Os quatro perfis precisam estar preparados antes do benchmark.",
 		BENCHMARK_RESOURCE_BUSY: "Há outro processamento local usando os recursos necessários para o benchmark.",
 		WORKER_COMMAND_INVALID: "O Companion não conseguiu iniciar o worker com um comando local válido.",
-		WORKER_EXITED_WITHOUT_RESULT: "O worker local encerrou sem informar resultado, cancelamento ou erro.",
+		WORKER_PROCESS_SPAWN_FAILED: "O Companion não conseguiu iniciar o processo do runtime local. Verifique ou repare o runtime antes de tentar novamente.",
+		WORKER_STDIN_WRITE_FAILED: "O processo do runtime fechou o canal local antes de aceitar o comando. Verifique ou repare o runtime antes de tentar novamente.",
+		WORKER_EXITED_BEFORE_READY: "O processo do runtime encerrou antes do handshake com o Companion. Abra Diagnóstico para conferir versão, exit code e classe sanitizada da falha; verifique ou atualize o runtime antes de repetir.",
+		WORKER_EXITED_WITHOUT_RESULT: "O worker local encerrou depois do handshake sem informar resultado, cancelamento ou erro.",
 		WORKER_EXIT_TIMEOUT: "O processo do worker não encerrou corretamente dentro do limite esperado.",
 		WORKER_NONZERO_EXIT: "O worker informou o resultado, mas o processo encerrou de forma anormal; o TDA verificará se existe um run íntegro para recuperar.",
 		WORKER_PROTOCOL_INVALID: "O worker local enviou uma mensagem inválida para o Companion.",
@@ -84,6 +87,7 @@ export function presentJobError(code: string): string {
 		WORKER_SEQUENCE_GAP: "O worker local perdeu uma mensagem na sequência; a execução foi interrompida para proteger o estado.",
 		WORKER_ASR_ROOTS_UNCONFIGURED: "O worker local não recebeu os diretórios seguros de dados e modelos.",
 		WHISPER_RUNTIME_UNAVAILABLE: "O runtime Whisper local não está disponível ou não passou pela verificação.",
+		WHISPER_RUNTIME_PROTOCOL_REQUIRED: "O runtime Whisper instalado é antigo demais para o protocolo de transcrição atual. Atualize ou prepare o runtime antes de processar novamente.",
 		WHISPER_RUNTIME_UNCONFIGURED: "O runtime Whisper ainda não está configurado neste Companion.",
 		QWEN_RUNTIME_UNAVAILABLE: "O runtime Qwen local não está disponível ou não passou pela verificação.",
 		QWEN_RUNTIME_UNCONFIGURED: "O runtime Qwen ainda não está configurado neste Companion.",
@@ -409,9 +413,32 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 			};
 		case "WORKER_DISPATCH_PREPARING":
 			return {
-				title: "Runtime local validado; preparando o worker.",
-				detail: "O gate físico selado foi conferido sem reler gigabytes do modelo.",
+				title: "Runtime local selecionado; preparando o worker.",
+				detail: "A identidade selada foi conferida; o handshake do processo ainda será validado.",
 			};
+		case "WORKER_PROCESS_DIAGNOSTIC": {
+			const phase = textData(event, "phase");
+			const failureClass = textData(event, "failure_class");
+			const returncode = numberData(event, "returncode");
+			const runtimeVersion = textData(event, "runtime_version");
+			const probeStatus = textData(event, "runtime_probe_status");
+			const parts = [
+				runtimeVersion ? `runtime ${runtimeVersion}` : null,
+				returncode !== null ? `exit code ${returncode}` : null,
+				failureClass ? `classe ${failureClass}` : null,
+				probeStatus ? `probe ${probeStatus}` : null,
+			].filter((value): value is string => Boolean(value));
+			return {
+				title:
+					phase === "pre_ready"
+						? "O processo do runtime encerrou antes do handshake."
+						: "O worker registrou uma falha de processo.",
+				detail:
+					parts.length > 0
+						? `${parts.join(" · ")}. Nenhum stderr bruto ou caminho local é exposto.`
+						: "O diagnóstico preserva apenas metadados sanitizados da falha.",
+			};
+		}
 		case "MODEL_LOADING":
 			return {
 				title: "Carregando modelo de transcrição na GPU.",

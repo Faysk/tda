@@ -129,7 +129,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Diretório e gestão de campanhas](../features/campaign-directory.md) | campaigns / public navigation / Edit | registry first-class ativo; diretório público em operação | 2026-10-03 |
 | [Diários dos personagens](../features/character-diaries.md) | narrativa / frontend | implementado em branch local; publicação pendente | 2026-09-18 |
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
-| [TDA Companion v0.3 — Desktop, Agent e ASR](../features/companion-desktop-asr-v0.3.md) | local-companion / processing | arquitetura v0.3 implementada; contrato corrente da linha 0.3.20 com histórico de estabilização preservado | 2026-10-06 |
+| [TDA Companion v0.3 — Desktop, Agent e ASR](../features/companion-desktop-asr-v0.3.md) | local-companion / processing | arquitetura v0.3 implementada; contrato corrente da linha 0.3.21 com histórico de estabilização preservado | 2026-10-06 |
 | [Feature — Assistente Discord](../features/discord-assistant.md) | integrations/discord + narrative query | histórico/planejado | 2026-09-06 |
 | [Edit — administração de permissões](../features/edit-permissions.md) | identity/access + Edit | console governada de atribuição/revogação de funções | 2026-09-28 |
 | [Edit — slice server-side de transcrição](../features/edit-transcript-server-slice.md) | Edit / aplicação + dados | leitura contínua e correção privada por revisions imutáveis implementadas; boundary legado por segmento preservado para compatibilidade | 2026-09-28 |

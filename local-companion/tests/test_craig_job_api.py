@@ -14,7 +14,7 @@ from tda_companion.asr_models import get_profile, model_path, write_install_mark
 from tda_companion.asr_runtime import install_whisper_runtime_archive
 from tda_companion.craig import CraigPackage, ingest_craig_zip
 from tda_companion.craig_runtime import load_craig_package
-from tda_companion.runtime_compat import MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+from tda_companion.runtime_compat import MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION
 from tda_companion.store import Conflict, Store
 from tda_companion.transcript import (
     TranscriptDocument,
@@ -94,7 +94,7 @@ def _prepare_whisper(tmp_path: Path, profile_id: str = "whisper-turbo") -> None:
     install_whisper_runtime_archive(
         archive,
         tmp_path / "Runtime",
-        version=MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+        version=MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION,
         expected_sha256=digest,
     )
 

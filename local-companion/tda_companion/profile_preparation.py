@@ -35,7 +35,7 @@ from .runtime_compat import (
     qwen_runtime_benchmark_compatible,
     qwen_runtime_version_compatible,
     whisper_runtime_benchmark_compatible,
-    whisper_runtime_version_compatible,
+    whisper_runtime_transcription_compatible,
 )
 from .runtime_rc_updates import install_published_runtime_rc
 from .system_log import SystemLog
@@ -113,7 +113,7 @@ def _runtime_ready(state: dict, family: str) -> bool:
     if state.get("status") != "ready" or not isinstance(version, str):
         return False
     return (
-        whisper_runtime_version_compatible(version)
+        whisper_runtime_transcription_compatible(version)
         if family == "whisper"
         else qwen_runtime_version_compatible(version)
     )
@@ -167,8 +167,13 @@ def profile_catalog(
             worker_sha = whisper_state.get("worker_sha256")
             if isinstance(worker_sha, str) and re.fullmatch(r"[0-9a-f]{64}", worker_sha):
                 runtime_worker_sha256 = worker_sha
-            if not _runtime_ready(whisper_state, "whisper"):
+            if whisper_state.get("status") != "ready":
                 reason = "WHISPER_RUNTIME_REQUIRED"
+            elif (
+                runtime_version is None
+                or not whisper_runtime_transcription_compatible(runtime_version)
+            ):
+                reason = "WHISPER_RUNTIME_PROTOCOL_REQUIRED"
             else:
                 model = inspect_model_install(models_root, profile, verify_hash=False)
                 ready = whisper_model_ready(model)
@@ -290,7 +295,7 @@ def _install_whisper_runtime(
         manifest_compatible = (
             whisper_runtime_benchmark_compatible(manifest.version)
             if require_benchmark_compatibility
-            else whisper_runtime_version_compatible(manifest.version)
+            else whisper_runtime_transcription_compatible(manifest.version)
         )
         if (
             manifest_compatible

@@ -78,26 +78,26 @@ A exceção só pode ser removida quando uma versão posterior do Faster-Whisper
 
 A prontidão do Whisper possui dois níveis explícitos:
 
-- **transcrição normal:** mantém mínimo `1.1.4`; o runtime imutável `1.1.5` continua válido para jobs normais que já funcionavam;
+- **compatibilidade do artefato/rollback:** mantém mínimo Whisper `1.1.4`, para que releases históricas permaneçam verificáveis e selecionáveis por manutenção explícita quando aplicável; **dispatch de transcrição Craig atual:** exige Whisper **`>=1.1.10`**. O payload corrente pode incluir `track_policy_version` e `checkpoints`; o worker Stable 1.1.5 não conhece esses campos e pode encerrar com EX_USAGE antes de `READY`. O artefato 1.1.5 permanece imutável como evidência histórica, mas não é elegível para o protocolo atual;
 - **benchmark de execução/métricas de #1233:** o piso histórico do Whisper é **`>=1.1.7`**. O `1.1.6` foi consumido pela correção de decoder #1234 e teve RC publicado antes do smoke da #1233;
-- **benchmark atual com evidência textual de #1413:** exige worker congelado capaz de persistir o bundle imutável, portanto `benchmark_ready` exige **Whisper `>=1.1.10`** e **Qwen `>=1.0.18`**. Os mínimos de transcrição normal permanecem independentes.
+- **benchmark atual com evidência textual de #1413:** exige worker congelado capaz de persistir o bundle imutável, portanto `benchmark_ready` exige **Whisper `>=1.1.10`** e **Qwen `>=1.0.18`**. Whisper normal e benchmark coincidem em 1.1.10 por motivos diferentes: o primeiro por compatibilidade de protocolo; o segundo pelo contrato de evidência do benchmark.
 
 A versão `1.1.5` nunca deve ser reconstruída, sobrescrita ou republicada com bytes novos. O reparo é sempre uma nova versão imutável.
 
 Como `benchmark_bundles.py` e, na integração de #1414, `benchmark_diagnostics.py` são importados pelo worker empacotado, alterar qualquer um desses contratos muda bytes do runtime. Os manifests 1.1.10/1.0.18 e as fences RC/Stable incluem essa closure na decisão de build; runtimes anteriores não podem ser reclassificados como evidence-capable apenas por atualização do Agent. O Companion `0.3.18` anuncia `processing.benchmark.runtime-readiness-v2` e separa `ready` de `benchmark_ready`; consumidores antigos ou respostas sem esse contrato devem falhar fechados para benchmark, sem bloquear transcrição normal.
 
-A preparação iniciada pelo Benchmark usa `purpose=benchmark`. Ela pode reutilizar modelos/cache já íntegros, mas só considera o runtime pronto quando a versão ativa satisfaz o contrato de benchmark. Se a Stable instalada ainda atender apenas à transcrição normal, o fluxo pode instalar um RC evidence-capable `>=1.1.10` publicado e verificado; isso não autoriza promovê-lo a Stable.
+A preparação iniciada pelo Benchmark usa `purpose=benchmark`. Ela pode reutilizar modelos/cache já íntegros, mas só considera o runtime pronto quando a versão ativa satisfaz o contrato de benchmark. Para transcrição normal, o catálogo aplica separadamente a fence de protocolo Craig. Se a Stable instalada não satisfizer a finalidade solicitada, o fluxo pode instalar um RC `>=1.1.10` publicado e verificado; isso não autoriza promovê-lo a Stable.
 
 O build do Whisper executa dois smokes no worker empacotado:
 
 1. bootstrap sintético já existente;
 2. comando real de protocolo `transcription.craig` com `benchmark_mode=true` e `benchmark_sample_seconds=300`, contra uma fonte sintética ausente.
 
-O segundo smoke deve alcançar `ready` e um erro de fonte controlado. `exit 64` antes de `ready` reprova o artefato e impede repetir a regressão de `1.1.5`. Nenhum áudio privado, modelo pesado ou transcrição é necessário para esse gate de empacotamento.
+O segundo smoke deve alcançar `ready` e um erro de fonte controlado. `exit 64` antes de `ready` reprova o artefato e impede repetir a regressão de `1.1.5`. O Companion também trata 1.1.5 como incompatível antes do spawn no contrato atual. Nenhum áudio privado, modelo pesado ou transcrição é necessário para esse gate de empacotamento.
 
 ### Migração e rollback
 
-A migração preserva `State`, `Data`, `Models` e caches; somente o runtime Whisper recebe uma nova identidade/version directory. O usuário pode continuar transcrevendo com um runtime ainda compatível para jobs normais enquanto o benchmark estiver bloqueado e preparar `1.1.10` quando quiser executar o benchmark atual.
+A migração preserva `State`, `Data`, `Models` e caches; somente o runtime Whisper recebe uma nova identidade/version directory. Com o contrato Craig atual, 1.1.5 não deve continuar sendo usado para jobs normais: o usuário precisa preparar um runtime Whisper `>=1.1.10` antes de voltar a transcrever. A promoção a Stable continua condicionada ao aceite físico dos bytes exatos do candidato.
 
 Antes de promover `1.1.10` a Stable, o **archive/hash/source exatos** do RC precisam de aceite físico no Windows/GPU suportado e o benchmark real de 5 minutos deve completar os quatro perfis com lineage do runtime e GPU. CI e smoke sintético não substituem essa prova.
 
@@ -106,9 +106,9 @@ Rollback nunca reutiliza números de runtime: se `1.1.10` falhar no aceite, não
 
 Toda exceção precisa ser explícita e ter justificativa técnica ou legal. Exceções de dependência runtime devem ser machine-readable no manifest correspondente, vinculadas à versão pinada e rejeitadas automaticamente quando o pin divergir.
 
-### Python/uv preservados durante os controles 0.3.17–0.3.20
+### Python/uv preservados durante os controles 0.3.17–0.3.21
 
-As releases de controle **Companion 0.3.17–0.3.20** mantêm temporariamente Python `3.12.14` e `uv 0.12.18` embora existam patches estáveis mais novos. O motivo é reproduzibilidade: #1210 preserva a base aceita durante a recuperação do Qwen e #1233 muda o contrato/empacotamento do benchmark Whisper sem aproveitar a entrega para trocar silenciosamente o baseline Python/uv. Qualquer rebuild de runtime continua recebendo identidade e versão próprias.
+As releases de controle **Companion 0.3.17–0.3.21** mantêm temporariamente Python `3.12.14` e `uv 0.12.18` embora existam patches estáveis mais novos. O motivo é reproduzibilidade: #1210 preserva a base aceita durante a recuperação do Qwen e #1233 muda o contrato/empacotamento do benchmark Whisper sem aproveitar a entrega para trocar silenciosamente o baseline Python/uv. Qualquer rebuild de runtime continua recebendo identidade e versão próprias.
 
 A exceção do **Python** é machine-readable em `local-companion/dependency-freshness-exceptions.json`, separada dos manifests de build ASR para que uma decisão de controle/release não altere um input do pacote Qwen 1.0.12 já aceito fisicamente. A exceção de **uv** já existente continua no manifest Qwen e permanece vinculada exatamente ao pin usado pelos workflows de runtime. Trocar qualquer pin invalida automaticamente a exceção correspondente. A remoção exige uma entrega própria, com runtime versionado novo quando os bytes mudarem, build/packaging completo e gate físico aplicável.
 

@@ -12,7 +12,7 @@ from tda_companion.api import create_app
 from tda_companion.asr_models import MODEL_MARKER, get_profile, model_path, write_install_marker
 from tda_companion.asr_runtime import install_whisper_runtime_archive
 from tda_companion.craig import ingest_craig_zip
-from tda_companion.runtime_compat import MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+from tda_companion.runtime_compat import MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION
 
 
 TOKEN = "t" * 43
@@ -65,7 +65,7 @@ def _install_whisper_runtime(tmp_path: Path) -> None:
     install_whisper_runtime_archive(
         archive,
         tmp_path / "Runtime",
-        version=MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+        version=MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION,
         expected_sha256=digest,
     )
 

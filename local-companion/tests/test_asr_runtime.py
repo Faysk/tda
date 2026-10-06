@@ -17,7 +17,10 @@ from tda_companion.asr_runtime import (
     install_whisper_runtime_archive,
     recover_interrupted_whisper_runtime_install,
 )
-from tda_companion.runtime_compat import MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+from tda_companion.runtime_compat import (
+    MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+    whisper_runtime_transcription_compatible,
+)
 
 
 def _runtime_zip(path: Path, *, member: str = "TDAWhisperWorker.exe", payload: bytes = b"worker") -> str:
@@ -214,6 +217,26 @@ def test_repair_never_replaces_a_healthy_runtime(tmp_path: Path):
             expected_sha256=digest,
             replace_corrupt=True,
         )
+
+
+def test_whisper_1_1_5_bytes_remain_valid_but_current_protocol_rejects_dispatch(tmp_path: Path):
+    archive = tmp_path / "runtime-1.1.5.zip"
+    digest = _runtime_zip(archive)
+    runtime_root = tmp_path / "Runtime"
+    install_whisper_runtime_archive(
+        archive,
+        runtime_root,
+        version="1.1.5",
+        expected_sha256=digest,
+    )
+
+    state = inspect_whisper_runtime(runtime_root, verify_worker=True)
+
+    assert state["status"] == "ready"
+    assert state["version"] == "1.1.5"
+    assert current_whisper_worker(runtime_root) is not None
+    assert whisper_runtime_transcription_compatible("1.1.5") is False
+    assert whisper_runtime_transcription_compatible("1.1.10") is True
 
 
 def test_pre_runs_whisper_runtime_is_valid_but_incompatible(tmp_path: Path):
