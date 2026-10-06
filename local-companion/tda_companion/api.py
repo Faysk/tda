@@ -69,6 +69,7 @@ from .profile_preparation import (
 from .publication_target import PublicationTargetError, bind_publication_target, repair_publication_target
 from .qwen_physical_gate import inspect_qwen_physical_gate
 from .qwen_runtime import recover_interrupted_qwen_runtime_install
+from .runtime_compat import whisper_runtime_transcription_compatible
 from .qwen_runtime_maintenance import (
     QwenRuntimeMaintenanceError,
     QwenRuntimeMaintenanceManager,
@@ -2681,8 +2682,14 @@ def create_app(
                         resolved_runtime_root,
                         verify_worker=False,
                     )
+                    runtime_version = whisper.get("version")
                     if whisper.get("status") != "ready":
                         raise Conflict("WHISPER_RUNTIME_UNAVAILABLE")
+                    if (
+                        not isinstance(runtime_version, str)
+                        or not whisper_runtime_transcription_compatible(runtime_version)
+                    ):
+                        raise Conflict("WHISPER_RUNTIME_PROTOCOL_REQUIRED")
                     model = await asyncio.to_thread(
                         inspect_model_install,
                         resolved_models_root,
