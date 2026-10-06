@@ -3,7 +3,7 @@
   "exceptions": {
     "python": {
       "version": "3.12.14",
-      "reason": "Keep the physically accepted Python 3.12.14 Companion/ASR baseline while Companion 0.3.19 preserves the accepted Python baseline across the Qwen recovery and Whisper benchmark-contract control planes; validate Python 3.12.15 in a separately versioned runtime rebuild so accepted runtime identities are not silently mutated."
+      "reason": "Keep the physically accepted Python 3.12.14 Companion/ASR baseline while Companion 0.3.20 preserves the accepted Python baseline across the Qwen recovery and Whisper benchmark-contract control planes; validate Python 3.12.15 in a separately versioned runtime rebuild so accepted runtime identities are not silently mutated."
     }
   }
 }
