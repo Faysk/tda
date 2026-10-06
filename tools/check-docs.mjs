@@ -155,9 +155,21 @@ requireText(
 );
 requireText(
 	"docs/documentation/README.md",
-	"## Quatro zonas semânticas em documentos vivos",
+	"## Taxonomia obrigatória dentro de documentos vivos",
 	"documentation governance must separate current, legacy, history and future",
 );
+for (const category of [
+	"**Current behavior**",
+	"**Legacy compatibility**",
+	"**Historical implementation notes**",
+	"**Future backlog / unresolved decisions**",
+]) {
+	requireText(
+		"docs/documentation/README.md",
+		category,
+		"documentation governance taxonomy must keep all four semantic categories",
+	);
+}
 
 if (
 	JSON.parse(fs.readFileSync("vercel.json", "utf8")).git.deploymentEnabled !==
