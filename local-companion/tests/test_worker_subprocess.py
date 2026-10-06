@@ -125,6 +125,42 @@ def test_worker_process_emits_real_progress_and_result():
     assert messages[-1].payload == {"kind": "synthetic.fixture", "units": 3}
 
 
+def test_supervisor_classifies_exit_racing_initial_stdin_write(tmp_path):
+    script = tmp_path / "close_before_command.py"
+    script.write_text(
+        """
+import os
+import sys
+
+sys.stdin.close()
+os._exit(64)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    with pytest.raises(
+        WorkerProcessError,
+        match="WORKER_EXITED_BEFORE_READY|WORKER_STDIN_WRITE_FAILED",
+    ) as failure:
+        supervisor.run_fixture(
+            job_id="stdin-race",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.phase == "pre_ready"
+    if failure.value.returncode is not None:
+        assert failure.value.returncode == 64
+        assert failure.value.failure_class == "command_rejected"
+
+
 def test_supervisor_classifies_nonzero_exit_before_ready_and_bounds_stderr(tmp_path):
     script = tmp_path / "exit_before_ready.py"
     script.write_text(
