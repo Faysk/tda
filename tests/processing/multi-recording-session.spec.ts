@@ -571,7 +571,7 @@ async function installMultiRecordingRoutes(
 			const deletedJobIds = [...jobsBySource.values()].map((job) => job.id);
 			const deletedSourceIds = [...attached];
 			freshStartExcludedJobIds = deletedJobIds;
-			freshStartAt = "2026-10-06T00:00:00.000Z";
+			freshStartAt = "2026-10-05T00:00:00.000Z";
 			selected.clear();
 			jobsBySource.clear();
 			acceptedKeys.clear();
