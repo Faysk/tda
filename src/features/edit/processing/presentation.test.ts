@@ -129,12 +129,13 @@ describe("processing presentation", () => {
 					returncode: 64,
 					failure_class: "command_rejected",
 					runtime_version: "1.1.5",
+					runtime_probe_status: "passed",
 				},
 			}),
 		).toEqual({
 			title: "O processo do runtime encerrou antes do handshake.",
 			detail:
-				"runtime 1.1.5 · exit code 64 · classe command_rejected. Nenhum stderr bruto ou caminho local é exposto.",
+				"runtime 1.1.5 · exit code 64 · classe command_rejected · probe passed. Nenhum stderr bruto ou caminho local é exposto.",
 		});
 		expect(
 			presentJobEvent({
