@@ -17,7 +17,10 @@ from tda_companion.asr_runtime import (
     install_whisper_runtime_archive,
     recover_interrupted_whisper_runtime_install,
 )
-from tda_companion.runtime_compat import MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+from tda_companion.runtime_compat import (
+    MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+    whisper_runtime_transcription_compatible,
+)
 
 
 def _runtime_zip(path: Path, *, member: str = "TDAWhisperWorker.exe", payload: bytes = b"worker") -> str:
