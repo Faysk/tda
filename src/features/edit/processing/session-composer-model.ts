@@ -72,7 +72,7 @@ export function workspaceJobGenerationEligible(
 	)
 		return false;
 	return (
-		!workspace.freshStartExcludedJobIds.includes(job.id) &&
+		!(workspace.freshStartExcludedJobIds ?? []).includes(job.id) &&
 		workspaceGenerationEligible(workspace, job.updated_at)
 	);
 }
