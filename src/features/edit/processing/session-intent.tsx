@@ -7,8 +7,8 @@ import type { LocalBridge } from "./bridge";
 import {
 	latestJobForSource,
 	sessionAssemblyReadiness,
-	workspaceGenerationEligible,
 	workspaceJobGenerationEligible,
+	workspaceRunGenerationEligible,
 } from "./session-composer-model";
 import type { SessionAssembly } from "./session-composer-protocol";
 import {
@@ -314,7 +314,7 @@ export function SessionIntentCoordinator({
 						[
 							part.sourceId,
 							(await bridge.localRuns(part.sourceId, signal)).filter((run) =>
-								workspaceGenerationEligible(next, run.completedAt),
+								workspaceRunGenerationEligible(next, run),
 							),
 						] as const,
 				),
