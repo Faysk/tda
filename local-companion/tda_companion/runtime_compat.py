@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import re
 
-# 1.1.10 is the first Whisper runtime whose worker protocol understands the
-# current Craig track-policy/checkpoint payload emitted by the Companion.
-# Older Stable 1.1.5 workers can exit with EX_USAGE before READY when they see
-# track_policy_version, which previously collapsed to WORKER_EXITED_WITHOUT_RESULT.
-MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION = "1.1.10"
+MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION = "1.1.4"
+# Runtime-format compatibility is broader than the current Craig dispatch
+# protocol. 1.1.10 is the first Whisper worker that understands the current
+# track-policy/checkpoint payload emitted by the Companion.
+MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION = "1.1.10"
 MIN_BENCHMARK_WHISPER_RUNTIME_VERSION = "1.1.10"
 MIN_BENCHMARK_QWEN_RUNTIME_VERSION = "1.0.18"
 MIN_COMPATIBLE_QWEN_RUNTIME_VERSION = "1.0.12"
@@ -29,6 +29,10 @@ def runtime_version_compatible(value: str, minimum: str) -> bool:
 
 def whisper_runtime_version_compatible(value: str) -> bool:
     return runtime_version_compatible(value, MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION)
+
+
+def whisper_runtime_transcription_compatible(value: str) -> bool:
+    return runtime_version_compatible(value, MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION)
 
 
 def whisper_runtime_benchmark_compatible(value: str) -> bool:
