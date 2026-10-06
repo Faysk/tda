@@ -13,7 +13,7 @@ from tda_companion.profile_preparation import (
 )
 from tda_companion.runtime_compat import (
     MIN_COMPATIBLE_QWEN_RUNTIME_VERSION,
-    MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+    MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION,
 )
 
 
@@ -280,12 +280,12 @@ def test_pending_bits_download_reconnects_instead_of_falling_back_to_rc(
             if calls["inspect"] == 1
             else {
                 "status": "ready",
-                "version": MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+                "version": MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION,
             }
         )
 
     class Manifest:
-        version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+        version = MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION
         sha256 = "a" * 64
 
     def download(*_args, **_kwargs):
@@ -360,12 +360,12 @@ def test_whisper_cancellation_arriving_during_stable_install_is_not_reported_rea
             if calls["inspect"] == 1
             else {
                 "status": "ready",
-                "version": MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+                "version": MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION,
             }
         )
 
     class Manifest:
-        version = MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+        version = MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION
         sha256 = "a" * 64
 
     def install(*_args, **_kwargs):
@@ -432,7 +432,7 @@ def test_whisper_skips_incompatible_stable_and_uses_rc(tmp_path: Path, monkeypat
         calls["inspect"] += 1
         if calls["inspect"] < 3:
             return {"status": "missing", "version": None}
-        return {"status": "ready", "version": MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION}
+        return {"status": "ready", "version": MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION}
 
     class Manifest:
         version = "0.0.0"
@@ -451,7 +451,7 @@ def test_whisper_skips_incompatible_stable_and_uses_rc(tmp_path: Path, monkeypat
     def rc(*_args, **_kwargs):
         calls["rc"] += 1
         return {
-            "version": MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION,
+            "version": MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION,
             "channel": "rc",
         }
 
@@ -464,7 +464,7 @@ def test_whisper_skips_incompatible_stable_and_uses_rc(tmp_path: Path, monkeypat
 
     assert calls["stable_download"] == 0
     assert calls["rc"] == 1
-    assert result["version"] == MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION
+    assert result["version"] == MIN_TRANSCRIPTION_WHISPER_RUNTIME_VERSION
 
 
 def test_qwen_skips_incompatible_stable_and_uses_rc(tmp_path: Path, monkeypatch):
