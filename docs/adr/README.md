@@ -36,6 +36,8 @@ ADRs registram **por que** decisões estruturais foram tomadas. Eles não substi
 | [0018](0018-portable-core-github-control-plane.md) | accepted | core portátil, GitHub como control plane e providers externos substituíveis |
 | [0019](0019-multi-recording-session-assembly.md) | accepted | uma sessão pode compor múltiplas sources/runs por Session Assembly imutável pós-ASR |
 | [0020](0020-first-class-campaigns.md) | accepted | campaigns são first-class; UUID é autoridade relacional, slug técnico é compatibilidade e rotas campaign-scoped usam identidade pública separada |
+| [0021](0021-local-run-delete-tombstone.md) | accepted | delete local confirmado usa tombstone + cleanup crash-safe; não existe Trash restaurável de 7 dias no contrato atual |
+| [0022](0022-conservative-overlap-resolution.md) | accepted | overlap confiável usa preservação automática conservadora; boundary manual é fallback |
 
 ## Quando criar ADR
 

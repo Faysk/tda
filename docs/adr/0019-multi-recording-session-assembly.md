@@ -4,9 +4,9 @@
 > Data: 2026-09-27
 > Decisores: proprietário / maintainers TDA
 > Supersede: —
-> Superseded por: —
-> Última revisão: 2026-10-05
-> Emenda: #1508/#1513/PR #1527 — overlap factual confiável usa policy conservadora automática
+> Superseded por: ADR-0022 somente para a decisão boundary-first de overlap
+> Última revisão: 2026-10-06
+> Decisão vigente: ADR-0022 — overlap factual confiável usa policy conservadora automática
 
 ## Contexto
 
@@ -111,6 +111,8 @@ Não compactar a timeline para esconder períodos sem gravação.
 
 ### Overlap usa preservação conservadora, sem fuzzy dedupe
 
+A semântica vigente desta decisão está formalizada em ADR-0022.
+
 Overlap factual com geometria confiável usa `preserve_both_exact_v1`: ambas as capturas permanecem disponíveis por default. A Assembly só colapsa duplicata quando há identidade forte, texto normalizado idêntico e timing trusted compatível, preservando provenance das duas origens.
 
 Qualquer diferença de texto, identidade fraca/local ou timing incerto preserva ambas as falas. Boundary/manual trim permanece ferramenta avançada para a ambiguidade que realmente exigir decisão editorial.
@@ -202,6 +204,7 @@ A adoção deste ADR não elimina o lifecycle próprio de distribuição do Comp
 - #1508 e #1509–#1516 — evolução para automação Craig;
 - #1513 / PR #1527 — policy conservadora de overlap;
 - #1515 / PR #1532, integrada por PR #1531 — gate do happy path zero-interrupção;
+- ADR-0022 — policy vigente de overlap conservador automático;
 - ADR-0003 — processamento pesado local;
 - ADR-0013 — Companion/ASR;
 - ADR-0016 — runs imutáveis, revisão e publicação;

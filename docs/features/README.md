@@ -2,7 +2,7 @@
 
 > Status: vivo
 > Owner: produto + domínios
-> Última revisão: 2026-09-28
+> Última revisão: 2026-10-06
 > Fonte de verdade: specs deste diretório e `../feature-catalog.md`
 
 O [catálogo de features](../feature-catalog.md) responde **qual é o status canônico na `main`**. Este diretório responde **o que a feature significa, quais dados usa, o que falta decidir e qual é o critério para implementá-la sem quebrar o modelo**.
@@ -17,7 +17,7 @@ PRs abertas podem conter implementação validada e documentação candidata sem
 
 [Fidelidade dos pacotes de D e Seika](lore-pack-fidelity.md) — contrato visual e aceite da restauração das páginas independentes.
 
-[Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) — arquitetura aprovada para manter múltiplos resultados ASR, revisar/comparar antes de publicar, versionar publicações e suportar substituição, restore, unpublish e delete sem sobrescrita acidental.
+[Transcrição — runs locais, revisão, comparação e publicação versionada](transcript-review-publication.md) — contrato vigente de runs imutáveis, revisão/comparação local, handoff/publicação explícita versionada, restore/unpublish cloud e delete local conforme ADR-0021.
 
 [Benchmark ASR — referência humana e métricas objetivas](processing-benchmark-quality.md) — referência humana versionada sobre o bundle canônico do Benchmark, WER/CER/S-D-I/glossário e timing condicionado; nenhuma publicação ou vencedor automático.
 
@@ -36,9 +36,9 @@ Candidato em revisão: [World entity media foundation](world-entity-media-founda
 | Navegação global / conta | arquitetura aprovada; projeção de Auth + launcher + avatar + retirada dos hubs integrados; gate completo de QA pendente | [Navegação global](global-navigation.md) |
 | Edit Workbench / administração | implementação incremental | [Edit Workbench](edit-workbench.md) |
 | Edit / permissões | candidato somente leitura; sem grant/revoke | [Consulta de permissões](edit-permissions.md) |
-| Edit / processamento local | ASR local real; sync cloud desativado | [Processamento local](local-processing.md) |
-| Edit / múltiplas gravações por sessão | implementado e gated; Web/cloud publicados; rollout do Companion segue lifecycle próprio | [Multi-recording sessions](multi-recording-sessions.md) |
-| Edit / revisão e publicação de transcrição | arquitetura aprovada; implementação pendente | [Runs, revisão e publicação](transcript-review-publication.md) |
+| Edit / processamento local | ASR/runs/revisão local; auto-sync `not_configured`; publicação explícita separada | [Processamento local](local-processing.md) |
+| Edit / múltiplas gravações por sessão | implementado e gated; happy path #1508 automático quando determinístico | [Multi-recording sessions](multi-recording-sessions.md) |
+| Edit / revisão e publicação de transcrição | runs/revisão/comparação/handoff/publicação explícita implementados | [Runs, revisão e publicação](transcript-review-publication.md) |
 | Edit / transcript server-side | leitura autorizada com `revision`; persistence atômica ainda pendente | [Slice server-side de transcrição](edit-transcript-server-slice.md) |
 | Edit / bypass temporário | workbench disponível por flag explícita, desligada por default | [Modo temporário sem autenticação](edit-unsafe-development.md) |
 | Lembra / referências visuais | persistência compartilhada em Production; refinamento visual em andamento | [Lembra](lembra.md) |

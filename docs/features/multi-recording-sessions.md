@@ -2,8 +2,8 @@
 
 > Status: implementação funcional e gate E2E/recovery concluídos
 > Owner: sessions / processing / transcripts
-> Última revisão: 2026-10-05
-> Fonte de verdade: este documento, ADR-0019 accepted, fundação #843 e evolução de automação Craig #1508
+> Última revisão: 2026-10-06
+> Fonte de verdade: este documento, ADR-0019 + ADR-0022, fundação #843 e evolução de automação Craig #1508
 
 ## Objetivo
 
@@ -876,6 +876,7 @@ Não migrar destrutivamente:
 
 - ADR-0016 — runs/review/publicação;
 - ADR-0019 — decisão accepted de multi-recording/session assembly;
+- ADR-0022 — policy vigente de overlap conservador automático;
 - `docs/domains/sessions.md`;
 - `docs/domains/processing.md`;
 - `docs/features/local-processing.md`;
