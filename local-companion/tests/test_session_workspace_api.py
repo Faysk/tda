@@ -296,6 +296,204 @@ def test_session_workspace_reset_fails_closed_while_matching_work_is_active(
         assert current["fresh_start_at"] is None
 
 
+def test_session_workspace_delete_removes_operational_state_and_recreates_fresh(
+    tmp_path: Path,
+    monkeypatch,
+):
+    data_root = tmp_path / "Data"
+    monkeypatch.setattr(
+        api_module,
+        "load_craig_package",
+        lambda _root, verify_tracks=False: SimpleNamespace(),
+    )
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    for source_id in (SOURCE_A, SOURCE_B):
+        _stage(data_root, source_id)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        capabilities = client.get("/api/v1/capabilities", headers=HEADERS).json()
+        assert "transcription.session-workspace.delete" in capabilities["capabilities"]
+
+        workspace = client.post(
+            "/api/v1/session-workspaces/campaign-delete/session-delete",
+            headers=HEADERS,
+            json={},
+        ).json()
+        for source_id in (SOURCE_A, SOURCE_B):
+            workspace = client.post(
+                "/api/v1/session-workspaces/campaign-delete/session-delete/parts",
+                headers=HEADERS,
+                json={
+                    "source_id": source_id,
+                    "expected_revision": workspace["revision"],
+                },
+            ).json()
+
+        saved_intent = client.post(
+            "/api/v1/session-workspaces/campaign-delete/session-delete/intent",
+            headers=HEADERS,
+            json={
+                "request_id": "delete-intent",
+                "profile_id": "whisper-detailed",
+                "context": "",
+                "glossary": "",
+            },
+        )
+        assert saved_intent.status_code == 200
+
+        store = Store(data_root)
+        job_body = {
+            "kind": "transcription.craig",
+            "campaign_id": "campaign-delete",
+            "session_id": "session-delete",
+            "source_id": SOURCE_A,
+            "profile_id": "whisper-detailed",
+            "glossary": "",
+            "context": "",
+            "cpu": False,
+            "track_policy_version": "fixture",
+            "included_track_numbers": [1],
+            "ignored_track_numbers": [],
+            "units": 1,
+        }
+        first = store.submit("delete-session-idem-a", job_body)
+        store.action(first["id"], "cancel")
+        second = store.submit(
+            "delete-session-idem-b",
+            {**job_body, "source_id": SOURCE_B},
+        )
+        store.action(second["id"], "cancel")
+
+        unrelated = store.submit(
+            "delete-session-unrelated",
+            {
+                **job_body,
+                "campaign_id": "campaign-other",
+                "session_id": "session-other",
+            },
+        )
+        store.action(unrelated["id"], "cancel")
+
+        deleted = client.post(
+            "/api/v1/session-workspaces/campaign-delete/session-delete/delete",
+            headers=HEADERS,
+            json={"expected_revision": workspace["revision"]},
+        )
+        assert deleted.status_code == 200
+        receipt = deleted.json()
+        assert receipt["schema_version"] == "tda_session_workspace_delete_receipt_v1"
+        assert receipt["deleted"] is True
+        assert receipt["cloud_changed"] is False
+        assert set(receipt["deleted_job_ids"]) == {first["id"], second["id"]}
+        assert set(receipt["source_ids"]) == {SOURCE_A, SOURCE_B}
+
+        missing = client.get(
+            "/api/v1/session-workspaces/campaign-delete/session-delete",
+            headers=HEADERS,
+        )
+        assert missing.status_code == 404
+        assert missing.json()["error"]["code"] == "SESSION_WORKSPACE_NOT_FOUND"
+
+        missing_intent = client.get(
+            "/api/v1/session-workspaces/campaign-delete/session-delete/intent",
+            headers=HEADERS,
+        )
+        assert missing_intent.status_code == 404
+        assert (
+            missing_intent.json()["error"]["code"]
+            == "SESSION_TRANSCRIPTION_INTENT_NOT_FOUND"
+        )
+
+        visible_ids = {item["id"] for item in store.jobs()}
+        assert first["id"] not in visible_ids
+        assert second["id"] not in visible_ids
+        assert unrelated["id"] in visible_ids
+
+        recreated = client.post(
+            "/api/v1/session-workspaces/campaign-delete/session-delete",
+            headers=HEADERS,
+            json={},
+        )
+        assert recreated.status_code == 200
+        fresh = recreated.json()
+        assert fresh["parts"] == []
+        assert fresh["fresh_start_at"]
+        assert set(fresh["fresh_start_excluded_job_ids"]) == {
+            first["id"],
+            second["id"],
+        }
+
+        resubmitted = store.submit("delete-session-idem-a", job_body)
+        assert resubmitted["id"] != first["id"]
+
+
+def test_session_workspace_delete_fails_closed_while_matching_work_is_active(
+    tmp_path: Path,
+    monkeypatch,
+):
+    data_root = tmp_path / "Data"
+    monkeypatch.setattr(
+        api_module,
+        "load_craig_package",
+        lambda _root, verify_tracks=False: SimpleNamespace(),
+    )
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    _stage(data_root, SOURCE_A)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        workspace = client.post(
+            "/api/v1/session-workspaces/campaign-delete/session-active",
+            headers=HEADERS,
+            json={},
+        ).json()
+        workspace = client.post(
+            "/api/v1/session-workspaces/campaign-delete/session-active/parts",
+            headers=HEADERS,
+            json={
+                "source_id": SOURCE_A,
+                "expected_revision": workspace["revision"],
+            },
+        ).json()
+
+        store = Store(data_root)
+        active = store.submit(
+            "delete-active-evidence",
+            {
+                "kind": "transcription.craig",
+                "campaign_id": "campaign-delete",
+                "session_id": "session-active",
+                "source_id": SOURCE_A,
+                "profile_id": "whisper-detailed",
+                "glossary": "",
+                "context": "",
+                "cpu": False,
+                "track_policy_version": "fixture",
+                "included_track_numbers": [1],
+                "ignored_track_numbers": [],
+                "units": 1,
+            },
+        )
+        assert active["status"] == "queued"
+
+        deleted = client.post(
+            "/api/v1/session-workspaces/campaign-delete/session-active/delete",
+            headers=HEADERS,
+            json={"expected_revision": workspace["revision"]},
+        )
+        assert deleted.status_code == 409
+        assert (
+            deleted.json()["error"]["code"]
+            == "SESSION_WORKSPACE_DELETE_ACTIVE_JOBS"
+        )
+        current = client.get(
+            "/api/v1/session-workspaces/campaign-delete/session-active",
+            headers=HEADERS,
+        )
+        assert current.status_code == 200
+        assert current.json()["revision"] == workspace["revision"]
+        assert store.get(active["id"])["status"] == "queued"
+
+
 def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, monkeypatch):
     data_root = tmp_path / "Data"
     monkeypatch.setattr(
@@ -322,6 +520,10 @@ def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, m
             "transcription.session-sequence"
             in browser_capabilities.json()["capabilities"]
         )
+        assert (
+            "transcription.session-workspace.delete"
+            in browser_capabilities.json()["capabilities"]
+        )
 
         created = client.post(
             "/api/v1/session-workspaces/campaign-a/session-a",
@@ -346,6 +548,15 @@ def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, m
         )
         assert sequence.status_code == 409
         assert sequence.json()["error"]["code"] == "SESSION_WORKSPACE_SEQUENCE_INVALID"
+
+        deleted = client.post(
+            "/api/v1/session-workspaces/campaign-a/session-a/delete",
+            headers=browser_headers,
+            json={"expected_revision": attached.json()["revision"]},
+        )
+        assert deleted.status_code == 200
+        assert deleted.json()["deleted"] is True
+        assert deleted.json()["cloud_changed"] is False
 
 
 
