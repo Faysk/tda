@@ -36,11 +36,13 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0013 — TDA Companion como Agent local, Desktop de controle e runtime ASR multi-engine](../adr/0013-companion-agent-desktop-asr.md) | local-companion / processing | accepted | Não declarado |
 | [ADR-0014 — R2 como boundary de mídia publicada](../adr/0014-r2-media-storage-and-publishing.md) | architecture / integrations-media / operations | superseded | 2026-09-20 |
 | [ADR-0015 — Entrega simples orientada a recuperação](../adr/0015-recovery-oriented-delivery.md) | operations / architecture | accepted | 2026-09-14 |
-| [ADR-0016 — Runs locais imutáveis, revisão explícita e publicação versionada de transcrições](../adr/0016-transcript-runs-review-publication.md) | Edit / processamento local / transcript-sync | accepted | 2026-10-05 |
+| [ADR-0016 — Runs locais imutáveis, revisão explícita e publicação versionada de transcrições](../adr/0016-transcript-runs-review-publication.md) | Edit / processamento local / transcript-sync | accepted | 2026-10-06 |
 | [ADR-0017 — Web como entrada única do processamento e sessão loopback automática](../adr/0017-web-single-entry-loopback-session.md) | local-companion / processing | accepted | Não declarado |
 | [ADR-0018 — Core portátil, GitHub como control plane e providers substituíveis](../adr/0018-portable-core-github-control-plane.md) | arquitetura / operations | accepted | 2026-09-29 |
-| [ADR-0019 — Sessão pode compor múltiplas recording sources por uma assembly pós-ASR](../adr/0019-multi-recording-session-assembly.md) | Não declarado | accepted | 2026-10-05 |
+| [ADR-0019 — Sessão pode compor múltiplas recording sources por uma assembly pós-ASR](../adr/0019-multi-recording-session-assembly.md) | Não declarado | accepted | 2026-10-06 |
 | [ADR-0020 — campanhas first-class, identidade estável e rotas campaign-aware](../adr/0020-first-class-campaigns.md) | architecture / sessions / identity-access / navigation | accepted | Não declarado |
+| [ADR-0021 — Exclusão local confirmada usa tombstone e cleanup, não lixeira restaurável](../adr/0021-local-run-delete-tombstone.md) | Edit / processing / transcripts | accepted | 2026-10-06 |
+| [ADR-0022 — Overlap multi-recording usa preservação automática conservadora antes de boundary manual](../adr/0022-conservative-overlap-resolution.md) | Edit / processing / transcripts | accepted | 2026-10-06 |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
 ## docs/architecture
@@ -122,7 +124,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
-| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-09-28 |
+| [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-10-06 |
 | [Astel e Noah — recebimento e plano de integração](../features/astel-noah-lores.md) | frontend / integrations/media / editorial | candidato implementado e validado localmente; publicação pendente | 2026-09-19 |
 | [Diretório e gestão de campanhas](../features/campaign-directory.md) | campaigns / public navigation / Edit | registry first-class ativo; diretório público em operação | 2026-10-03 |
 | [Diários dos personagens](../features/character-diaries.md) | narrativa / frontend | implementado em branch local; publicação pendente | 2026-09-18 |
@@ -145,7 +147,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md) | narrative-memory / frontend / produto | decisão aprovada; implementação parcial | 2026-10-03 |
 | [Fidelidade dos pacotes de D e Seika](../features/lore-pack-fidelity.md) | lores e mídia | publicado e verificado em 2026-09-12 | 2026-09-12 |
 | [Feature — Mapas narrativos](../features/maps.md) | narrative-memory/maps | em desenho | 2026-09-06 |
-| [Sessões compostas por múltiplas gravações Craig](../features/multi-recording-sessions.md) | sessions / processing / transcripts | implementação funcional e gate E2E/recovery concluídos | 2026-10-05 |
+| [Sessões compostas por múltiplas gravações Craig](../features/multi-recording-sessions.md) | sessions / processing / transcripts | implementação funcional e gate E2E/recovery concluídos | 2026-10-06 |
 | [Feature — Músicas e performances](../features/music-performances.md) | narrative-memory/media | preparado/em desenho | 2026-09-06 |
 | [Pipipi — lore cinematográfica pioneira](../features/pipipi-lore.md) | narrative-memory / frontend | implementação, QA e publicação em production concluídos | 2026-09-29 |
 | [Benchmark ASR — referência humana e métricas objetivas](../features/processing-benchmark-quality.md) | Processamento local / Companion / qualidade ASR | implementado pela #1416 sobre o bundle canônico da #1413 | 2026-10-04 |
@@ -153,7 +155,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — contrato de dados para relações](../features/relations-data-contract.md) | narrative-memory / database / security | fundação física aplicada; provenance/review e vocabulário factual continuam em evolução | 2026-09-19 |
 | [Feature — Relações entre entidades e grafo](../features/relations-graph.md) | narrative-memory | fundação física e autoria factual implementadas; provenance/review integrado ao fluxo editorial; dataset público real ainda depende de curadoria e ativação deliberada | 2026-09-16 |
 | [Feature — Busca semântica com fontes](../features/semantic-search.md) | search/narrative-memory | em desenho | 2026-09-06 |
-| [Transcrição — runs locais, revisão, comparação e publicação versionada](../features/transcript-review-publication.md) | Edit / processamento local / transcript-sync | contrato vigente; runs locais, revisão/CAS, comparação e publicação explícita implementados; backlog futuro separado abaixo | 2026-10-05 |
+| [Transcrição — runs locais, revisão, comparação e publicação versionada](../features/transcript-review-publication.md) | Edit / processamento local / transcript-sync | contrato vigente; runs locais, revisão/CAS, comparação e publicação explícita implementados; backlog futuro separado abaixo | 2026-10-06 |
 | [Estatísticas privadas de transcrições](../features/transcript-statistics.md) | transcrições / leitura e estatísticas | publicado em Production; read model bounded canônico; benchmark autenticado concluído | 2026-09-28 |
 | [World entity media foundation](../features/world-entity-media-foundation.md) | narrative-memory / integrations-media / frontend | implementação candidata; schema remoto não aplicado | 2026-09-22 |
 | [Feature — World Explorer / Ecos da Jornada](../features/world-explorer.md) | narrative-memory / frontend | multi-hub, autoria canônica, audience de campanha e recuperação durável em implementação integrada | 2026-09-20 |
@@ -234,4 +236,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-153 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+155 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
