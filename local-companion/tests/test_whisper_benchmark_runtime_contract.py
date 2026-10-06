@@ -32,10 +32,10 @@ def test_whisper_1_1_5_remains_valid_artifact_but_not_current_dispatch_protocol(
 @pytest.mark.parametrize(
     ("runtime_version", "ready", "reason", "benchmark_ready", "benchmark_reason"),
     [
-        ("1.1.5", False, "WHISPER_RUNTIME_REQUIRED", False, "WHISPER_RUNTIME_REQUIRED"),
-        ("1.1.6", False, "WHISPER_RUNTIME_REQUIRED", False, "WHISPER_RUNTIME_REQUIRED"),
-        ("1.1.7", False, "WHISPER_RUNTIME_REQUIRED", False, "WHISPER_RUNTIME_REQUIRED"),
-        ("1.1.9", False, "WHISPER_RUNTIME_REQUIRED", False, "WHISPER_RUNTIME_REQUIRED"),
+        ("1.1.5", False, "WHISPER_RUNTIME_PROTOCOL_REQUIRED", False, "WHISPER_RUNTIME_PROTOCOL_REQUIRED"),
+        ("1.1.6", False, "WHISPER_RUNTIME_PROTOCOL_REQUIRED", False, "WHISPER_RUNTIME_PROTOCOL_REQUIRED"),
+        ("1.1.7", False, "WHISPER_RUNTIME_PROTOCOL_REQUIRED", False, "WHISPER_RUNTIME_PROTOCOL_REQUIRED"),
+        ("1.1.9", False, "WHISPER_RUNTIME_PROTOCOL_REQUIRED", False, "WHISPER_RUNTIME_PROTOCOL_REQUIRED"),
         ("1.1.10", True, None, True, None),
     ],
 )
