@@ -7,7 +7,7 @@
 
 ## Current behavior
 
-A linha de código corrente é **Companion 0.3.19**. O contrato de confiabilidade abaixo continua vigente; os números 0.3.2, datas de setembro e estados R1–R4 documentam a evolução que originou o contrato e não devem ser usados como service version atual.
+A linha de código corrente é **Companion 0.3.20**. O contrato de confiabilidade abaixo continua vigente; os números 0.3.2, datas de setembro e estados R1–R4 documentam a evolução que originou o contrato e não devem ser usados como service version atual.
 
 Versões mínimas de runtime/benchmark são autoridade de `companion-dependency-policy.md`. Aceite físico continua vinculado ao artefato/hash exato: CI, merge em `main` ou versão declarada no código não substituem receipt físico quando o gate o exige.
 
