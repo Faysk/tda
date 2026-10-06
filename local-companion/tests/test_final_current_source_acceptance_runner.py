@@ -18,7 +18,8 @@ def test_final_runner_accepts_stable_or_rc_runtime_release_tags():
     assert '[string]$QwenRuntimeRcTag' in text
     assert "^companion-whisper-runtime-v[0-9]+" in text
     assert "^companion-qwen-runtime-v[0-9]+" in text
-    assert "[string]$Candidate.stable_tag -ne $Tag" in text
+    assert '$stableTagProperty = $Candidate.PSObject.Properties["stable_tag"]' in text
+    assert '[string]$stableTagProperty.Value -ne $Tag' in text
     assert "[string]$Candidate.candidate_tag -ne $Tag" in text
 
 
