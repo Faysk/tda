@@ -57,6 +57,7 @@ const SAFE_EVENT_DATA_KEYS = new Set([
 	"phase",
 	"returncode",
 	"stderr_truncated",
+	"runtime_probe_status",
 	"runtime_version",
 	"worker_sha256",
 	"downloaded_bytes",
