@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { LocalJob, SessionWorkspace, SessionWorkspacePart } from "./protocol";
+import type {
+	LocalJob,
+	LocalRunSummary,
+	SessionWorkspace,
+	SessionWorkspacePart,
+} from "./protocol";
 import {
 	workspaceGenerationEligible,
 	workspaceJobGenerationEligible,
+	workspaceRunGenerationEligible,
 } from "./session-composer-model";
 
 const SOURCE_ID = "craig-" + "a".repeat(64);
@@ -118,6 +124,53 @@ describe("workspaceGenerationEligible", () => {
 		).toBe(true);
 		expect(
 			workspaceGenerationEligible(value, "2026-10-05T20:00:00.001Z"),
+		).toBe(true);
+	});
+
+	it("keeps runs from excluded historical jobs out even if they finish after reset", () => {
+		const current = {
+			...workspace("2026-10-05T20:00:00.000Z"),
+			freshStartExcludedJobIds: ["job-before-reset"],
+		};
+		const run = {
+			runId: "run-job-before-reset-a2",
+			sourceId: SOURCE_ID,
+			jobId: "job-before-reset",
+			profileId: "whisper-detailed",
+			engine: "whisper",
+			model: "fixture",
+			modelRevision: null,
+			device: "cuda",
+			computeType: "float16",
+			alignment: "none",
+			executionLineage: null,
+			language: "pt",
+			completedAt: "2026-10-05T20:00:05.000Z",
+			intentFingerprint: "b".repeat(64),
+			transcriptSha256: "c".repeat(64),
+			transcriptSizeBytes: 1,
+			stats: {
+				audioWorkSeconds: null,
+				processingSeconds: null,
+				sessionDurationSeconds: null,
+				rtf: null,
+				wordCount: null,
+				segmentCount: null,
+				trackCount: null,
+				turnCount: null,
+				deduplicatedSegmentCount: null,
+				warningCount: null,
+			},
+			publicationTarget: null,
+			review: null,
+		} satisfies LocalRunSummary;
+
+		expect(workspaceRunGenerationEligible(current, run)).toBe(false);
+		expect(
+			workspaceRunGenerationEligible(current, {
+				...run,
+				jobId: "job-after-reset",
+			}),
 		).toBe(true);
 	});
 
