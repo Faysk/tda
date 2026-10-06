@@ -16,7 +16,7 @@ A linha de código corrente é **Companion 0.3.21**. O teste físico da 0.3.2 pe
 
 ## Current behavior
 
-- Companion code line: **0.3.20**;
+- Companion code line: **0.3.21**;
 - wire API: **v1**, independente da service version;
 - mínimos normais de runtime e mínimos de benchmark pertencem a `docs/operations/companion-dependency-policy.md`;
 - integração em `main` não prova que MSI/RC/Stable exato passou aceite físico;
