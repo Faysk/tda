@@ -62,6 +62,7 @@ describe("processing presentation", () => {
 		expect(presentJobError("WORKER_STDOUT_ENCODING_INVALID")).toContain("codificação");
 		expect(presentJobError("WORKER_READY_REQUIRED")).toContain("handshake");
 		expect(presentJobError("WORKER_EXITED_BEFORE_READY")).toContain("antes do handshake");
+		expect(presentJobError("WHISPER_RUNTIME_PROTOCOL_REQUIRED")).toContain("antigo demais");
 		expect(presentJobError("WORKER_SEQUENCE_GAP")).toContain("sequência");
 		expect(presentJobError("WORKER_RUNTIME_BOOTSTRAP_TIMEOUT")).toContain("inicialização");
 		expect(presentJobError("QWEN_PHYSICAL_ACCEPTANCE_REQUIRED")).toContain(
