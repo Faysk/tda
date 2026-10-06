@@ -35,7 +35,7 @@ from .runtime_compat import (
     qwen_runtime_benchmark_compatible,
     qwen_runtime_version_compatible,
     whisper_runtime_benchmark_compatible,
-    whisper_runtime_version_compatible,
+    whisper_runtime_transcription_compatible,
 )
 from .runtime_rc_updates import install_published_runtime_rc
 from .system_log import SystemLog
@@ -113,7 +113,7 @@ def _runtime_ready(state: dict, family: str) -> bool:
     if state.get("status") != "ready" or not isinstance(version, str):
         return False
     return (
-        whisper_runtime_version_compatible(version)
+        whisper_runtime_transcription_compatible(version)
         if family == "whisper"
         else qwen_runtime_version_compatible(version)
     )
@@ -290,7 +290,7 @@ def _install_whisper_runtime(
         manifest_compatible = (
             whisper_runtime_benchmark_compatible(manifest.version)
             if require_benchmark_compatibility
-            else whisper_runtime_version_compatible(manifest.version)
+            else whisper_runtime_transcription_compatible(manifest.version)
         )
         if (
             manifest_compatible
