@@ -78,9 +78,9 @@ A exceção só pode ser removida quando uma versão posterior do Faster-Whisper
 
 A prontidão do Whisper possui dois níveis explícitos:
 
-- **transcrição normal:** mantém mínimo `1.1.4`; o runtime imutável `1.1.5` continua válido para jobs normais que já funcionavam;
+- **transcrição normal atual:** exige **Whisper `>=1.1.10`**. O payload Craig corrente pode incluir `track_policy_version` e `checkpoints`; o worker Stable 1.1.5 não conhece esses campos e pode encerrar com EX_USAGE antes de `READY`. O artefato 1.1.5 permanece imutável como evidência histórica, mas não é compatível com o contrato de dispatch atual;
 - **benchmark de execução/métricas de #1233:** o piso histórico do Whisper é **`>=1.1.7`**. O `1.1.6` foi consumido pela correção de decoder #1234 e teve RC publicado antes do smoke da #1233;
-- **benchmark atual com evidência textual de #1413:** exige worker congelado capaz de persistir o bundle imutável, portanto `benchmark_ready` exige **Whisper `>=1.1.10`** e **Qwen `>=1.0.18`**. Os mínimos de transcrição normal permanecem independentes.
+- **benchmark atual com evidência textual de #1413:** exige worker congelado capaz de persistir o bundle imutável, portanto `benchmark_ready` exige **Whisper `>=1.1.10`** e **Qwen `>=1.0.18`**. Whisper normal e benchmark coincidem em 1.1.10 por motivos diferentes: o primeiro por compatibilidade de protocolo; o segundo pelo contrato de evidência do benchmark.
 
 A versão `1.1.5` nunca deve ser reconstruída, sobrescrita ou republicada com bytes novos. O reparo é sempre uma nova versão imutável.
 
@@ -93,11 +93,11 @@ O build do Whisper executa dois smokes no worker empacotado:
 1. bootstrap sintético já existente;
 2. comando real de protocolo `transcription.craig` com `benchmark_mode=true` e `benchmark_sample_seconds=300`, contra uma fonte sintética ausente.
 
-O segundo smoke deve alcançar `ready` e um erro de fonte controlado. `exit 64` antes de `ready` reprova o artefato e impede repetir a regressão de `1.1.5`. Nenhum áudio privado, modelo pesado ou transcrição é necessário para esse gate de empacotamento.
+O segundo smoke deve alcançar `ready` e um erro de fonte controlado. `exit 64` antes de `ready` reprova o artefato e impede repetir a regressão de `1.1.5`. O Companion também trata 1.1.5 como incompatível antes do spawn no contrato atual. Nenhum áudio privado, modelo pesado ou transcrição é necessário para esse gate de empacotamento.
 
 ### Migração e rollback
 
-A migração preserva `State`, `Data`, `Models` e caches; somente o runtime Whisper recebe uma nova identidade/version directory. O usuário pode continuar transcrevendo com um runtime ainda compatível para jobs normais enquanto o benchmark estiver bloqueado e preparar `1.1.10` quando quiser executar o benchmark atual.
+A migração preserva `State`, `Data`, `Models` e caches; somente o runtime Whisper recebe uma nova identidade/version directory. Com o contrato Craig atual, 1.1.5 não deve continuar sendo usado para jobs normais: o usuário precisa preparar um runtime Whisper `>=1.1.10` antes de voltar a transcrever. A promoção a Stable continua condicionada ao aceite físico dos bytes exatos do candidato.
 
 Antes de promover `1.1.10` a Stable, o **archive/hash/source exatos** do RC precisam de aceite físico no Windows/GPU suportado e o benchmark real de 5 minutos deve completar os quatro perfis com lineage do runtime e GPU. CI e smoke sintético não substituem essa prova.
 
