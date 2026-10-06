@@ -341,7 +341,7 @@ class WorkerSupervisor:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                bufsize=0,
+                bufsize=-1,
                 close_fds=True,
                 creationflags=self._creationflags(),
                 env=self._environment(environment_overrides),
