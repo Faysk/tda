@@ -216,7 +216,7 @@ def test_repair_never_replaces_a_healthy_runtime(tmp_path: Path):
         )
 
 
-def test_whisper_1_1_5_is_incompatible_with_current_worker_protocol(tmp_path: Path):
+def test_whisper_1_1_5_bytes_remain_valid_but_current_protocol_rejects_dispatch(tmp_path: Path):
     archive = tmp_path / "runtime-1.1.5.zip"
     digest = _runtime_zip(archive)
     runtime_root = tmp_path / "Runtime"
@@ -229,8 +229,11 @@ def test_whisper_1_1_5_is_incompatible_with_current_worker_protocol(tmp_path: Pa
 
     state = inspect_whisper_runtime(runtime_root, verify_worker=True)
 
-    assert state == {"status": "incompatible", "version": "1.1.5", "worker": None}
-    assert current_whisper_worker(runtime_root) is None
+    assert state["status"] == "ready"
+    assert state["version"] == "1.1.5"
+    assert current_whisper_worker(runtime_root) is not None
+    assert whisper_runtime_transcription_compatible("1.1.5") is False
+    assert whisper_runtime_transcription_compatible("1.1.10") is True
 
 
 def test_pre_runs_whisper_runtime_is_valid_but_incompatible(tmp_path: Path):
