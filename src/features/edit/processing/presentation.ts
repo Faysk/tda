@@ -74,6 +74,7 @@ export function presentJobError(code: string): string {
 		BENCHMARK_RESOURCE_BUSY: "Há outro processamento local usando os recursos necessários para o benchmark.",
 		WORKER_COMMAND_INVALID: "O Companion não conseguiu iniciar o worker com um comando local válido.",
 		WORKER_PROCESS_SPAWN_FAILED: "O Companion não conseguiu iniciar o processo do runtime local. Verifique ou repare o runtime antes de tentar novamente.",
+		WORKER_STDIN_WRITE_FAILED: "O processo do runtime fechou o canal local antes de aceitar o comando. Verifique ou repare o runtime antes de tentar novamente.",
 		WORKER_EXITED_BEFORE_READY: "O processo do runtime encerrou antes do handshake com o Companion. Abra Diagnóstico para conferir versão, exit code e classe sanitizada da falha; verifique ou atualize o runtime antes de repetir.",
 		WORKER_EXITED_WITHOUT_RESULT: "O worker local encerrou depois do handshake sem informar resultado, cancelamento ou erro.",
 		WORKER_EXIT_TIMEOUT: "O processo do worker não encerrou corretamente dentro do limite esperado.",
@@ -419,10 +420,12 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 			const failureClass = textData(event, "failure_class");
 			const returncode = numberData(event, "returncode");
 			const runtimeVersion = textData(event, "runtime_version");
+			const probeStatus = textData(event, "runtime_probe_status");
 			const parts = [
 				runtimeVersion ? `runtime ${runtimeVersion}` : null,
 				returncode !== null ? `exit code ${returncode}` : null,
 				failureClass ? `classe ${failureClass}` : null,
+				probeStatus ? `probe ${probeStatus}` : null,
 			].filter((value): value is string => Boolean(value));
 			return {
 				title:
