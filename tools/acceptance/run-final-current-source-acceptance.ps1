@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory=$true)][string]$CompanionRcTag,
-  [Parameter(Mandatory=$true)][Alias("WhisperRuntimeRcTag")][string]$WhisperRuntimeTag,
-  [Parameter(Mandatory=$true)][Alias("QwenRuntimeRcTag")][string]$QwenRuntimeTag,
+  [Parameter(Mandatory=$true)][string]$WhisperRuntimeRcTag,
+  [Parameter(Mandatory=$true)][string]$QwenRuntimeRcTag,
   [string]$ResultsRoot = "",
   [string]$RequireGpuName = "RTX 4070",
   [ValidateRange(1024,65535)][int]$Port = 8765,
@@ -603,7 +603,7 @@ $phase="bootstrap";$failure=$null;$passed=$false;$summary=[ordered]@{}
 try{
   Write-Host "TDA FINAL CURRENT-SOURCE ACCEPTANCE - ZERO PROMPTS" -ForegroundColor Cyan
   $phase="release_identity"
-  $cr=Get-Release $CompanionRcTag "companion";$wr=Get-Release $WhisperRuntimeTag "whisper";$qr=Get-Release $QwenRuntimeTag "qwen"
+  $cr=Get-Release $CompanionRcTag "companion";$wr=Get-Release $WhisperRuntimeRcTag "whisper";$qr=Get-Release $QwenRuntimeRcTag "qwen"
 
   $cmPath=Join-Path $downloads "TDACompanion-candidate.json";[void](Download-Asset $cr "TDACompanion-candidate.json" $cmPath "companion")
   $cm=Read-Json $cmPath "COMPANION_CANDIDATE_INVALID";Assert-CompanionCandidate $cm $cr $CompanionRcTag
@@ -621,7 +621,7 @@ try{
   $wmPath=Join-Path $downloads "whisper-runtime-candidate.json";$qmPath=Join-Path $downloads "qwen-runtime-candidate.json"
   [void](Download-Asset $wr "TDARuntime-candidate.json" $wmPath "whisper");[void](Download-Asset $qr "TDARuntime-candidate.json" $qmPath "qwen")
   $wm=Read-Json $wmPath "RUNTIME_CANDIDATE_INVALID";$qm=Read-Json $qmPath "RUNTIME_CANDIDATE_INVALID"
-  Assert-RuntimeCandidate $wm $wr $WhisperRuntimeTag "whisper";Assert-RuntimeCandidate $qm $qr $QwenRuntimeTag "qwen"
+  Assert-RuntimeCandidate $wm $wr $WhisperRuntimeRcTag "whisper";Assert-RuntimeCandidate $qm $qr $QwenRuntimeRcTag "qwen"
 
   $phase="active_work_preflight";Assert-NoActiveUserWork
   $phase="companion_install";$exe=Ensure-Companion $cm $msi $payload
@@ -674,8 +674,8 @@ try{
     schema="tda_final_current_source_acceptance_v1";pass=$true;accepted_at=[DateTimeOffset]::UtcNow.ToString("o")
     companion=[ordered]@{tag=$CompanionRcTag;source_sha=[string]$cm.source_sha;source_tree_sha=[string]$cm.source_tree_sha;msi_sha256=[string]$cm.assets.msi.sha256;payload_manifest_sha256=[string]$cm.assets.payload_manifest.sha256}
     runtimes=[ordered]@{
-      whisper=[ordered]@{release_tag=$WhisperRuntimeTag;candidate_tag=[string]$wm.candidate_tag;stable_tag=[string]$wm.stable_tag;source_sha=[string]$wm.source_sha;runtime_archive_sha256=[string]$wm.runtime_archive_sha256;install_mode="acceptance_direct_archive_v1"}
-      qwen=[ordered]@{release_tag=$QwenRuntimeTag;candidate_tag=[string]$qm.candidate_tag;stable_tag=[string]$qm.stable_tag;source_sha=[string]$qm.source_sha;runtime_archive_sha256=[string]$qm.runtime_archive_sha256;install_mode="companion_rc_installer_v1"}
+      whisper=[ordered]@{release_tag=$WhisperRuntimeRcTag;candidate_tag=[string]$wm.candidate_tag;stable_tag=[string]$wm.stable_tag;source_sha=[string]$wm.source_sha;runtime_archive_sha256=[string]$wm.runtime_archive_sha256;install_mode="acceptance_direct_archive_v1"}
+      qwen=[ordered]@{release_tag=$QwenRuntimeRcTag;candidate_tag=[string]$qm.candidate_tag;stable_tag=[string]$qm.stable_tag;source_sha=[string]$qm.source_sha;runtime_archive_sha256=[string]$qm.runtime_archive_sha256;install_mode="companion_rc_installer_v1"}
     }
     gpu_requirement=$RequireGpuName;authenticode_required=[bool]$RequireAuthenticode
     expected_signer_thumbprint=$(if($RequireAuthenticode){($ExpectedSignerThumbprint -replace '\s','').ToUpperInvariant()}else{$null})
@@ -688,7 +688,7 @@ try{
   $failure=Failure-Code $_
   $summary=[ordered]@{
     schema="tda_final_current_source_acceptance_v1";pass=$false;accepted_at=[DateTimeOffset]::UtcNow.ToString("o")
-    companion_tag=$CompanionRcTag;whisper_runtime_tag=$WhisperRuntimeTag;qwen_runtime_tag=$QwenRuntimeTag
+    companion_tag=$CompanionRcTag;whisper_runtime_tag=$WhisperRuntimeRcTag;qwen_runtime_tag=$QwenRuntimeRcTag
     gpu_requirement=$RequireGpuName;authenticode_required=[bool]$RequireAuthenticode
     contains_token=$false;contains_env=$false;contains_audio=$false;contains_transcript=$false;contains_paths=$false
     failure_phase=$phase;failure_code=$failure
@@ -701,8 +701,8 @@ try{
     "===================================",
     ("Status: "+$(if($passed){"PASS"}else{"FAILED"})),
     ("Companion RC: "+$CompanionRcTag),
-    ("Whisper runtime release: "+$WhisperRuntimeTag),
-    ("Qwen runtime release: "+$QwenRuntimeTag),
+    ("Whisper runtime release: "+$WhisperRuntimeRcTag),
+    ("Qwen runtime release: "+$QwenRuntimeRcTag),
     "",
     "The share bundle contains only sanitized receipts and identity/status metadata.",
     "Synthetic fixtures, release assets, tokens, caches, paths and transcripts remain private.",
