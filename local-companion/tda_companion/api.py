@@ -1145,7 +1145,7 @@ def create_app(
                             "info",
                             "worker",
                             "WORKER_DISPATCH_PREPARING",
-                            "Validating sealed runtime receipt before worker launch",
+                            "Selected sealed runtime identity; preparing worker launch",
                             {
                                 "job_id": job_id,
                                 **(
@@ -1562,6 +1562,15 @@ def create_app(
                             if body["kind"] in {"transcription.craig", "benchmark.craig"}
                             else "FIXTURE_EXECUTION_FAILED"
                         )
+                        diagnostic = exc.diagnostic_data()
+                        if diagnostic:
+                            store.record_worker_event(
+                                job_id,
+                                attempt,
+                                "WORKER_PROCESS_DIAGNOSTIC",
+                                diagnostic,
+                                level="error",
+                            )
                         store.fail(
                             job_id,
                             attempt,
@@ -1573,7 +1582,11 @@ def create_app(
                             "worker",
                             "WORKER_PROCESS_FAILED",
                             "Worker process failed",
-                            {"job_id": job_id, "worker_code": exc.code},
+                            {
+                                "job_id": job_id,
+                                "worker_code": exc.code,
+                                **diagnostic,
+                            },
                         )
                         await reconcile_durable_run_after_failure(body)
                     except Conflict as exc:
