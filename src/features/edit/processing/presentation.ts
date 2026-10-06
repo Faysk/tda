@@ -87,6 +87,7 @@ export function presentJobError(code: string): string {
 		WORKER_SEQUENCE_GAP: "O worker local perdeu uma mensagem na sequência; a execução foi interrompida para proteger o estado.",
 		WORKER_ASR_ROOTS_UNCONFIGURED: "O worker local não recebeu os diretórios seguros de dados e modelos.",
 		WHISPER_RUNTIME_UNAVAILABLE: "O runtime Whisper local não está disponível ou não passou pela verificação.",
+		WHISPER_RUNTIME_PROTOCOL_REQUIRED: "O runtime Whisper instalado é antigo demais para o protocolo de transcrição atual. Atualize ou prepare o runtime antes de processar novamente.",
 		WHISPER_RUNTIME_UNCONFIGURED: "O runtime Whisper ainda não está configurado neste Companion.",
 		QWEN_RUNTIME_UNAVAILABLE: "O runtime Qwen local não está disponível ou não passou pela verificação.",
 		QWEN_RUNTIME_UNCONFIGURED: "O runtime Qwen ainda não está configurado neste Companion.",
