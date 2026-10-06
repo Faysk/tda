@@ -94,6 +94,18 @@ def _pre_ready_failure_class(stderr_tail: bytes, returncode: int) -> str:
     return "process_exit_nonzero"
 
 
+def _pre_ready_recoverable(failure_class: str) -> bool:
+    return failure_class not in {
+        "command_rejected",
+        "executable_missing",
+        "access_denied",
+        "native_dependency",
+        "python_module_missing",
+        "pyinstaller_boot",
+        "windows_loader",
+    }
+
+
 class WorkerProcessError(RuntimeError):
     def __init__(
         self,
@@ -468,11 +480,7 @@ class WorkerSupervisor:
                 failure_class = _pre_ready_failure_class(stderr_snapshot, returncode)
                 raise WorkerProcessError(
                     "WORKER_EXITED_BEFORE_READY",
-                    recoverable=failure_class not in {
-                        "command_rejected",
-                        "executable_missing",
-                        "access_denied",
-                    },
+                    recoverable=_pre_ready_recoverable(failure_class),
                     phase="pre_ready",
                     returncode=returncode,
                     failure_class=failure_class,
@@ -671,7 +679,7 @@ class WorkerSupervisor:
                     failure_class = _pre_ready_failure_class(stderr_snapshot, returncode)
                     raise WorkerProcessError(
                         "WORKER_EXITED_BEFORE_READY",
-                        recoverable=failure_class not in {"command_rejected", "executable_missing", "access_denied"},
+                        recoverable=_pre_ready_recoverable(failure_class),
                         phase="pre_ready",
                         returncode=returncode,
                         failure_class=failure_class,
