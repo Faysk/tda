@@ -34,7 +34,7 @@ from tda_companion.transcript import (
     stats_for_tracks,
 )
 from tda_companion.transcription_runs import write_completed_run
-from tda_companion.worker_supervisor import WorkerOutcome, WorkerSupervisor
+from tda_companion.worker_supervisor import WorkerOutcome, WorkerProcessError, WorkerSupervisor
 
 TOKEN = "s" * 43
 ORIGIN = "https://panel.example"
@@ -237,6 +237,88 @@ def test_running_cancel_signals_active_worker_and_stays_cancelled(monkeypatch, t
     persisted = Store(tmp_path).get(job_id)
     assert persisted["status"] == "cancelled"
     assert persisted["error"] is None
+
+
+def test_pre_ready_worker_failure_persists_only_sanitized_process_diagnostics(monkeypatch, tmp_path):
+    failed = threading.Event()
+
+    def fake_run_craig(self, **_kwargs):
+        del self
+        failed.set()
+        raise WorkerProcessError(
+            "WORKER_EXITED_BEFORE_READY",
+            recoverable=False,
+            phase="pre_ready",
+            returncode=64,
+            failure_class="command_rejected",
+            runtime_version="1.1.5",
+            worker_sha256="a" * 64,
+            stderr_truncated=True,
+        )
+
+    monkeypatch.setattr(WorkerSupervisor, "run_craig", fake_run_craig)
+    app = create_app(tmp_path, TOKEN, {ORIGIN}, run_worker=True)
+
+    source = tmp_path / "pre-ready-diagnostic.zip"
+    with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("1-Alice.flac", b"fLaC-pre-ready-diagnostic")
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    source_id = f"craig-{source_sha}"
+    ingest_craig_zip(source, tmp_path / "staging" / source_id)
+    job = app.state.store.submit(
+        "pre-ready-diagnostic",
+        {
+            "kind": "transcription.craig",
+            "campaign_id": "campaign",
+            "session_id": "session",
+            "source_id": source_id,
+            "profile_id": "whisper-detailed",
+            "glossary": "",
+            "context": "",
+            "cpu": False,
+            "units": 1,
+        },
+    )
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as live:
+        _wake_prequeued_worker_or_fail(
+            app,
+            job["id"],
+            failed,
+            contract="pre-ready-diagnostic",
+        )
+        deadline = time.monotonic() + 5.0
+        state = None
+        while time.monotonic() < deadline:
+            state = live.get(f"/api/v1/jobs/{job['id']}", headers=HEADERS).json()
+            if state["status"] == "failed":
+                break
+            time.sleep(0.01)
+
+        assert state is not None
+        assert state["status"] == "failed"
+        assert state["error"] == {
+            "code": "WORKER_EXITED_BEFORE_READY",
+            "recoverable": False,
+        }
+        events = live.get(
+            f"/api/v1/jobs/{job['id']}/events?limit=200",
+            headers=HEADERS,
+        ).json()["events"]
+        diagnostic = next(
+            event for event in events if event["code"] == "WORKER_PROCESS_DIAGNOSTIC"
+        )
+        assert diagnostic["data"] == {
+            "phase": "pre_ready",
+            "returncode": 64,
+            "failure_class": "command_rejected",
+            "runtime_version": "1.1.5",
+            "worker_sha256": "a" * 64,
+            "stderr_truncated": True,
+        }
+        serialized = json.dumps(diagnostic)
+        assert "C:\\" not in serialized
+        assert "private" not in serialized.lower()
 
 
 def test_worker_activity_count_survives_agent_trace_throttle(monkeypatch, tmp_path):
