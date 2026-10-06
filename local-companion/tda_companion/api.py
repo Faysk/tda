@@ -124,7 +124,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/(?:derive|confirm-sequence)|participants|intent|reset))?$"
+    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/(?:derive|confirm-sequence)|participants|intent|reset|delete))?$"
 )
 _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/"
@@ -287,6 +287,11 @@ class SessionTranscriptionIntentRequest(BaseModel):
 
 
 class SessionWorkspaceResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    expected_revision: int = Field(ge=0)
+
+
+class SessionWorkspaceDeleteRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     expected_revision: int = Field(ge=0)
 
@@ -1910,6 +1915,7 @@ def create_app(
             "transcription.target.repair",
             "transcription.session-workspace",
             "transcription.session-workspace.reset",
+            "transcription.session-workspace.delete",
             "transcription.session-intent",
             "transcription.session-timeline",
             "transcription.session-sequence",
@@ -2220,6 +2226,23 @@ def create_app(
                 body.expected_revision,
             )
         )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/delete")
+    async def delete_session_workspace(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceDeleteRequest,
+    ):
+        # Serialize destructive deletion with claims and submissions. The Store
+        # revalidates the exact workspace revision and rejects any queued/running
+        # job for this session before removing operational state.
+        async with dispatch_gate:
+            return await asyncio.to_thread(
+                store.delete_session_workspace,
+                campaign_id,
+                session_id,
+                body.expected_revision,
+            )
 
     @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}/intent")
     def session_transcription_intent(campaign_id: str, session_id: str):
