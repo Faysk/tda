@@ -11,7 +11,7 @@ Estágio de entrega segue [Documentação viva](documentation/README.md): branch
 
 ## Base observável e prioridade atual
 
-A `main` consultada nesta revisão está em `53deb8802f15352f46557230cd688874cefa68ff`. A linha de código local do Companion está em **0.3.19**; isso não afirma que um MSI/RC/Stable específico foi promovido ou fisicamente aceito. Promoção continua dependente dos gates/receipts correspondentes do artefato exato. O histórico de deployments públicos do site permanece em [operations/deployments.md](operations/deployments.md) e o estado concreto de entregas em [delivery/inventory.md](delivery/inventory.md).
+A `main` consultada nesta revisão está em `53deb8802f15352f46557230cd688874cefa68ff`. A linha de código local do Companion está em **0.3.20**; isso não afirma que um MSI/RC/Stable específico foi promovido ou fisicamente aceito. Promoção continua dependente dos gates/receipts correspondentes do artefato exato. O histórico de deployments públicos do site permanece em [operations/deployments.md](operations/deployments.md) e o estado concreto de entregas em [delivery/inventory.md](delivery/inventory.md).
 
 ASR Craig real já existe localmente com perfis Qwen/Whisper. ADR-0016 e [Runs/revisão/publicação](features/transcript-review-publication.md) já possuem implementação de múltiplos runs locais, revisão/CAS, comparação e publicação explícita versionada. O resultado do job continua sem auto-sync (`sync.status = "not_configured"`): concluir ASR não publica. Importer legado continua deliberadamente separado/negado e não deve ser confundido com o handoff/publicação explícita atual.
 
