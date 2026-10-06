@@ -80,6 +80,15 @@ def _pre_ready_failure_class(stderr_tail: bytes, returncode: int) -> str:
         return "access_denied"
     if returncode == 64:
         return "command_rejected"
+    if returncode in {
+        0xC000007B,
+        0xC0000135,
+        0xC0000139,
+        -1073741701,
+        -1073741515,
+        -1073741511,
+    }:
+        return "windows_loader"
     if returncode == 0:
         return "exit_zero_before_handshake"
     return "process_exit_nonzero"
