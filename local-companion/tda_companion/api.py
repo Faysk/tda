@@ -124,7 +124,7 @@ _BROWSER_JOB_PATH = re.compile(
 )
 _BROWSER_SESSION_WORKSPACE_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}"
-    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/(?:derive|confirm-sequence)|participants|intent))?$"
+    r"(?:/(?:parts(?:/(?:detach|reorder|timing|run))?|timeline/(?:derive|confirm-sequence)|participants|intent|reset))?$"
 )
 _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
     r"^/api/v1/session-workspaces/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/"
@@ -222,6 +222,7 @@ class CraigTranscriptionJobRequest(BaseModel):
     context: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
     cpu: bool = False
     include_bot_tracks: bool = False
+    reuse_checkpoints: bool | None = None
 
 
 JobRequest = Annotated[
@@ -283,6 +284,11 @@ class SessionTranscriptionIntentRequest(BaseModel):
     ]
     context: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
     glossary: str = Field(default="", max_length=TRANSCRIPTION_TEXT_MAX_CHARS)
+
+
+class SessionWorkspaceResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    expected_revision: int = Field(ge=0)
 
 
 class SessionWorkspaceAttachRequest(BaseModel):
@@ -1321,6 +1327,11 @@ def create_app(
                                 "glossary": body.get("glossary", ""),
                                 "context": body.get("context", ""),
                                 "cpu": bool(body.get("cpu", False)),
+                                **(
+                                    {"reuse_checkpoints": False}
+                                    if body.get("reuse_checkpoints") is False
+                                    else {}
+                                ),
                                 "on_progress": commit_progress,
                                 "on_event": observe_event,
                                 "is_cancelled": is_cancelled,
@@ -1898,6 +1909,7 @@ def create_app(
             "transcription.review.base",
             "transcription.target.repair",
             "transcription.session-workspace",
+            "transcription.session-workspace.reset",
             "transcription.session-intent",
             "transcription.session-timeline",
             "transcription.session-sequence",
@@ -2193,6 +2205,20 @@ def create_app(
     ):
         return session_workspace_response(
             store.ensure_session_workspace(campaign_id, session_id)
+        )
+
+    @app.post("/api/v1/session-workspaces/{campaign_id}/{session_id}/reset")
+    def reset_session_workspace(
+        campaign_id: str,
+        session_id: str,
+        body: SessionWorkspaceResetRequest,
+    ):
+        return session_workspace_response(
+            store.reset_session_workspace(
+                campaign_id,
+                session_id,
+                body.expected_revision,
+            )
         )
 
     @app.get("/api/v1/session-workspaces/{campaign_id}/{session_id}/intent")
@@ -2575,6 +2601,10 @@ def create_app(
     @app.post("/api/v1/jobs")
     async def submit(body: JobRequest, idempotency_key: str = Header(pattern=_ID_PATTERN)):
         payload = body.model_dump()
+        if body.kind == "transcription.craig" and body.reuse_checkpoints is None:
+            # Preserve the legacy job body/signature when the caller did not
+            # request explicit fresh processing.
+            payload.pop("reuse_checkpoints", None)
         if body.kind == "transcription.craig":
             async with dispatch_gate:
                 if qwen_runtime_manager.snapshot().get("active") is True:

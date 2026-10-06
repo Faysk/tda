@@ -79,6 +79,7 @@ type FixtureOptions = Readonly<{
 	uploadSequence?: readonly number[];
 	recordingIds?: Readonly<Record<number, string>>;
 	failOnceSourceIndex?: number | null;
+	nonRecoverableSourceIndex?: number | null;
 	runningSourceIndex?: number | null;
 	reviewAbsoluteTimes?: readonly (
 		| Readonly<{ start: string; end: string }>
@@ -127,9 +128,13 @@ async function installMultiRecordingRoutes(
 	const retryCount = new Map<string, number>();
 	const postedSources: string[] = [];
 	const postKeys = new Map<string, string[]>();
+	const postReuseCheckpoints = new Map<string, Array<boolean | undefined>>();
 	const acceptedKeys = new Map<string, string>();
 	let failedOnce = false;
 	let timelineDeriveCount = 0;
+	let freshStartAt: string | null = null;
+	let freshStartExcludedJobIds: string[] = [];
+	let resetCount = 0;
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
 
 	const baseReviewRows = () => {
@@ -244,7 +249,9 @@ async function installMultiRecordingRoutes(
 						? "manual"
 						: "attachment",
 		created_at: NOW,
-		updated_at: NOW,
+		updated_at: freshStartAt ?? NOW,
+		fresh_start_at: freshStartAt,
+		fresh_start_excluded_job_ids: freshStartExcludedJobIds,
 		parts: attached.map((sourceId, index) => ({
 			part_id: PART_IDS[index],
 			source_id: sourceId,
@@ -365,10 +372,19 @@ async function installMultiRecordingRoutes(
 						: { completed: 0, total: 1, unit: "tracks" },
 			error:
 				item.status === "failed"
-					? { code: "FIXTURE_TRANSCRIPTION_FAILED", recoverable: true }
+					? {
+							code:
+								index === options.nonRecoverableSourceIndex
+									? "WORKER_PROGRESS_GAP"
+									: "FIXTURE_TRANSCRIPTION_FAILED",
+							recoverable: index !== options.nonRecoverableSourceIndex,
+						}
 					: null,
 			result_available: item.status === "succeeded",
-			updated_at: NOW,
+			updated_at:
+				freshStartAt && !freshStartExcludedJobIds.includes(item.id)
+					? "2026-10-05T00:00:01.000Z"
+					: NOW,
 			attempt: item.attempt,
 			context: {
 				campaign_id: CAMPAIGN,
@@ -412,6 +428,7 @@ async function installMultiRecordingRoutes(
 					"transcription.prepare",
 					"transcription.review",
 					"transcription.session-workspace",
+					"transcription.session-workspace.reset",
 					"transcription.session-intent",
 					"transcription.session-timeline",
 					"transcription.session-sequence",
@@ -495,6 +512,37 @@ async function installMultiRecordingRoutes(
 						{ error: { code: "SESSION_TRANSCRIPTION_INTENT_NOT_FOUND" } },
 						404,
 					);
+		}
+
+		if (
+			path === `/session-workspaces/${CAMPAIGN}/${SESSION}/reset` &&
+			request.method() === "POST"
+		) {
+			const body = request.postDataJSON() as { expected_revision: number };
+			if (body.expected_revision !== revision)
+				return json(
+					route,
+					{ error: { code: "SESSION_WORKSPACE_REVISION_CONFLICT" } },
+					409,
+				);
+			const active = [...jobsBySource.values()].some(
+				(job) => job.status === "queued" || job.status === "running",
+			);
+			if (active)
+				return json(
+					route,
+					{ error: { code: "SESSION_WORKSPACE_RESET_ACTIVE_JOBS" } },
+					409,
+				);
+			freshStartExcludedJobIds = [...jobsBySource.values()].map((job) => job.id);
+			freshStartAt = "2026-10-05T00:00:00.000Z";
+			selected.clear();
+			timelineDerived = false;
+			sequenceConfirmed = false;
+			assemblyBuilt = false;
+			resetCount += 1;
+			revision += 1;
+			return json(route, workspace());
 		}
 
 		if (path === `/session-workspaces/${CAMPAIGN}/${SESSION}`) {
@@ -641,7 +689,10 @@ async function installMultiRecordingRoutes(
 			});
 		}
 		if (path === "/jobs" && request.method() === "POST") {
-			const payload = request.postDataJSON() as { source_id: string };
+			const payload = request.postDataJSON() as {
+				source_id: string;
+				reuse_checkpoints?: boolean;
+			};
 			const index = SOURCE_IDS.indexOf(payload.source_id);
 			const key = request.headers()["idempotency-key"] ?? "";
 			postedSources.push(payload.source_id);
@@ -649,6 +700,10 @@ async function installMultiRecordingRoutes(
 			postKeys.set(payload.source_id, [
 				...(postKeys.get(payload.source_id) ?? []),
 				key,
+			]);
+			postReuseCheckpoints.set(payload.source_id, [
+				...(postReuseCheckpoints.get(payload.source_id) ?? []),
+				payload.reuse_checkpoints,
 			]);
 			const acceptedKey = acceptedKeys.get(payload.source_id);
 			if (
@@ -756,16 +811,26 @@ async function installMultiRecordingRoutes(
 		if (runMatch && request.method() === "GET") {
 			const sourceId = runMatch[1]!;
 			const index = SOURCE_IDS.indexOf(sourceId);
-			const completed = jobsBySource.get(sourceId)?.status === "succeeded";
+			const currentJob = jobsBySource.get(sourceId);
+			const completed = currentJob?.status === "succeeded";
 			const preexisting =
 				index >= 0 && (options.preexistingRunIndexes?.includes(index) ?? false);
+			const run =
+				index >= 0
+					? {
+							...runFor(sourceId, index),
+							completed_at:
+								freshStartAt &&
+								currentJob &&
+								!freshStartExcludedJobIds.includes(currentJob.id)
+									? "2026-10-05T00:00:02.000Z"
+									: NOW,
+						}
+					: null;
 			return json(route, {
 				schema_version: "tda_transcription_runs_v1",
 				source_id: sourceId,
-				runs:
-					index >= 0 && (completed || preexisting)
-						? [runFor(sourceId, index)]
-						: [],
+				runs: index >= 0 && (completed || preexisting) && run ? [run] : [],
 			});
 		}
 		if (
@@ -953,6 +1018,9 @@ async function installMultiRecordingRoutes(
 		keysFor(sourceId: string) {
 			return [...(postKeys.get(sourceId) ?? [])];
 		},
+		reuseCheckpointsFor(sourceId: string) {
+			return [...(postReuseCheckpoints.get(sourceId) ?? [])];
+		},
 		get postedSources() {
 			return [...postedSources];
 		},
@@ -973,6 +1041,9 @@ async function installMultiRecordingRoutes(
 		},
 		get timelineDeriveCount() {
 			return timelineDeriveCount;
+		},
+		get resetCount() {
+			return resetCount;
 		},
 		get reviewStatus() {
 			return reviewStatus;
@@ -1396,6 +1467,71 @@ test("multi-ZIP preflight explains one session, reorders accessibly, and carries
 	await expect(intent.getByLabel("Progresso das gravações")).toHaveCount(0);
 });
 
+test("fresh restart ignores preserved runs and creates new jobs for every recording", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1],
+		preexistingRunIndexes: [0],
+		failOnceSourceIndex: 1,
+		nonRecoverableSourceIndex: 1,
+	});
+
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "sessao-42-parte-1.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-fresh-a"),
+		},
+		{
+			name: "sessao-42-parte-2.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-fresh-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("1/2 concluídas");
+	await expect(
+		intent.getByRole("button", { name: "Reprocessar 1 gravação" }),
+	).toHaveCount(0);
+	await expect(intent).toContainText("não podem ser repetidas com segurança");
+	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(0);
+	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
+	const oldKey = multi.keysFor(SOURCE_IDS[1]!)[0];
+
+	await intent
+		.getByRole("button", { name: "Recomeçar do zero" })
+		.first()
+		.click();
+	const dialog = page
+		.getByRole("dialog")
+		.filter({ hasText: "Recomeçar esta sessão do zero?" });
+	await expect(dialog).toContainText(
+		"não serão reutilizados nesta nova execução",
+	);
+	await dialog
+		.getByRole("button", { name: "Descartar estado e recomeçar" })
+		.click();
+
+	await expect.poll(() => multi.resetCount).toBe(1);
+	await expect.poll(() => multi.postCount(SOURCE_IDS[0]!)).toBe(1);
+	await expect.poll(() => multi.postCount(SOURCE_IDS[1]!)).toBe(2);
+	expect(multi.retryCount(SOURCE_IDS[1]!)).toBe(0);
+	expect(multi.reuseCheckpointsFor(SOURCE_IDS[0]!)).toEqual([false]);
+	expect(multi.reuseCheckpointsFor(SOURCE_IDS[1]!)).toEqual([undefined, false]);
+	const newKey = multi.keysFor(SOURCE_IDS[1]!).at(-1);
+	expect(newKey).toBeTruthy();
+	expect(newKey).not.toBe(oldKey);
+	await expect(intent).toContainText("Transcrição pronta");
+});
+
 test("three ZIPs become one session intent, retry only the failed recording, auto-assemble and open review", async ({
 	page,
 }, testInfo) => {
@@ -1449,6 +1585,7 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
 	await expect(intent.getByRole("button", { name: "Nova transcrição" })).toBeVisible();
+	await expect(intent.getByRole("button", { name: "Recomeçar do zero" })).toBeVisible();
 	expect(multi.retryCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.attachedSources).toEqual(SOURCE_IDS.slice(0, 3));

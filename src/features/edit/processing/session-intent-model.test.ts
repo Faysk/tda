@@ -11,6 +11,7 @@ import {
 	intentProgress,
 	recordingVariantConflicts,
 	retryableIntentJob,
+	terminalIntentJob,
 	trustedTimelineOrderDiffers,
 	trustedTimelineSourceOrder,
 	uniqueIntentSources,
@@ -259,6 +260,13 @@ describe("session intent model", () => {
 		).toEqual({ total: 4, waiting: 1, running: 1, completed: 1, failed: 1 });
 		expect(retryableIntentJob([job(c, "failed")], c)?.status).toBe("failed");
 		expect(retryableIntentJob([job(b, "running")], b)).toBeNull();
+		const nonRecoverable = {
+			...job(c, "failed"),
+			error: { code: "WORKER_PROGRESS_GAP", recoverable: false },
+		};
+		expect(terminalIntentJob([nonRecoverable], c)?.status).toBe("failed");
+		expect(retryableIntentJob([nonRecoverable], c)).toBeNull();
+		expect(retryableIntentJob([job(c, "cancelled")], c)).toBeNull();
 	});
 
 	test("compares trusted wall-clock order with editorial order without inventing timestamps", () => {

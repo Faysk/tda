@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	clearPendingSubmission,
+	clearPendingSubmissionsForSession,
 	loadPendingSubmission,
 	pendingSubmissionRecoveryIdentity,
 	savePendingSubmission,
@@ -174,6 +175,35 @@ describe("pending Craig submission recovery", () => {
 		expect(
 			loadPendingSubmission(storage, campaignA, 2_500_001)?.idempotencyKey,
 		).toBe("key-campaign-a");
+	});
+
+	it("fresh session restart clears every unresolved enqueue identity for that session only", async () => {
+		const storage = new MemoryStorage();
+		const now = Date.now();
+		const first = await identity({ sourceId });
+		const second = await identity({
+			sourceId: `craig-${"b".repeat(64)}`,
+			requestSignature: "second-source",
+		});
+		const otherSession = await identity({
+			sessionId: "sessao-other",
+			requestSignature: "other-session",
+		});
+		savePendingSubmission(storage, first, "key-first", now);
+		savePendingSubmission(storage, second, "key-second", now + 1);
+		savePendingSubmission(storage, otherSession, "key-other", now + 2);
+
+		await clearPendingSubmissionsForSession(storage, {
+			profileScope: "private-profile-id:yuhara-main",
+			campaignId: "yuhara-main",
+			sessionId: "sessao-42",
+		});
+
+		expect(loadPendingSubmission(storage, first, now + 3)).toBeNull();
+		expect(loadPendingSubmission(storage, second, now + 3)).toBeNull();
+		expect(
+			loadPendingSubmission(storage, otherSession, now + 3)?.idempotencyKey,
+		).toBe("key-other");
 	});
 
 	it("expires unresolved intent and clears it after a confirmed response", async () => {

@@ -465,6 +465,21 @@ export class LocalBridge {
 			),
 		);
 	}
+	async resetSessionWorkspace(
+		campaignId: string,
+		sessionId: string,
+		expectedRevision: number,
+		signal: AbortSignal,
+	) {
+		return parseSessionWorkspace(
+			await this.json(
+				`/session-workspaces/${identifier(campaignId)}/${identifier(sessionId)}/reset`,
+				signal,
+				{ expected_revision: expectedRevision },
+			),
+		);
+	}
+
 	async sessionTranscriptionIntent(
 		campaignId: string,
 		sessionId: string,

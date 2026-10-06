@@ -15,7 +15,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-10-05 |
 | [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-29 |
 | [Publicação controlada](../releases.md) | operations / release | vigente | 2026-09-20 |
-| [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-10-05 |
+| [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-10-06 |
 
 ## docs/adr
 
@@ -127,7 +127,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Diretório e gestão de campanhas](../features/campaign-directory.md) | campaigns / public navigation / Edit | registry first-class ativo; diretório público em operação | 2026-10-03 |
 | [Diários dos personagens](../features/character-diaries.md) | narrativa / frontend | implementado em branch local; publicação pendente | 2026-09-18 |
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
-| [TDA Companion v0.3 — Desktop, Agent e ASR](../features/companion-desktop-asr-v0.3.md) | local-companion / processing | arquitetura v0.3 implementada; contrato corrente da linha 0.3.18 com histórico de estabilização preservado | 2026-10-05 |
+| [TDA Companion v0.3 — Desktop, Agent e ASR](../features/companion-desktop-asr-v0.3.md) | local-companion / processing | arquitetura v0.3 implementada; contrato corrente da linha 0.3.19 com histórico de estabilização preservado | 2026-10-06 |
 | [Feature — Assistente Discord](../features/discord-assistant.md) | integrations/discord + narrative query | histórico/planejado | 2026-09-06 |
 | [Edit — administração de permissões](../features/edit-permissions.md) | identity/access + Edit | console governada de atribuição/revogação de funções | 2026-09-28 |
 | [Edit — slice server-side de transcrição](../features/edit-transcript-server-slice.md) | Edit / aplicação + dados | leitura contínua e correção privada por revisions imutáveis implementadas; boundary legado por segmento preservado para compatibilidade | 2026-09-28 |
@@ -141,7 +141,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-19 |
 | [Lembra — biblioteca compartilhada de referências visuais](../features/lembra.md) | frontend / integrations-media / identity-access | persistência compartilhada em Production; galeria justified responsiva rastreada na #738 | 2026-09-30 |
 | [Feature — Modo sessão ao vivo](../features/live-session.md) | sessions/live | histórico/planejado; fora das entregas imediatas | 2026-09-06 |
-| [Processamento local no Edit](../features/local-processing.md) | Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro | ASR local, runs/revisão e publicação explícita implementados; auto-sync de job permanece `not_configured` | 2026-10-05 |
+| [Processamento local no Edit](../features/local-processing.md) | Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro | ASR local, runs/revisão e publicação explícita implementados; auto-sync de job permanece `not_configured` | 2026-10-06 |
 | [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md) | narrative-memory / frontend / produto | decisão aprovada; implementação parcial | 2026-10-03 |
 | [Fidelidade dos pacotes de D e Seika](../features/lore-pack-fidelity.md) | lores e mídia | publicado e verificado em 2026-09-12 | 2026-09-12 |
 | [Feature — Mapas narrativos](../features/maps.md) | narrative-memory/maps | em desenho | 2026-09-06 |
@@ -163,7 +163,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Integrações — índice](../integrations/README.md) | integrations | vigente/parcialmente preparado | 2026-09-20 |
-| [Companion — protocolo local v1](../integrations/local-companion-v1.md) | local-companion/processing | vigente | 2026-10-05 |
+| [Companion — protocolo local v1](../integrations/local-companion-v1.md) | local-companion/processing | vigente | 2026-10-06 |
 | [Companion local](../integrations/local-companion.md) | local-companion/processing | integração local vigente; ASR Craig real implementado; sync cloud desativado | 2026-09-21 |
 | [Pré-flight R2 e assets das novas lores](../integrations/lore-media-preparation-2026-09-07.md) | integrations/media | preparado; execução central pendente | 2026-09-07 |
 | [Inventário de mídia — 2026-09-07](../integrations/media-inventory-2026-09-07.md) | integrations/media | auditoria observada | Não declarado |
@@ -208,9 +208,9 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [CI/CD — plano de simplificação](../operations/cicd-simplification-plan.md) | operations / architecture | histórico — migração concluída em 2026-09-14 | 2026-09-14 |
 | [TDA Companion 0.3.3 — auditoria pesada de confiabilidade, segurança e release](../operations/companion-0.3.3-heavy-audit.md) | local-companion / processing / operations / security | auditoria concluída; 0.3.3 aposentada para certificação; remediação integrada na linha 0.3.4 | 2026-09-13 |
 | [TDA Companion — A-017 integridade dos modelos ASR](../operations/companion-a017-model-integrity.md) | local-companion / processing / operations / security | implementado em candidato; integração condicionada aos gates automáticos e ao aceite físico | 2026-09-14 |
-| [Companion — política de versões e dependências](../operations/companion-dependency-policy.md) | local-companion / processing | requisito de release | 2026-10-01 |
+| [Companion — política de versões e dependências](../operations/companion-dependency-policy.md) | local-companion / processing | requisito de release | 2026-10-06 |
 | [TDA Companion — Reliability R2 evidence](../operations/companion-reliability-r2-evidence.md) | Não declarado | Não declarado | Não declarado |
-| [TDA Companion — confiabilidade, manutenção e aceite real](../operations/companion-reliability.md) | local-companion / processing / operations | contrato de confiabilidade vigente; matriz R1–R4 preservada como histórico de estabilização; aceite físico continua artefato/hash-specific | 2026-10-05 |
+| [TDA Companion — confiabilidade, manutenção e aceite real](../operations/companion-reliability.md) | local-companion / processing / operations | contrato de confiabilidade vigente; matriz R1–R4 preservada como histórico de estabilização; aceite físico continua artefato/hash-specific | 2026-10-06 |
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | 2026-09-20 |
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |

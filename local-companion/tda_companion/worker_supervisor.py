@@ -519,6 +519,7 @@ class WorkerSupervisor:
         glossary: str,
         context: str,
         cpu: bool,
+        reuse_checkpoints: bool = True,
         track_policy_version: str | None = None,
         benchmark_sample_seconds: float | None = None,
         on_progress: Callable[[WorkerMessage], object],
@@ -540,6 +541,7 @@ class WorkerSupervisor:
                 "glossary": glossary,
                 "context": context,
                 "cpu": cpu,
+                **({"checkpoints": False} if not reuse_checkpoints else {}),
                 **(
                     {"track_policy_version": track_policy_version}
                     if track_policy_version is not None

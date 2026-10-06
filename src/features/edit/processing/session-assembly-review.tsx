@@ -590,13 +590,12 @@ export function SessionAssemblyReview({
 													<input
 														value={editingDraft?.speaker ?? segment.speaker}
 														disabled={disabled || busy}
-														onChange={(event) =>
+														onChange={(event) => {
+															const value = event.currentTarget.value;
 															setEditingDraft((current) =>
-																current
-																	? { ...current, speaker: event.currentTarget.value }
-																	: current,
-															)
-														}
+																current ? { ...current, speaker: value } : current,
+															);
+														}}
 													/>
 												</label>
 												<label>
@@ -605,13 +604,12 @@ export function SessionAssemblyReview({
 														rows={4}
 														value={editingDraft?.text ?? segment.text}
 														disabled={disabled || busy}
-														onChange={(event) =>
+														onChange={(event) => {
+															const value = event.currentTarget.value;
 															setEditingDraft((current) =>
-																current
-																	? { ...current, text: event.currentTarget.value }
-																	: current,
-															)
-														}
+																current ? { ...current, text: value } : current,
+															);
+														}}
 													/>
 												</label>
 											</div>

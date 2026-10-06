@@ -108,6 +108,7 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
             "benchmark_mode",
             "benchmark_sample_seconds",
             "track_policy_version",
+            "checkpoints",
         }
         if not set(payload) <= allowed:
             raise WorkerProtocolError("WORKER_PAYLOAD_FIELDS_INVALID")
@@ -122,6 +123,9 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
         cpu = payload.get("cpu", False)
         if not isinstance(cpu, bool):
             raise WorkerProtocolError("WORKER_CPU_FLAG_INVALID")
+        checkpoints = payload.get("checkpoints", True)
+        if not isinstance(checkpoints, bool):
+            raise WorkerProtocolError("WORKER_CHECKPOINT_FLAG_INVALID")
         track_policy_version = payload.get("track_policy_version")
         if track_policy_version is not None and (
             not isinstance(track_policy_version, str)
@@ -150,6 +154,8 @@ def _normalize_run_payload(kind: Any, raw_payload: Any) -> tuple[str, dict[str, 
             "context": context,
             "cpu": cpu,
         }
+        if not checkpoints:
+            normalized["checkpoints"] = False
         if track_policy_version is not None:
             normalized["track_policy_version"] = track_policy_version
         if benchmark_mode:

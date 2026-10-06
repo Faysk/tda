@@ -2,12 +2,12 @@
 
 > Status: contrato de confiabilidade vigente; matriz R1–R4 preservada como histórico de estabilização; aceite físico continua artefato/hash-specific
 > Owner: local-companion / processing / operations
-> Última revisão: 2026-10-05
+> Última revisão: 2026-10-06
 > Fonte de verdade: este documento + ADR-0013 + código/receipts do artefato exato + `docs/operations/companion-dependency-policy.md` para versões/runtime
 
 ## Current behavior
 
-A linha de código corrente é **Companion 0.3.18**. O contrato de confiabilidade abaixo continua vigente; os números 0.3.2, datas de setembro e estados R1–R4 documentam a evolução que originou o contrato e não devem ser usados como service version atual.
+A linha de código corrente é **Companion 0.3.19**. O contrato de confiabilidade abaixo continua vigente; os números 0.3.2, datas de setembro e estados R1–R4 documentam a evolução que originou o contrato e não devem ser usados como service version atual.
 
 Versões mínimas de runtime/benchmark são autoridade de `companion-dependency-policy.md`. Aceite físico continua vinculado ao artefato/hash exato: CI, merge em `main` ou versão declarada no código não substituem receipt físico quando o gate o exige.
 

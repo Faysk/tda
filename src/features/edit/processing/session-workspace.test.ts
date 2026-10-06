@@ -53,6 +53,8 @@ function workspace(parts = [recordingPart()]) {
 		ordering_mode: "manual",
 		created_at: "2026-09-27T22:30:00Z",
 		updated_at: "2026-09-27T22:31:00Z",
+		fresh_start_at: null as string | null,
+		fresh_start_excluded_job_ids: [] as string[],
 		parts,
 		timeline: {
 			policy_version: "tda_session_timeline_v2",
@@ -81,6 +83,8 @@ describe("session workspace protocol", () => {
 			sessionId: "session-42",
 			revision: 1,
 			orderingMode: "manual",
+			freshStartAt: null,
+			freshStartExcludedJobIds: [],
 			parts: [
 				{
 					partId: partA,
@@ -109,6 +113,18 @@ describe("session workspace protocol", () => {
 		});
 		expect(JSON.stringify(parsed)).not.toContain("path");
 		expect(JSON.stringify(parsed)).not.toContain("transcript");
+	});
+
+	it("parses fresh-start generation metadata and excluded historical jobs", () => {
+		const raw = workspace();
+		raw.fresh_start_at = "2026-10-05T20:00:00.000Z";
+		raw.fresh_start_excluded_job_ids = ["old-job-a", "old-job-b"];
+		const parsed = parseSessionWorkspace(raw);
+		expect(parsed.freshStartAt).toBe("2026-10-05T20:00:00.000Z");
+		expect(parsed.freshStartExcludedJobIds).toEqual([
+			"old-job-a",
+			"old-job-b",
+		]);
 	});
 
 	it("keeps Stable timeline v1 workspaces readable without inventing v2 provenance", () => {
@@ -397,6 +413,12 @@ describe("session workspace bridge", () => {
 			0,
 			signal(),
 		);
+		await bridge.resetSessionWorkspace(
+			"yuhara-main",
+			"session-42",
+			1,
+			signal(),
+		);
 		await bridge.reorderSessionParts(
 			"yuhara-main",
 			"session-42",
@@ -436,15 +458,19 @@ describe("session workspace bridge", () => {
 		expect(request.mock.calls.map(([url]) => String(url))).toEqual([
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts`,
+			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/reset`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/reorder`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/timeline/derive`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/timing`,
 			`${LOCAL_API}/session-workspaces/yuhara-main/session-42/parts/detach`,
 		]);
-		expect(JSON.parse(String(request.mock.calls[3][1]?.body))).toEqual({
-			expected_revision: 2,
+		expect(JSON.parse(String(request.mock.calls[2][1]?.body))).toEqual({
+			expected_revision: 1,
 		});
 		expect(JSON.parse(String(request.mock.calls[4][1]?.body))).toEqual({
+			expected_revision: 2,
+		});
+		expect(JSON.parse(String(request.mock.calls[5][1]?.body))).toEqual({
 			part_id: partA,
 			expected_revision: 3,
 			session_offset_seconds: 120,

@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 import tda_companion.api as api_module
 from tda_companion.api import create_app
+from tda_companion.store import Store
 
 
 TOKEN = "t" * 43
@@ -139,6 +140,160 @@ def test_session_workspace_api_is_additive_durable_and_cas_guarded(
         assert recovered.status_code == 200
         assert recovered.json()["revision"] == 4
         assert recovered.json()["parts"][0]["source_id"] == SOURCE_B
+
+
+def test_session_workspace_reset_starts_fresh_generation_without_deleting_history(
+    tmp_path: Path,
+    monkeypatch,
+):
+    data_root = tmp_path / "Data"
+    monkeypatch.setattr(
+        api_module,
+        "load_craig_package",
+        lambda _root, verify_tracks=False: SimpleNamespace(),
+    )
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    for source_id in (SOURCE_A, SOURCE_B):
+        _stage(data_root, source_id)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        capabilities = client.get("/api/v1/capabilities", headers=HEADERS).json()
+        assert "transcription.session-workspace.reset" in capabilities["capabilities"]
+
+        workspace = client.post(
+            "/api/v1/session-workspaces/campaign-reset/session-reset",
+            headers=HEADERS,
+            json={},
+        ).json()
+        for source_id in (SOURCE_A, SOURCE_B):
+            response = client.post(
+                "/api/v1/session-workspaces/campaign-reset/session-reset/parts",
+                headers=HEADERS,
+                json={
+                    "source_id": source_id,
+                    "expected_revision": workspace["revision"],
+                },
+            )
+            assert response.status_code == 200
+            workspace = response.json()
+
+        store = Store(data_root)
+        workspace = store.select_session_part_run(
+            "campaign-reset",
+            "session-reset",
+            workspace["parts"][0]["part_id"],
+            "old-run-a",
+            workspace["revision"],
+        )
+        assert workspace["parts"][0]["selected_run_id"] == "old-run-a"
+
+        old_job = store.submit(
+            "old-reset-evidence",
+            {
+                "kind": "transcription.craig",
+                "campaign_id": "campaign-reset",
+                "session_id": "session-reset",
+                "source_id": SOURCE_A,
+                "profile_id": "whisper-detailed",
+                "glossary": "",
+                "context": "",
+                "cpu": False,
+                "track_policy_version": "fixture",
+                "included_track_numbers": [1],
+                "ignored_track_numbers": [],
+                "units": 1,
+            },
+        )
+        store.action(old_job["id"], "cancel")
+
+        reset = client.post(
+            "/api/v1/session-workspaces/campaign-reset/session-reset/reset",
+            headers=HEADERS,
+            json={"expected_revision": workspace["revision"]},
+        )
+        assert reset.status_code == 200
+        fresh = reset.json()
+        assert fresh["revision"] == workspace["revision"] + 1
+        assert fresh["ordering_mode"] == "attachment"
+        assert fresh["fresh_start_at"]
+        assert fresh["fresh_start_excluded_job_ids"] == [old_job["id"]]
+        assert all(part["selected_run_id"] is None for part in fresh["parts"])
+        assert all(part["timeline_mode"] == "unresolved" for part in fresh["parts"])
+        assert all(part["session_offset_seconds"] is None for part in fresh["parts"])
+        assert all(part["trim_start_seconds"] == 0 for part in fresh["parts"])
+        assert store.get(old_job["id"])["status"] == "cancelled"
+
+    restarted = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    with TestClient(restarted, base_url="http://127.0.0.1:8765") as client:
+        recovered = client.get(
+            "/api/v1/session-workspaces/campaign-reset/session-reset",
+            headers=HEADERS,
+        )
+        assert recovered.status_code == 200
+        assert recovered.json()["fresh_start_at"] == fresh["fresh_start_at"]
+
+
+def test_session_workspace_reset_fails_closed_while_matching_work_is_active(
+    tmp_path: Path,
+    monkeypatch,
+):
+    data_root = tmp_path / "Data"
+    monkeypatch.setattr(
+        api_module,
+        "load_craig_package",
+        lambda _root, verify_tracks=False: SimpleNamespace(),
+    )
+    app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
+    _stage(data_root, SOURCE_A)
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        workspace = client.post(
+            "/api/v1/session-workspaces/campaign-reset/session-active",
+            headers=HEADERS,
+            json={},
+        ).json()
+        workspace = client.post(
+            "/api/v1/session-workspaces/campaign-reset/session-active/parts",
+            headers=HEADERS,
+            json={
+                "source_id": SOURCE_A,
+                "expected_revision": workspace["revision"],
+            },
+        ).json()
+
+        store = Store(data_root)
+        active = store.submit(
+            "active-reset-evidence",
+            {
+                "kind": "transcription.craig",
+                "campaign_id": "campaign-reset",
+                "session_id": "session-active",
+                "source_id": SOURCE_A,
+                "profile_id": "whisper-detailed",
+                "glossary": "",
+                "context": "",
+                "cpu": False,
+                "track_policy_version": "fixture",
+                "included_track_numbers": [1],
+                "ignored_track_numbers": [],
+                "units": 1,
+            },
+        )
+        assert active["status"] == "queued"
+
+        reset = client.post(
+            "/api/v1/session-workspaces/campaign-reset/session-active/reset",
+            headers=HEADERS,
+            json={"expected_revision": workspace["revision"]},
+        )
+        assert reset.status_code == 409
+        assert reset.json()["error"]["code"] == "SESSION_WORKSPACE_RESET_ACTIVE_JOBS"
+        current = client.get(
+            "/api/v1/session-workspaces/campaign-reset/session-active",
+            headers=HEADERS,
+        ).json()
+        assert current["revision"] == workspace["revision"]
+        assert current["fresh_start_at"] is None
 
 
 def test_browser_session_is_scoped_to_session_workspace_routes(tmp_path: Path, monkeypatch):

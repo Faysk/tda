@@ -179,6 +179,8 @@ export type SessionWorkspace = {
 	orderingMode: "attachment" | "automatic" | "manual";
 	createdAt: string;
 	updatedAt: string;
+	freshStartAt?: string | null;
+	freshStartExcludedJobIds?: readonly string[];
 	parts: SessionWorkspacePart[];
 	timeline: SessionWorkspaceTimeline;
 };
@@ -260,6 +262,7 @@ export type CraigTranscriptionInput = {
 	profileId: TranscriptionProfileId;
 	glossary: string;
 	context: string;
+	reuseCheckpoints?: boolean;
 };
 export type JobStatus =
 	| "queued"
@@ -542,6 +545,7 @@ export type LocalRunCatalogPage = {
 export type LocalRunSummary = {
 	runId: string;
 	sourceId: string;
+	jobId?: string | null;
 	profileId: string;
 	engine: string | null;
 	model: string | null;
@@ -1254,6 +1258,24 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	)
 		return invalid();
 
+	const rawFreshStartExcludedJobIds =
+		row.fresh_start_excluded_job_ids === undefined
+			? []
+			: row.fresh_start_excluded_job_ids;
+	if (
+		!Array.isArray(rawFreshStartExcludedJobIds) ||
+		rawFreshStartExcludedJobIds.length > 10_000
+	)
+		return invalid();
+	const freshStartExcludedJobIds = rawFreshStartExcludedJobIds.map((value) =>
+		identifier(value),
+	);
+	if (
+		new Set(freshStartExcludedJobIds).size !==
+		freshStartExcludedJobIds.length
+	)
+		return invalid();
+
 	return {
 		schemaVersion: "tda_session_workspace_v1",
 		campaignId: identifier(row.campaign_id),
@@ -1262,6 +1284,11 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		orderingMode: orderingMode as SessionWorkspace["orderingMode"],
 		createdAt: isoDate(row.created_at),
 		updatedAt: isoDate(row.updated_at),
+		freshStartAt:
+			row.fresh_start_at === undefined || row.fresh_start_at === null
+				? null
+				: isoDate(row.fresh_start_at),
+		freshStartExcludedJobIds,
 		parts,
 		timeline: {
 			policyVersion:
@@ -2035,6 +2062,10 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 		return {
 			runId,
 			sourceId,
+			jobId:
+				item.job_id === undefined || item.job_id === null
+					? null
+					: identifier(item.job_id),
 			profileId: text(item.profile_id, 64),
 			engine: nullableText(item.engine, 64),
 			model: nullableText(item.model, 256),

@@ -44,6 +44,52 @@ export function moveSessionPart(
 	return next;
 }
 
+export function workspaceGenerationEligible(
+	workspace: SessionWorkspace | null,
+	timestamp: string | null | undefined,
+): boolean {
+	if (!workspace?.freshStartAt) return true;
+	if (!timestamp) return false;
+	const cutoff = Date.parse(workspace.freshStartAt);
+	const observed = Date.parse(timestamp);
+	return (
+		Number.isFinite(cutoff) &&
+		Number.isFinite(observed) &&
+		observed >= cutoff
+	);
+}
+
+export function workspaceRunGenerationEligible(
+	workspace: SessionWorkspace | null,
+	run: LocalRunSummary,
+): boolean {
+	if (!workspace?.freshStartAt) return true;
+	if (
+		run.jobId &&
+		(workspace.freshStartExcludedJobIds ?? []).includes(run.jobId)
+	)
+		return false;
+	return workspaceGenerationEligible(workspace, run.completedAt);
+}
+
+export function workspaceJobGenerationEligible(
+	workspace: SessionWorkspace | null,
+	job: LocalJob,
+): boolean {
+	if (!workspace || job.kind !== "transcription.craig") return false;
+	const context = job.context;
+	if (
+		context?.campaignId !== workspace.campaignId ||
+		context?.sessionId !== workspace.sessionId ||
+		!workspace.parts.some((part) => part.sourceId === context.sourceId)
+	)
+		return false;
+	return (
+		!(workspace.freshStartExcludedJobIds ?? []).includes(job.id) &&
+		workspaceGenerationEligible(workspace, job.updated_at)
+	);
+}
+
 export function latestJobForSource(
 	jobs: readonly LocalJob[],
 	sourceId: string,
