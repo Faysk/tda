@@ -87,6 +87,25 @@ def test_whisper_incompatible_is_reported_as_outdated_not_corrupt(monkeypatch, t
     assert f"mínimo v{diagnostics.MIN_COMPATIBLE_WHISPER_RUNTIME_VERSION}" in result["detail"]
 
 
+def test_whisper_ready_artifact_with_old_protocol_is_reported_as_outdated(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        diagnostics,
+        "inspect_whisper_runtime",
+        lambda _root, verify_worker: {
+            "status": "ready",
+            "version": "1.1.5",
+            "worker": "unused-worker",
+        },
+    )
+
+    result = diagnostics._whisper_runtime_check(_runtime_paths(tmp_path))
+
+    assert result["status"] == "fail"
+    assert result["message"] == "Runtime Whisper não suporta o protocolo de transcrição atual"
+    assert "instalado v1.1.5" in result["detail"]
+    assert "protocolo mínimo v1.1.10" in result["detail"]
+
+
 def test_qwen_incompatible_is_reported_as_outdated_not_corrupt(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(
         diagnostics,
