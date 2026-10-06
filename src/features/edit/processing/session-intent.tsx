@@ -12,6 +12,7 @@ import {
 } from "./session-composer-model";
 import type { SessionAssembly } from "./session-composer-protocol";
 import {
+	clearSessionComposerPointers,
 	clearSessionComposerRecoveryPointer,
 	confirmSessionComposerPendingSubmission,
 	resolveSessionComposerPendingSubmission,
@@ -232,6 +233,7 @@ export function SessionIntentCoordinator({
 	const [localError, setLocalError] = useState<string | null>(null);
 	const [recovery, setRecovery] = useState<SessionRecoveryGuide | null>(null);
 	const [freshStartOpen, setFreshStartOpen] = useState(false);
+	const [deleteSessionOpen, setDeleteSessionOpen] = useState(false);
 	const processedRequest = useRef<string | null>(null);
 	const advancing = useRef(false);
 	const pendingSubmissions = useRef(
@@ -1273,6 +1275,121 @@ export function SessionIntentCoordinator({
 		}
 	}
 
+	async function deleteLocalSession() {
+		if (
+			!workspace ||
+			busy ||
+			disabled ||
+			!capabilities.includes("transcription.session-workspace.delete")
+		)
+			return;
+
+		const active = workspace.parts
+			.map((part) => latestJobForSource(jobs, part.sourceId))
+			.filter(
+				(job): job is LocalJob =>
+					Boolean(job) &&
+					(job?.status === "queued" || job?.status === "running"),
+			);
+		if (active.length) {
+			const message =
+				"Há gravações ainda na fila ou em processamento. Cancele essas execuções antes de excluir a sessão local.";
+			setDeleteSessionOpen(false);
+			setRecovery(null);
+			setLocalError(onError ? null : message);
+			onError?.(message);
+			return;
+		}
+
+		const deletedCampaignId = workspace.campaignId;
+		const deletedSessionId = workspace.sessionId;
+		const controller = new AbortController();
+		setBusy(true);
+		setLocalError(null);
+		setRecovery(null);
+		try {
+			await bridge.deleteSessionWorkspace(
+				deletedCampaignId,
+				deletedSessionId,
+				workspace.revision,
+				controller.signal,
+			);
+
+			for (const pending of pendingSubmissions.current.values())
+				confirmSessionComposerPendingSubmission(window.localStorage, pending);
+			pendingSubmissions.current.clear();
+
+			if (recoveryScope) {
+				try {
+					await clearPendingSubmissionsForSession(window.localStorage, {
+						profileScope: recoveryScope,
+						campaignId: deletedCampaignId,
+						sessionId: deletedSessionId,
+					});
+				} catch {
+					// Agent deletion is authoritative; browser recovery cleanup is best-effort.
+				}
+			}
+			if (intentReceiptIdentity.current) {
+				try {
+					clearSessionIntentReceipt(
+						window.localStorage,
+						intentReceiptIdentity.current,
+					);
+				} catch {
+					// Agent deletion is authoritative even if browser storage is unavailable.
+				}
+			}
+			try {
+				clearSessionComposerPointers(window.localStorage, campaignId);
+			} catch {
+				// Browser pointers cannot resurrect an Agent workspace that was deleted.
+			}
+
+			processedRequest.current = null;
+			intentEnqueueKeys.current.clear();
+			intentJobIds.current.clear();
+			intentRunIds.current.clear();
+			enqueueRecoveryBlocked.current.clear();
+			approvedVariantSources.current.clear();
+			excludedSources.current.clear();
+			intentReceiptIdentity.current = null;
+			intentReceipt.current = null;
+
+			setWorkspace(null);
+			setMapping(null);
+			setRunsBySource(new Map());
+			setJobs([]);
+			setAssembly(null);
+			setActiveRequest(null);
+			setBlocker(null);
+			setFreshStartOpen(false);
+			setDeleteSessionOpen(false);
+			setRecovery(null);
+			setLocalError(null);
+			setLive(null);
+			onActiveChange?.(false);
+			onNewTranscription?.();
+			window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
+		} catch (cause) {
+			setDeleteSessionOpen(false);
+			if (
+				cause instanceof BridgeError &&
+				cause.serverCode === "SESSION_WORKSPACE_DELETE_ACTIVE_JOBS"
+			) {
+				const message =
+					"Ainda existe uma execução desta sessão na fila ou em processamento. Cancele-a e atualize a sessão antes de excluir.";
+				setRecovery(null);
+				setLocalError(onError ? null : message);
+				onError?.(message);
+			} else {
+				fail(cause);
+			}
+		} finally {
+			setBusy(false);
+		}
+	}
+
 	async function chooseRun(runId: string) {
 		if (!workspace || blocker?.kind !== "runs" || busy || disabled) return;
 		const part = workspace.parts.find(
@@ -1365,6 +1482,12 @@ export function SessionIntentCoordinator({
 						(job?.status === "queued" || job?.status === "running"),
 				)
 		: [];
+	const canResetSession = capabilities.includes(
+		"transcription.session-workspace.reset",
+	);
+	const canDeleteSession = capabilities.includes(
+		"transcription.session-workspace.delete",
+	);
 	const runBlockerPart =
 		blocker?.kind === "runs"
 			? workspace?.parts.find((part) => part.sourceId === blocker.sourceId) ??
@@ -1645,9 +1768,11 @@ export function SessionIntentCoordinator({
 								: `${blocker.sourceIds.length} gravações falharam.`}
 						</strong>
 						<span>
-							{retryableFailedSourceIds.length
-								? "Você pode repetir apenas as tentativas recuperáveis, ou descartar o estado desta sessão e processar todas as gravações novamente."
-								: "Essas tentativas não podem ser repetidas com segurança. Para não reaproveitar o estado anterior, descarte esta geração e processe todas as gravações novamente."}
+							{!canDeleteSession && !canResetSession
+								? "Esta versão do Companion não oferece limpeza de sessão. Atualize o Companion para excluir o estado local e começar do zero."
+								: retryableFailedSourceIds.length
+									? "Você pode repetir apenas as tentativas recuperáveis ou excluir esta sessão local e começar novamente."
+									: "Essas tentativas não podem ser repetidas com segurança. Exclua esta sessão local para voltar ao início e processar tudo novamente."}
 						</span>
 					</div>
 					<div className={styles.blockerActions}>
@@ -1664,7 +1789,18 @@ export function SessionIntentCoordinator({
 									: `Reprocessar ${retryableFailedSourceIds.length} gravações`}
 							</Button>
 						) : null}
-						{capabilities.includes("transcription.session-workspace.reset") ? (
+						{canDeleteSession ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="tertiary"
+								disabled={busy || activeJobs.length > 0}
+								onClick={() => setDeleteSessionOpen(true)}
+							>
+								Excluir sessão local
+							</Button>
+						) : null}
+						{canResetSession ? (
 							<Button
 								type="button"
 								size="sm"
@@ -1672,7 +1808,7 @@ export function SessionIntentCoordinator({
 								disabled={busy || activeJobs.length > 0}
 								onClick={() => setFreshStartOpen(true)}
 							>
-								Recomeçar do zero
+								Recomeçar preservando histórico
 							</Button>
 						) : null}
 					</div>
@@ -1779,14 +1915,24 @@ export function SessionIntentCoordinator({
 						>
 							Nova transcrição
 						</Button>
-						{capabilities.includes("transcription.session-workspace.reset") ? (
+						{canDeleteSession ? (
+							<Button
+								type="button"
+								variant="tertiary"
+								disabled={busy || activeJobs.length > 0}
+								onClick={() => setDeleteSessionOpen(true)}
+							>
+								Excluir sessão local
+							</Button>
+						) : null}
+						{canResetSession ? (
 							<Button
 								type="button"
 								variant="tertiary"
 								disabled={busy || activeJobs.length > 0}
 								onClick={() => setFreshStartOpen(true)}
 							>
-								Recomeçar do zero
+								Recomeçar preservando histórico
 							</Button>
 						) : null}
 					</div>
@@ -1806,8 +1952,18 @@ export function SessionIntentCoordinator({
 							Cancelar novas execuções
 						</Button>
 					) : null}
-					{capabilities.includes("transcription.session-workspace.reset") &&
-					blocker?.kind !== "failed" ? (
+					{canDeleteSession && blocker?.kind !== "failed" ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="tertiary"
+							disabled={busy || activeJobs.length > 0}
+							onClick={() => setDeleteSessionOpen(true)}
+						>
+							Excluir sessão local
+						</Button>
+					) : null}
+					{canResetSession && blocker?.kind !== "failed" ? (
 						<Button
 							type="button"
 							size="sm"
@@ -1815,7 +1971,7 @@ export function SessionIntentCoordinator({
 							disabled={busy || activeJobs.length > 0}
 							onClick={() => setFreshStartOpen(true)}
 						>
-							Recomeçar do zero
+							Recomeçar preservando histórico
 						</Button>
 					) : null}
 				</div>
@@ -1855,6 +2011,43 @@ export function SessionIntentCoordinator({
 					evidência, mas não serão reutilizados nesta nova execução. Seleções de
 					resultados, participantes e decisões de cronologia serão resetadas.
 					Publicações na nuvem não são alteradas.
+				</p>
+			</Dialog>
+
+			<Dialog
+				open={deleteSessionOpen}
+				title="Excluir esta sessão local?"
+				description={
+					<p>
+						O TDA vai apagar o estado operacional local desta sessão e voltar
+						para uma transcrição vazia.
+					</p>
+				}
+				onClose={() => setDeleteSessionOpen(false)}
+				actions={
+					<>
+						<Button
+							data-dialog-initial-focus
+							variant="secondary"
+							onClick={() => setDeleteSessionOpen(false)}
+						>
+							Voltar
+						</Button>
+						<Button
+							variant="tertiary"
+							disabled={busy}
+							onClick={() => void deleteLocalSession()}
+						>
+							{busy ? "Excluindo…" : "Excluir e começar do zero"}
+						</Button>
+					</>
+				}
+			>
+				<p>
+					Trabalhos, decisões da sessão e ponteiros de recuperação serão
+					removidos deste computador. Artefatos técnicos antigos podem permanecer
+					isolados para limpeza segura, mas não serão reutilizados. Publicações na
+					nuvem não são alteradas.
 				</p>
 			</Dialog>
 
