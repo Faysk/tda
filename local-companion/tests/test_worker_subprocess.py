@@ -125,6 +125,109 @@ def test_worker_process_emits_real_progress_and_result():
     assert messages[-1].payload == {"kind": "synthetic.fixture", "units": 3}
 
 
+def test_supervisor_classifies_nonzero_exit_before_ready_and_bounds_stderr(tmp_path):
+    script = tmp_path / "exit_before_ready.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerRunCommand
+
+WorkerRunCommand.decode(sys.stdin.buffer.readline())
+sys.stderr.buffer.write(b"x" * (80 * 1024))
+sys.stderr.buffer.flush()
+raise SystemExit(64)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    with pytest.raises(WorkerProcessError, match="WORKER_EXITED_BEFORE_READY") as failure:
+        supervisor.run_fixture(
+            job_id="exit-before-ready",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.phase == "pre_ready"
+    assert failure.value.returncode == 64
+    assert failure.value.failure_class == "command_rejected"
+    assert failure.value.stderr_truncated is True
+    assert failure.value.recoverable is False
+    assert "x" not in str(failure.value.diagnostic_data())
+
+
+def test_supervisor_handles_invalid_utf8_stderr_before_ready(tmp_path):
+    script = tmp_path / "invalid_utf8_stderr.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerRunCommand
+
+WorkerRunCommand.decode(sys.stdin.buffer.readline())
+sys.stderr.buffer.write(b"loader failure: \\xff\\xfe")
+sys.stderr.buffer.flush()
+raise SystemExit(70)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    with pytest.raises(WorkerProcessError, match="WORKER_EXITED_BEFORE_READY") as failure:
+        supervisor.run_fixture(
+            job_id="invalid-stderr",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.phase == "pre_ready"
+    assert failure.value.returncode == 70
+    assert failure.value.failure_class == "process_exit_nonzero"
+    assert failure.value.stderr_truncated is False
+
+
+def test_supervisor_classifies_zero_exit_before_ready(tmp_path):
+    script = tmp_path / "zero_before_ready.py"
+    script.write_text(
+        """
+import sys
+from tda_companion.worker_protocol import WorkerRunCommand
+
+WorkerRunCommand.decode(sys.stdin.buffer.readline())
+raise SystemExit(0)
+""",
+        encoding="utf-8",
+    )
+    supervisor = WorkerSupervisor(
+        command_factory=lambda: [sys.executable, str(script)],
+        startup_timeout=2,
+        heartbeat_timeout=1,
+    )
+
+    with pytest.raises(WorkerProcessError, match="WORKER_EXITED_BEFORE_READY") as failure:
+        supervisor.run_fixture(
+            job_id="zero-before-ready",
+            attempt=1,
+            units=1,
+            completed=0,
+            on_progress=lambda _message: None,
+        )
+
+    assert failure.value.returncode == 0
+    assert failure.value.failure_class == "exit_zero_before_handshake"
+
+
 def test_supervisor_rejects_terminal_before_ready(tmp_path):
     script = tmp_path / "result_without_ready.py"
     script.write_text(
