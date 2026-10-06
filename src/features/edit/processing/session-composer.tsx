@@ -20,6 +20,7 @@ import {
 	timelineStateLabel,
 	workspaceGenerationEligible,
 	workspaceJobGenerationEligible,
+	workspaceRunGenerationEligible,
 } from "./session-composer-model";
 import type {
 	SessionAssembly,
@@ -254,7 +255,7 @@ export function SessionRecordingComposer({
 				next.parts.map(async (part) => [
 					part.sourceId,
 					(await bridge.localRuns(part.sourceId, signal)).filter((run) =>
-						workspaceGenerationEligible(next, run.completedAt),
+						workspaceRunGenerationEligible(next, run),
 					),
 				] as const),
 			);
@@ -825,7 +826,11 @@ export function SessionRecordingComposer({
 				workspace.sessionId,
 				controller.signal,
 			);
-			setAssemblies(listing.assemblies);
+			setAssemblies(
+				listing.assemblies.filter((assembly) =>
+					workspaceGenerationEligible(workspace, assembly.createdAt),
+				),
+			);
 			window.dispatchEvent(new Event(SESSION_COMPOSER_CHANGE_EVENT));
 			announce(
 				"Transcrição da sessão montada · " +
