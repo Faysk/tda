@@ -135,6 +135,8 @@ async function installMultiRecordingRoutes(
 	let freshStartAt: string | null = null;
 	let freshStartExcludedJobIds: string[] = [];
 	let resetCount = 0;
+	let deleteCount = 0;
+	let workspaceDeleted = false;
 	const uploadSequence = options.uploadSequence ?? [0, 1, 2];
 
 	const baseReviewRows = () => {
@@ -429,6 +431,7 @@ async function installMultiRecordingRoutes(
 					"transcription.review",
 					"transcription.session-workspace",
 					"transcription.session-workspace.reset",
+					"transcription.session-workspace.delete",
 					"transcription.session-intent",
 					"transcription.session-timeline",
 					"transcription.session-sequence",
@@ -545,13 +548,69 @@ async function installMultiRecordingRoutes(
 			return json(route, workspace());
 		}
 
+		if (
+			path === `/session-workspaces/${CAMPAIGN}/${SESSION}/delete` &&
+			request.method() === "POST"
+		) {
+			const body = request.postDataJSON() as { expected_revision: number };
+			if (body.expected_revision !== revision)
+				return json(
+					route,
+					{ error: { code: "SESSION_WORKSPACE_REVISION_CONFLICT" } },
+					409,
+				);
+			const active = [...jobsBySource.values()].some(
+				(job) => job.status === "queued" || job.status === "running",
+			);
+			if (active)
+				return json(
+					route,
+					{ error: { code: "SESSION_WORKSPACE_DELETE_ACTIVE_JOBS" } },
+					409,
+				);
+			const deletedJobIds = [...jobsBySource.values()].map((job) => job.id);
+			const deletedSourceIds = [...attached];
+			freshStartExcludedJobIds = deletedJobIds;
+			freshStartAt = "2026-10-06T00:00:00.000Z";
+			selected.clear();
+			jobsBySource.clear();
+			acceptedKeys.clear();
+			intentState = null;
+			attached = [];
+			timelineDerived = false;
+			sequenceConfirmed = false;
+			assemblyBuilt = false;
+			workspaceDeleted = true;
+			deleteCount += 1;
+			return json(route, {
+				schema_version: "tda_session_workspace_delete_receipt_v1",
+				campaign_id: CAMPAIGN,
+				session_id: SESSION,
+				deleted: true,
+				deleted_at: freshStartAt,
+				deleted_job_ids: deletedJobIds,
+				source_ids: deletedSourceIds,
+				cloud_changed: false,
+			});
+		}
+
 		if (path === `/session-workspaces/${CAMPAIGN}/${SESSION}`) {
 			if (request.method() === "GET" && agentOfflineOnce) {
 				agentOfflineOnce = false;
 				return route.abort("failed");
 			}
+			if (request.method() === "GET" && workspaceDeleted)
+				return json(
+					route,
+					{ error: { code: "SESSION_WORKSPACE_NOT_FOUND" } },
+					404,
+				);
 			if (request.method() === "GET") return json(route, workspace());
-			if (request.method() === "POST") return json(route, workspace());
+			if (request.method() === "POST") {
+				workspaceDeleted = false;
+				revision = 0;
+				return json(route, workspace());
+			}
 		}
 		if (
 			path === `/session-workspaces/${CAMPAIGN}/${SESSION}/parts` &&
@@ -1045,6 +1104,12 @@ async function installMultiRecordingRoutes(
 		get resetCount() {
 			return resetCount;
 		},
+		get deleteCount() {
+			return deleteCount;
+		},
+		get jobCount() {
+			return jobsBySource.size;
+		},
 		get reviewStatus() {
 			return reviewStatus;
 		},
@@ -1507,7 +1572,7 @@ test("fresh restart ignores preserved runs and creates new jobs for every record
 	const oldKey = multi.keysFor(SOURCE_IDS[1]!)[0];
 
 	await intent
-		.getByRole("button", { name: "Recomeçar do zero" })
+		.getByRole("button", { name: "Recomeçar preservando histórico" })
 		.first()
 		.click();
 	const dialog = page
@@ -1530,6 +1595,87 @@ test("fresh restart ignores preserved runs and creates new jobs for every record
 	expect(newKey).toBeTruthy();
 	expect(newKey).not.toBe(oldKey);
 	await expect(intent).toContainText("Transcrição pronta");
+});
+
+test("failed local session can be deleted and resubmitted from a clean form", async ({
+	page,
+}) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		reviewEnabled: true,
+	});
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1, 0, 1],
+		failOnceSourceIndex: 1,
+		nonRecoverableSourceIndex: 1,
+	});
+
+	await openProcessing(page);
+	const input = page.getByLabel("Export do Craig");
+	await input.setInputFiles([
+		{
+			name: "sessao-42-parte-1.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-delete-a"),
+		},
+		{
+			name: "sessao-42-parte-2.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-delete-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent).toContainText("não podem ser repetidas com segurança");
+	await expect(
+		intent.getByRole("button", { name: "Excluir sessão local" }),
+	).toBeVisible();
+	expect(multi.jobCount).toBe(2);
+
+	await intent.getByRole("button", { name: "Excluir sessão local" }).click();
+	const dialog = page
+		.getByRole("dialog")
+		.filter({ hasText: "Excluir esta sessão local?" });
+	await expect(dialog).toContainText(
+		"Publicações na nuvem não são alteradas",
+	);
+	await dialog
+		.getByRole("button", { name: "Excluir e começar do zero" })
+		.click();
+
+	await expect.poll(() => multi.deleteCount).toBe(1);
+	await expect.poll(() => multi.jobCount).toBe(0);
+	await expect(page.getByRole("region", { name: /Transcrição da sessão/u })).toHaveCount(0);
+	await expect(page.getByLabel("Export do Craig")).toBeVisible();
+	await expect(page.getByLabel("ID da sessão")).toHaveValue("");
+
+	await page.getByLabel("ID da sessão").fill(SESSION);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{
+			name: "sessao-42-parte-1.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-delete-a"),
+		},
+		{
+			name: "sessao-42-parte-2.zip",
+			mimeType: "application/zip",
+			buffer: Buffer.from("PK-delete-b"),
+		},
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+
+	const freshIntent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(freshIntent).toContainText("Transcrição pronta");
+	await expect.poll(() => multi.postCount(SOURCE_IDS[0]!)).toBe(2);
+	await expect.poll(() => multi.postCount(SOURCE_IDS[1]!)).toBe(2);
+	const firstKey = multi.keysFor(SOURCE_IDS[0]!)[0];
+	const secondKey = multi.keysFor(SOURCE_IDS[0]!).at(-1);
+	expect(firstKey).toBeTruthy();
+	expect(secondKey).toBeTruthy();
+	expect(secondKey).not.toBe(firstKey);
+	expect(multi.reuseCheckpointsFor(SOURCE_IDS[0]!).at(-1)).toBe(false);
+	expect(multi.reuseCheckpointsFor(SOURCE_IDS[1]!).at(-1)).toBe(false);
 });
 
 test("three ZIPs become one session intent, retry only the failed recording, auto-assemble and open review", async ({
@@ -1585,7 +1731,7 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
 	await expect(intent.getByRole("button", { name: "Nova transcrição" })).toBeVisible();
-	await expect(intent.getByRole("button", { name: "Recomeçar do zero" })).toBeVisible();
+	await expect(intent.getByRole("button", { name: "Recomeçar preservando histórico" })).toBeVisible();
 	expect(multi.retryCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.attachedSources).toEqual(SOURCE_IDS.slice(0, 3));
