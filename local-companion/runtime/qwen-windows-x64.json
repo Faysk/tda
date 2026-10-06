@@ -37,6 +37,10 @@
     "uv": {
       "version": "0.12.18",
       "reason": "Keep the existing reproducible Companion and ASR build-tool pin during the focused Qwen 1.0.18 silence-safety/fail-closed release; validate the 0.12.19 toolchain change separately so this fix does not create unrelated runtime byte drift."
+    },
+    "transformers": {
+      "version": "5.18.0",
+      "reason": "Keep the Qwen 1.0.18 physically gated runtime on Transformers 5.18.0 while the focused Whisper 1.1.10 compatibility/diagnostics fix is promoted; validate Transformers 5.19.0 separately with offline local-files-only model loading, packaging, and the Qwen physical gate so this unrelated dependency release does not create unaccepted Qwen runtime byte drift."
     }
   }
 }
