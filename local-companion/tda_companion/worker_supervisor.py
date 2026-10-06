@@ -409,8 +409,36 @@ class WorkerSupervisor:
         stage_started: float | None = None
 
         try:
-            process.stdin.write(encoded_command)
-            process.stdin.flush()
+            try:
+                process.stdin.write(encoded_command)
+                process.stdin.flush()
+            except (BrokenPipeError, OSError, ValueError):
+                try:
+                    returncode = process.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    returncode = process.poll()
+                stderr_reader.join(timeout=0.5)
+                stderr_snapshot, stderr_truncated = stderr_tail.snapshot()
+                if returncode is None:
+                    raise WorkerProcessError(
+                        "WORKER_STDIN_WRITE_FAILED",
+                        phase="pre_ready",
+                        failure_class="stdin_closed_before_handshake",
+                        stderr_truncated=stderr_truncated,
+                    ) from None
+                failure_class = _pre_ready_failure_class(stderr_snapshot, returncode)
+                raise WorkerProcessError(
+                    "WORKER_EXITED_BEFORE_READY",
+                    recoverable=failure_class not in {
+                        "command_rejected",
+                        "executable_missing",
+                        "access_denied",
+                    },
+                    phase="pre_ready",
+                    returncode=returncode,
+                    failure_class=failure_class,
+                    stderr_truncated=stderr_truncated,
+                ) from None
 
             while terminal is None:
                 now = time.monotonic()
