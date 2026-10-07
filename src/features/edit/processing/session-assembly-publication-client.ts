@@ -96,14 +96,15 @@ export function sessionAssemblyPublicationRequestBody(
 			draftRevision: review.draftRevision,
 			draftSha256: review.draftSha256,
 			status: review.status,
-			warnings: [],
+			warnings: review.warnings ?? [],
+			...(review.warningSummary ? {warningSummary: review.warningSummary} : {}),
 			review: {
 				reviewedSegments: review.reviewedSegments,
 				totalSegments: review.segmentCount,
 				reviewPercent: review.reviewPercent,
 				editedSegments: review.editedSegments,
 				wordCount: review.wordCount,
-				warningCount: 0,
+				warningCount: review.warningSummary?.totalCount ?? review.warnings?.length ?? 0,
 			},
 			segments: review.segments.map((segment) => ({
 				assemblySegmentId: segment.assemblySegmentId,

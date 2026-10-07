@@ -28,6 +28,7 @@ import { LocalReviewMarkdownRoundTrip } from "../../transcript-review/local-revi
 import { localRunKey, serializeLocalRunKey } from "./local-run-key";
 import { processingStageLabels } from "./engine-metrics";
 import { RunComparisonView } from "./run-comparison-view";
+import { presentPipelineWarning } from "./pipeline-warning";
 
 type Props = Readonly<{
 	runs: readonly LocalRunSummary[];
@@ -1073,7 +1074,7 @@ function ReviewEditor({
 					<summary>{review.review.warningCount} avisos do pipeline · mostrando {Math.min(new Set(review.warnings).size, 50)} tipos{review.warningSummary?.truncated ? ` dos primeiros ${review.warningSummary.displayedCount} avisos` : ""}</summary>
 					<ul>
 						{Array.from(new Set(review.warnings)).slice(0, 50).map((warning) => (
-							<li key={warning}>{warning}</li>
+							<li key={warning}>{presentPipelineWarning(warning)}</li>
 						))}
 					</ul>
 				</details>

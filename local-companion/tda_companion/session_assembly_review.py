@@ -294,6 +294,7 @@ def _response(
     base_segments: list[dict[str, Any]],
     *,
     path: Path,
+    warnings: list[str],
 ) -> dict[str, Any]:
     approval = _approval(path, draft, payload) if payload is not None else None
     stored = draft["status"]
@@ -324,6 +325,8 @@ def _response(
         "updated_at": draft["updated_at"],
         "review": _summary(draft["segments"], base_segments),
         "segments": draft["segments"],
+        "warnings": warnings[:1000],
+        "warning_summary": {"total_count": len(warnings), "displayed_count": min(len(warnings), 1000), "truncated": len(warnings) > 1000},
     }
 
 
@@ -376,7 +379,7 @@ def open_assembly_review(
             ):
                 raise SessionAssemblyReviewError("SESSION_ASSEMBLY_REVIEW_DRAFT_INVALID")
             draft["segments"] = _validate_segments(draft.get("segments"), base_segments)
-            return _response(manifest, draft, payload, base_segments, path=path)
+            return _response(manifest, draft, payload, base_segments, path=path, warnings=_transcript.get("warnings", []))
         draft = {
             "schema_version": ASSEMBLY_REVIEW_SCHEMA_VERSION,
             "assembly_id": assembly_id,
@@ -387,7 +390,7 @@ def open_assembly_review(
             "updated_at": None,
             "segments": base_segments,
         }
-        return _response(manifest, draft, None, base_segments, path=path)
+        return _response(manifest, draft, None, base_segments, path=path, warnings=_transcript.get("warnings", []))
 
 
 def save_assembly_review(
@@ -476,7 +479,7 @@ def save_assembly_review(
                 "approved_at": _utc_now(),
             }
             _atomic_json(_approval_path(path), approval, _MAX_APPROVAL_BYTES)
-            return _response(manifest, draft, draft_payload, base_segments, path=path)
+            return _response(manifest, draft, draft_payload, base_segments, path=path, warnings=_transcript.get("warnings", []))
 
         if not absent and status == current["status"] and segments == current_segments:
             return current
@@ -492,4 +495,4 @@ def save_assembly_review(
             "segments": segments,
         }
         payload = _atomic_json(path, draft)
-        return _response(manifest, draft, payload, base_segments, path=path)
+        return _response(manifest, draft, payload, base_segments, path=path, warnings=_transcript.get("warnings", []))

@@ -314,6 +314,17 @@ Histórico detalhado: [deployments](deployments.md).
 
 ## 11. Rollback
 
+### Continuação após áudio sem reconhecimento — #1570
+
+Companion 0.3.23, Qwen 1.0.20 e Whisper 1.1.12 são novos candidatos imutáveis:
+o contrato compartilhado de evento/checkpoint muda o closure empacotado. Não
+substituir assets de 0.3.22/1.0.19/1.1.11 nem promover sem gates físicos dos bytes
+novos. Validar trecho ignorado seguido de fala preservada, aviso após retomada,
+erros de inferência propagados e benchmark real dos quatro perfis. Distinguir
+conclusão com avisos de qualidade medida. Rollback restaura a política anterior
+que podia falhar a gravação inteira; não reinterpretar checkpoints novos com a
+assinatura antiga.
+
 ### Download do Companion pelo domínio do TDA (#1567)
 
 O endpoint `/api/downloads/companion/windows` entrega o MSI por streaming Node.js,

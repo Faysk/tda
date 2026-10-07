@@ -209,6 +209,11 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         required=_QWEN_EMPTY_WINDOW_SIGNAL,
         level="warning",
     ),
+    "QWEN_WINDOW_UNRECOGNIZED_SKIPPED": _schema(
+        *_QWEN_EMPTY_WINDOW_SIGNAL,
+        required=_QWEN_EMPTY_WINDOW_SIGNAL,
+        level="warning",
+    ),
     "ASR_TEXT_CHECKPOINT_SAVED": _schema(
         *_TRACK, required=("stage", "track")
     ),

@@ -44,7 +44,7 @@ def _package():
     )
 
 
-def _stage_run(data_root: Path):
+def _stage_run(data_root: Path, warnings=()):
     root = data_root / "staging" / SOURCE
     root.mkdir(parents=True, exist_ok=True)
     document = TranscriptDocument(
@@ -68,6 +68,7 @@ def _stage_run(data_root: Path):
                 segments=(TranscriptSegment(id="s1", start=1.0, end=2.0, text="ola"),),
             ),
         ),
+        warnings=warnings,
         stats=TranscriptStats(
             audio_work_seconds=10.0,
             session_duration_seconds=10.0,
@@ -86,9 +87,9 @@ def _stage_run(data_root: Path):
     )
 
 
-def _prepare(monkeypatch, tmp_path):
+def _prepare(monkeypatch, tmp_path, warnings=()):
     data_root = tmp_path / "Data"
-    run = _stage_run(data_root)
+    run = _stage_run(data_root, warnings)
     monkeypatch.setattr(api_module, "load_craig_package", lambda _root, verify_tracks=False: _package())
     monkeypatch.setattr(api_module, "read_attempt_outcome", lambda *_args, **_kwargs: "commit")
     app = create_app(data_root, TOKEN, {ORIGIN}, run_worker=False)
@@ -220,7 +221,7 @@ def test_stale_run_selection_and_unselected_build_fail_closed(tmp_path, monkeypa
 def test_browser_scoped_assembly_review_approves_exact_base_and_delete_is_fenced(
     tmp_path, monkeypatch
 ):
-    data_root, api, run = _prepare(monkeypatch, tmp_path)
+    data_root, api, run = _prepare(monkeypatch, tmp_path, warnings=("QWEN_UNRECOGNIZED_WINDOW:track-1:window-2:54.000-114.000",))
     monkeypatch.setattr(ingest_http, "load_craig_package", lambda _root, verify_tracks=False: _package())
     boundary = CraigIngestBoundary(
         api,
@@ -278,6 +279,9 @@ def test_browser_scoped_assembly_review_approves_exact_base_and_delete_is_fenced
         base = client.get(review_path + "/base", headers=browser_headers)
         assert base.status_code == 200
         base_value = base.json()
+        assert len(base_value["warnings"]) == 1
+        assert base_value["warnings"][0].endswith("QWEN_UNRECOGNIZED_WINDOW:track-1:window-2:54.000-114.000")
+        assert base_value["warning_summary"] == {"total_count": 1, "displayed_count": 1, "truncated": False}
         saved = client.post(
             review_path,
             headers={**browser_headers, "Content-Type": "application/json"},
@@ -293,6 +297,7 @@ def test_browser_scoped_assembly_review_approves_exact_base_and_delete_is_fenced
         )
         assert saved.status_code == 200
         saved_value = saved.json()
+        assert saved_value["warnings"] == base_value["warnings"]
 
         approved = client.post(
             review_path,
@@ -309,6 +314,8 @@ def test_browser_scoped_assembly_review_approves_exact_base_and_delete_is_fenced
             },
         )
         assert approved.status_code == 200
+        assert approved.json()["warnings"] == base_value["warnings"]
+        assert client.get(review_path, headers=browser_headers).json()["warnings"] == base_value["warnings"]
         assert approved.json()["approval_current"] is True
         assert approved.json()["base"]["assembly_id"] == assembly["assembly_id"]
 

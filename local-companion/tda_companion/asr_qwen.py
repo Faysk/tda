@@ -47,10 +47,12 @@ QWEN_SEGMENT_MAX_SECONDS = 30.0
 # Empty ASR text is not evidence of silence on its own. Only windows whose
 # decoded PCM sits very close to the digital noise floor may be treated as a
 # legitimate zero-segment interval. Keep these thresholds deliberately strict:
-# quiet speech must fail closed instead of being silently discarded.
+# signal-bearing empty output must never be mislabeled as confirmed silence.
+# Unrecognized intervals produce explicit omission warnings after bounded retry;
+# runtime/inference exceptions remain errors.
 QWEN_CONFIDENT_SILENCE_PEAK_DBFS = -84.0
 QWEN_CONFIDENT_SILENCE_RMS_DBFS = -90.0
-QWEN_SILENCE_POLICY = "pre-asr-near-digital-v1"
+QWEN_SILENCE_POLICY = "near-digital-and-unrecognized-skip-v2"
 
 
 class QwenRuntimeError(RuntimeError):
@@ -74,6 +76,7 @@ class QwenWindowTranscript:
     end: float
     text: str
     language: str
+    unrecognized: bool = False
 
 
 class AsrSession(Protocol):
@@ -695,7 +698,11 @@ def transcribe_craig_package_qwen(
                         )
                         if not text.strip():
                             report({**event, "code": "QWEN_WINDOW_EMPTY_ASR_REJECTED"})
-                            raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
+                            report({**event, "code": "QWEN_WINDOW_UNRECOGNIZED_SKIPPED"})
+                            warnings.append(
+                                f"QWEN_UNRECOGNIZED_WINDOW:track-{track.number}:"
+                                f"window-{window.index}:{window.start:.3f}-{window.end:.3f}"
+                            )
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,
@@ -779,7 +786,7 @@ def transcribe_craig_package_qwen(
                 )
                 transcript_track.validate()
                 new_tracks[track.number] = transcript_track
-                if checkpoints:
+                if checkpoints and not any(w.startswith(f"QWEN_UNRECOGNIZED_WINDOW:track-{track.number}:") for w in warnings):
                     try:
                         save_track_checkpoint(package_root, signature, track, transcript_track)
                         report({"type": "event", "code": "ASR_CHECKPOINT_SAVED", "track": track.number})

@@ -364,7 +364,7 @@ def test_strict_qwen_accepts_silent_window_without_alignment(tmp_path: Path):
 
 
 @pytest.mark.parametrize("amplitude", [1e-4, 0.1])
-def test_strict_qwen_rejects_empty_asr_when_window_has_signal(
+def test_strict_qwen_skips_unrecognized_signal_with_warning(
     tmp_path: Path,
     amplitude: float,
 ):
@@ -383,27 +383,28 @@ def test_strict_qwen_rejects_empty_asr_when_window_has_signal(
         for index in range(320)
     ]
 
-    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
-        transcribe_craig_package_qwen_strict(
-            package,
-            root,
-            tmp_path / "Models",
-            profile_id="qwen-fast",
-            checkpoints=False,
-            plan_resolver=_plan,
-            model_prepare=_model_prepare,
-            aligner_prepare=lambda _root: (_ for _ in ()).throw(
-                AssertionError("uncertain empty ASR must fail before alignment")
-            ),
-            asr_session_factory=lambda _root, _plan: Asr(),
-            aligner_session_factory=lambda _root, _plan: (_ for _ in ()).throw(
-                AssertionError("uncertain empty ASR must fail before aligner creation")
-            ),
-            window_reader=lambda _path: iter(
-                [AudioWindow(index=1, start=0.0, end=2.0, audio=audio)]
-            ),
-            report=reports.append,
-        )
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=lambda _root: (_ for _ in ()).throw(
+            AssertionError("uncertain empty ASR must fail before alignment")
+        ),
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda _root, _plan: (_ for _ in ()).throw(
+            AssertionError("uncertain empty ASR must fail before aligner creation")
+        ),
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=2.0, audio=audio)]
+        ),
+        report=reports.append,
+    )
+    assert document.warnings
+    assert all(not track.segments for track in document.tracks)
 
     rejected = next(
         item for item in reports if item.get("code") == "QWEN_WINDOW_EMPTY_ASR_REJECTED"
@@ -498,7 +499,7 @@ def test_quality_empty_full_window_recovers_with_two_bounded_in_window_halves(
     assert "QWEN_EMPTY_WINDOW_RECOVERY_FAILED" not in codes
 
 
-def test_quality_empty_full_window_recovery_remains_fail_closed_when_half_is_empty(
+def test_quality_empty_full_window_is_skipped_after_bounded_recovery(
     tmp_path: Path,
 ):
     package, root = _package(tmp_path)
@@ -527,27 +528,28 @@ def test_quality_empty_full_window_recovery_remains_fail_closed_when_half_is_emp
         return Path("quality-model")
 
     audio = [0.1, -0.1] * 160
-    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
-        transcribe_craig_package_qwen_strict(
-            package,
-            root,
-            tmp_path / "Models",
-            profile_id="qwen-quality",
-            checkpoints=False,
-            plan_resolver=quality_plan,
-            model_prepare=quality_model_prepare,
-            aligner_prepare=lambda _root: (_ for _ in ()).throw(
-                AssertionError("failed subwindow recovery must stop before alignment")
-            ),
-            asr_session_factory=lambda _root, _plan: Asr(),
-            aligner_session_factory=lambda *_args: (_ for _ in ()).throw(
-                AssertionError("failed subwindow recovery must stop before aligner creation")
-            ),
-            window_reader=lambda _path: iter(
-                [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
-            ),
-            report=reports.append,
-        )
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-quality",
+        checkpoints=False,
+        plan_resolver=quality_plan,
+        model_prepare=quality_model_prepare,
+        aligner_prepare=lambda _root: (_ for _ in ()).throw(
+            AssertionError("failed subwindow recovery must stop before alignment")
+        ),
+        asr_session_factory=lambda _root, _plan: Asr(),
+        aligner_session_factory=lambda *_args: (_ for _ in ()).throw(
+            AssertionError("failed subwindow recovery must stop before aligner creation")
+        ),
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
+        ),
+        report=reports.append,
+    )
+    assert document.warnings
+    assert all(not track.segments for track in document.tracks)
 
     assert calls == 2
     codes = [item.get("code") for item in reports]
@@ -646,31 +648,32 @@ def test_fast_empty_full_window_recovery_remains_fail_closed_when_half_is_empty(
             pass
 
     audio = [0.1, -0.1] * 160
-    with pytest.raises(QwenRuntimeError, match="QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN"):
-        transcribe_craig_package_qwen_strict(
-            package,
-            root,
-            tmp_path / "Models",
-            profile_id="qwen-fast",
-            checkpoints=False,
-            plan_resolver=_plan,
-            model_prepare=_model_prepare,
-            aligner_prepare=lambda _root: (_ for _ in ()).throw(
-                AssertionError("failed Fast recovery must stop before alignment")
-            ),
-            asr_session_factory=lambda _root, plan: (
-                Asr()
-                if plan.profile_id == "qwen-fast"
-                else (_ for _ in ()).throw(AssertionError("Fast recovery changed profile"))
-            ),
-            aligner_session_factory=lambda *_args: (_ for _ in ()).throw(
-                AssertionError("failed Fast recovery must stop before aligner creation")
-            ),
-            window_reader=lambda _path: iter(
-                [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
-            ),
-            report=reports.append,
-        )
+    document = transcribe_craig_package_qwen_strict(
+        package,
+        root,
+        tmp_path / "Models",
+        profile_id="qwen-fast",
+        checkpoints=False,
+        plan_resolver=_plan,
+        model_prepare=_model_prepare,
+        aligner_prepare=lambda _root: (_ for _ in ()).throw(
+            AssertionError("failed Fast recovery must stop before alignment")
+        ),
+        asr_session_factory=lambda _root, plan: (
+            Asr()
+            if plan.profile_id == "qwen-fast"
+            else (_ for _ in ()).throw(AssertionError("Fast recovery changed profile"))
+        ),
+        aligner_session_factory=lambda *_args: (_ for _ in ()).throw(
+            AssertionError("failed Fast recovery must stop before aligner creation")
+        ),
+        window_reader=lambda _path: iter(
+            [AudioWindow(index=1, start=0.0, end=60.0, audio=audio)]
+        ),
+        report=reports.append,
+    )
+    assert document.warnings
+    assert all(not track.segments for track in document.tracks)
 
     assert calls == 2
     failed = next(
@@ -861,7 +864,7 @@ def test_strict_qwen_silent_track_checkpoint_reuses_zero_segment_result(tmp_path
         **common,
     )
 
-    assert created == {"asr": 1, "aligner": 1}
+    assert created == {"asr": 1, "aligner": 0}
     assert first.tracks[0].segments == ()
     assert second.tracks[0].segments == ()
     assert second.tracks[0].duration_seconds == 2.0
@@ -2656,3 +2659,43 @@ def test_owned_overflow_on_last_window_never_uses_right_context_recovery(
     codes = [item.get("code") for item in reports]
     assert "QWEN_ALIGNMENT_WINDOW_RECOVERY_STARTED" not in codes
     assert codes.count("QWEN_ALIGNMENT_WINDOW_FAILED") == 1
+
+
+def test_unrecognized_window_continues_and_preserves_warning_on_text_checkpoint_resume(tmp_path: Path):
+    package, root = _package(tmp_path)
+    calls = []
+    reports = []
+
+    class Asr:
+        def transcribe(self, audio, *, prompt):
+            calls.append(len(audio))
+            return ("continua" if len(calls) == 3 else ""), "Portuguese"
+
+        def close(self):
+            pass
+
+    class Aligner:
+        def align(self, audio, text, language):
+            assert text == "continua"
+            return [{"text": "continua", "start_time": 10.0, "end_time": 11.0}]
+
+        def close(self):
+            pass
+
+    common = dict(profile_id="qwen-fast", plan_resolver=_plan,
+                  model_prepare=_model_prepare, aligner_prepare=_aligner_prepare,
+                  aligner_session_factory=lambda *_args: Aligner(),
+                  window_reader=lambda _path: iter([
+                      AudioWindow(index=1, start=0.0, end=60.0, audio=[0.1, -0.1] * 160),
+                      AudioWindow(index=2, start=54.0, end=114.0, audio=[0.1, -0.1] * 160),
+                  ]), energy_reader=lambda *_args: -20.0)
+    first = transcribe_craig_package_qwen_strict(package, root, tmp_path / "Models",
+        asr_session_factory=lambda *_args: Asr(), report=reports.append, **common)
+    assert calls == [320, 160, 320]
+    assert first.warnings == ("QWEN_UNRECOGNIZED_WINDOW:track-1:window-1:0.000-60.000",)
+    assert [segment.text for segment in first.tracks[0].segments] == ["continua"]
+    assert sum(item.get("code") == "QWEN_WINDOW_UNRECOGNIZED_SKIPPED" for item in reports) == 1
+    second = transcribe_craig_package_qwen_strict(package, root, tmp_path / "Models",
+        asr_session_factory=lambda *_args: (_ for _ in ()).throw(AssertionError("text checkpoint must skip ASR")), **common)
+    assert second.warnings == first.warnings
+    assert second.tracks == first.tracks

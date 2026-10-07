@@ -295,6 +295,11 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 					: undefined,
 			};
 		}
+		case "QWEN_WINDOW_UNRECOGNIZED_SKIPPED":
+			return {
+				title: "Trecho sem reconhecimento ignorado. A transcrição continua.",
+				detail: `Faixa ${numberData(event, "track") ?? "—"} · ${numberData(event, "start_seconds") ?? "—"}–${numberData(event, "end_seconds") ?? "—"} s. Nenhum texto foi inventado para este trecho.`,
+			};
 		case "QWEN_WINDOW_TRANSCRIBED": {
 			const track = numberData(event, "track");
 			const window = numberData(event, "window");

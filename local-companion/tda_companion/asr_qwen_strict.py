@@ -406,6 +406,14 @@ def _right_context_alignment_window(
     )
 
 
+class _NoTextAligner:
+    def align(self, _audio, _text, _language):
+        raise QwenRuntimeError("QWEN_NO_TEXT_ALIGNMENT_UNEXPECTED")
+
+    def close(self):
+        pass
+
+
 def _recover_empty_window_with_subwindows(
     window: AudioWindow,
     asr_session: AsrSession,
@@ -839,6 +847,7 @@ def transcribe_craig_package_qwen_strict(
                 end=item.end,
                 text=item.text,
                 language=item.language,
+                unrecognized=item.unrecognized,
             )
             for item in cached_text
         ]
@@ -917,6 +926,7 @@ def transcribe_craig_package_qwen_strict(
                         end=item.end,
                         text=item.text,
                         language=item.language,
+                        unrecognized=item.unrecognized,
                     )
                     for item in prefix
                 ]
@@ -973,8 +983,15 @@ def transcribe_craig_package_qwen_strict(
                                 total_tracks=total_tracks,
                             )
                             if recovered is None:
-                                raise QwenRuntimeError("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN")
-                            text, language = recovered
+                                report({**event, "code": "QWEN_WINDOW_UNRECOGNIZED_SKIPPED"})
+                                compatibility_warnings.add(
+                                    f"QWEN_UNRECOGNIZED_WINDOW:track-{track.number}:"
+                                    f"window-{window.index}:{window.start:.3f}-{window.end:.3f}"
+                                )
+                                text = ""
+                                language = profile.language or "Portuguese"
+                            else:
+                                text, language = recovered
                     values.append(
                         QwenWindowTranscript(
                             index=window.index,
@@ -982,6 +999,7 @@ def transcribe_craig_package_qwen_strict(
                             end=window.end,
                             text=text.strip(),
                             language=language or "Portuguese",
+                            unrecognized=not text.strip() and not diagnostics["confidently_silent"],
                         )
                     )
                     fresh_window_count += 1
@@ -1012,6 +1030,7 @@ def transcribe_craig_package_qwen_strict(
                                         end=item.end,
                                         text=item.text,
                                         language=item.language,
+                                        unrecognized=item.unrecognized,
                                     )
                                     for item in values
                                 ),
@@ -1055,6 +1074,7 @@ def transcribe_craig_package_qwen_strict(
                                     end=item.end,
                                     text=item.text,
                                     language=item.language,
+                                    unrecognized=item.unrecognized,
                                 )
                                 for item in values
                             ),
@@ -1084,14 +1104,24 @@ def transcribe_craig_package_qwen_strict(
         finally:
             asr_session.close()
 
+    for track_number, windows in pending_text.items():
+        for item in windows:
+            if item.unrecognized:
+                compatibility_warnings.add(
+                    f"QWEN_UNRECOGNIZED_WINDOW:track-{track_number}:"
+                    f"window-{item.index}:{item.start:.3f}-{item.end:.3f}"
+                )
     new_tracks: dict[int, TranscriptTrack] = {}
     energy_by_segment: dict[tuple[int, str], float] = {}
     if pending_tracks:
         report({"type": "stage", "stage": "alignment", "profile": profile.id})
         measurement.switch("model_prepare")
-        aligner_root = aligner_prepare(models_root.resolve())
-        measurement.switch("model_load")
-        aligner: AlignerSession = aligner_session_factory(aligner_root, plan)
+        if any(item.text.strip() for values in pending_text.values() for item in values):
+            aligner_root = aligner_prepare(models_root.resolve())
+            measurement.switch("model_load")
+            aligner: AlignerSession = aligner_session_factory(aligner_root, plan)
+        else:
+            aligner = _NoTextAligner()
         measurement.switch("alignment_and_energy")
         report(device_event(plan.device))
         try:
@@ -1375,7 +1405,7 @@ def transcribe_craig_package_qwen_strict(
                     )
                     raise
                 new_tracks[track.number] = transcript_track
-                if checkpoints:
+                if checkpoints and not any(item.unrecognized for item in pending_text[track.number]):
                     try:
                         save_track_checkpoint(package_root, signature, track, transcript_track)
                         report({"type": "event", "code": "ASR_CHECKPOINT_SAVED", "track": track.number})
