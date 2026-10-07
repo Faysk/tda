@@ -352,3 +352,7 @@ Restaurar referência anterior quando necessário. Objetos imutáveis podem perm
 Em 2026-09-20 a publicação automática de mídia ainda precisa convergir para ADR-0018: secrets R2 devem vir do GitHub Environment e publicação pendente deve ser acumulativa desde o baseline.
 
 Enquanto esse drift existir, não usar bypass manual para concluir release com mídia nova.
+
+### Dispatch Qwen com Runtime RC ativo — #1576
+
+A verificação de workflow ativo precede a restauração excepcional de #1413. Um pacote posterior (por exemplo 1.0.19) segue para dispatch quando Runtime RC já está ativo, sem exigir a antiga versão 1.0.18. Se o workflow estiver desabilitado, a restauração continua restrita a 1.0.18, sem Stable existente e com estados permitidos; outras versões não reativam automação. Identidade/source/digests e aceite físico continuam obrigatórios. Rollback: reverter apenas a ordenação; nenhum asset ou versão existente é substituído.
