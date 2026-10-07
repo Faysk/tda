@@ -331,7 +331,7 @@ export default async function EditSessionsPage({
 							<Link
 								className={styles.libraryOpen}
 								href={editSessionDetailHref(
-									campaignSlug,
+									campaign.routeKey,
 									session.sourceSessionId,
 								)}
 							>

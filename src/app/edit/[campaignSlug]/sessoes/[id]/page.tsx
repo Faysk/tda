@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { ActionLink, StatusPill } from "@/components/ui";
-import { requireCampaignCapability } from "@/features/auth/server";
+import { currentAccess, requireCampaignCapability } from "@/features/auth/server";
 import { editSessionLibraryHref, readEditableSessionCampaigns } from "@/features/campaigns/sessions";
 import {
 	authorizeCampaignCapability,
@@ -55,20 +55,27 @@ function UnavailableTranscript({ backHref }: { backHref: string }) {
 }
 
 export default async function EditSessionPage({ params }: PageProps) {
-	const { campaignSlug, id } = await params;
+	const { campaignSlug: campaignReference, id } = await params;
 	const sourceSessionId = String(id || "").trim();
 	if (!sourceSessionId || sourceSessionId.length > 220) notFound();
 
-	const backHref = editSessionLibraryHref(campaignSlug);
-	const accessContext = await requireCampaignCapability(
-		EDIT_CAPABILITIES.transcriptRead,
-		campaignSlug,
-		`${backHref}/${encodeURIComponent(sourceSessionId)}`,
-	);
-	const eligible = await readEditableSessionCampaigns(accessContext);
-	if (!eligible.ok) return <UnavailableTranscript backHref={backHref} />;
-	const campaign = eligible.campaigns.find((item) => item.technicalSlug === campaignSlug);
+	const requestedHref = `${editSessionLibraryHref(campaignReference)}/${encodeURIComponent(sourceSessionId)}`;
+	const access = await currentAccess();
+	if (access.state === "anonymous") redirect(`/entrar?next=${encodeURIComponent(requestedHref)}`);
+	if (access.state === "unavailable") redirect("/conta?acesso=indisponivel");
+	if (!access.context?.profileId) redirect("/conta?acesso=negado");
+	const eligible = await readEditableSessionCampaigns(access.context);
+	if (!eligible.ok) return <UnavailableTranscript backHref={editSessionLibraryHref(campaignReference)} />;
+	const campaign = eligible.campaigns.find((item) => item.routeKey === campaignReference)
+		?? eligible.campaigns.find((item) => item.technicalSlug === campaignReference);
 	if (!campaign) notFound();
+	const campaignSlug = campaign.technicalSlug;
+	const backHref = editSessionLibraryHref(campaign.routeKey);
+	const canonicalHref = `${backHref}/${encodeURIComponent(sourceSessionId)}`;
+	const accessContext = await requireCampaignCapability(
+		EDIT_CAPABILITIES.transcriptRead, campaignSlug, canonicalHref,
+	);
+	if (campaignReference !== campaign.routeKey) redirect(canonicalHref);
 	const canEdit = authorizeCampaignCapability(
 		accessContext,
 		EDIT_CAPABILITIES.contentEdit,
@@ -127,7 +134,7 @@ export default async function EditSessionPage({ params }: PageProps) {
 				).ok
 			) {
 				redirect(
-					`/edit/${encodeURIComponent(destination.technicalSlug)}/sessoes/${encodeURIComponent(sourceSessionId)}`,
+					`/edit/${encodeURIComponent(destination.routeKey)}/sessoes/${encodeURIComponent(sourceSessionId)}`,
 				);
 			}
 		}

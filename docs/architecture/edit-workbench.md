@@ -277,3 +277,5 @@ O editor desktop mantém a transcrição e o painel editorial com rolagem intern
 A fixture usa um plano sintético com 12 famílias. A regressão verifica foco por Tab, confirmação inteiramente no viewport e hit target pintado, ausência de overflow horizontal e working copy preservada em 1920×1080, 1052×900, 1366×600, 390×844 e 320×800. Essa validação de layout não executa transferência real nem prova publicação: o aceite em Production é registrado no issue após a entrega deliberada.
 
 O plano de transferência agrupa dependências em duas colunas no desktop e uma no mobile, com espaçamento consistente e confirmação final alinhada à direita. O conteúdo expandido permanece no fluxo rolável do documento.
+
+A sessão individual do Edit usa o routeKey da campanha no endereço e nos links da biblioteca e do seletor legado. Aliases técnicos são redirecionados somente após autenticação e autorização da campanha; repositórios e decisões continuam usando o technicalSlug estável.
