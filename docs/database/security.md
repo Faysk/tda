@@ -544,3 +544,7 @@ Portanto, o fallback restaura disponibilidade da única campaign pública histó
 ## Campaign registry revision recovery — #1326
 
 `advance_campaign_registry_revision()` is a trigger-only SECURITY INVOKER function with fixed `pg_catalog, public` search path. PUBLIC/anon/authenticated direct execution is revoked. It advances only `campaigns.updated_at`; existing table grants, RLS and application capability checks remain authoritative. The migration does not grant campaign access or change discovery. The revision prevents stale management edits from overwriting a newer edit, including same-transaction writes and clients with a regressed clock.
+
+### Private handoff bounded statement budget — #1578 candidate
+
+The server-only `prepare_transcript_handoff_atomic` RPC declares `statement_timeout=30s` for its bounded validation/atomic commit. It remains `SECURITY INVOKER` with fixed search path and execute restricted to `service_role`; actor/campaign capability resolution, payload limits, hashes, current-revision CAS, rollback and inherited lock timeout are unchanged. No role/global timeout or grants are broadened. Acceptance checks function configuration and ACL alongside the full synthetic migration chain and live preserved-operation receipt.

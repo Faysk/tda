@@ -43,10 +43,12 @@ try:
         repo/'supabase/migrations/20260928153000_prepare_legacy_transcript_revision.sql',
         repo/'supabase/migrations/20260929183000_transcript_handoff_session_resolution.sql',
         repo/'supabase/migrations/20261007174241_assembly_v3_private_handoff.sql',
+        repo/'supabase/migrations/20261007202500_assembly_validation_bounded.sql',
         repo/'supabase/tests/transcript_publication_revisions.sql',
         repo/'supabase/tests/transcript_handoff_session_resolution.sql',
         repo/'supabase/tests/transcript_multi_source_provenance.sql',
         repo/'supabase/tests/assembly_v3_private_handoff.sql',
+        repo/'supabase/tests/assembly_large_handoff.sql',
         repo/'supabase/tests/transcript_revision_web_edits.sql',
         repo/'supabase/tests/legacy_transcript_prepare.sql',
     ]
