@@ -79,6 +79,8 @@ jobs:
           tools/ci/public-release-smoke.test.mjs
           tools/ci/session-campaign-move-production-health.test.mjs
           tools/ci/github-actions-security.test.mjs
+      - name: Validate direct Companion download verification
+        run: python tools/ci/companion_download_verify_test.py
 
   transcript-import-postgres:
     needs: classify-changes

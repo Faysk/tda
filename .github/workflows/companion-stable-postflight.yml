@@ -1,0 +1,33 @@
+name: Companion Stable Postflight
+on:
+  workflow_dispatch:
+    inputs:
+      stable_tag:
+        description: Existing immutable Stable Companion tag to verify
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      STABLE_TAG: ${{ inputs.stable_tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Verify existing Stable identity and direct delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$STABLE_TAG" =~ ^companion-v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh release view "$STABLE_TAG" --json tagName,isDraft,isPrerelease > release.json
+          python -c 'import json,os; r=json.load(open("release.json")); assert r["tagName"]==os.environ["STABLE_TAG"] and r["isDraft"] is False and r["isPrerelease"] is False'
+          gh release download "$STABLE_TAG" --dir manifests \
+            --pattern TDACompanion-candidate.json --pattern TDACompanion-promotion.json
+          python tools/ci/companion_download_verify.py \
+            --tag "$STABLE_TAG" \
+            --candidate-manifest manifests/TDACompanion-candidate.json \
+            --promotion-manifest manifests/TDACompanion-promotion.json

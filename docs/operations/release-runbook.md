@@ -356,6 +356,14 @@ não substituir o recibo anterior que registrou a rejeição do ZIP no 0.3.23.
 
 ### Download do Companion pelo domínio do TDA (#1567)
 
+O postflight de promoção verifica HTTP 200 direto, `Content-Length`, disposition
+de download e SHA-256 completo do MSI tanto na rota padrão quanto na tag fixada.
+Não exigir o antigo redirecionamento 307: isso contradiz a entrega pelo domínio
+do TDA. Se a promoção já trocou o canal e apenas o postflight falhou, preservar
+esse workflow como evidência e executar `Companion Stable Postflight` em `main`
+para a Stable existente. Esse fluxo tem somente permissão de leitura, não
+reconstrói assets nem repete a troca de canal.
+
 O endpoint `/api/downloads/companion/windows` entrega o MSI por streaming Node.js,
 com `Content-Disposition: attachment`, sem redirecionar o navegador para o CDN do
 GitHub. O GitHub continua sendo a origem canônica do artefato imutável; somente o
