@@ -104,6 +104,13 @@ Antes de promover `1.1.10` a Stable, o **archive/hash/source exatos** do RC prec
 Rollback nunca reutiliza números de runtime: se `1.1.10` falhar no aceite, não promover. Se já houver promoção e surgir regressão, selecionar deliberadamente o artefato Stable anterior conhecido, manter benchmark fail-closed quando o contrato não puder ser satisfeito e corrigir com **nova versão**. Não retaggear, rebuildar ou sobrescrever releases existentes.
 ## Exceções
 
+O candidato de metadados Craig #1565 mantém os pins já aceitos durante o rebuild
+versionado Companion 0.3.22 / Qwen 1.0.19 / Whisper 1.1.11. Python 3.12.14 e
+Transformers 5.18.0 continuam sob as exceções machine-readable existentes:
+esta entrega altera identidade de exportação, sem juntar mudanças do interpretador
+ou da inferência. Os artefatos novos exigem novo aceite físico; os receipts das
+versões anteriores não são reutilizados como aprovação destes bytes.
+
 Toda exceção precisa ser explícita e ter justificativa técnica ou legal. Exceções de dependência runtime devem ser machine-readable no manifest correspondente, vinculadas à versão pinada e rejeitadas automaticamente quando o pin divergir.
 
 ### Python/uv preservados durante os controles 0.3.17–0.3.21

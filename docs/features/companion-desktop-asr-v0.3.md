@@ -1,6 +1,6 @@
 # TDA Companion v0.3 — Desktop, Agent e ASR
 
-> Status: arquitetura v0.3 implementada; contrato corrente da linha 0.3.21 com histórico de estabilização preservado
+> Status: arquitetura v0.3 implementada; contrato corrente da linha 0.3.22 com histórico de estabilização preservado
 > Owner: local-companion / processing
 > Última revisão: 2026-10-06
 > ADRs: `docs/adr/0013-companion-agent-desktop-asr.md`, `docs/adr/0017-web-single-entry-loopback-session.md`
@@ -12,7 +12,7 @@
 
 A Web continua responsável por sessões, fila editorial, revisão, resultados e publicação. O Desktop cuida de Agent, saúde, consumo, logs técnicos, diagnóstico, modelos, update, storage e manutenção.
 
-A linha de código corrente é **Companion 0.3.21**. O teste físico da 0.3.2 permanece como evidência histórica que motivou a estabilização, não como fotografia do estado atual. O contrato complementar `companion-reliability.md` continua obrigatório para lifecycle, rede, manutenção, release e aceite físico de cada artefato exato.
+A linha de código corrente é **Companion 0.3.22**. O teste físico da 0.3.2 permanece como evidência histórica que motivou a estabilização, não como fotografia do estado atual. O contrato complementar `companion-reliability.md` continua obrigatório para lifecycle, rede, manutenção, release e aceite físico de cada artefato exato.
 
 ## Current behavior
 
@@ -335,6 +335,26 @@ Modelos não entram no MSI; são downloads gerenciados em `%LOCALAPPDATA%\TDA\Mo
 A política `docs/operations/companion-dependency-policy.md` é gate de release: usamos a versão estável mais recente e compatível, com exceções documentadas. GPU/ASR só vira baseline suportada depois de teste físico.
 
 ## Craig ZIP
+
+### Identidades Craig — candidato 0.3.22, #1565
+
+O `id` do cabeçalho `raw.dat` identifica o job de exportação do kitchen; não é
+o ID da gravação presente no `info.txt`. O ingest preserva esse valor como
+`export_job_id`, separado de `recording_id`. Um pacote somente raw não ganha
+identidade de gravação a partir do job de exportação. Guild, canal, início e
+participantes continuam sujeitos à reconciliação de conflitos independente.
+
+Fonte primária: `CraigChat/craig@19f8575b2ac4ee6c7bfb6a2619af0348b57e4bc1`,
+`apps/kitchen/src/jobs/job.ts`, `jobs/processing/recording.ts` e
+`util/process.ts`. Nos dois ZIPs reais, o candidato elimina o conflito indevido,
+mantém quatro faixas por arquivo e preserva exatamente seus hashes.
+
+O campo novo é opcional na leitura de manifests históricos; nenhum run ou
+manifest histórico é reescrito por esta correção. A correção vale para novos
+ingests; pacotes já staged continuam preservados até reingest/repair seguro.
+Os novos bytes exigem Companion 0.3.22, Qwen 1.0.19 e Whisper 1.1.11 em candidatos
+imutáveis. Stable anteriores permanecem intactos; publicação/promoção só após
+CI, build, instalação e aceite físico dos artefatos exatos.
 
 Job: `transcription.craig`.
 
