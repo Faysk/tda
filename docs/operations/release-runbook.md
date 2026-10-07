@@ -346,6 +346,14 @@ governada dos mesmos bytes de runtime; não comprova RTX 2080 nem qualidade
 linguística medida. Também não substitui o aceite próprio do MSI 0.3.24.
 Recibo aceito e canal Stable publicado permanecem estados distintos.
 
+O MSI 0.3.24 de source `9dd86f0a7873` passou pelo aceite instalado oficial
+e pelo teste físico dos quatro perfis em RTX 4070 Laptop. Os recibos sanitizados
+em `docs/companion/acceptance/` vinculam MSI, payload e runtimes aos hashes
+verificados; incluem recuperação, conflito de porta, retomada BITS e preservação
+do Craig após perda do Agent. A verificação oficial de promoção dos assets passou.
+O benchmark Craig e a exportação continuam sendo conferências independentes;
+não substituir o recibo anterior que registrou a rejeição do ZIP no 0.3.23.
+
 ### Download do Companion pelo domínio do TDA (#1567)
 
 O endpoint `/api/downloads/companion/windows` entrega o MSI por streaming Node.js,
