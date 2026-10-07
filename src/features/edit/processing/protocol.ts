@@ -1,14 +1,7 @@
 import { supportsQwenAlignmentRuntime } from "./compatibility";
-import {
-	PROCESSING_TIMING_VERSION,
-	parseEngineMetrics,
-	type EngineProcessingMetrics,
-} from "./engine-metrics";
+import { PROCESSING_TIMING_VERSION, parseEngineMetrics, type EngineProcessingMetrics } from "./engine-metrics";
 import { isReviewStringV1 } from "../../transcript-review/text-contract";
-import {
-	parseTrustedAbsoluteTime,
-	type TrustedAbsoluteTime,
-} from "../../transcript-review/time-contract";
+import { parseTrustedAbsoluteTime, type TrustedAbsoluteTime } from "../../transcript-review/time-contract";
 
 export const LOCAL_API = "http://127.0.0.1:8765/api/v1";
 export type Lifecycle = "preparing" | "ready" | "paused";
@@ -290,12 +283,7 @@ export type JobContext = {
 	profiles?: readonly TranscriptionProfileId[];
 	prepared?: boolean;
 };
-export type ExecutionDevice = Readonly<{
-	kind: "cpu" | "cuda";
-	logicalIndex: number | null;
-	physicalUuid: string | null;
-	pciBusId: string | null;
-}>;
+export type ExecutionDevice = Readonly<{ kind: "cpu" | "cuda"; logicalIndex: number | null; physicalUuid: string | null; pciBusId: string | null }>;
 export type JobTrackTiming = {
 	track: number;
 	totalTracks: number | null;
@@ -437,16 +425,7 @@ export type BenchmarkPartialProfileOutcome =
 			artifactAvailable: true;
 			transcriptSha256: string;
 			transcriptSizeBytes: number;
-			metrics?: Pick<
-				BenchmarkProfileResult,
-				| "processingSeconds"
-				| "rtf"
-				| "wordCount"
-				| "warningCount"
-				| "model"
-				| "computeType"
-				| "executionLineage"
-			> | null;
+			metrics?: Pick<BenchmarkProfileResult, "processingSeconds" | "rtf" | "wordCount" | "warningCount" | "model" | "computeType" | "executionLineage"> | null;
 	  }
 	| {
 			profileId: TranscriptionProfileId;
@@ -535,12 +514,7 @@ export type LocalRunDeleteReceipt = {
 export type LocalExecutionLineage = {
 	schemaVersion: "tda_execution_lineage_v1";
 	companionVersion: string | null;
-	runtimeArtifact?: Readonly<{
-		runtimeId: string;
-		version: string;
-		workerSha256: string;
-		archiveSha256: string | null;
-	}> | null;
+	runtimeArtifact?: Readonly<{ runtimeId: string; version: string; workerSha256: string; archiveSha256: string | null }> | null;
 	executionDevice?: ExecutionDevice | null;
 	runtimeFamily: string | null;
 	runtimeVersion: string | null;
@@ -820,12 +794,9 @@ function nullableIsoDate(value: unknown): string | null {
 export function transcriptionProfile(value: unknown): TranscriptionProfileId {
 	const parsed = text(value, 32);
 	if (
-		![
-			"whisper-turbo",
-			"whisper-detailed",
-			"qwen-fast",
-			"qwen-quality",
-		].includes(parsed)
+		!["whisper-turbo", "whisper-detailed", "qwen-fast", "qwen-quality"].includes(
+			parsed,
+		)
 	)
 		return invalid();
 	return parsed as TranscriptionProfileId;
@@ -865,8 +836,7 @@ export function parseCapabilities(value: unknown): Capabilities {
 			for (const profileId of ["qwen-fast", "qwen-quality"] as const) {
 				if (gates[profileId] === undefined) continue;
 				const gate = record(gates[profileId]);
-				if (transcriptionProfile(gate.profile_id) !== profileId)
-					return invalid();
+				if (transcriptionProfile(gate.profile_id) !== profileId) return invalid();
 				const ready = boolean(gate.ready);
 				const runtimeVersion =
 					gate.runtime_version === null || gate.runtime_version === undefined
@@ -883,19 +853,13 @@ export function parseCapabilities(value: unknown): Capabilities {
 				});
 			}
 		}
-		if (
-			!Array.isArray(transcription.profiles) ||
-			transcription.profiles.length > 8
-		)
+		if (!Array.isArray(transcription.profiles) || transcription.profiles.length > 8)
 			return invalid();
 		profiles = transcription.profiles.map(transcriptionProfile);
 		if (new Set(profiles).size !== profiles.length) return invalid();
 
 		if (transcription.catalog !== undefined) {
-			if (
-				!Array.isArray(transcription.catalog) ||
-				transcription.catalog.length > 8
-			)
+			if (!Array.isArray(transcription.catalog) || transcription.catalog.length > 8)
 				return invalid();
 			catalog = transcription.catalog.map((raw) => {
 				const item = record(raw);
@@ -916,9 +880,7 @@ export function parseCapabilities(value: unknown): Capabilities {
 					preparationRequired: boolean(item.preparation_required),
 					reason,
 					benchmarkReady:
-						item.benchmark_ready === undefined
-							? false
-							: boolean(item.benchmark_ready),
+						item.benchmark_ready === undefined ? false : boolean(item.benchmark_ready),
 					benchmarkPreparationRequired:
 						item.benchmark_preparation_required === undefined
 							? false
@@ -928,8 +890,7 @@ export function parseCapabilities(value: unknown): Capabilities {
 					modelRevision: nullableText(item.model_revision, 128),
 					runtimeVersion: nullableText(item.runtime_version, 64),
 					runtimeWorkerSha256:
-						item.runtime_worker_sha256 === null ||
-						item.runtime_worker_sha256 === undefined
+						item.runtime_worker_sha256 === null || item.runtime_worker_sha256 === undefined
 							? null
 							: sha256(item.runtime_worker_sha256),
 					computeType: nullableText(item.compute_type, 64),
@@ -963,8 +924,7 @@ export function parseCapabilities(value: unknown): Capabilities {
 			// the gate failure as ordinary first-use preparation. The catalog also
 			// remains authoritative enough to fail closed when an older Companion
 			// omits the optional gate snapshot entirely.
-			const runtimeVersion =
-				gate?.runtimeVersion ?? item.runtimeVersion ?? null;
+			const runtimeVersion = gate?.runtimeVersion ?? item.runtimeVersion ?? null;
 			if (
 				runtimeVersion !== null &&
 				!supportsQwenAlignmentRuntime(runtimeVersion)
@@ -1013,11 +973,7 @@ export function parseQwenRuntimeMaintenanceStatus(
 		row.mode === null || row.mode === undefined ? null : text(row.mode, 16);
 	if (mode !== null && mode !== "check" && mode !== "update") return invalid();
 	const stableStatus = text(row.stable_status, 32);
-	if (
-		!["unknown", "compatible", "below_minimum", "unavailable"].includes(
-			stableStatus,
-		)
-	)
+	if (!["unknown", "compatible", "below_minimum", "unavailable"].includes(stableStatus))
 		return invalid();
 	const nullableBoolean = (raw: unknown): boolean | null =>
 		raw === null || raw === undefined ? null : boolean(raw);
@@ -1052,11 +1008,7 @@ export function parseQwenRuntimeMaintenanceStatus(
 export function parsePreparationStatus(value: unknown): PreparationStatus {
 	const row = record(value);
 	if (row.schema !== "tda_profile_preparation_v1") return invalid();
-	if (
-		!["idle", "running", "completed", "failed", "interrupted"].includes(
-			String(row.state),
-		)
-	)
+	if (!["idle", "running", "completed", "failed", "interrupted"].includes(String(row.state)))
 		return invalid();
 	const nullableText = (raw: unknown, limit = 128) =>
 		raw === null || raw === undefined ? null : text(raw, limit);
@@ -1065,9 +1017,7 @@ export function parsePreparationStatus(value: unknown): PreparationStatus {
 			? null
 			: transcriptionProfile(row.profile_id);
 	const engine =
-		row.engine === null || row.engine === undefined
-			? null
-			: text(row.engine, 16);
+		row.engine === null || row.engine === undefined ? null : text(row.engine, 16);
 	if (engine !== null && engine !== "whisper" && engine !== "qwen3")
 		return invalid();
 	const purpose =
@@ -1116,9 +1066,7 @@ export function parseCraigSource(value: unknown): CraigSource {
 		sizeBytes,
 		trackCount,
 		audioWorkSeconds: nullableNonNegativeNumber(row.audio_work_seconds),
-		sessionDurationSeconds: nullableNonNegativeNumber(
-			row.session_duration_seconds,
-		),
+		sessionDurationSeconds: nullableNonNegativeNumber(row.session_duration_seconds),
 		minimumTrackDurationSeconds: nullableNonNegativeNumber(
 			row.minimum_track_duration_seconds,
 		),
@@ -1154,9 +1102,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		if (!/^craig-[0-9a-f]{64}$/u.test(sourceId)) return invalid();
 		if (ordinal !== index) return invalid();
 		if (sourceState !== "ready" && sourceState !== "invalid") return invalid();
-		if (
-			!["unresolved", "automatic", "manual", "sequence"].includes(timelineMode)
-		)
+		if (!["unresolved", "automatic", "manual", "sequence"].includes(timelineMode))
 			return invalid();
 		if (
 			!["trusted_absolute", "ambiguous", "opaque", "missing"].includes(
@@ -1165,23 +1111,14 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		)
 			return invalid();
 		if (
-			![
-				"first",
-				"unknown",
-				"contiguous",
-				"gap",
-				"overlap",
-				"order_conflict",
-			].includes(relation)
+			!["first", "unknown", "contiguous", "gap", "overlap", "order_conflict"].includes(
+				relation,
+			)
 		)
 			return invalid();
 		if (
 			overlapResolution !== null &&
-			![
-				"prefer_earlier_until",
-				"prefer_later_from",
-				"preserve_both_exact_v1",
-			].includes(overlapResolution)
+			!["prefer_earlier_until", "prefer_later_from", "preserve_both_exact_v1"].includes(overlapResolution)
 		)
 			return invalid();
 		if (
@@ -1213,7 +1150,8 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 				part.overlap_boundary_seconds,
 			),
 			sourceStartTime: nullableText(part.source_start_time, 128),
-			sourceStartConfidence: startConfidence as SessionTimestampConfidence,
+			sourceStartConfidence:
+				startConfidence as SessionTimestampConfidence,
 			sourceStartUtc: nullableIsoDate(part.source_start_utc),
 			sourceDurationSeconds: nullableNonNegativeNumber(
 				part.source_duration_seconds,
@@ -1243,8 +1181,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const segmentBoundaryPolicy = text(timeline.segment_boundary_policy, 40);
 	const state = text(timeline.state, 32);
 	const timelineV2 = policyVersion === "tda_session_timeline_v2";
-	if (!timelineV2 && policyVersion !== "tda_session_timeline_v1")
-		return invalid();
+	if (!timelineV2 && policyVersion !== "tda_session_timeline_v1") return invalid();
 	const strategy = timelineV2 ? text(timeline.strategy, 32) : null;
 	const wallClock = timelineV2 ? text(timeline.wall_clock, 16) : null;
 	if (
@@ -1275,8 +1212,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	)
 		return invalid();
 
-	if (parts.length > 0 && parts[0].relationToPrevious !== "first")
-		return invalid();
+	if (parts.length > 0 && parts[0].relationToPrevious !== "first") return invalid();
 	if (parts.slice(1).some((part) => part.relationToPrevious === "first"))
 		return invalid();
 
@@ -1289,9 +1225,7 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const unresolvedOverlapCount = nonNegativeInteger(
 		timeline.unresolved_overlap_count,
 	);
-	const unconfirmedGapCount = nonNegativeInteger(
-		timeline.unconfirmed_gap_count,
-	);
+	const unconfirmedGapCount = nonNegativeInteger(timeline.unconfirmed_gap_count);
 	const unknownIntervalCount = timelineV2
 		? nonNegativeInteger(timeline.unknown_interval_count)
 		: null;
@@ -1317,7 +1251,10 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 	const observedUnknownIntervalCount = parts.filter(
 		(part) => part.physicalIntervalState === "unknown",
 	).length;
-	if (timelineV2 && parts.some((part) => part.physicalIntervalState === null))
+	if (
+		timelineV2 &&
+		parts.some((part) => part.physicalIntervalState === null)
+	)
 		return invalid();
 	if (
 		gapCount !== observedGapCount ||
@@ -1342,7 +1279,8 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		identifier(value),
 	);
 	if (
-		new Set(freshStartExcludedJobIds).size !== freshStartExcludedJobIds.length
+		new Set(freshStartExcludedJobIds).size !==
+		freshStartExcludedJobIds.length
 	)
 		return invalid();
 
@@ -1361,7 +1299,8 @@ export function parseSessionWorkspace(value: unknown): SessionWorkspace {
 		freshStartExcludedJobIds,
 		parts,
 		timeline: {
-			policyVersion: policyVersion as SessionWorkspaceTimeline["policyVersion"],
+			policyVersion:
+				policyVersion as SessionWorkspaceTimeline["policyVersion"],
 			segmentBoundaryPolicy: "segment_start_owner_v1",
 			fingerprintSha256: sha256(timeline.fingerprint_sha256),
 			strategy: strategy as SessionWorkspaceTimeline["strategy"],
@@ -1559,10 +1498,7 @@ export function parseSessionParticipantMapping(
 			!/^[0-9a-f]{32}$/u.test(participantId)
 		)
 			return invalid();
-		return {
-			observationId,
-			participantId,
-		} satisfies SessionParticipantAssignment;
+		return { observationId, participantId } satisfies SessionParticipantAssignment;
 	});
 	if (
 		new Set(manualAssignments.map((row) => row.observationId)).size !==
@@ -1639,10 +1575,7 @@ export function parseJob(value: unknown): LocalJob {
 			trackDurationsSeconds,
 		};
 		if (rawContext.profile_id !== undefined && rawContext.profile_id !== null) {
-			context = {
-				...base,
-				profileId: transcriptionProfile(rawContext.profile_id),
-			};
+			context = { ...base, profileId: transcriptionProfile(rawContext.profile_id) };
 		} else if (
 			rawContext.sample_identity_sha256 !== undefined ||
 			rawContext.sample_seconds !== undefined ||
@@ -1675,8 +1608,7 @@ export function parseJob(value: unknown): LocalJob {
 		raw === null || raw === undefined ? null : isoDate(raw);
 	const nullableSeconds = (raw: unknown) => {
 		if (raw === null || raw === undefined) return null;
-		if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0)
-			return invalid();
+		if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) return invalid();
 		return raw;
 	};
 	let timing: JobTiming = {
@@ -1690,8 +1622,7 @@ export function parseJob(value: unknown): LocalJob {
 	};
 	if (rawTiming) {
 		if (rawTiming.schema_version !== "tda_job_timing_v1") return invalid();
-		if (!Array.isArray(rawTiming.tracks) || rawTiming.tracks.length > 256)
-			return invalid();
+		if (!Array.isArray(rawTiming.tracks) || rawTiming.tracks.length > 256) return invalid();
 		const tracks: JobTrackTiming[] = rawTiming.tracks.map((value) => {
 			const item = record(value);
 			const track = nonNegativeInteger(item.track);
@@ -1700,8 +1631,7 @@ export function parseJob(value: unknown): LocalJob {
 				item.total_tracks === null || item.total_tracks === undefined
 					? null
 					: nonNegativeInteger(item.total_tracks);
-			if (totalTracks !== null && (totalTracks < track || totalTracks > 256))
-				return invalid();
+			if (totalTracks !== null && (totalTracks < track || totalTracks > 256)) return invalid();
 			const speaker =
 				item.speaker === null || item.speaker === undefined
 					? null
@@ -1715,8 +1645,7 @@ export function parseJob(value: unknown): LocalJob {
 				processingSeconds: nullableSeconds(item.processing_seconds),
 			};
 		});
-		if (new Set(tracks.map((item) => item.track)).size !== tracks.length)
-			return invalid();
+		if (new Set(tracks.map((item) => item.track)).size !== tracks.length) return invalid();
 		timing = {
 			schemaVersion: "tda_job_timing_v1",
 			attemptStartedAt: nullableIso(rawTiming.attempt_started_at),
@@ -1740,7 +1669,8 @@ export function parseJob(value: unknown): LocalJob {
 			: null,
 		result_available: boolean(row.result_available),
 		updated_at: isoDate(row.updated_at),
-		attempt: row.attempt === undefined ? 0 : nonNegativeInteger(row.attempt),
+		attempt:
+			row.attempt === undefined ? 0 : nonNegativeInteger(row.attempt),
 		context,
 	};
 }
@@ -1754,8 +1684,7 @@ export function parseJobs(value: unknown): LocalJob[] {
 export function parseJobListPage(value: unknown): JobListPage {
 	const row = record(value);
 	if (row.schema_version !== "tda_job_page_v1") return invalid();
-	if (!["all", "active", "history"].includes(String(row.scope)))
-		return invalid();
+	if (!["all", "active", "history"].includes(String(row.scope))) return invalid();
 	const jobs = parseJobs(row);
 	const hasMore = boolean(row.has_more);
 	const nextCursor =
@@ -1777,9 +1706,7 @@ export function parseJobListPage(value: unknown): JobListPage {
 	const counts = Object.fromEntries(
 		statuses.map((status) => [
 			status,
-			rawCounts[status] === undefined
-				? 0
-				: nonNegativeInteger(rawCounts[status]),
+			rawCounts[status] === undefined ? 0 : nonNegativeInteger(rawCounts[status]),
 		]),
 	) as Record<JobStatus, number>;
 	return {
@@ -1845,7 +1772,9 @@ export function parseJobEventPage(value: unknown): JobEventPage {
 	}
 	const hasMore = boolean(row.has_more);
 	const nextAfterSeq =
-		row.next_after_seq === null ? null : nonNegativeInteger(row.next_after_seq);
+		row.next_after_seq === null
+			? null
+			: nonNegativeInteger(row.next_after_seq);
 	const nextBeforeSeq =
 		row.next_before_seq === null
 			? null
@@ -1863,8 +1792,7 @@ export function parseJobActivity(value: unknown): JobActivity {
 	if (row.schema_version !== "tda_job_activity_v1") return invalid();
 	const attempt = nonNegativeInteger(row.attempt);
 	if (attempt < 1) return invalid();
-	if (!Array.isArray(row.metrics) || row.metrics.length > 1024)
-		return invalid();
+	if (!Array.isArray(row.metrics) || row.metrics.length > 1024) return invalid();
 	const allowedMetrics: readonly JobActivityMetric[] = [
 		"qwen_windows_completed",
 		"whisper_segments_completed",
@@ -1874,7 +1802,8 @@ export function parseJobActivity(value: unknown): JobActivity {
 		const item = record(raw);
 		const metric = text(item.metric, 64);
 		if (!allowedMetrics.includes(metric as JobActivityMetric)) return invalid();
-		const track = item.track === null ? null : nonNegativeInteger(item.track);
+		const track =
+			item.track === null ? null : nonNegativeInteger(item.track);
 		if (
 			metric === "model_downloaded_bytes"
 				? track !== null
@@ -1900,45 +1829,22 @@ export function parseJobActivity(value: unknown): JobActivity {
 }
 
 export function parseExecutionDevice(value: unknown): ExecutionDevice | null {
-	if (value === null || value === undefined) return null;
-	const row = record(value);
-	if (row.kind === "cpu")
-		return {
-			kind: "cpu",
-			logicalIndex: null,
-			physicalUuid: null,
-			pciBusId: null,
-		};
-	if (row.kind !== "cuda") return invalid();
-	const logicalIndex = nonNegativeInteger(row.logical_index);
-	if (logicalIndex > 99) return invalid();
-	return {
-		kind: "cuda",
-		logicalIndex,
-		physicalUuid: parseGpuUuid(row.physical_uuid),
-		pciBusId: parsePciBusId(row.pci_bus_id),
-	};
+ if (value === null || value === undefined) return null;
+ const row = record(value);
+ if (row.kind === "cpu") return { kind: "cpu", logicalIndex: null, physicalUuid: null, pciBusId: null };
+ if (row.kind !== "cuda") return invalid();
+ const logicalIndex = nonNegativeInteger(row.logical_index); if (logicalIndex > 99) return invalid();
+ return { kind: "cuda", logicalIndex, physicalUuid: parseGpuUuid(row.physical_uuid), pciBusId: parsePciBusId(row.pci_bus_id) };
 }
 function parseGpuUuid(value: unknown): string | null {
-	if (value === null || value === undefined) return null;
-	if (
-		typeof value !== "string" ||
-		!/^(GPU|MIG)-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(value)
-	)
-		return invalid();
-	const offset = value.indexOf("-");
-	return (
-		value.slice(0, offset).toUpperCase() + value.slice(offset).toLowerCase()
-	);
+ if (value === null || value === undefined) return null;
+ if (typeof value !== "string" || !/^(GPU|MIG)-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(value)) return invalid();
+ const offset = value.indexOf("-"); return value.slice(0, offset).toUpperCase() + value.slice(offset).toLowerCase();
 }
 function parsePciBusId(value: unknown): string | null {
-	if (value === null || value === undefined) return null;
-	if (
-		typeof value !== "string" ||
-		!/^[0-9a-f]{8}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$/iu.test(value)
-	)
-		return invalid();
-	return value.toLowerCase();
+ if (value === null || value === undefined) return null;
+ if (typeof value !== "string" || !/^[0-9a-f]{8}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$/iu.test(value)) return invalid();
+ return value.toLowerCase();
 }
 export function parseSystemSnapshot(value: unknown): SystemSnapshot {
 	const row = record(value);
@@ -1977,8 +1883,7 @@ export function parseSystemSnapshot(value: unknown): SystemSnapshot {
 export function parseLocalSources(value: unknown): LocalSourceSummary[] {
 	const row = record(value);
 	if (row.schema_version !== "tda_craig_sources_v1") return invalid();
-	if (!Array.isArray(row.sources) || row.sources.length > 1000)
-		return invalid();
+	if (!Array.isArray(row.sources) || row.sources.length > 1000) return invalid();
 	const sources = row.sources.map((raw) => {
 		const item = record(raw);
 		const sourceSha256 = sha256(item.source_sha256);
@@ -1998,37 +1903,18 @@ export function parseLocalSources(value: unknown): LocalSourceSummary[] {
 	return sources;
 }
 
+
 function parseExecutionLineage(value: unknown): LocalExecutionLineage | null {
 	if (value === null || value === undefined) return null;
 	const row = record(value);
 	if (row.schema_version !== "tda_execution_lineage_v1") return invalid();
 	let runtimeArtifact: LocalExecutionLineage["runtimeArtifact"] = null;
-	if (row.runtime_artifact !== null && row.runtime_artifact !== undefined) {
-		const artifact = record(row.runtime_artifact);
-		const expectedId =
-			row.runtime_family === "qwen"
-				? "qwen3-transformers"
-				: row.runtime_family === "whisper"
-					? "whisper-ctranslate2"
-					: null;
-		if (
-			!expectedId ||
-			artifact.runtime_id !== expectedId ||
-			artifact.version !== row.runtime_version ||
-			typeof artifact.version !== "string" ||
-			!/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(artifact.version)
-		)
-			return invalid();
-		runtimeArtifact = {
-			runtimeId: expectedId,
-			version: text(artifact.version),
-			workerSha256: sha256(artifact.worker_sha256),
-			archiveSha256:
-				artifact.archive_sha256 === null
-					? null
-					: sha256(artifact.archive_sha256),
-		};
-	}
+    if (row.runtime_artifact !== null && row.runtime_artifact !== undefined) {
+        const artifact = record(row.runtime_artifact);
+        const expectedId = row.runtime_family === "qwen" ? "qwen3-transformers" : row.runtime_family === "whisper" ? "whisper-ctranslate2" : null;
+        if (!expectedId || artifact.runtime_id !== expectedId || artifact.version !== row.runtime_version || typeof artifact.version !== "string" || !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(artifact.version)) return invalid();
+        runtimeArtifact = { runtimeId: expectedId, version: text(artifact.version), workerSha256: sha256(artifact.worker_sha256), archiveSha256: artifact.archive_sha256 === null ? null : sha256(artifact.archive_sha256) };
+    }
 	const rawGpu = row.gpu;
 	let gpu: LocalExecutionLineage["gpu"] = null;
 	if (rawGpu !== null && rawGpu !== undefined) {
@@ -2106,8 +1992,7 @@ function parseLocalRunReview(value: unknown): LocalRunReviewSummary | null {
 			updatedAt: null,
 		};
 	}
-	if (!["draft", "reviewed", "approved_local"].includes(status))
-		return invalid();
+	if (!["draft", "reviewed", "approved_local"].includes(status)) return invalid();
 	const reviewPercent = nonNegativeNumber(row.review_percent);
 	if (reviewPercent > 100) return invalid();
 	const updatedAt = nullableIsoDate(row.updated_at);
@@ -2120,16 +2005,13 @@ function parseLocalRunReview(value: unknown): LocalRunReviewSummary | null {
 	};
 }
 
-export function parseLocalRunDeleteReceipt(
-	value: unknown,
-): LocalRunDeleteReceipt {
+export function parseLocalRunDeleteReceipt(value: unknown): LocalRunDeleteReceipt {
 	const row = record(value);
 	if (
 		row.schema_version !== "tda_local_run_delete_receipt_v1" ||
 		row.deleted !== true ||
 		row.cloud_changed !== false
-	)
-		return invalid();
+	) return invalid();
 	return {
 		schemaVersion: "tda_local_run_delete_receipt_v1",
 		sourceId: identifier(row.source_id),
@@ -2164,8 +2046,7 @@ export function parseLocalRunCatalogPage(value: unknown): LocalRunCatalogPage {
 	const identities = runs.map((run) => `${run.sourceId}:${run.runId}`);
 	if (new Set(identities).size !== identities.length) return invalid();
 	const hasMore = boolean(row.has_more);
-	const nextCursor =
-		row.next_cursor === null ? null : text(row.next_cursor, 512);
+	const nextCursor = row.next_cursor === null ? null : text(row.next_cursor, 512);
 	if (hasMore !== (nextCursor !== null)) return invalid();
 	return { runs, hasMore, nextCursor };
 }
@@ -2183,13 +2064,9 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 		const transcriptSha256 = sha256(item.transcript_sha256);
 		const stats = record(item.stats ?? {});
 		const nullableMetric = (metric: unknown) =>
-			metric === null || metric === undefined
-				? null
-				: nonNegativeNumber(metric);
+			metric === null || metric === undefined ? null : nonNegativeNumber(metric);
 		const nullableCount = (metric: unknown) =>
-			metric === null || metric === undefined
-				? null
-				: nonNegativeInteger(metric);
+			metric === null || metric === undefined ? null : nonNegativeInteger(metric);
 		return {
 			runId,
 			sourceId,
@@ -2221,11 +2098,7 @@ export function parseLocalRuns(value: unknown): LocalRunSummary[] {
 			stats: {
 				audioWorkSeconds: nullableMetric(stats.audio_work_seconds),
 				processingSeconds: nullableMetric(stats.processing_seconds),
-				processingMetrics: parseEngineMetrics(
-					stats.processing_metrics,
-					stats.track_count,
-					stats.audio_work_seconds,
-				),
+				processingMetrics: parseEngineMetrics(stats.processing_metrics, stats.track_count, stats.audio_work_seconds),
 				sessionDurationSeconds: nullableMetric(stats.session_duration_seconds),
 				...(stats.duration_semantics === "session_extent_v1"
 					? { durationSemantics: "session_extent_v1" as const }
@@ -2257,8 +2130,7 @@ export function parseLocalReview(
 	const row = record(value);
 	if (row.schema_version !== "tda_local_review_v1") return invalid();
 	const status = text(row.status, 32);
-	if (!["draft", "reviewed", "approved_local"].includes(status))
-		return invalid();
+	if (!["draft", "reviewed", "approved_local"].includes(status)) return invalid();
 	const approvalCurrent =
 		row.approval_current === undefined ? false : boolean(row.approval_current);
 	const approvedAt =
@@ -2273,30 +2145,17 @@ export function parseLocalReview(
 	const supportsCas = row.snapshot_contract === "tda_local_review_cas_v1";
 	if (row.snapshot_contract !== undefined && !supportsCas) return invalid();
 	const ephemeral = supportsCas && row.persistence === "ephemeral_base";
-	if (
-		supportsCas &&
-		!["persisted", "ephemeral_base"].includes(String(row.persistence))
-	)
-		return invalid();
-	if (
-		ephemeral &&
-		(row.draft_revision !== null ||
-			row.draft_sha256 !== null ||
-			row.created_at !== null ||
-			row.updated_at !== null ||
-			status !== "draft")
-	)
-		return invalid();
+	if (supportsCas && !["persisted", "ephemeral_base"].includes(String(row.persistence))) return invalid();
+	if (ephemeral && (row.draft_revision !== null || row.draft_sha256 !== null ||
+		row.created_at !== null || row.updated_at !== null || status !== "draft")) return invalid();
 	if (!supportsCas && row.persistence !== undefined) return invalid();
 	const lineage = record(row.lineage);
 	const stats = record(row.stats);
 	const review = record(row.review);
 	const sync = record(row.sync);
 	if (sync.status !== "not_configured") return invalid();
-	if (!Array.isArray(row.warnings) || row.warnings.length > 1000)
-		return invalid();
-	if (!Array.isArray(row.segments) || row.segments.length > 100_000)
-		return invalid();
+	if (!Array.isArray(row.warnings) || row.warnings.length > 1000) return invalid();
+	if (!Array.isArray(row.segments) || row.segments.length > 100_000) return invalid();
 	const segments = row.segments.map((raw) => {
 		const segment = record(raw);
 		const start = nonNegativeNumber(segment.start);
@@ -2330,12 +2189,9 @@ export function parseLocalReview(
 				if (!absoluteTime) return invalid();
 			} else if (segment.absolute_time_state === "unavailable") {
 				if (
-					(segment.absolute_start !== null &&
-						segment.absolute_start !== undefined) ||
-					(segment.absolute_end !== null &&
-						segment.absolute_end !== undefined) ||
-					(segment.absolute_time_source !== null &&
-						segment.absolute_time_source !== undefined)
+					(segment.absolute_start !== null && segment.absolute_start !== undefined) ||
+					(segment.absolute_end !== null && segment.absolute_end !== undefined) ||
+					(segment.absolute_time_source !== null && segment.absolute_time_source !== undefined)
 				)
 					return invalid();
 				absoluteTime = null;
@@ -2350,9 +2206,7 @@ export function parseLocalReview(
 			timelineEnd,
 			...(absoluteTime !== undefined ? { absoluteTime } : {}),
 			text: isReviewStringV1(segment.text, "text") ? segment.text : invalid(),
-			speaker: isReviewStringV1(segment.speaker, "speaker")
-				? segment.speaker
-				: invalid(),
+			speaker: isReviewStringV1(segment.speaker, "speaker") ? segment.speaker : invalid(),
 			reviewed: boolean(segment.reviewed),
 		};
 	});
@@ -2369,13 +2223,8 @@ export function parseLocalReview(
 		const totalCount = nonNegativeInteger(summary.total_count);
 		const displayedCount = nonNegativeInteger(summary.displayed_count);
 		const truncated = boolean(summary.truncated);
-		if (
-			totalCount !== warningCount ||
-			displayedCount !== row.warnings.length ||
-			displayedCount !== Math.min(totalCount, 1000) ||
-			truncated !== totalCount > displayedCount
-		)
-			return invalid();
+		if (totalCount !== warningCount || displayedCount !== row.warnings.length ||
+			displayedCount !== Math.min(totalCount, 1000) || truncated !== (totalCount > displayedCount)) return invalid();
 		warningSummary = { totalCount, displayedCount, truncated };
 	}
 	return {
@@ -2385,9 +2234,7 @@ export function parseLocalReview(
 		draftRevision: ephemeral ? null : nonNegativeInteger(row.draft_revision),
 		draftSha256: ephemeral ? null : sha256(row.draft_sha256),
 		persistence: ephemeral ? "ephemeral_base" : "persisted",
-		...(supportsCas
-			? { snapshotContract: "tda_local_review_cas_v1" as const }
-			: {}),
+		...(supportsCas ? { snapshotContract: "tda_local_review_cas_v1" as const } : {}),
 		status: status as LocalReviewStatus,
 		approvalCurrent,
 		approvedAt,
@@ -2407,14 +2254,8 @@ export function parseLocalReview(
 		stats: {
 			audioWorkSeconds: nullableNonNegativeNumber(stats.audio_work_seconds),
 			processingSeconds: nullableNonNegativeNumber(stats.processing_seconds),
-			processingMetrics: parseEngineMetrics(
-				stats.processing_metrics,
-				stats.track_count,
-				stats.audio_work_seconds,
-			),
-			sessionDurationSeconds: nullableNonNegativeNumber(
-				stats.session_duration_seconds,
-			),
+			processingMetrics: parseEngineMetrics(stats.processing_metrics, stats.track_count, stats.audio_work_seconds),
+			sessionDurationSeconds: nullableNonNegativeNumber(stats.session_duration_seconds),
 			...(stats.duration_semantics === "session_extent_v1"
 				? { durationSemantics: "session_extent_v1" as const }
 				: {}),
@@ -2434,11 +2275,8 @@ export function parseLocalReview(
 		},
 		warnings: row.warnings.map((warning) => contentText(warning, 1024)),
 		...(warningSummary ? { warningSummary } : {}),
-		...(row.publication_target_state === "valid" ||
-		row.publication_target_state === "invalid" ||
-		row.publication_target_state === "unbound"
-			? { publicationTargetState: row.publication_target_state }
-			: {}),
+		...(row.publication_target_state === "valid" || row.publication_target_state === "invalid" || row.publication_target_state === "unbound"
+			? { publicationTargetState: row.publication_target_state } : {}),
 		publicationTarget: parsePublicationTarget(row.publication_target, {
 			sourceId,
 			runId,
@@ -2612,85 +2450,70 @@ export function parseBenchmarkPartialResult(
 		"qwen-fast",
 		"qwen-quality",
 	];
-	const profiles = rawProfiles.map(
-		(raw, index): BenchmarkPartialProfileOutcome => {
-			const item = record(raw);
-			const profileId = transcriptionProfile(item.profile_id);
-			if (profileId !== expected[index]) return invalid();
-			if (item.status === "completed") {
-				if (item.artifact_available !== true) return invalid();
-				const receipt = record(item.receipt);
-				if (
-					receipt.schema_version !== "tda_benchmark_profile_v1" ||
-					transcriptionProfile(receipt.profile_id) !== profileId ||
-					benchmarkIdentifier(receipt.benchmark_id) !== benchmarkId ||
-					sha256(receipt.sample_identity_sha256) !== sampleIdentitySha256 ||
-					receipt.artifact_available !== true
-				)
-					return invalid();
-				const transcriptSizeBytes = nonNegativeInteger(
-					receipt.transcript_size_bytes,
-				);
-				if (transcriptSizeBytes <= 0) return invalid();
-				return {
-					profileId,
-					status: "completed",
-					artifactAvailable: true,
-					transcriptSha256: sha256(receipt.transcript_sha256),
-					transcriptSizeBytes,
-					metrics:
-						receipt.processing_seconds === undefined
-							? null
-							: {
-									processingSeconds: nonNegativeNumber(
-										receipt.processing_seconds,
-									),
-									rtf: nullableNonNegativeNumber(receipt.rtf),
-									wordCount: nonNegativeInteger(receipt.word_count),
-									warningCount: nonNegativeInteger(receipt.warning_count),
-									model: text(receipt.model, 256),
-									computeType: nullableText(receipt.compute_type, 64),
-									executionLineage: parseExecutionLineage(
-										receipt.execution_lineage,
-									),
-								},
-				};
-			}
-			if (item.status !== "failed" || item.artifact_available !== false)
-				return invalid();
-			const error = record(item.error);
-			const continuation = record(item.continuation);
-			const code = text(error.code, 96);
+	const profiles = rawProfiles.map((raw, index): BenchmarkPartialProfileOutcome => {
+		const item = record(raw);
+		const profileId = transcriptionProfile(item.profile_id);
+		if (profileId !== expected[index]) return invalid();
+		if (item.status === "completed") {
+			if (item.artifact_available !== true) return invalid();
+			const receipt = record(item.receipt);
 			if (
-				!/^[A-Z0-9_]{1,96}$/u.test(code) ||
-				error.recoverable !== true ||
-				error.scope !== "profile" ||
-				continuation.decision !== "continue" ||
-				continuation.reason !== "profile_local_allowlist"
+				receipt.schema_version !== "tda_benchmark_profile_v1" ||
+				transcriptionProfile(receipt.profile_id) !== profileId ||
+				benchmarkIdentifier(receipt.benchmark_id) !== benchmarkId ||
+				sha256(receipt.sample_identity_sha256) !== sampleIdentitySha256 ||
+				receipt.artifact_available !== true
 			)
 				return invalid();
+			const transcriptSizeBytes = nonNegativeInteger(receipt.transcript_size_bytes);
+			if (transcriptSizeBytes <= 0) return invalid();
 			return {
 				profileId,
-				status: "failed",
-				artifactAvailable: false,
-				error: { code, recoverable: true, scope: "profile" },
-				continuation: {
-					decision: "continue",
-					reason: "profile_local_allowlist",
+				status: "completed",
+				artifactAvailable: true,
+				transcriptSha256: sha256(receipt.transcript_sha256),
+				transcriptSizeBytes,
+				metrics: receipt.processing_seconds === undefined ? null : {
+					processingSeconds: nonNegativeNumber(receipt.processing_seconds),
+					rtf: nullableNonNegativeNumber(receipt.rtf),
+					wordCount: nonNegativeInteger(receipt.word_count),
+					warningCount: nonNegativeInteger(receipt.warning_count),
+					model: text(receipt.model, 256),
+					computeType: nullableText(receipt.compute_type, 64),
+					executionLineage: parseExecutionLineage(receipt.execution_lineage),
 				},
 			};
-		},
-	);
+		}
+		if (item.status !== "failed" || item.artifact_available !== false)
+			return invalid();
+		const error = record(item.error);
+		const continuation = record(item.continuation);
+		const code = text(error.code, 96);
+		if (
+			!/^[A-Z0-9_]{1,96}$/u.test(code) ||
+			error.recoverable !== true ||
+			error.scope !== "profile" ||
+			continuation.decision !== "continue" ||
+			continuation.reason !== "profile_local_allowlist"
+		)
+			return invalid();
+		return {
+			profileId,
+			status: "failed",
+			artifactAvailable: false,
+			error: { code, recoverable: true, scope: "profile" },
+			continuation: {
+				decision: "continue",
+				reason: "profile_local_allowlist",
+			},
+		};
+	});
 
 	const attemptedCount = nonNegativeInteger(row.attempted_count);
 	const completedCount = nonNegativeInteger(row.completed_count);
 	const failedCount = nonNegativeInteger(row.failed_count);
-	const actualCompleted = profiles.filter(
-		(item) => item.status === "completed",
-	).length;
-	const actualFailed = profiles.filter(
-		(item) => item.status === "failed",
-	).length;
+	const actualCompleted = profiles.filter((item) => item.status === "completed").length;
+	const actualFailed = profiles.filter((item) => item.status === "failed").length;
 	if (
 		attemptedCount !== expected.length ||
 		completedCount !== actualCompleted ||
@@ -2746,8 +2569,7 @@ export function parseBenchmarkEvidenceSummary(
 	const row = record(value);
 	if (row.schema_version !== "tda_benchmark_bundle_v1") return invalid();
 	const benchmarkId = benchmarkIdentifier(row.benchmark_id);
-	if (benchmarkId !== benchmarkIdentifier(expectedBenchmarkId))
-		return invalid();
+	if (benchmarkId !== benchmarkIdentifier(expectedBenchmarkId)) return invalid();
 	if (!Array.isArray(row.profile_order) || row.profile_order.length !== 4)
 		return invalid();
 	const profileOrder = row.profile_order.map(transcriptionProfile);
@@ -2782,16 +2604,13 @@ export function parseBenchmarkTranscriptSnapshot(
 	if (row.schema_version !== "tda_benchmark_transcript_snapshot_v1")
 		return invalid();
 	const benchmarkId = benchmarkIdentifier(row.benchmark_id);
-	if (benchmarkId !== benchmarkIdentifier(expectedBenchmarkId))
-		return invalid();
+	if (benchmarkId !== benchmarkIdentifier(expectedBenchmarkId)) return invalid();
 	const profileId = transcriptionProfile(row.profile_id);
 	if (profileId !== expectedProfileId) return invalid();
 	const engine = text(row.engine, 16);
 	if (engine !== "whisper" && engine !== "qwen3") return invalid();
-	if (!Array.isArray(row.warnings) || row.warnings.length > 1000)
-		return invalid();
-	if (!Array.isArray(row.segments) || row.segments.length > 100_000)
-		return invalid();
+	if (!Array.isArray(row.warnings) || row.warnings.length > 1000) return invalid();
+	if (!Array.isArray(row.segments) || row.segments.length > 100_000) return invalid();
 	const stats = record(row.stats);
 	const segments = row.segments.map((raw): BenchmarkTranscriptSegment => {
 		const item = record(raw);
@@ -2803,8 +2622,7 @@ export function parseBenchmarkTranscriptSnapshot(
 		const trackNumber = nonNegativeInteger(item.track_number);
 		if (trackNumber < 1) return invalid();
 		const timingPrecision = text(item.timing_precision, 16);
-		if (timingPrecision !== "word" && timingPrecision !== "segment")
-			return invalid();
+		if (timingPrecision !== "word" && timingPrecision !== "segment") return invalid();
 		return {
 			trackNumber,
 			segmentId: contentText(item.segment_id, 256),
@@ -2856,9 +2674,7 @@ export function parseBenchmarkTranscriptSnapshot(
 				stats.track_count,
 				stats.audio_work_seconds,
 			),
-			sessionDurationSeconds: nullableNonNegativeNumber(
-				stats.session_duration_seconds,
-			),
+			sessionDurationSeconds: nullableNonNegativeNumber(stats.session_duration_seconds),
 			...(stats.duration_semantics === "session_extent_v1"
 				? { durationSemantics: "session_extent_v1" as const }
 				: {}),
@@ -2867,9 +2683,7 @@ export function parseBenchmarkTranscriptSnapshot(
 			segmentCount: nonNegativeInteger(stats.segment_count),
 			trackCount: nonNegativeInteger(stats.track_count),
 			turnCount: nonNegativeInteger(stats.turn_count),
-			deduplicatedSegmentCount: nonNegativeInteger(
-				stats.deduplicated_segment_count,
-			),
+			deduplicatedSegmentCount: nonNegativeInteger(stats.deduplicated_segment_count),
 			warningCount: nonNegativeInteger(stats.warning_count),
 		},
 		warnings: row.warnings.map((warning) => contentText(warning, 1024)),
