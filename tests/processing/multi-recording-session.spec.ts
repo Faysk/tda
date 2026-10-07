@@ -5,7 +5,7 @@ import {
 	UI_ORIGIN,
 } from "./companion-fixture";
 import { renderTranscriptMarkdownV1 } from "../../src/features/transcript-review/markdown-contract";
-import { expectThemedSelectValue } from "../helpers/themed-select";
+import { expectThemedSelectValue, selectThemedOption } from "../helpers/themed-select";
 
 const CAMPAIGN = "yuhara-main";
 const SESSION = "sessao-42";
@@ -36,15 +36,15 @@ function json(route: Route, value: unknown, status = 200) {
 	});
 }
 
-function runFor(sourceId: string, index: number) {
+function runFor(sourceId: string, index: number, profile = "whisper-detailed") {
 	const digest = ((index + 6) % 16).toString(16).repeat(64);
 	return {
 		run_id: `run-${index + 1}`,
 		status: "completed",
 		source_id: sourceId,
-		profile_id: "whisper-detailed",
-		engine: "faster-whisper",
-		model: "large-v3",
+		profile_id: profile,
+		engine: profile.startsWith("qwen-") ? "qwen3" : "faster-whisper",
+		model: profile === "qwen-fast" ? "Qwen/Qwen3-ASR-0.6B-hf" : profile === "qwen-quality" ? "Qwen/Qwen3-ASR-1.7B-hf" : "large-v3",
 		model_revision: "fixture",
 		device: "cuda",
 		compute_type: "float16",
@@ -76,6 +76,8 @@ function runFor(sourceId: string, index: number) {
 }
 
 type FixtureOptions = Readonly<{
+	profile?: "qwen-fast" | "whisper-detailed";
+	failureCode?: string;
 	cleanupCapabilities?: boolean;
 	uploadSequence?: readonly number[];
 	recordingIds?: Readonly<Record<number, string>>;
@@ -128,6 +130,8 @@ async function installMultiRecordingRoutes(
 	const postCount = new Map<string, number>();
 	const retryCount = new Map<string, number>();
 	const postedSources: string[] = [];
+	const jobProfiles = new Map<string, string>();
+	const postedProfiles: string[] = [];
 	const postKeys = new Map<string, string[]>();
 	const postReuseCheckpoints = new Map<string, Array<boolean | undefined>>();
 	const acceptedKeys = new Map<string, string>();
@@ -376,10 +380,10 @@ async function installMultiRecordingRoutes(
 			error:
 				item.status === "failed"
 					? {
-							code:
+							code: options.failureCode ?? (
 								index === options.nonRecoverableSourceIndex
 									? "WORKER_PROGRESS_GAP"
-									: "FIXTURE_TRANSCRIPTION_FAILED",
+									: "FIXTURE_TRANSCRIPTION_FAILED"),
 							recoverable: index !== options.nonRecoverableSourceIndex,
 						}
 					: null,
@@ -393,7 +397,7 @@ async function installMultiRecordingRoutes(
 				campaign_id: CAMPAIGN,
 				session_id: SESSION,
 				source_id: sourceId,
-				profile_id: "whisper-detailed",
+				profile_id: jobProfiles.get(sourceId) ?? options.profile ?? "whisper-detailed",
 			},
 			execution_device: null,
 			timing: {
@@ -447,15 +451,16 @@ async function installMultiRecordingRoutes(
 				sync: false,
 				device: { id: "fixture-pc", label: "PC sintético" },
 				transcription: {
-					profiles: ["whisper-detailed"],
+					profiles: options.profile === "qwen-fast" ? ["qwen-fast", "qwen-quality"] : ["whisper-detailed"],
 					catalog: [
 						{
-							id: "whisper-detailed",
-							engine: "whisper",
+							id: options.profile ?? "whisper-detailed",
+							engine: options.profile === "qwen-fast" ? "qwen3" : "whisper",
 							ready: true,
 							preparation_required: false,
 							reason: null,
 						},
+						...(options.profile === "qwen-fast" ? [{ id: "qwen-quality", engine: "qwen3", ready: true, preparation_required: false, reason: null }] : []),
 					],
 				},
 			});
@@ -621,6 +626,7 @@ async function installMultiRecordingRoutes(
 		) {
 			const payload = request.postDataJSON() as {
 				source_id: string;
+				profile_id: string;
 				expected_revision: number;
 			};
 			if (payload.expected_revision !== revision)
@@ -753,11 +759,14 @@ async function installMultiRecordingRoutes(
 		if (path === "/jobs" && request.method() === "POST") {
 			const payload = request.postDataJSON() as {
 				source_id: string;
+				profile_id: string;
 				reuse_checkpoints?: boolean;
 			};
 			const index = SOURCE_IDS.indexOf(payload.source_id);
 			const key = request.headers()["idempotency-key"] ?? "";
 			postedSources.push(payload.source_id);
+			postedProfiles.push(payload.profile_id);
+			jobProfiles.set(payload.source_id, payload.profile_id);
 			postCount.set(payload.source_id, (postCount.get(payload.source_id) ?? 0) + 1);
 			postKeys.set(payload.source_id, [
 				...(postKeys.get(payload.source_id) ?? []),
@@ -852,7 +861,7 @@ async function installMultiRecordingRoutes(
 			if (!sourceId)
 				return json(route, { error: { code: "JOB_NOT_FOUND" } }, 404);
 			const index = SOURCE_IDS.indexOf(sourceId);
-			const run = runFor(sourceId, index);
+			const run = runFor(sourceId, index, jobProfiles.get(sourceId) ?? options.profile);
 			return json(route, {
 				schema_version: "tda_local_result_v1",
 				job_id: resultMatch[1],
@@ -865,7 +874,7 @@ async function installMultiRecordingRoutes(
 					artifact: "transcript.json",
 					sha256: run.transcript_sha256,
 					run_id: run.run_id,
-					profile_id: "whisper-detailed",
+					profile_id: run.profile_id,
 				},
 			});
 		}
@@ -880,7 +889,7 @@ async function installMultiRecordingRoutes(
 			const run =
 				index >= 0
 					? {
-							...runFor(sourceId, index),
+							...runFor(sourceId, index, jobProfiles.get(sourceId) ?? options.profile),
 							completed_at:
 								freshStartAt &&
 								currentJob &&
@@ -1086,6 +1095,7 @@ async function installMultiRecordingRoutes(
 		get postedSources() {
 			return [...postedSources];
 		},
+		get postedProfiles() { return [...postedProfiles]; },
 		dropAgentOnce() {
 			agentOfflineOnce = true;
 		},
@@ -2616,3 +2626,22 @@ test("fully automatic Craig multi-ZIP reuses exact work and asks only for real a
 	await expect(page.locator("#session-assembly-results-title")).toBeFocused();
 });
 
+
+test("uncertain Qwen Fast session recovers explicitly with Quality using preserved ZIPs and new jobs", async ({ page }) => {
+  await installCompanionFixture(page, { profileReady: true, reviewEnabled: true });
+  const multi = await installMultiRecordingRoutes(page, { profile: "qwen-fast", uploadSequence: [0], failOnceSourceIndex: 0, nonRecoverableSourceIndex: 0, failureCode: "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN" });
+  await openProcessing(page);
+  await selectThemedOption(page, page.getByLabel("Perfil"), "qwen-fast");
+  await page.getByLabel("Export do Craig").setInputFiles({ name: "sessao-42.zip", mimeType: "application/zip", buffer: Buffer.from("PK-qwen-recovery") });
+  await page.getByRole("button", { name: "Transcrever sessão", exact: true }).click();
+  const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+  await expect(intent.getByRole("button", { name: "Processar com Qwen Quality", exact: true })).toBeVisible();
+  expect(multi.postedProfiles).toEqual(["qwen-fast"]);
+  await intent.getByRole("button", { name: "Processar com Qwen Quality", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar Qwen Quality", exact: true }).click();
+  await expect(intent).toContainText("Transcrição pronta");
+  expect(multi.postedProfiles).toEqual(["qwen-fast", "qwen-quality"]);
+  expect(multi.postedSources).toEqual([SOURCE_IDS[0], SOURCE_IDS[0]]);
+  expect(new Set(multi.keysFor(SOURCE_IDS[0]!)).size).toBe(2);
+  expect(multi.publishedBodies).toHaveLength(0);
+});

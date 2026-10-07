@@ -357,6 +357,15 @@ concluídos continuam disponíveis para comparação. Validação automatizada e
 publicação não substituem aceite visual das cinco abas em uso real.
 Uma revisão sem alterações pode ser concluída explicitamente, persistindo o
 rascunho antes da aprovação. Isso não aprova nem envia a sessão automaticamente.
+
+Quando Qwen Fast termina com `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN`, a sessão oferece
+“Processar com Qwen Quality” mediante confirmação explícita. O Companion preserva
+os ZIPs e o histórico e cria novas execuções Quality para todas as gravações;
+não mistura resultados Fast e Quality na mesma montagem nem exige selecionar
+novamente os arquivos. A execução original continua marcada como falha. O
+benchmark mantém sua comparação parcial e não recebe texto emprestado de outro
+modelo. A recuperação foi validada em navegador sintético desktop/mobile; o
+aceite físico desta recuperação permanece separado.
 A lista de recursos técnicos do Diagnóstico fica recolhida e a Fila/Benchmark
 usam texto de no mínimo 12 px nas declarações tipográficas fixas.
 

@@ -175,4 +175,19 @@ Depois de qualquer rollback, revalidar os physical gates porque eles são vincul
 
 ## Critério de fechamento de #1236
 
+### Investigação atual — #1570, 07/10/2026
+
+No runtime 1.0.18, RTX 4070 Laptop, o Fast rejeitou saída vazia na janela
+54–114 s da primeira track do benchmark de 300 s. A recuperação limitada no
+mesmo perfil também retornou vazia. Uma execução diagnóstica isolada com ganho
+controlado de 32× manteve `QWEN_ACCEPTANCE_NO_SPEECH_RECOGNIZED`; esse resultado
+não estabelece ausência de fala e não autoriza relaxar os limiares de silêncio.
+Áudio, textos e evidências privadas permanecem fora do Git.
+
+A decisão de produto é oferecer recuperação explícita da sessão com Quality,
+preservando ZIPs e histórico e criando jobs com identidade própria. O benchmark
+Fast original permanece parcial, sem substituição oculta de modelo. A
+classificação editorial da janela e a repetição física dos quatro perfis ainda
+não foram confirmadas; o caminho de recuperação não é prova de precisão Fast.
+
 A issue só pode ser encerrada quando a evidência física do Craig original for anexada de forma sanitizada e os critérios da própria issue estiverem cobertos. CI verde e regressões sintéticas, sozinhos, não estabelecem o conteúdo/sinal da janela real que falhou originalmente.
