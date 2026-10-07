@@ -56,6 +56,15 @@ Com `required-ci` verde, mergear em `main`.
 
 ## 5. Production CD
 
+Production exige execução deliberada de `production-cd.yml` por
+`workflow_dispatch`, informando o SHA exato de `main` já validado. Push, merge e
+conclusão da CI não disparam publicação. O workflow continua recusando SHA
+arbitrário/antigo, exige origem numa PR mergeada e usa o Environment `production`.
+Só disparar após fechar o escopo e validar build, testes e visual. O pipeline
+preserva staged deploy, smoke, promote do mesmo artefato e verificação canônica.
+Em rollback, usar o artefato anterior aceito conforme o receipt; não reativar o
+gatilho automático para recuperar uma entrega.
+
 Acompanhar o lifecycle completo:
 
 1. prova de HEAD + PR mergeada;
