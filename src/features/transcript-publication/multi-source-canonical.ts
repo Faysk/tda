@@ -1,5 +1,11 @@
-import { countWordsV1, isReviewStringV1 } from "../transcript-review/text-contract";
-import { parseTrustedAbsoluteTime, type TrustedAbsoluteTime } from "../transcript-review/time-contract";
+import {
+	countWordsV1,
+	isReviewStringV1,
+} from "../transcript-review/text-contract";
+import {
+	parseTrustedAbsoluteTime,
+	type TrustedAbsoluteTime,
+} from "../transcript-review/time-contract";
 
 export const MULTI_SOURCE_PUBLICATION_REQUEST_VERSION =
 	"tda_transcript_publication_request_v2" as const;
@@ -42,13 +48,13 @@ export type CanonicalMultiSourcePart = Readonly<{
 	session_offset_seconds: number;
 	trim_start_seconds: number;
 	trim_end_seconds: number | null;
-	overlap_resolution: "prefer_earlier_until" | "prefer_later_from" | null;
+	overlap_resolution:
+		| "prefer_earlier_until"
+		| "prefer_later_from"
+		| "preserve_both_exact_v1"
+		| null;
 	overlap_boundary_seconds: number | null;
-	physical_interval_state?:
-		| "first"
-		| "trusted_absolute"
-		| "unknown"
-		| "manual";
+	physical_interval_state?: "first" | "trusted_absolute" | "unknown" | "manual";
 }>;
 
 export type CanonicalMultiSourceProvenance = Readonly<{
@@ -56,15 +62,14 @@ export type CanonicalMultiSourceProvenance = Readonly<{
 	assembly_schema_version: "tda_session_assembly_v1";
 	canonicalization_version:
 		| "tda_session_assembly_canonical_v1"
-		| "tda_session_assembly_canonical_v2";
+		| "tda_session_assembly_canonical_v2"
+		| "tda_session_assembly_canonical_v3";
 	assembly_id: string;
 	inputs_sha256: string;
 	campaign_id: string;
 	session_id: string;
 	transcript_sha256: string;
-	timing_policy_version:
-		| "tda_session_timeline_v1"
-		| "tda_session_timeline_v2";
+	timing_policy_version: "tda_session_timeline_v1" | "tda_session_timeline_v2";
 	timeline_strategy?:
 		| "trusted_absolute"
 		| "user_confirmed_sequence"
@@ -99,6 +104,13 @@ export type CanonicalMultiSourcePrepareResult =
 	| Readonly<{ ok: true; value: CanonicalMultiSourcePreparedPublication }>
 	| Readonly<{ ok: false; reason: PublicationFailure; payloadBytes?: number }>;
 
+function isTimelineV2Assembly(version: unknown): boolean {
+	return (
+		version === "tda_session_assembly_canonical_v2" ||
+		version === "tda_session_assembly_canonical_v3"
+	);
+}
+
 function record(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
@@ -110,7 +122,9 @@ function exactKeys(
 	keys: readonly string[],
 ): boolean {
 	const actual = Object.keys(value);
-	return actual.length === keys.length && actual.every((key) => keys.includes(key));
+	return (
+		actual.length === keys.length && actual.every((key) => keys.includes(key))
+	);
 }
 
 function text(value: unknown, max: number, pattern?: RegExp): string | null {
@@ -205,8 +219,7 @@ export function prepareMultiSourceCanonicalPublication(
 			"timingPolicyVersion",
 			"segmentBoundaryPolicy",
 			"timelineFingerprintSha256",
-			...(assembly.canonicalizationVersion ===
-			"tda_session_assembly_canonical_v2"
+			...(isTimelineV2Assembly(assembly.canonicalizationVersion)
 				? ["timelineStrategy", "wallClock", "unknownIntervalCount"]
 				: []),
 			"participantMappingSchemaVersion",
@@ -237,7 +250,8 @@ export function prepareMultiSourceCanonicalPublication(
 	const rawParts = Array.isArray(assembly.parts) ? assembly.parts : null;
 	const canonicalizationVersion =
 		assembly.canonicalizationVersion === "tda_session_assembly_canonical_v1" ||
-		assembly.canonicalizationVersion === "tda_session_assembly_canonical_v2"
+		assembly.canonicalizationVersion === "tda_session_assembly_canonical_v2" ||
+		assembly.canonicalizationVersion === "tda_session_assembly_canonical_v3"
 			? assembly.canonicalizationVersion
 			: null;
 	const timingPolicyVersion =
@@ -246,7 +260,7 @@ export function prepareMultiSourceCanonicalPublication(
 			? assembly.timingPolicyVersion
 			: null;
 	const timelineStrategy =
-		canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+		isTimelineV2Assembly(canonicalizationVersion) &&
 		["trusted_absolute", "user_confirmed_sequence", "manual_offsets"].includes(
 			String(assembly.timelineStrategy),
 		)
@@ -256,14 +270,13 @@ export function prepareMultiSourceCanonicalPublication(
 					| "manual_offsets")
 			: null;
 	const wallClock =
-		canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+		isTimelineV2Assembly(canonicalizationVersion) &&
 		["unavailable", "partial", "trusted"].includes(String(assembly.wallClock))
 			? (assembly.wallClock as "unavailable" | "partial" | "trusted")
 			: null;
-	const unknownIntervalCount =
-		canonicalizationVersion === "tda_session_assembly_canonical_v2"
-			? integer(assembly.unknownIntervalCount, 0, MAX_PARTS - 1)
-			: null;
+	const unknownIntervalCount = isTimelineV2Assembly(canonicalizationVersion)
+		? integer(assembly.unknownIntervalCount, 0, MAX_PARTS - 1)
+		: null;
 	if (
 		!campaignSlug ||
 		!sourceSessionId ||
@@ -272,7 +285,7 @@ export function prepareMultiSourceCanonicalPublication(
 		!timingPolicyVersion ||
 		(canonicalizationVersion === "tda_session_assembly_canonical_v1" &&
 			timingPolicyVersion !== "tda_session_timeline_v1") ||
-		(canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+		(isTimelineV2Assembly(canonicalizationVersion) &&
 			(timingPolicyVersion !== "tda_session_timeline_v2" ||
 				!timelineStrategy ||
 				!wallClock ||
@@ -316,7 +329,7 @@ export function prepareMultiSourceCanonicalPublication(
 				"trimEndSeconds",
 				"overlapResolution",
 				"overlapBoundarySeconds",
-				...(canonicalizationVersion === "tda_session_assembly_canonical_v2"
+				...(isTimelineV2Assembly(canonicalizationVersion)
 					? ["physicalIntervalState"]
 					: []),
 			])
@@ -338,7 +351,9 @@ export function prepareMultiSourceCanonicalPublication(
 		const overlapResolution =
 			part.overlapResolution === null ||
 			part.overlapResolution === "prefer_earlier_until" ||
-			part.overlapResolution === "prefer_later_from"
+			part.overlapResolution === "prefer_later_from" ||
+			(canonicalizationVersion === "tda_session_assembly_canonical_v3" &&
+				part.overlapResolution === "preserve_both_exact_v1")
 				? part.overlapResolution
 				: undefined;
 		const overlapBoundarySeconds =
@@ -346,7 +361,7 @@ export function prepareMultiSourceCanonicalPublication(
 				? null
 				: finite(part.overlapBoundarySeconds, 0, 604800);
 		const physicalIntervalState =
-			canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+			isTimelineV2Assembly(canonicalizationVersion) &&
 			["first", "trusted_absolute", "unknown", "manual"].includes(
 				String(part.physicalIntervalState),
 			)
@@ -374,8 +389,11 @@ export function prepareMultiSourceCanonicalPublication(
 			overlapResolution === undefined ||
 			(part.overlapBoundarySeconds !== null &&
 				overlapBoundarySeconds === null) ||
-			((overlapResolution === null) !== (overlapBoundarySeconds === null)) ||
-			(canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+			(overlapResolution === "preserve_both_exact_v1"
+				? overlapBoundarySeconds !== null ||
+					physicalIntervalState !== "trusted_absolute"
+				: (overlapResolution === null) !== (overlapBoundarySeconds === null)) ||
+			(isTimelineV2Assembly(canonicalizationVersion) &&
 				(!physicalIntervalState ||
 					(ordinal === 0 && physicalIntervalState !== "first") ||
 					(ordinal > 0 && physicalIntervalState === "first")))
@@ -470,19 +488,21 @@ export function prepareMultiSourceCanonicalPublication(
 	if (
 		review.warningSummary !== undefined &&
 		(!warningSummary ||
-			!exactKeys(warningSummary, ["totalCount", "displayedCount", "truncated"]) ||
+			!exactKeys(warningSummary, [
+				"totalCount",
+				"displayedCount",
+				"truncated",
+			]) ||
 			warningSummary.totalCount !== warningCount ||
 			warningSummary.displayedCount !== warnings.length ||
 			warningSummary.displayedCount !== Math.min(warningCount, 1000) ||
-			warningSummary.truncated !== (warningCount > warnings.length))
+			warningSummary.truncated !== warningCount > warnings.length)
 	)
 		return { ok: false, reason: "invalid_payload" };
 	if (
 		(!warningSummary && warnings.length !== warningCount) ||
 		warnings.length > 1000 ||
-		warnings.some(
-			(value) => typeof value !== "string" || value.length > 1024,
-		)
+		warnings.some((value) => typeof value !== "string" || value.length > 1024)
 	)
 		return { ok: false, reason: "invalid_payload" };
 
@@ -548,7 +568,10 @@ export function prepareMultiSourceCanonicalPublication(
 		let absoluteTime: TrustedAbsoluteTime | null = null;
 		if (segment.absoluteTime !== undefined && segment.absoluteTime !== null) {
 			const rawAbsolute = record(segment.absoluteTime);
-			if (!rawAbsolute || !exactKeys(rawAbsolute, ["startIso", "endIso", "source"]))
+			if (
+				!rawAbsolute ||
+				!exactKeys(rawAbsolute, ["startIso", "endIso", "source"])
+			)
 				return { ok: false, reason: "invalid_payload" };
 			absoluteTime = parseTrustedAbsoluteTime({
 				state: "trusted_absolute",
@@ -637,7 +660,7 @@ export function prepareMultiSourceCanonicalPublication(
 		(part) => part.physical_interval_state === "unknown",
 	).length;
 	if (
-		canonicalizationVersion === "tda_session_assembly_canonical_v2" &&
+		isTimelineV2Assembly(canonicalizationVersion) &&
 		unknownIntervalCount !== observedUnknownIntervals
 	)
 		return { ok: false, reason: "invalid_payload" };
@@ -652,7 +675,7 @@ export function prepareMultiSourceCanonicalPublication(
 		session_id: assemblySessionId,
 		transcript_sha256: assemblyTranscriptSha256,
 		timing_policy_version: timingPolicyVersion,
-		...(canonicalizationVersion === "tda_session_assembly_canonical_v2"
+		...(isTimelineV2Assembly(canonicalizationVersion)
 			? {
 					timeline_strategy: timelineStrategy!,
 					wall_clock: wallClock!,
@@ -661,8 +684,7 @@ export function prepareMultiSourceCanonicalPublication(
 			: {}),
 		segment_boundary_policy: "segment_start_owner_v1",
 		timeline_fingerprint_sha256: timelineFingerprintSha256,
-		participant_mapping_schema_version:
-			"tda_session_participant_mapping_v1",
+		participant_mapping_schema_version: "tda_session_participant_mapping_v1",
 		participant_mapping_policy: "strong_discord_or_manual_v1",
 		participant_mapping_sha256: participantMappingSha256,
 		parts: canonicalParts,

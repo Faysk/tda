@@ -60,16 +60,15 @@ export function sessionAssemblyPublicationRequestBody(
 			timingPolicyVersion: assembly.timingPolicyVersion,
 			segmentBoundaryPolicy: assembly.segmentBoundaryPolicy,
 			timelineFingerprintSha256: assembly.timelineFingerprintSha256,
-			...(assembly.canonicalizationVersion ===
-			"tda_session_assembly_canonical_v2"
+			...(assembly.canonicalizationVersion !==
+			"tda_session_assembly_canonical_v1"
 				? {
 						timelineStrategy: assembly.timelineStrategy,
 						wallClock: assembly.wallClock,
 						unknownIntervalCount: assembly.unknownIntervalCount,
 					}
 				: {}),
-			participantMappingSchemaVersion:
-				"tda_session_participant_mapping_v1",
+			participantMappingSchemaVersion: "tda_session_participant_mapping_v1",
 			participantMappingPolicy: "strong_discord_or_manual_v1",
 			participantMappingSha256: assembly.participantMappingSha256,
 			parts: assembly.parts.map((part) => ({
@@ -84,8 +83,8 @@ export function sessionAssemblyPublicationRequestBody(
 				trimEndSeconds: part.trimEndSeconds,
 				overlapResolution: part.overlapResolution,
 				overlapBoundarySeconds: part.overlapBoundarySeconds,
-				...(assembly.canonicalizationVersion ===
-				"tda_session_assembly_canonical_v2"
+				...(assembly.canonicalizationVersion !==
+				"tda_session_assembly_canonical_v1"
 					? { physicalIntervalState: part.physicalIntervalState }
 					: {}),
 			})),
@@ -159,8 +158,7 @@ function prepare(
 }
 
 function parseFailure(value: unknown): PublicationClientError["code"] {
-	if (!value || typeof value !== "object")
-		return "dependency_unavailable";
+	if (!value || typeof value !== "object") return "dependency_unavailable";
 	const reason = (value as { reason?: unknown }).reason;
 	return typeof reason === "string" &&
 		[

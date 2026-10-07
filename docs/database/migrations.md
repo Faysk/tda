@@ -1991,3 +1991,13 @@ O RPC de health retorna apenas schema/version, quantidade de drift e booleans de
 A suíte sintética inclui a migration e `supabase/tests/session_campaign_move_operational_hardening.sql` no PostgreSQL descartável. O gate também continua provando que v1 está retirado, v2 é service-role-only, registry drift é vazio e concorrência/replay permanecem íntegros.
 
 Rollback continua forward-only. Não remover índices/RPC nem reabrir o commit v1 por edição de migrations históricas; qualquer correção deve entrar como migration nova.
+
+### `20261007174241_assembly_v3_private_handoff` — #1574
+
+Autorizada pelo pedido de correção completa do fluxo real até o Edit. Correção compatível de contrato: aceita Assembly canonical v1/v2/v3 com versões de timing correspondentes, preserva overlaps exatos v3, tempos absolutos vinculados à source e o objeto completo de provenance. Adiciona `transcript_revisions.assembly_provenance` opcional, herdado nas revisões filhas; não reescreve as 11 revisões existentes observadas em Production (zero assemblies antes da alteração).
+
+Consumidores: cliente Processing → canonicalizador Web → `prepare_transcript_handoff_atomic` → `publish_transcript_assembly_revision_atomic`; edição privada herda metadata/parts. Single-source permanece compatível. A RPC substituída mantém `SECURITY INVOKER`, search_path fixo e EXECUTE exclusivo de service_role; a função auxiliar de validação temporal segue a mesma restrição. Nenhuma policy/role assignment de Production é ampliada.
+
+Pré-validação: projeto `dmrqnbdvbkfqzctcerbx` ACTIVE_HEALTHY, history compatível, constraints v1 e RPCs invoker confirmadas. Advisors existentes: tabelas internas RLS sem policies (negação deliberada), RPCs de directory legadas e proteção de senhas; não tratados como regressões desta migration. Performance antes da alteração: 64 foreign keys sem índice e 62 índices não utilizados (INFO existentes). Scratch PostgreSQL 16 valida a cadeia antiga, v2/v3, idempotência, herança e rejeições de payload/autorização.
+
+Aplicação remota e pós-validação: pendentes do CD deliberado. Conferir history/version/name, constraints/grants/RPC invoker, contagens sem perda e advisors; confirmar read-back da sessão privada no navegador. Rollback: reverter callers, manter expansão compatível e dados aceitos; não reinstalar constraints v1 nem excluir revisões.

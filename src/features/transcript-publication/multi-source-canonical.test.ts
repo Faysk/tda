@@ -92,30 +92,85 @@ function requestValue(partCount = 2) {
 }
 
 describe("multi-source transcript publication contract", () => {
-	it.each([1, 2, 20])("canonicalizes %i ordered parts without inventing a primary source", (partCount) => {
-		const input = requestValue(partCount);
+	it("preserves v3 exact overlap identity and rejects downgraded or untrusted overlap", () => {
+		const input = requestValue(2);
+		Object.assign(input.assembly, {
+			canonicalizationVersion: "tda_session_assembly_canonical_v3",
+			timingPolicyVersion: "tda_session_timeline_v2",
+			timelineStrategy: "trusted_absolute",
+			wallClock: "trusted",
+			unknownIntervalCount: 0,
+		});
+		Object.assign(input.assembly.parts[0], { physicalIntervalState: "first" });
+		Object.assign(input.assembly.parts[1], {
+			physicalIntervalState: "trusted_absolute",
+			overlapResolution: "preserve_both_exact_v1",
+			overlapBoundarySeconds: null,
+		});
 		const result = preparePublication(JSON.stringify(input));
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
-
-		expect(result.value.publicationKind).toBe("session_assembly");
-		expect(result.value.sourceId).toBeNull();
-		expect(result.value.runId).toBeNull();
-		const provenance = result.value.provenance;
-		if (!provenance) throw new Error("expected assembly provenance");
-		expect(provenance.parts).toHaveLength(partCount);
-		expect(provenance.parts.map((part) => part.ordinal)).toEqual(
-			Array.from({ length: partCount }, (_, index) => index),
+		expect(result.value.provenance?.canonicalization_version).toBe(
+			"tda_session_assembly_canonical_v3",
 		);
-		expect(result.value.payloadSha256).toBe(sha256Utf8(result.value.payloadJson));
-
-		const payload = JSON.parse(result.value.payloadJson);
-		expect(payload.schema_version).toBe(MULTI_SOURCE_PUBLICATION_PAYLOAD_VERSION);
-		expect(payload.publication_kind).toBe("session_assembly");
-		expect(payload.provenance.parts).toHaveLength(partCount);
-		expect(payload).not.toHaveProperty("source_id");
-		expect(payload).not.toHaveProperty("run_id");
+		expect(result.value.provenance?.parts[1].overlap_resolution).toBe(
+			"preserve_both_exact_v1",
+		);
+		for (const mutation of [
+			{ canonicalizationVersion: "tda_session_assembly_canonical_v2" },
+			{ canonicalizationVersion: "unknown" },
+		]) {
+			const invalid = structuredClone(input);
+			Object.assign(invalid.assembly, mutation);
+			expect(preparePublication(JSON.stringify(invalid))).toEqual({
+				ok: false,
+				reason: "invalid_payload",
+			});
+		}
+		for (const mutation of [
+			{ physicalIntervalState: "manual" },
+			{ overlapBoundarySeconds: 60 },
+		]) {
+			const invalid = structuredClone(input);
+			Object.assign(invalid.assembly.parts[1], mutation);
+			expect(preparePublication(JSON.stringify(invalid))).toEqual({
+				ok: false,
+				reason: "invalid_payload",
+			});
+		}
 	});
+
+	it.each([1, 2, 20])(
+		"canonicalizes %i ordered parts without inventing a primary source",
+		(partCount) => {
+			const input = requestValue(partCount);
+			const result = preparePublication(JSON.stringify(input));
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+
+			expect(result.value.publicationKind).toBe("session_assembly");
+			expect(result.value.sourceId).toBeNull();
+			expect(result.value.runId).toBeNull();
+			const provenance = result.value.provenance;
+			if (!provenance) throw new Error("expected assembly provenance");
+			expect(provenance.parts).toHaveLength(partCount);
+			expect(provenance.parts.map((part) => part.ordinal)).toEqual(
+				Array.from({ length: partCount }, (_, index) => index),
+			);
+			expect(result.value.payloadSha256).toBe(
+				sha256Utf8(result.value.payloadJson),
+			);
+
+			const payload = JSON.parse(result.value.payloadJson);
+			expect(payload.schema_version).toBe(
+				MULTI_SOURCE_PUBLICATION_PAYLOAD_VERSION,
+			);
+			expect(payload.publication_kind).toBe("session_assembly");
+			expect(payload.provenance.parts).toHaveLength(partCount);
+			expect(payload).not.toHaveProperty("source_id");
+			expect(payload).not.toHaveProperty("run_id");
+		},
+	);
 
 	it("preserves user-confirmed sequence provenance without inventing wall-clock gaps", () => {
 		const input = requestValue(3);
@@ -148,11 +203,9 @@ describe("multi-source transcript publication contract", () => {
 			wall_clock: "partial",
 			unknown_interval_count: 1,
 		});
-		expect(provenance.parts.map((part) => part.physical_interval_state)).toEqual([
-			"first",
-			"trusted_absolute",
-			"unknown",
-		]);
+		expect(
+			provenance.parts.map((part) => part.physical_interval_state),
+		).toEqual(["first", "trusted_absolute", "unknown"]);
 
 		const tampered = structuredClone(input);
 		Object.assign(tampered.assembly as Record<string, unknown>, {
@@ -204,7 +257,8 @@ describe("multi-source transcript publication contract", () => {
 			},
 			(value: ReturnType<typeof requestValue>) => {
 				value.assembly.parts[1].sourceId = value.assembly.parts[0].sourceId;
-				value.assembly.parts[1].sourceSha256 = value.assembly.parts[0].sourceSha256;
+				value.assembly.parts[1].sourceSha256 =
+					value.assembly.parts[0].sourceSha256;
 			},
 			(value: ReturnType<typeof requestValue>) => {
 				value.assembly.parts[1].ordinal = 7;
@@ -249,7 +303,9 @@ describe("multi-source transcript publication contract", () => {
 			reason: "invalid_payload",
 		});
 
-		const privateMetadata = requestValue(2) as ReturnType<typeof requestValue> & {
+		const privateMetadata = requestValue(2) as ReturnType<
+			typeof requestValue
+		> & {
 			localPath?: string;
 		};
 		privateMetadata.localPath = "C:\\Users\\fixture\\private.zip";
