@@ -309,7 +309,7 @@ if (/"tailwindcss"\s*:/.test(packageJson)) {
 	fail("Tailwind was added without a dedicated architecture decision");
 }
 
-const designSystemCss = fs.readFileSync("src/app/design-system.css", "utf8");
+const designSystemCss = fs.readFileSync("src/app/design-system.css", "utf8").replaceAll("\r\n", "\n");
 for (const requiredNativeSelectContract of [
 	"select {\n\tcolor-scheme: dark;",
 	"select option,\nselect optgroup {",
