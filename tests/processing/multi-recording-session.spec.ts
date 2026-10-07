@@ -1862,6 +1862,8 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await expect(
 		review.getByRole("link", { name: "Abrir sessão no Edit" }),
 	).toBeVisible();
+	await expect(review.getByRole("link", { name: "Ver sessões no Edit" })).toHaveAttribute("href", `/edit/${CAMPAIGN}/sessoes`);
+	await expect(review.getByRole("link", { name: "Abrir sessão no Edit" })).toHaveAttribute("href", `/edit/${CAMPAIGN}/sessoes/${SESSION}`);
 	expect(multi.publishedBodies).toHaveLength(1);
 	expect(multi.publishedBodies[0]).toMatchObject({
 		schemaVersion: "tda_transcript_publication_request_v2",

@@ -357,6 +357,10 @@ concluídos continuam disponíveis para comparação. Validação automatizada e
 publicação não substituem aceite visual das cinco abas em uso real.
 Uma revisão sem alterações pode ser concluída explicitamente, persistindo o
 rascunho antes da aprovação. Isso não aprova nem envia a sessão automaticamente.
+Depois do receipt de handoff, a ação principal abre a biblioteca da campanha
+(canonicalizada pelo servidor autorizado para seu nome público); a ação
+secundária abre a sessão diretamente no contexto técnico da mesma campanha.
+O usuário não precisa escolher novamente a campanha na entrada legada global.
 
 Quando Qwen Fast termina com `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN`, a sessão oferece
 “Processar com Qwen Quality” mediante confirmação explícita. O Companion preserva

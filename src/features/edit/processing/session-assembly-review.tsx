@@ -425,13 +425,18 @@ export function SessionAssemblyReview({
 								: "Rascunho"}
 					</StatusPill>
 					{receipt ? (
+						<>
+						<a className={actionStyles({ size: "sm", variant: "primary" })} href={`/edit/${encodeURIComponent(assembly.campaignId)}/sessoes`}>
+							Ver sessões no Edit
+						</a>
 						<a
 							data-handoff-success-link="true"
-							className={actionStyles({ size: "sm", variant: "primary" })}
-							href={"/edit/sessoes/" + encodeURIComponent(assembly.sessionId)}
+							className={actionStyles({ size: "sm", variant: "secondary" })}
+							href={`/edit/${encodeURIComponent(assembly.campaignId)}/sessoes/${encodeURIComponent(assembly.sessionId)}`}
 						>
 							Abrir sessão no Edit
 						</a>
+						</>
 					) : dirty ? (
 						<Button
 						size="sm"
