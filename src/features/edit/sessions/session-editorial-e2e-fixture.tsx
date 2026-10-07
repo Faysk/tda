@@ -364,7 +364,15 @@ export function SessionEditorialE2EFixture({
 					sourceCampaignSlug: request.sourceCampaignSlug,
 					destinationCampaignSlug: request.destinationCampaignSlug,
 					blockers: [],
-					plan: [],
+					plan: Array.from({ length: 12 }, (_, index) => ({
+						family: `synthetic_family_${index}`,
+						classification: index < 8
+							? "auto" as const
+							: index < 10 ? "external_prepare" as const : "historical" as const,
+						count: index + 1,
+						message: "Dependência sintética acompanha a sessão, preservando conteúdo e identidade.",
+						action: null,
+					})),
 					consequences: [
 						"edit_url_changes",
 						"campaign_scope_changes",

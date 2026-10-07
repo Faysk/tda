@@ -445,6 +445,7 @@ O shell global preserva **marca + avatar** como referências persistentes, sem o
 - heroes e canvas podem começar no topo real da viewport;
 - páginas operacionais protegem somente os cantos ocupados (**corner clearance**), em vez de reservar uma linha inteira;
 - scrims/fades podem existir localmente para legibilidade, nunca como navbar translúcida full-width;
+- a proteção local da marca usa fade radial na cor do canvas do tema, sem borda, caixa retangular ou fundo preto fixo; o blur acompanha o fade;
 - safe-area, foco, skip link, zoom e reflow permanecem requisitos funcionais.
 
 A economia de espaço não autoriza conteúdo crítico a ficar escondido. Elementos focáveis, âncoras e ações essenciais precisam continuar alcançáveis e visíveis sob teclado/zoom.

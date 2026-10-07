@@ -1057,6 +1057,31 @@ test("launcher owns one vertical scroll surface and keeps below-fold controls re
 	}
 });
 
+test("floating brand uses a borderless feathered theme scrim", async ({ page }) => {
+	await page.goto("/");
+	await page.getByRole("button", { name: "Abrir menu global" }).click();
+	const theme = page.getByRole("switch", { name: "Modo escuro" });
+	for (let pass = 0; pass < 2; pass++) {
+		const scrim = await page.locator(".brand").evaluate((element) => {
+			const style = getComputedStyle(element, "::before");
+			return {
+				border: style.borderTopWidth,
+				mask: style.maskImage,
+				blur: style.backdropFilter,
+				color: style.backgroundColor,
+				canvas: getComputedStyle(document.body).backgroundColor,
+				pointerEvents: style.pointerEvents,
+			};
+		});
+		expect(scrim.border).toBe("0px");
+		expect(scrim.mask).toContain("radial-gradient");
+		expect(scrim.blur).toContain("blur");
+		expect(scrim.color).toBe(scrim.canvas);
+		expect(scrim.pointerEvents).toBe("none");
+		await theme.click();
+	}
+});
+
 test("appearance control toggles the explicit document theme", async ({ page }) => {
 	await page.emulateMedia({ colorScheme: "dark" });
 	await mockAccess(page, { state: "anonymous" });
