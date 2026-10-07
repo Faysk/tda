@@ -321,7 +321,10 @@ a correção de `Content-Length` em Production. No benchmark Craig real, os quat
 perfis concluíram, mas o aceite de evidência detectou uma falha independente:
 o escopo da credencial temporária recusava `export.zip` por escape duplicado
 na expressão regular. Companion 0.3.24 corrige somente esse endereço literal,
-com regressão para variantes inválidas e métodos não autorizados. Não promover
+com regressão para variantes inválidas e métodos não autorizados. O pacote também
+fixa FastAPI 0.142.4 no pyproject e no lock exato: a auditoria encontrou a versão
+estável nova durante a validação, sem alterar as dependências de inferência.
+Não promover
 0.3.23 como entrega final: validar o novo MSI e a exportação preservada antes
 de promover 0.3.24. Os recibos anteriores continuam evidência dos bytes anteriores;
 não substituir nem reatribuir esses recibos ao novo pacote. Nenhum dado é resetado.
