@@ -335,7 +335,9 @@ function PartialResultCard({
 		<article className={[styles.resultCard, styles.partialCard].join(" ")}>
 			<header className={styles.resultHeader}>
 				<div role="status" aria-live="polite">
-					<span className={styles.eyebrow}>Benchmark local · attempt parcial</span>
+					<span className={styles.eyebrow}>
+						Benchmark local · attempt parcial
+					</span>
 					<h3>
 						{result.completedCount} de {result.attemptedCount} perfis concluíram
 					</h3>
@@ -386,6 +388,54 @@ function PartialResultCard({
 					);
 				})}
 			</ol>
+			{result.profiles.some(
+				(profile) => profile.status === "completed" && profile.metrics,
+			) && (
+				<details className={styles.resultDetails}>
+					<summary>Tempos dos perfis concluídos</summary>
+					<p>
+						Tempos medidos nesta máquina e nesta amostra. Palavras e avisos não
+						medem precisão; a qualidade exige revisão do texto.
+					</p>
+					<div className={styles.tableWrap}>
+						<table>
+							<caption>Comparação parcial de velocidade</caption>
+							<thead>
+								<tr>
+									<th>Perfil</th>
+									<th>Modelo</th>
+									<th>Tempo</th>
+									<th>× tempo real</th>
+									<th>Palavras</th>
+									<th>Avisos</th>
+									<th>Runtime / GPU</th>
+								</tr>
+							</thead>
+							<tbody>
+								{result.profiles.map((profile) =>
+									profile.status === "completed" && profile.metrics ? (
+										<tr key={profile.profileId}>
+											<th scope="row">{LABELS[profile.profileId]}</th>
+											<td>{profile.metrics.model}</td>
+											<td>
+												{formatSeconds(profile.metrics.processingSeconds)}
+											</td>
+											<td>{formatRealtime(profile.metrics.rtf)}</td>
+											<td>{profile.metrics.wordCount}</td>
+											<td>{profile.metrics.warningCount}</td>
+											<td>
+												{profile.metrics.executionLineage?.runtimeVersion ??
+													"—"}{" "}
+												/ {profile.metrics.executionLineage?.gpu?.model ?? "—"}
+											</td>
+										</tr>
+									) : null,
+								)}
+							</tbody>
+						</table>
+					</div>
+				</details>
+			)}
 			<p className={styles.partialExplanation}>
 				{qwenUncertain
 					? "O Qwen detectou sinal de áudio, mas não conseguiu reconhecer um trecho com segurança. O TDA não tratou isso como silêncio nem inventou texto. Os demais perfis independentes foram tentados automaticamente; este attempt não será apresentado como comparação 4/4."

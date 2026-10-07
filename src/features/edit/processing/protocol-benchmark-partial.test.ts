@@ -70,6 +70,41 @@ function payload() {
 }
 
 describe("partial Benchmark protocol", () => {
+	it("preserves measured metrics without promoting a partial comparison", () => {
+		const value = payload();
+		const first = value.profiles[0];
+		if (!("receipt" in first)) throw new Error("expected receipt");
+		Object.assign(first.receipt, {
+			processing_seconds: 120,
+			rtf: 0.4,
+			word_count: 42,
+			warning_count: 1,
+			model: "large-v3-turbo",
+			compute_type: "float16",
+			execution_lineage: null,
+		});
+		const result = parseBenchmarkAttemptResult(value, JOB_ID);
+		if (result.schemaVersion !== "tda_processing_benchmark_partial_v1")
+			throw new Error("expected partial");
+		const profile = result.profiles[0];
+		if (profile.status !== "completed") throw new Error("expected completed");
+		expect(profile.metrics).toMatchObject({
+			processingSeconds: 120,
+			rtf: 0.4,
+			wordCount: 42,
+			model: "large-v3-turbo",
+		});
+		expect(result.completedCount).toBe(3);
+	});
+
+	it("rejects invalid measured timing", () => {
+		const value = payload();
+		const first = value.profiles[0];
+		if (!("receipt" in first)) throw new Error("expected receipt");
+		Object.assign(first.receipt, { processing_seconds: -1 });
+		expect(() => parseBenchmarkAttemptResult(value, JOB_ID)).toThrow();
+	});
+
 	it("accepts an explicit 3/4 partial receipt without promoting it to a full result", () => {
 		const result = parseBenchmarkAttemptResult(payload(), JOB_ID);
 		expect(result.schemaVersion).toBe("tda_processing_benchmark_partial_v1");

@@ -346,6 +346,14 @@ preparação ou criação de job quando o contrato de segurança assim exigir.
 
 ## Estimativa local calibrada de processamento
 
+O candidato da PR #1566 preserva e apresenta as métricas dos perfis concluídos
+também em um benchmark parcial: tempo medido, velocidade, modelo, runtime e GPU
+quando presentes no recibo. Recibos antigos sem essas métricas permanecem legíveis.
+Uma falha continua explicitamente parcial e não entra na calibração como 4/4.
+Palavras e avisos não são indicadores de precisão. A comparação de qualidade
+exige referência revisada, com erros e omissões medidos; esse aceite continua
+separado das medições de desempenho físico (#1569 / #1570).
+
 Depois que o ZIP Craig é analisado/staged localmente, a Web pode apresentar uma
 faixa de duração por perfil usando o contrato `tda_processing_estimator_v1`.
 O denominador é `audio_work_seconds` (soma factual das durações das tracks), não

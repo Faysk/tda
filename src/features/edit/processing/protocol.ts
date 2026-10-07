@@ -425,6 +425,7 @@ export type BenchmarkPartialProfileOutcome =
 			artifactAvailable: true;
 			transcriptSha256: string;
 			transcriptSizeBytes: number;
+			metrics?: Pick<BenchmarkProfileResult, "processingSeconds" | "rtf" | "wordCount" | "warningCount" | "model" | "computeType" | "executionLineage"> | null;
 	  }
 	| {
 			profileId: TranscriptionProfileId;
@@ -2465,6 +2466,15 @@ export function parseBenchmarkPartialResult(
 				artifactAvailable: true,
 				transcriptSha256: sha256(receipt.transcript_sha256),
 				transcriptSizeBytes,
+				metrics: receipt.processing_seconds === undefined ? null : {
+					processingSeconds: nonNegativeNumber(receipt.processing_seconds),
+					rtf: nullableNonNegativeNumber(receipt.rtf),
+					wordCount: nonNegativeInteger(receipt.word_count),
+					warningCount: nonNegativeInteger(receipt.warning_count),
+					model: text(receipt.model, 256),
+					computeType: nullableText(receipt.compute_type, 64),
+					executionLineage: parseExecutionLineage(receipt.execution_lineage),
+				},
 			};
 		}
 		if (item.status !== "failed" || item.artifact_available !== false)

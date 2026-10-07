@@ -1400,6 +1400,13 @@ export async function installCompanionFixture(
 					artifact_available: true,
 					transcript_sha256: "f".repeat(64),
 					transcript_size_bytes: 2048,
+					processing_seconds: 30,
+					rtf: 0.05,
+					word_count: 100,
+					warning_count: 0,
+					model: "fixture-model",
+					compute_type: "float16",
+					execution_lineage: null,
 				},
 			});
 			return json(route, {
