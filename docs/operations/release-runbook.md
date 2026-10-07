@@ -316,6 +316,16 @@ Histórico detalhado: [deployments](deployments.md).
 
 ### Continuação após áudio sem reconhecimento — #1570
 
+O teste físico de 0.3.23 passou nos quatro perfis e a instalação passou após
+a correção de `Content-Length` em Production. No benchmark Craig real, os quatro
+perfis concluíram, mas o aceite de evidência detectou uma falha independente:
+o escopo da credencial temporária recusava `export.zip` por escape duplicado
+na expressão regular. Companion 0.3.24 corrige somente esse endereço literal,
+com regressão para variantes inválidas e métodos não autorizados. Não promover
+0.3.23 como entrega final: validar o novo MSI e a exportação preservada antes
+de promover 0.3.24. Os recibos anteriores continuam evidência dos bytes anteriores;
+não substituir nem reatribuir esses recibos ao novo pacote. Nenhum dado é resetado.
+
 Companion 0.3.23, Qwen 1.0.20 e Whisper 1.1.12 são novos candidatos imutáveis:
 o contrato compartilhado de evento/checkpoint muda o closure empacotado. Não
 substituir assets de 0.3.22/1.0.19/1.1.11 nem promover sem gates físicos dos bytes

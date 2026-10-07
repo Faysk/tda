@@ -972,6 +972,22 @@ def test_conflict_recoverability_matches_whether_repeating_can_help(client):
     }
 
 
+def test_browser_benchmark_export_scope_matches_literal_dot(client):
+    response = client.post(
+        "/api/v1/session",
+        headers={"Origin": ORIGIN, "Content-Type": "application/json"},
+        json={},
+    )
+    headers = {"Authorization": f"Bearer {response.json()['token']}", "Origin": ORIGIN}
+    base = "/api/v1/benchmarks/benchmark-scope-regression-a1"
+    # A missing bundle reaches the endpoint's 404, rather than scope rejection.
+    for suffix in ("", "/export.zip", "/profiles/qwen-fast/transcript", "/quality"):
+        assert client.get(f"{base}{suffix}", headers=headers).status_code == 404
+    for suffix in ("exportXzip", "export.zip/extra", "export\\zip", "export.zip.exe"):
+        assert client.get(f"{base}/{suffix}", headers=headers).status_code == 403
+    assert client.post(f"{base}/export.zip", headers=headers).status_code == 403
+
+
 def test_browser_session_bootstraps_without_exposing_master_token(client):
     response = client.post(
         "/api/v1/session",
