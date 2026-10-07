@@ -118,6 +118,13 @@ def test_qwen_empty_window_signal_events_keep_only_bounded_numeric_evidence():
     assert "path" not in rejected.data
     assert rejected.drift_reason == "unexpected_or_invalid_field"
 
+    skipped = sanitize_worker_event({"code": "QWEN_WINDOW_UNRECOGNIZED_SKIPPED", **base})
+    assert skipped.code == "QWEN_WINDOW_UNRECOGNIZED_SKIPPED"
+    assert skipped.level == "warning"
+    assert skipped.data["start_seconds"] == 0.0
+    assert skipped.data["end_seconds"] == 240.0
+    assert not {"speaker", "text", "path"} & set(skipped.data)
+
     confirmed = sanitize_worker_event(
         {
             "code": "QWEN_WINDOW_SILENCE_CONFIRMED",

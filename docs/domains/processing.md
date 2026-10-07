@@ -1,5 +1,6 @@
 # Processamento, jobs e áudio
 
+
 > Status: processamento local real implementado; lifecycle editorial pós-ASR aprovado e em implementação futura
 > Owner: processing/local-companion
 > Última revisão: 2026-09-15
@@ -329,3 +330,21 @@ Não é objetivo adicionar controles financeiros/médicos, retenção legal ou t
 8. benchmark pessoal baseado em escolhas reais, sem autoeleger modelo vencedor.
 
 A especificação dona desse lifecycle é [Transcrição — runs locais, revisão, comparação e publicação versionada](../features/transcript-review-publication.md).
+
+
+## Trechos sem reconhecimento — #1570
+
+A partir do candidato Companion 0.3.23 / Qwen 1.0.20, uma resposta ASR vazia
+não derruba o restante da gravação. O Qwen mantém o mesmo perfil/modelo e tenta
+a recuperação limitada; se continuar sem texto, omite somente aquela janela e
+segue as próximas janelas e faixas. Não inventa palavras nem rotula sinal incerto
+como silêncio confirmado. A política foi autorizada pelo usuário em 2026-10-07
+após conferir o trecho original amplificado (somente chiado).
+
+O resultado registra `QWEN_UNRECOGNIZED_WINDOW` com faixa, janela e início/fim;
+o log emite `QWEN_WINDOW_UNRECOGNIZED_SKIPPED` como aviso. A revisão apresenta
+os horários de forma legível. Checkpoints de texto preservam a marca de omissão
+e a retomada reconstrói o aviso; tracks com omissões não geram checkpoint final
+que perderia essa informação. Conclusão com avisos não significa qualidade
+linguística perfeita. Erros de GPU, instalação, saída estrutural inválida,
+cancelamento e falhas do runtime continuam erros, sem descarte automático.

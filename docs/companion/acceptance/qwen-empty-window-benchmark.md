@@ -1,5 +1,11 @@
 # Aceite físico — Qwen empty-window #1236
 
+> **Contrato histórico.** A política fail-closed deste harness 1.0.14 foi
+> sucedida em #1570 pela continuação com avisos após recuperação limitada,
+> autorizada pelo usuário. O candidato 1.0.20 registra os intervalos ignorados
+> e processa o restante; não altera retrospectivamente este receipt.
+> Contrato vigente: [Processamento](../../domains/processing.md).
+
 > Issue: #1236  
 > Owner: local-companion / processing  
 > Última revisão: 2026-10-01  

@@ -186,7 +186,7 @@ Validação usa fixtures sintéticas em desktop/mobile, falhas independentes por
 domínio, recuperação parcial, inventário fora de ordem, temas e reduced motion.
 Merge não confirma publicação; não há mudança de banco, áudio ou formato de run.
 
-A linha de código vigente **TDA Companion 0.3.22** cobre:
+A linha de código vigente **TDA Companion 0.3.23** cobre:
 
 - workbench próprio do Edit;
 - conexão automática com o Agent em `http://127.0.0.1:8765/api/v1` via sessão temporária origin-bound;
@@ -212,7 +212,7 @@ O processamento Craig já é ASR real ponta a ponta no Agent, iniciado pela Web 
 
 ### Versão de código versus artefato publicado
 
-A linha de código atual é o **TDA Companion 0.3.22**. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline.
+A linha de código atual é o **TDA Companion 0.3.23**. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline.
 
 O Companion 0.3.21 mantém **Whisper Runtime 1.1.4** como mínimo de formato/rollback histórico, mas exige **Whisper Runtime 1.1.10** para o protocolo Craig corrente; o mínimo normal continua **Qwen Runtime 1.0.12**. Benchmark usa mínimos próprios definidos em `runtime_compat.py`, atualmente Whisper 1.1.10 e Qwen 1.0.18. Durante rollout RC, o primeiro uso aceita somente o candidato publicado exato e verificado da versão compatível; um manifest Stable abaixo do mínimo de dispatch é ignorado como destino de transcrição e o fluxo pode preparar o RC publicado. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
 

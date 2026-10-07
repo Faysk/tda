@@ -63,6 +63,7 @@ class QwenTextCheckpointWindow:
     end: float
     text: str
     language: str
+    unrecognized: bool = False
 
 
 @dataclass(frozen=True)
@@ -220,13 +221,17 @@ def _track_descriptor(track: CraigTrack) -> dict[str, object]:
 
 
 def _qwen_text_window_from_dict(value: Any) -> QwenTextCheckpointWindow:
-    if not isinstance(value, dict) or set(value) != {"index", "start", "end", "text", "language"}:
+    required = {"index", "start", "end", "text", "language"}
+    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - {"unrecognized"}:
         raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
     index = value.get("index")
     start = value.get("start")
     end = value.get("end")
     text = value.get("text")
     language = value.get("language")
+    unrecognized = value.get("unrecognized", False)
+    if not isinstance(unrecognized, bool) or (unrecognized and str(text or "").strip()):
+        raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
     if isinstance(index, bool) or not isinstance(index, int) or index < 1:
         raise ValueError("QWEN_TEXT_CHECKPOINT_WINDOW_INVALID")
     if isinstance(start, bool) or not isinstance(start, (int, float)):
@@ -247,6 +252,7 @@ def _qwen_text_window_from_dict(value: Any) -> QwenTextCheckpointWindow:
         end=float(end),
         text=text,
         language=language,
+        unrecognized=unrecognized,
     )
 
 
