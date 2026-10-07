@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import zipfile
 from pathlib import Path
@@ -19,6 +20,7 @@ from .transcript import TranscriptDocument, TranscriptValidationError
 SNAPSHOT_SCHEMA_VERSION = "tda_benchmark_transcript_snapshot_v1"
 METRICS_SCHEMA_VERSION = "tda_benchmark_metrics_v1"
 EVENT_SCHEMA_VERSION = "tda_benchmark_evidence_event_v1"
+SUBTITLE_TIMING_POLICY = "positive_millisecond_cues_v1"
 PROFILE_IDS = tuple(BENCHMARK_PROFILES)
 
 _BENCHMARK_ID = re.compile(r"^benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}$")
@@ -334,6 +336,7 @@ def _timestamp(seconds: float, *, separator: str = ".") -> str:
         not isinstance(seconds, (int, float))
         or isinstance(seconds, bool)
         or seconds < 0
+        or not math.isfinite(seconds)
     ):
         raise BenchmarkEvidenceError("BENCHMARK_EXPORT_TIMING_INVALID")
     milliseconds = round(float(seconds) * 1000)
@@ -341,6 +344,17 @@ def _timestamp(seconds: float, *, separator: str = ".") -> str:
     minutes, remainder = divmod(remainder, 60_000)
     secs, millis = divmod(remainder, 1000)
     return f"{hours:02d}:{minutes:02d}:{secs:02d}{separator}{millis:03d}"
+
+
+def _subtitle_interval(start: float, end: float) -> tuple[int, int]:
+    # Point segments are valid canonical ASR anchors. Subtitle formats require
+    # a positive displayed interval; never modify the source document or text.
+    _timestamp(start)
+    _timestamp(end)
+    if end < start:
+        raise BenchmarkEvidenceError("BENCHMARK_EXPORT_TIMING_INVALID")
+    start_ms = round(start * 1000)
+    return start_ms, max(start_ms + 1, round(end * 1000))
 
 
 def _ordered_segments(
@@ -370,12 +384,13 @@ def transcript_vtt(document: TranscriptDocument) -> bytes:
     lines = ["WEBVTT", ""]
     previous_start = -1.0
     for start, end, _track, _segment, speaker, text in _ordered_segments(document):
-        if end <= start or start < previous_start:
+        if start < previous_start:
             raise BenchmarkEvidenceError("BENCHMARK_EXPORT_TIMING_INVALID")
+        start_ms, end_ms = _subtitle_interval(start, end)
         previous_start = start
         lines.extend(
             [
-                f"{_timestamp(start)} --> {_timestamp(end)}",
+                f"{_timestamp(start_ms / 1000)} --> {_timestamp(end_ms / 1000)}",
                 f"{speaker}: {text.strip()}",
                 "",
             ]
@@ -390,13 +405,14 @@ def transcript_srt(document: TranscriptDocument) -> bytes:
         _ordered_segments(document),
         start=1,
     ):
-        if end <= start or start < previous_start:
+        if start < previous_start:
             raise BenchmarkEvidenceError("BENCHMARK_EXPORT_TIMING_INVALID")
+        start_ms, end_ms = _subtitle_interval(start, end)
         previous_start = start
         lines.extend(
             [
                 str(index),
-                f"{_timestamp(start, separator=',')} --> {_timestamp(end, separator=',')}",
+                f"{_timestamp(start_ms / 1000, separator=',')} --> {_timestamp(end_ms / 1000, separator=',')}",
                 f"{speaker}: {text.strip()}",
                 "",
             ]
@@ -614,6 +630,16 @@ def write_private_evidence_zip(
             _write_zip_entry(archive, f"{base}/transcript.txt", transcript_txt(document))
             _write_zip_entry(archive, f"{base}/transcript.vtt", transcript_vtt(document))
             _write_zip_entry(archive, f"{base}/transcript.srt", transcript_srt(document))
+            _write_zip_entry(archive, f"{base}/subtitle-timing.json", _json_bytes({
+                "policy": SUBTITLE_TIMING_POLICY,
+                "minimum_cue_duration_ms": 1,
+                "canonical_timing_unchanged": True,
+                "adjusted_cue_count": sum(
+                    round(end * 1000) == round(start * 1000)
+                    for start, end, *_rest in _ordered_segments(document)
+                ),
+                "meaning": "Derived subtitle display intervals only; not measured speech duration.",
+            }))
             metrics_payload = _diagnostic_artifact(
                 data_root,
                 benchmark_id,
