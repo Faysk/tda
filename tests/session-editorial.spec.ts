@@ -371,6 +371,46 @@ test("session campaign move preflight keeps blockers actionable on keyboard and 
 	).toBeTruthy();
 });
 
+test("long campaign transfer plan keeps final confirmation reachable without committing", async ({ page }) => {
+	for (const viewport of [
+		{ width: 1920, height: 1080 },
+		{ width: 1052, height: 900 },
+		{ width: 1366, height: 600 },
+		{ width: 390, height: 844 },
+		{ width: 320, height: 800 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/e2e-fixtures/session-editorial");
+		if (viewport.width <= 980) {
+			await page.getByRole("tablist", { name: "Workspace da sessão" })
+				.getByRole("tab", { name: "Sessão", exact: true }).click();
+		}
+		await page.getByLabel("Título").fill("Working copy survives transfer disclosure");
+		const panel = await openCampaignMove(page);
+		const preflight = page.getByRole("button", { name: "Pré-validar mudança" });
+		await preflight.click();
+		await expect(panel.getByRole("listitem")).toHaveCount(15);
+		const confirm = page.getByRole("button", { name: "Confirmar mudança para Campanha B" });
+		// Keyboard navigation must scroll the final action into the painted viewport.
+		await preflight.focus();
+		await page.keyboard.press("Tab");
+		await expect(confirm).toBeFocused();
+		await expect(confirm).toBeInViewport({ ratio: 1 });
+		expect(await confirm.evaluate((element) => {
+			const box = element.getBoundingClientRect();
+			return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+		})).toBe(true);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+		await panel.locator("summary").click();
+		await expect(page.getByLabel("Título")).toHaveValue("Working copy survives transfer disclosure");
+		if (viewport.width > 980) {
+			const frame = await page.getByTestId("session-editorial-workspace-frame").boundingBox();
+			expect(frame?.height).toBeGreaterThan(viewport.height / 2);
+		}
+		await expect(page.getByText("Commit confirmado.", { exact: true })).toHaveCount(0);
+	}
+});
+
 test("session campaign move stays fail-closed when the backend migration is unavailable", async ({
 	page,
 }) => {

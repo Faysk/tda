@@ -743,6 +743,18 @@
 		height: 100dvh;
 		overflow: hidden;
 	}
+
+	/* A transfer plan can exceed the viewport. Keep it in document flow,
+	 * while the editor below retains its own bounded scroll owners. */
+	.sessionShell:has(.sessionMove > section > details[open]) {
+		height: auto;
+		min-height: 100dvh;
+		overflow: visible;
+	}
+
+	.sessionShell:has(.sessionMove > section > details[open]) .sessionWorkspace {
+		height: calc(100dvh - 24px);
+	}
 }
 
 @media (max-width: 980px) {

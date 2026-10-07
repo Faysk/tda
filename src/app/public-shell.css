@@ -55,13 +55,13 @@ footer {
 
 .brand::before {
 	position: absolute;
-	inset: -10px -14px;
+	inset: -22px -34px;
 	z-index: -1;
-	border: 1px solid var(--ds-border-subtle);
-	border-radius: var(--ds-radius-md);
-	background: color-mix(in srgb, var(--ds-canvas) 92%, transparent);
-	-webkit-backdrop-filter: blur(16px);
-	backdrop-filter: blur(16px);
+	background: var(--ds-canvas);
+	-webkit-mask-image: radial-gradient(ellipse closest-side, black 55%, transparent 100%);
+	mask-image: radial-gradient(ellipse closest-side, black 55%, transparent 100%);
+	-webkit-backdrop-filter: blur(12px);
+	backdrop-filter: blur(12px);
 	content: "";
 	pointer-events: none;
 }
