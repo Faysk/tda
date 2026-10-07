@@ -451,6 +451,10 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 						? `Arquivo ${track} de ${totalTracks}${speaker ? ` — ${speaker}` : ""}.`
 						: `Transcrição iniciada${speaker ? ` — ${speaker}` : ""}.`,
 			};
+		case "WHISPER_SEGMENT_TRANSCRIBED":
+			return { title: `Transcrevendo áudio${speaker ? ` — ${speaker}` : ""}.` };
+		case "WHISPER_SEGMENT_SPAN_WIDENED":
+			return { title: "Ajustando os limites de tempo de um trecho da transcrição." };
 		case "TRACK_ALIGNMENT_STARTED":
 			return {
 				title:

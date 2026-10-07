@@ -8,6 +8,11 @@ import {
 } from "./presentation";
 
 describe("processing presentation", () => {
+	it("presents observed Whisper progress in Portuguese without claiming completion", () => {
+		const event = { seq: 1, attempt: 1, at: "2026-10-07T13:00:00Z", level: "info", data: { speaker: "Alice" } } as const;
+		expect(presentJobEvent({ ...event, code: "WHISPER_SEGMENT_TRANSCRIBED" }).title).toBe("Transcrevendo áudio — Alice.");
+		expect(presentJobEvent({ ...event, code: "WHISPER_SEGMENT_SPAN_WIDENED" }).title).toBe("Ajustando os limites de tempo de um trecho da transcrição.");
+	});
 	it("uses factual track-local window time and preserves legacy events", () => {
 		const event = { seq: 1, attempt: null, code: "QWEN_WINDOW_TRANSCRIBED", at: "2026-09-27T00:00:00Z", level: "info", data: { track: 3, window: 205 } } as const;
 		expect(presentJobEvent(event).detail).toBeUndefined();
