@@ -1,4 +1,6 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { gunzipSync } from "node:zlib";
+import { PUBLICATION_GZIP_CONTENT_TYPE } from "../../src/features/transcript-publication/transport-contract";
 import {
 	installCompanionFixture,
 	LOCAL_API,
@@ -1052,7 +1054,9 @@ async function installMultiRecordingRoutes(
 			path === "/api/transcript-publications" ||
 			path === "/api/transcript-publications/receipt"
 		) {
-			const body = request.postDataJSON() as Record<string, unknown>;
+			const body = (request.headers()["content-type"] === PUBLICATION_GZIP_CONTENT_TYPE
+				? JSON.parse(gunzipSync(request.postDataBuffer()!).toString("utf8"))
+				: request.postDataJSON()) as Record<string, unknown>;
 			publishedBodies.push(body);
 			return json(route, {
 				ok: true,
@@ -1927,7 +1931,7 @@ test("8k session review stays bounded, paged and edits only the active utterance
 		profileReady: true,
 		reviewEnabled: true,
 	});
-	await installMultiRecordingRoutes(page, {
+	const multi = await installMultiRecordingRoutes(page, {
 		uploadSequence: [0],
 		reviewRowCount: 8_000,
 	});
@@ -1983,6 +1987,16 @@ test("8k session review stays bounded, paged and edits only the active utterance
 	await expect(review.getByText("1 falas encontradas", { exact: true })).toBeVisible();
 	await expect(viewport.locator("[data-assembly-segment]")).toHaveCount(1);
 	await expect(viewport.getByText("Trecho 8000", { exact: true })).toBeVisible();
+	await review.getByRole("button", { name: /Concluir revisão|Salvar alterações/u }).click();
+	await review.getByRole("button", { name: "Aprovar revisão", exact:true }).click();
+	const publication = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/transcript-publications");
+	await review.getByRole("button", { name: "Preparar sessão no Edit", exact:true }).click();
+	const sent = await publication;
+	expect(sent.headers()["content-type"]).toBe(PUBLICATION_GZIP_CONTENT_TYPE);
+	expect(sent.postDataBuffer()!.byteLength).toBeLessThan(4 * 1024 * 1024);
+	await expect(review.getByRole("link", {name:"Ver sessões no Edit",exact:true})).toBeVisible();
+	expect(multi.publishedBodies).toHaveLength(1);
+	expect((multi.publishedBodies[0] as {review:{segments:unknown[]}}).review.segments).toHaveLength(8000);
 });
 
 test("trusted Craig chronology automatically replaces attachment order before assembly", async ({ page }) => {

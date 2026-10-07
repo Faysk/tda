@@ -374,3 +374,6 @@ Enquanto esse drift existir, não usar bypass manual para concluir release com m
 ### Dispatch Qwen com Runtime RC ativo — #1576
 
 A verificação de workflow ativo precede a restauração excepcional de #1413. Um pacote posterior (por exemplo 1.0.19) segue para dispatch quando Runtime RC já está ativo, sem exigir a antiga versão 1.0.18. Se o workflow estiver desabilitado, a restauração continua restrita a 1.0.18, sem Stable existente e com estados permitidos; outras versões não reativam automação. Identidade/source/digests e aceite físico continuam obrigatórios. Rollback: reverter apenas a ordenação; nenhum asset ou versão existente é substituído.
+### Handoff acima do limite de body do provider — #1578
+
+Functions impõe 4,5 MB ao request HTTP (https://vercel.com/docs/functions/limitations), independente do limite de domínio. Revisões grandes usam transporte gzip limitado a 4 MiB no fio / 34 MiB após descompressão; pequenas permanecem JSON. Validar round-trip exato, rejeição de bombas/corrupção, auth antes de inflar e replay antes do CD. O aceite exige receipt e read-back privado no Edit, não apenas compressão local. Não aumentar tier/bundle/memória como solução para limite de body.

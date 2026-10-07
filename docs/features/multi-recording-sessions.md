@@ -892,3 +892,9 @@ O aceite real de 2026-10-07 encontrou uma lacuna: Companion 0.3.21 gera `tda_ses
 A migration `20261007174241_assembly_v3_private_handoff` preserva revisões históricas sem backfill. A coluna opcional `assembly_provenance` conserva o objeto validado completo e é herdada pelas correções no Edit. Autorização server-only, hashes, CAS, receipts e commit atômico permanecem obrigatórios. O ensaio PostgreSQL isolado cobre compatibilidade antiga, v2/v3, replay, herança, acesso negado e relógios/provenance adulterados.
 
 Integração e teste scratch não comprovam aplicação remota: a chegada dos dois ZIPs ao Edit exige Production CD, read-back da migration e retry da operação preservada no navegador. Rollback reverte o consumidor Web e mantém o schema compatível/revisões aceitas; não apagar dados para voltar a constraints v1.
+
+### Transporte de revisões longas — #1578
+
+A sessão real de 8.019 falas supera 4,5 MB de JSON compacto. O domínio permite request até 34 MiB, mas o provider de Functions atual limita a transferência a 4,5 MB. O cliente mantém JSON simples até 1 MiB; acima disso usa gzip nativo do navegador com MIME `application/vnd.tda.transcript-publication+gzip`, sem `Content-Encoding` (o aplicativo controla a descompressão). O fio é limitado a 4 MiB e o conteúdo inflado continua limitado a 34 MiB. Sem compressão disponível ou após exceder limites, falha explicitamente, sem truncar nem enviar JSON grande como fallback.
+
+Origin e identidade são verificadas antes de descomprimir. UTF-8 inválido, gzip corrompido, excesso no fio e expansão excessiva não chegam à autorização/commit. Canonicalização, hashes, CAS, actor binding e operationId permanecem idênticos; publicação e consulta de receipt usam o mesmo transporte. Não há storage temporário cloud, envio de áudio, nova dependência paga nem mudança de banco. Rollback: reverter caller, manter suporte compatível no servidor; revisões e receipts aceitos não são removidos.
