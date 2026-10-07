@@ -67,6 +67,7 @@ describe("Companion Windows download route", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
     expect(response.headers.get("content-disposition")).toContain("TDACompanion-x64.msi");
+    expect(response.headers.get("content-length")).toBe(String(installer.byteLength));
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(installer);
 
     const fetchMock = vi.mocked(fetch);
@@ -114,6 +115,22 @@ describe("Companion Windows download route", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(installer);
+  });
+
+  it("supports the Companion size probe when the upstream omits length", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(Response.json(stableRelease()))
+      .mockResolvedValueOnce(new Response(installer)));
+    const response = await GET(new Request(
+      `https://dnd.faysk.dev/api/downloads/companion/windows?tag=${stableTag}`,
+      { headers: { Range: "bytes=0-0" } },
+    ));
+    // A server may ignore Range and return 200, but must advertise the full size.
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-length")).toBe(String(installer.byteLength));
+    expect(response.headers.get("x-tda-asset-sha256")).toBe(installerSha);
     expect(response.headers.get("location")).toBeNull();
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(installer);
   });

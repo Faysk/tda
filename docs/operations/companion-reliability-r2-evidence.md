@@ -100,6 +100,8 @@ Regras importantes:
 
 O probe do asset não depende de `HEAD`: ele usa `GET` com `Range: bytes=0-0`, valida o tamanho total contra o manifest por `Content-Range`/`Content-Length` e fecha a resposta sem consumir o MSI inteiro.
 
+O proxy same-origin do MSI informa `Content-Length` a partir do tamanho da release imutável selecionada, mesmo quando o upstream não fornece esse cabeçalho. A resposta completa `200` é o fallback HTTP para o probe `Range`; os contadores e SHA-256 continuam verificados durante o stream. A ausência do cabeçalho foi reproduzida em Production como `ASSET_SIZE_INVALID` no aceite instalado 0.3.23; a correção da Web exige novo probe live e repetição do gate físico, sem alterar ou relaxar o Companion aceito.
+
 ## Gates automáticos
 
 O workflow Companion cobre Linux e Windows sintéticos, build do bundle, smoke do executável empacotado, MSI install/uninstall e lifecycle real com rollback/upgrade/preserve/purge.
