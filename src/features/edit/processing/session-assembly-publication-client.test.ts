@@ -1,3 +1,4 @@
+import { prepareMultiSourceCanonicalPublication } from "../../transcript-publication/multi-source-canonical";
 import { describe, expect, it, vi } from "vitest";
 import type {
 	SessionAssembly,
@@ -150,6 +151,29 @@ function receipt() {
 }
 
 describe("Session Assembly publication client", () => {
+	it("sends current v3 timeline and physical provenance through the canonical boundary", () => {
+		const current = assembly();
+		current.canonicalizationVersion = "tda_session_assembly_canonical_v3";
+		const body = sessionAssemblyPublicationRequestBody(
+			current,
+			review(),
+			OPERATION,
+			null,
+		);
+		expect(body.assembly).toMatchObject({
+			canonicalizationVersion: "tda_session_assembly_canonical_v3",
+			timelineStrategy: "user_confirmed_sequence",
+			wallClock: "partial",
+			unknownIntervalCount: 1,
+		});
+		expect(body.assembly.parts[1]).toMatchObject({
+			physicalIntervalState: "unknown",
+		});
+		expect(
+			prepareMultiSourceCanonicalPublication(JSON.stringify(body)).ok,
+		).toBe(true);
+	});
+
 	it("builds the canonical v2 handoff from exact Assembly provenance", () => {
 		const body = sessionAssemblyPublicationRequestBody(
 			assembly(),
@@ -174,8 +198,16 @@ describe("Session Assembly publication client", () => {
 				unknownIntervalCount: 1,
 				assemblyId: "1".repeat(64),
 				parts: [
-					expect.objectContaining({ sourceId: SOURCE_A, runId: "run-a", ordinal: 0 }),
-					expect.objectContaining({ sourceId: SOURCE_B, runId: "run-b", ordinal: 1 }),
+					expect.objectContaining({
+						sourceId: SOURCE_A,
+						runId: "run-a",
+						ordinal: 0,
+					}),
+					expect.objectContaining({
+						sourceId: SOURCE_B,
+						runId: "run-b",
+						ordinal: 1,
+					}),
 				],
 			},
 			review: {

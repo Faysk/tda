@@ -21,12 +21,16 @@ import {
 	publishApprovedSessionAssemblyReview,
 	readCurrentSessionAssemblyPublication,
 } from "./session-assembly-publication-client";
-import { PublicationClientError, type PublicationReceiptView } from "./publication-client";
+import {
+	PublicationClientError,
+	type PublicationReceiptView,
+} from "./publication-client";
 import styles from "./session-assembly-review.module.css";
 
 const PAGE_SIZE = 60;
 const PENDING_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const UUID =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
 type PendingPublication = Readonly<{
 	schemaVersion: "tda_session_assembly_publication_recovery_v1";
@@ -81,7 +85,10 @@ function loadPending(assemblyId: string): PendingPublication | null {
 
 function savePending(value: PendingPublication): boolean {
 	try {
-		window.localStorage.setItem(pendingKey(value.assemblyId), JSON.stringify(value));
+		window.localStorage.setItem(
+			pendingKey(value.assemblyId),
+			JSON.stringify(value),
+		);
 		return true;
 	} catch {
 		return false;
@@ -117,7 +124,8 @@ function errorMessage(cause: unknown): string {
 	}
 	if (cause instanceof PublicationClientError) {
 		return {
-			unauthenticated: "Sua sessão Web expirou. Entre novamente antes do handoff.",
+			unauthenticated:
+				"Sua sessão Web expirou. Entre novamente antes do handoff.",
 			forbidden: "Seu acesso não permite preparar esta transcrição privada.",
 			publish_capability_undefined:
 				"O handoff privado ainda não está ativado para esta campanha.",
@@ -214,7 +222,9 @@ export function SessionAssemblyReview({
 			segments.filter((segment) => {
 				if (!normalizedQuery) return true;
 				return (
-					segment.speaker.toLocaleLowerCase("pt-BR").includes(normalizedQuery) ||
+					segment.speaker
+						.toLocaleLowerCase("pt-BR")
+						.includes(normalizedQuery) ||
 					segment.text.toLocaleLowerCase("pt-BR").includes(normalizedQuery) ||
 					segment.sourceId.toLocaleLowerCase("pt-BR").includes(normalizedQuery)
 				);
@@ -226,7 +236,6 @@ export function SessionAssemblyReview({
 	const pageStart = safePage * PAGE_SIZE;
 	const visible = matches.slice(pageStart, pageStart + PAGE_SIZE);
 	const pageEnd = pageStart + visible.length;
-
 
 	useEffect(() => {
 		if (page !== safePage) setPage(safePage);
@@ -308,7 +317,6 @@ export function SessionAssemblyReview({
 		setEditingDraft(null);
 		focusSegmentTrigger(segment.assemblySegmentId);
 	}
-
 
 	function changePage(nextPage: number) {
 		setEditingDraft(null);
@@ -404,7 +412,10 @@ export function SessionAssemblyReview({
 	}
 
 	return (
-		<section className={styles.review} aria-label="Revisão da transcrição da sessão">
+		<section
+			className={styles.review}
+			aria-label="Revisão da transcrição da sessão"
+		>
 			<header className={styles.header}>
 				<div>
 					<span className={styles.eyebrow}>Revisão contínua</span>
@@ -426,42 +437,64 @@ export function SessionAssemblyReview({
 					</StatusPill>
 					{receipt ? (
 						<>
-						<a className={actionStyles({ size: "sm", variant: "primary" })} href={`/edit/${encodeURIComponent(assembly.campaignId)}/sessoes`}>
-							Ver sessões no Edit
-						</a>
-						<a
-							data-handoff-success-link="true"
-							className={actionStyles({ size: "sm", variant: "secondary" })}
-							href={`/edit/${encodeURIComponent(assembly.campaignId)}/sessoes/${encodeURIComponent(assembly.sessionId)}`}
-						>
-							Abrir sessão no Edit
-						</a>
+							<a
+								className={actionStyles({ size: "sm", variant: "primary" })}
+								href={`/edit/${encodeURIComponent(assembly.campaignId)}/sessoes`}
+							>
+								Ver sessões no Edit
+							</a>
+							<a
+								data-handoff-success-link="true"
+								className={actionStyles({ size: "sm", variant: "secondary" })}
+								href={`/edit/${encodeURIComponent(assembly.campaignId)}/sessoes/${encodeURIComponent(assembly.sessionId)}`}
+							>
+								Abrir sessão no Edit
+							</a>
 						</>
 					) : dirty ? (
 						<Button
-						size="sm"
-						variant="primary"
-						disabled={busy || disabled || editingDraft !== null}
-						onClick={() => void save("reviewed")}
-					>
+							size="sm"
+							variant="primary"
+							disabled={busy || disabled || editingDraft !== null}
+							onClick={() => void save("reviewed")}
+						>
 							{busy ? "Salvando…" : "Salvar alterações"}
 						</Button>
 					) : baseline.persistence !== "persisted" ? (
-						<Button size="sm" variant="primary" disabled={busy || disabled || editingDraft !== null} onClick={() => void save("reviewed")}>
+						<Button
+							size="sm"
+							variant="primary"
+							disabled={busy || disabled || editingDraft !== null}
+							onClick={() => void save("reviewed")}
+						>
 							{busy ? "Salvando…" : "Concluir revisão"}
 						</Button>
 					) : canApprove ? (
-						<Button size="sm" variant="primary" onClick={() => void save("approved_local")}>
+						<Button
+							size="sm"
+							variant="primary"
+							onClick={() => void save("approved_local")}
+						>
 							Aprovar revisão
 						</Button>
 					) : canPublish ? (
-						<Button data-handoff-trigger="prepare" size="sm" variant="primary" onClick={() => void publish()}>
-							{pending ? "Confirmar handoff pendente" : "Preparar sessão no Edit"}
+						<Button
+							data-handoff-trigger="prepare"
+							size="sm"
+							variant="primary"
+							onClick={() => void publish()}
+						>
+							{pending
+								? "Confirmar handoff pendente"
+								: "Preparar sessão no Edit"}
 						</Button>
 					) : null}
 				</div>
 			</header>
-			<p className={styles.notice}>Clique em uma fala para corrigir o texto ou participante. Ao terminar, conclua a revisão e aprove antes de enviar para edição.</p>
+			<p className={styles.notice}>
+				Clique em uma fala para corrigir o texto ou participante. Ao terminar,
+				conclua a revisão e aprove antes de enviar para edição.
+			</p>
 
 			<div className={styles.tools}>
 				<label>
@@ -497,7 +530,8 @@ export function SessionAssemblyReview({
 
 			{pending && !receipt ? (
 				<p className={styles.notice} role="status">
-					Há um handoff com identidade preservada. A próxima tentativa reutiliza a mesma operação em vez de criar outra revisão.
+					Há um handoff com identidade preservada. A próxima tentativa reutiliza
+					a mesma operação em vez de criar outra revisão.
 				</p>
 			) : null}
 			{error ? (
@@ -507,7 +541,9 @@ export function SessionAssemblyReview({
 			) : null}
 
 			<div className={styles.summary}>
-				<strong>{matches.length.toLocaleString("pt-BR")} falas encontradas</strong>
+				<strong>
+					{matches.length.toLocaleString("pt-BR")} falas encontradas
+				</strong>
 				<span>
 					{matches.length
 						? `${(pageStart + 1).toLocaleString("pt-BR")}–${pageEnd.toLocaleString("pt-BR")} de ${matches.length.toLocaleString("pt-BR")}`
@@ -516,7 +552,10 @@ export function SessionAssemblyReview({
 			</div>
 
 			{pageCount > 1 ? (
-				<nav className={styles.pagination} aria-label="Navegação da transcrição">
+				<nav
+					className={styles.pagination}
+					aria-label="Navegação da transcrição"
+				>
 					<Button
 						type="button"
 						size="sm"
@@ -570,7 +609,8 @@ export function SessionAssemblyReview({
 										aria-label={`Editar fala ${pageStart + index + 1} de ${matches.length}: ${segment.speaker}`}
 										disabled={
 											editingDraft !== null &&
-											editingDraft.assemblySegmentId !== segment.assemblySegmentId
+											editingDraft.assemblySegmentId !==
+												segment.assemblySegmentId
 										}
 										onClick={() => {
 											if (!editing) openSegmentEditor(segment);
@@ -583,11 +623,14 @@ export function SessionAssemblyReview({
 													dateTime={segment.absoluteTime?.startIso}
 													title={wallClock.accessible}
 												>
-													{wallClock.date} · {wallClock.clock} {wallClock.offset}
+													{wallClock.date} · {wallClock.clock}{" "}
+													{wallClock.offset}
 												</time>
 											) : null}
 										</span>
-										<strong className={styles.segmentSpeaker}>{segment.speaker}</strong>
+										<strong className={styles.segmentSpeaker}>
+											{segment.speaker}
+										</strong>
 										<span className={styles.segmentText}>{segment.text}</span>
 									</button>
 
@@ -602,7 +645,9 @@ export function SessionAssemblyReview({
 														onChange={(event) => {
 															const value = event.currentTarget.value;
 															setEditingDraft((current) =>
-																current ? { ...current, speaker: value } : current,
+																current
+																	? { ...current, speaker: value }
+																	: current,
 															);
 														}}
 													/>
@@ -626,9 +671,9 @@ export function SessionAssemblyReview({
 												<details>
 													<summary>Proveniência</summary>
 													<small>
-														Part {segment.partId} · source {segment.sourceId} · run{" "}
-														{segment.runId} · track {segment.trackNumber} · segmento{" "}
-														{segment.sourceSegmentId}
+														Part {segment.partId} · source {segment.sourceId} ·
+														run {segment.runId} · track {segment.trackNumber} ·
+														segmento {segment.sourceSegmentId}
 													</small>
 												</details>
 												<div className={styles.editorActions}>
@@ -659,7 +704,9 @@ export function SessionAssemblyReview({
 						})}
 					</ol>
 				) : (
-					<p className={styles.empty}>Nenhuma fala corresponde à busca atual.</p>
+					<p className={styles.empty}>
+						Nenhuma fala corresponde à busca atual.
+					</p>
 				)}
 			</section>
 		</section>

@@ -884,3 +884,11 @@ Não migrar destrutivamente:
 - #843 — fundação multi-recording;
 - #1508 e #1509–#1516 — evolução de automação Craig;
 - #1531/#1532 — completed state e gate zero-interrupção.
+
+## Handoff Assembly v2/v3 — #1574
+
+O aceite real de 2026-10-07 encontrou uma lacuna: Companion 0.3.21 gera `tda_session_assembly_canonical_v3`, mas o cliente de handoff cobria somente v1/v2 e a RPC aplicada aceitava somente v1. O contrato corrigido preserva v1 e acrescenta v2/v3 com `tda_session_timeline_v2`, estratégia, wall-clock, intervalos físicos e tempos absolutos por source. `preserve_both_exact_v1` exige v3, intervalo absoluto confiável e ausência de boundary manual.
+
+A migration `20261007174241_assembly_v3_private_handoff` preserva revisões históricas sem backfill. A coluna opcional `assembly_provenance` conserva o objeto validado completo e é herdada pelas correções no Edit. Autorização server-only, hashes, CAS, receipts e commit atômico permanecem obrigatórios. O ensaio PostgreSQL isolado cobre compatibilidade antiga, v2/v3, replay, herança, acesso negado e relógios/provenance adulterados.
+
+Integração e teste scratch não comprovam aplicação remota: a chegada dos dois ZIPs ao Edit exige Production CD, read-back da migration e retry da operação preservada no navegador. Rollback reverte o consumidor Web e mantém o schema compatível/revisões aceitas; não apagar dados para voltar a constraints v1.
