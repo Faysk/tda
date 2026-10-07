@@ -52,7 +52,7 @@ export default async function LegacyEditSessionEntry({ params }: Props) {
 		eligible.campaigns.length === 1 ? eligible.campaigns[0] : undefined;
 	if (onlyCampaign)
 		redirect(
-			editSessionDetailHref(onlyCampaign.technicalSlug, sourceSessionId),
+			editSessionDetailHref(onlyCampaign.routeKey, sourceSessionId),
 		);
 
 	return (
@@ -75,7 +75,7 @@ export default async function LegacyEditSessionEntry({ params }: Props) {
 						<Link
 							className={styles.libraryOpen}
 							href={editSessionDetailHref(
-								campaign.technicalSlug,
+								campaign.routeKey,
 								sourceSessionId,
 							)}
 						>
