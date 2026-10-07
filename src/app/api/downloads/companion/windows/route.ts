@@ -69,6 +69,7 @@ async function downloadAsset(asset: CompanionAssetInfo, request: Request) {
 		headers: {
 			...NO_STORE_HEADERS,
 			"Content-Type": "application/octet-stream",
+			"Content-Length": String(asset.size),
 			"Content-Disposition": 'attachment; filename="TDACompanion-x64.msi"',
 			"X-Content-Type-Options": "nosniff",
 			"X-TDA-Asset-SHA256": asset.sha256,
