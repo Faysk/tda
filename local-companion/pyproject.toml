@@ -4,7 +4,7 @@ version = "0.3.23"
 description = "Per-user local processing supervisor for TDA"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "fastapi==0.142.2",
+    "fastapi==0.142.3",
     "uvicorn==0.54.0",
     "psutil==7.2.2",
     "nvidia-ml-py==13.615.71",
