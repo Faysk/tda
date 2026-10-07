@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Select } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import {
@@ -24,7 +24,9 @@ import {
 } from "./session-campaign-move-recovery";
 import styles from "./session-campaign-move.module.css";
 
-type MovePreflightRequest = Parameters<typeof preflightSessionCampaignMoveAction>[0];
+type MovePreflightRequest = Parameters<
+	typeof preflightSessionCampaignMoveAction
+>[0];
 type MoveCommitRequest = Parameters<typeof moveSessionCampaignAction>[0];
 
 export type SessionCampaignMoveTransport = Readonly<{
@@ -98,8 +100,12 @@ export function SessionCampaignMovePanel({
 	transport = DEFAULT_TRANSPORT,
 }: Props) {
 	const router = useRouter();
-	const [destination, setDestination] = useState(destinations[0]?.technicalSlug ?? "");
-	const [preview, setPreview] = useState<SessionCampaignMovePreview | null>(null);
+	const [destination, setDestination] = useState(
+		destinations[0]?.technicalSlug ?? "",
+	);
+	const [preview, setPreview] = useState<SessionCampaignMovePreview | null>(
+		null,
+	);
 	const [error, setError] = useState<string | null>(null);
 	const [operationId, setOperationId] = useState<string | null>(null);
 	const [decisions, setDecisions] = useState<SessionCampaignMoveDecisionState>(
@@ -133,7 +139,18 @@ export function SessionCampaignMovePanel({
 		[preview],
 	);
 
+	const recoveryScope = JSON.stringify([
+		sessionId,
+		sourceSessionId,
+		sourceCampaignSlug,
+		destinations.map((item) => item.technicalSlug).sort(),
+	]);
+	const restoredRecoveryScope = useRef<string | null>(null);
 	useEffect(() => {
+		// Equivalent destination arrays must not replay initialization over an
+		// in-flight response or the current recovery feedback.
+		if (restoredRecoveryScope.current === recoveryScope) return;
+		restoredRecoveryScope.current = recoveryScope;
 		const stored = readSessionCampaignMoveRecovery(sessionId);
 		if (!stored) return;
 		if (
@@ -154,6 +171,7 @@ export function SessionCampaignMovePanel({
 			"Há uma transferência pendente desta sessão. Rode o preflight e confirme novamente; a mesma operationId será reutilizada.",
 		);
 	}, [
+		recoveryScope,
 		destinations,
 		sessionId,
 		sourceCampaignSlug,
@@ -272,7 +290,9 @@ export function SessionCampaignMovePanel({
 						<strong id="session-move-title">Mover para outra campanha</strong>
 						<small>Atual: {sourceCampaignName}</small>
 					</span>
-					<span className={styles.summaryHint}>Preflight → preparo → commit atômico</span>
+					<span className={styles.summaryHint}>
+						Preflight → preparo → commit atômico
+					</span>
 				</summary>
 
 				<div className={styles.body}>
@@ -304,17 +324,22 @@ export function SessionCampaignMovePanel({
 						</button>
 					</div>
 
-					{error ? <p className={styles.error} role="alert">{error}</p> : null}
+					{error ? (
+						<p className={styles.error} role="alert">
+							{error}
+						</p>
+					) : null}
 
 					{recovery ? (
 						<div className={styles.recovery} role="status">
 							<strong>Commit confirmado.</strong>
 							<span>
-								Destino confirmado: {recovery.destinationName} ({recovery.destinationSlug}).
+								Destino confirmado: {recovery.destinationName} (
+								{recovery.destinationSlug}).
 							</span>
 							<span>
-								A sessão já mudou de campanha no banco. A revalidação de cache/delivery
-								ficou pendente; isso não desfaz o commit.
+								A sessão já mudou de campanha no banco. A revalidação de
+								cache/delivery ficou pendente; isso não desfaz o commit.
 							</span>
 							<button
 								type="button"
@@ -345,7 +370,9 @@ export function SessionCampaignMovePanel({
 												<strong>{blocker.message}</strong>
 												<details>
 													<summary>Detalhes técnicos</summary>
-													<span>{blocker.count} · {blocker.code}</span>
+													<span>
+														{blocker.count} · {blocker.code}
+													</span>
 												</details>
 											</li>
 										))}
@@ -356,14 +383,20 @@ export function SessionCampaignMovePanel({
 							{groupedPlan.map((group) => (
 								<section
 									key={group.classification}
-									aria-label={sessionCampaignMovePlanHeading(group.classification)}
+									aria-label={sessionCampaignMovePlanHeading(
+										group.classification,
+									)}
 								>
-									<strong>{sessionCampaignMovePlanHeading(group.classification)}</strong>
+									<strong>
+										{sessionCampaignMovePlanHeading(group.classification)}
+									</strong>
 									<ul>
 										{group.items.map((item) => (
 											<li key={item.family}>
 												<span>{item.message}</span>
-												<small>{item.count} · {item.family}</small>
+												<small>
+													{item.count} · {item.family}
+												</small>
 											</li>
 										))}
 									</ul>
@@ -382,7 +415,8 @@ export function SessionCampaignMovePanel({
 											}))
 										}
 									/>
-									Desvincular entities narrativas dos participantes, preservando os participantes e seus nomes históricos.
+									Desvincular entities narrativas dos participantes, preservando
+									os participantes e seus nomes históricos.
 								</label>
 							) : null}
 							{requiredDecisions.revokeSessionGrants ? (
@@ -397,7 +431,8 @@ export function SessionCampaignMovePanel({
 											}))
 										}
 									/>
-									Revogar grants específicos desta sessão antes de transferir o boundary.
+									Revogar grants específicos desta sessão antes de transferir o
+									boundary.
 								</label>
 							) : null}
 							{requiredDecisions.acknowledgeHistoricalPublication ? (
@@ -413,7 +448,9 @@ export function SessionCampaignMovePanel({
 											}))
 										}
 									/>
-									Entendo que a campanha de destino é privada: a sessão deixa o discovery público, enquanto o snapshot e a mídia já publicados permanecem como histórico imutável.
+									Entendo que a campanha de destino é privada: a sessão deixa o
+									discovery público, enquanto o snapshot e a mídia já publicados
+									permanecem como histórico imutável.
 								</label>
 							) : null}
 
@@ -422,7 +459,9 @@ export function SessionCampaignMovePanel({
 									<strong>Consequências da transferência</strong>
 									<ul>
 										{preview.consequences.map((item) => (
-											<li key={item}>{sessionCampaignMoveConsequenceLabel(item)}</li>
+											<li key={item}>
+												{sessionCampaignMoveConsequenceLabel(item)}
+											</li>
 										))}
 									</ul>
 								</section>

@@ -41,6 +41,7 @@
 }
 
 .summaryHint {
+	margin-left: auto;
 	flex: 0 1 auto;
 	text-align: right;
 }
@@ -129,10 +130,10 @@
 
 .preview {
 	display: grid;
-	gap: 10px;
-	padding: 12px;
+	gap: 18px 24px;
+	padding: 20px;
 	border: 1px solid var(--ds-border-subtle);
-	border-radius: var(--ds-radius-sm);
+	border-radius: var(--ds-radius-md);
 	background: var(--ds-canvas-subtle);
 }
 
@@ -257,4 +258,31 @@
 	.summary::after {
 		transition: none;
 	}
+}
+
+/* The transfer plan reads as grouped information, with one clear final action. */
+.preview > section {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    min-width: 0;
+    line-height: 1.5;
+}
+.preview > section > strong { font-size: 0.82rem; }
+.preview li small { color: var(--ds-foreground-muted); font-size: 0.68rem; }
+.preview > button {
+    justify-self: end;
+    min-height: 42px;
+    padding-inline: 20px;
+}
+@media (min-width: 900px) {
+    .preview { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .preview > h3, .preview > label, .preview > button,
+    .preview > section[aria-label="Bloqueadores"],
+    .preview > section[aria-label="Consequências da transferência"] { grid-column: 1 / -1; }
+    .preview > section[aria-label="Acompanha automaticamente"] { grid-row: span 2; }
+}
+@media (max-width: 640px) {
+    .preview { padding: 14px; gap: 16px; }
+    .preview > button { justify-self: stretch; }
 }
