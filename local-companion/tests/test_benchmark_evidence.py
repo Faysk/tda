@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import zipfile
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,6 +24,8 @@ from tda_companion.benchmark_evidence import (
     public_bundle_summary,
     transcript_snapshot,
     write_private_evidence_zip,
+    transcript_srt,
+    transcript_vtt,
 )
 from tda_companion.transcript import (
     TranscriptDocument,
@@ -311,6 +314,7 @@ def test_private_zip_is_deterministic_exact_and_contains_no_audio(tmp_path: Path
                     f"{base}/transcript.txt",
                     f"{base}/transcript.vtt",
                     f"{base}/transcript.srt",
+                    f"{base}/subtitle-timing.json",
                     f"{base}/metrics.json",
                     f"{base}/events.jsonl",
                 }
@@ -328,6 +332,50 @@ def test_private_zip_is_deterministic_exact_and_contains_no_audio(tmp_path: Path
             )
         )
         assert metrics["measurement_mode"] == "canonical_bundle_derived_v1"
+
+
+@pytest.mark.parametrize("duration", [0.0, 0.0001])
+def test_point_subtitles_preserve_text_and_canonical_bytes(tmp_path, monkeypatch, duration):
+    original_factory = _document
+
+    def point_document(profile_id):
+        document = original_factory(profile_id)
+        track = document.tracks[0]
+        segment = replace(track.segments[0], start=102.0, end=102.0 + duration, words=())
+        track = replace(track, segments=(segment,))
+        return replace(document, tracks=(track,), stats=stats_for_tracks(
+            (track,), processing_seconds=30.0, processing_metrics=_metrics()))
+
+    monkeypatch.setitem(_commit_bundle.__globals__, "_document", point_document)
+    data_root = tmp_path / "Data"
+    data_root.mkdir()
+    bundle = _commit_bundle(data_root)
+    benchmark_id = bundle["benchmark_id"]
+    canonical, _, _ = derived_artifact(data_root, benchmark_id, "qwen-fast", "json")
+    first, second = tmp_path / "first.zip", tmp_path / "second.zip"
+    write_private_evidence_zip(data_root, benchmark_id, first)
+    write_private_evidence_zip(data_root, benchmark_id, second)
+    assert first.read_bytes() == second.read_bytes()
+    with zipfile.ZipFile(first) as archive:
+        base = f"TDA-Benchmark-{benchmark_id}/profiles/qwen-fast"
+        assert archive.read(base + "/transcript.json") == canonical
+        assert b"00:01:42,000 --> 00:01:42,001" in archive.read(base + "/transcript.srt")
+        assert b"00:01:42.000 --> 00:01:42.001" in archive.read(base + "/transcript.vtt")
+        assert "Olá, Cête! fala de qwen-fast" in archive.read(base + "/transcript.srt").decode()
+        policy = json.loads(archive.read(base + "/subtitle-timing.json"))
+        assert policy["adjusted_cue_count"] == 1
+        assert policy["canonical_timing_unchanged"] is True
+
+
+@pytest.mark.parametrize("start,end", [(-1.0, 1.0), (2.0, 1.0), (float("nan"), 1.0), (1.0, float("inf"))])
+@pytest.mark.parametrize("exporter", [transcript_srt, transcript_vtt])
+def test_invalid_subtitle_intervals_still_fail(start, end, exporter):
+    document = _document("qwen-fast")
+    track = document.tracks[0]
+    segment = replace(track.segments[0], start=start, end=end, words=())
+    document = replace(document, tracks=(replace(track, segments=(segment,)),))
+    with pytest.raises(BenchmarkEvidenceError, match="BENCHMARK_EXPORT_TIMING_INVALID"):
+        exporter(document)
         assert metrics["processing_metrics"]["version"] == "engine_processing_v1"
 
         events = archive.read(

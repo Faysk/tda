@@ -354,6 +354,16 @@ do Craig após perda do Agent. A verificação oficial de promoção dos assets 
 O benchmark Craig e a exportação continuam sendo conferências independentes;
 não substituir o recibo anterior que registrou a rejeição do ZIP no 0.3.23.
 
+O benchmark real do 0.3.24 concluiu os quatro perfis, mas revelou outro caso:
+o contrato canônico permite segmentos pontuais (`start == end`), enquanto o
+exportador SRT/VTT recusava o ZIP inteiro. Companion 0.3.25 mantém JSON, hashes,
+texto e timestamps originais; somente cues derivados com duração arredondada
+zero recebem 1 ms de exibição. Cada perfil exporta `subtitle-timing.json` com
+política `positive_millisecond_cues_v1` e quantidade de ajustes. Esse intervalo
+é formatação de legenda, não duração de fala medida. Negativos, inversões e
+valores não finitos continuam inválidos. Validar o ZIP real preservado e o novo
+MSI antes de tratar o 0.3.25 como aceito; nenhum runtime de inferência muda.
+
 ### Download do Companion pelo domínio do TDA (#1567)
 
 O postflight de promoção verifica HTTP 200 direto, `Content-Length`, disposition
