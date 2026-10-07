@@ -338,6 +338,14 @@ conclusão com avisos de qualidade medida. Rollback restaura a política anterio
 que podia falhar a gravação inteira; não reinterpretar checkpoints novos com a
 assinatura antiga.
 
+Os recibos oficiais em `docs/companion/runtime-acceptance/` aceitam os candidatos
+Whisper 1.1.12 e Qwen 1.0.20 de source `9306c710f41f` nos quatro perfis CUDA,
+em RTX 4070 Laptop. A verificação oficial de promoção conferiu manifestos,
+archives e hashes dos workers contra esses recibos. Isso autoriza a promoção
+governada dos mesmos bytes de runtime; não comprova RTX 2080 nem qualidade
+linguística medida. Também não substitui o aceite próprio do MSI 0.3.24.
+Recibo aceito e canal Stable publicado permanecem estados distintos.
+
 ### Download do Companion pelo domínio do TDA (#1567)
 
 O endpoint `/api/downloads/companion/windows` entrega o MSI por streaming Node.js,
