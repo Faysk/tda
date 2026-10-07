@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { gzipSync } from "node:zlib";
+import { MAX_PUBLICATION_REQUEST_BYTES } from "./canonical";
+import {
+	MAX_PUBLICATION_WIRE_BYTES,
+	PUBLICATION_GZIP_CONTENT_TYPE,
+} from "./transport-contract";
 import type { PublicationDependencies } from "./consumer";
 import { createPublicationHandler } from "./http";
 import { preparePublication } from "./contract";
@@ -118,6 +124,77 @@ function request(raw: string, origin = ORIGIN) {
 }
 
 describe("transcript publication HTTP boundary", () => {
+	it("gzip preserves the exact canonical commit and receipt replay", async () => {
+		const { raw, publication } = dependencies();
+		const deps = {
+			origin: () => ORIGIN,
+			identity: async () => ({ ok: true as const, authUserId: AUTH_USER }),
+			publication,
+		};
+		const compressed = () =>
+			new Request(`${ORIGIN}/api/transcript-publications`, {
+				method: "POST",
+				headers: {
+					Origin: ORIGIN,
+					"Content-Type": PUBLICATION_GZIP_CONTENT_TYPE,
+				},
+				body: new Uint8Array(gzipSync(raw)),
+			});
+		const plain = await createPublicationHandler(deps)(request(raw));
+		const gzip = await createPublicationHandler(deps)(compressed());
+		expect(await gzip.json()).toEqual(await plain.json());
+		expect(
+			await (await createPublicationHandler(deps, true)(compressed())).json(),
+		).toMatchObject({ ok: true });
+		expect(publication.commit).toHaveBeenCalledTimes(2);
+	});
+	it("rejects oversized wire, inflated bomb and corrupt gzip without target writes", async () => {
+		for (const body of [
+			new Uint8Array(MAX_PUBLICATION_WIRE_BYTES + 1),
+			new Uint8Array(gzipSync("a".repeat(MAX_PUBLICATION_REQUEST_BYTES + 1))),
+			new Uint8Array([1, 2, 3]),
+		]) {
+			const { publication } = dependencies();
+			const handler = createPublicationHandler({
+				origin: () => ORIGIN,
+				identity: async () => ({ ok: true, authUserId: AUTH_USER }),
+				publication,
+			});
+			const response = await handler(
+				new Request(`${ORIGIN}/api/transcript-publications`, {
+					method: "POST",
+					headers: {
+						Origin: ORIGIN,
+						"Content-Type": PUBLICATION_GZIP_CONTENT_TYPE,
+					},
+					body,
+				}),
+			);
+			expect(response.status).toBe(body.length === 3 ? 400 : 413);
+			expect(publication.authorize).not.toHaveBeenCalled();
+			expect(publication.commit).not.toHaveBeenCalled();
+		}
+	});
+	it("authenticates before decompressing malformed input", async () => {
+		const { publication } = dependencies();
+		const handler = createPublicationHandler({
+			origin: () => ORIGIN,
+			identity: async () => ({ ok: false, reason: "unauthenticated" }),
+			publication,
+		});
+		const response = await handler(
+			new Request(`${ORIGIN}/api/transcript-publications`, {
+				method: "POST",
+				headers: {
+					Origin: ORIGIN,
+					"Content-Type": PUBLICATION_GZIP_CONTENT_TYPE,
+				},
+				body: "bad gzip",
+			}),
+		);
+		expect(response.status).toBe(401);
+		expect(publication.commit).not.toHaveBeenCalled();
+	});
 	it("authenticates same-origin requests and confirms the exact receipt", async () => {
 		const { raw, publication } = dependencies();
 		const handler = createPublicationHandler({
@@ -172,7 +249,10 @@ describe("transcript publication HTTP boundary", () => {
 
 	it("rejects foreign origin before identity or target work", async () => {
 		const { raw, publication } = dependencies();
-		const identity = vi.fn(async () => ({ ok: true as const, authUserId: AUTH_USER }));
+		const identity = vi.fn(async () => ({
+			ok: true as const,
+			authUserId: AUTH_USER,
+		}));
 		const handler = createPublicationHandler({
 			origin: () => ORIGIN,
 			identity,
@@ -252,10 +332,25 @@ describe("transcript publication HTTP boundary", () => {
 	});
 });
 
-it.each([false, true])("rejects profile changes between confirmation and receipt/write (lookup=%s)", async lookup => {
- const { raw, publication } = dependencies();
- const handler = createPublicationHandler({ origin: () => ORIGIN, identity: async () => ({ ok: true, authUserId: AUTH_USER }), publication }, lookup);
- const changed = { ...JSON.parse(raw), expectedActorProfileId: "99999999-9999-4999-8999-999999999999" };
- const response = await handler(request(JSON.stringify(changed)));
- expect(response.status).toBe(403); expect(publication.commit).not.toHaveBeenCalled(); expect(publication.lookup).not.toHaveBeenCalled();
-});
+it.each([false, true])(
+	"rejects profile changes between confirmation and receipt/write (lookup=%s)",
+	async (lookup) => {
+		const { raw, publication } = dependencies();
+		const handler = createPublicationHandler(
+			{
+				origin: () => ORIGIN,
+				identity: async () => ({ ok: true, authUserId: AUTH_USER }),
+				publication,
+			},
+			lookup,
+		);
+		const changed = {
+			...JSON.parse(raw),
+			expectedActorProfileId: "99999999-9999-4999-8999-999999999999",
+		};
+		const response = await handler(request(JSON.stringify(changed)));
+		expect(response.status).toBe(403);
+		expect(publication.commit).not.toHaveBeenCalled();
+		expect(publication.lookup).not.toHaveBeenCalled();
+	},
+);

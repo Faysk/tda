@@ -1,5 +1,7 @@
 "use client";
 
+import { encodePublicationTransport } from "./publication-transport";
+
 import type {
 	SessionAssembly,
 	SessionAssemblyReviewSummary,
@@ -178,13 +180,15 @@ function parseFailure(value: unknown): PublicationClientError["code"] {
 }
 
 async function post(path: string, body: string, transport: Transport) {
+	const encoded = await encodePublicationTransport(body);
+	if (!encoded.ok) throw new PublicationClientError(encoded.reason);
 	return transport(path, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": encoded.contentType },
 		credentials: "same-origin",
 		cache: "no-store",
 		redirect: "error",
-		body,
+		body: encoded.body,
 	});
 }
 
