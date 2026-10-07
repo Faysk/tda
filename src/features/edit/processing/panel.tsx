@@ -357,6 +357,7 @@ export function ProcessingPanel({
 		}> | null
 	>(null);
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
+	const [assemblyReviewOpen, setAssemblyReviewOpen] = useState(false);
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
 	const [campaignSelection, setCampaignSelection] = useState(campaignId);
@@ -592,6 +593,7 @@ export function ProcessingPanel({
 	function openSessionAssemblyReview(
 		assembly: import("./session-composer-protocol").SessionAssembly,
 	) {
+		setResultFocus(null);
 		setAssemblyReviewFocus((current) => ({
 			sessionId: assembly.sessionId,
 			assembly,
@@ -1388,8 +1390,12 @@ export function ProcessingPanel({
 								campaignId={campaignId}
 								capabilities={state.capabilities.capabilities}
 								focus={assemblyReviewFocus}
+								onReviewOpenChange={setAssemblyReviewOpen}
+								onCloseReview={() => setAssemblyReviewFocus(null)}
 							/>
 						) : null}
+						<details className={styles.resultArchive} data-results-archive="true" open={!assemblyReviewOpen || resultFocus !== null}>
+							<summary>Resultados individuais e histórico</summary>
 						{unboundRuns.length ? (
 							<section
 								className={styles.unboundRecovery}
@@ -1503,6 +1509,7 @@ export function ProcessingPanel({
 								</div>
 							) : null}
 						</section>
+						</details>
 					</section>
 
 					<section
@@ -1724,10 +1731,10 @@ export function ProcessingPanel({
 												</div>
 											))}
 											<div className={styles.detailWide}>
-												<dt>Capabilities</dt>
-												<dd className={styles.mono}>
+												<dt>Recursos técnicos</dt>
+												<dd><details className={styles.capabilityDetails}><summary>Ver recursos disponíveis ({state.capabilities?.capabilities.length ?? 0})</summary><span className={styles.mono}>
 													{state.capabilities?.capabilities.join(", ") || "—"}
-												</dd>
+												</span></details></dd>
 											</div>
 										</dl>
 									</details>

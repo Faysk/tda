@@ -346,6 +346,20 @@ preparação ou criação de job quando o contrato de segurança assim exigir.
 
 ## Polimento do workspace — candidato #1571 / PR #1566
 
+**Aceite visual reaberto em 07/10/2026.** As capturas de Production enviadas pelo
+usuário demonstram que os ajustes abaixo não constituem acabamento concluído.
+O candidato passa a reduzir o cartão de conclusão, recolher manutenção em
+“Mais opções”, eliminar avisos de recuperação já superados e separar a revisão
+da biblioteca individual. O retorno à biblioteca preserva a revisão e bloqueia
+saída com alterações não salvas. Identificadores técnicos são expansíveis.
+No benchmark, a execução destacada não é repetida no histórico; resultados
+concluídos continuam disponíveis para comparação. Validação automatizada e
+publicação não substituem aceite visual das cinco abas em uso real.
+Uma revisão sem alterações pode ser concluída explicitamente, persistindo o
+rascunho antes da aprovação. Isso não aprova nem envia a sessão automaticamente.
+A lista de recursos técnicos do Diagnóstico fica recolhida e a Fila/Benchmark
+usam texto de no mínimo 12 px nas declarações tipográficas fixas.
+
 As cinco abas recebem uma orientação curta sobre finalidade e próxima ação;
 detalhes permanecem nos disclosures existentes. A Fila distingue pausa de novas
 execuções do trabalho atual; Diagnóstico esclarece que pausar a visualização não

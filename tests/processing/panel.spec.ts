@@ -1740,7 +1740,7 @@ test("Results keeps empty Session Assembly and sync context compact", async ({ p
 	await expect(assembly).toBeVisible();
 	await expect(assembly).toHaveAttribute("data-empty", "true");
 	await expect(
-		assembly.getByText("Nenhuma assembly concluída para a sessão ativa.", {
+		assembly.getByText("A transcrição aparecerá aqui quando o processamento terminar.", {
 			exact: true,
 		}),
 	).toBeVisible();
@@ -1849,7 +1849,7 @@ test("Results keeps a completed Session Assembly legible and actionable", async 
 
 	const assembly = page.locator("[data-results-assembly='true']");
 	await expect(assembly).toHaveAttribute("data-empty", "false");
-	await expect(assembly.getByText("2 gravações · 10 segmentos", { exact: true })).toBeVisible();
+	await expect(assembly.getByText("2 gravações · 10 falas", { exact: true })).toBeVisible();
 	await expect(assembly.getByRole("button", { name: "Abrir revisão" })).toBeVisible();
 	const horizontal = await page.evaluate(() => ({
 		scrollWidth: document.documentElement.scrollWidth,

@@ -90,7 +90,7 @@
 .qualityDrilldown p {
 	margin-top: 3px;
 	color: var(--ds-foreground-muted);
-	font-size: 0.72rem;
+	font-size: 0.75rem;
 	line-height: 1.45;
 }
 
@@ -100,7 +100,7 @@
 	gap: 5px 12px;
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
-	font-size: 0.65rem;
+	font-size: 0.75rem;
 }
 
 .referenceStart,
@@ -132,7 +132,7 @@
 	gap: 5px;
 	min-width: 0;
 	color: var(--ds-foreground-muted);
-	font-size: 0.68rem;
+	font-size: 0.75rem;
 	font-weight: 700;
 }
 
@@ -204,7 +204,7 @@
 	padding-top: 8px;
 	border-top: 1px solid var(--ds-border-subtle);
 	color: var(--ds-foreground-muted);
-	font-size: 0.69rem;
+	font-size: 0.75rem;
 }
 
 .qualityResults {
@@ -264,14 +264,14 @@
 	display: flex;
 	justify-content: space-between;
 	gap: 10px;
-	font-size: 0.68rem;
+	font-size: 0.75rem;
 }
 
 .errorRegion header span,
 .errorRegionColumns span,
 .glossaryFindings span {
 	color: var(--ds-foreground-muted);
-	font-size: 0.64rem;
+	font-size: 0.75rem;
 }
 
 .errorRegionColumns {
@@ -292,7 +292,7 @@
 	overflow-wrap: anywhere;
 	color: var(--ds-foreground);
 	font-family: var(--ds-font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
-	font-size: 0.7rem;
+	font-size: 0.75rem;
 	line-height: 1.45;
 }
 
@@ -319,7 +319,7 @@
 	display: block;
 	margin-bottom: 3px;
 	color: var(--ds-foreground-muted);
-	font-size: 0.69rem;
+	font-size: 0.75rem;
 	font-weight: 750;
 	letter-spacing: 0.055em;
 	text-transform: uppercase;
@@ -429,7 +429,7 @@
 	border-radius: var(--ds-radius-sm);
 	background: var(--ds-surface);
 	color: var(--ds-foreground-soft);
-	font-size: 0.68rem;
+	font-size: 0.75rem;
 	font-weight: 800;
 	letter-spacing: 0.06em;
 }
@@ -457,12 +457,12 @@
 
 .sourcePickerCopy small {
 	color: var(--ds-foreground-muted);
-	font-size: 0.7rem;
+	font-size: 0.75rem;
 }
 
 .sourcePickerAction {
 	color: var(--ds-accent-strong);
-	font-size: 0.72rem;
+	font-size: 0.75rem;
 	font-weight: 750;
 	white-space: nowrap;
 }
@@ -474,14 +474,14 @@
 	gap: 6px 12px;
 	min-width: 0;
 	color: var(--ds-foreground-muted);
-	font-size: 0.71rem;
+	font-size: 0.75rem;
 }
 
 .sourceMeta :global(.ds-action) {
 	margin-left: auto;
 	min-height: 30px;
 	padding: 4px 8px;
-	font-size: 0.7rem;
+	font-size: 0.75rem;
 }
 
 .profileReadiness {
@@ -497,7 +497,7 @@
 	min-width: 0;
 	padding: 7px 0;
 	border-top: 1px solid var(--ds-border-subtle);
-	font-size: 0.73rem;
+	font-size: 0.75rem;
 }
 
 .profileRow:first-child {
@@ -528,7 +528,7 @@
 	min-width: 0;
 	color: var(--ds-foreground-muted);
 	font-family: var(--ds-font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
-	font-size: 0.68rem;
+	font-size: 0.75rem;
 	overflow-wrap: anywhere;
 }
 
@@ -584,7 +584,7 @@
 
 .runtimeFacts dt {
 	color: var(--ds-foreground-muted);
-	font-size: 0.66rem;
+	font-size: 0.75rem;
 	font-weight: 700;
 	text-transform: uppercase;
 }
@@ -612,7 +612,7 @@
 
 .runtimeProgress span {
 	color: var(--ds-foreground-muted);
-	font-size: 0.72rem;
+	font-size: 0.75rem;
 }
 
 .runtimeActions {
@@ -624,7 +624,7 @@
 .technicalDetail {
 	grid-column: 1 / -1;
 	color: var(--ds-foreground-muted);
-	font-size: 0.68rem;
+	font-size: 0.75rem;
 }
 
 .technicalDetail summary {
@@ -707,7 +707,7 @@
 .preparationStatus span,
 .activeCopy small {
 	color: var(--ds-foreground-muted);
-	font-size: 0.71rem;
+	font-size: 0.75rem;
 }
 
 .activeCard,
@@ -751,7 +751,7 @@
 	min-width: 0;
 	padding: 8px 10px 2px 0;
 	color: var(--ds-foreground-muted);
-	font-size: 0.7rem;
+	font-size: 0.75rem;
 }
 
 .runStep + .runStep {
@@ -768,7 +768,7 @@
 	border: 1px solid var(--ds-border);
 	border-radius: 50%;
 	font-style: normal;
-	font-size: 0.65rem;
+	font-size: 0.75rem;
 	font-variant-numeric: tabular-nums;
 }
 
@@ -841,7 +841,7 @@
 
 .historyHeader > span {
 	color: var(--ds-foreground-muted);
-	font-size: 0.72rem;
+	font-size: 0.75rem;
 }
 
 .resultCard {
@@ -871,7 +871,7 @@
 	flex-wrap: wrap;
 	gap: 6px 12px;
 	color: var(--ds-foreground-muted);
-	font-size: 0.7rem;
+	font-size: 0.75rem;
 }
 
 .tableWrap {
@@ -882,7 +882,7 @@
 .tableWrap table {
 	width: 100%;
 	border-collapse: collapse;
-	font-size: 0.72rem;
+	font-size: 0.75rem;
 }
 
 .tableWrap th,
@@ -895,7 +895,7 @@
 
 .tableWrap thead th {
 	color: var(--ds-foreground-muted);
-	font-size: 0.67rem;
+	font-size: 0.75rem;
 	font-weight: 700;
 	text-transform: uppercase;
 }
@@ -914,7 +914,7 @@
 	width: fit-content;
 	cursor: pointer;
 	color: var(--ds-foreground-muted);
-	font-size: 0.72rem;
+	font-size: 0.75rem;
 	font-weight: 650;
 }
 
@@ -933,7 +933,7 @@
 
 .qualityNotice strong {
 	flex: 0 0 auto;
-	font-size: 0.73rem;
+	font-size: 0.75rem;
 }
 
 .empty,

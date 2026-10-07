@@ -1759,6 +1759,7 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: /Montar transcrição da sessão/u })).toHaveCount(0);
 	await expect(intent.getByRole("button", { name: "Nova transcrição" })).toBeVisible();
+	await intent.getByText("Mais opções", { exact: true }).click();
 	await expect(intent.getByRole("button", { name: "Recomeçar preservando histórico" })).toBeVisible();
 	expect(multi.retryCount(SOURCE_IDS[2]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);
@@ -2530,7 +2531,8 @@ test("reload recovers the Agent workspace and does not expose technical controls
 
 test("fully automatic Craig multi-ZIP reuses exact work and asks only for real ambiguity", async ({
 	page,
-}) => {
+}, testInfo) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
 	await installCompanionFixture(page, {
 		profileReady: true,
 		reviewEnabled: true,
@@ -2562,6 +2564,14 @@ test("fully automatic Craig multi-ZIP reuses exact work and asks only for real a
 	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(intent).toContainText("Transcrição pronta");
 	await expect(intent.getByRole("button", { name: "Revisar transcrição" })).toBeVisible();
+	await expect(intent.getByRole("button", { name: "Excluir sessão local" })).not.toBeVisible();
+	const completeBox = await intent.locator('[role="status"]').filter({ hasText: "✓ Transcrição pronta" }).boundingBox();
+	expect(completeBox).not.toBeNull();
+	expect(completeBox?.height ?? 0).toBeLessThan((page.viewportSize()?.width ?? 0) > 720 ? 160 : 280);
+	await page.screenshot({ path: testInfo.outputPath("completed-session.png"), fullPage: true });
+	await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+	await page.screenshot({ path: testInfo.outputPath("completed-session-dark.png"), fullPage: true });
+	await page.evaluate(() => { document.documentElement.dataset.theme = "light"; });
 
 	// Exact existing work is reused; only the missing source is sent to ASR.
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(0);
@@ -2591,5 +2601,18 @@ test("fully automatic Craig multi-ZIP reuses exact work and asks only for real a
 			.locator("[data-assembly-review-owner='results']")
 			.getByRole("region", { name: "Revisão da transcrição da sessão" }),
 	).toBeVisible();
+	await expect(page.locator('[data-results-archive="true"]')).not.toHaveAttribute("open");
+	for (const library of await page.locator('[data-results-library="true"]').all()) await expect(library).not.toBeVisible();
+	await page.screenshot({ path: testInfo.outputPath("focused-session-review.png"), fullPage: true });
+	await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+	await page.screenshot({ path: testInfo.outputPath("focused-session-review-dark.png"), fullPage: true });
+	await page.getByRole("button", { name: "Concluir revisão", exact: true }).click();
+	await expect.poll(() => multi.reviewStatus).toBe("reviewed");
+	await expect(page.getByRole("button", { name: "Aprovar revisão", exact: true })).toBeVisible();
+	expect(multi.publishedBodies).toHaveLength(0);
+	await page.getByRole("button", { name: "Voltar aos resultados", exact: true }).click();
+	await expect(page.locator('[data-assembly-review-owner="results"]')).toHaveCount(0);
+	await expect(page.locator('[data-results-archive="true"]')).toHaveAttribute("open", "");
+	await expect(page.locator("#session-assembly-results-title")).toBeFocused();
 });
 

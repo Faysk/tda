@@ -1221,7 +1221,7 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	await refresh.click();
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
 	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false }).first()).toBeVisible();
-	await expect(panel.getByText("sem receipt comparável", { exact: false })).toBeVisible();
+	await expect(panel.getByText("sem resultado comparável", { exact: false })).toBeVisible();
 });
 
 test("completed benchmark lazily compares transcript evidence and exports a private safe ZIP", async ({

@@ -413,8 +413,7 @@ export function SessionAssemblyReview({
 					</h3>
 					<p>
 						{baseline.segmentCount.toLocaleString("pt-BR")} falas ·{" "}
-						{baseline.reviewedSegments.toLocaleString("pt-BR")} revisadas · Assembly{" "}
-						{assembly.assemblyId.slice(0, 12)}…
+						{baseline.reviewedSegments.toLocaleString("pt-BR")} revisadas
 					</p>
 				</div>
 				<div className={styles.headerActions}>
@@ -423,7 +422,7 @@ export function SessionAssemblyReview({
 							? "Aprovado"
 							: baseline.status === "reviewed"
 								? "Revisado"
-								: "Draft"}
+								: "Rascunho"}
 					</StatusPill>
 					{receipt ? (
 						<a
@@ -442,6 +441,10 @@ export function SessionAssemblyReview({
 					>
 							{busy ? "Salvando…" : "Salvar alterações"}
 						</Button>
+					) : baseline.persistence !== "persisted" ? (
+						<Button size="sm" variant="primary" disabled={busy || disabled || editingDraft !== null} onClick={() => void save("reviewed")}>
+							{busy ? "Salvando…" : "Concluir revisão"}
+						</Button>
 					) : canApprove ? (
 						<Button size="sm" variant="primary" onClick={() => void save("approved_local")}>
 							Aprovar revisão
@@ -453,6 +456,7 @@ export function SessionAssemblyReview({
 					) : null}
 				</div>
 			</header>
+			<p className={styles.notice}>Clique em uma fala para corrigir o texto ou participante. Ao terminar, conclua a revisão e aprove antes de enviar para edição.</p>
 
 			<div className={styles.tools}>
 				<label>

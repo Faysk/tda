@@ -1923,6 +1923,9 @@ export function SessionIntentCoordinator({
 						>
 							Nova transcrição
 						</Button>
+						{canDeleteSession || canResetSession ? <details className={styles.maintenanceMenu}>
+							<summary>Mais opções</summary>
+							<div>
 						{canDeleteSession ? (
 							<Button
 								type="button"
@@ -1943,6 +1946,8 @@ export function SessionIntentCoordinator({
 								Recomeçar preservando histórico
 							</Button>
 						) : null}
+							</div>
+						</details> : null}
 					</div>
 				</div>
 			) : null}
@@ -2064,7 +2069,7 @@ export function SessionIntentCoordinator({
 					{localError}
 				</p>
 			) : null}
-			<p className={styles.live} role="status" aria-live="polite" aria-atomic="true">
+			<p className={styles.live} data-complete={assembly ? "true" : "false"} role="status" aria-live="polite" aria-atomic="true">
 				{live}
 			</p>
 		</section>

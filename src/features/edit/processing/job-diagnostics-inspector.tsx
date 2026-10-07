@@ -543,7 +543,7 @@ export function JobDiagnosticsInspector({
 								<div><dt>Lifecycle</dt><dd>{health?.lifecycle ?? "—"}</dd></div>
 								<div><dt>CPU</dt><dd>{system?.host.cpu ?? "—"}</dd></div>
 								<div><dt>RAM</dt><dd>{system ? `${formatBytes(system.memory.usedBytes)} / ${formatBytes(system.memory.totalBytes)}` : "—"}</dd></div>
-								<div className={styles.detailWide}><dt>Capabilities</dt><dd className={styles.mono}>{capabilities?.capabilities.join(", ") || "—"}</dd></div>
+								<div className={styles.detailWide}><dt>Recursos técnicos</dt><dd><details className={styles.capabilityDetails}><summary>Ver recursos disponíveis ({capabilities?.capabilities.length ?? 0})</summary><span className={styles.mono}>{capabilities?.capabilities.join(", ") || "—"}</span></details></dd></div>
 							</dl>
 						</details>
 					</>

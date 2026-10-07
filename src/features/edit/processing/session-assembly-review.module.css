@@ -55,7 +55,7 @@
 
 .tools {
 	display: grid;
-	grid-template-columns: minmax(260px, 1fr) minmax(320px, 1fr);
+	grid-template-columns: minmax(260px, 1fr) auto;
 	gap: 10px;
 	align-items: start;
 	min-width: 0;
@@ -157,7 +157,7 @@
 
 .transcriptViewport {
 	min-width: 0;
-	max-height: min(62dvh, 720px);
+	max-height: min(54dvh, 600px);
 	overflow: auto;
 	border: 1px solid var(--ds-border-subtle);
 	border-radius: var(--ds-radius-md);
@@ -190,7 +190,7 @@
 .segmentRow {
 	display: grid;
 	width: 100%;
-	grid-template-columns: minmax(145px, 0.5fr) minmax(130px, 0.55fr) minmax(0, 2.4fr);
+	grid-template-columns: 130px 150px minmax(0, 1fr);
 	align-items: start;
 	gap: 10px;
 	padding: 9px 10px;

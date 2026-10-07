@@ -593,11 +593,6 @@ export function ProcessingBenchmark({
 			job.result_available &&
 			["succeeded", "failed"].includes(job.status),
 	);
-	const historyJobs = benchmarkJobs
-		.filter((job) =>
-			["succeeded", "failed", "cancelled", "interrupted"].includes(job.status),
-		)
-		.slice(0, 20);
 	const latestJob = benchmarkJobs[0];
 	const latestResult = latestJob ? results[latestJob.id] : undefined;
 	const latestResultPending = Boolean(
@@ -614,6 +609,12 @@ export function ProcessingBenchmark({
 		["failed", "cancelled", "interrupted"].includes(latestJob.status)
 			? latestJob
 			: undefined;
+	const historyJobs = benchmarkJobs
+		.filter((job) =>
+			(!(latestPartialResult || latestProblem) || job.id !== latestJob?.id) &&
+			["succeeded", "failed", "cancelled", "interrupted"].includes(job.status),
+		)
+		.slice(0, 20);
 	const latestProblemEvents =
 		latestProblem && observedJobId === latestProblem.id
 			? events.filter(
@@ -1592,7 +1593,7 @@ export function ProcessingBenchmark({
 							{latestProblem.error?.code
 								? latestProblem.error.code + " · tentativa " + latestProblem.attempt
 								: "Tentativa " + latestProblem.attempt}
-							{" · os perfis posteriores não são marcados como falha de engine."}
+							{" · sem resultado comparável. Os perfis posteriores não são marcados como falha do modelo."}
 						</p>
 						{latestProblemAttemptState ? (
 							<>
@@ -1675,7 +1676,7 @@ export function ProcessingBenchmark({
 						<span className={styles.eyebrow}>Histórico local</span>
 						<h2>Execuções do Benchmark</h2>
 					</div>
-					<span>{historyJobs.length} execução{historyJobs.length === 1 ? "" : "ões"} terminal{historyJobs.length === 1 ? "" : "is"}</span>
+					<span>{historyJobs.length} {historyJobs.length === 1 ? "execução anterior" : "execuções anteriores"}</span>
 				</div>
 				{historyJobs.length ? (
 					historyJobs.map((job) => {
@@ -1696,7 +1697,7 @@ export function ProcessingBenchmark({
 										<p>
 											{formatBenchmarkHistoryDate(job.updated_at)}
 											{job.error?.code ? " · " + job.error.code : ""}
-											{" · sem receipt comparável"}
+											{" · sem resultado comparável"}
 										</p>
 									</div>
 									<Button size="sm" variant="tertiary" onClick={() => onOpenDiagnostics(job)}>
