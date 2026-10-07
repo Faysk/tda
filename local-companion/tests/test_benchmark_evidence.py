@@ -175,6 +175,14 @@ def _commit_bundle(
                         "schema_version": "tda_benchmark_diagnostics_metrics_v1",
                         "profile_id": profile_id,
                         "gpu_average_percent": 42.0,
+                        "telemetry": {
+                            "captured_samples": 3, "coverage": 0.75,
+                            "missing_reason": "coverage_gap",
+                            "aggregates": {
+                                "vram_peak_bytes": 4 * 1024 ** 3,
+                                "vram_average_bytes": 3 * 1024 ** 3,
+                            },
+                        },
                     },
                     sort_keys=True,
                     separators=(",", ":"),
@@ -340,6 +348,13 @@ def test_private_zip_preserves_bound_diagnostics_and_optional_telemetry(tmp_path
 
     summary = public_bundle_summary(data_root, benchmark_id)
     assert summary["telemetry_available"] is True
+    snapshot = transcript_snapshot(data_root, benchmark_id, "qwen-fast")
+    assert snapshot["telemetry"] == {
+        "captured_samples": 3, "coverage": 0.75,
+        "missing_reason": "coverage_gap",
+        "vram_peak_bytes": 4 * 1024 ** 3,
+        "vram_average_bytes": 3 * 1024 ** 3,
+    }
 
     write_private_evidence_zip(data_root, benchmark_id, destination)
     with zipfile.ZipFile(destination) as archive:

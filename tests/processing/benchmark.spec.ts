@@ -1296,6 +1296,12 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 	await workspace.getByRole("tab", { name: "Performance" }).click();
 	await expect(workspace.getByText("Comparabilidade: comprovada")).toBeVisible();
 	await expect(workspace.getByRole("columnheader", { name: "RTF" })).toBeVisible();
+	const memory = workspace.getByText("Memória da GPU e avisos", { exact: true });
+	await expect(memory.locator("..")).not.toHaveAttribute("open");
+	await memory.click();
+	await expect(workspace.getByText(/Pico 4\.00 GB · média 3\.00 GB/u)).toBeVisible();
+	await expect(workspace.getByText(/3 amostras · cobertura 75%/u)).toBeVisible();
+	await expect(workspace.getByText("VRAM não medida neste registro; nenhum valor é estimado.")).toBeVisible();
 
 	await workspace.getByRole("tab", { name: "Execução" }).click();
 	await expect(workspace.getByText("NVIDIA GeForce RTX 4070 Laptop GPU").first()).toBeVisible();

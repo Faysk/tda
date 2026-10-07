@@ -133,7 +133,7 @@ _BROWSER_SESSION_ASSEMBLY_PATH = re.compile(
 )
 _BROWSER_BENCHMARK_PATH = re.compile(
     r"^/api/v1/benchmarks/benchmark-[A-Za-z0-9_-]{1,128}-a[1-9][0-9]{0,5}"
-    r"(?:/(?:reference|quality|export\\.zip|profiles/"
+    r"(?:/(?:reference|quality|export\.zip|profiles/"
     r"(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)"
     r"/(?:transcript|snapshot|reference-draft|artifacts/(?:json|txt|txt-plain|vtt|srt))"
     r"|quality/(?:whisper-turbo|whisper-detailed|qwen-fast|qwen-quality)/inspection))?$"

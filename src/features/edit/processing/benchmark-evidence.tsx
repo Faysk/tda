@@ -815,10 +815,37 @@ export function BenchmarkEvidenceWorkspace({
 											</tbody>
 										</table>
 									</div>
-									<p className={styles.muted}>
-										VRAM pico/média: indisponível neste bundle quando a telemetria
-										não foi coletada pelo contrato local; nenhum valor é inferido.
-									</p>
+									<details>
+										<summary>Memória da GPU e avisos</summary>
+										<p className={styles.muted}>
+											VRAM da GPU durante esta execução. Outros aplicativos
+											podem contribuir para o uso medido.
+										</p>
+										{[left, right].map((snapshot) => (
+											<div key={snapshot.profileId}>
+												<strong>{LABELS[snapshot.profileId]}</strong>
+												<p>
+													{snapshot.telemetry?.vramPeakBytes != null
+														? `Pico ${(snapshot.telemetry.vramPeakBytes / 1024 ** 3).toFixed(2)} GB · média ${snapshot.telemetry.vramAverageBytes == null ? "—" : `${(snapshot.telemetry.vramAverageBytes / 1024 ** 3).toFixed(2)} GB`} · ${snapshot.telemetry.capturedSamples} amostras · cobertura ${(snapshot.telemetry.coverage * 100).toFixed(0)}%`
+														: "VRAM não medida neste registro; nenhum valor é estimado."}
+												</p>
+												{snapshot.telemetry?.missingReason ? (
+													<p>
+														Coleta parcial: {snapshot.telemetry.missingReason}
+													</p>
+												) : null}
+												{snapshot.warnings.length ? (
+													<ul>
+														{[...new Set(snapshot.warnings)].map((warning) => (
+															<li key={warning}>{warning}</li>
+														))}
+													</ul>
+												) : (
+													<p>Sem avisos.</p>
+												)}
+											</div>
+										))}
+									</details>
 								</>
 							) : null}
 

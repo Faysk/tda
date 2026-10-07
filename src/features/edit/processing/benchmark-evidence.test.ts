@@ -178,6 +178,46 @@ function snapshot(profileId: TranscriptionProfileId, text: string, start = 0) {
 }
 
 describe("benchmark evidence contract", () => {
+	it("preserves measured VRAM coverage without inventing historical telemetry", () => {
+		const value = snapshot("qwen-fast", "fixture");
+		expect(
+			parseBenchmarkTranscriptSnapshot(value, "benchmark-job-1-a1", "qwen-fast")
+				.telemetry,
+		).toBeNull();
+		const measured = {
+			...value,
+			telemetry: {
+				captured_samples: 3,
+				coverage: 0.75,
+				missing_reason: "coverage_gap",
+				vram_peak_bytes: 4 * 1024 ** 3,
+				vram_average_bytes: 3 * 1024 ** 3,
+			},
+		};
+		expect(
+			parseBenchmarkTranscriptSnapshot(
+				measured,
+				"benchmark-job-1-a1",
+				"qwen-fast",
+			).telemetry,
+		).toMatchObject({
+			capturedSamples: 3,
+			coverage: 0.75,
+			vramPeakBytes: 4 * 1024 ** 3,
+		});
+		for (const invalid of [
+			{ ...measured.telemetry, coverage: 1.1 },
+			{ ...measured.telemetry, vram_peak_bytes: -1 },
+		]) {
+			expect(() =>
+				parseBenchmarkTranscriptSnapshot(
+					{ ...value, telemetry: invalid },
+					"benchmark-job-1-a1",
+					"qwen-fast",
+				),
+			).toThrow();
+		}
+	});
 	it("keeps historical receipts valid without invented artifacts", () => {
 		const parsed = parseBenchmarkResult(benchmarkResult(), "job-1");
 		expect(parsed.benchmarkId).toBeNull();

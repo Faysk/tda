@@ -584,6 +584,13 @@ export type BenchmarkTranscriptSegment = LocalReviewSegment & {
 };
 
 export type BenchmarkTranscriptSnapshot = {
+	telemetry?: {
+		capturedSamples: number;
+		coverage: number;
+		missingReason: string | null;
+		vramPeakBytes: number | null;
+		vramAverageBytes: number | null;
+	} | null;
 	schemaVersion: "tda_benchmark_transcript_snapshot_v1";
 	benchmarkId: string;
 	sampleIdentitySha256: string;
@@ -2631,8 +2638,22 @@ export function parseBenchmarkTranscriptSnapshot(
 		};
 	});
 	const executionLineage = parseExecutionLineage(row.execution_lineage);
+	const measured = row.telemetry == null ? null : record(row.telemetry);
+	const coverage = measured ? nonNegativeNumber(measured.coverage) : 0;
+	if (coverage > 1) return invalid();
 	return {
 		schemaVersion: "tda_benchmark_transcript_snapshot_v1",
+		telemetry: measured
+			? {
+					capturedSamples: nonNegativeInteger(measured.captured_samples),
+					coverage,
+					missingReason: nullableText(measured.missing_reason, 128),
+					vramPeakBytes: nullableNonNegativeNumber(measured.vram_peak_bytes),
+					vramAverageBytes: nullableNonNegativeNumber(
+						measured.vram_average_bytes,
+					),
+				}
+			: null,
 		benchmarkId,
 		sampleIdentitySha256: sha256(row.sample_identity_sha256),
 		sourceId: identifier(row.source_id),
