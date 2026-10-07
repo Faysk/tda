@@ -314,6 +314,24 @@ Histórico detalhado: [deployments](deployments.md).
 
 ## 11. Rollback
 
+### Download do Companion pelo domínio do TDA (#1567)
+
+O endpoint `/api/downloads/companion/windows` entrega o MSI por streaming Node.js,
+com `Content-Disposition: attachment`, sem redirecionar o navegador para o CDN do
+GitHub. O GitHub continua sendo a origem canônica do artefato imutável; somente o
+servidor segue o download da release validada. Não há cópia persistida nem URL
+arbitrária aceita do cliente. A transferência aplica backpressure e confere tamanho
+e SHA-256 incrementalmente; bytes truncados ou divergentes interrompem o stream.
+Cancelamento do cliente cancela a leitura da origem. O download completo deve ser
+validado no deployment staged e no domínio canônico: status 200, ausência de
+`Location`, filename MSI e hash idêntico ao manifest oficial. Não fechar a issue
+somente com um download por CLI quando o clique do usuário ainda falha.
+
+Rollback da aplicação restaura o redirect anterior e pode restaurar o bloqueio
+`ERR_BLOCKED_BY_CLIENT`; registrar essa limitação ao decidir rollback. Streaming
+evita o limite de resposta buffered do hosting, mas a transferência permanece
+sujeita à duração da função (300 segundos) e à disponibilidade da origem.
+
 ### Aplicação
 
 Se o smoke staged falhar antes do promote, abortar: o alias/domínio oficial continua
