@@ -1996,7 +1996,7 @@ test("8k session review stays bounded, paged and edits only the active utterance
 	expect(sent.postDataBuffer()!.byteLength).toBeLessThan(4 * 1024 * 1024);
 	await expect(review.getByRole("link", {name:"Ver sessões no Edit",exact:true})).toBeVisible();
 	expect(multi.publishedBodies).toHaveLength(1);
-	expect((multi.publishedBodies[0].review as {segments:unknown[]}).segments).toHaveLength(8000);
+	expect((multi.publishedBodies[0] as {review:{segments:unknown[]}}).review.segments).toHaveLength(8000);
 });
 
 test("trusted Craig chronology automatically replaces attachment order before assembly", async ({ page }) => {
