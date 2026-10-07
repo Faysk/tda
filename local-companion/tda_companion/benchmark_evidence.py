@@ -274,6 +274,27 @@ def transcript_snapshot(data_root: Path, benchmark_id: str, profile_id: str) -> 
         )
     )
     stats = document.stats
+    metrics_payload = _diagnostic_artifact(
+        data_root, benchmark_id, profile_id, "metrics", bundle=bundle,
+    )
+    telemetry = None
+    if metrics_payload is not None:
+        try:
+            metrics = json.loads(metrics_payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise BenchmarkEvidenceError("BENCHMARK_DIAGNOSTIC_ARTIFACT_INVALID") from exc
+        if isinstance(metrics, dict) and isinstance(metrics.get("telemetry"), dict):
+            measured = metrics["telemetry"]
+            aggregates = measured.get("aggregates", {})
+            if isinstance(aggregates, dict):
+                telemetry = {
+                    key: measured.get(key)
+                    for key in ("captured_samples", "coverage", "missing_reason")
+                }
+                telemetry.update({
+                    key: aggregates.get(key)
+                    for key in ("vram_peak_bytes", "vram_average_bytes")
+                })
     return {
         "schema_version": SNAPSHOT_SCHEMA_VERSION,
         "benchmark_id": benchmark_id,
@@ -303,6 +324,7 @@ def transcript_snapshot(data_root: Path, benchmark_id: str, profile_id: str) -> 
             "warning_count": len(document.warnings),
         },
         "warnings": list(document.warnings),
+        "telemetry": telemetry,
         "segments": segments,
     }
 

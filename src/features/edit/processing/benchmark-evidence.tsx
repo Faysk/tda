@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Dialog } from "@/components/ui/dialog";
 import { LocalBridge } from "./bridge";
-import { processingStageLabels, type EngineProcessingMetrics } from "./engine-metrics";
+import {
+	processingStageLabels,
+	type EngineProcessingMetrics,
+} from "./engine-metrics";
 import {
 	compareRunPerformanceSemantics,
 	compareRunSegments,
@@ -61,8 +64,12 @@ function segmentTimelineBounds(
 ): { start: number; end: number } | null {
 	if (!segments.length) return null;
 	return {
-		start: Math.min(...segments.map((segment) => segment.timelineStart ?? segment.start)),
-		end: Math.max(...segments.map((segment) => segment.timelineEnd ?? segment.end)),
+		start: Math.min(
+			...segments.map((segment) => segment.timelineStart ?? segment.start),
+		),
+		end: Math.max(
+			...segments.map((segment) => segment.timelineEnd ?? segment.end),
+		),
 	};
 }
 
@@ -89,9 +96,7 @@ async function saveResponse(
 	if (preferStreaming && response.body) {
 		const picker = (
 			window as Window & {
-				showSaveFilePicker?: (options: {
-					suggestedName: string;
-				}) => Promise<{
+				showSaveFilePicker?: (options: { suggestedName: string }) => Promise<{
 					createWritable: () => Promise<WritableStream<Uint8Array>>;
 				}>;
 			}
@@ -176,7 +181,9 @@ export function BenchmarkEvidenceWorkspace({
 		[result.benchmarkId, result.bundleSizeBytes, evidenceReady],
 	);
 	const [mode, setMode] = useState<WorkspaceMode>(initialMode);
-	const [manifest, setManifest] = useState<BenchmarkEvidenceSummary | null>(null);
+	const [manifest, setManifest] = useState<BenchmarkEvidenceSummary | null>(
+		null,
+	);
 	const [snapshots, setSnapshots] = useState<
 		Partial<Record<TranscriptionProfileId, BenchmarkTranscriptSnapshot>>
 	>({});
@@ -226,7 +233,8 @@ export function BenchmarkEvidenceWorkspace({
 	}, [artifacts, bridge, result.sampleIdentitySha256, result.sourceId]);
 
 	useEffect(() => {
-		if (!artifacts || mode !== "compare" || leftProfile === rightProfile) return;
+		if (!artifacts || mode !== "compare" || leftProfile === rightProfile)
+			return;
 		const missing = [leftProfile, rightProfile].filter(
 			(profile) => !snapshots[profile],
 		);
@@ -288,13 +296,22 @@ export function BenchmarkEvidenceWorkspace({
 				: [],
 		[left, leftProfile, right, rightProfile],
 	);
-	const summary = useMemo(() => summarizeRunComparison(allRegions), [allRegions]);
+	const summary = useMemo(
+		() => summarizeRunComparison(allRegions),
+		[allRegions],
+	);
 	const tracks = useMemo(
-		() => [...new Set(allRegions.map((region) => region.trackNumber))].sort((a, b) => a - b),
+		() =>
+			[...new Set(allRegions.map((region) => region.trackNumber))].sort(
+				(a, b) => a - b,
+			),
 		[allRegions],
 	);
 	const speakers = useMemo(
-		() => [...new Set(allRegions.flatMap(regionSpeakers))].sort((a, b) => a.localeCompare(b)),
+		() =>
+			[...new Set(allRegions.flatMap(regionSpeakers))].sort((a, b) =>
+				a.localeCompare(b),
+			),
 		[allRegions],
 	);
 	const timeStart = asNumber(fromTime);
@@ -309,26 +326,14 @@ export function BenchmarkEvidenceWorkspace({
 	const filteredRegions = useMemo(() => {
 		if (timeInvalid) return [];
 		return allRegions.filter((region) => {
-			if (
-				diffOnly &&
-				region.kind === "equal" &&
-				!region.speakerChanged
-			)
+			if (diffOnly && region.kind === "equal" && !region.speakerChanged)
 				return false;
 			if (track !== "all" && region.trackNumber !== Number(track)) return false;
 			if (speaker !== "all" && !regionSpeakers(region).includes(speaker))
 				return false;
 			return regionOverlapsTimeRange(region, timeStart, timeEnd);
 		});
-	}, [
-		allRegions,
-		diffOnly,
-		speaker,
-		timeEnd,
-		timeInvalid,
-		timeStart,
-		track,
-	]);
+	}, [allRegions, diffOnly, speaker, timeEnd, timeInvalid, timeStart, track]);
 
 	const differenceIndexes = useMemo(
 		() =>
@@ -354,7 +359,9 @@ export function BenchmarkEvidenceWorkspace({
 				differenceIndexes.length;
 			const regionIndex = differenceIndexes[next]!;
 			requestAnimationFrame(() => {
-				const element = document.getElementById(`benchmark-region-${regionIndex}`);
+				const element = document.getElementById(
+					`benchmark-region-${regionIndex}`,
+				);
 				if (!element) return;
 				element.focus({ preventScroll: true });
 				const reducedMotion = window.matchMedia(
@@ -392,7 +399,9 @@ export function BenchmarkEvidenceWorkspace({
 		} catch (cause) {
 			if ((cause as DOMException)?.name !== "AbortError")
 				setError(
-					cause instanceof Error ? cause.message : "Falha ao baixar o artefato.",
+					cause instanceof Error
+						? cause.message
+						: "Falha ao baixar o artefato.",
 				);
 		} finally {
 			setBusy(null);
@@ -435,11 +444,14 @@ export function BenchmarkEvidenceWorkspace({
 						<span className={styles.eyebrow}>Benchmark legado</span>
 						<h2>Evidência detalhada indisponível</h2>
 						<p>
-							Este receipt é anterior ao contrato de artefatos. As métricas continuam
-							válidas, mas não há transcript persistido para comparar ou exportar.
+							Este receipt é anterior ao contrato de artefatos. As métricas
+							continuam válidas, mas não há transcript persistido para comparar
+							ou exportar.
 						</p>
 					</div>
-					<Button variant="tertiary" onClick={onClose}>Fechar</Button>
+					<Button variant="tertiary" onClick={onClose}>
+						Fechar
+					</Button>
 				</div>
 			</section>
 		);
@@ -453,7 +465,9 @@ export function BenchmarkEvidenceWorkspace({
 			<div className={styles.sticky}>
 				<div className={styles.header}>
 					<div>
-						<span className={styles.eyebrow}>Benchmark local · evidência privada</span>
+						<span className={styles.eyebrow}>
+							Benchmark local · evidência privada
+						</span>
 						<h2>
 							{mode === "compare"
 								? "Comparar transcrições"
@@ -461,10 +475,14 @@ export function BenchmarkEvidenceWorkspace({
 						</h2>
 						<p>
 							Mesma amostra {result.sampleIdentitySha256.slice(0, 12)}… ·{" "}
-							{formatBytes(manifest?.bundleSizeBytes ?? artifacts.bundleSizeBytes)} ·{" "}
+							{formatBytes(
+								manifest?.bundleSizeBytes ?? artifacts.bundleSizeBytes,
+							)}{" "}
+							·{" "}
 							{manifest?.integrity === "manifest_verified"
 								? "manifesto verificado · transcript hash ao abrir"
-								: "verificando manifesto"} ·{" "}
+								: "verificando manifesto"}{" "}
+							·{" "}
 							{manifest?.qualityReferenceStatus === "none"
 								? "sem referência humana"
 								: "referência disponível"}
@@ -503,7 +521,9 @@ export function BenchmarkEvidenceWorkspace({
 										label: LABELS[profile.profileId],
 										disabled: profile.profileId === rightProfile,
 									}))}
-									onChange={(value) => setLeftProfile(value as TranscriptionProfileId)}
+									onChange={(value) =>
+										setLeftProfile(value as TranscriptionProfileId)
+									}
 									ariaLabel="Perfil A"
 									compact
 								/>
@@ -517,7 +537,9 @@ export function BenchmarkEvidenceWorkspace({
 										label: LABELS[profile.profileId],
 										disabled: profile.profileId === leftProfile,
 									}))}
-									onChange={(value) => setRightProfile(value as TranscriptionProfileId)}
+									onChange={(value) =>
+										setRightProfile(value as TranscriptionProfileId)
+									}
 									ariaLabel="Perfil B"
 									compact
 								/>
@@ -528,13 +550,19 @@ export function BenchmarkEvidenceWorkspace({
 								</span>
 							) : null}
 						</div>
-						<div className={styles.tabs} role="tablist" aria-label="Camada da comparação">
-							{([
-								["text", "Texto"],
-								["timing", "Timing"],
-								["performance", "Performance"],
-								["execution", "Execução"],
-							] as const).map(([value, label]) => (
+						<div
+							className={styles.tabs}
+							role="tablist"
+							aria-label="Camada da comparação"
+						>
+							{(
+								[
+									["text", "Texto"],
+									["timing", "Timing"],
+									["performance", "Performance"],
+									["execution", "Execução"],
+								] as const
+							).map(([value, label]) => (
 								<Button
 									key={value}
 									size="sm"
@@ -551,16 +579,25 @@ export function BenchmarkEvidenceWorkspace({
 				) : null}
 			</div>
 
-			{error ? <p className={styles.error} role="alert">{error}</p> : null}
-			{busy ? <p className={styles.loading} role="status">{busy}</p> : null}
+			{error ? (
+				<p className={styles.error} role="alert">
+					{error}
+				</p>
+			) : null}
+			{busy ? (
+				<p className={styles.loading} role="status">
+					{busy}
+				</p>
+			) : null}
 
 			{mode === "compare" ? (
 				<>
 					<div className={styles.notice}>
 						<strong>Qualidade não medida.</strong>
 						<p>
-							Sem referência humana, este comparador mostra diferenças factuais de
-							texto/timing e métricas. Não calcula WER nem declara um perfil vencedor.
+							Sem referência humana, este comparador mostra diferenças factuais
+							de texto/timing e métricas. Não calcula WER nem declara um perfil
+							vencedor.
 						</p>
 					</div>
 					{left && right && leftProfile !== rightProfile ? (
@@ -582,7 +619,10 @@ export function BenchmarkEvidenceWorkspace({
 												value={track}
 												options={[
 													{ value: "all", label: "Todas" },
-													...tracks.map((value) => ({ value: String(value), label: `Track ${value}` })),
+													...tracks.map((value) => ({
+														value: String(value),
+														label: `Track ${value}`,
+													})),
 												]}
 												onChange={setTrack}
 												ariaLabel="Filtrar por track"
@@ -656,8 +696,12 @@ export function BenchmarkEvidenceWorkspace({
 									<div className={styles.regions}>
 										{filteredRegions.length ? (
 											filteredRegions.map((region, index) => {
-												const leftIds = region.left.map((segment) => segment.segmentId);
-												const rightIds = region.right.map((segment) => segment.segmentId);
+												const leftIds = region.left.map(
+													(segment) => segment.segmentId,
+												);
+												const rightIds = region.right.map(
+													(segment) => segment.segmentId,
+												);
 												return (
 													<article
 														id={`benchmark-region-${index}`}
@@ -670,62 +714,94 @@ export function BenchmarkEvidenceWorkspace({
 														<div className={styles.regionHeader}>
 															<strong>
 																Track {region.trackNumber} · {region.kind}
-																{region.speakerChanged ? " · speaker diferente" : ""}
+																{region.speakerChanged
+																	? " · speaker diferente"
+																	: ""}
 															</strong>
 															<span>
-																{formatTime(region.sessionStart)} → {formatTime(region.sessionEnd)}
+																{formatTime(region.sessionStart)} →{" "}
+																{formatTime(region.sessionEnd)}
 															</span>
 														</div>
-														{tab === "timing" ? (() => {
-															const leftBounds = segmentTimelineBounds(region.left);
-															const rightBounds = segmentTimelineBounds(region.right);
-															return (
-																<p className={styles.timingDelta}>
-																	{leftBounds && rightBounds
-																		? `Δ início ${formatDelta(rightBounds.start - leftBounds.start)} · Δ fim ${formatDelta(rightBounds.end - leftBounds.end)}`
-																		: "Região presente em apenas um dos lados; delta A/B não é aplicável."}
-																</p>
-															);
-														})() : null}
+														{tab === "timing"
+															? (() => {
+																	const leftBounds = segmentTimelineBounds(
+																		region.left,
+																	);
+																	const rightBounds = segmentTimelineBounds(
+																		region.right,
+																	);
+																	return (
+																		<p className={styles.timingDelta}>
+																			{leftBounds && rightBounds
+																				? `Δ início ${formatDelta(rightBounds.start - leftBounds.start)} · Δ fim ${formatDelta(rightBounds.end - leftBounds.end)}`
+																				: "Região presente em apenas um dos lados; delta A/B não é aplicável."}
+																		</p>
+																	);
+																})()
+															: null}
 														<div className={styles.columns}>
 															<div className={styles.column}>
 																<strong>A · {LABELS[leftProfile]}</strong>
 																<small>
 																	{region.left.length
-																		? region.left.map((segment) => segment.speaker).join(" · ")
+																		? region.left
+																				.map((segment) => segment.speaker)
+																				.join(" · ")
 																		: "ausente"}
 																</small>
-																{tab === "timing" ? (() => {
-																	const bounds = segmentTimelineBounds(region.left);
-																	return (
-																		<small>
-																			{bounds
-																				? `${formatTime(bounds.start)} → ${formatTime(bounds.end)} · `
-																				: ""}
-																			Precisão {precisionFor(left, leftIds)} · alinhamento {left.alignment} · {left.warnings.length} aviso{left.warnings.length === 1 ? "" : "s"}
-																		</small>
-																	);
-																})() : null}
+																{tab === "timing"
+																	? (() => {
+																			const bounds = segmentTimelineBounds(
+																				region.left,
+																			);
+																			return (
+																				<small>
+																					{bounds
+																						? `${formatTime(bounds.start)} → ${formatTime(bounds.end)} · `
+																						: ""}
+																					Precisão {precisionFor(left, leftIds)}{" "}
+																					· alinhamento {left.alignment} ·{" "}
+																					{left.warnings.length} aviso
+																					{left.warnings.length === 1
+																						? ""
+																						: "s"}
+																				</small>
+																			);
+																		})()
+																	: null}
 																<p>{region.leftText || "∅"}</p>
 															</div>
 															<div className={styles.column}>
 																<strong>B · {LABELS[rightProfile]}</strong>
 																<small>
 																	{region.right.length
-																		? region.right.map((segment) => segment.speaker).join(" · ")
+																		? region.right
+																				.map((segment) => segment.speaker)
+																				.join(" · ")
 																		: "ausente"}
 																</small>
-																{tab === "timing" ? (() => {
-																	const bounds = segmentTimelineBounds(region.right);
-																	return (
-																		<small>
-																			{bounds
-																				? `${formatTime(bounds.start)} → ${formatTime(bounds.end)} · `
-																				: ""}
-																			Precisão {precisionFor(right, rightIds)} · alinhamento {right.alignment} · {right.warnings.length} aviso{right.warnings.length === 1 ? "" : "s"}
-																		</small>
-																	);
-																})() : null}
+																{tab === "timing"
+																	? (() => {
+																			const bounds = segmentTimelineBounds(
+																				region.right,
+																			);
+																			return (
+																				<small>
+																					{bounds
+																						? `${formatTime(bounds.start)} → ${formatTime(bounds.end)} · `
+																						: ""}
+																					Precisão{" "}
+																					{precisionFor(right, rightIds)} ·
+																					alinhamento {right.alignment} ·{" "}
+																					{right.warnings.length} aviso
+																					{right.warnings.length === 1
+																						? ""
+																						: "s"}
+																				</small>
+																			);
+																		})()
+																	: null}
 																<p>{region.rightText || "∅"}</p>
 															</div>
 														</div>
@@ -733,7 +809,9 @@ export function BenchmarkEvidenceWorkspace({
 												);
 											})
 										) : (
-											<p className={styles.empty}>Nenhuma região corresponde aos filtros.</p>
+											<p className={styles.empty}>
+												Nenhuma região corresponde aos filtros.
+											</p>
 										)}
 									</div>
 								</>
@@ -743,7 +821,10 @@ export function BenchmarkEvidenceWorkspace({
 								<>
 									<div className={styles.notice}>
 										<strong>
-											Comparabilidade: {comparability?.status === "comparable" ? "comprovada" : "limitada"}
+											Comparabilidade:{" "}
+											{comparability?.status === "comparable"
+												? "comprovada"
+												: "limitada"}
 										</strong>
 										<p>
 											{comparability?.reasons.length
@@ -770,9 +851,13 @@ export function BenchmarkEvidenceWorkspace({
 												{[left, right].map((snapshot) => (
 													<tr key={snapshot.profileId}>
 														<th>{LABELS[snapshot.profileId]}</th>
-														<td>{formatSeconds(snapshot.stats.processingSeconds)}</td>
+														<td>
+															{formatSeconds(snapshot.stats.processingSeconds)}
+														</td>
 														<td>{snapshot.stats.rtf?.toFixed(3) ?? "—"}</td>
-														<td>{formatSeconds(snapshot.stats.audioWorkSeconds)}</td>
+														<td>
+															{formatSeconds(snapshot.stats.audioWorkSeconds)}
+														</td>
 														<td>{snapshot.stats.wordCount ?? "—"}</td>
 														<td>{snapshot.stats.segmentCount ?? "—"}</td>
 														<td>{snapshot.stats.turnCount ?? "—"}</td>
@@ -815,10 +900,37 @@ export function BenchmarkEvidenceWorkspace({
 											</tbody>
 										</table>
 									</div>
-									<p className={styles.muted}>
-										VRAM pico/média: indisponível neste bundle quando a telemetria
-										não foi coletada pelo contrato local; nenhum valor é inferido.
-									</p>
+									<details>
+										<summary>Memória da GPU e avisos</summary>
+										<p className={styles.muted}>
+											VRAM da GPU durante esta execução. Outros aplicativos
+											podem contribuir para o uso medido.
+										</p>
+										{[left, right].map((snapshot) => (
+											<div key={snapshot.profileId}>
+												<strong>{LABELS[snapshot.profileId]}</strong>
+												<p>
+													{snapshot.telemetry?.vramPeakBytes != null
+														? `Pico ${(snapshot.telemetry.vramPeakBytes / 1024 ** 3).toFixed(2)} GB · média ${snapshot.telemetry.vramAverageBytes == null ? "—" : `${(snapshot.telemetry.vramAverageBytes / 1024 ** 3).toFixed(2)} GB`} · ${snapshot.telemetry.capturedSamples} amostras · cobertura ${(snapshot.telemetry.coverage * 100).toFixed(0)}%`
+														: "VRAM não medida neste registro; nenhum valor é estimado."}
+												</p>
+												{snapshot.telemetry?.missingReason ? (
+													<p>
+														Coleta parcial: {snapshot.telemetry.missingReason}
+													</p>
+												) : null}
+												{snapshot.warnings.length ? (
+													<ul>
+														{[...new Set(snapshot.warnings)].map((warning) => (
+															<li key={warning}>{warning}</li>
+														))}
+													</ul>
+												) : (
+													<p>Sem avisos.</p>
+												)}
+											</div>
+										))}
+									</details>
 								</>
 							) : null}
 
@@ -844,29 +956,38 @@ export function BenchmarkEvidenceWorkspace({
 													<th>{LABELS[snapshot.profileId]}</th>
 													<td>
 														{snapshot.model}
-														{snapshot.modelRevision ? ` · ${snapshot.modelRevision}` : ""}
+														{snapshot.modelRevision
+															? ` · ${snapshot.modelRevision}`
+															: ""}
 													</td>
 													<td>
 														{snapshot.executionLineage?.runtimeFamily ?? "—"}{" "}
 														{snapshot.executionLineage?.runtimeVersion ?? ""}
 													</td>
-													<td>{snapshot.executionLineage?.companionVersion ?? "—"}</td>
+													<td>
+														{snapshot.executionLineage?.companionVersion ?? "—"}
+													</td>
 													<td>{snapshot.computeType ?? snapshot.device}</td>
 													<td>{snapshot.alignment}</td>
 													<td>
-														{snapshot.executionLineage?.gpu?.model ?? snapshot.device}
-														{snapshot.executionLineage?.executionDevice?.physicalUuid
+														{snapshot.executionLineage?.gpu?.model ??
+															snapshot.device}
+														{snapshot.executionLineage?.executionDevice
+															?.physicalUuid
 															? ` · ${snapshot.executionLineage.executionDevice.physicalUuid}`
 															: ""}
-														{snapshot.executionLineage?.executionDevice?.pciBusId
+														{snapshot.executionLineage?.executionDevice
+															?.pciBusId
 															? ` · PCI ${snapshot.executionLineage.executionDevice.pciBusId}`
 															: ""}
 													</td>
 													<td className={styles.hash}>
-														{snapshot.executionLineage?.runtimeArtifact?.archiveSha256 ?? "—"}
+														{snapshot.executionLineage?.runtimeArtifact
+															?.archiveSha256 ?? "—"}
 													</td>
 													<td className={styles.hash}>
-														{snapshot.executionLineage?.runtimeArtifact?.workerSha256 ?? "—"}
+														{snapshot.executionLineage?.runtimeArtifact
+															?.workerSha256 ?? "—"}
 													</td>
 												</tr>
 											))}
@@ -876,7 +997,9 @@ export function BenchmarkEvidenceWorkspace({
 							) : null}
 						</>
 					) : leftProfile !== rightProfile && !busy ? (
-						<p className={styles.loading}>Carregando os dois perfis selecionados…</p>
+						<p className={styles.loading}>
+							Carregando os dois perfis selecionados…
+						</p>
 					) : null}
 				</>
 			) : (
@@ -884,17 +1007,21 @@ export function BenchmarkEvidenceWorkspace({
 					<div className={styles.notice}>
 						<strong>Arquivos privados locais.</strong>
 						<p>
-							JSON é o transcript canônico hash-verificado. TXT, VTT e SRT são derivados
-							determinísticos. O ZIP inclui transcripts, métricas e eventos dos quatro perfis;
-							não inclui áudio nem publica nada na nuvem.
+							JSON é o transcript canônico hash-verificado. TXT, VTT e SRT são
+							derivados determinísticos. O ZIP inclui transcripts, métricas e
+							eventos dos quatro perfis; não inclui áudio nem publica nada na
+							nuvem.
 						</p>
 					</div>
-					{(manifest?.profileOrder ?? result.profiles.map((profile) => profile.profileId)).map(
-						(profileId) => (
-							<div className={styles.fileRow} key={profileId}>
-								<strong>{LABELS[profileId]}</strong>
-								<div className={styles.fileActions}>
-									{(["json", "txt", "txt-plain", "vtt", "srt"] as const).map((format) => (
+					{(
+						manifest?.profileOrder ??
+						result.profiles.map((profile) => profile.profileId)
+					).map((profileId) => (
+						<div className={styles.fileRow} key={profileId}>
+							<strong>{LABELS[profileId]}</strong>
+							<div className={styles.fileActions}>
+								{(["json", "txt", "txt-plain", "vtt", "srt"] as const).map(
+									(format) => (
 										<Button
 											key={format}
 											size="sm"
@@ -902,13 +1029,15 @@ export function BenchmarkEvidenceWorkspace({
 											pending={busy === `${profileId}:${format}`}
 											onClick={() => void downloadArtifact(profileId, format)}
 										>
-											{format === "txt-plain" ? "TXT simples" : format.toUpperCase()}
+											{format === "txt-plain"
+												? "TXT simples"
+												: format.toUpperCase()}
 										</Button>
-									))}
-								</div>
+									),
+								)}
 							</div>
-						),
-					)}
+						</div>
+					))}
 					<div className={styles.actions}>
 						<Button
 							variant="primary"
@@ -918,7 +1047,8 @@ export function BenchmarkEvidenceWorkspace({
 							Exportar evidência privada (.zip)
 						</Button>
 						<span className={styles.muted}>
-							Gerado pelo Companion e transferido como stream quando o navegador permite.
+							Gerado pelo Companion e transferido como stream quando o navegador
+							permite.
 						</span>
 					</div>
 				</div>
@@ -929,8 +1059,8 @@ export function BenchmarkEvidenceWorkspace({
 				title="Exportar evidência privada do Benchmark?"
 				description={
 					<>
-						O ZIP contém o transcript completo dos quatro perfis, métricas e eventos
-						sanitizados. Não contém áudio e não faz upload para a nuvem.
+						O ZIP contém o transcript completo dos quatro perfis, métricas e
+						eventos sanitizados. Não contém áudio e não faz upload para a nuvem.
 					</>
 				}
 				onClose={() => setExportOpen(false)}

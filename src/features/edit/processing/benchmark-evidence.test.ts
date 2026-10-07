@@ -50,7 +50,10 @@ function lineage(profileId: TranscriptionProfileId) {
 	};
 }
 
-function profileReceipt(profileId: TranscriptionProfileId, withEvidence = false) {
+function profileReceipt(
+	profileId: TranscriptionProfileId,
+	withEvidence = false,
+) {
 	const whisper = profileId.startsWith("whisper-");
 	return {
 		schema_version: "tda_benchmark_profile_v1",
@@ -105,7 +108,9 @@ function benchmarkResult(withEvidence = false) {
 					bundle_size_bytes: 4096,
 				}
 			: {}),
-		profiles: profiles.map((profileId) => profileReceipt(profileId, withEvidence)),
+		profiles: profiles.map((profileId) =>
+			profileReceipt(profileId, withEvidence),
+		),
 	};
 }
 
@@ -178,11 +183,53 @@ function snapshot(profileId: TranscriptionProfileId, text: string, start = 0) {
 }
 
 describe("benchmark evidence contract", () => {
+	it("preserves measured VRAM coverage without inventing historical telemetry", () => {
+		const value = snapshot("qwen-fast", "fixture");
+		expect(
+			parseBenchmarkTranscriptSnapshot(value, "benchmark-job-1-a1", "qwen-fast")
+				.telemetry,
+		).toBeNull();
+		const measured = {
+			...value,
+			telemetry: {
+				captured_samples: 3,
+				coverage: 0.75,
+				missing_reason: "coverage_gap",
+				vram_peak_bytes: 4 * 1024 ** 3,
+				vram_average_bytes: 3 * 1024 ** 3,
+			},
+		};
+		expect(
+			parseBenchmarkTranscriptSnapshot(
+				measured,
+				"benchmark-job-1-a1",
+				"qwen-fast",
+			).telemetry,
+		).toMatchObject({
+			capturedSamples: 3,
+			coverage: 0.75,
+			vramPeakBytes: 4 * 1024 ** 3,
+		});
+		for (const invalid of [
+			{ ...measured.telemetry, coverage: 1.1 },
+			{ ...measured.telemetry, vram_peak_bytes: -1 },
+		]) {
+			expect(() =>
+				parseBenchmarkTranscriptSnapshot(
+					{ ...value, telemetry: invalid },
+					"benchmark-job-1-a1",
+					"qwen-fast",
+				),
+			).toThrow();
+		}
+	});
 	it("keeps historical receipts valid without invented artifacts", () => {
 		const parsed = parseBenchmarkResult(benchmarkResult(), "job-1");
 		expect(parsed.benchmarkId).toBeNull();
 		expect(parsed.bundleManifestSha256).toBeNull();
-		expect(parsed.profiles.every((profile) => !profile.artifactAvailable)).toBe(true);
+		expect(parsed.profiles.every((profile) => !profile.artifactAvailable)).toBe(
+			true,
+		);
 	});
 
 	it("accepts an immutable evidence pointer on new receipts", () => {
@@ -192,7 +239,9 @@ describe("benchmark evidence contract", () => {
 			bundleManifestSha256: "c".repeat(64),
 			bundleSizeBytes: 4096,
 		});
-		expect(parsed.profiles.every((profile) => profile.artifactAvailable)).toBe(true);
+		expect(parsed.profiles.every((profile) => profile.artifactAvailable)).toBe(
+			true,
+		);
 	});
 
 	it("parses a verified bundle summary and all four profile formats", () => {
@@ -232,7 +281,9 @@ describe("benchmark evidence contract", () => {
 			differentRegions: 1,
 		});
 		expect(regions[0]?.kind).toBe("changed");
-		expect(compareRunPerformanceSemantics(left, right).status).toBe("comparable");
+		expect(compareRunPerformanceSemantics(left, right).status).toBe(
+			"comparable",
+		);
 	});
 
 	it("accepts every distinct pair in the four-profile comparison matrix", () => {
@@ -245,7 +296,10 @@ describe("benchmark evidence contract", () => {
 					profileId,
 				),
 			]),
-		) as Record<TranscriptionProfileId, ReturnType<typeof parseBenchmarkTranscriptSnapshot>>;
+		) as Record<
+			TranscriptionProfileId,
+			ReturnType<typeof parseBenchmarkTranscriptSnapshot>
+		>;
 
 		let pairs = 0;
 		for (let leftIndex = 0; leftIndex < profiles.length; leftIndex += 1) {
@@ -256,7 +310,9 @@ describe("benchmark evidence contract", () => {
 			) {
 				const left = parsed[profiles[leftIndex]!]!;
 				const right = parsed[profiles[rightIndex]!]!;
-				expect(compareRunSegments(left.segments, right.segments)).toHaveLength(1);
+				expect(compareRunSegments(left.segments, right.segments)).toHaveLength(
+					1,
+				);
 				pairs += 1;
 			}
 		}
@@ -274,6 +330,8 @@ describe("benchmark evidence contract", () => {
 			"benchmark-job-1-a1",
 			"whisper-detailed",
 		);
-		expect(compareRunSegments(left.segments, right.segments)[0]?.kind).toBe("equal");
+		expect(compareRunSegments(left.segments, right.segments)[0]?.kind).toBe(
+			"equal",
+		);
 	});
 });

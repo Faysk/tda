@@ -49,6 +49,18 @@ de Processamento ainda dependem da integração/publicação do candidato #1560.
 
 ### Recuperação e distribuição observadas — #1552 / #1561
 
+Seguimento em 2026-10-07: os dois ZIPs reais chegaram ao Edit privado como uma
+sessão com 8.019 falas, duas partes, um receipt e nenhuma publicação pública.
+O benchmark de cinco minutos concluiu quatro perfis com runtimes Whisper 1.1.12
+e Qwen 1.0.20 na RTX 4070 Laptop / SM 8.9. Qwen Fast preservou o restante após
+ignorar a janela sem reconhecimento 54–114 s da faixa 1, com um aviso explícito.
+Instalação e suite GPU do Companion 0.3.23 passaram, mas a exportação ZIP revelou
+um defeito de escopo. O candidato 0.3.24 corrige esse endereço e projeta VRAM
+pico/média e cobertura a partir do arquivo de métricas validado por hash;
+histórico sem coleta permanece sem valor. A comparação recolhe os avisos e a
+memória em detalhes, preservando a leitura principal. Aceite e Stable de 0.3.24
+continuam pendentes; estes resultados não são WER/CER nem aceite em RTX 2080.
+
 O teste autenticado de 2026-10-07 encontrou Web Production em
 `9d40dee03a2d6978e30e7669f3255e188f75bd35`, mas Agent instalado **0.3.18**,
 Whisper **1.1.9** e Qwen **1.0.17**. `ready` do serviço não comprova que todas as
