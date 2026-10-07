@@ -24,6 +24,28 @@ const viewports = [
 	{ name: "4k", width: 3840, height: 2160 },
 ] as const;
 
+for (const theme of ["light", "dark"] as const) {
+	for (const viewport of [{ name: "desktop", width: 1920, height: 1080 }, { name: "mobile", width: 390, height: 844 }]) {
+		test(`${theme} ${viewport.name}: all five tabs remain navigable and contained`, async ({ page }, testInfo) => {
+			await page.setViewportSize(viewport);
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			await page.addInitScript((value) => { document.documentElement.dataset.theme = value; }, theme);
+			await installCompanionFixture(page, { profileReady: true, advanceJobs: false, initialJobs: [fixtureJob("running")] });
+			await page.goto("/");
+			await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+			for (const [index, name] of ["Visão geral", "Fila", "Resultados", "Benchmark", "Diagnóstico"].entries()) {
+				const tab = page.getByRole("tab", { name, exact: true });
+				await tab.click();
+				await expect(tab).toHaveAttribute("aria-selected", "true");
+				await expect(page.getByRole("tabpanel", { name, exact: true })).toBeVisible();
+				const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+				expect(overflow).toBeLessThanOrEqual(1);
+				await page.screenshot({ path: testInfo.outputPath(`tabs-${theme}-${viewport.name}-${index}.png`), fullPage: true });
+			}
+		});
+	}
+}
+
 async function openRunningWorkspace(
 	page: import("@playwright/test").Page,
 	width: number,

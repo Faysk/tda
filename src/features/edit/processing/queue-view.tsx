@@ -237,7 +237,7 @@ export function ProcessingQueueView({
 							onClick={() => onFilterChange(item.id)}
 						>
 							{item.label}
-							<span aria-hidden="true">{queueFilterCount(jobs, item.id)}</span>
+							<span className={styles.filterCount} aria-hidden="true">{queueFilterCount(jobs, item.id)}</span>
 						</Button>
 					))}
 				</fieldset>

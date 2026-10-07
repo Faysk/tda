@@ -53,7 +53,8 @@
 	color: var(--ds-foreground);
 }
 
-.filterButton > span {
+.filterCount {
+	margin-inline-start: 6px;
 	min-width: 1.4em;
 	padding: 1px 5px;
 	border-radius: 999px;
