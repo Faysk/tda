@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import Form from "next/form";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { FormSubmitButton, Select, StatusPill } from "@/components/ui";
-import { requireCampaignCapability } from "@/features/auth/server";
+import { currentAccess } from "@/features/auth/server";
 import { canManageCampaignRegistry } from "@/features/campaigns/policy";
-import { editSessionDetailHref, editSessionLibraryHref, readEditableSessionCampaigns } from "@/features/campaigns/sessions";
-import { EDIT_CAPABILITIES } from "@/features/edit/access/policy";
+import {
+	editSessionDetailHref,
+	editSessionLibraryHref,
+	readEditableSessionCampaigns,
+} from "@/features/campaigns/sessions";
 import {
 	filterAndSortSessionLibrary,
 	sessionEditorialLabel,
@@ -85,17 +88,22 @@ export default async function EditSessionsPage({
 	params: Promise<{ campaignSlug: string }>;
 	searchParams: SearchParams;
 }) {
-	const { campaignSlug } = await params;
-	const returnTo = editSessionLibraryHref(campaignSlug);
-	const accessContext = await requireCampaignCapability(
-		EDIT_CAPABILITIES.transcriptRead,
-		campaignSlug,
-		returnTo,
-	);
+	const { campaignSlug: campaignReference } = await params;
+	const requestedHref = editSessionLibraryHref(campaignReference);
+	const access = await currentAccess();
+	if (access.state === "anonymous")
+		redirect(`/entrar?next=${encodeURIComponent(requestedHref)}`);
+	if (access.state === "unavailable") redirect("/conta?acesso=indisponivel");
+	if (!access.context?.profileId) redirect("/conta?acesso=negado");
+	const accessContext = access.context;
 	const eligible = await readEditableSessionCampaigns(accessContext);
-	if (!eligible.ok) return <ErrorState retryHref={returnTo} />;
-	const campaign = eligible.campaigns.find((item) => item.technicalSlug === campaignSlug);
+	if (!eligible.ok) return <ErrorState retryHref={requestedHref} />;
+	const campaign =
+		eligible.campaigns.find((item) => item.routeKey === campaignReference) ??
+		eligible.campaigns.find((item) => item.technicalSlug === campaignReference);
 	if (!campaign) notFound();
+	const campaignSlug = campaign.technicalSlug;
+	const returnTo = editSessionLibraryHref(campaign.routeKey);
 	const rawSearchParams = await searchParams;
 	const filters = parseFilters(rawSearchParams);
 	const canManageCampaigns = canManageCampaignRegistry(accessContext);
@@ -107,6 +115,7 @@ export default async function EditSessionsPage({
 	const returnWithIntent = preservedQuery.size
 		? `${returnTo}?${preservedQuery.toString()}`
 		: returnTo;
+	if (campaignReference !== campaign.routeKey) redirect(returnWithIntent);
 	const manageHref = canManageCampaigns
 		? `/edit/campanhas?next=${encodeURIComponent(returnWithIntent)}`
 		: undefined;
@@ -137,7 +146,11 @@ export default async function EditSessionsPage({
 				eyebrow="Edit · Sessões"
 				title="Biblioteca editorial"
 				meta={
-					<div className={styles.libraryHeaderMeta} role="status" aria-live="polite">
+					<div
+						className={styles.libraryHeaderMeta}
+						role="status"
+						aria-live="polite"
+					>
 						<span>
 							{campaign.name}
 							{campaign.lifecycle === "archived" ? " · arquivada" : ""}
@@ -156,7 +169,7 @@ export default async function EditSessionsPage({
 					options={eligible.campaigns.map((item) => ({
 						key: item.technicalSlug,
 						name: item.name,
-						href: editSessionLibraryHref(item.technicalSlug),
+						href: editSessionLibraryHref(item.routeKey),
 						current: item.technicalSlug === campaignSlug,
 						lifecycle: item.lifecycle,
 					}))}
@@ -263,12 +276,19 @@ export default async function EditSessionsPage({
 						Conclua uma transcrição em Resultados e use “Preparar sessão” para
 						trazê-la à área privada do Edit.
 					</p>
-					<Link href={`/edit/${encodeURIComponent(campaignSlug)}/processamento`}>Ir para Processamento</Link>
+					<Link
+						href={`/edit/${encodeURIComponent(campaign.routeKey)}/processamento`}
+					>
+						Ir para Processamento
+					</Link>
 				</div>
 			) : visible.length === 0 ? (
 				<div className={styles.empty}>
 					<h2>Nenhuma sessão corresponde aos filtros</h2>
-					<p>Os filtros continuam ativos; limpe-os para voltar à biblioteca completa.</p>
+					<p>
+						Os filtros continuam ativos; limpe-os para voltar à biblioteca
+						completa.
+					</p>
 					<Link href={returnTo}>Limpar filtros</Link>
 				</div>
 			) : (
@@ -302,13 +322,18 @@ export default async function EditSessionsPage({
 									</span>
 									<details className={styles.libraryDetails}>
 										<summary>Detalhes</summary>
-										<span className={styles.sessionId}>{session.sourceSessionId}</span>
+										<span className={styles.sessionId}>
+											{session.sourceSessionId}
+										</span>
 									</details>
 								</div>
 							</div>
 							<Link
 								className={styles.libraryOpen}
-								href={editSessionDetailHref(campaignSlug, session.sourceSessionId)}
+								href={editSessionDetailHref(
+									campaignSlug,
+									session.sourceSessionId,
+								)}
 							>
 								Abrir sessão
 							</Link>

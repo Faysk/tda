@@ -78,7 +78,7 @@ function runFacts(run: LocalRunSummary) {
 		["Segmentos", run.stats.segmentCount ?? "—"],
 		["Turnos", run.stats.turnCount ?? "—"],
 		["Tracks", run.stats.trackCount ?? "—"],
-		["Warnings", run.stats.warningCount ?? "—"],
+		["Avisos", run.stats.warningCount ?? "—"],
 		["Revisão", reviewStatus(run)],
 		["Runtime", [run.executionLineage?.runtimeFamily, run.executionLineage?.runtimeVersion].filter(Boolean).join(" ") || "—"],
 		["GPU", run.executionLineage?.gpu?.model ?? "—"],

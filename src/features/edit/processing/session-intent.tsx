@@ -105,7 +105,7 @@ type Props = Readonly<{
 	onActiveChange?: (active: boolean) => void;
 	onRestoreSessionId?: (sessionId: string) => void;
 	onRestoreIntent?: (intent: SessionTranscriptionIntent) => void;
-	onStatus?: (message: string) => void;
+	onStatus?: (message: string | null) => void;
 	onError?: (
 		message: string,
 		availabilityFailure?: "timeout" | "unreachable",
@@ -233,6 +233,7 @@ export function SessionIntentCoordinator({
 	const [localError, setLocalError] = useState<string | null>(null);
 	const [recovery, setRecovery] = useState<SessionRecoveryGuide | null>(null);
 	const [freshStartOpen, setFreshStartOpen] = useState(false);
+	const [recoveryProfile, setRecoveryProfile] = useState<TranscriptionProfileId | null>(null);
 	const [deleteSessionOpen, setDeleteSessionOpen] = useState(false);
 	const processedRequest = useRef<string | null>(null);
 	const advancing = useRef(false);
@@ -763,6 +764,8 @@ export function SessionIntentCoordinator({
 				)
 				.map((part) => part.sourceId);
 			if (failedSources.length) {
+				setLive(null);
+				onStatus?.(null);
 				setBlocker({ kind: "failed", sourceIds: failedSources });
 				return;
 			}
@@ -952,6 +955,7 @@ export function SessionIntentCoordinator({
 		jobs,
 		loadSnapshot,
 		mapping,
+		onStatus,
 		persistIntentReceipt,
 		recoveryScope,
 		runsBySource,
@@ -1108,7 +1112,7 @@ export function SessionIntentCoordinator({
 		}
 	}
 
-	async function restartSessionFromScratch() {
+	async function restartSessionFromScratch(profileOverride?: TranscriptionProfileId) {
 		if (
 			!workspace ||
 			busy ||
@@ -1172,7 +1176,7 @@ export function SessionIntentCoordinator({
 				workspace.sessionId,
 				{
 					requestId: freshRequestId,
-					profileId: seed.profile,
+					profileId: profileOverride ?? seed.profile,
 					context: seed.context,
 					glossary: seed.glossary,
 				},
@@ -1180,6 +1184,7 @@ export function SessionIntentCoordinator({
 			);
 			const freshRequest: SessionTranscriptionIntent = {
 				...seed,
+				profile: profileOverride ?? seed.profile,
 				id: freshRequestId,
 				sessionId: resetWorkspace.sessionId,
 				sources: resetWorkspace.parts.map((part, index) => ({
@@ -1250,14 +1255,19 @@ export function SessionIntentCoordinator({
 			setAssembly(null);
 			setBlocker(null);
 			setActiveRequest(freshRequest);
+			onRestoreIntent?.(freshRequest);
 			setFreshStartOpen(false);
+			setRecoveryProfile(null);
 			await loadSnapshot(resetWorkspace.sessionId, controller.signal);
 			announce(
-				"Estado anterior descartado para esta sessão. Reprocessando todas as gravações do zero; os ZIPs locais e o histórico antigo continuam preservados.",
+				profileOverride === "qwen-quality"
+					? "Processando a sessão com Qwen Quality em novas execuções. Os ZIPs locais e o histórico Qwen Fast foram preservados; os modelos não são misturados."
+					: "Estado anterior descartado para esta sessão. Reprocessando todas as gravações do zero; os ZIPs locais e o histórico antigo continuam preservados.",
 			);
 			setAdvancePulse((value) => value + 1);
 		} catch (cause) {
 			setFreshStartOpen(false);
+			setRecoveryProfile(null);
 			if (
 				cause instanceof BridgeError &&
 				cause.serverCode === "SESSION_WORKSPACE_RESET_ACTIVE_JOBS"
@@ -1485,6 +1495,11 @@ export function SessionIntentCoordinator({
 	const canResetSession = capabilities.includes(
 		"transcription.session-workspace.reset",
 	);
+	const canRecoverWithQuality = canResetSession && activeRequest?.profile === "qwen-fast" &&
+		blocker?.kind === "failed" && workspace?.parts.some((part) => {
+			const job = latestJobForSource(jobs, part.sourceId);
+			return job?.context?.profileId === "qwen-fast" && job.error?.code === "QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN";
+		});
 	const canDeleteSession = capabilities.includes(
 		"transcription.session-workspace.delete",
 	);
@@ -1768,14 +1783,22 @@ export function SessionIntentCoordinator({
 								: `${blocker.sourceIds.length} gravações falharam.`}
 						</strong>
 						<span>
-							{!canDeleteSession && !canResetSession
-								? "Esta versão do Companion não oferece limpeza de sessão. Atualize o Companion para excluir o estado local e começar do zero."
+							{canRecoverWithQuality
+								? "O Qwen Fast não reconheceu um trecho com segurança. Processe a sessão com Qwen Quality usando os ZIPs já preservados. O histórico Fast continuará identificado separadamente."
 								: retryableFailedSourceIds.length
-									? "Você pode repetir apenas as tentativas recuperáveis ou excluir esta sessão local e começar novamente."
+								? "Reprocesse apenas as gravações que precisam de atenção. As gravações concluídas serão preservadas."
+								: !canDeleteSession && !canResetSession
+									? "Atualize o Companion para recuperar esta sessão. Seus ZIPs e resultados concluídos serão preservados."
 									: "Essas tentativas não podem ser repetidas com segurança. Exclua esta sessão local para voltar ao início e processar tudo novamente."}
 						</span>
 					</div>
 					<div className={styles.blockerActions}>
+						{canRecoverWithQuality ? <Button type="button" variant="primary" disabled={busy || activeJobs.length > 0} onClick={() => { setRecoveryProfile("qwen-quality"); setFreshStartOpen(true); }}>Processar com Qwen Quality</Button> : null}
+						{!canDeleteSession && !canResetSession && !retryableFailedSourceIds.length ? (
+							<a href="/api/downloads/companion/windows" className={styles.inlineLink}>
+								Atualizar Companion
+							</a>
+						) : null}
 						{retryableFailedSourceIds.length ? (
 							<Button
 								type="button"
@@ -1915,6 +1938,9 @@ export function SessionIntentCoordinator({
 						>
 							Nova transcrição
 						</Button>
+						{canDeleteSession || canResetSession ? <details className={styles.maintenanceMenu}>
+							<summary>Mais opções</summary>
+							<div>
 						{canDeleteSession ? (
 							<Button
 								type="button"
@@ -1935,6 +1961,8 @@ export function SessionIntentCoordinator({
 								Recomeçar preservando histórico
 							</Button>
 						) : null}
+							</div>
+						</details> : null}
 					</div>
 				</div>
 			) : null}
@@ -1979,29 +2007,30 @@ export function SessionIntentCoordinator({
 
 			<Dialog
 				open={freshStartOpen}
-				title="Recomeçar esta sessão do zero?"
+				title={recoveryProfile === "qwen-quality" ? "Processar esta sessão com Qwen Quality?" : "Recomeçar esta sessão do zero?"}
 				description={
 					<p>
+						{recoveryProfile === "qwen-quality" ? "As novas execuções usarão Qwen Quality. " : ""}
 						O TDA vai ignorar todos os resultados e tentativas anteriores desta
 						sessão e criar novas execuções para todas as gravações.
 					</p>
 				}
-				onClose={() => setFreshStartOpen(false)}
+				onClose={() => { setFreshStartOpen(false); setRecoveryProfile(null); }}
 				actions={
 					<>
 						<Button
 							data-dialog-initial-focus
 							variant="secondary"
-							onClick={() => setFreshStartOpen(false)}
+							onClick={() => { setFreshStartOpen(false); setRecoveryProfile(null); }}
 						>
 							Voltar
 						</Button>
 						<Button
 							variant="tertiary"
 							disabled={busy}
-							onClick={() => void restartSessionFromScratch()}
+							onClick={() => void restartSessionFromScratch(recoveryProfile ?? undefined)}
 						>
-							{busy ? "Recomeçando…" : "Descartar estado e recomeçar"}
+							{busy ? "Recomeçando…" : recoveryProfile === "qwen-quality" ? "Confirmar Qwen Quality" : "Descartar estado e recomeçar"}
 						</Button>
 					</>
 				}
@@ -2056,7 +2085,7 @@ export function SessionIntentCoordinator({
 					{localError}
 				</p>
 			) : null}
-			<p className={styles.live} role="status" aria-live="polite" aria-atomic="true">
+			<p className={styles.live} data-complete={assembly ? "true" : "false"} role="status" aria-live="polite" aria-atomic="true">
 				{live}
 			</p>
 		</section>

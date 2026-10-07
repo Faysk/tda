@@ -283,15 +283,17 @@ test("aba oculta não mantém frame loop e preserva o target factual", async ({
 	await page.addInitScript(() => {
 		const pending = new Set<number>();
 		let cancelled = 0;
+		let nextFrame = 1_000_000_000;
+		let hold = false;
 		const request = window.requestAnimationFrame.bind(window);
 		const cancel = window.cancelAnimationFrame.bind(window);
 		window.requestAnimationFrame = (callback) => {
-			const id = request((now) => { pending.delete(id); callback(now); });
+			const id = hold ? ++nextFrame : request((now) => { pending.delete(id); callback(now); });
 			pending.add(id);
 			return id;
 		};
-		window.cancelAnimationFrame = (id) => { pending.delete(id); cancelled += 1; cancel(id); };
-		Object.defineProperty(window, "metricFrames", { get: () => ({ pending: pending.size, cancelled }) });
+		window.cancelAnimationFrame = (id) => { pending.delete(id); cancelled += 1; if (id <= 1_000_000_000) cancel(id); };
+		Object.defineProperty(window, "metricFrames", { get: () => ({ pending: pending.size, cancelled, set hold(value: boolean) { hold = value; } }) });
 	});
 	const state = await installCompanionFixture(page, {
 		profileReady: true,
@@ -319,6 +321,8 @@ test("aba oculta não mantém frame loop e preserva o target factual", async ({
 
 
 	await expect(visual).toHaveText("40%");
+	await expect.poll(() => page.evaluate(() => (window as unknown as { metricFrames: { pending: number } }).metricFrames.pending)).toBe(0);
+	await page.evaluate(() => { (window as unknown as { metricFrames: { hold: boolean } }).metricFrames.hold = true; });
 	state.setSystem({
 		gpus: [
 			{

@@ -29,6 +29,8 @@ type Props = Readonly<{
 	campaignId: string;
 	capabilities: readonly string[];
 	focus?: SessionAssemblyReviewFocus | null;
+	onReviewOpenChange?: (open: boolean) => void;
+	onCloseReview?: () => void;
 }>;
 
 function short(value: string, size = 12) {
@@ -48,6 +50,8 @@ export function SessionAssemblyResults({
 	campaignId,
 	capabilities,
 	focus = null,
+	onReviewOpenChange,
+	onCloseReview,
 }: Props) {
 	const enabled =
 		capabilities.includes("transcription.session-assembly") &&
@@ -262,6 +266,8 @@ export function SessionAssemblyResults({
 		review !== null &&
 		activeAssembly.assemblyId === review.assemblyId;
 
+	useEffect(() => { onReviewOpenChange?.(editorOpen); }, [editorOpen, onReviewOpenChange]);
+
 	useEffect(() => {
 		if (!editorOpen || !focus) return;
 		if (focusedRequestId.current === focus.requestId) return;
@@ -290,9 +296,9 @@ export function SessionAssemblyResults({
 			<div className={styles.header}>
 				<div>
 					<span>Resultado de sessão</span>
-					<h2 id="session-assembly-results-title">Assemblies · {sessionId}</h2>
+					<h2 id="session-assembly-results-title" tabIndex={-1}>Transcrição · {sessionId}</h2>
 					{assemblies.length === 0 ? (
-						<p className={styles.empty}>Nenhuma assembly concluída para a sessão ativa.</p>
+						<p className={styles.empty}>A transcrição aparecerá aqui quando o processamento terminar.</p>
 					) : null}
 				</div>
 				<Button
@@ -306,6 +312,18 @@ export function SessionAssemblyResults({
 				</Button>
 			</div>
 
+			{editorOpen ? (
+				<Button type="button" size="sm" variant="secondary" onClick={() => {
+					if (reviewDirty) { setError("Salve as alterações da revisão antes de voltar aos resultados."); return; }
+					onCloseReview?.();
+					setReviewSelection(null);
+					setActiveAssembly(null);
+					window.requestAnimationFrame(() => document.getElementById("session-assembly-results-title")?.focus());
+				}}>
+					Voltar aos resultados
+				</Button>
+			) : null}
+
 			{assemblies.length ? (
 				<div className={styles.list}>
 					{assemblies.map((assembly) => {
@@ -318,12 +336,12 @@ export function SessionAssemblyResults({
 							>
 								<div>
 									<strong>
-										{assembly.partCount} gravações · {assembly.segmentCount} segmentos
+										{assembly.partCount} gravações · {assembly.segmentCount.toLocaleString("pt-BR")} falas
 									</strong>
-									<span>
+									<details className={styles.identifiers}><summary>Identificadores técnicos</summary><span>
 										Assembly {short(assembly.assemblyId)} · transcript{" "}
 										{short(assembly.transcriptSha256)}
-									</span>
+									</span></details>
 									<small>
 										{new Date(assembly.createdAt).toLocaleString("pt-BR")}
 										{assembly.participantApprovalBlocked
@@ -331,7 +349,7 @@ export function SessionAssemblyResults({
 											: ""}
 									</small>
 								</div>
-								<Button
+								{selected ? <span className={styles.reviewStatus}>Revisão aberta</span> : <Button
 									type="button"
 									size="sm"
 									variant={selected ? "primary" : "secondary"}
@@ -348,7 +366,7 @@ export function SessionAssemblyResults({
 									}}
 								>
 									{selected ? "Revisão aberta" : "Abrir revisão"}
-								</Button>
+								</Button>}
 							</article>
 						);
 					})}

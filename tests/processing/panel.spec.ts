@@ -9,6 +9,22 @@ import {
 	UI_ORIGIN,
 } from "./companion-fixture";
 
+test("cockpit follows the newest track in the active attempt", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		jobEvents: [
+			{ seq: 1, attempt: 1, code: "TRACK_STARTED", at: "2026-10-07T13:00:00Z", level: "info", data: { track: 1, total_tracks: 4, speaker: "Alice" } },
+			{ seq: 2, attempt: 1, code: "TRACK_STARTED", at: "2026-10-07T13:01:00Z", level: "info", data: { track: 2, total_tracks: 4, speaker: "Bruno" } },
+		],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Arquivo 2 de 4", { exact: true })).toBeVisible();
+	await expect(page.getByText("Voz: Bruno", { exact: true })).toBeVisible();
+	await expect(page.getByText("Voz: Alice", { exact: true })).toHaveCount(0);
+});
+
 function fulfillJson(
 	route: import("@playwright/test").Route,
 	value: unknown,
@@ -984,9 +1000,10 @@ test("Humanizada brinca só com sucesso e Técnica preserva o evento factual", a
 	await expect(
 		page.getByRole("button", { name: "Humanizada", exact: true }),
 	).toHaveAttribute("aria-pressed", "true");
-	await expect(log).not.toContainText(
+	await expect(log).toContainText(
 		"Qwen concluiu uma janela de áudio da faixa 1 · janela 205.",
 	);
+	await expect(log).toContainText("Comentário:");
 	await expect(log).toContainText(
 		"Falha de alinhamento Qwen · faixa 1 · janela 206.",
 	);
@@ -1030,7 +1047,7 @@ test("Overview não reaproveita atividade rotineira de tentativa anterior", asyn
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("Tentativa 2", { exact: false })).toBeVisible();
+	await expect(page.getByRole("tabpanel", { name: "Visão geral" }).getByText("Tentativa 2", { exact: false })).toBeVisible();
 	await expect(
 		page.getByText("Qwen concluiu uma janela de áudio da faixa 1 · janela 205.", {
 			exact: true,
@@ -1211,7 +1228,7 @@ test("Overview does not borrow track context from a previous retry attempt", asy
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 
-	await expect(page.getByText(/Tentativa 2/)).toBeVisible();
+	await expect(page.getByRole("tabpanel", { name: "Visão geral" }).getByText(/Tentativa 2/)).toBeVisible();
 	await expect(page.getByText("Arquivo 3 de 4", { exact: true })).toHaveCount(0);
 	await expect(page.getByText("Voz: Alice", { exact: true })).toHaveCount(0);
 	await expect(page.getByText("Janela 317", { exact: true })).toHaveCount(0);
@@ -1434,7 +1451,7 @@ test("idle Full HD keeps the essential composer and recent result in one viewpor
 	expect(dropBox?.height ?? 999).toBeLessThanOrEqual(64);
 
 	await expect(metrics.getByText("Processamento", { exact: true })).toBeVisible();
-	await expect(metrics.getByText("Warnings", { exact: true })).toBeVisible();
+	await expect(metrics.getByText("Avisos", { exact: true })).toBeVisible();
 	await expect(metrics.getByText("Segmentos", { exact: true })).not.toBeVisible();
 
 	const initialViewport = await page.evaluate(() => ({
@@ -1723,7 +1740,7 @@ test("Results keeps empty Session Assembly and sync context compact", async ({ p
 	await expect(assembly).toBeVisible();
 	await expect(assembly).toHaveAttribute("data-empty", "true");
 	await expect(
-		assembly.getByText("Nenhuma assembly concluída para a sessão ativa.", {
+		assembly.getByText("A transcrição aparecerá aqui quando o processamento terminar.", {
 			exact: true,
 		}),
 	).toBeVisible();
@@ -1832,7 +1849,7 @@ test("Results keeps a completed Session Assembly legible and actionable", async 
 
 	const assembly = page.locator("[data-results-assembly='true']");
 	await expect(assembly).toHaveAttribute("data-empty", "false");
-	await expect(assembly.getByText("2 gravações · 10 segmentos", { exact: true })).toBeVisible();
+	await expect(assembly.getByText("2 gravações · 10 falas", { exact: true })).toBeVisible();
 	await expect(assembly.getByRole("button", { name: "Abrir revisão" })).toBeVisible();
 	const horizontal = await page.evaluate(() => ({
 		scrollWidth: document.documentElement.scrollWidth,
@@ -2852,6 +2869,17 @@ test("processing header exposes one latest Companion download outside the tablis
 
 	await page.getByRole("tab", { name: "Fila" }).click();
 	await expect(download).toBeVisible();
+	await expect(download).toHaveAttribute("download", "TDACompanion-0.3.16-x64.msi");
+	await page.route(`**/api/downloads/companion/windows?tag=${tag}`, (route) =>
+		route.fulfill({ status: 200, contentType: "application/octet-stream", body: "synthetic installer" }),
+	);
+	const originalUrl = page.url();
+	const downloadEvent = page.waitForEvent("download");
+	await download.click();
+	const installer = await downloadEvent;
+	expect(installer.suggestedFilename()).toBe("TDACompanion-0.3.16-x64.msi");
+	expect(page.url()).toBe(originalUrl);
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute("aria-selected", "true");
 });
 
 test("latest Companion download stays reachable beside horizontally scrollable tabs on mobile", async ({

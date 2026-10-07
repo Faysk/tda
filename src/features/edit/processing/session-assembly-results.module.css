@@ -9,6 +9,8 @@
 	font-family: var(--ds-font-ui);
 }
 
+.section > :global(.ds-action) { width: fit-content; justify-self: start; }
+
 .section[data-empty="true"] {
 	gap: 4px;
 	padding-bottom: 6px;
@@ -31,11 +33,15 @@
 	min-width: 0;
 	gap: 3px;
 }
-.header span, .item span, .item small, .review span, .review small, .empty {
+.header > div > span, .item > div > span, .item small, .review > span, .review small, .empty {
 	color: var(--ds-foreground-muted);
 	font-size: 0.72rem;
 	line-height: 1.4;
 }
+.identifiers { color: var(--ds-foreground-muted); font-size: 0.75rem; }
+.identifiers summary { cursor: pointer; }
+.identifiers span { display: block; margin-top: 6px; overflow-wrap: anywhere; }
+.reviewStatus { padding: 8px 12px; color: var(--ds-success); font-size: 0.82rem; white-space: nowrap; }
 .header h2 {
 	margin: 0;
 	font-family: var(--ds-font-display);

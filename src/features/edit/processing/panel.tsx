@@ -59,7 +59,7 @@ import {
 } from "./processing-estimator";
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
 import {
-	processingCampaignHref,
+	processingCampaignNavigationHref,
 	type ProcessingCampaignOption,
 } from "./campaign-context";
 import styles from "./processing.module.css";
@@ -207,7 +207,7 @@ const pipelineSteps = [
 			"resuming",
 		]),
 	},
-	{ id: "alignment", label: "Alignment", stages: new Set(["alignment"]) },
+	{ id: "alignment", label: "Alinhamento", stages: new Set(["alignment"]) },
 	{
 		id: "consolidation",
 		label: "Consolidação",
@@ -262,8 +262,8 @@ function latestActivity(
 				? selectActivityBark(activityContext(event, job, system), { level: "tda", catalog })
 				: null;
 			return {
-				title: bark?.text ?? factual.title,
-				detail: factual.detail ?? null,
+				title: factual.title,
+				detail: [factual.detail, bark?.text].filter(Boolean).join(" · ") || null,
 				at: event.at,
 			};
 		}
@@ -289,7 +289,9 @@ function eventTrackContext(
 	events: readonly JobEvent[],
 	activeAttempt: number,
 ) {
-	for (const event of events) {
+	for (let index = events.length - 1; index >= 0; index -= 1) {
+		const event = events[index];
+		if (!event) continue;
 		// Current cockpit context is attempt-scoped. A retry starts with no
 		// track/window context until that attempt emits its own event; never
 		// borrow stale or legacy routine facts into the active cockpit.
@@ -355,6 +357,7 @@ export function ProcessingPanel({
 		}> | null
 	>(null);
 	const [resultOpenError, setResultOpenError] = useState<string | null>(null);
+	const [assemblyReviewOpen, setAssemblyReviewOpen] = useState(false);
 	const [diagnosticInspectorJobId, setDiagnosticInspectorJobId] = useState<string | null>(null);
 	const [submissionDraftActive, setSubmissionDraftActive] = useState(false);
 	const [campaignSelection, setCampaignSelection] = useState(campaignId);
@@ -590,6 +593,7 @@ export function ProcessingPanel({
 	function openSessionAssemblyReview(
 		assembly: import("./session-composer-protocol").SessionAssembly,
 	) {
+		setResultFocus(null);
 		setAssemblyReviewFocus((current) => ({
 			sessionId: assembly.sessionId,
 			assembly,
@@ -719,7 +723,7 @@ export function ProcessingPanel({
 		}
 		setCampaignNavigationPending(true);
 		requestAnimationFrame(() => {
-			window.location.assign(processingCampaignHref(nextCampaignId));
+			window.location.assign(processingCampaignNavigationHref(campaignOptions, nextCampaignId));
 		});
 	}
 
@@ -734,7 +738,7 @@ export function ProcessingPanel({
 		setCampaignSwitchTarget(null);
 		setCampaignNavigationPending(true);
 		requestAnimationFrame(() => {
-			window.location.assign(processingCampaignHref(target));
+			window.location.assign(processingCampaignNavigationHref(campaignOptions, target));
 		});
 	}
 
@@ -795,7 +799,7 @@ export function ProcessingPanel({
 						!state.uncertainSubmission
 					}
 					manageHref={`/edit/campanhas?next=${encodeURIComponent(
-						processingCampaignHref(campaignId),
+						processingCampaignNavigationHref(campaignOptions, campaignId),
 					)}`}
 				/>
 			</section>
@@ -923,6 +927,15 @@ export function ProcessingPanel({
 
 			{connected ? (
 				<>
+					<p className={styles.viewPurpose}>
+						{{
+							overview: "Selecione os ZIPs, acompanhe a sessão e avance para a revisão quando a transcrição estiver pronta.",
+							queue: "Acompanhe os trabalhos e resolva somente os que precisam de atenção. Pausar novas execuções mantém o trabalho atual em andamento.",
+							results: "Confira os resultados preservados, revise a transcrição e prepare o envio para edição.",
+							benchmark: "Compare modelos na mesma amostra. Tempo medido e qualidade revisada são avaliações separadas.",
+							diagnostics: "Consulte a atividade e os detalhes do trabalho. Pausar a visualização do log não pausa o processamento.",
+						}[view]}
+					</p>
 					<section
 						id="processing-view-overview"
 						className={styles.viewPanel}
@@ -1285,7 +1298,7 @@ export function ProcessingPanel({
 										value={latestCompletedRun.stats.wordCount ?? "—"}
 									/>
 									<OverviewMetric
-										label="Warnings"
+										label="Avisos"
 										value={latestCompletedRun.stats.warningCount ?? "—"}
 									/>
 								</div>
@@ -1377,8 +1390,12 @@ export function ProcessingPanel({
 								campaignId={campaignId}
 								capabilities={state.capabilities.capabilities}
 								focus={assemblyReviewFocus}
+								onReviewOpenChange={setAssemblyReviewOpen}
+								onCloseReview={() => setAssemblyReviewFocus(null)}
 							/>
 						) : null}
+						<details className={styles.resultArchive} data-results-archive="true" open={!assemblyReviewOpen || resultFocus !== null}>
+							<summary>Resultados individuais e histórico</summary>
 						{unboundRuns.length ? (
 							<section
 								className={styles.unboundRecovery}
@@ -1492,6 +1509,7 @@ export function ProcessingPanel({
 								</div>
 							) : null}
 						</section>
+						</details>
 					</section>
 
 					<section
@@ -1713,10 +1731,10 @@ export function ProcessingPanel({
 												</div>
 											))}
 											<div className={styles.detailWide}>
-												<dt>Capabilities</dt>
-												<dd className={styles.mono}>
+												<dt>Recursos técnicos</dt>
+												<dd><details className={styles.capabilityDetails}><summary>Ver recursos disponíveis ({state.capabilities?.capabilities.length ?? 0})</summary><span className={styles.mono}>
 													{state.capabilities?.capabilities.join(", ") || "—"}
-												</dd>
+												</span></details></dd>
 											</div>
 										</dl>
 									</details>

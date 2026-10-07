@@ -70,6 +70,15 @@ A coluna **contexto** descreve a campanha necessária para a operação, não se
 
 ### Regras para redirects e aliases
 
+- no candidato #1560, o segmento de Processamento usa `public_slug`; a resolução
+  server-side parte apenas da lista ativa autorizada e conserva `technicalSlug`
+  para o Agent/RBAC. Links técnicos antigos redirecionam para o `public_slug`
+  atual;
+- no candidato #1568, a biblioteca `/edit/[campaign]/sessoes` também usa o
+  `public_slug`, preservando filtros no redirect técnico e resolvendo somente
+  campanhas autorizadas para leitura de transcrição. Consultas, detalhes de
+  sessão, ações editoriais e APIs continuam usando o technical slug;
+
 - redirect de URL pública canônica usa 308 quando a identidade editorial é conhecida e estável;
 - uma alias antiga resolve uma única campaign; colisão é erro de configuração;
 - `/sessoes/[sourceSessionId]` não pode fazer busca global por source ID;

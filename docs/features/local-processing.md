@@ -2,7 +2,7 @@
 
 > Status: ASR local, runs/revisão e publicação explícita implementados; auto-sync de job permanece `not_configured`
 > Owner: Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro
-> Última revisão: 2026-10-06
+> Última revisão: 2026-10-07
 > Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento`, `local-companion/tda_companion`, [spec de revisão/publicação](transcript-review-publication.md) e testes associados
 
 `/edit/[campaign]/processamento` é a superfície operacional canônica para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
@@ -32,6 +32,49 @@ No slice Web preparado por #1128:
 - run ASR bruto continua imutável e não vira canon/publicação por receber campaign context.
 
 A URL canônica é `/edit/[campaign]/processamento`. O entrypoint `/edit/processamento` continua aceitando a seleção compatível e encaminha escolhas normais para a rota campaign-scoped; a identidade local do processamento continua sendo o technical slug validado no servidor.
+
+### Endereços por nome de campanha — candidato #1560
+
+O candidato #1560 usa `public_slug` (`routeKey`) no segmento de navegação do
+Processamento. O servidor resolve essa referência somente entre campanhas ativas
+autorizadas e entrega o `technicalSlug` original ao painel. Links técnicos antigos
+redirecionam para o endereço público atual; picker e menu global usam o mesmo
+endereço. RBAC, jobs, pointers, idempotency e ownership continuam usando a identidade
+técnica estável. A resolução de caminho não concede acesso nem muda uma sessão.
+
+Em 2026-10-07, o registry autenticado confirmou **Destino Sem Fim** com endereço
+`destino-sem-fim` (corrigido pelo editor de campanhas) e **Passos Retomados** com
+`passos-retomados`. Essa operação de registry já foi salva; os novos caminhos Web
+de Processamento ainda dependem da integração/publicação do candidato #1560.
+
+### Recuperação e distribuição observadas — #1552 / #1561
+
+O teste autenticado de 2026-10-07 encontrou Web Production em
+`9d40dee03a2d6978e30e7669f3255e188f75bd35`, mas Agent instalado **0.3.18**,
+Whisper **1.1.9** e Qwen **1.0.17**. `ready` do serviço não comprova que todas as
+capacidades de recuperação ou runtimes do contrato atual estão disponíveis.
+
+O candidato #1552 apresenta download de atualização dentro do bloqueio sem
+cleanup, prioriza retry seletivo quando disponível e remove o anúncio anterior de
+gravações prontas ao detectar falhas terminais. Ele preserva runs concluídos e não
+simula reset no browser. Build/typecheck, testes de contexto e fixtures multi-ZIP
+desktop/mobile foram validados; aceite com ZIPs reais e reconexão do Companion
+atualizado permanece em #1561, separado da promoção Stable #1558.
+
+No seguimento físico de #1561, o operador instalou Agent **0.3.21** e a leitura de
+health confirmou `ready`. Whisper **1.1.10** e Qwen **1.0.18** foram instalados e
+validados contra os hashes oficiais. Os dois perfis Qwen passaram pelo gate físico
+da RTX 4070 Laptop; o benchmark real dos quatro perfis foi iniciado com o primeiro
+ZIP. Esse estado ainda não comprova conclusão do benchmark nem handoff editorial.
+O reset preservou fontes/histórico, mas a retomada com o Whisper antigo produziu
+`WHISPER_RUNTIME_PROTOCOL_REQUIRED`: a preparação da intenção recuperada permanece
+uma pendência de UX em #1552.
+
+O erro de download `ERR_BLOCKED_BY_CLIENT` foi observado no Chrome em #1567, embora
+o MSI completo tenha sido baixado e seu hash verificado. O candidato declara o
+link como download nativo e o teste desktop/mobile confirma que a página permanece
+no Processamento; isso não desativa proteção do cliente nem comprova eliminação do
+erro no redirecionamento real de Production.
 
 ## Estado atual
 
@@ -301,7 +344,64 @@ não viram uma confirmação obrigatória no caminho simples. Estados bloqueados
 incluindo incompatibilidade de runtime, continuam fail-closed antes de upload,
 preparação ou criação de job quando o contrato de segurança assim exigir.
 
+## Polimento do workspace — candidato #1571 / PR #1566
+
+**Aceite visual reaberto em 07/10/2026.** As capturas de Production enviadas pelo
+usuário demonstram que os ajustes abaixo não constituem acabamento concluído.
+O candidato passa a reduzir o cartão de conclusão, recolher manutenção em
+“Mais opções”, eliminar avisos de recuperação já superados e separar a revisão
+da biblioteca individual. O retorno à biblioteca preserva a revisão e bloqueia
+saída com alterações não salvas. Identificadores técnicos são expansíveis.
+No benchmark, a execução destacada não é repetida no histórico; resultados
+concluídos continuam disponíveis para comparação. Validação automatizada e
+publicação não substituem aceite visual das cinco abas em uso real.
+Uma revisão sem alterações pode ser concluída explicitamente, persistindo o
+rascunho antes da aprovação. Isso não aprova nem envia a sessão automaticamente.
+Depois do receipt de handoff, a ação principal abre a biblioteca da campanha
+(canonicalizada pelo servidor autorizado para seu nome público); a ação
+secundária abre a sessão diretamente no contexto técnico da mesma campanha.
+O usuário não precisa escolher novamente a campanha na entrada legada global.
+
+Quando Qwen Fast termina com `QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN`, a sessão oferece
+“Processar com Qwen Quality” mediante confirmação explícita. O Companion preserva
+os ZIPs e o histórico e cria novas execuções Quality para todas as gravações;
+não mistura resultados Fast e Quality na mesma montagem nem exige selecionar
+novamente os arquivos. A execução original continua marcada como falha. O
+benchmark mantém sua comparação parcial e não recebe texto emprestado de outro
+modelo. A recuperação foi validada em navegador sintético desktop/mobile; o
+aceite físico desta recuperação permanece separado.
+A lista de recursos técnicos do Diagnóstico fica recolhida e a Fila/Benchmark
+usam texto de no mínimo 12 px nas declarações tipográficas fixas.
+
+As cinco abas recebem uma orientação curta sobre finalidade e próxima ação;
+detalhes permanecem nos disclosures existentes. A Fila distingue pausa de novas
+execuções do trabalho atual; Diagnóstico esclarece que pausar a visualização não
+pausa o processamento. Preparação, eventos de runtime e etapas observados no
+Whisper são apresentados em português sem confundir segmento com job concluído.
+O modo técnico preserva os códigos originais. A entrada de aba usa uma transição
+de opacidade de 180 ms apenas quando movimento reduzido não está solicitado,
+sem deslocar tabelas ou cabeçalhos fixos durante a troca.
+Busca, filtros, cabeçalhos da fila, revisão e avisos usam rótulos em português;
+identificadores técnicos e valores do protocolo continuam preservados.
+No cockpit, atividade factual é o título e humor é detalhe. O log humanizado
+mantém o fato antes da frase identificada como comentário, inclusive nas linhas
+agrupadas; um pack customizado não substitui mais o estado factual do trabalho.
+O contexto da faixa/voz no cockpit usa o evento mais recente da tentativa atual,
+sem reaproveitar a voz de uma faixa anterior ou de outra tentativa (#1572).
+
+Evidências locais: 61 testes de UX passaram (320 px a 4K, zoom, teclado,
+fila densa, falha e log); check/build passaram. O aceite real dos dois ZIPs,
+Qwen Fast e publicação continuam separados. Estes dados validam o candidato.
+
 ## Estimativa local calibrada de processamento
+
+O candidato da PR #1566 preserva e apresenta as métricas dos perfis concluídos
+também em um benchmark parcial: tempo medido, velocidade, modelo, runtime e GPU
+quando presentes no recibo. Recibos antigos sem essas métricas permanecem legíveis.
+Uma falha continua explicitamente parcial e não entra na calibração como 4/4.
+Palavras e avisos não são indicadores de precisão. A comparação de qualidade
+exige referência revisada, com erros e omissões medidos; esse aceite continua
+separado das medições de desempenho físico (#1569 / #1570).
 
 Depois que o ZIP Craig é analisado/staged localmente, a Web pode apresentar uma
 faixa de duração por perfil usando o contrato `tda_processing_estimator_v1`.

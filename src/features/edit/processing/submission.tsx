@@ -1534,7 +1534,7 @@ export function ProcessingSubmission({
 				</div>
 			) : null}
 
-			{recoveryNotice ? (
+			{recoveryNotice && !sessionCompleted ? (
 				<div
 					className={styles.notice}
 					role="status"
@@ -1543,7 +1543,7 @@ export function ProcessingSubmission({
 					<strong>Conexão recuperada.</strong> {recoveryNotice}
 				</div>
 			) : null}
-			{status ? <p className={styles.status} role="status">{status}</p> : null}
+			{status && !sessionCompleted ? <p className={styles.status} role="status">{status}</p> : null}
 			{capabilityError && capabilities ? <p className={styles.inlineError} role="alert">{capabilityError}</p> : null}
 			{error ? <p className={styles.inlineError} role="alert">{error}</p> : null}
 		</section>

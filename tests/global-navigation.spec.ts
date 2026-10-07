@@ -208,15 +208,18 @@ test("floating shell removes the structural top band and stays viewport-bound", 
 	expect(shellStyle.borderBottomWidth).toBe("0px");
 	expect(shellStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
 
-	const scrims = await Promise.all([
-		brand.evaluate((element) => getComputedStyle(element, "::before").backgroundImage),
+	const [brandBackdrop, actionScrim] = await Promise.all([
+		brand.evaluate((element) => {
+			const style = getComputedStyle(element, "::before");
+			return { background: style.backgroundColor, backdropFilter: style.backdropFilter };
+		}),
 		page.locator(".header-actions").evaluate(
 			(element) => getComputedStyle(element, "::before").backgroundImage,
 		),
 	]);
-	for (const backgroundImage of scrims) {
-		expect(backgroundImage).toContain("radial-gradient");
-	}
+	expect(brandBackdrop.background).not.toBe("rgba(0, 0, 0, 0)");
+	expect(brandBackdrop.backdropFilter).toContain("blur(");
+	expect(actionScrim).toContain("radial-gradient");
 
 	await page.evaluate(() => {
 		const spacer = document.createElement("div");
@@ -550,7 +553,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 		.click();
 	await expect(
 		toolsSection.getByRole("link", { name: "Editar sessões", exact: true }),
-	).toHaveAttribute("href", "/edit/yuhara-main/sessoes");
+	).toHaveAttribute("href", "/edit/cronicas-da-mesa/sessoes");
 	await expect(
 		toolsSection.getByRole("link", { name: "Revisão", exact: true }),
 	).toHaveAttribute("href", "/edit/yuhara-main/revisao");

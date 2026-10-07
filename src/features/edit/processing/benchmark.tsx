@@ -335,7 +335,9 @@ function PartialResultCard({
 		<article className={[styles.resultCard, styles.partialCard].join(" ")}>
 			<header className={styles.resultHeader}>
 				<div role="status" aria-live="polite">
-					<span className={styles.eyebrow}>Benchmark local · attempt parcial</span>
+					<span className={styles.eyebrow}>
+						Benchmark local · execução parcial
+					</span>
 					<h3>
 						{result.completedCount} de {result.attemptedCount} perfis concluíram
 					</h3>
@@ -386,6 +388,54 @@ function PartialResultCard({
 					);
 				})}
 			</ol>
+			{result.profiles.some(
+				(profile) => profile.status === "completed" && profile.metrics,
+			) && (
+				<details className={styles.resultDetails}>
+					<summary>Tempos dos perfis concluídos</summary>
+					<p>
+						Tempos medidos nesta máquina e nesta amostra. Palavras e avisos não
+						medem precisão; a qualidade exige revisão do texto.
+					</p>
+					<div className={styles.tableWrap}>
+						<table>
+							<caption>Comparação parcial de velocidade</caption>
+							<thead>
+								<tr>
+									<th>Perfil</th>
+									<th>Modelo</th>
+									<th>Tempo</th>
+									<th>× tempo real</th>
+									<th>Palavras</th>
+									<th>Avisos</th>
+									<th>Runtime / GPU</th>
+								</tr>
+							</thead>
+							<tbody>
+								{result.profiles.map((profile) =>
+									profile.status === "completed" && profile.metrics ? (
+										<tr key={profile.profileId}>
+											<th scope="row">{LABELS[profile.profileId]}</th>
+											<td>{profile.metrics.model}</td>
+											<td>
+												{formatSeconds(profile.metrics.processingSeconds)}
+											</td>
+											<td>{formatRealtime(profile.metrics.rtf)}</td>
+											<td>{profile.metrics.wordCount}</td>
+											<td>{profile.metrics.warningCount}</td>
+											<td>
+												{profile.metrics.executionLineage?.runtimeVersion ??
+													"—"}{" "}
+												/ {profile.metrics.executionLineage?.gpu?.model ?? "—"}
+											</td>
+										</tr>
+									) : null,
+								)}
+							</tbody>
+						</table>
+					</div>
+				</details>
+			)}
 			<p className={styles.partialExplanation}>
 				{qwenUncertain
 					? "O Qwen detectou sinal de áudio, mas não conseguiu reconhecer um trecho com segurança. O TDA não tratou isso como silêncio nem inventou texto. Os demais perfis independentes foram tentados automaticamente; este attempt não será apresentado como comparação 4/4."
@@ -543,11 +593,6 @@ export function ProcessingBenchmark({
 			job.result_available &&
 			["succeeded", "failed"].includes(job.status),
 	);
-	const historyJobs = benchmarkJobs
-		.filter((job) =>
-			["succeeded", "failed", "cancelled", "interrupted"].includes(job.status),
-		)
-		.slice(0, 20);
 	const latestJob = benchmarkJobs[0];
 	const latestResult = latestJob ? results[latestJob.id] : undefined;
 	const latestResultPending = Boolean(
@@ -564,6 +609,12 @@ export function ProcessingBenchmark({
 		["failed", "cancelled", "interrupted"].includes(latestJob.status)
 			? latestJob
 			: undefined;
+	const historyJobs = benchmarkJobs
+		.filter((job) =>
+			(!(latestPartialResult || latestProblem) || job.id !== latestJob?.id) &&
+			["succeeded", "failed", "cancelled", "interrupted"].includes(job.status),
+		)
+		.slice(0, 20);
 	const latestProblemEvents =
 		latestProblem && observedJobId === latestProblem.id
 			? events.filter(
@@ -1151,7 +1202,7 @@ export function ProcessingBenchmark({
 					<section className={styles.sourcePane} aria-labelledby="benchmark-source-title">
 						<div className={styles.sectionHeading}>
 							<div>
-								<span className={styles.eyebrow}>Source</span>
+								<span className={styles.eyebrow}>Fonte</span>
 								<h3 id="benchmark-source-title">Amostra Craig</h3>
 							</div>
 							{source ? <StatusPill tone={sampleEligible ? "success" : "danger"}>{sampleEligible ? "Apta" : "Curta"}</StatusPill> : null}
@@ -1235,7 +1286,7 @@ export function ProcessingBenchmark({
 					<section className={styles.readinessPane} aria-labelledby="benchmark-readiness-title">
 						<div className={styles.readinessHeader}>
 							<div>
-								<span className={styles.eyebrow}>Readiness</span>
+								<span className={styles.eyebrow}>Preparação</span>
 								<h3 id="benchmark-readiness-title">Perfis locais</h3>
 							</div>
 							<strong>{readyCount} / {PROFILES.length} perfis prontos para benchmark</strong>
@@ -1542,7 +1593,7 @@ export function ProcessingBenchmark({
 							{latestProblem.error?.code
 								? latestProblem.error.code + " · tentativa " + latestProblem.attempt
 								: "Tentativa " + latestProblem.attempt}
-							{" · os perfis posteriores não são marcados como falha de engine."}
+							{" · sem resultado comparável. Os perfis posteriores não são marcados como falha do modelo."}
 						</p>
 						{latestProblemAttemptState ? (
 							<>
@@ -1625,7 +1676,7 @@ export function ProcessingBenchmark({
 						<span className={styles.eyebrow}>Histórico local</span>
 						<h2>Execuções do Benchmark</h2>
 					</div>
-					<span>{historyJobs.length} execução{historyJobs.length === 1 ? "" : "ões"} terminal{historyJobs.length === 1 ? "" : "is"}</span>
+					<span>{historyJobs.length} {historyJobs.length === 1 ? "execução anterior" : "execuções anteriores"}</span>
 				</div>
 				{historyJobs.length ? (
 					historyJobs.map((job) => {
@@ -1646,7 +1697,7 @@ export function ProcessingBenchmark({
 										<p>
 											{formatBenchmarkHistoryDate(job.updated_at)}
 											{job.error?.code ? " · " + job.error.code : ""}
-											{" · sem receipt comparável"}
+											{" · sem resultado comparável"}
 										</p>
 									</div>
 									<Button size="sm" variant="tertiary" onClick={() => onOpenDiagnostics(job)}>

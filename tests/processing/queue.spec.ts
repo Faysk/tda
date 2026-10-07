@@ -60,14 +60,20 @@ test("fila abre em Ativos e mantém histórico terminal fora do recorte padrão"
 
 	const queue = await openQueue(page);
 
-	await expect(queue.getByRole("columnheader", { name: "Sessão / source" })).toBeVisible();
-	await expect(queue.getByRole("columnheader", { name: "Profile" })).toBeVisible();
+	await expect(queue.getByRole("columnheader", { name: "Sessão / gravação" })).toBeVisible();
+	await expect(queue.getByRole("columnheader", { name: "Perfil" })).toBeVisible();
 	await expect(queue.getByRole("columnheader", { name: "Etapa / progresso" })).toBeVisible();
 	await expect(queue.getByRole("columnheader", { name: "Estado" })).toBeVisible();
 
 	if ((page.viewportSize()?.width ?? 0) > 900) {
-		const header = await queue.getByRole("columnheader", { name: "Sessão / source" }).boundingBox();
-		const firstRow = await queue.locator("tbody > tr[data-status]").first().boundingBox();
+		const { header, firstRow } = await queue.evaluate((element) => {
+			const headerRect = element.querySelector("thead th")?.getBoundingClientRect();
+			const rowRect = element.querySelector("tbody > tr[data-status]")?.getBoundingClientRect();
+			return {
+				header: headerRect ? { y: headerRect.y, height: headerRect.height } : null,
+				firstRow: rowRect ? { y: rowRect.y } : null,
+			};
+		});
 		expect(header).not.toBeNull();
 		expect(firstRow).not.toBeNull();
 		expect((firstRow?.y ?? 0) + 0.5).toBeGreaterThanOrEqual(
@@ -239,6 +245,6 @@ test("mobile empilha rows e mantém busca, filtros e ações sem overflow horizo
 		row.getByRole("button", { name: "Cancelar trabalho" }),
 	).toBeVisible();
 	await expect(row.getByText("Qwen Quality", { exact: true })).toBeVisible();
-	await expect(row.locator('td[data-label="Attempt"]')).not.toBeVisible();
+	await expect(row.locator('td[data-label="Tentativa"]')).not.toBeVisible();
 	await expect(row.locator('td[data-label="Erro / recuperação"]')).not.toBeVisible();
 });

@@ -24,6 +24,28 @@ const viewports = [
 	{ name: "4k", width: 3840, height: 2160 },
 ] as const;
 
+for (const theme of ["light", "dark"] as const) {
+	for (const viewport of [{ name: "desktop", width: 1920, height: 1080 }, { name: "mobile", width: 390, height: 844 }]) {
+		test(`${theme} ${viewport.name}: all five tabs remain navigable and contained`, async ({ page }, testInfo) => {
+			await page.setViewportSize(viewport);
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			await page.addInitScript((value) => { document.documentElement.dataset.theme = value; }, theme);
+			await installCompanionFixture(page, { profileReady: true, advanceJobs: false, initialJobs: [fixtureJob("running")] });
+			await page.goto("/");
+			await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
+			for (const [index, name] of ["Visão geral", "Fila", "Resultados", "Benchmark", "Diagnóstico"].entries()) {
+				const tab = page.getByRole("tab", { name, exact: true });
+				await tab.click();
+				await expect(tab).toHaveAttribute("aria-selected", "true");
+				await expect(page.getByRole("tabpanel", { name, exact: true })).toBeVisible();
+				const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+				expect(overflow).toBeLessThanOrEqual(1);
+				await page.screenshot({ path: testInfo.outputPath(`tabs-${theme}-${viewport.name}-${index}.png`), fullPage: true });
+			}
+		});
+	}
+}
+
 async function openRunningWorkspace(
 	page: import("@playwright/test").Page,
 	width: number,
@@ -142,7 +164,7 @@ test("queue toolbar sticky offset clears the floating global chrome", async ({ p
 	await openRunningWorkspace(page, 1366, 768);
 	await page.getByRole("tab", { name: "Fila", exact: true }).click();
 
-	const search = page.getByPlaceholder("Sessão, profile, source ou ID…");
+	const search = page.getByPlaceholder("Sessão, perfil, gravação ou ID…");
 	await expect(search).toBeVisible();
 	const toolbar = search.locator("xpath=../..");
 	expect(await toolbar.evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
@@ -153,7 +175,7 @@ test("queue toolbar sticky offset clears the floating global chrome", async ({ p
 			.querySelector<HTMLElement>(".account-menu-trigger")
 			?.getBoundingClientRect();
 		const toolbar = document
-			.querySelector<HTMLInputElement>('input[placeholder="Sessão, profile, source ou ID…"]')
+			.querySelector<HTMLInputElement>('input[placeholder="Sessão, perfil, gravação ou ID…"]')
 			?.parentElement?.parentElement;
 		return {
 			chromeBottom: Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0),
@@ -716,7 +738,7 @@ for (const completedCount of [5, 20, 100] as const) {
 		await expect(table).toBeVisible();
 		await expect(table.getByRole("columnheader", { name: "Conclusão" })).toBeVisible();
 		await expect(table.getByRole("columnheader", { name: "Etapa / progresso" })).toHaveCount(0);
-		await expect(table.getByRole("columnheader", { name: "Attempt" })).toHaveCount(0);
+		await expect(table.getByRole("columnheader", { name: "Tentativa" })).toHaveCount(0);
 		await expect(table.getByRole("columnheader", { name: "Erro / recuperação" })).toHaveCount(0);
 		await expect(queue.getByText("Resultado preparado", { exact: true })).toHaveCount(0);
 		await expect(queue.getByText("100%", { exact: true })).toHaveCount(0);
@@ -808,6 +830,8 @@ test("diagnostics mode owns routine aggregation without a grouping preference", 
 	await page.getByRole("tab", { name: "Diagnóstico" }).click();
 
 	const log = page.getByRole("log");
+	await expect(log).toContainText("Qwen concluiu uma janela de áudio da faixa 1");
+	await expect(log).toContainText("Comentário:");
 	await expect(
 		page.getByRole("checkbox", { name: "Agrupar repetitivos" }),
 	).toHaveCount(0);

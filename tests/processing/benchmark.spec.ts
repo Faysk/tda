@@ -465,7 +465,7 @@ test("benchmark preflights the source, prepares pending profiles, and opens its 
 
 test("benchmark continues after a profile-local Qwen failure and finishes as Partial 3/4", async ({
 	page,
-}) => {
+}, testInfo) => {
 	const profileEvents = [
 		{
 			seq: 1,
@@ -636,6 +636,12 @@ test("benchmark continues after a profile-local Qwen failure and finishes as Par
 	await expect(panel.getByText("Tentados 4/4").first()).toBeVisible();
 	await expect(panel.getByText("Concluídos 3").first()).toBeVisible();
 	await expect(panel.getByText("Falharam 1").first()).toBeVisible();
+	await panel.getByText("Tempos dos perfis concluídos").first().click();
+	const measuredTable = panel.getByRole("table").filter({ hasText: "Comparação parcial de velocidade" }).first();
+	await expect(measuredTable).toBeVisible();
+	await expect(measuredTable.getByRole("row")).toHaveCount(4);
+	await expect(measuredTable).toContainText("20.00×");
+	await expect(measuredTable).not.toContainText("Qwen Fast");
 	await expect(
 		panel.locator("[data-state='failed']").filter({ hasText: "Qwen Fast" }).first(),
 	).toContainText("QWEN_ASR_EMPTY_SIGNAL_UNCERTAIN");
@@ -659,6 +665,7 @@ test("benchmark continues after a profile-local Qwen failure and finishes as Par
 			clientWidth: document.documentElement.clientWidth,
 		}));
 		expect(horizontal.scrollWidth).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+		await page.screenshot({ path: testInfo.outputPath(`partial-metrics-${viewport.width}.png`), fullPage: true });
 	}
 
 	const diagnosticsButton = panel.getByRole("button", { name: "Ver log / Diagnóstico" }).first();
@@ -1214,7 +1221,7 @@ test("completed benchmark loads a comparable receipt while failed history remain
 	await refresh.click();
 	await expect(panel.getByText("Benchmark falhou")).toBeVisible();
 	await expect(panel.getByText("BENCHMARK_PROFILE_FAILED", { exact: false }).first()).toBeVisible();
-	await expect(panel.getByText("sem receipt comparável", { exact: false })).toBeVisible();
+	await expect(panel.getByText("sem resultado comparável", { exact: false })).toBeVisible();
 });
 
 test("completed benchmark lazily compares transcript evidence and exports a private safe ZIP", async ({

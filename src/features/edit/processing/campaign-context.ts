@@ -11,3 +11,25 @@ export function processingCampaignHref(campaignSlug: string): string {
 		throw new Error("Invalid processing campaign slug");
 	return `/edit/${encodeURIComponent(campaignSlug)}/processamento`;
 }
+
+export function resolveProcessingCampaign(
+	campaigns: readonly ProcessingCampaignOption[],
+	reference: string,
+): ProcessingCampaignOption | null {
+	return (
+		campaigns.find((campaign) => campaign.routeKey === reference) ??
+		campaigns.find((campaign) => campaign.technicalSlug === reference) ??
+		null
+	);
+}
+
+export function processingCampaignNavigationHref(
+	campaigns: readonly ProcessingCampaignOption[],
+	technicalSlug: string,
+): string {
+	const campaign = campaigns.find(
+		(option) => option.technicalSlug === technicalSlug,
+	);
+	if (!campaign) throw new Error("Unavailable processing campaign");
+	return processingCampaignHref(campaign.routeKey);
+}

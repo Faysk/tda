@@ -10,6 +10,18 @@
 	font-family: var(--ds-font-ui);
 }
 
+.inlineLink {
+	color: var(--ds-foreground);
+	font-size: 0.8rem;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.inlineLink:focus-visible {
+	outline: 2px solid var(--ds-foreground);
+	outline-offset: 4px;
+}
+
 .header,
 .complete,
 .blocker,
@@ -21,7 +33,7 @@
 }
 
 .header > div,
-.complete > div,
+.complete > div:not(.blockerActions),
 .blocker > div:first-child,
 .review {
 	display: grid;
@@ -30,7 +42,7 @@
 }
 
 .header > div > span,
-.complete span,
+.complete > div:first-child > span,
 .blocker span,
 .review span,
 .waiting,
@@ -174,7 +186,17 @@
 
 .complete {
 	border-color: color-mix(in srgb, var(--ds-success) 45%, var(--ds-border));
+	padding: 18px;
+	background: color-mix(in srgb, var(--ds-success) 4%, var(--ds-surface));
 }
+
+.complete strong { font-size: 1rem; }
+.complete > div:first-child > span { font-size: 0.82rem; }
+.complete .blockerActions { display: flex; align-items: center; }
+.maintenanceMenu { position: relative; font-size: 0.8rem; }
+.maintenanceMenu summary { padding: 10px; cursor: pointer; color: var(--ds-foreground-muted); }
+.maintenanceMenu[open] > div { display: grid; gap: 6px; position: absolute; top: 100%; right: 0; z-index: 4; width: 280px; padding: 10px; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-surface-elevated); box-shadow: var(--ds-shadow); }
+.maintenanceMenu summary:focus-visible { outline: 2px solid var(--ds-control-focus-ring); outline-offset: 2px; }
 
 .review {
 	border-color: color-mix(in srgb, var(--ds-success) 30%, var(--ds-border));
@@ -204,11 +226,15 @@
 	min-height: 1em;
 }
 
+.live[data-complete="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
 .secondaryActions {
 	justify-content: flex-end;
 }
 
 @media (max-width: 720px) {
+	.maintenanceMenu { width: 100%; }
+	.maintenanceMenu[open] > div { position: static; width: 100%; }
 	.intent {
 		padding: 9px;
 	}

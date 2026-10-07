@@ -42,7 +42,7 @@ export default async function EditSessionsEntryPage() {
 	}
 	const onlyCampaign =
 		eligible.campaigns.length === 1 ? eligible.campaigns[0] : undefined;
-	if (onlyCampaign) redirect(editSessionLibraryHref(onlyCampaign.technicalSlug));
+	if (onlyCampaign) redirect(editSessionLibraryHref(onlyCampaign.routeKey));
 
 	return (
 		<section
@@ -58,18 +58,25 @@ export default async function EditSessionsEntryPage() {
 			{eligible.campaigns.length ? (
 				<div className={styles.libraryList}>
 					{eligible.campaigns.map((campaign) => (
-						<article className={[styles.libraryRow, styles.campaignChoiceRow].join(" ")} key={campaign.id}>
+						<article
+							className={[styles.libraryRow, styles.campaignChoiceRow].join(
+								" ",
+							)}
+							key={campaign.id}
+						>
 							<div className={styles.libraryPrimary}>
 								<h2 className={styles.sessionTitle}>{campaign.name}</h2>
 								<div className={styles.librarySecondary}>
 									<span>
-										{campaign.lifecycle === "active" ? "Campanha ativa" : "Campanha arquivada"}
+										{campaign.lifecycle === "active"
+											? "Campanha ativa"
+											: "Campanha arquivada"}
 									</span>
 								</div>
 							</div>
 							<Link
 								className={styles.libraryOpen}
-								href={editSessionLibraryHref(campaign.technicalSlug)}
+								href={editSessionLibraryHref(campaign.routeKey)}
 							>
 								Abrir biblioteca
 							</Link>

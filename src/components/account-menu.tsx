@@ -237,6 +237,7 @@ export function AccountMenu() {
 				? toolNavigationItemsForCampaign(
 						selectedCampaign.technicalSlug,
 						selectedCampaign.capabilities,
+						selectedCampaign.routeKey ?? selectedCampaign.technicalSlug,
 					)
 				: [],
 		[selectedCampaign],

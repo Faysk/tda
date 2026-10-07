@@ -35,6 +35,7 @@ export default async function CampaignProcessingPage({
 	}
 
 	return ProcessingPage({
+		campaignPath: campaignSlug,
 		searchParams: Promise.resolve({
 			...query,
 			campanha: campaignSlug,

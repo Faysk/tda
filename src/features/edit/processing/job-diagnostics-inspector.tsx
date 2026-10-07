@@ -353,8 +353,8 @@ export function JobDiagnosticsInspector({
 						<section className={styles.jobDiagnosticsSummary} aria-label="Resumo do processamento">
 							<dl className={styles.jobDetails}>
 								<div><dt>Job ID</dt><dd className={styles.mono}>{job.id}</dd></div>
-								<div><dt>Source</dt><dd className={styles.mono}>{job.context?.sourceId ?? "—"}</dd></div>
-								<div><dt>Attempt</dt><dd>{job.attempt}</dd></div>
+								<div><dt>Gravação</dt><dd className={styles.mono}>{job.context?.sourceId ?? "—"}</dd></div>
+								<div><dt>Tentativa</dt><dd>{job.attempt}</dd></div>
 								<div><dt>Atualizado</dt><dd>{formatDateTime(job.updated_at)}</dd></div>
 								<div><dt>Tempo do attempt</dt><dd>{formatSeconds(job.timing.attemptElapsedSeconds)}</dd></div>
 								<div><dt>Resultado</dt><dd>{job.result_available ? "Disponível" : "Não disponível"}</dd></div>
@@ -543,7 +543,7 @@ export function JobDiagnosticsInspector({
 								<div><dt>Lifecycle</dt><dd>{health?.lifecycle ?? "—"}</dd></div>
 								<div><dt>CPU</dt><dd>{system?.host.cpu ?? "—"}</dd></div>
 								<div><dt>RAM</dt><dd>{system ? `${formatBytes(system.memory.usedBytes)} / ${formatBytes(system.memory.totalBytes)}` : "—"}</dd></div>
-								<div className={styles.detailWide}><dt>Capabilities</dt><dd className={styles.mono}>{capabilities?.capabilities.join(", ") || "—"}</dd></div>
+								<div className={styles.detailWide}><dt>Recursos técnicos</dt><dd><details className={styles.capabilityDetails}><summary>Ver recursos disponíveis ({capabilities?.capabilities.length ?? 0})</summary><span className={styles.mono}>{capabilities?.capabilities.join(", ") || "—"}</span></details></dd></div>
 							</dl>
 						</details>
 					</>

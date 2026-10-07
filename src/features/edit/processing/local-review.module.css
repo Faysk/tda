@@ -14,8 +14,8 @@
 }
 
 .libraryCompact {
-	grid-template-columns: auto minmax(0, 1fr);
-	align-items: center;
+	grid-template-columns: minmax(0, 1fr);
+	align-items: start;
 	gap: 12px;
 	padding: 10px 12px;
 }
@@ -66,9 +66,8 @@
 }
 
 .libraryCompact .libraryHeader > div {
-	display: flex;
-	align-items: baseline;
-	gap: 8px;
+	display: grid;
+	gap: 4px;
 }
 
 .libraryHeader h2,

@@ -393,6 +393,22 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 			};
 		case "QUEUED":
 			return { title: "Trabalho adicionado à fila." };
+		case "WORKER_STAGE":
+		case "STAGE_CHANGED":
+		case "WORKER_STAGE_CHANGED": {
+			const stage = textData(event, "stage");
+			return { title: "Etapa do processamento atualizada.", detail: stage ? `Etapa: ${stageLabels[stage] ?? stage}.` : undefined };
+		}
+		case "WHISPER_RUNTIME_IMPORT_STARTED":
+			return { title: "Preparando o motor Whisper." };
+		case "WHISPER_RUNTIME_IMPORT_READY":
+			return { title: "Motor Whisper preparado." };
+		case "WHISPER_MODEL_CONSTRUCT_STARTED":
+			return { title: "Carregando o modelo Whisper." };
+		case "WHISPER_MODEL_CONSTRUCT_READY":
+			return { title: "Modelo Whisper carregado." };
+		case "ASR_EXECUTION_DEVICE":
+			return { title: "Dispositivo de transcrição confirmado." };
 		case "RUNNING":
 			return {
 				title: "Processamento iniciado.",
@@ -451,6 +467,10 @@ export function presentJobEvent(event: JobEvent): PresentedJobEvent {
 						? `Arquivo ${track} de ${totalTracks}${speaker ? ` — ${speaker}` : ""}.`
 						: `Transcrição iniciada${speaker ? ` — ${speaker}` : ""}.`,
 			};
+		case "WHISPER_SEGMENT_TRANSCRIBED":
+			return { title: `Transcrevendo áudio${speaker ? ` — ${speaker}` : ""}.` };
+		case "WHISPER_SEGMENT_SPAN_WIDENED":
+			return { title: "Ajustando os limites de tempo de um trecho da transcrição." };
 		case "TRACK_ALIGNMENT_STARTED":
 			return {
 				title:

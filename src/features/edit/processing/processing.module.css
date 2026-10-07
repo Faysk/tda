@@ -173,6 +173,21 @@
 .viewPanel {
 	min-width: 0;
 }
+.capabilityDetails summary { cursor: pointer; font-size: 0.75rem; line-height: 1.5; }
+.capabilityDetails > span { display: block; margin-top: 8px; max-height: 180px; overflow: auto; overflow-wrap: anywhere; }
+
+.resultArchive { padding: 14px; border: 1px solid var(--ds-border-subtle); border-radius: var(--ds-radius-md); background: var(--ds-surface); }
+.resultArchive > summary { cursor: pointer; font-size: 0.9rem; font-weight: 650; color: var(--ds-foreground-soft); }
+.resultArchive > summary:focus-visible { outline: 2px solid var(--ds-control-focus-ring); outline-offset: 4px; }
+.resultArchive[open] > summary { margin-bottom: 16px; }
+
+.viewPurpose {
+	margin: 0;
+	color: var(--ds-foreground-muted);
+	font-size: 0.75rem;
+	line-height: 1.5;
+	text-wrap: pretty;
+}
 
 .resultsView {
 	--processing-results-master-track: clamp(280px, 23vw, 360px);
@@ -2348,6 +2363,15 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+	.viewPanel:not([hidden]) {
+		animation: processingViewEnter 180ms var(--ds-ease-standard);
+	}
+
+	@keyframes processingViewEnter {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+
 	.jobDiagnosticsDialog[open] {
 		animation: jobDiagnosticsEnter var(--ds-motion-fast) var(--ds-ease-standard);
 	}
