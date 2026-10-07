@@ -142,7 +142,7 @@ test("queue toolbar sticky offset clears the floating global chrome", async ({ p
 	await openRunningWorkspace(page, 1366, 768);
 	await page.getByRole("tab", { name: "Fila", exact: true }).click();
 
-	const search = page.getByPlaceholder("Sessão, profile, source ou ID…");
+	const search = page.getByPlaceholder("Sessão, perfil, gravação ou ID…");
 	await expect(search).toBeVisible();
 	const toolbar = search.locator("xpath=../..");
 	expect(await toolbar.evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
@@ -153,7 +153,7 @@ test("queue toolbar sticky offset clears the floating global chrome", async ({ p
 			.querySelector<HTMLElement>(".account-menu-trigger")
 			?.getBoundingClientRect();
 		const toolbar = document
-			.querySelector<HTMLInputElement>('input[placeholder="Sessão, profile, source ou ID…"]')
+			.querySelector<HTMLInputElement>('input[placeholder="Sessão, perfil, gravação ou ID…"]')
 			?.parentElement?.parentElement;
 		return {
 			chromeBottom: Math.max(brand?.bottom ?? 0, trigger?.bottom ?? 0),
@@ -716,7 +716,7 @@ for (const completedCount of [5, 20, 100] as const) {
 		await expect(table).toBeVisible();
 		await expect(table.getByRole("columnheader", { name: "Conclusão" })).toBeVisible();
 		await expect(table.getByRole("columnheader", { name: "Etapa / progresso" })).toHaveCount(0);
-		await expect(table.getByRole("columnheader", { name: "Attempt" })).toHaveCount(0);
+		await expect(table.getByRole("columnheader", { name: "Tentativa" })).toHaveCount(0);
 		await expect(table.getByRole("columnheader", { name: "Erro / recuperação" })).toHaveCount(0);
 		await expect(queue.getByText("Resultado preparado", { exact: true })).toHaveCount(0);
 		await expect(queue.getByText("100%", { exact: true })).toHaveCount(0);

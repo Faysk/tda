@@ -351,8 +351,11 @@ detalhes permanecem nos disclosures existentes. A Fila distingue pausa de novas
 execuções do trabalho atual; Diagnóstico esclarece que pausar a visualização não
 pausa o processamento. Preparação, eventos de runtime e etapas observados no
 Whisper são apresentados em português sem confundir segmento com job concluído.
-O modo técnico preserva os códigos originais. A entrada de aba usa 180 ms e
-deslocamento de 4 px apenas quando movimento reduzido não está solicitado.
+O modo técnico preserva os códigos originais. A entrada de aba usa uma transição
+de opacidade de 180 ms apenas quando movimento reduzido não está solicitado,
+sem deslocar tabelas ou cabeçalhos fixos durante a troca.
+Busca, filtros, cabeçalhos da fila, revisão e avisos usam rótulos em português;
+identificadores técnicos e valores do protocolo continuam preservados.
 No cockpit, atividade factual é o título e humor é detalhe. O log humanizado
 mantém o fato antes da frase identificada como comentário, inclusive nas linhas
 agrupadas; um pack customizado não substitui mais o estado factual do trabalho.

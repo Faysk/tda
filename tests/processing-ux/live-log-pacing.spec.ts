@@ -77,7 +77,7 @@ test("humanized live log paces routine rows while factual inspection and urgent 
 
 	// Search is inspection, so it reads the complete factual buffer immediately,
 	// even while seq 7 has not yet reached the visual reveal cutoff.
-	const search = page.getByPlaceholder("Buscar code, speaker, stage…");
+	const search = page.getByPlaceholder("Buscar código, voz ou etapa…");
 	await search.fill("routine-7");
 	await expect(
 		page.locator('button[data-event-seq="7"]'),

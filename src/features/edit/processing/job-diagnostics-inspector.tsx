@@ -353,8 +353,8 @@ export function JobDiagnosticsInspector({
 						<section className={styles.jobDiagnosticsSummary} aria-label="Resumo do processamento">
 							<dl className={styles.jobDetails}>
 								<div><dt>Job ID</dt><dd className={styles.mono}>{job.id}</dd></div>
-								<div><dt>Source</dt><dd className={styles.mono}>{job.context?.sourceId ?? "—"}</dd></div>
-								<div><dt>Attempt</dt><dd>{job.attempt}</dd></div>
+								<div><dt>Gravação</dt><dd className={styles.mono}>{job.context?.sourceId ?? "—"}</dd></div>
+								<div><dt>Tentativa</dt><dd>{job.attempt}</dd></div>
 								<div><dt>Atualizado</dt><dd>{formatDateTime(job.updated_at)}</dd></div>
 								<div><dt>Tempo do attempt</dt><dd>{formatSeconds(job.timing.attemptElapsedSeconds)}</dd></div>
 								<div><dt>Resultado</dt><dd>{job.result_available ? "Disponível" : "Não disponível"}</dd></div>

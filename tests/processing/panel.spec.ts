@@ -1000,9 +1000,10 @@ test("Humanizada brinca só com sucesso e Técnica preserva o evento factual", a
 	await expect(
 		page.getByRole("button", { name: "Humanizada", exact: true }),
 	).toHaveAttribute("aria-pressed", "true");
-	await expect(log).not.toContainText(
+	await expect(log).toContainText(
 		"Qwen concluiu uma janela de áudio da faixa 1 · janela 205.",
 	);
+	await expect(log).toContainText("Comentário:");
 	await expect(log).toContainText(
 		"Falha de alinhamento Qwen · faixa 1 · janela 206.",
 	);
@@ -1046,7 +1047,7 @@ test("Overview não reaproveita atividade rotineira de tentativa anterior", asyn
 
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
-	await expect(page.getByText("Tentativa 2", { exact: false })).toBeVisible();
+	await expect(page.getByRole("tabpanel", { name: "Visão geral" }).getByText("Tentativa 2", { exact: false })).toBeVisible();
 	await expect(
 		page.getByText("Qwen concluiu uma janela de áudio da faixa 1 · janela 205.", {
 			exact: true,
@@ -1227,7 +1228,7 @@ test("Overview does not borrow track context from a previous retry attempt", asy
 	await page.goto("/");
 	await expect(page.getByText("Pronto", { exact: true })).toBeVisible();
 
-	await expect(page.getByText(/Tentativa 2/)).toBeVisible();
+	await expect(page.getByRole("tabpanel", { name: "Visão geral" }).getByText(/Tentativa 2/)).toBeVisible();
 	await expect(page.getByText("Arquivo 3 de 4", { exact: true })).toHaveCount(0);
 	await expect(page.getByText("Voz: Alice", { exact: true })).toHaveCount(0);
 	await expect(page.getByText("Janela 317", { exact: true })).toHaveCount(0);
@@ -1450,7 +1451,7 @@ test("idle Full HD keeps the essential composer and recent result in one viewpor
 	expect(dropBox?.height ?? 999).toBeLessThanOrEqual(64);
 
 	await expect(metrics.getByText("Processamento", { exact: true })).toBeVisible();
-	await expect(metrics.getByText("Warnings", { exact: true })).toBeVisible();
+	await expect(metrics.getByText("Avisos", { exact: true })).toBeVisible();
 	await expect(metrics.getByText("Segmentos", { exact: true })).not.toBeVisible();
 
 	const initialViewport = await page.evaluate(() => ({

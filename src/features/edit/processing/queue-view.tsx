@@ -247,7 +247,7 @@ export function ProcessingQueueView({
 					<input
 						type="search"
 						value={query}
-						placeholder="Sessão, profile, source ou ID…"
+						placeholder="Sessão, perfil, gravação ou ID…"
 						onChange={(event) => setQuery(event.currentTarget.value)}
 					/>
 				</label>
@@ -290,14 +290,14 @@ export function ProcessingQueueView({
 					<table className={styles.table} data-density={completedView ? "terminal" : "standard"}>
 						<thead>
 							<tr>
-								<th scope="col">Sessão / source</th>
-								<th scope="col">Profile</th>
+								<th scope="col">Sessão / gravação</th>
+								<th scope="col">Perfil</th>
 								{!completedView ? <th scope="col">Etapa / progresso</th> : null}
 								<th scope="col">{completedView ? "Conclusão" : "Estado"}</th>
 								<th scope="col">Atualizado</th>
 								{!completedView ? (
 									<>
-										<th scope="col" className={styles.wideColumn}>Attempt</th>
+										<th scope="col" className={styles.wideColumn}>Tentativa</th>
 										<th scope="col" className={styles.wideColumn}>Erro / recuperação</th>
 									</>
 								) : null}
@@ -324,7 +324,7 @@ export function ProcessingQueueView({
 										data-job-id={job.id}
 									>
 											<td
-												data-label="Sessão / source"
+												data-label="Sessão / gravação"
 												className={styles.identityCell}
 											>
 												<strong>{queuePrimaryIdentity(job)}</strong>
@@ -333,10 +333,10 @@ export function ProcessingQueueView({
 												) : null}
 												<small>{presentJobTitle(job)}</small>
 											</td>
-											<td data-label="Profile" className={styles.profileCell}>
+											<td data-label="Perfil" className={styles.profileCell}>
 												<strong>{profile}</strong>
 												<span className={styles.attemptInline}>
-													Attempt {job.attempt}
+													Tentativa {job.attempt}
 												</span>
 											</td>
 											{!completedView ? (
@@ -372,7 +372,7 @@ export function ProcessingQueueView({
 											</td>
 											{!completedView ? (
 												<>
-													<td data-label="Attempt" className={styles.wideColumn}>
+													<td data-label="Tentativa" className={styles.wideColumn}>
 														<span className={styles.attemptWide}>{job.attempt}</span>
 													</td>
 													<td
@@ -517,11 +517,11 @@ export function ProcessingQueueView({
 															</dd>
 														</div>
 														<div>
-															<dt>Profile</dt>
+															<dt>Perfil</dt>
 															<dd>{profile}</dd>
 														</div>
 														<div>
-															<dt>Attempt</dt>
+															<dt>Tentativa</dt>
 															<dd>{job.attempt}</dd>
 														</div>
 														<div>
@@ -565,7 +565,7 @@ export function ProcessingQueueView({
 					<strong>Nenhum trabalho neste recorte.</strong>
 					<span>
 						{query
-							? "A busca não encontrou sessão, profile, source ou ID neste filtro."
+							? "A busca não encontrou sessão, perfil, gravação ou ID neste filtro."
 							: filter === "active"
 								? "Não há trabalhos processando ou aguardando execução."
 								: filter === "attention"

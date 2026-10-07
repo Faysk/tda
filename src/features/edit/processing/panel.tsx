@@ -1296,7 +1296,7 @@ export function ProcessingPanel({
 										value={latestCompletedRun.stats.wordCount ?? "—"}
 									/>
 									<OverviewMetric
-										label="Warnings"
+										label="Avisos"
 										value={latestCompletedRun.stats.warningCount ?? "—"}
 									/>
 								</div>

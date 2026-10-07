@@ -217,7 +217,7 @@ function RunCard({
 		{ label: "Velocidade", value: rtf != null ? formatRealtime(rtf) : null },
 		{ label: "Palavras", value: run.stats.wordCount != null ? String(run.stats.wordCount) : null },
 		{ label: "Turnos", value: run.stats.turnCount != null ? String(run.stats.turnCount) : null },
-		{ label: "Warnings", value: run.stats.warningCount != null ? String(run.stats.warningCount) : null },
+		{ label: "Avisos", value: run.stats.warningCount != null ? String(run.stats.warningCount) : null },
 	].filter((item): item is { label: string; value: string } => item.value !== null);
 	const secondaryFacts = [
 		{ label: "Concluído", value: run.completedAt ? formatDate(run.completedAt) : null },

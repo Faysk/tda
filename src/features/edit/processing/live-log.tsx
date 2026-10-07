@@ -458,15 +458,15 @@ export function ProcessingLiveLog({
 							className={styles.logSearch}
 							value={query}
 							onChange={(event) => setQuery(event.target.value)}
-							placeholder="Buscar code, speaker, stage…"
+							placeholder="Buscar código, voz ou etapa…"
 						/>
 					</label>
 					<Select
 						value={level}
 						options={[
 							{ value: "all", label: "Todos os níveis" },
-							{ value: "info", label: "Info" },
-							{ value: "warning", label: "Warning" },
+							{ value: "info", label: "Informação" },
+							{ value: "warning", label: "Aviso" },
 							{ value: "error", label: "Erro" },
 						]}
 						onChange={(value) => setLevel(value as typeof level)}
@@ -477,33 +477,33 @@ export function ProcessingLiveLog({
 					<Select
 						value={code}
 						options={[
-							{ value: "all", label: "Todos os codes" },
+							{ value: "all", label: "Todos os códigos" },
 							...codeOptions.map((value) => ({ value, label: value })),
 						]}
 						onChange={setCode}
-						ariaLabel="Filtrar por code"
+						ariaLabel="Filtrar por código"
 						className={styles.logSelect}
 						compact
 					/>
 					<Select
 						value={speaker}
 						options={[
-							{ value: "all", label: "Todos os speakers" },
+							{ value: "all", label: "Todas as vozes" },
 							...speakerOptions.map((value) => ({ value, label: value })),
 						]}
 						onChange={setSpeaker}
-						ariaLabel="Filtrar por speaker"
+						ariaLabel="Filtrar por voz"
 						className={styles.logSelect}
 						compact
 					/>
 					<Select
 						value={track}
 						options={[
-							{ value: "all", label: "Todas as tracks" },
-							...trackOptions.map((value) => ({ value, label: `Track ${value}` })),
+							{ value: "all", label: "Todas as faixas" },
+							...trackOptions.map((value) => ({ value, label: `Faixa ${value}` })),
 						]}
 						onChange={setTrack}
-						ariaLabel="Filtrar por track"
+						ariaLabel="Filtrar por faixa"
 						className={styles.logSelect}
 						compact
 					/>
@@ -646,7 +646,7 @@ export function ProcessingLiveLog({
 								<dd>{selected.seq}</dd>
 							</div>
 							<div>
-								<dt>Attempt</dt>
+								<dt>Tentativa</dt>
 								<dd>{selected.attempt ?? "—"}</dd>
 							</div>
 							<div>
