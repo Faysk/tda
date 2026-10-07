@@ -8,6 +8,13 @@ import {
 } from "./presentation";
 
 describe("processing presentation", () => {
+	it("humanizes preparation and stage events without reporting job success", () => {
+		const event = { seq: 1, attempt: 1, at: "2026-10-07T13:00:00Z", level: "info", data: { stage: "transcription" } } as const;
+		expect(presentJobEvent({ ...event, code: "STAGE_CHANGED" }).detail).toBe("Etapa: Transcrição.");
+		for (const code of ["WHISPER_RUNTIME_IMPORT_STARTED", "WHISPER_RUNTIME_IMPORT_READY", "WHISPER_MODEL_CONSTRUCT_STARTED", "WHISPER_MODEL_CONSTRUCT_READY", "ASR_EXECUTION_DEVICE"]) {
+			expect(presentJobEvent({ ...event, code }).title).not.toMatch(/sucesso|processamento concluído|whisper runtime|asr execution/i);
+		}
+	});
 	it("presents observed Whisper progress in Portuguese without claiming completion", () => {
 		const event = { seq: 1, attempt: 1, at: "2026-10-07T13:00:00Z", level: "info", data: { speaker: "Alice" } } as const;
 		expect(presentJobEvent({ ...event, code: "WHISPER_SEGMENT_TRANSCRIBED" }).title).toBe("Transcrevendo áudio — Alice.");

@@ -207,7 +207,7 @@ const pipelineSteps = [
 			"resuming",
 		]),
 	},
-	{ id: "alignment", label: "Alignment", stages: new Set(["alignment"]) },
+	{ id: "alignment", label: "Alinhamento", stages: new Set(["alignment"]) },
 	{
 		id: "consolidation",
 		label: "Consolidação",
@@ -923,6 +923,15 @@ export function ProcessingPanel({
 
 			{connected ? (
 				<>
+					<p className={styles.viewPurpose}>
+						{{
+							overview: "Selecione os ZIPs, acompanhe a sessão e avance para a revisão quando a transcrição estiver pronta.",
+							queue: "Acompanhe os trabalhos e resolva somente os que precisam de atenção. Pausar novas execuções mantém o trabalho atual em andamento.",
+							results: "Confira os resultados preservados, revise a transcrição e prepare o envio para edição.",
+							benchmark: "Compare modelos na mesma amostra. Tempo medido e qualidade revisada são avaliações separadas.",
+							diagnostics: "Consulte a atividade e os detalhes do trabalho. Pausar a visualização do log não pausa o processamento.",
+						}[view]}
+					</p>
 					<section
 						id="processing-view-overview"
 						className={styles.viewPanel}

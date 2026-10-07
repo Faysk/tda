@@ -346,6 +346,20 @@ preparação ou criação de job quando o contrato de segurança assim exigir.
 
 ## Estimativa local calibrada de processamento
 
+### Polimento do workspace — candidato #1571 / PR #1566
+
+As cinco abas recebem uma orientação curta sobre finalidade e próxima ação;
+detalhes permanecem nos disclosures existentes. A Fila distingue pausa de novas
+execuções do trabalho atual; Diagnóstico esclarece que pausar a visualização não
+pausa o processamento. Preparação, eventos de runtime e etapas observados no
+Whisper são apresentados em português sem confundir segmento com job concluído.
+O modo técnico preserva os códigos originais. A entrada de aba usa 180 ms e
+deslocamento de 4 px apenas quando movimento reduzido não está solicitado.
+
+Evidências locais: 61 testes de UX passaram (320 px a 4K, zoom, teclado,
+fila densa, falha e log); check/build passaram. O aceite real dos dois ZIPs,
+Qwen Fast e publicação continuam separados. Estes dados validam o candidato.
+
 O candidato da PR #1566 preserva e apresenta as métricas dos perfis concluídos
 também em um benchmark parcial: tempo medido, velocidade, modelo, runtime e GPU
 quando presentes no recibo. Recibos antigos sem essas métricas permanecem legíveis.

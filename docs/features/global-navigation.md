@@ -7,6 +7,13 @@
 
 ## Objetivo
 
+Polimento candidato #1571 / PR #1566: o logo fixo recebe backing translúcido
+derivado de `--ds-canvas`, borda sutil e backdrop blur de 16 px. O logo continua
+nítido; apenas o conteúdo atrás dele é desfocado. O fundo acompanha os temas
+claro e escuro, com opacidade suficiente como fallback sem backdrop-filter.
+Evidências locais de contraste foram inspecionadas em 1920 px e 390 px nos dois
+temas; isso não representa publicação do shell.
+
 Definir uma única arquitetura de informação para o shell global do TDA, sem manter launcher, conta e aparência como superfícies concorrentes.
 
 O contrato canônico continua:

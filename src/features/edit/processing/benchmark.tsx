@@ -336,7 +336,7 @@ function PartialResultCard({
 			<header className={styles.resultHeader}>
 				<div role="status" aria-live="polite">
 					<span className={styles.eyebrow}>
-						Benchmark local · attempt parcial
+						Benchmark local · execução parcial
 					</span>
 					<h3>
 						{result.completedCount} de {result.attemptedCount} perfis concluíram
@@ -1201,7 +1201,7 @@ export function ProcessingBenchmark({
 					<section className={styles.sourcePane} aria-labelledby="benchmark-source-title">
 						<div className={styles.sectionHeading}>
 							<div>
-								<span className={styles.eyebrow}>Source</span>
+								<span className={styles.eyebrow}>Fonte</span>
 								<h3 id="benchmark-source-title">Amostra Craig</h3>
 							</div>
 							{source ? <StatusPill tone={sampleEligible ? "success" : "danger"}>{sampleEligible ? "Apta" : "Curta"}</StatusPill> : null}
@@ -1285,7 +1285,7 @@ export function ProcessingBenchmark({
 					<section className={styles.readinessPane} aria-labelledby="benchmark-readiness-title">
 						<div className={styles.readinessHeader}>
 							<div>
-								<span className={styles.eyebrow}>Readiness</span>
+								<span className={styles.eyebrow}>Preparação</span>
 								<h3 id="benchmark-readiness-title">Perfis locais</h3>
 							</div>
 							<strong>{readyCount} / {PROFILES.length} perfis prontos para benchmark</strong>
