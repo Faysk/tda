@@ -344,9 +344,7 @@ não viram uma confirmação obrigatória no caminho simples. Estados bloqueados
 incluindo incompatibilidade de runtime, continuam fail-closed antes de upload,
 preparação ou criação de job quando o contrato de segurança assim exigir.
 
-## Estimativa local calibrada de processamento
-
-### Polimento do workspace — candidato #1571 / PR #1566
+## Polimento do workspace — candidato #1571 / PR #1566
 
 As cinco abas recebem uma orientação curta sobre finalidade e próxima ação;
 detalhes permanecem nos disclosures existentes. A Fila distingue pausa de novas
@@ -362,6 +360,8 @@ agrupadas; um pack customizado não substitui mais o estado factual do trabalho.
 Evidências locais: 61 testes de UX passaram (320 px a 4K, zoom, teclado,
 fila densa, falha e log); check/build passaram. O aceite real dos dois ZIPs,
 Qwen Fast e publicação continuam separados. Estes dados validam o candidato.
+
+## Estimativa local calibrada de processamento
 
 O candidato da PR #1566 preserva e apresenta as métricas dos perfis concluídos
 também em um benchmark parcial: tempo medido, velocidade, modelo, runtime e GPU
