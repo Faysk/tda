@@ -348,3 +348,5 @@ e a retomada reconstrói o aviso; tracks com omissões não geram checkpoint fin
 que perderia essa informação. Conclusão com avisos não significa qualidade
 linguística perfeita. Erros de GPU, instalação, saída estrutural inválida,
 cancelamento e falhas do runtime continuam erros, sem descarte automático.
+
+Assembly review preserves processing warnings from the same verified immutable transcript snapshot, including scoped omitted-window ranges. The response adds a bounded 1,000-warning display list and the exact total/truncation summary; legacy responses without these fields remain readable. These warnings remain after save, approval and reopen, are shown in a collapsed review disclosure with recording/track/range labels, and the exact count travels through the existing canonical handoff warning-summary contract. This metadata is derived from the sealed base, never accepted as an editable review field. Candidate acceptance additionally checks multi-recording warning retention; real runtime acceptance remains pending.

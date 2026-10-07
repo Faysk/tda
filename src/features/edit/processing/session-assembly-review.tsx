@@ -12,6 +12,7 @@ import {
 } from "../../transcript-review/session-assembly-markdown";
 import type { LocalBridge } from "./bridge";
 import { BridgeError } from "./protocol";
+import { presentPipelineWarning } from "./pipeline-warning";
 import type {
 	SessionAssembly,
 	SessionAssemblyReviewSegment,
@@ -527,6 +528,15 @@ export function SessionAssemblyReview({
 					}}
 				/>
 			</div>
+
+			{(baseline.warningSummary?.totalCount ?? baseline.warnings?.length ?? 0) > 0 ? (
+				<details className={styles.notice}>
+					<summary>{(baseline.warningSummary?.totalCount ?? baseline.warnings?.length ?? 0).toLocaleString("pt-BR")} avisos do processamento</summary>
+					<p>Confira os trechos ignorados antes de concluir a revisão.</p>
+					<ul>{Array.from(new Set(baseline.warnings ?? [])).map((warning) => {const part = assembly.parts.findIndex(value => warning.startsWith(value.partId + ":")); return <li key={warning}>{presentPipelineWarning(warning, part < 0 ? undefined : part + 1)}</li>;})}</ul>
+					{baseline.warningSummary?.truncated ? <p>Mostrando os primeiros 1.000 avisos; o total foi preservado.</p> : null}
+				</details>
+			) : null}
 
 			{pending && !receipt ? (
 				<p className={styles.notice} role="status">

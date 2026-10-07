@@ -81,6 +81,8 @@ export type SessionAssemblyReviewSegment = {
 };
 
 export type SessionAssemblyReviewSummary = {
+	warnings?: readonly string[];
+	warningSummary?: { totalCount: number; displayedCount: number; truncated: boolean };
 	assemblyId: string;
 	baseTranscriptSha256: string;
 	status: LocalReviewStatus;
@@ -409,6 +411,11 @@ export function parseSessionAssemblyReviewSummary(
 	const totalSegments = integer(review.total_segments, 0, 100_000);
 	if (totalSegments !== row.segments.length || reviewedSegments > totalSegments)
 		return invalid();
+	const warnings = row.warnings === undefined ? [] : row.warnings;
+	if (!Array.isArray(warnings) || warnings.length > 1000 || warnings.some(value => typeof value !== "string" || value.length > 1024)) return invalid();
+	const warningMetadata = row.warning_summary === undefined ? null : object(row.warning_summary);
+	const warningSummary = warningMetadata ? { totalCount: integer(warningMetadata.total_count, 0, 100_000_000), displayedCount: integer(warningMetadata.displayed_count, 0, 1000), truncated: bool(warningMetadata.truncated) } : { totalCount: warnings.length, displayedCount: warnings.length, truncated: false };
+	if (warningSummary.displayedCount !== warnings.length || warningSummary.displayedCount !== Math.min(warningSummary.totalCount,1000) || warningSummary.truncated !== (warningSummary.totalCount > warnings.length)) return invalid();
 	const reviewPercent = number(review.review_percent);
 	if (reviewPercent > 100) return invalid();
 	return {
@@ -425,6 +432,8 @@ export function parseSessionAssemblyReviewSummary(
 		reviewPercent,
 		editedSegments: integer(review.edited_segments, 0, totalSegments),
 		wordCount: integer(review.word_count, 0),
+		warnings,
+		warningSummary,
 		segments,
 	};
 }

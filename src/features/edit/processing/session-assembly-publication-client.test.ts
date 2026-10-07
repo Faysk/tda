@@ -151,6 +151,17 @@ function receipt() {
 }
 
 describe("Session Assembly publication client", () => {
+	it("preserves bounded Assembly omissions and their exact total through handoff", () => {
+		const warnings = Array.from({length:1000},(_,index)=> "5".repeat(32)+`:QWEN_UNRECOGNIZED_WINDOW:track-1:window-${index+1}:54.000-114.000`);
+		const current = {...review(),warnings,warningSummary:{totalCount:1002,displayedCount:1000,truncated:true}};
+		const body=sessionAssemblyPublicationRequestBody(assembly(),current,OPERATION,null);
+		expect(body.review.warnings).toEqual(warnings);
+		expect(body.review.review.warningCount).toBe(1002);
+		const canonical=prepareMultiSourceCanonicalPublication(JSON.stringify(body));
+		expect(canonical.ok).toBe(true);
+		if(canonical.ok) expect(JSON.parse(canonical.value.payloadJson).review.warning_count).toBe(1002);
+	});
+
 	it("sends current v3 timeline and physical provenance through the canonical boundary", () => {
 		const current = assembly();
 		current.canonicalizationVersion = "tda_session_assembly_canonical_v3";
