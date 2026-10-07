@@ -275,3 +275,5 @@ A decisão formal está em [ADR-0007](../adr/0007-edit-workbench.md).
 O editor desktop mantém a transcrição e o painel editorial com rolagem interna quando a transferência está recolhida. Ao abrir a transferência, o shell passa a crescer no fluxo do documento: planos, consequências e confirmação não podem ser recortados por `overflow: hidden`, mesmo com DevTools acoplado ou viewport baixo. O editor abaixo preserva sua altura limitada e seus scroll owners; recolher a transferência restaura a geometria compacta sem perder a working copy.
 
 A fixture usa um plano sintético com 12 famílias. A regressão verifica foco por Tab, confirmação inteiramente no viewport e hit target pintado, ausência de overflow horizontal e working copy preservada em 1920×1080, 1052×900, 1366×600, 390×844 e 320×800. Essa validação de layout não executa transferência real nem prova publicação: o aceite em Production é registrado no issue após a entrega deliberada.
+
+O plano de transferência agrupa dependências em duas colunas no desktop e uma no mobile, com espaçamento consistente e confirmação final alinhada à direita. O conteúdo expandido permanece no fluxo rolável do documento.
