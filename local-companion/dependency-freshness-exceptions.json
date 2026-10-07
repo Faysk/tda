@@ -3,11 +3,11 @@
   "exceptions": {
     "python": {
       "version": "3.12.14",
-      "reason": "Keep the physically accepted Python 3.12.14 Companion/ASR baseline while Companion 0.3.21 preserves the accepted Python baseline across the Qwen recovery and Whisper benchmark-contract control planes; validate Python 3.12.15 in a separately versioned runtime rebuild so accepted runtime identities are not silently mutated."
+      "reason": "Keep the physically accepted Python 3.12.14 baseline for the focused Companion 0.3.22 Craig identity correction and its separately versioned Qwen 1.0.19/Whisper 1.1.11 worker rebuilds. Validate Python 3.12.15 separately rather than combine interpreter changes with metadata semantics; existing accepted artifacts remain immutable."
     },
     "qwen/transformers": {
       "version": "5.18.0",
-      "reason": "Keep the physically accepted Qwen 1.0.18 runtime on Transformers 5.18.0 while the focused Whisper 1.1.10 compatibility and diagnostics fix ships; validate Transformers 5.19.0 separately with offline local-files-only model loading, packaging, and the Qwen physical gate so this unrelated release does not create unaccepted Qwen runtime byte drift."
+      "reason": "Preserve the physically accepted Transformers 5.18.0 inference baseline in the separately versioned Qwen 1.0.19 Craig identity rebuild. Validate Transformers 5.19.0 independently with offline model loading, packaging and physical gates rather than combine inference dependency changes with the focused metadata correction."
     }
   }
 }

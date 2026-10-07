@@ -80,6 +80,7 @@ class CraigPackage:
     raw_metadata_parsed: bool = False
     metadata_consistency: str = "unavailable"
     metadata_warnings: tuple[str, ...] = ()
+    export_job_id: str | None = None
 
     def as_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -281,9 +282,11 @@ def _parse_raw_metadata_header(
         return None, "CRAIG_RAW_METADATA_INVALID"
 
     normalized: dict[str, object] = {"tracks": []}
-    recording_id = _bounded_text(raw.get("id"), maximum=256)
-    if recording_id:
-        normalized["recording_id"] = recording_id
+    # Craig kitchen passes Job.id to recordingWrite, not Job.recordingId.
+    # This provenance must never participate in recording variant matching.
+    export_job_id = _bounded_text(raw.get("id"), maximum=256)
+    if export_job_id:
+        normalized["export_job_id"] = export_job_id
     start_time = _bounded_text(raw.get("startTime"), maximum=128)
     if start_time:
         normalized["start_time"] = start_time
@@ -749,6 +752,7 @@ def ingest_craig_zip(
             requester_id=merged_strong["requester_id"],
             notes=tuple(notes),
             raw_metadata_parsed=raw_parsed,
+            export_job_id=_bounded_text(raw_value.get("export_job_id"), maximum=256) if raw_value else None,
             metadata_consistency=_metadata_state(
                 info_present=info_present,
                 raw_parsed=raw_parsed,

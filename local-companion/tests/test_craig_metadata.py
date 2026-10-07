@@ -214,6 +214,23 @@ def test_raw_only_metadata_is_optional_enrichment_not_an_ingest_gate(tmp_path: P
     assert loaded.tracks[0].identity is not None
     assert loaded.tracks[0].identity.discord_id == "111"
     assert loaded.notes == ()
+    assert package.recording_id is None
+    assert loaded.recording_id is None
+    assert package.export_job_id == "12345"
+    assert loaded.export_job_id == "12345"
+
+
+def test_export_job_id_is_not_a_conflicting_recording_identity(tmp_path: Path):
+    package, loaded, _ = _ingest(
+        tmp_path,
+        info=_info_text(),
+        raw_header=_raw_metadata(recording_id="export-job-abcdefghijklmnopqrst"),
+    )
+    for value in (package, loaded):
+        assert value.recording_id == "12345"
+        assert value.export_job_id == "export-job-abcdefghijklmnopqrst"
+        assert value.metadata_consistency == "consistent"
+        assert "CRAIG_RECORDING_ID_CONFLICT" not in value.metadata_warnings
 
 
 def test_info_only_metadata_remains_backward_compatible(tmp_path: Path):

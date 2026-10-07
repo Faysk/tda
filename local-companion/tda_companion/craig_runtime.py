@@ -327,6 +327,7 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         ),
         notes=_notes(value.get("notes")),
         raw_metadata_parsed=raw_metadata_parsed,
+        export_job_id=_optional_text(value.get("export_job_id"), "CRAIG_MANIFEST_METADATA_INVALID", maximum=256),
         metadata_consistency=metadata_consistency,
         metadata_warnings=_metadata_warnings(value.get("metadata_warnings")),
     )

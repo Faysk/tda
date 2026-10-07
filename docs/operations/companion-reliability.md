@@ -7,7 +7,14 @@
 
 ## Current behavior
 
-A linha de código corrente é **Companion 0.3.21**. O contrato de confiabilidade abaixo continua vigente; os números 0.3.2, datas de setembro e estados R1–R4 documentam a evolução que originou o contrato e não devem ser usados como service version atual.
+O candidato #1565 corrige os namespaces de identidade Craig em Companion
+0.3.22 e rebuilds imutáveis Qwen 1.0.19 / Whisper 1.1.11. Esse estado é código
+candidato, não promoção Stable nem aceite instalado. O campo opcional de
+proveniência mantém manifests anteriores legíveis e não reescreve runs.
+Os hashes dos dois ZIPs/four-track readbacks foram conferidos localmente;
+instalação e gates físicos continuam necessários para os novos artefatos.
+
+A linha de código corrente é **Companion 0.3.22**. O contrato de confiabilidade abaixo continua vigente; os números 0.3.2, datas de setembro e estados R1–R4 documentam a evolução que originou o contrato e não devem ser usados como service version atual.
 
 Versões mínimas de runtime/benchmark são autoridade de `companion-dependency-policy.md`. Aceite físico continua vinculado ao artefato/hash exato: CI, merge em `main` ou versão declarada no código não substituem receipt físico quando o gate o exige.
 

@@ -62,7 +62,7 @@ def test_whisper_runtime_decode_smoke_has_bounded_windows_cold_start_headroom():
     )
 
     # 1.1.10 is the first frozen Whisper worker carrying the #1413 Benchmark evidence contract.
-    assert config["version"] == "1.1.10"
+    assert tuple(int(part) for part in config["version"].split(".")) >= (1, 1, 10)
     assert "WHISPER_DECODE_SMOKE_TIMEOUT_SECONDS = 90" in build
     assert 'timeout=WHISPER_DECODE_SMOKE_TIMEOUT_SECONDS' in build
     assert "WHISPER_RUNTIME_DECODE_SMOKE_TIMEOUT" in build
