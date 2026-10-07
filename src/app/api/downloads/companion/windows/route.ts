@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import {
+	type CompanionAssetInfo,
 	isCompanionInstallableTag,
 	selectCompanionInstallableAssetInfo,
 	selectLatestCompanionTag,
@@ -6,6 +8,8 @@ import {
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 const STABLE_REFS_URL =
 	"https://api.github.com/repos/Faysk/tda/git/matching-refs/tags/companion-v";
@@ -19,6 +23,58 @@ const NO_STORE_HEADERS = {
 	"Cache-Control": "no-store, max-age=0",
 	Pragma: "no-cache",
 };
+
+async function downloadAsset(asset: CompanionAssetInfo, request: Request) {
+	const upstream = await fetch(asset.url, {
+		cache: "no-store",
+		signal: request.signal,
+		headers: { Accept: "application/octet-stream" },
+	});
+	if (upstream.status !== 200 || !upstream.body) {
+		throw new Error("COMPANION_ASSET_DOWNLOAD_FAILED");
+	}
+	const declaredLength = upstream.headers.get("content-length");
+	if (declaredLength !== null && Number(declaredLength) !== asset.size) {
+		await upstream.body.cancel();
+		throw new Error("COMPANION_ASSET_SIZE_MISMATCH");
+	}
+	const reader = upstream.body.getReader();
+	const digest = createHash("sha256");
+	let received = 0;
+	const stream = new ReadableStream<Uint8Array>({
+		async pull(controller) {
+			try {
+				const chunk = await reader.read();
+				if (chunk.done) {
+					if (received !== asset.size || digest.digest("hex") !== asset.sha256) {
+						throw new Error("COMPANION_ASSET_INTEGRITY_MISMATCH");
+					}
+					controller.close();
+					return;
+				}
+				received += chunk.value.byteLength;
+				if (received > asset.size) throw new Error("COMPANION_ASSET_SIZE_MISMATCH");
+				digest.update(chunk.value);
+				controller.enqueue(chunk.value);
+			} catch (error) {
+				controller.error(error);
+				await reader.cancel().catch(() => {});
+			}
+		},
+		cancel(reason) {
+			return reader.cancel(reason);
+		},
+	});
+	return new Response(stream, {
+		headers: {
+			...NO_STORE_HEADERS,
+			"Content-Type": "application/octet-stream",
+			"Content-Disposition": 'attachment; filename="TDACompanion-x64.msi"',
+			"X-Content-Type-Options": "nosniff",
+			"X-TDA-Asset-SHA256": asset.sha256,
+		},
+	});
+}
 
 async function latestStable() {
 	const refsResponse = await fetch(STABLE_REFS_URL, {
@@ -86,13 +142,7 @@ export async function GET(request: Request) {
 					{ status: 404, headers: NO_STORE_HEADERS },
 				);
 			}
-			return new Response(null, {
-				status: 307,
-				headers: {
-					Location: latest.url,
-					...NO_STORE_HEADERS,
-				},
-			});
+			return await downloadAsset(latest, request);
 		}
 
 		const tag = requestedTag ?? `companion-v${requestedVersion}`;
@@ -121,13 +171,7 @@ export async function GET(request: Request) {
 			);
 		}
 
-		return new Response(null, {
-			status: 307,
-			headers: {
-				Location: asset.url,
-				...NO_STORE_HEADERS,
-			},
-		});
+		return await downloadAsset(asset, request);
 	} catch {
 		return Response.json(
 			{ error: "COMPANION_RELEASE_LOOKUP_FAILED" },
