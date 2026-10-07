@@ -2852,6 +2852,17 @@ test("processing header exposes one latest Companion download outside the tablis
 
 	await page.getByRole("tab", { name: "Fila" }).click();
 	await expect(download).toBeVisible();
+	await expect(download).toHaveAttribute("download", "TDACompanion-0.3.16-x64.msi");
+	await page.route(`**/api/downloads/companion/windows?tag=${tag}`, (route) =>
+		route.fulfill({ status: 200, contentType: "application/octet-stream", body: "synthetic installer" }),
+	);
+	const originalUrl = page.url();
+	const downloadEvent = page.waitForEvent("download");
+	await download.click();
+	const installer = await downloadEvent;
+	expect(installer.suggestedFilename()).toBe("TDACompanion-0.3.16-x64.msi");
+	expect(page.url()).toBe(originalUrl);
+	await expect(page.getByRole("tab", { name: "Fila" })).toHaveAttribute("aria-selected", "true");
 });
 
 test("latest Companion download stays reachable beside horizontally scrollable tabs on mobile", async ({

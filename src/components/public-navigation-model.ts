@@ -71,7 +71,7 @@ export function toolNavigationItemsForCampaign(
 			capability: EDIT_CAPABILITIES.transcriptRead,
 		});
 		items.push({
-			href: `/edit/${encodeURIComponent(technicalSlug)}/sessoes`,
+			href: `/edit/${encodeURIComponent(processingRouteKey)}/sessoes`,
 			label: "Editar sessões",
 			icon: "edit-sessions",
 			capability: EDIT_CAPABILITIES.transcriptRead,
@@ -195,7 +195,9 @@ export function campaignTechnicalSlugFromLocation(
 		const direct = campaigns.find(
 			(campaign) =>
 				campaign.technicalSlug === segment ||
-				(parts[3] === "processamento" && campaign.routeKey === segment),
+				((parts[3] === "processamento" ||
+					(parts[3] === "sessoes" && parts.length === 4)) &&
+					campaign.routeKey === segment),
 		);
 		if (direct) return direct.technicalSlug;
 	}

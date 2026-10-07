@@ -10,12 +10,50 @@ import {
 } from "./public-navigation-model";
 
 describe("global navigation model", () => {
+	it("uses the campaign name for session libraries without changing editorial identities", () => {
+		const campaigns = [
+			{ technicalSlug: "yuhara-main", routeKey: "destino-sem-fim" },
+		];
+		const tools = toolNavigationItemsForCampaign(
+			"yuhara-main",
+			[EDIT_CAPABILITIES.transcriptRead],
+			"destino-sem-fim",
+		);
+		expect(tools.find((item) => item.label === "Editar sessões")?.href).toBe(
+			"/edit/destino-sem-fim/sessoes",
+		);
+		expect(
+			campaignTechnicalSlugFromLocation(
+				campaigns,
+				"/edit/destino-sem-fim/sessoes",
+			),
+		).toBe("yuhara-main");
+		expect(
+			campaignTechnicalSlugFromLocation(
+				campaigns,
+				"/edit/destino-sem-fim/sessoes/private-session",
+			),
+		).toBeNull();
+	});
 	it("uses the public processing path while retaining the technical authorization context", () => {
-		const campaigns = [{ technicalSlug: "yuhara-main", routeKey: "destino-sem-fim" }];
-		const tools = toolNavigationItemsForCampaign("yuhara-main", [EDIT_CAPABILITIES.localProcess], "destino-sem-fim");
+		const campaigns = [
+			{ technicalSlug: "yuhara-main", routeKey: "destino-sem-fim" },
+		];
+		const tools = toolNavigationItemsForCampaign(
+			"yuhara-main",
+			[EDIT_CAPABILITIES.localProcess],
+			"destino-sem-fim",
+		);
 		expect(tools[0]?.href).toBe("/edit/destino-sem-fim/processamento");
-		expect(campaignTechnicalSlugFromLocation(campaigns, tools[0]!.href)).toBe("yuhara-main");
-		expect(campaignTechnicalSlugFromLocation(campaigns, "/edit/destino-sem-fim/permissions")).toBeNull();
+		expect(campaignTechnicalSlugFromLocation(campaigns, tools[0]!.href)).toBe(
+			"yuhara-main",
+		);
+		expect(
+			campaignTechnicalSlugFromLocation(
+				campaigns,
+				"/edit/destino-sem-fim/permissions",
+			),
+		).toBeNull();
 	});
 	it("keeps the approved public destinations in a stable order", () => {
 		expect(PUBLIC_NAV_ITEMS.map(({ href, label }) => [href, label])).toEqual([
@@ -49,10 +87,7 @@ describe("global navigation model", () => {
 			),
 		).toBe(false);
 		expect(
-			isCurrentNavigationPath(
-				"/campanhas/cronicas-da-mesa/mundo",
-				"/mundo",
-			),
+			isCurrentNavigationPath("/campanhas/cronicas-da-mesa/mundo", "/mundo"),
 		).toBe(true);
 		expect(isCurrentNavigationPath("/mundos", "/mundo")).toBe(false);
 	});
@@ -85,24 +120,12 @@ describe("global navigation model", () => {
 			],
 		);
 		expect(secondCampaign.map(({ href, label }) => [href, label])).toEqual([
-			[
-				"/edit/antes-que-seja-tarde/transcricoes",
-				"Transcrições",
-			],
-			[
-				"/edit/antes-que-seja-tarde/sessoes",
-				"Editar sessões",
-			],
-			[
-				"/edit/antes-que-seja-tarde/processamento",
-				"Processar",
-			],
+			["/edit/antes-que-seja-tarde/transcricoes", "Transcrições"],
+			["/edit/antes-que-seja-tarde/sessoes", "Editar sessões"],
+			["/edit/antes-que-seja-tarde/processamento", "Processar"],
 			["/edit/antes-que-seja-tarde/mundo", "Editar mundo"],
 			["/edit/antes-que-seja-tarde/revisao", "Revisão"],
-			[
-				"/edit/antes-que-seja-tarde/permissions",
-				"Permissões",
-			],
+			["/edit/antes-que-seja-tarde/permissions", "Permissões"],
 		]);
 	});
 
@@ -117,9 +140,13 @@ describe("global navigation model", () => {
 	});
 
 	it("detects explicit campaign references even when unauthorized", () => {
-		expect(locationHasCampaignReference("/transcricoes", "?campanha=private-b")).toBe(true);
+		expect(
+			locationHasCampaignReference("/transcricoes", "?campanha=private-b"),
+		).toBe(true);
 		expect(locationHasCampaignReference("/edit/private-b/mundo")).toBe(true);
-		expect(locationHasCampaignReference("/campanhas/private-b/sessoes")).toBe(true);
+		expect(locationHasCampaignReference("/campanhas/private-b/sessoes")).toBe(
+			true,
+		);
 		expect(locationHasCampaignReference("/campanhas/sessoes")).toBe(false);
 	});
 
@@ -155,10 +182,7 @@ describe("global navigation model", () => {
 			),
 		).toBe("antes-que-seja-tarde");
 		expect(
-			campaignTechnicalSlugFromLocation(
-				campaigns,
-				"/campanhas/sessoes",
-			),
+			campaignTechnicalSlugFromLocation(campaigns, "/campanhas/sessoes"),
 		).toBeNull();
 		expect(
 			campaignTechnicalSlugFromLocation(

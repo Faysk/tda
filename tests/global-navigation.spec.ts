@@ -550,7 +550,7 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 		.click();
 	await expect(
 		toolsSection.getByRole("link", { name: "Editar sessões", exact: true }),
-	).toHaveAttribute("href", "/edit/yuhara-main/sessoes");
+	).toHaveAttribute("href", "/edit/cronicas-da-mesa/sessoes");
 	await expect(
 		toolsSection.getByRole("link", { name: "Revisão", exact: true }),
 	).toHaveAttribute("href", "/edit/yuhara-main/revisao");

@@ -29,7 +29,9 @@ type CompanionDownloadState =
 	| { status: "unavailable"; download: null }
 	| { status: "ready"; download: CompanionDownloadInfo };
 
-export function companionManifestUrl(channel: CompanionDownloadChannel): string {
+export function companionManifestUrl(
+	channel: CompanionDownloadChannel,
+): string {
 	if (channel === "latest") return `${MANIFEST_URL}?channel=latest`;
 	return channel === "rc" ? `${MANIFEST_URL}?channel=rc` : MANIFEST_URL;
 }
@@ -164,6 +166,7 @@ export function CompanionDownload({
 			{download?.compatible ? (
 				<a
 					href={download.url}
+					download={`TDACompanion-${download.version}-x64.msi`}
 					aria-label="Baixar TDA Companion"
 					aria-describedby={tooltipId}
 					onMouseEnter={() => setTooltipVisible(true)}

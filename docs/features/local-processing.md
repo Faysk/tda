@@ -61,6 +61,21 @@ simula reset no browser. Build/typecheck, testes de contexto e fixtures multi-ZI
 desktop/mobile foram validados; aceite com ZIPs reais e reconexão do Companion
 atualizado permanece em #1561, separado da promoção Stable #1558.
 
+No seguimento físico de #1561, o operador instalou Agent **0.3.21** e a leitura de
+health confirmou `ready`. Whisper **1.1.10** e Qwen **1.0.18** foram instalados e
+validados contra os hashes oficiais. Os dois perfis Qwen passaram pelo gate físico
+da RTX 4070 Laptop; o benchmark real dos quatro perfis foi iniciado com o primeiro
+ZIP. Esse estado ainda não comprova conclusão do benchmark nem handoff editorial.
+O reset preservou fontes/histórico, mas a retomada com o Whisper antigo produziu
+`WHISPER_RUNTIME_PROTOCOL_REQUIRED`: a preparação da intenção recuperada permanece
+uma pendência de UX em #1552.
+
+O erro de download `ERR_BLOCKED_BY_CLIENT` foi observado no Chrome em #1567, embora
+o MSI completo tenha sido baixado e seu hash verificado. O candidato declara o
+link como download nativo e o teste desktop/mobile confirma que a página permanece
+no Processamento; isso não desativa proteção do cliente nem comprova eliminação do
+erro no redirecionamento real de Production.
+
 ## Estado atual
 
 ### Histórico de implementação — Overview — #580
