@@ -1205,8 +1205,12 @@ export async function installCompanionFixture(
 					deduplicated_segment_count: 0,
 					warning_count: 0,
 				},
-				warnings: [],
-				segments: [
+                warnings: [],
+                telemetry: quality ? {
+                    captured_samples: 3, coverage: 0.75, missing_reason: "coverage_gap",
+                    vram_peak_bytes: 4 * 1024 ** 3, vram_average_bytes: 3 * 1024 ** 3,
+                } : null,
+                segments: [
 					{
 						track_number: 1,
 						segment_id: `${profileId}-1`,
