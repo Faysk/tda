@@ -271,9 +271,12 @@ test("quality evidence remains keyboard-usable and overflow-free at the 200 perc
 	await expect(selector).toHaveAttribute("aria-expanded", "true");
 	const listbox = page.getByRole("listbox", { name: "Perfil A" });
 	await expect(listbox).toBeVisible();
+	await expect(listbox).toBeFocused();
+	const originalActive = await listbox.getAttribute("aria-activedescendant");
 	await page.keyboard.press("ArrowDown");
+	await expect(listbox).not.toHaveAttribute("aria-activedescendant", originalActive ?? "");
 	await page.keyboard.press("Enter");
 	await expect(selector).toBeFocused();
 	await expect(selector).toHaveAttribute("aria-expanded", "false");
-	expect((await selector.textContent())?.trim()).not.toBe(originalLabel);
+	await expect(selector).not.toHaveText(originalLabel ?? "");
 });
