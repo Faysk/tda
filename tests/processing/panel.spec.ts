@@ -9,6 +9,22 @@ import {
 	UI_ORIGIN,
 } from "./companion-fixture";
 
+test("cockpit follows the newest track in the active attempt", async ({ page }) => {
+	await installCompanionFixture(page, {
+		profileReady: true,
+		advanceJobs: false,
+		initialJobs: [fixtureJob("running")],
+		jobEvents: [
+			{ seq: 1, attempt: 1, code: "TRACK_STARTED", at: "2026-10-07T13:00:00Z", level: "info", data: { track: 1, total_tracks: 4, speaker: "Alice" } },
+			{ seq: 2, attempt: 1, code: "TRACK_STARTED", at: "2026-10-07T13:01:00Z", level: "info", data: { track: 2, total_tracks: 4, speaker: "Bruno" } },
+		],
+	});
+	await page.goto("/");
+	await expect(page.getByText("Arquivo 2 de 4", { exact: true })).toBeVisible();
+	await expect(page.getByText("Voz: Bruno", { exact: true })).toBeVisible();
+	await expect(page.getByText("Voz: Alice", { exact: true })).toHaveCount(0);
+});
+
 function fulfillJson(
 	route: import("@playwright/test").Route,
 	value: unknown,

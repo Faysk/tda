@@ -289,7 +289,9 @@ function eventTrackContext(
 	events: readonly JobEvent[],
 	activeAttempt: number,
 ) {
-	for (const event of events) {
+	for (let index = events.length - 1; index >= 0; index -= 1) {
+		const event = events[index];
+		if (!event) continue;
 		// Current cockpit context is attempt-scoped. A retry starts with no
 		// track/window context until that attempt emits its own event; never
 		// borrow stale or legacy routine facts into the active cockpit.

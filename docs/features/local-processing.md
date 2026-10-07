@@ -356,6 +356,8 @@ deslocamento de 4 px apenas quando movimento reduzido não está solicitado.
 No cockpit, atividade factual é o título e humor é detalhe. O log humanizado
 mantém o fato antes da frase identificada como comentário, inclusive nas linhas
 agrupadas; um pack customizado não substitui mais o estado factual do trabalho.
+O contexto da faixa/voz no cockpit usa o evento mais recente da tentativa atual,
+sem reaproveitar a voz de uma faixa anterior ou de outra tentativa (#1572).
 
 Evidências locais: 61 testes de UX passaram (320 px a 4K, zoom, teclado,
 fila densa, falha e log); check/build passaram. O aceite real dos dois ZIPs,
