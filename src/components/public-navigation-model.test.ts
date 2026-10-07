@@ -10,6 +10,13 @@ import {
 } from "./public-navigation-model";
 
 describe("global navigation model", () => {
+	it("uses the public processing path while retaining the technical authorization context", () => {
+		const campaigns = [{ technicalSlug: "yuhara-main", routeKey: "destino-sem-fim" }];
+		const tools = toolNavigationItemsForCampaign("yuhara-main", [EDIT_CAPABILITIES.localProcess], "destino-sem-fim");
+		expect(tools[0]?.href).toBe("/edit/destino-sem-fim/processamento");
+		expect(campaignTechnicalSlugFromLocation(campaigns, tools[0]!.href)).toBe("yuhara-main");
+		expect(campaignTechnicalSlugFromLocation(campaigns, "/edit/destino-sem-fim/permissions")).toBeNull();
+	});
 	it("keeps the approved public destinations in a stable order", () => {
 		expect(PUBLIC_NAV_ITEMS.map(({ href, label }) => [href, label])).toEqual([
 			["/campanhas", "Campanhas"],

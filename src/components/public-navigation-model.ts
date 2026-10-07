@@ -58,6 +58,7 @@ export const PUBLIC_NAV_ITEMS: readonly NavigationItem[] = [
 export function toolNavigationItemsForCampaign(
 	technicalSlug: string,
 	capabilities: readonly string[],
+	processingRouteKey: string = technicalSlug,
 ): readonly ToolNavigationItem[] {
 	const allowed = new Set(capabilities);
 	const items: ToolNavigationItem[] = [];
@@ -79,7 +80,7 @@ export function toolNavigationItemsForCampaign(
 
 	if (allowed.has(EDIT_CAPABILITIES.localProcess)) {
 		items.push({
-			href: `/edit/${encodeURIComponent(technicalSlug)}/processamento`,
+			href: `/edit/${encodeURIComponent(processingRouteKey)}/processamento`,
 			label: "Processar",
 			icon: "process",
 			capability: EDIT_CAPABILITIES.localProcess,
@@ -134,7 +135,10 @@ function hrefPath(href: string): string {
 	return href.split(/[?#]/u, 1)[0] || href;
 }
 
-export function isCurrentNavigationPath(pathname: string, href: string): boolean {
+export function isCurrentNavigationPath(
+	pathname: string,
+	href: string,
+): boolean {
 	const target = hrefPath(href);
 
 	if (target === "/campanhas") return pathname === "/campanhas";
@@ -189,16 +193,14 @@ export function campaignTechnicalSlugFromLocation(
 	if (parts[1] === "edit") {
 		const segment = decodeSegment(parts[2]);
 		const direct = campaigns.find(
-			(campaign) => campaign.technicalSlug === segment,
+			(campaign) =>
+				campaign.technicalSlug === segment ||
+				(parts[3] === "processamento" && campaign.routeKey === segment),
 		);
 		if (direct) return direct.technicalSlug;
 	}
 
-	if (
-		parts[1] === "campanhas" &&
-		parts[2] !== "sessoes" &&
-		parts.length >= 4
-	) {
+	if (parts[1] === "campanhas" && parts[2] !== "sessoes" && parts.length >= 4) {
 		const segment = decodeSegment(parts[2]);
 		const direct = campaigns.find((campaign) => campaign.routeKey === segment);
 		if (direct) return direct.technicalSlug;

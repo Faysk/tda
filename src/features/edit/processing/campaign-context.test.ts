@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { processingCampaignHref } from "./campaign-context";
+import {
+	processingCampaignHref,
+	processingCampaignNavigationHref,
+	resolveProcessingCampaign,
+} from "./campaign-context";
 import {
 	readSessionComposerLastSessionPointer,
 	readSessionComposerRecoveryPointer,
 	sessionComposerLastSessionKey,
 	sessionComposerRecoveryKey,
 } from "./session-composer-storage";
-
 
 function memoryStorage(initial: Record<string, string> = {}): Storage {
 	const values = new Map(Object.entries(initial));
@@ -33,6 +36,44 @@ function memoryStorage(initial: Record<string, string> = {}): Storage {
 }
 
 describe("processing campaign context", () => {
+	const campaigns = [
+		{
+			technicalSlug: "yuhara-main",
+			routeKey: "destino-sem-fim",
+			name: "Destino Sem Fim",
+		},
+		{
+			technicalSlug: "antes-que-seja-tarde",
+			routeKey: "passos-retomados",
+			name: "Passos Retomados",
+		},
+	];
+
+	it("resolves public paths and legacy technical links to the same stable identity", () => {
+		for (const campaign of campaigns) {
+			expect(resolveProcessingCampaign(campaigns, campaign.routeKey)).toBe(
+				campaign,
+			);
+			expect(resolveProcessingCampaign(campaigns, campaign.technicalSlug)).toBe(
+				campaign,
+			);
+			expect(
+				processingCampaignNavigationHref(campaigns, campaign.technicalSlug),
+			).toBe(`/edit/${campaign.routeKey}/processamento`);
+		}
+	});
+
+	it("does not resolve or navigate to a campaign outside the authorized options", () => {
+		expect(
+			resolveProcessingCampaign(campaigns.slice(0, 1), "passos-retomados"),
+		).toBeNull();
+		expect(() =>
+			processingCampaignNavigationHref(
+				campaigns.slice(0, 1),
+				"antes-que-seja-tarde",
+			),
+		).toThrow();
+	});
 	it("builds a deep-linkable processing URL without treating browser state as authority", () => {
 		expect(processingCampaignHref("antes-que-seja-tarde")).toBe(
 			"/edit/antes-que-seja-tarde/processamento",
@@ -67,12 +108,12 @@ describe("processing campaign context", () => {
 			readSessionComposerLastSessionPointer(storage, "campaign-b"),
 		).toBeNull();
 
-		expect(
-			readSessionComposerRecoveryPointer(storage, "yuhara-main"),
-		).toBe("sessao-legacy");
-		expect(
-			readSessionComposerLastSessionPointer(storage, "yuhara-main"),
-		).toBe("sessao-legacy");
+		expect(readSessionComposerRecoveryPointer(storage, "yuhara-main")).toBe(
+			"sessao-legacy",
+		);
+		expect(readSessionComposerLastSessionPointer(storage, "yuhara-main")).toBe(
+			"sessao-legacy",
+		);
 		expect(storage.getItem(sessionComposerRecoveryKey("yuhara-main"))).toBe(
 			"sessao-legacy",
 		);

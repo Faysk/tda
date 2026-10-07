@@ -59,7 +59,7 @@ import {
 } from "./processing-estimator";
 import type { JobEvent, LocalJob, SystemSnapshot } from "./protocol";
 import {
-	processingCampaignHref,
+	processingCampaignNavigationHref,
 	type ProcessingCampaignOption,
 } from "./campaign-context";
 import styles from "./processing.module.css";
@@ -719,7 +719,7 @@ export function ProcessingPanel({
 		}
 		setCampaignNavigationPending(true);
 		requestAnimationFrame(() => {
-			window.location.assign(processingCampaignHref(nextCampaignId));
+			window.location.assign(processingCampaignNavigationHref(campaignOptions, nextCampaignId));
 		});
 	}
 
@@ -734,7 +734,7 @@ export function ProcessingPanel({
 		setCampaignSwitchTarget(null);
 		setCampaignNavigationPending(true);
 		requestAnimationFrame(() => {
-			window.location.assign(processingCampaignHref(target));
+			window.location.assign(processingCampaignNavigationHref(campaignOptions, target));
 		});
 	}
 
@@ -795,7 +795,7 @@ export function ProcessingPanel({
 						!state.uncertainSubmission
 					}
 					manageHref={`/edit/campanhas?next=${encodeURIComponent(
-						processingCampaignHref(campaignId),
+						processingCampaignNavigationHref(campaignOptions, campaignId),
 					)}`}
 				/>
 			</section>

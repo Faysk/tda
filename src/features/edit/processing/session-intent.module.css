@@ -10,6 +10,18 @@
 	font-family: var(--ds-font-ui);
 }
 
+.inlineLink {
+	color: var(--ds-foreground);
+	font-size: 0.8rem;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.inlineLink:focus-visible {
+	outline: 2px solid var(--ds-foreground);
+	outline-offset: 4px;
+}
+
 .header,
 .complete,
 .blocker,

@@ -203,7 +203,7 @@ Para mudanças concretas, a [política de documentação viva](documentation/REA
 ## Identidades e providers atuais
 
 - Produto: `tda`.
-- Campaign legado/default: technical slug `yuhara-main`, preservado por compatibilidade; apresentação pública planejada **Crônicas da Mesa**. A arquitetura multi-campaign é regida por ADR-0020 e não trata esse slug como campaign única permanente.
+- Campaign legado: technical slug `yuhara-main`, preservado por compatibilidade; registry autenticado observado em 2026-10-07 com nome **Destino Sem Fim** e `public_slug=destino-sem-fim`. A segunda campaign, **Passos Retomados**, conserva `technicalSlug=antes-que-seja-tarde` e usa `public_slug=passos-retomados`. Esses nomes/endereços são dados editoriais mutáveis; o registry vigente é a autoridade, e ADR-0020 conserva identidades estáveis. O candidato de navegação do Processamento #1560 e o aceite real #1561 estão registrados em [Processamento local](features/local-processing.md).
 - Dados relacionais: PostgreSQL; provider atual Supabase, projeto `dmrqnbdvbkfqzctcerbx`.
 - Repositório vigente: `Faysk/tda`.
 - Legado: `Faysk/dnd-scribe`.

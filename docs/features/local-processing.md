@@ -2,7 +2,7 @@
 
 > Status: ASR local, runs/revisão e publicação explícita implementados; auto-sync de job permanece `not_configured`
 > Owner: Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro
-> Última revisão: 2026-10-06
+> Última revisão: 2026-10-07
 > Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento`, `local-companion/tda_companion`, [spec de revisão/publicação](transcript-review-publication.md) e testes associados
 
 `/edit/[campaign]/processamento` é a superfície operacional canônica para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
@@ -32,6 +32,34 @@ No slice Web preparado por #1128:
 - run ASR bruto continua imutável e não vira canon/publicação por receber campaign context.
 
 A URL canônica é `/edit/[campaign]/processamento`. O entrypoint `/edit/processamento` continua aceitando a seleção compatível e encaminha escolhas normais para a rota campaign-scoped; a identidade local do processamento continua sendo o technical slug validado no servidor.
+
+### Endereços por nome de campanha — candidato #1560
+
+O candidato #1560 usa `public_slug` (`routeKey`) no segmento de navegação do
+Processamento. O servidor resolve essa referência somente entre campanhas ativas
+autorizadas e entrega o `technicalSlug` original ao painel. Links técnicos antigos
+redirecionam para o endereço público atual; picker e menu global usam o mesmo
+endereço. RBAC, jobs, pointers, idempotency e ownership continuam usando a identidade
+técnica estável. A resolução de caminho não concede acesso nem muda uma sessão.
+
+Em 2026-10-07, o registry autenticado confirmou **Destino Sem Fim** com endereço
+`destino-sem-fim` (corrigido pelo editor de campanhas) e **Passos Retomados** com
+`passos-retomados`. Essa operação de registry já foi salva; os novos caminhos Web
+de Processamento ainda dependem da integração/publicação do candidato #1560.
+
+### Recuperação e distribuição observadas — #1552 / #1561
+
+O teste autenticado de 2026-10-07 encontrou Web Production em
+`9d40dee03a2d6978e30e7669f3255e188f75bd35`, mas Agent instalado **0.3.18**,
+Whisper **1.1.9** e Qwen **1.0.17**. `ready` do serviço não comprova que todas as
+capacidades de recuperação ou runtimes do contrato atual estão disponíveis.
+
+O candidato #1552 apresenta download de atualização dentro do bloqueio sem
+cleanup, prioriza retry seletivo quando disponível e remove o anúncio anterior de
+gravações prontas ao detectar falhas terminais. Ele preserva runs concluídos e não
+simula reset no browser. Build/typecheck, testes de contexto e fixtures multi-ZIP
+desktop/mobile foram validados; aceite com ZIPs reais e reconexão do Companion
+atualizado permanece em #1561, separado da promoção Stable #1558.
 
 ## Estado atual
 

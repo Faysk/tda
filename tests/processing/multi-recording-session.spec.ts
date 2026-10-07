@@ -76,6 +76,7 @@ function runFor(sourceId: string, index: number) {
 }
 
 type FixtureOptions = Readonly<{
+	cleanupCapabilities?: boolean;
 	uploadSequence?: readonly number[];
 	recordingIds?: Readonly<Record<number, string>>;
 	failOnceSourceIndex?: number | null;
@@ -430,8 +431,10 @@ async function installMultiRecordingRoutes(
 					"transcription.prepare",
 					"transcription.review",
 					"transcription.session-workspace",
-					"transcription.session-workspace.reset",
-					"transcription.session-workspace.delete",
+					...(options.cleanupCapabilities === false ? [] : [
+						"transcription.session-workspace.reset",
+						"transcription.session-workspace.delete",
+					]),
 					"transcription.session-intent",
 					"transcription.session-timeline",
 					"transcription.session-sequence",
@@ -1597,6 +1600,28 @@ test("fresh restart ignores preserved runs and creates new jobs for every record
 	await expect(intent).toContainText("Transcrição pronta");
 });
 
+test("old Companion exposes a direct update action after a nonrecoverable two-ZIP failure", async ({ page }, testInfo) => {
+	await installCompanionFixture(page, { profileReady: true, reviewEnabled: true, serviceVersion: "0.3.18" });
+	const multi = await installMultiRecordingRoutes(page, {
+		uploadSequence: [0, 1], failOnceSourceIndex: 1,
+		nonRecoverableSourceIndex: 1, cleanupCapabilities: false,
+	});
+	await openProcessing(page);
+	await page.getByLabel("Export do Craig").setInputFiles([
+		{ name: "sessao-42-parte-1.zip", mimeType: "application/zip", buffer: Buffer.from("PK-update-a") },
+		{ name: "sessao-42-parte-2.zip", mimeType: "application/zip", buffer: Buffer.from("PK-update-b") },
+	]);
+	await page.getByRole("button", { name: "Transcrever sessão" }).click();
+	const intent = page.getByRole("region", { name: /Transcrição da sessão/u });
+	await expect(intent.getByRole("alert")).toContainText("Atualize o Companion para recuperar esta sessão");
+	await expect(intent.getByRole("link", { name: "Atualizar Companion" })).toHaveAttribute("href", "/api/downloads/companion/windows");
+	await expect(intent.getByRole("button", { name: "Excluir sessão local" })).toHaveCount(0);
+	await expect(page.getByText(/gravações prontas\. O TDA vai processar/u)).toHaveCount(0);
+	expect(multi.jobCount).toBe(2);
+	expect(multi.deleteCount).toBe(0);
+	await page.screenshot({ path: testInfo.outputPath("update-recovery.png"), fullPage: true });
+});
+
 test("failed local session can be deleted and resubmitted from a clean form", async ({
 	page,
 }) => {
@@ -1720,6 +1745,9 @@ test("three ZIPs become one session intent, retry only the failed recording, aut
 	await expect(page.getByLabel("Export do Craig")).toBeHidden();
 	await expect(intent).toContainText("2/3 concluídas");
 	await expect(intent.getByRole("alert")).toContainText("Uma gravação falhou.");
+	await expect(intent.getByRole("alert")).toContainText("As gravações concluídas serão preservadas.");
+	await expect(intent.getByRole("status")).not.toContainText("gravações prontas");
+	await expect(page.getByText(/gravações prontas\. O TDA vai processar/u)).toHaveCount(0);
 	expect(multi.postCount(SOURCE_IDS[0]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[1]!)).toBe(1);
 	expect(multi.postCount(SOURCE_IDS[2]!)).toBe(1);

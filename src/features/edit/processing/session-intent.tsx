@@ -105,7 +105,7 @@ type Props = Readonly<{
 	onActiveChange?: (active: boolean) => void;
 	onRestoreSessionId?: (sessionId: string) => void;
 	onRestoreIntent?: (intent: SessionTranscriptionIntent) => void;
-	onStatus?: (message: string) => void;
+	onStatus?: (message: string | null) => void;
 	onError?: (
 		message: string,
 		availabilityFailure?: "timeout" | "unreachable",
@@ -763,6 +763,8 @@ export function SessionIntentCoordinator({
 				)
 				.map((part) => part.sourceId);
 			if (failedSources.length) {
+				setLive(null);
+				onStatus?.(null);
 				setBlocker({ kind: "failed", sourceIds: failedSources });
 				return;
 			}
@@ -952,6 +954,7 @@ export function SessionIntentCoordinator({
 		jobs,
 		loadSnapshot,
 		mapping,
+		onStatus,
 		persistIntentReceipt,
 		recoveryScope,
 		runsBySource,
@@ -1768,14 +1771,19 @@ export function SessionIntentCoordinator({
 								: `${blocker.sourceIds.length} gravações falharam.`}
 						</strong>
 						<span>
-							{!canDeleteSession && !canResetSession
-								? "Esta versão do Companion não oferece limpeza de sessão. Atualize o Companion para excluir o estado local e começar do zero."
-								: retryableFailedSourceIds.length
-									? "Você pode repetir apenas as tentativas recuperáveis ou excluir esta sessão local e começar novamente."
+							{retryableFailedSourceIds.length
+								? "Reprocesse apenas as gravações que precisam de atenção. As gravações concluídas serão preservadas."
+								: !canDeleteSession && !canResetSession
+									? "Atualize o Companion para recuperar esta sessão. Seus ZIPs e resultados concluídos serão preservados."
 									: "Essas tentativas não podem ser repetidas com segurança. Exclua esta sessão local para voltar ao início e processar tudo novamente."}
 						</span>
 					</div>
 					<div className={styles.blockerActions}>
+						{!canDeleteSession && !canResetSession && !retryableFailedSourceIds.length ? (
+							<a href="/api/downloads/companion/windows" className={styles.inlineLink}>
+								Atualizar Companion
+							</a>
+						) : null}
 						{retryableFailedSourceIds.length ? (
 							<Button
 								type="button"
