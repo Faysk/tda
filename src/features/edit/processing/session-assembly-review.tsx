@@ -141,7 +141,7 @@ function errorMessage(cause: unknown): string {
 			dependency_unavailable:
 				"O serviço de handoff está indisponível e não confirmou alteração.",
 			unconfirmed:
-				"A resposta se perdeu após o envio. A operação foi preservada; tentar novamente reutilizará a mesma identidade.",
+				"O serviço não confirmou o envio. A operação foi preservada; tentar novamente reutilizará a mesma identidade.",
 		}[cause.code];
 	}
 	if (cause instanceof Error && cause.message === "STORAGE_UNAVAILABLE")

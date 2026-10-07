@@ -714,3 +714,7 @@ Remediação de referência:
 - gates exatos e smoke de Production verdes;
 - sessão real preservada sem mutation;
 - operação real pode agora seguir o fluxo `preflight → media prepare/read-back → commit v2 → cache/read-back` quando houver ordem explícita para mover.
+
+## 2026-10-07 — #1578 bounded private handoff candidate
+
+Production timeout was traced to full Assembly segment validation (SQLSTATE 57014); inherited authenticator statement/lock budgets were eight seconds and actual Assembly revision count remained zero. A read-only synthetic 8,019-row Production validation EXPLAIN completed in 1.238s; isolated real-shape whole RPC completed in approximately 0.515s. The explored query rewrite showed no material local gain and was excluded. Candidate migration sets only the dedicated entry-point statement budget to a finite 30s. Full scratch chain passed with synthetic 8,019-row v3 positive, two-part receipt, idempotent replay, malformed last absolute timestamp rejection and exact invoker/ACL/config checks. This is candidate evidence; migration publication and actual private Library acceptance remain pending.

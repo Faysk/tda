@@ -1532,3 +1532,7 @@ Diagnóstico segue precedência de gates. A interface apresenta um blocker domin
 A composição da review prioriza workflow, busca e timeline. Contagens ficam compactas; hardware/runtime/hashes são progressive disclosure; participante em lote permanece disclosure sob demanda. A primeira viewport deixa de tratar seis métricas técnicas como cards de igual peso.
 
 Para first handoff, um target autorizado ainda sem row cloud é estado válido. Current read pode representar `revisionId=null` sem criar nada; a confirmação final usa o boundary atômico #1061 para resolver/criar a session privada e commitar a transcript revision. Isso não muda a separação entre handoff privado e publicação pública de sessão.
+
+### Large private handoff — #1578 candidate
+
+A bounded compressed Web request can still outlast the database's inherited eight-second statement budget while validating thousands of segments. The dedicated server-only handoff entry point has a candidate finite 30-second budget, versioned by migration `20261007202500_assembly_validation_bounded.sql`; row validation, authorization, hash/CAS and atomic rollback remain exact. A missing confirmation preserves the operation identity and never constitutes successful delivery. Production acceptance still requires the preserved two-ZIP operation's receipt and private session Library read-back. Synthetic 8,019-row v3 replay and invalid-tail tests are part of `tools/transcript-sync-db.py`.

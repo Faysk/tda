@@ -256,3 +256,11 @@ Para promover o campaign registry:
 10. guardar receipt com SHA exato, migration aplicada e resultados. Só então o estado operacional pode passar de `prepared` para `applied/published`.
 
 Se o gate falhar, o rollback preferido é manter o consumidor compatível e corrigir/promover a migration aditiva de forma controlada. Não apagar dados novos nem mascarar erro de permissão/conectividade como ausência do registry.
+
+## Private transcript handoff budget — #1578 candidate
+
+The real 8,019-segment v3 Assembly reached Production but PostgreSQL cancelled validation with SQLSTATE `57014` under the inherited authenticator `statement_timeout=8s`; no Assembly revision committed. Migration `20261007202500_assembly_validation_bounded.sql` declares a finite `30s` timeout only on the server-only `prepare_transcript_handoff_atomic(uuid,uuid,text,jsonb,boolean)` entry point. PostgREST hoists the function setting for the RPC transaction; schema-cache reload is part of the migration. The global/role budget and inherited lock timeout stay unchanged.
+
+Preflight/postflight: verify exact migration history, the function's invoker identity, search path, `statement_timeout=30s`, service-role-only execute ACL, and existing revision counts. Apply only after the synthetic full-chain test passes; replay the preserved actual operation and verify private receipt, counts and Library content. The isolated 8,019-segment v3 test checks two parts, idempotent replay and invalid final-clock rejection without a second revision. Local timing and a read-only Production synthetic EXPLAIN do not establish live handoff acceptance.
+
+Rollback is `ALTER FUNCTION public.prepare_transcript_handoff_atomic(uuid,uuid,text,jsonb,boolean) RESET statement_timeout; NOTIFY pgrst, 'reload schema';`; retain accepted immutable revisions. No authorization, data/schema reset, function-body replacement, or paid provider tier is required. [Supabase function-level timeout contract](https://supabase.com/docs/guides/database/postgres/timeouts#function-level).
