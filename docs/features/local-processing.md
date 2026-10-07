@@ -355,6 +355,9 @@ pausa o processamento. Preparação, eventos de runtime e etapas observados no
 Whisper são apresentados em português sem confundir segmento com job concluído.
 O modo técnico preserva os códigos originais. A entrada de aba usa 180 ms e
 deslocamento de 4 px apenas quando movimento reduzido não está solicitado.
+No cockpit, atividade factual é o título e humor é detalhe. O log humanizado
+mantém o fato antes da frase identificada como comentário, inclusive nas linhas
+agrupadas; um pack customizado não substitui mais o estado factual do trabalho.
 
 Evidências locais: 61 testes de UX passaram (320 px a 4K, zoom, teclado,
 fila densa, falha e log); check/build passaram. O aceite real dos dois ZIPs,

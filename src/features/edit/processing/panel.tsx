@@ -262,8 +262,8 @@ function latestActivity(
 				? selectActivityBark(activityContext(event, job, system), { level: "tda", catalog })
 				: null;
 			return {
-				title: bark?.text ?? factual.title,
-				detail: factual.detail ?? null,
+				title: factual.title,
+				detail: [factual.detail, bark?.text].filter(Boolean).join(" · ") || null,
 				at: event.at,
 			};
 		}

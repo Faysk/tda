@@ -40,7 +40,7 @@ function humanText(
 	const bark = activityEventCanBeHumorous(event)
 		? selectActivityBark(activityContext(event, job, system), { level: "tda", catalog: activityCatalog })
 		: null;
-	return bark ? { title: bark.text, detail: factual.detail } : factual;
+	return bark ? { title: `${factual.title} · Comentário: ${bark.text}`, detail: factual.detail } : factual;
 }
 
 function groupRows(events: readonly JobEvent[], enabled: boolean): Row[] {

@@ -808,6 +808,8 @@ test("diagnostics mode owns routine aggregation without a grouping preference", 
 	await page.getByRole("tab", { name: "Diagnóstico" }).click();
 
 	const log = page.getByRole("log");
+	await expect(log).toContainText("Qwen concluiu uma janela de áudio da faixa 1");
+	await expect(log).toContainText("Comentário:");
 	await expect(
 		page.getByRole("checkbox", { name: "Agrupar repetitivos" }),
 	).toHaveCount(0);
