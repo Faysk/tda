@@ -150,11 +150,13 @@ function localOperationMessage(code: string | null): string {
 		CRAIG_UPLOAD_EMPTY:
 			"O ZIP selecionado está vazio.",
 		CRAIG_ZIP_REQUIRED:
-			"Escolha um arquivo ZIP exportado pelo Craig.",
+			"Escolha um export Craig ou um ZIP com arquivos FLAC.",
 		CRAIG_ARCHIVE_INVALID:
-			"O arquivo não é um ZIP Craig válido.",
+			"O arquivo não é um ZIP válido ou está corrompido.",
 		CRAIG_ARCHIVE_NO_TRACKS:
-			"O ZIP não contém faixas de áudio reconhecidas pelo fluxo Craig.",
+			"O ZIP não contém faixas FLAC. Use um export Craig ou um ZIP com os FLACs na raiz.",
+		CRAIG_ARCHIVE_UNEXPECTED_FILE:
+			"Use um export Craig ou um ZIP contendo somente arquivos FLAC na raiz. Não misture arquivos comuns com metadados do Craig.",
 		QWEN_PHYSICAL_ACCEPTANCE_REQUIRED:
 			"O Qwen precisa ser preparado e validado novamente nesta GPU antes de entrar na fila.",
 		WHISPER_MODEL_PREPARATION_REQUIRED:
@@ -1004,7 +1006,7 @@ export function ProcessingSubmission({
 					<span>Processamento local</span>
 					<h2 id="new-local-transcription">Transcrever sessão</h2>
 				</div>
-				<small>1..N ZIPs Craig → uma transcrição contínua</small>
+				<small>ZIPs Craig ou FLAC → uma transcrição contínua</small>
 			</div>
 
 			{!capabilities && capabilityError ? (
@@ -1088,7 +1090,7 @@ export function ProcessingSubmission({
 								<strong>
 									{files.length
 										? `${files.length} ${files.length === 1 ? "gravação selecionada" : "gravações selecionadas"}`
-										: "Arraste um ou vários ZIPs do Craig aqui"}
+										: "Arraste ZIPs Craig ou ZIPs com FLACs aqui"}
 								</strong>
 								<span>
 									{intentRequest
