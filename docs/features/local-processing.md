@@ -238,6 +238,16 @@ na RTX 4070 Laptop / SM 8.9. A exportação do benchmark preservado (executado n
 0.3.24) passou na API instalada 0.3.25, mantendo os quatro hashes canônicos e
 125/126/72/76 falas. Isso não mede WER nem valida outro modelo de GPU.
 
+O RC **0.3.26**, source `247f0edb4d168e792dffd7b8ce15fafc5d0d1bc7`, passou pelos
+[receipts próprios de aceite instalado v3](../companion/acceptance/companion-rc-v0.3.26-247f0edb4d16.json)
+e [físico v2](../companion/acceptance/companion-rc-v0.3.26-247f0edb4d16.physical.json).
+O MSI instalado corresponde aos hashes da release oficial; recovery, conflito de
+porta, retomada BITS e preservação da fonte foram medidos. Os quatro perfis
+passaram na RTX 4070 Laptop / SM 8.9 com fala sintética em português de 110,588 s,
+Whisper 1.1.12 e Qwen 1.0.20, sem gravar transcrições. Esse gate de GPU não mede
+qualidade humana nem substitui o aceite anterior dos dois Craig reais. A promoção
+Stable exige seu próprio receipt e não é inferida destes dois aceites.
+
 Na Web, ZIP privado com `Content-Length` conhecido até 16 MiB usa o download
 normal do navegador, mesmo quando a API de seleção de arquivo está disponível.
 O feedback informa **download iniciado**, sem afirmar que o arquivo já foi salvo.
