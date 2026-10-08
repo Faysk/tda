@@ -1393,3 +1393,22 @@ def test_reference_revisions_preserves_valid_owned_directory(tmp_path):
     revisions.mkdir(parents=True)
 
     assert benchmark_quality_module._safe_reference_revisions_root(data_root, benchmark_id) == revisions
+
+@pytest.mark.parametrize("revision,digest", [
+    (True, "a" * 64), (0, "a" * 64), (-1, "a" * 64),
+    ("1", "a" * 64), (1, "../outside"), (1, "A" * 64), (1, None),
+])
+def test_quality_receipt_path_rejects_unvalidated_identity(tmp_path, revision, digest):
+    with pytest.raises(BenchmarkQualityError, match="BENCHMARK_QUALITY_PATH_INVALID"):
+        benchmark_quality_module._quality_receipt_path(
+            tmp_path, benchmark_id_for("receipt-security", 1), "qwen-fast", revision, digest
+        )
+    assert not list(tmp_path.rglob("*.json"))
+
+
+def test_quality_receipt_path_preserves_canonical_owned_identity(tmp_path):
+    benchmark_id = benchmark_id_for("receipt-security", 1)
+    result = benchmark_quality_module._quality_receipt_path(
+        tmp_path, benchmark_id, "qwen-fast", 1, "a" * 64
+    )
+    assert result == (tmp_path / "benchmarks" / benchmark_id / "quality" / "qwen-fast" / "r000001-aaaaaaaaaaaa.json").resolve()
