@@ -1340,6 +1340,29 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 	expect(download.suggestedFilename()).not.toContain("benchmark-craig.zip");
 	await expect(workspace.getByRole("status").filter({ hasText: "Download do ZIP privado iniciado" })).toBeVisible();
 
+	// StreamingResponse does not advertise Content-Length in the installed Agent.
+	await page.evaluate(() => {
+		const fetchOriginal = window.fetch.bind(window);
+		window.fetch = async (...args) => {
+			const response = await fetchOriginal(...args);
+			if (!String(args[0]).endsWith("/export.zip")) return response;
+			const headers = new Headers(response.headers);
+			headers.delete("content-length");
+			return new Response(response.body, { status: response.status, headers });
+		};
+	});
+	await exportButton.click();
+	const chunkedDownloadPromise = page.waitForEvent("download");
+	await dialog.getByRole("button", { name: "Exportar ZIP privado" }).click();
+	const chunkedDownload = await chunkedDownloadPromise;
+	expect(chunkedDownload.suggestedFilename()).toBe(download.suggestedFilename());
+	const chunkedStream = await chunkedDownload.createReadStream();
+	const downloadedChunks: Buffer[] = [];
+	if (!chunkedStream) throw new Error("Downloaded ZIP stream unavailable");
+	for await (const chunk of chunkedStream) downloadedChunks.push(Buffer.from(chunk));
+	expect(Buffer.concat(downloadedChunks).toString()).toBe("PK synthetic private benchmark evidence");
+	await expect(workspace.getByRole("status").filter({ hasText: "Download do ZIP privado iniciado" })).toBeVisible();
+
 	const assertNoHorizontalOverflow = async () => {
 		const horizontal = await page.evaluate(() => ({
 			scrollWidth: document.documentElement.scrollWidth,
@@ -1372,6 +1395,14 @@ for (const outcome of ["saved", "cancelled", "failed"] as const) {
 		});
 		const panel = await openBenchmark(page);
 		await page.evaluate((result) => {
+			const fetchOriginal = window.fetch.bind(window);
+			window.fetch = async (...args) => {
+				const response = await fetchOriginal(...args);
+				if (!String(args[0]).endsWith("/export.zip")) return response;
+				const headers = new Headers(response.headers);
+				headers.delete("content-length");
+				return new Response(response.body, { status: response.status, headers });
+			};
 			Object.defineProperty(window, "showSaveFilePicker", {
 				configurable: true,
 				value: async function (this: Window) {

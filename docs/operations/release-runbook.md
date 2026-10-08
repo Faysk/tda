@@ -377,6 +377,15 @@ anterior que falhou permanece como histórico. A promoção Stable continua uma
 ação separada, autorizada somente depois de integrar e revisar estes recibos;
 o workflow deve terminar também o postflight do download same-origin.
 
+A promoção imutável de 0.3.25 concluiu em 2026-10-08 pelo workflow
+`37707144843`, incluindo read-back dos assets e downloads padrão/tag fixada.
+A Web `03e11233cf5f1cb1f081ea7dd8204e6b66143745` foi publicada deliberadamente
+pelo CD `37707986144` após CI exata verde. O postflight autenticado identificou
+que ZIP de benchmark usa `StreamingResponse` sem `Content-Length`; tratar esse
+caso na Web com prefixo limitado e preservar o stream quando ultrapassa o limite.
+Não reconstruir um MSI já aceito apenas para acrescentar esse header. O aceite
+do clique e do arquivo baixado permanece separado dos gates de release do MSI.
+
 ### Download do Companion pelo domínio do TDA (#1567)
 
 O postflight de promoção verifica HTTP 200 direto, `Content-Length`, disposition

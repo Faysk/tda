@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Dialog } from "@/components/ui/dialog";
+import { prepareEvidenceDownload } from "./benchmark-download";
 import { LocalBridge } from "./bridge";
 import { processingStageLabels, type EngineProcessingMetrics } from "./engine-metrics";
 import {
@@ -93,7 +94,14 @@ async function saveResponse(
 		Number.isFinite(length) &&
 		length >= 0 &&
 		length <= 16 * 1024 ** 2;
-	if (preferStreaming && !smallDownload && response.body) {
+	let body = response.body;
+	let buffered: Blob | null = null;
+	if (preferStreaming && length === null && body) {
+		const prepared = await prepareEvidenceDownload(body, 16 * 1024 ** 2);
+		buffered = prepared.blob;
+		body = prepared.stream;
+	}
+	if (preferStreaming && !smallDownload && body) {
 		const picker = (
 			window as Window & {
 				showSaveFilePicker?: (options: { suggestedName: string }) => Promise<{
@@ -104,11 +112,11 @@ async function saveResponse(
 		if (picker) {
 			const handle = await picker.call(window, { suggestedName: filename });
 			const writable = await handle.createWritable();
-			await response.body.pipeTo(writable);
+			await body.pipeTo(writable);
 			return "saved" as const;
 		}
 	}
-	const blob = await response.blob();
+	const blob = buffered ?? await new Response(body, { headers: response.headers }).blob();
 	const url = URL.createObjectURL(blob);
 	try {
 		const anchor = document.createElement("a");

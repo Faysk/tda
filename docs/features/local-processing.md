@@ -241,8 +241,12 @@ na RTX 4070 Laptop / SM 8.9. A exportação do benchmark preservado (executado n
 Na Web, ZIP privado com `Content-Length` conhecido até 16 MiB usa o download
 normal do navegador, mesmo quando a API de seleção de arquivo está disponível.
 O feedback informa **download iniciado**, sem afirmar que o arquivo já foi salvo.
-Arquivos maiores ou de tamanho desconhecido continuam usando escrita por stream
-quando suportada; somente a conclusão da escrita informa **salvo**. Cancelamento
+Quando o Companion envia um stream sem esse header, a Web lê um prefixo limitado
+a 16 MiB mais o chunk que cruza o limite. Se o stream termina nesse limite, usa
+o download normal; se ultrapassa, preserva o prefixo e continua por stream
+quando a escrita nativa está disponível, sem acumular o restante em memória.
+Arquivos maiores continuam usando escrita por
+stream quando suportada; somente a conclusão da escrita informa **salvo**. Cancelamento
 e falha têm feedback próprio, preservam os arquivos locais e liberam nova tentativa.
 URLs de blob são liberadas após 60 segundos para não invalidar o download prematuramente.
 
