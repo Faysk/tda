@@ -98,21 +98,16 @@ def test_stable_promotion_is_manual_receipt_gated_content_equivalent_and_never_r
     assert "actions/checkout@v7" not in value
 
 
-def test_stable_promotion_verifies_canonical_web_manifest_and_download_redirects():
+def test_stable_promotion_verifies_canonical_web_manifest_and_complete_downloads():
     value = _read("companion-promote.yml")
-
     assert "Verify canonical Web resolves promoted Stable" in value
-    # The executable smoke is tested with a fake transport in
-    # test_canonical_release_smoke.py, including the exact URL actually requested.
-    assert 'manifest_url = f"{base}/api/downloads/companion/windows/manifest"' in value
-    assert "CANONICAL_WEB_STABLE_MANIFEST_MISMATCH" in value
-    assert "CANONICAL_WEB_STABLE_REDIRECT_MISMATCH" in value
-    assert "CANONICAL_WEB_STABLE_VERIFIED" in value
-    assert 'value.get("channel") == "stable"' in value
-    assert 'asset.get("sha256") == expected_sha' in value
-    assert 'asset.get("size") == expected_size' in value
-    assert 'for suffix in ("", f"?tag={tag}")' in value
-
+    assert "python tools/ci/companion_download_verify.py" in value
+    assert "--candidate-manifest" in value
+    assert "--promotion-manifest" in value
+    helper = (REPO_ROOT / "tools/ci/companion_download_verify.py").read_text(encoding="utf-8")
+    assert "CANONICAL_WEB_STABLE_MANIFEST_MISMATCH" in helper
+    assert "CANONICAL_WEB_STABLE_VERIFIED" in helper
+    assert "STABLE_DOWNLOAD_BYTES_INVALID" in helper
 
 def test_stable_promotion_requires_the_exact_physically_accepted_runtime_versions():
     value = _read("companion-promote.yml")
@@ -319,4 +314,3 @@ def test_companion_windows_job_executes_signing_fail_closed_probes():
     assert "AUTHENTICODE_THUMBPRINT_INVALID" in value
     assert "AUTHENTICODE_ARTIFACT_SIGNING_DLIB_REQUIRED" in value
     assert "Assert-BuildFails" in value
-
