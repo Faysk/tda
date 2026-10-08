@@ -750,7 +750,7 @@ Screenshots desktop/mobile foram inspecionados. Código validado não é publica
 Além do export Craig, o importador local aceita um ZIP plano contendo somente
 FLACs com nomes comuns (por exemplo, exports do Audacity). O nome sem extensão
 vira o rótulo da faixa; números determinísticos e paths físicos canônicos são
-atribuídos sem renomear os arquivos originais. Faixas no mesmo ZIP compartilham
+atribuídos sem renomear os arquivos originais. O manifesto usa filename interno numerado compatível com os workers existentes e preserva o nome de origem em original_filename. Faixas no mesmo ZIP compartilham
 o zero temporal: representam gravações simultâneas já alinhadas. Trechos em
 sequência devem ser ZIPs distintos ordenados na sessão; não é inventado horário
 absoluto, alinhamento acústico nem identidade Discord.

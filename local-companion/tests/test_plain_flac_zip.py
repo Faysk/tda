@@ -15,10 +15,10 @@ def test_plain_audio_names_survive_durable_reload(tmp_path: Path):
     target = tmp_path / "staged"
     package = ingest_craig_zip(source, target)
     loaded = load_craig_package(target)
-    assert [(track.number, track.speaker, track.filename, track.path)
+    assert [(track.number, track.speaker, track.filename, track.path, track.original_filename)
             for track in loaded.tracks] == [
-        (1, "AUDIO THOM", "AUDIO THOM.flac", "tracks/track-000001.flac"),
-        (2, "Faysk3", "Faysk3.flac", "tracks/track-000002.flac"),
+        (1, "AUDIO THOM", "1-AUDIO THOM.flac", "tracks/track-000001.flac", "AUDIO THOM.flac"),
+        (2, "Faysk3", "2-Faysk3.flac", "tracks/track-000002.flac", "Faysk3.flac"),
     ]
     assert [track.sha256 for track in loaded.tracks] == [track.sha256 for track in package.tracks]
     assert loaded.start_time is None

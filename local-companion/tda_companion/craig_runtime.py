@@ -209,10 +209,10 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         speaker = _text(item.get("speaker"), "CRAIG_MANIFEST_SPEAKER_INVALID", maximum=160)
         filename = _text(item.get("filename"), "CRAIG_MANIFEST_FILENAME_INVALID", maximum=512)
         match = TRACK_NAME.fullmatch(filename)
-        numbered_name_valid = bool(match and int(match.group("track")) == number
-                                   and match.group("speaker").strip() == speaker)
-        plain_name_valid = plain_flac_speaker(filename) == speaker
-        if not numbered_name_valid and not plain_name_valid:
+        if not match or int(match.group("track")) != number or match.group("speaker").strip() != speaker:
+            raise CraigPackageError("CRAIG_MANIFEST_FILENAME_INVALID")
+        original_filename = item.get("original_filename")
+        if original_filename is not None and plain_flac_speaker(original_filename) != speaker:
             raise CraigPackageError("CRAIG_MANIFEST_FILENAME_INVALID")
 
         canonical_relative = f"tracks/{physical_track_filename(number)}"
@@ -283,6 +283,7 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
                 staged_mtime_ns=staged_mtime_ns,
                 timeline_offset_seconds=float(offset),
                 duration_seconds=duration_seconds,
+                original_filename=original_filename,
             )
         )
 

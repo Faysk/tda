@@ -58,6 +58,7 @@ class CraigTrack:
     staged_mtime_ns: int | None = None
     timeline_offset_seconds: float = 0.0
     duration_seconds: float | None = None
+    original_filename: str | None = None
 
 
 @dataclass(frozen=True)
@@ -673,13 +674,16 @@ def ingest_craig_zip(
                     CraigTrack(
                         number=number,
                         speaker=speaker,
-                        filename=source_filename,
+                        filename=(source_filename if TRACK_NAME.fullmatch(source_filename)
+                                  else f"{number}-{speaker}.flac"),
                         path=f"tracks/{physical_filename}",
                         size_bytes=member.file_size,
                         sha256=digest,
                         identity=identity,
                         staged_mtime_ns=target.stat().st_mtime_ns,
                         duration_seconds=flac_duration_seconds(target),
+                        original_filename=(None if TRACK_NAME.fullmatch(source_filename)
+                                           else source_filename),
                     )
                 )
 
