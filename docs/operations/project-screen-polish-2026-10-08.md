@@ -50,7 +50,7 @@ Rollback: reverter os commits de apresentação/routing pelo fluxo normal e publ
 
 A investigação do gate de isolamento demonstrou uma corrida real entre a seleção de jobs e sua contagem. O teste determinístico intercala um cancelamento persistido: antes da correção, uma linha ativa é devolvida com `total_matching=0`; depois, a leitura transacional devolve registros e contadores do mesmo snapshot. O parser Web permanece estrito. O payload original da falha de CI não foi capturado; ligar aquela ocorrência à corrida demonstrada permanece uma inferência.
 
-O candidato Companion 0.3.26 exige release e aceite instalado; a publicação Web não atualiza o Agent 0.3.25 já instalado. Seis testes de paginação e dez casos de browser scratch passaram localmente. Suite completa, CI e release são etapas separadas e permanecem vinculadas à issue. Não há mudança em ASR, schema local, configuração de journal, dados ou runtimes de GPU. Rollback preserva o diretório de dados e reinstala a release anterior, reintroduzindo a corrida.
+O Companion 0.3.26 foi instalado e promovido a Stable pelo run #37722701213, com MSI e recibos verificados. A suite local passou 1.409 testes (17 skips condicionais), seis casos de paginação e dez casos de browser scratch. Os quatro perfis passaram no aceite físico com TTS português sintético na RTX 4070 Laptop; isso não mede qualidade humana nem certifica a RTX 2080. Os recibos sanitizados pertencem a docs/companion/acceptance e PR #1619. O read-back do navegador preservou cinco resultados, a sessão contínua com 8.019 falas em duas gravações e sua revisão privada r1 no Edit. Não há mudança em ASR, schema local, configuração de journal, dados ou runtimes de GPU. Rollback preserva o diretório de dados e reinstala a release anterior, reintroduzindo a corrida.
 
 ## Aceite publicado e landmarks — #1618
 
@@ -61,3 +61,28 @@ no diretório. #1618 corrige o contrato para manter `main#conteudo` como único 
 do conteúdo principal, com seções internas e fixtures correspondentes, preservando
 classes, geometrias e os mains de documentos standalone. A publicação deste ajuste
 adicional exige seus próprios gates e aceite; o receipt anterior não o certifica.
+
+## Recuperação da sessão — #1621
+
+O aceite live encontrou um aviso antigo de indisponibilidade ao lado de Companion
+Pronto e sessão concluída. PR #1622 faz a leitura completa bem-sucedida da sessão
+avisar o dono desse erro de disponibilidade, sem aguardar outro poll de
+capabilities. Somente o incidente timeout/unreachable correspondente se torna
+histórico; erros distintos, decisões pendentes e progresso continuam preservados.
+A regressão de browser intercala falha de leitura, mantém capabilities bloqueado
+e confirma a recuperação. O controle negativo sem a notificação mantém o alerta
+e falha; a implementação passa os 50 casos multi-gravação desktop/mobile.
+
+## Integração e limites do aceite final
+
+As correções adicionais pertencem às PRs #1620 (landmarks) e #1622 (recuperação).
+A primeira passou 21 casos de layout, os checks e os builds Production/fixtures;
+a segunda passou check, build e os gates exatos de processamento e isolamento.
+A publicação deliberada e o aceite final dessas duas correções são registrados
+nas issues #1618/#1621, e o encerramento da rodada em #1601. Merge, CI e publicação
+continuam estados separados. A publicação inicial comprovada é prod-620b11f4fc5a.
+
+Referência humana/WER/CER continua não medida quando ausente; o teste físico
+sintético não substitui conferência humana das falas reais. Não houve publicação
+pública da sessão privada, criação de lore, grant novo, reset de dados ou troca
+de provider para produzir um estado visual artificial.
