@@ -648,3 +648,20 @@ known relation visible versus the same relation temporarily hidden. DOM presence
 computed stroke properties and `isPointInStroke()` are diagnostic evidence only;
 they are not sufficient proof that the user can see the relation. Layout positions,
 relation topology and campaign data remain unchanged by this presentation rule.
+
+### Campaign-neutral entry acceptance (2026-10-08)
+
+The `/mundo` chooser uses ordinary document flow rather than the graph workspace:
+no campaign has been selected yet, so workspace rails, canvas scroll locks and
+edge controls do not belong on this page. Campaign-specific World routes retain
+their own workspace. The chooser clears floating site chrome at narrow widths.
+Public copy describes exploring people, places and stories; temporary directory
+failure exposes a full request retry preserving `foco`, and a return-home link.
+Tracked acceptance: #1624 and #1626. Local implementation is not publication.
+The explorer regression suite follows the current presentation contract: overview
+labels depend on semantic zoom; selecting a node exposes its related labels;
+highlighted SVG strokes live in ViewportPortal and retain zoom-scaled width. Native
+relation summaries retain filter, Escape and focus checks, and theme acceptance
+uses an explicit system preference before switching through the real menu.
+Validation: 93 browser cases across desktop/mobile, including independent pixel
+rasterization through camera changes and overlays. See #1627.
