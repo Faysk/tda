@@ -218,7 +218,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
 | [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-29 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
-| [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | Stable 0.3.15; candidato 0.3.16 / Qwen 1.0.12 preparado para validação Production de #628 | 2026-09-28 |
+| [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | vigente; versões publicadas e aceites pertencem aos receipts de release | 2026-10-08 |
 | [Multi-campaign activation gate](../operations/multi-campaign-activation-gate.md) | testing / identity-access / operations | operational gate for #1138 and product-coherence acceptance #1288 | 2026-10-03 |
 | [Auditoria e polimento das telas — 2026-10-08](../operations/project-screen-polish-2026-10-08.md) | frontend / ux / operations | candidato em validação; publicação pendente | 2026-10-08 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
