@@ -179,3 +179,26 @@ def test_exception_error_boundary_preserves_documented_error_codes():
         (Conflict("JOB_LIST_CURSOR_INVALID"), "JOB_LIST_CURSOR_INVALID"),
     ):
         assert _public_error_code_from_exception(exception) == expected
+
+
+def test_public_error_response_allowlist_rejects_uppercase_internal_details():
+    # Previously this regex-shaped exception payload reached the HTTP client.
+    for private_code in ("SECRET_API_KEY_123", "PRIVATE_RUNTIME_DETAILS", "QWEN_ARBITRARY_SECRET"):
+        result = error(private_code, 409)
+        assert result.status_code == 409
+        assert result.body == b'{"error":{"code":"INTERNAL_ERROR","recoverable":false}}'
+
+
+def test_public_error_response_allowlist_preserves_known_codes():
+    for allowed_code in (
+        "BENCHMARK_REFERENCE_STALE_REVISION",
+        "QWEN_RUNTIME_UPDATE_FAILED",
+        "TRANSCRIPTION_PREPARATION_FAILED",
+        "HOST_REJECTED",
+        "JOB_LIST_CURSOR_INVALID",
+        "TRANSCRIPTION_NO_ELIGIBLE_TRACKS",
+        "PUBLICATION_TARGET_PROVENANCE_UNAVAILABLE",
+        "SESSION_WORKSPACE_TIMELINE_NOT_TRUSTED",
+        "SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID",
+    ):
+        assert allowed_code.encode("utf-8") in error(allowed_code, 409).body
