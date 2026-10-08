@@ -2,7 +2,7 @@
 
 > Status: ASR local, runs/revisão e publicação explícita implementados; auto-sync de job permanece `not_configured`
 > Owner: Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro
-> Última revisão: 2026-10-07
+> Última revisão: 2026-10-08
 > Fonte de verdade: `src/features/edit/processing`, `src/app/edit/processamento`, `local-companion/tda_companion`, [spec de revisão/publicação](transcript-review-publication.md) e testes associados
 
 `/edit/[campaign]/processamento` é a superfície operacional canônica para conexão com o TDA Companion, ingest local de sessões Craig, fila local, telemetria e eventos. O processamento pesado e os áudios permanecem no computador do usuário; o site cloud não depende do PC estar ligado para continuar disponível.
@@ -33,9 +33,9 @@ No slice Web preparado por #1128:
 
 A URL canônica é `/edit/[campaign]/processamento`. O entrypoint `/edit/processamento` continua aceitando a seleção compatível e encaminha escolhas normais para a rota campaign-scoped; a identidade local do processamento continua sendo o technical slug validado no servidor.
 
-### Endereços por nome de campanha — candidato #1560
+### Endereços por nome de campanha — #1560
 
-O candidato #1560 usa `public_slug` (`routeKey`) no segmento de navegação do
+O fluxo #1560 usa `public_slug` (`routeKey`) no segmento de navegação do
 Processamento. O servidor resolve essa referência somente entre campanhas ativas
 autorizadas e entrega o `technicalSlug` original ao painel. Links técnicos antigos
 redirecionam para o endereço público atual; picker e menu global usam o mesmo
@@ -45,7 +45,7 @@ técnica estável. A resolução de caminho não concede acesso nem muda uma ses
 Em 2026-10-07, o registry autenticado confirmou **Destino Sem Fim** com endereço
 `destino-sem-fim` (corrigido pelo editor de campanhas) e **Passos Retomados** com
 `passos-retomados`. Essa operação de registry já foi salva; os novos caminhos Web
-de Processamento ainda dependem da integração/publicação do candidato #1560.
+de Processamento foram publicados e os links técnicos antigos redirecionam.
 
 ### Recuperação e distribuição observadas — #1552 / #1561
 
@@ -58,8 +58,9 @@ Instalação e suite GPU do Companion 0.3.23 passaram, mas a exportação ZIP re
 um defeito de escopo. O candidato 0.3.24 corrige esse endereço e projeta VRAM
 pico/média e cobertura a partir do arquivo de métricas validado por hash;
 histórico sem coleta permanece sem valor. A comparação recolhe os avisos e a
-memória em detalhes, preservando a leitura principal. Aceite e Stable de 0.3.24
-continuam pendentes; estes resultados não são WER/CER nem aceite em RTX 2080.
+memória em detalhes, preservando a leitura principal. O 0.3.24 foi aceito e
+promovido; a correção de legendas pontuais segue no 0.3.25, cujo aceite próprio
+está descrito abaixo. Estes resultados não são WER/CER nem aceite em RTX 2080.
 
 O teste autenticado de 2026-10-07 encontrou Web Production em
 `9d40dee03a2d6978e30e7669f3255e188f75bd35`, mas Agent instalado **0.3.18**,
@@ -231,6 +232,19 @@ de pelo menos 1 ms. Isso normaliza somente a representação da legenda; o JSON
 canônico, seus hashes e o texto permanecem iguais. O ZIP inclui
 `subtitle-timing.json` por perfil para declarar a regra e contar os ajustes.
 Não apresentar esse mínimo de exibição como medição de fala ou ganho de qualidade.
+
+O MSI 0.3.25 passou pelos recibos próprios de aceite instalado v3 e físico v2
+na RTX 4070 Laptop / SM 8.9. A exportação do benchmark preservado (executado no
+0.3.24) passou na API instalada 0.3.25, mantendo os quatro hashes canônicos e
+125/126/72/76 falas. Isso não mede WER nem valida outro modelo de GPU.
+
+Na Web, ZIP privado com `Content-Length` conhecido até 16 MiB usa o download
+normal do navegador, mesmo quando a API de seleção de arquivo está disponível.
+O feedback informa **download iniciado**, sem afirmar que o arquivo já foi salvo.
+Arquivos maiores ou de tamanho desconhecido continuam usando escrita por stream
+quando suportada; somente a conclusão da escrita informa **salvo**. Cancelamento
+e falha têm feedback próprio, preservam os arquivos locais e liberam nova tentativa.
+URLs de blob são liberadas após 60 segundos para não invalidar o download prematuramente.
 
 O Companion 0.3.21 mantém **Whisper Runtime 1.1.4** como mínimo de formato/rollback histórico, mas exige **Whisper Runtime 1.1.10** para o protocolo Craig corrente; o mínimo normal continua **Qwen Runtime 1.0.12**. Benchmark usa mínimos próprios definidos em `runtime_compat.py`, atualmente Whisper 1.1.10 e Qwen 1.0.18. Durante rollout RC, o primeiro uso aceita somente o candidato publicado exato e verificado da versão compatível; um manifest Stable abaixo do mínimo de dispatch é ignorado como destino de transcrição e o fluxo pode preparar o RC publicado. Gate físico por perfil continua obrigatório para Qwen e para qualquer aceite de release que exija evidência da GPU real.
 

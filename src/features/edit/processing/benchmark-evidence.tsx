@@ -86,21 +86,26 @@ async function saveResponse(
 	preferStreaming = false,
 ) {
 	const filename = responseFilename(response, fallbackName);
-	if (preferStreaming && response.body) {
+	const lengthHeader = response.headers.get("content-length");
+	const length = lengthHeader === null ? null : Number(lengthHeader);
+	const smallDownload =
+		length !== null &&
+		Number.isFinite(length) &&
+		length >= 0 &&
+		length <= 16 * 1024 ** 2;
+	if (preferStreaming && !smallDownload && response.body) {
 		const picker = (
 			window as Window & {
-				showSaveFilePicker?: (options: {
-					suggestedName: string;
-				}) => Promise<{
+				showSaveFilePicker?: (options: { suggestedName: string }) => Promise<{
 					createWritable: () => Promise<WritableStream<Uint8Array>>;
 				}>;
 			}
 		).showSaveFilePicker;
 		if (picker) {
-			const handle = await picker({ suggestedName: filename });
+			const handle = await picker.call(window, { suggestedName: filename });
 			const writable = await handle.createWritable();
 			await response.body.pipeTo(writable);
-			return;
+			return "saved" as const;
 		}
 	}
 	const blob = await response.blob();
@@ -110,10 +115,13 @@ async function saveResponse(
 		anchor.href = url;
 		anchor.download = filename;
 		anchor.rel = "noopener";
+		document.body.append(anchor);
 		anchor.click();
+		anchor.remove();
 	} finally {
-		setTimeout(() => URL.revokeObjectURL(url), 0);
+		setTimeout(() => URL.revokeObjectURL(url), 60_000);
 	}
+	return "download-started" as const;
 }
 
 function asNumber(value: string): number | null | "invalid" {
@@ -193,6 +201,7 @@ export function BenchmarkEvidenceWorkspace({
 	const [activeDifference, setActiveDifference] = useState(0);
 	const [exportOpen, setExportOpen] = useState(promptExport);
 	const [busy, setBusy] = useState<string | null>(null);
+	const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -376,6 +385,7 @@ export function BenchmarkEvidenceWorkspace({
 		if (!artifacts) return;
 		const key = `${profileId}:${format}`;
 		setBusy(key);
+		setDownloadStatus(null);
 		setError(null);
 		const controller = new AbortController();
 		try {
@@ -389,12 +399,18 @@ export function BenchmarkEvidenceWorkspace({
 				response,
 				`TDA-Benchmark-${artifacts.benchmarkId}-${profileId}-transcript.${format}`,
 			);
+			setDownloadStatus(
+				"Download iniciado. Confira os downloads do navegador.",
+			);
 		} catch (cause) {
 			if ((cause as DOMException)?.name !== "AbortError")
 				setError(
-					cause instanceof Error ? cause.message : "Falha ao baixar o artefato.",
+					cause instanceof Error
+						? cause.message
+						: "Falha ao baixar o artefato.",
 				);
 		} finally {
+			controller.abort();
 			setBusy(null);
 		}
 	}
@@ -403,6 +419,7 @@ export function BenchmarkEvidenceWorkspace({
 		if (!artifacts) return;
 		setExportOpen(false);
 		setBusy("zip");
+		setDownloadStatus(null);
 		setError(null);
 		const controller = new AbortController();
 		try {
@@ -410,12 +427,21 @@ export function BenchmarkEvidenceWorkspace({
 				artifacts.benchmarkId,
 				controller.signal,
 			);
-			await saveResponse(
+			const result = await saveResponse(
 				response,
 				`TDA-Benchmark-${artifacts.benchmarkId}-private-evidence.zip`,
 				true,
 			);
+			setDownloadStatus(
+				result === "saved"
+					? "ZIP privado salvo no local escolhido."
+					: "Download do ZIP privado iniciado. Confira os downloads do navegador.",
+			);
 		} catch (cause) {
+			if ((cause as DOMException)?.name === "AbortError")
+				setDownloadStatus(
+					"Exportação cancelada. Os arquivos locais foram preservados.",
+				);
 			if ((cause as DOMException)?.name !== "AbortError")
 				setError(
 					cause instanceof Error
@@ -423,6 +449,7 @@ export function BenchmarkEvidenceWorkspace({
 						: "Falha ao exportar o ZIP privado.",
 				);
 		} finally {
+			controller.abort();
 			setBusy(null);
 		}
 	}
@@ -551,8 +578,25 @@ export function BenchmarkEvidenceWorkspace({
 				) : null}
 			</div>
 
-			{error ? <p className={styles.error} role="alert">{error}</p> : null}
-			{busy ? <p className={styles.loading} role="status">{busy}</p> : null}
+			{error ? (
+				<p className={styles.error} role="alert">
+					{error}
+				</p>
+			) : null}
+			{busy ? (
+				<p className={styles.loading} role="status">
+					{busy === "zip"
+						? "Preparando ZIP privado…"
+						: busy.includes(":")
+							? "Preparando arquivo para download…"
+							: busy}
+				</p>
+			) : null}
+			{downloadStatus ? (
+				<p className={styles.muted} role="status">
+					{downloadStatus}
+				</p>
+			) : null}
 
 			{mode === "compare" ? (
 				<>
@@ -945,7 +989,7 @@ export function BenchmarkEvidenceWorkspace({
 							Exportar evidência privada (.zip)
 						</Button>
 						<span className={styles.muted}>
-							Gerado pelo Companion e transferido como stream quando o navegador permite.
+							ZIPs pequenos usam o download do navegador. Para arquivos maiores, escolha onde salvar quando solicitado.
 						</span>
 					</div>
 				</div>
