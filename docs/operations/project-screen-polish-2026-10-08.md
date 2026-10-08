@@ -86,3 +86,23 @@ Referência humana/WER/CER continua não medida quando ausente; o teste físico
 sintético não substitui conferência humana das falas reais. Não houve publicação
 pública da sessão privada, criação de lore, grant novo, reset de dados ou troca
 de provider para produzir um estado visual artificial.
+## Continuação aprofundada — 2026-10-08
+
+A rodada anterior foi aceita em Production `prod-aba7f268e435`, com Companion
+Stable 0.3.26 e receipts próprios; esse histórico permanece válido. A continuação
+solicitada reabriu #1601 e registrou situações distintas antes de corrigi-las:
+
+- #1624: texto público do seletor de Mundo e recuperação de falha do diretório;
+- #1626: sobreposição do logo/aba de navegação no seletor de campanhas em celular;
+- #1627: contratos antigos da suíte World diante de semantic zoom, summaries
+  nativos e pintura em ViewportPortal;
+- #1625: fronteira de erro HTTP do Companion e classificação individual dos
+  alertas de paths, com release própria após o aceite.
+
+PR #1628 integrou os três ajustes World. Check, builds Production/fixtures,
+93 casos de navegador e inspeção local nos temas claro/escuro passaram. O seletor
+usa fluxo normal; o workspace das campanhas não foi substituído. PR #1606
+integrou códigos de erro estáticos e o scan main subsequente deixou de reportar
+exposição de detalhes de exception. Isso não encerra os 38 alertas de path nem
+certifica o MSI instalado. A publicação Web e o candidato 0.3.27 seguem separados
+nos receipts e nos critérios das issues; nenhum deles está inferido do merge.

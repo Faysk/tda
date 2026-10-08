@@ -1105,6 +1105,14 @@ def _quality_receipt_path(
 ) -> Path:
     if profile_id not in BENCHMARK_PROFILES:
         raise BenchmarkQualityError("BENCHMARK_PROFILE_INVALID")
+    if (
+        isinstance(revision, bool)
+        or not isinstance(revision, int)
+        or revision < 1
+        or not isinstance(reference_sha256, str)
+        or _SHA256.fullmatch(reference_sha256) is None
+    ):
+        raise BenchmarkQualityError("BENCHMARK_QUALITY_PATH_INVALID")
     root = _safe_quality_root(data_root, benchmark_id)
     profile_root = root / profile_id
     if profile_root.exists() and (
@@ -1112,7 +1120,16 @@ def _quality_receipt_path(
         or getattr(profile_root, "is_junction", lambda: False)()
     ):
         raise BenchmarkQualityError("BENCHMARK_QUALITY_PATH_INVALID")
-    return profile_root / f"r{revision:06d}-{reference_sha256[:12]}.json"
+    profile_root = profile_root.resolve()
+    if profile_root.parent != root:
+        raise BenchmarkQualityError("BENCHMARK_QUALITY_PATH_INVALID")
+    raw = profile_root / f"r{revision:06d}-{reference_sha256[:12]}.json"
+    if raw.is_symlink() or getattr(raw, "is_junction", lambda: False)():
+        raise BenchmarkQualityError("BENCHMARK_QUALITY_PATH_INVALID")
+    result = raw.resolve()
+    if result.parent != profile_root:
+        raise BenchmarkQualityError("BENCHMARK_QUALITY_PATH_INVALID")
+    return result
 
 
 def score_profile(
