@@ -736,7 +736,10 @@ test("Lembra keeps viewer management reachable in a short desktop viewport", asy
 
 test("Lembra preserves source proportions in composer, gallery and viewer", async ({ page }) => {
 	await page.goto("/lembra");
-	await page.locator('input[type="file"]').setInputFiles({
+	const chooserEvent = page.waitForEvent("filechooser");
+	await page.getByRole("button", { name: "Adicionar imagem" }).click();
+	const chooser = await chooserEvent;
+	await chooser.setFiles({
 		name: "quadrada.png",
 		mimeType: "image/png",
 		buffer: PNG_1X1,

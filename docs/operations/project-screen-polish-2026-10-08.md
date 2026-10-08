@@ -37,6 +37,9 @@ A inspeção real usa Chrome autenticado, geometrias do DOM e screenshots. Teste
 
 - #1609: Escape consumido pelo seletor interno não fecha o menu da conta. O primeiro Escape devolve foco ao seletor; o segundo fecha o menu e devolve foco ao launcher.
 
+- #1611: a abertura dos diálogos de campanha e do composer do Lembra estabelece foco inicial junto com showModal, sem callback atrasado que possa capturar a digitação do campo seguinte.
+- #1612: o teste de proporção seleciona a imagem pelo botão visível e file chooser, preservando as verificações de composer, galeria e viewer. A falha de setup não comprova perda de imagem em Production.
+
 ## Entrega e rollback
 
 As evidências finais de checks, build, browser, CI, merge e Production pertencem às issues e ao receipt desta entrega. Não fechar os itens apenas com implementação local. O pipeline production-cd exige despacho deliberado do SHA atual de main após validação do escopo.

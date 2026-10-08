@@ -484,7 +484,7 @@ export function LembraExperience({
 
 		if (draft && !dialog.open) {
 			dialog.showModal();
-			requestAnimationFrame(() => titleRef.current?.focus());
+			titleRef.current?.focus();
 		} else if (!draft && dialog.open) {
 			dialog.close();
 		}

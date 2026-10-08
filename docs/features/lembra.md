@@ -379,3 +379,7 @@ A simplicidade é requisito, não ausência de funcionalidade.
 - [Media Storage / R2](../integrations/r2.md)
 - [Fluxo de mídia](../integrations/r2/media-pipeline.md)
 - [Issue #476](https://github.com/Faysk/tda/issues/476)
+
+### Seguimento de foco e preparo de teste — 2026-10-08
+
+A CI do SHA integrado encontrou uma corrida no foco inicial dos diálogos (#1611) e um setup de upload que não passava pelo controle visível (#1612). O candidato estabelece foco junto da abertura modal e usa file chooser no teste de proporções, sem alteração de armazenamento, grants ou upload privado em Production. A publicação permanece dependente de novo aceite exato de main.
