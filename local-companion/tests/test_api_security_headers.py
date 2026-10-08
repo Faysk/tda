@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from tda_companion.api import create_app, error
+from tda_companion.api import _public_error_code_from_exception, create_app, error
+from tda_companion.benchmark_bundles import BenchmarkBundleError
+from tda_companion.benchmark_quality import BenchmarkQualityError
+from tda_companion.session_assemblies import SessionAssemblyError
 from tda_companion.store import Conflict
 
 TOKEN = "s" * 43
@@ -155,3 +158,24 @@ def test_shared_error_boundary_preserves_valid_public_codes(tmp_path):
         "error": {"code": "SESSION_ASSEMBLY_NOT_FOUND", "recoverable": False}
     }
     _assert_error_headers(response)
+
+
+def test_exception_error_boundary_rejects_unapproved_uppercase_details():
+    for exception in (
+        BenchmarkBundleError("CUSTOM_INTERNAL_SECRET"),
+        BenchmarkQualityError("SENSITIVE_TOKEN_123"),
+        SessionAssemblyError("PRIVATE_METADATA"),
+        Conflict("UNEXPECTED_PUBLIC_SHAPED_STRING"),
+        RuntimeError("BENCHMARK_ID_INVALID"),
+    ):
+        assert _public_error_code_from_exception(exception) == "INTERNAL_ERROR"
+
+
+def test_exception_error_boundary_preserves_documented_error_codes():
+    for exception, expected in (
+        (BenchmarkBundleError("BENCHMARK_ID_INVALID"), "BENCHMARK_ID_INVALID"),
+        (BenchmarkQualityError("BENCHMARK_REFERENCE_STALE_REVISION"), "BENCHMARK_REFERENCE_STALE_REVISION"),
+        (SessionAssemblyError("SESSION_ASSEMBLY_NOT_FOUND"), "SESSION_ASSEMBLY_NOT_FOUND"),
+        (Conflict("JOB_LIST_CURSOR_INVALID"), "JOB_LIST_CURSOR_INVALID"),
+    ):
+        assert _public_error_code_from_exception(exception) == expected
