@@ -364,6 +364,19 @@ política `positive_millisecond_cues_v1` e quantidade de ajustes. Esse intervalo
 valores não finitos continuam inválidos. Validar o ZIP real preservado e o novo
 MSI antes de tratar o 0.3.25 como aceito; nenhum runtime de inferência muda.
 
+Em 2026-10-08, o MSI imutável `companion-rc-v0.3.25-7b1b8d5a130f`
+passou pelo aceite instalado v3 e físico v2 na RTX 4070 Laptop / SM 8.9.
+Os recibos próprios estão em `docs/companion/acceptance/` e a verificação
+oficial de promoção confere os mesmos bytes do candidato. O benchmark real
+preservado foi executado no 0.3.24; sua exportação foi aceita pela API instalada
+do 0.3.25, com os quatro hashes canônicos, diagnósticos e contagens conferidos.
+Os SRT/VTT mantêm todas as 125/126/72/76 falas e ajustam somente 0/0/2/3 cues
+pontuais. Os recibos `benchmark-0324-exporter-0325.json` e
+`benchmark-0324-subtitles-0325.json` distinguem essas duas versões; a execução
+anterior que falhou permanece como histórico. A promoção Stable continua uma
+ação separada, autorizada somente depois de integrar e revisar estes recibos;
+o workflow deve terminar também o postflight do download same-origin.
+
 ### Download do Companion pelo domínio do TDA (#1567)
 
 O postflight de promoção verifica HTTP 200 direto, `Content-Length`, disposition
@@ -373,6 +386,13 @@ do TDA. Se a promoção já trocou o canal e apenas o postflight falhou, preserv
 esse workflow como evidência e executar `Companion Stable Postflight` em `main`
 para a Stable existente. Esse fluxo tem somente permissão de leitura, não
 reconstrói assets nem repete a troca de canal.
+
+Os testes de smoke importam o verificador compartilhado de
+`tools/ci/companion_download_verify.py`, sem extrair Python inline do YAML.
+O manifest também exige resposta 200 direta, URL canônica e shape de objeto;
+redirects, outro origin/path e MSI truncado ou com hash divergente falham fechados.
+Preservar esses testes ao alterar a distribuição, em vez de relaxar o contrato
+para acomodar um workflow antigo.
 
 O endpoint `/api/downloads/companion/windows` entrega o MSI por streaming Node.js,
 com `Content-Disposition: attachment`, sem redirecionar o navegador para o CDN do

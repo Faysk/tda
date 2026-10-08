@@ -1,0 +1,37 @@
+{
+  "schema": "tda_benchmark_subtitle_export_acceptance_v1",
+  "pass": true,
+  "execution_companion_version": "0.3.24",
+  "export_companion_version": "0.3.25",
+  "export_sha256": "3bc311e05adc88dd11fd546bc86d10f7cc54c6c4bd95c0a581edd1d4d277cb02",
+  "profiles": [
+    {
+      "profile_id": "whisper-turbo",
+      "canonical_hash_verified": true,
+      "positive_subtitle_cues": 125,
+      "adjusted_cue_count": 0
+    },
+    {
+      "profile_id": "whisper-detailed",
+      "canonical_hash_verified": true,
+      "positive_subtitle_cues": 126,
+      "adjusted_cue_count": 0
+    },
+    {
+      "profile_id": "qwen-fast",
+      "canonical_hash_verified": true,
+      "positive_subtitle_cues": 72,
+      "adjusted_cue_count": 2
+    },
+    {
+      "profile_id": "qwen-quality",
+      "canonical_hash_verified": true,
+      "positive_subtitle_cues": 76,
+      "adjusted_cue_count": 3
+    }
+  ],
+  "contains_transcript": false,
+  "contains_audio": false,
+  "contains_token": false,
+  "contains_local_paths": false
+}
