@@ -45,6 +45,12 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [ADR-0022 — Overlap multi-recording usa preservação automática conservadora antes de boundary manual](../adr/0022-conservative-overlap-resolution.md) | Edit / processing / transcripts | accepted | 2026-10-06 |
 | [Architecture Decision Records](../adr/README.md) | arquitetura | vigente | Não declarado |
 
+## docs/api
+
+| Documento | Owner declarado | Estado declarado | Revisão declarada |
+| --- | --- | --- | --- |
+| [API pública de resumos de sessões (v1)](../api/public-sessions.md) | Não declarado | Não declarado | Não declarado |
+
 ## docs/architecture
 
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
@@ -237,4 +243,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-156 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+157 páginas inventariadas, além deste catálogo gerado. 13 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
