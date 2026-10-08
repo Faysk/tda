@@ -106,7 +106,7 @@ export function CampaignManagementView({
 	const createHasError = feedback.campaignId === null && Boolean(feedback.error);
 
 	return (
-		<main
+		<section
 			className={styles.page}
 			data-campaign-manager
 			data-layout-family="workspace"
@@ -687,6 +687,6 @@ export function CampaignManagementView({
 					</section>
 				</>
 			)}
-		</main>
+		</section>
 	);
 }

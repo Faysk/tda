@@ -47,7 +47,7 @@ export function LegacyTranscriptPrepareE2EFixture() {
 
 	if (preparedRevision !== null) {
 		return (
-			<main>
+			<section>
 				<div data-testid="legacy-attempt-ids">{attemptIds.join("|")}</div>
 				<section aria-label="Editor moderno disponível">
 					<h1>Editor moderno disponível</h1>
@@ -56,12 +56,12 @@ export function LegacyTranscriptPrepareE2EFixture() {
 						inalterada.
 					</p>
 				</section>
-			</main>
+			</section>
 		);
 	}
 
 	return (
-		<main>
+		<section>
 			<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
 				<Button onClick={() => setMode("success")} variant="tertiary">
 					Resposta sucesso
@@ -82,6 +82,6 @@ export function LegacyTranscriptPrepareE2EFixture() {
 				sessionTitle="Sessão Legada Sintética"
 				snapshotSha256={SNAPSHOT}
 			/>
-		</main>
+		</section>
 	);
 }

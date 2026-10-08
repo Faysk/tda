@@ -1,4 +1,10 @@
-import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
+import {
+	expect,
+	test,
+	type Locator,
+	type Page,
+	type TestInfo,
+} from "@playwright/test";
 
 // #1081 is the canonical browser gate for shared keylines and corner clearance.
 
@@ -14,6 +20,29 @@ type StructuralMeasurement = Readonly<{
 
 const LEMBRA_SEARCH = "Buscar título, descrição, autor ou data...";
 const WORLD_WORKSPACE_PATH = "/campanhas/cronicas-da-mesa/mundo";
+
+test("App Router screens expose one main landmark and skip-link target", async ({
+	page,
+}) => {
+	for (const path of [
+		"/campanhas",
+		"/campanhas/cronicas-da-mesa",
+		"/mundo",
+		"/edit",
+		"/edit/campanhas",
+		"/e2e-fixtures/session-archive-scope",
+		"/e2e-fixtures/operational-header",
+		"/e2e-fixtures/world-command-palette",
+	]) {
+		await page.goto(path);
+		await expect(page.locator("main"), path).toHaveCount(1);
+		await expect(page.locator("main#conteudo"), path).toHaveCount(1);
+		await expect(page.locator("main main"), path).toHaveCount(0);
+		await expect(
+			page.getByRole("link", { name: "Pular para o conteúdo" }),
+		).toHaveAttribute("href", "#conteudo");
+	}
+});
 
 async function expectNoHorizontalOverflow(page: Page) {
 	expect(
@@ -77,7 +106,10 @@ async function measurePublicKeylines(page: Page) {
 		await page.goto(surface.path);
 		await expect(surface.target()).toBeVisible();
 		const measurement = await structuralMeasurement(surface.target());
-		expect(measurement, `${surface.name} must expose a gutter-bound structural ancestor`).not.toBeNull();
+		expect(
+			measurement,
+			`${surface.name} must expose a gutter-bound structural ancestor`,
+		).not.toBeNull();
 		if (!measurement) continue;
 		measurements[surface.name] = measurement;
 		await expectNoHorizontalOverflow(page);
@@ -237,7 +269,9 @@ test("canonical page-family and width-role declarations cover representative sur
 	}
 
 	await page.goto("/diario");
-	await expect(page.locator('[data-layout-content-role="editorial"]')).toBeVisible();
+	await expect(
+		page.locator('[data-layout-content-role="editorial"]'),
+	).toBeVisible();
 });
 
 test("Home, Sessions and Lembra share one structural keyline and use wide viewports", async ({
@@ -270,7 +304,9 @@ test("corner chrome never becomes a full-width spacer on representative surfaces
 		const geometry = await page.evaluate(() => {
 			const header = document.querySelector<HTMLElement>(".site-header");
 			const brand = document.querySelector<HTMLElement>(".brand");
-			const avatar = document.querySelector<HTMLElement>(".account-menu-trigger");
+			const avatar = document.querySelector<HTMLElement>(
+				".account-menu-trigger",
+			);
 			if (!header || !brand || !avatar) return null;
 			const headerStyle = getComputedStyle(header);
 			return {
@@ -302,7 +338,9 @@ test("geometry reflows at 320px, 390px and the 200% zoom proxy", async ({
 		for (const path of ["/", "/sessoes", "/lembra", WORLD_WORKSPACE_PATH]) {
 			await page.goto(path);
 			await expectNoHorizontalOverflow(page);
-			const root = page.locator("[data-layout-family][data-layout-role]").first();
+			const root = page
+				.locator("[data-layout-family][data-layout-role]")
+				.first();
 			await expect(root).toBeVisible();
 		}
 	}
@@ -316,7 +354,6 @@ test("visual receipts expose shared keylines and corner safe areas", async ({
 	await captureReceipt(page, testInfo, "/lembra", "lembra");
 	await captureReceipt(page, testInfo, WORLD_WORKSPACE_PATH, "workbench");
 });
-
 
 test("operational headers keep useful work in the first viewport across governed reflow sizes", async ({
 	page,
@@ -367,8 +404,14 @@ test("operational headers keep useful work in the first viewport across governed
 					Number.parseFloat(getComputedStyle(element).fontSize),
 				),
 			]);
-			expect(headerBox, `${surface.key} ${viewport.label}: header box`).not.toBeNull();
-			expect(usefulBox, `${surface.key} ${viewport.label}: useful box`).not.toBeNull();
+			expect(
+				headerBox,
+				`${surface.key} ${viewport.label}: header box`,
+			).not.toBeNull();
+			expect(
+				usefulBox,
+				`${surface.key} ${viewport.label}: useful box`,
+			).not.toBeNull();
 			if (!headerBox || !usefulBox) continue;
 
 			expect(
@@ -385,7 +428,9 @@ test("operational headers keep useful work in the first viewport across governed
 			).toBeLessThan(viewport.height);
 			await expectNoHorizontalOverflow(page);
 
-			const keyboardTarget = page.locator('[data-keyboard-target="true"]').first();
+			const keyboardTarget = page
+				.locator('[data-keyboard-target="true"]')
+				.first();
 			await expect(keyboardTarget).toBeVisible();
 			await page.evaluate(() => {
 				(document.activeElement as HTMLElement | null)?.blur();

@@ -83,11 +83,11 @@ export default async function CampaignSessionsPage({ params }: Props) {
 		notFound();
 	} else if (campaignSlug !== LEGACY_CAMPAIGN_PUBLIC_SLUG) {
 		return (
-			<main className={styles.page}>
+			<section className={styles.page}>
 				<p className={styles.state} role="status">
 					Não foi possível carregar as sessões desta campanha agora.
 				</p>
-			</main>
+			</section>
 		);
 	}
 
@@ -96,21 +96,21 @@ export default async function CampaignSessionsPage({ params }: Props) {
 		sessions = await listPublishedSessionArchive(routeKey);
 	} catch {
 		return (
-			<main className={styles.page}>
+			<section className={styles.page}>
 				<p className={styles.state} role="status">
 					Não foi possível carregar as sessões desta campanha agora.
 				</p>
-			</main>
+			</section>
 		);
 	}
 
 	if (sessions === null) {
 		return (
-			<main className={styles.page}>
+			<section className={styles.page}>
 				<p className={styles.state} role="status">
 					Estamos preparando o arquivo da campanha.
 				</p>
-			</main>
+			</section>
 		);
 	}
 

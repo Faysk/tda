@@ -43,7 +43,7 @@ export function CampaignPickerFixtureClient({
 					];
 
 	return (
-		<main
+		<section
 			style={{
 				maxWidth: "720px",
 				margin: "40px auto",
@@ -66,6 +66,6 @@ export function CampaignPickerFixtureClient({
 				manageHref="/edit/campanhas?next=%2Fe2e-fixtures%2Fcampaign-picker"
 			/>
 			<p data-testid="selected-context">{selected || "nenhuma"}</p>
-		</main>
+		</section>
 	);
 }

@@ -115,7 +115,7 @@ function LibraryFixture() {
 
 function CampaignsFixture() {
 	return (
-		<main
+		<section
 			className={campaignStyles.page}
 			data-layout-family="workspace"
 			data-layout-role="editorial"
@@ -155,7 +155,7 @@ function CampaignsFixture() {
 					</article>
 				</div>
 			</section>
-		</main>
+		</section>
 	);
 }
 

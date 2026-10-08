@@ -220,7 +220,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | vigente; versões publicadas e aceites pertencem aos receipts de release | 2026-10-08 |
 | [Multi-campaign activation gate](../operations/multi-campaign-activation-gate.md) | testing / identity-access / operations | operational gate for #1138 and product-coherence acceptance #1288 | 2026-10-03 |
-| [Auditoria e polimento das telas — 2026-10-08](../operations/project-screen-polish-2026-10-08.md) | frontend / ux / operations | candidato em validação; publicação pendente | 2026-10-08 |
+| [Auditoria e polimento das telas — 2026-10-08](../operations/project-screen-polish-2026-10-08.md) | frontend / ux / operations | registro da rodada; entregas e aceites vinculados ao epic #1601 | 2026-10-08 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-29 |
 | [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-10-01 |

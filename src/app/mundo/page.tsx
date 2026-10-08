@@ -25,14 +25,14 @@ export default async function MundoEntryPage({ searchParams }: Props) {
 	const focus = requestedWorldFocus(query);
 	if (!directory.ok) {
 		return (
-			<main className={styles.page} role="status">
+			<section className={styles.page} role="status">
 				<p className={styles.eyebrow}>Mundo</p>
 				<h1>Campanhas indisponíveis</h1>
 				<p className={styles.lead}>
 					O diretório público não pôde ser consultado agora. Nenhuma campanha foi
 					escolhida por fallback.
 				</p>
-			</main>
+			</section>
 		);
 	}
 	const onlyCampaign =
@@ -42,7 +42,7 @@ export default async function MundoEntryPage({ searchParams }: Props) {
 	}
 
 	return (
-		<main className={styles.page}>
+		<section className={styles.page}>
 			<p className={styles.eyebrow}>Ecos da Jornada</p>
 			<h1>Escolha a campanha</h1>
 			<p className={styles.lead}>
@@ -66,6 +66,6 @@ export default async function MundoEntryPage({ searchParams }: Props) {
 			) : (
 				<p className={styles.lead}>Nenhuma campanha pública está disponível.</p>
 			)}
-		</main>
+		</section>
 	);
 }

@@ -36,7 +36,7 @@ export function StaleActionRecoveryFixture() {
 	}
 
 	return (
-		<main>
+		<section>
 			<h1>Stale Action Recovery E2E</h1>
 			<p data-testid="loaded-build">Build carregado: {loadedBuild}</p>
 			<p data-testid="mutation-count">Mutations: {mutationCount}</p>
@@ -52,6 +52,6 @@ export function StaleActionRecoveryFixture() {
 				<input type="hidden" name="expectedRevision" value={loadedBuild} />
 				<button type="submit">Salvar fixture</button>
 			</RecoverableActionForm>
-		</main>
+		</section>
 	);
 }

@@ -7,9 +7,9 @@ export default function WorldCommandPaletteE2EPage() {
 	if (process.env.TDA_E2E_FIXTURES !== "true") notFound();
 
 	return (
-		<main>
+		<section>
 			<h1>World Command Palette E2E</h1>
 			<WorldCommandPaletteE2EFixture />
-		</main>
+		</section>
 	);
 }

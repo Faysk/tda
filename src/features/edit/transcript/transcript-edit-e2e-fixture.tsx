@@ -25,7 +25,7 @@ export function TranscriptEditE2EFixture({
 	const [lostResponseArmed, setLostResponseArmed] = useState(false);
 
 	return (
-		<main style={{ display: "grid", gap: "1rem", padding: "1rem" }}>
+		<section style={{ display: "grid", gap: "1rem", padding: "1rem" }}>
 			<header>
 				<h1>Transcript Edit E2E</h1>
 				<p>Fixture sintética; nenhum dado ou credencial real é carregado.</p>
@@ -75,6 +75,6 @@ export function TranscriptEditE2EFixture({
 				sessionId={sessionId}
 				sourceLabel={`Revisão privada sintética · r${revisionNumber}`}
 			/>
-		</main>
+		</section>
 	);
 }

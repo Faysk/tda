@@ -101,7 +101,7 @@ export async function WorldCampaignPage({
 
 	if (audience === "public" && !dataset.demo && dataset.nodes.length === 0) {
 		return (
-			<main className={styles.worldEmptyState} data-world-empty="true">
+			<section className={styles.worldEmptyState} data-world-empty="true">
 				<p className={styles.eyebrow}>{campaign.name}</p>
 				<h1>Ecos da Jornada</h1>
 				<p>O Mundo desta campanha ainda não possui conteúdo público.</p>
@@ -120,7 +120,7 @@ export async function WorldCampaignPage({
 						)}
 					</nav>
 				) : null}
-			</main>
+			</section>
 		);
 	}
 

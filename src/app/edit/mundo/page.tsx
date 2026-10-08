@@ -23,7 +23,7 @@ export default async function EditWorldCompatibilityPage() {
 	const eligible = await readEditableWorldCampaigns(access.context);
 	if (!eligible.ok) {
 		return (
-			<main
+			<section
 				className={[styles.shell, styles.libraryShell].join(" ")}
 				data-layout-family="workspace"
 				data-layout-role="editorial"
@@ -33,7 +33,7 @@ export default async function EditWorldCompatibilityPage() {
 					title="Campanhas indisponíveis"
 					description={<p>Não foi possível consultar as campanhas agora.</p>}
 				/>
-			</main>
+			</section>
 		);
 	}
 	const onlyCampaign = eligible.campaigns.length === 1 ? eligible.campaigns[0] : undefined;
@@ -42,7 +42,7 @@ export default async function EditWorldCompatibilityPage() {
 	}
 
 	return (
-		<main
+		<section
 			className={[styles.shell, styles.libraryShell].join(" ")}
 			data-layout-family="workspace"
 			data-layout-role="editorial"
@@ -74,6 +74,6 @@ export default async function EditWorldCompatibilityPage() {
 					<p>Seu perfil não possui acesso de edição do Mundo em campanha ativa.</p>
 				</div>
 			)}
-		</main>
+		</section>
 	);
 }
