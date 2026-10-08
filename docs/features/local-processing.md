@@ -225,7 +225,7 @@ O processamento Craig já é ASR real ponta a ponta no Agent, iniciado pela Web 
 
 ### Versão de código versus artefato publicado
 
-A linha de código atual é o **TDA Companion 0.3.28**. O candidato inclui a fronteira de erros públicos por valores estáticos e validação explícita de identidade/containment dos receipts de qualidade (#1625); o canal Stable é 0.3.27; o candidato 0.3.28 exige aceite próprio e promoção deliberada. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline. A correção #1614 mantém registros e contadores de cada página de jobs num snapshot SQLite consistente; exige atualizar o Agent e não altera os runtimes ASR. O aceite de 0.3.25 descrito abaixo é histórico e não certifica este novo candidato.
+A linha de código atual é o **TDA Companion 0.3.28**. O candidato inclui a fronteira de erros públicos por valores estáticos e validação explícita de identidade/containment dos receipts de qualidade (#1625); o canal Stable é 0.3.28, com aceite próprio e promoção deliberada registrados abaixo. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline. A correção #1614 mantém registros e contadores de cada página de jobs num snapshot SQLite consistente; exige atualizar o Agent e não altera os runtimes ASR. O aceite de 0.3.25 descrito abaixo é histórico e não certifica este novo candidato.
 
 Na exportação SRT/VTT, segmentos pontuais reconhecidos são preservados como cues
 de pelo menos 1 ms. Isso normaliza somente a representação da legenda; o JSON
@@ -745,7 +745,7 @@ Validação sintética do candidato inclui lista de 30 jobs, última linha, boun
 e hit testing do popup, foco/teclado, 1024x768, proxy de zoom 512x384 e 320px.
 Screenshots desktop/mobile foram inspecionados. Código validado não é publicação.
 
-### ZIP FLAC comum — candidato 0.3.28 / #1631
+### ZIP FLAC comum — Stable 0.3.28 / #1631
 
 Além do export Craig, o importador local aceita um ZIP plano contendo somente
 FLACs com nomes comuns (por exemplo, exports do Audacity). O nome sem extensão
@@ -770,6 +770,10 @@ real do Audacity com duas faixas e passou importação, recuperação após rein
 reutilização e diagnóstico. O aceite físico v2 passou os quatro perfis na RTX
 4070 Laptop usando a amostra sintética autorizada. Os receipts sanitizados estão
 em `docs/companion/acceptance/companion-rc-v0.3.28-1066d58d8128.json` e
-`.physical.json`. A verificação de promoção passou; isso habilita a promoção,
-mas não a comprova. Stable, Web em produção e a transcrição real até a revisão
-serão confirmados separadamente no issue #1631.
+`.physical.json`. A promoção Stable passou no workflow 37840850820. O Web foi publicado como
+`prod-6895c1eb5833` (CD 37840855128), com versão e download real verificados.
+A transcrição real até a revisão continua sendo verificada separadamente no issue #1631.
+
+Polimento #1634: o relógio da faixa ativa acompanha a track do evento mais recente
+da tentativa atual. Faixas que terminaram ASR mas ainda aguardam alinhamento não
+são marcadas como concluídas nem escolhidas apenas por serem a primeira aberta.

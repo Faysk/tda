@@ -468,8 +468,15 @@ export function ProcessingPanel({
 					activeJob.progress.completed,
 				)
 			: null;
-	const activeTrackTiming =
-		activeJob?.timing.tracks.find((item) => item.finishedAt === null) ?? null;
+	const trackContext =
+		activeJob && state.observedJobId === activeJob.id
+			? eventTrackContext(state.events, activeJob.attempt)
+			: null;
+	const unfinishedTrackTimings =
+		activeJob?.timing.tracks.filter((item) => item.finishedAt === null) ?? [];
+	const activeTrackTiming = trackContext?.track != null
+		? unfinishedTrackTimings.find((item) => item.track === trackContext.track) ?? null
+		: unfinishedTrackTimings.at(-1) ?? null;
 	const completedTrackTimings =
 		activeJob?.timing.tracks.filter(
 			(item) => item.finishedAt !== null && item.processingSeconds !== null,
@@ -516,10 +523,6 @@ export function ProcessingPanel({
 	const observedJobLive =
 		observedJob !== null &&
 		["queued", "running"].includes(observedJob.status);
-	const trackContext =
-		activeJob && state.observedJobId === activeJob.id
-			? eventTrackContext(state.events, activeJob.attempt)
-			: null;
 	const activityCatalog = customActivityBarks.length
 		? [...CORE_ACTIVITY_BARKS, ...customActivityBarks]
 		: CORE_ACTIVITY_BARKS;
