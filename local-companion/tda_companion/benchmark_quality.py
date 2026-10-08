@@ -280,6 +280,18 @@ def _safe_reference_root(data_root: Path, benchmark_id: str) -> Path:
     return resolved
 
 
+def _safe_reference_revisions_root(data_root: Path, benchmark_id: str) -> Path:
+    """Reject a redirected revision directory before reading or writing artifacts."""
+    root = _safe_reference_root(data_root, benchmark_id)
+    raw = root / "revisions"
+    if raw.is_symlink() or getattr(raw, "is_junction", lambda: False)():
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_INVALID")
+    resolved = raw.resolve()
+    if resolved.parent != root:
+        raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_INVALID")
+    return resolved
+
+
 def _safe_quality_root(data_root: Path, benchmark_id: str) -> Path:
     root = benchmark_root(data_root, benchmark_id)
     raw = root / "quality"
@@ -633,12 +645,7 @@ def save_reference_revision(
     digest = reference["canonical_payload_sha256"]
 
     root = _safe_reference_root(data_root, benchmark_id)
-    revisions_root = root / "revisions"
-    if revisions_root.exists() and (
-        revisions_root.is_symlink()
-        or getattr(revisions_root, "is_junction", lambda: False)()
-    ):
-        raise BenchmarkQualityError("BENCHMARK_REFERENCE_PATH_INVALID")
+    revisions_root = _safe_reference_revisions_root(data_root, benchmark_id)
     revisions_root.mkdir(parents=True, exist_ok=True)
     artifact = f"r{revision:06d}-{digest[:12]}.json"
     path = revisions_root / artifact
@@ -698,8 +705,8 @@ def load_reference_revision(
     entry = index["revisions"][revision - 1]
     if expected_sha256 is not None and entry["sha256"] != expected_sha256:
         raise BenchmarkQualityError("BENCHMARK_REFERENCE_HASH_MISMATCH")
-    root = _safe_reference_root(data_root, benchmark_id)
-    value = _read_json(root / "revisions" / entry["artifact"])
+    revisions_root = _safe_reference_revisions_root(data_root, benchmark_id)
+    value = _read_json(revisions_root / entry["artifact"])
     if (
         value.get("schema_version") != REFERENCE_SCHEMA
         or value.get("benchmark_id") != benchmark_id
