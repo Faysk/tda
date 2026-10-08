@@ -224,6 +224,12 @@ A fixture retorna envelope `tda_local_result_v1`, publication bundle e `sync.sta
 
 A fixture não pode ser tratada como publicação real. Sync remoto autenticado, receipt server-side e publicação permanecem fora desta entrega.
 
+### ZIP FLAC comum e compatibilidade do manifesto
+
+A partir do Companion 0.3.28, o mesmo endpoint de ingestão aceita ZIP plano composto exclusivamente por FLACs com nomes comuns. O importador atribui números determinísticos e mantém paths físicos canônicos. O campo `filename` continua numerado (`<n>-<speaker>.flac`) para compatibilidade com os loaders dos runtimes ASR existentes; `original_filename` opcional preserva o nome do arquivo de origem e é validado contra o rótulo da faixa no reload.
+
+O pacote não fornece identidade Discord nem horário absoluto. As faixas compartilham zero temporal e devem representar participantes simultâneos previamente alinhados. Não há alinhamento acústico automático. Trechos sequenciais devem ser selecionados como ZIPs separados e ordenados na sessão. Os limites de arquivo, tamanho descomprimido, compressão, links, nomes únicos e caminhos continuam vigentes; arquivos comuns não são misturados com o layout Craig.
+
 ## ASR Craig vigente
 
 `transcription.craig` é job oficial do Agent e executa em processo worker isolado. O ingest Craig estabelece hashes completos das faixas e staging seguro. No dispatch normal, o worker chama o loader com `verify_tracks=false`: manifesto, paths e tamanhos continuam sendo validados, mas centenas de MB não são relidos antes de cada inferência.

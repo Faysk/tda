@@ -763,3 +763,13 @@ rótulo junto com hash, tamanho e path canônico. Áudio permanece local.
 Validação local com o ZIP real de dois FLACs passou ingestão e reload: durações
 1930.205 e 1935.545 segundos. Isso ainda não certifica release instalada ou
 transcrição concluída; esses estados serão registrados no issue #1631.
+
+Aceite de 0.3.28 (#1631): candidato `companion-rc-v0.3.28-1066d58d8128`, source
+`1066d58d8128fa6cf0c8342535ff14c4fb08aa04`. O aceite instalado v3 usou o ZIP
+real do Audacity com duas faixas e passou importação, recuperação após reinício,
+reutilização e diagnóstico. O aceite físico v2 passou os quatro perfis na RTX
+4070 Laptop usando a amostra sintética autorizada. Os receipts sanitizados estão
+em `docs/companion/acceptance/companion-rc-v0.3.28-1066d58d8128.json` e
+`.physical.json`. A verificação de promoção passou; isso habilita a promoção,
+mas não a comprova. Stable, Web em produção e a transcrição real até a revisão
+serão confirmados separadamente no issue #1631.
