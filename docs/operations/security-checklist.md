@@ -175,3 +175,12 @@ Limits: these checks address remotely supplied identities and already redirected
 | #92 | `benchmark_quality.py:289` / `_safe_reference_revisions_root` | Canonical benchmark root, contained reference/revision/quality directories and validated revision artifacts. |
 
 The candidate version is 0.3.27. Stable remains 0.3.26 until the exact MSI has passed installed acceptance, all four physical profile gates and deliberate promotion. Source changes, scanner classification and release publication are separate states.
+
+PR #1629 additionally reported #93–#95 on `_quality_receipt_path` at the
+resolved-profile and artifact redirection checks. These are checks of a canonical
+benchmark root plus an enumerated profile and a generated integer/hex filename;
+revision type/range and SHA-256 fullmatch are validated before path composition.
+Invalid identities and eight redirected directory boundaries are rejected by the
+negative tests above. These three findings are reviewed sanitizer-model false
+positives under the stated local-race limitation, not removed code or queries.
+Full local Python acceptance: 1427 passed, 17 conditional skips, no failures.
