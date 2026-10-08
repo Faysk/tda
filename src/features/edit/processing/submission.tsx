@@ -1051,7 +1051,7 @@ export function ProcessingSubmission({
 							type="file"
 							multiple
 							accept=".zip,application/zip"
-							aria-label="Export do Craig"
+							aria-label="Export do Craig ou ZIP com FLACs"
 							disabled={busy || Boolean(intentRequest)}
 							onChange={(event) => {
 								applyFiles(Array.from(event.target.files ?? []));
