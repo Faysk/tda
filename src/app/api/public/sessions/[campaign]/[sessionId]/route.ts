@@ -1,4 +1,5 @@
 import { findPublishedSession, PublishedSessionUnavailableError } from "@/features/sessions/repository";
+import type { PublishedSession } from "@/features/sessions/model";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ export async function GET(_request: Request, context: Context) {
 		return Response.json({ error: "not_found" }, { status: 404, headers: noStore });
 	}
 	try {
-		const session = await findPublishedSession(campaign, sessionId);
+		const session: PublishedSession | null = await findPublishedSession(campaign, sessionId);
 		if (!session) {
 			return Response.json({ error: "not_found" }, { status: 404, headers: noStore });
 		}
