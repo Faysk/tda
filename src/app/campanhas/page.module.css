@@ -1,7 +1,9 @@
 .page {
 	width: min(var(--ds-layout-editorial, 1540px), calc(100% - 2 * var(--ds-page-gutter)));
 	margin: 0 auto;
-	padding: clamp(36px, 4.5vw, 64px) 0 clamp(64px, 7vw, 104px);
+	padding:
+		max(clamp(36px, 4.5vw, 64px), calc(var(--site-chrome-top, 12px) + var(--site-chrome-trigger-size, 44px) + 20px))
+		0 clamp(64px, 7vw, 104px);
 }
 
 .header {
@@ -254,10 +256,6 @@
 }
 
 @media (max-width: 600px) {
-	.page {
-		padding-top: 30px;
-	}
-
 	.header {
 		margin-bottom: 22px;
 	}

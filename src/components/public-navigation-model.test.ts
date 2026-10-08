@@ -33,7 +33,7 @@ describe("global navigation model", () => {
 				campaigns,
 				"/edit/destino-sem-fim/sessoes/private-session",
 			),
-		).toBeNull();
+		).toBe("yuhara-main");
 	});
 	it("uses the public processing path while retaining the technical authorization context", () => {
 		const campaigns = [
@@ -53,7 +53,7 @@ describe("global navigation model", () => {
 				campaigns,
 				"/edit/destino-sem-fim/permissions",
 			),
-		).toBeNull();
+		).toBe("yuhara-main");
 	});
 	it("keeps the approved public destinations in a stable order", () => {
 		expect(PUBLIC_NAV_ITEMS.map(({ href, label }) => [href, label])).toEqual([

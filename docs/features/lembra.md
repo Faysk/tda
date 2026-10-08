@@ -2,10 +2,16 @@
 
 > Status: persistência compartilhada em Production; galeria justified responsiva rastreada na #738
 > Owner: frontend / integrations-media / identity-access
-> Última revisão: 2026-09-30
+> Última revisão: 2026-10-08
 > Fonte de verdade: este contrato, `docs/design-system/`, `docs/architecture.md` e o boundary de Media Storage
 
 ## Objetivo
+
+Polimento candidato #1608: títulos longos preservam o nome acessível completo,
+mas o clamp de duas linhas passa a pertencer a um span dentro do botão. O botão
+mantém display block e largura limitada ao card, com caixa estável para interação,
+foco e geometria no Chromium. O gate mobile verifica abertura por Enter além da
+ausência de overflow. Nenhuma referência ou mídia de Production é alterada.
 
 O **Lembra** é uma superfície simples e compartilhada para guardar e reencontrar referências visuais que normalmente se perdem em Discord, WhatsApp ou outras conversas.
 

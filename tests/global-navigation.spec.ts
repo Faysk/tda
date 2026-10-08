@@ -556,10 +556,10 @@ test("multi-campaign tool launcher requires explicit context and never renders t
 	).toHaveAttribute("href", "/edit/cronicas-da-mesa/sessoes");
 	await expect(
 		toolsSection.getByRole("link", { name: "Revisão", exact: true }),
-	).toHaveAttribute("href", "/edit/yuhara-main/revisao");
+	).toHaveAttribute("href", "/edit/cronicas-da-mesa/revisao");
 	await expect(
 		toolsSection.getByRole("link", { name: "Permissões", exact: true }),
-	).toHaveAttribute("href", "/edit/yuhara-main/permissions");
+	).toHaveAttribute("href", "/edit/cronicas-da-mesa/permissions");
 	await selector.click();
 	await page
 		.getByRole("listbox", { name: "Campanha das ferramentas" })
@@ -711,7 +711,7 @@ test("tool launcher never invents an unauthorized sibling campaign", async ({ pa
 	await expect(panel.getByText("Antes que seja tarde", { exact: true })).toHaveCount(0);
 	await expect(
 		panel.getByRole("link", { name: "Permissões", exact: true }),
-	).toHaveAttribute("href", "/edit/yuhara-main/permissions");
+	).toHaveAttribute("href", "/edit/cronicas-da-mesa/permissions");
 });
 
 test("anonymous unified panel keeps macro navigation, safe return path and appearance", async ({ page }) => {

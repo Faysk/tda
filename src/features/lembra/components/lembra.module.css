@@ -556,11 +556,9 @@
 }
 
 .cardTitleButton {
-	display: -webkit-box;
+	display: block;
+	width: 100%;
 	max-width: 100%;
-	overflow: hidden;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 2;
 	padding: 0;
 	border: 0;
 	background: transparent;
@@ -570,6 +568,13 @@
 	text-align: left;
 	overflow-wrap: anywhere;
 	cursor: pointer;
+}
+
+.cardTitleText {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 }
 
 .cardTitleButton:hover {

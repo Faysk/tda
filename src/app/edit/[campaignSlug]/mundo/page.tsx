@@ -40,16 +40,19 @@ export default async function EditCampaignWorldPage({ params, searchParams }: Pr
 	const eligible = await readEditableWorldCampaigns(access.context);
 	if (!eligible.ok) throw new Error("WORLD_CAMPAIGN_DIRECTORY_UNAVAILABLE");
 	const campaign = eligible.campaigns.find(
+		(item) => item.routeKey === campaignSlug,
+	) ?? eligible.campaigns.find(
 		(item) => item.technicalSlug === campaignSlug,
 	);
 	if (!campaign) notFound();
 
 	const focus = requestedWorldFocus(query);
+	if (campaignSlug !== campaign.routeKey) redirect(worldEditCampaignHref(campaign.routeKey, focus));
 	const switchOptions: WorldCampaignSwitchOption[] = eligible.campaigns.map(
 		(item) => ({
 			key: item.technicalSlug,
 			name: item.name,
-			href: worldEditCampaignHref(item.technicalSlug, focus),
+			href: worldEditCampaignHref(item.routeKey, focus),
 			current: item.technicalSlug === campaign.technicalSlug,
 		}),
 	);

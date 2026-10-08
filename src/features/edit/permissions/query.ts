@@ -8,6 +8,7 @@ import type { PermissionsDirectory, PermissionsResult } from "./model";
 
 export type PermissionsRequest = Readonly<{ campaignSlug: string }>;
 export type PermissionsQueryDependencies = Readonly<{
+	resolveCampaignReference?: (context: EditAccessContext, reference: string) => Promise<string>;
 	resolveAccessContext: (
 		authUserId: string,
 	) => Promise<EditAccessContext | null>;
@@ -32,10 +33,14 @@ export async function queryPermissions(
 		const context = await dependencies.resolveAccessContext(authUserId);
 		if (!context || context.authUserId !== authUserId)
 			return { ok: false, reason: "dependency_unavailable" };
+		if (!context.profileId) return { ok: false, reason: "profile_unresolved" };
+		const campaignSlug = dependencies.resolveCampaignReference
+			? await dependencies.resolveCampaignReference(context, request.campaignSlug)
+			: request.campaignSlug;
 		const access = authorizeCampaignCapability(
 			context,
 			EDIT_CAPABILITIES.permissionsManage,
-			request.campaignSlug,
+			campaignSlug,
 		);
 		if (!access.ok) return { ok: false, reason: access.reason };
 
@@ -44,20 +49,20 @@ export async function queryPermissions(
 			...new Set(
 				context.grants
 					.filter((grant) =>
-						isEffectiveCampaignGrant(grant, request.campaignSlug, now),
+						isEffectiveCampaignGrant(grant, campaignSlug, now),
 					)
 					.map((grant) => grant.action),
 			),
 		].sort();
 
 		const value = await dependencies.readDirectory(
-			request.campaignSlug,
+			campaignSlug,
 			access.profileId,
 			actorEffectiveActions,
 		);
 		if (!value) return { ok: false, reason: "not_found" };
 		if (
-			value.campaign.slug !== request.campaignSlug ||
+			value.campaign.slug !== campaignSlug ||
 			value.actorProfileId !== access.profileId
 		)
 			return { ok: false, reason: "dependency_unavailable" };

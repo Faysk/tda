@@ -40,6 +40,21 @@ function setup(
 }
 
 describe("permissions boundary", () => {
+	it("does not resolve addresses before the server profile is linked", async () => {
+		const dependencies = { ...setup([], null), resolveCampaignReference: vi.fn() };
+		expect(await queryPermissions("verified", { campaignSlug: "destino-sem-fim" }, dependencies)).toEqual({ ok: false, reason: "profile_unresolved" });
+		expect(dependencies.resolveCampaignReference).not.toHaveBeenCalled();
+	});
+	it("resolves a public address before checking the technical permission scope", async () => {
+		const dependencies = { ...setup(), resolveCampaignReference: vi.fn().mockResolvedValue("yuhara-main") };
+		expect(await queryPermissions("verified", { campaignSlug: "destino-sem-fim" }, dependencies)).toEqual({ ok: true, value: directory });
+		expect(dependencies.readDirectory).toHaveBeenCalledWith("yuhara-main", actorProfileId, [EDIT_CAPABILITIES.permissionsManage]);
+	});
+	it("does not let address resolution grant authority", async () => {
+		const dependencies = { ...setup([]), resolveCampaignReference: vi.fn().mockResolvedValue("yuhara-main") };
+		expect(await queryPermissions("verified", { campaignSlug: "destino-sem-fim" }, dependencies)).toEqual({ ok: false, reason: "forbidden" });
+		expect(dependencies.readDirectory).not.toHaveBeenCalled();
+	});
 	it("rejects anonymous access before all data reads", async () => {
 		const dependencies = setup();
 		expect(

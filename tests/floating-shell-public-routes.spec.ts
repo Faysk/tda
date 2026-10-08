@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const publicRoutes = [
+	"/campanhas",
 	"/sessoes",
 	"/lore",
 	"/personagens",
@@ -27,6 +28,8 @@ async function expectFirstCriticalContentClear(
 	const target =
 		route === "/lembra"
 			? page.getByPlaceholder("Buscar título, descrição, autor ou data...")
+			: route === "/campanhas"
+				? page.getByText("TDA · campanhas", { exact: true })
 			: page.getByRole("heading", { level: 1 }).first();
 	await expect(target).toBeVisible();
 	const box = await target.boundingBox();
@@ -156,7 +159,7 @@ test("Lore archive keeps visible focus and disables artwork motion when requeste
 	await page.goto("/lore");
 
 	const firstLore = page
-		.locator('section[aria-label="Lores publicadas"] article a')
+		.locator('main article[data-lore] a')
 		.first();
 	const firstLoreHref = await firstLore.getAttribute("href");
 	for (let index = 0; index < 8; index += 1) {
@@ -180,7 +183,7 @@ test("Lore archive keeps visible focus and disables artwork motion when requeste
 	expect(focusOutline.width).toBeGreaterThanOrEqual(2);
 
 	const artworkTransition = await page
-		.locator('section[aria-label="Lores publicadas"] article img')
+		.locator('main article[data-lore] img')
 		.first()
 		.evaluate((element) => getComputedStyle(element).transitionDuration);
 	expect(artworkTransition).toBe("0s");

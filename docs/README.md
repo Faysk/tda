@@ -128,6 +128,7 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 ### Operação
 
 - [Operação — índice](operations/README.md)
+- [Auditoria e polimento de telas — 2026-10-08](operations/project-screen-polish-2026-10-08.md) — matriz de superfícies, correções e evidências de aceite.
 - [Ambientes e configuração](operations/environments.md)
 - [Login Discord — configuração e verificação](operations/discord-auth.md)
 - [Companion — política de versões e dependências](operations/companion-dependency-policy.md) — pins compatíveis, freshness e gate de release do Companion.

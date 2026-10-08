@@ -2,7 +2,7 @@
 
 > Status: arquitetura aprovada
 > Owner: architecture / sessions / identity-access
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-08
 > Fonte de verdade: [ADR-0020](../adr/0020-first-class-campaigns.md), documentos donos de cada domínio e epic #1122
 
 ## Objetivo
@@ -13,9 +13,9 @@ Este documento coordena **identidade, routing, boundaries e rollout**. Ele não 
 
 ## Estado e terminologia
 
-O estado legado/default continua sendo a campaign técnica `yuhara-main`. Ela deve ser apresentada editorialmente como **Crônicas da Mesa** quando a nova camada pública estiver ativa.
+O identificador técnico legado continua sendo `yuhara-main`; a apresentação vigente é **Destino Sem Fim**, com rota `destino-sem-fim`.
 
-A segunda campaign planejada usa o nome editorial **Antes que seja tarde**. Criá-la significa apenas criar identidade/metadata de campaign. Não inferir sessions, entities, canon, memberships ou vínculo de lore D.
+A segunda campanha existente usa o identificador técnico `antes-que-seja-tarde`, nome **Passos Retomados** e rota `passos-retomados`. Essas identidades não autorizam inferir sessions, entities, canon, memberships ou vínculo de lore D.
 
 Termos:
 
@@ -69,6 +69,14 @@ A coluna **contexto** descreve a campanha necessária para a operação, não se
 | `/edit/sessoes`, `/edit/processamento`, `/edit/revisao`, `/edit/yuhara-main/permissions` | privada | compatibilidade | resolver seleção/autorização e redirecionar; não assumir default depois da ativação multi-campaign | compatibilidade temporária |
 
 ### Regras para redirects e aliases
+
+- candidato #1604: Transcrições, Revisão, Permissões e Edit Mundo aceitam o
+  `public_slug` atual e o technical slug de compatibilidade. A resolução ocorre
+  dentro do conjunto autorizado para a capability da ferramenta; nomes públicos
+  não concedem autoridade. Queries, ações, grants e fontes continuam usando o
+  technical slug. O launcher gera os endereços pelo nome público. Esta correção
+  ainda precisa de integração e aceite de Production; não altera aliases históricos
+  de nomes públicos anteriores nem concede acesso por visibility pública.
 
 - no candidato #1560, o segmento de Processamento usa `public_slug`; a resolução
   server-side parte apenas da lista ativa autorizada e conserva `technicalSlug`

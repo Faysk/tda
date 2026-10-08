@@ -186,7 +186,9 @@ test("read-only user sees a compact searchable and sortable session inventory", 
 	await expect(rows.nth(1)).toContainText("O reencontro à beira do rio");
 	await expect(rows.nth(2)).toContainText("Uma nova jornada");
 
+	await expect(sort).toBeFocused();
 	await search.focus();
+	await expect(search).toBeFocused();
 	await page.keyboard.press("Tab");
 	await expect(coverage).toBeFocused();
 	await page.keyboard.press("Tab");
@@ -297,7 +299,7 @@ test("multi-campaign reader selects by human name and keeps A/B totals isolated 
 		.click();
 	await expect(selector).toHaveText("Antes que seja tarde");
 	await page.getByRole("button", { name: "Abrir transcrições" }).click();
-	await expect(page).toHaveURL(/\/transcricoes\?campanha=other$/);
+	await expect(page).toHaveURL(/\/edit\/antes-que-seja-tarde\/transcricoes$/);
 	await expect(
 		page.getByRole("heading", { level: 1, name: "Antes que seja tarde" }),
 	).toBeVisible();
@@ -307,12 +309,12 @@ test("multi-campaign reader selects by human name and keeps A/B totals isolated 
 	);
 
 	await page.reload();
-	await expect(page).toHaveURL(/campanha=other/);
+	await expect(page).toHaveURL(/antes-que-seja-tarde/);
 	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("7");
 
 	await chooseTranscriptCampaign(page, "Crônicas da Mesa");
 	await page.getByRole("button", { name: "Trocar campanha" }).click();
-	await expect(page).toHaveURL(/campanha=yuhara-main/);
+	await expect(page).toHaveURL(/cronicas-da-mesa/);
 	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("410");
 	await expect(page.getByRole("table")).toContainText("A travessia das montanhas");
 	await expect(page.getByRole("table")).not.toContainText(
@@ -320,7 +322,7 @@ test("multi-campaign reader selects by human name and keeps A/B totals isolated 
 	);
 
 	await page.goBack();
-	await expect(page).toHaveURL(/campanha=other/);
+	await expect(page).toHaveURL(/antes-que-seja-tarde/);
 	await expect(page.getByLabel(/Resumo das transcrições/)).toContainText("7");
 });
 
@@ -360,7 +362,7 @@ test("archived campaign remains readable but is labeled as historical context", 
 	await signIn(context, "archived-reader");
 	await page.goto("/transcricoes");
 
-	await expect(page).toHaveURL(/\/edit\/arquivo-antigo\/transcricoes$/u);
+	await expect(page).toHaveURL(/\/edit\/memorias-arquivadas\/transcricoes$/u);
 	await expect(
 		page.getByRole("heading", { level: 1, name: "Memórias arquivadas" }),
 	).toBeVisible();
@@ -383,10 +385,10 @@ test("narrative review preserves campaign identity across reload, switch and bac
 		page.getByRole("heading", { name: "Escolha a campanha" }),
 	).toBeVisible();
 	const selector = page.getByLabel("Campanha");
-	await selectThemedOption(page, selector, "other");
+	await selectThemedOption(page, selector, "antes-que-seja-tarde");
 	await page.getByRole("button", { name: "Abrir revisão" }).click();
 
-	await expect(page).toHaveURL(/\/edit\/revisao\?campanha=other$/);
+	await expect(page).toHaveURL(/\/edit\/revisao\?campanha=antes-que-seja-tarde$/);
 	await expect(
 		page.getByRole("heading", {
 			level: 1,
@@ -406,7 +408,7 @@ test("narrative review preserves campaign identity across reload, switch and bac
 	await expect(page.getByText("Nenhum candidato pendente")).toBeVisible();
 
 	await page.reload();
-	await expect(page).toHaveURL(/campanha=other/);
+	await expect(page).toHaveURL(/antes-que-seja-tarde/);
 	await expect(
 		page.getByRole("heading", {
 			level: 1,
@@ -419,9 +421,9 @@ test("narrative review preserves campaign identity across reload, switch and bac
 			.getByText("Antes que seja tarde", { exact: true }),
 	).toBeVisible();
 
-	await selectThemedOption(page, page.getByLabel("Campanha"), "yuhara-main");
+	await selectThemedOption(page, page.getByLabel("Campanha"), "cronicas-da-mesa");
 	await page.getByRole("button", { name: "Trocar campanha" }).click();
-	await expect(page).toHaveURL(/campanha=yuhara-main/);
+	await expect(page).toHaveURL(/cronicas-da-mesa/);
 	await expect(
 		page
 			.locator('[data-operational-page-header="true"]')
@@ -429,7 +431,7 @@ test("narrative review preserves campaign identity across reload, switch and bac
 	).toBeVisible();
 
 	await page.goBack();
-	await expect(page).toHaveURL(/campanha=other/);
+	await expect(page).toHaveURL(/antes-que-seja-tarde/);
 	await expect(
 		page
 			.locator('[data-operational-page-header="true"]')

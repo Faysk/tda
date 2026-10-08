@@ -3,6 +3,7 @@ const mocks = vi.hoisted(() => ({
 	identity: vi.fn(),
 	access: vi.fn(),
 	directory: vi.fn(),
+	routes: vi.fn(),
 }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/features/auth/server", () => ({
@@ -12,9 +13,14 @@ vi.mock("../access/repository", () => ({
 	loadEditAccessContext: mocks.access,
 }));
 vi.mock("./repository", () => ({ readPermissionsDirectory: mocks.directory }));
+vi.mock("@/features/campaigns/authorized-routes", () => ({
+	readAuthorizedCampaignRoutes: mocks.routes,
+	resolveAuthorizedCampaignReference: (campaigns: { routeKey: string; technicalSlug: string }[], reference: string) => campaigns.find((campaign) => campaign.routeKey === reference || campaign.technicalSlug === reference) ?? null,
+}));
 import { getPermissionsForEdit } from "./server-query";
 beforeEach(() => {
 	vi.clearAllMocks();
+	mocks.routes.mockResolvedValue({ ok: true, campaigns: [] });
 });
 describe("server entry point", () => {
 	it.each(["unauthenticated", "dependency_unavailable"])(

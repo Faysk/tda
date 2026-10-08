@@ -2,9 +2,17 @@
 
 > Status: Review Board com provenance + triagem implementado; adoção editorial real em andamento
 > Owner: review/canon
-> Última revisão: 2026-09-22
+> Última revisão: 2026-10-08
 
 ## Objetivo
+
+Polimento candidato #1605: a fila autorizada mantém a consulta server-side de até
+200 candidatos em ordem de criação e apresenta 20 por página. Busca sem distinção
+de acentos por título, claim ou sessão e filtro de tipo ficam na URL, com contagem,
+limpeza e estado sem resultados. Essa paginação organiza **o conjunto carregado**;
+não declara que 200 itens são o backlog inteiro. Não há decisão automática,
+alteração de fontes, novo grant, migration ou publicação pública. Integração e
+validação real serão registradas no epic #1601.
 
 Permitir que IA e fontes ajudem a organizar a campanha sem confundir sugestão com verdade. O domínio transforma evidência em material revisável e, somente após decisão autorizada, em memória/publicação.
 

@@ -4,9 +4,10 @@ import { OperationalPageHeader } from "@/components/operational-page-header";
 import { PublicLink as Link } from "@/components/public-link";
 import { currentAccess } from "@/features/auth/server";
 import {
-	readAuthorizedCampaigns,
-	type AuthorizedCampaign,
-} from "@/features/campaigns/authorized";
+	readAuthorizedCampaignRoutes,
+	resolveAuthorizedCampaignReference,
+	type AuthorizedCampaignRoute,
+} from "@/features/campaigns/authorized-routes";
 import { CampaignRoutePicker } from "@/features/campaigns/campaign-route-picker";
 import { canManageCampaignRegistry } from "@/features/campaigns/policy";
 import {
@@ -53,7 +54,7 @@ function TranscriptCampaignPicker({
 	invalidSelection = false,
 	canManageCampaigns = false,
 }: Readonly<{
-	campaigns: readonly AuthorizedCampaign[];
+	campaigns: readonly AuthorizedCampaignRoute[];
 	selected?: string;
 	invalidSelection?: boolean;
 	canManageCampaigns?: boolean;
@@ -84,7 +85,7 @@ function TranscriptCampaignPicker({
 					label: campaign.name,
 					lifecycle: campaign.lifecycle,
 					disabled: false,
-					href: transcriptSelectionHref(campaign.technicalSlug),
+					href: transcriptsHref(campaign.routeKey),
 				}))}
 				canManage={canManageCampaigns}
 				manageHref={manageHref}
@@ -160,7 +161,7 @@ export default async function TranscriptsPage({
 		);
 	}
 
-	const eligible = await readAuthorizedCampaigns(
+	const eligible = await readAuthorizedCampaignRoutes(
 		access.context,
 		EDIT_CAPABILITIES.transcriptRead,
 		{ includeArchived: true },
@@ -189,13 +190,11 @@ export default async function TranscriptsPage({
 	}
 
 	if (!requestedCampaign && eligible.campaigns.length === 1) {
-		redirect(transcriptsHref(eligible.campaigns[0]!.technicalSlug));
+		redirect(transcriptsHref(eligible.campaigns[0]!.routeKey));
 	}
 
 	const selected = requestedCampaign
-		? eligible.campaigns.find(
-				(campaign) => campaign.technicalSlug === requestedCampaign,
-			) ?? null
+		? resolveAuthorizedCampaignReference(eligible.campaigns, requestedCampaign)
 		: null;
 
 	if (!selected) {
@@ -349,7 +348,7 @@ export default async function TranscriptsPage({
 					</span>
 					{canProcess ? (
 						<Link
-							href={`/edit/${encodeURIComponent(selected.technicalSlug)}/processamento`}
+							href={`/edit/${encodeURIComponent(selected.routeKey)}/processamento`}
 						>
 							Abrir processamento
 						</Link>

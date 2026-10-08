@@ -245,6 +245,15 @@ button{font:inherit}
 }
 
 /* Keep the supplied paintings within their native detail on wide screens. */
+.origin > .split-image,
+.origin > .story-panel{
+  min-width:0;
+}
+.story-panel h2{
+  overflow-wrap:anywhere;
+  hyphens:auto;
+}
+
 @media (min-width:801px){
   .hero-bg img,
   .layered-memory > img,
