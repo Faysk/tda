@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { resolve } from "node:path";
 import {
 	failedJob,
 	fixtureBenchmarkJob,
@@ -73,6 +74,35 @@ async function openRunningWorkspace(
 	await expect(
 		page.getByRole("tab", { name: "Visão geral" }),
 	).toHaveAttribute("aria-selected", "true");
+}
+
+for (const width of [390, 768, 1366]) {
+	test(`global chrome at ${width}px does not cover campaign context or picker`, async ({ page }, testInfo) => {
+		await openRunningWorkspace(page, width, 900);
+		await page.addStyleTag({ path: resolve("src/app/theme.css") });
+		await page.addStyleTag({ path: resolve("src/app/public-shell.css") });
+		// Include the root layout's fixed brand/profile geometry, which the
+		// isolated panel fixture normally omits. Use the actual global styles.
+		await page.evaluate(() => {
+			const header = document.createElement("header");
+			header.className = "site-header";
+			header.innerHTML = '<a class="brand" href="#"><span class="brand-symbol"></span><span class="brand-copy"><span class="brand-name">TDA</span><small>Tem Dado Aqui</small></span></a><div class="header-actions"><button class="account-menu-trigger" aria-label="Conta sintética">F</button></div>';
+			document.body.prepend(header);
+		});
+		const brand = await page.locator(".brand").boundingBox();
+		const account = await page.getByRole("button", { name: "Conta sintética" }).boundingBox();
+		const context = page.getByRole("region", { name: "Campanha do processamento" });
+		const name = await context.locator("strong").first().boundingBox();
+		const picker = await context.getByRole("button", { name: "Trocar campanha do processamento", exact: true }).boundingBox();
+		expect(brand).not.toBeNull();
+		expect(account).not.toBeNull();
+		expect(name).not.toBeNull();
+		expect(picker).not.toBeNull();
+		expect(name!.y >= brand!.y + brand!.height + 8 || name!.x >= brand!.x + brand!.width + 34).toBe(true);
+		expect(picker!.y >= account!.y + account!.height + 8 || picker!.x + picker!.width <= account!.x - 8).toBe(true);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+		await page.screenshot({ path: testInfo.outputPath(`campaign-chrome-${width}.png`), fullPage: false });
+	});
 }
 
 for (const viewport of viewports) {

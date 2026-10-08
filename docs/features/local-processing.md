@@ -341,6 +341,8 @@ Quando a biblioteca de runs entrar na UI, **fila operacional** e **resultados ed
 
 O título é compacto. A navegação própria do Edit é restrita a destinos de trabalho; o logo TDA é a saída intencional para a superfície pública.
 
+O contexto de campanha reserva a área da marca/fade e do perfil fixos no desktop. Até 900 px, o workspace começa abaixo do chrome global; nome da campanha e seletor não ficam cobertos pela marca nem pelo botão da conta.
+
 O estado desconectado não deve inventar dados. Métricas desconhecidas usam `—`/estado vazio. A página tenta conectar automaticamente ao Agent; se ele não estiver aberto, mostra uma ação direta **Abrir TDA Companion** e uma ação **Tentar novamente**. Credenciais não fazem parte da UX normal. Quando conectado, a faixa do computador mostra dados operacionais.
 
 ## Ingest Craig e perfis

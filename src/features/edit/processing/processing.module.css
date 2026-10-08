@@ -1463,7 +1463,7 @@
 	}
 }
 
-@media (max-width: 650px) {
+@media (max-width: 900px) {
 	.page {
 		padding-top: calc(var(--site-chrome-panel-top, 66px) + 8px);
 	}
@@ -2399,6 +2399,14 @@
 	border-radius: var(--ds-radius-lg);
 	background: var(--ds-surface-elevated);
 	font-family: var(--ds-font-ui);
+}
+
+@media (min-width: 901px) {
+	.campaignContext {
+		padding-inline:
+			calc(38px + var(--site-chrome-brand-clearance, 0px))
+			calc(14px + var(--site-chrome-profile-clearance, 0px));
+	}
 }
 
 .campaignContext > div {
