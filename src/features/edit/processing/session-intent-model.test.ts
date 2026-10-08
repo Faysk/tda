@@ -8,6 +8,7 @@ import type {
 } from "./protocol";
 import {
 	chooseIntentRun,
+	singleRecordingZeroAnchor,
 	intentProgress,
 	recordingVariantConflicts,
 	retryableIntentJob,
@@ -76,6 +77,38 @@ function workspace(parts: SessionWorkspacePart[]): SessionWorkspace {
 		},
 	};
 }
+
+describe("single untimed recording placement", () => {
+	const unplaced = () => {
+		const value = workspace([{ ...part("source-one", "run-one"), sessionOffsetSeconds: null }]);
+		value.timeline.state = "needs_timing";
+		return value;
+	};
+	test("anchors one completed untrimmed recording without inventing wall clock", () => {
+		const value = unplaced();
+		expect(singleRecordingZeroAnchor(value)?.partId).toBe(value.parts[0].partId);
+		expect(value.parts[0].sourceStartUtc).toBeNull();
+		value.parts[0].sessionOffsetSeconds = 0;
+		expect(singleRecordingZeroAnchor(value)).toBeNull();
+	});
+	test("preserves multiple recordings and operator timing decisions", () => {
+		const multiple = unplaced();
+		multiple.parts.push(part("source-two", "run-two"));
+		expect(singleRecordingZeroAnchor(multiple)).toBeNull();
+		for (const change of [
+			{ selectedRunId: null }, { sourceState: "invalid" },
+			{ trimStartSeconds: 1 }, { trimEndSeconds: 0.5 },
+			{ sessionOffsetSeconds: 5 }, { timelineMode: "manual" },
+			{ sourceStartConfidence: "ambiguous" },
+			{ sourceStartConfidence: "trusted_absolute" },
+			{ sourceDurationSeconds: null },
+		] as Partial<SessionWorkspacePart>[]) {
+			const value = unplaced();
+			Object.assign(value.parts[0], change);
+			expect(singleRecordingZeroAnchor(value)).toBeNull();
+		}
+	});
+});
 
 function run(
 	sourceId: string,

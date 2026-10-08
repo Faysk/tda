@@ -777,3 +777,5 @@ A transcrição real até a revisão continua sendo verificada separadamente no 
 Polimento #1634: o relógio da faixa ativa acompanha a track do evento mais recente
 da tentativa atual. Faixas que terminaram ASR mas ainda aguardam alinhamento não
 são marcadas como concluídas nem escolhidas apenas por serem a primeira aberta.
+
+Polimento #1636: quando há exatamente uma gravação concluída, sem horário conhecido, sem offset ou cortes definidos, o intent fixa seu início relativo em zero pela API de timing existente. Não cria horário absoluto nem resolve ordem de múltiplas gravações. A escolha é idempotente e preserva decisões editoriais existentes.
