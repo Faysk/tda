@@ -13,7 +13,21 @@ test("cockpit follows the newest track in the active attempt", async ({ page }) 
 	await installCompanionFixture(page, {
 		profileReady: true,
 		advanceJobs: false,
-		initialJobs: [fixtureJob("running")],
+		initialJobs: [fixtureJob("running", {
+			progress: { completed: 0, total: 4, unit: "tracks" },
+			timing: {
+				schema_version: "tda_job_timing_v1",
+				attempt_started_at: "2026-10-07T13:00:00Z",
+				attempt_finished_at: null,
+				attempt_elapsed_seconds: 65,
+				stage_started_at: "2026-10-07T13:00:00Z",
+				stage_elapsed_seconds: 65,
+				tracks: [
+					{ track: 1, total_tracks: 4, speaker: "Alice", started_at: "2026-10-07T13:00:00Z", finished_at: null, processing_seconds: null },
+					{ track: 2, total_tracks: 4, speaker: "Bruno", started_at: "2026-10-07T13:01:00Z", finished_at: null, processing_seconds: null },
+				],
+			},
+		})],
 		jobEvents: [
 			{ seq: 1, attempt: 1, code: "TRACK_STARTED", at: "2026-10-07T13:00:00Z", level: "info", data: { track: 1, total_tracks: 4, speaker: "Alice" } },
 			{ seq: 2, attempt: 1, code: "TRACK_STARTED", at: "2026-10-07T13:01:00Z", level: "info", data: { track: 2, total_tracks: 4, speaker: "Bruno" } },
@@ -23,6 +37,10 @@ test("cockpit follows the newest track in the active attempt", async ({ page }) 
 	await expect(page.getByText("Arquivo 2 de 4", { exact: true })).toBeVisible();
 	await expect(page.getByText("Voz: Bruno", { exact: true })).toBeVisible();
 	await expect(page.getByText("Voz: Alice", { exact: true })).toHaveCount(0);
+	await expect(page.getByText(/Track 2 · Bruno · ativa há/)).toBeVisible();
+	await expect(page.getByText(/Track 1 · Alice · ativa há/)).toHaveCount(0);
+	await expect(page.getByText("0 de 4 tracks", { exact: true })).toBeVisible();
+	await page.screenshot({ path: test.info().outputPath("current-track.png"), fullPage: true });
 });
 
 function fulfillJson(

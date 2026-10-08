@@ -23,6 +23,7 @@ import {
 } from "./session-composer-storage";
 import {
 	chooseIntentRun,
+	singleRecordingZeroAnchor,
 	intentProgress,
 	recordingVariantConflicts,
 	retryableIntentJob,
@@ -884,6 +885,29 @@ export function SessionIntentCoordinator({
 				announce(
 					"Cronologia aplicada automaticamente pelos horários confiáveis do Craig.",
 				);
+				continueAutomatically = true;
+				return;
+			}
+
+			const singleRecording = singleRecordingZeroAnchor(workspace);
+			if (singleRecording) {
+				await bridge.updateSessionPartTiming(
+					workspace.campaignId,
+					workspace.sessionId,
+					{
+						partId: singleRecording.partId,
+						expectedRevision: workspace.revision,
+						sessionOffsetSeconds: 0,
+						trimStartSeconds: 0,
+						trimEndSeconds: null,
+						gapConfirmed: false,
+						overlapResolution: null,
+						overlapBoundarySeconds: null,
+					},
+					controller.signal,
+				);
+				await loadSnapshot(workspace.sessionId, controller.signal);
+				announce("A única gravação começa no início da sessão; horário absoluto indisponível.");
 				continueAutomatically = true;
 				return;
 			}

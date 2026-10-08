@@ -9,6 +9,23 @@ import type {
 
 export type IntentPartProgress = "waiting" | "running" | "completed" | "failed";
 
+export function singleRecordingZeroAnchor(
+	workspace: SessionWorkspace,
+): SessionWorkspacePart | null {
+	if (workspace.parts.length !== 1 || workspace.timeline.state !== "needs_timing") return null;
+	const part = workspace.parts[0];
+	if (
+		part.sourceState !== "ready" || !part.selectedRunId ||
+		part.sessionOffsetSeconds !== null || part.trimStartSeconds !== 0 ||
+		part.trimEndSeconds !== null || part.overlapResolution !== null ||
+		part.overlapBoundarySeconds !== null || part.gapConfirmed ||
+		!['missing', 'opaque'].includes(part.sourceStartConfidence) ||
+		!['automatic', 'unresolved'].includes(part.timelineMode) ||
+		part.sourceDurationSeconds === null || part.sourceDurationSeconds <= 0
+	) return null;
+	return part;
+}
+
 export type IntentProgress = Readonly<{
 	total: number;
 	waiting: number;
