@@ -2103,6 +2103,8 @@ class Store:
             params.extend((updated, updated, job_id))
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         with self.read() as db:
+            # Rows and counters must describe the same snapshot while workers advance.
+            db.execute("BEGIN")
             rows = db.execute(
                 f"SELECT * FROM jobs{where} ORDER BY updated DESC, id DESC LIMIT ?",
                 (*params, limit + 1),

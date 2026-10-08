@@ -5,7 +5,7 @@
 > Última revisão: 2026-10-06
 > Fonte de verdade: `local-companion/tda_companion/api.py`, `store.py`, `telemetry.py` e `windows_app.py`
 
-O protocolo wire permanece `api_version="1"`. **Wire API version e service version são identidades independentes.** A linha de código corrente usa `service_version="0.3.25"`; referências anteriores a 0.3.14 pertencem a snapshots históricos de rollout e não definem compatibilidade do protocolo.
+O protocolo wire permanece `api_version="1"`. **Wire API version e service version são identidades independentes.** A linha de código corrente usa `service_version="0.3.26"`; referências anteriores a 0.3.14 pertencem a snapshots históricos de rollout e não definem compatibilidade do protocolo.
 
 A evolução continua local-first: jobs ASR Craig, eventos, telemetria e sessões de navegador existem no loopback sem transformar autorização local em autorização cloud.
 
@@ -212,7 +212,9 @@ Falha de sensor resulta em dados parciais e nunca altera a saúde da fila.
 
 ## Durabilidade
 
-SQLite usa transações `BEGIN IMMEDIATE` e `synchronous=FULL`. O schema local atual usa `PRAGMA user_version=2`; a migração v1→v2 acrescenta `level` e `data` a eventos sem apagar jobs/settings/eventos.
+SQLite usa transações `BEGIN IMMEDIATE` e `synchronous=FULL`. A página de jobs usa uma transação de leitura `BEGIN`: registros, `total_matching` e contadores por estado pertencem ao mesmo snapshot, mesmo quando um worker termina durante a consulta. O cursor continua sendo paginação sobre uma fila mutável, sem prometer um snapshot entre requisições. O schema local atual usa `PRAGMA user_version=2`; a migração v1→v2 acrescenta `level` e `data` a eventos sem apagar jobs/settings/eventos.
+
+A consistência da página exige atualizar o Agent; publicar apenas o Web não corrige Agents instalados. O teste de regressão intercala um cancelamento persistido entre a seleção e a contagem, verificando o snapshot completo. A correção não altera schema, dados ou formato do protocolo. Rollback: reinstalar a release anterior conforme o runbook, preservando o diretório de dados; isso reintroduz a possibilidade da inconsistência sob concorrência.
 
 Running encontrado após restart vira `interrupted` e exige retry explícito. Resultado sucedido é imutável. Pause persiste. Não existe auto-retry infinito.
 

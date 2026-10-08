@@ -151,3 +151,42 @@ def test_job_list_api_preserves_legacy_wire_and_exposes_cursor_capability(tmp_pa
         )
         assert invalid.status_code == 422
         assert invalid.json()["error"]["code"] == "JOB_LIST_CURSOR_INVALID"
+
+
+def test_job_page_uses_one_snapshot_when_worker_finishes_between_queries(
+    tmp_path: Path, monkeypatch
+):
+    from contextlib import contextmanager
+
+    store = Store(tmp_path)
+    job_id = _seed(store, 1)[0]
+    # Only this scratch database uses WAL so a writer can commit during the read.
+    with store.read() as db:
+        db.execute("PRAGMA query_only=OFF")
+        db.execute("PRAGMA journal_mode=WAL")
+    original_read = store.read
+    advanced = False
+
+    class InterleavedConnection:
+        def __init__(self, db):
+            self.db = db
+
+        def execute(self, statement, parameters=()):
+            nonlocal advanced
+            if "SELECT COUNT(*) AS total FROM jobs" in statement and not advanced:
+                advanced = True
+                store.action(job_id, "cancel")
+            return self.db.execute(statement, parameters)
+
+    @contextmanager
+    def interleaved_read():
+        with original_read() as db:
+            yield InterleavedConnection(db)
+
+    monkeypatch.setattr(store, "read", interleaved_read)
+    page = store.jobs_page(scope="active")
+    assert advanced
+    assert len(page["jobs"]) == page["total_matching"] == 1
+    assert page["jobs"][0]["status"] == "queued"
+    assert page["counts"] == {"queued": 1}
+    assert store.get(job_id)["status"] == "cancelled"

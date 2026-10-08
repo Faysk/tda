@@ -42,3 +42,9 @@ A inspeção real usa Chrome autenticado, geometrias do DOM e screenshots. Teste
 As evidências finais de checks, build, browser, CI, merge e Production pertencem às issues e ao receipt desta entrega. Não fechar os itens apenas com implementação local. O pipeline production-cd exige despacho deliberado do SHA atual de main após validação do escopo.
 
 Rollback: reverter os commits de apresentação/routing pelo fluxo normal e publicar um SHA validado. Não há DDL, novo provider, mídia substituída, mudança de grants ou mutação narrativa para desfazer. A correção não amplia o contrato de aliases históricos de public_slug.
+
+## Consistência de fila — #1614
+
+A investigação do gate de isolamento demonstrou uma corrida real entre a seleção de jobs e sua contagem. O teste determinístico intercala um cancelamento persistido: antes da correção, uma linha ativa é devolvida com `total_matching=0`; depois, a leitura transacional devolve registros e contadores do mesmo snapshot. O parser Web permanece estrito. O payload original da falha de CI não foi capturado; ligar aquela ocorrência à corrida demonstrada permanece uma inferência.
+
+O candidato Companion 0.3.26 exige release e aceite instalado; a publicação Web não atualiza o Agent 0.3.25 já instalado. Seis testes de paginação e dez casos de browser scratch passaram localmente. Suite completa, CI e release são etapas separadas e permanecem vinculadas à issue. Não há mudança em ASR, schema local, configuração de journal, dados ou runtimes de GPU. Rollback preserva o diretório de dados e reinstala a release anterior, reintroduzindo a corrida.
