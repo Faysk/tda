@@ -1,0 +1,193 @@
+{
+  "schema": "tda_processing_1233_physical_acceptance_v1",
+  "pass": true,
+  "accepted_at": "2026-10-07T23:51:44.2289103+00:00",
+  "source": {
+    "track_count": 4,
+    "repository_source_tree_sha": "b50d9d7305ab249b3ee806578360c08b1ba8e0b0",
+    "repository_source_sha": "7b1b8d5a130f40a79b3bcda2784c932196e473aa",
+    "sample_seconds": 300
+  },
+  "execution_companion": {
+    "version": "0.3.24"
+  },
+  "export_companion": {
+    "source_tree_sha": "b50d9d7305ab249b3ee806578360c08b1ba8e0b0",
+    "source_sha": "7b1b8d5a130f40a79b3bcda2784c932196e473aa",
+    "version": "0.3.25"
+  },
+  "runtimes": {
+    "whisper": {
+      "family": "whisper",
+      "version": "1.1.12",
+      "runtime_id": "whisper-ctranslate2",
+      "candidate_tag": "companion-whisper-runtime-rc-v1.1.12-9306c710f41f",
+      "source_sha": "9306c710f41fb1b099adfe121e6bb3e16b406c01",
+      "source_tree_sha": "b8c322788e88427947ccea21dcf0f6395eae0939",
+      "archive_sha256": "c49dd810f32dcfd1c8167cab7c53b70cfc6fa7ad0b2f41c0dff8be182f13b717",
+      "worker_sha256": "2763fb428b113152e75d28f0e7be5b4b8da4534b08ff091d5bc8cbbe41e058d0"
+    },
+    "qwen": {
+      "family": "qwen",
+      "version": "1.0.20",
+      "runtime_id": "qwen3-transformers",
+      "candidate_tag": "companion-qwen-runtime-rc-v1.0.20-9306c710f41f",
+      "source_sha": "9306c710f41fb1b099adfe121e6bb3e16b406c01",
+      "source_tree_sha": "b8c322788e88427947ccea21dcf0f6395eae0939",
+      "archive_sha256": "d4eeba21f7be787b3aa9a33339531eaf7281084f6f783e53c61a6dd58441254d",
+      "worker_sha256": "5962525c06e4df99e4a76d72aca96f31a2c8b2d0fdd5215fd6e45d16180108ba"
+    }
+  },
+  "profiles": [
+    {
+      "profile_id": "whisper-turbo",
+      "engine": "whisper",
+      "sample_seconds": 300.0,
+      "processing_seconds": 132.938,
+      "rtf": 0.11078166666666665,
+      "word_count": 655,
+      "segment_count": 125,
+      "track_count": 4,
+      "warning_count": 0,
+      "runtime": {
+        "family": "whisper",
+        "version": "1.1.12",
+        "runtime_id": "whisper-ctranslate2",
+        "candidate_tag": "companion-whisper-runtime-rc-v1.1.12-9306c710f41f",
+        "source_sha": "9306c710f41fb1b099adfe121e6bb3e16b406c01",
+        "source_tree_sha": "b8c322788e88427947ccea21dcf0f6395eae0939",
+        "archive_sha256": "c49dd810f32dcfd1c8167cab7c53b70cfc6fa7ad0b2f41c0dff8be182f13b717",
+        "worker_sha256": "2763fb428b113152e75d28f0e7be5b4b8da4534b08ff091d5bc8cbbe41e058d0"
+      },
+      "gpu": {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA GeForce RTX 4070 Laptop GPU"
+      }
+    },
+    {
+      "profile_id": "whisper-detailed",
+      "engine": "whisper",
+      "sample_seconds": 300.0,
+      "processing_seconds": 155.094,
+      "rtf": 0.129245,
+      "word_count": 617,
+      "segment_count": 126,
+      "track_count": 4,
+      "warning_count": 0,
+      "runtime": {
+        "family": "whisper",
+        "version": "1.1.12",
+        "runtime_id": "whisper-ctranslate2",
+        "candidate_tag": "companion-whisper-runtime-rc-v1.1.12-9306c710f41f",
+        "source_sha": "9306c710f41fb1b099adfe121e6bb3e16b406c01",
+        "source_tree_sha": "b8c322788e88427947ccea21dcf0f6395eae0939",
+        "archive_sha256": "c49dd810f32dcfd1c8167cab7c53b70cfc6fa7ad0b2f41c0dff8be182f13b717",
+        "worker_sha256": "2763fb428b113152e75d28f0e7be5b4b8da4534b08ff091d5bc8cbbe41e058d0"
+      },
+      "gpu": {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA GeForce RTX 4070 Laptop GPU"
+      }
+    },
+    {
+      "profile_id": "qwen-fast",
+      "engine": "qwen3",
+      "sample_seconds": 300.0,
+      "processing_seconds": 77.39,
+      "rtf": 0.06449166666666667,
+      "word_count": 620,
+      "segment_count": 72,
+      "track_count": 4,
+      "warning_count": 1,
+      "runtime": {
+        "family": "qwen",
+        "version": "1.0.20",
+        "runtime_id": "qwen3-transformers",
+        "candidate_tag": "companion-qwen-runtime-rc-v1.0.20-9306c710f41f",
+        "source_sha": "9306c710f41fb1b099adfe121e6bb3e16b406c01",
+        "source_tree_sha": "b8c322788e88427947ccea21dcf0f6395eae0939",
+        "archive_sha256": "d4eeba21f7be787b3aa9a33339531eaf7281084f6f783e53c61a6dd58441254d",
+        "worker_sha256": "5962525c06e4df99e4a76d72aca96f31a2c8b2d0fdd5215fd6e45d16180108ba"
+      },
+      "gpu": {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA GeForce RTX 4070 Laptop GPU"
+      }
+    },
+    {
+      "profile_id": "qwen-quality",
+      "engine": "qwen3",
+      "sample_seconds": 300.0,
+      "processing_seconds": 69.328,
+      "rtf": 0.057773333333333336,
+      "word_count": 656,
+      "segment_count": 76,
+      "track_count": 4,
+      "warning_count": 0,
+      "runtime": {
+        "family": "qwen",
+        "version": "1.0.20",
+        "runtime_id": "qwen3-transformers",
+        "candidate_tag": "companion-qwen-runtime-rc-v1.0.20-9306c710f41f",
+        "source_sha": "9306c710f41fb1b099adfe121e6bb3e16b406c01",
+        "source_tree_sha": "b8c322788e88427947ccea21dcf0f6395eae0939",
+        "archive_sha256": "d4eeba21f7be787b3aa9a33339531eaf7281084f6f783e53c61a6dd58441254d",
+        "worker_sha256": "5962525c06e4df99e4a76d72aca96f31a2c8b2d0fdd5215fd6e45d16180108ba"
+      },
+      "gpu": {
+        "vendor": "NVIDIA",
+        "model": "NVIDIA GeForce RTX 4070 Laptop GPU"
+      }
+    }
+  ],
+  "evidence": {
+    "contract": "issue-1417",
+    "benchmark_id": "benchmark-1e11fd05-7971-45e0-86d3-6087a8b69288-a1",
+    "bundle_manifest_sha256": "1df8291ccfcd35c7f22e72f8c9e549c02864544f2e0eecad72b889701d7a9481",
+    "bundle_size_bytes": 926367,
+    "export_sha256": "3bc311e05adc88dd11fd546bc86d10f7cc54c6c4bd95c0a581edd1d4d277cb02",
+    "export_size_bytes": 134645,
+    "export_contains_audio": false,
+    "private_export_kept_local": true,
+    "contains_transcript": false,
+    "contains_reference_text": false,
+    "contains_token": false,
+    "contains_local_paths": false,
+    "profiles": [
+      {
+        "profile_id": "whisper-turbo",
+        "transcript_sha256": "2319d92651782fd0240f9583b51940123a7dffd843a44356adf8aabde1970b30",
+        "transcript_size_bytes": 75794,
+        "diagnostics_verified": true
+      },
+      {
+        "profile_id": "whisper-detailed",
+        "transcript_sha256": "b2709cb4899c432078552ea67922b9aaa736bc618c7b0b45090a3742a74260db",
+        "transcript_size_bytes": 72295,
+        "diagnostics_verified": true
+      },
+      {
+        "profile_id": "qwen-fast",
+        "transcript_sha256": "8c90aced64dd023e5d4be10cd115ca978be6e44b10ba9b7ed56c6f09554d6cae",
+        "transcript_size_bytes": 64461,
+        "diagnostics_verified": true
+      },
+      {
+        "profile_id": "qwen-quality",
+        "transcript_sha256": "cfc410caeb22dc4ad32214be9106efb8f3b7e6728597a85dacefc400a2160d27",
+        "transcript_size_bytes": 68094,
+        "diagnostics_verified": true
+      }
+    ],
+    "quality": {
+      "quality_measured": false,
+      "reference_revision": null,
+      "profiles": []
+    }
+  },
+  "contains_audio": false,
+  "contains_transcript": false,
+  "contains_token": false,
+  "contains_paths": false,
+  "contains_local_paths": false
+}

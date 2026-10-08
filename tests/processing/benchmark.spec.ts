@@ -1327,7 +1327,7 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 
 	await page.evaluate(() => {
 		Object.defineProperty(window, "showSaveFilePicker", {
-			value: undefined,
+			value: () => { throw new Error("Small ZIP must use the normal browser download"); },
 			configurable: true,
 		});
 	});
@@ -1338,6 +1338,7 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 		"TDA-Benchmark-benchmark-benchmark-job-1-a1-private-evidence.zip",
 	);
 	expect(download.suggestedFilename()).not.toContain("benchmark-craig.zip");
+	await expect(workspace.getByRole("status").filter({ hasText: "Download do ZIP privado iniciado" })).toBeVisible();
 
 	const assertNoHorizontalOverflow = async () => {
 		const horizontal = await page.evaluate(() => ({
@@ -1355,3 +1356,48 @@ test("completed benchmark lazily compares transcript evidence and exports a priv
 	await page.setViewportSize({ width: 683, height: 768 });
 	await assertNoHorizontalOverflow();
 });
+
+for (const outcome of ["saved", "cancelled", "failed"] as const) {
+	test(`private benchmark ZIP streaming reports ${outcome} without claiming a browser download`, async ({ page }) => {
+		await installCompanionFixture(page, {
+			benchmarkProfiles: true, profileReady: true, benchmarkEvidence: true,
+			advanceJobs: false, initialJobs: [fixtureBenchmarkJob("succeeded")],
+		});
+		await page.route("**/benchmarks/*/export.zip", async (route) => {
+			await route.fulfill({ status: 200, headers: {
+				"Access-Control-Allow-Origin": "http://127.0.0.1:3102",
+				"Content-Type": "application/zip",
+				"Content-Length": "16777217",
+			}, body: Buffer.alloc(16 * 1024 ** 2 + 1, 80) });
+		});
+		const panel = await openBenchmark(page);
+		await page.evaluate((result) => {
+			Object.defineProperty(window, "showSaveFilePicker", {
+				configurable: true,
+				value: async function (this: Window) {
+					if (this !== window) throw new Error("Invalid picker receiver");
+					if (result === "cancelled") throw new DOMException("Cancelled", "AbortError");
+					if (result === "failed") throw new Error("Não foi possível gravar o ZIP.");
+					return { createWritable: async () => new WritableStream({
+						write(chunk) { document.body.dataset.exportBytes = String(Number(document.body.dataset.exportBytes ?? 0) + chunk.byteLength); },
+					}) };
+				},
+			});
+		}, outcome);
+		await panel.getByRole("button", { name: "Comparar transcrições" }).click();
+		const workspace = panel.getByRole("region", { name: "Evidências do Benchmark" });
+		await workspace.getByRole("button", { name: "Arquivos" }).click();
+		await workspace.getByRole("button", { name: "Exportar evidência privada (.zip)" }).click();
+		await page.getByRole("dialog").getByRole("button", { name: "Exportar ZIP privado", exact: true }).click();
+		if (outcome === "saved") {
+			await expect(workspace.getByRole("status")).toContainText("ZIP privado salvo no local escolhido.");
+			await expect(page.locator("body")).toHaveAttribute("data-export-bytes", "16777217");
+		} else if (outcome === "cancelled") {
+			await expect(workspace.getByRole("status")).toContainText("Exportação cancelada. Os arquivos locais foram preservados.");
+		} else {
+			await expect(workspace.getByRole("alert")).toContainText("Não foi possível gravar o ZIP.");
+		}
+		await expect(workspace.getByRole("button", { name: "Exportar evidência privada (.zip)" })).toBeEnabled();
+		await expect(workspace.getByText("Download do ZIP privado iniciado", { exact: false })).toHaveCount(0);
+	});
+}

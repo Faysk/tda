@@ -5,6 +5,9 @@ import json
 import re
 import time
 import urllib.request
+import urllib.parse
+
+CANONICAL_DOWNLOAD_URL = "https://dnd.faysk.dev/api/downloads/companion/windows"
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -53,11 +56,22 @@ def main():
             or candidate["assets"]["msi"]["sha256"] != expected_sha):
         raise ValueError("STABLE_MANIFEST_IDENTITY_INVALID")
     opener = urllib.request.build_opener(NoRedirect)
-    base = "https://dnd.faysk.dev/api/downloads/companion/windows"
+    base = CANONICAL_DOWNLOAD_URL
+    origin = urllib.parse.urlsplit(base)
+    if (origin.scheme != "https" or origin.hostname != "dnd.faysk.dev"
+            or origin.username is not None or origin.password is not None
+            or origin.port not in (None, 443) or origin.query or origin.fragment
+            or origin.path != "/api/downloads/companion/windows"):
+        raise ValueError("CANONICAL_WEB_ORIGIN_INVALID")
+    manifest_url = base + "/manifest"
     for attempt in range(12):
-        with opener.open(urllib.request.Request(base + "/manifest", headers={
+        with opener.open(urllib.request.Request(manifest_url, headers={
             "Cache-Control": "no-cache", "Accept": "application/json"}), timeout=30) as response:
+            if response.status != 200 or response.geturl() != manifest_url:
+                raise ValueError("CANONICAL_WEB_STABLE_MANIFEST_MISMATCH")
             value = json.load(response)
+        if not isinstance(value, dict) or not isinstance(value.get("asset"), dict):
+            raise ValueError("CANONICAL_WEB_STABLE_MANIFEST_MISMATCH")
         asset = value.get("asset", {})
         if (value.get("channel") == "stable" and value.get("tag") == args.tag
                 and value.get("version") == version and asset.get("size") == expected_size
