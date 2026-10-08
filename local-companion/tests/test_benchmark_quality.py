@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import replace
 
@@ -1369,3 +1370,26 @@ def test_identical_words_with_different_segmentation_score_as_exact_match():
     assert metrics["micro"]["deletions"] == 0
     assert metrics["micro"]["insertions"] == 0
 
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Creating directory symlinks needs special Windows privileges")
+def test_reference_revisions_rejects_intermediate_symlink_escape(tmp_path):
+    benchmark_id = benchmark_id_for("reference-security", 1)
+    data_root = tmp_path / "data"
+    reference_root = _canonical_benchmark_root(data_root, benchmark_id) / "reference"
+    reference_root.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (reference_root / "revisions").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(BenchmarkQualityError, match="BENCHMARK_REFERENCE_PATH_INVALID"):
+        benchmark_quality_module._safe_reference_revisions_root(data_root, benchmark_id)
+
+
+def test_reference_revisions_preserves_valid_owned_directory(tmp_path):
+    benchmark_id = benchmark_id_for("reference-security", 1)
+    data_root = tmp_path / "data"
+    revisions = _canonical_benchmark_root(data_root, benchmark_id) / "reference" / "revisions"
+    revisions.mkdir(parents=True)
+
+    assert benchmark_quality_module._safe_reference_revisions_root(data_root, benchmark_id) == revisions
