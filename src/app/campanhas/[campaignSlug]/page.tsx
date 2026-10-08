@@ -62,7 +62,7 @@ export default async function CampaignOverviewPage({ params }: Props) {
 	if (!resolved.ok) {
 		if (resolved.reason === "not_found") notFound();
 		return (
-			<main className={styles.page} data-layout-family="editorial">
+			<section className={styles.page} data-layout-family="editorial">
 				<section className={styles.unavailable} role="status">
 					<p className={styles.eyebrow}>TDA · campanha</p>
 					<h1>Campanha temporariamente indisponível</h1>
@@ -72,7 +72,7 @@ export default async function CampaignOverviewPage({ params }: Props) {
 					</p>
 					<Link href="/campanhas">Voltar às campanhas</Link>
 				</section>
-			</main>
+			</section>
 		);
 	}
 
@@ -113,7 +113,7 @@ export default async function CampaignOverviewPage({ params }: Props) {
 			: `Arte pública de uma memória de ${campaign.name}`;
 
 	return (
-		<main
+		<section
 			className={styles.page}
 			data-layout-family="editorial"
 			data-campaign-root
@@ -227,6 +227,6 @@ export default async function CampaignOverviewPage({ params }: Props) {
 					</p>
 				) : null}
 			</section>
-		</main>
+		</section>
 	);
 }

@@ -53,7 +53,7 @@ export default async function EditPage() {
 	}));
 
 	return (
-		<main
+		<section
 			className={styles.page}
 			data-layout-family="workspace"
 			data-layout-role="editorial"
@@ -98,6 +98,6 @@ export default async function EditPage() {
 					))}
 				</div>
 			</section>
-		</main>
+		</section>
 	);
 }

@@ -134,7 +134,7 @@ export default function SessionArchiveScopeFixture() {
 	if (process.env.TDA_E2E_FIXTURES !== "true") notFound();
 
 	return (
-		<main>
+		<section>
 			<section data-session-scope-fixture="one-campaign">
 				<h1>Uma campanha, treze sessões</h1>
 				<SessionList
@@ -166,6 +166,6 @@ export default function SessionArchiveScopeFixture() {
 					campaignOptions={[CAMPAIGN_A, CAMPAIGN_B]}
 				/>
 			</section>
-		</main>
+		</section>
 	);
 }

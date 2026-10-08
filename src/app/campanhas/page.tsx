@@ -45,7 +45,7 @@ export default async function CampaignDirectoryPage() {
 		: [];
 
 	return (
-		<main
+		<section
 			className={styles.page}
 			data-layout-family="editorial"
 			data-campaign-registry={result.ok ? result.registryMode : "unavailable"}
@@ -159,6 +159,6 @@ export default async function CampaignDirectoryPage() {
 					})}
 				</section>
 			)}
-		</main>
+		</section>
 	);
 }

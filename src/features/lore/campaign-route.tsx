@@ -16,9 +16,9 @@ import {
 
 function CampaignLoreUnavailable({ label }: { label: string }) {
 	return (
-		<main data-layout-family="editorial" data-layout-role="editorial">
+		<section data-layout-family="editorial" data-layout-role="editorial">
 			<p role="status">Não foi possível carregar {label} desta campanha agora.</p>
-		</main>
+		</section>
 	);
 }
 

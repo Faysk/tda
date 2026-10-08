@@ -424,7 +424,7 @@ export function SessionEditorialE2EFixture({
 
 	return (
 		<>
-			<main
+			<section
 				className={[workbenchStyles.shell, workbenchStyles.sessionShell].join(" ")}
 				data-testid="session-editorial-shell"
 			>
@@ -496,7 +496,7 @@ export function SessionEditorialE2EFixture({
 									/>
 								</section>
 				</div>
-			</main>
+			</section>
 
 			<div className={workbenchStyles.shell} style={{ display: "grid", gap: "2rem" }}>
 				<section aria-label="Controles sintéticos de falha" data-testid="session-editorial-failure-controls">

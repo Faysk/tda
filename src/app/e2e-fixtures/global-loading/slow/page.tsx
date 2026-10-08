@@ -10,8 +10,8 @@ export default async function GlobalLoadingSlowE2EFixture() {
 	await new Promise((resolveDelay) => setTimeout(resolveDelay, ROUTE_DELAY_MS));
 
 	return (
-		<main>
+		<section>
 			<h1>Global Loading E2E Target</h1>
-		</main>
+		</section>
 	);
 }

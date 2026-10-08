@@ -14,7 +14,7 @@ export default function WorldFloatingChromeFixturePage() {
 	const [view, setView] = useState<"canvas" | "list">("canvas");
 
 	return (
-		<main style={{ padding: 8 }}>
+		<section style={{ padding: 8 }}>
 			<WorldFloatingChrome
 				query={query}
 				onQueryChange={setQuery}
@@ -36,6 +36,6 @@ export default function WorldFloatingChromeFixturePage() {
 				data-testid="fixture-map"
 				style={{ minHeight: "55dvh", border: "1px solid currentColor" }}
 			/>
-		</main>
+		</section>
 	);
 }

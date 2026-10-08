@@ -16,8 +16,16 @@ Production CD #37712163701 e inspeção real do Chrome em ambos os temas.
 A auditoria #1601 identificou uma lacuna adicional no catálogo público de
 Campanhas (#1603): o primeiro contexto precisa começar abaixo dos controles
 flutuantes. A correção dessa tela e a normalização das rotas privadas pelo nome
-público (#1604) são candidatas; sua validação e publicação serão registradas
-separadamente. Os guards continuam usando a identidade técnica da campanha.
+público (#1604) foram publicadas em `prod-620b11f4fc5a`, com CD #37721017153.
+O Chrome confirmou 76 px de reserva no diretório a 390 px, sem overflow, e as
+ferramentas privadas pelos nomes públicos das duas campanhas. Os guards continuam
+usando a identidade técnica da campanha.
+
+O layout App Router é o único dono de `main#conteudo` e do destino do skip link.
+Páginas, estados vazios e fixtures usam seções internas, sem criar mains aninhados
+ou concorrentes (#1618). Um guard de JSX e o browser verificam essa unicidade.
+Documentos HTML standalone de lore/diário possuem documento próprio e mantêm seu
+main; suas composições e identidades visuais não são alteradas por esse contrato.
 
 Definir uma única arquitetura de informação para o shell global do TDA, sem manter launcher, conta e aparência como superfícies concorrentes.
 

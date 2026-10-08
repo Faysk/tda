@@ -7,7 +7,7 @@ export default function GlobalLoadingE2EFixture() {
 	if (process.env.TDA_E2E_FIXTURES !== "true") notFound();
 
 	return (
-		<main>
+		<section>
 			<h1>Global Loading E2E</h1>
 			<Link href="/e2e-fixtures/global-loading/slow" globalLoading>
 				Abrir rota lenta global
@@ -15,6 +15,6 @@ export default function GlobalLoadingE2EFixture() {
 			<Link href="/e2e-fixtures/global-loading/slow?scope=local">
 				Abrir rota lenta local
 			</Link>
-		</main>
+		</section>
 	);
 }

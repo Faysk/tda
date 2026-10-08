@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -107,7 +107,9 @@ export function collectLayoutSurfaceInventory(root = process.cwd()) {
 	const publicFiles = walk(root, "public");
 	return {
 		appPages: app
-			.filter((path) => path.endsWith("/page.tsx") || path === "src/app/page.tsx")
+			.filter(
+				(path) => path.endsWith("/page.tsx") || path === "src/app/page.tsx",
+			)
 			.filter((path) => !path.includes("/e2e-fixtures/"))
 			.sort(),
 		specialSurfaces: app
@@ -121,6 +123,20 @@ export function collectLayoutSurfaceInventory(root = process.cwd()) {
 }
 
 export function assertLayoutSurfaceInventory(root = process.cwd()) {
+	const mainOwners = [];
+	for (const path of walk(root, "src").filter((path) =>
+		path.endsWith(".tsx"),
+	)) {
+		const source = readFileSync(join(root, path), "utf8");
+		for (const _match of source.matchAll(/<main(?:\s|>)/gu)) {
+			mainOwners.push(path);
+		}
+	}
+	assert.deepEqual(
+		mainOwners,
+		["src/app/layout.tsx"],
+		"App Router main landmark belongs only to main#conteudo in the root layout; inner screens and fixtures must use sections. Independent standalone HTML documents keep their own main.",
+	);
 	const actual = collectLayoutSurfaceInventory(root);
 	for (const key of Object.keys(EXPECTED)) {
 		assert.deepEqual(
