@@ -106,3 +106,14 @@ integrou códigos de erro estáticos e o scan main subsequente deixou de reporta
 exposição de detalhes de exception. Isso não encerra os 38 alertas de path nem
 certifica o MSI instalado. A publicação Web e o candidato 0.3.27 seguem separados
 nos receipts e nos critérios das issues; nenhum deles está inferido do merge.
+
+### Aceite da continuação
+
+Os issues #1624/#1626/#1627 foram aceitos em `prod-b72eb1ffd316`: seletor
+390 px escuro e 320 px claro sem sobreposição/scroll preso; links de campanhas
+reais e foco Astel preservados; grafo publicado com 34 nós e 102 relações.
+O #1625 integrou PR #1629, CI exata #37730718230 e candidato 0.3.27
+source `55f3813dd2a9d82646afd81a0f62719edd6f30d5`. Os receipts instalado
+e físico próprios passaram; promoção Stable e download real serão registrados
+no issue após execução. A sessão privada mantém 8.019 falas de duas gravações,
+cinco resultados locais e seis benchmarks históricos, sem publicação pública.

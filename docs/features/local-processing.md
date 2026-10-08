@@ -718,6 +718,14 @@ de tentativa e largura estável. A validação local/CI não publica o frontend.
 
 ### Histórico de implementação — Fila operacional — #610 / PR #624
 
+Aceite adicional de 0.3.27: os receipts instalado v3 e físico v2 estão em
+`docs/companion/acceptance/companion-rc-v0.3.27-55f3813dd2a9.json` e
+`.physical.json`, vinculados ao MSI SHA-256
+`585f47ade01d31cfabcf1be617ff4604652a940d2c2f390ded2654da1c27c5dd`.
+Os quatro perfis passaram na RTX 4070 Laptop; ingestão e recuperação usaram
+o ZIP Craig real de quatro faixas. Promoção e download Stable ainda exigem
+seus próprios resultados operacionais. Os runtimes ASR permanecem iguais.
+
 A Fila usa tabela HTML no desktop, com rolagem e cabeçalho próprios, e linhas
 empilhadas no mobile. O recorte inicial contém ativos; filtros locais de atenção,
 concluídos, cancelados e todos, busca e ordenação operam sobre os jobs carregados.
