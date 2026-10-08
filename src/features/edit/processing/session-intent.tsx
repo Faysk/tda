@@ -106,6 +106,7 @@ type Props = Readonly<{
 	onRestoreSessionId?: (sessionId: string) => void;
 	onRestoreIntent?: (intent: SessionTranscriptionIntent) => void;
 	onStatus?: (message: string | null) => void;
+	onSnapshotRecovered?: () => void;
 	onError?: (
 		message: string,
 		availabilityFailure?: "timeout" | "unreachable",
@@ -209,6 +210,7 @@ export function SessionIntentCoordinator({
 	onRestoreSessionId,
 	onRestoreIntent,
 	onStatus,
+	onSnapshotRecovered,
 	onError,
 	onOpenTechnical,
 	onSelectSource,
@@ -343,10 +345,11 @@ export function SessionIntentCoordinator({
 				setJobs(snapshot.jobs);
 				onActiveChange?.(snapshot.workspace.parts.length > 0);
 				saveRecoveryPointer(campaignId, snapshot.workspace.sessionId);
+				onSnapshotRecovered?.();
 			}
 			return snapshot;
 		},
-		[bridge, campaignId, onActiveChange],
+		[bridge, campaignId, onActiveChange, onSnapshotRecovered],
 	);
 
 	const begin = useCallback(

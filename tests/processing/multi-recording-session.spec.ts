@@ -2540,10 +2540,27 @@ test("reload recovers the Agent workspace and does not expose technical controls
 		page.getByRole("region", { name: /Transcrição da sessão/u }),
 	).toContainText("Transcrição pronta");
 
+	// Hold capability refreshes after the first successful handshake. Session
+	// recovery must clear its own obsolete availability error without waiting
+	// for the independent capabilities polling interval.
+	let blockCapabilityRefresh = false;
+	await page.route(`${LOCAL_API}/capabilities`, async (route) => {
+		if (blockCapabilityRefresh && route.request().method() === "GET") await route.abort("failed");
+		else await route.fallback();
+	});
+	let blockWorkspace = true;
+	await page.route(`${LOCAL_API}/session-workspaces/${CAMPAIGN}/${SESSION}`, async (route) => {
+		if (blockWorkspace && route.request().method() === "GET") await route.abort("failed");
+		else await route.fallback();
+	});
 	await page.reload();
+	await expect(page.getByRole("alert").filter({ hasText: "O Companion ficou indisponível." })).toBeVisible();
+	blockCapabilityRefresh = true;
+	blockWorkspace = false;
 	const recovered = page.getByRole("region", { name: /Transcrição da sessão/u });
 	await expect(recovered).toBeVisible();
 	await expect(recovered).toContainText("Transcrição pronta");
+	await expect(page.getByRole("alert").filter({ hasText: "O Companion ficou indisponível." })).toHaveCount(0);
 	await expect(page.getByLabel("ID da sessão")).toHaveValue(SESSION);
 	await expect(page.locator("[data-processing-intent-summary='true']")).toHaveCount(0);
 	await expect(page.getByText("Detalhes técnicos", { exact: false })).toHaveCount(0);

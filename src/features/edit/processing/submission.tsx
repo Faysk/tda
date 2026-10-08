@@ -281,6 +281,13 @@ export function ProcessingSubmission({
 		message: string;
 	} | null>(null);
 	const fileInput = useRef<HTMLInputElement>(null);
+	const clearRecoveredAvailabilityFailure = useCallback(() => {
+		const recoveredFailure = historicalAvailabilityFailure.current;
+		if (!recoveredFailure) return;
+		historicalAvailabilityFailure.current = null;
+		setError((current) => current === recoveredFailure.message ? null : current);
+		setRecoveryNotice(recoveredAvailabilityNotice(recoveredFailure.code));
+	}, []);
 
 	const handleChildError = useCallback(
 		(message: string, availabilityFailure?: AvailabilityFailure) => {
@@ -367,16 +374,7 @@ export function ProcessingSubmission({
 						}));
 				setProfile((current) => chooseSubmissionProfile(current, profileStates));
 				setCapabilityError(null);
-				const recoveredFailure = historicalAvailabilityFailure.current;
-				if (recoveredFailure) {
-					historicalAvailabilityFailure.current = null;
-					setError((current) =>
-						current === recoveredFailure.message ? null : current,
-					);
-					setRecoveryNotice(
-						recoveredAvailabilityNotice(recoveredFailure.code),
-					);
-				}
+				clearRecoveredAvailabilityFailure();
 			} catch (cause) {
 				if (!stopped && !controller.signal.aborted) {
 					setRecoveryNotice(null);
@@ -405,7 +403,7 @@ export function ProcessingSubmission({
 			document.removeEventListener("visibilitychange", visible);
 			controller.abort();
 		};
-	}, [bridge, paired]);
+	}, [bridge, paired, clearRecoveredAvailabilityFailure]);
 
 	useEffect(() => {
 		if (!paired) {
@@ -1455,6 +1453,7 @@ export function ProcessingSubmission({
 							setGlossary(restored.glossary);
 						}}
 						onStatus={setStatus}
+						onSnapshotRecovered={clearRecoveredAvailabilityFailure}
 						onError={handleChildError}
 						onOpenTechnical={openTechnicalRecovery}
 						onSelectSource={openSourceRecovery}
