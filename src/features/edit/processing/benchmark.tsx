@@ -124,9 +124,11 @@ function bridgeMessage(error: unknown, fallback: string): string {
 				"Há uma preparação de perfil em andamento. Aguarde terminar antes de atualizar o Qwen Runtime.",
 			QWEN_RUNTIME_MAINTENANCE_BUSY:
 				"Já existe uma manutenção do Qwen Runtime em andamento.",
-			CRAIG_ZIP_REQUIRED: "Escolha um arquivo .zip exportado pelo Craig.",
+			CRAIG_ZIP_REQUIRED: "Escolha um export Craig ou um ZIP com FLACs.",
 			CRAIG_UPLOAD_EMPTY: "O ZIP selecionado está vazio.",
-			CRAIG_ARCHIVE_INVALID: "O ZIP não pôde ser validado como export Craig.",
+			CRAIG_ARCHIVE_INVALID: "O arquivo não é um ZIP válido ou está corrompido.",
+			CRAIG_ARCHIVE_UNEXPECTED_FILE:
+				"Use um export Craig ou um ZIP contendo somente FLACs na raiz, sem misturar metadados Craig.",
 			CRAIG_MANIFEST_NOT_FOUND:
 				"O ZIP não contém o manifesto esperado do Craig.",
 			unauthorized: "Reconecte o Companion antes de continuar.",
@@ -1243,12 +1245,12 @@ export function ProcessingBenchmark({
 							<span className={styles.sourceBadge} aria-hidden="true">ZIP</span>
 							<span className={styles.sourcePickerCopy}>
 								<strong title={file?.name}>
-									{file?.name ?? "Selecionar ZIP Craig"}
+									{file?.name ?? "Selecionar ZIP Craig ou FLAC"}
 								</strong>
 								<small>
 									{file
 										? `${formatSubmissionBytes(file.size)}${source ? ` · ${source.trackCount} tracks` : ""}`
-										: "Export do Craig · validação e upload ficam no Companion local"}
+										: "ZIP Craig ou FLAC · validação e upload ficam no Companion local"}
 								</small>
 							</span>
 							<span className={styles.sourcePickerAction}>

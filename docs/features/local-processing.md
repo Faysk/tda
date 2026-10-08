@@ -199,7 +199,7 @@ Validação usa fixtures sintéticas em desktop/mobile, falhas independentes por
 domínio, recuperação parcial, inventário fora de ordem, temas e reduced motion.
 Merge não confirma publicação; não há mudança de banco, áudio ou formato de run.
 
-A linha de código vigente **TDA Companion 0.3.27** cobre:
+A linha de código vigente **TDA Companion 0.3.28** cobre:
 
 - workbench próprio do Edit;
 - conexão automática com o Agent em `http://127.0.0.1:8765/api/v1` via sessão temporária origin-bound;
@@ -225,7 +225,7 @@ O processamento Craig já é ASR real ponta a ponta no Agent, iniciado pela Web 
 
 ### Versão de código versus artefato publicado
 
-A linha de código atual é o **TDA Companion 0.3.27**. O candidato inclui a fronteira de erros públicos por valores estáticos e validação explícita de identidade/containment dos receipts de qualidade (#1625); o canal Stable permanece 0.3.26 até o aceite próprio e promoção deliberada. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline. A correção #1614 mantém registros e contadores de cada página de jobs num snapshot SQLite consistente; exige atualizar o Agent e não altera os runtimes ASR. O aceite de 0.3.25 descrito abaixo é histórico e não certifica este novo candidato.
+A linha de código atual é o **TDA Companion 0.3.28**. O candidato inclui a fronteira de erros públicos por valores estáticos e validação explícita de identidade/containment dos receipts de qualidade (#1625); o canal Stable é 0.3.27; o candidato 0.3.28 exige aceite próprio e promoção deliberada. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline. A correção #1614 mantém registros e contadores de cada página de jobs num snapshot SQLite consistente; exige atualizar o Agent e não altera os runtimes ASR. O aceite de 0.3.25 descrito abaixo é histórico e não certifica este novo candidato.
 
 Na exportação SRT/VTT, segmentos pontuais reconhecidos são preservados como cues
 de pelo menos 1 ms. Isso normaliza somente a representação da legenda; o JSON
@@ -744,3 +744,22 @@ operação de apagar um resultado. A autoridade após cleanup segue no gate #644
 Validação sintética do candidato inclui lista de 30 jobs, última linha, bounds
 e hit testing do popup, foco/teclado, 1024x768, proxy de zoom 512x384 e 320px.
 Screenshots desktop/mobile foram inspecionados. Código validado não é publicação.
+
+### ZIP FLAC comum — candidato 0.3.28 / #1631
+
+Além do export Craig, o importador local aceita um ZIP plano contendo somente
+FLACs com nomes comuns (por exemplo, exports do Audacity). O nome sem extensão
+vira o rótulo da faixa; números determinísticos e paths físicos canônicos são
+atribuídos sem renomear os arquivos originais. O manifesto usa filename interno numerado compatível com os workers existentes e preserva o nome de origem em original_filename. Faixas no mesmo ZIP compartilham
+o zero temporal: representam gravações simultâneas já alinhadas. Trechos em
+sequência devem ser ZIPs distintos ordenados na sessão; não é inventado horário
+absoluto, alinhamento acústico nem identidade Discord.
+
+Metadados Craig misturados com nomes comuns são recusados para não reinterpretar
+um export parcialmente inválido. Os limites de tamanho, compressão, quantidade,
+nomes únicos, raiz plana e links permanecem. Manifest reload valida o nome e
+rótulo junto com hash, tamanho e path canônico. Áudio permanece local.
+
+Validação local com o ZIP real de dois FLACs passou ingestão e reload: durações
+1930.205 e 1935.545 segundos. Isso ainda não certifica release instalada ou
+transcrição concluída; esses estados serão registrados no issue #1631.

@@ -58,6 +58,7 @@ class CraigTrack:
     staged_mtime_ns: int | None = None
     timeline_offset_seconds: float = 0.0
     duration_seconds: float | None = None
+    original_filename: str | None = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,18 @@ def physical_track_filename(number: int) -> str:
     if not isinstance(number, int) or isinstance(number, bool) or number < 1:
         raise CraigPackageError("CRAIG_TRACK_NUMBER_INVALID")
     return f"track-{number:06d}.flac"
+
+
+def plain_flac_speaker(filename: str) -> str | None:
+    """Recognize a flat audio-only source name, never a physical target path."""
+    if (not isinstance(filename, str) or len(filename) > 512
+            or "/" in filename or "\\" in filename
+            or any(ord(char) < 32 for char in filename)
+            or not filename.lower().endswith(".flac")
+            or TRACK_NAME.fullmatch(filename)):
+        return None
+    speaker = filename[:-5].strip()
+    return speaker if speaker and len(speaker) <= 160 else None
 
 
 def _member_name(info: zipfile.ZipInfo) -> str:
@@ -495,6 +508,7 @@ def inspect_craig_zip(source_zip: Path) -> tuple[list[tuple[zipfile.ZipInfo, int
             raise CraigPackageError("CRAIG_ARCHIVE_ENTRY_LIMIT")
         total = 0
         tracks: list[tuple[zipfile.ZipInfo, int, str]] = []
+        plain_tracks: list[tuple[zipfile.ZipInfo, str]] = []
         seen_numbers: set[int] = set()
         info_member: zipfile.ZipInfo | None = None
         raw_present = False
@@ -533,9 +547,20 @@ def inspect_craig_zip(source_zip: Path) -> tuple[list[tuple[zipfile.ZipInfo, int
                 info_member = item
             elif folded == "raw.dat":
                 raw_present = True
+            elif plain_flac_speaker(name) is not None:
+                if item.file_size <= 0 or item.file_size > MAX_TRACK_BYTES:
+                    raise CraigPackageError("CRAIG_TRACK_SIZE_LIMIT")
+                plain_tracks.append((item, plain_flac_speaker(name)))
             else:
                 raise CraigPackageError("CRAIG_ARCHIVE_UNEXPECTED_FILE")
 
+        if plain_tracks:
+            # Do not silently reinterpret a partially malformed Craig export.
+            if tracks or info_member is not None or raw_present:
+                raise CraigPackageError("CRAIG_ARCHIVE_UNEXPECTED_FILE")
+            plain_tracks.sort(key=lambda value: (value[0].filename.casefold(), value[0].filename))
+            tracks = [(item, index, speaker) for index, (item, speaker)
+                      in enumerate(plain_tracks, start=1)]
         if not tracks:
             raise CraigPackageError("CRAIG_ARCHIVE_NO_TRACKS")
         tracks.sort(key=lambda value: value[1])
@@ -649,13 +674,16 @@ def ingest_craig_zip(
                     CraigTrack(
                         number=number,
                         speaker=speaker,
-                        filename=source_filename,
+                        filename=(source_filename if TRACK_NAME.fullmatch(source_filename)
+                                  else f"{number}-{speaker}.flac"),
                         path=f"tracks/{physical_filename}",
                         size_bytes=member.file_size,
                         sha256=digest,
                         identity=identity,
                         staged_mtime_ns=target.stat().st_mtime_ns,
                         duration_seconds=flac_duration_seconds(target),
+                        original_filename=(None if TRACK_NAME.fullmatch(source_filename)
+                                           else source_filename),
                     )
                 )
 

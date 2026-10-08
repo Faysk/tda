@@ -17,6 +17,7 @@ from .craig import (
     CraigTrack,
     TRACK_NAME,
     physical_track_filename,
+    plain_flac_speaker,
 )
 from .flac_metadata import flac_duration_seconds
 
@@ -210,6 +211,9 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
         match = TRACK_NAME.fullmatch(filename)
         if not match or int(match.group("track")) != number or match.group("speaker").strip() != speaker:
             raise CraigPackageError("CRAIG_MANIFEST_FILENAME_INVALID")
+        original_filename = item.get("original_filename")
+        if original_filename is not None and plain_flac_speaker(original_filename) != speaker:
+            raise CraigPackageError("CRAIG_MANIFEST_FILENAME_INVALID")
 
         canonical_relative = f"tracks/{physical_track_filename(number)}"
         legacy_relative = f"tracks/{filename}"
@@ -279,6 +283,7 @@ def load_craig_package(package_root: Path, *, verify_tracks: bool = True) -> Cra
                 staged_mtime_ns=staged_mtime_ns,
                 timeline_offset_seconds=float(offset),
                 duration_seconds=duration_seconds,
+                original_filename=original_filename,
             )
         )
 
