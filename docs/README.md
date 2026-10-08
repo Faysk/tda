@@ -115,6 +115,10 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Assistente Discord](features/discord-assistant.md)
 - [Intents / intenção — conceito ainda não definido](features/intents.md)
 
+### API pública
+
+- [API pública de resumos de sessões](api/public-sessions.md) — endpoints JSON de leitura para sessões publicadas, por campanha e identificador.
+
 ### Integrações
 
 - [Integrações — índice](integrations/README.md)
