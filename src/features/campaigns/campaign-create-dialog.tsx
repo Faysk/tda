@@ -101,7 +101,7 @@ export function CampaignCreateDialog({
 			setGeneralError("");
 			setFieldError(null);
 			dialog.showModal();
-			requestAnimationFrame(() => nameRef.current?.focus());
+			nameRef.current?.focus();
 			return;
 		}
 
