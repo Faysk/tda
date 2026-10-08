@@ -1,8 +1,8 @@
 # Companion — operação, instalação e rollback
 
-> Status: Stable 0.3.15; candidato 0.3.16 / Qwen 1.0.12 preparado para validação Production de #628
+> Status: vigente; versões publicadas e aceites pertencem aos receipts de release
 > Owner: local-companion/processing
-> Última revisão: 2026-09-28
+> Última revisão: 2026-10-08
 
 Referências: [contrato de confiabilidade e aceite real](companion-reliability.md), [contrato API](../integrations/local-companion-v1.md), [especificação v0.3](../features/companion-desktop-asr-v0.3.md), [política de dependências](companion-dependency-policy.md) e [processamento no Edit](../features/local-processing.md).
 
@@ -261,14 +261,21 @@ Os manifests de build fixam Python e dependências. A política de dependências
 
 O gate físico final usa áudio local autorizado e deve cobrir os quatro perfis. O harness entregue junto do aplicativo evita quatro comandos manuais, resolve as versões correntes dos runtimes, valida o SHA-256 dos workers contra `.tda-runtime.json`, executa `--probe`, roda os perfis sequencialmente e agrega os receipts.
 
-Depois de instalar o candidato, localizar o script pelo `current-version.txt`:
+Depois de instalar o candidato, localizar o script pelo `current-version.txt`. Preservar os três artefatos baixados do **mesmo RC exato**: manifesto do candidato, MSI e manifesto do payload. Eles são argumentos obrigatórios; o harness confere versão, provenance e hashes antes de executar os perfis. Um receipt de outra versão não certifica o candidato instalado.
 
 ```powershell
 $tda = "$env:LOCALAPPDATA\TDA"
 $version = (Get-Content "$tda\Companion\current-version.txt" -Raw).Trim()
 $gate = "$tda\Companion\versions\$version\run-physical-acceptance.ps1"
 
-& $gate -Audio "C:\caminho\amostra.flac"
+$release = "C:\TDA\release-candidate"
+$acceptance = @{
+    Audio = "C:\caminho\amostra.flac"
+    CandidateManifest = Join-Path $release "TDACompanion-candidate.json"
+    CandidateMsi = Join-Path $release "TDACompanion-x64.msi"
+    PayloadManifest = Join-Path $release "TDACompanion-payload-manifest.json"
+}
+& $gate @acceptance
 ```
 
 Por padrão são executados:
@@ -280,25 +287,20 @@ qwen-fast
 qwen-quality
 ```
 
-O **harness de aceite deste candidato** exige por padrão `RTX 4070`, porque a máquina física certificadora deste corte usa essa GPU. Isso não é uma restrição de produto: o Agent aceita a GPU local que cumpra o contrato CUDA e compute capability mínimo; um nome exato só é exigido quando o harness recebe `-RequireGpuName`. Para um subconjunto explícito:
-
-```powershell
-& $gate -Audio "C:\caminho\amostra.flac" -Profiles whisper-turbo,qwen-fast
-```
+O **harness de aceite deste candidato** exige por padrão `RTX 4070`, porque a máquina física certificadora deste corte usa essa GPU. Isso não é uma restrição de produto: o Agent aceita a GPU local que cumpra o contrato CUDA e compute capability mínimo; um nome exato só é exigido quando o harness recebe `-RequireGpuName`. O receipt de release exige os **quatro perfis**: um subconjunto é rejeitado com `PHYSICAL_ACCEPTANCE_ALL_PROFILES_REQUIRED`. Para diagnóstico pontual, usar os comandos individuais de workers descritos abaixo; eles não substituem o receipt completo.
 
 Contexto/glossário entram por arquivo local, nunca precisam ser colocados na linha de comando como conteúdo:
 
 ```powershell
-& $gate `
-  -Audio "C:\caminho\amostra.flac" `
-  -ContextFile "C:\caminho\contexto.txt" `
-  -GlossaryFile "C:\caminho\glossario.txt"
+$acceptance.ContextFile = "C:\caminho\contexto.txt"
+$acceptance.GlossaryFile = "C:\caminho\glossario.txt"
+& $gate @acceptance
 ```
 
 Para inspeção humana da qualidade, transcrições locais só são gravadas com consentimento explícito:
 
 ```powershell
-& $gate -Audio "C:\caminho\amostra.flac" -WriteTranscripts
+& $gate @acceptance -WriteTranscripts
 ```
 
 Sem `-WriteTranscripts`, o harness grava apenas `%LOCALAPPDATA%\TDA\State\acceptance\physical-acceptance-suite.json`. O receipt agregado declara `contains_audio=false` e `contains_transcript=false`; contém hashes, versões, GPU/driver, VRAM, tempos, RTF, contagens e resultados por perfil. O path do áudio não entra no receipt.
