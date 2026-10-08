@@ -196,5 +196,9 @@ def test_public_error_response_allowlist_preserves_known_codes():
         "TRANSCRIPTION_PREPARATION_FAILED",
         "HOST_REJECTED",
         "JOB_LIST_CURSOR_INVALID",
+        "TRANSCRIPTION_NO_ELIGIBLE_TRACKS",
+        "PUBLICATION_TARGET_PROVENANCE_UNAVAILABLE",
+        "SESSION_WORKSPACE_TIMELINE_NOT_TRUSTED",
+        "SESSION_WORKSPACE_OVERLAP_BOUNDARY_INVALID",
     ):
         assert allowed_code.encode("utf-8") in error(allowed_code, 409).body
