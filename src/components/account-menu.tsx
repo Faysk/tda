@@ -335,7 +335,7 @@ export function AccountMenu() {
 			}
 		};
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== "Escape" || !expanded) return;
+			if (event.key !== "Escape" || !expanded || event.defaultPrevented) return;
 			if (
 				event.target instanceof Element &&
 				event.target.closest('[data-select-popover="true"]')

@@ -1150,7 +1150,7 @@ export function LembraExperience({
 							className={styles.cardTitleButton}
 							onClick={() => openViewer(item.id)}
 						>
-							{item.title}
+							<span className={styles.cardTitleText}>{item.title}</span>
 						</button>
 					</h2>
 					{item.description ? <p>{item.description}</p> : null}

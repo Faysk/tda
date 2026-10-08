@@ -142,6 +142,7 @@ createServer((request, response) => {
 			if (select === "lifecycle") return { lifecycle: campaign.lifecycle };
 			return {
 				slug: campaign.slug,
+				public_slug: campaign.public_slug,
 				name: campaign.name,
 				lifecycle: campaign.lifecycle,
 			};

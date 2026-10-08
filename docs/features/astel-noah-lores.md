@@ -2,9 +2,16 @@
 
 > Status: candidato implementado e validado localmente; publicação pendente
 > Owner: frontend / integrations/media / editorial
-> Última revisão: 2026-09-19
+> Última revisão: 2026-10-08
 
 ## Identificação e decisão editorial
+
+Auditoria transversal #1601 / correção candidata #1607: a origem de Astel
+apresentava 10 px de overflow horizontal a 320 px. Os filhos do grid passam a
+aceitar redução de largura e o título pode quebrar palavras longas. A identidade,
+as pinturas, proporções, referências de Media Storage e conteúdo permanecem
+preservados. O gate standalone existente cobre 320/390/1366/1920/2560 px e
+viewport equivalente a zoom de 200%; publicação deste ajuste ainda pendente.
 
 Recebimento das pastas fornecidas pelo usuário, seguindo [ZIP à produção](../operations/zip-to-production.md) e o [modelo de entrega](../templates/lore-pack-delivery.md). Não foi recebido ZIP; as fontes continuam em `.local`, com a alteração editorial de título autorizada. Nenhum conteúdo privado de trabalho foi incluído na integração.
 

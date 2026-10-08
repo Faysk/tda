@@ -38,7 +38,7 @@ export default async function EditWorldCompatibilityPage() {
 	}
 	const onlyCampaign = eligible.campaigns.length === 1 ? eligible.campaigns[0] : undefined;
 	if (onlyCampaign) {
-		redirect(worldEditCampaignHref(onlyCampaign.technicalSlug));
+		redirect(worldEditCampaignHref(onlyCampaign.routeKey));
 	}
 
 	return (
@@ -61,7 +61,7 @@ export default async function EditWorldCompatibilityPage() {
 							</div>
 							<Link
 								className={styles.libraryOpen}
-								href={worldEditCampaignHref(campaign.technicalSlug)}
+								href={worldEditCampaignHref(campaign.routeKey)}
 							>
 								Abrir Mundo
 							</Link>

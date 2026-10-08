@@ -226,6 +226,12 @@ export function Select<T extends string>({
 
 	function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
 		if (disabled) return;
+		if (event.key === "Escape" && open) {
+			event.preventDefault();
+			event.stopPropagation();
+			closeAndFocusTrigger();
+			return;
+		}
 		if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
 			event.preventDefault();
 			if (!open) {
@@ -266,6 +272,7 @@ export function Select<T extends string>({
 				break;
 			case "Escape":
 				event.preventDefault();
+				event.stopPropagation();
 				closeAndFocusTrigger();
 				break;
 			case "Tab":

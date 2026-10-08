@@ -529,10 +529,12 @@ function tableRows(table) {
 	if (table === "audit_log") return state.audits;
 	if (table === "campaigns")
 		return [
-			{ id: IDS.campaign, slug: "yuhara-main", name: "Campanha sintética" },
+			{ id: IDS.campaign, slug: "yuhara-main", public_slug: "campanha-sintetica", name: "Campanha sintética", lifecycle: "active" },
 			{
 				id: IDS.emptyCampaign,
 				slug: "empty",
+				public_slug: "campanha-vazia",
+				lifecycle: "active",
 				name: "Campanha vazia",
 			},
 		];

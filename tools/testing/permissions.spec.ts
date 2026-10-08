@@ -129,7 +129,7 @@ test("governed console shows people, human access, filters and technical details
 	context,
 }, testInfo) => {
 	await login(context, "manager");
-	await page.goto(path);
+	await page.goto("/edit/campanha-sintetica/permissions");
 
 	await expect(
 		page.getByText("Administração governada", { exact: true }),
@@ -214,7 +214,7 @@ test("person management previews resulting access then grants and revokes an exi
 	context,
 }, testInfo) => {
 	await login(context, "manager");
-	await page.goto(path);
+	await page.goto("/edit/campanha-sintetica/permissions");
 
 	const memberRow = page.getByRole("row", { name: /Pessoa member/u });
 	await memberRow.getByRole("button", { name: "Gerenciar" }).click();
@@ -269,7 +269,7 @@ test("sensitive self-revocation is summarized once and Escape sends no mutation"
 	request,
 }, testInfo) => {
 	await login(context, "manager");
-	await page.goto(path);
+	await page.goto("/edit/campanha-sintetica/permissions");
 
 	const managerRow = page.getByRole("row", { name: /Pessoa manager/u });
 	await managerRow.getByRole("button", { name: "Gerenciar" }).click();
@@ -323,7 +323,7 @@ test("server rejection stays in the confirmation dialog with the frozen access p
 }) => {
 	await resetFixture(request, { withoutProjectAdmin: true });
 	await login(context, "manager");
-	await page.goto(path);
+	await page.goto("/edit/campanha-sintetica/permissions");
 
 	const managerRow = page.getByRole("row", { name: /Pessoa manager/u });
 	await managerRow.getByRole("button", { name: "Gerenciar" }).click();

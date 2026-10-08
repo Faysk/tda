@@ -53,7 +53,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Fluxos ponta a ponta](../architecture/data-flows.md) | arquitetura + domínios | vigente/parcialmente preparado | 2026-09-20 |
 | [Arquitetura do Edit Workbench](../architecture/edit-workbench.md) | arquitetura + Edit | accepted / implementação incremental | 2026-09-07 |
 | [Princípios e invariantes](../architecture/invariants.md) | arquitetura | vigente | 2026-09-30 |
-| [Multi-campaign — contrato, rotas e rollout](../architecture/multi-campaign.md) | architecture / sessions / identity-access | arquitetura aprovada | 2026-10-01 |
+| [Multi-campaign — contrato, rotas e rollout](../architecture/multi-campaign.md) | architecture / sessions / identity-access | arquitetura aprovada | 2026-10-08 |
 | [Contexto e limites do sistema](../architecture/system-context.md) | arquitetura | vigente | 2026-09-20 |
 
 ## docs/companion/acceptance
@@ -113,7 +113,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Domínios do TDA](../domains/README.md) | produto/arquitetura | vigente | 2026-09-06 |
-| [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | Review Board com provenance + triagem implementado; adoção editorial real em andamento | 2026-09-22 |
+| [Canon, revisão e publicação](../domains/canon-review.md) | review/canon | Review Board com provenance + triagem implementado; adoção editorial real em andamento | 2026-10-08 |
 | [Entidades, personagens e mundo narrativo](../domains/entities.md) | narrative-memory/entities | preparado | 2026-09-06 |
 | [Evidências, transcrição e classificação](../domains/evidence.md) | evidence/transcription | implementado + modernização planejada | 2026-09-06 |
 | [Identidade, Auth e autorização](../domains/identity-access.md) | identity/access | arquitetura aprovada + convergência em andamento | 2026-10-03 |
@@ -125,7 +125,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Especificações de features](../features/README.md) | produto + domínios | vivo | 2026-10-06 |
-| [Astel e Noah — recebimento e plano de integração](../features/astel-noah-lores.md) | frontend / integrations/media / editorial | candidato implementado e validado localmente; publicação pendente | 2026-09-19 |
+| [Astel e Noah — recebimento e plano de integração](../features/astel-noah-lores.md) | frontend / integrations/media / editorial | candidato implementado e validado localmente; publicação pendente | 2026-10-08 |
 | [Diretório e gestão de campanhas](../features/campaign-directory.md) | campaigns / public navigation / Edit | registry first-class ativo; diretório público em operação | 2026-10-03 |
 | [Diários dos personagens](../features/character-diaries.md) | narrativa / frontend | implementado em branch local; publicação pendente | 2026-09-18 |
 | [Feature — Personagens e NPCs](../features/characters-and-npcs.md) | entities/narrative-memory | preparado | 2026-09-06 |
@@ -137,11 +137,11 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Edit Workbench — área administrativa do TDA](../features/edit-workbench.md) | Edit / produto + frontend | arquitetura aprovada; implementação incremental em andamento | 2026-09-07 |
 | [Feature — Perfis editoriais de entities](../features/entity-profiles.md) | narrative-memory / frontend | projection pública implementada no código; rollout multi-campaign depende do registry/publicação de campaigns | 2026-10-01 |
 | [Feature — Timeline por entidade](../features/entity-timeline.md) | narrative-memory | preparado | 2026-09-06 |
-| [Navegação global do TDA](../features/global-navigation.md) | navigation / frontend / identity-access | launcher global campaign-aware em validação; QA automatizado ativo | 2026-10-01 |
+| [Navegação global do TDA](../features/global-navigation.md) | navigation / frontend / identity-access | launcher global campaign-aware em validação; QA automatizado ativo | 2026-10-08 |
 | [Lores independentes — publicação, liberdade visual e catálogo](../features/independent-lores.md) | narrative-memory / frontend / produto | arquitetura aprovada; registry/linkage implementados no código, publicação depende do registry de campaigns | 2026-10-03 |
 | [Feature/conceito — Intents / intenção](../features/intents.md) | não atribuído | **não definido / não encontrado como conceito canônico** | 2026-09-06 |
 | [Feature — Conhecimento e audiência](../features/knowledge-audience.md) | narrative-memory/security | em desenho | 2026-09-19 |
-| [Lembra — biblioteca compartilhada de referências visuais](../features/lembra.md) | frontend / integrations-media / identity-access | persistência compartilhada em Production; galeria justified responsiva rastreada na #738 | 2026-09-30 |
+| [Lembra — biblioteca compartilhada de referências visuais](../features/lembra.md) | frontend / integrations-media / identity-access | persistência compartilhada em Production; galeria justified responsiva rastreada na #738 | 2026-10-08 |
 | [Feature — Modo sessão ao vivo](../features/live-session.md) | sessions/live | histórico/planejado; fora das entregas imediatas | 2026-09-06 |
 | [Processamento local no Edit](../features/local-processing.md) | Processamento UI/adapters (Painelzinho); API/export local: Motorzinho; importação cloud: Carteiro | ASR local, runs/revisão e publicação explícita implementados; auto-sync de job permanece `not_configured` | 2026-10-08 |
 | [Arquitetura de entrega das lores](../features/lore-delivery-architecture.md) | narrative-memory / frontend / produto | decisão aprovada; implementação parcial | 2026-10-03 |
@@ -220,6 +220,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | Stable 0.3.15; candidato 0.3.16 / Qwen 1.0.12 preparado para validação Production de #628 | 2026-09-28 |
 | [Multi-campaign activation gate](../operations/multi-campaign-activation-gate.md) | testing / identity-access / operations | operational gate for #1138 and product-coherence acceptance #1288 | 2026-10-03 |
+| [Auditoria e polimento das telas — 2026-10-08](../operations/project-screen-polish-2026-10-08.md) | frontend / ux / operations | candidato em validação; publicação pendente | 2026-10-08 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-29 |
 | [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-10-01 |
@@ -236,4 +237,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-155 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+156 páginas inventariadas, além deste catálogo gerado. 12 sem Owner e 22 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.

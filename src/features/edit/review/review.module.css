@@ -37,7 +37,7 @@
 }
 
 .campaignPicker select,
-.campaignPicker button {
+.campaignPicker > button {
 	min-height: 42px;
 	border: 1px solid var(--ds-control-border);
 	border-radius: var(--ds-radius-sm);
@@ -51,7 +51,7 @@
 	color: var(--ds-foreground);
 }
 
-.campaignPicker button {
+.campaignPicker > button {
 	padding: 0 14px;
 	background: var(--ds-action-primary-bg);
 	color: var(--ds-action-primary-foreground);
@@ -115,6 +115,89 @@
 .queue {
 	display: grid;
 	gap: 14px;
+}
+
+.reviewHelp {
+	margin-top: 8px;
+	font-size: 0.82rem;
+	line-height: 1.5;
+}
+
+.reviewHelp summary {
+	color: var(--ds-foreground-soft);
+	cursor: pointer;
+}
+
+.reviewHelp summary:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 3px;
+}
+
+.queueFilters {
+	display: flex;
+	align-items: end;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin-bottom: 16px;
+	padding: 16px;
+	border: 1px solid var(--ds-border);
+	border-radius: var(--ds-radius-md);
+	background: var(--ds-surface);
+}
+
+.queueFilters label {
+	display: grid;
+	gap: 6px;
+	flex: 1 1 220px;
+	min-width: 0;
+	font-size: 0.82rem;
+	font-weight: 700;
+}
+
+.queueFilters input,
+.queueFilters select,
+.queueFilters button,
+.queuePagination a {
+	min-height: 44px;
+	padding: 10px 12px;
+	border: 1px solid var(--ds-control-border);
+	border-radius: var(--ds-radius-sm);
+	background: var(--ds-canvas-subtle);
+	color: var(--ds-foreground);
+	font: inherit;
+}
+
+.queueFilters > button {
+	background: var(--ds-action-primary-bg);
+	color: var(--ds-action-primary-foreground);
+	cursor: pointer;
+}
+
+.queuePagination {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin: 12px 0 18px;
+	font-size: 0.82rem;
+}
+
+.queuePagination nav {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 14px;
+}
+
+.queuePagination [aria-disabled] {
+	color: var(--ds-foreground-muted);
+}
+
+.queueFilters :focus-visible,
+.queuePagination a:focus-visible {
+	outline: 2px solid var(--ds-control-focus-ring);
+	outline-offset: 2px;
 }
 
 .candidate {

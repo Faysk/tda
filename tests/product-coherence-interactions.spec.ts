@@ -266,7 +266,7 @@ test("[interaction] authenticated navigation distinguishes zero, one and many ca
 	await expect(panel.getByLabel("Campanha das ferramentas")).toHaveCount(0);
 	await expect(
 		panel.getByRole("link", { name: "Transcrições", exact: true }),
-	).toHaveAttribute("href", `/edit/${CAMPAIGN_A.technical}/transcricoes`);
+	).toHaveAttribute("href", `/edit/${CAMPAIGN_A.route}/transcricoes`);
 
 	await page.unroute("**/api/auth/me");
 	await mockAccess(page, {
@@ -286,6 +286,10 @@ test("[interaction] authenticated navigation distinguishes zero, one and many ca
 	).toBeVisible();
 	await page.keyboard.press("Escape");
 	await expect(selector).toBeFocused();
+	await expect(panel).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(panel).not.toBeVisible();
+	await expect(page.getByRole("button", { name: "Abrir menu global", exact: true })).toBeFocused();
 });
 
 test("[interaction] 320/390/desktop/200%-proxy keep campaign controls reachable and unclipped", async ({

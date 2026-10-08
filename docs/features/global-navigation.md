@@ -2,17 +2,22 @@
 
 > Status: launcher global campaign-aware em validação; QA automatizado ativo  
 > Owner: navigation / frontend / identity-access  
-> Última revisão: 2026-10-01  
+> Última revisão: 2026-10-08
 > Fonte de verdade: este documento, ADR-0020, decisões #963/#1082/#1188-#1192, PR #1193, floating shell #995/#999 e guards/capabilities da `main`
 
 ## Objetivo
 
-Polimento candidato #1571 / PR #1566: o logo fixo recebe backing translúcido
-derivado de `--ds-canvas`, borda sutil e backdrop blur de 16 px. O logo continua
-nítido; apenas o conteúdo atrás dele é desfocado. O fundo acompanha os temas
-claro e escuro, com opacidade suficiente como fallback sem backdrop-filter.
-Evidências locais de contraste foram inspecionadas em 1920 px e 390 px nos dois
-temas; isso não representa publicação do shell.
+O logo fixo usa um fade radial derivado de `--ds-canvas`, sem borda ou cartão,
+com backdrop blur de 12 px; a marca permanece nítida. O fallback tonal e o fade
+acompanham os temas claro e escuro. Esse acabamento e a reserva de contexto no
+Processing/Edit foram publicados por PR #1600 em `main@efa5073a7972`, com
+Production CD #37712163701 e inspeção real do Chrome em ambos os temas.
+
+A auditoria #1601 identificou uma lacuna adicional no catálogo público de
+Campanhas (#1603): o primeiro contexto precisa começar abaixo dos controles
+flutuantes. A correção dessa tela e a normalização das rotas privadas pelo nome
+público (#1604) são candidatas; sua validação e publicação serão registradas
+separadamente. Os guards continuam usando a identidade técnica da campanha.
 
 Definir uma única arquitetura de informação para o shell global do TDA, sem manter launcher, conta e aparência como superfícies concorrentes.
 
