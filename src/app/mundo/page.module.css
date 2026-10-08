@@ -1,7 +1,13 @@
 .page {
 	width: min(980px, calc(100% - 32px));
 	margin: 0 auto;
-	padding: clamp(32px, 7vw, 84px) 0;
+	padding: max(clamp(32px, 7vw, 84px), calc(var(--site-chrome-top, 12px) + var(--site-chrome-trigger-size, 44px) + 20px)) 0 48px;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px 24px;
 }
 
 .eyebrow {

@@ -29,9 +29,12 @@ export default async function MundoEntryPage({ searchParams }: Props) {
 				<p className={styles.eyebrow}>Mundo</p>
 				<h1>Campanhas indisponíveis</h1>
 				<p className={styles.lead}>
-					O diretório público não pôde ser consultado agora. Nenhuma campanha foi
-					escolhida por fallback.
+					Não foi possível carregar as campanhas agora. Tente novamente em alguns instantes.
 				</p>
+				<div className={styles.actions}>
+					<a className={styles.link} href={focus ? `/mundo?foco=${encodeURIComponent(focus)}` : "/mundo"}>Tentar novamente</a>
+					<Link className={styles.link} href="/">Voltar ao início</Link>
+				</div>
 			</section>
 		);
 	}
@@ -46,8 +49,7 @@ export default async function MundoEntryPage({ searchParams }: Props) {
 			<p className={styles.eyebrow}>Ecos da Jornada</p>
 			<h1>Escolha a campanha</h1>
 			<p className={styles.lead}>
-				Cada Mundo possui relações, layout e publicação próprios. Abrir uma campanha
-				não reutiliza estado editorial de outra.
+				Escolha uma campanha para explorar suas pessoas, lugares e histórias conectadas.
 			</p>
 			{directory.campaigns.length ? (
 				<ul className={styles.list}>
@@ -64,7 +66,10 @@ export default async function MundoEntryPage({ searchParams }: Props) {
 					))}
 				</ul>
 			) : (
-				<p className={styles.lead}>Nenhuma campanha pública está disponível.</p>
+				<>
+					<p className={styles.lead}>Ainda não há campanhas públicas para explorar.</p>
+					<Link className={styles.link} href="/">Voltar ao início</Link>
+				</>
 			)}
 		</section>
 	);
