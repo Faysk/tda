@@ -184,3 +184,18 @@ Invalid identities and eight redirected directory boundaries are rejected by the
 negative tests above. These three findings are reviewed sanitizer-model false
 positives under the stated local-race limitation, not removed code or queries.
 Full local Python acceptance: 1427 passed, 17 conditional skips, no failures.
+
+### Exact artifact acceptance — 0.3.27
+
+PR #1629 merged as `55f3813dd2a9d82646afd81a0f62719edd6f30d5`.
+Exact-main CI #37730718230 and RC #37731291374 passed. CodeQL reports
+zero open alerts after the error correction and individually documented
+false-positive dispositions; the queries remain enabled.
+The official MSI installed with exit 0. Installed acceptance v3 passed with
+the real four-track Craig ZIP, including Agent recovery and BITS resume.
+Physical acceptance v2 passed all four profiles on RTX 4070 Laptop SM 8.9,
+using the existing synthetic 110.588-second fixture. These receipts do not
+measure human WER/CER or certify RTX 2080. Promotion verification passed;
+Stable promotion and browser download remain separate operational steps.
+Receipts: `docs/companion/acceptance/companion-rc-v0.3.27-55f3813dd2a9.json`
+and the corresponding `.physical.json`.
