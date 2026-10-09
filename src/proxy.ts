@@ -1,7 +1,38 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authClient } from "./features/auth/client";
 
+const protectedAuthRoutes = new RegExp("^(?:/(?:edit|transcricoes|conta|entrar)(?:/|$)|/api/auth(?:/|$))", "u");
+const CANONICAL_PRODUCTION_HOST = "dnd.faysk.dev";
+
+/**
+ * The same Production build can be staged at an immutable vercel.app hostname.
+ * It uses the live Supabase/R2 configuration but MUST NOT accept mutations
+ * before its canonical production domain has been explicitly promoted.
+ * Only the canonical host is write-enabled (even after promotion).
+ */
+export function isStagedProductionMutation(request: NextRequest): boolean {
+	if (process.env.VERCEL_ENV !== "production" || process.env.APP_ENV !== "production")
+		return false;
+	if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return false;
+	return (
+		request.nextUrl.hostname !== CANONICAL_PRODUCTION_HOST ||
+		request.headers.get("host")?.split(":")[0] !== CANONICAL_PRODUCTION_HOST
+	);
+}
+
 export async function proxy(request: NextRequest) {
+	if (isStagedProductionMutation(request)) {
+		return NextResponse.json(
+			{ error: "staged_production_read_only" },
+			{
+				status: 403,
+				headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
+			},
+		);
+	}
+	// Keep existing authentication, headers, cookies and caching behavior
+	// limited to the original protected routes.
+	if (!protectedAuthRoutes.test(request.nextUrl.pathname)) return NextResponse.next();
 	let response = NextResponse.next({ request });
 	const client = authClient({
 		getAll: () => request.cookies.getAll(),
@@ -29,5 +60,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-	matcher: ["/edit/:path*", "/transcricoes/:path*", "/conta", "/entrar", "/api/auth/:path*"],
+	// All app routes are gated before reaching server actions/API handlers.
+	// Exclude framework static/image paths so staging is not needlessly slowed.
+	matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

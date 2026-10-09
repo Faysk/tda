@@ -222,7 +222,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Runbook operacional do banco / Supabase](../operations/database-runbook.md) | dados/Supabase | vigente | 2026-09-07 |
 | [Histórico de deployments](../operations/deployments.md) | operations | vigente | 2026-09-20 |
 | [Login Discord: configuração e verificação](../operations/discord-auth.md) | identity/access | publicado na Production #006; OAuth real, acesso e logout verificados | 2026-09-07 |
-| [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-09-29 |
+| [Ambientes e configuração](../operations/environments.md) | operations | vigente | 2026-10-09 |
 | [Retirada do projeto Vercel legado](../operations/legacy-retirement.md) | infraestrutura/operação | executado e verificado | 2026-09-07 |
 | [Companion — operação, instalação e rollback](../operations/local-companion.md) | local-companion/processing | vigente; versões publicadas e aceites pertencem aos receipts de release | 2026-10-08 |
 | [Multi-campaign activation gate](../operations/multi-campaign-activation-gate.md) | testing / identity-access / operations | operational gate for #1138 and product-coherence acceptance #1288 | 2026-10-03 |

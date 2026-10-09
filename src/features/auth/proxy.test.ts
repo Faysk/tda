@@ -21,7 +21,7 @@ vi.mock("./client", () => ({
 		},
 	}),
 }));
-import { proxy } from "../../proxy";
+import { isStagedProductionMutation, proxy } from "../../proxy";
 describe("session refresh transport", () => {
 	it.each(["/entrar", "/entrar?next=/edit", "/conta", "/conta?acesso=negado"])(
 		"preserves form origin on %s",
@@ -53,5 +53,69 @@ describe("session refresh transport", () => {
 		expect(result.headers.get("x-middleware-request-cookie")).toContain(
 			"synthetic-refreshed",
 		);
+	});
+});
+
+describe("Production parity staging is read-only against live providers", () => {
+	it.each(["POST", "PUT", "PATCH", "DELETE"])(
+		"rejects %s on a staged Vercel URL before it can write",
+		async (method) => {
+			vi.stubEnv("VERCEL_ENV", "production");
+			vi.stubEnv("APP_ENV", "production");
+			try {
+				const request = new NextRequest("https://tda-staged.vercel.app/api/world/entity-media/upload", {
+					method,
+					headers: { host: "tda-staged.vercel.app" },
+				});
+				expect(isStagedProductionMutation(request)).toBe(true);
+				const response = await proxy(request);
+				expect(response.status).toBe(403);
+				expect(await response.json()).toEqual({ error: "staged_production_read_only" });
+				expect(response.headers.get("cache-control")).toBe("no-store");
+			} finally {
+				vi.unstubAllEnvs();
+			}
+		},
+	);
+	it("allows staging GET against live public content", async () => {
+		vi.stubEnv("VERCEL_ENV", "production");
+		vi.stubEnv("APP_ENV", "production");
+		try {
+			const request = new NextRequest("https://tda-staged.vercel.app/sessoes", {
+				headers: { host: "tda-staged.vercel.app" },
+			});
+			expect(isStagedProductionMutation(request)).toBe(false);
+			expect((await proxy(request)).status).toBe(200);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+	it("preserves mutation access exclusively for the canonical Production hostname", () => {
+		vi.stubEnv("VERCEL_ENV", "production");
+		vi.stubEnv("APP_ENV", "production");
+		try {
+			const canonical = new NextRequest("https://dnd.faysk.dev/api/world/entity-media/upload", {
+				method: "POST",
+				headers: { host: "dnd.faysk.dev" },
+			});
+			expect(isStagedProductionMutation(canonical)).toBe(false);
+			const spoofed = new NextRequest("https://tda-staged.vercel.app/api/world/entity-media/upload", {
+				method: "POST",
+				headers: { host: "dnd.faysk.dev" },
+			});
+			expect(isStagedProductionMutation(spoofed)).toBe(true);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+	it("PR Preview has no Production write key and is outside the staged guard", () => {
+		vi.stubEnv("VERCEL_ENV", "preview");
+		vi.stubEnv("APP_ENV", "preview");
+		try {
+			const request = new NextRequest("https://tda-pr.vercel.app/edit", { method: "POST" });
+			expect(isStagedProductionMutation(request)).toBe(false);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 });
