@@ -185,6 +185,17 @@ jobs:
           echo "url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
           echo "PRODUCTION_PREVIEW_GATE_OK sha=$SOURCE_SHA url=$PREVIEW_URL"
 
+      - name: Require Web release publisher before any Production side effects
+        shell: bash
+        env:
+          RELEASE_PUBLISHER_TOKEN: ${{ secrets.WEB_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RELEASE_PUBLISHER_TOKEN:-}" ]]; then
+            echo "::error::WEB_RELEASE_TOKEN is missing in GitHub Environment production; cannot publish Prod_* receipt after promoting."
+            exit 1
+          fi
+
       - name: Require numbered Web Preview release for the exact candidate SHA
         shell: bash
         env:
