@@ -77,6 +77,7 @@ function createGitHubRelease({ repo, tag, sha, channel, notes }) {
     const args = ["release", "create", tag, "--repo", repo,
       "--target", sha, "--title", tag, "--notes-file", path];
     if (CHANNELS[channel].prerelease) args.push("--prerelease");
+    else args.push("--latest");
     runGh(...args);
   } finally {
     unlinkSync(path);
