@@ -551,6 +551,7 @@ jobs:
       - name: Record tiny release receipt
         shell: bash
         env:
+          GH_TOKEN: ${{ secrets.WEB_RELEASE_TOKEN }}
           RELEASE_ID: ${{ steps.source.outputs.release }}
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
           BASE_SHA: ${{ steps.baseline.outputs.sha }}
@@ -580,6 +581,10 @@ jobs:
           - Session campaign move release health: pre-promote + canonical PASS
           EOF
 
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::Configure WEB_RELEASE_TOKEN in GitHub Environment production to create Prod_* releases."
+            exit 1
+          fi
           # Web release tags are per-channel SemVer. The technical immutable
           # TDA_RELEASE_ID and exact SHA remain in the receipt for audit.
           RELEASE_NOTES_FILE=release-receipt.md node tools/ci/web-release.mjs production
