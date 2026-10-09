@@ -14,7 +14,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Auditoria do banco de produção](../database-audit.md) | Não declarado | Não declarado | Não declarado |
 | [Catálogo canônico de features](../feature-catalog.md) | produto / arquitetura | vigente | 2026-10-05 |
 | [Infraestrutura e estado](../infrastructure.md) | infraestrutura/operação | vigente | 2026-09-29 |
-| [Publicação controlada](../releases.md) | operations / release | vigente | 2026-09-20 |
+| [Publicação controlada](../releases.md) | operations / release | vigente | 2026-10-09 |
 | [Roadmap](../roadmap.md) | produto / arquitetura | vigente | 2026-10-06 |
 
 ## docs/adr
