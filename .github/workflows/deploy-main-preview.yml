@@ -182,7 +182,7 @@ jobs:
         run: |
           {
             echo "## Main → Preview"
-            echo "- Exact SHA: \$SOURCE_SHA"
+            echo "- Exact SHA: $SOURCE_SHA"
             echo "- Immutable Preview URL: $DEPLOYMENT_URL"
             echo "- Health/version/route smoke: PASS"
             echo "- Production traffic: UNCHANGED"
