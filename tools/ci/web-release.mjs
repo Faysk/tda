@@ -32,9 +32,9 @@ export function latestWebTag(tags, channel) {
 }
 
 export function nextWebTag(tags, channel) {
+  if (!CHANNELS[channel]) throw new Error("INVALID_WEB_RELEASE_CHANNEL");
   const latest = latestWebTag(tags, channel);
   if (!latest) return `${CHANNELS[channel]?.prefix ?? ""}1.0.0`;
-  if (!CHANNELS[channel]) throw new Error("INVALID_WEB_RELEASE_CHANNEL");
   const parts = parseWebTag(latest, channel);
   if (parts[2] >= Number.MAX_SAFE_INTEGER) throw new Error("WEB_RELEASE_PATCH_OVERFLOW");
   return `${CHANNELS[channel].prefix}${parts[0]}.${parts[1]}.${parts[2] + 1}`;
@@ -67,7 +67,7 @@ function allChannelTags(repo, channel) {
   const refs = apiJson(`repos/${repo}/git/matching-refs/tags/${prefix}`);
   if (!Array.isArray(refs)) throw new Error("INVALID_WEB_RELEASE_TAG_RESPONSE");
   return refs
-    .map((ref) => ref.ref?.replace(/^refs\\/tags\\//, ""))
+    .map((ref) => ref.ref?.replace(/^refs\/tags\//, ""))
     .filter((name) => parseWebTag(name, channel) !== null);
 }
 function createGitHubRelease({ repo, tag, sha, channel, notes }) {
@@ -97,7 +97,7 @@ function deletePriorWebReleases(repo, tags, current, channel) {
 }
 
 function publish({ repo, channel, sha, url, notesFile }) {
-  if (!/^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/.test(repo) || !isExactSha(sha)) {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) || !isExactSha(sha)) {
     throw new Error("WEB_RELEASE_INVALID_REPOSITORY_OR_SHA");
   }
   if (!CHANNELS[channel]) throw new Error("INVALID_WEB_RELEASE_CHANNEL");
@@ -112,7 +112,7 @@ function publish({ repo, channel, sha, url, notesFile }) {
       throw new Error("WEB_RELEASE_INCOMPLETE_CURRENT_TAG");
     }
     deletePriorWebReleases(repo, existing, latest, channel);
-    process.stdout.write(`WEB_RELEASE_REUSED ${latest} ${sha}\\n`);
+    process.stdout.write(`WEB_RELEASE_REUSED ${latest} ${sha}\n`);
     return latest;
   }
 
@@ -123,21 +123,21 @@ function publish({ repo, channel, sha, url, notesFile }) {
         `# ${next}`,
         "",
         `Channel: ${channel}`,
-        `Source SHA: \\`${sha}\\``,
+        `Source SHA: \`${sha}\``,
         `Validated deployment: ${url}`,
         "",
         "Web only; does not replace Companion/Qwen/Whisper releases.",
         "",
-      ].join("\\n");
+      ].join("\n");
   createGitHubRelease({ repo, tag: next, sha, channel, notes });
   deletePriorWebReleases(repo, existing, next, channel);
-  process.stdout.write(`WEB_RELEASE_CREATED ${next} ${sha}\\n`);
+  process.stdout.write(`WEB_RELEASE_CREATED ${next} ${sha}\n`);
   return next;
 }
 
 async function bootstrapCurrentProduction(repo) {
   if (allChannelTags(repo, "production").length) {
-    process.stdout.write("WEB_PRODUCTION_ALREADY_VERSIONED\\n");
+    process.stdout.write("WEB_PRODUCTION_ALREADY_VERSIONED\n");
     return;
   }
   const response = await fetch("https://dnd.faysk.dev/api/version", {
@@ -168,7 +168,7 @@ async function main() {
   const command = process.argv[2];
   const repo = process.env.GITHUB_REPOSITORY;
   if (command === "bootstrap-production") {
-    if (!/^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/.test(repo ?? "")) {
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo ?? "")) {
       throw new Error("WEB_RELEASE_INVALID_REPOSITORY");
     }
     await bootstrapCurrentProduction(repo);
