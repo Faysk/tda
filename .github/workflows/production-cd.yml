@@ -285,8 +285,8 @@ jobs:
           const health = JSON.parse(fs.readFileSync("approved-preview-health.json", "utf8"));
           const version = JSON.parse(fs.readFileSync("approved-preview-version.json", "utf8"));
           const sha = process.env.SOURCE_SHA;
-          const release = `preview-${sha.slice(0, 12)}`;
-          if (health.ok !== true || health.environment !== "preview" ||
+          const release = `prod-${sha.slice(0, 12)}`;
+          if (health.ok !== true || health.environment !== "production" ||
               health.commit !== sha || version.commit !== sha ||
               version.release !== release) {
             throw new Error("PRODUCTION_APPROVED_PREVIEW_IDENTITY_INVALID");
