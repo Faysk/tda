@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authClient } from "./features/auth/client";
 
-const protectedAuthRoutes = /^\\/(?:edit(?:\\/|$)|transcricoes(?:\\/|$)|conta(?:\\/|$)|entrar(?:\\/|$)|api\\/auth(?:\\/|$))/u;
+const protectedAuthRoutes = new RegExp("^(?:/(?:edit|transcricoes|conta|entrar)(?:/|$)|/api/auth(?:/|$))", "u");
 const CANONICAL_PRODUCTION_HOST = "dnd.faysk.dev";
 
 /**
