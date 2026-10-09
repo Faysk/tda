@@ -37,9 +37,9 @@ A CI decide quais domínios pesados participam, mas `required-ci` continua sendo
 
 Preview é deployment Vercel, não branch. O TDA tem **dois níveis**:
 1. `deploy-preview.yml` cria Preview imutável da PR após CI verde, para revisão antes do merge;
-2. `deploy-main-preview.yml` cria outro Preview imutável do **SHA exato da main** após CI push verde, sem publicar no domínio de Production. O deployment bem-sucedido fica em [GitHub → Deployments → preview](https://github.com/Faysk/tda/deployments/preview).
+2. `deploy-main-preview.yml` cria um **staged Production build** para o **SHA exato da main** após CI push verde, usando **o mesmo ambiente Vercel Production e a mesma base Supabase/R2**, mas com `--prod --skip-domain`: não muda o domínio `dnd.faysk.dev`. O receipt aparece no [GitHub → Deployments → preview](https://github.com/Faysk/tda/deployments/preview).
 
-A Vercel mantém configurações Preview próprias. **Nunca copiar credenciais de Production nem usar Preview para gravar dados de Production.** O preview é um espelho de código/rotas públicas, não um clone de banco, credenciais ou mídia privada.
+O PR Preview usa configuração Preview separada e não é prova de paridade com Production. Já o Main Preview usa configuração e **infraestrutura compartilhadas** com Production, sem clonar banco nem buckets. A URL staged é protegida e **read-only**: o proxy bloqueia métodos HTTP mutáveis fora do hostname canônico; CI apenas lê. R2 privado e flags injetados **somente** pelo GitHub Environment `production` continuam a ser verificados no estágio final do Production CD; um Main Preview verde não prova operações de escrita nem aplicação de migrations.
 
 Validar:
 
@@ -64,7 +64,7 @@ Production exige execução deliberada de `production-cd.yml` por
 `workflow_dispatch`, informando o SHA exato de `main` já validado e preenchendo
 `confirm=APPROVE_PREVIEW_FOR_PRODUCTION` após inspeção do URL imutável.
 **É obrigatório** existir um `Deploy Main Preview` bem-sucedido para esse SHA,
-com deployment GitHub `preview` em estado success e health/version concordando.
+com deployment GitHub `preview` em estado success e health/version `environment=production` concordando (`prod-<sha-curto>`). O Production CD prepara seu próprio staged artifact com todos os secrets condicionais/migrations/media, executa smoke e só promove após gates.
 Push, merge e conclusão da CI não disparam publicação. O workflow continua recusando SHA
 arbitrário/antigo, exige origem numa PR mergeada e usa o Environment `production`.
 No GitHub, em **Settings → Environments → production**, configurar **Required reviewers**
