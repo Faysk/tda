@@ -138,6 +138,15 @@ test("Web-only releases are semantic, channel-isolated and published after deplo
   assert.equal(production.includes('gh release create "$RELEASE_ID"'), false);
 });
 
+test("initial Web Production version is allowed only after verifying the canonical legacy release", () => {
+  const release = readFileSync(join(process.cwd(), "tools", "ci", "web-release.mjs"), "utf8");
+  assert.match(release, /const legacy = `prod-/);
+  assert.match(release, /shaForTag\(repo, legacy\) !== sha/);
+  assert.match(release, /releaseForTag\(repo, legacy\)\.tag_name !== legacy/);
+  assert.match(release, /allowCanonicalBootstrap: true/);
+  assert.match(release, /channel === "production" && !allowCanonicalBootstrap/);
+});
+
 test("legacy 0.3.1 recovery ignores generated documentation catalog churn", () => {
   const legacyRecovery = readFileSync(
     join(workflowRoot, "companion-legacy-031-recovery.yml"),
