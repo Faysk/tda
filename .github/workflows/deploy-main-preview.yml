@@ -1,0 +1,190 @@
+name: Deploy Main Preview
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact current main SHA to redeploy to Preview
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  deployments: write
+
+concurrency:
+  group: tda-main-preview
+  cancel-in-progress: true
+
+env:
+  VERCEL_ORG_ID: team_9wuTfarCQ3L63xtufPKUDzi0
+  VERCEL_PROJECT_ID: prj_hDiDvvRiesg3qCDekGWE8JQMkIyH
+  VERCEL_CLI_VERSION: 59.23.2
+
+jobs:
+  preview:
+    name: validated-main-preview
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.name == 'CI' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: preview
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Resolve exact current main with successful CI
+        id: source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            SOURCE_SHA="$REQUESTED_SHA"
+          else
+            SOURCE_SHA="$(node -e 'const e=require(process.env.GITHUB_EVENT_PATH); process.stdout.write(e.workflow_run?.head_sha || "")')"
+          fi
+          if [[ ! "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "::error::Preview source must be an exact commit SHA"
+            exit 1
+          fi
+          CURRENT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$SOURCE_SHA" != "$CURRENT_SHA" ]]; then
+            echo "::error::Preview refused: source is not the current main HEAD"
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SOURCE_SHA&event=push&status=completed&per_page=100" > ci-runs.json
+          SOURCE_SHA="$SOURCE_SHA" node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          const runs = JSON.parse(fs.readFileSync("ci-runs.json", "utf8")).workflow_runs || [];
+          if (!runs.some((r) => r.head_sha === process.env.SOURCE_SHA &&
+            r.head_branch === "main" && r.event === "push" &&
+            r.status === "completed" && r.conclusion === "success" &&
+            r.path?.endsWith("/ci.yml"))) {
+            throw new Error("MAIN_PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED");
+          }
+          NODE
+          echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "release=preview-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          lfs: false
+
+      - name: Verify exact checkout and configure project
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+
+      - name: Deploy isolated Preview without Production traffic
+        id: deploy
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          RELEASE_ID: ${{ steps.source.outputs.release }}
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN"
+          URL="$(vercel deploy --yes --no-wait \
+            --build-env APP_ENV=preview \
+            --build-env APP_COMMIT_SHA="$SOURCE_SHA" \
+            --build-env TDA_RELEASE_ID="$RELEASE_ID" \
+            --env APP_ENV=preview \
+            --env APP_COMMIT_SHA="$SOURCE_SHA" \
+            --env TDA_RELEASE_ID="$RELEASE_ID" | tail -n 1)"
+          if [[ ! "$URL" =~ ^https://[A-Za-z0-9.-]+\.vercel\.app$ ]]; then
+            echo "::error::Invalid immutable Preview URL: $URL"
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for immutable Preview readiness
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: vercel inspect "$DEPLOYMENT_URL" --wait --timeout=20m
+
+      - name: Smoke exact Preview identity and public routes
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          RELEASE_ID: ${{ steps.source.outputs.release }}
+        run: |
+          set -euo pipefail
+          vercel curl /api/health --deployment "$DEPLOYMENT_URL" > preview-health.json
+          vercel curl /api/version --deployment "$DEPLOYMENT_URL" > preview-version.json
+          vercel curl / --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          vercel curl /sessoes --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          vercel curl /lore/yllith --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          const health = JSON.parse(fs.readFileSync("preview-health.json", "utf8"));
+          const version = JSON.parse(fs.readFileSync("preview-version.json", "utf8"));
+          if (health.ok !== true || health.environment !== "preview" ||
+              health.commit !== process.env.SOURCE_SHA ||
+              version.commit !== process.env.SOURCE_SHA ||
+              version.release !== process.env.RELEASE_ID) {
+            throw new Error("MAIN_PREVIEW_IDENTITY_OR_HEALTH_MISMATCH");
+          }
+          NODE
+
+      - name: Reject stale Preview before marking GitHub environment successful
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          CURRENT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$SOURCE_SHA" = "$CURRENT_SHA" || {
+            echo "::error::main advanced during Preview verification; refusing successful Preview receipt"
+            exit 1
+          }
+
+      - name: Preview receipt
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          {
+            echo "## Main → Preview"
+            echo "- Exact SHA: $SOURCE_SHA"
+            echo "- Immutable Preview URL: $DEPLOYMENT_URL"
+            echo "- Health/version/route smoke: PASS"
+            echo "- Production traffic: UNCHANGED"
+            echo "- Next: review Preview, then manually dispatch Production CD"
+          } >> "$GITHUB_STEP_SUMMARY"

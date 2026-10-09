@@ -229,7 +229,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [Auditoria e polimento das telas — 2026-10-08](../operations/project-screen-polish-2026-10-08.md) | frontend / ux / operations | registro da rodada; entregas e aceites vinculados ao epic #1601 | 2026-10-08 |
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-29 |
-| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-10-01 |
+| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-10-09 |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-22 |
 | [Transcript handoff — smoke editorial de Production](../operations/transcript-handoff-production-smoke.md) | transcripts / processing / operations | vigente | 2026-09-28 |
 | [World Entity Media — smoke editorial de Production](../operations/world-entity-media-production-smoke.md) | integrations/media + world | vigente | 2026-09-28 |
