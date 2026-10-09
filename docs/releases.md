@@ -52,6 +52,24 @@ updaters e rollback version-locked dependem deles. Da mesma forma, os
 `prod-<sha>` **legados** permanecem até inventário/limpeza separada, sem
 alterar retroativamente o registro de publicação.
 
+### Autorização do publisher
+
+O primeiro Main Preview de 2026-10-09 provou que o token padrão
+`GITHUB_TOKEN` do `workflow_run`, embora reporte `contents: write`,
+recebe HTTP 403 (`Resource not accessible by integration`) ao chamar
+`POST /repos/Faysk/tda/releases`. A configuração do GitHub Actions
+deve receber uma credencial dedicada, sem publicá-la em logs ou no Git:
+
+1. Criar um fine-grained Personal Access Token restrito somente a
+   `Faysk/tda` com **Contents: Read and write** (e Metadata read implícito),
+   e validade/rotação controladas.
+2. Em **Settings → Environments → preview** e **production**, criar o secret
+   `WEB_RELEASE_TOKEN` (mesmo token de menor privilégio, caso aprovado pelo
+   responsável). Nunca copiar para PR Preview, Vercel, Supabase ou R2.
+3. Reexecutar a publicação de Main Preview do SHA corrente após configurar.
+   O Production CD verifica a presença do token **antes** de alterar ambiente
+   remoto. A ausência de token nunca deve resultar em promoção sem receipt.
+
 ## Antes de publicar
 
 Confirmar:

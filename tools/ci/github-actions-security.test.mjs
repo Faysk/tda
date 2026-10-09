@@ -147,6 +147,17 @@ test("initial Web Production version is allowed only after verifying the canonic
   assert.match(release, /channel === "production" && !allowCanonicalBootstrap/);
 });
 
+test("Web release writes use a dedicated scoped token and block Production early if absent", () => {
+  const preview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
+  const production = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
+  assert.match(preview, /GH_TOKEN: \$\{\{ secrets\.WEB_RELEASE_TOKEN \}\}/);
+  assert.match(preview, /Configure WEB_RELEASE_TOKEN in GitHub Environment preview/);
+  assert.match(production, /RELEASE_PUBLISHER_TOKEN: \$\{\{ secrets\.WEB_RELEASE_TOKEN \}\}/);
+  assert.match(production, /GH_TOKEN: \$\{\{ secrets\.WEB_RELEASE_TOKEN \}\}/);
+  assert.ok(production.indexOf("Require Web release publisher before any Production side effects") <
+    production.indexOf("Pull Production configuration"));
+});
+
 test("legacy 0.3.1 recovery ignores generated documentation catalog churn", () => {
   const legacyRecovery = readFileSync(
     join(workflowRoot, "companion-legacy-031-recovery.yml"),
