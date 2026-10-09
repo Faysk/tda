@@ -83,6 +83,35 @@ test("deliberate Production release retains exact main provenance and staged pro
   assert.match(active, /--skip-domain/);
   assert.match(active, /vercel promote/);
 });
+test("every main release candidate reaches Preview before an explicit Production approval", () => {
+  const mainPreview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
+  const production = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
+  assert.match(mainPreview, /workflow_run:/);
+  assert.match(mainPreview, /workflows:\\s*\\[CI\\]/);
+  assert.match(mainPreview, /workflow_dispatch:/);
+  assert.match(mainPreview, /head_branch == 'main'/);
+  assert.match(mainPreview, /MAIN_PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED/);
+  assert.match(mainPreview, /SOURCE_SHA.*CURRENT_SHA/);
+  assert.match(mainPreview, /environment:\\s*\\n\\s+name: preview/);
+  assert.match(mainPreview, /MAIN_PREVIEW_IDENTITY_OR_HEALTH_MISMATCH/);
+  assert.equal(mainPreview.includes("vercel --prod"), false);
+  assert.equal(mainPreview.includes("vercel promote"), false);
+  assert.equal(mainPreview.includes("pnpm install"), false);
+  assert.match(mainPreview, /persist-credentials:\\s*false/);
+
+  assert.match(production, /confirm:/);
+  assert.match(production, /APPROVE_PREVIEW_FOR_PRODUCTION/);
+  assert.match(production, /PRODUCTION_SUCCESSFUL_MAIN_PREVIEW_RUN_REQUIRED/);
+  assert.match(production, /PRODUCTION_EXACT_MAIN_PREVIEW_DEPLOYMENT_REQUIRED/);
+  assert.match(production, /PRODUCTION_APPROVED_PREVIEW_IDENTITY_INVALID/);
+  assert.match(production, /environment=preview/);
+  assert.match(production, /latest\\?\\.state === "success"/);
+  assert.ok(production.indexOf("Require successful exact-SHA Main Preview deployment") <
+    production.indexOf("Pull Production configuration"));
+  assert.ok(production.indexOf("Reverify the approved Preview runtime before staging Production") <
+    production.indexOf("Pull Production configuration"));
+});
+
 test("legacy 0.3.1 recovery ignores generated documentation catalog churn", () => {
   const legacyRecovery = readFileSync(
     join(workflowRoot, "companion-legacy-031-recovery.yml"),
