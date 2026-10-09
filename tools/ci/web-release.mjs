@@ -110,7 +110,7 @@ function verifyPreviewRelease(repo, sha) {
   return latestPreview;
 }
 
-function publish({ repo, channel, sha, url, notesFile }) {
+function publish({ repo, channel, sha, url, notesFile, allowCanonicalBootstrap = false }) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) || !isExactSha(sha)) {
     throw new Error("WEB_RELEASE_INVALID_REPOSITORY_OR_SHA");
   }
@@ -119,7 +119,7 @@ function publish({ repo, channel, sha, url, notesFile }) {
   if (parsedUrl.protocol !== "https:" || parsedUrl.origin !== url) {
     throw new Error("WEB_RELEASE_URL_NOT_HTTPS_ORIGIN");
   }
-  if (channel === "production") verifyPreviewRelease(repo, sha);
+  if (channel === "production" && !allowCanonicalBootstrap) verifyPreviewRelease(repo, sha);
   const existing = allChannelTags(repo, channel);
   const latest = latestWebTag(existing, channel);
   if (latest && shaForTag(repo, latest) === sha) {
@@ -176,6 +176,7 @@ async function bootstrapCurrentProduction(repo) {
     channel: "production",
     sha,
     url: "https://dnd.faysk.dev",
+    allowCanonicalBootstrap: true, // Canonical URL and matching legacy production receipt already verified.
   });
 }
 
