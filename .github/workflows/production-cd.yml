@@ -7,6 +7,10 @@ on:
         description: Exact validated current main commit to publish
         required: true
         type: string
+      confirm:
+        description: Type APPROVE_PREVIEW_FOR_PRODUCTION after reviewing the exact Preview
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -115,6 +119,72 @@ jobs:
           console.log(`PRODUCTION_EXACT_MAIN_CI_OK ${process.env.SOURCE_SHA}`);
           NODE
 
+      - name: Require explicit human Production approval
+        shell: bash
+        env:
+          CONFIRMATION: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRMATION" != "APPROVE_PREVIEW_FOR_PRODUCTION" ]]; then
+            echo "::error::Review the successful main Preview first, then type APPROVE_PREVIEW_FOR_PRODUCTION"
+            exit 1
+          fi
+
+      - name: Require successful exact-SHA Main Preview deployment
+        id: preview
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-main-preview.yml/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" > main-preview-runs.json
+          gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$SOURCE_SHA&environment=preview&per_page=100" > main-preview-deployments.json
+          node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          const source = process.env.SOURCE_SHA;
+          const runs = JSON.parse(fs.readFileSync("main-preview-runs.json", "utf8")).workflow_runs || [];
+          if (!runs.some((run) =>
+              run.name === "Deploy Main Preview" && run.head_sha === source &&
+              run.head_branch === "main" && run.status === "completed" &&
+              run.conclusion === "success" &&
+              ["workflow_run", "workflow_dispatch"].includes(run.event))) {
+            throw new Error("PRODUCTION_SUCCESSFUL_MAIN_PREVIEW_RUN_REQUIRED");
+          }
+          const deployments = JSON.parse(fs.readFileSync("main-preview-deployments.json", "utf8"));
+          const matches = deployments.filter((d) =>
+            d.sha === source && d.environment === "preview" &&
+            d.ref === "main" && ["github-actions[bot]", "github-actions"].includes(d.creator?.login));
+          if (!matches.length) throw new Error("PRODUCTION_EXACT_MAIN_PREVIEW_DEPLOYMENT_REQUIRED");
+          fs.writeFileSync("preview-deployment-ids.txt", matches.map((d) => d.id).join("\n") + "\n");
+          NODE
+
+          PREVIEW_URL=""
+          while read -r DEPLOYMENT_ID; do
+            gh api "repos/$GITHUB_REPOSITORY/deployments/$DEPLOYMENT_ID/statuses?per_page=100" > preview-statuses.json
+            CANDIDATE="$(node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          const statuses = JSON.parse(fs.readFileSync("preview-statuses.json", "utf8"));
+          const latest = statuses[0];
+          const url = latest?.environment_url || "";
+          if (latest?.state === "success" &&
+              /^https:\/\/[a-z0-9.-]+\.vercel\.app$/i.test(url)) {
+            process.stdout.write(url);
+          }
+          NODE
+            )"
+            if [[ -n "$CANDIDATE" ]]; then
+              PREVIEW_URL="$CANDIDATE"
+              break
+            fi
+          done < preview-deployment-ids.txt
+
+          if [[ -z "$PREVIEW_URL" ]]; then
+            echo "::error::Exact main SHA has no successful immutable Preview deployment"
+            exit 1
+          fi
+          echo "url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+          echo "PRODUCTION_PREVIEW_GATE_OK sha=$SOURCE_SHA url=$PREVIEW_URL"
+
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 12.3.4
@@ -200,6 +270,29 @@ jobs:
 
       - name: Install pinned Vercel CLI
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
+
+      - name: Reverify the approved Preview runtime before staging Production
+        shell: bash
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          vercel curl /api/health --deployment "$PREVIEW_URL" > approved-preview-health.json
+          vercel curl /api/version --deployment "$PREVIEW_URL" > approved-preview-version.json
+          node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          const health = JSON.parse(fs.readFileSync("approved-preview-health.json", "utf8"));
+          const version = JSON.parse(fs.readFileSync("approved-preview-version.json", "utf8"));
+          const sha = process.env.SOURCE_SHA;
+          const release = `preview-${sha.slice(0, 12)}`;
+          if (health.ok !== true || health.environment !== "preview" ||
+              health.commit !== sha || version.commit !== sha ||
+              version.release !== release) {
+            throw new Error("PRODUCTION_APPROVED_PREVIEW_IDENTITY_INVALID");
+          }
+          console.log(`APPROVED_PREVIEW_VERIFIED sha=${sha} url=${process.env.PREVIEW_URL}`);
+          NODE
 
       - name: Pull Production configuration
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
@@ -470,6 +563,7 @@ jobs:
           - Source SHA: \`$SOURCE_SHA\`
           - Pull request: #$PR_NUMBER -> main
           - Release: \`$RELEASE_ID\`
+          - Approved Preview: ${{ steps.preview.outputs.url }}
           - Staged/tested deployment: $DEPLOYMENT_URL
           - Canonical production: $PRODUCTION_ORIGIN
           - Migrations applied: \`$MIGRATIONS\`
