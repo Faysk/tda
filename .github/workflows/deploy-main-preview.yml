@@ -204,11 +204,15 @@ jobs:
 
       - name: Publish versioned Web Preview and bootstrap current canonical version
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.WEB_RELEASE_TOKEN }}
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
         run: |
           set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::GitHub Actions GITHUB_TOKEN is blocked from creating releases (HTTP 403). Configure WEB_RELEASE_TOKEN in GitHub Environment preview."
+            exit 1
+          fi
           # No Production deployment or migration is performed by this step.
           # Bootstrap only references the already-live canonical Production SHA.
           node tools/ci/web-release.mjs bootstrap-production
