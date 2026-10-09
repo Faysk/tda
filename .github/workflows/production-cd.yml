@@ -572,9 +572,7 @@ jobs:
           - Session campaign move release health: pre-promote + canonical PASS
           EOF
 
-          if gh release view "$RELEASE_ID" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_ID" --target "$SOURCE_SHA" --title "$RELEASE_ID" --notes-file release-receipt.md
-          else
-            gh release create "$RELEASE_ID" --target "$SOURCE_SHA" --title "$RELEASE_ID" --notes-file release-receipt.md
-          fi
+          # Web release tags are per-channel SemVer. The technical immutable
+          # TDA_RELEASE_ID and exact SHA remain in the receipt for audit.
+          RELEASE_NOTES_FILE=release-receipt.md node tools/ci/web-release.mjs production
           cat release-receipt.md >> "$GITHUB_STEP_SUMMARY"
