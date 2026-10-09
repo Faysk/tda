@@ -119,6 +119,22 @@ test("every main release candidate reaches Preview before an explicit Production
     production.indexOf("Pull Production configuration"));
 });
 
+test("Web-only releases are semantic, channel-isolated and published after deploy proof", () => {
+  const preview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
+  const production = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
+  assert.match(preview, /contents: write/);
+  assert.match(preview, /node tools\/ci\/web-release\.mjs bootstrap-production/);
+  assert.match(preview, /node tools\/ci\/web-release\.mjs preview/);
+  assert.ok(preview.indexOf("Smoke Production-parity staging") <
+    preview.indexOf("node tools/ci/web-release.mjs preview"));
+  assert.ok(preview.indexOf("Reject stale Preview") <
+    preview.indexOf("node tools/ci/web-release.mjs preview"));
+  assert.match(production, /node tools\/ci\/web-release\.mjs production/);
+  assert.ok(production.indexOf("Verify canonical Production after promotion") <
+    production.indexOf("node tools/ci/web-release.mjs production"));
+  assert.equal(production.includes('gh release create "$RELEASE_ID"'), false);
+});
+
 test("legacy 0.3.1 recovery ignores generated documentation catalog churn", () => {
   const legacyRecovery = readFileSync(
     join(workflowRoot, "companion-legacy-031-recovery.yml"),
