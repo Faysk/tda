@@ -13,7 +13,7 @@ on:
 
 permissions:
   actions: read
-  contents: read
+  contents: write # create only Web version tags/releases after validation
   deployments: write
 
 concurrency:
@@ -201,6 +201,18 @@ jobs:
             echo "::error::main advanced during Preview verification; refusing successful Preview receipt"
             exit 1
           }
+
+      - name: Publish versioned Web Preview and bootstrap current canonical version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          set -euo pipefail
+          # No Production deployment or migration is performed by this step.
+          # Bootstrap only references the already-live canonical Production SHA.
+          node tools/ci/web-release.mjs bootstrap-production
+          node tools/ci/web-release.mjs preview
 
       - name: Preview receipt
         shell: bash
