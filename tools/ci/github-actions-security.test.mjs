@@ -94,6 +94,13 @@ test("every main release candidate reaches Preview before an explicit Production
   assert.match(mainPreview, /SOURCE_SHA.*CURRENT_SHA/);
   assert.match(mainPreview, /environment:\s*\n\s+name: preview/);
   assert.match(mainPreview, /MAIN_PREVIEW_IDENTITY_OR_HEALTH_MISMATCH/);
+  assert.match(mainPreview, /vercel pull --yes --environment=production/);
+  assert.match(mainPreview, /vercel build --prod/);
+  assert.match(mainPreview, /vercel deploy --prebuilt --prod --skip-domain/);
+  assert.match(mainPreview, /health.environment !== "production"/);
+  assert.match(mainPreview, /WRITE_STATUS.*403/);
+  assert.match(production, /health.environment !== "production"/);
+  assert.match(production, /const release = `prod-/);
   assert.equal(mainPreview.includes("vercel --prod"), false);
   assert.equal(mainPreview.includes("vercel promote"), false);
   assert.equal(mainPreview.includes("pnpm install"), false);
