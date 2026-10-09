@@ -129,7 +129,10 @@ test("Web-only releases are semantic, channel-isolated and published after deplo
     preview.indexOf("node tools/ci/web-release.mjs preview"));
   assert.ok(preview.indexOf("Reject stale Preview") <
     preview.indexOf("node tools/ci/web-release.mjs preview"));
+  assert.match(production, /node tools\/ci\/web-release\.mjs verify-preview/);
   assert.match(production, /node tools\/ci\/web-release\.mjs production/);
+  assert.ok(production.indexOf("node tools/ci/web-release.mjs verify-preview") <
+    production.indexOf("Pull Production configuration"));
   assert.ok(production.indexOf("Verify canonical Production after promotion") <
     production.indexOf("node tools/ci/web-release.mjs production"));
   assert.equal(production.includes('gh release create "$RELEASE_ID"'), false);
