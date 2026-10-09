@@ -185,6 +185,14 @@ jobs:
           echo "url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
           echo "PRODUCTION_PREVIEW_GATE_OK sha=$SOURCE_SHA url=$PREVIEW_URL"
 
+      - name: Require numbered Web Preview release for the exact candidate SHA
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          node tools/ci/web-release.mjs verify-preview
+
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 12.3.4
