@@ -40,7 +40,7 @@ jobs:
         )
       }}
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     environment:
       name: preview
       url: ${{ steps.deploy.outputs.url }}
@@ -79,7 +79,7 @@ jobs:
           }
           NODE
           echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
-          echo "release=preview-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "release=prod-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -106,7 +106,27 @@ jobs:
           mkdir -p .vercel
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
 
-      - name: Deploy isolated Preview without Production traffic
+      - name: Pull the existing Production environment (no duplicated database or R2)
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN"
+          vercel pull --yes --environment=production > /dev/null
+          test -f .vercel/project.json
+          test -d .vercel
+
+      - name: Build the exact Production configuration for preflight
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          APP_ENV: production
+          APP_COMMIT_SHA: ${{ steps.source.outputs.sha }}
+          TDA_RELEASE_ID: ${{ steps.source.outputs.release }}
+        run: vercel build --prod
+
+      - name: Stage Production candidate with NO domain assignment
         id: deploy
         shell: bash
         env:
@@ -116,11 +136,8 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$VERCEL_TOKEN"
-          URL="$(vercel deploy --yes --no-wait \
-            --build-env APP_ENV=preview \
-            --build-env APP_COMMIT_SHA="$SOURCE_SHA" \
-            --build-env TDA_RELEASE_ID="$RELEASE_ID" \
-            --env APP_ENV=preview \
+          URL="$(vercel deploy --prebuilt --prod --skip-domain --yes --no-wait \
+            --env APP_ENV=production \
             --env APP_COMMIT_SHA="$SOURCE_SHA" \
             --env TDA_RELEASE_ID="$RELEASE_ID" | tail -n 1)"
           if [[ ! "$URL" =~ ^https://[A-Za-z0-9.-]+\.vercel\.app$ ]]; then
@@ -135,7 +152,7 @@ jobs:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
         run: vercel inspect "$DEPLOYMENT_URL" --wait --timeout=20m
 
-      - name: Smoke exact Preview identity and public routes
+      - name: Smoke Production-parity staging via safe read-only routes
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -153,7 +170,7 @@ jobs:
           import fs from "node:fs";
           const health = JSON.parse(fs.readFileSync("preview-health.json", "utf8"));
           const version = JSON.parse(fs.readFileSync("preview-version.json", "utf8"));
-          if (health.ok !== true || health.environment !== "preview" ||
+          if (health.ok !== true || health.environment !== "production" ||
               health.commit !== process.env.SOURCE_SHA ||
               version.commit !== process.env.SOURCE_SHA ||
               version.release !== process.env.RELEASE_ID) {
@@ -185,6 +202,7 @@ jobs:
             echo "- Exact SHA: $SOURCE_SHA"
             echo "- Immutable Preview URL: $DEPLOYMENT_URL"
             echo "- Health/version/route smoke: PASS"
-            echo "- Production traffic: UNCHANGED"
+            echo "- Production infrastructure: reused from existing Production environment (Supabase/R2)"
+            echo "- Production traffic: UNCHANGED (staged with --skip-domain)"
             echo "- Next: review Preview, then manually dispatch Production CD"
           } >> "$GITHUB_STEP_SUMMARY"
