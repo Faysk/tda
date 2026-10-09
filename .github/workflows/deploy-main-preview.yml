@@ -106,6 +106,9 @@ jobs:
           mkdir -p .vercel
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
 
+      - name: Enable pinned package manager for Production build
+        run: corepack enable
+
       - name: Pull the existing Production environment (no duplicated database or R2)
         shell: bash
         env:
