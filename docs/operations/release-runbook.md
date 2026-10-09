@@ -50,6 +50,14 @@ Validar:
 - nenhuma dependência acidental de Production;
 - canonical/share URL não aponta para `*.vercel.app`.
 
+Quando a Main Preview passa todos os probes e confirma que `main` não avançou,
+a GitHub prerelease **`Pre_1.0.0`** é criada no SHA exato. As próximas
+validações de novos SHAs publicam `Pre_1.0.1`, `Pre_1.0.2` etc.
+Um retry do mesmo SHA reutiliza a versão, sem mover tags imutáveis.
+O bootstrap do canal Web `Prod_1.0.0` marca o SHA canônico **já publicado**,
+confirmado em `/api/version` e no recibo legado `prod-<SHA>`, sem promover
+deployment novo.
+
 Preview aprovado não significa Production publicada. O Preview de PR não substitui o Preview obrigatório da `main`; o commit pós-merge tem identidade distinta. Só o deployment da `main` pode autorizar o Production CD. Se a `main` avançar, novo SHA exige nova CI + novo Preview.
 
 ## 4. Merge
@@ -89,6 +97,15 @@ Acompanhar o lifecycle completo:
 8. promote do mesmo artifact;
 9. canonical verification;
 10. receipt.
+
+Depois do `promote`, verificação da Production canônica e emissão de receipt,
+o canal **`Prod_1.0.x`** incrementa para o próximo patch numérico; um
+release novo exige que `Pre_1.0.x` mais recente aponte ao mesmo SHA.
+O backend mantém `TDA_RELEASE_ID=prod-<sha-curto>` para rastreabilidade interna,
+independentemente do nome da GitHub Release. A automação remove apenas tags e
+releases Web `Pre_*`/`Prod_*` anteriores, preservando as versões dos
+instaladores/runtimes, os recibos `prod-<sha>` históricos e o histórico
+de deployments Vercel/GitHub.
 
 Falha antes do promote não deve mover o domínio oficial.
 
