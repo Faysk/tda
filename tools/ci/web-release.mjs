@@ -106,6 +106,17 @@ function publish({ repo, channel, sha, url, notesFile }) {
   if (parsedUrl.protocol !== "https:" || parsedUrl.origin !== url) {
     throw new Error("WEB_RELEASE_URL_NOT_HTTPS_ORIGIN");
   }
+  if (channel === "production") {
+    const previewTags = allChannelTags(repo, "preview");
+    const latestPreview = latestWebTag(previewTags, "preview");
+    if (!latestPreview || shaForTag(repo, latestPreview) !== sha) {
+      throw new Error("WEB_PRODUCTION_EXACT_PREVIEW_RELEASE_REQUIRED");
+    }
+    const approved = releaseForTag(repo, latestPreview);
+    if (approved.tag_name !== latestPreview || approved.draft !== false || approved.prerelease !== true) {
+      throw new Error("WEB_PRODUCTION_INVALID_PREVIEW_RELEASE");
+    }
+  }
   const existing = allChannelTags(repo, channel);
   const latest = latestWebTag(existing, channel);
   if (latest && shaForTag(repo, latest) === sha) {
