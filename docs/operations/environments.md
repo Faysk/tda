@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations
-> Última revisão: 2026-09-29
+> Última revisão: 2026-10-09
 > Fonte de verdade: ADR-0018 + runbooks de CI/CD
 
 Este documento define os ambientes do TDA, seus limites de dados/secrets e o relacionamento com providers substituíveis.
@@ -12,7 +12,7 @@ Este documento define os ambientes do TDA, seus limites de dados/secrets e o rel
 | Ambiente | Fonte | Runtime/deploy atual | Dados/storage |
 | --- | --- | --- | --- |
 | Development | branch/worktree temporário | local | local/sintético/configurado deliberadamente |
-| Preview | SHA exato da PR | Vercel Preview | sem mutação automática de Production |
+| PR Preview | SHA exato da PR | Vercel Preview (UI) | separado, não prova paridade de Production |\n| Main Preview (pré-produção) | SHA exato de `main` após CI | **Vercel staged Production**, `--prod --skip-domain` | **mesmo Supabase e R2 configurados em Production**, acesso read-only na URL staged |
 | Production | `main` aprovado | Vercel staged → smoke → promote | PostgreSQL/Supabase + Media Storage/R2 conforme lifecycle |
 
 Preview é deployment, não branch.
@@ -38,20 +38,26 @@ Regras:
 
 ## Preview
 
-Fonte:
+Fontes:
 
 ```text
-pull_request.head.sha
+PR Preview: pull_request.head.sha
+Main Preview: main HEAD SHA após CI push success
 ```
+
+O **Main Preview não provisiona outro Supabase nem outro R2**. Ele faz `vercel pull --environment=production`, `vercel build --prod` e `vercel deploy --prebuilt --prod --skip-domain`. Isto cria um **staged Production deployment sem associação ao domínio oficial**; GitHub registra a verificação no environment `preview`. O build e os providers são os de Production; o tráfego de `dnd.faysk.dev` não muda até promoção explícita.
+
+O servidor usa o mesmo código de proteção de produção, mas nos URLs imutáveis/staged todo método mutável (POST/PUT/PATCH/DELETE e demais métodos além de GET/HEAD/OPTIONS) é bloqueado com 403 antes das rotas/API/server actions. Não executar testes autenticados de escrita, DDL, migrations, uploads ou publicação nesse estágio. O read-only por hostname não impede efeitos colaterais de futuros GET mal implementados: APIs GET devem permanecer sem side effects, e a proteção Vercel da URL imutável deve continuar ativa.
+
+Limite de equivalência: chaves R2 privadas e flags de features entregues **só por injeção do GitHub Environment production** em `production-cd.yml` ainda não são materializadas pelo `vercel pull --environment=production`. O Main Preview valida configuração Vercel e leitura dos providers de Production, enquanto o Production CD verifica o artefato com as credenciais adicionais antes de promover. Não chamar isso de teste completo de operações de escrita.
 
 Contrato:
 
 - CI precisa passar;
 - deployment usa SHA exato;
-- `APP_ENV=preview`;
-- `APP_COMMIT_SHA=<sha>`;
-- `TDA_RELEASE_ID=pr-<numero>-<sha-curto>`;
-- smoke verifica health/version e superfícies relevantes;
+- PR Preview: `APP_ENV=preview`, `TDA_RELEASE_ID=pr-<numero>-<sha-curto>`;
+- Main Preview: `APP_ENV=production`, `APP_COMMIT_SHA=<sha>` e `TDA_RELEASE_ID=prod-<sha-curto>`, ainda sem tráfego público;
+- smoke verifica health/version, superfícies relevantes e o 403 do POST sintético;
 - Preview não aplica migration em Production;
 - Preview não recebe credenciais irrestritas de Production por conveniência.
 
@@ -65,7 +71,7 @@ preview:
   R2_SECRET_ACCESS_KEY
 ```
 
-O par R2 de Preview é dedicado ao token `tda-github-preview-media-publisher` e ao bucket `tda-media-preview`. Está provisionado administrativamente, mas ainda não é consumido automaticamente pela CI/Preview; conexão futura exige implementação + teste + atualização documental.
+O par R2 de Preview é dedicado ao token `tda-github-preview-media-publisher` e ao bucket legado `tda-media-preview`. **Não participa do novo Main Preview** nem precisa ser replicado: o staged Production usa o projeto/provider/buckets canônicos. Não apagar bucket legado automaticamente; eventual limpeza segue inventário e autorização separados.
 
 ## Production
 
