@@ -2,7 +2,7 @@
 
 > Status: vigente
 > Owner: operations / release
-> Última revisão: 2026-10-01
+> Última revisão: 2026-10-09
 > Fonte de verdade: CI/CD, environments e providers atuais
 
 Este runbook é genérico. Checklists de uma feature específica pertencem ao documento da feature ou ao histórico da release, não aqui.
@@ -35,7 +35,11 @@ A CI decide quais domínios pesados participam, mas `required-ci` continua sendo
 
 ## 3. Preview
 
-Preview é deployment Vercel da PR, não branch.
+Preview é deployment Vercel, não branch. O TDA tem **dois níveis**:
+1. `deploy-preview.yml` cria Preview imutável da PR após CI verde, para revisão antes do merge;
+2. `deploy-main-preview.yml` cria outro Preview imutável do **SHA exato da main** após CI push verde, sem publicar no domínio de Production. O deployment bem-sucedido fica em [GitHub → Deployments → preview](https://github.com/Faysk/tda/deployments/preview).
+
+A Vercel mantém configurações Preview próprias. **Nunca copiar credenciais de Production nem usar Preview para gravar dados de Production.** O preview é um espelho de código/rotas públicas, não um clone de banco, credenciais ou mídia privada.
 
 Validar:
 
@@ -46,20 +50,27 @@ Validar:
 - nenhuma dependência acidental de Production;
 - canonical/share URL não aponta para `*.vercel.app`.
 
-Preview aprovado não significa Production publicada.
+Preview aprovado não significa Production publicada. O Preview de PR não substitui o Preview obrigatório da `main`; o commit pós-merge tem identidade distinta. Só o deployment da `main` pode autorizar o Production CD. Se a `main` avançar, novo SHA exige nova CI + novo Preview.
 
 ## 4. Merge
 
 Com `required-ci` verde, mergear em `main`.
 
-`main` é código aceito para Production, mas mutações remotas ainda precisam concluir.
+`main` é código candidato a Production, mas mutações remotas ainda precisam concluir. Após o merge: CI da `main` → Deploy Main Preview → smoke → revisão humana → Production CD manual.
 
 ## 5. Production CD
 
 Production exige execução deliberada de `production-cd.yml` por
-`workflow_dispatch`, informando o SHA exato de `main` já validado. Push, merge e
-conclusão da CI não disparam publicação. O workflow continua recusando SHA
+`workflow_dispatch`, informando o SHA exato de `main` já validado e preenchendo
+`confirm=APPROVE_PREVIEW_FOR_PRODUCTION` após inspeção do URL imutável.
+**É obrigatório** existir um `Deploy Main Preview` bem-sucedido para esse SHA,
+com deployment GitHub `preview` em estado success e health/version concordando.
+Push, merge e conclusão da CI não disparam publicação. O workflow continua recusando SHA
 arbitrário/antigo, exige origem numa PR mergeada e usa o Environment `production`.
+No GitHub, em **Settings → Environments → production**, configurar **Required reviewers**
+(o responsável humano pelo aceite) e restringir deploys à `main`. Essa configuração
+é feita no GitHub, não é aplicada pelo arquivo YAML. O texto de confirmação
+no dispatch não substitui a regra de Required reviewers.
 Só disparar após fechar o escopo e validar build, testes e visual. O pipeline
 preserva staged deploy, smoke, promote do mesmo artefato e verificação canônica.
 Em rollback, usar o artefato anterior aceito conforme o receipt; não reativar o
@@ -67,8 +78,9 @@ gatilho automático para recuperar uma entrega.
 
 Acompanhar o lifecycle completo:
 
-1. prova de HEAD + PR mergeada;
-2. baseline realmente publicado;
+1. prova de HEAD + PR mergeada e CI verde;
+2. confirmação humana + Preview exato da main aprovado e healthy;
+3. baseline realmente publicado;
 3. migration pendente;
 4. Media Storage pendente;
 5. build;
