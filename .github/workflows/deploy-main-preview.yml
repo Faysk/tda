@@ -166,6 +166,14 @@ jobs:
           vercel curl / --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /sessoes --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
           vercel curl /lore/yllith --deployment "$DEPLOYMENT_URL" --fail --silent --show-error --output /dev/null
+          # Safe synthetic POST: must be blocked by the staged-domain guard
+          # before reaching any handler or the shared Production infrastructure.
+          WRITE_STATUS="$(vercel curl /api/health --deployment "$DEPLOYMENT_URL" \
+            --silent --show-error --output /dev/null --write-out '%{http_code}' --request POST)"
+          if [[ "$WRITE_STATUS" != "403" ]]; then
+            echo "::error::Staged Production must be read-only; synthetic POST got HTTP $WRITE_STATUS"
+            exit 1
+          fi
           node --input-type=module - <<'NODE'
           import fs from "node:fs";
           const health = JSON.parse(fs.readFileSync("preview-health.json", "utf8"));
