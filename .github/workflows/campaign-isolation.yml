@@ -171,7 +171,7 @@ jobs:
         run: node tools/ci/campaign-isolation-readiness.mjs --require-ready
       - name: Upload preflight receipts
         if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: campaign-preflight-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -340,7 +340,7 @@ jobs:
           --grep "multi-campaign tool launcher requires explicit context|explicit unauthorized campaign context never falls back|campaign-scoped public routes select the matching tool context|390 CSS px keeps the campaign launcher usable|tool launcher never invents an unauthorized sibling campaign|public navigation remains usable while auth projection is pending or unavailable"
       - name: Upload sanitized interaction measurements
         if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: campaign-browser-interactions-${{ env.SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -354,7 +354,7 @@ jobs:
           retention-days: 30
       - name: Upload sanitized browser failures
         if: ${{ failure() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: campaign-browser-failures-${{ env.SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -414,7 +414,7 @@ jobs:
           TDA_COMPANION_PACKAGE: ${{ github.workspace }}/local-companion
       - name: Upload sanitized Processing failures
         if: ${{ failure() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: campaign-processing-failures-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -477,7 +477,7 @@ jobs:
           SMOKE_PHASE: ${{ inputs.smoke_phase }}
         run: node tools/ci/campaign-staging-smoke.mjs --base-url "$STAGING_BASE_URL" --phase "$SMOKE_PHASE" | tee campaign-staging-smoke.json
       - name: Upload sanitized staging smoke
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: campaign-staging-smoke-${{ inputs.smoke_phase }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: campaign-staging-smoke.json
@@ -579,7 +579,7 @@ jobs:
           NODE
           cat campaign-isolation-receipt.json
       - name: Upload sanitized exact-SHA receipt
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: campaign-isolation-receipt-${{ env.SOURCE_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: campaign-isolation-receipt.json
