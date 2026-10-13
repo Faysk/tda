@@ -1,7 +1,8 @@
 # TDA — Frota de bots e automações (inventário + arquitetura-alvo)
 
-> **Status:** inventário observado em 2026-10-13, **propostas ainda não implementadas**.
-> **Owner:** operations / governance / CI / Companion / release.
+> Status: inventário vigente; automações adicionais propostas
+> Owner: operations / governance / CI / Companion / release
+> Última revisão: 2026-10-13
 > **Baseline verificável:** [`main@67cc217`](https://github.com/Faysk/tda/tree/67cc21704639658679886d92514033213a528f17).
 > **Epic:** [#1651](https://github.com/Faysk/tda/issues/1651). **Runbook:** [automation-bot-runbook.md](automation-bot-runbook.md).
 
