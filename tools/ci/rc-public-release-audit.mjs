@@ -104,6 +104,39 @@ function publicRelease(tag, runner = execFileSync) {
   } catch { throw new Error("RC_REMOTE_RELEASE_LOOKUP_FAILED"); }
   return release;
 }
+
+export function verifyRcGitTagReference({ tag, sourceSha, githubGet = execFileSync }) {
+  if (!TAG.test(tag ?? "") || !SHA.test(sourceSha ?? "") ||
+      !tag.endsWith("-" + sourceSha.slice(0, 12)))
+    throw new Error("RC_GIT_TAG_INPUT_INVALID");
+  function fetchGit(path) {
+    try {
+      return JSON.parse(githubGet("gh", ["api", path],
+        { encoding: "utf8", timeout: 30000, maxBuffer: 1024 * 1024 }));
+    } catch { throw new Error("RC_GIT_TAG_API_UNAVAILABLE"); }
+  }
+  const root = fetchGit("repos/Faysk/tda/git/ref/tags/" + tag);
+  if (root?.ref !== "refs/tags/" + tag || !root?.object)
+    throw new Error("RC_GIT_TAG_REF_IDENTITY_INVALID");
+  let object = root.object, depth = 0;
+  const observedTags = new Set();
+  while (object?.type === "tag") {
+    if (!SHA.test(object?.sha ?? "") || observedTags.has(object.sha) || ++depth > 4)
+      throw new Error("RC_GIT_TAG_PEEL_INVALID");
+    observedTags.add(object.sha);
+    const tagged = fetchGit("repos/Faysk/tda/git/tags/" + object.sha);
+    if (tagged?.sha !== object.sha || !tagged?.object)
+      throw new Error("RC_GIT_TAG_OBJECT_INVALID");
+    object = tagged.object;
+  }
+  if (object?.type !== "commit" || object?.sha !== sourceSha)
+    throw new Error("RC_GIT_TAG_TARGET_SHA_MISMATCH");
+  return {
+    ref: "refs/tags/" + tag, commit_sha: sourceSha, peeled_tag_depth: depth,
+    git_ref_target: "verified-at-fetch", git_tag_immutability: "not-proven",
+  };
+}
+
 export async function auditPublishedRc(input, {
   verifyCombined = auditRcCandidate,
   githubGet = execFileSync,
@@ -130,11 +163,13 @@ export async function auditPublishedRc(input, {
   ];
   const release = publicRelease(tag, githubGet);
   const metadata = verifyPublishedRcMetadata({ release, tag, sourceSha, expectedAssets });
+  const gitRef = verifyRcGitTagReference({ tag, sourceSha, githubGet });
   return {
     schema_version: 1, policy: "tda-public-rc-triple-evidence-v1",
     combined_audit: combined, public_release_metadata: metadata,
-    remote_release_state: "matched-exact-published-prerelease-metadata",
-    git_tag_object_target: "not-checked",
+    git_tag_reference: gitRef,
+    remote_release_state: "matched-release-and-tag-ref-at-fetch",
+    git_tag_object_target: "verified-at-fetch",
     release_immutability: "not-proven",
     unique_signer_run_attribution: "not-verified",
     physical_acceptance: "not-checked",
