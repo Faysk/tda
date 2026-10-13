@@ -79,6 +79,10 @@ jobs:
           tools/ci/public-release-smoke.test.mjs
           tools/ci/session-campaign-move-production-health.test.mjs
           tools/ci/github-actions-security.test.mjs
+      - name: Validate Companion exact direct pins and synthetic lock repair
+        run: |
+          python3 tools/refresh-companion-test-lock.py --check
+          python3 -m unittest discover -s tools -p "test-refresh-companion-test-lock.py"
       - name: Validate direct Companion download verification
         run: python tools/ci/companion_download_verify_test.py
 
