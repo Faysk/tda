@@ -83,6 +83,7 @@ jobs:
           tools/ci/dependency-risk-contract.test.mjs
           tools/ci/bot-evidence-ledger.test.mjs
           tools/ci/automerge-dryrun.test.mjs
+          tools/ci/dependency-triage.test.mjs
           tools/ci/bot-dependency-risk.test.mjs
           tools/ci/automation-trust-policy.test.mjs
       - name: Validate direct Companion download verification
