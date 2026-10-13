@@ -1,0 +1,120 @@
+import { appendFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
+
+const critical = new Map([
+  ["next", "Web routes/SSR"], ["react", "Web rendering"],
+  ["react-dom", "Web rendering"], ["@supabase/supabase-js", "Auth/DB"],
+  ["@aws-sdk/client-s3", "R2/media"], ["fastapi", "Companion HTTP/MSI"],
+  ["ctranslate2", "Whisper/GPU"], ["torch", "Qwen/CUDA"],
+  ["transformers", "Qwen inference"], ["faster-whisper", "Whisper/decoder"],
+]);
+const tooling = new Set(["@playwright/test", "typescript", "eslint", "pytest", "pyinstaller", "setuptools"]);
+
+function safe(value) {
+  return String(value).replace(/[\r\n|]/g, " ").replace(/\u0060/g, "'").slice(0, 200);
+}
+export function npmPins(text) {
+  if (!text) return new Map();
+  const json = JSON.parse(text);
+  const result = new Map();
+  for (const key of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"])
+    for (const [name, pin] of Object.entries(json[key] || {}))
+      result.set(name.toLowerCase(), { pin: String(pin), scope: key });
+  return result;
+}
+export function pythonPins(text) {
+  const result = new Map();
+  if (!text) return result;
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(/^\s*["']([a-z0-9_.-]+)==([a-z0-9.+_-]+)["'],?\s*$/i);
+    if (match) result.set(match[1].toLowerCase().replaceAll("_", "-"), { pin: match[2], scope: "Python exact pin" });
+  }
+  return result;
+}
+export function versionKind(before, after) {
+  const a = String(before).match(/^[~^v]?(\d+)\.(\d+)\.(\d+)/);
+  const b = String(after).match(/^[~^v]?(\d+)\.(\d+)\.(\d+)/);
+  if (!a || !b) return "unknown";
+  if (a[1] !== b[1]) return "major";
+  if (a[2] !== b[2]) return "minor";
+  if (a[3] !== b[3]) return "patch";
+  return before === after ? "same" : "constraint";
+}
+function compare(before, after, ecosystem) {
+  const out = [];
+  for (const name of new Set([...before.keys(), ...after.keys()])) {
+    const from = before.get(name), to = after.get(name);
+    if (from?.pin === to?.pin) continue;
+    const kind = !from ? "added" : !to ? "removed" : versionKind(from.pin, to.pin);
+    const level = critical.has(name) || ["major", "unknown", "removed"].includes(kind) ? "high" :
+      tooling.has(name) || kind === "minor" ? "medium" : "low";
+    out.push({ ecosystem, name, before: from?.pin || "-", after: to?.pin || "-",
+      kind, level, reason: critical.get(name) || (tooling.has(name) ? "build/test tooling" : "dependency change") });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+export function classifyDependencyDiff({ oldNpm = null, newNpm = null, oldPython = null, newPython = null, paths = [] } = {}) {
+  const files = [...new Set(paths.map((p) => String(p).replaceAll("\\", "/")))].sort();
+  const findings = [
+    ...compare(npmPins(oldNpm), npmPins(newNpm), "npm"),
+    ...compare(pythonPins(oldPython), pythonPins(newPython), "pip"),
+  ];
+  if (files.includes("pnpm-lock.yaml") && !findings.some((f) => f.ecosystem === "npm"))
+    findings.push({ ecosystem: "npm", name: "transitive-lock", before: "unknown", after: "unknown",
+      kind: "lock-only", level: "high", reason: "Web dependency impact unknown; domain gates required" });
+  if (files.includes("local-companion/requirements-test.lock") && !findings.some((f) => f.ecosystem === "pip"))
+    findings.push({ ecosystem: "pip", name: "transitive-lock", before: "unknown", after: "unknown",
+      kind: "lock-only", level: "high", reason: "Python constraint impact unknown; Companion gates required" });
+  for (const path of files.filter((p) => /^\.github\/workflows\/.+\.ya?ml$/.test(p)))
+    findings.push({ ecosystem: "github-actions", name: path, before: "pinned", after: "review required",
+      kind: "workflow", level: "high", reason: "Review triggers, permissions, provenance and SHA" });
+  const priority = { low: 1, medium: 2, high: 3 };
+  const risk = findings.reduce((a, f) => priority[f.level] > priority[a] ? f.level : a, "low");
+  return {
+    risk: findings.length ? risk : "none",
+    recommendation: findings.length ? "human-review-required" : "no-dependency-change",
+    checks: "not-queried", advisories: "not-queried", findings, files,
+  };
+}
+export function renderRiskMarkdown(report, range = "unknown") {
+  if (!report.findings.length) return "";
+  const lines = [
+    "## Dependency Risk Analyst (deterministic, advisory only)",
+    "- Git range: " + safe(range),
+    "- Impact: **" + report.risk + "** (not CVE severity)",
+    "- Status: **human review required**; not permission to merge or publish.",
+    "- CI checks and security advisories: **not queried** by this step.",
+    "", "| Ecosystem | Package / file | Before → after | Change | Risk | Reason |",
+    "| --- | --- | --- | --- | --- | --- |",
+  ];
+  for (const r of report.findings)
+    lines.push("| " + [r.ecosystem, r.name, r.before + " → " + r.after, r.kind, r.level, r.reason].map(safe).join(" | ") + " |");
+  lines.push("", "Evidence: manifests/diff only. Runtime and Production acceptance remain independent.", "");
+  return lines.join("\n");
+}
+function show(ref, path) {
+  const response = spawnSync("git", ["show", ref + ":" + path], { encoding: "utf8" });
+  if (response.status !== 0) return null;
+  return response.stdout;
+}
+function main() {
+  const range = process.argv[2];
+  const delimiter = range?.includes("...") ? "..." : "..";
+  const refs = range?.split(delimiter);
+  if (!refs || refs.length !== 2 || !refs.every((ref) => /^[A-Za-z0-9_.\/^~+-]+$/.test(ref)))
+    throw new Error("Exact Git diff range required");
+  const files = execFileSync("git", ["diff", "--name-only", "--diff-filter=ACMR", range], { encoding: "utf8" })
+    .split(/\r?\n/).filter(Boolean);
+  if (!files.some((f) => ["package.json", "pnpm-lock.yaml", "local-companion/pyproject.toml",
+    "local-companion/requirements-test.lock"].includes(f) || /^\.github\/workflows\/.+\.ya?ml$/.test(f))) return;
+  const report = classifyDependencyDiff({
+    oldNpm: show(refs[0], "package.json"), newNpm: show(refs[1], "package.json"),
+    oldPython: show(refs[0], "local-companion/pyproject.toml"),
+    newPython: show(refs[1], "local-companion/pyproject.toml"), paths: files,
+  });
+  const output = renderRiskMarkdown(report, range);
+  if (output && process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, output + "\n");
+  if (output) process.stdout.write(output);
+}
+if (import.meta.url === pathToFileURL(process.argv[1] || "").href) main();
