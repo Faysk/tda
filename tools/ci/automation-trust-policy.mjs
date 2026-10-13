@@ -83,6 +83,7 @@ const approvedWrites = {
   "production-cd.yml": ["contents", "deployments"],
   "qwen-1012-production-validation-stable.yml": ["contents"],
   "qwen-1012-stable-bootstrap.yml": ["actions"],
+  "qwen-runtime-package.yml": ["actions"],
   "rollback.yml": ["deployments"],
   "runtime-promote.yml": ["contents"],
   "runtime-rc.yml": ["contents", "actions", "id-token", "attestations", "artifact-metadata"],
