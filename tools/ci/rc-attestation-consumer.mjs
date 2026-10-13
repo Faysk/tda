@@ -27,6 +27,8 @@ export function validateExpected({ family, sourceSha, signerSha, manifestName })
 export function validateManifestIdentity(manifest, { family, sourceSha }) {
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest))
     throw new Error("CANDIDATE_MANIFEST_INVALID");
+  const schema = family === "companion" ? "tda_companion_candidate_v2" : "tda_runtime_candidate_v1";
+  if (manifest.schema !== schema) throw new Error("CANDIDATE_SCHEMA_MISMATCH");
   if (manifest.source_sha !== sourceSha) throw new Error("CANDIDATE_SOURCE_SHA_MISMATCH");
   if (!SHA.test(manifest.source_tree_sha ?? "")) throw new Error("CANDIDATE_TREE_SHA_INVALID");
   if (family === "runtime" && !["qwen", "whisper"].includes(manifest.family))
