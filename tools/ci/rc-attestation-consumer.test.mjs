@@ -47,7 +47,7 @@ test("gh verify command pinned to repo, RC workflow, signer run SHA and provenan
   const args = attestationArguments("/tmp/" + name, { family: "companion", sourceSha, signerSha });
   assert.deepEqual(args, ["attestation", "verify", "/tmp/" + name, "--repo", "Faysk/tda",
     "--signer-workflow", "Faysk/tda/.github/workflows/companion-rc.yml",
-    "--source-digest", signerSha, "--predicate-type", "https://slsa.dev/provenance/v1",
+    "--signer-digest", signerSha, "--predicate-type", "https://slsa.dev/provenance/v1",
     "--deny-self-hosted-runners", "--format", "json"]);
   assert.deepEqual(attestationArguments("/tmp/TDARuntime-candidate.json",
     { family: "runtime", sourceSha, signerSha }).slice(4, 7), ["Faysk/tda", "--signer-workflow", "Faysk/tda/.github/workflows/runtime-rc.yml"]);
