@@ -48,7 +48,7 @@ test("direct lock mismatch wins over ordinary CI failure; no false CVE label", (
   });
   assert.equal(r.classification, "blocked-by-lock");
   assert.equal(r.cause, "direct-lock-mismatch");
-  assert.equal(r.advisories_verified, true);
+  assert.equal(r.advisory_clearance_verified, true);
 });
 test("CI navigation regression is failed-tests, not security-critical", () => {
   const r = triage((d) => { d.ci.conclusion = "failure"; });
@@ -73,7 +73,7 @@ test("unavailable, stale or unsupported advisory evidence stays unknown", () => 
     const r = triage((d) => { d.advisory.status = status; });
     assert.equal(r.classification, "needs-human");
     assert.equal(r.cause, "security-evidence-unknown");
-    assert.equal(r.advisories_verified, false);
+    assert.equal(r.advisory_clearance_verified, false);
   }
   assert.equal(triage((d) => { d.advisory.head_sha = "f".repeat(40); }).classification, "needs-human");
 });
@@ -98,6 +98,20 @@ test("duplicate deliveries use one idempotent fingerprint; changed SHA/cause rek
   assert.notEqual(first.fingerprint, newCause.fingerprint);
   assert.notEqual(first.classification, newCause.classification);
 });
+test("fingerprint changes for advisory severity/id and failing-job cause, not event order", () => {
+  const a = triage((d) => { d.advisory = { status: "confirmed", head_sha: SHA, severity: "high", id: "GHSA-aaaa-bbbb-cccc" }; });
+  const b = triage((d) => { d.advisory = { status: "confirmed", head_sha: SHA, severity: "critical", id: "GHSA-aaaa-bbbb-cccc" }; });
+  const c = triage((d) => { d.advisory = { status: "confirmed", head_sha: SHA, severity: "high", id: "CVE-2026-1234" }; });
+  assert.notEqual(a.fingerprint, b.fingerprint);
+  assert.notEqual(a.fingerprint, c.fingerprint);
+  const fail = (arr) => triage((d) => {
+    d.ci.conclusion = "failure";
+    d.ci.failed_jobs = arr;
+  }).fingerprint;
+  assert.equal(fail(["processing-e2e", "navigation-e2e"]), fail(["navigation-e2e", "processing-e2e"]));
+  assert.notEqual(fail(["processing-e2e"]), fail(["navigation-e2e"]));
+});
+
 test("batch sorts by PR and rejects collisions; digest never contains raw events", () => {
   const a = good(), b = good();
   a.pr.number = 1647;
