@@ -78,7 +78,22 @@ async function sha256RegularFile(file, expectedSize) {
 async function confirmCompanionChecksum(root, byName, msiDigest) {
   const row = byName.get("TDACompanion-x64.msi.sha256");
   if (!row || row.size > MAX_CHECKSUM_BYTES) throw new Error("RC_MSI_CHECKSUM_SIZE_INVALID");
-  const content = await readFile(join(root, row.name), "utf8");
+  const path = join(root, row.name);
+  let descriptor;
+  let content;
+  try {
+    const before = await lstat(path);
+    if (!before.isFile() || before.isSymbolicLink() || before.size !== row.size)
+      throw new Error("RC_MSI_CHECKSUM_FILE_INVALID");
+    descriptor = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const actual = await descriptor.stat();
+    if (!actual.isFile() || actual.size !== row.size ||
+        (before.ino && actual.ino && before.ino !== actual.ino))
+      throw new Error("RC_MSI_CHECKSUM_FILE_CHANGED");
+    // Safe after checking against MAX_CHECKSUM_BYTES; do not re-read an
+    // unchecked path with readFile() (symlink/race/unbounded-read concern).
+    content = await descriptor.readFile({ encoding: "utf8" });
+  } finally { await descriptor?.close(); }
   const match = /^([a-f0-9]{64})\s+\*?TDACompanion-x64\.msi\r?\n?$/.exec(content);
   if (!match || match[1] !== msiDigest)
     throw new Error("RC_MSI_CHECKSUM_CONTENT_MISMATCH");
