@@ -8,7 +8,10 @@ import { verifyLocalRcAssets } from "./rc-local-asset-integrity.mjs";
 export const AUDIT_POLICY = "tda-rc-combined-evidence-v1";
 const SHA = /^[a-f0-9]{40}$/;
 const HASH = /^[a-f0-9]{64}$/;
-function validInput({ family, manifestFile, assetsRoot, sourceSha, signerRunId } = {}) {
+function validInput(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    throw new Error("RC_AUDIT_ARGUMENTS_INVALID");
+  const { family, manifestFile, assetsRoot, sourceSha, signerRunId } = input;
   if (!["companion", "runtime"].includes(family) ||
       typeof manifestFile !== "string" || !manifestFile ||
       typeof assetsRoot !== "string" || !assetsRoot ||
