@@ -137,3 +137,32 @@ test("unknown family and run ID are denied without an API call", () => {
     { family: "runtime", signerRunId: NaN }, () => { throw new Error("SHOULD_NOT_CALL"); }),
     /SIGNER_RUN_ID_INVALID/);
 });
+
+
+test("public historical GitHub run metadata shape is supported for Companion and Runtime RC", () => {
+  // Read-only public API snapshots reviewed on 2026-10-14:
+  // https://github.com/Faysk/tda/actions/runs/38456813611
+  // https://github.com/Faysk/tda/actions/runs/37838272496
+  const samples = [
+    {
+      family: "companion", id: 38456813611, name: "Companion RC",
+      event: "workflow_run", path: ".github/workflows/companion-rc.yml",
+      head_sha: "256e45b5ffddc1196b149f7c29c0da8eb3e0998e",
+    },
+    {
+      family: "runtime", id: 37838272496, name: "Runtime RC",
+      event: "workflow_dispatch", path: ".github/workflows/runtime-rc.yml",
+      head_sha: "1066d58d8128fa6cf0c8342535ff14c4fb08aa04",
+    },
+  ];
+  for (const sample of samples) {
+    const evidence = validateSignerRun({
+      id: sample.id, name: sample.name, event: sample.event,
+      head_branch: "main", path: sample.path, head_sha: sample.head_sha,
+      status: "completed", conclusion: "success", run_attempt: 1,
+      repository: { full_name: REPO }, head_repository: { full_name: REPO },
+    }, { family: sample.family, signerRunId: sample.id });
+    assert.equal(evidence.signer_workflow_sha, sample.head_sha);
+    assert.equal(evidence.signer_run_id, sample.id);
+  }
+});
