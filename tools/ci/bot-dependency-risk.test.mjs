@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyDependencyDiff, renderRiskMarkdown, versionKind, pythonPins } from "./bot-dependency-risk.mjs";
+import { classifyDependencyDiff, renderRiskMarkdown, versionKind, pythonPins, parseDiffRange } from "./bot-dependency-risk.mjs";
 
 const npm = (prod = {}, dev = {}) => JSON.stringify({ dependencies: prod, devDependencies: dev });
 
@@ -80,4 +80,18 @@ test("untrusted package names are escaped in generated Markdown", () => {
   assert.ok(!markdown.includes("bad|name"));
   assert.ok(markdown.includes("bad name"));
   assert.match(markdown, /human review required/);
+});
+
+test("three-dot diff uses merge-base, not current target branch tip", () => {
+  const ancestor = "0123456789abcdef0123456789abcdef01234567";
+  const parts = parseDiffRange("origin/main...f00abc", ancestor);
+  assert.deepEqual(parts, { from: ancestor, to: "f00abc", threeDot: true });
+  const twoDot = parseDiffRange("before..after", null);
+  assert.deepEqual(twoDot, { from: "before", to: "after", threeDot: false });
+});
+
+test("rejects three-dot analysis without a verified merge-base", () => {
+  assert.throws(() => parseDiffRange("origin/main...HEAD", null), /merge-base/);
+  assert.throws(() => parseDiffRange("origin/main...HEAD", "bad-sha"), /merge-base/);
+  assert.throws(() => parseDiffRange("one;rm -rf...two", "0123456789abcdef0123456789abcdef01234567"), /Git diff range/);
 });
