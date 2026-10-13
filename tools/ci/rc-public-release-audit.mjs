@@ -22,6 +22,7 @@ function exactAsset(value) {
 }
 export function verifyPublishedRcMetadata({ release, tag, sourceSha, expectedAssets }) {
   if (!TAG.test(tag ?? "") || !SHA.test(sourceSha ?? "") ||
+      !tag.endsWith("-" + sourceSha.slice(0, 12)) ||
       !Array.isArray(expectedAssets) || expectedAssets.length < 2 ||
       expectedAssets.length > 65 || !expectedAssets.every(exactAsset))
     throw new Error("RC_REMOTE_EXPECTATIONS_INVALID");
