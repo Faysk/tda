@@ -50,7 +50,7 @@ test("gh verify command pinned to repo, RC workflow, signer run SHA and provenan
     "--source-digest", signerSha, "--predicate-type", "https://slsa.dev/provenance/v1",
     "--deny-self-hosted-runners", "--format", "json"]);
   assert.deepEqual(attestationArguments("/tmp/TDARuntime-candidate.json",
-    { family: "runtime", sourceSha, signerSha }).slice(5, 7), ["Faysk/tda", "--signer-workflow"]);
+    { family: "runtime", sourceSha, signerSha }).slice(4, 7), ["Faysk/tda", "--signer-workflow", "Faysk/tda/.github/workflows/runtime-rc.yml"]);
 });
 test("verified mock can validate candidate manifest only and never grant release", () => {
   withFixture(companion(), name, (file) => {
@@ -119,7 +119,10 @@ test("missing, empty, malformed or mismatched attestation cannot pass policy", (
 });
 test("rejects stale other-subjects, empty signer, path confusion and incorrect hash length", () => {
   const opts = { expectedDigest: "a".repeat(64), manifestName: name };
-  const data = JSON.parse(attested("/tmp/" + name));
+  const data = [{ verificationResult: { statement: {
+    predicateType: "https://slsa.dev/provenance/v1",
+    subject: [{ name, digest: { sha256: "b".repeat(64) } }],
+  } } }];
   data[0].verificationResult.statement.subject[0].digest.sha256 = "b".repeat(64);
   assert.throws(() => validateVerifiedResponse(data, opts), /VERIFIED_SUBJECT_OR_PREDICATE_MISMATCH/);
   data[0].verificationResult.statement.subject[0].digest.sha256 = opts.expectedDigest;
