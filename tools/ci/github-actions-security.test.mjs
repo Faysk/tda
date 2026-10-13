@@ -264,6 +264,7 @@ test("integrated bot and RC security suites remain wired exactly once to require
     "bot-evidence-ledger.test.mjs", "automerge-dryrun.test.mjs",
     "dependency-triage.test.mjs", "rc-attestation-consumer.test.mjs",
     "rc-signer-run-verify.test.mjs",
+    "rc-evidence-audit.test.mjs",
     "rc-local-asset-integrity.test.mjs", "rc-provenance-policy.test.mjs",
     "bot-dependency-risk.test.mjs", "automation-trust-policy.test.mjs",
   ];
