@@ -27,6 +27,14 @@ function riskReason(input) {
       evidence: "Verified advisory severity " + input.advisory.severity + " at exact PR head",
     };
   }
+  if (input.advisory?.status === "confirmed" &&
+      input.advisory.head_sha === pr.head_sha &&
+      ["medium", "low"].includes(input.advisory.severity)) {
+    return {
+      classification: "needs-human", cause: "confirmed-advisory-requires-review",
+      evidence: "Known advisory requires owner review; passing tests are not clearance",
+    };
+  }
   if (input.lock?.status === "direct-lock-mismatch" &&
       input.lock.head_sha === pr.head_sha) {
     return {
