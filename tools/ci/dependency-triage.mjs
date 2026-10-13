@@ -77,9 +77,19 @@ export function triageDependencyPr(input) {
   const pr = input.pr || {};
   const number = Number.isInteger(pr.number) && pr.number > 0 ? pr.number : null;
   const verdict = riskReason(input);
+  // Fingerprint changes when the underlying advisory or failing-job cause
+  // changes, but never keys on delivery order, run attempt, or timestamps.
+  const advisory = input.advisory?.status === "confirmed" && input.advisory.head_sha === pr.head_sha ?
+    input.advisory : null;
+  const advisoryId = typeof advisory?.id === "string" && /^[A-Za-z0-9-]{1,80}$/.test(advisory.id) ?
+    advisory.id : "unknown-advisory";
+  const failedJobs = input.ci?.head_sha === pr.head_sha && Array.isArray(input.ci.failed_jobs) ?
+    [...new Set(input.ci.failed_jobs.filter((n) => typeof n === "string" &&
+      /^[A-Za-z0-9_-]{1,100}$/.test(n)))].sort() : [];
   const seed = [
     TRIAGE_POLICY_VERSION, "Faysk/tda", number ?? "unknown", sha(pr.head_sha) ? pr.head_sha : "missing",
-    verdict.classification, verdict.cause,
+    verdict.classification, verdict.cause, advisory?.severity ?? "no-confirmed-advisory",
+    advisory ? advisoryId : "", ...failedJobs,
   ].join(":");
   const fingerprint = createHash("sha256").update(seed).digest("hex");
   return {
@@ -92,7 +102,7 @@ export function triageDependencyPr(input) {
     cause: verdict.cause,
     evidence: verdict.evidence,
     fingerprint,
-    advisories_verified: input.advisory?.status === "clear-verified" &&
+    advisory_clearance_verified: input.advisory?.status === "clear-verified" &&
       input.advisory.head_sha === pr.head_sha,
     action: "manual-investigation-only",
     permits_merge: false,
