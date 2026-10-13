@@ -68,6 +68,26 @@ const ordered = {
   ],
 };
 
+// Every newly introduced write scope must be added by a reviewed policy PR.
+// This allowlist documents *declared* YAML permissions, not actual effective grants.
+const approvedWrites = {
+  "codeql.yml": ["security-events"],
+  "companion-0316-production-validation-stable.yml": ["contents"],
+  "companion-039-recovery-stable.yml": ["contents"],
+  "companion-promote.yml": ["contents"],
+  "companion-rc.yml": ["contents", "id-token", "attestations", "artifact-metadata"],
+  "deploy-main-preview.yml": ["contents", "deployments"],
+  "deploy-preview.yml": ["deployments"],
+  "issue-structure-governance.yml": ["issues"],
+  "label-governance.yml": ["issues"],
+  "production-cd.yml": ["contents", "deployments"],
+  "qwen-1012-production-validation-stable.yml": ["contents"],
+  "qwen-1012-stable-bootstrap.yml": ["actions"],
+  "rollback.yml": ["deployments"],
+  "runtime-promote.yml": ["contents"],
+  "runtime-rc.yml": ["contents", "actions", "id-token", "attestations", "artifact-metadata"],
+};
+
 export function auditBotTrust(sources) {
   const violations = [];
   for (const [file, value] of Object.entries(sources)) {
@@ -75,6 +95,12 @@ export function auditBotTrust(sources) {
     if (/^\s*pull_request_target\s*:/m.test(content)) violations.push(file + ": forbidden pull_request_target");
     if (/\bsecrets:\s*inherit\b/.test(content)) violations.push(file + ": forbidden secrets inheritance");
     if (/\bpermissions:\s*write-all\b/.test(content)) violations.push(file + ": forbidden write-all");
+    for (const match of content.matchAll(/^\s+([a-z][a-z0-9-]*):\s*write(?:\s*#.*)?$/gm)) {
+      const scope = match[1];
+      if (!approvedWrites[file]?.includes(scope)) {
+        violations.push(file + ": unapproved write scope " + scope);
+      }
+    }
   }
   for (const [file, markers] of Object.entries(required)) {
     const content = sources[file];
