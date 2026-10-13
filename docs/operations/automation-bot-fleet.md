@@ -23,7 +23,7 @@ O objetivo é coordenar uma **frota lógica de dez responsabilidades** usando, s
 - **Achado confirmado:** #1647 modifica FastAPI no `pyproject.toml`, mas não no `requirements-test.lock`; o [freshness gate 38202483008](https://github.com/Faysk/tda/actions/runs/38202483008) falhou com `DIRECT_LOCK_MISMATCH` e [CI 38202483200](https://github.com/Faysk/tda/actions/runs/38202483200) falhou na resolução uv. **Não é falha do gate** — o gate protegeu a instalação.
 - **Achado limitado:** [CI 38101781316](https://github.com/Faysk/tda/actions/runs/38101781316) de #1643 falhou em dois cenários Playwright de navegação/World. Causalidade da atualização de libs permanece indeterminada.
 
-## 3. Catálogo dos 29 workflows versionados
+## 3. Catálogo: 29 workflows observados e 1 candidato novo
 
 As colunas **trigger**, **escopo** e **permissão declarada** refletem o YAML na baseline; não equivalem a confirmação de execução remota, Environment ou aprovação. `R` significa token read-only e `W` alguma permissão de escrita explícita. A permission real deve ser auditada por job e organização (#1657).
 
@@ -58,6 +58,10 @@ As colunas **trigger**, **escopo** e **permissão declarada** refletem o YAML na
 | 27 | [`rollback.yml`](../../.github/workflows/rollback.yml) | dispatch | Rollback controlado | W* |
 | 28 | [`issue-structure-governance.yml`](../../.github/workflows/issue-structure-governance.yml) | push main (paths), dispatch | Sync milestones, subissues, dependencies | W |
 | 29 | [`label-governance.yml`](../../.github/workflows/label-governance.yml) | push main (paths), dispatch | Sync labels canônicas de issues | W |
+| 30 | [`dependabot-evidence-ledger.yml`](../../.github/workflows/dependabot-evidence-ledger.yml) | workflow_run CI de PR, dispatch manual de reconsulta | **CANDIDATO #1664**: ledger por SHA/PR, CodeQL e required jobs; somente leitura | R |
+
+O número **29** é a fotografia da `main` em 13/10/2026; a linha **30** é o novo workflow **candidato deste PR**, não ativo na `main` até revisão/merge. Ele nunca executa a cabeça de um PR, não possui `write` e não concede autorização de merge. Quando integrado, atualizar a fotografia para 30 workflows versionados. A operação gera apenas Job Summary com o estado dos checks do run consultado, sem comentários automáticos. Se CodeQL estiver pendente, a reconsulta manual `workflow_dispatch` recebe o ID do CI run exato; a primeira execução não inventa resultado final.
+
 
 `W*` restringe-se a ações específicas (ex.: CodeQL escreve security-events; Preview escreve deployments; rollback escreve deployments), e **não** significa acesso global de administração. Workflows legados com branch/evento conservados exigem confirmação de elegibilidade antes de mexer; os bridges 0.3.16/0.3.9 e Qwen 1.0.12 não se confundem com política corrente de novos Stable.
 
