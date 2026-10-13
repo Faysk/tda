@@ -20,8 +20,8 @@ function record(content, filename = name) {
   writeFileSync(file, bytes);
   return { file, close: () => rmSync(dirname, { force: true, recursive: true }) };
 }
-const companion = () => ({ schema: "tda_companion_candidate_v2", source_sha: sourceSha, source_tree_sha: treeSha, version: "0.3.17" });
-const runtime = () => ({ schema: "tda_runtime_candidate_v1", source_sha: sourceSha, source_tree_sha: treeSha, version: "1.0.19", family: "qwen" });
+const companion = () => ({ schema: "tda_companion_candidate_v2", source_sha: sourceSha, source_tree_sha: treeSha, version: "0.3.17", workflow_run_id: 123, channel: "rc", tag: "companion-rc-v0.3.17-" + sourceSha.slice(0,12) });
+const runtime = () => ({ schema: "tda_runtime_candidate_v1", source_sha: sourceSha, source_tree_sha: treeSha, version: "1.0.19", family: "qwen", workflow_run_id: 456, candidate_tag: "companion-qwen-runtime-rc-v1.0.19-" + sourceSha.slice(0,12), stable_tag: "companion-qwen-runtime-v1.0.19" });
 function attested(file, edit = (x) => x) {
   const hash = createHash("sha256").update(readFileSync(file)).digest("hex");
   const envelope = [{ verificationResult: { statement: {
@@ -73,7 +73,7 @@ test("verified mock can validate candidate manifest only and never grant release
 });
 test("Qwen/Whisper manifest identity is explicit and separate from signer commit", () => {
   for (const family of ["qwen", "whisper"]) {
-    withFixture({ ...runtime(), family }, "TDARuntime-candidate.json", (file) => {
+    withFixture({ ...runtime(), family, candidate_tag: "companion-" + family + "-runtime-rc-v1.0.19-" + sourceSha.slice(0,12), stable_tag: "companion-" + family + "-runtime-v1.0.19" }, "TDARuntime-candidate.json", (file) => {
       const v = verifyRcManifest({ family: "runtime", manifestFile: file, sourceSha, signerSha },
         () => attested(file));
       assert.equal(v.family, "runtime");
@@ -86,6 +86,10 @@ test("Qwen/Whisper manifest identity is explicit and separate from signer commit
 test("refuse invalid manifest source, tree, version, family or wrong filename before gh call", () => {
   const cases = [
     [ { ...companion(), schema: "old" }, name, "companion", /CANDIDATE_SCHEMA_MISMATCH/ ],
+    [ { ...companion(), tag: "companion-rc-v0.3.17-abcdef123456" }, name, "companion", /CANDIDATE_RC_TAG_MISMATCH/ ],
+    [ { ...companion(), workflow_run_id: 0 }, name, "companion", /CANDIDATE_BUILD_RUN_ID_INVALID/ ],
+    [ { ...companion(), channel: "stable" }, name, "companion", /CANDIDATE_CHANNEL_MISMATCH/ ],
+    [ { ...runtime(), stable_tag: "companion-qwen-runtime-v2.0.0" }, "TDARuntime-candidate.json", "runtime", /RUNTIME_STABLE_TAG_MISMATCH/ ],
     [ { ...companion(), source_sha: "d".repeat(40) }, name, "companion", /CANDIDATE_SOURCE_SHA_MISMATCH/ ],
     [ { ...companion(), source_tree_sha: "x" }, name, "companion", /CANDIDATE_TREE_SHA_INVALID/ ],
     [ { ...companion(), version: "tip" }, name, "companion", /CANDIDATE_VERSION_UNKNOWN/ ],
