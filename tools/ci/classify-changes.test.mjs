@@ -19,6 +19,30 @@ const fastOnly = {
 	media: false,
 };
 
+test("npm manifests and pnpm lock activate every Web dependency gate, not Companion", () => {
+  const expected = {
+    web: true,
+    navigation: true,
+    db: true,
+    companion: false,
+    processing: true,
+    lembra: true,
+    sessions: true,
+    media: true,
+  };
+  for (const changedFile of ["package.json", "pnpm-lock.yaml"]) {
+    assert.deepEqual(flags([changedFile]), expected, changedFile);
+  }
+  assert.deepEqual(flags(["docs/README.md", "pnpm-lock.yaml"]), expected);
+});
+
+test("ordinary non-dependency paths never broaden unrelated domains", () => {
+  assert.deepEqual(flags(["pnpm-workspace.yaml"]), fastOnly);
+  assert.deepEqual(flags(["package-lock.json"]), fastOnly);
+  assert.equal(flags(["local-companion/pyproject.toml"]).db, false);
+  assert.equal(flags(["local-companion/pyproject.toml"]).companion, true);
+});
+
 test("docs-only stays on fast CI only", () => {
 	assert.deepEqual(
 		flags(["docs/operations/cicd-simplification-plan.md"]),
