@@ -206,9 +206,9 @@ test("annotated tag chain is peeled to commit with bounded GET-only lookups", ()
     if(path.endsWith("/git/ref/tags/"+TAG))
       return JSON.stringify({ref:"refs/tags/"+TAG,object:{type:"tag",sha:first}});
     if(path.endsWith("/git/tags/"+first))
-      return JSON.stringify({sha:first,object:{type:"tag",sha:second}});
+      return JSON.stringify({sha:first,tag:TAG,object:{type:"tag",sha:second}});
     if(path.endsWith("/git/tags/"+second))
-      return JSON.stringify({sha:second,object:{type:"commit",sha:SRC}});
+      return JSON.stringify({sha:second,tag:"synthetic-inner-tag",object:{type:"commit",sha:SRC}});
     throw new Error("UNEXPECTED");
   };
   const result=verifyRcGitTagReference({tag:TAG,sourceSha:SRC,githubGet:getter});
@@ -226,7 +226,10 @@ test("Git ref mismatch, spoofed target, invalid ref and tag cycle fail closed", 
   fail({ref:"refs/tags/"+TAG,object:{type:"tree",sha:SRC}},null,/TARGET_SHA_MISMATCH/);
   const t="1".repeat(40);
   fail({ref:"refs/tags/"+TAG,object:{type:"tag",sha:t}},
-    {sha:t,object:{type:"tag",sha:t}},/PEEL_INVALID/);
+    {sha:t,tag:TAG,object:{type:"tag",sha:t}},/PEEL_INVALID/);
+  fail({ref:"refs/tags/"+TAG,object:{type:"tag",sha:t}},
+    {sha:t,tag:"different-annotated-name",object:{type:"commit",sha:SRC}},
+    /ANNOTATED_NAME_MISMATCH/);
   assert.throws(()=>verifyRcGitTagReference({tag:"../bad",sourceSha:SRC}),/TAG_INPUT_INVALID/);
   assert.throws(()=>verifyRcGitTagReference({tag:TAG,sourceSha:"f".repeat(40)}),/TAG_INPUT_INVALID/);
 });
