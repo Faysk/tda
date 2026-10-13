@@ -20,8 +20,8 @@ function record(content, filename = name) {
   writeFileSync(file, bytes);
   return { file, close: () => rmSync(dirname, { force: true, recursive: true }) };
 }
-const companion = () => ({ source_sha: sourceSha, source_tree_sha: treeSha, version: "0.3.17" });
-const runtime = () => ({ source_sha: sourceSha, source_tree_sha: treeSha, version: "1.0.19", family: "qwen" });
+const companion = () => ({ schema: "tda_companion_candidate_v2", source_sha: sourceSha, source_tree_sha: treeSha, version: "0.3.17" });
+const runtime = () => ({ schema: "tda_runtime_candidate_v1", source_sha: sourceSha, source_tree_sha: treeSha, version: "1.0.19", family: "qwen" });
 function attested(file, edit = (x) => x) {
   const hash = createHash("sha256").update(readFileSync(file)).digest("hex");
   const envelope = [{ verificationResult: { statement: {
@@ -85,6 +85,7 @@ test("Qwen/Whisper manifest identity is explicit and separate from signer commit
 });
 test("refuse invalid manifest source, tree, version, family or wrong filename before gh call", () => {
   const cases = [
+    [ { ...companion(), schema: "old" }, name, "companion", /CANDIDATE_SCHEMA_MISMATCH/ ],
     [ { ...companion(), source_sha: "d".repeat(40) }, name, "companion", /CANDIDATE_SOURCE_SHA_MISMATCH/ ],
     [ { ...companion(), source_tree_sha: "x" }, name, "companion", /CANDIDATE_TREE_SHA_INVALID/ ],
     [ { ...companion(), version: "tip" }, name, "companion", /CANDIDATE_VERSION_UNKNOWN/ ],
