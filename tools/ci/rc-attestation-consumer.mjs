@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { constants, closeSync, fstatSync, lstatSync, openSync, readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -74,10 +74,21 @@ export function verifyRcManifest({ family, manifestFile, sourceSha, signerSha },
   const absoluteFile = resolve(manifestFile);
   const filename = basename(absoluteFile);
   validateExpected({ family, sourceSha, signerSha, manifestName: filename });
-  const stat = statSync(absoluteFile);
-  if (!stat.isFile() || stat.size < 2 || stat.size > 1024 * 1024)
+  const stat = lstatSync(absoluteFile);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size < 2 || stat.size > 1024 * 1024)
     throw new Error("CANDIDATE_MANIFEST_SIZE_INVALID");
-  const bytes = readFileSync(absoluteFile);
+  let fd, bytes;
+  try {
+    fd = openSync(absoluteFile, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const opened = fstatSync(fd);
+    if (!opened.isFile() || opened.size !== stat.size ||
+        (stat.ino && opened.ino && stat.ino !== opened.ino))
+      throw new Error("CANDIDATE_MANIFEST_CHANGED_OR_INVALID");
+    bytes = readFileSync(fd);
+    const after = fstatSync(fd);
+    if (!after.isFile() || after.size !== opened.size || bytes.length !== opened.size)
+      throw new Error("CANDIDATE_MANIFEST_CHANGED_DURING_READ");
+  } finally { if (fd !== undefined) closeSync(fd); }
   let manifest;
   try { manifest = JSON.parse(bytes.toString("utf8")); }
   catch { throw new Error("CANDIDATE_MANIFEST_JSON_INVALID"); }
