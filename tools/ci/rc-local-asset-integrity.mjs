@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, open, readFile } from "node:fs/promises";
+import { lstat, open } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { validateManifestIdentity } from "./rc-attestation-consumer.mjs";
@@ -109,10 +109,24 @@ export async function verifyLocalRcAssets({ family, manifestFile, assetsRoot, so
   if (!manifestStat.isFile() || manifestStat.isSymbolicLink() ||
       manifestStat.size < 2 || manifestStat.size > MAX_MANIFEST_BYTES)
     throw new Error("RC_MANIFEST_SIZE_OR_TYPE_INVALID");
+  let manifestBytes, manifestDescriptor;
+  try {
+    manifestDescriptor = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const opened = await manifestDescriptor.stat();
+    if (!opened.isFile() || opened.size !== manifestStat.size ||
+        (manifestStat.ino && opened.ino && manifestStat.ino !== opened.ino))
+      throw new Error("RC_MANIFEST_CHANGED_OR_INVALID");
+    manifestBytes = await manifestDescriptor.readFile();
+    const after = await manifestDescriptor.stat();
+    if (!after.isFile() || after.size !== opened.size ||
+        manifestBytes.length !== opened.size)
+      throw new Error("RC_MANIFEST_CHANGED_DURING_READ");
+  } finally { await manifestDescriptor?.close(); }
   let manifest;
-  try { manifest = JSON.parse(await readFile(file, "utf8")); }
+  try { manifest = JSON.parse(manifestBytes.toString("utf8")); }
   catch { throw new Error("RC_MANIFEST_JSON_INVALID"); }
   validateManifestIdentity(manifest, { family, sourceSha });
+  const manifestSha256 = createHash("sha256").update(manifestBytes).digest("hex");
   const rootStat = await lstat(root);
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("RC_ASSETS_ROOT_INVALID");
   const assets = extractAssets(manifest, family);
@@ -135,6 +149,7 @@ export async function verifyLocalRcAssets({ family, manifestFile, assetsRoot, so
     policy: LOCAL_ASSET_POLICY, family,
     source_sha: sourceSha, candidate_tag: family === "companion" ? manifest.tag : manifest.candidate_tag,
     assets_hashed: assets.length, total_bytes_hashed: total,
+    manifest_sha256: manifestSha256,
     local_asset_integrity: "verified-sha256",
     github_attestation: "not-checked", physical_receipts: "not-checked",
     authorizes_stable: false, authorizes_production: false,
