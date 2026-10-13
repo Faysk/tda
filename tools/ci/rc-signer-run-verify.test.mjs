@@ -99,10 +99,26 @@ test("read-only API run lookup supplies digest to official signed verifier; no m
   assert.equal(writes[0].signerSha, SHA);
   assert.equal(result.authorizes_stable, false);
   assert.equal(result.authorizes_production, false);
-  assert.equal(result.run_identity, "verified-readonly-github-api");
-  assert.equal(result.github_attestation, "verified-by-gh");
+  assert.equal(result.run_metadata, "verified-readonly-github-api");
+  assert.equal(result.unique_attestation_signer_run, "not-verified");
+  assert.equal(result.github_attestation, "verified-by-gh-at-workflow-digest");
   assert.equal(result.other_assets, "not-checked");
   assert.equal(result.physical_acceptance, "not-checked");
+});
+test("a successful run ID never becomes a falsely claimed cryptographic run binding", () => {
+  const a = fixture(), b = fixture();
+  b.id = runId + 1;
+  // Independent run IDs can share exactly the same workflow head SHA.
+  assert.equal(a.head_sha, b.head_sha);
+  const result = verifyRcFromAuthenticatedSignerRun(
+    { family: "companion", signerRunId: runId,
+      manifestFile: "TDACompanion-candidate.json", sourceSha: SOURCE },
+    runner(a, []),
+    (args) => passed(args, SHA),
+  );
+  assert.equal(result.signer.signer_run_id, runId);
+  assert.equal(result.unique_attestation_signer_run, "not-verified");
+  assert.equal(result.authorizes_stable, false);
 });
 test("no verifier invocation when API metadata fails, run is spoofed or status failed", () => {
   const attempt = (run, command) => verifyRcFromAuthenticatedSignerRun(
