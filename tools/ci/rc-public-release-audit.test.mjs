@@ -103,6 +103,8 @@ test("invalid manifest expectations/duplicate names cannot be reported as remote
       /RC_REMOTE_EXPECTATIONS_INVALID/);
     assert.throws(()=>verifyPublishedRcMetadata({ ...opts(f), sourceSha:"unknown" }),
       /RC_REMOTE_EXPECTATIONS_INVALID/);
+    assert.throws(()=>verifyPublishedRcMetadata({ ...opts(f), sourceSha:"f".repeat(40) }),
+      /RC_REMOTE_EXPECTATIONS_INVALID/);
     f.expectedAssets[1].name=f.expectedAssets[0].name.toUpperCase();
     assert.throws(()=>verifyPublishedRcMetadata(opts(f)),
       /RC_REMOTE_EXPECTED_DUPLICATE_NAME/);
@@ -197,7 +199,8 @@ test("public 2026 Companion RC release JSON API fields conform to expected schem
     target_commitish:"b72eb1ffd316e0c371d5d121899e56a9c8b844e3",
     draft:false, prerelease:true, published_at:"2026-10-08T04:53:12Z",
     assets:expected.map((a,i)=>({
-      name:a.name, size:a.size, digest:"sha256:"+a.sha256, id:620766047+i, state:"uploaded",
+      name:a.name, size:a.size, digest:"sha256:"+a.sha256,
+      id:[620766049,620766051,620766047,620766048,620766050][i], state:"uploaded",
     })),
   };
   const outcome=verifyPublishedRcMetadata({
