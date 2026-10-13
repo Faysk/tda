@@ -133,6 +133,14 @@ O workflow `dependabot-evidence-ledger.yml` é candidato a executar quando um ru
 
 **Validação sintética:** `node --test tools/ci/bot-evidence-ledger.test.mjs` cobre CI verde completo, SHA stale, fork, autor/origem errados, check ausente/skipped/duplicado, CodeQL atrasado/falhando e sanitização do Markdown. Se CodeQL estiver ausente apesar de um CI verde, **não** imprimir que o PR foi aprovado.
 
+### Triage Marshal / digest offline (#1663) — classificação sem side effects
+
+O módulo `tools/ci/dependency-triage.mjs` pode gerar relatório legível a partir de um **snapshot sintético JSON local**: `node tools/ci/dependency-triage.mjs /caminho/para/snapshot.json`. Ele **não consulta a API GitHub**, não lê secrets, não utiliza LLM, não modifica PR/issue/check, não agenda mensagens e não faz `merge`, `dispatch` ou deploy. Sua finalidade é validar regras e fingerprints antes da etapa futura de integração real com um collector read-only por SHA. Cada linha é `repo+PR+head SHA+causa+versão da política`; entregas repetidas sem alteração devolvem exatamente o mesmo fingerprint, mudanças de SHA/causa exigem novo registro. O Markdown mostra apenas metadados mínimos, sem payloads privados.
+
+Ordem de classificação: `stale` se identidade/PR atual não está comprovada; `security-critical` para advisory `critical/high` **confirmada no SHA**, independentemente de cooldown ou CI; `needs-human` para advisory `medium/low` conhecida; `blocked-by-lock` para divergência determinística direta entre manifest e lock; `failed-tests` para CI vermelho/cancelado/timeout **sem reclassificar falha de navegador como CVE**; `needs-human` quando advisories, lock, CI ou CodeQL estão ausentes/stale/unknown; e `ready-for-review` somente com evidências centrais completas e atuais. O último rótulo **não equivale a merge-readiness** (regras administrativas, checks adicionais e approvals não são validados aqui).
+
+Regressões sintéticas: `node --test tools/ci/dependency-triage.test.mjs` (11 casos) testa eventos duplicados, SHA/rebase, mudanças de causa, advisory crítica e não crítica, lock drift, CI com falha sem falsa vulnerabilidade, e oito snapshots simulados dos PRs #1643–#1650. O canal de alerta e SLAs reais de #1663 continuam **não definidos** até decisão do owner, acesso à API e revisão de privacidade/retention. **Não usar um digest local como prova de ausência de vulnerabilidades**.
+
 ## 9. Evidência, testes sintéticos e definition of done
 
 Contrato mínimo por mudança: PR + SHA, diff/manifest/lock, relatório de risco versão N, lista de required checks com IDs e estados, testes locais/CI, falhas negativas exercitadas, comentários idempotentes, documentação dona, aceite físico quando aplicável e decisão de release.
