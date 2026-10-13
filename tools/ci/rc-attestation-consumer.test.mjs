@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -145,4 +145,19 @@ test("supply-chain tool does not look at releases, alter files or claim physical
     assert.equal(result.physical_acceptance, "not-checked");
     assert.equal(result.permits_promotion, false);
   });
+});
+
+
+test("symlinked candidate manifest fails before any GH attestation command", () => {
+  const { file, close } = record(companion(), name);
+  try {
+    const target = file + ".protected-synthetic-target";
+    writeFileSync(target, JSON.stringify(companion()));
+    rmSync(file);
+    symlinkSync(target, file);
+    assert.throws(() => verifyRcManifest(
+      { family: "companion", manifestFile: file, sourceSha, signerSha },
+      () => { throw new Error("SHOULD_NOT_CALL_GH"); }),
+      /CANDIDATE_MANIFEST_SIZE_INVALID/);
+  } finally { close(); }
 });
