@@ -85,6 +85,7 @@ jobs:
           tools/ci/automerge-dryrun.test.mjs
           tools/ci/dependency-triage.test.mjs
           tools/ci/rc-attestation-consumer.test.mjs
+          tools/ci/rc-signer-run-verify.test.mjs
           tools/ci/rc-local-asset-integrity.test.mjs
           tools/ci/rc-provenance-policy.test.mjs
           tools/ci/bot-dependency-risk.test.mjs
