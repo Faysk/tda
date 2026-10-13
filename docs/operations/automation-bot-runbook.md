@@ -61,6 +61,12 @@ Verificar que toda Action externa conserva SHA completo no `uses`, comentário d
 
 **[PROPOSTO]** agrupar CodeQL `init` + `analyze` pela mesma versão, evitando PRs redundantes. Testes de segurança de workflow e actionlint devem reprovar SHA/tag flutuante, triggers inseguros, shell injection via título/branch, artefatos de outro run e leitura de secrets por PR.
 
+### Trust boundary: auditoria sintética versionada (#1657)
+
+**Cobertura candidata:** `tools/ci/automation-trust-policy.mjs` analisa os YAML versionados e `tools/ci/automation-trust-policy.test.mjs` executa fixtures adversariais de regressão no `workflow-contract`. Esses testes protegem cinco controladores críticos: PR Preview, Main Preview, Companion RC, Runtime RC e Production CD. Eles falham quando os marcadores de identidade por SHA/PR, CI de origem, `push main`, confirmação humana ou a ordem de checagem antes de efeito externo são removidos. A auditoria genérica também rejeita `pull_request_target`, `secrets: inherit` e `permissions: write-all` nos workflows analisados.
+
+**Esta verificação é estática.** Não significa que tokens de Environment, proteção remota da `main`, artifact-attestation, sandbox Vercel, bridge Stable legada ou todas as variantes de `workflow_dispatch` foram auditados dinamicamente. Esse trabalho continua em #1657/#1658/#1659/#1667/#1668. Um texto malicioso que somente preserve os marcadores ainda pode passar; revisar os diffs de workflows privilegiados manualmente permanece obrigatório. Nunca usar o resultado do teste isolado como autorização de release.
+
 ## 5. Status checks, proteção de branch e riscos de corrida (`#1658`)
 
 Em 13/10, a API acessível retornou `main.protected=true`, mas a leitura detalhada falhou 403. **Somente maintainer com acesso administrativo** pode confirmar required status checks, reviewers, bypass e Environment approvals. Inventário não prova a política remota.
