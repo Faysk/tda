@@ -127,6 +127,8 @@ export function verifyRcGitTagReference({ tag, sourceSha, githubGet = execFileSy
     const tagged = fetchGit("repos/Faysk/tda/git/tags/" + object.sha);
     if (tagged?.sha !== object.sha || !tagged?.object)
       throw new Error("RC_GIT_TAG_OBJECT_INVALID");
+    if (depth === 1 && tagged.tag !== tag)
+      throw new Error("RC_GIT_TAG_ANNOTATED_NAME_MISMATCH");
     object = tagged.object;
   }
   if (object?.type !== "commit" || object?.sha !== sourceSha)
