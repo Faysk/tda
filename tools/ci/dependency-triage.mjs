@@ -113,12 +113,15 @@ export function batchTriage(inputs) {
   if (!Array.isArray(inputs) || inputs.length > 100) throw new TypeError("Expected up to 100 snapshots");
   const out = inputs.map((x) => triageDependencyPr(x));
   if (out.some((x) => x.pr_number === null)) throw new Error("Unknown PR number");
-  const seen = new Set();
+  const seen = new Map();
   for (const x of out) {
-    if (seen.has(x.pr_number)) throw new Error("Duplicate PR number: " + x.pr_number);
-    seen.add(x.pr_number);
+    const previous = seen.get(x.pr_number);
+    // Idempotent event re-delivery: same PR + same fingerprint is one record.
+    if (previous && previous.fingerprint !== x.fingerprint)
+      throw new Error("Conflicting snapshots for PR: " + x.pr_number);
+    seen.set(x.pr_number, x);
   }
-  return out.sort((a, b) => a.pr_number - b.pr_number);
+  return [...seen.values()].sort((a, b) => a.pr_number - b.pr_number);
 }
 export function markdownDigest(records) {
   const sorted = [...records].sort((a, b) => (a.pr_number ?? 0) - (b.pr_number ?? 0));
