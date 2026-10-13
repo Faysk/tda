@@ -153,6 +153,21 @@ O relatório `tda-rc-combined-evidence-v1` contém apenas identificadores do can
 
 Os testes `rc-evidence-audit.test.mjs` cobrem rejeição de resultado falso, digests/tags divergentes, parcialidade de assinatura, falta de assets, entradas inválidas, erro de leitura, e impossibilidade de liberar canal. `rc-local-asset-integrity.test.mjs` e `rc-attestation-consumer.test.mjs` incluem arquivos com nomes válidos que são **symlinks de manifesto**, rejeitados antes de consulta/validação. A validação de um release RC **real** exigirá execução opt-in com acesso às attestations e assets verdadeiros, os recibos físicos e revisão de política; CI sintético não prova isso.
 
+### Matriz rastreável de supply-chain — implementação vs prova executada (#1667)
+
+| Fronteira | Implementado em código / artefato | Prova/attestation física confirmada nesta rodada | Estado residual |
+| --- | --- | --- | --- |
+| Dependabot → PR (npm/pnpm e Python) | `dependabot.yml`, lock/manifests, `bot-dependency-risk.mjs` no classificador, propostas de allowlist e triage determinístico | Testes sintéticos de política + CI por SHA nos PRs de auditoria | `advisories=not-queried`, licença/OSV/upstream não comprovados; auto-merge **off** |
+| PR → CI, CodeQL e merge | CI e CodeQL; observer lê SHA/PR exatos e explicita checks externos não consultados | #1685: CI, CodeQL e isolamento `success` no mesmo SHA | Regras remotas/proteção de branch/required checks administrados **não comprovados (403)** |
+| Companion RC publisher | `companion-rc.yml`: SHA/source/asset hashes, `actions/attest@SHA40` com subjects MSI, checksum, ZIP, payload e candidate JSON | Revisão estática + mutações negativas sintéticas | Uma prova Sigstore real do candidato específico **não executada** |
+| Whisper/Qwen Runtime RC publisher | `runtime-rc.yml`: checksums dos runtime assets, attestation `subject-checksums` e candidate manifest, identidade/tags/hashes | Revisão estática + mutações negativas sintéticas | Attestation real de archives/checksum list **não executada**; arquivos multi-GB não lidos |
+| RC consumer opt-in (PRs #1683–#1687) | `rc-attestation-consumer.mjs` + `rc-signer-run-verify.mjs` + `rc-local-asset-integrity.mjs` + `rc-evidence-audit.mjs`: SHA de manifesto idêntico no signer e hasher, asset SHA256 local, id/tag/família | **Somente mocks**, symlink/tamper e dois metadados públicos de runs RC; nenhum `gh attestation verify` real | Execução do operador **não instalada na main** até merge; identidade criptográfica do **run ID exclusivo** não comprovada |
+| Companion Stable | `companion-promote.yml`: confirmação manual, source/manifest/MSI/receipts instalados/físicos, re-download e mesmo release object | Política existente em código; **sem** nova promoção/teste físico | Consumer Sigstore ainda **não é gate automático**; #395 Authenticode separado |
+| Runtime Stable | `runtime-promote.yml`: confirmação manual, archive/hash/receipts físicos, download e mesmo release object | Política existente em código; **sem** nova promoção/teste físico | Consumer Sigstore ainda **não é gate automático**; nenhuma alteração de runtime publicado |
+| Production Web | `production-cd.yml`: disparo manual, SHA/main/CI/Preview e confirmação humana | Gates de contrato sintéticos do PR de auditoria | Releases e Environments remotos não tocados; não confundir CodeQL verde com publicação |
+
+**Leitura da matriz:** `implementado` ≠ `executado` ≠ `aplicado em Production`. Critério de promoção nunca nasce desses novos comandos; continua sendo o fluxo humano de promoção, verificação física, recibos e regras administrativas reais. Qualquer status `unknown` é bloqueante para automatizar publicação. Hash/local/manifesto assinado não prova licença de dependência nem atualizações sem CVE. A matriz é restrita aos workflows citados; não presume cobertura de todas as publicações históricas.
+
 ## 8. Automação futura: ciclo idempotente
 
 **[PROPOSTO]** Ações de triagem e reporte podem ser implementadas por jobs GitHub-native. O ciclo deve ser: ingestão read-only → normalização → classificação determinística → consulta a checks por head SHA → comentário/check idempotente → triage. Nenhum modelo de IA toma decisão de publicação. Secrets, logs privados e payloads sensíveis nunca vão para prompt externo.
