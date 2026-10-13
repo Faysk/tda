@@ -23,6 +23,19 @@ Os pins continuam exatos para tornar cada release reproduzível. Antes de public
 
 Dependências transitivas do lock não são comparadas cegamente com o maior número publicado no PyPI: a versão correta é a resolvida pela versão atual das dependências diretas. O gate de freshness exige que os **pins diretos/runtime** estejam atuais e que o lock continue compatível com esses pins.
 
+## Sincronização de direct pins do lock de teste
+
+O arquivo `local-companion/requirements-test.lock` é usado como conjunto de constraints pelos jobs Windows/Linux. Ele **não** é atualizado automaticamente pelo Dependabot quando o bot edita apenas `pyproject.toml`. Atualizações são propostas, nunca aceitas com instalação quebrada.
+
+- `python tools/refresh-companion-test-lock.py --check`: valida offline, sem registries nem GPU, os pins diretos do projeto, extras `test`, `packaging`, `desktop` e `build-system` contra o lock.
+- `python tools/refresh-companion-test-lock.py --write`: reconcilia **somente pins diretos** presentes e ausentes, preserva transitivas e não altera o manifest ASR isolado. É ferramenta de reparo reproduzível, **não** substitui resolução de transitivas.
+- Após qualquer escrita, é obrigatório validar com `uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test,packaging,desktop]` em ambiente compatível (incluindo Windows e Linux nos jobs aplicáveis). Se transitivas conflitarem, resolver e revisar pins transitivos explicitamente, registrar o diff e repetir os gates, sem `--no-deps` ou relaxar freshness.
+- O CI inclui exercícios sintéticos e rejeita lock divergente antes de testar o pacote. O bot não recebe token com poderes para merge, promover MSI ou rodar teste em áudio privado.
+
+### Incidente de referência — PR #1647
+
+Em 2026-10-12, Dependabot propôs FastAPI `0.143.0` em `pyproject.toml`, mas deixou `0.142.4` no lock: `DIRECT_LOCK_MISMATCH` e conflito de instalação uv. A mudança possui nota de breaking change de configuração automática de OpenTelemetry; atualizar o pin **não prova** compatibilidade da aplicação. Apenas CI verde e revisão dessa alteração permitem merge; aceite físico específico continua exigido antes de qualquer Stable MSI novo. Trabalho rastreado em #1652; governança geral #1651.
+
 ## Modelos ASR
 
 Modelos também fazem parte deste requisito.
