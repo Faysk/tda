@@ -131,6 +131,12 @@ A conferência local percorre todas as linhas do manifesto: Companion exige MSI,
 
 Testes `node --test tools/ci/rc-local-asset-integrity.test.mjs` (10 casos sintéticos): MSI/sidecar/hash, Qwen em partes, edição de bytes mantendo tamanho, checksum discordante com manifesto refeito, path traversal, lista vazia/duplicada, arquivo ausente, symlink e source/tag divergentes. Os testes só escrevem sob diretórios temporários locais e não processam modelos reais. **O uso operacional exige recebimento controlado dos assets e fixture de CI com RC pequeno; não alterar bridges Stable históricos por falta de atestado**.
 
+### Contrato de publicação: não perder subjects attested (#1667)
+
+`tools/ci/rc-provenance-policy.mjs` e os seis testes de mutação em `tools/ci/rc-provenance-policy.test.mjs` acrescentam contrato **estático** ao `workflow-contract` para **ambos** produtores RC. O Companion deve atestar MSI, checksum, ZIP, payload e candidate manifest usando `actions/attest@<SHA40>` **antes** da publicação; o Runtime deve gerar o ficheiro de checksums, atestar esse conjunto e o manifesto candidato com action pinada e **antes** da publicação; ambos exigem `id-token: write` e `attestations: write`. Mutações sintéticas removem cada subject, degradam o pin para tag flutuante, removem permissões ou transferem o passo de attest para depois da publicação: todas devem reprovar.
+
+A análise funciona por âncoras textuais deliberadamente específicas dos dois YAMLs; não substitui `actionlint`, prova OIDC remota, integridade de todos os pacotes de distribuição, bundles Sigstore ou execução real. Não confundir resultado verde com liberação de release. Alterações de layout YAML podem exigir atualização explícita da política e revisão humana, **não exclusão do teste**.
+
 ## 8. Automação futura: ciclo idempotente
 
 **[PROPOSTO]** Ações de triagem e reporte podem ser implementadas por jobs GitHub-native. O ciclo deve ser: ingestão read-only → normalização → classificação determinística → consulta a checks por head SHA → comentário/check idempotente → triage. Nenhum modelo de IA toma decisão de publicação. Secrets, logs privados e payloads sensíveis nunca vão para prompt externo.
