@@ -98,20 +98,38 @@ function show(ref, path) {
   if (response.status !== 0) return null;
   return response.stdout;
 }
+export function parseDiffRange(range, mergeBase) {
+  const threeDot = String(range).includes("...");
+  const parts = String(range).split(threeDot ? "..." : "..");
+  if (parts.length !== 2 || !parts.every((ref) => /^[A-Za-z0-9_.\/^~+-]+$/.test(ref)))
+    throw new Error("Exact Git diff range required");
+  if (threeDot && !/^[a-f0-9]{40}$/.test(String(mergeBase)))
+    throw new Error("Three-dot diff requires verified merge-base SHA");
+  return {
+    from: threeDot ? mergeBase : parts[0],
+    to: parts[1],
+    threeDot,
+  };
+}
 function main() {
   const range = process.argv[2];
-  const delimiter = range?.includes("...") ? "..." : "..";
-  const refs = range?.split(delimiter);
-  if (!refs || refs.length !== 2 || !refs.every((ref) => /^[A-Za-z0-9_.\/^~+-]+$/.test(ref)))
+  // git diff A...B compares merge-base(A,B) with B; do not compare
+  // manifests from A itself if main advanced after the PR branch forked.
+  const isThreeDot = String(range).includes("...");
+  const raw = String(range).split(isThreeDot ? "..." : "..");
+  if (raw.length !== 2 || !raw.every((ref) => /^[A-Za-z0-9_.\/^~+-]+$/.test(ref)))
     throw new Error("Exact Git diff range required");
-  const files = execFileSync("git", ["diff", "--name-only", "--diff-filter=ACMR", range], { encoding: "utf8" })
+  const mergeBase = isThreeDot ?
+    execFileSync("git", ["merge-base", raw[0], raw[1]], { encoding: "utf8" }).trim() : null;
+  const refs = parseDiffRange(range, mergeBase);
+  const files = execFileSync("git", ["diff", "--name-only", "--diff-filter=ACMRD", range], { encoding: "utf8" })
     .split(/\r?\n/).filter(Boolean);
   if (!files.some((f) => ["package.json", "pnpm-lock.yaml", "local-companion/pyproject.toml",
     "local-companion/requirements-test.lock"].includes(f) || /^\.github\/workflows\/.+\.ya?ml$/.test(f))) return;
   const report = classifyDependencyDiff({
-    oldNpm: show(refs[0], "package.json"), newNpm: show(refs[1], "package.json"),
-    oldPython: show(refs[0], "local-companion/pyproject.toml"),
-    newPython: show(refs[1], "local-companion/pyproject.toml"), paths: files,
+    oldNpm: show(refs.from, "package.json"), newNpm: show(refs.to, "package.json"),
+    oldPython: show(refs.from, "local-companion/pyproject.toml"),
+    newPython: show(refs.to, "local-companion/pyproject.toml"), paths: files,
   });
   const output = renderRiskMarkdown(report, range);
   if (output && process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, output + "\n");
