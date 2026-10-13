@@ -55,3 +55,12 @@ test("missing protected controller is a failure, not an automatic bypass", () =>
   assert.ok(typeof omitted === "string");
   assert.match(auditBotTrust(rest).join("\n"), /runtime-rc.yml: missing workflow/);
 });
+
+test("new privileged scopes are forbidden until reviewed and allowlisted", () => {
+  const unsafeCI = mutate("ci.yml", (value) => value.replace("  contents: read", "  contents: write"));
+  assert.match(auditBotTrust(unsafeCI).join("\n"), /ci\.yml: unapproved write scope contents/);
+  const unsafePreview = mutate("deploy-preview.yml", (value) =>
+    value.replace("  deployments: write", "  deployments: write\n  contents: write"));
+  assert.match(auditBotTrust(unsafePreview).join("\n"), /deploy-preview\.yml: unapproved write scope contents/);
+});
+
