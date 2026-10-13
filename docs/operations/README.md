@@ -26,8 +26,10 @@ branch
   -> CI seletivo
   -> Preview SHA exato
   -> required-ci
-  -> merge
-  -> Production CD
+  -> merge main
+  -> CI push/main e Main Preview versionado por SHA
+  -> aprovação/publicação humana explícita
+  -> Production CD manual (workflow_dispatch + SHA exato)
        -> baseline publicado
        -> migrations pendentes
        -> Media Storage pendente
@@ -38,7 +40,7 @@ branch
        -> receipt
 ```
 
-Preview é deployment de PR, não branch.
+Preview é deployment de PR, não branch. Merge por si só **não** publica Production; o controlador atual exige dispatch e confirmação humanos.
 
 ## Regras operacionais
 
@@ -79,6 +81,8 @@ O sucesso operacional de uma publicação continua dependendo do run real e de s
 - [World Entity Media — smoke de Production](world-entity-media-production-smoke.md)
 - [Transcript handoff — smoke de Production](transcript-handoff-production-smoke.md)
 - [Segurança operacional](security-checklist.md)
+- [Frota de bots — mapa de 29 workflows e ownership](automation-bot-fleet.md)
+- [Bots — triage Dependabot, segurança, locks e runbook](automation-bot-runbook.md)
 - [Companion](local-companion.md)
 
 ## Histórico
