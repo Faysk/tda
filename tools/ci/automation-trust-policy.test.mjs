@@ -30,7 +30,7 @@ test("refuses removal of source PR origin, exact CI and push-main fences", () =>
   ];
   for (const [file, marker] of cases) {
     assert.ok(baseline[file].includes(marker), "missing baseline fixture " + file + ": " + marker);
-    const modified = mutate(file, (value) => value.replace(marker, "REMOVED_BY_SYNTHETIC_MUTATION"));
+    const modified = mutate(file, (value) => value.replaceAll(marker, "REMOVED_BY_SYNTHETIC_MUTATION"));
     assert.ok(auditBotTrust(modified).some((problem) => problem.startsWith(file + ":")), file + ": " + marker);
   }
 });
