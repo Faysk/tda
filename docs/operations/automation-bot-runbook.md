@@ -116,6 +116,15 @@ Testes sintéticos de referência: `node --test tools/ci/bot-dependency-risk.tes
 
 **Auto-merge [DESLIGADO]:** issue #1662 exige autorização posterior, prova de regras administrativas, testes adversariais e denylist. Não iniciar com auto-merge nem adicionar token com capacidade de passar por cima dos checks.
 
+### Simulador local de elegibilidade — #1662 (somente dry-run)
+
+`node tools/ci/automerge-dryrun.mjs caminho/fixture-local.json` aceita somente uma fixture JSON explícita (um PR ou lista de até 100 PRs), devolve **decisão simulada determinística** e não importa `gh`, não consulta GitHub, não recebe token, não comenta, não fecha, não aprova nem executa merge. O arquivo de entrada é **não autenticado**; por isso até a classe `hypothetical-low-risk-candidate` devolve `authorized_to_merge=false` e `action=no-merge-dry-run`. Nunca usar a saída para alimentar diretamente `gh pr merge`.
+
+A versão inicial só analisa patches SemVer exatos (ex.: `3.1.2 → 3.1.3`) de `prettier`/`eslint-config-prettier` em `devDependencies`, com changeset limitado a `package.json` + `pnpm-lock.yaml`. Libs de runtime, Auth/R2, engines, GitHub Actions, migrations, MSI, caminhos desconhecidos e lock sem comprovação bloqueiam. Mesmo hipoteticamente elegíveis precisam de evidência **independente e específica do SHA**: jobs únicos em `success`, inspeção integral de checks, advisories realmente verificadas, integridade lock, freshness, branch protection **confirmada por admin**, reviews e opt-in específicos. Esses campos de fixture **não são prova real**, porque qualquer pessoa pode escrever JSON fictício.
+
+Execução de regressão: `node --test tools/ci/automerge-dryrun.test.mjs`, com fixtures sintéticas de SHA stale, check skipped, origem fork, alterações críticas, advisory incerto, bypass de approval e oito cenários que simulam os PRs históricos Dependabot (#1643–#1650). Habilitar auto-merge real requer **nova autorização expressa**, revisão da política da branch (#1658), segurança (#1657), plano de rollback e workflow separado que implemente verificações autenticadas. Este PR não contém esse workflow.
+
+
 ### Observer / ledger de checks por SHA (#1664) — candidato read-only
 
 O workflow `dependabot-evidence-ledger.yml` é candidato a executar quando um run de CI de PR termina (`workflow_run: CI completed`). **Somente checkout do código da branch padrão revisada**, nunca da branch do Dependabot/fork. Permissões explícitas `contents/actions/pull-requests: read`, sem token de escrita, comments, annotations falsas, release, deploy ou merge. Ele valida o run real pela API, a identidade de **um** PR Dependabot, a origem de mesmo repositório, o SHA atual da cabeça e os jobs `classify-changes`, `workflow-contract`, `validate`, `ci-gate`, `required-ci` do **run exato**, e consulta CodeQL no SHA e PR correspondentes. Uma falha/skipped/missing/ambiguous/stale bloqueia `core-ci-verified-external-checks-unverified` (estado que prova **somente os jobs-base do CI e CodeQL**, não todos os checks, freshness ou regras da branch). Se CodeQL não terminou, marca `pending-or-unknown`.
