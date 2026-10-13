@@ -51,6 +51,7 @@ jobs:
             RANGE="${GITHUB_SHA}^...${GITHUB_SHA}"
           fi
           node tools/ci/classify-changes.mjs "$RANGE"
+          node tools/ci/bot-dependency-risk.mjs "$RANGE"
 
   workflow-contract:
     name: workflow-contract
@@ -80,6 +81,9 @@ jobs:
           tools/ci/session-campaign-move-production-health.test.mjs
           tools/ci/github-actions-security.test.mjs
           tools/ci/dependency-risk-contract.test.mjs
+          tools/ci/bot-evidence-ledger.test.mjs
+          tools/ci/bot-dependency-risk.test.mjs
+          tools/ci/automation-trust-policy.test.mjs
       - name: Validate direct Companion download verification
         run: python tools/ci/companion_download_verify_test.py
 
