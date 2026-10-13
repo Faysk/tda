@@ -23,10 +23,13 @@ const check = (mutate = (x) => x) => evaluateEvidence(mutate(fixture()));
 
 test("full exact-SHA checks give only advisory readiness", () => {
   const result = check();
-  assert.equal(result.state, "ready-for-human-review");
+  assert.equal(result.state, "core-ci-verified-external-checks-unverified");
   assert.equal(result.approval, "human-required");
   assert.equal(result.production, "not-authorized");
   assert.equal(result.codeql, "success");
+  assert.equal(result.external_checks, "not-queried");
+  assert.equal(result.freshness, "not-queried");
+  assert.equal(result.branch_protection, "not-verified");
   assert.match(renderEvidenceMarkdown(result), /never automatic merge approval/);
 });
 
