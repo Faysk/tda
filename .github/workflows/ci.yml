@@ -87,6 +87,7 @@ jobs:
           tools/ci/rc-attestation-consumer.test.mjs
           tools/ci/rc-signer-run-verify.test.mjs
           tools/ci/rc-evidence-audit.test.mjs
+          tools/ci/rc-public-release-audit.test.mjs
           tools/ci/rc-local-asset-integrity.test.mjs
           tools/ci/rc-provenance-policy.test.mjs
           tools/ci/bot-dependency-risk.test.mjs
