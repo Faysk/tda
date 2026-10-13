@@ -6,6 +6,8 @@ import { verifyRcManifest } from "./rc-attestation-consumer.mjs";
 // separate CLI so the original attest-only interface is not silently changed.
 // A caller-provided run ID is NEVER evidence by itself; inspect its GitHub
 // metadata and use its actual head SHA for gh's --signer-digest restriction.
+// The signed workflow digest is NOT a unique signing-run identity. We cannot
+// claim the attestation belongs to this run ID without certificate-level proof.
 const REPO = "Faysk/tda";
 const SHA = /^[a-f0-9]{40}$/;
 const POLICY = "tda-rc-authenticated-signer-run-v1";
@@ -72,8 +74,12 @@ export function verifyRcFromAuthenticatedSignerRun(
   return {
     schema_version: 1, policy: POLICY,
     signer, candidate: manifestEvidence,
-    run_identity: "verified-readonly-github-api",
-    github_attestation: "verified-by-gh",
+    run_metadata: "verified-readonly-github-api",
+    // --signer-digest checks the workflow commit, not the unique run ID.
+    // Several successful runs can share one head SHA. Never misrepresent
+    // this metadata lookup as a cryptographic link to the exact run.
+    unique_attestation_signer_run: "not-verified",
+    github_attestation: "verified-by-gh-at-workflow-digest",
     authorizes_stable: false, authorizes_production: false,
     physical_acceptance: "not-checked", other_assets: "not-checked",
   };
