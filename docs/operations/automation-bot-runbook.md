@@ -108,6 +108,19 @@ O script `tools/ci/bot-dependency-risk.mjs` analisa **somente o diff Git local**
 
 Testes sintéticos de referência: `node --test tools/ci/bot-dependency-risk.test.mjs`. Para observação, ler o Job Summary de `classify-changes` no run CI do PR, não logs privados.
 
+### Verificador de attestation de manifesto RC — #1667 (consulta opt-in)
+
+O comando `tools/ci/rc-attestation-consumer.mjs` é uma **ferramenta de consumidor manual/CI futuro**, não está ligado à promoção Stable: `node tools/ci/rc-attestation-consumer.mjs companion rc-assets/TDACompanion-candidate.json <CANDIDATE_SOURCE_SHA> <SIGNER_WORKFLOW_RUN_HEAD_SHA>` ou `runtime rc-assets/TDARuntime-candidate.json <CANDIDATE_SOURCE_SHA> <SIGNER_WORKFLOW_RUN_HEAD_SHA>`. Os dois SHAs devem ser coletados **independentemente de fontes confiáveis**: o primeiro do commit/candidato RC imutável, o segundo do **head do run GitHub Actions que gerou a attestation**. Eles podem ser diferentes em um dispatch manual. Jamais preencher o segundo com o primeiro por conveniência, nem confiar apenas nos campos contidos em um JSON baixado.
+
+O script valida o nome/schema/version/source/tree do manifesto, chama o CLI oficial `gh attestation verify` com `--repo Faysk/tda`, `--signer-workflow Faysk/tda/.github/workflows/{companion-rc,runtime-rc}.yml`, `--source-digest <SIGNER_SHA>`, `--predicate-type https://slsa.dev/provenance/v1`, `--deny-self-hosted-runners` e `--format json`; reprova execução não-zero, ausência de attestation verificável, predicate/subject/hash divergente. O digest do sujeito é calculado localmente sobre os bytes exatos do manifest RC. Não executa `gh release edit/upload/create`, não publica, não grava receipts nem dá autorização de promoção.
+
+**Matriz de escopo:**
+- **Companion RC:** attestation emitida sobre MSI, checksum, ZIP, payload manifest e candidate manifest no produtor. Este verificador confirma **somente o candidate manifest**; a verificação criptográfica do MSI e demais sujeitos ainda precisa de execução/aceite próprio.
+- **Whisper/Qwen Runtime RC:** produtor emite attestation de checksums dos assets e do candidate manifest. Este verificador cobre **somente o candidate manifest** e não torna desnecessária a comparação dos archives físicos e `verify_candidate_assets`.
+- **Stable consumidor geral:** promoção segue dependendo de receipts instalados/físicos, hash de artefato, tag e target exato. A nova ferramenta **não altera os workflows de promoção** e `permits_promotion=false` é invariável.
+
+Use `node --test tools/ci/rc-attestation-consumer.test.mjs` para as **8 fixtures sintéticas** de downgrade de schema, SHA/cert origin errado via argumentos pinados, signer workflow incorreto, digest/predicate alterado, retorno CLI vazio/falhando, versões e família. Mocks testam **política e fail-closed**, não geram assinatura Sigstore real. Prova física Windows/GPU e validadores de payload ficam fora; antes de ligar esta ferramenta a um gate real de Stable, validar um **RC novo de teste** e o resultado oficial `gh` de um artefato real. Não retroativamente bloquear bridges históricos por indisponibilidade de attestations que não foram produzidas. [Referência oficial GitHub CLI](https://cli.github.com/manual/gh_attestation_verify). #395 mantém Authenticode; #1659 os controles de release; #1667 o vínculo de attestation.
+
 ## 8. Automação futura: ciclo idempotente
 
 **[PROPOSTO]** Ações de triagem e reporte podem ser implementadas por jobs GitHub-native. O ciclo deve ser: ingestão read-only → normalização → classificação determinística → consulta a checks por head SHA → comentário/check idempotente → triage. Nenhum modelo de IA toma decisão de publicação. Secrets, logs privados e payloads sensíveis nunca vão para prompt externo.
