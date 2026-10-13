@@ -82,6 +82,8 @@ jobs:
           tools/ci/github-actions-security.test.mjs
           tools/ci/dependency-risk-contract.test.mjs
           tools/ci/bot-evidence-ledger.test.mjs
+          tools/ci/automerge-dryrun.test.mjs
+          tools/ci/dependency-triage.test.mjs
           tools/ci/rc-attestation-consumer.test.mjs
           tools/ci/rc-local-asset-integrity.test.mjs
           tools/ci/rc-provenance-policy.test.mjs
