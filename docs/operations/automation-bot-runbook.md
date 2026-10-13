@@ -178,6 +178,10 @@ Ordem de classificação: `stale` se identidade/PR atual não está comprovada; 
 
 Regressões sintéticas: `node --test tools/ci/dependency-triage.test.mjs` (12 casos) testa eventos duplicados, SHA/rebase, mudanças de causa, advisory crítica e não crítica, lock drift, CI com falha sem falsa vulnerabilidade, e oito snapshots simulados dos PRs #1643–#1650. O canal de alerta e SLAs reais de #1663 continuam **não definidos** até decisão do owner, acesso à API e revisão de privacidade/retention. **Não usar um digest local como prova de ausência de vulnerabilidades**.
 
+### Regra de confiança do Observer `workflow_run` (#1657/#1664/#1667)
+
+Como `dependabot-evidence-ledger.yml` é acionado em `workflow_run: CI completed`, seu contexto é diferente daquele do PR não confiável. A regressão `github-actions-security.test.mjs` impede que uma edição futura introduza checkout do head de um PR, `pull_request_target`, permissão `write` ou job-level override, credenciais persistentes, submodules/LFS ligados ou comandos `gh pr merge` / `gh release`. Exige checkout da **default branch revisada**, token somente com `contents/actions/pull-requests: read`, `GH_TOKEN` normal e execução do ledger local. Sete mutações artificiais precisam falhar; nenhuma automação de escrita foi incluída. A verificação é estática por padrões concretos de YAML e deve evoluir com o workflow; não prova controles remotos de Environment ou branch protection.
+
 ## 9. Evidência, testes sintéticos e definition of done
 
 Contrato mínimo por mudança: PR + SHA, diff/manifest/lock, relatório de risco versão N, lista de required checks com IDs e estados, testes locais/CI, falhas negativas exercitadas, comentários idempotentes, documentação dona, aceite físico quando aplicável e decisão de release.
