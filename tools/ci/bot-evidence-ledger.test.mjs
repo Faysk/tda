@@ -8,7 +8,7 @@ const jobs = ["classify-changes", "workflow-contract", "validate", "ci-gate", "r
 function fixture() {
   const pr = { number: 1647, state: "open", user: { login: "dependabot[bot]" },
     head: { sha, repo: { full_name: repo } } };
-  const run = { id: 88, name: "CI", event: "pull_request", status: "completed",
+  const run = { id: 88, name: "CI", path: ".github/workflows/ci.yml", event: "pull_request", status: "completed",
     conclusion: "success", head_sha: sha, head_repository: { full_name: repo },
     pull_requests: [{ number: 1647 }] };
   const codeql = { id: 91, name: "CodeQL", path: ".github/workflows/codeql.yml",
@@ -36,6 +36,7 @@ test("stale SHA, fork, unknown author, wrong event or PR identity fail closed", 
     (x) => { x.pr.head.repo.full_name = "external/fork"; },
     (x) => { x.pr.user.login = "someone"; },
     (x) => { x.run.event = "push"; },
+    (x) => { x.run.path = ".github/workflows/spoofed-ci.yml"; },
     (x) => { x.run.pull_requests = [{ number: 777 }]; },
     (x) => { x.run.head_repository.full_name = "foreign/repo"; },
     (x) => { x.run.head_sha = "not-a-sha"; },
@@ -98,4 +99,10 @@ test("untrusted PR metadata cannot inject Markdown tables or impersonate a green
   const output = renderEvidenceMarkdown(result);
   assert.equal(output.includes("abc|def"), false);
   assert.equal(output.includes("\n### passed"), false);
+});
+
+test("partial CodeQL evidence cannot confer readiness", () => {
+  const report = check((x) => { x.completeCodeql = false; return x; });
+  assert.equal(report.state, "pending-or-unknown");
+  assert.equal(report.codeql_complete, false);
 });
