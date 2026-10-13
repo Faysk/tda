@@ -109,6 +109,7 @@ export function verifyRcManifest({ family, manifestFile, sourceSha, signerSha },
     schema_version: 1, policy: POLICY, result: "verified-github-attestation",
     family, candidate_source_sha: sourceSha, signer_workflow_source_sha: signerSha,
     manifest_name: filename, manifest_sha256: digest,
+    candidate_tag: family === "companion" ? manifest.tag : manifest.candidate_tag,
     permits_promotion: false, physical_acceptance: "not-checked",
     other_release_assets: "not-checked", production: "not-authorized",
   };
