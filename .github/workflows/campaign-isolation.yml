@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - ".github/workflows/campaign-isolation.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
       - "playwright.campaign-isolation.config.ts"
       - "tests/campaign-isolation.spec.ts"
       - "tests/campaign-directory.spec.ts"
@@ -60,6 +62,8 @@ on:
     branches: [main, "codex/epic-1122-multicampaign-completion"]
     paths:
       - ".github/workflows/campaign-isolation.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
       - "playwright.campaign-isolation.config.ts"
       - "tests/campaign-isolation.spec.ts"
       - "tests/campaign-directory.spec.ts"
