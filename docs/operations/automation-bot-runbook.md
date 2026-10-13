@@ -96,6 +96,14 @@ Se houver rollback real, seguir [release-runbook.md](release-runbook.md). Nenhum
 
 **Auto-merge [DESLIGADO]:** issue #1662 exige autorização posterior, prova de regras administrativas, testes adversariais e denylist. Não iniciar com auto-merge nem adicionar token com capacidade de passar por cima dos checks.
 
+### Observer / ledger de checks por SHA (#1664) — candidato read-only
+
+O workflow `dependabot-evidence-ledger.yml` é candidato a executar quando um run de CI de PR termina (`workflow_run: CI completed`). **Somente checkout do código da branch padrão revisada**, nunca da branch do Dependabot/fork. Permissões explícitas `contents/actions/pull-requests: read`, sem token de escrita, comments, annotations falsas, release, deploy ou merge. Ele valida o run real pela API, a identidade de **um** PR Dependabot, a origem de mesmo repositório, o SHA atual da cabeça e os jobs `classify-changes`, `workflow-contract`, `validate`, `ci-gate`, `required-ci` do **run exato**, e consulta CodeQL no SHA e PR correspondentes. Uma falha/skipped/missing/ambiguous/stale bloqueia `ready-for-human-review`. Se CodeQL não terminou, marca `pending-or-unknown`.
+
+**Reconsulta:** após CodeQL terminar, um maintainer pode usar o próprio workflow com `workflow_dispatch` e o ID do CI run, sem atualizar o estado do PR. A saída é **apenas GitHub Step Summary** do run observado (não comentário nem aprovação). Erros de API, paginação incompleta e identidade ambígua falham fechado. A issue #1658 continua dona da prova de branch protection remota e #1663 dos alertas/SLA/idempotência; nenhum estado deste ledger substitui aprovações ou gates exigidos pela branch.
+
+**Validação sintética:** `node --test tools/ci/bot-evidence-ledger.test.mjs` cobre CI verde completo, SHA stale, fork, autor/origem errados, check ausente/skipped/duplicado, CodeQL atrasado/falhando e sanitização do Markdown. Se CodeQL estiver ausente apesar de um CI verde, **não** imprimir que o PR foi aprovado.
+
 ## 9. Evidência, testes sintéticos e definition of done
 
 Contrato mínimo por mudança: PR + SHA, diff/manifest/lock, relatório de risco versão N, lista de required checks com IDs e estados, testes locais/CI, falhas negativas exercitadas, comentários idempotentes, documentação dona, aceite físico quando aplicável e decisão de release.
