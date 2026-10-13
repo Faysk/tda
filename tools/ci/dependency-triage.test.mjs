@@ -121,7 +121,11 @@ test("batch sorts by PR and rejects collisions; digest never contains raw events
   b.private_payload = "PRIVATE_CAMPAIGN_SYNTHETIC_SENTINEL";
   const results = batchTriage([a,b]);
   assert.deepEqual(results.map(x=>x.pr_number), [1643,1647]);
-  assert.throws(() => batchTriage([a,a]), /Duplicate/);
+  assert.deepEqual(batchTriage([a,a]), [triageDependencyPr(a)]);
+  const conflicting = good();
+  conflicting.pr.number = a.pr.number;
+  conflicting.ci.conclusion = "failure";
+  assert.throws(() => batchTriage([a,conflicting]), /Conflicting snapshots/);
   const digest = markdownDigest(results);
   assert.match(digest, /1643/);
   assert.match(digest, /failed-tests/);
