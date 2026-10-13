@@ -107,6 +107,14 @@ Cool-down de version updates é configurável; não atrasar security updates. **
 
 Para ownership jurídico de publicação usar sempre [runbook de release](release-runbook.md) e [Companion dependency policy](companion-dependency-policy.md); essa frota não os substitui.
 
+### Matriz concreta: alterações de dependências npm/pnpm (#1656)
+
+**Implementação candidata (PR da #1656; não presumir publicada):** mudança em `package.json` ou `pnpm-lock.yaml` é tratada como potencial alteração de **qualquer runtime Web**, mesmo que o diff não contenha arquivos de funcionalidades. O classificador ativa `navigation`, `db`, `processing`, `lembra`, `sessions`, `media`; mantém `companion=false` (Python/MSI tem grafo de dependências diferente). Por conservadorismo, o classificador não tenta inferir qual pacote transitivo de um lock alterou um único domínio. Essa expansão custa minutos de CI, mas evita passar um PR alterando Next/Supabase/AWS sem testar consumidores.
+
+Além dos gates baseados no classificador, `ci.yml` exige que `statistics-e2e`, `permissions-e2e` e `transcript-edit-e2e` sejam executados quando a mudança for npm/pnpm e proíbe tratá-los como `skipped` no `ci-gate`. `campaign-isolation.yml` também escuta mudanças npm/pnpm em PR e push main. O teste `tools/ci/dependency-risk-contract.test.mjs` mantém essas relações obrigatórias junto de `classify-changes.test.mjs`, sem fazer rede, mutação nem publicação.
+
+**Limites:** não é prova de branch protection remota (#1658), nem adiciona gate físico GPU/MSI para mudanças exclusivamente Web. Pacotes/versionamentos de Python, CUDA, Torch, Whisper, Qwen e artefatos imutáveis continuam sob #1655. Antes de otimizar a matriz por pacote individual, acrescentar negativos que demonstram que nenhum domínio consumidor fica indevidamente `skipped`.
+
 ## 7. Escopo e evidência para encerrar
 
 Cada entrega deve indicar: arquivos alterados, SHA antes/depois, PR, checks efetivamente executados, paths/casos negativos, riscos residuais, documentação dona atualizada e por que nenhuma publicação involuntária ocorreu. Segurança, CI, branch protection e aceites físicos são provas diferentes. Ver [runbook de operação](automation-bot-runbook.md) e [epic #1651](https://github.com/Faysk/tda/issues/1651).
