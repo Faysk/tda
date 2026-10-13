@@ -43,10 +43,11 @@ export function evaluateEvidence({ repository, pr, run, jobs = [], codeqlRuns = 
   const ci = run?.status === "completed" ? (run?.conclusion || "unknown") : "pending";
   let state = "ready-for-human-review";
   if (failures.length) state = "invalid-identity";
+  else if ((ci !== "success" && ci !== "pending") ||
+    Object.values(required).some((value) => !["success", "pending"].includes(value)) ||
+    !["success", "pending", "missing"].includes(codeql)) state = "blocked";
   else if (!completeJobs || ci === "pending" || Object.values(required).includes("pending") ||
     codeql === "pending" || codeql === "missing") state = "pending-or-unknown";
-  else if (ci !== "success" || Object.values(required).some((value) => value !== "success") ||
-    codeql !== "success") state = "blocked";
   return {
     schema_version: 1, repository, pr_number: prNumber, head_sha: sha,
     ci_run_id: run?.id, ci, required_jobs: required, codeql, state,
