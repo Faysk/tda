@@ -2,6 +2,10 @@ import { appendFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
+// npm/pnpm lock changes can alter any Web runtime without touching source files.
+// Fail closed across Web domains; Companion Python/MSI is a separate package graph.
+const WEB_DEPENDENCY_CONTRACT = new Set(["package.json", "pnpm-lock.yaml"]);
+
 const CLASSIFIER_CONTRACT = new Set([
 	"tools/ci/classify-changes.mjs",
 	"tools/ci/classify-changes.test.mjs",
@@ -176,6 +180,7 @@ function normalized(path) {
 }
 
 function matches(path, domain) {
+	if (WEB_DEPENDENCY_CONTRACT.has(path) && domain !== "companion") return true;
 	if (CLASSIFIER_CONTRACT.has(path)) return true;
 	if (EXACT[domain].has(path)) return true;
 	if (PREFIX[domain].some((prefix) => path.startsWith(prefix))) return true;
