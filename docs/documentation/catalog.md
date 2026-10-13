@@ -210,6 +210,8 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | Documento | Owner declarado | Estado declarado | Revisão declarada |
 | --- | --- | --- | --- |
 | [Operação — índice](../operations/README.md) | operations | vigente | 2026-09-20 |
+| [TDA — Frota de bots e automações (inventário + arquitetura-alvo)](../operations/automation-bot-fleet.md) | operations / governance / CI / Companion / release | inventário vigente; automações adicionais propostas | 2026-10-13 |
+| [TDA — Runbook dos bots de manutenção e dependências](../operations/automation-bot-runbook.md) | operations / governance / CI | procedimentos observados e propostas futuras | 2026-10-13 |
 | [CI/CD — operação, promoção e recuperação](../operations/ci-cd.md) | operations / release / dados | vigente | 2026-10-01 |
 | [CI/CD — configuração administrativa](../operations/cicd-admin-setup.md) | operations / release | vigente | 2026-09-29 |
 | [CI/CD — baseline da simplificação](../operations/cicd-simplification-baseline.md) | operations / architecture | auditoria | 2026-09-14 |
@@ -243,4 +245,4 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 
 ## Cobertura
 
-157 páginas inventariadas, além deste catálogo gerado. 13 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
+159 páginas inventariadas, além deste catálogo gerado. 13 sem Owner e 23 sem Última revisão no cabeçalho. Corrigir durante revisão real; não preencher datas automaticamente.
