@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import { lstat, open, readFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { validateExpected, validateManifestIdentity } from "./rc-attestation-consumer.mjs";
+import { validateManifestIdentity } from "./rc-attestation-consumer.mjs";
 
 // #1667 — read-only local hash companion to attestation verification.
 // It does NOT download assets, verify a Sigstore attestation, inspect installed
@@ -84,7 +84,10 @@ async function confirmCompanionChecksum(root, byName, msiDigest) {
     throw new Error("RC_MSI_CHECKSUM_CONTENT_MISMATCH");
 }
 export async function verifyLocalRcAssets({ family, manifestFile, assetsRoot, sourceSha }) {
-  validateExpected({ family, sourceSha, signerSha: "0".repeat(40), manifestName: basename(manifestFile) });
+  const name = family === "companion" ? "TDACompanion-candidate.json" :
+    family === "runtime" ? "TDARuntime-candidate.json" : null;
+  if (!name || basename(manifestFile) !== name || !/^[a-f0-9]{40}$/.test(sourceSha ?? ""))
+    throw new Error("RC_CANDIDATE_INPUT_INVALID");
   const file = resolve(manifestFile);
   const root = resolve(assetsRoot);
   const manifestStat = await lstat(file);
