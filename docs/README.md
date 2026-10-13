@@ -136,6 +136,8 @@ O [Roadmap](roadmap.md) é o ponto editorial para dependências entre frentes/ca
 - [Ambientes e configuração](operations/environments.md)
 - [Login Discord — configuração e verificação](operations/discord-auth.md)
 - [Companion — política de versões e dependências](operations/companion-dependency-policy.md) — pins compatíveis, freshness e gate de release do Companion.
+- [Frota de bots e automações](operations/automation-bot-fleet.md) — inventário dos 29 workflows, dez papéis propostos, dependências, permissões e governança por SHA.
+- [Runbook de bots e Dependabot](operations/automation-bot-runbook.md) — triage, lock Python, checks, segurança, incidentes e publicação sob aprovação humana.
 - [Aceite físico — recovery do Qwen Runtime no Benchmark](companion/acceptance/qwen-runtime-recovery.md) — gate fail-closed da #1210 para provar stale runtime → Stable → readiness Qwen em Windows real.
 - [Release, deploy e rollback](operations/release-runbook.md)
 - [Publicação controlada](releases.md) — política resumida.

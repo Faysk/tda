@@ -4,45 +4,194 @@
     {
       "title": "Processing Recovery",
       "description": "Restore the supported Web → Companion → ASR → Stable journey with exact release evidence.",
-      "issues": [433, 434, 435, 428, 423, 426, 436, 425, 395, 437, 416, 427]
+      "issues": [
+        433,
+        434,
+        435,
+        428,
+        423,
+        426,
+        436,
+        425,
+        395,
+        437,
+        416,
+        427
+      ]
     },
     {
       "title": "Transcript Integrity",
       "description": "Harden transcript editing, local review, import authorization and revisioned publication.",
-      "issues": [443, 32, 424, 429, 432, 431, 430]
+      "issues": [
+        443,
+        32,
+        424,
+        429,
+        432,
+        431,
+        430
+      ]
     },
     {
       "title": "Media & R2 Completion",
       "description": "Complete canonical R2 migration, controlled runtime activation and retirement of temporary media bootstrap paths.",
-      "issues": [444, 25, 287, 306]
+      "issues": [
+        444,
+        25,
+        287,
+        306
+      ]
+    },
+    {
+      "title": "Bot Fleet & Automation Governance",
+      "description": "Govern Dependabot, lock coherence, cross-platform gates, GitHub bot trust, release fences, evidence, runbooks and optional future automerge without auto-publishing Production.",
+      "issues": [
+        1651,
+        1652,
+        1653,
+        1654,
+        1655,
+        1656,
+        1657,
+        1658,
+        1659,
+        1660,
+        1661,
+        1662,
+        1663,
+        1664,
+        1665,
+        1666,
+        1667,
+        1668
+      ]
     }
   ],
   "parents": [
     {
       "parent": 433,
-      "children": [434, 435, 428, 423, 426, 436, 425, 395, 437, 416, 427]
+      "children": [
+        434,
+        435,
+        428,
+        423,
+        426,
+        436,
+        425,
+        395,
+        437,
+        416,
+        427
+      ]
     },
     {
       "parent": 443,
-      "children": [32, 424, 429, 432, 431, 430]
+      "children": [
+        32,
+        424,
+        429,
+        432,
+        431,
+        430
+      ]
     },
     {
       "parent": 444,
-      "children": [25, 287, 306]
+      "children": [
+        25,
+        287,
+        306
+      ]
+    },
+    {
+      "parent": 1651,
+      "children": [
+        1652,
+        1653,
+        1654,
+        1655,
+        1656,
+        1657,
+        1658,
+        1659,
+        1660,
+        1661,
+        1662,
+        1663,
+        1664,
+        1665,
+        1666,
+        1667,
+        1668
+      ]
     }
   ],
   "blockedBy": [
     {
       "issue": 427,
-      "blockers": [395, 425]
+      "blockers": [
+        395,
+        425
+      ]
     },
     {
       "issue": 437,
-      "blockers": [434, 435, 428, 423, 426, 436, 425, 395]
+      "blockers": [
+        434,
+        435,
+        428,
+        423,
+        426,
+        436,
+        425,
+        395
+      ]
     },
     {
       "issue": 430,
-      "blockers": [432, 431]
+      "blockers": [
+        432,
+        431
+      ]
+    },
+    {
+      "issue": 1659,
+      "blockers": [
+        1657,
+        1658
+      ]
+    },
+    {
+      "issue": 1660,
+      "blockers": [
+        1653,
+        1656
+      ]
+    },
+    {
+      "issue": 1664,
+      "blockers": [
+        1656,
+        1660
+      ]
+    },
+    {
+      "issue": 1663,
+      "blockers": [
+        1660,
+        1664
+      ]
+    },
+    {
+      "issue": 1662,
+      "blockers": [
+        1656,
+        1657,
+        1658,
+        1659,
+        1660,
+        1665
+      ]
     }
   ]
 }
