@@ -28,10 +28,11 @@ function codeqlState(runs, repo, sha, prNumber) {
   const latest = list[list.length - 1];
   return latest.status === "completed" ? (latest.conclusion || "unknown") : "pending";
 }
-export function evaluateEvidence({ repository, pr, run, jobs = [], codeqlRuns = [], completeJobs = true }) {
+export function evaluateEvidence({ repository, pr, run, jobs = [], codeqlRuns = [], completeJobs = true, completeCodeql = true }) {
   const sha = run?.head_sha, prNumber = pr?.number, failures = [];
   if (!exactSha(sha)) failures.push("invalid-source-sha");
   if (run?.name !== "CI" || run?.event !== "pull_request") failures.push("wrong-trigger");
+  if (!(run?.path || "").endsWith("/ci.yml")) failures.push("wrong-ci-workflow-file");
   if (!sameRepo(run, repository)) failures.push("foreign-workflow-origin");
   if (!Number.isInteger(prNumber) || prNumber < 1 || !samePr(run, prNumber))
     failures.push("ambiguous-pr-identity");
@@ -46,13 +47,13 @@ export function evaluateEvidence({ repository, pr, run, jobs = [], codeqlRuns = 
   else if ((ci !== "success" && ci !== "pending") ||
     Object.values(required).some((value) => !["success", "pending"].includes(value)) ||
     !["success", "pending", "missing"].includes(codeql)) state = "blocked";
-  else if (!completeJobs || ci === "pending" || Object.values(required).includes("pending") ||
+  else if (!completeJobs || !completeCodeql || ci === "pending" || Object.values(required).includes("pending") ||
     codeql === "pending" || codeql === "missing") state = "pending-or-unknown";
   return {
     schema_version: 1, repository, pr_number: prNumber, head_sha: sha,
     ci_run_id: run?.id, ci, required_jobs: required, codeql, state,
     reasons: failures, approval: "human-required", production: "not-authorized",
-    jobs_observed: jobs.length, jobs_complete: completeJobs,
+    jobs_observed: jobs.length, jobs_complete: completeJobs, codeql_complete: completeCodeql,
   };
 }
 export function renderEvidenceMarkdown(evidence) {
@@ -109,9 +110,11 @@ function main() {
     return;
   }
   const { jobs, completeJobs } = collectJobs(repo, runId);
-  const codeql = api("repos/" + repo + "/actions/workflows/codeql.yml/runs?head_sha=" +
-    run.head_sha + "&event=pull_request&per_page=100").workflow_runs || [];
-  const evidence = evaluateEvidence({ repository: repo, pr, run, jobs, completeJobs, codeqlRuns: codeql });
+  const codeqlResponse = api("repos/" + repo + "/actions/workflows/codeql.yml/runs?head_sha=" +
+    run.head_sha + "&event=pull_request&per_page=100");
+  const codeql = codeqlResponse.workflow_runs || [];
+  const completeCodeql = Number.isInteger(codeqlResponse.total_count) && codeqlResponse.total_count <= codeql.length;
+  const evidence = evaluateEvidence({ repository: repo, pr, run, jobs, completeJobs, codeqlRuns: codeql, completeCodeql });
   const markdown = renderEvidenceMarkdown(evidence);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
   process.stdout.write(markdown);
