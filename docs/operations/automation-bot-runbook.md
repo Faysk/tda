@@ -21,7 +21,7 @@
 2. Antes de triage, conferir a [política Dependabot](https://github.com/Faysk/tda/blob/main/.github/dependabot.yml) e ler `Files changed`; anotação automatizada do futuro Risk Analyst é auxiliar, não evidência de teste.
 3. Se existe alteração de `pyproject.toml`, conferi-la contra `requirements-test.lock` e os gates de freshness; falha do lock exige corrigir **ambos**, não afrouxar `check-companion-dependency-freshness.py`.
 4. Se existe alteração de `package.json` ou `pnpm-lock.yaml`, exigir lock congelado, build e suites condicionadas ao componente; Next/Supabase/AWS podem afetar várias áreas.
-5. Se existe alteração em `.github/workflows/`, exigir revisão de triggers, \`uses\` pinado por SHA, actionlint e fronteira de tokens.
+5. Se existe alteração em `.github/workflows/`, exigir revisão de triggers, `uses` pinado por SHA, actionlint e fronteira de tokens.
 6. Separar `blocked-by-code`, `blocked-by-constraints`, `test-failure`, `transient-environment`, `security-review` e `needs-admin-evidence`. Guardar URL do run/step, e não só ícone.
 7. Nenhuma decisão automática de fechamento/merge/dispatch neste estado. O [triage workstream #1661](https://github.com/Faysk/tda/issues/1661) registra decisões dos oito PRs existentes.
 
