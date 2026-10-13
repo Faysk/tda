@@ -239,6 +239,7 @@ test("bot release policy rejects synthetic automatic Stable triggers and missing
   const sources = Object.fromEntries(workflows.map(({ name, text }) => [name, text]));
   const changes = [
     ["production-cd.yml", (v) => v.replace("  workflow_dispatch:", "  push:\n    branches: [main]\n  workflow_dispatch:")],
+    ["production-cd.yml", (v) => v.replace("persist-credentials: false", "persist-credentials: true")],
     ["companion-promote.yml", (v) => v.replace("  workflow_dispatch:", "  workflow_run:\n    workflows: [CI]\n  workflow_dispatch:")],
     ["runtime-promote.yml", (v) => v.replace('[[ "$CONFIRMATION" == "PROMOTE" ]]', '[[ "$CONFIRMATION" == "anything" ]]')],
     ["companion-promote.yml", (v) => v.replace("Require installed and physical receipt paths for this RC", "removed acceptance")],
