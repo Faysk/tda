@@ -251,3 +251,27 @@ test("bot release policy rejects synthetic automatic Stable triggers and missing
     assert.ok(auditBotReleaseFences(mutated).length > 0, "expected rejection for " + file);
   }
 });
+
+
+test("integrated bot and RC security suites remain wired exactly once to required CI", () => {
+  const ci = readFileSync(join(workflowRoot, "ci.yml"), "utf8");
+  const start = ci.indexOf("      - name: Validate change and Production release classifiers\n");
+  const end = ci.indexOf("      - name: Validate direct Companion download verification\n", start);
+  assert.ok(start !== -1 && end > start, "workflow-contract must run bot tests");
+  const command = ci.slice(start, end);
+  const expected = [
+    "github-actions-security.test.mjs", "dependency-risk-contract.test.mjs",
+    "bot-evidence-ledger.test.mjs", "automerge-dryrun.test.mjs",
+    "dependency-triage.test.mjs", "rc-attestation-consumer.test.mjs",
+    "rc-local-asset-integrity.test.mjs", "rc-provenance-policy.test.mjs",
+    "bot-dependency-risk.test.mjs", "automation-trust-policy.test.mjs",
+  ];
+  assert.match(command, /run: >-\s+node --test\s+/);
+  for (const file of expected) {
+    const match = command.split("\n").filter((line) => line.trim() === "tools/ci/" + file);
+    assert.equal(match.length, 1, "critical contract must be executed exactly once: " + file);
+  }
+  assert.equal(command.includes("continue-on-error: true"), false);
+  assert.equal(ci.includes('node tools/ci/bot-dependency-risk.mjs "$RANGE"'), true,
+    "dependency risk analysis must remain in classify-changes");
+});
