@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { verifyPublishedRcMetadata, auditPublishedRc, PUBLIC_RC_POLICY } from "./rc-public-release-audit.mjs";
+import { verifyPublishedRcMetadata, verifyRcGitTagReference, auditPublishedRc, PUBLIC_RC_POLICY } from "./rc-public-release-audit.mjs";
 
 const SRC = "a".repeat(40);
 const TREE = "b".repeat(40);
@@ -115,18 +115,22 @@ const audit = (f, runnerOverride) => auditPublishedRc(
     assetsRoot:f.dir, signerRunId:321 },
   { verifyCombined:()=>f.combined, githubGet: runnerOverride || ((exe, args, options)=>{
     assert.equal(exe, "gh");
-    assert.deepEqual(args, ["api", "repos/Faysk/tda/releases/tags/" + TAG]);
     assert.equal(options.encoding, "utf8");
-    return JSON.stringify(f.release);
+    if (args[1] === "repos/Faysk/tda/releases/tags/" + TAG)
+      return JSON.stringify(f.release);
+    if (args[1] === "repos/Faysk/tda/git/ref/tags/" + TAG)
+      return JSON.stringify({ ref: "refs/tags/" + TAG,
+        object: { type: "commit", sha: SRC } });
+    throw new Error("UNEXPECTED_GITHUB_API_CALL");
   }) });
 test("combined provenance + hash proof + read-only GitHub release GET yields metadata snapshot only", async () => {
   const f=fixture();
   try {
     const report=await audit(f);
     assert.equal(report.policy, "tda-public-rc-triple-evidence-v1");
-    assert.equal(report.remote_release_state, "matched-exact-published-prerelease-metadata");
+    assert.equal(report.remote_release_state, "matched-release-and-tag-ref-at-fetch");
     assert.equal(report.public_release_metadata.assets_matched, 5);
-    assert.equal(report.git_tag_object_target, "not-checked");
+    assert.equal(report.git_tag_object_target, "verified-at-fetch");
     assert.equal(report.unique_signer_run_attribution, "not-verified");
     assert.equal(report.physical_acceptance, "not-checked");
     assert.equal(report.authorizes_stable, false);
@@ -179,6 +183,60 @@ test("GitHub REST 403/timeout/non-JSON always fails closed, without deployment",
       /RC_REMOTE_RELEASE_LOOKUP_FAILED/);
   } finally { f.close(); }
 });
+test("Git lightweight tag ref must resolve to exact source commit, not only mutable release metadata", () => {
+  const record = [];
+  const result=verifyRcGitTagReference({ tag:TAG, sourceSha:SRC,
+    githubGet:(binary,argv)=>{
+      record.push(argv);
+      assert.equal(binary,"gh");
+      return JSON.stringify({ ref:"refs/tags/"+TAG,
+        object:{type:"commit",sha:SRC} });
+    },
+  });
+  assert.equal(result.git_ref_target,"verified-at-fetch");
+  assert.equal(result.git_tag_immutability,"not-proven");
+  assert.equal(result.peeled_tag_depth,0);
+  assert.deepEqual(record[0],["api","repos/Faysk/tda/git/ref/tags/"+TAG]);
+});
+test("annotated tag chain is peeled to commit with bounded GET-only lookups", () => {
+  const first="1".repeat(40), second="2".repeat(40), calls=[];
+  const getter=(binary,argv)=>{
+    assert.equal(binary,"gh"); calls.push(argv[1]);
+    const path=argv[1];
+    if(path.endsWith("/git/ref/tags/"+TAG))
+      return JSON.stringify({ref:"refs/tags/"+TAG,object:{type:"tag",sha:first}});
+    if(path.endsWith("/git/tags/"+first))
+      return JSON.stringify({sha:first,object:{type:"tag",sha:second}});
+    if(path.endsWith("/git/tags/"+second))
+      return JSON.stringify({sha:second,object:{type:"commit",sha:SRC}});
+    throw new Error("UNEXPECTED");
+  };
+  const result=verifyRcGitTagReference({tag:TAG,sourceSha:SRC,githubGet:getter});
+  assert.equal(result.peeled_tag_depth,2);
+  assert.equal(calls.length,3);
+});
+test("Git ref mismatch, spoofed target, invalid ref and tag cycle fail closed", () => {
+  function fail(root, tagObject, pattern) {
+    assert.throws(()=>verifyRcGitTagReference({tag:TAG,sourceSha:SRC,
+      githubGet:(binary,argv)=>JSON.stringify(
+        argv[1].includes("/git/ref/tags/")?root:tagObject)}),pattern);
+  }
+  fail({ref:"refs/tags/forged",object:{type:"commit",sha:SRC}},null,/REF_IDENTITY_INVALID/);
+  fail({ref:"refs/tags/"+TAG,object:{type:"commit",sha:"f".repeat(40)}},null,/TARGET_SHA_MISMATCH/);
+  fail({ref:"refs/tags/"+TAG,object:{type:"tree",sha:SRC}},null,/TARGET_SHA_MISMATCH/);
+  const t="1".repeat(40);
+  fail({ref:"refs/tags/"+TAG,object:{type:"tag",sha:t}},
+    {sha:t,object:{type:"tag",sha:t}},/PEEL_INVALID/);
+  assert.throws(()=>verifyRcGitTagReference({tag:"../bad",sourceSha:SRC}),/TAG_INPUT_INVALID/);
+  assert.throws(()=>verifyRcGitTagReference({tag:TAG,sourceSha:"f".repeat(40)}),/TAG_INPUT_INVALID/);
+});
+test("Git ref absent or endpoint 403 never implies immutable release", () => {
+  assert.throws(()=>verifyRcGitTagReference({tag:TAG,sourceSha:SRC,
+    githubGet:()=>{throw Error("API403");}}),/RC_GIT_TAG_API_UNAVAILABLE/);
+  assert.throws(()=>verifyRcGitTagReference({tag:TAG,sourceSha:SRC,
+    githubGet:()=>"not json"}),/RC_GIT_TAG_API_UNAVAILABLE/);
+});
+
 test("public 2026 Companion RC release JSON API fields conform to expected schema", () => {
   // Snapshot of GET /repos/Faysk/tda/releases/tags/companion-rc-v0.3.26-b72eb1ffd316
   // Source: public GitHub Release metadata, 2026-10-08 (not actual artifact bytes).
