@@ -14,7 +14,7 @@ export const SIGNERS = Object.freeze({
 export const POLICY = "tda-rc-attestation-v1";
 
 // This is an opt-in, READ-ONLY consumer tool; it does NOT change release gates.
-// Expected signer SHA must be taken from the actual, trusted RC GitHub Actions
+// Expected signer workflow digest must be established independently of the candidate, using trusted RC GitHub Actions
 // workflow run. It may differ from candidate.source_sha in manual RC dispatches.
 export function validateExpected({ family, sourceSha, signerSha, manifestName }) {
   if (!Object.hasOwn(SIGNERS, family)) throw new Error("UNKNOWN_RC_FAMILY");
@@ -53,7 +53,7 @@ export function validateManifestIdentity(manifest, { family, sourceSha }) {
 export function attestationArguments(filePath, { family, sourceSha, signerSha }) {
   validateExpected({ family, sourceSha, signerSha, manifestName: basename(filePath) });
   return ["attestation", "verify", filePath, "--repo", REPO,
-    "--signer-workflow", SIGNERS[family], "--source-digest", signerSha,
+    "--signer-workflow", SIGNERS[family], "--signer-digest", signerSha,
     "--predicate-type", "https://slsa.dev/provenance/v1",
     "--deny-self-hosted-runners", "--format", "json"];
 }
@@ -86,7 +86,7 @@ export function verifyRcManifest({ family, manifestFile, sourceSha, signerSha },
   let verified;
   try {
     // execFileSync invokes gh directly (shell: false), checks its exit code,
-    // and gh authenticates the statement, signer workflow + signer commit.
+    // and gh verifies the signed statement and signer workflow certificate; --signer-digest pins githubWorkflowSHA, not sourceRepositoryDigest.
     const output = runner("gh", attestationArguments(absoluteFile, { family, sourceSha, signerSha }),
       { encoding: "utf8", timeout: 90000, maxBuffer: 4 * 1024 * 1024 });
     verified = JSON.parse(output);
