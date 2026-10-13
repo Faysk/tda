@@ -66,6 +66,7 @@ test("Companion four exact assets, sidecar checksum, hashes, and no Stable permi
     assert.equal(report.policy, LOCAL_ASSET_POLICY);
     assert.equal(report.assets_hashed, 4);
     assert.equal(report.local_asset_integrity, "verified-sha256");
+    assert.equal(report.manifest_sha256, digest(readFileSync(f.manifestFile)));
     assert.equal(report.github_attestation, "not-checked");
     assert.equal(report.physical_receipts, "not-checked");
     assert.equal(report.authorizes_stable, false);
@@ -180,5 +181,16 @@ test("synthetic validation does not mutate inputs or trigger network, gh, deploy
     await run(f);
     assert.equal(readFileSync(f.manifestFile, "utf8"), before);
     assert.equal(Object.entries(f.bytes).length, 2);
+  } finally { f.close(); }
+});
+
+test("symlinked RC manifest is rejected before opening local assets", async () => {
+  const f = fixture();
+  try {
+    const target = join(f.root, "TDASyntheticManifestTarget.json");
+    writeFileSync(target, JSON.stringify(f.manifest));
+    rmSync(f.manifestFile);
+    symlinkSync(target, f.manifestFile);
+    await assert.rejects(run(f), /RC_MANIFEST_SIZE_OR_TYPE_INVALID/);
   } finally { f.close(); }
 });
