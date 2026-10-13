@@ -84,6 +84,7 @@ jobs:
           tools/ci/bot-evidence-ledger.test.mjs
           tools/ci/rc-attestation-consumer.test.mjs
           tools/ci/rc-local-asset-integrity.test.mjs
+          tools/ci/rc-provenance-policy.test.mjs
           tools/ci/bot-dependency-risk.test.mjs
           tools/ci/automation-trust-policy.test.mjs
       - name: Validate direct Companion download verification
