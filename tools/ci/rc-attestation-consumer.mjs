@@ -35,6 +35,19 @@ export function validateManifestIdentity(manifest, { family, sourceSha }) {
     throw new Error("RUNTIME_FAMILY_UNKNOWN");
   if (typeof manifest.version !== "string" || !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(manifest.version))
     throw new Error("CANDIDATE_VERSION_UNKNOWN");
+  if (!Number.isSafeInteger(manifest.workflow_run_id) || manifest.workflow_run_id <= 0)
+    throw new Error("CANDIDATE_BUILD_RUN_ID_INVALID");
+  const prefix = sourceSha.slice(0, 12);
+  const expectedTag = family === "companion" ?
+    "companion-rc-v" + manifest.version + "-" + prefix :
+    "companion-" + manifest.family + "-runtime-rc-v" + manifest.version + "-" + prefix;
+  if ((family === "companion" ? manifest.tag : manifest.candidate_tag) !== expectedTag)
+    throw new Error("CANDIDATE_RC_TAG_MISMATCH");
+  if (family === "companion" && manifest.channel !== "rc")
+    throw new Error("CANDIDATE_CHANNEL_MISMATCH");
+  if (family === "runtime" &&
+      manifest.stable_tag !== "companion-" + manifest.family + "-runtime-v" + manifest.version)
+    throw new Error("RUNTIME_STABLE_TAG_MISMATCH");
   return manifest;
 }
 export function attestationArguments(filePath, { family, sourceSha, signerSha }) {
