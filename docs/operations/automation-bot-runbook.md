@@ -61,6 +61,12 @@ Verificar que toda Action externa conserva SHA completo no `uses`, comentário d
 
 **[PROPOSTO]** agrupar CodeQL `init` + `analyze` pela mesma versão, evitando PRs redundantes. Testes de segurança de workflow e actionlint devem reprovar SHA/tag flutuante, triggers inseguros, shell injection via título/branch, artefatos de outro run e leitura de secrets por PR.
 
+### Trust boundary: auditoria sintética versionada (#1657)
+
+**Cobertura candidata:** `tools/ci/automation-trust-policy.mjs` analisa os YAML versionados e `tools/ci/automation-trust-policy.test.mjs` executa fixtures adversariais de regressão no `workflow-contract`. Esses testes protegem cinco controladores críticos: PR Preview, Main Preview, Companion RC, Runtime RC e Production CD. Eles falham quando os marcadores de identidade por SHA/PR, CI de origem, `push main`, confirmação humana ou a ordem de checagem antes de efeito externo são removidos. A auditoria genérica também rejeita `pull_request_target`, `secrets: inherit` e `permissions: write-all` nos workflows analisados. O verificador inclui uma **allowlist por workflow/escopo de escrita declarado**, identificando novas concessões como `contents: write`, `actions: write`, `issues: write`, `deployments: write`, `security-events: write` e scopes de attestation que exigem revisão explícita. Há uma permissão `actions: write` **em job próprio** de `qwen-runtime-package.yml`, não apenas no bootstrap legado; a política a registra sem ampliar privilégios.
+
+**Esta verificação é estática.** Não significa que tokens de Environment, proteção remota da `main`, artifact-attestation, sandbox Vercel, bridge Stable legada ou todas as variantes de `workflow_dispatch` foram auditados dinamicamente. Esse trabalho continua em #1657/#1658/#1659/#1667/#1668. Um texto malicioso que somente preserve os marcadores ainda pode passar; revisar os diffs de workflows privilegiados manualmente permanece obrigatório. Nunca usar o resultado do teste isolado como autorização de release.
+
 ## 5. Status checks, proteção de branch e riscos de corrida (`#1658`)
 
 Em 13/10, a API acessível retornou `main.protected=true`, mas a leitura detalhada falhou 403. **Somente maintainer com acesso administrativo** pode confirmar required status checks, reviewers, bypass e Environment approvals. Inventário não prova a política remota.
@@ -80,6 +86,12 @@ Checagem antes de qualquer mudança de automerge:
 
 Se houver rollback real, seguir [release-runbook.md](release-runbook.md). Nenhum bot reconstrói arquivo de release imutável, reusa tag, ignora Authenticode/hashes ou promove candidato sem o recibo físico exato.
 
+### Regressão de publicação: general Stable vs bridges históricas (#1659)
+
+O contrato de teste `tools/ci/github-actions-security.test.mjs` agora contém verificações adicionais **sem executar release**. Ele separa os três publicadores gerais (`production-cd.yml`, `companion-promote.yml` e `runtime-promote.yml`) — que devem permanecer `workflow_dispatch` apenas, sem trigger por push/PR/CI, confirmação tipada, evidência de CI/Preview/receipts e checkout sem credenciais persistentes — dos três **bridges históricos de versões exatas** `Companion 0.3.9`, `Companion 0.3.16` e `Qwen 1.0.12`. Estes bridges têm triggers de recuperação específicos, não servem para upgrades novos e não podem perder as fences de versão, main, SHA ou ancestry. O bootstrap Qwen 1.0.12 segue limitado a mudança no próprio YAML, com run e SHA fixos.
+
+Fixtures negativas simulam introduzir `push` em Production, `workflow_run` em Stable geral, retirar aprovação tipada, retirar receipt, desviar a versão de bridge ou alargar os paths do bootstrap. Cada mudança deve reprovar sem publicação real. **Limite:** strings do YAML não substituem inspeção semântica, proteção remota, verificação física ou replay de workflow em ambiente não produtivo. Provas de hashes e attestations pertencem também à #1667.
+
 ## 7. Segurança, advisories e lifecycle (`#1663` / `#1667` / `#1668`)
 
 - Priorizar security alerts independentemente de cooldown de versão comum. Ausência de acesso aos advisories = `unknown`, nunca `secure`. Formalizar SLAs com dono antes de implementar notificação.
@@ -88,6 +100,14 @@ Se houver rollback real, seguir [release-runbook.md](release-runbook.md). Nenhum
 - Incompatibilidade de token, fork, workflow_run, action SHA ou artifact hash é erro bloqueante; não consertar com credencial mais poderosa por padrão.
 - Segredos operacionais devem permanecer em GitHub Environments; não copiá-los para Cloud provider nem publicar traces em comentários.
 
+### Risk Analyst determinístico no CI (#1660) — candidato
+
+O script `tools/ci/bot-dependency-risk.mjs` analisa **somente o diff Git local** que o `classify-changes` já utiliza, sem chamada à API de advisories, sem execução de LLM e sem permissão de escrita. Quando `package.json`, `pnpm-lock.yaml`, `local-companion/pyproject.toml`, `requirements-test.lock` ou um workflow YAML muda, o script compara pins diretos npm/Python, registra alteração de lock-only como risco desconhecido alto e marca workflows como alterações de trust boundary. Gera um **Step Summary** legível, com o intervalo Git e os motivos por pacote; não comenta automaticamente no PR.
+
+**Limites deliberados:** escala `low/medium/high` descreve **impacto de revisão**, não severidade CVE; o relatório traz `checks=not-queried` e `advisories=not-queried`, não declara pacote seguro nem CI verde. Manifestos diferentes/invalidos devem falhar explicitamente; versões não SemVer recebem `unknown` e exigem revisão. A classificação não substitui gates por domínio, triagem de vulnerabilidade, bundle runtime, Windows/GPU ou branch protection remota. Recomendação é sempre `human-review-required` quando existe update. O runner usa somente git/Node já presentes no CI; no futuro, #1660 pode compor resultados dos checks via um collector read-only por SHA.
+
+Testes sintéticos de referência: `node --test tools/ci/bot-dependency-risk.test.mjs`. Para observação, ler o Job Summary de `classify-changes` no run CI do PR, não logs privados.
+
 ## 8. Automação futura: ciclo idempotente
 
 **[PROPOSTO]** Ações de triagem e reporte podem ser implementadas por jobs GitHub-native. O ciclo deve ser: ingestão read-only → normalização → classificação determinística → consulta a checks por head SHA → comentário/check idempotente → triage. Nenhum modelo de IA toma decisão de publicação. Secrets, logs privados e payloads sensíveis nunca vão para prompt externo.
@@ -95,6 +115,14 @@ Se houver rollback real, seguir [release-runbook.md](release-runbook.md). Nenhum
 **Fingerprint recomendado:** repo + PR + head SHA + conjunto normalizado de deps + versão da regra. Distinguir evento reentregue, rerun do mesmo SHA, rebase com novo SHA e resolução de advisory. Usar backoff/rate limit e atualizar um único comentário assinado pelo bot quando apropriado. Em falha de API, preservar `unknown/blocked` e link para investigação.
 
 **Auto-merge [DESLIGADO]:** issue #1662 exige autorização posterior, prova de regras administrativas, testes adversariais e denylist. Não iniciar com auto-merge nem adicionar token com capacidade de passar por cima dos checks.
+
+### Observer / ledger de checks por SHA (#1664) — candidato read-only
+
+O workflow `dependabot-evidence-ledger.yml` é candidato a executar quando um run de CI de PR termina (`workflow_run: CI completed`). **Somente checkout do código da branch padrão revisada**, nunca da branch do Dependabot/fork. Permissões explícitas `contents/actions/pull-requests: read`, sem token de escrita, comments, annotations falsas, release, deploy ou merge. Ele valida o run real pela API, a identidade de **um** PR Dependabot, a origem de mesmo repositório, o SHA atual da cabeça e os jobs `classify-changes`, `workflow-contract`, `validate`, `ci-gate`, `required-ci` do **run exato**, e consulta CodeQL no SHA e PR correspondentes. Uma falha/skipped/missing/ambiguous/stale bloqueia `ready-for-human-review`. Se CodeQL não terminou, marca `pending-or-unknown`.
+
+**Reconsulta:** após CodeQL terminar, um maintainer pode usar o próprio workflow com `workflow_dispatch` e o ID do CI run, sem atualizar o estado do PR. A saída é **apenas GitHub Step Summary** do run observado (não comentário nem aprovação). Erros de API, paginação incompleta e identidade ambígua falham fechado. A issue #1658 continua dona da prova de branch protection remota e #1663 dos alertas/SLA/idempotência; nenhum estado deste ledger substitui aprovações ou gates exigidos pela branch.
+
+**Validação sintética:** `node --test tools/ci/bot-evidence-ledger.test.mjs` cobre CI verde completo, SHA stale, fork, autor/origem errados, check ausente/skipped/duplicado, CodeQL atrasado/falhando e sanitização do Markdown. Se CodeQL estiver ausente apesar de um CI verde, **não** imprimir que o PR foi aprovado.
 
 ## 9. Evidência, testes sintéticos e definition of done
 
