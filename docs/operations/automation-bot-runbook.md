@@ -80,6 +80,12 @@ Checagem antes de qualquer mudança de automerge:
 
 Se houver rollback real, seguir [release-runbook.md](release-runbook.md). Nenhum bot reconstrói arquivo de release imutável, reusa tag, ignora Authenticode/hashes ou promove candidato sem o recibo físico exato.
 
+### Regressão de publicação: general Stable vs bridges históricas (#1659)
+
+O contrato de teste `tools/ci/github-actions-security.test.mjs` agora contém verificações adicionais **sem executar release**. Ele separa os três publicadores gerais (`production-cd.yml`, `companion-promote.yml` e `runtime-promote.yml`) — que devem permanecer `workflow_dispatch` apenas, sem trigger por push/PR/CI, confirmação tipada, evidência de CI/Preview/receipts e checkout sem credenciais persistentes — dos três **bridges históricos de versões exatas** `Companion 0.3.9`, `Companion 0.3.16` e `Qwen 1.0.12`. Estes bridges têm triggers de recuperação específicos, não servem para upgrades novos e não podem perder as fences de versão, main, SHA ou ancestry. O bootstrap Qwen 1.0.12 segue limitado a mudança no próprio YAML, com run e SHA fixos.
+
+Fixtures negativas simulam introduzir `push` em Production, `workflow_run` em Stable geral, retirar aprovação tipada, retirar receipt, desviar a versão de bridge ou alargar os paths do bootstrap. Cada mudança deve reprovar sem publicação real. **Limite:** strings do YAML não substituem inspeção semântica, proteção remota, verificação física ou replay de workflow em ambiente não produtivo. Provas de hashes e attestations pertencem também à #1667.
+
 ## 7. Segurança, advisories e lifecycle (`#1663` / `#1667` / `#1668`)
 
 - Priorizar security alerts independentemente de cooldown de versão comum. Ausência de acesso aos advisories = `unknown`, nunca `secure`. Formalizar SLAs com dono antes de implementar notificação.
