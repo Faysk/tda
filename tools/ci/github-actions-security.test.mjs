@@ -177,3 +177,77 @@ test("legacy 0.3.1 recovery ignores generated documentation catalog churn", () =
   assert.equal(legacyRecovery.includes("docs/documentation/catalog.md"), false);
   assert.match(legacyRecovery, /workflow_dispatch:/);
 });
+
+
+function auditBotReleaseFences(sources) {
+  const violations = [];
+  for (const name of ["production-cd.yml", "companion-promote.yml", "runtime-promote.yml"]) {
+    const value = sources[name];
+    if (!value) { violations.push(name + ": missing controlled release workflow"); continue; }
+    const triggers = value.match(/^on:\n([\s\S]*?)(?=^permissions:)/m)?.[1] || "";
+    if (!/^  workflow_dispatch:/m.test(triggers)) violations.push(name + ": missing manual trigger");
+    if (/^  (push|pull_request|pull_request_target|workflow_run|schedule):/m.test(triggers))
+      violations.push(name + ": automated release trigger forbidden");
+    if (!value.includes("persist-credentials: false"))
+      violations.push(name + ": release checkout credential persistence");
+  }
+  const companion = sources["companion-promote.yml"] || "";
+  const runtime = sources["runtime-promote.yml"] || "";
+  for (const [file, value, receipt] of [
+    ["companion-promote.yml", companion, "Require installed and physical receipt paths for this RC"],
+    ["runtime-promote.yml", runtime, "Require exact physical acceptance receipt for this RC"],
+  ]) {
+    for (const marker of ['"$GITHUB_REF" == "refs/heads/main"', '"$CONFIRMATION" == "PROMOTE"',
+      "gh release edit", receipt]) {
+      if (!value.includes(marker)) violations.push(file + ": missing manual/receipt fence: " + marker);
+    }
+    if (value.indexOf(receipt) < 0 || value.indexOf("gh release edit") <= value.indexOf(receipt))
+      violations.push(file + ": receipt must precede release mutation");
+  }
+  const production = sources["production-cd.yml"] || "";
+  for (const marker of ["APPROVE_PREVIEW_FOR_PRODUCTION", "PRODUCTION_EXACT_MAIN_CI_REQUIRED",
+    "PRODUCTION_SUCCESSFUL_MAIN_PREVIEW_RUN_REQUIRED", "PRODUCTION_APPROVED_PREVIEW_IDENTITY_INVALID",
+    "Refusing stale/arbitrary Production release"]) {
+    if (!production.includes(marker)) violations.push("production-cd.yml: missing " + marker);
+  }
+  for (const [file, version, marker] of [
+    ["companion-039-recovery-stable.yml", "0.3.9", "BRIDGE_TRIGGER_NOT_MAIN_PUSH"],
+    ["companion-0316-production-validation-stable.yml", "0.3.16", "PRODUCTION_VALIDATION_SOURCE_NOT_MAIN_ANCESTOR"],
+    ["qwen-1012-production-validation-stable.yml", "1.0.12", "QWEN_PRODUCTION_VALIDATION_SOURCE_NOT_MAIN_ANCESTOR"],
+  ]) {
+    const value = sources[file] || "";
+    if (!value.includes(version)) violations.push(file + ": missing exact legacy version");
+    if (!value.includes(marker)) violations.push(file + ": missing exact-trigger/main ancestry fence");
+    if (!value.includes("persist-credentials: false")) violations.push(file + ": credentials in checkout");
+  }
+  const bootstrap = sources["qwen-1012-stable-bootstrap.yml"] || "";
+  const bootstrapTrigger = bootstrap.match(/^on:\n([\s\S]*?)(?=^permissions:)/m)?.[1] || "";
+  if (!bootstrapTrigger.includes("qwen-1012-stable-bootstrap.yml") ||
+    !bootstrapTrigger.includes("branches: [main]") ||
+    !bootstrapTrigger.includes("paths:")) violations.push("qwen bootstrap not self-file-scoped");
+  if (!bootstrap.includes("EXPECTED_SOURCE_SHA:") || !bootstrap.includes("RUNTIME_RC_RUN_ID:"))
+    violations.push("qwen bootstrap missing exact historic run and SHA");
+  return violations.sort();
+}
+
+test("only verified manual general promotions and exact-version historical bridges can publish Stable", () => {
+  const sources = Object.fromEntries(workflows.map(({ name, text }) => [name, text]));
+  assert.deepEqual(auditBotReleaseFences(sources), []);
+});
+
+test("bot release policy rejects synthetic automatic Stable triggers and missing receipts", () => {
+  const sources = Object.fromEntries(workflows.map(({ name, text }) => [name, text]));
+  const changes = [
+    ["production-cd.yml", (v) => v.replace("  workflow_dispatch:", "  push:\n    branches: [main]\n  workflow_dispatch:")],
+    ["production-cd.yml", (v) => v.replace("persist-credentials: false", "persist-credentials: true")],
+    ["companion-promote.yml", (v) => v.replace("  workflow_dispatch:", "  workflow_run:\n    workflows: [CI]\n  workflow_dispatch:")],
+    ["runtime-promote.yml", (v) => v.replace('[[ "$CONFIRMATION" == "PROMOTE" ]]', '[[ "$CONFIRMATION" == "anything" ]]')],
+    ["companion-promote.yml", (v) => v.replace("Require installed and physical receipt paths for this RC", "removed acceptance")],
+    ["companion-039-recovery-stable.yml", (v) => v.replaceAll("0.3.9", "0.3.8")],
+    ["qwen-1012-stable-bootstrap.yml", (v) => v.replace("      - '.github/workflows/qwen-1012-stable-bootstrap.yml'", "      - 'src/**'")],
+  ];
+  for (const [file, edit] of changes) {
+    const mutated = { ...sources, [file]: edit(sources[file]) };
+    assert.ok(auditBotReleaseFences(mutated).length > 0, "expected rejection for " + file);
+  }
+});
