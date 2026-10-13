@@ -388,12 +388,12 @@ test("narrow public surfaces keep their first critical content clear of floating
 });
 
 test("World entry selects a public campaign before displaying the canvas", async ({ page }) => {
-  await mockAccess(page, { capabilities: allToolCapabilities });
-  await page.goto("/mundo");
-  await expect(page.getByRole("heading", { name: "Escolha a campanha" })).toBeVisible();
-  await page.getByRole("link", { name: /Crônicas da Mesa/ }).click();
-  await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/mundo(?:\?.*)?$/u);
-  await expect(page.getByTestId("world-workspace")).toBeVisible();
+	await mockAccess(page, { capabilities: allToolCapabilities });
+	await page.goto("/mundo");
+	await expect(page.getByRole("heading", { name: "Escolha a campanha" })).toBeVisible();
+	await page.getByRole("link", { name: /Crônicas da Mesa/ }).click();
+	await expect(page).toHaveURL(/\/campanhas\/cronicas-da-mesa\/mundo(?:\?.*)?$/u);
+	await expect(page.getByTestId("world-workspace")).toBeVisible();
 });
 
 test("World keeps floating global navigation without the retired header reveal control", async ({ page }) => {
