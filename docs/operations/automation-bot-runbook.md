@@ -88,6 +88,14 @@ Se houver rollback real, seguir [release-runbook.md](release-runbook.md). Nenhum
 - Incompatibilidade de token, fork, workflow_run, action SHA ou artifact hash é erro bloqueante; não consertar com credencial mais poderosa por padrão.
 - Segredos operacionais devem permanecer em GitHub Environments; não copiá-los para Cloud provider nem publicar traces em comentários.
 
+### Risk Analyst determinístico no CI (#1660) — candidato
+
+O script `tools/ci/bot-dependency-risk.mjs` analisa **somente o diff Git local** que o `classify-changes` já utiliza, sem chamada à API de advisories, sem execução de LLM e sem permissão de escrita. Quando `package.json`, `pnpm-lock.yaml`, `local-companion/pyproject.toml`, `requirements-test.lock` ou um workflow YAML muda, o script compara pins diretos npm/Python, registra alteração de lock-only como risco desconhecido alto e marca workflows como alterações de trust boundary. Gera um **Step Summary** legível, com o intervalo Git e os motivos por pacote; não comenta automaticamente no PR.
+
+**Limites deliberados:** escala `low/medium/high` descreve **impacto de revisão**, não severidade CVE; o relatório traz `checks=not-queried` e `advisories=not-queried`, não declara pacote seguro nem CI verde. Manifestos diferentes/invalidos devem falhar explicitamente; versões não SemVer recebem `unknown` e exigem revisão. A classificação não substitui gates por domínio, triagem de vulnerabilidade, bundle runtime, Windows/GPU ou branch protection remota. Recomendação é sempre `human-review-required` quando existe update. O runner usa somente git/Node já presentes no CI; no futuro, #1660 pode compor resultados dos checks via um collector read-only por SHA.
+
+Testes sintéticos de referência: `node --test tools/ci/bot-dependency-risk.test.mjs`. Para observação, ler o Job Summary de `classify-changes` no run CI do PR, não logs privados.
+
 ## 8. Automação futura: ciclo idempotente
 
 **[PROPOSTO]** Ações de triagem e reporte podem ser implementadas por jobs GitHub-native. O ciclo deve ser: ingestão read-only → normalização → classificação determinística → consulta a checks por head SHA → comentário/check idempotente → triage. Nenhum modelo de IA toma decisão de publicação. Secrets, logs privados e payloads sensíveis nunca vão para prompt externo.
