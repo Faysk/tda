@@ -117,14 +117,16 @@ test("batch sorts by PR and rejects collisions; digest never contains raw events
   a.pr.number = 1647;
   b.pr.number = 1643;
   b.ci.conclusion = "failure";
+  b.pr.email = "private-actor@example.invalid";
+  b.private_payload = "PRIVATE_CAMPAIGN_SYNTHETIC_SENTINEL";
   const results = batchTriage([a,b]);
   assert.deepEqual(results.map(x=>x.pr_number), [1643,1647]);
   assert.throws(() => batchTriage([a,a]), /Duplicate/);
   const digest = markdownDigest(results);
   assert.match(digest, /1643/);
   assert.match(digest, /failed-tests/);
-  assert.ok(!digest.includes("email"));
-  assert.ok(!digest.includes("payload"));
+  assert.ok(!digest.includes("private-actor@example.invalid"));
+  assert.ok(!digest.includes("PRIVATE_CAMPAIGN_SYNTHETIC_SENTINEL"));
   assert.ok(results.every(x=>!x.permits_merge && !x.permits_release));
 });
 test("eight synthetic historical PR scenarios are classified and never merged", () => {
