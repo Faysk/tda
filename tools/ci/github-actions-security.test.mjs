@@ -276,3 +276,55 @@ test("integrated bot and RC security suites remain wired exactly once to require
   assert.equal(ci.includes('node tools/ci/bot-dependency-risk.mjs "$RANGE"'), true,
     "dependency risk analysis must remain in classify-changes");
 });
+
+
+function evidenceObserverTrustViolations(text) {
+  const issues = [];
+  const grants = text.match(/^permissions:\n([\s\S]*?)(?=^\S|\Z)/m)?.[1] || "";
+  const expected = ["  contents: read", "  actions: read", "  pull-requests: read"];
+  const listed = grants.trimEnd().split("\n").filter((line) => line.trim());
+  if (listed.join("\n") !== expected.join("\n"))
+    issues.push("observer must keep only exact read-only permissions");
+  if (/\b(?:pull_request_target|repository_dispatch):/.test(text))
+    issues.push("observer must not accept arbitrary privileged trigger");
+  if (/^\s+(?:permissions:|secrets:)/m.test(text.slice(text.indexOf("\njobs:") + 6)))
+    issues.push("observer must not grant job-level privileges or secrets");
+  if ((text.match(/uses:\s*actions\/checkout@/g) || []).length !== 1)
+    issues.push("observer must use exactly one reviewed checkout");
+  for (const marker of [
+    "ref: \${{ github.event.repository.default_branch }}",
+    "persist-credentials: false", "submodules: false", "lfs: false",
+    "GH_TOKEN: \${{ github.token }}", "node tools/ci/bot-evidence-ledger.mjs",
+  ]) if (!text.includes(marker)) issues.push("observer missing: " + marker);
+  if (/github\.event\.(?:workflow_run\.head_sha|pull_request\.head\.sha)/.test(text))
+    issues.push("observer must not use PR or workflow_run head checkout");
+  if (/\b(?:gh\s+(?:pr\s+merge|release\s+(?:upload|edit|create)|workflow\s+run)|git\s+push)\b/.test(text))
+    issues.push("observer must not mutate GitHub repository or releases");
+  return issues;
+}
+
+test("privileged workflow_run observer never checks out untrusted PR code or gains write access", () => {
+  const value = readFileSync(join(workflowRoot, "dependabot-evidence-ledger.yml"), "utf8");
+  assert.deepEqual(evidenceObserverTrustViolations(value), []);
+});
+
+test("observer trust policy rejects synthetic PR checkout, write grants and publication operations", () => {
+  const original = readFileSync(join(workflowRoot, "dependabot-evidence-ledger.yml"), "utf8");
+  const changes = [
+    (v) => v.replace("contents: read", "contents: write"),
+    (v) => v.replace("ref: \${{ github.event.repository.default_branch }}",
+      "ref: \${{ github.event.workflow_run.head_sha }}"),
+    (v) => v.replace("persist-credentials: false", "persist-credentials: true"),
+    (v) => v.replace("submodules: false", "submodules: true"),
+    (v) => v.replace("  workflow_dispatch:", "  pull_request_target:\n  workflow_dispatch:"),
+    (v) => v.replace("run: node tools/ci/bot-evidence-ledger.mjs",
+      "run: gh pr merge --auto"),
+    (v) => v.replace("  evidence:\n", "  evidence:\n    permissions:\n      contents: write\n"),
+  ];
+  for (const edit of changes) {
+    const changed = edit(original);
+    assert.notEqual(changed, original, "fixture failed to mutate");
+    assert.notDeepEqual(evidenceObserverTrustViolations(changed), [],
+      "expected synthetic observer trust boundary rejection");
+  }
+});
