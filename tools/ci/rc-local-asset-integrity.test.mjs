@@ -138,6 +138,18 @@ test("reject symlinked assets and missing assets", async () => {
     await assert.rejects(run(f), /RC_ASSET_MISSING/);
   } finally { f.close(); }
 });
+test("checksum sidecar symlink is rejected without following a private or oversized target", async () => {
+  const f = fixture();
+  try {
+    const file = join(f.root, "TDACompanion-x64.msi.sha256");
+    const target = join(f.root, "synthetic-protected-not-to-be-read");
+    writeFileSync(target, "SENSITIVE_SYNTHETIC_SENTINEL" + "X".repeat(1024));
+    rmSync(file);
+    symlinkSync(target, file);
+    await assert.rejects(run(f), /RC_ASSET_FILE_TYPE_OR_SIZE_INVALID/);
+    assert.equal(readFileSync(target, "utf8").startsWith("SENSITIVE_SYNTHETIC_SENTINEL"), true);
+  } finally { f.close(); }
+});
 test("missing manifest, source mismatch, and wrong candidate tag fail", async () => {
   const f = fixture();
   try {
