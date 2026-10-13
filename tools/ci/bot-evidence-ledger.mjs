@@ -42,7 +42,7 @@ export function evaluateEvidence({ repository, pr, run, jobs = [], codeqlRuns = 
   const required = Object.fromEntries(requiredJobs.map((name) => [name, jobState(jobs, name)]));
   const codeql = codeqlState(codeqlRuns, repository, sha, prNumber);
   const ci = run?.status === "completed" ? (run?.conclusion || "unknown") : "pending";
-  let state = "ready-for-human-review";
+  let state = "core-ci-verified-external-checks-unverified";
   if (failures.length) state = "invalid-identity";
   else if ((ci !== "success" && ci !== "pending") ||
     Object.values(required).some((value) => !["success", "pending"].includes(value)) ||
@@ -53,6 +53,7 @@ export function evaluateEvidence({ repository, pr, run, jobs = [], codeqlRuns = 
     schema_version: 1, repository, pr_number: prNumber, head_sha: sha,
     ci_run_id: run?.id, ci, required_jobs: required, codeql, state,
     reasons: failures, approval: "human-required", production: "not-authorized",
+    external_checks: "not-queried", branch_protection: "not-verified", freshness: "not-queried",
     jobs_observed: jobs.length, jobs_complete: completeJobs, codeql_complete: completeCodeql,
   };
 }
@@ -64,6 +65,7 @@ export function renderEvidenceMarkdown(evidence) {
     "- CodeQL: " + safe(evidence.codeql),
     "- State: **" + safe(evidence.state) + "** (never automatic merge approval)",
     "- Human review: **required**; Production/Stable: **not authorized**.",
+    "- External checks, dependency freshness and branch protections: **not verified** by this ledger.",
     "- Identity/provenance errors: " + (evidence.reasons.map(safe).join(", ") || "none"),
     "",
     "| Required job | Verified conclusion |", "| --- | --- |",
