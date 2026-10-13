@@ -1,7 +1,8 @@
 # TDA — Runbook dos bots de manutenção e dependências
 
-> **Status:** procedimentos vigentes identificados + playbooks recomendados em 13/10/2026; as partes marcadas **[PROPOSTO]** dependem das issues #1652–#1668.
-> **Owner:** operations/governance + donos técnicos de cada subsistema.
+> Status: procedimentos observados e propostas futuras
+> Owner: operations / governance / CI
+> Última revisão: 2026-10-13
 > **Referência:** [catálogo da frota](automation-bot-fleet.md), [epic #1651](https://github.com/Faysk/tda/issues/1651), [CI/CD](ci-cd.md), [release](release-runbook.md), [Companion](companion-dependency-policy.md).
 > **Baseline inventariada:** `main@67cc21704639658679886d92514033213a528f17`.
 
