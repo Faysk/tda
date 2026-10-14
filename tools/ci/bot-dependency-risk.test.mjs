@@ -62,6 +62,21 @@ test("pre-release and ambiguous npm constraints never masquerade as safe patches
   assert.equal(report.findings[0].kind, "unknown");
 });
 
+test("new package additions and Dependabot policy edits are high-risk", () => {
+  const added = classifyDependencyDiff({
+    oldNpm: npm(),
+    newNpm: npm({ "unreviewed-package": "1.0.0" }),
+    paths: ["package.json", "pnpm-lock.yaml"],
+  });
+  assert.equal(added.risk, "high");
+  assert.equal(added.findings[0].kind, "added");
+
+  const policy = classifyDependencyDiff({ paths: [".github/dependabot.yml"] });
+  assert.equal(policy.risk, "high");
+  assert.equal(policy.findings[0].kind, "bot-configuration");
+  assert.equal(policy.recommendation, "human-review-required");
+});
+
 test("critical Web libraries trigger high risk and never an approval", () => {
   const report = classifyDependencyDiff({
     oldNpm: npm({ next: "15.1.0", "@supabase/supabase-js": "2.10.0", "@aws-sdk/client-s3": "3.1.0" }),
