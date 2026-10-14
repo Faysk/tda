@@ -13,7 +13,7 @@ const gateNames = ["STATISTICS", "PERMISSIONS", "TRANSCRIPT_EDIT"];
 const deps = ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs"];
 const ciPatchPath = "patches/";
 const campaignPatchGlob = "patches/**";
-const globalWeb = ["next.config.ts", ".node-version", ".github/workflows/ci.yml"];
+const globalWeb = ["next.config.ts", ".node-version", ".github/workflows/ci.yml", "src/proxy.ts", "vercel.json"];
 const allOptionalPaths = [...deps, ciPatchPath, ...globalWeb];
 const jobToGate = new Map([
   ["statistics-e2e", "STATISTICS"], ["permissions-e2e", "PERMISSIONS"],
@@ -95,7 +95,7 @@ test("CI optional job and gate relevance remain synchronized under adversarial m
 
 test("security-critical global Next/Node/CI config edits cannot skip optional E2Es", () => {
   assertOptionalGateParity(ci);
-  const riskPaths = [".github/workflows/ci.yml", "next.config.ts", ".node-version"];
+  const riskPaths = [".github/workflows/ci.yml", "next.config.ts", ".node-version", "src/proxy.ts", "vercel.json"];
   for (const path of riskPaths) {
     const token = selector(path);
     const altered = ci.replace(token, "false");
