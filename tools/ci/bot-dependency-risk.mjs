@@ -32,10 +32,25 @@ export function pythonPins(text) {
   }
   return result;
 }
+// Normalize only recognized exact pins. If any other pyproject field,
+// constraint, extra or script changes, the risk report must not say "none".
+function normalizePythonManifest(text) {
+  if (typeof text !== "string") return null;
+  return text.replace(/^([ \t]*["'][a-z0-9_.-]+)==[a-z0-9.+_-]+(["'],?[ \t]*)$/gim,
+    "$1==<exact-pin>$2");
+}
 export function versionKind(before, after) {
   const a = String(before).match(/^[~^v]?(\d+)\.(\d+)\.(\d+)/);
   const b = String(after).match(/^[~^v]?(\d+)\.(\d+)\.(\d+)/);
   if (!a || !b) return "unknown";
+  // SemVer downgrades are not safe patch updates: a smaller version can
+  // reintroduce previously fixed bugs or vulnerabilities.
+  const from = a.slice(1, 4).map(BigInt);
+  const to = b.slice(1, 4).map(BigInt);
+  for (let i = 0; i < from.length; i++) {
+    if (to[i] < from[i]) return "downgrade";
+    if (to[i] > from[i]) break;
+  }
   if (a[1] !== b[1]) return "major";
   if (a[2] !== b[2]) return "minor";
   if (a[3] !== b[3]) return "patch";
@@ -47,7 +62,7 @@ function compare(before, after, ecosystem) {
     const from = before.get(name), to = after.get(name);
     if (from?.pin === to?.pin) continue;
     const kind = !from ? "added" : !to ? "removed" : versionKind(from.pin, to.pin);
-    const level = critical.has(name) || ["major", "unknown", "removed"].includes(kind) ? "high" :
+    const level = critical.has(name) || ["major", "unknown", "removed", "downgrade"].includes(kind) ? "high" :
       tooling.has(name) || kind === "minor" ? "medium" : "low";
     out.push({ ecosystem, name, before: from?.pin || "-", after: to?.pin || "-",
       kind, level, reason: critical.get(name) || (tooling.has(name) ? "build/test tooling" : "dependency change") });
@@ -66,6 +81,13 @@ export function classifyDependencyDiff({ oldNpm = null, newNpm = null, oldPython
   if (files.includes("local-companion/requirements-test.lock") && !findings.some((f) => f.ecosystem === "pip"))
     findings.push({ ecosystem: "pip", name: "transitive-lock", before: "unknown", after: "unknown",
       kind: "lock-only", level: "high", reason: "Python constraint impact unknown; Companion gates required" });
+  if (files.includes("local-companion/pyproject.toml") &&
+      (typeof oldPython !== "string" || typeof newPython !== "string" ||
+       normalizePythonManifest(oldPython) !== normalizePythonManifest(newPython))) {
+    findings.push({ ecosystem: "pip", name: "pyproject-unclassified", before: "unknown", after: "unknown",
+      kind: "manifest-unclassified", level: "high",
+      reason: "Python manifest has edits beyond recognized direct exact pins; review constraints, extras and scripts" });
+  }
   for (const path of files.filter((p) => /^\.github\/workflows\/.+\.ya?ml$/.test(p)))
     findings.push({ ecosystem: "github-actions", name: path, before: "pinned", after: "review required",
       kind: "workflow", level: "high", reason: "Review triggers, permissions, provenance and SHA" });
