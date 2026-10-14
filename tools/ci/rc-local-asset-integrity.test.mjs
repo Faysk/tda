@@ -206,3 +206,86 @@ test("symlinked RC manifest is rejected before opening local assets", async () =
     await assert.rejects(run(f), /RC_MANIFEST_SIZE_OR_TYPE_INVALID/);
   } finally { f.close(); }
 });
+
+test("Qwen RC rejects an internally forged bundle even if its JSON asset hash is updated", async () => {
+  const f = fixture("runtime");
+  try {
+    const bundleName = f.manifest.assets[0].name;
+    const original = JSON.parse(readFileSync(join(f.root, bundleName), "utf8"));
+    original.parts[0].sha256 = "f".repeat(64);
+    const altered = JSON.stringify(original);
+    writeFileSync(join(f.root, bundleName), altered);
+    f.manifest.assets[0] = asset(bundleName, altered);
+    writeFileSync(f.manifestFile, JSON.stringify(f.manifest));
+    await assert.rejects(run(f), /RUNTIME_QWEN_BUNDLE_PART_MISMATCH/);
+  } finally { f.close(); }
+});
+test("Qwen RC requires archive digest and aggregated part sizes to match the signed candidate", async () => {
+  for (const mutation of ["archive-sha", "archive-size", "bundle-family"]) {
+    const f = fixture("runtime");
+    try {
+      const name = f.manifest.assets[0].name;
+      const json = JSON.parse(readFileSync(join(f.root, name), "utf8"));
+      if (mutation === "archive-sha") json.archive.sha256 = "f".repeat(64);
+      if (mutation === "archive-size") json.archive.size += 1;
+      if (mutation === "bundle-family") json.runtime_id = "whisper-ctranslate2";
+      const changed = JSON.stringify(json);
+      writeFileSync(join(f.root, name), changed);
+      f.manifest.assets[0] = asset(name, changed);
+      writeFileSync(f.manifestFile, JSON.stringify(f.manifest));
+      await assert.rejects(run(f), /RUNTIME_QWEN_(ARCHIVE_IDENTITY_INVALID|BUNDLE_TOTAL_SIZE_MISMATCH|BUNDLE_IDENTITY_INVALID)/);
+    } finally { f.close(); }
+  }
+});
+test("Qwen incomplete and nonsequential candidate part sets fail before hashing", async () => {
+  const f = fixture("runtime");
+  try {
+    let input = structuredClone(f.manifest);
+    input.assets = [input.assets[0]];
+    assert.throws(() => extractAssets(input, "runtime"), /RUNTIME_QWEN_ASSET_SET_INCOMPLETE/);
+    input = structuredClone(f.manifest);
+    input.assets[1].name = "TDAQwenRuntime-1.0.19-windows-x64.zip.part003";
+    assert.throws(() => extractAssets(input, "runtime"), /RUNTIME_QWEN_PART_SEQUENCE_INVALID/);
+    input.assets[1].name = "TDAQwenRuntime-1.0.19-windows-x64.zip.part001";
+    input.family = "whisper";
+    assert.throws(() => extractAssets(input, "runtime"), /RUNTIME_WHISPER_ASSET_SET_INCOMPLETE/);
+  } finally { f.close(); }
+});
+function whisperFixture() {
+  const f = fixture("runtime");
+  for (const name of Object.keys(f.bytes)) rmSync(join(f.root, name));
+  const archive = "TDAWhisperRuntime-1.0.19-windows-x64.zip";
+  const archiveBytes = "synthetic-whisper-runtime-archive";
+  const checksum = digest(archiveBytes) + "  " + archive + "\n";
+  const sidecar = archive + ".sha256";
+  writeFileSync(join(f.root, archive), archiveBytes);
+  writeFileSync(join(f.root, sidecar), checksum);
+  f.manifest.family = "whisper";
+  f.manifest.runtime_id = "whisper-ctranslate2";
+  f.manifest.runtime_archive_sha256 = digest(archiveBytes);
+  f.manifest.candidate_tag = "companion-whisper-runtime-rc-v1.0.19-" + SOURCE.slice(0, 12);
+  f.manifest.stable_tag = "companion-whisper-runtime-v1.0.19";
+  f.manifest.assets = [asset(archive, archiveBytes), asset(sidecar, checksum)];
+  writeFileSync(f.manifestFile, JSON.stringify(f.manifest));
+  return f;
+}
+test("Whisper RC real layout requires archive and matching digest sidecar", async () => {
+  const f = whisperFixture();
+  try {
+    const report = await run(f);
+    assert.equal(report.assets_hashed, 2);
+    assert.equal(report.github_attestation, "not-checked");
+    assert.equal(report.authorizes_stable, false);
+  } finally { f.close(); }
+});
+test("Whisper sidecar with forged archive SHA fails even when all listed asset hashes match", async () => {
+  const f = whisperFixture();
+  try {
+    const name = f.manifest.assets[1].name;
+    const wrong = "f".repeat(64) + "  " + f.manifest.assets[0].name + "\n";
+    writeFileSync(join(f.root, name), wrong);
+    f.manifest.assets[1] = asset(name, wrong);
+    writeFileSync(f.manifestFile, JSON.stringify(f.manifest));
+    await assert.rejects(run(f), /RUNTIME_WHISPER_SIDECAR_OR_ARCHIVE_MISMATCH/);
+  } finally { f.close(); }
+});
