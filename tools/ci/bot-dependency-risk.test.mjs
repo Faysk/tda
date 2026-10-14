@@ -66,7 +66,7 @@ test("package.json lifecycle scripts and engine changes are classified high even
   const pinOnly = classifyDependencyDiff({
     oldNpm: JSON.stringify({ devDependencies: { prettier: "3.6.0" }, name: "tda" }),
     newNpm: JSON.stringify({ name: "tda", devDependencies: { prettier: "3.6.1" } }),
-    paths: ["package.json", "pnpm-lock.yaml"],
+    paths: ["package.json"],
   });
   assert.equal(pinOnly.risk, "low");
   assert.ok(pinOnly.findings.every((x) => x.kind !== "manifest-unclassified"));
@@ -115,22 +115,58 @@ test("critical Web libraries trigger high risk and never an approval", () => {
   assert.equal(report.advisories, "not-queried");
 });
 
-test("ordinary patch is low while test runner changes are medium", () => {
+test("direct manifest patch is low while direct test runner changes are medium (lock not assessed)", () => {
   const report = classifyDependencyDiff({
     oldNpm: npm({ "tiny-lib": "1.1.0" }, { "@playwright/test": "1.60.0" }),
     newNpm: npm({ "tiny-lib": "1.1.1" }, { "@playwright/test": "1.60.1" }),
-    paths: ["package.json", "pnpm-lock.yaml"],
+    paths: ["package.json"],
   });
   assert.equal(report.risk, "medium");
   assert.equal(report.findings.find((x) => x.name === "tiny-lib").level, "low");
   assert.equal(report.findings.find((x) => x.name === "@playwright/test").level, "medium");
 });
 
+test("direct patch cannot conceal an unexamined npm or Python transitive lock", () => {
+  const oldNpm = npm({ "small-library": "1.0.0" });
+  const newNpm = npm({ "small-library": "1.0.1" });
+  const alone = classifyDependencyDiff({ oldNpm, newNpm, paths: ["package.json"] });
+  assert.equal(alone.risk, "low");
+  const withLock = classifyDependencyDiff({
+    oldNpm, newNpm, paths: ["package.json", "pnpm-lock.yaml"],
+  });
+  assert.equal(withLock.risk, "high");
+  assert.ok(withLock.findings.some((f) => f.kind === "patch" && f.level === "low"));
+  assert.ok(withLock.findings.some((f) =>
+    f.kind === "lock-unreviewed" && f.level === "high" && f.ecosystem === "npm"));
+
+  const oldPython = '[project]\\ndependencies = [\\n  "tiny-lib==1.0.0",\\n]';
+  const newPython = oldPython.replace("1.0.0", "1.0.1");
+  const python = classifyDependencyDiff({
+    oldPython, newPython,
+    paths: ["local-companion/pyproject.toml", "local-companion/requirements-test.lock"],
+  });
+  assert.equal(python.risk, "high");
+  assert.ok(python.findings.some((f) => f.kind === "patch"));
+  assert.ok(python.findings.some((f) =>
+    f.kind === "lock-unreviewed" && f.level === "high" && f.ecosystem === "pip"));
+});
+
+test("pnpm workspace allowBuilds and npm registry configuration changes are high-risk", () => {
+  for (const path of ["pnpm-workspace.yaml", ".npmrc"]) {
+    const report = classifyDependencyDiff({ paths: [path] });
+    assert.equal(report.risk, "high");
+    assert.equal(report.recommendation, "human-review-required");
+    assert.equal(report.findings[0].kind, "package-manager-configuration");
+    assert.equal(report.findings[0].name, path);
+    assert.match(renderRiskMarkdown(report), /Package-manager/);
+  }
+});
+
 test("a transitive-only npm lock update stays high-risk and reviewable", () => {
   const manifest = npm({ next: "16.1.0" });
   const report = classifyDependencyDiff({ oldNpm: manifest, newNpm: manifest, paths: ["pnpm-lock.yaml"] });
   assert.equal(report.risk, "high");
-  assert.equal(report.findings[0].kind, "lock-only");
+  assert.equal(report.findings[0].kind, "lock-unreviewed");
   assert.match(renderRiskMarkdown(report, "origin/main...abc123"), /not queried/);
 });
 
@@ -145,7 +181,7 @@ test("a Python direct pin drift names Companion and a lock-only change remains u
   assert.equal(report.findings.length, 2);
   const lockReport = classifyDependencyDiff({ oldPython: newer, newPython: newer,
     paths: ["local-companion/requirements-test.lock"] });
-  assert.equal(lockReport.findings[0].kind, "lock-only");
+  assert.equal(lockReport.findings[0].kind, "lock-unreviewed");
 });
 
 test("unparsed Python manifest edits never disappear from the risk report", () => {
