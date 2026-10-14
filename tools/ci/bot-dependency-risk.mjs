@@ -145,6 +145,14 @@ export function classifyDependencyDiff({
       kind: "package-manager-configuration", level: "high",
       reason: "Package-manager pnpm hooks, patched dependency code, registry or lifecycle configuration requires review" });
   }
+  // Vercel source packaging and install/build configuration can change the
+  // deployed artifact without a package.json diff; surface human review.
+  for (const path of files.filter((p) => ["vercel.json", ".vercelignore"].includes(p))) {
+    findings.push({ ecosystem: "deployment", name: path,
+      before: "reviewed configuration", after: "review required",
+      kind: "deployment-configuration", level: "high",
+      reason: "Vercel Git deploy, build/install or upload exclusion policy requires review" });
+  }
   for (const path of files.filter((p) => /^\.github\/dependabot\.ya?ml$/.test(p))) {
     findings.push({ ecosystem: "github-actions", name: path, before: "review required", after: "review required",
       kind: "bot-configuration", level: "high",
@@ -215,7 +223,7 @@ function main() {
     { encoding: "utf8" }).split("\0").filter(Boolean);
   if (!files.some((f) => ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs",
     "local-companion/pyproject.toml", "local-companion/requirements-test.lock"].includes(f) ||
-    f.startsWith("patches/") ||
+    f.startsWith("patches/") || ["vercel.json", ".vercelignore"].includes(f) ||
     /^\.github\/(?:workflows\/.+|dependabot)\.ya?ml$/.test(f))) return;
   const report = classifyDependencyDiff({
     oldNpm: typeChangedPaths.includes("package.json") ? null : show(refs.from, "package.json"),
