@@ -50,6 +50,26 @@ export function extractAssets(manifest, family) {
     if (seen.has(lower)) throw new Error("RC_ASSET_DUPLICATE_NAME");
     seen.add(lower);
   }
+  if (family === "runtime") {
+    // Enforce the producer's actual asset shape; merely hashing an arbitrary
+    // subset of a signed candidate would falsely claim "all assets checked".
+    if (manifest.family === "whisper") {
+      const archive = "TDAWhisperRuntime-" + manifest.version + "-windows-x64.zip";
+      if (rows.length !== 2 || rows[0].name !== archive ||
+          rows[1].name !== archive + ".sha256")
+        throw new Error("RUNTIME_WHISPER_ASSET_SET_INCOMPLETE");
+    } else if (manifest.family === "qwen") {
+      const bundle = "TDAQwenRuntimeBundle-" + manifest.version + "-windows-x64.json";
+      if (rows.length < 2 || rows.length > 17 || rows[0].name !== bundle)
+        throw new Error("RUNTIME_QWEN_ASSET_SET_INCOMPLETE");
+      for (let i = 1; i < rows.length; i++) {
+        const expected = "TDAQwenRuntime-" + manifest.version +
+          "-windows-x64.zip.part" + String(i).padStart(3, "0");
+        if (rows[i].name !== expected)
+          throw new Error("RUNTIME_QWEN_PART_SEQUENCE_INVALID");
+      }
+    } else throw new Error("RUNTIME_FAMILY_UNKNOWN");
+  }
   return rows;
 }
 async function sha256RegularFile(file, expectedSize) {
