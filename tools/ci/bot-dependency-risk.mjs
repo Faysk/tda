@@ -39,10 +39,37 @@ function normalizePythonManifest(text) {
   return text.replace(/^([ \t]*["'][a-z0-9_.-]+)==[a-z0-9.+_-]+(["'],?[ \t]*)$/gim,
     "$1==<exact-pin>$2");
 }
+// Replace only dependency values when comparing manifests: lifecycle scripts,
+// engines, package-manager constraints and metadata changes must remain visible.
+function normalizeNpmManifest(text) {
+  if (typeof text !== "string") return null;
+  const data = JSON.parse(text);
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  for (const scope of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
+    if (!Object.hasOwn(data, scope)) continue;
+    const deps = data[scope];
+    if (!deps || typeof deps !== "object" || Array.isArray(deps)) return null;
+    for (const key of Object.keys(deps)) {
+      if (typeof deps[key] !== "string") return null;
+      deps[key] = "<dependency-pin>";
+    }
+  }
+  const sorted = (value) => {
+    if (Array.isArray(value)) return value.map(sorted);
+    if (value && typeof value === "object")
+      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sorted(value[key])]));
+    return value;
+  };
+  return JSON.stringify(sorted(data));
+}
 export function versionKind(before, after) {
-  const a = String(before).match(/^[~^v]?(\d+)\.(\d+)\.(\d+)/);
-  const b = String(after).match(/^[~^v]?(\d+)\.(\d+)\.(\d+)/);
+  // Parse complete versions. Pre-releases/constraint changes are unknown risk;
+  // do not classify "1.2.4-beta" as a routine patch.
+  const fullVersion = /^[~^v]?(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
+  const a = String(before).match(fullVersion);
+  const b = String(after).match(fullVersion);
   if (!a || !b) return "unknown";
+  if (a[4] || b[4] || a[5] || b[5]) return before === after ? "same" : "unknown";
   // SemVer downgrades are not safe patch updates: a smaller version can
   // reintroduce previously fixed bugs or vulnerabilities.
   const from = a.slice(1, 4).map(BigInt);
@@ -54,7 +81,7 @@ export function versionKind(before, after) {
   if (a[1] !== b[1]) return "major";
   if (a[2] !== b[2]) return "minor";
   if (a[3] !== b[3]) return "patch";
-  return before === after ? "same" : "constraint";
+  return before === after ? "same" : "unknown";
 }
 function compare(before, after, ecosystem) {
   const out = [];
@@ -78,6 +105,13 @@ export function classifyDependencyDiff({ oldNpm = null, newNpm = null, oldPython
   if (files.includes("pnpm-lock.yaml") && !findings.some((f) => f.ecosystem === "npm"))
     findings.push({ ecosystem: "npm", name: "transitive-lock", before: "unknown", after: "unknown",
       kind: "lock-only", level: "high", reason: "Web dependency impact unknown; domain gates required" });
+  if (files.includes("package.json") &&
+      (typeof oldNpm !== "string" || typeof newNpm !== "string" ||
+       normalizeNpmManifest(oldNpm) !== normalizeNpmManifest(newNpm))) {
+    findings.push({ ecosystem: "npm", name: "package-json-unclassified", before: "unknown", after: "unknown",
+      kind: "manifest-unclassified", level: "high",
+      reason: "package.json scripts, engines, scope or metadata changed beyond dependency versions" });
+  }
   if (files.includes("local-companion/requirements-test.lock") && !findings.some((f) => f.ecosystem === "pip"))
     findings.push({ ecosystem: "pip", name: "transitive-lock", before: "unknown", after: "unknown",
       kind: "lock-only", level: "high", reason: "Python constraint impact unknown; Companion gates required" });
