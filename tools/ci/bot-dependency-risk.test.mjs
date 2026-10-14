@@ -105,7 +105,7 @@ test("critical Web libraries trigger high risk and never an approval", () => {
   const report = classifyDependencyDiff({
     oldNpm: npm({ next: "15.1.0", "@supabase/supabase-js": "2.10.0", "@aws-sdk/client-s3": "3.1.0" }),
     newNpm: npm({ next: "15.2.0", "@supabase/supabase-js": "2.11.0", "@aws-sdk/client-s3": "3.1.1" }),
-    paths: ["package.json", "pnpm-lock.yaml"],
+    paths: ["package.json"],
   });
   assert.equal(report.risk, "high");
   assert.equal(report.recommendation, "human-review-required");
@@ -139,7 +139,7 @@ test("direct patch cannot conceal an unexamined npm or Python transitive lock", 
   assert.ok(withLock.findings.some((f) =>
     f.kind === "lock-unreviewed" && f.level === "high" && f.ecosystem === "npm"));
 
-  const oldPython = '[project]\\ndependencies = [\\n  "tiny-lib==1.0.0",\\n]';
+  const oldPython = '[project]\ndependencies = [\n  "tiny-lib==1.0.0",\n]';
   const newPython = oldPython.replace("1.0.0", "1.0.1");
   const python = classifyDependencyDiff({
     oldPython, newPython,
