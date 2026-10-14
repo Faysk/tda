@@ -75,9 +75,9 @@ function nodeRuntimePinViolations(nodeVersion, nvmrc, engine) {
   const issues = [];
   const left = String(nodeVersion).trim();
   const right = String(nvmrc).trim();
-  if (!/^\\d+\\.\\d+\\.\\d+$/.test(left))
+  if (!/^\d+\.\d+\.\d+$/.test(left))
     issues.push(".node-version must be an exact semver");
-  if (!/^\\d+\\.\\d+\\.\\d+$/.test(right))
+  if (!/^\d+\.\d+\.\d+$/.test(right))
     issues.push(".nvmrc must be an exact semver");
   if (left !== right)
     issues.push("nvm and CI Node pins disagree");
