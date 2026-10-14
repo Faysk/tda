@@ -286,7 +286,7 @@ test("every main release candidate reaches Preview before an explicit Production
   const mainPreview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
   const production = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
   assert.match(mainPreview, /workflow_run:/);
-  assert.match(mainPreview, /workflows:\s*\[CI\]/);
+  assert.match(mainPreview, /workflows:\s*\[CI, CodeQL\]/);
   assert.match(mainPreview, /workflow_dispatch:/);
   assert.match(mainPreview, /head_branch == 'main'/);
   assert.match(mainPreview, /MAIN_PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED/);
@@ -316,6 +316,29 @@ test("every main release candidate reaches Preview before an explicit Production
     production.indexOf("Pull Production configuration"));
   assert.ok(production.indexOf("Reverify the approved Preview runtime before staging Production") <
     production.indexOf("Pull Production configuration"));
+});
+
+test("Main Preview requires latest same-SHA main CodeQL before Production-parity build", () => {
+  const preview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
+  assert.ok(preview.includes("workflows: [CI, CodeQL]"),
+    "the later of CI and CodeQL must be able to trigger reviewed Preview");
+  assert.ok(preview.includes("github.event.workflow_run.name == 'CI'"));
+  assert.ok(preview.includes("github.event.workflow_run.name == 'CodeQL'"));
+  assert.ok(preview.includes("github.event.workflow_run.event == 'push'"));
+  assert.ok(preview.includes("github.event.workflow_run.head_branch == 'main'"));
+  assert.ok(preview.includes("github.event.workflow_run.conclusion == 'success'"));
+  assert.ok(preview.includes("github.event.workflow_run.head_repository.full_name == github.repository"));
+  assert.ok(preview.includes("MAIN_PREVIEW_EXACT_SUCCESSFUL_CI_REQUIRED"));
+  assert.ok(preview.includes("Require exact-main CodeQL before Production-parity Preview"));
+  assert.ok(preview.includes("node tools/ci/require-main-codeql.mjs"));
+  assert.ok(preview.indexOf("Require exact-main CodeQL before Production-parity Preview") >
+    preview.indexOf("Verify exact checkout and configure project"));
+  assert.ok(preview.indexOf("Require exact-main CodeQL before Production-parity Preview") <
+    preview.indexOf("Pull the existing Production environment"));
+  assert.ok(preview.indexOf("Require exact-main CodeQL before Production-parity Preview") <
+    preview.indexOf("vercel build --prod"));
+  assert.ok(preview.indexOf("Require exact-main CodeQL before Production-parity Preview") <
+    preview.indexOf("vercel deploy --prebuilt --prod --skip-domain"));
 });
 
 test("Web-only releases are semantic, channel-isolated and published after deploy proof", () => {
