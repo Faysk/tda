@@ -241,7 +241,7 @@ test("CodeQL language matrix cannot pass with missing, skipped or failed jobs", 
 
 test("Production checks the exact-main CodeQL matrix before human confirmation or deployment", () => {
   const prod = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
-  assert.match(prod, /node tools\\/ci\\/require-main-codeql\\.mjs/);
+  assert.match(prod, /node tools\/ci\/require-main-codeql\.mjs/);
   assert.ok(prod.indexOf("Require exact main CodeQL Python and JS/TS evidence") >
     prod.indexOf("Require successful CI for the exact main source"));
   assert.ok(prod.indexOf("Require exact main CodeQL Python and JS/TS evidence") <
