@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const requiredJobs = ["classify-changes", "workflow-contract", "validate", "ci-gate", "required-ci"];
+const requiredCodeqlJobs = ["analyze (python)", "analyze (javascript-typescript)"];
 
 function safe(value) {
   return String(value ?? "").replace(/[\r\n|]/g, " ").replaceAll(String.fromCharCode(96), "'").slice(0, 160);
@@ -17,18 +18,22 @@ function jobState(jobs, name) {
   if (rows.length !== 1) return rows.length ? "ambiguous" : "missing";
   return rows[0].status === "completed" ? (rows[0].conclusion || "unknown") : "pending";
 }
-function codeqlState(runs, repo, sha, prNumber) {
+function latestCodeqlRun(runs, repo, sha, prNumber) {
   const list = (runs || []).filter((r) =>
     r?.event === "pull_request" && r?.head_sha === sha &&
     sameRepo(r, repo) && samePr(r, prNumber) &&
     (r?.path || "").endsWith("/codeql.yml"));
-  if (!list.length) return "missing";
+  if (!list.length) return null;
   list.sort((a, b) => (a.run_started_at || a.created_at || "").localeCompare(b.run_started_at || b.created_at || "") ||
     (a.id || 0) - (b.id || 0));
   const latest = list[list.length - 1];
-  return latest.status === "completed" ? (latest.conclusion || "unknown") : "pending";
+  return latest;
 }
-export function evaluateEvidence({ repository, pr, run, jobs = [], codeqlRuns = [], completeJobs = true, completeCodeql = true }) {
+export function evaluateEvidence({
+  repository, pr, run, jobs = [], codeqlRuns = [], codeqlJobs = [],
+  codeqlJobsRunId = null, completeJobs = true, completeCodeql = true,
+  completeCodeqlJobs = false,
+}) {
   const sha = run?.head_sha, prNumber = pr?.number, failures = [];
   if (!exactSha(sha)) failures.push("invalid-source-sha");
   if (run?.name !== "CI" || run?.event !== "pull_request") failures.push("wrong-trigger");
@@ -40,21 +45,33 @@ export function evaluateEvidence({ repository, pr, run, jobs = [], codeqlRuns = 
     failures.push("stale-or-foreign-pr-head");
   if (pr?.user?.login !== "dependabot[bot]") failures.push("not-dependabot-pr");
   const required = Object.fromEntries(requiredJobs.map((name) => [name, jobState(jobs, name)]));
-  const codeql = codeqlState(codeqlRuns, repository, sha, prNumber);
+  const latestCodeql = latestCodeqlRun(codeqlRuns, repository, sha, prNumber);
+  const codeql = !latestCodeql ? "missing" :
+    latestCodeql.status === "completed" ? (latestCodeql.conclusion || "unknown") : "pending";
+  const codeqlJobsCurrent = Number.isSafeInteger(latestCodeql?.id) &&
+    latestCodeql.id > 0 && codeqlJobsRunId === latestCodeql.id && completeCodeqlJobs;
+  const codeqlRequired = Object.fromEntries(requiredCodeqlJobs.map((name) =>
+    [name, codeqlJobsCurrent ? jobState(codeqlJobs, name) : "unknown"]));
+  const codeqlRequiredFailed = codeql === "success" && codeqlJobsCurrent &&
+    Object.values(codeqlRequired).some((state) => state !== "success" && state !== "pending");
+  const codeqlRequiredPending = codeql === "success" &&
+    (!codeqlJobsCurrent || Object.values(codeqlRequired).includes("pending"));
   const ci = run?.status === "completed" ? (run?.conclusion || "unknown") : "pending";
   let state = "core-ci-verified-external-checks-unverified";
   if (failures.length) state = "invalid-identity";
   else if ((ci !== "success" && ci !== "pending") ||
     Object.values(required).some((value) => !["success", "pending"].includes(value)) ||
-    !["success", "pending", "missing"].includes(codeql)) state = "blocked";
+    !["success", "pending", "missing"].includes(codeql) || codeqlRequiredFailed) state = "blocked";
   else if (!completeJobs || !completeCodeql || ci === "pending" || Object.values(required).includes("pending") ||
-    codeql === "pending" || codeql === "missing") state = "pending-or-unknown";
+    codeql === "pending" || codeql === "missing" || codeqlRequiredPending) state = "pending-or-unknown";
   return {
     schema_version: 1, repository, pr_number: prNumber, head_sha: sha,
     ci_run_id: run?.id, ci, required_jobs: required, codeql, state,
+    codeql_run_id: latestCodeql?.id ?? null, codeql_required_jobs: codeqlRequired,
     reasons: failures, approval: "human-required", production: "not-authorized",
     external_checks: "not-queried", branch_protection: "not-verified", freshness: "not-queried",
     jobs_observed: jobs.length, jobs_complete: completeJobs, codeql_complete: completeCodeql,
+    codeql_jobs_complete: codeqlJobsCurrent,
   };
 }
 export function renderEvidenceMarkdown(evidence) {
@@ -62,7 +79,8 @@ export function renderEvidenceMarkdown(evidence) {
     "## Dependabot evidence ledger — read-only",
     "- PR: #" + safe(evidence.pr_number) + "; source SHA: " + safe(evidence.head_sha),
     "- CI run: " + safe(evidence.ci_run_id) + "; CI: " + safe(evidence.ci),
-    "- CodeQL: " + safe(evidence.codeql),
+    "- CodeQL: " + safe(evidence.codeql) + "; run: " + safe(evidence.codeql_run_id),
+    "- Required CodeQL language jobs complete on exact run: " + safe(evidence.codeql_jobs_complete),
     "- State: **" + safe(evidence.state) + "** (never automatic merge approval)",
     "- Human review: **required**; Production/Stable: **not authorized**.",
     "- External checks, dependency freshness and branch protections: **not verified** by this ledger.",
@@ -72,6 +90,8 @@ export function renderEvidenceMarkdown(evidence) {
   ];
   for (const [key, value] of Object.entries(evidence.required_jobs))
     lines.push("| " + safe(key) + " | " + safe(value) + " |");
+  for (const [key, value] of Object.entries(evidence.codeql_required_jobs))
+    lines.push("| CodeQL: " + safe(key) + " | " + safe(value) + " |");
   lines.push("", "Status is scoped to the named CI run and exact PR head, not historical green runs. Missing/skipped/ambiguous/stale results never confer readiness.", "");
   return lines.join("\n");
 }
@@ -116,7 +136,22 @@ function main() {
     run.head_sha + "&event=pull_request&per_page=100");
   const codeql = codeqlResponse.workflow_runs || [];
   const completeCodeql = Number.isInteger(codeqlResponse.total_count) && codeqlResponse.total_count <= codeql.length;
-  const evidence = evaluateEvidence({ repository: repo, pr, run, jobs, completeJobs, codeqlRuns: codeql, completeCodeql });
+  // A green CodeQL workflow can hide a skipped/missing matrix language.
+  // Query only the selected same-repository PR+SHA workflow run, read-only.
+  const selected = latestCodeqlRun(codeql, repo, run.head_sha, prNumber);
+  let codeqlJobs = [], completeCodeqlJobs = false;
+  if (Number.isSafeInteger(selected?.id) && selected.id > 0) {
+    try {
+      ({ jobs: codeqlJobs, completeJobs: completeCodeqlJobs } = collectJobs(repo, selected.id));
+    } catch {
+      // Fail closed as unknown when Actions API is inaccessible or paginated
+      // incompletely; never reuse a previous run's language results.
+      process.stderr.write("CodeQL job-level evidence unavailable; reporting unknown.\n");
+    }
+  }
+  const evidence = evaluateEvidence({ repository: repo, pr, run, jobs, completeJobs,
+    codeqlRuns: codeql, completeCodeql, codeqlJobs, completeCodeqlJobs,
+    codeqlJobsRunId: selected?.id ?? null });
   const markdown = renderEvidenceMarkdown(evidence);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
   process.stdout.write(markdown);
