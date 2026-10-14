@@ -26,6 +26,42 @@ test("patch and major downgrades are high-risk, not routine updates", () => {
   assert.equal(report.recommendation, "human-review-required");
 });
 
+test("package.json lifecycle scripts and engine changes are classified high even without version changes", () => {
+  const before = JSON.stringify({ name: "tda", scripts: { build: "next build" },
+    engines: { node: ">=20" }, devDependencies: { prettier: "3.6.0" } });
+  const changed = JSON.stringify({ name: "tda", scripts: { build: "node custom-build.js" },
+    engines: { node: ">=22" }, devDependencies: { prettier: "3.6.0" } });
+  const report = classifyDependencyDiff({ oldNpm: before, newNpm: changed, paths: ["package.json"] });
+  assert.equal(report.risk, "high");
+  assert.deepEqual(report.findings.map((x) => x.kind), ["manifest-unclassified"]);
+  assert.equal(report.recommendation, "human-review-required");
+  const absent = classifyDependencyDiff({ oldNpm: null, newNpm: changed, paths: ["package.json"] });
+  assert.equal(absent.risk, "high");
+  assert.ok(absent.findings.some((x) => x.kind === "manifest-unclassified"));
+
+  const pinOnly = classifyDependencyDiff({
+    oldNpm: JSON.stringify({ devDependencies: { prettier: "3.6.0" }, name: "tda" }),
+    newNpm: JSON.stringify({ name: "tda", devDependencies: { prettier: "3.6.1" } }),
+    paths: ["package.json", "pnpm-lock.yaml"],
+  });
+  assert.equal(pinOnly.risk, "low");
+  assert.ok(pinOnly.findings.every((x) => x.kind !== "manifest-unclassified"));
+});
+
+test("pre-release and ambiguous npm constraints never masquerade as safe patches", () => {
+  assert.equal(versionKind("1.2.3-beta.1", "1.2.3"), "unknown");
+  assert.equal(versionKind("1.2.3", "1.2.4-rc.1"), "unknown");
+  assert.equal(versionKind("^1.2.3", "~1.2.3"), "unknown");
+  assert.equal(versionKind("1.2.3", "1.2.4suffix"), "unknown");
+  const report = classifyDependencyDiff({
+    oldNpm: npm({ "tiny-lib": "1.2.3-beta.1" }),
+    newNpm: npm({ "tiny-lib": "1.2.3" }),
+    paths: ["package.json", "pnpm-lock.yaml"],
+  });
+  assert.equal(report.risk, "high");
+  assert.equal(report.findings[0].kind, "unknown");
+});
+
 test("critical Web libraries trigger high risk and never an approval", () => {
   const report = classifyDependencyDiff({
     oldNpm: npm({ next: "15.1.0", "@supabase/supabase-js": "2.10.0", "@aws-sdk/client-s3": "3.1.0" }),
