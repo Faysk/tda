@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 // npm/pnpm lock changes can alter any Web runtime without touching source files.
 // Fail closed across Web domains; Companion Python/MSI is a separate package graph.
 const WEB_DEPENDENCY_CONTRACT = new Set([
-  "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc",
+  "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs",
 ]);
 
 const CLASSIFIER_CONTRACT = new Set([
@@ -182,7 +182,9 @@ function normalized(path) {
 }
 
 function matches(path, domain) {
-	if (WEB_DEPENDENCY_CONTRACT.has(path) && domain !== "companion") return true;
+	// pnpm hooks execute during dependency resolution; package patches can
+	// alter installed source without an adjacent package.json update.
+	if ((WEB_DEPENDENCY_CONTRACT.has(path) || path.startsWith("patches/")) && domain !== "companion") return true;
 	if (CLASSIFIER_CONTRACT.has(path)) return true;
 	if (EXACT[domain].has(path)) return true;
 	if (PREFIX[domain].some((prefix) => path.startsWith(prefix))) return true;
