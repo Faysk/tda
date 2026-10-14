@@ -216,6 +216,35 @@ test("unparsed Python manifest edits never disappear from the risk report", () =
   assert.ok(exactOnly.findings.every((x) => x.kind !== "manifest-unclassified"));
 });
 
+test("mode/symlink typechanges cannot disappear or parse symlink target as a manifest", () => {
+  const npmManifest = classifyDependencyDiff({
+    paths: ["package.json"], typeChangedPaths: ["package.json"],
+    oldNpm: null, newNpm: null,
+  });
+  assert.equal(npmManifest.risk, "high");
+  assert.ok(npmManifest.findings.some((f) => f.kind === "file-typechange"));
+  assert.ok(npmManifest.findings.some((f) => f.kind === "manifest-unclassified"));
+  assert.equal(npmManifest.recommendation, "human-review-required");
+
+  const python = classifyDependencyDiff({
+    paths: ["local-companion/pyproject.toml"],
+    typeChangedPaths: ["local-companion/pyproject.toml"],
+  });
+  assert.equal(python.risk, "high");
+  assert.ok(python.findings.some((f) => f.kind === "file-typechange"));
+
+  const workflow = classifyDependencyDiff({
+    paths: [".github/workflows/ci.yml"],
+    typeChangedPaths: [".github/workflows/ci.yml"],
+  });
+  assert.equal(workflow.risk, "high");
+  assert.ok(workflow.findings.some((f) => f.kind === "workflow"));
+  assert.ok(workflow.findings.some((f) => f.kind === "file-typechange"));
+
+  const unchanged = classifyDependencyDiff({ paths: [".github/workflows/ci.yml"] });
+  assert.ok(unchanged.findings.every((f) => f.kind !== "file-typechange"));
+});
+
 test("workflow edits are always security-review candidates regardless of package diff", () => {
   const report = classifyDependencyDiff({ paths: [".github/workflows/runtime-rc.yml"] });
   assert.equal(report.risk, "high");
