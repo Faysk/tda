@@ -4,7 +4,9 @@ import { pathToFileURL } from "node:url";
 
 // npm/pnpm lock changes can alter any Web runtime without touching source files.
 // Fail closed across Web domains; Companion Python/MSI is a separate package graph.
-const WEB_DEPENDENCY_CONTRACT = new Set(["package.json", "pnpm-lock.yaml"]);
+const WEB_DEPENDENCY_CONTRACT = new Set([
+  "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc",
+]);
 
 const CLASSIFIER_CONTRACT = new Set([
 	"tools/ci/classify-changes.mjs",
@@ -219,13 +221,15 @@ export function classifyPaths(inputPaths) {
 	return { files, ...classes };
 }
 
-export function changedFilesForRange(range) {
+export function changedFilesForRange(range, { cwd } = {}) {
 	if (!range || typeof range !== "string")
 		throw new Error("An explicit git range is required");
 	const output = execFileSync(
 		"git",
-		["diff", "--name-only", "--diff-filter=ACMR", range],
-		{ encoding: "utf8" },
+		// Deletions and file type changes (regular file <-> symlink) can
+		// remove or redirect critical gates even without an added file.
+		["diff", "--name-only", "--diff-filter=ACMRDT", range],
+		{ encoding: "utf8", ...(cwd ? { cwd } : {}) },
 	);
 	return output.split(/\r?\n/u).filter(Boolean);
 }
