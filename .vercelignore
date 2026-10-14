@@ -6,3 +6,4 @@ node_modules
 .next
 playwright-report
 test-results
+# CI-only synthetic receipt; exclusion rules are unchanged.
