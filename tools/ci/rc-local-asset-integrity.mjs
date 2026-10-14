@@ -72,7 +72,7 @@ export function extractAssets(manifest, family) {
   }
   return rows;
 }
-async function sha256RegularFile(file, expectedSize) {
+async function sha256RegularFile(file, expectedSize, concatenatedArchive = null) {
   // A file descriptor with O_NOFOLLOW and fstat prevents simple symlink
   // replacement. Only explicit local assets are opened; no recursion/globbing.
   let descriptor;
@@ -87,7 +87,12 @@ async function sha256RegularFile(file, expectedSize) {
       throw new Error("RC_ASSET_FILE_CHANGED_OR_INVALID");
     const hash = createHash("sha256");
     const stream = descriptor.createReadStream({ autoClose: false, highWaterMark: 1024 * 1024 });
-    for await (const block of stream) hash.update(block);
+    for await (const block of stream) {
+      hash.update(block);
+      // Reconstruct the Qwen archive digest as already-verified ordered parts
+      // stream through the existing file descriptors; no second multi-GB read.
+      concatenatedArchive?.update(block);
+    }
     const end = await descriptor.stat();
     if (!end.isFile() || end.size !== expectedSize) throw new Error("RC_ASSET_CHANGED_DURING_READ");
     return hash.digest("hex");
@@ -255,10 +260,15 @@ export async function verifyLocalRcAssets({ family, manifestFile, assetsRoot, so
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("RC_ASSETS_ROOT_INVALID");
   const assets = extractAssets(manifest, family);
   const byName = new Map(assets.map((x) => [x.name, x]));
+  const qwenArchiveDigest = family === "runtime" && manifest.family === "qwen" ?
+    createHash("sha256") : null;
   let total = 0;
-  for (const item of assets) {
+  for (const [index, item] of assets.entries()) {
     let actual;
-    try { actual = await sha256RegularFile(join(root, item.name), item.size); }
+    try {
+      actual = await sha256RegularFile(join(root, item.name), item.size,
+        qwenArchiveDigest && index > 0 ? qwenArchiveDigest : null);
+    }
     catch (error) {
       if (error?.code === "ENOENT") throw new Error("RC_ASSET_MISSING:" + item.name);
       throw error;
@@ -271,8 +281,12 @@ export async function verifyLocalRcAssets({ family, manifestFile, assetsRoot, so
     await confirmCompanionChecksum(root, byName, manifest.assets.msi.sha256);
     await checkCompanionPayload(root, manifest);
   }
-  if (family === "runtime")
+  if (family === "runtime") {
     await checkRuntimeMetadata(root, manifest, assets);
+    if (qwenArchiveDigest &&
+        qwenArchiveDigest.digest("hex") !== manifest.runtime_archive_sha256)
+      throw new Error("RUNTIME_QWEN_RECONSTRUCTED_ARCHIVE_SHA256_MISMATCH");
+  }
   return {
     policy: LOCAL_ASSET_POLICY, family,
     source_sha: sourceSha, candidate_tag: family === "companion" ? manifest.tag : manifest.candidate_tag,
