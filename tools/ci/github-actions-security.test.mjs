@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { codeqlMainMatrixSucceeded, findExactMainCodeqlReceipt, isExactMainCodeqlRun } from "./require-main-codeql.mjs";
 
 const workflowRoot = join(process.cwd(), ".github", "workflows");
 const workflows = readdirSync(workflowRoot)
@@ -188,6 +189,67 @@ test("deliberate Production release retains exact main provenance and staged pro
   assert.match(active, /--skip-domain/);
   assert.match(active, /vercel promote/);
 });
+test("Production requires an exact post-merge main push CodeQL run with both passing language jobs", () => {
+  const sha = "a".repeat(40);
+  const repository = "Faysk/tda";
+  const goodRun = {
+    id: 123456, name: "CodeQL", path: ".github/workflows/codeql.yml",
+    head_sha: sha, head_branch: "main",
+    head_repository: { full_name: repository },
+    event: "push", status: "completed", conclusion: "success",
+  };
+  const goodJobs = [
+    { name: "analyze (javascript-typescript)", status: "completed", conclusion: "success" },
+    { name: "analyze (python)", status: "completed", conclusion: "success" },
+  ];
+  assert.equal(isExactMainCodeqlRun(goodRun, sha, repository), true);
+  assert.equal(codeqlMainMatrixSucceeded(goodJobs), true);
+  assert.equal(findExactMainCodeqlReceipt([goodRun], { "123456": goodJobs }, sha, repository), goodRun);
+
+  for (const override of [
+    { head_sha: "b".repeat(40) },
+    { head_branch: "feature" },
+    { head_repository: { full_name: "attacker/repo" } },
+    { event: "pull_request" },
+    { event: "schedule" },
+    { path: ".github/workflows/ci.yml" },
+    { name: "Not CodeQL" },
+    { status: "in_progress" },
+    { conclusion: "failure" },
+    { conclusion: "skipped" },
+    { id: -1 },
+  ]) {
+    const bad = { ...goodRun, ...override };
+    assert.equal(isExactMainCodeqlRun(bad, sha, repository), false);
+    assert.equal(findExactMainCodeqlReceipt([bad], { "123456": goodJobs }, sha, repository), null);
+  }
+  assert.equal(isExactMainCodeqlRun(goodRun, "invalid", repository), false);
+});
+
+test("CodeQL language matrix cannot pass with missing, skipped or failed jobs", () => {
+  const js = { name: "analyze (javascript-typescript)", status: "completed", conclusion: "success" };
+  const py = { name: "analyze (python)", status: "completed", conclusion: "success" };
+  assert.equal(codeqlMainMatrixSucceeded([js, py]), true);
+  for (const jobs of [
+    [], [js], [py], [js, { ...py, conclusion: "failure" }],
+    [js, { ...py, conclusion: "skipped" }],
+    [js, { ...py, status: "queued" }],
+    [{ ...js, name: "analyze (go)" }, py],
+    null, {},
+  ]) assert.equal(codeqlMainMatrixSucceeded(jobs), false);
+});
+
+test("Production checks the exact-main CodeQL matrix before human confirmation or deployment", () => {
+  const prod = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
+  assert.match(prod, /node tools\\/ci\\/require-main-codeql\\.mjs/);
+  assert.ok(prod.indexOf("Require exact main CodeQL Python and JS/TS evidence") >
+    prod.indexOf("Require successful CI for the exact main source"));
+  assert.ok(prod.indexOf("Require exact main CodeQL Python and JS/TS evidence") <
+    prod.indexOf("Require explicit human Production approval"));
+  assert.ok(prod.indexOf("Require exact main CodeQL Python and JS/TS evidence") <
+    prod.indexOf("Pull Production configuration"));
+});
+
 test("every main release candidate reaches Preview before an explicit Production approval", () => {
   const mainPreview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
   const production = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
