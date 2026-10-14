@@ -1,6 +1,7 @@
 import { appendFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import { changedFilesForRange } from "./classify-changes.mjs";
 
 const critical = new Map([
   ["next", "Web routes/SSR"], ["react", "Web rendering"],
@@ -97,7 +98,10 @@ function compare(before, after, ecosystem) {
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
-export function classifyDependencyDiff({ oldNpm = null, newNpm = null, oldPython = null, newPython = null, paths = [] } = {}) {
+export function classifyDependencyDiff({
+  oldNpm = null, newNpm = null, oldPython = null, newPython = null,
+  paths = [], typeChangedPaths = [],
+} = {}) {
   const files = [...new Set(paths.map((p) => String(p).replaceAll("\\", "/")))].sort();
   const findings = [
     ...compare(npmPins(oldNpm), npmPins(newNpm), "npm"),
@@ -126,6 +130,15 @@ export function classifyDependencyDiff({ oldNpm = null, newNpm = null, oldPython
     findings.push({ ecosystem: "pip", name: "pyproject-unclassified", before: "unknown", after: "unknown",
       kind: "manifest-unclassified", level: "high",
       reason: "Python manifest has edits beyond recognized direct exact pins; review constraints, extras and scripts" });
+  }
+  // A regular file converted to a symlink (or the reverse) can redirect what
+  // the package manager or CI loads. Do not classify symlink target text as a
+  // JSON/TOML manifest or silently omit this Git status.
+  for (const path of [...new Set(typeChangedPaths.map((p) => String(p).replaceAll("\\", "/")))]
+    .filter((p) => files.includes(p))) {
+    findings.push({ ecosystem: "git", name: path, before: "file mode", after: "changed",
+      kind: "file-typechange", level: "high",
+      reason: "Git file type/mode changed; symlink or manifest trust boundary requires review" });
   }
   for (const path of files.filter((p) => ["pnpm-workspace.yaml", ".npmrc"].includes(p))) {
     findings.push({ ecosystem: "npm", name: path, before: "configuration", after: "review required",
@@ -193,15 +206,24 @@ function main() {
   const mergeBase = isThreeDot ?
     execFileSync("git", ["merge-base", raw[0], raw[1]], { encoding: "utf8" }).trim() : null;
   const refs = parseDiffRange(range, mergeBase);
-  const files = execFileSync("git", ["diff", "--name-only", "--diff-filter=ACMRD", range], { encoding: "utf8" })
-    .split(/\r?\n/).filter(Boolean);
+  // Share the CI classifier's NUL-safe path logic (both sides of renames,
+  // deletions and file type changes). Distinguish T from routine content:
+  // git-show on a symlink yields its target string, not a parsed manifest.
+  const files = changedFilesForRange(range);
+  const typeChangedPaths = execFileSync("git",
+    ["diff", "--name-only", "-z", "--diff-filter=T", range],
+    { encoding: "utf8" }).split("\0").filter(Boolean);
   if (!files.some((f) => ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc",
     "local-companion/pyproject.toml", "local-companion/requirements-test.lock"].includes(f) ||
     /^\.github\/(?:workflows\/.+|dependabot)\.ya?ml$/.test(f))) return;
   const report = classifyDependencyDiff({
-    oldNpm: show(refs.from, "package.json"), newNpm: show(refs.to, "package.json"),
-    oldPython: show(refs.from, "local-companion/pyproject.toml"),
-    newPython: show(refs.to, "local-companion/pyproject.toml"), paths: files,
+    oldNpm: typeChangedPaths.includes("package.json") ? null : show(refs.from, "package.json"),
+    newNpm: typeChangedPaths.includes("package.json") ? null : show(refs.to, "package.json"),
+    oldPython: typeChangedPaths.includes("local-companion/pyproject.toml") ?
+      null : show(refs.from, "local-companion/pyproject.toml"),
+    newPython: typeChangedPaths.includes("local-companion/pyproject.toml") ?
+      null : show(refs.to, "local-companion/pyproject.toml"),
+    paths: files, typeChangedPaths,
   });
   const output = renderRiskMarkdown(report, range);
   if (output && process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, output + "\n");
