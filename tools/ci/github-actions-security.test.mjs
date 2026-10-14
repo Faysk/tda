@@ -239,6 +239,38 @@ test("CodeQL language matrix cannot pass with missing, skipped or failed jobs", 
   ]) assert.equal(codeqlMainMatrixSucceeded(jobs), false);
 });
 
+test("a newer incomplete or failed CodeQL run invalidates an older same-SHA green run", () => {
+  const sha = "a".repeat(40);
+  const repo = "Faysk/tda";
+  const older = {
+    id: 100, name: "CodeQL", path: ".github/workflows/codeql.yml",
+    head_sha: sha, head_branch: "main", head_repository: { full_name: repo },
+    event: "push", status: "completed", conclusion: "success",
+  };
+  const js = { name: "analyze (javascript-typescript)", status: "completed", conclusion: "success" };
+  const py = { name: "analyze (python)", status: "completed", conclusion: "success" };
+  const jobs = { "100": [js, py], "200": [js, py] };
+  const newer = { ...older, id: 200, status: "in_progress", conclusion: null };
+  assert.equal(findExactMainCodeqlReceipt([older, newer], jobs, sha, repo), null);
+  assert.equal(findExactMainCodeqlReceipt([newer, older], jobs, sha, repo), null);
+  assert.equal(findExactMainCodeqlReceipt([older, { ...newer, status: "completed",
+    conclusion: "failure" }], jobs, sha, repo), null);
+  assert.equal(findExactMainCodeqlReceipt([older, { ...newer, status: "completed",
+    conclusion: "success" }], { ...jobs, "200": [js] }, sha, repo), null);
+  assert.equal(findExactMainCodeqlReceipt([older, { ...newer, status: "completed",
+    conclusion: "success" }], jobs, sha, repo)?.id, 200);
+  assert.equal(findExactMainCodeqlReceipt([older, {
+    ...newer, event: "pull_request",
+  }], jobs, sha, repo)?.id, 100, "a PR run must not override a main push");
+});
+
+test("Production CodeQL fetch considers pending runs before evaluating latest receipt", () => {
+  const source = readFileSync(join(process.cwd(), "tools/ci/require-main-codeql.mjs"), "utf8");
+  assert.ok(source.includes("&event=push&per_page=100"));
+  assert.equal(source.includes("&event=push&status=completed"), false);
+  assert.ok(source.includes("latest run not successful"));
+});
+
 test("Production checks the exact-main CodeQL matrix before human confirmation or deployment", () => {
   const prod = readFileSync(join(workflowRoot, "production-cd.yml"), "utf8");
   assert.match(prod, /node tools\/ci\/require-main-codeql\.mjs/);
