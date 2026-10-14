@@ -34,10 +34,18 @@ test("npm manifests and pnpm lock activate every Web dependency gate, not Compan
     sessions: true,
     media: true,
   };
-  for (const changedFile of ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc"]) {
+  for (const changedFile of ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs", "patches/react@19.1.0.patch"]) {
     assert.deepEqual(flags([changedFile]), expected, changedFile);
   }
   assert.deepEqual(flags(["docs/README.md", "pnpm-lock.yaml"]), expected);
+});
+
+test("patches directory and pnpm hook remain cross-domain while docs patches do not", () => {
+  const affected = flags(["patches/transitive-package.patch"]);
+  for (const key of ["navigation", "db", "processing", "lembra", "sessions", "media"])
+    assert.equal(affected[key], true, key);
+  assert.equal(affected.companion, false);
+  assert.deepEqual(flags(["docs/release-notes.patch"]), fastOnly);
 });
 
 test("ordinary non-dependency paths never broaden unrelated domains", () => {
