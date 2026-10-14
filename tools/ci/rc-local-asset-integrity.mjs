@@ -119,25 +119,61 @@ async function confirmCompanionChecksum(root, byName, msiDigest) {
     throw new Error("RC_MSI_CHECKSUM_CONTENT_MISMATCH");
 }
 async function readSmallAsset(root, row, limit) {
-  if (!row || row.size > limit) throw new Error("RUNTIME_METADATA_FILE_SIZE_INVALID");
+  if (!row || row.size > limit) throw new Error("RC_METADATA_FILE_SIZE_INVALID");
   const path = join(root, row.name);
   let handle;
   try {
     const before = await lstat(path);
     if (!before.isFile() || before.isSymbolicLink() || before.size !== row.size)
-      throw new Error("RUNTIME_METADATA_FILE_INVALID");
+      throw new Error("RC_METADATA_FILE_INVALID");
     handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size !== row.size ||
         (before.ino && stat.ino && before.ino !== stat.ino))
-      throw new Error("RUNTIME_METADATA_FILE_CHANGED");
+      throw new Error("RC_METADATA_FILE_CHANGED");
     const bytes = await handle.readFile();
     const after = await handle.stat();
     if (!after.isFile() || after.size !== row.size || bytes.length !== row.size)
-      throw new Error("RUNTIME_METADATA_FILE_CHANGED");
+      throw new Error("RC_METADATA_FILE_CHANGED");
     return bytes.toString("utf8");
   } finally { await handle?.close(); }
 }
+async function checkCompanionPayload(root, manifest) {
+  const row = manifest.assets.payload_manifest;
+  let payload;
+  try { payload = JSON.parse(await readSmallAsset(root, row, 512 * 1024)); }
+  catch (err) {
+    if (err?.message?.startsWith("RC_METADATA_")) throw err;
+    throw new Error("COMPANION_PAYLOAD_JSON_INVALID");
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload))
+    throw new Error("COMPANION_PAYLOAD_SCHEMA_INVALID");
+  const expectedTop = ["files", "schema", "source_sha", "source_tree_sha", "version"];
+  if (Object.keys(payload).sort().join(",") !== expectedTop.join(",") ||
+      payload.schema !== "tda_companion_payload_v1" ||
+      payload.version !== manifest.version ||
+      payload.source_sha !== manifest.source_sha ||
+      payload.source_tree_sha !== manifest.source_tree_sha)
+    throw new Error("COMPANION_PAYLOAD_IDENTITY_MISMATCH");
+  const expectedFiles = [
+    "TDACompanion.exe", "TDACompanionMaintenance.exe",
+    "run-physical-acceptance.ps1", "run-installed-acceptance.ps1",
+    "install-rc-runtimes.ps1",
+  ];
+  if (!payload.files || typeof payload.files !== "object" ||
+      Array.isArray(payload.files) ||
+      Object.keys(payload.files).sort().join(",") !== expectedFiles.slice().sort().join(","))
+    throw new Error("COMPANION_PAYLOAD_FILES_INCOMPLETE");
+  for (const name of expectedFiles) {
+    const record = payload.files[name];
+    if (!record || typeof record !== "object" || Array.isArray(record) ||
+        Object.keys(record).sort().join(",") !== "sha256,size" ||
+        !HEX64.test(record.sha256 ?? "") ||
+        !Number.isSafeInteger(record.size) || record.size <= 0)
+      throw new Error("COMPANION_PAYLOAD_FILE_METADATA_INVALID");
+  }
+}
+
 async function checkRuntimeMetadata(root, manifest, assets) {
   if (manifest.family === "whisper") {
     const line = (await readSmallAsset(root, assets[1], MAX_CHECKSUM_BYTES)).trim();
@@ -152,7 +188,7 @@ async function checkRuntimeMetadata(root, manifest, assets) {
   let bundle;
   try { bundle = JSON.parse(await readSmallAsset(root, assets[0], 512 * 1024)); }
   catch (e) {
-    if (e?.message?.startsWith("RUNTIME_METADATA_")) throw e;
+    if (e?.message?.startsWith("RC_METADATA_")) throw e;
     throw new Error("RUNTIME_QWEN_BUNDLE_JSON_INVALID");
   }
   if (!bundle || typeof bundle !== "object" || Array.isArray(bundle) ||
@@ -231,8 +267,10 @@ export async function verifyLocalRcAssets({ family, manifestFile, assetsRoot, so
     total += item.size;
     if (!Number.isSafeInteger(total)) throw new Error("RC_ASSETS_TOTAL_SIZE_OVERFLOW");
   }
-  if (family === "companion")
+  if (family === "companion") {
     await confirmCompanionChecksum(root, byName, manifest.assets.msi.sha256);
+    await checkCompanionPayload(root, manifest);
+  }
   if (family === "runtime")
     await checkRuntimeMetadata(root, manifest, assets);
   return {
