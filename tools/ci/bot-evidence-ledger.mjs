@@ -13,6 +13,28 @@ function sameRepo(run, repo) { return run?.head_repository?.full_name === repo; 
 function samePr(run, num) {
   return Array.isArray(run?.pull_requests) && run.pull_requests.some((p) => p?.number === num);
 }
+// Compare observed workflow bases against two independent GET snapshots of
+// main. Any missing identity or read race stays unknown; an established
+// mismatch is stale. Neither outcome grants merge/release permission.
+export function checkMainBaseFreshness({ repository, pr, ciRun, codeqlRun, mainBeforeSha, mainAfterSha }) {
+  const unknown = { status: "unknown", current_main_sha: exactSha(mainAfterSha) ? mainAfterSha : null };
+  if (!exactSha(mainBeforeSha) || !exactSha(mainAfterSha) ||
+      mainBeforeSha !== mainAfterSha) return unknown;
+  const ciPrs = ciRun?.pull_requests;
+  const codeqlPrs = codeqlRun?.pull_requests;
+  if (!Array.isArray(ciPrs) || ciPrs.length !== 1 ||
+      !Array.isArray(codeqlPrs) || codeqlPrs.length !== 1 ||
+      ciPrs[0]?.number !== pr?.number || codeqlPrs[0]?.number !== pr?.number)
+    return unknown;
+  const rows = [pr?.base, ciPrs[0]?.base, codeqlPrs[0]?.base];
+  if (rows.some((r) => !exactSha(r?.sha) || typeof r?.ref !== "string"))
+    return unknown;
+  if (rows.some((r) => r.ref !== "main") ||
+      pr?.base?.repo?.full_name !== repository ||
+      rows.some((r) => r.sha !== mainAfterSha))
+    return { status: "stale-base", current_main_sha: mainAfterSha };
+  return { status: "verified-current-main", current_main_sha: mainAfterSha };
+}
 function jobState(jobs, name) {
   const rows = jobs.filter((j) => j?.name === name);
   if (rows.length !== 1) return rows.length ? "ambiguous" : "missing";
@@ -32,7 +54,7 @@ function latestCodeqlRun(runs, repo, sha, prNumber) {
 export function evaluateEvidence({
   repository, pr, run, jobs = [], codeqlRuns = [], codeqlJobs = [],
   codeqlJobsRunId = null, completeJobs = true, completeCodeql = true,
-  completeCodeqlJobs = false,
+  completeCodeqlJobs = false, mainBeforeSha = null, mainAfterSha = null,
 }) {
   const sha = run?.head_sha, prNumber = pr?.number, failures = [];
   if (!exactSha(sha)) failures.push("invalid-source-sha");
@@ -46,6 +68,9 @@ export function evaluateEvidence({
   if (pr?.user?.login !== "dependabot[bot]") failures.push("not-dependabot-pr");
   const required = Object.fromEntries(requiredJobs.map((name) => [name, jobState(jobs, name)]));
   const latestCodeql = latestCodeqlRun(codeqlRuns, repository, sha, prNumber);
+  const baseFreshness = checkMainBaseFreshness({
+    repository, pr, ciRun: run, codeqlRun: latestCodeql, mainBeforeSha, mainAfterSha,
+  });
   const codeql = !latestCodeql ? "missing" :
     latestCodeql.status === "completed" ? (latestCodeql.conclusion || "unknown") : "pending";
   const codeqlJobsCurrent = Number.isSafeInteger(latestCodeql?.id) &&
@@ -61,13 +86,19 @@ export function evaluateEvidence({
   if (failures.length) state = "invalid-identity";
   else if ((ci !== "success" && ci !== "pending") ||
     Object.values(required).some((value) => !["success", "pending"].includes(value)) ||
-    !["success", "pending", "missing"].includes(codeql) || codeqlRequiredFailed) state = "blocked";
+    !["success", "pending", "missing"].includes(codeql) ||
+    codeqlRequiredFailed || baseFreshness.status === "stale-base") state = "blocked";
   else if (!completeJobs || !completeCodeql || ci === "pending" || Object.values(required).includes("pending") ||
-    codeql === "pending" || codeql === "missing" || codeqlRequiredPending) state = "pending-or-unknown";
+    codeql === "pending" || codeql === "missing" || codeqlRequiredPending ||
+    baseFreshness.status !== "verified-current-main") state = "pending-or-unknown";
   return {
     schema_version: 1, repository, pr_number: prNumber, head_sha: sha,
     ci_run_id: run?.id, ci, required_jobs: required, codeql, state,
     codeql_run_id: latestCodeql?.id ?? null, codeql_required_jobs: codeqlRequired,
+    base_freshness: baseFreshness.status, current_main_sha: baseFreshness.current_main_sha,
+    ci_tested_base_sha: run?.pull_requests?.length === 1 ? run.pull_requests[0]?.base?.sha ?? null : null,
+    codeql_tested_base_sha: latestCodeql?.pull_requests?.length === 1 ?
+      latestCodeql.pull_requests[0]?.base?.sha ?? null : null,
     reasons: failures, approval: "human-required", production: "not-authorized",
     external_checks: "not-queried", branch_protection: "not-verified", freshness: "not-queried",
     jobs_observed: jobs.length, jobs_complete: completeJobs, codeql_complete: completeCodeql,
@@ -81,6 +112,10 @@ export function renderEvidenceMarkdown(evidence) {
     "- CI run: " + safe(evidence.ci_run_id) + "; CI: " + safe(evidence.ci),
     "- CodeQL: " + safe(evidence.codeql) + "; run: " + safe(evidence.codeql_run_id),
     "- Required CodeQL language jobs complete on exact run: " + safe(evidence.codeql_jobs_complete),
+    "- Main base freshness: " + safe(evidence.base_freshness) +
+      " (main " + safe(evidence.current_main_sha) +
+      "; CI base " + safe(evidence.ci_tested_base_sha) +
+      "; CodeQL base " + safe(evidence.codeql_tested_base_sha) + ")",
     "- State: **" + safe(evidence.state) + "** (never automatic merge approval)",
     "- Human review: **required**; Production/Stable: **not authorized**.",
     "- External checks, dependency freshness and branch protections: **not verified** by this ledger.",
@@ -115,6 +150,14 @@ function main() {
   const repo = process.env.GITHUB_REPOSITORY, runId = process.env.SOURCE_RUN_ID;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo || "") || !/^\d+$/.test(runId || ""))
     throw new Error("REPOSITORY_OR_RUN_ID_INVALID");
+  function mainShaReadOnly() {
+    try {
+      const row = api("repos/" + repo + "/branches/main");
+      return exactSha(row?.commit?.sha) ? row.commit.sha : null;
+    } catch { return null; }
+  }
+  // First read precedes all potentially long paginated CI/CodeQL calls.
+  const mainBeforeSha = mainShaReadOnly();
   const run = api("repos/" + repo + "/actions/runs/" + runId);
   if (run.name !== "CI" || run.event !== "pull_request" || run.status !== "completed")
     throw new Error("NOT_EXACT_COMPLETED_PR_CI");
@@ -149,9 +192,13 @@ function main() {
       process.stderr.write("CodeQL job-level evidence unavailable; reporting unknown.\n");
     }
   }
+  // Second read must agree with the first. A moving main invalidates the
+  // local observation window; branch protection and merge readiness are
+  // outside this read-only ledger's authority.
+  const mainAfterSha = mainShaReadOnly();
   const evidence = evaluateEvidence({ repository: repo, pr, run, jobs, completeJobs,
     codeqlRuns: codeql, completeCodeql, codeqlJobs, completeCodeqlJobs,
-    codeqlJobsRunId: selected?.id ?? null });
+    codeqlJobsRunId: selected?.id ?? null, mainBeforeSha, mainAfterSha });
   const markdown = renderEvidenceMarkdown(evidence);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
   process.stdout.write(markdown);
