@@ -37,10 +37,22 @@ function fixture(family = "companion") {
     };
   } else {
     const one = "TDAQwenRuntimeBundle-1.0.19-windows-x64.json";
-    const two = "TDAQwenRuntimePart-1.0.19-001.zip";
-    bytes = { [one]: "{\"synthetic\":true}", [two]: "part-synthetic-bytes" };
+    const two = "TDAQwenRuntime-1.0.19-windows-x64.zip.part001";
+    const partBytes = "part-synthetic-bytes";
+    const archiveHash = digest(partBytes);
+    const bundle = {
+      schema: "tda_qwen_runtime_bundle_v1", runtime_id: "qwen3-transformers",
+      platform: "windows-x64", version: "1.0.19",
+      archive: { name: "TDAQwenRuntime-1.0.19-windows-x64.zip",
+        size: Buffer.byteLength(partBytes), sha256: archiveHash },
+      parts: [{ index: 1, name: two, size: Buffer.byteLength(partBytes),
+        sha256: digest(partBytes) }],
+    };
+    bytes = { [one]: JSON.stringify(bundle), [two]: partBytes };
     manifest = {
       schema: "tda_runtime_candidate_v1", version: "1.0.19", family: "qwen",
+      runtime_id: "qwen3-transformers", platform: "windows-x64",
+      runtime_archive_sha256: archiveHash,
       source_sha: SOURCE, source_tree_sha: TREE, workflow_run_id: 123,
       candidate_tag: "companion-qwen-runtime-rc-v1.0.19-" + SOURCE.slice(0,12),
       stable_tag: "companion-qwen-runtime-v1.0.19",
@@ -93,7 +105,7 @@ test("tampered same-size MSI fails SHA256 before any release action", async () =
 test("tampered runtime split archive is detected independently", async () => {
   const f = fixture("runtime");
   try {
-    const file = join(f.root, "TDAQwenRuntimePart-1.0.19-001.zip");
+    const file = join(f.root, "TDAQwenRuntime-1.0.19-windows-x64.zip.part001");
     writeFileSync(file, "part-synthetic-bytEs");
     await assert.rejects(run(f), /RC_ASSET_(SHA256_MISMATCH|FILE_TYPE_OR_SIZE_INVALID)/);
   } finally { f.close(); }
