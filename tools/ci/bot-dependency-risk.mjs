@@ -103,9 +103,12 @@ export function classifyDependencyDiff({ oldNpm = null, newNpm = null, oldPython
     ...compare(npmPins(oldNpm), npmPins(newNpm), "npm"),
     ...compare(pythonPins(oldPython), pythonPins(newPython), "pip"),
   ];
-  if (files.includes("pnpm-lock.yaml") && !findings.some((f) => f.ecosystem === "npm"))
-    findings.push({ ecosystem: "npm", name: "transitive-lock", before: "unknown", after: "unknown",
-      kind: "lock-only", level: "high", reason: "Web dependency impact unknown; domain gates required" });
+  // Direct manifest diffs are not a complete analysis of the transitive graph.
+  // A lockfile can change unrelated packages alongside an ordinary patch.
+  if (files.includes("pnpm-lock.yaml"))
+    findings.push({ ecosystem: "npm", name: "transitive-lock", before: "unverified", after: "unverified",
+      kind: "lock-unreviewed", level: "high",
+      reason: "pnpm transitive graph not verified; direct pin changes do not clear lock risk" });
   if (files.includes("package.json") &&
       (typeof oldNpm !== "string" || typeof newNpm !== "string" ||
        normalizeNpmManifest(oldNpm) !== normalizeNpmManifest(newNpm))) {
@@ -113,15 +116,21 @@ export function classifyDependencyDiff({ oldNpm = null, newNpm = null, oldPython
       kind: "manifest-unclassified", level: "high",
       reason: "package.json scripts, engines, scope or metadata changed beyond dependency versions" });
   }
-  if (files.includes("local-companion/requirements-test.lock") && !findings.some((f) => f.ecosystem === "pip"))
-    findings.push({ ecosystem: "pip", name: "transitive-lock", before: "unknown", after: "unknown",
-      kind: "lock-only", level: "high", reason: "Python constraint impact unknown; Companion gates required" });
+  if (files.includes("local-companion/requirements-test.lock"))
+    findings.push({ ecosystem: "pip", name: "transitive-lock", before: "unverified", after: "unverified",
+      kind: "lock-unreviewed", level: "high",
+      reason: "Python resolved transitive lock not verified; direct pin changes do not clear lock risk" });
   if (files.includes("local-companion/pyproject.toml") &&
       (typeof oldPython !== "string" || typeof newPython !== "string" ||
        normalizePythonManifest(oldPython) !== normalizePythonManifest(newPython))) {
     findings.push({ ecosystem: "pip", name: "pyproject-unclassified", before: "unknown", after: "unknown",
       kind: "manifest-unclassified", level: "high",
       reason: "Python manifest has edits beyond recognized direct exact pins; review constraints, extras and scripts" });
+  }
+  for (const path of files.filter((p) => ["pnpm-workspace.yaml", ".npmrc"].includes(p))) {
+    findings.push({ ecosystem: "npm", name: path, before: "configuration", after: "review required",
+      kind: "package-manager-configuration", level: "high",
+      reason: "Package-manager sources, lifecycle builds, registry or scripts configuration requires review" });
   }
   for (const path of files.filter((p) => /^\.github\/dependabot\.ya?ml$/.test(p))) {
     findings.push({ ecosystem: "github-actions", name: path, before: "review required", after: "review required",
@@ -186,8 +195,8 @@ function main() {
   const refs = parseDiffRange(range, mergeBase);
   const files = execFileSync("git", ["diff", "--name-only", "--diff-filter=ACMRD", range], { encoding: "utf8" })
     .split(/\r?\n/).filter(Boolean);
-  if (!files.some((f) => ["package.json", "pnpm-lock.yaml", "local-companion/pyproject.toml",
-    "local-companion/requirements-test.lock"].includes(f) ||
+  if (!files.some((f) => ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc",
+    "local-companion/pyproject.toml", "local-companion/requirements-test.lock"].includes(f) ||
     /^\.github\/(?:workflows\/.+|dependabot)\.ya?ml$/.test(f))) return;
   const report = classifyDependencyDiff({
     oldNpm: show(refs.from, "package.json"), newNpm: show(refs.to, "package.json"),
