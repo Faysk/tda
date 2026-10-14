@@ -162,6 +162,18 @@ test("pnpm workspace allowBuilds and npm registry configuration changes are high
   }
 });
 
+test("Vercel deployment config and upload exclusion changes require human review", () => {
+  for (const path of ["vercel.json", ".vercelignore"]) {
+    const report = classifyDependencyDiff({ paths: [path] });
+    assert.equal(report.risk, "high");
+    assert.equal(report.recommendation, "human-review-required");
+    assert.ok(report.findings.some((f) =>
+      f.kind === "deployment-configuration" && f.name === path && f.level === "high"));
+    assert.match(renderRiskMarkdown(report), /Vercel/);
+  }
+  assert.equal(classifyDependencyDiff({ paths: ["docs/vercel-setup.md"] }).risk, "none");
+});
+
 test("pnpm lifecycle hook/patch-only edits never appear as no-change", () => {
   const hooks = classifyDependencyDiff({ paths: [".pnpmfile.cjs"] });
   const patched = classifyDependencyDiff({ paths: ["patches/unrs-resolver.patch"] });
