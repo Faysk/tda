@@ -186,6 +186,12 @@ Revisão do consumidor RC comparada aos contratos Python existentes: `local-comp
 
 Esses controles são **complementares** à confirmação Sigstore, sidecars, recibos físicos e `verify_candidate_assets` em Python. Os testes adicionais alteram hashes do bundle JSON para simular alguém que consegue reescrever uma lista candidata e mantê-la internamente incompleta: os contratos passam a **reprovar** o bundle inconsistente mesmo se todos os arquivos presentes tiverem seu próprio SHA-256 correto. Validação somente sintética até executar um RC controlado sob autorização, sem mudar Stable e sem processar GPU/áudio privado.
 
+### Companion RC: conferência de conteúdo do payload manifesto (#1667)
+
+O consumidor local do Companion também deve verificar **conteúdo**, não apenas SHA256/tamanho de `TDACompanion-payload-manifest.json`. O contrato já existe em `local-companion/tda_companion/payload_evidence.py:load_payload_manifest` e `release_evidence.py:_verify_payload_identity`. Após hash dos quatro assets RC e checksum sidecar do MSI, a auditoria opt-in relê o payload com limite de 512 KiB, file descriptor/no-follow, exige `schema=tda_companion_payload_v1`, keys exatas (`schema,version,source_sha,source_tree_sha,files`) e identidade de versão/source/tree iguais ao candidate manifest **assinado**. A lista `files` deve conter exatamente `TDACompanion.exe`, `TDACompanionMaintenance.exe`, `run-physical-acceptance.ps1`, `run-installed-acceptance.ps1` e `install-rc-runtimes.ps1`; cada hash e tamanho positivo é validado.
+
+Novas fixtures sintéticas reescrevem os bytes do payload **e recalculam seu hash no candidato** antes da verificação. Mesmo com SHA de cada asset declarado consistente, source/tree/version antigo, schema falso, ficheiro omitido ou hash inválido agora falha antes do relatório de integridade. Isso **não** valida que os executáveis extraídos do ZIP instalado correspondem aos hashes internos do payload, não verifica Authenticode nem recebimentos físicos; as outras fronteiras de instalação/rollback continuam obrigatórias. O objetivo é impedir falsa afirmação de completude do payload com relação ao candidate RC.
+
 ## 8. Automação futura: ciclo idempotente
 
 **[PROPOSTO]** Ações de triagem e reporte podem ser implementadas por jobs GitHub-native. O ciclo deve ser: ingestão read-only → normalização → classificação determinística → consulta a checks por head SHA → comentário/check idempotente → triage. Nenhum modelo de IA toma decisão de publicação. Secrets, logs privados e payloads sensíveis nunca vão para prompt externo.
