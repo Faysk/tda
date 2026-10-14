@@ -215,6 +215,67 @@ test("symlinked RC manifest is rejected before opening local assets", async () =
   } finally { f.close(); }
 });
 
+test("Qwen archive digest cannot be forged even when every listed part and bundle hash matches", async () => {
+  const f = fixture("runtime");
+  try {
+    const bundleName = f.manifest.assets[0].name;
+    const bundle = JSON.parse(readFileSync(join(f.root, bundleName), "utf8"));
+    // An adversarial candidate rewrites BOTH the candidate and the bundle's
+    // archive digest, while all actual part bytes and declared hashes agree.
+    const falseArchiveHash = digest("different-synthetic-archive");
+    bundle.archive.sha256 = falseArchiveHash;
+    f.manifest.runtime_archive_sha256 = falseArchiveHash;
+    const content = JSON.stringify(bundle);
+    writeFileSync(join(f.root, bundleName), content);
+    f.manifest.assets[0] = asset(bundleName, content);
+    writeFileSync(f.manifestFile, JSON.stringify(f.manifest));
+    await assert.rejects(run(f), /RUNTIME_QWEN_RECONSTRUCTED_ARCHIVE_SHA256_MISMATCH/);
+  } finally { f.close(); }
+});
+
+test("Qwen streaming reconstructs a multi-part archive and rejects reordered coherent parts", async () => {
+  const f = fixture("runtime");
+  try {
+    const bundleName = f.manifest.assets[0].name;
+    const firstName = f.manifest.assets[1].name;
+    const secondName = "TDAQwenRuntime-1.0.19-windows-x64.zip.part002";
+    const first = "AAAA", second = "BBBB"; // equal sizes make wrong ordering subtle
+    writeFileSync(join(f.root, firstName), first);
+    writeFileSync(join(f.root, secondName), second);
+    const bundle = JSON.parse(readFileSync(join(f.root, bundleName), "utf8"));
+    bundle.archive.size = Buffer.byteLength(first + second);
+    bundle.archive.sha256 = digest(first + second);
+    bundle.parts = [
+      { index: 1, ...asset(firstName, first) },
+      { index: 2, ...asset(secondName, second) },
+    ];
+    let content = JSON.stringify(bundle);
+    writeFileSync(join(f.root, bundleName), content);
+    f.manifest.runtime_archive_sha256 = bundle.archive.sha256;
+    f.manifest.assets = [asset(bundleName, content), asset(firstName, first), asset(secondName, second)];
+    writeFileSync(f.manifestFile, JSON.stringify(f.manifest));
+
+    const ok = await run(f);
+    assert.equal(ok.assets_hashed, 3);
+    assert.equal(ok.local_asset_integrity, "verified-sha256");
+    assert.equal(ok.authorizes_stable, false);
+
+    // An internally coherent candidate rewrites part hashes and bundle rows
+    // but retains the claimed archive SHA from its original byte order.
+    writeFileSync(join(f.root, firstName), second);
+    writeFileSync(join(f.root, secondName), first);
+    bundle.parts = [
+      { index: 1, ...asset(firstName, second) },
+      { index: 2, ...asset(secondName, first) },
+    ];
+    content = JSON.stringify(bundle);
+    writeFileSync(join(f.root, bundleName), content);
+    f.manifest.assets = [asset(bundleName, content), asset(firstName, second), asset(secondName, first)];
+    writeFileSync(f.manifestFile, JSON.stringify(f.manifest));
+    await assert.rejects(run(f), /RUNTIME_QWEN_RECONSTRUCTED_ARCHIVE_SHA256_MISMATCH/);
+  } finally { f.close(); }
+});
+
 test("Qwen RC rejects an internally forged bundle even if its JSON asset hash is updated", async () => {
   const f = fixture("runtime");
   try {
