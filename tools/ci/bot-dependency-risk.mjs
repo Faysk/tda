@@ -89,7 +89,7 @@ function compare(before, after, ecosystem) {
     const from = before.get(name), to = after.get(name);
     if (from?.pin === to?.pin) continue;
     const kind = !from ? "added" : !to ? "removed" : versionKind(from.pin, to.pin);
-    const level = critical.has(name) || ["major", "unknown", "removed", "downgrade"].includes(kind) ? "high" :
+    const level = critical.has(name) || ["major", "unknown", "removed", "added", "downgrade"].includes(kind) ? "high" :
       tooling.has(name) || kind === "minor" ? "medium" : "low";
     out.push({ ecosystem, name, before: from?.pin || "-", after: to?.pin || "-",
       kind, level, reason: critical.get(name) || (tooling.has(name) ? "build/test tooling" : "dependency change") });
@@ -121,6 +121,11 @@ export function classifyDependencyDiff({ oldNpm = null, newNpm = null, oldPython
     findings.push({ ecosystem: "pip", name: "pyproject-unclassified", before: "unknown", after: "unknown",
       kind: "manifest-unclassified", level: "high",
       reason: "Python manifest has edits beyond recognized direct exact pins; review constraints, extras and scripts" });
+  }
+  for (const path of files.filter((p) => /^\.github\/dependabot\.ya?ml$/.test(p))) {
+    findings.push({ ecosystem: "github-actions", name: path, before: "review required", after: "review required",
+      kind: "bot-configuration", level: "high",
+      reason: "Dependabot schedule, update scopes and package groups require supply-chain review" });
   }
   for (const path of files.filter((p) => /^\.github\/workflows\/.+\.ya?ml$/.test(p)))
     findings.push({ ecosystem: "github-actions", name: path, before: "pinned", after: "review required",
@@ -181,7 +186,8 @@ function main() {
   const files = execFileSync("git", ["diff", "--name-only", "--diff-filter=ACMRD", range], { encoding: "utf8" })
     .split(/\r?\n/).filter(Boolean);
   if (!files.some((f) => ["package.json", "pnpm-lock.yaml", "local-companion/pyproject.toml",
-    "local-companion/requirements-test.lock"].includes(f) || /^\.github\/workflows\/.+\.ya?ml$/.test(f))) return;
+    "local-companion/requirements-test.lock"].includes(f) ||
+    /^\.github\/(?:workflows\/.+|dependabot)\.ya?ml$/.test(f))) return;
   const report = classifyDependencyDiff({
     oldNpm: show(refs.from, "package.json"), newNpm: show(refs.to, "package.json"),
     oldPython: show(refs.from, "local-companion/pyproject.toml"),
