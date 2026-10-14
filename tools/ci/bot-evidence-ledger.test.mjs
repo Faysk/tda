@@ -16,6 +16,9 @@ function fixture() {
     head_sha: sha, head_repository: { full_name: repo },
     pull_requests: [{ number: 1647 }] };
   return { repository: repo, pr, run, codeqlRuns: [codeql],
+    codeqlJobs: ["analyze (python)", "analyze (javascript-typescript)"].map((name) =>
+      ({ name, status: "completed", conclusion: "success" })),
+    codeqlJobsRunId: 91, completeCodeqlJobs: true,
     jobs: jobs.map((name) => ({ name, status: "completed", conclusion: "success" })),
     completeJobs: true };
 }
@@ -27,6 +30,10 @@ test("full exact-SHA checks give only advisory readiness", () => {
   assert.equal(result.approval, "human-required");
   assert.equal(result.production, "not-authorized");
   assert.equal(result.codeql, "success");
+  assert.deepEqual(result.codeql_required_jobs, {
+    "analyze (python)": "success", "analyze (javascript-typescript)": "success",
+  });
+  assert.equal(result.codeql_jobs_complete, true);
   assert.equal(result.external_checks, "not-queried");
   assert.equal(result.freshness, "not-queried");
   assert.equal(result.branch_protection, "not-verified");
@@ -108,4 +115,61 @@ test("partial CodeQL evidence cannot confer readiness", () => {
   const report = check((x) => { x.completeCodeql = false; return x; });
   assert.equal(report.state, "pending-or-unknown");
   assert.equal(report.codeql_complete, false);
+});
+
+test("CodeQL workflow success is insufficient when one required language is skipped or absent", () => {
+  for (const status of ["skipped", "failure", "cancelled", "neutral", "timed_out"]) {
+    const result = check((x) => {
+      x.codeqlJobs.find((j) => j.name === "analyze (python)").conclusion = status;
+      return x;
+    });
+    assert.equal(result.codeql, "success");
+    assert.equal(result.state, "blocked", status);
+    assert.equal(result.codeql_required_jobs["analyze (python)"], status);
+  }
+  const missing = check((x) => {
+    x.codeqlJobs = x.codeqlJobs.filter((j) => j.name !== "analyze (python)");
+    return x;
+  });
+  assert.equal(missing.state, "blocked");
+  assert.equal(missing.codeql_required_jobs["analyze (python)"], "missing");
+  const duplicate = check((x) => {
+    x.codeqlJobs.push({ ...x.codeqlJobs[0] });
+    return x;
+  });
+  assert.equal(duplicate.state, "blocked");
+  assert.equal(duplicate.codeql_required_jobs["analyze (python)"], "ambiguous");
+});
+
+test("CodeQL job evidence must belong to latest matching run and include all pages", () => {
+  const wrongRun = check((x) => { x.codeqlJobsRunId = 90; return x; });
+  assert.equal(wrongRun.state, "pending-or-unknown");
+  assert.equal(wrongRun.codeql_jobs_complete, false);
+  const partial = check((x) => { x.completeCodeqlJobs = false; return x; });
+  assert.equal(partial.state, "pending-or-unknown");
+  const newRun = check((x) => {
+    x.codeqlRuns[0].created_at = "2026-10-13T10:00:00Z";
+    x.codeqlRuns.push({ ...x.codeqlRuns[0], id: 100,
+      created_at: "2026-10-14T10:00:00Z" });
+    return x;
+  });
+  assert.equal(newRun.codeql_run_id, 100);
+  assert.equal(newRun.state, "pending-or-unknown");
+  const refreshed = check((x) => {
+    x.codeqlRuns[0].id = 100;
+    x.codeqlJobsRunId = 100;
+    return x;
+  });
+  assert.equal(refreshed.state, "core-ci-verified-external-checks-unverified");
+});
+
+test("CodeQL language jobs still running never report ready", () => {
+  const value = check((x) => {
+    x.codeqlJobs[0].status = "in_progress";
+    x.codeqlJobs[0].conclusion = null;
+    return x;
+  });
+  assert.equal(value.codeql_required_jobs["analyze (python)"], "pending");
+  assert.equal(value.state, "pending-or-unknown");
+  assert.match(renderEvidenceMarkdown(value), /CodeQL: analyze \(python\)/);
 });
