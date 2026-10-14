@@ -89,18 +89,43 @@ const approvedWrites = {
   "runtime-rc.yml": ["contents", "actions", "id-token", "attestations", "artifact-metadata"],
 };
 
+// This structural guard also catches YAML flow-style declarations. It is
+// not a full YAML parser and does not replace GitHub server-side enforcement.
+function inlineTriggers(content) {
+  const found = new Set();
+  for (const match of content.matchAll(/^\s*["']?on["']?:\s*(?:\[([^\]\r\n]*)\]|\{([^\r\n]*)\}|(["']?[a-z_]+["']?))\s*(?:#.*)?$/gm)) {
+    const body = match[1] ?? match[2] ?? match[3] ?? "";
+    for (const name of ["pull_request_target", "workflow_run", "push"]) {
+      if (new RegExp("\\b" + name + "\\b").test(body)) found.add(name);
+    }
+  }
+  return found;
+}
+function inlineWriteScopes(content) {
+  const scopes = [];
+  for (const match of content.matchAll(/^\s*permissions:\s*\{([^}\r\n]*)\}/gm)) {
+    for (const entry of match[1].matchAll(/(?:^|,)\s*["']?([a-z][a-z0-9-]*)["']?\s*:\s*["']?write\b/g))
+      scopes.push(entry[1]);
+  }
+  return scopes;
+}
+
 export function auditBotTrust(sources) {
   const violations = [];
   for (const [file, value] of Object.entries(sources)) {
     const content = String(value);
-    if (/^\s*pull_request_target\s*:/m.test(content)) violations.push(file + ": forbidden pull_request_target");
+    const flowTriggers = inlineTriggers(content);
+    if (/^\s*pull_request_target\s*:/m.test(content) || flowTriggers.has("pull_request_target"))
+      violations.push(file + ": forbidden pull_request_target");
     if (/\bsecrets:\s*inherit\b/.test(content)) violations.push(file + ": forbidden secrets inheritance");
     if (/\bpermissions:\s*write-all\b/.test(content)) violations.push(file + ": forbidden write-all");
-    for (const match of content.matchAll(/^\s+([a-z][a-z0-9-]*):\s*write(?:\s*#.*)?$/gm)) {
-      const scope = match[1];
-      if (!approvedWrites[file]?.includes(scope)) {
+    const writeScopes = [
+      ...[...content.matchAll(/^\s+([a-z][a-z0-9-]*):\s*write(?:\s*#.*)?$/gm)].map((m) => m[1]),
+      ...inlineWriteScopes(content),
+    ];
+    for (const scope of writeScopes) {
+      if (!approvedWrites[file]?.includes(scope))
         violations.push(file + ": unapproved write scope " + scope);
-      }
     }
   }
   for (const [file, markers] of Object.entries(required)) {
@@ -116,7 +141,9 @@ export function auditBotTrust(sources) {
     }
   }
   const production = sources["production-cd.yml"];
-  if (typeof production === "string" && (/^\s*workflow_run\s*:/m.test(production) || /^\s*push\s*:/m.test(production))) {
+  if (typeof production === "string" &&
+      (/^\s*workflow_run\s*:/m.test(production) || /^\s*push\s*:/m.test(production) ||
+       inlineTriggers(production).has("workflow_run") || inlineTriggers(production).has("push"))) {
     violations.push("production-cd.yml: forbidden automatic Production trigger");
   }
   return violations.sort();
