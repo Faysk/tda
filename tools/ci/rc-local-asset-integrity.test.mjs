@@ -18,7 +18,15 @@ function fixture(family = "companion") {
     bytes = {
       "TDACompanion-x64.msi": "synthetic-msi-bytes",
       ["TDACompanion-" + VERSION + "-windows-x64.zip"]: "synthetic-zip",
-      "TDACompanion-payload-manifest.json": "{\"schema\":\"synthetic\"}",
+      "TDACompanion-payload-manifest.json": JSON.stringify({
+        schema: "tda_companion_payload_v1", version: VERSION,
+        source_sha: SOURCE, source_tree_sha: TREE,
+        files: Object.fromEntries([
+          "TDACompanion.exe", "TDACompanionMaintenance.exe",
+          "run-physical-acceptance.ps1", "run-installed-acceptance.ps1",
+          "install-rc-runtimes.ps1",
+        ].map(name => [name, { sha256: digest("synthetic-" + name), size: 17 }])),
+      }),
     };
     bytes["TDACompanion-x64.msi.sha256"] =
       digest(bytes["TDACompanion-x64.msi"]) + "  TDACompanion-x64.msi\n";
@@ -287,5 +295,41 @@ test("Whisper sidecar with forged archive SHA fails even when all listed asset h
     f.manifest.assets[1] = asset(name, wrong);
     writeFileSync(f.manifestFile, JSON.stringify(f.manifest));
     await assert.rejects(run(f), /RUNTIME_WHISPER_SIDECAR_OR_ARCHIVE_MISMATCH/);
+  } finally { f.close(); }
+});
+
+
+test("Companion RC payload manifest must match version, source SHA, tree SHA and exact file set", async () => {
+  for (const mutation of ["source", "tree", "version", "missing-file", "invalid-row"]) {
+    const f = fixture();
+    try {
+      const name = "TDACompanion-payload-manifest.json";
+      const payload = JSON.parse(readFileSync(join(f.root, name), "utf8"));
+      if (mutation === "source") payload.source_sha = "f".repeat(40);
+      if (mutation === "tree") payload.source_tree_sha = "f".repeat(40);
+      if (mutation === "version") payload.version = "9.9.9";
+      if (mutation === "missing-file") delete payload.files["TDACompanionMaintenance.exe"];
+      if (mutation === "invalid-row") payload.files["TDACompanion.exe"].sha256 = "bad";
+      const bytes = JSON.stringify(payload);
+      writeFileSync(join(f.root, name), bytes);
+      f.manifest.assets.payload_manifest = asset(name, bytes);
+      writeFileSync(f.manifestFile, JSON.stringify(f.manifest));
+      // Every listed file still has correct declared SHA256 and size; only
+      // semantic validation of payload identity/completeness can reject it.
+      await assert.rejects(run(f), /COMPANION_PAYLOAD_(IDENTITY_MISMATCH|FILES_INCOMPLETE|FILE_METADATA_INVALID)/);
+    } finally { f.close(); }
+  }
+});
+test("Companion payload even with recalculated candidate hash fails on old/invalid payload schema", async () => {
+  const f = fixture();
+  try {
+    const name = "TDACompanion-payload-manifest.json";
+    const payload = JSON.parse(readFileSync(join(f.root, name), "utf8"));
+    payload.schema = "tda_companion_payload_v0";
+    const bytes = JSON.stringify(payload);
+    writeFileSync(join(f.root, name), bytes);
+    f.manifest.assets.payload_manifest = asset(name, bytes);
+    writeFileSync(f.manifestFile, JSON.stringify(f.manifest));
+    await assert.rejects(run(f), /COMPANION_PAYLOAD_IDENTITY_MISMATCH/);
   } finally { f.close(); }
 });
