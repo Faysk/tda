@@ -145,6 +145,14 @@ export function classifyDependencyDiff({
       kind: "package-manager-configuration", level: "high",
       reason: "Package-manager pnpm hooks, patched dependency code, registry or lifecycle configuration requires review" });
   }
+  // Node patch/runtime pin changes can change test and build behavior without
+  // a manifest edit; require review, not automatic promotion.
+  for (const path of files.filter((p) => [".node-version", ".nvmrc"].includes(p))) {
+    findings.push({ ecosystem: "node", name: path,
+      before: "reviewed runtime", after: "review required",
+      kind: "runtime-version-configuration", level: "high",
+      reason: "Node runtime version pin or CI/nvm parity requires review" });
+  }
   // Vercel source packaging and install/build configuration can change the
   // deployed artifact without a package.json diff; surface human review.
   for (const path of files.filter((p) => ["vercel.json", ".vercelignore"].includes(p))) {
@@ -223,7 +231,7 @@ function main() {
     { encoding: "utf8" }).split("\0").filter(Boolean);
   if (!files.some((f) => ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs",
     "local-companion/pyproject.toml", "local-companion/requirements-test.lock"].includes(f) ||
-    f.startsWith("patches/") || ["vercel.json", ".vercelignore"].includes(f) ||
+    f.startsWith("patches/") || ["vercel.json", ".vercelignore", ".nvmrc", ".node-version"].includes(f) ||
     /^\.github\/(?:workflows\/.+|dependabot)\.ya?ml$/.test(f))) return;
   const report = classifyDependencyDiff({
     oldNpm: typeChangedPaths.includes("package.json") ? null : show(refs.from, "package.json"),
