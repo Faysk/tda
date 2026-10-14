@@ -49,6 +49,43 @@ function vercelLocalPolicyViolations(config) {
   return issues;
 }
 
+// Checked-in Vercel packaging allowlist only; remote project settings and
+// effective uploads still require independent verification.
+function vercelIgnorePolicyViolations(source) {
+  const rules = String(source).split(/\r?\n/).map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  const violations = [];
+  for (const pattern of [".git", ".env*", "node_modules", ".next"]) {
+    if (!rules.includes(pattern))
+      violations.push("missing Vercel exclusion: " + pattern);
+  }
+  // Deliberately permit only the already reviewed public template exception.
+  // Other negations could accidentally re-include secrets or local artifacts.
+  for (const rule of rules) {
+    if (rule.startsWith("!") && rule !== "!.env.example")
+      violations.push("unreviewed Vercel negated exclusion: " + rule);
+  }
+  return violations;
+}
+
+test("Vercel packaging excludes environment files and local build output", () => {
+  const source = readFileSync(join(process.cwd(), ".vercelignore"), "utf8");
+  assert.deepEqual(vercelIgnorePolicyViolations(source), []);
+});
+
+test("Vercel ignore policy rejects synthetic env exposure and unreviewed re-inclusions", () => {
+  const source = readFileSync(join(process.cwd(), ".vercelignore"), "utf8");
+  for (const variant of [
+    source.replace(/^\.env\*$/m, ""),
+    source.replace(/^node_modules$/m, ""),
+    source + "\n!.env.local\n",
+    source + "\n!.env*\n",
+    source + "\n!src/secret\n",
+  ]) {
+    assert.notDeepEqual(vercelIgnorePolicyViolations(variant), []);
+  }
+});
+
 test("Vercel repo config cannot enable Git auto-deploy or mutable install scripts", () => {
   const vercel = JSON.parse(readFileSync(join(process.cwd(), "vercel.json"), "utf8"));
   assert.deepEqual(vercelLocalPolicyViolations(vercel), []);
