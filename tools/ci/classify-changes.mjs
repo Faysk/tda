@@ -221,17 +221,41 @@ export function classifyPaths(inputPaths) {
 	return { files, ...classes };
 }
 
+// -z encodes filenames without relying on whitespace/tab parsing. For a
+// rename or copy we must classify BOTH source and destination: removing a
+// sensitive source path can be a regression even when the destination is docs/.
+export function parseGitNameStatus(output) {
+  if (output === "") return [];
+  if (typeof output !== "string" || !output.endsWith("\0"))
+    throw new Error("GIT_DIFF_NAME_STATUS_MALFORMED");
+  const tokens = output.slice(0, -1).split("\0");
+  const names = [];
+  let index = 0;
+  while (index < tokens.length) {
+    const status = tokens[index++];
+    if (!/^[ACMDRT](?:[0-9]{1,3})?$/.test(status))
+      throw new Error("GIT_DIFF_STATUS_UNRECOGNIZED");
+    const count = /^[RC]/.test(status) ? 2 : 1;
+    if (index + count > tokens.length)
+      throw new Error("GIT_DIFF_PATHS_INCOMPLETE");
+    for (let k = 0; k < count; k++) {
+      const path = tokens[index++];
+      if (!path || path.includes("\r") || path.includes("\n"))
+        throw new Error("GIT_DIFF_PATH_INVALID");
+      names.push(path);
+    }
+  }
+  return [...new Set(names)].sort();
+}
+
 export function changedFilesForRange(range, { cwd } = {}) {
-	if (!range || typeof range !== "string")
-		throw new Error("An explicit git range is required");
-	const output = execFileSync(
-		"git",
-		// Deletions and file type changes (regular file <-> symlink) can
-		// remove or redirect critical gates even without an added file.
-		["diff", "--name-only", "--diff-filter=ACMRDT", range],
-		{ encoding: "utf8", ...(cwd ? { cwd } : {}) },
-	);
-	return output.split(/\r?\n/u).filter(Boolean);
+  if (!range || typeof range !== "string")
+    throw new Error("An explicit git range is required");
+  const output = execFileSync("git",
+    ["diff", "--name-status", "-z", "--diff-filter=ACMRDT", range],
+    { encoding: "utf8", ...(cwd ? { cwd } : {}) },
+  );
+  return parseGitNameStatus(output);
 }
 
 function writeGithubOutputs(result) {
