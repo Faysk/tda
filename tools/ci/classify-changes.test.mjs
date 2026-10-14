@@ -48,6 +48,23 @@ test("patches directory and pnpm hook remain cross-domain while docs patches do 
   assert.deepEqual(flags(["docs/release-notes.patch"]), fastOnly);
 });
 
+test("global Next routing/security config and Node version force all Web gates", () => {
+  const webExpected = {
+    web: true, navigation: true, db: true, companion: false,
+    processing: true, lembra: true, sessions: true, media: true,
+  };
+  for (const path of ["next.config.ts", ".node-version"])
+    assert.deepEqual(flags([path]), webExpected, path);
+  assert.deepEqual(flags(["docs/next-config.md"]), fastOnly);
+});
+
+test("changing CI workflow itself forces every domain including Companion", () => {
+  assert.deepEqual(flags([".github/workflows/ci.yml"]), {
+    web: true, navigation: true, db: true, companion: true,
+    processing: true, lembra: true, sessions: true, media: true,
+  });
+});
+
 test("ordinary non-dependency paths never broaden unrelated domains", () => {
   assert.deepEqual(flags(["package-lock.json"]), fastOnly);
   assert.equal(flags(["local-companion/pyproject.toml"]).db, false);
