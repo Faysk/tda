@@ -8,6 +8,11 @@ const WEB_DEPENDENCY_CONTRACT = new Set([
   "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs",
 ]);
 
+// These alter Next routing/security headers, the Node toolchain or CI job
+// definitions, and can affect every browser domain without a source edit.
+const WEB_GLOBAL_CONFIG_CONTRACT = new Set(["next.config.ts", ".node-version"]);
+const GLOBAL_CI_CONTRACT = new Set([".github/workflows/ci.yml"]);
+
 const CLASSIFIER_CONTRACT = new Set([
 	"tools/ci/classify-changes.mjs",
 	"tools/ci/classify-changes.test.mjs",
@@ -184,7 +189,11 @@ function normalized(path) {
 function matches(path, domain) {
 	// pnpm hooks execute during dependency resolution; package patches can
 	// alter installed source without an adjacent package.json update.
-	if ((WEB_DEPENDENCY_CONTRACT.has(path) || path.startsWith("patches/")) && domain !== "companion") return true;
+	if ((WEB_DEPENDENCY_CONTRACT.has(path) || path.startsWith("patches/") ||
+		WEB_GLOBAL_CONFIG_CONTRACT.has(path)) && domain !== "companion") return true;
+	// Editing the CI workflow itself can remove/bypass even Companion gates;
+	// exercise *all* current gates on its own modifications.
+	if (GLOBAL_CI_CONTRACT.has(path)) return true;
 	if (CLASSIFIER_CONTRACT.has(path)) return true;
 	if (EXACT[domain].has(path)) return true;
 	if (PREFIX[domain].some((prefix) => path.startsWith(prefix))) return true;
