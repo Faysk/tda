@@ -118,6 +118,74 @@ async function confirmCompanionChecksum(root, byName, msiDigest) {
   if (!match || match[1] !== msiDigest)
     throw new Error("RC_MSI_CHECKSUM_CONTENT_MISMATCH");
 }
+async function readSmallAsset(root, row, limit) {
+  if (!row || row.size > limit) throw new Error("RUNTIME_METADATA_FILE_SIZE_INVALID");
+  const path = join(root, row.name);
+  let handle;
+  try {
+    const before = await lstat(path);
+    if (!before.isFile() || before.isSymbolicLink() || before.size !== row.size)
+      throw new Error("RUNTIME_METADATA_FILE_INVALID");
+    handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.size !== row.size ||
+        (before.ino && stat.ino && before.ino !== stat.ino))
+      throw new Error("RUNTIME_METADATA_FILE_CHANGED");
+    const bytes = await handle.readFile();
+    const after = await handle.stat();
+    if (!after.isFile() || after.size !== row.size || bytes.length !== row.size)
+      throw new Error("RUNTIME_METADATA_FILE_CHANGED");
+    return bytes.toString("utf8");
+  } finally { await handle?.close(); }
+}
+async function checkRuntimeMetadata(root, manifest, assets) {
+  if (manifest.family === "whisper") {
+    const line = (await readSmallAsset(root, assets[1], MAX_CHECKSUM_BYTES)).trim();
+    const entries = line.split(/\s+/);
+    if (entries.length !== 2 || entries[1] !== assets[0].name ||
+        entries[0] !== assets[0].sha256 ||
+        manifest.runtime_archive_sha256 !== assets[0].sha256)
+      throw new Error("RUNTIME_WHISPER_SIDECAR_OR_ARCHIVE_MISMATCH");
+    return;
+  }
+  if (manifest.family !== "qwen") throw new Error("RUNTIME_FAMILY_UNKNOWN");
+  let bundle;
+  try { bundle = JSON.parse(await readSmallAsset(root, assets[0], 512 * 1024)); }
+  catch (e) {
+    if (e?.message?.startsWith("RUNTIME_METADATA_")) throw e;
+    throw new Error("RUNTIME_QWEN_BUNDLE_JSON_INVALID");
+  }
+  if (!bundle || typeof bundle !== "object" || Array.isArray(bundle) ||
+      bundle.schema !== "tda_qwen_runtime_bundle_v1" ||
+      bundle.runtime_id !== "qwen3-transformers" ||
+      bundle.platform !== "windows-x64" || bundle.version !== manifest.version)
+    throw new Error("RUNTIME_QWEN_BUNDLE_IDENTITY_INVALID");
+  const archive = bundle.archive;
+  const archiveName = "TDAQwenRuntime-" + manifest.version + "-windows-x64.zip";
+  if (!archive || typeof archive !== "object" ||
+      archive.name !== archiveName ||
+      !HEX64.test(archive.sha256 ?? "") ||
+      archive.sha256 !== manifest.runtime_archive_sha256 ||
+      !Number.isSafeInteger(archive.size) || archive.size < 1 ||
+      archive.size > 16 * 1024 ** 3)
+    throw new Error("RUNTIME_QWEN_ARCHIVE_IDENTITY_INVALID");
+  const parts = bundle.parts;
+  if (!Array.isArray(parts) || parts.length !== assets.length - 1 ||
+      parts.length < 1 || parts.length > 16)
+    throw new Error("RUNTIME_QWEN_BUNDLE_PART_COUNT_INVALID");
+  let total = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i], row = assets[i + 1];
+    if (!p || typeof p !== "object" || Array.isArray(p) ||
+        p.index !== i + 1 || p.name !== row.name ||
+        p.size !== row.size || p.sha256 !== row.sha256 ||
+        p.size > 2 * 1024 ** 3 - 1)
+      throw new Error("RUNTIME_QWEN_BUNDLE_PART_MISMATCH");
+    total += p.size;
+  }
+  if (total !== archive.size) throw new Error("RUNTIME_QWEN_BUNDLE_TOTAL_SIZE_MISMATCH");
+}
+
 export async function verifyLocalRcAssets({ family, manifestFile, assetsRoot, sourceSha }) {
   const name = family === "companion" ? "TDACompanion-candidate.json" :
     family === "runtime" ? "TDARuntime-candidate.json" : null;
@@ -165,6 +233,8 @@ export async function verifyLocalRcAssets({ family, manifestFile, assetsRoot, so
   }
   if (family === "companion")
     await confirmCompanionChecksum(root, byName, manifest.assets.msi.sha256);
+  if (family === "runtime")
+    await checkRuntimeMetadata(root, manifest, assets);
   return {
     policy: LOCAL_ASSET_POLICY, family,
     source_sha: sourceSha, candidate_tag: family === "companion" ? manifest.tag : manifest.candidate_tag,
