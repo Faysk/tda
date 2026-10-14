@@ -21,7 +21,7 @@ function record(content, filename = name) {
   return { file, close: () => rmSync(dirname, { force: true, recursive: true }) };
 }
 const companion = () => ({ schema: "tda_companion_candidate_v2", source_sha: sourceSha, source_tree_sha: treeSha, version: "0.3.17", workflow_run_id: 123, channel: "rc", tag: "companion-rc-v0.3.17-" + sourceSha.slice(0,12) });
-const runtime = () => ({ schema: "tda_runtime_candidate_v1", source_sha: sourceSha, source_tree_sha: treeSha, version: "1.0.19", family: "qwen", workflow_run_id: 456, candidate_tag: "companion-qwen-runtime-rc-v1.0.19-" + sourceSha.slice(0,12), stable_tag: "companion-qwen-runtime-v1.0.19" });
+const runtime = () => ({ schema: "tda_runtime_candidate_v1", source_sha: sourceSha, source_tree_sha: treeSha, version: "1.0.19", family: "qwen", runtime_id: "qwen3-transformers", platform: "windows-x64", runtime_archive_sha256: "f".repeat(64), workflow_run_id: 456, candidate_tag: "companion-qwen-runtime-rc-v1.0.19-" + sourceSha.slice(0,12), stable_tag: "companion-qwen-runtime-v1.0.19" });
 function attested(file, edit = (x) => x) {
   const hash = createHash("sha256").update(readFileSync(file)).digest("hex");
   const envelope = [{ verificationResult: { statement: {
@@ -73,7 +73,7 @@ test("verified mock can validate candidate manifest only and never grant release
 });
 test("Qwen/Whisper manifest identity is explicit and separate from signer commit", () => {
   for (const family of ["qwen", "whisper"]) {
-    withFixture({ ...runtime(), family, candidate_tag: "companion-" + family + "-runtime-rc-v1.0.19-" + sourceSha.slice(0,12), stable_tag: "companion-" + family + "-runtime-v1.0.19" }, "TDARuntime-candidate.json", (file) => {
+    withFixture({ ...runtime(), family, runtime_id: family === "whisper" ? "whisper-ctranslate2" : "qwen3-transformers", candidate_tag: "companion-" + family + "-runtime-rc-v1.0.19-" + sourceSha.slice(0,12), stable_tag: "companion-" + family + "-runtime-v1.0.19" }, "TDARuntime-candidate.json", (file) => {
       const v = verifyRcManifest({ family: "runtime", manifestFile: file, sourceSha, signerSha },
         () => attested(file));
       assert.equal(v.family, "runtime");
@@ -103,6 +103,19 @@ test("refuse invalid manifest source, tree, version, family or wrong filename be
     });
   }
   assert.throws(() => validateManifestIdentity([], { family: "companion", sourceSha }), /MANIFEST_INVALID/);
+});
+test("runtime candidate rejects wrong engine ID, platform and archive digest before any GH call", () => {
+  for (const [change, expected] of [
+    [{ runtime_id: "qwen-fake-engine" }, /RUNTIME_IDENTITY_OR_PLATFORM_MISMATCH/],
+    [{ platform: "linux-amd64" }, /RUNTIME_IDENTITY_OR_PLATFORM_MISMATCH/],
+    [{ runtime_archive_sha256: null }, /RUNTIME_ARCHIVE_DIGEST_INVALID/],
+  ]) {
+    withFixture({ ...runtime(), ...change }, "TDARuntime-candidate.json", (file) => {
+      assert.throws(() => verifyRcManifest(
+        { family: "runtime", manifestFile: file, sourceSha, signerSha },
+        () => { throw Error("MUST_NOT_CALL_GH"); }), expected);
+    });
+  }
 });
 test("missing, empty, malformed or mismatched attestation cannot pass policy", () => {
   withFixture(companion(), name, (file) => {
