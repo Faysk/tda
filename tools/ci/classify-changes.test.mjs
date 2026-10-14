@@ -94,18 +94,18 @@ test("actual Git diff includes deletions and mode-only type changes for gate cla
 
 test("NUL-safe diff parsing retains both rename paths and rejects partial status records", () => {
   assert.deepEqual(parseGitNameStatus(
-    "R100\\0src/app/lore/page.tsx\\0docs/page.tsx\\0" +
-    "D\\0src/features/edit/processing/bridge.ts\\0" +
-    "T\\0pnpm-workspace.yaml\\0"
+    "R100\0src/app/lore/page.tsx\0docs/page.tsx\0" +
+    "D\0src/features/edit/processing/bridge.ts\0" +
+    "T\0pnpm-workspace.yaml\0"
   ), [
     "docs/page.tsx", "pnpm-workspace.yaml", "src/app/lore/page.tsx",
     "src/features/edit/processing/bridge.ts",
   ]);
   for (const bad of [
-    "R100\\0only-old\\0",
-    "U\\0src/page.tsx\\0",
-    "M\\0src/page.tsx",
-    "D\\0src/with\\nnewline\\0",
+    "R100\0only-old\0",
+    "U\0src/page.tsx\0",
+    "M\0src/page.tsx",
+    "D\0src/with\nnewline\0",
   ]) assert.throws(() => parseGitNameStatus(bad), /GIT_DIFF_/);
   assert.deepEqual(parseGitNameStatus(""), []);
 });
