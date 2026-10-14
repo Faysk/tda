@@ -12,7 +12,7 @@ const WEB_DEPENDENCY_CONTRACT = new Set([
 // definitions, and can affect every browser domain without a source edit.
 const WEB_GLOBAL_CONFIG_CONTRACT = new Set([
   "next.config.ts", ".node-version", "src/proxy.ts", "vercel.json",
-  ".vercelignore", "vitest.config.ts", "tsconfig.json",
+  ".vercelignore", "vitest.config.ts", "tsconfig.json", ".nvmrc",
 ]);
 const GLOBAL_CI_CONTRACT = new Set([".github/workflows/ci.yml"]);
 
