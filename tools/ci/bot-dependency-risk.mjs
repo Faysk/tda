@@ -140,10 +140,10 @@ export function classifyDependencyDiff({
       kind: "file-typechange", level: "high",
       reason: "Git file type/mode changed; symlink or manifest trust boundary requires review" });
   }
-  for (const path of files.filter((p) => ["pnpm-workspace.yaml", ".npmrc"].includes(p))) {
+  for (const path of files.filter((p) => ["pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs"].includes(p) || p.startsWith("patches/"))) {
     findings.push({ ecosystem: "npm", name: path, before: "configuration", after: "review required",
       kind: "package-manager-configuration", level: "high",
-      reason: "Package-manager sources, lifecycle builds, registry or scripts configuration requires review" });
+      reason: "pnpm hooks, patched dependency code, registry or lifecycle configuration requires review" });
   }
   for (const path of files.filter((p) => /^\.github\/dependabot\.ya?ml$/.test(p))) {
     findings.push({ ecosystem: "github-actions", name: path, before: "review required", after: "review required",
@@ -213,8 +213,9 @@ function main() {
   const typeChangedPaths = execFileSync("git",
     ["diff", "--name-only", "-z", "--diff-filter=T", range],
     { encoding: "utf8" }).split("\0").filter(Boolean);
-  if (!files.some((f) => ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc",
+  if (!files.some((f) => ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs",
     "local-companion/pyproject.toml", "local-companion/requirements-test.lock"].includes(f) ||
+    f.startsWith("patches/") ||
     /^\.github\/(?:workflows\/.+|dependabot)\.ya?ml$/.test(f))) return;
   const report = classifyDependencyDiff({
     oldNpm: typeChangedPaths.includes("package.json") ? null : show(refs.from, "package.json"),
