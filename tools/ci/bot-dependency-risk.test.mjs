@@ -12,6 +12,30 @@ test("versions classify patch/minor/major and unknown conservatively", () => {
   assert.equal(versionKind("1.2.3", "1.2.3"), "same");
 });
 
+test("changes of npm range operator remain high risk even when version changes", () => {
+  for (const [before, after] of [
+    ["~1.2.3", "^1.2.4"],
+    ["1.2.3", "^1.2.4"],
+    ["^1.2.3", "~1.2.4"],
+    ["^1.2.3", "1.2.4"],
+    ["v1.2.3", "1.2.4"],
+  ]) {
+    assert.equal(versionKind(before, after), "unknown", before + " -> " + after);
+    const report = classifyDependencyDiff({
+      oldNpm: npm({ "tiny-lib": before }),
+      newNpm: npm({ "tiny-lib": after }),
+      paths: ["package.json", "pnpm-lock.yaml"],
+    });
+    assert.equal(report.risk, "high", before + " -> " + after);
+    assert.equal(report.findings[0].kind, "unknown");
+  }
+  assert.equal(versionKind("^1.2.3", "^1.2.4"), "patch");
+  assert.equal(versionKind("~1.2.3", "~1.2.4"), "patch");
+  assert.equal(versionKind("^1.2.4", "^1.2.3"), "downgrade");
+  assert.equal(versionKind("1.9.9", "2.0.0"), "major");
+  assert.equal(versionKind("^1.2.4-beta.1", "^1.2.4"), "unknown");
+});
+
 test("patch and major downgrades are high-risk, not routine updates", () => {
   assert.equal(versionKind("1.2.5", "1.2.4"), "downgrade");
   assert.equal(versionKind("2.0.0", "1.99.99"), "downgrade");
