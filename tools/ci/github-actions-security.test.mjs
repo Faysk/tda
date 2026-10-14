@@ -34,6 +34,39 @@ test("all remote GitHub Actions use immutable 40-character commit SHAs", () => {
   assert.deepEqual(violations, []);
 });
 
+// This is a source-level guard only: it cannot establish the effective
+// Vercel Git integration setting or bypass/approval policy on the service.
+function vercelLocalPolicyViolations(config) {
+  const issues = [];
+  if (config?.git?.deploymentEnabled !== false)
+    issues.push("Git auto-deployment must remain disabled");
+  if (config?.framework !== "nextjs")
+    issues.push("Vercel framework changed");
+  if (config?.installCommand !== "corepack pnpm install --frozen-lockfile")
+    issues.push("Vercel install must keep frozen dependency lock");
+  if (config?.buildCommand !== "pnpm build")
+    issues.push("Vercel build command must stay reviewed");
+  return issues;
+}
+
+test("Vercel repo config cannot enable Git auto-deploy or mutable install scripts", () => {
+  const vercel = JSON.parse(readFileSync(join(process.cwd(), "vercel.json"), "utf8"));
+  assert.deepEqual(vercelLocalPolicyViolations(vercel), []);
+});
+
+test("Vercel policy rejects synthetic auto-deploy and install/build command drift", () => {
+  const baseline = JSON.parse(readFileSync(join(process.cwd(), "vercel.json"), "utf8"));
+  const variants = [
+    { ...baseline, git: { deploymentEnabled: true } },
+    { ...baseline, git: {} },
+    { ...baseline, installCommand: "pnpm install" },
+    { ...baseline, buildCommand: "node arbitrary-build.js" },
+    { ...baseline, framework: "other" },
+  ];
+  for (const variant of variants)
+    assert.notDeepEqual(vercelLocalPolicyViolations(variant), []);
+});
+
 test("pull-request CI never inherits deployment secrets", () => {
   const ci = readFileSync(join(workflowRoot, "ci.yml"), "utf8");
   assert.equal(ci.includes("secrets: inherit"), false);
