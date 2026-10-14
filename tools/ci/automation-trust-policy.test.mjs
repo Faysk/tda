@@ -64,3 +64,47 @@ test("new privileged scopes are forbidden until reviewed and allowlisted", () =>
   assert.match(auditBotTrust(unsafePreview).join("\n"), /deploy-preview\.yml: unapproved write scope contents/);
 });
 
+
+test("flow-style YAML cannot hide pull_request_target privileged entrypoint", () => {
+  for (const trigger of [
+    "on: [push, pull_request_target]",
+    "on: { push: {}, pull_request_target: {} }",
+    "on: pull_request_target",
+    "on: ['push', 'pull_request_target']",
+  ]) {
+    const input = mutate("ci.yml", (v) =>
+      v.replace("on:\n  push:\n    branches: [main]\n  pull_request:", trigger));
+    const errors = auditBotTrust(input);
+    assert.ok(errors.some((e) => e.includes("ci.yml: forbidden pull_request_target")),
+      trigger + " : " + errors.join(" | "));
+  }
+});
+
+test("unapproved write scopes are caught in inline permissions at workflow or job level", () => {
+  for (const declaration of [
+    "permissions: { contents: write }",
+    "permissions: { contents: read, pull-requests: write }",
+    'permissions: { "contents": "write", issues: read }',
+  ]) {
+    const input = mutate("ci.yml", (v) =>
+      v.replace("permissions:\n  contents: read", declaration));
+    assert.match(auditBotTrust(input).join("\n"), /ci\.yml: unapproved write scope (contents|pull-requests)/);
+  }
+  const allowed = mutate("codeql.yml", (v) =>
+    v.replace("permissions:\n  contents: read\n  security-events: write",
+      "permissions: { contents: read, security-events: write }"));
+  assert.deepEqual(auditBotTrust(allowed), []);
+});
+
+test("Production rejects flow-style automatic push and workflow_run triggers", () => {
+  for (const line of [
+    "on: [workflow_dispatch, push]",
+    "on: { workflow_dispatch: {}, workflow_run: {} }",
+    "on: 'push'",
+  ]) {
+    const changed = mutate("production-cd.yml", (v) =>
+      v.replace("on:\n  workflow_dispatch:", line + "\n  workflow_dispatch:"));
+    assert.match(auditBotTrust(changed).join("\n"),
+      /production-cd\.yml: forbidden automatic Production trigger/);
+  }
+});
