@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyPaths } from "./classify-changes.mjs";
+import { classifyPaths, changedFilesForRange } from "./classify-changes.mjs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 function flags(files) {
 	const { web, navigation, db, companion, processing, lembra, sessions, media } =
@@ -30,17 +34,55 @@ test("npm manifests and pnpm lock activate every Web dependency gate, not Compan
     sessions: true,
     media: true,
   };
-  for (const changedFile of ["package.json", "pnpm-lock.yaml"]) {
+  for (const changedFile of ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc"]) {
     assert.deepEqual(flags([changedFile]), expected, changedFile);
   }
   assert.deepEqual(flags(["docs/README.md", "pnpm-lock.yaml"]), expected);
 });
 
 test("ordinary non-dependency paths never broaden unrelated domains", () => {
-  assert.deepEqual(flags(["pnpm-workspace.yaml"]), fastOnly);
   assert.deepEqual(flags(["package-lock.json"]), fastOnly);
   assert.equal(flags(["local-companion/pyproject.toml"]).db, false);
   assert.equal(flags(["local-companion/pyproject.toml"]).companion, true);
+});
+
+test("actual Git diff includes deletions and mode-only type changes for gate classification", () => {
+  // Use a local ephemeral Git repo: never read private files or modify TDA.
+  // update-index stages a synthetic symlink mode without needing OS symlink
+  // privileges, so the assertion is deterministic on Linux/Windows.
+  const root = mkdtempSync(join(tmpdir(), "tda-ci-diff-synthetic-"));
+  const git = (args, options = {}) => execFileSync("git", args, {
+    cwd: root, encoding: "utf8", ...options,
+  }).trim();
+  try {
+    git(["init", "-q"]);
+    mkdirSync(join(root, "src", "features", "edit", "processing"), { recursive: true });
+    writeFileSync(join(root, "src/features/edit/processing/bridge.ts"), "export const x = 1;\n");
+    writeFileSync(join(root, "pnpm-workspace.yaml"), "allowBuilds: {}\n");
+    git(["add", "-A"]);
+    git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+      "commit", "-qm", "initial fixture"]);
+
+    rmSync(join(root, "src/features/edit/processing/bridge.ts"));
+    git(["add", "-u"]);
+    const linkTargetBlob = git(["hash-object", "-w", "--stdin"],
+      { input: "synthetic-policy-target" });
+    git(["update-index", "--cacheinfo",
+      "120000," + linkTargetBlob + ",pnpm-workspace.yaml"]);
+    git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+      "commit", "-qm", "delete processing and change policy type"]);
+    const names = changedFilesForRange("HEAD^..HEAD", { cwd: root });
+    assert.deepEqual(names.sort(), [
+      "pnpm-workspace.yaml", "src/features/edit/processing/bridge.ts",
+    ]);
+    const classified = classifyPaths(names);
+    assert.equal(classified.processing, true, "deleted bridge remains processing-relevant");
+    assert.equal(classified.navigation, true, "symlink typechange is web-dependency-impacting");
+    assert.equal(classified.db, true);
+    assert.equal(classified.companion, false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("docs-only stays on fast CI only", () => {
