@@ -68,6 +68,41 @@ function vercelIgnorePolicyViolations(source) {
   return violations;
 }
 
+// CI consumes .node-version, developers often consume .nvmrc, and Vercel
+// project metadata sets a major Node version separately. Guard only checked-in
+// sources here; remote Vercel enforcement is not established by this test.
+function nodeRuntimePinViolations(nodeVersion, nvmrc, engine) {
+  const issues = [];
+  const left = String(nodeVersion).trim();
+  const right = String(nvmrc).trim();
+  if (!/^\\d+\\.\\d+\\.\\d+$/.test(left))
+    issues.push(".node-version must be an exact semver");
+  if (!/^\\d+\\.\\d+\\.\\d+$/.test(right))
+    issues.push(".nvmrc must be an exact semver");
+  if (left !== right)
+    issues.push("nvm and CI Node pins disagree");
+  const major = left.split(".")[0];
+  if (engine !== major + ".x")
+    issues.push("package.json engines.node must match pinned Node major");
+  return issues;
+}
+
+test("nvm and CI Node versions match the package engine major", () => {
+  const nodeVersion = readFileSync(join(process.cwd(), ".node-version"), "utf8");
+  const nvmrc = readFileSync(join(process.cwd(), ".nvmrc"), "utf8");
+  const manifest = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
+  assert.deepEqual(nodeRuntimePinViolations(nodeVersion, nvmrc, manifest.engines?.node), []);
+});
+
+test("runtime version pin drift and malformed pins fail the checked-in contract", () => {
+  for (const [nodeVersion, nvmrc, engine] of [
+    ["24.20.0", "24.21.0", "24.x"],
+    ["24.20.0", "24.20.0", "25.x"],
+    ["24", "24.20.0", "24.x"],
+    ["24.20.0", "lts/*", "24.x"],
+  ]) assert.notDeepEqual(nodeRuntimePinViolations(nodeVersion, nvmrc, engine), []);
+});
+
 test("Vercel packaging excludes environment files and local build output", () => {
   const source = readFileSync(join(process.cwd(), ".vercelignore"), "utf8");
   assert.deepEqual(vercelIgnorePolicyViolations(source), []);
