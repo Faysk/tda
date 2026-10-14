@@ -152,7 +152,7 @@ test("direct patch cannot conceal an unexamined npm or Python transitive lock", 
 });
 
 test("pnpm workspace allowBuilds and npm registry configuration changes are high-risk", () => {
-  for (const path of ["pnpm-workspace.yaml", ".npmrc"]) {
+  for (const path of ["pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs", "patches/transitive-lib.patch"]) {
     const report = classifyDependencyDiff({ paths: [path] });
     assert.equal(report.risk, "high");
     assert.equal(report.recommendation, "human-review-required");
@@ -160,6 +160,18 @@ test("pnpm workspace allowBuilds and npm registry configuration changes are high
     assert.equal(report.findings[0].name, path);
     assert.match(renderRiskMarkdown(report), /Package-manager/);
   }
+});
+
+test("pnpm lifecycle hook/patch-only edits never appear as no-change", () => {
+  const hooks = classifyDependencyDiff({ paths: [".pnpmfile.cjs"] });
+  const patched = classifyDependencyDiff({ paths: ["patches/unrs-resolver.patch"] });
+  for (const row of [hooks, patched]) {
+    assert.equal(row.risk, "high");
+    assert.equal(row.recommendation, "human-review-required");
+    assert.equal(row.findings[0].kind, "package-manager-configuration");
+  }
+  const unrelated = classifyDependencyDiff({ paths: ["docs/guide.patch"] });
+  assert.equal(unrelated.risk, "none");
 });
 
 test("a transitive-only npm lock update stays high-risk and reviewable", () => {
