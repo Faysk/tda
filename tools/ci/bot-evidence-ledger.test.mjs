@@ -1,24 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateEvidence, renderEvidenceMarkdown } from "./bot-evidence-ledger.mjs";
+import { checkMainBaseFreshness, evaluateEvidence, renderEvidenceMarkdown } from "./bot-evidence-ledger.mjs";
 
 const repo = "Faysk/tda";
 const sha = "0123456789abcdef0123456789abcdef01234567";
+const mainSha = "1234567890abcdef1234567890abcdef12345678";
+const otherSha = "abcdef0123456789abcdef0123456789abcdef01";
+const base = () => ({ ref: "main", sha: mainSha });
 const jobs = ["classify-changes", "workflow-contract", "validate", "ci-gate", "required-ci"];
 function fixture() {
   const pr = { number: 1647, state: "open", user: { login: "dependabot[bot]" },
-    head: { sha, repo: { full_name: repo } } };
+    head: { sha, repo: { full_name: repo } },
+    base: { ...base(), repo: { full_name: repo } } };
   const run = { id: 88, name: "CI", path: ".github/workflows/ci.yml", event: "pull_request", status: "completed",
     conclusion: "success", head_sha: sha, head_repository: { full_name: repo },
-    pull_requests: [{ number: 1647 }] };
+    pull_requests: [{ number: 1647, base: base() }] };
   const codeql = { id: 91, name: "CodeQL", path: ".github/workflows/codeql.yml",
     event: "pull_request", status: "completed", conclusion: "success",
     head_sha: sha, head_repository: { full_name: repo },
-    pull_requests: [{ number: 1647 }] };
+    pull_requests: [{ number: 1647, base: base() }] };
   return { repository: repo, pr, run, codeqlRuns: [codeql],
     codeqlJobs: ["analyze (python)", "analyze (javascript-typescript)"].map((name) =>
       ({ name, status: "completed", conclusion: "success" })),
     codeqlJobsRunId: 91, completeCodeqlJobs: true,
+    mainBeforeSha: mainSha, mainAfterSha: mainSha,
     jobs: jobs.map((name) => ({ name, status: "completed", conclusion: "success" })),
     completeJobs: true };
 }
@@ -34,6 +39,7 @@ test("full exact-SHA checks give only advisory readiness", () => {
     "analyze (python)": "success", "analyze (javascript-typescript)": "success",
   });
   assert.equal(result.codeql_jobs_complete, true);
+  assert.equal(result.base_freshness, "verified-current-main");
   assert.equal(result.external_checks, "not-queried");
   assert.equal(result.freshness, "not-queried");
   assert.equal(result.branch_protection, "not-verified");
@@ -172,4 +178,63 @@ test("CodeQL language jobs still running never report ready", () => {
   assert.equal(value.codeql_required_jobs["analyze (python)"], "pending");
   assert.equal(value.state, "pending-or-unknown");
   assert.match(renderEvidenceMarkdown(value), /CodeQL: analyze \(python\)/);
+});
+
+test("main advance blocks previous successful CI and CodeQL at unchanged head", () => {
+  for (const edit of [
+    (x) => { x.mainBeforeSha = otherSha; x.mainAfterSha = otherSha; },
+    (x) => { x.pr.base.sha = otherSha; },
+    (x) => { x.run.pull_requests[0].base.sha = otherSha; },
+    (x) => { x.codeqlRuns[0].pull_requests[0].base.sha = otherSha; },
+    (x) => { x.pr.base.ref = "feature"; },
+    (x) => { x.pr.base.repo.full_name = "external/tda"; },
+  ]) {
+    const result = check((x) => { edit(x); return x; });
+    assert.equal(result.base_freshness, "stale-base");
+    assert.equal(result.state, "blocked");
+    assert.equal(result.production, "not-authorized");
+  }
+});
+
+test("main race, inaccessible API, or missing run/PR base is unknown rather than green", () => {
+  for (const edit of [
+    (x) => { x.mainBeforeSha = otherSha; },
+    (x) => { x.mainAfterSha = null; },
+    (x) => { x.mainBeforeSha = null; },
+    (x) => { x.pr.base.sha = null; },
+    (x) => { x.run.pull_requests[0].base.sha = null; },
+    (x) => { x.codeqlRuns[0].pull_requests[0].base = {}; },
+    (x) => { x.codeqlRuns[0].pull_requests = []; },
+    (x) => { x.codeqlRuns[0].pull_requests.push({ number: 777, base: base() }); },
+  ]) {
+    const result = check((x) => { edit(x); return x; });
+    assert.equal(result.base_freshness, "unknown");
+    assert.equal(result.state, "pending-or-unknown");
+  }
+});
+
+test("latest CodeQL run base must match current main even with older green run", () => {
+  const result = check((x) => {
+    x.codeqlRuns[0].created_at = "2026-10-12T10:00:00Z";
+    x.codeqlRuns.push({ ...x.codeqlRuns[0], id: 100,
+      created_at: "2026-10-14T10:00:00Z",
+      pull_requests: [{ number: 1647, base: { ref: "main", sha: otherSha } }] });
+    x.codeqlJobsRunId = 100;
+    return x;
+  });
+  assert.equal(result.codeql_run_id, 100);
+  assert.equal(result.base_freshness, "stale-base");
+  assert.equal(result.state, "blocked");
+});
+
+test("base check is a read-only observation, not remote branch protection", () => {
+  const value = check();
+  assert.equal(value.branch_protection, "not-verified");
+  assert.equal(value.freshness, "not-queried");
+  assert.match(renderEvidenceMarkdown(value), /Main base freshness: verified-current-main/);
+  const direct = checkMainBaseFreshness({
+    repository: repo, pr: fixture().pr, ciRun: fixture().run,
+    codeqlRun: fixture().codeqlRuns[0], mainBeforeSha: mainSha, mainAfterSha: mainSha,
+  });
+  assert.equal(direct.status, "verified-current-main");
 });
