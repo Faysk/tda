@@ -10,7 +10,9 @@ const WEB_DEPENDENCY_CONTRACT = new Set([
 
 // These alter Next routing/security headers, the Node toolchain or CI job
 // definitions, and can affect every browser domain without a source edit.
-const WEB_GLOBAL_CONFIG_CONTRACT = new Set(["next.config.ts", ".node-version"]);
+const WEB_GLOBAL_CONFIG_CONTRACT = new Set([
+  "next.config.ts", ".node-version", "src/proxy.ts", "vercel.json",
+]);
 const GLOBAL_CI_CONTRACT = new Set([".github/workflows/ci.yml"]);
 
 const CLASSIFIER_CONTRACT = new Set([
