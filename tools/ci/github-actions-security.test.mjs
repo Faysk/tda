@@ -318,6 +318,26 @@ test("every main release candidate reaches Preview before an explicit Production
     production.indexOf("Pull Production configuration"));
 });
 
+test("navigation regression failures upload a scoped synthetic Playwright trace", () => {
+  const ci = readFileSync(join(workflowRoot, "ci.yml"), "utf8");
+  const start = ci.indexOf("  navigation-e2e:\n");
+  const end = ci.indexOf("\n  lembra-e2e:\n", start);
+  assert.ok(start >= 0 && end > start, "navigation job boundary");
+  const nav = ci.slice(start, end);
+  const globalStep = nav.slice(nav.indexOf("      - name: Global navigation and shell contracts"),
+    nav.indexOf("      - name: Shared campaign picker browser contract"));
+  assert.ok(globalStep.includes("--trace=retain-on-failure"),
+    "trace must be scoped to synthetic global navigation failure");
+  const failedArtifact = nav.slice(nav.indexOf("      - name: Upload sanitized navigation failure artifacts"));
+  assert.ok(failedArtifact.includes("if: ${{ failure() }}"));
+  assert.ok(failedArtifact.includes("test-results/**/trace.zip"),
+    "upload must include the actual Playwright failure trace");
+  assert.equal(nav.includes("continue-on-error: true"), false);
+  const playwright = readFileSync(join(process.cwd(), "playwright.config.ts"), "utf8");
+  assert.ok(playwright.includes('TDA_E2E_FIXTURES: "true"'));
+  assert.ok(playwright.includes('TDA_READ_PUBLISHED_DATA: "false"'));
+});
+
 test("Main Preview requires latest same-SHA main CodeQL before Production-parity build", () => {
   const preview = readFileSync(join(workflowRoot, "deploy-main-preview.yml"), "utf8");
   assert.ok(preview.includes("workflows: [CI, CodeQL]"),
