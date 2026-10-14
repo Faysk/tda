@@ -143,7 +143,7 @@ export function classifyDependencyDiff({
   for (const path of files.filter((p) => ["pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs"].includes(p) || p.startsWith("patches/"))) {
     findings.push({ ecosystem: "npm", name: path, before: "configuration", after: "review required",
       kind: "package-manager-configuration", level: "high",
-      reason: "pnpm hooks, patched dependency code, registry or lifecycle configuration requires review" });
+      reason: "Package-manager pnpm hooks, patched dependency code, registry or lifecycle configuration requires review" });
   }
   for (const path of files.filter((p) => /^\.github\/dependabot\.ya?ml$/.test(p))) {
     findings.push({ ecosystem: "github-actions", name: path, before: "review required", after: "review required",
