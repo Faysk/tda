@@ -12,6 +12,20 @@ test("versions classify patch/minor/major and unknown conservatively", () => {
   assert.equal(versionKind("1.2.3", "1.2.3"), "same");
 });
 
+test("patch and major downgrades are high-risk, not routine updates", () => {
+  assert.equal(versionKind("1.2.5", "1.2.4"), "downgrade");
+  assert.equal(versionKind("2.0.0", "1.99.99"), "downgrade");
+  assert.equal(versionKind("1.9.9", "2.0.0"), "major");
+  const report = classifyDependencyDiff({
+    oldNpm: npm({ "tiny-lib": "1.2.5" }),
+    newNpm: npm({ "tiny-lib": "1.2.4" }),
+    paths: ["package.json", "pnpm-lock.yaml"],
+  });
+  assert.equal(report.risk, "high");
+  assert.equal(report.findings[0].kind, "downgrade");
+  assert.equal(report.recommendation, "human-review-required");
+});
+
 test("critical Web libraries trigger high risk and never an approval", () => {
   const report = classifyDependencyDiff({
     oldNpm: npm({ next: "15.1.0", "@supabase/supabase-js": "2.10.0", "@aws-sdk/client-s3": "3.1.0" }),
@@ -57,6 +71,38 @@ test("a Python direct pin drift names Companion and a lock-only change remains u
   const lockReport = classifyDependencyDiff({ oldPython: newer, newPython: newer,
     paths: ["local-companion/requirements-test.lock"] });
   assert.equal(lockReport.findings[0].kind, "lock-only");
+});
+
+test("unparsed Python manifest edits never disappear from the risk report", () => {
+  const oldPython = '[project]\ndependencies = [\n  "fastapi==0.142.4",\n]';
+  const newPython = '[project]\ndependencies = [\n  "fastapi==0.143.0",\n  "optional-lib>=1.2",\n]';
+  const report = classifyDependencyDiff({
+    oldPython, newPython, paths: ["local-companion/pyproject.toml"],
+  });
+  assert.equal(report.risk, "high");
+  assert.ok(report.findings.some((x) => x.kind === "manifest-unclassified"));
+  assert.ok(report.findings.some((x) => x.name === "fastapi"));
+
+  const metadataOnly = classifyDependencyDiff({
+    oldPython: "[project]\\nname = 'companion'",
+    newPython: "[project]\\nname = 'companion'\\nrequires-python = '>=3.12'",
+    paths: ["local-companion/pyproject.toml"],
+  });
+  assert.equal(metadataOnly.risk, "high");
+  assert.equal(metadataOnly.findings[0].kind, "manifest-unclassified");
+
+  const missingManifest = classifyDependencyDiff({
+    oldPython: null, newPython, paths: ["local-companion/pyproject.toml"],
+  });
+  assert.equal(missingManifest.risk, "high");
+  assert.ok(missingManifest.findings.some((x) => x.kind === "manifest-unclassified"));
+
+  const exactOnly = classifyDependencyDiff({
+    oldPython, newPython: oldPython.replace("0.142.4", "0.143.0"),
+    paths: ["local-companion/pyproject.toml"],
+  });
+  assert.equal(exactOnly.findings.length, 1);
+  assert.ok(exactOnly.findings.every((x) => x.kind !== "manifest-unclassified"));
 });
 
 test("workflow edits are always security-review candidates regardless of package diff", () => {
