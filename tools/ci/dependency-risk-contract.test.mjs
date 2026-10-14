@@ -62,23 +62,34 @@ test("campaign isolation triggers on dependency changes in PR and main", () => {
   }
 });
 
-test("CI optional job and gate relevance agree for every package-manager mutation", () => {
+function assertOptionalGateParity(workflow) {
   for (const [job, gate] of jobToGate) {
-    const condition = conditionFor(job);
-    const relevance = relevanceFor(gate);
+    const condition = conditionFor(job, workflow);
+    const relevance = relevanceFor(gate, workflow);
     for (const path of [...deps, ciPatchPath]) {
       const token = selector(path);
       assert.ok(condition.includes(token), job + ": missing gate " + path);
       assert.ok(relevance.includes(token), gate + ": missing relevance " + path);
-      const changed = condition.replace(token, "false");
-      assert.equal(changed.includes(token), false,
-        "synthetic deletion must be observable in the job condition");
-      const changedRelevance = relevance.replace(token, "false");
-      assert.equal(changedRelevance.includes(token), false,
-        "synthetic deletion must be observable in CI aggregation");
     }
   }
+}
+
+test("CI optional job and gate relevance remain synchronized under adversarial mutations", () => {
+  assertOptionalGateParity(ci);
+  const token = selector(".pnpmfile.cjs");
+  const jobsOnlyChanged = ci.replace(token, "false");
+  assert.notEqual(jobsOnlyChanged, ci);
+  assert.throws(() => assertOptionalGateParity(jobsOnlyChanged),
+    /statistics-e2e: missing gate \.pnpmfile\.cjs/);
+  const section = ci.indexOf("  ci-gate:");
+  assert.ok(section > 0);
+  const relevanceOnlyChanged = ci.slice(0, section) +
+    ci.slice(section).replace(selector("patches/"), "false");
+  assert.notEqual(relevanceOnlyChanged, ci);
+  assert.throws(() => assertOptionalGateParity(relevanceOnlyChanged),
+    /STATISTICS: missing relevance patches\//);
 });
+
 
 test("dependency locks do not trigger Companion MSI merely by changing pnpm", async () => {
   const { classifyPaths } = await import("./classify-changes.mjs");
