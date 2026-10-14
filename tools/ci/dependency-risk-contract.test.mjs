@@ -13,6 +13,8 @@ const gateNames = ["STATISTICS", "PERMISSIONS", "TRANSCRIPT_EDIT"];
 const deps = ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs"];
 const ciPatchPath = "patches/";
 const campaignPatchGlob = "patches/**";
+const globalWeb = ["next.config.ts", ".node-version", ".github/workflows/ci.yml"];
+const allOptionalPaths = [...deps, ciPatchPath, ...globalWeb];
 const jobToGate = new Map([
   ["statistics-e2e", "STATISTICS"], ["permissions-e2e", "PERMISSIONS"],
   ["transcript-edit-e2e", "TRANSCRIPT_EDIT"],
@@ -39,7 +41,7 @@ function block(source, name) {
 test("dependency changes run path-sensitive browser E2Es", () => {
   for (const job of optional) {
     const condition = conditionFor(job);
-    for (const dep of [...deps, ciPatchPath])
+    for (const dep of allOptionalPaths)
       assert.ok(condition.includes(selector(dep)), job + ": missing " + dep);
   }
 });
@@ -48,7 +50,7 @@ test("CI aggregation matches dependencies and fails closed on required E2E", () 
   const aggregator = block(ci, "ci-gate");
   for (const gate of gateNames) {
     const envLine = relevanceFor(gate);
-    for (const dep of [...deps, ciPatchPath])
+    for (const dep of allOptionalPaths)
       assert.ok(envLine.includes(selector(dep)), gate + ": missing " + dep);
     assert.ok(aggregator.includes("test \"$" + gate + "_RESULT\" = \"success\""), "required failure must not become skipped: " + gate);
   }
@@ -57,7 +59,7 @@ test("CI aggregation matches dependencies and fails closed on required E2E", () 
 test("campaign isolation triggers on dependency changes in PR and main", () => {
   for (const event of ["pull_request", "push"]) {
     const trigger = block(isolation, event);
-    for (const dep of [...deps, campaignPatchGlob])
+    for (const dep of [...deps, campaignPatchGlob, ...globalWeb])
       assert.ok(trigger.includes('"' + dep + '"'), event + ": " + dep);
   }
 });
@@ -66,7 +68,7 @@ function assertOptionalGateParity(workflow) {
   for (const [job, gate] of jobToGate) {
     const condition = conditionFor(job, workflow);
     const relevance = relevanceFor(gate, workflow);
-    for (const path of [...deps, ciPatchPath]) {
+    for (const path of allOptionalPaths) {
       const token = selector(path);
       assert.ok(condition.includes(token), job + ": missing gate " + path);
       assert.ok(relevance.includes(token), gate + ": missing relevance " + path);
@@ -90,6 +92,23 @@ test("CI optional job and gate relevance remain synchronized under adversarial m
     /STATISTICS: missing relevance patches\//);
 });
 
+
+test("security-critical global Next/Node/CI config edits cannot skip optional E2Es", () => {
+  assertOptionalGateParity(ci);
+  const riskPaths = [".github/workflows/ci.yml", "next.config.ts", ".node-version"];
+  for (const path of riskPaths) {
+    const token = selector(path);
+    const altered = ci.replace(token, "false");
+    assert.notEqual(altered, ci, "must have a live selector for " + path);
+    assert.throws(() => assertOptionalGateParity(altered),
+      /statistics-e2e: missing gate/, "deleting selector must fail closed: " + path);
+  }
+  for (const event of ["pull_request", "push"]) {
+    const trigger = block(isolation, event);
+    for (const path of riskPaths)
+      assert.ok(trigger.includes('"' + path + '"'), event + ": missing " + path);
+  }
+});
 
 test("dependency locks do not trigger Companion MSI merely by changing pnpm", async () => {
   const { classifyPaths } = await import("./classify-changes.mjs");
