@@ -63,25 +63,26 @@ function normalizeNpmManifest(text) {
   return JSON.stringify(sorted(data));
 }
 export function versionKind(before, after) {
-  // Parse complete versions. Pre-releases/constraint changes are unknown risk;
-  // do not classify "1.2.4-beta" as a routine patch.
-  const fullVersion = /^[~^v]?(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
+  // Capture the exact npm range operator separately from numeric SemVer.
+  // A change from ~ to ^ (or exact to a range) can widen the permitted
+  // dependency set even when the numeric change looks like a safe patch.
+  const fullVersion = /^([~^v]?)(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
   const a = String(before).match(fullVersion);
   const b = String(after).match(fullVersion);
   if (!a || !b) return "unknown";
-  if (a[4] || b[4] || a[5] || b[5]) return before === after ? "same" : "unknown";
-  // SemVer downgrades are not safe patch updates: a smaller version can
-  // reintroduce previously fixed bugs or vulnerabilities.
-  const from = a.slice(1, 4).map(BigInt);
-  const to = b.slice(1, 4).map(BigInt);
+  if (before === after) return "same";
+  if (a[1] !== b[1] || a[5] || b[5] || a[6] || b[6]) return "unknown";
+  // A numeric downgrade can reintroduce earlier defects and vulnerabilities.
+  const from = a.slice(2, 5).map(BigInt);
+  const to = b.slice(2, 5).map(BigInt);
   for (let i = 0; i < from.length; i++) {
     if (to[i] < from[i]) return "downgrade";
     if (to[i] > from[i]) break;
   }
-  if (a[1] !== b[1]) return "major";
-  if (a[2] !== b[2]) return "minor";
-  if (a[3] !== b[3]) return "patch";
-  return before === after ? "same" : "unknown";
+  if (a[2] !== b[2]) return "major";
+  if (a[3] !== b[3]) return "minor";
+  if (a[4] !== b[4]) return "patch";
+  return "unknown";
 }
 function compare(before, after, ecosystem) {
   const out = [];
