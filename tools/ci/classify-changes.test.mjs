@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyPaths, changedFilesForRange } from "./classify-changes.mjs";
+import { classifyPaths, changedFilesForRange, parseGitNameStatus } from "./classify-changes.mjs";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -57,7 +57,10 @@ test("actual Git diff includes deletions and mode-only type changes for gate cla
   try {
     git(["init", "-q"]);
     mkdirSync(join(root, "src", "features", "edit", "processing"), { recursive: true });
+    mkdirSync(join(root, "src", "app", "lore"), { recursive: true });
+    mkdirSync(join(root, "docs"), { recursive: true });
     writeFileSync(join(root, "src/features/edit/processing/bridge.ts"), "export const x = 1;\n");
+    writeFileSync(join(root, "src/app/lore/page.tsx"), "export const page = 1;\n");
     writeFileSync(join(root, "pnpm-workspace.yaml"), "allowBuilds: {}\n");
     git(["add", "-A"]);
     git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
@@ -65,6 +68,7 @@ test("actual Git diff includes deletions and mode-only type changes for gate cla
 
     rmSync(join(root, "src/features/edit/processing/bridge.ts"));
     git(["add", "-u"]);
+    git(["mv", "src/app/lore/page.tsx", "docs/archived-lore.tsx"]);
     const linkTargetBlob = git(["hash-object", "-w", "--stdin"],
       { input: "synthetic-policy-target" });
     git(["update-index", "--cacheinfo",
@@ -73,8 +77,11 @@ test("actual Git diff includes deletions and mode-only type changes for gate cla
       "commit", "-qm", "delete processing and change policy type"]);
     const names = changedFilesForRange("HEAD^..HEAD", { cwd: root });
     assert.deepEqual(names.sort(), [
-      "pnpm-workspace.yaml", "src/features/edit/processing/bridge.ts",
+      "docs/archived-lore.tsx", "pnpm-workspace.yaml",
+      "src/app/lore/page.tsx", "src/features/edit/processing/bridge.ts",
     ]);
+    assert.equal(classifyPaths(["docs/archived-lore.tsx"]).navigation, false);
+    assert.equal(classifyPaths(["src/app/lore/page.tsx"]).navigation, true);
     const classified = classifyPaths(names);
     assert.equal(classified.processing, true, "deleted bridge remains processing-relevant");
     assert.equal(classified.navigation, true, "symlink typechange is web-dependency-impacting");
@@ -83,6 +90,24 @@ test("actual Git diff includes deletions and mode-only type changes for gate cla
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("NUL-safe diff parsing retains both rename paths and rejects partial status records", () => {
+  assert.deepEqual(parseGitNameStatus(
+    "R100\\0src/app/lore/page.tsx\\0docs/page.tsx\\0" +
+    "D\\0src/features/edit/processing/bridge.ts\\0" +
+    "T\\0pnpm-workspace.yaml\\0"
+  ), [
+    "docs/page.tsx", "pnpm-workspace.yaml", "src/app/lore/page.tsx",
+    "src/features/edit/processing/bridge.ts",
+  ]);
+  for (const bad of [
+    "R100\\0only-old\\0",
+    "U\\0src/page.tsx\\0",
+    "M\\0src/page.tsx",
+    "D\\0src/with\\nnewline\\0",
+  ]) assert.throws(() => parseGitNameStatus(bad), /GIT_DIFF_/);
+  assert.deepEqual(parseGitNameStatus(""), []);
 });
 
 test("docs-only stays on fast CI only", () => {
