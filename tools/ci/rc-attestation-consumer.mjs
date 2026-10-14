@@ -31,8 +31,15 @@ export function validateManifestIdentity(manifest, { family, sourceSha }) {
   if (manifest.schema !== schema) throw new Error("CANDIDATE_SCHEMA_MISMATCH");
   if (manifest.source_sha !== sourceSha) throw new Error("CANDIDATE_SOURCE_SHA_MISMATCH");
   if (!SHA.test(manifest.source_tree_sha ?? "")) throw new Error("CANDIDATE_TREE_SHA_INVALID");
-  if (family === "runtime" && !["qwen", "whisper"].includes(manifest.family))
-    throw new Error("RUNTIME_FAMILY_UNKNOWN");
+  if (family === "runtime") {
+    if (!["qwen", "whisper"].includes(manifest.family))
+      throw new Error("RUNTIME_FAMILY_UNKNOWN");
+    const runtimeId = manifest.family === "qwen" ? "qwen3-transformers" : "whisper-ctranslate2";
+    if (manifest.runtime_id !== runtimeId || manifest.platform !== "windows-x64")
+      throw new Error("RUNTIME_IDENTITY_OR_PLATFORM_MISMATCH");
+    if (!HASH.test(manifest.runtime_archive_sha256 ?? ""))
+      throw new Error("RUNTIME_ARCHIVE_DIGEST_INVALID");
+  }
   if (typeof manifest.version !== "string" || !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(manifest.version))
     throw new Error("CANDIDATE_VERSION_UNKNOWN");
   if (!Number.isSafeInteger(manifest.workflow_run_id) || manifest.workflow_run_id <= 0)
