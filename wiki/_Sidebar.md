@@ -9,7 +9,10 @@
 - [🗺️ Campanhas e rotas](https://github.com/Faysk/tda/wiki/Rotas-e-campanhas)
 - [📅 Campanhas e sessões](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes)
 - [🌍 Mundo e entidades](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
+- [🧭 Guia do World Explorer](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer)
 - [🎨 Lores e Lembra](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
+- [🖼️ Como usar o Lembra](https://github.com/Faysk/tda/wiki/Usar-o-Lembra)
+- [📜 Lore e publicação](https://github.com/Faysk/tda/wiki/Publicar-uma-Lore)
 
 ### ⚙️ Edit e IA
 - [📝 Edit, revisão e publicação](https://github.com/Faysk/tda/wiki/Edit-e-revisao)

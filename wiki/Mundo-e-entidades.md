@@ -49,3 +49,8 @@ Uma informação gerada por IA ou citada em uma conversa não vira canon por apa
 **Fontes:** [World Explorer](https://github.com/Faysk/tda/blob/main/docs/features/world-explorer.md), [entidades](https://github.com/Faysk/tda/blob/main/docs/domains/entities.md), [canon/revisão](https://github.com/Faysk/tda/blob/main/docs/domains/canon-review.md) e [audiência](https://github.com/Faysk/tda/blob/main/docs/features/knowledge-audience.md).
 
 Continue: [Lores, diários e referências](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
+
+
+## Tutorial para explorar as relações
+
+Leia [Como explorar o World Explorer](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer) para aprender os controles, o papel da audiência e a diferença entre relações reais e demonstrações.

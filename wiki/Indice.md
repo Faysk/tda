@@ -9,7 +9,10 @@ Use este índice quando não souber onde procurar. Ele cobre as páginas públic
 - [Usando menus e páginas públicas](https://github.com/Faysk/tda/wiki/Usando-o-TDA)
 - [Campanhas, sessões e memórias](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes)
 - [World Explorer, NPCs e personagens](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
+- [Tutorial visual do World Explorer](https://github.com/Faysk/tda/wiki/Explorar-o-World-Explorer)
 - [Histórias, diários e galeria](https://github.com/Faysk/tda/wiki/Lores-e-Lembra)
+- [Como guardar referências no Lembra](https://github.com/Faysk/tda/wiki/Usar-o-Lembra)
+- [Publicação e catálogo de lores](https://github.com/Faysk/tda/wiki/Publicar-uma-Lore)
 - [Panorama de funcionalidades e maturidade](https://github.com/Faysk/tda/wiki/Funcionalidades-e-estados)
 - [Perguntas frequentes](https://github.com/Faysk/tda/wiki/Perguntas-frequentes)
 

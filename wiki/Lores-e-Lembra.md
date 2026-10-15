@@ -27,3 +27,9 @@ Se uma imagem ou publicação estiver ausente, pode haver diferença entre mídi
 **Fontes:** [lores independentes](https://github.com/Faysk/tda/blob/main/docs/features/independent-lores.md), [diários](https://github.com/Faysk/tda/blob/main/docs/features/character-diaries.md), [Lembra](https://github.com/Faysk/tda/blob/main/docs/features/lembra.md) e [Design System](https://github.com/Faysk/tda/blob/main/docs/design-system/README.md).
 
 Continue: [Sessões](https://github.com/Faysk/tda/wiki/Campanhas-e-sessoes) · [Mundo](https://github.com/Faysk/tda/wiki/Mundo-e-entidades)
+
+
+## Guias completos
+
+- [Salvar e encontrar imagens no Lembra](https://github.com/Faysk/tda/wiki/Usar-o-Lembra).
+- [Entender publicação, listagem e vínculo de uma lore](https://github.com/Faysk/tda/wiki/Publicar-uma-Lore).
