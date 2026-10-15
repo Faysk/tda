@@ -107,3 +107,7 @@ O job `validate` em PR também tenta obter `WIKI_REMOTE_HEAD` com `git ls-remote
 `node tools/wiki/coverage.mjs --matrix` lista cada Markdown realmente encontrado em `docs/`, a área, as páginas de Wiki que o referenciam e os valores **declarados** de Owner/Última revisão (ou `null`, jamais inferidos). Por segurança editorial, toda linha recebe `disposition: requires-owner-review`: **não há aprovação automática para espelhar conteúdo** por estar linkado. O relatório normal `pnpm wiki:coverage` continua fornecendo números/resumo por área. O comando não cria arquivos, não altera `docs/` e não publica na Wiki.
 
 A matriz é um **inventário de triagem**, não o cumprimento final de #1746: cada owner ainda precisa decidir se o assunto merece tutorial, link técnico sem cópia ou exclusão editorial, registrar a justificativa, e validar a natureza pública de qualquer material que vá para a Wiki.
+
+## Runbook completo de bootstrap, adoção e rollback
+
+O roteiro em [PUBLISH_RUNBOOK.md](./PUBLISH_RUNBOOK.md) documenta fonte aprovada em main, bundle, clone Wiki autorizado, preflight, adoção explícita por SHA do Wiki HEAD + hash dos bytes de cada página existente, preparo local, revisão humana, push não forçado, readback e rollback. A opção --adopt-file nunca contorna drift de página já gerenciada e não concede permissão de escrita por si só.
