@@ -51,7 +51,7 @@ test("rejects removed canonical source", (t) => {
 	const root = fixture();
 	t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 	fs.rmSync(path.join(root, "docs", "source.md"));
-	assert.throws(() => checkWiki(root), /missing canonical source/);
+	assert.throws(() => checkWiki(root), /missing (?:canonical|tracked) source/);
 });
 
 test("rejects a synthetic token leak", (t) => {
