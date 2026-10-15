@@ -199,7 +199,7 @@ Validação usa fixtures sintéticas em desktop/mobile, falhas independentes por
 domínio, recuperação parcial, inventário fora de ordem, temas e reduced motion.
 Merge não confirma publicação; não há mudança de banco, áudio ou formato de run.
 
-A linha de código vigente **TDA Companion 0.3.28** cobre:
+A linha de código candidata **TDA Companion 0.3.29** cobre:
 
 - workbench próprio do Edit;
 - conexão automática com o Agent em `http://127.0.0.1:8765/api/v1` via sessão temporária origin-bound;
@@ -225,7 +225,7 @@ O processamento Craig já é ASR real ponta a ponta no Agent, iniciado pela Web 
 
 ### Versão de código versus artefato publicado
 
-A linha de código atual é o **TDA Companion 0.3.28**. O candidato inclui a fronteira de erros públicos por valores estáticos e validação explícita de identidade/containment dos receipts de qualidade (#1625); o canal Stable é 0.3.28, com aceite próprio e promoção deliberada registrados abaixo. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline. A correção #1614 mantém registros e contadores de cada página de jobs num snapshot SQLite consistente; exige atualizar o Agent e não altera os runtimes ASR. O aceite de 0.3.25 descrito abaixo é histórico e não certifica este novo candidato.
+A linha de código candidata é o **TDA Companion 0.3.29**, com a atualização de dependências e gates descritos no [recibo de continuidade](../operations/backlog-continuity-2026-10-15.md). O candidato inclui a fronteira de erros públicos por valores estáticos e validação explícita de identidade/containment dos receipts de qualidade (#1625); o canal Stable é 0.3.28, com aceite próprio e promoção deliberada registrados abaixo. Versão no código não prova, sozinha, publicação Stable/RC nem aceite físico do artefato; release continua presa aos gates e receipts do pipeline. A correção #1614 mantém registros e contadores de cada página de jobs num snapshot SQLite consistente; exige atualizar o Agent e não altera os runtimes ASR. O aceite de 0.3.25 descrito abaixo é histórico e não certifica este novo candidato.
 
 Na exportação SRT/VTT, segmentos pontuais reconhecidos são preservados como cues
 de pelo menos 1 ms. Isso normaliza somente a representação da legenda; o JSON
