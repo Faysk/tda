@@ -183,6 +183,878 @@ jobs:
         env:
           WIKI_BASE_REF: ${{ github.base_ref }}
         run: node tools/wiki/impact.mjs --base "origin/${WIKI_BASE_REF}"
+      - name: Inspect Wiki remote HEAD (read-only, no credentials)
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE="https://github.com/Faysk/tda.wiki.git"
+          if RESULT="$(timeout 25 git ls-remote "$REMOTE" HEAD 2>/dev/null)"; then
+            if [[ -n "$RESULT" ]]; then
+              printf 'WIKI_REMOTE_HEAD %s\n' "${RESULT%%
+        if: ${{ github.event_name == 'pull_request' }}
+        run: node tools/wiki/stage-wiki.mjs --out "$RUNNER_TEMP/tda-wiki-bundle"
+      - name: Upload Wiki review bundle (no publication)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4.6.2
+        with:
+          name: tda-wiki-review-${{ github.sha }}
+          path: ${{ runner.temp }}/tda-wiki-bundle
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build application
+        run: pnpm build
+
+  statistics-e2e:
+    name: statistics-e2e
+    needs: classify-changes
+    if: ${{ contains(needs.classify-changes.outputs.files_json, 'package.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-lock.yaml') || contains(needs.classify-changes.outputs.files_json, 'next.config.ts') || contains(needs.classify-changes.outputs.files_json, '.node-version') || contains(needs.classify-changes.outputs.files_json, '.nvmrc') || contains(needs.classify-changes.outputs.files_json, '.github/workflows/ci.yml') || contains(needs.classify-changes.outputs.files_json, 'src/proxy.ts') || contains(needs.classify-changes.outputs.files_json, 'vercel.json') || contains(needs.classify-changes.outputs.files_json, '.vercelignore') || contains(needs.classify-changes.outputs.files_json, 'vitest.config.ts') || contains(needs.classify-changes.outputs.files_json, 'tsconfig.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-workspace.yaml') || contains(needs.classify-changes.outputs.files_json, '.npmrc') || contains(needs.classify-changes.outputs.files_json, '.pnpmfile.cjs') || contains(needs.classify-changes.outputs.files_json, 'patches/') || contains(needs.classify-changes.outputs.files_json, 'src/app/transcricoes/') || contains(needs.classify-changes.outputs.files_json, 'src/features/transcripts/statistics/') || contains(needs.classify-changes.outputs.files_json, 'tests/statistics/') || contains(needs.classify-changes.outputs.files_json, 'playwright.statistics.config.ts') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Transcript statistics browser contract
+        run: pnpm exec playwright test --config playwright.statistics.config.ts
+      - name: Upload sanitized statistics visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: statistics-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/**/statistics-*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload sanitized statistics failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: statistics-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+            test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7
+
+  permissions-e2e:
+    name: permissions-e2e
+    needs: classify-changes
+    if: ${{ contains(needs.classify-changes.outputs.files_json, 'package.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-lock.yaml') || contains(needs.classify-changes.outputs.files_json, 'next.config.ts') || contains(needs.classify-changes.outputs.files_json, '.node-version') || contains(needs.classify-changes.outputs.files_json, '.nvmrc') || contains(needs.classify-changes.outputs.files_json, '.github/workflows/ci.yml') || contains(needs.classify-changes.outputs.files_json, 'src/proxy.ts') || contains(needs.classify-changes.outputs.files_json, 'vercel.json') || contains(needs.classify-changes.outputs.files_json, '.vercelignore') || contains(needs.classify-changes.outputs.files_json, 'vitest.config.ts') || contains(needs.classify-changes.outputs.files_json, 'tsconfig.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-workspace.yaml') || contains(needs.classify-changes.outputs.files_json, '.npmrc') || contains(needs.classify-changes.outputs.files_json, '.pnpmfile.cjs') || contains(needs.classify-changes.outputs.files_json, 'patches/') || contains(needs.classify-changes.outputs.files_json, 'src/features/edit/permissions/') || contains(needs.classify-changes.outputs.files_json, 'src/app/edit/[campaignSlug]/permissions/') || contains(needs.classify-changes.outputs.files_json, 'src/app/api/edit/[campaignSlug]/permissions/') || contains(needs.classify-changes.outputs.files_json, 'tools/testing/permissions') || contains(needs.classify-changes.outputs.files_json, 'playwright.permissions.config.ts') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Governed permissions browser contract
+        run: pnpm exec playwright test --config playwright.permissions.config.ts
+      - name: Upload sanitized permissions visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: permissions-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/**/permissions-*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload sanitized permissions failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: permissions-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+            test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7
+
+  navigation-e2e:
+    name: navigation-e2e
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.navigation == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: World shell interaction contracts
+        run: >-
+          pnpm exec playwright test
+          tests/world-workspace-shell.spec.ts
+          tests/world-workspace-wide-chrome.spec.ts
+          tests/world-authoring-command-palette.spec.ts
+          --project=desktop-1080p
+          --project=mobile
+      - name: Loader and standalone favicon contracts
+        run: >-
+          pnpm exec playwright test
+          tests/global-loading.spec.ts
+          tests/d-lore-reading-mode.spec.ts
+          --project=desktop-1080p
+          --project=mobile
+      - name: Route and region loading contracts
+        run: >-
+          pnpm exec playwright test
+          tests/route-loading.spec.ts
+          --project=desktop-1080p
+      - name: Async feedback contracts
+        run: >-
+          pnpm exec playwright test
+          tests/pending-actions.spec.ts
+          tests/progress-feedback.spec.ts
+          --project=desktop-1080p
+          --project=mobile
+      - name: Auth denial and lore launcher contracts
+        run: >-
+          pnpm exec playwright test
+          tests/auth.spec.ts
+          tests/pipipi-cinematic.spec.ts
+          --grep "administrative pages disclose no data|published cinematic lores discoverable"
+          --project=desktop-1080p
+          --project=mobile
+      - name: Global navigation and shell contracts
+        run: >-
+          pnpm exec playwright test
+          tests/global-navigation.spec.ts
+          tests/floating-shell-public-routes.spec.ts
+          tests/layout-geometry.spec.ts
+          tests/layout-receipts.spec.ts
+          tests/foundation.spec.ts
+          tests/navigation-origin.spec.ts
+          tests/world-shell.spec.ts
+          tests/world-catalogs.spec.ts
+          tests/system-states.spec.ts
+          tests/session-public-layout.spec.ts
+          tests/campaign-directory.spec.ts
+          tests/campaign-management.spec.ts
+          tests/account-campaign-context.spec.ts
+          --project=desktop-1080p
+          --trace=retain-on-failure
+      - name: Shared campaign picker browser contract
+        run: >-
+          pnpm exec playwright test
+          tests/campaign-picker.spec.ts
+          --project=desktop-1080p
+          --project=mobile
+      - name: Lore catalogue first-viewport contracts
+        run: >-
+          pnpm exec playwright test
+          tests/lore-catalog-viewport.spec.ts
+          --project=desktop-1080p
+      - name: Upload sanitized navigation visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: navigation-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/navigation-desktop-dark.png
+            test-results/**/navigation-desktop-light.png
+            test-results/**/navigation-mobile-dark.png
+            test-results/**/navigation-mobile-light.png
+            test-results/**/shell-home-desktop-dark.png
+            test-results/**/shell-home-desktop-light.png
+            test-results/**/shell-home-mobile-dark.png
+            test-results/**/shell-home-mobile-light.png
+            test-results/**/shell-home-4k-dark.png
+            test-results/**/shell-contrast-dark-theme.png
+            test-results/**/shell-contrast-light-theme.png
+            test-results/**/shell-contrast-mobile-dark.png
+            test-results/**/shell-contrast-mobile-light.png
+            test-results/**/session-layout-*.png
+            test-results/**/session-layout-*.json
+            test-results/**/layout-keylines-home.png
+            test-results/**/layout-keylines-sessoes.png
+            test-results/**/layout-keylines-lembra.png
+            test-results/**/layout-keylines-workbench.png
+            test-results/**/lore-catalog-*.png
+            test-results/**/layout-cross-*.png
+            test-results/**/operational-header-*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload sanitized navigation failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: navigation-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+            test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7
+
+  lembra-e2e:
+    name: lembra-e2e
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.lembra == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-16
+      - name: Lembra PostgreSQL classification contract
+        run: python tools/lembra-db.py
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Lembra browser contract
+        run: >-
+          pnpm exec playwright test
+          tests/lembra.spec.ts
+          --project=desktop-1080p
+          --project=mobile
+      - name: Upload sanitized Lembra visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lembra-receipts-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/**/lembra-filter-*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload sanitized Lembra failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lembra-e2e-${{ github.run_id }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+          if-no-files-found: ignore
+          retention-days: 7
+
+  processing-e2e:
+    name: processing-e2e
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.processing == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.12.17'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: uv venv --python 3.12.14
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - name: Browser contract E2E
+        run: pnpm test:processing
+      - name: Responsive UX matrix
+        run: pnpm test:processing:ux
+      - name: Upload Live Log visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: processing-live-log-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/live-log-paced-window.png
+            test-results/**/live-log-urgent-bypass.png
+            test-results/**/live-log-caught-up.png
+            test-results/**/live-log-reduced-motion.png
+            test-results/**/contextual-diagnostics-*.png
+            test-results/**/companion-maintenance-dialog-after.png
+            test-results/**/issue-1354-*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Scratch Companion integration
+        run: pnpm test:processing:integration
+        env:
+          TDA_COMPANION_PYTHON: .venv/bin/python
+          TDA_COMPANION_PACKAGE: ${{ github.workspace }}/local-companion
+      - name: Upload sanitized Processing failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: processing-e2e-${{ github.run_id }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+          if-no-files-found: ignore
+          retention-days: 7
+
+
+  benchmark-quality-gate:
+    name: benchmark-quality-gate
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.processing == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.12.18'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: uv venv --python 3.12.14
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - name: Benchmark evidence, diagnostics and quality Python contracts
+        run: >-
+          .venv/bin/python -m pytest -q
+          local-companion/tests/test_benchmark_bundles.py
+          local-companion/tests/test_benchmark_diagnostics.py
+          local-companion/tests/test_benchmark_evidence.py
+          local-companion/tests/test_benchmark_quality.py
+          local-companion/tests/test_benchmark_quality_api.py
+          local-companion/tests/test_processing_benchmark.py
+      - name: Benchmark evidence and quality Web contracts
+        run: >-
+          pnpm exec vitest run
+          src/features/edit/processing/benchmark-evidence.test.ts
+          src/features/edit/processing/benchmark-quality-protocol.test.ts
+          src/features/edit/processing/run-comparison.test.ts
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Benchmark evidence browser matrix
+        run: pnpm exec playwright test --config playwright.benchmark-quality.config.ts
+
+  multi-recording-gate:
+    name: multi-recording-gate
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.processing == 'true' || needs.classify-changes.outputs.db == 'true' || contains(needs.classify-changes.outputs.files_json, 'src/features/transcript-publication/') || contains(needs.classify-changes.outputs.files_json, 'transcript_multi_source_provenance') || contains(needs.classify-changes.outputs.files_json, 'multi-recording') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.12.18'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: uv venv --python 3.12.14
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - name: Multi-recording Companion contracts
+        run: >-
+          .venv/bin/python -m pytest -q
+          local-companion/tests/test_session_workspaces.py
+          local-companion/tests/test_session_workspace_timeline_store.py
+          local-companion/tests/test_session_timeline.py
+          local-companion/tests/test_session_participants.py
+          local-companion/tests/test_session_assemblies.py
+          local-companion/tests/test_session_assembly_api.py
+      - name: Multi-recording Web and publication contracts
+        run: >-
+          pnpm exec vitest run
+          src/features/edit/processing/session-composer.test.ts
+          src/features/edit/processing/session-workspace.test.ts
+          src/features/transcript-publication/multi-source-canonical.test.ts
+          src/features/transcript-publication/http.test.ts
+          src/features/transcript-publication/current.test.ts
+      - name: Multi-recording fixture and privacy contract
+        run: node tools/ci/check-multi-recording-gate.mjs
+
+  session-workflow-gate:
+    name: session-workflow-gate
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.processing == 'true' || contains(needs.classify-changes.outputs.files_json, 'src/features/transcript-review/') || contains(needs.classify-changes.outputs.files_json, 'src/features/transcript-publication/') || contains(needs.classify-changes.outputs.files_json, 'session-assembly') || contains(needs.classify-changes.outputs.files_json, 'multi-recording-session.spec.ts') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.12.18'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: uv venv --python 3.12.14
+      - run: uv pip install -c local-companion/requirements-test.lock -e ./local-companion[test]
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Session workflow Web contracts
+        run: >-
+          pnpm exec vitest run
+          src/features/transcript-review/markdown-contract.test.ts
+          src/features/transcript-review/session-assembly-markdown.test.ts
+          src/features/edit/processing/session-assembly-publication-client.test.ts
+          src/features/transcript-publication/multi-source-canonical.test.ts
+      - name: Session workflow Companion CAS contracts
+        run: >-
+          .venv/bin/python -m pytest -q
+          local-companion/tests/test_session_workspaces.py
+          local-companion/tests/test_session_assembly_api.py
+      - name: Session workflow browser journey
+        run: >-
+          pnpm exec playwright test
+          --config playwright.processing.config.ts
+          --project=desktop
+          --grep "three ZIPs become one session intent|single ZIP uses the same session journey|trusted midnight stays visible|stale Markdown import"
+      - name: Session workflow privacy and evidence contract
+        run: node tools/ci/check-session-workflow-gate.mjs
+      - name: Upload sanitized workflow failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: session-workflow-gate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+            test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7
+
+  session-editorial-e2e:
+    name: session-editorial-e2e
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.sessions == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Build synthetic editorial fixture
+        run: pnpm build
+        env:
+          TDA_E2E_FIXTURES: "true"
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Browser editorial journey
+        run: pnpm exec playwright test --config playwright.session-editorial.config.ts
+      - name: Upload sanitized editorial layout receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: session-editorial-layout-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/workbench-1920.png
+            test-results/**/workbench-1440.png
+            test-results/**/workbench-1366.png
+            test-results/**/workbench-mobile-390.png
+            test-results/**/workbench-mobile-320.png
+            test-results/**/workbench-zoom-200.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Isolated PostgreSQL publication contracts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-16
+          python tools/session-publication-db.py
+      - name: Upload sanitized editorial failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: session-editorial-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+            test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 7
+
+  transcript-edit-e2e:
+    name: transcript-edit-e2e
+    needs: classify-changes
+    if: ${{ contains(needs.classify-changes.outputs.files_json, 'package.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-lock.yaml') || contains(needs.classify-changes.outputs.files_json, 'next.config.ts') || contains(needs.classify-changes.outputs.files_json, '.node-version') || contains(needs.classify-changes.outputs.files_json, '.nvmrc') || contains(needs.classify-changes.outputs.files_json, '.github/workflows/ci.yml') || contains(needs.classify-changes.outputs.files_json, 'src/proxy.ts') || contains(needs.classify-changes.outputs.files_json, 'vercel.json') || contains(needs.classify-changes.outputs.files_json, '.vercelignore') || contains(needs.classify-changes.outputs.files_json, 'vitest.config.ts') || contains(needs.classify-changes.outputs.files_json, 'tsconfig.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-workspace.yaml') || contains(needs.classify-changes.outputs.files_json, '.npmrc') || contains(needs.classify-changes.outputs.files_json, '.pnpmfile.cjs') || contains(needs.classify-changes.outputs.files_json, 'patches/') || contains(needs.classify-changes.outputs.files_json, 'src/features/edit/transcript/') || contains(needs.classify-changes.outputs.files_json, 'src/app/edit/sessoes/') || contains(needs.classify-changes.outputs.files_json, 'transcript_revision_web_edits') || contains(needs.classify-changes.outputs.files_json, 'tests/transcript-edit.spec.ts') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact source checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Build synthetic transcript edit fixture
+        run: pnpm build
+        env:
+          TDA_E2E_FIXTURES: "true"
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Transcript edit browser contract
+        run: pnpm exec playwright test --config playwright.transcript-edit.config.ts
+      - name: Upload issue 1354 synthetic visual receipts
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: issue-1354-transcript-fixture-receipts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/**/issue-1354-*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload sanitized transcript edit failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: transcript-edit-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/test-failed-*.png
+            test-results/**/error-context.md
+          if-no-files-found: ignore
+          retention-days: 7
+
+  companion-domain:
+    name: companion-domain
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.companion == 'true' }}
+    uses: ./.github/workflows/companion.yml
+    with:
+      source_sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+  media-domain:
+    name: media-domain
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.media == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.11.2
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Validate media manifests and publication contracts locally
+        run: |
+          pnpm media:validate
+          node --test \
+            tools/media/recovery.test.mjs \
+            tools/media/publication-contract.test.mjs \
+            tools/media/lore-assets.test.mjs \
+            tools/media/pipeline.test.mjs \
+            tools/media/verify-public.test.mjs \
+            tools/world-entity-media-r2-policy.test.mjs
+
+  ci-gate:
+    name: ci-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: ${{ always() }}
+    needs:
+      - classify-changes
+      - workflow-contract
+      - validate
+      - transcript-import-postgres
+      - statistics-e2e
+      - permissions-e2e
+      - navigation-e2e
+      - companion-domain
+      - processing-e2e
+      - benchmark-quality-gate
+      - multi-recording-gate
+      - session-workflow-gate
+      - lembra-e2e
+      - session-editorial-e2e
+      - transcript-edit-e2e
+      - media-domain
+    steps:
+      - name: Require fast and relevant domain contracts
+        env:
+          CLASSIFIER_RESULT: ${{ needs.classify-changes.result }}
+          WORKFLOW_CONTRACT_RESULT: ${{ needs.workflow-contract.result }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          STATISTICS_RELEVANT: ${{ contains(needs.classify-changes.outputs.files_json, 'package.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-lock.yaml') || contains(needs.classify-changes.outputs.files_json, 'next.config.ts') || contains(needs.classify-changes.outputs.files_json, '.node-version') || contains(needs.classify-changes.outputs.files_json, '.nvmrc') || contains(needs.classify-changes.outputs.files_json, '.github/workflows/ci.yml') || contains(needs.classify-changes.outputs.files_json, 'src/proxy.ts') || contains(needs.classify-changes.outputs.files_json, 'vercel.json') || contains(needs.classify-changes.outputs.files_json, '.vercelignore') || contains(needs.classify-changes.outputs.files_json, 'vitest.config.ts') || contains(needs.classify-changes.outputs.files_json, 'tsconfig.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-workspace.yaml') || contains(needs.classify-changes.outputs.files_json, '.npmrc') || contains(needs.classify-changes.outputs.files_json, '.pnpmfile.cjs') || contains(needs.classify-changes.outputs.files_json, 'patches/') || contains(needs.classify-changes.outputs.files_json, 'src/app/transcricoes/') || contains(needs.classify-changes.outputs.files_json, 'src/features/transcripts/statistics/') || contains(needs.classify-changes.outputs.files_json, 'tests/statistics/') || contains(needs.classify-changes.outputs.files_json, 'playwright.statistics.config.ts') }}
+          STATISTICS_RESULT: ${{ needs.statistics-e2e.result }}
+          PERMISSIONS_RELEVANT: ${{ contains(needs.classify-changes.outputs.files_json, 'package.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-lock.yaml') || contains(needs.classify-changes.outputs.files_json, 'next.config.ts') || contains(needs.classify-changes.outputs.files_json, '.node-version') || contains(needs.classify-changes.outputs.files_json, '.nvmrc') || contains(needs.classify-changes.outputs.files_json, '.github/workflows/ci.yml') || contains(needs.classify-changes.outputs.files_json, 'src/proxy.ts') || contains(needs.classify-changes.outputs.files_json, 'vercel.json') || contains(needs.classify-changes.outputs.files_json, '.vercelignore') || contains(needs.classify-changes.outputs.files_json, 'vitest.config.ts') || contains(needs.classify-changes.outputs.files_json, 'tsconfig.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-workspace.yaml') || contains(needs.classify-changes.outputs.files_json, '.npmrc') || contains(needs.classify-changes.outputs.files_json, '.pnpmfile.cjs') || contains(needs.classify-changes.outputs.files_json, 'patches/') || contains(needs.classify-changes.outputs.files_json, 'src/features/edit/permissions/') || contains(needs.classify-changes.outputs.files_json, 'src/app/edit/[campaignSlug]/permissions/') || contains(needs.classify-changes.outputs.files_json, 'src/app/api/edit/[campaignSlug]/permissions/') || contains(needs.classify-changes.outputs.files_json, 'tools/testing/permissions') || contains(needs.classify-changes.outputs.files_json, 'playwright.permissions.config.ts') }}
+          PERMISSIONS_RESULT: ${{ needs.permissions-e2e.result }}
+          NAVIGATION_RELEVANT: ${{ needs.classify-changes.outputs.navigation }}
+          NAVIGATION_RESULT: ${{ needs.navigation-e2e.result }}
+          DB_RELEVANT: ${{ needs.classify-changes.outputs.db }}
+          DB_RESULT: ${{ needs.transcript-import-postgres.result }}
+          COMPANION_RELEVANT: ${{ needs.classify-changes.outputs.companion }}
+          COMPANION_RESULT: ${{ needs.companion-domain.result }}
+          PROCESSING_RELEVANT: ${{ needs.classify-changes.outputs.processing }}
+          PROCESSING_RESULT: ${{ needs.processing-e2e.result }}
+          BENCHMARK_QUALITY_RELEVANT: ${{ needs.classify-changes.outputs.processing }}
+          BENCHMARK_QUALITY_RESULT: ${{ needs.benchmark-quality-gate.result }}
+          MULTI_RECORDING_RELEVANT: ${{ needs.classify-changes.outputs.processing == 'true' || needs.classify-changes.outputs.db == 'true' || contains(needs.classify-changes.outputs.files_json, 'src/features/transcript-publication/') || contains(needs.classify-changes.outputs.files_json, 'transcript_multi_source_provenance') || contains(needs.classify-changes.outputs.files_json, 'multi-recording') }}
+          MULTI_RECORDING_RESULT: ${{ needs.multi-recording-gate.result }}
+          SESSION_WORKFLOW_RELEVANT: ${{ needs.classify-changes.outputs.processing == 'true' || contains(needs.classify-changes.outputs.files_json, 'src/features/transcript-review/') || contains(needs.classify-changes.outputs.files_json, 'src/features/transcript-publication/') || contains(needs.classify-changes.outputs.files_json, 'session-assembly') || contains(needs.classify-changes.outputs.files_json, 'multi-recording-session.spec.ts') }}
+          SESSION_WORKFLOW_RESULT: ${{ needs.session-workflow-gate.result }}
+          LEMBRA_RELEVANT: ${{ needs.classify-changes.outputs.lembra }}
+          LEMBRA_RESULT: ${{ needs.lembra-e2e.result }}
+          SESSIONS_RELEVANT: ${{ needs.classify-changes.outputs.sessions }}
+          SESSIONS_RESULT: ${{ needs.session-editorial-e2e.result }}
+          TRANSCRIPT_EDIT_RELEVANT: ${{ contains(needs.classify-changes.outputs.files_json, 'package.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-lock.yaml') || contains(needs.classify-changes.outputs.files_json, 'next.config.ts') || contains(needs.classify-changes.outputs.files_json, '.node-version') || contains(needs.classify-changes.outputs.files_json, '.nvmrc') || contains(needs.classify-changes.outputs.files_json, '.github/workflows/ci.yml') || contains(needs.classify-changes.outputs.files_json, 'src/proxy.ts') || contains(needs.classify-changes.outputs.files_json, 'vercel.json') || contains(needs.classify-changes.outputs.files_json, '.vercelignore') || contains(needs.classify-changes.outputs.files_json, 'vitest.config.ts') || contains(needs.classify-changes.outputs.files_json, 'tsconfig.json') || contains(needs.classify-changes.outputs.files_json, 'pnpm-workspace.yaml') || contains(needs.classify-changes.outputs.files_json, '.npmrc') || contains(needs.classify-changes.outputs.files_json, '.pnpmfile.cjs') || contains(needs.classify-changes.outputs.files_json, 'patches/') || contains(needs.classify-changes.outputs.files_json, 'src/features/edit/transcript/') || contains(needs.classify-changes.outputs.files_json, 'src/app/edit/sessoes/') || contains(needs.classify-changes.outputs.files_json, 'transcript_revision_web_edits') || contains(needs.classify-changes.outputs.files_json, 'tests/transcript-edit.spec.ts') }}
+          TRANSCRIPT_EDIT_RESULT: ${{ needs.transcript-edit-e2e.result }}
+          MEDIA_RELEVANT: ${{ needs.classify-changes.outputs.media }}
+          MEDIA_RESULT: ${{ needs.media-domain.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CLASSIFIER_RESULT" = "success"
+          test "$WORKFLOW_CONTRACT_RESULT" = "success"
+          test "$VALIDATE_RESULT" = "success"
+
+          if [[ "$STATISTICS_RELEVANT" == "true" ]]; then
+            test "$STATISTICS_RESULT" = "success"
+          else
+            test "$STATISTICS_RESULT" = "skipped"
+          fi
+
+          if [[ "$PERMISSIONS_RELEVANT" == "true" ]]; then
+            test "$PERMISSIONS_RESULT" = "success"
+          else
+            test "$PERMISSIONS_RESULT" = "skipped"
+          fi
+
+          if [[ "$NAVIGATION_RELEVANT" == "true" ]]; then
+            test "$NAVIGATION_RESULT" = "success"
+          else
+            test "$NAVIGATION_RESULT" = "skipped"
+          fi
+
+          if [[ "$DB_RELEVANT" == "true" ]]; then
+            test "$DB_RESULT" = "success"
+          else
+            test "$DB_RESULT" = "skipped"
+          fi
+
+          if [[ "$COMPANION_RELEVANT" == "true" ]]; then
+            test "$COMPANION_RESULT" = "success"
+          else
+            test "$COMPANION_RESULT" = "skipped"
+          fi
+
+          if [[ "$PROCESSING_RELEVANT" == "true" ]]; then
+            test "$PROCESSING_RESULT" = "success"
+          else
+            test "$PROCESSING_RESULT" = "skipped"
+          fi
+
+          if [[ "$BENCHMARK_QUALITY_RELEVANT" == "true" ]]; then
+            test "$BENCHMARK_QUALITY_RESULT" = "success"
+          else
+            test "$BENCHMARK_QUALITY_RESULT" = "skipped"
+          fi
+
+          if [[ "$MULTI_RECORDING_RELEVANT" == "true" ]]; then
+            test "$MULTI_RECORDING_RESULT" = "success"
+          else
+            test "$MULTI_RECORDING_RESULT" = "skipped"
+          fi
+
+          if [[ "$SESSION_WORKFLOW_RELEVANT" == "true" ]]; then
+            test "$SESSION_WORKFLOW_RESULT" = "success"
+          else
+            test "$SESSION_WORKFLOW_RESULT" = "skipped"
+          fi
+
+          if [[ "$LEMBRA_RELEVANT" == "true" ]]; then
+            test "$LEMBRA_RESULT" = "success"
+          else
+            test "$LEMBRA_RESULT" = "skipped"
+          fi
+
+          if [[ "$SESSIONS_RELEVANT" == "true" ]]; then
+            test "$SESSIONS_RESULT" = "success"
+          else
+            test "$SESSIONS_RESULT" = "skipped"
+          fi
+
+          if [[ "$TRANSCRIPT_EDIT_RELEVANT" == "true" ]]; then
+            test "$TRANSCRIPT_EDIT_RESULT" = "success"
+          else
+            test "$TRANSCRIPT_EDIT_RESULT" = "skipped"
+          fi
+
+          if [[ "$MEDIA_RELEVANT" == "true" ]]; then
+            test "$MEDIA_RESULT" = "success"
+          else
+            test "$MEDIA_RESULT" = "skipped"
+          fi
+
+  required-ci:
+    name: required-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: ${{ always() }}
+    needs:
+      - ci-gate
+    steps:
+      - name: Require CI gate
+        env:
+          CI_GATE_RESULT: ${{ needs.ci-gate.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CI_GATE_RESULT" = "success"
+          echo "Privileged Preview deployment runs separately from the trusted default-branch workflow."
+\t'*}"
+            else
+              echo "WIKI_REMOTE_NO_ADVERTISED_HEAD"
+            fi
+          else
+            echo "WIKI_REMOTE_NOT_READABLE_OR_NOT_INITIALIZED"
+            exit 1
+          fi
       - name: Stage approved Wiki bundle
         if: ${{ github.event_name == 'pull_request' }}
         run: node tools/wiki/stage-wiki.mjs --out "$RUNNER_TEMP/tda-wiki-bundle"
