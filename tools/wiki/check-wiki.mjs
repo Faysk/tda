@@ -15,7 +15,7 @@ function fail(message) {
  */
 function pageUrls(text, page) {
 	const found = [];
-	for (const match of text.matchAll(/https?:\\/\\/[^\\s<>"')\\]]+/g)) {
+	for (const match of text.matchAll(/https?:\/\/[^\s<>"')\]]+/g)) {
 		const literal = match[0].replace(/[.,;!?]+$/, "");
 		let url;
 		try { url = new URL(literal); }
