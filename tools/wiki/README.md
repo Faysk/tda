@@ -43,7 +43,7 @@ Se o comando detectar uma página existente com conteúdo diferente de uma vers�
 Após aprovação e com `main` no SHA exato da fonte, um mantenedor pode **preparar arquivos locais**, sem commit nem push automático:
 
 ```bash
-node tools/wiki/sync-wiki.mjs --wiki-dir ../tda-wiki --source-sha <COMMIT_SHA_40_HEX> --apply
+node tools/wiki/sync-wiki.mjs --wiki-dir ../tda-wiki --source-sha <COMMIT_SHA_40_HEX> --expected-wiki-head <SHA_EXATO_DA_WIKI> --apply
 git -C ../tda-wiki diff --check
 git -C ../tda-wiki diff
 ```
@@ -115,3 +115,5 @@ O roteiro em [PUBLISH_RUNBOOK.md](./PUBLISH_RUNBOOK.md) documenta fonte aprovada
 ## Verificação pós-publicação no Git Wiki
 
 Após push autorizado, **fetch/clonagem read-only** no Git da Wiki e smoke visual, execute `node tools/wiki/verify-wiki.mjs --wiki-dir ../tda-wiki-readback --source-sha <SHA_MAIN> --wiki-commit <SHA_COMMIT_WIKI>` a partir do checkout **limpo** de main no SHA exato. O comando verifica identity, upstream local atualizado, receipt do sync, conjunto allowlisted e igualdade byte-a-byte de todas as páginas publicadas. É somente leitura e nunca entra em produção. **Não** prova o renderer GitHub Wiki; esse aceite permanece manual. Não reutilize automaticamente o clone usado para preparar o push, preferindo um clone de readback independente.
+
+**Gate obrigatório de `--apply`:** fornecer também `--expected-wiki-head`; o stage recusa Wiki HEAD diferente do preflight, checkout sujo e tracking `origin/<branch>` local divergente. Isso não equivale a buscar o HEAD remoto em tempo real; repetir `git fetch` antes da operação e usar push comum continua obrigatório.

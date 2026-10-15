@@ -84,13 +84,16 @@ Depois de novo fetch, confira que HEAD e upstream continuam iguais ao SHA aprova
 ~~~bash
 node tools/wiki/sync-wiki.mjs \
   --wiki-dir ../tda-wiki \
-  --source-sha SHA_EXATO_DA_MAIN --apply
+  --source-sha SHA_EXATO_DA_MAIN \
+  --expected-wiki-head SHA_EXATO_DA_WIKI --apply
 git -C ../tda-wiki status --short
 git -C ../tda-wiki diff --check
 git -C ../tda-wiki diff
 ~~~
 
 Quando houver aprovação explícita, inclua o mesmo argumento --adopt-file utilizado no preflight.
+
+O comando recusa qualquer SHA de HEAD Wiki diferente da previamente aprovada, upstream local divergente ou clone sujo. Faça um novo fetch antes do preparo; o check continua local e não autentica o servidor.
 
 Esse comando **não faz commit nem push**. Revise nomes de arquivos, conteúdo, imagens, Mermaid e o estado .tda-wiki-sync-state.json. Devem mudar só páginas allowlisted e estado de sync. Não sobrescreva outras páginas por espelhamento.
 

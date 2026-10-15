@@ -172,6 +172,27 @@ function verifyClone(targetDir) {
 }
 
 
+export function verifyWikiCloneSnapshot(targetDir, expectedWikiHead) {
+  if (!/^[a-f0-9]{40}$/.test(expectedWikiHead)) {
+    reject("--expected-wiki-head must be an exact 40-character Git SHA");
+  }
+  verifyClone(targetDir);
+  const actual = git(targetDir, "rev-parse", "HEAD");
+  if (actual !== expectedWikiHead) reject("Wiki HEAD changed since approved preflight");
+  const branch = git(targetDir, "symbolic-ref", "--short", "HEAD");
+  let upstream;
+  try {
+    upstream = git(targetDir, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}");
+  } catch {
+    reject("Wiki checkout has no upstream configured");
+  }
+  if (upstream !== "origin/" + branch) reject("Wiki upstream branch does not match");
+  if (git(targetDir, "rev-parse", "@{upstream}") !== actual) {
+    reject("Wiki checkout is stale relative to fetched upstream");
+  }
+  return actual;
+}
+
 function verifySourceRevision(sourceDir, sourceSha) {
   let actual;
   try {
@@ -192,11 +213,17 @@ function main() {
   const idx = argv.indexOf("--wiki-dir");
   const shaIdx = argv.indexOf("--source-sha");
   if (idx < 0 || !argv[idx + 1]) {
-    reject("usage: node tools/wiki/sync-wiki.mjs --wiki-dir <local-wiki-clone> [--source-sha <40-hex>] [--apply]");
+    reject("usage: node tools/wiki/sync-wiki.mjs --wiki-dir <wiki-clone> [--source-sha <40-hex> --expected-wiki-head <40-hex> --apply]");
   }
   const targetDir = path.resolve(argv[idx + 1]);
   verifyClone(targetDir);
   const adoptIdx = argv.indexOf("--adopt-file");
+  const apply = argv.includes("--apply");
+  const expectedIdx = argv.indexOf("--expected-wiki-head");
+  const expectedWikiHead = expectedIdx >= 0 ? argv[expectedIdx + 1] : "";
+  if (apply) {
+    verifyWikiCloneSnapshot(targetDir, expectedWikiHead);
+  }
   let adoptions = {};
   if (adoptIdx >= 0) {
     if (!argv[adoptIdx + 1]) reject("--adopt-file requires JSON path");
@@ -204,9 +231,8 @@ function main() {
     if (file.startsWith(rootDefault + path.sep) || file.startsWith(targetDir + path.sep)) {
       reject("adoption receipt must stay outside source and Wiki checkouts");
     }
-    adoptions = readWikiAdoptionApprovals(file, git(targetDir, "rev-parse", "HEAD"));
+    adoptions = readWikiAdoptionApprovals(file, apply ? expectedWikiHead : git(targetDir, "rev-parse", "HEAD"));
   }
-  const apply = argv.includes("--apply");
   if (apply) verifySourceRevision(rootDefault, shaIdx >= 0 ? argv[shaIdx + 1] : "");
   const plan = apply
     ? applyWikiSync(rootDefault, targetDir, shaIdx >= 0 ? argv[shaIdx + 1] : "", { adoptions })

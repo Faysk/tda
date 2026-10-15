@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { planWikiSync, applyWikiSync, readWikiAdoptionApprovals } from "./sync-wiki.mjs";
+import { planWikiSync, applyWikiSync, readWikiAdoptionApprovals, verifyWikiCloneSnapshot } from "./sync-wiki.mjs";
+import { execFileSync } from "node:child_process";
 
 const sha = "1".repeat(40);
 const sourceLink = "https://github.com/Faysk/tda/blob/main/docs/reference.md";
@@ -135,4 +136,31 @@ test("adoption receipt is bound to explicit Wiki HEAD and exact page hashes", (t
   }));
   assert.deepEqual(readWikiAdoptionApprovals(f, head), { "Home.md": "b".repeat(64) });
   assert.throws(() => readWikiAdoptionApprovals(f, "c".repeat(40)), /mismatched Wiki HEAD/);
+});
+
+
+test("apply CLI snapshot requires exact Wiki HEAD and matching fetched upstream", (t) => {
+  const { remote } = setup(t);
+  function git(...args) {
+    return execFileSync("git", ["-C", remote, ...args], { encoding: "utf8" }).trim();
+  }
+  git("init", "-b", "main");
+  git("config", "user.name", "Synthetic Wiki");
+  git("config", "user.email", "wiki@invalid.example");
+  fs.writeFileSync(path.join(remote, "Human.md"), "# Existing");
+  git("add", "Human.md");
+  git("commit", "-m", "initial");
+  const oldHead = git("rev-parse", "HEAD");
+  git("remote", "add", "origin", "https://github.com/Faysk/tda.wiki.git");
+  git("update-ref", "refs/remotes/origin/main", oldHead);
+  git("branch", "--set-upstream-to", "origin/main");
+  assert.equal(verifyWikiCloneSnapshot(remote, oldHead), oldHead);
+  assert.throws(() => verifyWikiCloneSnapshot(remote, ""), /expected-wiki-head/);
+  assert.throws(() => verifyWikiCloneSnapshot(remote, "0".repeat(40)), /Wiki HEAD changed/);
+  fs.appendFileSync(path.join(remote, "Human.md"), "\nNew work");
+  assert.throws(() => verifyWikiCloneSnapshot(remote, oldHead), /uncommitted changes/);
+  git("add", "Human.md");
+  git("commit", "-m", "new");
+  const newHead = git("rev-parse", "HEAD");
+  assert.throws(() => verifyWikiCloneSnapshot(remote, newHead), /stale relative to fetched upstream/);
 });
