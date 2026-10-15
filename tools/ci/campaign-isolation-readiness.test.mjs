@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { scanCampaignIsolationReadiness } from "./campaign-isolation-readiness.mjs";
 
 const requiredFiles = [
@@ -158,7 +159,7 @@ test("processing regression is a blocker even when another rollout slice is pend
 
 test("CLI --json output stays machine-parseable", () => {
 	const script = new URL("./campaign-isolation-readiness.mjs", import.meta.url);
-	const stdout = execFileSync(process.execPath, [script.pathname, "--json"], {
+	const stdout = execFileSync(process.execPath, [fileURLToPath(script), "--json"], {
 		encoding: "utf8",
 	});
 	assert.doesNotThrow(() => JSON.parse(stdout));

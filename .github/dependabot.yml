@@ -1,25 +1,91 @@
 version: 2
 updates:
+  # Keep critical Web integrations isolated so a failing check has one owner.
+  # Security updates are not delayed by the version-update cooldown.
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+      day: tuesday
+      time: "08:30"
+      timezone: Europe/Lisbon
+    open-pull-requests-limit: 8
+    cooldown:
+      default-days: 5
+      semver-major-days: 14
+      semver-minor-days: 5
+      semver-patch-days: 3
     groups:
-      production:
+      production-lowrisk:
+        applies-to: version-updates
         dependency-type: production
-      development:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "next"
+          - "@supabase/*"
+          - "@aws-sdk/*"
+          - "react"
+          - "react-dom"
+          - "@xyflow/react"
+        update-types:
+          - minor
+          - patch
+      development-lowrisk:
+        applies-to: version-updates
         dependency-type: development
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@playwright/*"
+          - "@biomejs/biome"
+          - "@types/node"
+          - "typescript"
+          - "vitest"
+        update-types:
+          - minor
+          - patch
+
+  # Companion pins must remain exact and the custom requirements-test.lock
+  # must be synchronized and independently resolved before merging.
+  # Do not fold ASR, FastAPI, GPU or Windows packaging into generic npm groups.
   - package-ecosystem: pip
     directory: /local-companion
     schedule:
       interval: daily
-    open-pull-requests-limit: 5
+      time: "07:45"
+      timezone: Europe/Lisbon
+    open-pull-requests-limit: 6
+    cooldown:
+      default-days: 3
     groups:
-      companion-runtime:
+      companion-test-tooling:
+        applies-to: version-updates
         patterns:
-          - "*"
+          - "pytest"
+          - "httpx"
+        update-types:
+          - patch
+          - minor
+
+  # CodeQL init/analyze must advance as one release/SHA; other Actions
+  # remain independent and pinned by immutable 40-character commit SHA.
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: daily
+      interval: weekly
+      day: tuesday
+      time: "09:00"
+      timezone: Europe/Lisbon
+    open-pull-requests-limit: 8
+    cooldown:
+      default-days: 3
+    groups:
+      codeql-actions:
+        applies-to: version-updates
+        patterns:
+          - "github/codeql-action/*"
+      codeql-security:
+        applies-to: security-updates
+        patterns:
+          - "github/codeql-action/*"

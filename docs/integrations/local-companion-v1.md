@@ -5,7 +5,7 @@
 > Última revisão: 2026-10-06
 > Fonte de verdade: `local-companion/tda_companion/api.py`, `store.py`, `telemetry.py` e `windows_app.py`
 
-O protocolo wire permanece `api_version="1"`. **Wire API version e service version são identidades independentes.** A linha de código corrente usa `service_version="0.3.28"`; referências anteriores a 0.3.14 pertencem a snapshots históricos de rollout e não definem compatibilidade do protocolo.
+O protocolo wire permanece `api_version="1"`. **Wire API version e service version são identidades independentes.** A linha de código corrente usa `service_version="0.3.29"`; referências anteriores a 0.3.14 pertencem a snapshots históricos de rollout e não definem compatibilidade do protocolo.
 
 A evolução continua local-first: jobs ASR Craig, eventos, telemetria e sessões de navegador existem no loopback sem transformar autorização local em autorização cloud.
 
@@ -283,3 +283,5 @@ O workflow `Companion` executa testes em Windows e Linux. O pacote Windows tamb�
 - desinstalação real.
 
 Esses gates validam protocolo/empacotamento sintéticos, não qualidade de transcrição física ou CUDA em GPU real.
+
+A versão de serviço 0.3.29 refere-se à candidata de código de [continuidade](../operations/backlog-continuity-2026-10-15.md), não a Stable publicada. O canal Stable 0.3.28 e seus receipts históricos continuam preservados.

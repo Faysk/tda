@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyPaths } from "./classify-changes.mjs";
+import { classifyPaths, changedFilesForRange, parseGitNameStatus } from "./classify-changes.mjs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 function flags(files) {
 	const { web, navigation, db, companion, processing, lembra, sessions, media } =
@@ -18,6 +22,119 @@ const fastOnly = {
 	sessions: false,
 	media: false,
 };
+
+test("npm manifests and pnpm lock activate every Web dependency gate, not Companion", () => {
+  const expected = {
+    web: true,
+    navigation: true,
+    db: true,
+    companion: false,
+    processing: true,
+    lembra: true,
+    sessions: true,
+    media: true,
+  };
+  for (const changedFile of ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs", "patches/react@19.1.0.patch"]) {
+    assert.deepEqual(flags([changedFile]), expected, changedFile);
+  }
+  assert.deepEqual(flags(["docs/README.md", "pnpm-lock.yaml"]), expected);
+});
+
+test("patches directory and pnpm hook remain cross-domain while docs patches do not", () => {
+  const affected = flags(["patches/transitive-package.patch"]);
+  for (const key of ["navigation", "db", "processing", "lembra", "sessions", "media"])
+    assert.equal(affected[key], true, key);
+  assert.equal(affected.companion, false);
+  assert.deepEqual(flags(["docs/release-notes.patch"]), fastOnly);
+});
+
+test("global Next routing/security config and Node version force all Web gates", () => {
+  const webExpected = {
+    web: true, navigation: true, db: true, companion: false,
+    processing: true, lembra: true, sessions: true, media: true,
+  };
+  for (const path of ["next.config.ts", ".node-version", ".nvmrc", "src/proxy.ts", "vercel.json",
+    ".vercelignore", "vitest.config.ts", "tsconfig.json"])
+    assert.deepEqual(flags([path]), webExpected, path);
+  assert.deepEqual(flags(["docs/next-config.md"]), fastOnly);
+});
+
+test("changing CI workflow itself forces every domain including Companion", () => {
+  assert.deepEqual(flags([".github/workflows/ci.yml"]), {
+    web: true, navigation: true, db: true, companion: true,
+    processing: true, lembra: true, sessions: true, media: true,
+  });
+});
+
+test("ordinary non-dependency paths never broaden unrelated domains", () => {
+  assert.deepEqual(flags(["package-lock.json"]), fastOnly);
+  assert.equal(flags(["local-companion/pyproject.toml"]).db, false);
+  assert.equal(flags(["local-companion/pyproject.toml"]).companion, true);
+});
+
+test("actual Git diff includes deletions and mode-only type changes for gate classification", () => {
+  // Use a local ephemeral Git repo: never read private files or modify TDA.
+  // update-index stages a synthetic symlink mode without needing OS symlink
+  // privileges, so the assertion is deterministic on Linux/Windows.
+  const root = mkdtempSync(join(tmpdir(), "tda-ci-diff-synthetic-"));
+  const git = (args, options = {}) => execFileSync("git", args, {
+    cwd: root, encoding: "utf8", ...options,
+  }).trim();
+  try {
+    git(["init", "-q"]);
+    mkdirSync(join(root, "src", "features", "edit", "processing"), { recursive: true });
+    mkdirSync(join(root, "src", "app", "lore"), { recursive: true });
+    mkdirSync(join(root, "docs"), { recursive: true });
+    writeFileSync(join(root, "src/features/edit/processing/bridge.ts"), "export const x = 1;\n");
+    writeFileSync(join(root, "src/app/lore/page.tsx"), "export const page = 1;\n");
+    writeFileSync(join(root, "pnpm-workspace.yaml"), "allowBuilds: {}\n");
+    git(["add", "-A"]);
+    git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+      "commit", "-qm", "initial fixture"]);
+
+    rmSync(join(root, "src/features/edit/processing/bridge.ts"));
+    git(["add", "-u"]);
+    git(["mv", "src/app/lore/page.tsx", "docs/archived-lore.tsx"]);
+    const linkTargetBlob = git(["hash-object", "-w", "--stdin"],
+      { input: "synthetic-policy-target" });
+    git(["update-index", "--cacheinfo",
+      "120000," + linkTargetBlob + ",pnpm-workspace.yaml"]);
+    git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+      "commit", "-qm", "delete processing and change policy type"]);
+    const names = changedFilesForRange("HEAD^..HEAD", { cwd: root });
+    assert.deepEqual(names.sort(), [
+      "docs/archived-lore.tsx", "pnpm-workspace.yaml",
+      "src/app/lore/page.tsx", "src/features/edit/processing/bridge.ts",
+    ]);
+    assert.equal(classifyPaths(["docs/archived-lore.tsx"]).navigation, false);
+    assert.equal(classifyPaths(["src/app/lore/page.tsx"]).navigation, true);
+    const classified = classifyPaths(names);
+    assert.equal(classified.processing, true, "deleted bridge remains processing-relevant");
+    assert.equal(classified.navigation, true, "symlink typechange is web-dependency-impacting");
+    assert.equal(classified.db, true);
+    assert.equal(classified.companion, false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("NUL-safe diff parsing retains both rename paths and rejects partial status records", () => {
+  assert.deepEqual(parseGitNameStatus(
+    "R100\0src/app/lore/page.tsx\0docs/page.tsx\0" +
+    "D\0src/features/edit/processing/bridge.ts\0" +
+    "T\0pnpm-workspace.yaml\0"
+  ), [
+    "docs/page.tsx", "pnpm-workspace.yaml", "src/app/lore/page.tsx",
+    "src/features/edit/processing/bridge.ts",
+  ]);
+  for (const bad of [
+    "R100\0only-old\0",
+    "U\0src/page.tsx\0",
+    "M\0src/page.tsx",
+    "D\0src/with\nnewline\0",
+  ]) assert.throws(() => parseGitNameStatus(bad), /GIT_DIFF_/);
+  assert.deepEqual(parseGitNameStatus(""), []);
+});
 
 test("docs-only stays on fast CI only", () => {
 	assert.deepEqual(

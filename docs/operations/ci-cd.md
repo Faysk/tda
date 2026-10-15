@@ -20,6 +20,10 @@ Princípios:
 - Production é staged antes de receber tráfego;
 - rollback é mecanismo normal de recuperação.
 
+## Política de publicação deliberada — candidata 15/10/2026
+
+O [recibo de continuidade](backlog-continuity-2026-10-15.md) é a referência datada para os novos gates. Na candidata, Main Preview passa a aceitar somente workflow_dispatch com source_sha exato; CI e CodeQL push/main são provas obrigatórias concluídas, nunca gatilhos de deployment. O arquivo remoto está disabled_manually até a integração/revisão dessa configuração. Production permanece manual e exige os recibos CI/CodeQL mais recentes, a aprovação explícita e Preview verificado antes de configuração de produção. As descrições históricas de cadeia automática abaixo não autorizam reativação.
+
 ## Fluxo
 
 Os builds Whisper/Qwen e os fences de drift de Runtime RC/Stable incluem

@@ -61,6 +61,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Resolve exact current main source
         id: source
@@ -118,6 +119,20 @@ jobs:
           if (!accepted) throw new Error("PRODUCTION_EXACT_MAIN_CI_REQUIRED");
           console.log(`PRODUCTION_EXACT_MAIN_CI_OK ${process.env.SOURCE_SHA}`);
           NODE
+
+      - name: Require newest exact main CI receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: node tools/ci/require-main-ci.mjs
+
+      - name: Require exact main CodeQL Python and JS/TS evidence
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          node tools/ci/require-main-codeql.mjs
 
       - name: Require explicit human Production approval
         shell: bash
@@ -208,7 +223,7 @@ jobs:
         with:
           version: 12.3.4
           run_install: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm

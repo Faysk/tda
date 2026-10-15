@@ -23,7 +23,7 @@ O objetivo é coordenar uma **frota lógica de dez responsabilidades** usando, s
 - **Achado confirmado:** #1647 modifica FastAPI no `pyproject.toml`, mas não no `requirements-test.lock`; o [freshness gate 38202483008](https://github.com/Faysk/tda/actions/runs/38202483008) falhou com `DIRECT_LOCK_MISMATCH` e [CI 38202483200](https://github.com/Faysk/tda/actions/runs/38202483200) falhou na resolução uv. **Não é falha do gate** — o gate protegeu a instalação.
 - **Achado limitado:** [CI 38101781316](https://github.com/Faysk/tda/actions/runs/38101781316) de #1643 falhou em dois cenários Playwright de navegação/World. Causalidade da atualização de libs permanece indeterminada.
 
-## 3. Catálogo dos 29 workflows versionados
+## 3. Catálogo: 29 workflows observados e 1 candidato novo
 
 As colunas **trigger**, **escopo** e **permissão declarada** refletem o YAML na baseline; não equivalem a confirmação de execução remota, Environment ou aprovação. `R` significa token read-only e `W` alguma permissão de escrita explícita. A permission real deve ser auditada por job e organização (#1657).
 
@@ -58,6 +58,10 @@ As colunas **trigger**, **escopo** e **permissão declarada** refletem o YAML na
 | 27 | [`rollback.yml`](../../.github/workflows/rollback.yml) | dispatch | Rollback controlado | W* |
 | 28 | [`issue-structure-governance.yml`](../../.github/workflows/issue-structure-governance.yml) | push main (paths), dispatch | Sync milestones, subissues, dependencies | W |
 | 29 | [`label-governance.yml`](../../.github/workflows/label-governance.yml) | push main (paths), dispatch | Sync labels canônicas de issues | W |
+| 30 | [`dependabot-evidence-ledger.yml`](../../.github/workflows/dependabot-evidence-ledger.yml) | workflow_run CI de PR, dispatch manual de reconsulta | **CANDIDATO #1664**: ledger por SHA/PR, CodeQL e required jobs; somente leitura | R |
+
+O número **29** é a fotografia da `main` em 13/10/2026; a linha **30** é o novo workflow **candidato deste PR**, não ativo na `main` até revisão/merge. Ele nunca executa a cabeça de um PR, não possui `write` e não concede autorização de merge. Quando integrado, atualizar a fotografia para 30 workflows versionados. A operação gera apenas Job Summary com o estado dos checks do run consultado, sem comentários automáticos. Se CodeQL estiver pendente, a reconsulta manual `workflow_dispatch` recebe o ID do CI run exato; a primeira execução não inventa resultado final.
+
 
 `W*` restringe-se a ações específicas (ex.: CodeQL escreve security-events; Preview escreve deployments; rollback escreve deployments), e **não** significa acesso global de administração. Workflows legados com branch/evento conservados exigem confirmação de elegibilidade antes de mexer; os bridges 0.3.16/0.3.9 e Qwen 1.0.12 não se confundem com política corrente de novos Stable.
 
@@ -106,6 +110,14 @@ Cool-down de version updates é configurável; não atrasar security updates. **
 - **P3 / estudar depois:** [#1662](https://github.com/Faysk/tda/issues/1662) opt-in automerge, **sem ativação no estado atual**.
 
 Para ownership jurídico de publicação usar sempre [runbook de release](release-runbook.md) e [Companion dependency policy](companion-dependency-policy.md); essa frota não os substitui.
+
+### Matriz concreta: alterações de dependências npm/pnpm (#1656)
+
+**Implementação candidata (PR da #1656; não presumir publicada):** mudança em `package.json` ou `pnpm-lock.yaml` é tratada como potencial alteração de **qualquer runtime Web**, mesmo que o diff não contenha arquivos de funcionalidades. O classificador ativa `navigation`, `db`, `processing`, `lembra`, `sessions`, `media`; mantém `companion=false` (Python/MSI tem grafo de dependências diferente). Por conservadorismo, o classificador não tenta inferir qual pacote transitivo de um lock alterou um único domínio. Essa expansão custa minutos de CI, mas evita passar um PR alterando Next/Supabase/AWS sem testar consumidores.
+
+Além dos gates baseados no classificador, `ci.yml` exige que `statistics-e2e`, `permissions-e2e` e `transcript-edit-e2e` sejam executados quando a mudança for npm/pnpm e proíbe tratá-los como `skipped` no `ci-gate`. `campaign-isolation.yml` também escuta mudanças npm/pnpm em PR e push main. O teste `tools/ci/dependency-risk-contract.test.mjs` mantém essas relações obrigatórias junto de `classify-changes.test.mjs`, sem fazer rede, mutação nem publicação.
+
+**Limites:** não é prova de branch protection remota (#1658), nem adiciona gate físico GPU/MSI para mudanças exclusivamente Web. Pacotes/versionamentos de Python, CUDA, Torch, Whisper, Qwen e artefatos imutáveis continuam sob #1655. Antes de otimizar a matriz por pacote individual, acrescentar negativos que demonstram que nenhum domínio consumidor fica indevidamente `skipped`.
 
 ## 7. Escopo e evidência para encerrar
 

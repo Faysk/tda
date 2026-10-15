@@ -2,6 +2,20 @@ import { appendFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
+// npm/pnpm lock changes can alter any Web runtime without touching source files.
+// Fail closed across Web domains; Companion Python/MSI is a separate package graph.
+const WEB_DEPENDENCY_CONTRACT = new Set([
+  "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", ".pnpmfile.cjs",
+]);
+
+// These alter Next routing/security headers, the Node toolchain or CI job
+// definitions, and can affect every browser domain without a source edit.
+const WEB_GLOBAL_CONFIG_CONTRACT = new Set([
+  "next.config.ts", ".node-version", ".nvmrc", "src/proxy.ts", "vercel.json",
+  ".vercelignore", "vitest.config.ts", "tsconfig.json",
+]);
+const GLOBAL_CI_CONTRACT = new Set([".github/workflows/ci.yml"]);
+
 const CLASSIFIER_CONTRACT = new Set([
 	"tools/ci/classify-changes.mjs",
 	"tools/ci/classify-changes.test.mjs",
@@ -176,6 +190,13 @@ function normalized(path) {
 }
 
 function matches(path, domain) {
+	// pnpm hooks execute during dependency resolution; package patches can
+	// alter installed source without an adjacent package.json update.
+	if ((WEB_DEPENDENCY_CONTRACT.has(path) || path.startsWith("patches/") ||
+		WEB_GLOBAL_CONFIG_CONTRACT.has(path)) && domain !== "companion") return true;
+	// Editing the CI workflow itself can remove/bypass even Companion gates;
+	// exercise *all* current gates on its own modifications.
+	if (GLOBAL_CI_CONTRACT.has(path)) return true;
 	if (CLASSIFIER_CONTRACT.has(path)) return true;
 	if (EXACT[domain].has(path)) return true;
 	if (PREFIX[domain].some((prefix) => path.startsWith(prefix))) return true;
@@ -214,15 +235,41 @@ export function classifyPaths(inputPaths) {
 	return { files, ...classes };
 }
 
-export function changedFilesForRange(range) {
-	if (!range || typeof range !== "string")
-		throw new Error("An explicit git range is required");
-	const output = execFileSync(
-		"git",
-		["diff", "--name-only", "--diff-filter=ACMR", range],
-		{ encoding: "utf8" },
-	);
-	return output.split(/\r?\n/u).filter(Boolean);
+// -z encodes filenames without relying on whitespace/tab parsing. For a
+// rename or copy we must classify BOTH source and destination: removing a
+// sensitive source path can be a regression even when the destination is docs/.
+export function parseGitNameStatus(output) {
+  if (output === "") return [];
+  if (typeof output !== "string" || !output.endsWith("\0"))
+    throw new Error("GIT_DIFF_NAME_STATUS_MALFORMED");
+  const tokens = output.slice(0, -1).split("\0");
+  const names = [];
+  let index = 0;
+  while (index < tokens.length) {
+    const status = tokens[index++];
+    if (!/^[ACMDRT](?:[0-9]{1,3})?$/.test(status))
+      throw new Error("GIT_DIFF_STATUS_UNRECOGNIZED");
+    const count = /^[RC]/.test(status) ? 2 : 1;
+    if (index + count > tokens.length)
+      throw new Error("GIT_DIFF_PATHS_INCOMPLETE");
+    for (let k = 0; k < count; k++) {
+      const path = tokens[index++];
+      if (!path || path.includes("\r") || path.includes("\n"))
+        throw new Error("GIT_DIFF_PATH_INVALID");
+      names.push(path);
+    }
+  }
+  return [...new Set(names)].sort();
+}
+
+export function changedFilesForRange(range, { cwd } = {}) {
+  if (!range || typeof range !== "string")
+    throw new Error("An explicit git range is required");
+  const output = execFileSync("git",
+    ["diff", "--name-status", "-z", "--diff-filter=ACMRDT", range],
+    { encoding: "utf8", ...(cwd ? { cwd } : {}) },
+  );
+  return parseGitNameStatus(output);
 }
 
 function writeGithubOutputs(result) {

@@ -1,10 +1,10 @@
 [project]
 name = "tda-companion"
-version = "0.3.28"
+version = "0.3.29"
 description = "Per-user local processing supervisor for TDA"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "fastapi==0.142.4",
+    "fastapi==0.143.1",
     "uvicorn==0.54.0",
     "psutil==7.2.2",
     "nvidia-ml-py==13.615.71",
@@ -19,7 +19,7 @@ desktop = [
     "pillow==12.3.0",
 ]
 # ASR remains isolated from the HTTP Agent; engine runtimes are packaged separately.
-asr = ["faster-whisper==1.2.1", "ctranslate2==4.8.2"]
+asr = ["faster-whisper==1.2.1", "ctranslate2==4.8.3"]
 
 [project.scripts]
 tda-companion = "tda_companion.__main__:main"
