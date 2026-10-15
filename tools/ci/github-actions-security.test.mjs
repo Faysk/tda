@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { codeqlMainMatrixSucceeded, findExactMainCodeqlReceipt, isExactMainCodeqlRun } from "./require-main-codeql.mjs";
+import { codeqlMainMatrixSucceeded, completeCodeqlJobsPage, findExactMainCodeqlReceipt, isExactMainCodeqlRun } from "./require-main-codeql.mjs";
 
 const workflowRoot = join(process.cwd(), ".github", "workflows");
 const workflows = readdirSync(workflowRoot)
@@ -235,8 +235,26 @@ test("CodeQL language matrix cannot pass with missing, skipped or failed jobs", 
     [js, { ...py, conclusion: "skipped" }],
     [js, { ...py, status: "queued" }],
     [{ ...js, name: "analyze (go)" }, py],
+    [js, py, { ...py, conclusion: "failure" }],
+    [js, py, { ...py }],
+    [js, py, { name: "unexpected-extra", status: "completed", conclusion: "success" }],
+    [js, js], [py, py],
     null, {},
   ]) assert.equal(codeqlMainMatrixSucceeded(jobs), false);
+  assert.equal(codeqlMainMatrixSucceeded([py, js]), true, "matrix ordering is irrelevant");
+});
+
+test("CodeQL jobs API page must be complete, unambiguous, and exact before Production", () => {
+  const js = { name: "analyze (javascript-typescript)", status: "completed", conclusion: "success" };
+  const py = { name: "analyze (python)", status: "completed", conclusion: "success" };
+  assert.equal(completeCodeqlJobsPage({ total_count: 2, jobs: [js, py] }), true);
+  for (const page of [
+    null, {}, { jobs: [js, py] }, { total_count: 3, jobs: [js, py] },
+    { total_count: 2, jobs: [js] }, { total_count: "2", jobs: [js, py] },
+    { total_count: 2, jobs: [js, py, { ...py, conclusion: "failure" }] },
+    { total_count: 2, jobs: [js, { ...py, conclusion: "failure" }] },
+    { total_count: 2, jobs: [js, js] }, { total_count: 2, jobs: [js, null] },
+  ]) assert.equal(completeCodeqlJobsPage(page), false);
 });
 
 test("a newer incomplete or failed CodeQL run invalidates an older same-SHA green run", () => {
@@ -269,6 +287,7 @@ test("Production CodeQL fetch considers pending runs before evaluating latest re
   assert.ok(source.includes("&event=push&per_page=100"));
   assert.equal(source.includes("&event=push&status=completed"), false);
   assert.ok(source.includes("latest run not successful"));
+  assert.match(source, /if \(!completeCodeqlJobsPage\(jobPayload\)\)/);
 });
 
 test("Production checks the exact-main CodeQL matrix before human confirmation or deployment", () => {
