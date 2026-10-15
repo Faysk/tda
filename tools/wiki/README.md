@@ -111,3 +111,7 @@ A matriz é um **inventário de triagem**, não o cumprimento final de #1746: ca
 ## Runbook completo de bootstrap, adoção e rollback
 
 O roteiro em [PUBLISH_RUNBOOK.md](./PUBLISH_RUNBOOK.md) documenta fonte aprovada em main, bundle, clone Wiki autorizado, preflight, adoção explícita por SHA do Wiki HEAD + hash dos bytes de cada página existente, preparo local, revisão humana, push não forçado, readback e rollback. A opção --adopt-file nunca contorna drift de página já gerenciada e não concede permissão de escrita por si só.
+
+## Verificação pós-publicação no Git Wiki
+
+Após push autorizado, **fetch/clonagem read-only** no Git da Wiki e smoke visual, execute `node tools/wiki/verify-wiki.mjs --wiki-dir ../tda-wiki-readback --source-sha <SHA_MAIN> --wiki-commit <SHA_COMMIT_WIKI>` a partir do checkout **limpo** de main no SHA exato. O comando verifica identity, upstream local atualizado, receipt do sync, conjunto allowlisted e igualdade byte-a-byte de todas as páginas publicadas. É somente leitura e nunca entra em produção. **Não** prova o renderer GitHub Wiki; esse aceite permanece manual. Não reutilize automaticamente o clone usado para preparar o push, preferindo um clone de readback independente.
