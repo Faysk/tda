@@ -177,6 +177,12 @@ jobs:
         run: python -m unittest discover -s tools/acceptance -p "test_*.py"
       - name: Typecheck, lint, unit and repository checks
         run: pnpm check
+      - name: Report Wiki pages affected by canonical doc changes
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        env:
+          WIKI_BASE_REF: ${{ github.base_ref }}
+        run: node tools/wiki/impact.mjs --base "origin/${WIKI_BASE_REF}"
       - name: Build application
         run: pnpm build
 
