@@ -46,10 +46,14 @@ export function checkWiki(root = defaultRoot) {
 		for (const match of text.matchAll(/https:\/\/github\.com\/Faysk\/tda\/wiki\/([A-Za-z0-9_-]+)/g)) {
 			if (!expected.has(match[1])) fail("broken internal wiki link " + name + " -> " + match[1]);
 		}
-		for (const match of text.matchAll(/https:\/\/github\.com\/Faysk\/tda\/blob\/main\/(docs\/[A-Za-z0-9_./-]+\.md)/g)) {
-			const target = path.resolve(root, match[1]);
-			if (!target.startsWith(path.join(root, "docs") + path.sep) || !fs.existsSync(target)) {
-				fail("missing canonical source " + name + " -> " + match[1]);
+		// Validate every tracked repository source link, not just docs/. This also
+		// catches broken README, CONTRIBUTING and toolchain references in guides.
+		for (const match of text.matchAll(/https:\\/\\/github\\.com\\/Faysk\\/tda\\/blob\\/main\\/([A-Za-z0-9_.\\/-]+)/g)) {
+			const relative = match[1];
+			const target = path.resolve(root, relative);
+			if (!target.startsWith(root + path.sep)) fail("source link escapes repository " + name + " -> " + relative);
+			if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+				fail("missing tracked source " + name + " -> " + relative);
 			}
 		}
 		for (const match of text.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {

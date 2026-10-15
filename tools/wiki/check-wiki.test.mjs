@@ -103,3 +103,19 @@ test("rejects inline SVG/HTML as an image allowlist bypass", (t) => {
   fs.appendFileSync(path.join(root, "wiki", "Home.md"), "\n<svg xmlns='http://www.w3.org/2000/svg'></svg>");
   assert.throws(() => checkWiki(root), /active HTML forbidden/);
 });
+
+
+test("rejects broken repository links outside docs", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.appendFileSync(path.join(root, "wiki", "Home.md"), "\n[Missing repo config](https://github.com/Faysk/tda/blob/main/not-present.toml)");
+  assert.throws(() => checkWiki(root), /missing tracked source/);
+});
+
+test("accepts a real tracked source link outside docs", (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, "package.json"), "{}");
+  fs.appendFileSync(path.join(root, "wiki", "Home.md"), "\n[Package](https://github.com/Faysk/tda/blob/main/package.json)");
+  assert.equal(checkWiki(root).sourcesChecked, true);
+});
