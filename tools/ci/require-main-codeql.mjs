@@ -24,10 +24,23 @@ export function isExactMainCodeqlRun(run, sha, repository) {
 }
 
 export function codeqlMainMatrixSucceeded(jobs) {
-  if (!Array.isArray(jobs)) return false;
+  // Only the expected exact two language jobs may authorize Production.
+  // A duplicate/contradictory job or an unknown extra job must fail closed.
+  if (!Array.isArray(jobs) || jobs.length !== REQUIRED_CODEQL_MAIN_JOBS.length)
+    return false;
   return REQUIRED_CODEQL_MAIN_JOBS.every((required) =>
+    jobs.filter((job) => job?.name === required).length === 1 &&
     jobs.some((job) => job?.name === required &&
       job.status === "completed" && job.conclusion === "success"));
+}
+
+export function completeCodeqlJobsPage(page) {
+  // The REST jobs API is paginated; a truncated first page is not evidence.
+  return Number.isSafeInteger(page?.total_count) &&
+    page.total_count === REQUIRED_CODEQL_MAIN_JOBS.length &&
+    Array.isArray(page.jobs) &&
+    page.jobs.length === page.total_count &&
+    codeqlMainMatrixSucceeded(page.jobs);
 }
 
 export function findExactMainCodeqlReceipt(runs, jobsById, sha, repository) {
@@ -63,6 +76,8 @@ function main() {
     throw new Error("PRODUCTION_EXACT_MAIN_CODEQL_REQUIRED: latest run not successful");
   const jobPayload = githubApi(
     `/repos/${repository}/actions/runs/${latest.id}/jobs?per_page=100`);
+  if (!completeCodeqlJobsPage(jobPayload))
+    throw new Error("PRODUCTION_EXACT_MAIN_CODEQL_REQUIRED: matrix jobs incomplete or ambiguous");
   const receipt = findExactMainCodeqlReceipt(candidates,
     { [String(latest.id)]: jobPayload.jobs }, sha, repository);
   if (!receipt) throw new Error("PRODUCTION_EXACT_MAIN_CODEQL_REQUIRED");
