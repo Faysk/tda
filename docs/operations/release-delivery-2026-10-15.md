@@ -1,6 +1,10 @@
 # Entrega de 15/10/2026
 
-> Owner: release/Companion. Publicação deliberada autorizada pelo mantenedor.
+> Status: vigente
+> Owner: release/Companion
+> Última revisão: 2026-10-15
+
+Publicação deliberada autorizada pelo mantenedor.
 
 ## Web
 
