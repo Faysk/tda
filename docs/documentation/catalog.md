@@ -234,7 +234,7 @@ Datas e estados são extraídos do cabeçalho, não inferidos do Git. `Não decl
 | [R2 — checklists de mídia](../operations/r2-media-checklists.md) | integrations/media | vigente | 2026-09-11 |
 | [Media Storage — runbook operacional (provider atual: R2)](../operations/r2-media-runbook.md) | integrations/media + operations | vigente | 2026-09-29 |
 | [Entrega de 15/10/2026](../operations/release-delivery-2026-10-15.md) | release/Companion | vigente | 2026-10-15 |
-| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-10-09 |
+| [Release, deploy e rollback](../operations/release-runbook.md) | operations / release | vigente | 2026-10-15 |
 | [Aceites físicos dos candidatos — 15/10/2026](../operations/runtime-acceptance-2026-10-15.md) | Companion/release. Source e signer: `75423cf7acc51704d79c3857ad60c155c305908c`. | Não declarado | Não declarado |
 | [Checklist de segurança operacional](../operations/security-checklist.md) | security/operations | vigente | 2026-09-22 |
 | [Transcript handoff — smoke editorial de Production](../operations/transcript-handoff-production-smoke.md) | transcripts / processing / operations | vigente | 2026-09-28 |

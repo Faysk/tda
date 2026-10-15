@@ -78,6 +78,7 @@ jobs:
           tools/ci/classify-changes.test.mjs
           tools/ci/production-release-plan.test.mjs
           tools/ci/require-main-ci.test.mjs
+          tools/ci/main-preview-deployments.test.mjs
           tools/ci/public-release-smoke.test.mjs
           tools/ci/session-campaign-move-production-health.test.mjs
           tools/ci/github-actions-security.test.mjs
