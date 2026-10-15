@@ -72,3 +72,11 @@ test("review packet cannot silently accept stale editorial approval",t=>{
   fs.writeFileSync(file,JSON.stringify(d));
   assert.throws(()=>buildWikiReviewPacket(root,sha),/approval is stale/);
 });
+
+test("review dossier separates pre-publication editorial approval from post-push UI smoke",t=>{
+  const root=fixture(t);
+  const packet=buildWikiReviewPacket(root,sha).markdown;
+  assert.match(packet, /Registrar revisão humana no GitHub/);
+  assert.match(packet, /Fase B pós-publicação \(separada\)/);
+  assert.match(packet, /Este documento é um \*\*roteiro de revisão\*\*, não uma aprovação/);
+});

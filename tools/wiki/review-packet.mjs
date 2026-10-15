@@ -69,7 +69,7 @@ export function buildWikiReviewPacket(root = rootDefault, sourceSha) {
     "- [ ] Verificar leitura sem conhecimento prévio de RPG/infraestrutura, links e linguagem PT-BR",
     "- [ ] Verificar exemplos sintéticos e acessibilidade textual dos diagramas/imagens",
     "- [ ] Registrar revisão humana no GitHub e SHA-256 exato no arquivo editorial-reviews.json",
-    "- [ ] Realizar smoke real na Wiki GitHub publicada, inclusive mobile/teclado; registrar esse aceite à parte",
+    "- [ ] **Fase B pós-publicação (separada):** realizar smoke no GitHub real, mobile/teclado; registrar aceite ou rollback à parte",
     "",
     "O SHA identifica **os bytes propostos na revisão**. Não editar o registro como aprovado sem leitura e evidência humanas. Uma mudança no Markdown invalida a aprovação anterior.",
     "",

@@ -5,6 +5,8 @@
 
 ## Antes da primeira publicação
 
+**Ordem de gates:** (A) revisão editorial humana no SHA da fonte → `editorial-gate --require-approved` → (B) publicação Git Wiki deliberada com readback → (C) smoke visual no GitHub real e aceite por persona. A etapa de visualização **não é pré-requisito impossível da revisão editorial anterior ao push**; ela é um gate para declarar a publicação concluída. Se o smoke falhar, corrigir e repetir o processo com nova revisão dos bytes alterados, ou fazer rollback reversível.
+
 A PR #1762 contém a fonte revisável em wiki/ e a allowlist tools/wiki/pages.json. O Git da Wiki é outro repositório, Faysk/tda.wiki.git. **A PR e a CI não publicam essas páginas.** O operador precisa de permissão de escrita na Wiki, aprovação de conteúdo, CI do SHA aceito e aceite editorial.
 
 Confirme a aba Wiki já autenticado. Se não houver Home, um mantenedor poderá criar **uma Home provisória sem informação privada** pela UI para inicializar o Git Wiki. Isso não prova o estado de outras páginas. Não confunda o erro anônimo de ls-remote da CI com prova de Wiki vazia.
@@ -128,7 +130,7 @@ Registre source SHA, Wiki commit SHA, lista de páginas revisadas, operador, dat
 
 ## 6. Verificação no GitHub Wiki real
 
-Abra Home, sidebar, footer, índice, três tutoriais principais e duas fontes técnicas na aba Wiki. Confira links, imagem de marca e **todos os diagramas Mermaid apurados no `WIKI_SOURCE_OK` do SHA publicado**, além de legibilidade mobile/desktop, tema claro/escuro e teclado. Faça as tarefas por persona em tools/wiki/REVIEW_CHECKLIST.md. Não declare 100% de cobertura apenas porque a allowlist e os testes Markdown passaram: use o total de páginas do manifesto aprovado e os recibos de revisão.
+**Esta é a segunda fase de aceite (pós-push), não a revisão editorial que autoriza preparar o clone.** Abra Home, sidebar, footer, índice, três tutoriais principais e duas fontes técnicas na aba Wiki. Confira links, imagem de marca e **todos os diagramas Mermaid apurados no `WIKI_SOURCE_OK` do SHA publicado**, além de legibilidade mobile/desktop, tema claro/escuro e teclado. Faça as tarefas por persona em tools/wiki/REVIEW_CHECKLIST.md. Não declare 100% de cobertura apenas porque a allowlist e os testes Markdown passaram: use o total de páginas do manifesto aprovado, o parecer editorial da Fase A e os testes de persona/visual da Fase B. Se uma falha pós-push revelar erro material no conteúdo, retorne a revisão da página alterada e considere rollback até correção.
 
 ### Comprovação por SHA e hashes, separada do navegador
 

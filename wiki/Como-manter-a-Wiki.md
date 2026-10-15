@@ -59,4 +59,4 @@ No Git Bash/Linux, use `sha256sum wiki/NOME-DA-PAGINA.md`. No PowerShell, use `(
 
 ## Testar se alguém aprendeu sem ajuda
 
-A revisão editorial inclui [um roteiro público de aceite por persona](https://github.com/Faysk/tda/blob/main/tools/wiki/REVIEW_CHECKLIST.md): visitante, jogador, editor, operador e contribuidor. Antes de publicar, devem ser verificados os tutoriais no GitHub Wiki real, em desktop/mobile e com navegação por teclado. **Sem isso, Markdown válido não equivale a Wiki aprovada**.
+A revisão editorial inclui [um roteiro público de aceite por persona](https://github.com/Faysk/tda/blob/main/tools/wiki/REVIEW_CHECKLIST.md): visitante, jogador, editor, operador e contribuidor. **Antes de publicar**, uma pessoa deve aprovar as fontes e o conteúdo na PR (Fase A). **Depois do push**, os tutoriais devem ser testados no GitHub Wiki real, em desktop/mobile e com teclado (Fase B). Problema nessa segunda fase impede considerar a publicação concluída e pode exigir rollback. **Markdown válido não é aprovação humana nem aceite visual**.
