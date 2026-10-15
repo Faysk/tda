@@ -152,3 +152,7 @@ A migração de WiX deve ser testada isoladamente e só entra quando o contrato/
 - Gate de versões: `.github/workflows/companion-dependency-freshness.yml`
 
 Uma release não deve ser promovida para produção se a auditoria de versões estiver pendente ou se uma exceção necessária não estiver documentada.
+
+### Continuidade FastAPI em 15/10/2026
+
+A candidata de [continuidade](backlog-continuity-2026-10-15.md) reconcilia FastAPI 0.143.1 no pyproject e no lock após consulta de freshness. O repair determinístico passou dez testes e instalação uv com constraints resolveu sem bypass. CI Windows/Linux/MSI do SHA final permanece obrigatório; essa mudança não publica Companion nem altera ASR/Stable. CTranslate2 4.8.3 e NumPy 2.5.4 continuam trabalho ASR separado, com aceite físico obrigatório antes de promoção.

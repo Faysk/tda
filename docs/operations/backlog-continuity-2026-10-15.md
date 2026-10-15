@@ -8,9 +8,13 @@
 
 As linhas #1733 e #1736 foram reconciliadas preservando os contratos de Node, CodeQL Production/Main Preview e tracing de navegação. A correção test-only #1735 foi incorporada. Conflitos de ordenação foram resolvidos mantendo ambos os conjuntos de testes. Nenhum teste/gate foi removido.
 
-Validação: `pnpm check` e `pnpm build` passaram em Node 24.20.0/pnpm 12.3.4. Os 238 testes `tools/ci/*.test.mjs` passaram em WSL Linux/Node 24.18.0; no Windows os casos que criam symlinks recebem EPERM da máquina e não foram considerados verdes. Os dez testes de desktop/watchdog passaram em Windows/Python 3.12 com requirements-test.lock. O teste de fixture de atestação agora usa basename portátil; o CLI de readiness usa fileURLToPath. `.gitattributes` preserva LF nos contratos e scripts, sem mudar o conteúdo dos YAML.
+Validação: `pnpm check` e `pnpm build` passaram em Node 24.20.0/pnpm 12.3.4. Os 242 testes `tools/ci/*.test.mjs` passaram em WSL Linux/Node 24.20.0; no Windows os casos que criam symlinks recebem EPERM da máquina e não foram considerados verdes. Os dez testes de desktop/watchdog passaram em Windows/Python 3.12 com requirements-test.lock. O teste de fixture de atestação agora usa basename portátil; o CLI de readiness usa fileURLToPath. `.gitattributes` preserva LF nos contratos e scripts, sem mudar o conteúdo dos YAML.
 
 CI remoto do novo SHA, revisão independente, controles administrativos e aceites físicos continuam pendentes. Os dois casos históricos de navegação (Back/Forward e screenshot de contraste) passaram 15 repetições cada: 30/30 em Chromium desktop-1080p, com trace retido somente em falha. Reprodução local verde não estabelece causa raiz de intermitência em Linux CI.
+
+## Freshness consultada em 15/10/2026
+
+A auditoria PyPI/Hugging Face apontou FastAPI 0.143.1, CTranslate2 4.8.3 e Qwen NumPy 2.5.4. FastAPI e requirements-test.lock foram reconciliados para 0.143.1, com instalação uv constraints bem-sucedida. CTranslate2/NumPy permanecem bloqueios reais de freshness e precisam de candidato ASR, resolução Windows/Linux, packaging e aceite físico exato; não receberam exceções inventadas. Exceções já existentes de Torch, Transformers, PyAV, uv e Python foram preservadas. Os alertas Dependabot retornaram 403 com mensagem de recurso desabilitado; não há prova de ausência de CVEs. Code scanning retornou zero alertas abertos visíveis pela conexão, sem estender esse resultado a outras fontes.
 
 ## Proteções remotas observadas por API autenticada
 
@@ -34,9 +38,9 @@ Não alterar regras no escuro: endurecimento exige impacto, recuperação e deci
 | Issue | Estado de continuidade |
 |---|---|
 | [#1651](https://github.com/Faysk/tda/issues/1651) | Integração única preparada; falta CI/revisão e aceites das filhas. |
-| [#1652](https://github.com/Faysk/tda/issues/1652) | Lockkeeper existente na candidata; FastAPI #1647 ainda precisa reconciliar seu próprio lock e CI. |
-| [#1653](https://github.com/Faysk/tda/issues/1653) | Grupos npm presentes; confirmar integração e comportamento de novas propostas. |
-| [#1654](https://github.com/Faysk/tda/issues/1654) | Grupos Actions/CodeQL presentes; confirmar integração e propostas atômicas. |
+| [#1652](https://github.com/Faysk/tda/issues/1652) | Lockkeeper e repair/check #1670 incorporados; FastAPI atualizado a 0.143.1 com lock coerente; falta CI final. |
+| [#1653](https://github.com/Faysk/tda/issues/1653) | Grupos npm #1671 incorporados e testes verdes; confirmar integração e novas propostas. |
+| [#1654](https://github.com/Faysk/tda/issues/1654) | Grupos Actions/CodeQL #1671 incorporados e testes verdes; confirmar integração e propostas atômicas. |
 | [#1655](https://github.com/Faysk/tda/issues/1655) | Política ASR mantém pins e aceites físicos; verificar freshness real sem atualizar modelo por conveniência. |
 | [#1656](https://github.com/Faysk/tda/issues/1656) | Gates reconciliados e testes negativos locais verdes; falta CI exato. |
 | [#1657](https://github.com/Faysk/tda/issues/1657) | Trust boundary e testes adversariais presentes; falta revisão independente. |
@@ -66,8 +70,8 @@ Incorporação por ancestralidade de commits não equivale a merge, aprovação 
 | [#1646](https://github.com/Faysk/tda/pull/1646) | `main` | delta independente / conferir | navigation-e2e, ci-gate, required-ci |
 | [#1647](https://github.com/Faysk/tda/pull/1647) | `main` | delta independente / conferir | audit, campaign-processing-integration, processing-e2e, campaign-isolation-regression-gate, benchmark-quality-gate, multi-recording-gate, session-workflow-gate, companion-domain / synthetic (windows-latest, .venv/Scripts/python.exe), companion-domain / synthetic (ubuntu-latest, .venv/bin/python), companion-domain / windows-installer (TDACompanion-x64.msi), ci-gate, required-ci |
 | [#1650](https://github.com/Faysk/tda/pull/1650) | `main` | delta independente / conferir | audit, navigation-e2e, companion-domain / synthetic (windows-latest, .venv/Scripts/python.exe), ci-gate, required-ci |
-| [#1670](https://github.com/Faysk/tda/pull/1670) | `main` | delta independente / conferir | audit |
-| [#1671](https://github.com/Faysk/tda/pull/1671) | `main` | delta independente / conferir | nenhuma observada; conferir pendentes |
+| [#1670](https://github.com/Faysk/tda/pull/1670) | `main` | incorporado na reconciliação final | audit |
+| [#1671](https://github.com/Faysk/tda/pull/1671) | `main` | incorporado na reconciliação final | nenhuma observada; conferir pendentes |
 | [#1675](https://github.com/Faysk/tda/pull/1675) | `main` | ancestral incorporado | nenhuma observada; conferir pendentes |
 | [#1676](https://github.com/Faysk/tda/pull/1676) | `main` | delta independente / conferir | nenhuma observada; conferir pendentes |
 | [#1677](https://github.com/Faysk/tda/pull/1677) | `main` | delta independente / conferir | nenhuma observada; conferir pendentes |
