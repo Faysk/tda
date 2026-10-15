@@ -40,7 +40,8 @@
     "wiki:impact": "node tools/wiki/impact.mjs --base origin/main",
     "wiki:bundle": "node tools/wiki/stage-wiki.mjs",
     "wiki:preflight": "node tools/wiki/preflight-wiki.mjs",
-    "wiki:editorial": "node tools/wiki/editorial-gate.mjs"
+    "wiki:editorial": "node tools/wiki/editorial-gate.mjs",
+    "wiki:review-packet": "node tools/wiki/review-packet.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1151.0",

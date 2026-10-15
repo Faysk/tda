@@ -25,6 +25,8 @@ Registre SHA inicial, branch e páginas já existentes. O origin deve ser exatam
 
 ## 2. Preparar a fonte aprovada
 
+**Para organizar a revisão ainda em PR**, baixe o pacote editorial da CI (`tda-wiki-editorial-<checkout-sha>`) com cada página, fonte e hash. O pacote **não é aceite nem substitui leitura**. Depois da revisão real, verifique `editorial-reviews.json` e só então prossiga.
+
 **Depois do merge**, use main no SHA exato aprovado. A CI de PR costuma testar um merge commit temporário: não confunda esse hash com o da main integrada.
 
 ~~~bash
