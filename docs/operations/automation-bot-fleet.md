@@ -2,7 +2,7 @@
 
 > Status: inventário vigente; automações adicionais propostas
 > Owner: operations / governance / CI / Companion / release
-> Última revisão: 2026-10-13
+> Última revisão: 2026-10-15
 > **Baseline verificável:** [`main@67cc217`](https://github.com/Faysk/tda/tree/67cc21704639658679886d92514033213a528f17).
 > **Epic:** [#1651](https://github.com/Faysk/tda/issues/1651). **Runbook:** [automation-bot-runbook.md](automation-bot-runbook.md).
 
@@ -23,7 +23,7 @@ O objetivo é coordenar uma **frota lógica de dez responsabilidades** usando, s
 - **Achado confirmado:** #1647 modifica FastAPI no `pyproject.toml`, mas não no `requirements-test.lock`; o [freshness gate 38202483008](https://github.com/Faysk/tda/actions/runs/38202483008) falhou com `DIRECT_LOCK_MISMATCH` e [CI 38202483200](https://github.com/Faysk/tda/actions/runs/38202483200) falhou na resolução uv. **Não é falha do gate** — o gate protegeu a instalação.
 - **Achado limitado:** [CI 38101781316](https://github.com/Faysk/tda/actions/runs/38101781316) de #1643 falhou em dois cenários Playwright de navegação/World. Causalidade da atualização de libs permanece indeterminada.
 
-## 3. Catálogo: 29 workflows observados e 1 candidato novo
+## 3. Catálogo: 31 workflows integrados
 
 As colunas **trigger**, **escopo** e **permissão declarada** refletem o YAML na baseline; não equivalem a confirmação de execução remota, Environment ou aprovação. `R` significa token read-only e `W` alguma permissão de escrita explícita. A permission real deve ser auditada por job e organização (#1657).
 
@@ -52,15 +52,16 @@ As colunas **trigger**, **escopo** e **permissão declarada** refletem o YAML na
 | 21 | [`qwen-1012-stable-bootstrap.yml`](../../.github/workflows/qwen-1012-stable-bootstrap.yml) | push main (path próprio) | Bootstrap excepcional de RC exato 1.0.12 | W |
 | 22 | [`qwen-1012-production-validation-stable.yml`](../../.github/workflows/qwen-1012-production-validation-stable.yml) | workflow_run Runtime RC, dispatch | Bridge Stable 1.0.12 version-specific | W |
 | 23 | [`deploy-preview.yml`](../../.github/workflows/deploy-preview.yml) | workflow_run CI, dispatch | Preview de PR por SHA e origem verificados | W* |
-| 24 | [`deploy-main-preview.yml`](../../.github/workflows/deploy-main-preview.yml) | workflow_run CI, dispatch | Preview da main/artefato versionado | W |
+| 24 | [`deploy-main-preview.yml`](../../.github/workflows/deploy-main-preview.yml) | dispatch apenas | Preview da main/artefato versionado; CI/CodeQL prévios e SHA exato | W |
 | 25 | [`production-cd.yml`](../../.github/workflows/production-cd.yml) | **dispatch manual** | Production staged → smoke → promote → receipt com confirmação humana | W |
 | 26 | [`production.yml`](../../.github/workflows/production.yml) | dispatch manual | Job `retired`; não assumir safe-to-delete sem pesquisa | — |
 | 27 | [`rollback.yml`](../../.github/workflows/rollback.yml) | dispatch | Rollback controlado | W* |
 | 28 | [`issue-structure-governance.yml`](../../.github/workflows/issue-structure-governance.yml) | push main (paths), dispatch | Sync milestones, subissues, dependencies | W |
 | 29 | [`label-governance.yml`](../../.github/workflows/label-governance.yml) | push main (paths), dispatch | Sync labels canônicas de issues | W |
-| 30 | [`dependabot-evidence-ledger.yml`](../../.github/workflows/dependabot-evidence-ledger.yml) | workflow_run CI de PR, dispatch manual de reconsulta | **CANDIDATO #1664**: ledger por SHA/PR, CodeQL e required jobs; somente leitura | R |
+| 30 | [`dependabot-evidence-ledger.yml`](../../.github/workflows/dependabot-evidence-ledger.yml) | workflow_run CI de PR, dispatch manual de reconsulta | Ledger por SHA/PR, CodeQL e required jobs; somente leitura | R |
+| 31 | [`dependency-triage.yml`](../../.github/workflows/dependency-triage.yml) | workflow_run CI de PR próprio, dispatch, schedule Europe/Lisbon | Digest sem comentários, merge ou publicação; API indisponível fica unknown | R |
 
-O número **29** é a fotografia da `main` em 13/10/2026; a linha **30** é o novo workflow **candidato deste PR**, não ativo na `main` até revisão/merge. Ele nunca executa a cabeça de um PR, não possui `write` e não concede autorização de merge. Quando integrado, atualizar a fotografia para 30 workflows versionados. A operação gera apenas Job Summary com o estado dos checks do run consultado, sem comentários automáticos. Se CodeQL estiver pendente, a reconsulta manual `workflow_dispatch` recebe o ID do CI run exato; a primeira execução não inventa resultado final.
+O número **29** é a fotografia histórica de 13/10; #1737 integrou o ledger e #1739 integrou o digest, totalizando **31**. Ambos executam código default, sem write ou autorização de merge. Ledger hospedado [38667401927](https://github.com/Faysk/tda/actions/runs/38667401927) e digest [38670352911](https://github.com/Faysk/tda/actions/runs/38670352911) passaram. No digest, acesso aos alertas foi indisponível e permaneceu unknown, sem novo PAT. A [auditoria detalhada](automation-trust-audit-2026-10-15.md) registra permissions por job, checkout, environment, referências de secrets, estados remotos e último run dos 31 YAML. Se CodeQL estiver pendente, reconsultar o ledger com o ID do CI exato; não inventar resultado final.
 
 
 `W*` restringe-se a ações específicas (ex.: CodeQL escreve security-events; Preview escreve deployments; rollback escreve deployments), e **não** significa acesso global de administração. Workflows legados com branch/evento conservados exigem confirmação de elegibilidade antes de mexer; os bridges 0.3.16/0.3.9 e Qwen 1.0.12 não se confundem com política corrente de novos Stable.
