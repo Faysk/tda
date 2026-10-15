@@ -273,7 +273,7 @@ Contrato mínimo por mudança: PR + SHA, diff/manifest/lock, relatório de risco
 
 ### Operação individual e gates atuais — 15/10/2026
 
-O owner mantém o repositório sozinho: zero aprovações permanece deliberado, mas main agora exige branch atualizada e required-ci + ambas as linguagens CodeQL do app GitHub Actions. Os alertas Dependabot estão habilitados. Main Preview está em hold remoto até integrar sua configuração manual-only; jamais reabilitar o gatilho automático anterior. O [recibo](backlog-continuity-2026-10-15.md) contém origem, pós-validação, impacto e recuperação.
+O owner mantém o repositório sozinho: zero aprovações permanece deliberado, mas main agora exige branch atualizada e required-ci + ambas as linguagens CodeQL do app GitHub Actions. Os alertas Dependabot estão habilitados. Após integrar #1737 e validar CI/CodeQL de main75423cf7, Main Preview foi reabilitado: GET confirmou `active`, com somente `workflow_dispatch`. Nenhum dispatch/deployment foi executado; jamais restaurar os gatilhos automáticos anteriores. O [recibo](backlog-continuity-2026-10-15.md) contém origem, pós-validação, impacto e recuperação.
 
 ### Digest de triagem — #1663
 
