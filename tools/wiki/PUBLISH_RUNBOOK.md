@@ -100,7 +100,14 @@ Esse comando **não faz commit nem push**. Revise nomes de arquivos, conteúdo, 
 ## 5. Publicar apenas após revisão
 
 ~~~bash
-git -C ../tda-wiki add -- '*.md' .tda-wiki-sync-state.json
+node tools/wiki/verify-wiki-index.mjs \
+  --wiki-dir ../tda-wiki \
+  --source-sha SHA_EXATO_DA_MAIN \
+  --expected-wiki-head SHA_EXATO_DA_WIKI --stage
+node tools/wiki/verify-wiki-index.mjs \
+  --wiki-dir ../tda-wiki \
+  --source-sha SHA_EXATO_DA_MAIN \
+  --expected-wiki-head SHA_EXATO_DA_WIKI
 git -C ../tda-wiki diff --cached --check
 git -C ../tda-wiki diff --cached --stat
 git -C ../tda-wiki commit -m "docs(wiki): publish TDA Wiki from approved main SHA"
